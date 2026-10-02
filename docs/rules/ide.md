@@ -3,7 +3,7 @@
 
 # The editor
 
-*61 of 80 rules below are **designed** rather than shipped, and are marked where they appear.*
+*60 of 80 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="ide-one-grammar-one-tree"></a>
 
@@ -786,36 +786,33 @@ reaching the declaration and a generator that picks between answers, which
 
 <a id="ide-no-compile-path-calls-the-synthesis"></a>
 
-## The synthesis is one function in `nvs-types` that no compile path calls, so an array literal stays checked against a target and `var` still refuses a bare one  *(designed — not yet in the compiler)*
+## The synthesis is one function in `nvs-types`, called only where `var` types a bare array literal, and a union it finds is never attached to a binding
 
 `rule:ide/no-compile-path-calls-the-synthesis`
 
 The synthesis is a single function in `nvs-types` — a sibling of `check_array_literal`, not a change to
-it — returning the type an array literal would have if it were synthesized bottom-up, or nothing where
-[`ide/the-action-answers-from-the-literal-or-not-at-all`](ide.md#ide-the-action-answers-from-the-literal-or-not-at-all) declines. It lives in the checker's crate
-rather than the editor's because putting it beside the editor would mean a second implementation of union
-canonicalisation and literal widening outside the type system that owns both, and the two would drift.
-The type table is the one home for what a type is; the editor asks it a question.
+it — that types an array literal from its elements: `array<T>` when every element has the one type `T`,
+and otherwise the reason it has none — two or more types with their canonical union, an empty literal,
+or an element that could not be typed. It lives in the checker's crate rather than the editor's because
+putting it beside the editor would mean a second implementation of union canonicalisation and literal
+widening outside the type system that owns both, and the two would drift. The type table is the one home
+for what a type is; the editor asks it a question.
 
-**No compile path calls it, and that is the more important half.** `check_array_literal` still returns
-`array<mixed>` where it has no expectation. That single line is what keeps a literal checked against a
-target rather than inferred ([`types/arrays`](types.md#types-arrays)), keeps `var $x = [1, 2];` refused
-([`types/var-inference`](types.md#types-var-inference)), and keeps every no-expectation position — an `echo` argument, a bare expression
-statement — typing exactly as it does today. There is no new diagnostic, no new code, nothing in any
-crate but `nvs-types`, no change to the runtime array descriptor and nothing per request. A guard test
-holds that no compile path reaches the function, so "this changes no language behaviour" is checkable
-rather than argued.
+**One compile path calls it, and only for a literal of one type.** `var`'s arm, for a bare literal
+initializer, and the `foreach` subject under a `var` value binding are its two callers
+([`types/var-inference`](types.md#types-var-inference)). Everywhere else `check_array_literal` still returns `array<mixed>` where it
+has no expectation, so a literal written against a type stays checked against it ([`types/arrays`](types.md#types-arrays)),
+and every other no-expectation position — an `echo` argument, a bare expression statement — types as it
+did. A guard test counts the callers, so "no other position changed" is checkable rather than argued.
 
-`var` still refusing a bare array literal is not a leftover. It refuses because of where the answer ends
-up, not because the answer is unavailable: this action's output is text in the file, read in a diff and
-approved by a person, while a `var` binding's inferred type is visible nowhere at all. A heterogeneous
-literal producing `array<int|string>` is a fact worth showing someone; the same fact attached invisibly to
-a binding is how a program acquires a type nobody chose. Same computation, opposite legibility.
+**A union is never attached to a binding.** Where the elements have two types the function returns the
+union, and `var` refuses the literal and prints that union in its help line, for a person to write. The
+editor action that narrows an annotation offers the same union as text in the file, read in a diff and
+approved by a person ([`ide/narrow-an-annotation-to-its-literal`](ide.md#ide-narrow-an-annotation-to-its-literal)). A type only `var` held would be
+visible nowhere, which is how a program acquires a type nobody chose. A literal of one type has no such
+choice in it: the type is the one its elements state, so `var` takes it.
 
-The function and its consumer land together: a public function with no consumer has nothing to keep it
-honest.
-
-<sub>See also [`types/var-inference`](types.md#types-var-inference), [`types/arrays`](types.md#types-arrays), [`ide/narrow-an-annotation-to-its-literal`](ide.md#ide-narrow-an-annotation-to-its-literal). Decided in [0114](../decisions/0114.md), [0007](../decisions/0007.md), [0037](../decisions/0037.md).</sub>
+<sub>See also [`types/var-inference`](types.md#types-var-inference), [`types/arrays`](types.md#types-arrays), [`ide/narrow-an-annotation-to-its-literal`](ide.md#ide-narrow-an-annotation-to-its-literal). Decided in [0114](../decisions/0114.md), [0007](../decisions/0007.md), [0037](../decisions/0037.md), [0252](../decisions/0252.md).</sub>
 
 <a id="ide-narrowing-is-a-diff-never-a-save-time-fix"></a>
 

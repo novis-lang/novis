@@ -15,12 +15,17 @@ type by construction.
 A local's initializer is mandatory: `var $n;` is a parse error naming `=`. A `foreach` binding with
 neither a type nor `var` is the parse error it always was.
 
-One source shape is refused: a **bare array literal**. `var $x = [1, 2];` is
-`E_VAR_ARRAY_LITERAL_NEEDS_TYPE`, naming `array<T> $x = [1, 2];` as the fix, because an array literal
-is checked against a target rather than inferring one (`rule:types/arrays`). A bare literal as the
-subject of a `var` value binding is the same code, and the fix is the same typed local, iterated. The
-restriction is on the expression's own top level only — `var $x = f([1, 2]);` and
-`foreach (f([1, 2]) as var $x)` are fine, since `f`'s parameter is the literal's target.
+A **bare array literal** is `array<T>` when every element has the same type `T`, and is refused
+otherwise. An element's type is what `var` gives that element alone, so `var $ids = [1, 2];` is
+`array<int>`, `["a" => 1]` is `array<int>` because keys take no part, a nested literal is inferred the
+same way first, and a spread gives its source's element type. Nothing is widened to a common type:
+`[1, 2.5]`, `[$user, $admin]` with `Admin` a child of `User`, and `[$tainted, "plain"]` are each two
+types. Those, an empty literal at any depth, and a literal with an element that could not be typed
+are `E_VAR_ARRAY_LITERAL_NEEDS_TYPE`, whose help names the declaration to write: the union of the
+element types, `?T` where the other one is `null`, or `array<T>` for an empty literal. A bare literal
+as the subject of a `var` value binding follows the same rule, and the help there is a typed local,
+iterated. The rule is on the expression's own top level only — in `var $x = f([1, 2]);` and
+`foreach (f([1, 2]) as var $x)`, `f`'s parameter is the literal's target.
 
 Every other rule that applies to a typed binding — declare-once, definite assignment, redeclaration
 diagnostics, the cursor's missing key — applies unchanged, because by the time those checks run `var`

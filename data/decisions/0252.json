@@ -1,0 +1,13 @@
+{
+  "title": "`var` infers an array literal whose elements all have one type, and refuses every other with the type to write",
+  "status": "accepted",
+  "scope": "A bare array literal under `var` — a local's initializer and a `var` value binding's `foreach`\nsubject — and the one function in `nvs-types` that types it. Every other position with no target\nkeeps `array<mixed>`, and a written `array<T>` is accepted everywhere it was.",
+  "dependsOn": [
+    "0037",
+    "0251",
+    "0114",
+    "0007"
+  ],
+  "dependsOnText": "[0037](0037.md) (`var` takes a local's type from its initializer),\n[0251](0251.md) (a `foreach` binding may write `var`),\n[0114](0114.md) (the synthesis, designed for the editor),\n[0007](0007.md) (an array literal is checked against its target).",
+  "validatedBy": "the Stage 2 checks of goal `var-array-literal`: the named tests in\n`crates/nvs-types/tests/locals.rs` and the two `.nvst` cases named under *Verification*."
+}

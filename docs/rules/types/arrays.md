@@ -50,10 +50,12 @@ things change.
   buffer. `as array<float>` over `int` or `uint` elements is the one conversion that copies: it builds
   a new array of the same size with each such element converted.
 - The empty literal `[]` has type `array<never>`, which satisfies every `array<T>`.
-- **Array literals are checked against the target type, never inferred and then compared.** Because
-  every binding is annotated, a literal always has a target — which is why `var` refuses a bare one
-  (`rule:types/var-inference`). Each element is placed at the element type, so `[1, $count]` at
-  `array<float>` stores two floats, at any depth and in a shape field.
+- **An array literal is checked against its target type wherever one is written, never inferred and
+  then compared.** Each element is placed at the element type, so `[1, $count]` at `array<float>`
+  stores two floats, at any depth and in a shape field. Under `var` a literal has no target, and is
+  `array<T>` only when every element has the one type `T`; any other literal is refused there
+  (`rule:types/var-inference`). A literal in any other position with no target, such as an `echo`
+  argument, is `array<mixed>`.
 - At runtime an array header carries a pointer to an interned, immutable type descriptor **exactly
   where something reads one back**: **one pointer per array header**, interned process-wide and
   O(distinct types in the program). An array every write to which was checked as it was compiled has

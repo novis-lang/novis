@@ -8,7 +8,8 @@
     "0002",
     "0159",
     "0188",
-    "0238"
+    "0238",
+    "0252"
   ],
   "divergesFromPhp": "there is no integer key — `Core\\Arr::keys()` returns `array<string>` and a `foreach` key binds as a `string` — and an element type is declared and enforced on every write, reading covariantly",
   "seeAlso": [

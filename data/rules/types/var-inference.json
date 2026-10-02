@@ -5,7 +5,8 @@
     "0037",
     "0007",
     "0114",
-    "0251"
+    "0251",
+    "0252"
   ],
   "seeAlso": [
     "types/declaration",
@@ -14,7 +15,8 @@
   ],
   "guardedBy": [
     "tests/conformance/lang/var-infers-from-its-initializer.nvst",
-    "tests/conformance/lang/var-refuses-a-bare-array-literal.nvst",
+    "tests/conformance/lang/var-infers-an-array-literal-whose-elements-have-one-type.nvst",
+    "tests/conformance/reject/var-refuses-an-array-literal-whose-elements-differ.nvst",
     "tests/conformance/iter/a-foreach-binding-written-var-takes-its-type-from-the-subject.nvst",
     "tests/conformance/reject/a-foreach-var-binding-refuses-a-bare-array-literal-subject.nvst",
     "crates/nvs-types/tests/locals.rs"

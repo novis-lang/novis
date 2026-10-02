@@ -1,8 +1,8 @@
 {
   "totals": {
     "total": 1028,
-    "shipped": 785,
-    "designed": 243,
+    "shipped": 786,
+    "designed": 242,
     "diverging": 594
   },
   "topics": [
@@ -2909,8 +2909,8 @@
       "single": false,
       "counts": {
         "total": 80,
-        "shipped": 19,
-        "designed": 61,
+        "shipped": 20,
+        "designed": 60,
         "diverging": 25
       },
       "sections": [
@@ -3101,8 +3101,8 @@
           "url": "/docs/rules/ide/code-actions/",
           "counts": {
             "total": 11,
-            "shipped": 2,
-            "designed": 9,
+            "shipped": 3,
+            "designed": 8,
             "diverging": 5
           },
           "rules": [
@@ -3181,8 +3181,8 @@
             {
               "id": "ide/no-compile-path-calls-the-synthesis",
               "slug": "no-compile-path-calls-the-synthesis",
-              "title": "The synthesis is one function in `nvs-types` that no compile path calls, so an array literal stays checked against a target and `var` still refuses a bare one",
-              "status": "designed",
+              "title": "The synthesis is one function in `nvs-types`, called only where `var` types a bare array literal, and a union it finds is never attached to a binding",
+              "status": "shipped",
               "href": "/docs/rules/ide/code-actions/#no-compile-path-calls-the-synthesis",
               "diverges": null
             },

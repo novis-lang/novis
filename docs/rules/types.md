@@ -64,18 +64,23 @@ type by construction.
 A local's initializer is mandatory: `var $n;` is a parse error naming `=`. A `foreach` binding with
 neither a type nor `var` is the parse error it always was.
 
-One source shape is refused: a **bare array literal**. `var $x = [1, 2];` is
-`E_VAR_ARRAY_LITERAL_NEEDS_TYPE`, naming `array<T> $x = [1, 2];` as the fix, because an array literal
-is checked against a target rather than inferring one ([`types/arrays`](types.md#types-arrays)). A bare literal as the
-subject of a `var` value binding is the same code, and the fix is the same typed local, iterated. The
-restriction is on the expression's own top level only — `var $x = f([1, 2]);` and
-`foreach (f([1, 2]) as var $x)` are fine, since `f`'s parameter is the literal's target.
+A **bare array literal** is `array<T>` when every element has the same type `T`, and is refused
+otherwise. An element's type is what `var` gives that element alone, so `var $ids = [1, 2];` is
+`array<int>`, `["a" => 1]` is `array<int>` because keys take no part, a nested literal is inferred the
+same way first, and a spread gives its source's element type. Nothing is widened to a common type:
+`[1, 2.5]`, `[$user, $admin]` with `Admin` a child of `User`, and `[$tainted, "plain"]` are each two
+types. Those, an empty literal at any depth, and a literal with an element that could not be typed
+are `E_VAR_ARRAY_LITERAL_NEEDS_TYPE`, whose help names the declaration to write: the union of the
+element types, `?T` where the other one is `null`, or `array<T>` for an empty literal. A bare literal
+as the subject of a `var` value binding follows the same rule, and the help there is a typed local,
+iterated. The rule is on the expression's own top level only — in `var $x = f([1, 2]);` and
+`foreach (f([1, 2]) as var $x)`, `f`'s parameter is the literal's target.
 
 Every other rule that applies to a typed binding — declare-once, definite assignment, redeclaration
 diagnostics, the cursor's missing key — applies unchanged, because by the time those checks run `var`
 has already resolved to a concrete type.
 
-<sub>See also [`types/declaration`](types.md#types-declaration), [`types/numeric-literal-placement`](types.md#types-numeric-literal-placement), [`types/arrays`](types.md#types-arrays). Decided in [0037](../decisions/0037.md), [0007](../decisions/0007.md), [0114](../decisions/0114.md), [0251](../decisions/0251.md).</sub>
+<sub>See also [`types/declaration`](types.md#types-declaration), [`types/numeric-literal-placement`](types.md#types-numeric-literal-placement), [`types/arrays`](types.md#types-arrays). Decided in [0037](../decisions/0037.md), [0007](../decisions/0007.md), [0114](../decisions/0114.md), [0251](../decisions/0251.md), [0252](../decisions/0252.md).</sub>
 
 <a id="types-grammar"></a>
 
@@ -603,10 +608,12 @@ things change.
   buffer. `as array<float>` over `int` or `uint` elements is the one conversion that copies: it builds
   a new array of the same size with each such element converted.
 - The empty literal `[]` has type `array<never>`, which satisfies every `array<T>`.
-- **Array literals are checked against the target type, never inferred and then compared.** Because
-  every binding is annotated, a literal always has a target — which is why `var` refuses a bare one
-  ([`types/var-inference`](types.md#types-var-inference)). Each element is placed at the element type, so `[1, $count]` at
-  `array<float>` stores two floats, at any depth and in a shape field.
+- **An array literal is checked against its target type wherever one is written, never inferred and
+  then compared.** Each element is placed at the element type, so `[1, $count]` at `array<float>`
+  stores two floats, at any depth and in a shape field. Under `var` a literal has no target, and is
+  `array<T>` only when every element has the one type `T`; any other literal is refused there
+  ([`types/var-inference`](types.md#types-var-inference)). A literal in any other position with no target, such as an `echo`
+  argument, is `array<mixed>`.
 - At runtime an array header carries a pointer to an interned, immutable type descriptor **exactly
   where something reads one back**: **one pointer per array header**, interned process-wide and
   O(distinct types in the program). An array every write to which was checked as it was compiled has
@@ -622,7 +629,7 @@ things change.
   anything else is refused where it is written. User-written generic functions and classes are not
   part of this.
 
-<sub>See also [`types/mixed-subscript`](types.md#types-mixed-subscript), [`types/array-combination`](types.md#types-array-combination), [`types/preserve-keys`](types.md#types-preserve-keys), [`types/conversion`](types.md#types-conversion), [`types/shape-type`](types.md#types-shape-type). Decided in [0007](../decisions/0007.md), [0069](../decisions/0069.md), [0114](../decisions/0114.md), [0002](../decisions/0002.md), [0159](../decisions/0159.md), [0188](../decisions/0188.md), [0238](../decisions/0238.md).</sub>
+<sub>See also [`types/mixed-subscript`](types.md#types-mixed-subscript), [`types/array-combination`](types.md#types-array-combination), [`types/preserve-keys`](types.md#types-preserve-keys), [`types/conversion`](types.md#types-conversion), [`types/shape-type`](types.md#types-shape-type). Decided in [0007](../decisions/0007.md), [0069](../decisions/0069.md), [0114](../decisions/0114.md), [0002](../decisions/0002.md), [0159](../decisions/0159.md), [0188](../decisions/0188.md), [0238](../decisions/0238.md), [0252](../decisions/0252.md).</sub>
 
 <a id="types-array-combination"></a>
 
