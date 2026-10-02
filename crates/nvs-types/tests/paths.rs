@@ -169,6 +169,73 @@ fn a_source_with_no_file_resolves_nothing() {
     assert!(resolved(&exprs).is_empty());
 }
 
+/// A path argument that starts with a relative literal and adds a value built
+/// at run time is relative when the program runs, so the call would always
+/// throw. A concatenation, an interpolated string and a user `#[Core\Path]`
+/// parameter each do not compile, at the literal that starts them.
+#[test]
+fn a_path_built_from_a_relative_literal_does_not_compile() {
+    let src = "<?nvs\nclass Store {\n  public static function load(#[Core\\Path] string $file): \
+               string {\n    return $file;\n  }\n}\nstring $name = 'x';\n\
+               echo Core\\IO::read('data/' . $name . '.txt');\n\
+               echo Core\\IO::read(\"data/{$name}.txt\");\n\
+               echo Store::load('data/' . $name);\n\
+               echo Core\\IO::read(('report-' . $name) . '.txt');\n";
+    let (diags, exprs) = check_program_table(&[("built.nvs", src)]);
+    let found: Vec<&str> = diags
+        .iter()
+        .filter(|d| d.code == Some(code::E_PATH_BUILT_FROM_A_RELATIVE_LITERAL))
+        .map(|d| {
+            &src[d
+                .primary_span()
+                .map_or(0..0, |s| s.start as usize..s.end as usize)]
+        })
+        .collect();
+    assert_eq!(
+        found,
+        ["'data/'", "data/", "'data/'", "'report-'"],
+        "{diags:?}"
+    );
+    assert!(resolved(&exprs).is_empty(), "{:?}", resolved(&exprs));
+}
+
+/// A source with no file still reports a path built from a relative literal:
+/// the folder is unknown, but the path is relative at run time either way.
+#[test]
+fn a_path_built_from_a_relative_literal_does_not_compile_without_a_file() {
+    let (diags, _) = common::check_src_table(
+        "<?nvs\nstring $name = 'x';\necho Core\\IO::read('data/' . $name);\n",
+    );
+    assert_eq!(
+        count(&diags, code::E_PATH_BUILT_FROM_A_RELATIVE_LITERAL),
+        1,
+        "{diags:?}"
+    );
+}
+
+/// A path built from something other than a relative literal may be absolute
+/// at run time, so it compiles: a variable first, `Core\Path::thisDir`, an
+/// absolute literal, a drive, a single letter that a drive may follow, an
+/// interpolated string that starts with a value, and a plain relative literal,
+/// which is joined to its file. A parameter that is not a path is not checked.
+#[test]
+fn a_path_built_from_anything_else_compiles() {
+    let (diags, exprs) = check_program_table(&[(
+        "built_ok.nvs",
+        "<?nvs\nstring $name = 'x';\n\
+         echo Core\\IO::exists($name . '/x.txt') ? 'y' : 'n';\n\
+         echo Core\\IO::exists(Core\\Path::thisDir('data') . '/' . $name) ? 'y' : 'n';\n\
+         echo Core\\IO::exists('/srv/data/' . $name) ? 'y' : 'n';\n\
+         echo Core\\IO::exists('C:' . $name) ? 'y' : 'n';\n\
+         echo Core\\IO::exists('C' . $name) ? 'y' : 'n';\n\
+         echo Core\\IO::exists(\"{$name}/x.txt\") ? 'y' : 'n';\n\
+         echo Core\\IO::exists('data/x.json') ? 'y' : 'n';\n\
+         echo Core\\Str::length('data/' . $name), \"\\n\";\n",
+    )]);
+    assert!(!diags.has_errors(), "{diags:?}");
+    assert_eq!(resolved(&exprs).len(), 2, "{:?}", resolved(&exprs));
+}
+
 /// `#[Core\Path]` on a parameter that is not a `string` is refused, and so is
 /// one on a declaration that takes no argument at all.
 #[test]

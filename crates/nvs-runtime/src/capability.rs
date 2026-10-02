@@ -1352,11 +1352,21 @@ fn shell_target(program: &Path) -> Option<String> {
 /// Public because [`open_read`] hands back a handle rather than a result, so the caller that reads
 /// from it owes the same message for the same kind of failure; one function is how the two agree
 /// rather than drifting into two spellings of "could not read".
+///
+/// A file that is not there adds a `help:` line saying which folder a relative literal starts at,
+/// because a literal joined to the folder of its own file is the usual reason a path names a place
+/// the author did not expect. Every other kind of failure is the one line.
 #[must_use]
 pub fn io_failure(member: &str, path: &Path, err: &std::io::Error) -> Fault {
+    let help = if err.kind() == std::io::ErrorKind::NotFound {
+        "\nhelp: a relative path written in the source starts at the folder of the file that \
+         contains it"
+    } else {
+        ""
+    };
     Fault::thrown_as(
         ThrownClass::Io,
-        format!("{member} failed on {}: {err}", path.display()),
+        format!("{member} failed on {}: {err}{help}", path.display()),
     )
 }
 
@@ -1622,6 +1632,36 @@ mod tests {
                 cap.name()
             );
         }
+    }
+
+    /// A file that is not there is an `IOError` whose second line says where a relative literal
+    /// starts. Any other failure is one line.
+    #[test]
+    fn a_missing_file_names_the_folder_a_relative_literal_starts_at() {
+        let path = Path::new("/srv/app/data/note.txt");
+        let missing = std::io::Error::from(std::io::ErrorKind::NotFound);
+        let Fault::Thrown(class, message) = super::io_failure("Core\\IO::read", path, &missing)
+        else {
+            panic!("the failure is a catchable throw");
+        };
+        assert_eq!(class, ThrownClass::Io);
+        assert!(
+            message.starts_with("Core\\IO::read failed on "),
+            "{message}"
+        );
+        assert_eq!(
+            message.lines().nth(1),
+            Some(
+                "help: a relative path written in the source starts at the folder of the file \
+                 that contains it"
+            ),
+            "{message}"
+        );
+        let denied = std::io::Error::from(std::io::ErrorKind::PermissionDenied);
+        let Fault::Thrown(_, message) = super::io_failure("Core\\IO::read", path, &denied) else {
+            panic!("the failure is a catchable throw");
+        };
+        assert_eq!(message.lines().count(), 1, "{message}");
     }
 
     /// `rule:programs/path-literals-resolve-from-their-file`'s run-time half: a relative path throws

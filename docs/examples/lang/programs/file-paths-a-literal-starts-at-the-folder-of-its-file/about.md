@@ -5,9 +5,10 @@ file when you start the program from another folder, under `nvs serve` and as a 
 path, such as `/srv/shop/prices.txt`, is used as you wrote it. Add `#[Core\Path]` to a `string`
 parameter of your own method, and a literal passed to it works the same way.
 
-**Good to know:** only a literal written in the call counts. A relative path you build while the
-program runs, such as `"data/" . $name`, throws a `RuntimeError` when a file method gets it. Build
-it with `Core\Path::join` from a full folder path instead.
+**Good to know:** only a literal written in the call counts. A path such as `'data/' . $name` starts
+with a relative path, so it does not compile. Start it with the folder of your file:
+`Core\Path::thisDir('data') . '/' . $name`. `Core\Path::join` also adds a name to a full folder path.
+A relative path in a variable throws a `RuntimeError` when a file method gets it.
 
 **The examples below** read a file next to the program, pass a path to a method of your own, and
 build a path from a name that is only known while the program runs.

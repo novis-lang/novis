@@ -33,6 +33,17 @@
 //! `nvs_runtime::capability::require`. The message there names
 //! `Core\Path::join` and `Core\Path::fromCwd`.
 //!
+//! A path built from a relative literal is the one run-time value whose
+//! refusal is certain while compiling, so it is `E0840` instead: the left end
+//! of a `.` chain is a relative literal (`'data/' . $name`), or an
+//! interpolated string starts with relative text (`"data/{$name}"`). Whatever
+//! the program adds, the path still starts relative, so the door throws on
+//! every run. Two starts are left to run time because the added text could
+//! make them absolute: a single letter, which a `:` can turn into a drive, and
+//! a heredoc, whose first text still carries its indentation. The error needs
+//! no folder, so a source with no file reports it as well: the throw does not
+//! depend on where the file is.
+//!
 //! # A lexical join
 //!
 //! The literal is joined to the folder of the declaring file and `.` and `..`
@@ -75,8 +86,8 @@ use nvs_diagnostics::{Diagnostic, SourceFile, code};
 use nvs_hir::QName;
 use nvs_stdlib::registry::ParamText;
 use nvs_syntax::ast::{
-    Arg, AttributeGroup, CallArgs, ClassMember, ClassMemberKind, EnumCase, Expr, ExprKind,
-    MethodMember, Param, Type, TypeAtom, TypeKind,
+    Arg, AttributeGroup, BinaryOp, CallArgs, ClassMember, ClassMemberKind, EnumCase, Expr,
+    ExprKind, MethodMember, Param, StringPart, Type, TypeAtom, TypeKind,
 };
 
 use crate::defaults::ConstArg;
@@ -152,16 +163,81 @@ pub(crate) fn resolve_args(list: &[Arg], slots: &[ArgSlot], sig: &MethodSig, env
 
 /// Records the absolute path a relative string literal at a path position
 /// names, under the literal's own span, where `nvs-ir` lowers it
-/// (`crate::ExprTypeTable::path_literal`). Anything that is not a plain string
-/// literal, and a literal that is already absolute, records nothing.
+/// (`crate::ExprTypeTable::path_literal`). A literal that is already absolute
+/// records nothing. A path built from a relative literal is `E0840`
+/// ([`report_built`]), and anything else records nothing.
 pub(crate) fn resolve_literal(value: &Expr, env: &mut Env<'_>) {
-    let ExprKind::Str(span) = value.unparenthesized().kind else {
+    let value = value.unparenthesized();
+    let ExprKind::Str(span) = value.kind else {
+        report_built(value, env);
         return;
     };
     let text = nvs_syntax::string_lit::cook_string_literal(env.src, span);
     if let Some(joined) = resolved(env.src, &text) {
         env.exprs.record_path_literal(span, joined);
     }
+}
+
+/// `E0840`, at the relative literal that starts a path built while the
+/// program runs — the module doc's § *What is a literal*.
+///
+/// The leftmost operand of a `.` chain is followed down, and an interpolated
+/// string is judged by the text before its first value. The error does not
+/// need the file's folder, so a source with no file reports it too.
+fn report_built(value: &Expr, env: &mut Env<'_>) {
+    let mut first = value;
+    while let ExprKind::Binary {
+        op: BinaryOp::Concat,
+        lhs,
+        ..
+    } = &first.kind
+    {
+        first = lhs.unparenthesized();
+    }
+    // A plain literal here is the left end of a `.` chain: [`resolve_literal`]
+    // has already taken a literal that is the whole argument.
+    let (span, text) = match &first.kind {
+        ExprKind::Str(span) => (
+            *span,
+            nvs_syntax::string_lit::cook_string_literal(env.src, *span),
+        ),
+        ExprKind::Interpolated(parts) if !span_text(env.src, first.span).starts_with("<<<") => {
+            let Some(StringPart::Text(span)) = parts.first() else {
+                return;
+            };
+            (
+                *span,
+                nvs_syntax::string_lit::cook_double_quoted_text(env.src, *span).0,
+            )
+        }
+        _ => return,
+    };
+    if !is_relative(&text) || may_become_a_drive(&text) {
+        return;
+    }
+    env.diags.report(
+        Diagnostic::error(
+            code::E_PATH_BUILT_FROM_A_RELATIVE_LITERAL,
+            "this path is relative when the program runs, so the call always throws an error",
+        )
+        .with_primary(
+            span,
+            "a relative path, with more added while the program runs",
+        )
+        .with_help(
+            "start the path with the folder of this file: \
+             `Core\\Path::thisDir('data') . '/' . $name`, or \
+             `Core\\Path::join(Core\\Path::thisDir('data'), $name)`",
+        ),
+    );
+}
+
+/// Whether text the program adds to `text` could turn it into a drive, so the
+/// whole path could be absolute: `'C' . $rest` names `C:\data` when `$rest` is
+/// `':\data'`. Only one letter with no separator after it can.
+fn may_become_a_drive(text: &str) -> bool {
+    let mut chars = text.chars();
+    matches!((chars.next(), chars.next()), (Some(letter), None) if letter.is_ascii_alphabetic())
 }
 
 /// Whether `member` of `owner` is `Core\Path::thisFile` or `thisDir`, the two

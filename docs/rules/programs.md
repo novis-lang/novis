@@ -435,7 +435,11 @@ and is allowed only on a parameter whose type is a `string`, alone or with `null
 elsewhere). A default value of such a parameter resolves against the file that declares it.
 
 **A literal** is a plain string literal written as the argument itself. A class constant, a
-concatenation of literals and a variable are values built while the program runs. The join is
+concatenation of literals and a variable are values built while the program runs. A path argument
+that starts with a relative literal and adds more — `'data/' . $name` or `"data/{$name}"` — is
+relative on every run, so it does not compile (`E0840`); `Core\Path::thisDir('data') . '/' . $name`
+builds it from the file's folder. A single letter, which a `:` could turn into a drive, and a
+heredoc are left to the run-time check. The join is
 lexical: `.` and `..` are removed from the text and nothing on disk is read, so the answer does not
 depend on whether the file exists yet. The capability check still canonicalizes the absolute path
 before it compares it with a grant ([`security/path-scope-canonicalise-then-prefix`](security.md#security-path-scope-canonicalise-then-prefix)). Inside a

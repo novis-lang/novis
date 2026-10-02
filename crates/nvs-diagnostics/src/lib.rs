@@ -5322,6 +5322,22 @@ pub mod code {
          constructor, or change the function type's parameters.",
     );
 
+    /// A path argument that starts with a relative string literal and adds a
+    /// value built at run time — `'data/' . $name` or `"data/{$name}"`.
+    ///
+    /// `rule:programs/path-literals-resolve-from-their-file` joins only a
+    /// whole literal to the folder of its file. A path built this way stays
+    /// relative when the program runs, and every path door throws for a
+    /// relative path, so the call can never succeed. The help names
+    /// `Core\Path::thisDir` and `Core\Path::join`, which build the same path
+    /// from the file's folder.
+    pub const E_PATH_BUILT_FROM_A_RELATIVE_LITERAL: Code = Code::new("E0840").card(
+        "This path starts with a relative path, and the rest is added while the program runs. \
+         The result is still a relative path, so the call always throws an error. Start the path \
+         with the folder of this file: `Core\\Path::thisDir('data') . '/' . $name`, or \
+         `Core\\Path::join(Core\\Path::thisDir('data'), $name)`.",
+    );
+
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.
     pub const E_INTERNAL: Code = Code::new("E0901").card(

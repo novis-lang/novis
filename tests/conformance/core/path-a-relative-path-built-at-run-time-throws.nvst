@@ -12,10 +12,11 @@ try {
     echo $error->message, "\n";
 }
 
-// The same refusal at a door that writes. A path joined with `.` is built
-// while the program runs, even when both halves are literals.
+// The same refusal at a door that writes. A path joined with `.` from a
+// variable is built while the program runs.
+string $dir = 'data';
 try {
-    Core\IO::write('data/' . 'copy.txt', 'x');
+    Core\IO::write($dir . '/copy.txt', 'x');
 } catch (RuntimeError $error) {
     echo $error->message, "\n";
 }

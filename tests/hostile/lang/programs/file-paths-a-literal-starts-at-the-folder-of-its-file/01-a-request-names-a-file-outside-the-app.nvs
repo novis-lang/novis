@@ -45,7 +45,7 @@ try {
 
 // 6. A script path built from the number.
 try {
-    spawn script 'jobs/' . $name;
+    spawn script $name . '.nvs';
 } catch (RuntimeError $error) {
     echo '6: ', Core\Str::before($error->message, "\n"), "\n";
 }

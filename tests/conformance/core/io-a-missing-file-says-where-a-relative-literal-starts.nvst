@@ -1,0 +1,17 @@
+--TEST--
+reading a file that is not there under a granted folder throws an `IOError` whose second line says that a relative path in the source starts at the folder of its file — `rule:programs/path-literals-resolve-from-their-file`
+--FILE--
+<?nvs
+// The literal is joined to the folder of this file, and no file is there.
+try {
+    echo Core\IO::read('data/missing.txt');
+} catch (IOError $error) {
+    echo Core\Str::after($error->message, "\n"), "\n";
+}
+--FILE data/note.txt--
+read
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["./data"]
+--EXPECT--
+help: a relative path written in the source starts at the folder of the file that contains it

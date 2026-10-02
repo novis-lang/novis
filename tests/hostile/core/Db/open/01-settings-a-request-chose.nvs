@@ -14,7 +14,7 @@ while ($i < 20000) {
     try {
         var $db = Core\Db::open({
             driver: Core\Db\Driver::Sqlite,
-            path: 'no-such-directory-here/notes-' . ($i as string) . '.sqlite',
+            path: Core\Path::thisDir('no-such-directory-here') . '/notes-' . ($i as string) . '.sqlite',
         });
         $db->close();
         $opened = $opened + 1;
