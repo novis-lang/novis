@@ -1,6 +1,0 @@
-{
-  "module": "tools/nv/main.ts",
-  "title": "Five `nv` commands are checked only by goal checks, so nothing checks them once the floor is gone.",
-  "text": "Goal `tooling-overhaul`'s record checks `bun nv brief --where testing`, `bun nv loop --list --name ...`, `bun nv guard --check`, `bun nv orient --traps tools/nv/main.ts` and `bun nv loop-stats --guard`, and no file under `tools/nv/test/` runs any of them: `tools/nv/test/guard.test.ts:146` tests `wiredTools` on fixtures, never on `.claude/settings.json`, and the `--stage` and `--feature` filters of `nv loop --list` have no test either. Once Stage 5 removes the floor and Stage 6 deletes the walked goals, a broken `--where` route, a hook that is no longer wired or a filter that matches nothing passes every suite. Closing this adds a `bun test` per command, or runs `bun nv guard --check` from `nv verify` or `.github/workflows/ci.yml`, and names the test in each command's module doc.",
-  "goal": "goal-closeout"
-}

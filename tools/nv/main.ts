@@ -7,6 +7,10 @@
 // what the command reads before it is loaded, and the modules Bun's registry holds when it exits.
 // Every command's children inherit `LLVM_PROFILE_FILE`, set to `DISCARD_PROFILE` when it is unset, so an
 // instrumented `nvs` that no run records writes its counters under `.agent-tmp/`.
+//
+// A command's own tests are under `test/`, and `test/surfaces.test.ts` runs the ones a session or the
+// hook reaches by name against this tree: `brief --where`, `guard --check`, `orient --traps`, `loop
+// --list` with its filters and `loop-stats --guard`'s count.
 
 import { DISCARD_PROFILE } from "./lib/paths.ts";
 import { ENV as READS_ENV, install } from "./lib/reads.ts";

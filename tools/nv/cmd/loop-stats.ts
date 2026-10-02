@@ -322,7 +322,7 @@ function subagentCost(path: string): Subagent[] {
 }
 
 /** One transcript's measurements, or null when it holds no tool call. */
-function readSession(path: string): Session | null {
+export function readSession(path: string): Session | null {
   const calls: Call[] = [];
   const contexts: number[] = [];
   const perMessage: number[] = [];
