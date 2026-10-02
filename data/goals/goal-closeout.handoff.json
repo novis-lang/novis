@@ -1,22 +1,17 @@
 {
-  "state": "**Goal `goal-closeout`, Stage 2 (the registers): the gap register is audited.** Of the 66 gap records under `data/gaps/`, 36 sit inside the scope their milestone's plan file states, and 30 did not. Those 30 now name `goal-closeout` as owner, and Stage 4 builds them: `bun nv owners --closes goal-closeout` lists them.\n\n`bun nv owners --check` now accepts a gap owned by the goal that is running, which is the live goal or this process's side goal, and counts it as `live-goal-owned`. Any other goal owner is still refused. The reason is in `tools/nv/cmd/owners.ts`'s header: the owner gate will not let that goal walk while the gap names it.\n\n`bun nv owners --deferrals` matches a plan file by keyword, so a pass is only a pointer. The 36 that remain were judged by reading each plan file: M9 bundle `.nvsx`, M10 fmt, lsp, openapi, runner, render producers, the probes, `DEBUG_BREAK` and the span flag and window, the M11 `--INI--` importer, the M12 allocation economy and dispatch, and M15 `info.version`.\n\nGoal `ci-green`'s floor check stays red until Stage 6. That is expected.",
+  "state": "**Goal `goal-closeout`, Stage 2 (the registers): the gap register and the other four registers are audited.** `bun nv owners --registers` counts them. `carried-refusals.md`, the `*-outstanding.txt` ratchets and `guard-name-debt.md` hold zero entries.\n\nOf the 1210 playbook bullets, 1198 retire on a `gone` condition, which names code that exists today and is a trap, not owed work. The 12 whose `until` is `exists` or `test` were each read. Two name owed work in a shipped feature and are now gap records owned by `goal-closeout`: the `decimal` constant (`crates/nvs-types/src/defaults.rs`) and the SKIPIF that does not compile (`crates/nvs-test/src/run.rs`). The rest are tooling traps under `tools/nv/` or a statement of how the tree is, and stay in the playbook: a gap record is a crate module's. The closure-`foreach` trap was already fixed and pinned by `tests/conformance/lang/a-closure-declares-its-own-foreach-and-catch-bindings-rather-than-capturing-an-outer-name.nvst`, so it is deleted.\n\n`bun nv owners --closes goal-closeout` lists 32 gaps for Stage 4. `bun nv plan --stale` reports 0 after the `Blocking` field was rewritten.\n\n`bun nv import` is broken: `docs/rules/_index.json` is gone. A playbook bullet is kept in sync by hand in both `docs/agent/playbook/<section>/<slug>.md` and `data/playbook/<section>/<slug>.json`.\n\nGoal `ci-green`'s floor check stays red until Stage 6. That is expected.",
   "next": {
     "stage": 2,
     "title": "the registers",
     "files": [
-      "tools/nv/cmd/owners.ts",
+      "tools/nv/cmd/proofs.ts",
       "docs/implementation-plan.md",
-      "docs/plan/",
-      "docs/agent/"
+      "docs/plan/"
     ],
     "items": [
       {
         "done": false,
-        "text": "**The other registers** — run `bun nv owners --registers`, then read each register it counts: `docs/agent/carried-refusals.md:1`, `crates/nvs-stdlib/tests/` (`*-outstanding.txt`), `docs/agent/guard-name-debt.md:1`, and the playbook bullets whose `until` names a state of the tree. An entry that names owed work and has no future milestone becomes a gap record owned by `goal-closeout`. The registers are listed at `tools/nv/cmd/owners.ts:26`."
-      },
-      {
-        "done": false,
-        "text": "**The feature proofs** — `bun nv proofs --gate` owes nothing in the whole roster. The gate is `tools/nv/cmd/proofs.ts:8`."
+        "text": "**The feature proofs** — `bun nv proofs --gate` owes nothing in the whole roster. The gate is `tools/nv/cmd/proofs.ts:8`. A feature that owes a proof gets it written, or a gap record owned by `goal-closeout` when the proof needs work Stage 4 builds."
       },
       {
         "done": false,
@@ -26,7 +21,8 @@
   },
   "backlog": [
     "Stage 3: read every goal in front of this one, in subagent batches of about fifteen (`docs/agent/goals/goal-closeout.md` § Stage 3).",
-    "Stage 4: build the 30 gaps `bun nv owners --closes goal-closeout` lists, one crate per group (`docs/agent/goals/goal-closeout.md` § Stage 4).",
-    "`--deferrals`' keyword match (`tools/nv/cmd/owners.ts:@covers`) passes a gap whose crate name appears anywhere in the plan file. Stage 5 removes floor machinery, and this check could get stricter then, or be judged by hand as it was here."
+    "Stage 4: build the 32 gaps `bun nv owners --closes goal-closeout` lists, one crate per group (`docs/agent/goals/goal-closeout.md` § Stage 4).",
+    "`--deferrals`' keyword match (`tools/nv/cmd/owners.ts:@covers`) passes a gap whose crate name appears anywhere in the plan file. Stage 5 removes floor machinery, and this check could get stricter then, or be judged by hand as it was here.",
+    "`bun nv owners --registers` counts every playbook bullet as an open item (`tools/nv/cmd/owners.ts:227`), though only the `exists` and `test` kinds wait on owed work. Counting those alone would make the number mean something."
   ]
 }
