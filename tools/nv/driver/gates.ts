@@ -4,9 +4,8 @@
 // **The goal-end gates** run on a sweep that would reach the goal, and a goal is not reached while either
 // is red. The rustdoc gate is `bun nv verify --doc`: a broken intra-doc link stops no build, so a goal in
 // progress may carry one, and what has to be clean is the tree a goal leaves behind. The owner gate is
-// `bun nv owners --closes <slug>` and `bun nv playbook --closes <slug>`: a gap or a trap still naming the
-// goal is a tag, not a build, and the floor's own check of it would only fire one goal late, once the goal
-// has walked. Each writes its standing verdict to its file under `.loop/`, `{ when, failed, session }`,
+// `bun nv owners --closes <slug>`: a gap record still naming the goal is a tag, not a build, and the
+// floor's own check of it would only fire one goal late, once the goal has walked. Each writes its standing verdict to its file under `.loop/`, `{ when, failed, session }`,
 // which `nv orient` prints to the next session; a red gate holds the goal open without ending the run.
 //
 // **A goal's services** are its record's `env.docker`: the compose file and the services its checks
@@ -59,19 +58,14 @@ export async function docGate(session: string, say: Say, root: string = ROOT): P
   return found;
 }
 
-/** `nv owners --closes <slug>` and `nv playbook --closes <slug>`. Returns the findings joined, or "" when green. */
+/** `nv owners --closes <slug>`. Returns its finding, or "" when green. */
 export async function ownerGate(slug: string, session: string, say: Say, root: string = ROOT): Promise<string> {
-  say(`owner gate: no gap or trap names goal \`${slug}\` (the acceptance list is green)`);
-  const found: string[] = [];
-  for (const tool of ["owners", "playbook"]) {
-    const r = await run(["bun", "nv", tool, "--closes", slug], { cwd: root, timeoutMs: 300_000 });
-    if (r.code === 0) continue;
-    const lines = `${r.stdout}\n${r.stderr}`.replace(/\r\n/g, "\n").split("\n").map((l) => l.trim()).filter(Boolean);
-    found.push(lines.at(-1) ?? `\`bun nv ${tool} --closes ${slug}\` exited ${r.code}`);
-  }
-  const joined = found.join("; ");
-  writeGate(OWNER_GATE, joined, joined ? session : "", root);
-  return joined;
+  say(`owner gate: no gap names goal \`${slug}\` (the acceptance list is green)`);
+  const r = await run(["bun", "nv", "owners", "--closes", slug], { cwd: root, timeoutMs: 300_000 });
+  const lines = `${r.stdout}\n${r.stderr}`.replace(/\r\n/g, "\n").split("\n").map((l) => l.trim()).filter(Boolean);
+  const found = r.code === 0 ? "" : (lines.at(-1) ?? `\`bun nv owners --closes ${slug}\` exited ${r.code}`);
+  writeGate(OWNER_GATE, found, found ? session : "", root);
+  return found;
 }
 
 /** A goal record's `env.docker`. */

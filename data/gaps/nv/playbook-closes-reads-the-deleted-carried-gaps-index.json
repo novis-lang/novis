@@ -1,6 +1,0 @@
-{
-  "module": "tools/nv/cmd/playbook.ts",
-  "title": "`bun nv playbook --closes` and `--check` still read `docs/agent/carried-gaps.md`, which is deleted, so `--closes` always passes.",
-  "text": "`CARRIED_GAPS` at `tools/nv/cmd/playbook.ts:58`, its `DECLARING` row at `tools/nv/cmd/playbook.ts:68`, the retired-owner branch at `tools/nv/cmd/playbook.ts:271` and `runCloses` at `tools/nv/cmd/playbook.ts:506` all read a file goal `gap-zero` deleted. `--closes <slug>` is a goal-end gate the driver runs, and it now prints that the goal owns no row and exits 0 for every slug. Gaps are records under `data/gaps/` that `bun nv owners --closes` already gates. Closing this deletes the four readers and the usage line at `tools/nv/cmd/playbook.ts:21`, and either deletes `--closes` with the driver's call to it or points it at a question the playbook owns.",
-  "goal": "goal-closeout"
-}

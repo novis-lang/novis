@@ -32,9 +32,8 @@ changes about them, and step 6.
    - `CONTINUE <what you landed>` — the normal case.
    - `DONE <what goal was reached>` — the live goal, `docs/agent/goals/<slug>.md`, is met. Run `bun nv
      verify --doc` first and fix every broken doc link it names, then `bun nv owners --closes
-     <slug>` and `bun nv playbook --closes <slug>` and close or
-     re-owner every gap they name: those are the gates a goal meets only at its end, and the driver
-     does not reach the goal while one is red. A tag is not a build. A `DONE` the driver's sweep
+     <slug>` and close or re-owner every gap it names: those are the gates a goal meets only at its
+     end, and the driver does not reach the goal while one is red. A tag is not a build. A `DONE` the driver's sweep
      refuses gets a retry session, and the retry is handed the check that failed.
    - `BLOCKED <the decision only the user can make>` — a tradeoff expensive to reverse. Prefer the safe
      option and a note in the handoff; the driver **holds** the run on this, waiting for the person who

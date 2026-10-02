@@ -216,9 +216,9 @@ Three failure modes worth naming, all of which have happened here:
   its stage 0 tagged every gap to the goal itself — which is what made the count zero, so the goal was
   reached with forty items tagged to it and none built. A gate over a register must ask what the
   goal's own tag cannot answer: `bun nv owners --closes <slug>` is red while any item names the goal.
-  The driver's owner gate asks it, with `bun nv playbook --closes <slug>`, of every goal on the sweep
-  that would reach it, whether or not the goal's list does, and a red gate holds the goal open; a
-  session runs both itself before it writes `DONE`.
+  The driver's owner gate asks it of every goal on the sweep that would reach it, whether or not the
+  goal's list does, and a red gate holds the goal open; a session runs it itself before it writes
+  `DONE`.
 
 ## 4. The two halves, and what belongs in each
 

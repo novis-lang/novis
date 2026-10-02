@@ -18,12 +18,11 @@
 //
 //     bun nv playbook --show <selector>       one bullet, or a whole section, as `nv orient` prints it
 //     bun nv playbook --check                 expiry, stale paths, selectors, section sizes; 1 on a gating finding
-//     bun nv playbook --closes <slug>         1 while a carried-gaps § Owned row names that goal
 //     bun nv playbook --retire [--dry-run]
 //     bun nv playbook --triage <section>      what deciding each bullet of `data/playbook/<section>/` needs; writes nothing
 //
-// Four files declare what retires their blocks: every playbook fragment under `docs/agent/playbook/`,
-// and `DECLARING`'s three append-mostly files. `expiryReport` evaluates each block's trailer against the
+// These files declare what retires their blocks: every playbook fragment under `docs/agent/playbook/`,
+// and `DECLARING`'s two append-mostly files. `expiryReport` evaluates each block's trailer against the
 // tree, and `retire` deletes the ones that hold. A fragment file holds one bullet, so retiring it deletes
 // the file and its record under `data/playbook/`. In the other files the block's lines go.
 //
@@ -38,24 +37,17 @@ import { existsSync, readFileSync, statSync, unlinkSync, writeFileSync } from "n
 import { join } from "node:path";
 import { list } from "../import/lib.ts";
 import { namedPaths, playbook as playbookImporter } from "../import/playbook.ts";
-import { chainGoals } from "../lib/chain.ts";
 import { ROOT } from "../lib/paths.ts";
 import { run as runProc } from "../lib/proc.ts";
-import { section as proseSection } from "../lib/prose.ts";
 import { pyRepr } from "../lib/py.ts";
 import { load, pathOf, remove as removeRecord, write as writeRecord } from "../lib/store.ts";
 import { goal as goalType } from "../schema/goal.ts";
 import { playbookBullet, playbookSection } from "../schema/playbook.ts";
 import { allBullets, normalize, playbookBook, sliceBullets, titleMatches, type BookSection } from "./orient.ts";
 
-export const summary = "the playbook: nv playbook --show <selector> | --check | --closes <slug> | --retire [--dry-run] | --triage <section>";
+export const summary = "the playbook: nv playbook --show <selector> | --check | --retire [--dry-run] | --triage <section>";
 
 const PLAYBOOK_DIR = "docs/agent/playbook";
-/**
- * The index of gaps a goal owns. The file is deleted, and `--check` and `--closes` still read its
- * § *Owned* rows out of this path, so an index rebuilt here is gated from its first row.
- */
-const CARRIED_GAPS = "docs/agent/carried-gaps.md";
 
 /** The trailer every bullet ends with. This file's module doc is its syntax's one home. */
 export const EXPIRY = /\[until:\s*(test|exists|gone|rule)\s+([^\]]+?)\s*\]\s*$/;
@@ -65,7 +57,6 @@ const EXPIRY_LIKE = /\[until:[^\]]*\]?\s*$/;
 /** The other append-mostly files, and which of their blocks must declare: by section heading and first line. */
 const DECLARING: [string, (head: string, first: string) => boolean][] = [
   ["docs/agent/guard-name-debt.md", (_head, first) => first.startsWith("- [")],
-  [CARRIED_GAPS, (head) => head === "Unowned"],
   ["docs/agent/carried-refusals.md", (_head, first) => /^9\d\d\. /.test(first)],
 ];
 
@@ -226,39 +217,15 @@ function declaring(root: string): [string, (head: string, first: string) => bool
 }
 
 /**
- * An § *Owned* table's rows in `CARRIED_GAPS`'s shape: the 0-based line, the gap cell and the owner cell.
- * None when the text has no such section, which is what the deleted index gives.
- */
-function ownedRows(text: string): { line: number; gap: string; owner: string }[] {
-  const found = proseSection(text, "Owned");
-  if (!found) return [];
-  const lines = text.split("\n");
-  const own = found.replace(/\n$/, "").split("\n");
-  const offset = lines.indexOf(own[0]!);
-  const rows: { line: number; gap: string; owner: string }[] = [];
-  own.forEach((line, i) => {
-    const cells = line.trim().replace(/^\|+|\|+$/g, "").split("|").map((c) => c.trim());
-    if (line.startsWith("|") && cells.length >= 2 && cells[0] !== "Gap" && !/^-*$/.test(cells[0]!)) {
-      rows.push({ line: offset + i, gap: cells[0]!, owner: cells[1]! });
-    }
-  });
-  return rows;
-}
-
-/** The slug an § *Owned* row's owner cell names. */
-const ownerSlug = (cell: string) => cell.trim().replace(/^`+|`+$/g, "");
-
-/**
  * Over every declaring file: the blocks whose condition holds, the ones that declare nothing or declare
- * it wrongly, how many declare anything, and `CARRIED_GAPS`'s § *Owned* rows whose owner goal has walked.
+ * it wrongly, and how many declare anything.
  */
 export async function expiryReport(
   root: string = ROOT,
   today: Date = new Date(),
-): Promise<{ expired: Expired[]; bad: Finding[]; rows: Finding[]; declared: number }> {
+): Promise<{ expired: Expired[]; bad: Finding[]; declared: number }> {
   const expired: Expired[] = [];
   const bad: Finding[] = [];
-  const rows: Finding[] = [];
   let declared = 0;
   const tests = await testNames(root);
   const read = declaring(root).flatMap(([file, must]) => {
@@ -268,13 +235,6 @@ export async function expiryReport(
   const trailers = read.flatMap((r) => blocks(r.text).map((b) => declaration(b.body)));
   const ignored = await ignoredOf(root, trailers.flatMap((d) => (d && trailerPath(d) ? [trailerPath(d)!] : [])));
   for (const { file, must, text } of read) {
-    if (file === CARRIED_GAPS) {
-      const gone = new Set(chainGoals(root).filter((g) => g.retired).map((g) => g.slug));
-      for (const r of ownedRows(text)) {
-        const slug = ownerSlug(r.owner);
-        if (gone.has(slug)) rows.push({ file, line: r.line + 1, lead: head(r.gap, 70), why: `owner goal \`${slug}\` is retired; close the gap or strike the owner` });
-      }
-    }
     for (const b of blocks(text)) {
       const where = { file, line: b.start + 1, lead: b.lead };
       const decl = declaration(b.body);
@@ -295,7 +255,7 @@ export async function expiryReport(
       else if (ok) expired.push(entry);
     }
   }
-  return { expired, bad, rows, declared };
+  return { expired, bad, declared };
 }
 
 /** `selectors` less every one that reached a bullet in `before` and reaches none in `after`, and those that went. */
@@ -397,7 +357,7 @@ async function runCheck(root: string = ROOT): Promise<number> {
   const bytes = (s: string) => Buffer.byteLength(s, "utf8");
   console.log(`${PLAYBOOK_DIR}/: ${every.reduce((n, b) => n + bytes(b.text), 0)} bytes, ${every.length} bullets\n`);
 
-  const { expired, bad, rows, declared } = await expiryReport(root);
+  const { expired, bad, declared } = await expiryReport(root);
   console.log("== BULLETS WHOSE RETIREMENT CONDITION HOLDS  (delete them: `bun nv playbook --retire`)");
   for (const e of expired) console.log(`  ${e.file}:${e.line}  ${e.lead}\n      [until: ${e.kind} ${e.arg}]  -- ${e.why}`);
   if (!expired.length) console.log(`  none -- every one of the ${declared} declared condition(s) still stands`);
@@ -413,9 +373,6 @@ async function runCheck(root: string = ROOT): Promise<number> {
   for (const id of refused) console.log(`  ${id}  -- \`bun nv playbook --triage ${id.split("/")[0]}\` says what it owes`);
   if (!refused.length) console.log("  none");
 
-  console.log("\n== CARRIED-GAPS ROWS WHOSE OWNER WENT GREEN WITHOUT CLOSING THEM");
-  for (const r of rows) console.log(`  ${r.file}:${r.line}  ${r.lead}  -- ${r.why}`);
-  if (!rows.length) console.log("  none -- every carried-gaps owner is live or struck");
 
   console.log("\n== BULLETS THAT DECLARE NOTHING, OR DECLARE IT WRONGLY");
   for (const e of bad) console.log(`  ${e.file}:${e.line}  ${e.lead}\n      ${e.why}`);
@@ -498,23 +455,6 @@ async function runCheck(root: string = ROOT): Promise<number> {
   return 0;
 }
 
-/**
- * `--closes <slug>`: every `CARRIED_GAPS` § *Owned* row that still names the goal, and 1 if there is one.
- * The retired-owner rows `--check` prints appear only once a goal is retired, which is after it was
- * reached, so the driver asks this of the goal by name on the sweep that would reach it.
- */
-function runCloses(slug: string, root: string = ROOT): number {
-  const full = join(root, CARRIED_GAPS);
-  const text = existsSync(full) ? readFileSync(full, "utf8").replace(/\r\n/g, "\n") : "";
-  const rows = ownedRows(text).filter((r) => ownerSlug(r.owner) === slug);
-  if (!rows.length) {
-    console.log(`nv playbook: goal \`${slug}\` owns no ${CARRIED_GAPS} row`);
-    return 0;
-  }
-  for (const r of rows) console.log(`  ${CARRIED_GAPS}:${r.line + 1}  ${head(r.gap, 70)}`);
-  console.log(`nv playbook: goal \`${slug}\` still owns ${rows.length} ${CARRIED_GAPS} row(s). A goal is reached when each gap is closed and its row deleted, or its owner struck for a reason the row states; a tag is not a build.`);
-  return 1;
-}
 
 // ------------------------------------------------------------------------- --triage
 
@@ -736,7 +676,7 @@ export async function triage(section: string, root: string = ROOT, say: (line: s
   return 0;
 }
 
-const USAGE = "usage: bun nv playbook --show <selector> | --check | --closes <slug> | --retire [--dry-run] | --triage <section>";
+const USAGE = "usage: bun nv playbook --show <selector> | --check | --retire [--dry-run] | --triage <section>";
 
 export async function run(args: string[]): Promise<number> {
   if (args[0] === "--show" && args.length === 2) {
@@ -749,7 +689,6 @@ export async function run(args: string[]): Promise<number> {
     return 0;
   }
   if (args[0] === "--check" && args.length === 1) return runCheck();
-  if (args[0] === "--closes" && args.length === 2) return runCloses(args[1]!);
   if (args[0] === "--triage" && args.length === 2) return triage(args[1]!);
   const dry = args.includes("--dry-run");
   if (!args.includes("--retire") || args.some((a) => a !== "--retire" && a !== "--dry-run")) {

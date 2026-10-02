@@ -63,7 +63,7 @@ harness settings and nothing else.
 | `.loop/running` | Held by the run for the whole of its length — **across turn boundaries** — and deleted on every exit. Anything else about to touch this tree checks it first: `bun nv orient` prints it loudly, and any by-hand pass over shared files should refuse to start while it is there. A turn refuses a tree whose marker names another run. |
 | `.loop/run.json` | What one turn of a run leaves for the next, since no process outlives a session: the run's name and log stamp, the sessions served, the last log index, the stall streak, the DONE-claim retries, the verdict the run last held on, a session still waiting for its verdict, and the verdict the next session repairs with the goal's count of repairs. `loop.Run` lists the fields. A file naming another run is a dead run's and is ignored whole. |
 | `.loop/limit.json` | The deadline of a usage window the driver is waiting out, so one killed or rebooted mid-wait does not start the next run straight back into the same wall. Deleted when the window reopens. |
-| `.loop/doc-gate.json`, `.loop/owner-gate.json` | The last verdict of each goal-end gate: the rustdoc gate `bun nv verify --doc`, and the owner gate `bun nv owners --closes <slug>` with `bun nv playbook --closes <slug>`. While one is red, `bun nv orient` prints its finding. |
+| `.loop/doc-gate.json`, `.loop/owner-gate.json` | The last verdict of each goal-end gate: the rustdoc gate `bun nv verify --doc`, and the owner gate `bun nv owners --closes <slug>`. While one is red, `bun nv orient` prints its finding. |
 | `.loop/interrupted.json` | Written when a session was cut off with work still uncommitted — the paths it swept, the paths it `left` for whoever else is working in this tree, and why. `bun nv orient` prints it at the top of the pack, so the next session knows those files are somebody's unfinished slice and not the state it was meant to start from. Deleted by the next session that leaves nothing of its own behind. |
 | `.loop/written.txt` | The tracked files the session's own tools reported writing, appended through [`written.ts`](../../tools/nv/lib/written.ts) and truncated before every session. It is half of how the sweep tells the session's work from a person's — the event stream names what `Write` and `Edit` touched, and this names what `bun nv splice` and `bun nv reference` touched behind a `Bash` call that mentions no path at all. |
 
@@ -95,7 +95,7 @@ harness settings and nothing else.
       valgrind sweep wait for the floor gate, open one sweep in FLOOR_GATE_EVERY
     run `bun nv disk --clean`'s sweep, in-process
       -> green with the floor gate open: the goal-end gates, `bun nv verify --doc`, and
-         `bun nv owners --closes <slug>` with `bun nv playbook --closes <slug>`
+         `bun nv owners --closes <slug>`
                                               either red -> the goal stays open, the run carries on
       -> both green, the chain has a next goal -> move `live` in data/chain.json to it, commit that file,
                                               preflight and bring up its env.docker services, carry on

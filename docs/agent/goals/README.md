@@ -225,7 +225,7 @@ Three steps.
 
 **The driver does the switching.** When a sweep with the floor gate open is green and both goal-end
 gates are green — the rustdoc gate `bun nv verify --doc`, and the owner gate `bun nv owners --closes
-<slug>` with `bun nv playbook --closes <slug>` — it moves `live` in `data/chain.json` to the next
+<slug>` — it moves `live` in `data/chain.json` to the next
 goal, commits that one file as ``docs(loop): the chain advances from `a` to `b` ``, preflights and
 brings up the new goal's `env.docker` services, and carries on with the next session. After the last
 goal it ends the run on `CHAIN COMPLETE`. There is no flag for this and never a second chain: a run
