@@ -18,6 +18,10 @@
 //! compile error. The program is written into a fresh directory as
 //! `case.nvs`, and the child's working directory is that directory, so the
 //! rendered path is exactly `case.nvs` on both CI legs.
+//!
+//! ## Known gap
+//!
+//! Each gap is a record, and `bun nv gaps --module crates/nvs-test/src/run.rs` lists them.
 
 use std::ffi::OsStr;
 use std::fs;

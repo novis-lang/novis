@@ -76,12 +76,13 @@
 //! (`rule:types/literal-types`), so `uint $n = Limits::MAX;` above `i64::MAX` is refused
 //! here even though the literal `= 18446744073709551615` is accepted.
 //!
-//! **A `decimal` default is refused, and is now the shortest thing on this
-//! list to build:** `nvs_ir::ir::InstKind::ConstDecimal` exists, so
-//! [`ConstArg`]'s one-variant-per-instruction rule above is satisfied by a
-//! variant carrying that instruction's own three parts. Until one is written,
-//! `decimal $vat = 0.19` is `E_PARAM_DEFAULT_NOT_LITERAL` — a clean refusal,
-//! not a wrong constant.
+//! **A `decimal` default is refused:** [`ConstArg`] has no variant for
+//! `nvs_ir::ir::InstKind::ConstDecimal`, so `decimal $vat = 0.19` is
+//! `E_PARAM_DEFAULT_NOT_LITERAL` — a clean refusal, not a wrong constant.
+//!
+//! ## Known gap
+//!
+//! Each gap is a record, and `bun nv gaps --module crates/nvs-types/src/defaults.rs` lists them.
 
 use nvs_diagnostics::{Diagnostic, Span, code};
 use nvs_syntax::ast::{ArrayItem, Expr, ExprKind, UnaryOp};

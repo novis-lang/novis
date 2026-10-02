@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-test/src/run.rs",
+  "title": "A `--SKIPIF--` that does not compile runs the case.",
+  "text": "The runner reads only the `--SKIPIF--` program's stdout for a line starting `skip`, and never its exit status. A SKIPIF that fails to compile prints nothing, so the case runs: green where the service it checks for is up, red in CI. The common cause is a capability granted by an `[[app]] entry = \"case.nvs\"` block, which the SKIPIF, run as `skipif.nvs`, does not get, so its config fails with E0605. Closing it is a SKIPIF that exits non-zero failing the case with its stderr, pinned by a runner test `skipif_that_exits_nonzero_fails_the_case`, and a pass over the conformance tree for the cases that change.",
+  "goal": "goal-closeout"
+}

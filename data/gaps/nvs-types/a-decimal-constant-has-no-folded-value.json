@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-types/src/defaults.rs",
+  "title": "A `decimal` constant has no folded value, at a parameter default or a class constant.",
+  "text": "[`ConstArg`] carries one variant per `nvs_ir::ir::InstKind` constant and none for `InstKind::ConstDecimal`, so `decimal $vat = 0.19` as a parameter default is `E_PARAM_DEFAULT_NOT_LITERAL`. A class constant declared `public const decimal VAT = 0.20;` declares cleanly, and its first read is `E0792: has no compile-time value to inline`, whose help names three other shapes and not this one. Closing it is a `ConstArg` variant carrying the instruction's own three parts, read from the literal's text as `nvs_ir::lower`'s `lower_float_literal` reads a placed literal, and a `crate::consts` fold that keeps those digits for a constant declared `decimal`.",
+  "goal": "goal-closeout"
+}
