@@ -302,6 +302,25 @@ mod tests {
     }
 
     #[test]
+    #[cfg(unix)]
+    fn a_file_is_named_relative_to_the_current_directory() {
+        let here = Path::new("/work/app");
+        assert_eq!(
+            shown(Path::new("/work/app/src/Cart.nvs"), Some(here)),
+            "src/Cart.nvs"
+        );
+        assert_eq!(
+            shown(Path::new("tests/CartTest.nvs"), Some(here)),
+            "tests/CartTest.nvs"
+        );
+        assert_eq!(
+            shown(Path::new("/shared/Lib.nvs"), Some(here)),
+            "/shared/Lib.nvs"
+        );
+    }
+
+    #[test]
+    #[cfg(windows)]
     fn a_file_is_named_relative_to_the_current_directory_with_forward_slashes() {
         let here = Path::new(r"D:\work\app");
         assert_eq!(
