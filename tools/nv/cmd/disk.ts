@@ -24,8 +24,10 @@
 // written in the last `GRACE_HOURS` is swept whatever the list says, which covers a build still under
 // way and a `--test <name>` run that resolves a dev-dependency its own way. `incremental/` has no
 // artifact list to ask, so there age and the newest `KEEP_INCREMENTAL` per crate are the whole rule,
-// under `target/` and under `target/covws` alike. `release/deps` and `proof/deps` are never swept: their
-// live set can only be asked for with an optimized build.
+// under `target/` and under `target/covws` alike. `release/deps` and `proof/deps` cannot be asked, because
+// their live set can only be named by an optimized build, so they are swept by rank (`staleOptimized`):
+// each artifact keeps its newest `KEEP_OPTIMIZED` copies and anything written in the last
+// `OPTIMIZED_GRACE_DAYS`.
 //
 // `--clean` also deletes what nothing reads any more: a `default_*.profraw` an instrumented binary left
 // at the root or in a package directory (`strayProfiles`), the memo files the selection store replaced
@@ -88,10 +90,17 @@ export const KEEP_INCREMENTAL = 2;
 export const MIN_FREE_GB = 10;
 /** `target/`: nothing written more recently than this is swept, whatever cargo says. */
 export const GRACE_HOURS = 2;
+/** `target/{release,proof}/deps`: copies kept per artifact name, newest first (`staleOptimized`). */
+export const KEEP_OPTIMIZED = 4;
+/** `target/{release,proof}/deps`: nothing written more recently than this is swept, whatever its rank. */
+export const OPTIMIZED_GRACE_DAYS = 3;
 
 // `libnvs_stdlib-2a3f7eaa9f84477e.rlib` -> `libnvs_stdlib`. Cargo's metadata hash is 16 hex digits and
 // always the last dash-separated component of the stem.
 const HASHED = /^(.+)-[0-9a-f]{16}$/;
+// One file of an artifact: its name, its metadata hash and everything after the hash, which can be two
+// extensions (`nvs_macros-<hash>.dll.lib`) or none (an executable outside Windows).
+const UNIT_FILE = /^(.+)-([0-9a-f]{16})(\..+)?$/;
 
 // Reported, never deleted. `{home}` is the user's home directory and `{tmp}` the Linux temp directory.
 const ELSEWHERE: [string, string, string, string][] = [
@@ -651,6 +660,54 @@ function staleIncremental(keep: number = KEEP_INCREMENTAL, graceHours: number = 
   return doomed;
 }
 
+/**
+ * The files in `target/release/deps` and `target/proof/deps` of every artifact past the newest `keep`
+ * of its name in its directory that nothing has written for `graceDays`. An artifact is every file
+ * under one metadata hash, as new as the newest of them. Cargo cannot name the live set of an optimized
+ * profile without an optimized build of every shape that uses it, so the rank stands in for the answer:
+ * a dependency edit gives each shape a new copy of what it reaches and orphans the old one, and a crate
+ * is built only a few ways at once -- the release `nvs`, the abi probe with and without its feature, a
+ * bench, a dependency of a build script. A copy deleted while still in use costs its rebuild and
+ * nothing else.
+ */
+export function staleOptimized(target: string = TARGET, keep: number = KEEP_OPTIMIZED, graceDays: number = OPTIMIZED_GRACE_DAYS): string[] {
+  const doomed: string[] = [];
+  for (const profile of ["release", PROOF_PROFILE]) doomed.push(...rankedOut(join(target, profile, "deps"), keep, graceDays));
+  return doomed.sort();
+}
+
+/** `staleOptimized` over one `deps/` directory. */
+function rankedOut(dir: string, keep: number, graceDays: number): string[] {
+  const cutoff = now() - graceDays * 86400;
+  const units = new Map<string, { name: string; mtime: number; files: string[] }>();
+  for (const file of listDir(dir)) {
+    const m = UNIT_FILE.exec(file);
+    if (!m) continue;
+    const stem = m[1]!;
+    const hash = m[2]!;
+    const ext = m[3];
+    if (!units.has(hash)) units.set(hash, { name: "", mtime: 0, files: [] });
+    const unit = units.get(hash)!;
+    // The dep-info file has the crate's own name; a library's files put `lib` in front of it.
+    if (ext === ".d") unit.name = stem;
+    else if (!unit.name) unit.name = stem.replace(/^lib/, "");
+    const path = join(dir, file);
+    unit.mtime = Math.max(unit.mtime, mtime(path));
+    unit.files.push(path);
+  }
+  const byName = new Map<string, { mtime: number; files: string[] }[]>();
+  for (const unit of units.values()) {
+    if (!byName.has(unit.name)) byName.set(unit.name, []);
+    byName.get(unit.name)!.push(unit);
+  }
+  const doomed: string[] = [];
+  for (const copies of byName.values()) {
+    copies.sort((a, b) => b.mtime - a.mtime);
+    for (const c of copies.slice(keep)) if (c.mtime < cutoff) doomed.push(...c.files);
+  }
+  return doomed;
+}
+
 export interface CleanOptions {
   keepRuns?: number;
   scratchDays?: number;
@@ -679,9 +736,18 @@ export async function clean(opts: CleanOptions = {}): Promise<Record<string, num
   for (const p of retiredCovwsProof()) leftovers += await rm(p, dryRun);
   let incremental = 0;
   for (const p of staleIncremental(opts.keepIncremental ?? KEEP_INCREMENTAL, grace)) incremental += await rm(p, dryRun);
+  let optimized = 0;
+  for (const p of staleOptimized()) optimized += await rm(p, dryRun);
   for (const p of strayProfiles()) leftovers += await rm(p, dryRun);
   for (const p of RETIRED_MEMOS) if (existsSync(join(ROOT, p))) leftovers += await rm(join(ROOT, p), dryRun);
-  return { ".loop/logs": logs, ".agent-tmp": scratch, "target/deps": deps, "target/incremental": incremental, "leftovers": leftovers };
+  return {
+    ".loop/logs": logs,
+    ".agent-tmp": scratch,
+    "target/deps": deps,
+    "target/incremental": incremental,
+    "target/optimized": optimized,
+    "leftovers": leftovers,
+  };
 }
 
 /** The bytes a `clean` result freed, a part it left alone counting as none. */
@@ -735,10 +801,13 @@ async function report(deep: boolean): Promise<void> {
     `${blank}incremental/: ${human(inc)}, of which ${human(staleInc)} ` +
       `is past the newest ${KEEP_INCREMENTAL} per crate and idle ${GRACE_HOURS}h`,
   );
+  let staleOpt = 0;
+  for (const p of staleOptimized()) staleOpt += Number(stat(p)?.size ?? 0);
   console.log(
-    `${blank}\`--clean\` keeps what verify builds and anything written in the ` +
-      `last ${GRACE_HOURS}h; release/deps and proof/deps are never swept`,
+    `${blank}release/ and proof/ deps: ${human(staleOpt)} is past the newest ${KEEP_OPTIMIZED} copies ` +
+      `per artifact and idle ${OPTIMIZED_GRACE_DAYS}d`,
   );
+  console.log(`${blank}\`--clean\` keeps what verify builds and anything written in the last ${GRACE_HOURS}h`);
   console.log(
     `  target/${PROOF_PROFILE}/ ${human(proof).padStart(8)}   ` +
       `the proof binary's build, which nv proofs runs -- counted in target/ above`,

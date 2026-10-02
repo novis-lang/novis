@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { existsSync } from "node:fs";
+import { existsSync, utimesSync } from "node:fs";
 import { join } from "node:path";
-import { liveKey, liveSet, retiredCovwsProof, strayProfiles } from "../cmd/disk.ts";
+import { liveKey, liveSet, retiredCovwsProof, staleOptimized, strayProfiles } from "../cmd/disk.ts";
 import { scratch, type Scratch } from "./scratch.ts";
 
 let tmp: Scratch;
@@ -24,6 +24,47 @@ describe("leftovers", () => {
     for (const f of ["covws/proof/deps/a", "covws/x86_64-pc-windows-msvc/proof/nvs.exe", "covws/x86_64-pc-windows-msvc/debug/nvs.exe", "covws/debug/deps/b", "proof/nvs.exe"]) tmp.put(f, "x");
     const got = retiredCovwsProof(tmp.root).map((p) => p.slice(tmp.root.length + 1).replace(/\\/g, "/"));
     expect(got.sort()).toEqual(["covws/proof", "covws/x86_64-pc-windows-msvc/proof"]);
+  });
+});
+
+describe("optimized profiles", () => {
+  /** An artifact's files under `deps/`, all written `daysAgo` days ago. */
+  function artifact(dir: string, files: string[], daysAgo: number): void {
+    const at = Date.now() / 1000 - daysAgo * 86400;
+    for (const f of files) {
+      tmp.put(`${dir}/${f}`, "x");
+      utimesSync(join(tmp.root, dir, f), at, at);
+    }
+  }
+  const hash = (n: number) => n.toString(16).padStart(16, "0");
+  const rel = (paths: string[]) => paths.map((p) => p.slice(tmp.root.length + 1).replace(/\\/g, "/"));
+
+  test("an artifact past the newest copies of its name is swept whole, and only once it is idle", () => {
+    tmp = scratch();
+    // Five copies of one library, a day apart, the newest written today.
+    for (let i = 1; i <= 5; i++) artifact("release/deps", [`libnvs_runtime-${hash(i)}.rlib`, `libnvs_runtime-${hash(i)}.rmeta`, `nvs_runtime-${hash(i)}.d`], 6 - i + 2);
+    // Six copies of a proc-macro, all inside the grace.
+    for (let i = 1; i <= 6; i++) artifact("release/deps", [`nvs_macros-${hash(16 + i)}.dll`, `nvs_macros-${hash(16 + i)}.dll.lib`, `nvs_macros-${hash(16 + i)}.d`], 1);
+    // One old copy of a dependency is still the newest of its name.
+    artifact("release/deps", [`libserde-${hash(99)}.rlib`, `serde-${hash(99)}.d`], 30);
+    expect(rel(staleOptimized(tmp.root, 4, 3))).toEqual([
+      `release/deps/libnvs_runtime-${hash(1)}.rlib`,
+      `release/deps/libnvs_runtime-${hash(1)}.rmeta`,
+      `release/deps/nvs_runtime-${hash(1)}.d`,
+    ]);
+  });
+
+  test("the proof profile is ranked on its own, and a debug build is never looked at", () => {
+    tmp = scratch();
+    for (let i = 1; i <= 3; i++) artifact("proof/deps", [`libnvs_types-${hash(i)}.rlib`, `nvs_types-${hash(i)}.d`], 10 - i);
+    for (let i = 4; i <= 6; i++) artifact("release/deps", [`libnvs_types-${hash(i)}.rlib`, `nvs_types-${hash(i)}.d`], 10 - i);
+    for (let i = 7; i <= 9; i++) artifact("debug/deps", [`libnvs_types-${hash(i)}.rlib`, `nvs_types-${hash(i)}.d`], 30);
+    expect(rel(staleOptimized(tmp.root, 2, 3))).toEqual([
+      `proof/deps/libnvs_types-${hash(1)}.rlib`,
+      `proof/deps/nvs_types-${hash(1)}.d`,
+      `release/deps/libnvs_types-${hash(4)}.rlib`,
+      `release/deps/nvs_types-${hash(4)}.d`,
+    ]);
   });
 });
 

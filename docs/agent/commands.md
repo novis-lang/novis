@@ -188,7 +188,8 @@ cargo test --lib a_filter                              # every crate's unit test
 ```
 
 `--release -p nvs-abi-probe` and `--release -p nvs-cli` are the cost guards' own profile, which
-nothing else builds and `bun nv disk` never sweeps; they stay as they are. The loop driver keeps the
+nothing else builds; they stay as they are, and `bun nv disk` sweeps their old copies by rank
+(§ *Disk*). The loop driver keeps the
 same rule: an acceptance check written `cargo test -p <crate>`, bare or with one `--test <name>`, runs
 that crate's binaries off one shared `cargo test --no-run` (`tools/nv/driver/accept.ts`).
 
@@ -644,18 +645,37 @@ what nothing reads any more: a stray `default_*.profraw` and the memo files the 
 replaced. Age only ever *keeps*: anything written in the last `GRACE_HOURS` survives
 whatever cargo said — a build still in flight, and the `--test <name>` shape the rule above leaves open.
 That grace was a day once, every `-p` copy a session minted was younger than that, and the sweep freed
-nothing; `release/deps` is never swept. Nothing it does can produce a wrong build —
+nothing. Nothing it does can produce a wrong build —
 cargo re-checks every fingerprint against what is really on disk, so a mistake costs a rebuild and nothing
 else.
 
-The two `debug` settings in `Cargo.toml`'s dev profile are the other half. On windows-msvc the linker
-copies the debug info of every linked object into each binary's PDB, so whatever the workspace carries
-is written into all ~60 test binaries at once. `[profile.dev.package."*"] debug = 0` took cranelift and
-wasmtime out of them, and a session's own `nv verify` got *faster* (51s → 43s) because there is less to
-link and to load; `[profile.dev] debug = "line-tables-only"` then took the type and variable info of
-Novis's own crates out, which was three quarters of what remained. A panic location and a backtrace
-still name file and line, so every `debug_assert` and the runtime's owner-stamp check report as they
-did; a session that needs to step in a debugger sets `CARGO_PROFILE_DEV_DEBUG=2` for that one build.
+`release/deps` and `proof/deps` cannot be asked: naming their live set takes an optimized build of every
+shape that uses them, which is minutes of LTO per sweep, and a shape no check runs any more would be
+built for nothing. They are swept by rank instead (`staleOptimized`): every artifact keeps its newest
+`KEEP_OPTIMIZED` copies and anything written in the last `OPTIMIZED_GRACE_DAYS`. A crate is built only a
+few ways at once in those profiles, and every dependency edit leaves one more copy behind, so the copies
+past the newest few are the orphans. When this was added, release copies of one workspace crate went back
+three weeks, and the rank freed 7 GB of 12. A live copy ranked out costs its own optimized rebuild.
+
+Three debug settings are the other half. On windows-msvc the linker copies the debug info of every
+linked object into each binary's PDB, so whatever the workspace carries is written into every test
+binary at once. `[profile.dev.package."*"] debug = 0` took cranelift and wasmtime out of them, and a
+session's own `nv verify` got *faster* (51s → 43s) because there is less to link and to load;
+`[profile.dev] debug = "line-tables-only"` then took the type and variable info of Novis's own crates
+out, which was three quarters of what remained. A panic location and a backtrace still name file and
+line, so every `debug_assert` and the runtime's owner-stamp check report as they did; a session that
+needs to step in a debugger sets `CARGO_PROFILE_DEV_DEBUG=2` for that one build.
+
+The third is `tools/build/tests_without_pdb.rs`, the build script of every crate with a `tests/`
+directory: on windows-msvc it links each integration-test program with `/DEBUG:NONE`, so those programs
+have no PDB at all. With one program per test file, their PDBs were 4.6 GB of `target/debug` and as much
+of `target/covws`, and every worktree builds both again. A failing test still names its file and line,
+because the panic location is compiled into the program, and the covws build's coverage still names
+every function, because counters and names are sections of the program itself. What goes is a
+symbolized Rust backtrace from inside an integration test: set `NVS_TEST_PDB=1` for the build that
+needs one, which reruns the script and rebuilds the crates downstream of it. A profile setting cannot
+do this. `[profile.test]` applies to the libraries a test links as well, so it gives every workspace
+crate a second copy, and `strip` does not touch a PDB.
 
 Five things live outside this repository and `bun nv disk` reports them without ever deleting them — another
 tool's state is not a repo script's to remove. `/var/tmp/nvs-linux` and `/var/tmp/nvs-target-wsl` are the
