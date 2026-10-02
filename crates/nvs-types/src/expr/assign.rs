@@ -736,7 +736,17 @@ pub(crate) fn check_assign(
     env: &mut Env<'_>,
 ) -> TypeId {
     if let Some(binop) = op.binary_op() {
-        return check_compound_assign(binop, span, target, value, live, scope, ctx, env);
+        return check_compound_assign(
+            binop,
+            op.defaults(),
+            span,
+            target,
+            value,
+            live,
+            scope,
+            ctx,
+            env,
+        );
     }
     if let (AssignOp::Assign, ExprKind::Variable(span)) = (op, &target.kind) {
         let name = strip_sigil(span_text(env.src, *span)).to_owned();
@@ -1293,12 +1303,19 @@ pub(crate) fn is_a_place(kind: &ExprKind) -> bool {
 /// the one written: the target's type without `null` when the value's type has
 /// no `null` in it, and the target's type when it does. Nothing is narrowed on
 /// the next line — that is `note_write`'s, as for every write.
+///
+/// **`??+=`, `??-=` and `??.=` (`defaults`) are `$a = ($a ?? d) ⊕ e`.** The
+/// target is read guarded, as under `??=`, and [`defaulted_read`] types the
+/// `$a ?? d` the operator is then applied to, so every refusal is the one the
+/// written-out form meets. The value is the operator's result, which is
+/// never `null`, so it is typed as the target's type without `null`.
 #[expect(
     clippy::too_many_arguments,
-    reason = "the five-parameter checking context every expression walker in \n              this module carries, plus the operator, the assignment's span and \n              its two operand expressions"
+    reason = "the five-parameter checking context every expression walker in \n              this module carries, plus the operator, whether it defaults, the \n              assignment's span and its two operand expressions"
 )]
 pub(crate) fn check_compound_assign(
     op: BinaryOp,
+    defaults: bool,
     span: Span,
     target: &Expr,
     value: &Expr,
@@ -1309,27 +1326,32 @@ pub(crate) fn check_compound_assign(
 ) -> TypeId {
     note_write(target, scope, env);
     mark_write_target_levels(target, false, env);
-    if op == BinaryOp::Coalesce {
+    if op == BinaryOp::Coalesce || defaults {
         presence::mark_guarded_target_reads(target, env);
     }
     let target_ty = check_expr(target, None, live, scope, ctx, env);
     check_write_target(target, ctx, env);
+    let read_ty = if defaults {
+        defaulted_read(op, target_ty, target.span, value.span, env)
+    } else {
+        target_ty
+    };
     // [`infer`] rather than [`check_expr`]: the target's type is a *hint* for
     // an untyped literal here, not a position the value has to satisfy — the
     // operator decides that, and it is the operator's result this function
     // checks below. Handing the value to `check_expr` instead would report
     // `$i .= "x"` twice, once for a `string` where the `int` target sits and
     // once for the concatenation that is the actual mistake.
-    let value_ty = infer(value, Some(target_ty), live, scope, ctx, env);
+    let value_ty = infer(value, Some(read_ty), live, scope, ctx, env);
     if op == BinaryOp::Concat {
-        require_stringable(target_ty, target.span, env);
+        require_stringable(read_ty, target.span, env);
         require_stringable(value_ty, value.span, env);
         // `rule:core-classes/html-escape-answers-markup`, for `.`'s compound spelling — the same row is missing
         // on both sides of it.
-        reject_carrier_as_text(target_ty, target.span, env);
+        reject_carrier_as_text(read_ty, target.span, env);
         reject_carrier_as_text(value_ty, value.span, env);
     }
-    let result = binary_result(op, target_ty, value_ty, span, env);
+    let result = binary_result(op, read_ty, value_ty, span, env);
     if !is_assignable(result, target_ty, env.interner, env.graph, env.signatures) {
         report_mismatch(span, target_ty, result, env);
         return target_ty;
@@ -1339,12 +1361,46 @@ pub(crate) fn check_compound_assign(
     // `secret` operand produces a `secret` one (`rule:security/secret-propagation`),
     // so this spelling of the write owes the same refusal the plain one does.
     reject_secret_element_write(target, target_ty, value, result, env);
+    if defaults {
+        return env.interner.without_null(target_ty);
+    }
     let value_may_be_null =
         env.interner.is_nullable(value_ty) || matches!(env.interner.get(value_ty), Ty::Mixed);
     if op == BinaryOp::Coalesce && !value_may_be_null {
         return env.interner.without_null(target_ty);
     }
     target_ty
+}
+
+/// The `$a ?? d` a defaulting assignment applies its operator to
+/// (`rule:expressions/defaulting-assignment`), typed and recorded as that
+/// `??` is, under [`AssignOp::defaulted_read_span`], where `nvs-ir` finds it.
+///
+/// `d` has the target's own type without `null`, so `?uint` reads as a `uint`,
+/// a `tainted string` keeps its qualifier, and a type with no zero (a `bool`,
+/// an array) meets the operator's own refusal exactly as the plain `+=` or
+/// `.=` does. A union is joined with the `int` `0`, or with the `string` `""`
+/// under `.`, and the operator judges that union by its runtime tag.
+fn defaulted_read(
+    op: BinaryOp,
+    target_ty: TypeId,
+    target: Span,
+    value: Span,
+    env: &mut Env<'_>,
+) -> TypeId {
+    let base = env.interner.without_null(target_ty);
+    let zero = match env.interner.get(base) {
+        Ty::Union(_) if op == BinaryOp::Concat => env.interner.string(),
+        Ty::Union(_) => env.interner.int(),
+        _ => base,
+    };
+    binary_result(
+        BinaryOp::Coalesce,
+        target_ty,
+        zero,
+        AssignOp::defaulted_read_span(target, value),
+        env,
+    )
 }
 
 pub(crate) fn check_read(

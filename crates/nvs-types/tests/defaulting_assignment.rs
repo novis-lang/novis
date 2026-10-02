@@ -1,5 +1,5 @@
-//! `??=` — its guarded read of the target, and the type of the value it
-//! writes (`rule:expressions/defaulting-assignment`).
+//! `??=`, `??+=`, `??-=` and `??.=` — their guarded read of the target, and
+//! the type of the value each writes (`rule:expressions/defaulting-assignment`).
 //!
 //! See `tests/common/mod.rs` for the shared fixtures.
 
@@ -113,4 +113,135 @@ fn every_other_compound_assignment_is_still_typed_as_its_target() {
         .filter(|d| d.code == Some(code::E_TYPE_MISMATCH))
         .count();
     assert_eq!(mismatches, 3, "{diags:?}");
+}
+
+/// The error codes `diags` carries, in order.
+fn error_codes(diags: &nvs_diagnostics::Diagnostics) -> Vec<Option<nvs_diagnostics::Code>> {
+    diags
+        .iter()
+        .filter(|d| d.is_error())
+        .map(|d| d.code)
+        .collect()
+}
+
+#[test]
+fn a_defaulting_add_assign_is_typed_as_the_sum_over_a_zero_of_the_target_type() {
+    // Each value is the sum, which is never `null`, so each fits an `int`.
+    let diags = check_in_method(concat!(
+        "?int $n = null;\n",
+        "int $a = $n ??+= 1;\n",
+        "int $b = $n ??-= 2;\n",
+        "array<int> $counts = [];\n",
+        "int $c = $counts[\"k\"] ??+= 1;\n",
+        "array<array<int>> $grid = [];\n",
+        "$grid[\"x\"][\"y\"] ??-= 1;\n",
+        "int $plain = 3;\n",
+        "int $d = $plain ??+= 1;\n",
+        "mixed $any = null;\n",
+        "$any ??+= 1;\n",
+    ));
+    assert!(!diags.has_errors(), "{diags:?}");
+}
+
+#[test]
+fn a_defaulting_concat_assign_is_typed_as_the_concatenation_over_an_empty_string() {
+    let diags = check_in_method(concat!(
+        "?string $s = null;\n",
+        "string $t = $s ??.= \"x\";\n",
+        "array<string> $groups = [];\n",
+        "string $g = $groups[\"k\"] ??.= \"a\";\n",
+        "int|string $u = 1;\n",
+        "$u ??.= \"b\";\n",
+    ));
+    assert!(!diags.has_errors(), "{diags:?}");
+}
+
+#[test]
+fn a_defaulting_assignment_takes_a_uint_a_float_and_a_decimal_target() {
+    // The bare `1` takes the target's own type, as it does under `+=`.
+    let diags = check_in_method(concat!(
+        "?uint $u = null;\n",
+        "uint $v = $u ??+= 1;\n",
+        "?float $f = null;\n",
+        "float $g = $f ??-= 1.5;\n",
+        "?decimal $d = null;\n",
+        "decimal $e = $d ??+= 1.50;\n",
+    ));
+    assert!(!diags.has_errors(), "{diags:?}");
+}
+
+#[test]
+fn a_defaulting_assignment_keeps_every_refusal_of_its_operator() {
+    // Each pair is the plain operator over a target that cannot be `null`,
+    // then the defaulting one over the nullable target. Both are refused, and
+    // with the same codes.
+    let pairs = [
+        (
+            "string $s = \"\";\n$s += 1;\n",
+            "?string $s = null;\n$s ??+= 1;\n",
+        ),
+        (
+            "int $n = 0;\n$n .= \"x\";\n",
+            "?int $n = null;\n$n ??.= \"x\";\n",
+        ),
+        (
+            "uint $u = 0;\nint $i = 1;\n$u += $i;\n",
+            "?uint $u = null;\nint $i = 1;\n$u ??+= $i;\n",
+        ),
+        (
+            "bool $b = false;\n$b -= 1;\n",
+            "?bool $b = null;\n$b ??-= 1;\n",
+        ),
+        (
+            "array<int> $a = [];\n$a .= \"x\";\n",
+            "?array<int> $a = null;\n$a ??.= \"x\";\n",
+        ),
+    ];
+    for (plain, defaulting) in pairs {
+        let want = error_codes(&check_in_method(plain));
+        let got = error_codes(&check_in_method(defaulting));
+        assert!(!want.is_empty(), "{plain}");
+        assert_eq!(got, want, "{defaulting}");
+    }
+}
+
+#[test]
+fn a_defaulting_concat_assign_keeps_a_qualifier() {
+    let diags = check_src(concat!(
+        "<?nvs\n",
+        "class Post {\n",
+        "  function m(tainted string $in): void {\n",
+        "    ?tainted string $t = null;\n",
+        "    tainted string $u = $t ??.= \"x\";\n",
+        "    ?string $s = null;\n",
+        "    $s ??.= $in;\n",
+        "    string $plain = $t ??.= \"y\";\n",
+        "  }\n",
+        "}\n",
+    ));
+    // The tainted result does not fit `?string`, and it does not fit `string`.
+    assert_eq!(
+        error_codes(&diags),
+        vec![Some(code::E_TYPE_MISMATCH), Some(code::E_TYPE_MISMATCH)],
+        "{diags:?}"
+    );
+}
+
+#[test]
+fn a_coalesce_in_parentheses_is_still_not_an_assignment_target() {
+    let (diags, _) = check_src_table_allowing_errors(concat!(
+        "<?nvs\n",
+        "class Shop {\n",
+        "  function m(): void {\n",
+        "    ?int $a = null;\n",
+        "    ($a ?? 100) -= 1;\n",
+        "  }\n",
+        "}\n",
+    ));
+    assert!(
+        diags
+            .iter()
+            .any(|d| d.code == Some(code::E_INVALID_ASSIGN_TARGET)),
+        "{diags:?}"
+    );
 }
