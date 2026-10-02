@@ -504,6 +504,39 @@ fn a_shown_section_carries_no_rule_citation() {
     );
 }
 
+/// A chapter marks the place of a table the website renders from the registry
+/// with `<!-- generated: <roster> -->`. A shown section prints the roster's rows
+/// there, and never the marker.
+#[test]
+fn a_shown_section_prints_the_generated_roster_in_place_of_its_marker() {
+    let document = document();
+    let (card, _, ok) = agent(&["show", "attributes#the-names-the-compiler-acts-on"]);
+    assert!(ok, "the section resolves");
+    for name in document["attributes"].as_array().expect("an array") {
+        let name = name.as_str().expect("a name");
+        assert!(
+            card.contains(&format!("- `#[{name}]`")),
+            "`#[{name}]` is listed: {card}"
+        );
+    }
+
+    for section in [
+        "attributes#the-names-the-compiler-acts-on",
+        "errors#the-throwable-tree",
+        "classes#interfaces",
+        "config#reading-and-changing-it-from-a-program-core-config",
+    ] {
+        let (card, _, ok) = agent(&["show", section]);
+        assert!(ok, "{section} resolves");
+        assert!(!card.contains("<!-- generated:"), "{section}: {card}");
+    }
+    let (card, _, _) = agent(&["show", "errors#the-throwable-tree"]);
+    assert!(
+        card.contains("- `IOError` extends `RuntimeError`"),
+        "{card}"
+    );
+}
+
 /// The chapter list is written by hand, so a chapter added to the reference and
 /// not to the list is one the binary cannot show while the primer says its map
 /// is all of them. Every file of the two reference directories has a line.

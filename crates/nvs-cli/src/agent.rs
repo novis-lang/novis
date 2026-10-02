@@ -519,8 +519,62 @@ fn without_rule_citations(line: &str) -> String {
     out
 }
 
+/// The roster a chapter's `<!-- generated: <roster> -->` line names, where the
+/// website renders a table from the registry, or `None` for any other line.
+fn generated_roster(line: &str) -> Option<&str> {
+    line.trim()
+        .strip_prefix("<!-- generated: ")?
+        .strip_suffix(" -->")
+}
+
+/// The lines a shown section carries in place of a `<!-- generated: -->`
+/// marker: one per row of `roster` in `document`, which is the same
+/// [`crate::meta::document`] the website renders its table from
+/// (`rule:tooling/one-json-several-renderers`). A roster this function does
+/// not know renders nothing, so no marker ever reaches a reader.
+fn generated(roster: &str, document: &Value) -> String {
+    let mut out = String::new();
+    for row in array(document, roster) {
+        let line = match roster {
+            "attributes" => format!("- `#[{}]`", row.as_str().unwrap_or_default()),
+            "exceptions" => match row["parent"].as_str() {
+                Some(parent) => format!("- `{}` extends `{parent}`", text(row, "name")),
+                None => format!("- `{}`", text(row, "name")),
+            },
+            "interfaces" => {
+                let params: Vec<&str> = array(row, "typeParams")
+                    .iter()
+                    .filter_map(Value::as_str)
+                    .collect();
+                if params.is_empty() {
+                    format!("- `{}`", text(row, "name"))
+                } else {
+                    format!("- `{}<{}>`", text(row, "name"), params.join(", "))
+                }
+            }
+            "directives" => {
+                let applies = if text(row, "apply") == "Reload" {
+                    "at reload"
+                } else {
+                    "at boot only"
+                };
+                format!(
+                    "- `{}`: `{}`, {applies}",
+                    text(row, "key"),
+                    text(row, "class")
+                )
+            }
+            _ => continue,
+        };
+        out.push_str(&line);
+        out.push('\n');
+    }
+    out
+}
+
 /// The card's own parts for a chapter or a section: a section's `text`, which
-/// is the chapter's own text with the primer's markers taken out, or a
+/// is the chapter's own text with the primer's markers taken out and each
+/// generated table's marker replaced by its rows, or a
 /// chapter's `sections`, each with its depth. The chapter's summary is already
 /// on its entry.
 fn topic_card(symbol: &str) -> Map<String, Value> {
@@ -532,7 +586,13 @@ fn topic_card(symbol: &str) -> Map<String, Value> {
 
     if topic.level > 0 {
         let mut body = String::new();
+        let mut document = None;
         for line in topic.lines.iter().filter(|line| line.trim() != MARKER) {
+            if let Some(roster) = generated_roster(line) {
+                let document = document.get_or_insert_with(crate::meta::document);
+                body.push_str(&generated(roster, document));
+                continue;
+            }
             body.push_str(without_rule_citations(line.trim_end()).as_str());
             body.push('\n');
         }
