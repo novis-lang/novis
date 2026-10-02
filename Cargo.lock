@@ -2213,6 +2213,7 @@ dependencies = [
  "rcgen",
  "rustc-hash",
  "rustls",
+ "serde",
  "serde_json",
  "toml",
  "windows-sys 0.61.2",

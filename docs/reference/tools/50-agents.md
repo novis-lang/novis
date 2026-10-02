@@ -2,7 +2,7 @@
 id: agents
 title: "Coding agents: nvs agent, and what nvs agent init installs"
 summary: the four commands a coding agent reads the language through — `primer`, `index`, `find` and `show` — over the `Core` registry and the chapters of this reference, the `nvs check` loop that closes them, and `nvs agent init`, which writes an `AGENTS.md` stanza and what the coding agent you run needs beside it, and states no language fact
-keywords: nvs agent, nvs agent primer, nvs agent index, nvs agent find, nvs agent show, nvs agent init, --agent, --all, --force, --check, --json, JSON, fingerprint, coding agent, LLM, AI assistant, agent instructions, AGENTS.md, SKILL.md, .claude, Claude Code, skill, Cursor, Codex, OpenCode, GitHub Copilot, .instructions.md, adapter, pointer, stale documentation, hallucinated member, nvs check loop
+keywords: nvs agent, nvs agent primer, nvs agent index, nvs agent find, nvs agent show, nvs agent init, nvs agent hook, --agent, --all, --force, --check, --no-hooks, --json, hook, check hook, check on edit, PostToolUse, postToolUse, settings.json, .claude/settings.json, hooks.json, .cursor/hooks.json, JSON, fingerprint, coding agent, LLM, AI assistant, agent instructions, AGENTS.md, SKILL.md, .claude, Claude Code, skill, Cursor, Codex, OpenCode, GitHub Copilot, .instructions.md, adapter, pointer, stale documentation, hallucinated member, nvs check loop
 ---
 
 <!-- primer -->
@@ -131,7 +131,7 @@ compiles, and a section that stops being true stops being printed rather than be
 
 # nvs agent init
 
-    nvs agent init [--agent <name>]... [--all] [--force | --check]
+    nvs agent init [--agent <name>]... [--all] [--force | --check] [--no-hooks]
 
 Writes the files that tell a coding agent these commands exist, into the project in the working
 directory. It is the only command here that writes a file. Each file points at the commands above
@@ -157,17 +157,54 @@ Two kinds of file, and both say the same thing:
 `init` installs for the coding agent that runs it. Each agent sets an environment variable in the
 commands it runs, and `init` reads it:
 
-| Agent | `--agent` | Found by | Gets beside `AGENTS.md` |
-|---|---|---|---|
-| Claude Code | `claude-code` | `CLAUDE_CODE_CHILD_SESSION` | the skill `.claude/skills/novis/SKILL.md` |
-| Cursor | `cursor` | `CURSOR_AGENT` | nothing |
-| Codex | `codex` | `CODEX_THREAD_ID` | nothing |
-| GitHub Copilot | `copilot` | `COPILOT_AGENT`, `AI_AGENT`, `COPILOT_AGENT_SESSION_ID` or `GITHUB_COPILOT_API_TOKEN` | the instructions file `.github/instructions/novis.instructions.md` |
-| OpenCode | `opencode` | `OPENCODE` | nothing |
+| Agent | `--agent` | Found by | Gets beside `AGENTS.md` | Check hook |
+|---|---|---|---|---|
+| Claude Code | `claude-code` | `CLAUDE_CODE_CHILD_SESSION` | the skill `.claude/skills/novis/SKILL.md` | in `.claude/settings.json` |
+| Cursor | `cursor` | `CURSOR_AGENT` | nothing | in `.cursor/hooks.json` |
+| Codex | `codex` | `CODEX_THREAD_ID` | nothing | none |
+| GitHub Copilot | `copilot` | `COPILOT_AGENT`, `AI_AGENT`, `COPILOT_AGENT_SESSION_ID` or `GITHUB_COPILOT_API_TOKEN` | the instructions file `.github/instructions/novis.instructions.md` | none |
+| OpenCode | `opencode` | `OPENCODE` | nothing | none |
 
 Claude Code reads `AGENTS.md` only in a project that has no `CLAUDE.md`, so it gets a skill. Copilot
 does not say which of its tools read `AGENTS.md`, so it gets its own instructions file. The other
 three read `AGENTS.md`.
+
+**The check hook.** Claude Code and Cursor can run a command after each edit. `init` adds one entry
+to that agent's settings file, and the agent then runs `nvs agent hook <agent>` after it edits a
+file. For a `.nvs` file the command runs `nvs check` on it and shows the agent the errors. The other
+three agents have no hook that runs a plain command, so they get none. This is the entry in
+`.claude/settings.json`, under `hooks.PostToolUse`:
+
+    {"matcher": "Write|Edit|MultiEdit", "hooks": [{"type": "command", "command": "nvs agent hook claude-code"}]}
+
+This is the entry in `.cursor/hooks.json`, under `hooks.postToolUse`. A new file also gets
+`"version": 1`:
+
+    {"command": "nvs agent hook cursor", "matcher": "Write"}
+
+`init` never touches `.claude/settings.local.json`. It adds the entry at the end of the list and
+keeps every other key and entry in the order the file had them. The file is written back with
+two-space indentation. `init` finds its entry by the command alone, so you can change the matcher.
+A settings file that is not a JSON object, or whose `hooks` is not an object of lists, stops `init`
+with an error before it writes any file. `--force` does not change that, because the file has your
+other settings.
+
+`--no-hooks` adds no hook, and removes the entry from each file that has it, for every agent. A file
+that has nothing left but the empty frame `init` started it with is deleted. With `--check`,
+`--no-hooks` means that hooks are not checked.
+
+Cursor also runs the hooks in `.claude/settings.json`. When the project has Cursor's own hook too,
+`nvs agent hook claude-code` prints nothing under Cursor, so the agent sees the errors once.
+
+`nvs agent hook <agent>` reads the agent's JSON message on standard input and takes the edited path
+from it. A path that does not end in `.nvs` ends the command at once. Otherwise it checks the file as
+`nvs check <file>` does, in the directory the message names, and never writes an `nvs.toml`. That
+directory is the message's `cwd`, or for Cursor the first of its `workspace_roots` when there is no
+`cwd`. A clean file prints nothing. For a file with errors it prints the first five errors, a line
+with the number of the others, and the command that shows them all. Claude Code gets
+`{"decision": "block", "reason": "<the errors>"}`: the edit stays, and the agent is told to fix the
+errors. Cursor gets `{"additional_context": "<the errors>"}`. Warnings are not shown. The command
+always exits with status 0, so a hook never stops the agent.
 
 The first line `init` prints names the agent it chose, and the variable it found. When you run
 `init` yourself in a terminal, no agent is found, and only the stanza is written. `--agent <name>`
@@ -186,7 +223,9 @@ only say which commands to run, and the installed `nvs` gives the answers.
 **Run it again after you update `nvs`.** Each file has a fingerprint in its marker. The fingerprint
 is computed from the text `init` wrote, so `init` can see whether somebody changed the file:
 
-- A file that is missing is written, and `init` prints `wrote <path>`.
+- A file that is missing is written, and `init` prints `wrote <path>`. A hook that is missing is
+  added, and `init` prints `added hook to <path>`. With `--no-hooks` it prints
+  `removed hook from <path>`.
 - A file that nobody changed, but that an older `nvs` wrote, is replaced with the current text.
   `init` prints `updated <path>`.
 - A file that somebody changed is not touched. `init` prints an error that names the file, exits
@@ -198,7 +237,8 @@ Line endings do not count, so a checkout with CRLF line endings has the same fin
 that an older `nvs` wrote, or one that the agent reading the primer needs and the project lacks.
 
 `--check` writes nothing. It prints `missing`, `outdated`, `edited` or `retired` and the path for
-each file that is not current, and exits with a non-zero status. When every file is current it
+each file that is not current, and `missing hook` and the path for a hook the agent lacks. Then it
+exits with a non-zero status. When every file is current it
 prints `up to date` and succeeds. You can run it in CI, where no agent is found, so it checks the
 stanza and the files that are already there.
 
@@ -216,6 +256,8 @@ $ nvs agent init --all
 agent: every one (--all)
 wrote .claude/skills/novis/SKILL.md
 wrote .github/instructions/novis.instructions.md
+added hook to .claude/settings.json
+added hook to .cursor/hooks.json
 ```
 
 # A worked session

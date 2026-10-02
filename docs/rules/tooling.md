@@ -1300,6 +1300,13 @@ GitHub Copilot an instructions file at `.github/instructions/novis.instructions.
 run wrote is kept current whichever agent runs it now. Each pointer names the four `nvs agent`
 commands, the `nvs check` loop with its `--json` form, and `nvs test`.
 
+**A hook is protocol too.** Where an agent's tool runs a plain command after an edit, `init` merges
+one entry into that tool's settings — `hooks.PostToolUse` in `.claude/settings.json` for Claude Code,
+`hooks.postToolUse` in `.cursor/hooks.json` for Cursor — and `--no-hooks` removes it. The entry runs
+`nvs agent hook <agent>`, which checks the edited `.nvs` file as `nvs check` does and gives its errors
+back in the tool's JSON. It runs the checker and states no language fact of its own. An agent whose
+tool has no plain command hook gets no hook, and no wrapper or plugin stands in for one.
+
 **No adapter states a language fact.** Not a member signature, not a refusal, not a type. A language
 fact written into an adapter is a copy that goes stale the day the member changes, and every copy is
 read by an agent that has no way to know it is old — which is the failure the whole surface is arranged
@@ -1317,7 +1324,7 @@ That is what keeps the adapter list open. Another harness is another short point
 decides nothing and reopens nothing, and none of them can disagree with the language, because none of
 them says anything about it.
 
-<sub>See also [`tooling/an-agent-asks-the-binary`](tooling.md#tooling-an-agent-asks-the-binary), [`tooling/a-primer-claim-is-executed`](tooling.md#tooling-a-primer-claim-is-executed), [`ide/the-extension-guides-an-install-and-never-bundles-one`](ide.md#ide-the-extension-guides-an-install-and-never-bundles-one). Decided in [0167](../decisions/0167.md), [0256](../decisions/0256.md).</sub>
+<sub>See also [`tooling/an-agent-asks-the-binary`](tooling.md#tooling-an-agent-asks-the-binary), [`tooling/a-primer-claim-is-executed`](tooling.md#tooling-a-primer-claim-is-executed), [`ide/the-extension-guides-an-install-and-never-bundles-one`](ide.md#ide-the-extension-guides-an-install-and-never-bundles-one). Decided in [0167](../decisions/0167.md), [0256](../decisions/0256.md), [0260](../decisions/0260.md).</sub>
 
 <a id="tooling-convert-php-front-end"></a>
 

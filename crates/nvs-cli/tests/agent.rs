@@ -8,8 +8,9 @@
 //! property the index exists to have, and a count passes over a member swapped
 //! for another.
 
+use std::io::Write as _;
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, Stdio};
 
 /// `nvs agent <args...>`, as `(stdout, stderr, success)`.
 fn agent(args: &[&str]) -> (String, String, bool) {
@@ -1075,13 +1076,15 @@ fn tree(name: &str) -> PathBuf {
     dir
 }
 
-/// Every environment variable `init` reads to find the agent that runs it.
-/// Each run here clears all of them on the child, so the agent that runs this
-/// test suite is never the one a test sees.
+/// Every environment variable `init` reads to find the agent that runs it, and
+/// `hook` reads to tell that it runs under Cursor. Each run here clears all of
+/// them on the child, so the agent that runs this test suite is never the one
+/// a test sees.
 const AGENT_VARS: &[&str] = &[
     "CLAUDE_CODE_CHILD_SESSION",
     "CURSOR_AGENT",
     "CURSOR_PROJECT_DIR",
+    "CURSOR_VERSION",
     "CODEX_THREAD_ID",
     "COPILOT_AGENT",
     "AI_AGENT",
@@ -1272,45 +1275,85 @@ fn init_refuses_to_overwrite_a_stanza_that_has_been_edited() {
 }
 
 /// Claude Code is found by the variable it sets in the commands it runs, so a
-/// run under it gets the skill beside the neutral stanza. A second run under
-/// no agent keeps the skill, because a file an earlier run wrote stays.
+/// run under it gets the skill and the check hook beside the neutral stanza.
+/// A second run under no agent keeps both, because what an earlier run wrote
+/// stays.
 // covers: tools:agents/nvs-agent-init
 #[test]
-fn init_writes_the_claude_skill_when_claude_code_runs_it() {
+fn init_writes_the_claude_skill_and_hook_when_claude_code_runs_it() {
     let dir = tree("claude");
+    let written = vec![
+        ".claude/settings.json".to_owned(),
+        ".claude/skills/novis/SKILL.md".to_owned(),
+        "AGENTS.md".to_owned(),
+    ];
 
     let (out, line, err, ok) = init_as(&dir, CLAUDE, &[]);
     assert!(ok, "`nvs agent init` succeeds: {err}");
     assert_eq!(line, "agent: claude-code (CLAUDE_CODE_CHILD_SESSION)");
+    assert_eq!(files(&dir), written);
     assert_eq!(
-        files(&dir),
-        vec![
-            ".claude/skills/novis/SKILL.md".to_owned(),
-            "AGENTS.md".to_owned(),
+        out.lines().collect::<Vec<_>>(),
+        [
+            "wrote AGENTS.md",
+            "wrote .claude/skills/novis/SKILL.md",
+            "added hook to .claude/settings.json",
         ]
     );
-    assert!(
-        out.contains(".claude/skills/novis/SKILL.md"),
-        "it says what it wrote: {out}"
-    );
+    assert_eq!(read(&dir, ".claude/settings.json"), CLAUDE_SETTINGS);
+    let hook = read(&dir, ".claude/settings.json");
 
-    let (_, err, ok) = init(&dir, &[]);
+    let (out, err, ok) = init(&dir, &[]);
     assert!(ok, "the second run succeeds: {err}");
+    assert_eq!(out.trim_end(), "up to date");
+    assert_eq!(files(&dir), written);
     assert_eq!(
-        files(&dir),
-        vec![
-            ".claude/skills/novis/SKILL.md".to_owned(),
-            "AGENTS.md".to_owned(),
-        ]
+        read(&dir, ".claude/settings.json"),
+        hook,
+        "a hook added earlier is kept when no agent is found"
     );
+    let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// The `.claude/settings.json` a run under Claude Code creates.
+const CLAUDE_SETTINGS: &str = r#"{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "nvs agent hook claude-code"
+          }
+        ]
+      }
+    ]
+  }
+}
+"#;
+
+/// The `.cursor/hooks.json` a run under Cursor creates.
+const CURSOR_HOOKS: &str = r#"{
+  "version": 1,
+  "hooks": {
+    "postToolUse": [
+      {
+        "command": "nvs agent hook cursor",
+        "matcher": "Write"
+      }
+    ]
+  }
+}
+"#;
 
 /// Every pointer `--all` writes, as `(path, text)`, which is the whole set the
 /// two tests below hold to the rule — asked for by the flag rather than by
 /// naming the harnesses, so a row added to the table is covered the day it lands.
+/// The hooks' settings files are not pointers, and `--no-hooks` leaves them out.
 fn pointers(name: &str) -> Vec<(String, String)> {
     let dir = tree(name);
-    let (_, err, ok) = init(&dir, &["--all"]);
+    let (_, err, ok) = init(&dir, &["--all", "--no-hooks"]);
     assert!(ok, "`nvs agent init --all` succeeds: {err}");
     let paths = files(&dir);
     assert!(
@@ -1800,33 +1843,56 @@ fn init_check_writes_nothing_and_fails_until_every_file_is_current() {
 }
 
 /// Each agent is found by a variable it sets in the commands it runs, and
-/// gets what its row of the table names: Claude Code a skill, Copilot an
-/// instructions file, and Codex, Cursor and OpenCode nothing but the stanza,
-/// because they read `AGENTS.md` themselves. A variable that is empty, or
+/// gets what its row of the table names: Claude Code a skill and a hook,
+/// Cursor a hook, Copilot an instructions file, and Codex and OpenCode nothing
+/// but the stanza, because they read `AGENTS.md` themselves and their tools
+/// run no plain command after an edit. A variable that is empty, or
 /// `AI_AGENT` naming another tool, finds nothing.
 // covers: tools:agents/nvs-agent-init
 #[test]
 fn init_installs_what_the_agent_found_in_the_environment_needs() {
     let skill = ".claude/skills/novis/SKILL.md";
     let copilot = ".github/instructions/novis.instructions.md";
-    let cases: &[(&str, &str, &str, Option<&str>)] = &[
-        ("CLAUDE_CODE_CHILD_SESSION", "1", "claude-code", Some(skill)),
-        ("CURSOR_AGENT", "1", "cursor", None),
-        ("CODEX_THREAD_ID", "a1", "codex", None),
-        ("COPILOT_AGENT", "1", "copilot", Some(copilot)),
+    let settings = ".claude/settings.json";
+    let hooks = ".cursor/hooks.json";
+    type Case<'a> = (&'a str, &'a str, &'a str, Option<&'a str>, Option<&'a str>);
+    let cases: &[Case<'_>] = &[
+        (
+            "CLAUDE_CODE_CHILD_SESSION",
+            "1",
+            "claude-code",
+            Some(skill),
+            Some(settings),
+        ),
+        ("CURSOR_AGENT", "1", "cursor", None, Some(hooks)),
+        ("CODEX_THREAD_ID", "a1", "codex", None, None),
+        ("COPILOT_AGENT", "1", "copilot", Some(copilot), None),
         (
             "AI_AGENT",
             "github_copilot_vscode_agent",
             "copilot",
             Some(copilot),
+            None,
         ),
-        ("COPILOT_AGENT_SESSION_ID", "s1", "copilot", Some(copilot)),
-        ("GITHUB_COPILOT_API_TOKEN", "t", "copilot", Some(copilot)),
-        ("OPENCODE", "1", "opencode", None),
-        ("AI_AGENT", "another_tool", "", None),
-        ("CLAUDE_CODE_CHILD_SESSION", "", "", None),
+        (
+            "COPILOT_AGENT_SESSION_ID",
+            "s1",
+            "copilot",
+            Some(copilot),
+            None,
+        ),
+        (
+            "GITHUB_COPILOT_API_TOKEN",
+            "t",
+            "copilot",
+            Some(copilot),
+            None,
+        ),
+        ("OPENCODE", "1", "opencode", None, None),
+        ("AI_AGENT", "another_tool", "", None, None),
+        ("CLAUDE_CODE_CHILD_SESSION", "", "", None, None),
     ];
-    for (index, &(var, value, name, expected)) in cases.iter().enumerate() {
+    for (index, &(var, value, name, expected, hook)) in cases.iter().enumerate() {
         let dir = tree(&format!("detect-{index}"));
         let (out, line, err, ok) = init_as(&dir, &[(var, value)], &[]);
         assert!(ok, "`{var}={value}`: {err}");
@@ -1838,14 +1904,25 @@ fn init_installs_what_the_agent_found_in_the_environment_needs() {
                 "{line}"
             );
         }
-        if expected.is_none() && !name.is_empty() {
-            assert!(line.ends_with("AGENTS.md is all it needs"), "{line}");
-        }
+        assert_eq!(
+            line.ends_with("AGENTS.md is all it needs"),
+            expected.is_none() && hook.is_none() && !name.is_empty(),
+            "{line}"
+        );
         let mut wrote = vec!["wrote AGENTS.md".to_owned()];
         wrote.extend(expected.map(|path| format!("wrote {path}")));
+        wrote.extend(hook.map(|path| format!("added hook to {path}")));
         assert_eq!(out.lines().collect::<Vec<_>>(), wrote, "`{var}={value}`");
         if let Some(path) = expected {
             assert_eq!(read(&dir, path), fresh_text(path), "`{var}`");
+        }
+        if hook == Some(hooks) {
+            assert_eq!(read(&dir, hooks), CURSOR_HOOKS);
+            assert_eq!(
+                files(&dir),
+                [hooks, "AGENTS.md"],
+                "Cursor gets the hook only"
+            );
         }
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -1874,9 +1951,12 @@ fn init_agent_replaces_detection_and_all_installs_for_every_agent() {
     );
     let (_, line, err, ok) = init_as(&dir, &[], &["--agent", "codex", "--agent", "cursor"]);
     assert!(ok, "{err}");
+    assert_eq!(line, "agent: cursor, codex (--agent)");
+    let (_, line, err, ok) = init_as(&dir, &[], &["--agent", "codex", "--agent", "opencode"]);
+    assert!(ok, "{err}");
     assert_eq!(
         line,
-        "agent: cursor, codex (--agent); AGENTS.md is all they need"
+        "agent: codex, opencode (--agent); AGENTS.md is all they need"
     );
     let (_, err, ok) = nvs_in(&dir, &[], &["agent", "init", "--agent", "nobody"]);
     assert!(!ok, "an unknown name is refused: {err}");
@@ -1893,7 +1973,9 @@ fn init_agent_replaces_detection_and_all_installs_for_every_agent() {
     assert_eq!(
         files(&dir),
         [
+            ".claude/settings.json",
             ".claude/skills/novis/SKILL.md",
+            ".cursor/hooks.json",
             ".github/instructions/novis.instructions.md",
             "AGENTS.md",
         ]
@@ -1981,4 +2063,413 @@ fn primer_err(dir: &Path, env: &[(&str, &str)]) -> String {
     let (_, err, ok) = nvs_in(dir, env, &["agent", "primer"]);
     assert!(ok, "the primer succeeds");
     err
+}
+
+/// A project's own Claude Code settings: keys in an order that is not sorted,
+/// a hook of its own under the same event, and another event.
+const OUR_SETTINGS: &str = r#"{
+  "permissions": {
+    "allow": [
+      "Bash(ls)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "our-guard"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "our-log"
+          }
+        ]
+      }
+    ]
+  },
+  "env": {
+    "ZETA": "1",
+    "ALPHA": "2"
+  }
+}
+"#;
+
+/// The hook joins a settings file the project already has: every other key,
+/// hook and event stays where it was, the entry goes at the end of the
+/// event's array, and a second run changes nothing. `--no-hooks` takes the
+/// entry out again and leaves the file as the project wrote it.
+// covers: tools:agents/nvs-agent-init
+#[test]
+fn init_merges_its_hook_into_the_settings_keeping_every_other_key_in_order() {
+    let dir = tree("merge");
+    std::fs::create_dir_all(dir.join(".claude")).expect("the settings directory");
+    std::fs::write(dir.join(".claude/settings.json"), OUR_SETTINGS).expect("our settings");
+
+    let (out, _, err, ok) = init_as(&dir, CLAUDE, &[]);
+    assert!(ok, "{err}");
+    assert!(out.contains("added hook to .claude/settings.json"), "{out}");
+    let ours = r#"      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "our-log"
+          }
+        ]
+      }
+"#;
+    let merged = OUR_SETTINGS.replace(
+        ours,
+        &format!(
+            "{},\n{}",
+            ours.trim_end(),
+            r#"      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "nvs agent hook claude-code"
+          }
+        ]
+      }
+"#
+        ),
+    );
+    assert_ne!(merged, OUR_SETTINGS, "the expected text has the hook");
+    assert_eq!(read(&dir, ".claude/settings.json"), merged);
+
+    let (out, _, err, ok) = init_as(&dir, CLAUDE, &[]);
+    assert!(ok, "{err}");
+    assert_eq!(out.trim_end(), "up to date");
+    assert_eq!(read(&dir, ".claude/settings.json"), merged);
+
+    let (out, _, err, ok) = init_as(&dir, CLAUDE, &["--no-hooks"]);
+    assert!(ok, "{err}");
+    assert_eq!(out.trim_end(), "removed hook from .claude/settings.json");
+    assert_eq!(read(&dir, ".claude/settings.json"), OUR_SETTINGS);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// A settings file `init` cannot read as the object the agent's tool reads is
+/// refused whatever else the run would do, and `--force` does not override
+/// it: the file holds the project's other settings. Nothing is written.
+// covers: tools:agents/nvs-agent-init
+#[test]
+fn init_refuses_a_settings_file_it_cannot_read_and_force_does_not_override_it() {
+    let broken = [
+        ("not-json", "{\"hooks\": [}\n"),
+        ("not-an-object", "[]\n"),
+        ("hooks-not-an-object", "{\"hooks\": []}\n"),
+        ("event-not-an-array", "{\"hooks\": {\"PostToolUse\": {}}}\n"),
+    ];
+    for (name, text) in broken {
+        let dir = tree(&format!("settings-{name}"));
+        std::fs::create_dir_all(dir.join(".claude")).expect("the settings directory");
+        std::fs::write(dir.join(".claude/settings.json"), text).expect("the broken settings");
+        let before = snapshot(&dir);
+        for args in [&[][..], &["--force"][..], &["--no-hooks"][..]] {
+            let (out, _, err, ok) = init_as(&dir, CLAUDE, args);
+            assert!(!ok, "`{name}` {args:?} is a refusal: {out}");
+            assert!(
+                err.contains(".claude/settings.json"),
+                "`{name}`: the refusal names the file: {err}"
+            );
+            assert!(!err.contains("panicked"), "`{name}`: {err}");
+            assert_eq!(
+                snapshot(&dir),
+                before,
+                "`{name}` {args:?}: nothing is written"
+            );
+        }
+        let (out, _, err, ok) = init_as(&dir, CLAUDE, &["--no-hooks", "--check"]);
+        assert!(!ok, "the stanza is still missing: {out}{err}");
+        assert!(
+            !err.contains(".claude/settings.json"),
+            "`--check --no-hooks` reads no hook file: {err}"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+}
+
+/// `--no-hooks` removes the hooks an earlier run added, for every agent, and
+/// deletes a file that held nothing else. `--check` names a hook the running
+/// agent lacks, and with `--no-hooks` it does not look.
+// covers: tools:agents/nvs-agent-init
+#[test]
+fn no_hooks_removes_each_hook_and_check_names_a_missing_one() {
+    let dir = tree("no-hooks");
+    let (_, err, ok) = init(&dir, &["--all"]);
+    assert!(ok, "{err}");
+    assert_eq!(read(&dir, ".cursor/hooks.json"), CURSOR_HOOKS);
+
+    let (out, err, ok) = init(&dir, &["--no-hooks"]);
+    assert!(ok, "{err}");
+    assert_eq!(
+        out.lines().collect::<Vec<_>>(),
+        [
+            "removed hook from .claude/settings.json",
+            "removed hook from .cursor/hooks.json",
+        ]
+    );
+    assert!(
+        !dir.join(".claude/settings.json").exists(),
+        "it held only the hook"
+    );
+    assert!(
+        !dir.join(".cursor/hooks.json").exists(),
+        "it held only the hook"
+    );
+
+    let (out, _, _, ok) = init_as(&dir, CLAUDE, &["--check"]);
+    assert!(!ok, "a missing hook fails the check");
+    assert_eq!(out.trim_end(), "missing hook .claude/settings.json");
+    let note = primer_err(&dir, CLAUDE);
+    assert!(
+        note.contains("nvs agent init"),
+        "the primer says so: {note}"
+    );
+
+    let (out, _, err, ok) = init_as(&dir, CLAUDE, &["--check", "--no-hooks"]);
+    assert!(ok, "{err}");
+    assert_eq!(out.trim_end(), "up to date");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// `nvs agent hook <agent>`, run in `dir` under `env` with `payload` on its
+/// standard input, as `(stdout, stderr, success)`.
+fn hook_in(dir: &Path, env: &[(&str, &str)], agent: &str, payload: &str) -> (String, String, bool) {
+    let mut command = Command::new(env!("CARGO_BIN_EXE_nvs"));
+    for var in AGENT_VARS {
+        command.env_remove(var);
+    }
+    let mut child = command
+        .envs(env.iter().copied())
+        .args(["agent", "hook", agent])
+        .current_dir(dir)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("the `nvs` binary this test was built beside runs");
+    child
+        .stdin
+        .take()
+        .expect("standard input is piped")
+        .write_all(payload.as_bytes())
+        .expect("the payload is written");
+    let out = child.wait_with_output().expect("the hook finishes");
+    (
+        String::from_utf8(out.stdout).expect("the output is UTF-8"),
+        String::from_utf8(out.stderr).expect("the output is UTF-8"),
+        out.status.success(),
+    )
+}
+
+/// The payload an agent's tool gives a hook after it edited `file` in `dir`.
+fn payload(dir: &Path, file: &str) -> String {
+    serde_json::json!({
+        "hook_event_name": "PostToolUse",
+        "tool_name": "Write",
+        "tool_input": { "file_path": file },
+        "cwd": dir.to_str().expect("the fixture path is UTF-8"),
+    })
+    .to_string()
+}
+
+/// Seven statements that each name a variable nobody declared, so `nvs check`
+/// reports seven errors.
+const SEVEN_ERRORS: &str = "<?nvs\n\necho $a1;\necho $a2;\necho $a3;\necho $a4;\necho $a5;\n\
+                            echo $a6;\necho $a7;\n";
+
+/// The hook says nothing, and succeeds, for an edit it has nothing to say
+/// about: a file that is not `.nvs`, a clean `.nvs` file, and a payload that
+/// is not JSON. It writes no file into the project.
+// covers: tools:agents/nvs-agent-init
+#[test]
+fn the_hook_is_silent_for_another_file_a_clean_file_and_a_payload_it_cannot_read() {
+    let dir = tree("hook-silent");
+    std::fs::write(dir.join("README.md"), "# Ours\n").expect("a file that is not Novis");
+    std::fs::write(dir.join("clean.nvs"), "<?nvs\n\necho \"hello\\n\";\n").expect("a clean file");
+    std::fs::write(dir.join("Loud.NVS"), "<?nvs\n\necho \"hello\\n\";\n").expect("a clean file");
+    let before = snapshot(&dir);
+    for agent in ["claude-code", "cursor"] {
+        for input in [
+            payload(&dir, "README.md"),
+            payload(&dir, "clean.nvs"),
+            payload(&dir, &dir.join("Loud.NVS").to_string_lossy()),
+            "not json".to_owned(),
+            "{}".to_owned(),
+        ] {
+            let (out, err, ok) = hook_in(&dir, &[], agent, &input);
+            assert!(ok, "`{agent}` on {input}: {err}");
+            assert_eq!(out, "", "`{agent}` on {input}");
+        }
+    }
+    assert_eq!(snapshot(&dir), before, "the hook writes nothing");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// A `.nvs` file with errors is reported in the JSON each agent's tool reads:
+/// the first five errors, the count of the rest, and how to see them all.
+/// Warnings are not part of it.
+// covers: tools:agents/nvs-agent-init
+#[test]
+fn the_hook_gives_back_the_first_five_errors_in_each_agents_shape() {
+    let dir = tree("hook-errors");
+    std::fs::write(dir.join("broken.nvs"), SEVEN_ERRORS).expect("a file with errors");
+    let input = payload(&dir, &dir.join("broken.nvs").to_string_lossy());
+
+    let (out, err, ok) = hook_in(&dir, &[], "claude-code", &input);
+    assert!(ok, "the hook succeeds whatever the file holds: {err}");
+    let answer: serde_json::Value = serde_json::from_str(&out).expect("the answer is JSON");
+    assert_eq!(answer["decision"], "block", "{out}");
+    let claude = answer["reason"]
+        .as_str()
+        .expect("the report is a string")
+        .to_owned();
+
+    let (out, err, ok) = hook_in(&dir, &[], "cursor", &input);
+    assert!(ok, "{err}");
+    let answer: serde_json::Value = serde_json::from_str(&out).expect("the answer is JSON");
+    let cursor = answer["additional_context"]
+        .as_str()
+        .expect("the report is a string")
+        .to_owned();
+    assert_eq!(cursor, claude, "both agents get the same report");
+
+    assert!(
+        claude.starts_with("`nvs check` found 7 errors in broken.nvs:\n"),
+        "{claude}"
+    );
+    assert_eq!(claude.matches("error[E0301]").count(), 5, "{claude}");
+    assert!(
+        claude.contains("`$a5`") && !claude.contains("`$a6`"),
+        "{claude}"
+    );
+    assert!(
+        claude.contains("and 2 more errors; run `nvs check broken.nvs` to see them all"),
+        "{claude}"
+    );
+    assert!(claude.contains("nvs agent show"), "{claude}");
+    assert!(!claude.contains("aborting"), "{claude}");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// A class file a program autoloads is checked through that program's
+/// `autoload` map, as `nvs check` checks it from the payload's directory, so
+/// it is clean. With no program to lend the map, the same file has errors.
+// covers: tools:agents/nvs-agent-init
+#[test]
+fn the_hook_checks_an_autoloaded_class_file_through_its_programs_map() {
+    let main = "<?nvs\nautoload 'App' from './app';\n\nuse App\\User;\n\nnew User();\n";
+    let user = "<?nvs\nnamespace App;\n\nuse App\\Mailer;\n\nclass User {\n    \
+                public function send(): int {\n        return Mailer::count();\n    }\n}\n";
+    let mailer = "<?nvs\nnamespace App;\n\nclass Mailer {\n    \
+                  public static function count(): int {\n        return 1;\n    }\n}\n";
+    for lent in [true, false] {
+        let dir = tree(&format!("hook-autoload-{lent}"));
+        std::fs::create_dir_all(dir.join("site/app")).expect("the class directory");
+        if lent {
+            std::fs::write(dir.join("site/main.nvs"), main).expect("the program");
+        }
+        std::fs::write(dir.join("site/app/User.nvs"), user).expect("a class");
+        std::fs::write(dir.join("site/app/Mailer.nvs"), mailer).expect("a class");
+
+        let (out, err, ok) = hook_in(
+            &dir,
+            &[],
+            "claude-code",
+            &payload(&dir, "site/app/User.nvs"),
+        );
+        assert!(ok, "{err}");
+        assert_eq!(out.is_empty(), lent, "lent: {lent}: {out}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+}
+
+/// Cursor also runs the hooks in `.claude/settings.json`. When the project
+/// has Cursor's own hook, the Claude Code hook says nothing under Cursor, so
+/// the agent hears about the file once. Without Cursor's hook it reports.
+// covers: tools:agents/nvs-agent-init
+#[test]
+fn the_claude_code_hook_is_silent_under_cursor_when_cursors_own_hook_is_there() {
+    let dir = tree("hook-twice");
+    std::fs::write(dir.join("broken.nvs"), SEVEN_ERRORS).expect("a file with errors");
+    let input = payload(&dir, "broken.nvs");
+    let cursor: &[(&str, &str)] = &[("CURSOR_PROJECT_DIR", "1")];
+
+    let (out, err, ok) = hook_in(&dir, cursor, "claude-code", &input);
+    assert!(ok, "{err}");
+    assert!(
+        out.contains("\"decision\""),
+        "no Cursor hook, so it reports: {out}"
+    );
+
+    let (_, _, err, ok) = init_as(&dir, &[], &["--agent", "cursor"]);
+    assert!(ok, "{err}");
+    let (out, err, ok) = hook_in(&dir, cursor, "claude-code", &input);
+    assert!(ok, "{err}");
+    assert_eq!(out, "", "Cursor's own hook reports this edit");
+    let marked = input.replacen('{', "{\"cursor_version\":\"1.7\",", 1);
+    let (out, _, _) = hook_in(&dir, &[], "claude-code", &marked);
+    assert_eq!(out, "", "the payload says Cursor sent it");
+
+    let (out, _, _) = hook_in(&dir, &[], "claude-code", &input);
+    assert!(
+        out.contains("\"decision\""),
+        "Claude Code itself still reports: {out}"
+    );
+    let (out, _, _) = hook_in(&dir, cursor, "cursor", &input);
+    assert!(out.contains("additional_context"), "{out}");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// A Cursor payload with no `cwd` is checked in its first workspace root, and
+/// the edited file is found under the other names a tool input may give it,
+/// also when the tool input arrives as a JSON string.
+// covers: tools:agents/nvs-agent-init
+#[test]
+fn the_cursor_hook_falls_back_to_the_first_workspace_root() {
+    let dir = tree("hook-roots");
+    std::fs::write(dir.join("broken.nvs"), SEVEN_ERRORS).expect("a file with errors");
+    let root = dir.to_str().expect("the fixture path is UTF-8");
+    let elsewhere = tree("hook-roots-elsewhere");
+    let inputs = [
+        serde_json::json!({
+            "hook_event_name": "postToolUse",
+            "tool_name": "Write",
+            "tool_input": { "file_path": "broken.nvs" },
+            "workspace_roots": [root],
+        }),
+        serde_json::json!({
+            "tool_input": { "target_file": "broken.nvs" },
+            "workspace_roots": [root],
+        }),
+        serde_json::json!({
+            "tool_input": serde_json::json!({ "path": "broken.nvs" }).to_string(),
+            "workspace_roots": [root],
+        }),
+    ];
+    for input in inputs {
+        let (out, err, ok) = hook_in(&elsewhere, &[], "cursor", &input.to_string());
+        assert!(ok, "{err}");
+        let answer: serde_json::Value = serde_json::from_str(&out).expect("the answer is JSON");
+        let text = answer["additional_context"].as_str().unwrap_or_default();
+        assert!(
+            text.starts_with("`nvs check` found 7 errors in broken.nvs:\n"),
+            "{input}: {out}"
+        );
+    }
+    let _ = std::fs::remove_dir_all(&dir);
+    let _ = std::fs::remove_dir_all(&elsewhere);
 }

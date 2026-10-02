@@ -108,6 +108,10 @@ rand.workspace = true
 # ADR 0085's document, built and written as JSON rather than as text — the
 # workspace manifest owns why this crate and not another.
 serde_json.workspace = true
+# `nvs agent init` merges its hook into an agent's settings file and keeps every
+# key in the order the file had it, which `serde_json::Map` does not: `agent.rs`'s
+# `Doc` implements the two traits by hand.
+serde.workspace = true
 # ADR 0103 § 9's `nvs config dump` walks the merged table `nvs_config::Resolved`
 # hands back and serializes it, so this crate names the type it is made of. The
 # format decision itself is ADR 0064 § 1's and belongs to `nvs-config`.

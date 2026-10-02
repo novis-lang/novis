@@ -6,6 +6,13 @@ GitHub Copilot an instructions file at `.github/instructions/novis.instructions.
 run wrote is kept current whichever agent runs it now. Each pointer names the four `nvs agent`
 commands, the `nvs check` loop with its `--json` form, and `nvs test`.
 
+**A hook is protocol too.** Where an agent's tool runs a plain command after an edit, `init` merges
+one entry into that tool's settings — `hooks.PostToolUse` in `.claude/settings.json` for Claude Code,
+`hooks.postToolUse` in `.cursor/hooks.json` for Cursor — and `--no-hooks` removes it. The entry runs
+`nvs agent hook <agent>`, which checks the edited `.nvs` file as `nvs check` does and gives its errors
+back in the tool's JSON. It runs the checker and states no language fact of its own. An agent whose
+tool has no plain command hook gets no hook, and no wrapper or plugin stands in for one.
+
 **No adapter states a language fact.** Not a member signature, not a refusal, not a type. A language
 fact written into an adapter is a copy that goes stale the day the member changes, and every copy is
 read by an agent that has no way to know it is old — which is the failure the whole surface is arranged

@@ -1,0 +1,16 @@
+{
+  "title": "`nvs agent init` installs for the agent found in the environment, and adds a check-on-edit hook where the agent's tool runs a plain command after an edit",
+  "status": "accepted",
+  "scope": "which agents `nvs agent init` knows and how it finds the one that runs it, what each one gets beside the\n`AGENTS.md` stanza, the hooks it merges into Claude Code's and Cursor's settings, and `nvs agent hook`,\nthe command those hooks run. What a pointer may say is [0167](0167.md)'s, and how a re-run tells an\nupgrade from an edit is [0256](0256.md)'s; both are unchanged.",
+  "dependsOn": [
+    "0167",
+    "0256",
+    "0257"
+  ],
+  "validatedBy": "`crates/nvs-cli/tests/agent.rs` — the `init_*` cases, `no_hooks_removes_each_hook_and_check_names_a_missing_one`\nand the five `the_hook_*`, `the_claude_code_hook_*` and `the_cursor_hook_*` cases.",
+  "summary": {
+    "group": "tooling",
+    "headline": "Claude Code and Cursor check each Novis file they edit",
+    "body": "`nvs agent init` finds the coding agent that runs it and writes what that agent needs. For Claude\nCode and Cursor it also adds a hook. After the agent edits a `.nvs` file, the hook runs `nvs check`\non it and shows the agent the errors. `nvs agent init --no-hooks` removes the hooks."
+  }
+}

@@ -34,6 +34,16 @@
 //! every pointer says, and an [`Adapter`] contributes only the front matter its
 //! own harness reads it through.
 //!
+//! An agent whose tool runs a plain command after each edit also gets a
+//! [`HookFile`] entry in that tool's settings: `nvs agent hook <agent>`, which
+//! [`hook`] answers by checking the edited `.nvs` file as `nvs check` does and
+//! giving the errors back in the shape that tool reads. The hook is protocol in
+//! the same sense: it runs the checker and states nothing itself. The entry is
+//! merged into a file the project owns, so [`Doc`] keeps every key and entry in
+//! the order it found them, the entry is found again by its command alone, and
+//! a file that is not the JSON object the tool reads refuses the run whatever
+//! `--force` says. `--no-hooks` removes the entry instead of adding it.
+//!
 //! Every unit `init` writes carries a marker with the [`fingerprint`] of the
 //! text around it, so a re-run tells an upgrade from an edit: a unit that still
 //! matches its fingerprint is replaced with this binary's text, and one that
@@ -146,9 +156,12 @@
 //! A record's keys are the parts its line is written from, so a record says
 //! nothing its line does not, apart from a chapter's summary.
 
-use std::path::Path;
+use std::cell::RefCell;
+use std::io::Read as _;
+use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
+use nvs_diagnostics::{Diagnostics, Renderer, Severity, SourceMap};
 use serde_json::{Map, Value, json};
 
 mod names;
@@ -1223,13 +1236,15 @@ struct Detect {
 /// that say a command runs under it, and the pointer it needs beside
 /// `AGENTS.md`.
 ///
-/// An agent that reads `AGENTS.md` itself has no pointer. ADR 0260 has the
+/// An agent that reads `AGENTS.md` itself has no pointer, and an agent whose
+/// tool runs no plain command after an edit has no hook. ADR 0260 has the
 /// sources for every row.
 #[derive(Debug)]
 struct Agent {
     name: &'static str,
     detect: &'static [Detect],
     pointer: Option<&'static Adapter>,
+    hook: Option<&'static HookFile>,
 }
 
 impl Agent {
@@ -1256,6 +1271,7 @@ const AGENTS: &[Agent] = &[
             prefix: None,
         }],
         pointer: Some(&CLAUDE_SKILL),
+        hook: Some(&CLAUDE_HOOK),
     },
     Agent {
         name: "cursor",
@@ -1264,7 +1280,10 @@ const AGENTS: &[Agent] = &[
             prefix: None,
         }],
         pointer: None,
+        hook: Some(&CURSOR_HOOK),
     },
+    // Codex's hooks are experimental and give a hook the patch text, not the
+    // path of the edited file, so it gets none.
     Agent {
         name: "codex",
         detect: &[Detect {
@@ -1272,7 +1291,10 @@ const AGENTS: &[Agent] = &[
             prefix: None,
         }],
         pointer: None,
+        hook: None,
     },
+    // Copilot's hooks are a preview with two payload formats, and the fields
+    // that name an edited file are not documented, so it gets none.
     Agent {
         name: "copilot",
         detect: &[
@@ -1294,7 +1316,10 @@ const AGENTS: &[Agent] = &[
             },
         ],
         pointer: Some(&COPILOT_INSTRUCTIONS),
+        hook: None,
     },
+    // OpenCode runs code after an edit only as a JavaScript or TypeScript
+    // plugin, and there is no plain command to name, so it gets none.
     Agent {
         name: "opencode",
         detect: &[Detect {
@@ -1302,6 +1327,7 @@ const AGENTS: &[Agent] = &[
             prefix: None,
         }],
         pointer: None,
+        hook: None,
     },
 ];
 
@@ -1310,10 +1336,22 @@ pub(crate) fn agent_names() -> Vec<&'static str> {
     AGENTS.iter().map(|agent| agent.name).collect()
 }
 
+/// The names `nvs agent hook` takes: the agents with a hook, in the table's
+/// order.
+pub(crate) fn hooked_agent_names() -> Vec<&'static str> {
+    AGENTS
+        .iter()
+        .filter(|agent| agent.hook.is_some())
+        .map(|agent| agent.name)
+        .collect()
+}
+
 /// Which agents a run installs for, and the line that says how they were
 /// chosen: the `--agent` names when there are any, every agent with `all`, and
-/// otherwise the agents whose variables are set.
-fn chosen(asked: &[String], all: bool) -> (Vec<&'static Agent>, String) {
+/// otherwise the agents whose variables are set. `hooks` is whether the run
+/// adds hooks, which decides whether an agent with one needs more than
+/// `AGENTS.md`.
+fn chosen(asked: &[String], all: bool, hooks: bool) -> (Vec<&'static Agent>, String) {
     let (agents, why): (Vec<&'static Agent>, Vec<String>) = if !asked.is_empty() {
         let agents: Vec<&'static Agent> = AGENTS
             .iter()
@@ -1340,7 +1378,10 @@ fn chosen(asked: &[String], all: bool) -> (Vec<&'static Agent>, String) {
         return (agents, line.to_owned());
     }
     let mut line = format!("agent: {}", why.join(", "));
-    if agents.iter().all(|agent| agent.pointer.is_none()) {
+    if agents
+        .iter()
+        .all(|agent| agent.pointer.is_none() && !(hooks && agent.hook.is_some()))
+    {
         line.push_str(if agents.len() == 1 {
             "; AGENTS.md is all it needs"
         } else {
@@ -1420,6 +1461,9 @@ enum Kind {
     Pointer,
     /// A pointer this binary no longer writes.
     Retired,
+    /// An agent's check-on-edit hook, which is one entry in a file the
+    /// project owns.
+    Hook,
 }
 
 impl Kind {
@@ -1428,6 +1472,9 @@ impl Kind {
     fn word(self, owed: &Owed, check: bool) -> Option<&'static str> {
         Some(match (self, owed, check) {
             (_, Owed::Nothing, _) => return None,
+            (Kind::Hook, Owed::Missing(_), true) => "missing hook",
+            (Kind::Hook, Owed::Missing(_), false) => "added hook to",
+            (Kind::Hook, Owed::Unwanted(_), _) => "removed hook from",
             (_, Owed::Missing(_), true) => "missing",
             (_, Owed::Missing(_), false) => "wrote",
             (_, Owed::Outdated(_), true) => "outdated",
@@ -1447,6 +1494,19 @@ pub(crate) struct InitOptions {
     pub(crate) all: bool,
     pub(crate) force: bool,
     pub(crate) check: bool,
+    /// `--no-hooks`: add no hook, and remove the ones an earlier run added.
+    pub(crate) no_hooks: bool,
+}
+
+/// What a run does with the check-on-edit hooks.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Hooks {
+    /// Add the hook of each chosen agent that lacks it.
+    Add,
+    /// Remove every hook an earlier run added, whichever agent it was for.
+    Remove,
+    /// Read no hook file: `--check` with `--no-hooks`.
+    Leave,
 }
 
 impl Owed {
@@ -1472,8 +1532,9 @@ struct Plan {
 
 /// What a run owes for `agents`: the stanza always, the pointer of each of
 /// those agents, every pointer an earlier run wrote whichever agent it was
-/// for, and the removal of a retired pointer nobody edited.
-fn plan(root: &Path, agents: &[&'static Agent]) -> Plan {
+/// for, the hooks as `hooks` says, and the removal of a retired pointer nobody
+/// edited.
+fn plan(root: &Path, agents: &[&'static Agent], hooks: Hooks) -> Plan {
     let mut plan = Plan::default();
     match stanza_owed(&root.join("AGENTS.md")) {
         Ok(owed) => plan.changes.push(("AGENTS.md", Kind::Pointer, owed)),
@@ -1487,6 +1548,18 @@ fn plan(root: &Path, agents: &[&'static Agent]) -> Plan {
             Ok(Owed::Missing(_)) if !wanted => {}
             Ok(owed) => plan.changes.push((adapter.path, Kind::Pointer, owed)),
             Err(error) => plan.errors.push(error),
+        }
+    }
+    if hooks != Hooks::Leave {
+        for agent in AGENTS {
+            let Some(hook) = agent.hook else {
+                continue;
+            };
+            let wanted = hooks == Hooks::Add && agents.iter().any(|it| std::ptr::eq(*it, agent));
+            match hook_owed(root, hook, hooks, wanted) {
+                Ok(owed) => plan.changes.push((hook.path, Kind::Hook, owed)),
+                Err(error) => plan.errors.push(error),
+            }
         }
     }
     for adapter in RETIRED {
@@ -1513,7 +1586,9 @@ fn plan(root: &Path, agents: &[&'static Agent]) -> Plan {
 /// A missing file is written, a file that still matches its fingerprint is
 /// updated to this binary's text, and an edited one is refused unless `force`.
 /// A file an earlier run wrote is kept current whichever agent runs now, so
-/// every member of a team gets the same files. With `check` nothing is
+/// every member of a team gets the same files. A hook is added for a chosen
+/// agent that lacks it and is otherwise left where it is, and `no_hooks`
+/// removes every hook instead. With `check` nothing is
 /// written, and each file that is missing, outdated or edited is named
 /// instead. Every file is read and judged before any is written, so a refusal
 /// about one of them leaves all of them as they were.
@@ -1525,9 +1600,14 @@ pub(crate) fn init(options: &InitOptions) -> ExitCode {
             return ExitCode::FAILURE;
         }
     };
-    let (agents, line) = chosen(&options.agents, options.all);
+    let hooks = match (options.no_hooks, options.check) {
+        (false, _) => Hooks::Add,
+        (true, false) => Hooks::Remove,
+        (true, true) => Hooks::Leave,
+    };
+    let (agents, line) = chosen(&options.agents, options.all, !options.no_hooks);
     println!("{line}");
-    let plan = plan(&root, &agents);
+    let plan = plan(&root, &agents, hooks);
     for error in &plan.errors {
         eprintln!("error: {error}");
     }
@@ -1596,12 +1676,12 @@ pub(crate) fn init(options: &InitOptions) -> ExitCode {
 /// The one line `primer` puts on standard error when a re-run of `init` would
 /// change something in the project in the working directory: a file an older
 /// `init` wrote that nobody edited since, a retired pointer, or — once the
-/// stanza is there — a file the agent running now needs and lacks. `None`
+/// stanza is there — a file or a hook the agent running now needs and lacks. `None`
 /// when it would change nothing, and for a project with no stanza.
 pub(crate) fn stale_note() -> Option<&'static str> {
     let root = std::env::current_dir().ok()?;
-    let (agents, _) = chosen(&[], false);
-    let plan = plan(&root, &agents);
+    let (agents, _) = chosen(&[], false, true);
+    let plan = plan(&root, &agents, Hooks::Add);
     let installed = plan
         .changes
         .iter()
@@ -1677,4 +1757,568 @@ fn write_file(path: &Path, body: &str) -> Result<(), String> {
     }
     std::fs::write(path, body)
         .map_err(|error| format!("{} cannot be written: {error}", path.display()))
+}
+
+/// One agent's check-on-edit hook: the settings file it goes in, the event
+/// under that file's `hooks` object whose array it joins, the file a new one
+/// starts from, the entry, and the command that entry runs.
+///
+/// The entry is found again by its command alone, so a project may change its
+/// matcher or move it within the array and a re-run still sees it as there.
+#[derive(Debug)]
+struct HookFile {
+    path: &'static str,
+    event: &'static str,
+    /// The JSON a file this hook creates starts from. Its keys are also what
+    /// is left of a file that held nothing else, which removing the hook
+    /// deletes.
+    skeleton: &'static str,
+    /// The entry, as JSON.
+    entry: &'static str,
+    command: &'static str,
+}
+
+/// Claude Code's hook, in the project's shared settings. A command hook after
+/// each tool that edits a file; the hook itself skips a file that is not
+/// `.nvs`. `.claude/settings.local.json` is each person's own and is never
+/// read or written.
+const CLAUDE_HOOK: HookFile = HookFile {
+    path: ".claude/settings.json",
+    event: "PostToolUse",
+    skeleton: "{}",
+    entry: r#"{"matcher": "Write|Edit|MultiEdit", "hooks": [{"type": "command", "command": "nvs agent hook claude-code"}]}"#,
+    command: "nvs agent hook claude-code",
+};
+
+/// Cursor's hook. Cursor reports every edit, whichever tool made it, as its
+/// `Write` tool.
+const CURSOR_HOOK: HookFile = HookFile {
+    path: ".cursor/hooks.json",
+    event: "postToolUse",
+    skeleton: r#"{"version": 1}"#,
+    entry: r#"{"command": "nvs agent hook cursor", "matcher": "Write"}"#,
+    command: "nvs agent hook cursor",
+};
+
+/// A JSON document that keeps the order of its keys.
+///
+/// `serde_json::Map` sorts its keys in this workspace, and turning on its
+/// `preserve_order` feature would reorder every other document the workspace
+/// writes. A hook is merged into a file the project owns, so its keys and
+/// entries are written back in the order they were found; only the
+/// indentation is the one `serde_json::to_string_pretty` writes.
+#[derive(Clone, Debug, PartialEq)]
+enum Doc {
+    Object(Vec<(String, Doc)>),
+    Array(Vec<Doc>),
+    /// A string, number, boolean or `null`.
+    Scalar(Value),
+}
+
+impl Doc {
+    /// `text` as a document. A byte order mark in front of it is skipped.
+    fn parse(text: &str) -> Result<Self, serde_json::Error> {
+        serde_json::from_str(text.strip_prefix('\u{feff}').unwrap_or(text))
+    }
+
+    /// One of this crate's own JSON constants as a document.
+    fn constant(text: &'static str) -> Self {
+        Self::parse(text).expect("the hook constants are valid JSON")
+    }
+
+    /// The value under `key`, when this is an object that has one.
+    fn field(&self, key: &str) -> Option<&Doc> {
+        match self {
+            Doc::Object(pairs) => pairs.iter().find(|(name, _)| name == key).map(|(_, v)| v),
+            _ => None,
+        }
+    }
+
+    /// The value under `key`, added at the end as `default` when this object
+    /// has none. `None` when this is not an object.
+    fn field_or(&mut self, key: &str, default: Doc) -> Option<&mut Doc> {
+        let Doc::Object(pairs) = self else {
+            return None;
+        };
+        let at = match pairs.iter().position(|(name, _)| name == key) {
+            Some(at) => at,
+            None => {
+                pairs.push((key.to_owned(), default));
+                pairs.len() - 1
+            }
+        };
+        Some(&mut pairs[at].1)
+    }
+
+    /// Whether this is an object whose `command` is `command`.
+    fn runs(&self, command: &str) -> bool {
+        matches!(self.field("command"), Some(Doc::Scalar(Value::String(it))) if it == command)
+    }
+
+    /// The document as a file: two-space indentation and a final newline.
+    fn text(&self) -> String {
+        let mut out =
+            serde_json::to_string_pretty(self).expect("a document of JSON values serializes");
+        out.push('\n');
+        out
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for Doc {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        /// Builds a [`Doc`] from whatever value the parser meets.
+        struct Visit;
+
+        impl<'de> serde::de::Visitor<'de> for Visit {
+            type Value = Doc;
+
+            fn expecting(&self, out: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                out.write_str("a JSON value")
+            }
+
+            fn visit_bool<E>(self, value: bool) -> Result<Doc, E> {
+                Ok(Doc::Scalar(Value::Bool(value)))
+            }
+
+            fn visit_i64<E>(self, value: i64) -> Result<Doc, E> {
+                Ok(Doc::Scalar(Value::from(value)))
+            }
+
+            fn visit_u64<E>(self, value: u64) -> Result<Doc, E> {
+                Ok(Doc::Scalar(Value::from(value)))
+            }
+
+            fn visit_f64<E>(self, value: f64) -> Result<Doc, E> {
+                Ok(Doc::Scalar(Value::from(value)))
+            }
+
+            fn visit_str<E>(self, value: &str) -> Result<Doc, E> {
+                Ok(Doc::Scalar(Value::from(value)))
+            }
+
+            fn visit_string<E>(self, value: String) -> Result<Doc, E> {
+                Ok(Doc::Scalar(Value::String(value)))
+            }
+
+            fn visit_unit<E>(self) -> Result<Doc, E> {
+                Ok(Doc::Scalar(Value::Null))
+            }
+
+            fn visit_none<E>(self) -> Result<Doc, E> {
+                Ok(Doc::Scalar(Value::Null))
+            }
+
+            fn visit_seq<A: serde::de::SeqAccess<'de>>(self, mut seq: A) -> Result<Doc, A::Error> {
+                let mut items = Vec::new();
+                while let Some(item) = seq.next_element()? {
+                    items.push(item);
+                }
+                Ok(Doc::Array(items))
+            }
+
+            fn visit_map<A: serde::de::MapAccess<'de>>(self, mut map: A) -> Result<Doc, A::Error> {
+                let mut pairs = Vec::new();
+                while let Some(pair) = map.next_entry::<String, Doc>()? {
+                    pairs.push(pair);
+                }
+                Ok(Doc::Object(pairs))
+            }
+        }
+
+        deserializer.deserialize_any(Visit)
+    }
+}
+
+impl serde::Serialize for Doc {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::{SerializeMap as _, SerializeSeq as _};
+        match self {
+            Doc::Object(pairs) => {
+                let mut map = serializer.serialize_map(Some(pairs.len()))?;
+                for (key, value) in pairs {
+                    map.serialize_entry(key, value)?;
+                }
+                map.end()
+            }
+            Doc::Array(items) => {
+                let mut seq = serializer.serialize_seq(Some(items.len()))?;
+                for item in items {
+                    seq.serialize_element(item)?;
+                }
+                seq.end()
+            }
+            Doc::Scalar(value) => value.serialize(serializer),
+        }
+    }
+}
+
+impl HookFile {
+    /// The hook's file under `root`, read and held to the shape the agent's
+    /// tool reads: an object, whose `hooks` is an object, whose event is an
+    /// array. `None` when there is no file.
+    ///
+    /// Anything else is an error that refuses the run, and `--force` does not
+    /// override it: the file holds the project's other settings, and a file
+    /// this cannot read as JSON is one it cannot rewrite without losing them.
+    fn read(&self, root: &Path) -> Result<Option<Doc>, String> {
+        let path = self.path;
+        let text = match std::fs::read_to_string(root.join(path)) {
+            Ok(text) => text,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+            Err(error) => return Err(format!("{path} cannot be read: {error}")),
+        };
+        let refuse = |what: String| {
+            format!(
+                "{path} {what}, so its hook cannot be added or removed; fix the file and run \
+                 this again (`--force` does not replace it, because it holds your other settings)"
+            )
+        };
+        let doc =
+            Doc::parse(&text).map_err(|error| refuse(format!("is not valid JSON ({error})")))?;
+        if !matches!(doc, Doc::Object(_)) {
+            return Err(refuse("is not a JSON object".to_owned()));
+        }
+        match doc.field("hooks") {
+            None => {}
+            Some(Doc::Object(_)) => match doc.field("hooks").and_then(|it| it.field(self.event)) {
+                None | Some(Doc::Array(_)) => {}
+                Some(_) => {
+                    return Err(refuse(format!(
+                        "has a `hooks.{}` that is not an array",
+                        self.event
+                    )));
+                }
+            },
+            Some(_) => return Err(refuse("has a `hooks` that is not an object".to_owned())),
+        }
+        Ok(Some(doc))
+    }
+
+    /// Whether `doc`, as [`HookFile::read`] returned it, carries this hook:
+    /// an entry of the event's array whose command is this one, or a group in
+    /// it whose own `hooks` array holds one.
+    fn carried(&self, doc: &Doc) -> bool {
+        let Some(Doc::Array(entries)) = doc.field("hooks").and_then(|it| it.field(self.event))
+        else {
+            return false;
+        };
+        entries.iter().any(|entry| {
+            entry.runs(self.command)
+                || matches!(entry.field("hooks"), Some(Doc::Array(inner))
+                    if inner.iter().any(|hook| hook.runs(self.command)))
+        })
+    }
+
+    /// `doc` with this hook added at the end of the event's array.
+    fn added(&self, mut doc: Doc) -> Doc {
+        let hooks = doc
+            .field_or("hooks", Doc::Object(Vec::new()))
+            .expect("`read` held the file to an object");
+        let entries = hooks
+            .field_or(self.event, Doc::Array(Vec::new()))
+            .expect("`read` held `hooks` to an object");
+        if let Doc::Array(entries) = entries {
+            entries.push(Doc::constant(self.entry));
+        }
+        doc
+    }
+
+    /// `doc` without this hook, or `None` when nothing but the skeleton's keys
+    /// is left. A group that held only this hook goes with it, and so do an
+    /// event array and a `hooks` object that removing it left empty.
+    fn removed(&self, mut doc: Doc) -> Option<Doc> {
+        let command = self.command;
+        if let Doc::Object(pairs) = &mut doc {
+            if let Some((_, Doc::Object(events))) = pairs.iter_mut().find(|(key, _)| key == "hooks")
+            {
+                if let Some((_, Doc::Array(entries))) =
+                    events.iter_mut().find(|(key, _)| key == self.event)
+                {
+                    entries.retain_mut(|entry| {
+                        if entry.runs(command) {
+                            return false;
+                        }
+                        let Doc::Object(fields) = entry else {
+                            return true;
+                        };
+                        let Some((_, Doc::Array(inner))) =
+                            fields.iter_mut().find(|(key, _)| key == "hooks")
+                        else {
+                            return true;
+                        };
+                        let before = inner.len();
+                        inner.retain(|hook| !hook.runs(command));
+                        !(inner.is_empty() && before > 0)
+                    });
+                }
+                events.retain(|(key, value)| key != self.event || value != &Doc::Array(Vec::new()));
+            }
+            pairs.retain(|(key, value)| key != "hooks" || value != &Doc::Object(Vec::new()));
+            let skeleton = Doc::constant(self.skeleton);
+            if pairs.iter().all(|(key, _)| skeleton.field(key).is_some()) {
+                return None;
+            }
+        }
+        Some(doc)
+    }
+}
+
+/// What one hook owes. With [`Hooks::Add`], a `wanted` hook that is missing
+/// is the file with it added, and a hook that is there is left. With
+/// [`Hooks::Remove`], a hook that is there is removed.
+fn hook_owed(root: &Path, hook: &HookFile, hooks: Hooks, wanted: bool) -> Result<Owed, String> {
+    let found = hook.read(root)?;
+    let carried = found.as_ref().is_some_and(|doc| hook.carried(doc));
+    Ok(match (hooks, carried, found) {
+        (Hooks::Add, false, found) if wanted => {
+            let doc = found.unwrap_or_else(|| Doc::constant(hook.skeleton));
+            Owed::Missing(hook.added(doc).text())
+        }
+        (Hooks::Remove, true, Some(doc)) => Owed::Unwanted(hook.removed(doc).map(|doc| doc.text())),
+        _ => Owed::Nothing,
+    })
+}
+
+/// How many errors a hook gives back. The rest are counted, and `nvs check`
+/// prints them all.
+const HOOK_ERRORS: usize = 5;
+
+/// What a hook's check found: how many errors, and the first [`HOOK_ERRORS`]
+/// rendered.
+#[derive(Debug)]
+struct Report {
+    errors: usize,
+    rendered: String,
+    /// Whether a rendered error carries a code, which is when the line naming
+    /// `nvs agent show` closes the report.
+    coded: bool,
+}
+
+thread_local! {
+    /// Where [`crate::Sink::Hook`] leaves the report of the check [`hook`]
+    /// runs. The sink is a `Copy` value passed down through the front end, and
+    /// this slot is the smallest way to get the text back out of it.
+    static REPORT: RefCell<Option<Report>> = const { RefCell::new(None) };
+}
+
+/// [`crate::Sink::Hook`]'s rendering: the errors in `diags`, by position,
+/// without colour, kept for [`hook`]. Warnings are left out: a hook speaks
+/// after every edit, and a warning that stands would be repeated after each
+/// one until the agent learned to pass over the report. `nvs check` shows
+/// them.
+pub(crate) fn keep_errors(diags: &mut Diagnostics, map: &SourceMap) {
+    diags.sort_by_position();
+    let errors: Vec<_> = diags
+        .iter()
+        .filter(|diagnostic| matches!(diagnostic.severity, Severity::Error | Severity::Bug))
+        .collect();
+    if errors.is_empty() {
+        return;
+    }
+    let renderer = Renderer::new().with_color(false);
+    let mut out = Vec::new();
+    let mut coded = false;
+    for diagnostic in errors.iter().take(HOOK_ERRORS) {
+        coded |= diagnostic.code.is_some();
+        renderer
+            .render(diagnostic, map, &mut out)
+            .expect("rendering to an in-memory buffer cannot fail");
+    }
+    let report = Report {
+        errors: errors.len(),
+        rendered: String::from_utf8_lossy(&out).into_owned(),
+        coded,
+    };
+    REPORT.with(|slot| *slot.borrow_mut() = Some(report));
+}
+
+/// `nvs agent hook <agent>`: check the `.nvs` file an agent's tool just
+/// edited, and give its errors back to the agent in the JSON that tool reads.
+///
+/// The payload is the tool's JSON on standard input. Whatever goes wrong
+/// before the check — a payload that is not JSON, no path in it, a path that
+/// is not a `.nvs` file — ends the hook silently and successfully, because a
+/// hook must never stop the agent's own work. A clean file prints nothing.
+///
+/// The check is `nvs check <file>`'s, run in the payload's working directory,
+/// so the configuration and the program that lends a class file its
+/// `autoload` map are found as they would be there. It never writes a default
+/// `nvs.toml`: a hook runs after every edit, and the project did not ask for
+/// one.
+pub(crate) fn hook(name: &str) -> ExitCode {
+    let mut input = String::new();
+    if std::io::stdin().read_to_string(&mut input).is_err() {
+        return ExitCode::SUCCESS;
+    }
+    // A shell that pipes text in may put a byte order mark in front of it.
+    let Ok(payload) = serde_json::from_str::<Value>(input.trim_start_matches('\u{feff}')) else {
+        return ExitCode::SUCCESS;
+    };
+    let Some(edited) = edited_path(&payload) else {
+        return ExitCode::SUCCESS;
+    };
+    let bytes = edited.as_bytes();
+    if bytes.len() < 4 || !bytes[bytes.len() - 4..].eq_ignore_ascii_case(b".nvs") {
+        return ExitCode::SUCCESS;
+    }
+
+    // Claude Code and Cursor send `cwd`. Cursor's common fields also carry
+    // `workspace_roots`, whose first root is the project when `cwd` is absent.
+    let cwd = payload["cwd"]
+        .as_str()
+        .or_else(|| payload["workspace_roots"][0].as_str())
+        .map(PathBuf::from)
+        .filter(|dir| dir.is_dir());
+    if let Some(dir) = &cwd
+        && !runs_in(dir)
+    {
+        return hook_in(dir, name, &input);
+    }
+    // Cursor runs the hooks in `.claude/settings.json` too. When the project
+    // also has Cursor's own hook, that one answers and this one stays quiet.
+    if name == "claude-code" && under_cursor(&payload) && cursor_hooked() {
+        return ExitCode::SUCCESS;
+    }
+
+    let mut path = PathBuf::from(edited);
+    if let Some(dir) = &cwd
+        && path.is_absolute()
+        && let Ok(inside) = path.strip_prefix(dir)
+    {
+        path = inside.to_path_buf();
+    }
+    let shown = path.display().to_string();
+
+    REPORT.with(|slot| slot.borrow_mut().take());
+    let checked = crate::front_end_granted(
+        &path,
+        Some(&[]),
+        false,
+        crate::Sink::Hook,
+        crate::config::Init::Never,
+        Some(Path::new(".")),
+    );
+    if checked.is_ok() {
+        return ExitCode::SUCCESS;
+    }
+    let text = match REPORT.with(|slot| slot.borrow_mut().take()) {
+        Some(report) => report_text(&report, &shown),
+        None => format!("`nvs check` could not check {shown}. Run `nvs check {shown}` to see why."),
+    };
+    // Claude Code shows a PostToolUse `reason` to the agent as feedback it
+    // must act on, and the edit itself stays made. Cursor's postToolUse has no
+    // decision, only context added to the conversation.
+    let answer = if name == "cursor" {
+        json!({ "additional_context": text })
+    } else {
+        json!({ "decision": "block", "reason": text })
+    };
+    println!("{answer}");
+    ExitCode::SUCCESS
+}
+
+/// The path of the file the payload says was edited. Claude Code documents
+/// `tool_input.file_path`. Which field of Cursor's `Write` tool input names the
+/// file is not documented, so the names its tools are known to use are tried,
+/// and a `tool_input` sent as a JSON string is read too (not checked against a
+/// live Cursor session).
+fn edited_path(payload: &Value) -> Option<String> {
+    let parsed;
+    let input = match &payload["tool_input"] {
+        Value::String(text) => {
+            parsed = serde_json::from_str::<Value>(text).unwrap_or(Value::Null);
+            &parsed
+        }
+        other => other,
+    };
+    ["file_path", "path", "target_file", "filePath"]
+        .iter()
+        .find_map(|key| input[key].as_str())
+        .or_else(|| payload["file_path"].as_str())
+        .map(str::to_owned)
+}
+
+/// The variable [`hook_in`] sets on the copy of the hook it starts, so that
+/// copy checks where it is and never starts another.
+const HOOK_CHILD: &str = "NVS_AGENT_HOOK_CHILD";
+
+/// Whether the hook already runs in `dir`, or is the copy [`hook_in`] started
+/// there.
+fn runs_in(dir: &Path) -> bool {
+    if std::env::var_os(HOOK_CHILD).is_some() {
+        return true;
+    }
+    match (
+        std::env::current_dir().and_then(|here| here.canonicalize()),
+        dir.canonicalize(),
+    ) {
+        (Ok(here), Ok(there)) => here == there,
+        _ => false,
+    }
+}
+
+/// Runs this hook again with `dir` as its working directory, hands it the same
+/// `payload`, and lets it print to this process's output. The front end finds
+/// the configuration and the program that lends the `autoload` map from the
+/// working directory, and a second process is how the hook gets one without
+/// changing this process's. The agent's tool usually starts the hook in the
+/// payload's directory already, and then no copy is started.
+fn hook_in(dir: &Path, name: &str, payload: &str) -> ExitCode {
+    let Ok(exe) = std::env::current_exe() else {
+        return ExitCode::SUCCESS;
+    };
+    let Ok(mut child) = std::process::Command::new(exe)
+        .args(["agent", "hook", name])
+        .current_dir(dir)
+        .env(HOOK_CHILD, "1")
+        .stdin(std::process::Stdio::piped())
+        .spawn()
+    else {
+        return ExitCode::SUCCESS;
+    };
+    if let Some(mut stdin) = child.stdin.take() {
+        let _ = std::io::Write::write_all(&mut stdin, payload.as_bytes());
+    }
+    let _ = child.wait();
+    ExitCode::SUCCESS
+}
+
+/// The text a hook gives back for `report` about the file `shown`.
+fn report_text(report: &Report, shown: &str) -> String {
+    let plural = |count: usize| if count == 1 { "error" } else { "errors" };
+    let mut text = format!(
+        "`nvs check` found {} {} in {shown}:\n\n{}\n",
+        report.errors,
+        plural(report.errors),
+        report.rendered.trim_end()
+    );
+    if report.errors > HOOK_ERRORS {
+        let more = report.errors - HOOK_ERRORS;
+        text.push_str(&format!(
+            "\nand {more} more {}; run `nvs check {shown}` to see them all\n",
+            plural(more)
+        ));
+    }
+    if report.coded {
+        text.push('\n');
+        text.push_str(nvs_diagnostics::AGENT_SHOW_LINE);
+        text.push('\n');
+    }
+    text
+}
+
+/// Whether the hook runs under Cursor: its payload carries `cursor_version`,
+/// or one of the variables Cursor sets is. Cursor's hooks page documents the
+/// field and `CURSOR_PROJECT_DIR` and `CURSOR_VERSION`; its agent terminal page
+/// documents `CURSOR_AGENT`.
+fn under_cursor(payload: &Value) -> bool {
+    payload.get("cursor_version").is_some()
+        || ["CURSOR_PROJECT_DIR", "CURSOR_VERSION", "CURSOR_AGENT"]
+            .iter()
+            .any(|var| std::env::var_os(var).is_some_and(|value| !value.is_empty()))
+}
+
+/// Whether the project in the working directory carries Cursor's own hook.
+fn cursor_hooked() -> bool {
+    matches!(CURSOR_HOOK.read(Path::new(".")), Ok(Some(doc)) if CURSOR_HOOK.carried(&doc))
 }

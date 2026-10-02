@@ -887,6 +887,10 @@ enum AgentCommand {
     /// Cursor and OpenCode read `AGENTS.md`, so they need no other file. Claude
     /// Code gets a skill and GitHub Copilot an instructions file.
     ///
+    /// Claude Code and Cursor also get a hook in their settings file:
+    /// after each edit of a `.nvs` file, the agent runs `nvs agent hook`,
+    /// which checks the file and shows the agent its errors.
+    ///
     /// None of the files states a language fact. The four commands give those
     /// answers, and a copy of one would be wrong after the language changes.
     ///
@@ -913,6 +917,28 @@ enum AgentCommand {
         /// and fail when there is one.
         #[arg(long, conflicts_with = "force")]
         check: bool,
+        /// Add no hook, and remove each hook an earlier run added. With
+        /// `--check`, hooks are not checked.
+        #[arg(long)]
+        no_hooks: bool,
+    },
+    /// Check the `.nvs` file a coding agent just edited, and show the agent
+    /// its errors. `nvs agent init` adds this command to Claude Code's and
+    /// Cursor's settings, and the agent runs it after each edit.
+    ///
+    /// The command reads the agent's JSON message on standard input. It
+    /// checks the file the way `nvs check <file>` does, in the directory the
+    /// message names. When the file has errors, it prints the first five as
+    /// JSON for the agent and says how many more there are. Warnings are not
+    /// shown. A file that is not a `.nvs` file, a clean file and a message it
+    /// cannot read print nothing. The command always exits with status 0, so
+    /// it never stops the agent.
+    // `rule:tooling/an-adapter-carries-protocol-and-never-language`.
+    Hook {
+        /// The agent that runs the command, which decides the shape of the
+        /// JSON it prints.
+        #[arg(value_parser = clap::builder::PossibleValuesParser::new(agent::hooked_agent_names()))]
+        agent: String,
     },
 }
 
@@ -1743,12 +1769,15 @@ fn main() -> ExitCode {
                 all,
                 force,
                 check,
+                no_hooks,
             } => agent::init(&agent::InitOptions {
                 agents,
                 all,
                 force,
                 check,
+                no_hooks,
             }),
+            AgentCommand::Hook { agent } => agent::hook(&agent),
         },
     }
 }
@@ -3527,6 +3556,9 @@ enum Sink {
     Text,
     /// `nvs check --json`'s document, on standard output.
     Json,
+    /// `nvs agent hook`'s report: the errors alone, kept for the hook to give
+    /// back to the agent in its tool's JSON ([`agent::keep_errors`]).
+    Hook,
 }
 
 /// Renders `diags` into the sink in force.
@@ -3541,6 +3573,7 @@ fn emit_diagnostics(diags: &mut Diagnostics, map: &SourceMap, sink: Sink) {
             diags.sort_by_position();
             println!("{}", check::document(diags.iter(), map));
         }
+        Sink::Hook => agent::keep_errors(diags, map),
     }
 }
 

@@ -1610,6 +1610,12 @@ to html literal**. The editor writes `` html`<b>{$name}</b>` ``, which prints th
 text of an html literal is printed as markup, so read the preview before you apply it. The action
 never runs on save.
 
+**Claude Code and Cursor check each Novis file they edit**
+
+`nvs agent init` finds the coding agent that runs it and writes what that agent needs. For Claude
+Code and Cursor it also adds a hook. After the agent edits a `.nvs` file, the hook runs `nvs check`
+on it and shows the agent the errors. `nvs agent init --no-hooks` removes the hooks.
+
 ## Engineering decisions
 
 Decisions about how Novis itself is built and measured. Real decisions, kept for the record, but a reader learning the language can skip the group entirely.

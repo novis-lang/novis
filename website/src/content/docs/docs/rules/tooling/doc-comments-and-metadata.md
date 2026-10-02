@@ -537,11 +537,20 @@ and it is met by what the primer selects — never by trimming what a selected s
 <a class="nv-rule-id" href="#an-adapter-carries-protocol-and-never-language"><code>tooling/an-adapter-carries-protocol-and-never-language</code></a>
 </div>
 
-`nvs agent init` installs the surface into a project by writing one pointer per harness — an `AGENTS.md`
-stanza, which is harness-neutral, and beside it an adapter for each harness that is present: a Claude
-Code skill at `.claude/skills/novis/SKILL.md`, a Cursor rule at `.cursor/rules/novis.mdc`, and a GitHub
-Copilot instructions file at `.github/instructions/novis.instructions.md`. Each names the four
-`nvs agent` commands, the `nvs check` loop with its `--json` form, and `nvs test`.
+`nvs agent init` installs the surface into a project by writing an `AGENTS.md` stanza, which is
+harness-neutral, and beside it what the coding agent that runs it needs — found from the environment
+variable that agent sets in the commands it runs, or named with `--agent`. An agent that reads
+`AGENTS.md` itself needs nothing more; Claude Code gets a skill at `.claude/skills/novis/SKILL.md`, and
+GitHub Copilot an instructions file at `.github/instructions/novis.instructions.md`. A file an earlier
+run wrote is kept current whichever agent runs it now. Each pointer names the four `nvs agent`
+commands, the `nvs check` loop with its `--json` form, and `nvs test`.
+
+**A hook is protocol too.** Where an agent's tool runs a plain command after an edit, `init` merges
+one entry into that tool's settings — `hooks.PostToolUse` in `.claude/settings.json` for Claude Code,
+`hooks.postToolUse` in `.cursor/hooks.json` for Cursor — and `--no-hooks` removes it. The entry runs
+`nvs agent hook <agent>`, which checks the edited `.nvs` file as `nvs check` does and gives its errors
+back in the tool's JSON. It runs the checker and states no language fact of its own. An agent whose
+tool has no plain command hook gets no hook, and no wrapper or plugin stands in for one.
 
 **No adapter states a language fact.** Not a member signature, not a refusal, not a type. A language
 fact written into an adapter is a copy that goes stale the day the member changes, and every copy is
@@ -553,13 +562,13 @@ fingerprint of the text it wrote — BLAKE3 over the text without the marker lin
 eight hex digits. A re-run replaces a unit that still matches its fingerprint and refuses, naming it
 and writing nothing, one that does not, unless `--force`. Every unit is judged before any is written.
 `--check` writes nothing and fails while a unit is missing, outdated or edited, and `nvs agent primer`
-puts one line on standard error while the working directory holds an outdated unit, so the agent
-reading the primer learns of it with nobody in between.
+puts one line on standard error while a re-run would change a unit in the working directory, so the
+agent reading the primer learns of it with nobody in between.
 
 That is what keeps the adapter list open. Another harness is another short pointer file, adding one
 decides nothing and reopens nothing, and none of them can disagree with the language, because none of
 them says anything about it.
 
-<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/tooling/doc-comments-and-metadata/#an-agent-asks-the-binary" title="nvs agent answers a coding agent from the registry and the embedded reference chapters in four commands, and the check loop is part of the surface"><code>tooling/an-agent-asks-the-binary</code></a> <a href="/docs/rules/tooling/doc-comments-and-metadata/#a-primer-claim-is-executed" title="The primer is generated, and every refusal it states and every example it shows is proven against the compiler that ships with it"><code>tooling/a-primer-claim-is-executed</code></a> <a href="/docs/rules/ide/the-vs-code-extension/#the-extension-guides-an-install-and-never-bundles-one" title="The extension ships no nvs binary: a missing one is a guided install the user starts, verified against the release's own SHA256SUMS"><code>ide/the-extension-guides-an-install-and-never-bundles-one</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0167.md">record 0167</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0256.md">record 0256</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-cli/tests/agent.rs"><code>crates/nvs-cli/tests/agent.rs</code></a></dd></div></dl>
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/tooling/doc-comments-and-metadata/#an-agent-asks-the-binary" title="nvs agent answers a coding agent from the registry and the embedded reference chapters in four commands, and the check loop is part of the surface"><code>tooling/an-agent-asks-the-binary</code></a> <a href="/docs/rules/tooling/doc-comments-and-metadata/#a-primer-claim-is-executed" title="The primer is generated, and every refusal it states and every example it shows is proven against the compiler that ships with it"><code>tooling/a-primer-claim-is-executed</code></a> <a href="/docs/rules/ide/the-vs-code-extension/#the-extension-guides-an-install-and-never-bundles-one" title="The extension ships no nvs binary: a missing one is a guided install the user starts, verified against the release's own SHA256SUMS"><code>ide/the-extension-guides-an-install-and-never-bundles-one</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0167.md">record 0167</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0256.md">record 0256</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0260.md">record 0260</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-cli/tests/agent.rs"><code>crates/nvs-cli/tests/agent.rs</code></a></dd></div></dl>
 
 </div>
