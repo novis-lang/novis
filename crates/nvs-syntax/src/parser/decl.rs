@@ -25,6 +25,56 @@
 
 use super::*;
 
+/// Where a modifier list was written, which decides the modifiers it takes.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(super) enum ModifierSite {
+    Class,
+    Property,
+    Constant,
+    Method,
+    Parameter,
+}
+
+impl ModifierSite {
+    /// Whether a modifier belongs at this site at all, before any question
+    /// of what else is written beside it. `lateinit` on a parameter is taken
+    /// here and judged by `nvs-types`, which knows whether the parameter is a
+    /// promoted one.
+    fn takes(self, m: Modifier) -> bool {
+        use Modifier as M;
+        match self {
+            Self::Class => matches!(m, M::Abstract | M::Final),
+            Self::Property => !matches!(m, M::Abstract | M::Final),
+            Self::Constant => matches!(m, M::Public | M::Protected | M::Private | M::Final),
+            Self::Method => matches!(
+                m,
+                M::Public | M::Protected | M::Private | M::Static | M::Abstract | M::Final
+            ),
+            Self::Parameter => !matches!(m, M::Static | M::Abstract | M::Final),
+        }
+    }
+
+    fn noun(self) -> &'static str {
+        match self {
+            Self::Class => "a class",
+            Self::Property => "a property",
+            Self::Constant => "a constant",
+            Self::Method => "a method",
+            Self::Parameter => "a parameter",
+        }
+    }
+}
+
+/// Two distinct modifiers that cannot be written on one declaration: two
+/// read visibilities, two `(set)` visibilities, or `abstract` with `final`.
+fn conflicts(a: Modifier, b: Modifier) -> bool {
+    use Modifier as M;
+    let visibility = |m| matches!(m, M::Public | M::Protected | M::Private);
+    (visibility(a) && visibility(b))
+        || matches!((a, b), (M::SetVisibility(_), M::SetVisibility(_)))
+        || matches!((a, b), (M::Abstract, M::Final) | (M::Final, M::Abstract))
+}
+
 impl<'src, 'd> Parser<'src, 'd> {
     // ========================================================================
     // Attributes (`#[...]`)
@@ -176,17 +226,65 @@ impl<'src, 'd> Parser<'src, 'd> {
     // Declaration modifiers
     // ========================================================================
 
+    /// A modifier list at a site whose kind is known before the list is
+    /// read — a class header or a parameter — read and checked in one call.
+    pub(super) fn parse_modifiers(&mut self, site: ModifierSite) -> Vec<Modifier> {
+        let written = self.parse_written_modifiers();
+        self.check_modifiers(site, &written)
+    }
+
+    /// `E_BAD_MODIFIER`: a modifier written twice, a second visibility (or a
+    /// second `(set)` visibility), `abstract` beside `final`, or a modifier
+    /// `site` does not take. Each is reported where it is written and left
+    /// out of the list returned, so no later pass reads a modifier the
+    /// source was told to delete; the first of a conflicting pair is kept.
+    pub(super) fn check_modifiers(
+        &mut self,
+        site: ModifierSite,
+        written: &[WrittenModifier],
+    ) -> Vec<Modifier> {
+        let mut kept: Vec<Modifier> = Vec::with_capacity(written.len());
+        for w in written {
+            let text = self.file.span_text(w.span).unwrap_or_default();
+            let problem = if kept.contains(&w.modifier) {
+                Some(format!("`{text}` is written twice"))
+            } else if !site.takes(w.modifier) {
+                Some(format!("`{text}` is not allowed on {}", site.noun()))
+            } else {
+                kept.iter()
+                    .find(|k| conflicts(**k, w.modifier))
+                    .map(|other| match other {
+                        Modifier::Abstract | Modifier::Final => format!(
+                            "`abstract` and `final` cannot both be written on {}",
+                            site.noun()
+                        ),
+                        _ => format!(
+                            "{} has one visibility, and `{text}` is a second",
+                            site.noun()
+                        ),
+                    })
+            };
+            match problem {
+                Some(message) => self.diags.report(
+                    Diagnostic::error(code::E_BAD_MODIFIER, message)
+                        .with_primary(w.span, "delete this modifier"),
+                ),
+                None => kept.push(w.modifier),
+            }
+        }
+        kept
+    }
+
     /// Every modifier the parser knows, in any combination and any order —
     /// a class header, a property, a constant, a method and a parameter all
-    /// call this one loop. Which modifiers make sense in which position is
-    /// a later check, not a grammar rule (see [`Modifier`]'s docs).
+    /// call this one loop, and [`Self::check_modifiers`] then judges the list
+    /// against the site it turned out to be at.
     ///
     /// Being the one loop is also what makes a file's modifier lists
     /// collectable without a second walk over the grammar: a parse that keeps
     /// positions ([`Parser::with_trivia`]) records each list here, in source
     /// order, and no other production writes one.
-    pub(super) fn parse_modifiers(&mut self) -> Vec<Modifier> {
-        let mut modifiers = Vec::new();
+    pub(super) fn parse_written_modifiers(&mut self) -> Vec<WrittenModifier> {
         let mut written = Vec::new();
         loop {
             let at = self.peek().span;
@@ -222,21 +320,17 @@ impl<'src, 'd> Parser<'src, 'd> {
                 }
                 _ => break,
             };
-            if self.modifiers.is_some() {
-                written.push(WrittenModifier {
-                    modifier: m,
-                    span: at.to(self.last_span),
-                });
-            }
-            modifiers.push(m);
+            written.push(WrittenModifier {
+                modifier: m,
+                span: at.to(self.last_span),
+            });
         }
-        let Some(runs) = self.modifiers.as_mut() else {
-            return modifiers;
-        };
-        if !written.is_empty() {
-            runs.push(written);
+        if let Some(runs) = self.modifiers.as_mut()
+            && !written.is_empty()
+        {
+            runs.push(written.clone());
         }
-        modifiers
+        written
     }
 
     /// `public`/`protected`/`private`, optionally followed by PHP 8.4's
@@ -678,7 +772,7 @@ impl<'src, 'd> Parser<'src, 'd> {
         attributes: Vec<AttributeGroup>,
     ) -> Stmt {
         let doc = self.take_doc_comment(start);
-        let modifiers = self.parse_modifiers();
+        let modifiers = self.parse_modifiers(ModifierSite::Class);
         self.expect_keyword(Keyword::Class, "`class`");
         let name = self.parse_decl_name("a class name");
         let extends = if self.eat_keyword(Keyword::Extends).is_some() {
@@ -906,10 +1000,13 @@ impl<'src, 'd> Parser<'src, 'd> {
             out.push(self.parse_use_trait_member(start, attributes));
             return;
         }
-        let modifiers_at = self.peek().span;
-        let modifiers = self.parse_modifiers();
-        let modifiers_span = (!modifiers.is_empty()).then(|| modifiers_at.to(self.last_span));
+        let written = self.parse_written_modifiers();
+        let modifiers_span = written
+            .first()
+            .zip(written.last())
+            .map(|(first, last)| first.span.to(last.span));
         if self.at_keyword(Keyword::Const) {
+            let modifiers = self.check_modifiers(ModifierSite::Constant, &written);
             let consts = self.parse_const_body(&attributes, &modifiers);
             let span = start.to(self.last_span);
             for c in consts {
@@ -922,6 +1019,7 @@ impl<'src, 'd> Parser<'src, 'd> {
             return;
         }
         if self.at_keyword(Keyword::Function) {
+            let modifiers = self.check_modifiers(ModifierSite::Method, &written);
             out.push(self.parse_method_member(start, attributes, modifiers));
             return;
         }
@@ -940,6 +1038,7 @@ impl<'src, 'd> Parser<'src, 'd> {
             return;
         }
         if self.can_start_type() {
+            let modifiers = self.check_modifiers(ModifierSite::Property, &written);
             self.parse_property_members(start, attributes, modifiers, out);
             return;
         }

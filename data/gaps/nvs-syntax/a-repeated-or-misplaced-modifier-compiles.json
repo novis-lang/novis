@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-syntax/src/parser/decl.rs",
-  "title": "A repeated or misplaced modifier compiles, and `E0106` is never raised.",
-  "text": "`Parser::parse_modifiers` (`crates/nvs-syntax/src/parser/decl.rs:188`) accepts every modifier in any combination, and the later check that `E_BAD_MODIFIER` (`E0106`) was declared for was never written. `public public static function f(): void {}` compiles and runs. `abstract public int $p = 1;` on a property compiles clean. `static const X = 1;` reports only the missing type and visibility, not `static`. The check belongs where a member's modifiers are first read as a set: a modifier written twice, two visibilities, and a modifier the member's kind does not take (`abstract` or `final` on a property, `static` on a constant) each raise `E0106` naming the modifier. ADR 0094 records that this check was never written.",
-  "goal": "goal-closeout"
-}

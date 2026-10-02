@@ -575,11 +575,12 @@ impl Attribute {
 }
 
 /// A declaration modifier — visibility, `readonly`, `static`, `abstract` or
-/// `final`. The parser accepts any of these anywhere a modifier list is
-/// parsed (a parameter, a property, a method, a class header, ...);
-/// restricting which combinations, and which positions, make sense is a
-/// later check, not a grammar rule — the same discipline chunk 1 already
-/// applied to a promoted constructor parameter's modifiers.
+/// `final`. The grammar reads any of these anywhere a modifier list is
+/// parsed (a parameter, a property, a method, a class header, ...), and the
+/// parser then reports `E0106` for a modifier written twice, a second
+/// visibility, `abstract` beside `final`, or one the declaration's kind does
+/// not take, leaving it out of the declaration's list. Whether `lateinit` or
+/// `readonly` suits the declared type is `nvs-types`' question.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 #[expect(missing_docs, reason = "each variant is exactly its keyword spelling")]
 pub enum Modifier {
