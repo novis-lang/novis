@@ -1,28 +1,33 @@
 {
-  "state": "**Goal `goal-closeout`, Stage 2 (the registers): the gap register and the other four registers are audited.** `bun nv owners --registers` counts them. `carried-refusals.md`, the `*-outstanding.txt` ratchets and `guard-name-debt.md` hold zero entries.\n\nOf the 1210 playbook bullets, 1198 retire on a `gone` condition, which names code that exists today and is a trap, not owed work. The 12 whose `until` is `exists` or `test` were each read. Two name owed work in a shipped feature and are now gap records owned by `goal-closeout`: the `decimal` constant (`crates/nvs-types/src/defaults.rs`) and the SKIPIF that does not compile (`crates/nvs-test/src/run.rs`). The rest are tooling traps under `tools/nv/` or a statement of how the tree is, and stay in the playbook: a gap record is a crate module's. The closure-`foreach` trap was already fixed and pinned by `tests/conformance/lang/a-closure-declares-its-own-foreach-and-catch-bindings-rather-than-capturing-an-outer-name.nvst`, so it is deleted.\n\n`bun nv owners --closes goal-closeout` lists 32 gaps for Stage 4. `bun nv plan --stale` reports 0 after the `Blocking` field was rewritten.\n\n`bun nv import` is broken: `docs/rules/_index.json` is gone. A playbook bullet is kept in sync by hand in both `docs/agent/playbook/<section>/<slug>.md` and `data/playbook/<section>/<slug>.json`.\n\nGoal `ci-green`'s floor check stays red until Stage 6. That is expected.",
+  "state": "**Goal `goal-closeout`, Stage 2 (the registers).** The gap register, the four other registers and the playbook are audited. `bun nv owners --registers` counts them.\n\n`bun nv proofs --gate` owes nothing in the whole roster of 1171 features. That item needed no change.\n\nThe plan's `Open now` and `Blocking` name nothing owed. The M0 to M8 acceptance paragraphs were checked clause by clause against the tree. M1, M3 and the named M7 and M8 clauses are met as written. Four paragraphs promised a design the code replaced, and each now says what tested code does: M0's CI platforms, M5's cross-core speedup (the `on: \"worker\"` placement, not `Core\\Task::map`) and two stale anchors, and M7's hot-reload clauses (a background check per `revalidate_freq`, and no request stats a file). One clause names decided work the tree lacks: `bind`, `bindTo` and `call` on a `callable`. It is now a gap record owned by `goal-closeout` (`data/gaps/nvs-types/a-callable-has-no-bind-bindto-or-call.json`).\n\n`bun nv owners --closes goal-closeout` lists 33 gaps for Stage 4.\n\n`bun nv import` is broken, because the rule index it reads was deleted. A playbook bullet is kept in sync by hand in both `docs/agent/playbook/<section>/<slug>.md` and `data/playbook/<section>/<slug>.json`.\n\nGoal `ci-green`'s floor check stays red until Stage 6. That is expected.",
   "next": {
     "stage": 2,
     "title": "the registers",
     "files": [
-      "tools/nv/cmd/proofs.ts",
-      "docs/implementation-plan.md",
-      "docs/plan/"
+      "docs/plan/m2.md",
+      "docs/plan/m4.md",
+      "docs/plan/m6.md",
+      "docs/plan/m8.md"
     ],
     "items": [
       {
         "done": false,
-        "text": "**The feature proofs** — `bun nv proofs --gate` owes nothing in the whole roster. The gate is `tools/nv/cmd/proofs.ts:8`. A feature that owes a proof gets it written, or a gap record owned by `goal-closeout` when the proof needs work Stage 4 builds."
+        "text": "**M2's fixture corpus** — `docs/plan/m2.md:53` promises one `nvs check` fixture per diagnostic each listed ADR's *Verification* names. `crates/nvs-cli/tests/fixtures/check/` holds two files, and `tests/conformance/reject/` is grouped by behaviour. Decide whether the reject tree plus the checker's Rust tests meet it, and correct the paragraph or file a gap. Count codes by their `code::E_*` constant, not their `E0nnn` text: most Rust tests name the constant."
       },
       {
         "done": false,
-        "text": "**The plan** — `docs/implementation-plan.md:58`'s `Open now` and `Blocking` name nothing owed before M9. `bun nv plan --show M0:verify` through `M8:verify` are each met by the tree. A paragraph the tree does not meet becomes a gap owned by `goal-closeout`. A paragraph that promises less than tested code does is corrected in `docs/plan/m0.md:1` and its siblings."
+        "text": "**M4's remaining clauses** — `docs/plan/m4.md:44` names `array_keys()` and `json_encode`. `Core\\Json::encode` is what the conformance tree uses (`tests/conformance/core/json-encode-decode-and-validate.nvst`). Check whether either PHP name still compiles, and correct the paragraph to the names the language has."
+      },
+      {
+        "done": false,
+        "text": "**M6's warm start and M8's ADR lists** — `docs/plan/m6.md:57`'s \"warm-cache CLI startup under 10 ms\" is met by a budgeted bench, `bun nv bench --warm-start` (`tools/nv/cmd/bench.ts:445`), and no test asserts it. `docs/plan/m8.md:122` defers to the M8 lists in ADRs 0051 and 0054–0060, which nobody has checked yet."
       }
     ]
   },
   "backlog": [
     "Stage 3: read every goal in front of this one, in subagent batches of about fifteen (`docs/agent/goals/goal-closeout.md` § Stage 3).",
-    "Stage 4: build the 32 gaps `bun nv owners --closes goal-closeout` lists, one crate per group (`docs/agent/goals/goal-closeout.md` § Stage 4).",
-    "`--deferrals`' keyword match (`tools/nv/cmd/owners.ts:@covers`) passes a gap whose crate name appears anywhere in the plan file. Stage 5 removes floor machinery, and this check could get stricter then, or be judged by hand as it was here.",
-    "`bun nv owners --registers` counts every playbook bullet as an open item (`tools/nv/cmd/owners.ts:227`), though only the `exists` and `test` kinds wait on owed work. Counting those alone would make the number mean something."
+    "Stage 4: build the 33 gaps `bun nv owners --closes goal-closeout` lists, one crate per group (`docs/agent/goals/goal-closeout.md` § Stage 4).",
+    "`--deferrals`' keyword match (`tools/nv/cmd/owners.ts:@covers`) passes a gap whose crate name appears anywhere in the plan file. Stage 5 could make it stricter.",
+    "`bun nv owners --registers` counts every playbook bullet as an open item (`tools/nv/cmd/owners.ts:227`), though only the `exists` and `test` kinds wait on owed work."
   ]
 }
