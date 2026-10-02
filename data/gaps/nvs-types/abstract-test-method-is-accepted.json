@@ -2,5 +2,5 @@
   "module": "crates/nvs-types/src/testing.rs",
   "title": "An `abstract` `#[Test]` method is accepted.",
   "text": "[`check_method_shape`] refuses four declaration shapes and a method with no body is none of them, so an `abstract` `#[Test]` compiles. The runner then finds nothing to call, and `nvs_runtime`'s dispatch raises its `internal error` fault in place of the test: a program with no unsafe construct in it reaching a branch written as unreachable. `rule:testing/test-attribute` enumerates the refusals, so adding a fifth is a decision of its own rather than a fix to that function's wording. `tests/hostile/lang/testing/a-test-is-a-method-marked-test/02-a-marked-method-with-no-body.nvs` is the proof that carries it.",
-  "milestone": "M10"
+  "goal": "goal-closeout"
 }

@@ -1,33 +1,32 @@
 {
-  "state": "**Goal `goal-closeout` — every old goal is closed, its decisions are kept, and the goals are deleted — has just started; nothing of it has landed yet.** Goal `ci-green`'s whole carried list is this goal's Stage 1 floor.\n\nThe design is settled and is the user's: the audit finishes what it finds, a finished goal is deleted from this goal on and never before it, nothing is carried as a floor afterwards, and `docs/agent/goal-decisions.md` keeps what only a goal's prose held without binding anybody. The goal file's § *Standing decisions* answers every call a session meets.\n\nGoal `ci-green`'s own check in the floor turns red at this goal's first commit that is not bookkeeping and stays red until Stage 6 deletes its record. That is expected; no session asks for a push because of it.",
+  "state": "**Goal `goal-closeout`, Stage 2 (the registers): the gap register is audited.** Of the 66 gap records under `data/gaps/`, 36 sit inside the scope their milestone's plan file states, and 30 did not. Those 30 now name `goal-closeout` as owner, and Stage 4 builds them: `bun nv owners --closes goal-closeout` lists them.\n\n`bun nv owners --check` now accepts a gap owned by the goal that is running, which is the live goal or this process's side goal, and counts it as `live-goal-owned`. Any other goal owner is still refused. The reason is in `tools/nv/cmd/owners.ts`'s header: the owner gate will not let that goal walk while the gap names it.\n\n`bun nv owners --deferrals` matches a plan file by keyword, so a pass is only a pointer. The 36 that remain were judged by reading each plan file: M9 bundle `.nvsx`, M10 fmt, lsp, openapi, runner, render producers, the probes, `DEBUG_BREAK` and the span flag and window, the M11 `--INI--` importer, the M12 allocation economy and dispatch, and M15 `info.version`.\n\nGoal `ci-green`'s floor check stays red until Stage 6. That is expected.",
   "next": {
     "stage": 2,
     "title": "the registers",
     "files": [
       "tools/nv/cmd/owners.ts",
       "docs/implementation-plan.md",
-      "docs/plan/"
+      "docs/plan/",
+      "docs/agent/"
     ],
     "items": [
       {
         "done": false,
-        "text": "**The gap register** — `bun nv owners --check` and `bun nv owners --deferrals`; anything not owned by a milestone at M9 or later inside its plan file's scope becomes a gap owned by `goal-closeout`."
+        "text": "**The other registers** — run `bun nv owners --registers`, then read each register it counts: `docs/agent/carried-refusals.md:1`, `crates/nvs-stdlib/tests/` (`*-outstanding.txt`), `docs/agent/guard-name-debt.md:1`, and the playbook bullets whose `until` names a state of the tree. An entry that names owed work and has no future milestone becomes a gap record owned by `goal-closeout`. The registers are listed at `tools/nv/cmd/owners.ts:26`."
       },
       {
         "done": false,
-        "text": "**The other registers** — `bun nv owners --registers`, then read `docs/agent/carried-refusals.md`, `crates/nvs-stdlib/tests/*-outstanding.txt`, `docs/agent/guard-name-debt.md` and the playbook bullets with an `until` naming a tree state. Owed work with no future milestone becomes a gap owned by `goal-closeout`."
+        "text": "**The feature proofs** — `bun nv proofs --gate` owes nothing in the whole roster. The gate is `tools/nv/cmd/proofs.ts:8`."
       },
       {
         "done": false,
-        "text": "**The plan** — `bun nv proofs --gate`, the `Open now` and `Blocking` fields of `docs/implementation-plan.md`, and `bun nv plan --show M0:verify` through `M8:verify` against the tree."
+        "text": "**The plan** — `docs/implementation-plan.md:58`'s `Open now` and `Blocking` name nothing owed before M9. `bun nv plan --show M0:verify` through `M8:verify` are each met by the tree. A paragraph the tree does not meet becomes a gap owned by `goal-closeout`. A paragraph that promises less than tested code does is corrected in `docs/plan/m0.md:1` and its siblings."
       }
     ]
   },
   "backlog": [
-    "**Stage 3: every old goal is read** — one read-only subagent per batch of about fifteen goals, in chain order; the session writes the gaps and `docs/agent/goal-decisions.md` from their reports.",
-    "**Stage 4: finished in place** — every gap owned by `goal-closeout`, grouped by crate, and the tests Stage 3 found missing.",
-    "**Stage 5: deletion becomes the rule** — the record modifying `rule:tooling/the-chain-names-its-live-goal`, then `tools/nv/cmd/loop.ts:@advance`, `tools/nv/lib/chain.ts:@goalPlan`, `tools/nv/driver/accept.ts`, `tools/nv/cmd/chain.ts`, `tools/nv/cmd/owners.ts`, and the new `tools/nv/test/switch.test.ts`.",
-    "**Stage 6: the old goals are deleted** — files and links in one slice, then the plain-text citations by file set until `bun nv chain --check` is green.",
-    "When this goal's last check goes green the driver deletes it and takes goal `performance-pass`."
+    "Stage 3: read every goal in front of this one, in subagent batches of about fifteen (`docs/agent/goals/goal-closeout.md` § Stage 3).",
+    "Stage 4: build the 30 gaps `bun nv owners --closes goal-closeout` lists, one crate per group (`docs/agent/goals/goal-closeout.md` § Stage 4).",
+    "`--deferrals`' keyword match (`tools/nv/cmd/owners.ts:@covers`) passes a gap whose crate name appears anywhere in the plan file. Stage 5 removes floor machinery, and this check could get stricter then, or be judged by hand as it was here."
   ]
 }

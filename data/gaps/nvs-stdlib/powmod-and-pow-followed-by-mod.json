@@ -2,5 +2,5 @@
   "module": "crates/nvs-stdlib/src/bigint.rs",
   "title": "`powMod` and `pow` followed by `mod` disagree for a negative receiver.",
   "text": "[`nvs_core_bigint_pow_mod`] hands the work to `BigInt::modpow`, which answers the least non-negative residue, so `Core\\BigInt::of(-3)->powMod(3, 7)` is `1`. [`nvs_core_bigint_mod`] carries the dividend's sign the way `%` on `int` does, so `Core\\BigInt::of(-3)->pow(3)->mod(7)` is `-6` — and so is PHP's `bcpowmod(\"-3\", \"3\", \"7\")`, which `nvs convert` rewrites to this member. [`POW_MOD_DOC`]'s `ret` claims an answer only for a non-negative receiver, so neither number contradicts what is written down, and choosing between them is a decision rather than a fix: the residue is what every modular exponentiation wants, and the signed remainder is what the rest of this class and a converted program already give. `pow_mod_agrees_with_pow_then_mod_over_a_non_negative_receiver` pins both halves as they stand. The decision belongs where the rewrite is proven: M11's converter owes `bcpowmod` a differential case against the PHP oracle, and that case is what settles which answer this member owes.",
-  "milestone": "M11"
+  "goal": "goal-closeout"
 }

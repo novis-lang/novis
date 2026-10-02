@@ -2,5 +2,5 @@
   "module": "crates/nvs-syntax/src/parser/mod.rs",
   "title": "A second `namespace X;` statement in one file compiles, where `E0243` should refuse it.",
   "text": "`E_BRACED_NAMESPACE_UNSUPPORTED`'s doc and `docs/reference/tools/30-php-differences.md` § *Files, tags and names* both say one file is one namespace, but only the braced `namespace X { … }` form is refused: `namespace Shop; class Order {} namespace Blog; class Post {}` compiles clean, and so does a `namespace` after a class the file declared outside any namespace. A check over the file's top-level statements in `Parser::parse_all` reports it in one slice, but it breaks eight `nvs-hir` unit tests (`resolve::tests::a_new_namespace_statement_resets_the_import_scope` among them) and `nvs-ir`'s `type_atoms` test, whose fixtures put several namespaces in one source string. Those fixtures move to one namespace per file, or the resolver's reset of the import scope at a second namespace is deleted, in the same change. `tests/conformance/reject/a-name-is-absolute-and-a-leading-separator-does-not-parse.nvst` also declares two namespaces and needs the new error in its expectation.",
-  "milestone": "M10"
+  "goal": "goal-closeout"
 }

@@ -2,5 +2,5 @@
   "module": "crates/nvs-host/src/group.rs",
   "title": "A child task that loops without waiting is never stopped by its group's `deadline`.",
   "text": "`rule:concurrency/limit-and-deadline-are-the-only-bounds` makes `deadline` bound the whole call. `run_as_children` arms it as a timer on the core's reactor and reads the clock when the parent is resumed, and a child whose loop calls nothing never gives the core back, so neither happens: `Core\\Task::all` over two `while (true)` bodies under `{deadline: 50ms}` runs until the process is killed. Safepoint polls reach the child, but the word they read is the request tree's (`nvs_runtime::ctx::safepoint`'s `TreeState`), so raising it would stop the whole request rather than one group, and the request's own `cpu_time` and `wall_time` default to no cap. Closing it needs a per-group or per-task stop that a poll can read, which is a representation change. `tests/hostile/core/Task/all/03-tasks-that-never-wait.nvs` carries this record's marker.",
-  "milestone": "M10"
+  "goal": "goal-closeout"
 }
