@@ -201,9 +201,9 @@ impl LocalScope {
     }
 
     /// Declares a parameter — always freshly, with no reuse/redeclaration
-    /// check: a parameter list's own duplicate names are already diagnosed
-    /// at parse time (`E_BAD_PARAM_LIST`), and a parameter is always
-    /// definitely assigned, so the caller adds `name` to `live` itself.
+    /// check: the parser reports a parameter list's duplicate names
+    /// (`E_BAD_PARAM_LIST`), and a parameter is always definitely assigned,
+    /// so the caller adds `name` to `live` itself.
     pub(crate) fn declare_param(&mut self, name: String, ty: TypeId, declared_span: Span) {
         self.by_name.insert(name, LocalInfo { ty, declared_span });
     }

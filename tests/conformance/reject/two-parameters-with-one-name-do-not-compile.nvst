@@ -1,0 +1,37 @@
+--TEST--
+two parameters of one name are `E0107` in a method, a block closure and an arrow function alike
+--FILE--
+<?nvs
+// Each parameter in one list needs its own name.
+
+class Calc {
+    public static function sum(int $a, int $b): int {
+        return $a + $b;
+    }
+
+    public static function g(int $a, int $a): int {
+        return $a;
+    }
+}
+
+var $block = fn(int $x, string $x): int => {
+    return 1;
+};
+
+var $arrow = fn(int $n, int $m, int $n): int => $n;
+
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0107]: two parameters are named `$a`
+  --> case.nvs:9:34
+%A
+error[E0107]: two parameters are named `$x`
+   --> case.nvs:14:21
+%A
+error[E0107]: two parameters are named `$n`
+   --> case.nvs:18:21
+%A
+error: aborting due to 3 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

@@ -217,12 +217,9 @@ pub mod code {
         "This modifier is not allowed in this position. Delete it, or move it to a declaration \
          that allows it.",
     );
-    /// A parameter list that is malformed — duplicate names, or a required
-    /// parameter after an optional one.
+    /// A parameter list with two parameters of one name.
     pub const E_BAD_PARAM_LIST: Code = Code::new("E0107").card(
-        "The parameter list is not correct. Two parameters have the same name, or a required \
-         parameter comes after an optional one. Give each parameter its own name, and put the \
-         required parameters first.",
+        "Two parameters in this list have the same name. Give each parameter its own name.",
     );
     /// Recursive-descent parsing nested past the recursion limit — malformed
     /// or adversarial input (e.g. thousands of nested `[`), never legitimate

@@ -1964,11 +1964,30 @@ impl<'src, 'd> Parser<'src, 'd> {
         self.parse_param_list(false)
     }
 
+    /// Every list goes through here, so this is where a second parameter of
+    /// one name is `E_BAD_PARAM_LIST`, for a method, a closure and an arrow
+    /// function alike. The parameter is kept, so the list still has its
+    /// arity.
     fn parse_param_list(&mut self, ty_required: bool) -> Vec<Param> {
         self.expect(TokenKind::LParen, "`(`");
-        let mut params = Vec::new();
+        let mut params: Vec<Param> = Vec::new();
         while !self.at(TokenKind::RParen) && !self.at(TokenKind::Eof) {
-            params.push(self.parse_param(ty_required));
+            let param = self.parse_param(ty_required);
+            let name = self.file.span_text(param.name).unwrap_or_default();
+            if let Some(first) = params
+                .iter()
+                .find(|p| !name.is_empty() && self.file.span_text(p.name) == Some(name))
+            {
+                self.diags.report(
+                    Diagnostic::error(
+                        code::E_BAD_PARAM_LIST,
+                        format!("two parameters are named `{name}`"),
+                    )
+                    .with_primary(param.name, "rename this parameter")
+                    .with_secondary(first.name, "the first one is here"),
+                );
+            }
+            params.push(param);
             if self.eat(TokenKind::Comma).is_none() {
                 break;
             }
@@ -1989,7 +2008,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     fn parse_param(&mut self, ty_required: bool) -> Param {
         let start = self.peek().span;
         let attributes = self.parse_attribute_groups();
-        let modifiers = self.parse_modifiers();
+        let modifiers = self.parse_modifiers(super::decl::ModifierSite::Parameter);
         let inout = self.eat_keyword(Keyword::Inout).is_some();
         let ty = if self.can_start_type() {
             Some(self.parse_type())
