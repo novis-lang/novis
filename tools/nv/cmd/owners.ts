@@ -9,8 +9,11 @@
 //              the scope its own `docs/plan/<id>.md` states.
 //   past       a milestone before M9. Everything before M9 is complete, so the tag names owed work
 //              whose carrier has been and gone.
-//   goal       a live goal. A goal is a schedule rather than an owner: it walks and is retired, and the
-//              gap outlives it.
+//   live       the goal `data/chain.json` names live, or the side goal this process runs. Accepted,
+//              because the driver's owner gate (`--closes`) will not let that goal walk while the gap
+//              names it, so the gap cannot outlive its owner.
+//   goal       any other goal. A goal is a schedule rather than an owner: it walks and is retired, and
+//              the gap outlives it.
 //   retired    a goal whose record carries no checks, which is how a goal the driver will not reach
 //              again is written. Nothing on the chain closes the gap.
 //   broken     an owner that resolves to no goal or milestone, or to a milestone that is done.
@@ -42,6 +45,7 @@
 
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { liveGoal, sideGoal as runningSideGoal } from "../lib/chain.ts";
 import { ROOT } from "../lib/paths.ts";
 import { load } from "../lib/store.ts";
 import { gap as gapType } from "../schema/gap.ts";
@@ -72,15 +76,15 @@ export interface Gap {
   why?: string;
 }
 
-export type Kind = "goal" | "milestone" | "past" | "unowned" | "untagged" | "broken" | "retired";
+export type Kind = "live" | "goal" | "milestone" | "past" | "unowned" | "untagged" | "broken" | "retired";
 export type Kinds = Record<Kind, Gap[]>;
 
-/** Every kind `--check` refuses: all but `milestone`. */
+/** Every kind `--check` refuses: all but `milestone` and `live`. */
 export const REFUSED: Kind[] = ["broken", "untagged", "unowned", "past", "goal", "retired"];
 
 /** The label each kind is counted under, one count per line so a `want` of `0` cannot match `10`. */
 const LABELS: [Kind, string][] = [
-  ["goal", "goal-owned"], ["milestone", "milestone-owned"], ["past", "past-milestone"],
+  ["live", "live-goal-owned"], ["goal", "goal-owned"], ["milestone", "milestone-owned"], ["past", "past-milestone"],
   ["unowned", "unowned"], ["untagged", "untagged"], ["broken", "broken-tag"], ["retired", "retired-owner"],
 ];
 
@@ -115,7 +119,8 @@ export function classify(found: Gap[]): Kinds {
   // A side goal owns a gap exactly as a chain goal does, and its end gate asks `--closes` of its slug.
   const goals = new Map([...load(goalType), ...load(sideGoal)].map((g) => [g.id, g.value]));
   const plan = new Map(load(milestoneType).map((m) => [m.id, m.value]));
-  const out: Kinds = { goal: [], milestone: [], past: [], unowned: [], untagged: [], broken: [], retired: [] };
+  const running = new Set([liveGoal()?.slug, runningSideGoal()].filter((s): s is string => !!s));
+  const out: Kinds = { live: [], goal: [], milestone: [], past: [], unowned: [], untagged: [], broken: [], retired: [] };
   for (const gap of found) {
     const owner = gap.owner;
     const m = MILESTONE.exec(owner);
@@ -142,6 +147,7 @@ export function classify(found: Gap[]): Kinds {
       const g = goals.get(owner);
       if (!g) out.broken.push({ ...gap, why: `no goal \`${owner}\` in data/goals/` });
       else if (g.checks.length === 0) out.retired.push(gap);
+      else if (running.has(owner)) out.live.push(gap);
       else out.goal.push(gap);
     }
   }
@@ -278,7 +284,8 @@ function report(kinds: Kinds, found: Gap[], regs: Register[], sections: ReturnTy
     for (const g of kinds[kind]) out.push(lineOf(g), `      ${g.why ?? WHY[kind]}`);
   }
   const grouped: [Kind, string, (owner: string) => string][] = [
-    ["goal", "OWNED BY A GOAL ON THE CHAIN", (o) => `goal \`${o}\``],
+    ["live", "OWNED BY THE GOAL THAT IS RUNNING, WHICH CANNOT WALK WHILE IT OWNS ONE", (o) => `goal \`${o}\``],
+    ["goal", "OWNED BY ANOTHER GOAL ON THE CHAIN", (o) => `goal \`${o}\``],
     ["milestone", "SCHEDULED BY A MILESTONE'S PLAN", (o) => o],
   ];
   for (const [kind, head, name] of grouped) {
@@ -315,15 +322,15 @@ function runCheck(kinds: Kinds): number {
   if (bad.length > 0) {
     console.log(
       `nv owners: ${bad.length} recorded gap(s) name an owner this gate refuses, each for the reason on ` +
-        `its own line. The one owner a gap may name is a milestone at M${FIRST_FUTURE_MILESTONE} or later ` +
-        "whose plan file states the scope, written as the record's `milestone`; `bun nv owners " +
-        "--deferrals` is what holds that scope honest.",
+        `its own line. A gap may name a milestone at M${FIRST_FUTURE_MILESTONE} or later whose plan file ` +
+        "states the scope, written as the record's `milestone`, which `bun nv owners --deferrals` holds " +
+        "to that scope; or the goal that is running, which `--closes` holds at its end.",
     );
   } else {
     console.log(
-      `nv owners: every one of the ${kinds.milestone.length} tagged gap(s) names an owner the chain or the ` +
-        "plan knows -- a milestone still ahead of the program, which since this gate held whole is the " +
-        "only owner it accepts",
+      `nv owners: every one of the ${kinds.milestone.length + kinds.live.length} tagged gap(s) names an ` +
+        "owner the chain or the plan knows -- a milestone still ahead of the program, or the goal that is " +
+        "running, whose own end gate refuses to reach it while the gap is open",
     );
   }
   console.log(countLines(kinds).join("\n"));

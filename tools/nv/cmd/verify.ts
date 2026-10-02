@@ -794,7 +794,7 @@ export const summaries: Record<string, (out: string) => string> = {
   },
   owners(out) {
     let m = /every one of the (\d+) tagged gap\(s\)/.exec(out);
-    if (m) return `${m[1]} recorded gap(s), each deferred to a milestone still ahead`;
+    if (m) return `${m[1]} recorded gap(s), each owned by a milestone still ahead or the running goal`;
     m = /(\d+) recorded gap\(s\) name an owner this gate refuses/.exec(out);
     return m ? `${m[1]} recorded gap(s) name an owner the gate refuses` : NO_SUMMARY;
   },
