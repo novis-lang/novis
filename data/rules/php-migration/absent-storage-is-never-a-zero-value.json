@@ -2,7 +2,8 @@
   "title": "Absent storage never reads as a zero value: an unassigned variable and `[]` in a read position are refused, and an absent key throws",
   "status": "shipped",
   "because": [
-    "0007"
+    "0007",
+    "0254"
   ],
   "divergesFromPhp": "reading an undefined variable or an absent array key does not warn and yield `null`, and `$a[] .= \"x\"` does not append; `??`, `isset` and `empty` keep PHP's answer",
   "seeAlso": [

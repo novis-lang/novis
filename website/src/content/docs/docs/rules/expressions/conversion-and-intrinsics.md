@@ -16,9 +16,9 @@ next:
 
 <p class="nv-section-lead">The failable conversion that answers null instead of throwing, and what the compiler prepares from a literal argument.</p>
 
-<div class="nv-counts"><div class="nv-count" data-kind="total"><span class="nv-count-value">8</span><span class="nv-count-label">rules</span></div><div class="nv-count" data-kind="shipped"><span class="nv-count-value">8</span><span class="nv-count-label">shipped</span></div><div class="nv-count" data-kind="designed"><span class="nv-count-value">0</span><span class="nv-count-label">designed</span></div><div class="nv-count" data-kind="php"><span class="nv-count-value">5</span><span class="nv-count-label">differ from PHP</span></div></div>
+<div class="nv-counts"><div class="nv-count" data-kind="total"><span class="nv-count-value">9</span><span class="nv-count-label">rules</span></div><div class="nv-count" data-kind="shipped"><span class="nv-count-value">8</span><span class="nv-count-label">shipped</span></div><div class="nv-count" data-kind="designed"><span class="nv-count-value">1</span><span class="nv-count-label">designed</span></div><div class="nv-count" data-kind="php"><span class="nv-count-value">6</span><span class="nv-count-label">differ from PHP</span></div></div>
 
-<ol class="nv-rule-list"><li><a href="#intrinsic-literals">A literal argument to an intrinsic <code>Core</code> call is validated while checking and prepared into the artifact</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#intrinsic-list-is-closed">The intrinsic roster is a closed set in the compiler's own source, and nothing declares itself into it</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#bracket-destructuring"><code>list(...)</code> does not parse; <code>[...]</code> is the only destructuring target</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#nullable-conversion"><code>expr as ?T</code> yields the converted value or <code>null</code>, and never throws</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#nullable-conversion-availability"><code>as ?T</code> is refused where the conversion cannot fail, where none exists, and at every class target</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#conversion-keeps-qualifiers"><code>as ?T</code> decides <code>tainted</code> and <code>secret</code> by exactly the rule <code>as T</code> uses, and launders nothing of its own</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#try-parse">A failable single-<code>string</code> parse is spelled <code>tryParse</code>, and no separate validity predicate stands beside it</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#preparation-preserves-behaviour">The prepared path and the runtime path are one implementation, so preparation is only earlier and never different</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li></ol>
+<ol class="nv-rule-list"><li><a href="#intrinsic-literals">A literal argument to an intrinsic <code>Core</code> call is validated while checking and prepared into the artifact</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#intrinsic-list-is-closed">The intrinsic roster is a closed set in the compiler's own source, and nothing declares itself into it</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#bracket-destructuring"><code>list(...)</code> does not parse; <code>[...]</code> is the only destructuring target</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#defaulting-assignment"><code>??+=</code>, <code>??-=</code> and <code>??.=</code> are <code>$a = ($a ?? d) op $v</code> with the target evaluated once and <code>d</code> the zero of the target's type</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#nullable-conversion"><code>expr as ?T</code> yields the converted value or <code>null</code>, and never throws</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#nullable-conversion-availability"><code>as ?T</code> is refused where the conversion cannot fail, where none exists, and at every class target</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#conversion-keeps-qualifiers"><code>as ?T</code> decides <code>tainted</code> and <code>secret</code> by exactly the rule <code>as T</code> uses, and launders nothing of its own</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#try-parse">A failable single-<code>string</code> parse is spelled <code>tryParse</code>, and no separate validity predicate stands beside it</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#preparation-preserves-behaviour">The prepared path and the runtime path are one implementation, so preparation is only earlier and never different</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li></ol>
 
 <div class="nv-rule" id="intrinsic-literals">
 
@@ -119,6 +119,41 @@ reserved is what lets the diagnostic fire.
 </aside>
 
 <dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/expressions/truthiness-and-equality/#no-keyword-logical-operators" title="and, or and xor do not parse, and &amp;&amp;/|| are the whole set"><code>expressions/no-keyword-logical-operators</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0050.md">record 0050</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0049.md">record 0049</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/reject/list-destructuring-does-not-parse.nvst"><code>tests/conformance/reject/list-destructuring-does-not-parse.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/lang/destructuring-reads-elements-off-one-array.nvst"><code>tests/conformance/lang/destructuring-reads-elements-off-one-array.nvst</code></a></dd></div></dl>
+
+</div>
+
+<div class="nv-rule" id="defaulting-assignment">
+
+## `??+=`, `??-=` and `??.=` are `$a = ($a ?? d) op $v` with the target evaluated once and `d` the zero of the target's type
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="designed">Designed</span>
+<span class="nv-rule-flag">Differs from PHP</span>
+<a class="nv-rule-id" href="#defaulting-assignment"><code>expressions/defaulting-assignment</code></a>
+</div>
+
+`$a ??+= $v`, `$a ??-= $v` and `$a ??.= $v` mean `$a = ($a ?? d) op $v`, with `$a` evaluated once and
+read the way `??` reads its left operand, so an absent key at any level and a `null` both start from
+`d`. That written-out form answers every question about them: which operand types are accepted, what
+overflows, what `tainted` and `secret` do, and what the expression's type is. A form that is refused
+when written out refuses the operator with the same code.
+
+`d` is the zero of the target's own type: `0` for `int` and `uint`, `0.0` for `float`, the zero
+`decimal`, and `""` for `string`. For a `mixed` or union target it is the `int` `0` for `??+=` and
+`??-=` and the `string` `""` for `??.=`, and the operator is answered from the runtime tag
+([`types/arithmetic`](/docs/rules/types/declarations-and-numbers/#arithmetic "An arithmetic operator answers in its operands' own type, and overflow throws rather than wrapping or promoting")). A target that can never be `null` or absent takes the plain `+=`, `-=` or
+`.=`. The target's declared type is unchanged afterwards and nothing is narrowed ([`types/narrowing`](/docs/rules/types/unions-and-conversion/#narrowing "Narrowing is flow-sensitive and branch-local, and there are exactly four spellings of it")).
+
+There are exactly three, and no syntax writes another default: `($a ?? 100) -= 1` is `E0105`, and
+`$a = ($a ?? 100) - 1` is that program. `$a ??-1` is a `??` and a `-1`, because each operator ends in
+`=`.
+
+<aside class="nv-rule-diverges">
+<p class="nv-rule-diverges-label">Where this differs from PHP</p>
+<p>PHP has none of the three operators; its <code>$a[$k]++</code> and <code>$a[$k] .= $s</code> on an absent key read it as <code>null</code> with a warning</p>
+</aside>
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/php-migration/divergences/#absent-storage-is-never-a-zero-value" title="Absent storage never reads as a zero value: an unassigned variable and [] in a read position are refused, and an absent key throws"><code>php-migration/absent-storage-is-never-a-zero-value</code></a> <a href="/docs/rules/types/declarations-and-numbers/#arithmetic" title="An arithmetic operator answers in its operands' own type, and overflow throws rather than wrapping or promoting"><code>types/arithmetic</code></a> <a href="/docs/rules/types/unions-and-conversion/#narrowing" title="Narrowing is flow-sensitive and branch-local, and there are exactly four spellings of it"><code>types/narrowing</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0254.md">record 0254</a></dd></div></dl>
 
 </div>
 

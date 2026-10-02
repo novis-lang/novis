@@ -3,7 +3,7 @@
 
 # Expressions
 
-*4 of 28 rules below are **designed** rather than shipped, and are marked where they appear.*
+*5 of 29 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="expressions-truthy-positions"></a>
 
@@ -333,6 +333,30 @@ rejected construct never reaches the tree as a live node.
 reserved is what lets the diagnostic fire.
 
 <sub>See also [`expressions/no-keyword-logical-operators`](expressions.md#expressions-no-keyword-logical-operators). Decided in [0050](../decisions/0050.md), [0049](../decisions/0049.md).</sub>
+
+<a id="expressions-defaulting-assignment"></a>
+
+## `??+=`, `??-=` and `??.=` are `$a = ($a ?? d) op $v` with the target evaluated once and `d` the zero of the target's type  *(designed — not yet in the compiler)*
+
+`rule:expressions/defaulting-assignment`
+
+`$a ??+= $v`, `$a ??-= $v` and `$a ??.= $v` mean `$a = ($a ?? d) op $v`, with `$a` evaluated once and
+read the way `??` reads its left operand, so an absent key at any level and a `null` both start from
+`d`. That written-out form answers every question about them: which operand types are accepted, what
+overflows, what `tainted` and `secret` do, and what the expression's type is. A form that is refused
+when written out refuses the operator with the same code.
+
+`d` is the zero of the target's own type: `0` for `int` and `uint`, `0.0` for `float`, the zero
+`decimal`, and `""` for `string`. For a `mixed` or union target it is the `int` `0` for `??+=` and
+`??-=` and the `string` `""` for `??.=`, and the operator is answered from the runtime tag
+([`types/arithmetic`](types.md#types-arithmetic)). A target that can never be `null` or absent takes the plain `+=`, `-=` or
+`.=`. The target's declared type is unchanged afterwards and nothing is narrowed ([`types/narrowing`](types.md#types-narrowing)).
+
+There are exactly three, and no syntax writes another default: `($a ?? 100) -= 1` is `E0105`, and
+`$a = ($a ?? 100) - 1` is that program. `$a ??-1` is a `??` and a `-1`, because each operator ends in
+`=`.
+
+<sub>See also [`php-migration/absent-storage-is-never-a-zero-value`](php-migration.md#php-migration-absent-storage-is-never-a-zero-value), [`types/arithmetic`](types.md#types-arithmetic), [`types/narrowing`](types.md#types-narrowing). Decided in [0254](../decisions/0254.md).</sub>
 
 <a id="expressions-nullable-conversion"></a>
 

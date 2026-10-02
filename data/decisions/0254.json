@@ -1,0 +1,9 @@
+{
+  "title": "`??=` reads its target the way `??` does and is typed as the value it wrote, and `??+=`, `??-=` and `??.=` start from the zero of the target's type",
+  "status": "accepted",
+  "scope": "what `??=` reads, what it writes and what its value's type is, and three new assignment operators\nbuilt on the same read. The plain `=`, narrowing after a write and every other compound operator are\nunchanged and stay with their own records.",
+  "dependsOn": [
+    "0007"
+  ],
+  "validatedBy": "the conformance and reject cases the two rules' `guardedBy` names, and the hooked-property test in `crates/nvs-ir/src/lower/tests.rs`."
+}

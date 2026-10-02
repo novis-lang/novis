@@ -15,6 +15,7 @@
     "expressions/intrinsic-literals",
     "expressions/intrinsic-list-is-closed",
     "expressions/bracket-destructuring",
+    "expressions/defaulting-assignment",
     "expressions/nullable-conversion",
     "expressions/nullable-conversion-availability",
     "expressions/conversion-keeps-qualifiers",

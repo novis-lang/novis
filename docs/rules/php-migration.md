@@ -86,7 +86,7 @@ every level of the chain under it, so `$a["k"]["j"] ?? $d` yields `$d` for an ab
 depth, and a `null` base needs no `!= null` test in that one position. `isset` and `empty` are the
 same guarded read and answer rather than throw.
 
-<sub>See also [`types/arrays`](types.md#types-arrays), [`types/declaration`](types.md#types-declaration), [`types/mixed-subscript`](types.md#types-mixed-subscript), [`classes/no-undefined-value`](classes.md#classes-no-undefined-value), [`classes/an-unwritten-property-read-throws`](classes.md#classes-an-unwritten-property-read-throws). Decided in [0007](../decisions/0007.md).</sub>
+<sub>See also [`types/arrays`](types.md#types-arrays), [`types/declaration`](types.md#types-declaration), [`types/mixed-subscript`](types.md#types-mixed-subscript), [`classes/no-undefined-value`](classes.md#classes-no-undefined-value), [`classes/an-unwritten-property-read-throws`](classes.md#classes-an-unwritten-property-read-throws). Decided in [0007](../decisions/0007.md), [0254](../decisions/0254.md).</sub>
 
 <a id="php-migration-an-element-write-needs-storage-to-write-back-into"></a>
 
