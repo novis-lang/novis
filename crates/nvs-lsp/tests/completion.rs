@@ -33,6 +33,7 @@ use std::path::Path;
 
 use lsp_types::PositionEncodingKind;
 use nvs_diagnostics::PositionEncoding;
+use nvs_lsp::completion_files::CompletionFiles;
 use nvs_lsp::{
     Analysed, CheckScope, Client, Documents, PhpNames, Response, SymbolIndex, analyse, completion,
     uri_of,
@@ -102,6 +103,7 @@ fn rendered_with(documents: &Documents, analysis: &Analysed, at: u32) -> String 
     Response::Completion(completion::at(
         analysis,
         &index,
+        &CompletionFiles::default(),
         at,
         PhpNames::All,
         Client::default(),
@@ -295,6 +297,7 @@ fn ending_items(source: &str, php: PhpNames) -> Vec<lsp_types::CompletionItem> {
     completion::at(
         &analysis,
         &index,
+        &CompletionFiles::default(),
         at,
         php,
         Client::default(),
@@ -525,7 +528,7 @@ fn every_trigger_character_reaches_an_arm_that_is_not_the_position_list() {
         let at = after(&source, construct);
         let (documents, analysis) = analysed_at(&here, &source);
         assert!(
-            completion::continues_a_trigger(&analysis, at),
+            completion::continues_a_trigger(&analysis, &CompletionFiles::default(), at),
             "`{character}` ends `{construct}` and the request it raises is not answered"
         );
         let offered = rendered_with(&documents, &analysis, at);
@@ -561,7 +564,11 @@ fn a_path_character_outside_a_path_literal_is_not_answered() {
         let source = format!("{TRIGGER_DOC}{construct}{tail}\n");
         let (_documents, analysis) = analysed(&source);
         assert!(
-            !completion::continues_a_trigger(&analysis, after(&source, construct)),
+            !completion::continues_a_trigger(
+                &analysis,
+                &CompletionFiles::default(),
+                after(&source, construct)
+            ),
             "`{construct}` is no path literal and its last character raised a list"
         );
     }
@@ -648,7 +655,11 @@ fn sources() -> Vec<Source> {
 /// classes and the ones `nvs_hir::AutoloadMap::loadable_links` reads from the
 /// files the map lists for `Core\Program::implementing<T>()`, so the arm itself
 /// reads no file.
-const SOURCED: [(&str, &str); 32] = [
+///
+/// The completion-file arm reads the values `CompletionFiles::values_at`
+/// hands it, the table the completion files were loaded into, and reads no
+/// file itself.
+const SOURCED: [(&str, &str); 33] = [
     ("named_type", "..item("),
     ("type_row", "..named_type("),
     ("method_row", "..item("),
@@ -662,6 +673,7 @@ const SOURCED: [(&str, &str); 32] = [
     ("paths", "autoload::entries_of("),
     ("prefixes", "declarations_in("),
     ("class_names", "hierarchy::implements_interface("),
+    ("file_values", "completion_files::Value"),
     ("position", "words("),
     ("statement_words", "STATEMENT_WORDS"),
     ("followed", "Classes::of(cursor.symbols)"),

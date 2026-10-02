@@ -1,24 +1,23 @@
 {
-  "state": "**Goal `completion-files`, Stage 2 is on disk: the files are walked, read, merged, checked against the index and published.** All 18 tests the three Stage 2 checks name pass in `crates/nvs-lsp/tests/completion_files.rs`, with one more for the publish.\n\n`crates/nvs-lsp/src/completion_files.rs` has seven `FindingKind`s, each with its code (`W1013` to `W1019` in `crates/nvs-diagnostics/src/lib.rs`), and `UndeclaredClass` is the one hint. `CompletionFiles::check(&SymbolIndex)` makes the index-dependent findings and takes an attachment with a warning out of the table. Its module doc § *The checks against the index* records the two decisions this took. `crate::index::Declaration` now carries a method's `parameters` (`Parameter { name, takes_a_string }`).\n\n`crates/nvs-lsp/src/server.rs` publishes every completion file outside `vendor/` on its own URI after the load, after a watcher event that read or dropped a file, and from `reanalyse` when the index change changed what `check` finds. Its module doc says how.\n\nNothing reads the table for completion, hover or definition yet: that is Stage 3 and Stage 4.",
+  "state": "**Goal `completion-files`, Stage 3's first item is on disk: a string argument at a parameter a completion file names offers the file's values.** `a_string_argument_at_a_named_parameter_offers_the_files_values` passes in `crates/nvs-lsp/tests/completion_file_values.rs`.\n\n`crate::arguments::named_at` names a literal argument by the declaring class, method and parameter the checker resolved, with the other arguments' literal texts. `CompletionFiles::values_at` keeps the attachments whose `when` those texts meet, merged with the first `value` kept, so `when` is already applied at completion. `completion::at` and `completion::continues_a_trigger` take `&CompletionFiles`, which `server.rs`'s `answer` passes in; a `.lspt` case gets an empty table. `Value::markdown` rewrites a relative link in `documentation` to a `file:` URI. The decisions are in the module docs of `completion.rs` (§ *What a completion file offers*) and `completion_files.rs`.\n\nSegments are not done: a value with a separator is still offered whole. Hover, definition, strict and the replacement (Stage 4) and the literal union (Stage 5) read nothing yet.\n\nThe driver's last floor failure, `dossier-core-http-part` with exit 9 and no output, passes when run by hand: it was the driver, not the tree.",
   "next": {
     "stage": 3,
     "title": "completion offers the values",
-    "files": [],
-    "note": "one file set: `crates/nvs-lsp/src/completion.rs`, `crates/nvs-lsp/src/arguments.rs`, `crates/nvs-lsp/src/server.rs`, a new `crates/nvs-lsp/tests/completion_file_values.rs`.",
+    "files": [
+      "crates/nvs-lsp/src/completion.rs",
+      "crates/nvs-lsp/src/completion_files.rs",
+      "crates/nvs-lsp/tests/completion_file_values.rs"
+    ],
     "items": [
       {
         "done": false,
-        "text": "**A string argument at an attached parameter offers the file's values** (`rule:ide/completion-files-offer-values-at-named-parameters` § *What an item may do*). `crates/nvs-lsp/src/arguments.rs:80` finds the argument at the cursor; it has to give the declaring class, method and parameter name for `CompletionFiles::attachments`. The completion arm is at `crates/nvs-lsp/src/completion.rs:586`, and `CompletionFiles` must reach `completion::at` through `answer` (`crates/nvs-lsp/src/server.rs:394`). Each item's one edit replaces the string literal's text, escaped for its quote. Check `a_string_argument_at_a_named_parameter_offers_the_files_values`."
-      },
-      {
-        "done": false,
-        "text": "**`when` and segments** — an attachment with `when` applies only when the other argument is a literal equal to one of its strings, and a value with a `separator` completes one segment at a time, `.` opening the next list inside such a string (`rule:ide/completion-is-asked-where-a-spelling-ends` gains this). The `When` shape is at `crates/nvs-lsp/src/completion_files.rs:224`, and the arm is the one at `crates/nvs-lsp/src/completion.rs:586`. Check `an_attachment_with_when_applies_only_when_the_other_argument_equals_one_of_its_strings`."
+        "text": "**`when` and segments** (`rule:ide/completion-files-offer-values-at-named-parameters` § *Where it reaches* and § *What an item may do*). `when` is applied in `crates/nvs-lsp/src/completion_files.rs:420` and needs only its test, `an_attachment_with_when_applies_only_when_the_other_argument_equals_one_of_its_strings`, in the new test file: a `when` met, one not met, a left-out argument and a non-literal argument. Segments go in `crates/nvs-lsp/src/completion.rs:659`: for a value with a `separator`, offer the distinct next segments after the text typed so far, each editing only the segment being typed, and a segment that only leads to longer values carries its text alone (the goal's standing decisions). `.` opens the next segment's list only inside such a string, so `crates/nvs-lsp/src/completion.rs` `continues_a_trigger` and the trigger list in `crates/nvs-lsp/src/capabilities.rs` need `.` too."
       }
     ]
   },
   "backlog": [
-    "Stage 4: hover, go-to-definition, the strict warning and the Deprecated hint with its quick fix, on `.nvs` files — ADR 0243 § *Diagnostics*.",
-    "Stage 5: a parameter typed as a union of string literals completes its members — `rule:ide/completion-offers-only-what-the-compiler-derived`.",
-    "Stage 6: the VS Code client's `editors/vscode/schemas/completion-file.json` — ADR 0242 § 3."
+    "Stage 4: hover, definition, the strict check and the deprecated hint read `CompletionFiles` through `crate::arguments::named_at` and `Value::markdown`; the arms are `crates/nvs-lsp/src/server.rs:1198` (hover), `:670` (definition) and `:1418` (code actions).",
+    "Stage 5: a literal union parameter completes its members, merged with a file's values.",
+    "Stage 6: `editors/vscode/schemas/completion-file.json` is not written yet."
   ]
 }

@@ -53,6 +53,9 @@
 //! - **A `location` whose file is missing is dropped**, so definition has no answer for that value.
 //!   The value keeps every other field.
 //! - **A symbolic link to a folder is not followed**, so a link cannot make the walk loop.
+//! - **A relative link in `documentation` becomes a `file:` URI** under the file's folder
+//!   ([`Value::markdown`]), because a client resolves a relative target against nothing it knows.
+//!   A target with a scheme, an absolute path or a fragment is kept as written.
 //!
 //! # The checks against the index
 //!
@@ -219,6 +222,37 @@ pub struct Value {
     pub folder: Arc<Path>,
 }
 
+impl Value {
+    /// [`Self::documentation`], with each relative link and image target rewritten as a `file:`
+    /// URI under [`Self::folder`]. A target with a scheme, an absolute path or a `#` fragment is
+    /// left as written.
+    #[must_use]
+    pub fn markdown(&self) -> Option<String> {
+        let text = self.documentation.as_deref()?;
+        let mut out = String::with_capacity(text.len());
+        let mut rest = text;
+        while let Some(at) = rest.find("](") {
+            let (before, after) = rest.split_at(at + 2);
+            out.push_str(before);
+            let end = after.find([')', ' ']).unwrap_or(after.len());
+            let (target, tail) = after.split_at(end);
+            let relative = !(target.is_empty()
+                || target.starts_with(['/', '\\', '#', '<'])
+                || target.contains(':'));
+            match relative
+                .then(|| crate::document::uri_of(&self.folder.join(target)))
+                .flatten()
+            {
+                Some(uri) => out.push_str(uri.as_str()),
+                None => out.push_str(target),
+            }
+            rest = tail;
+        }
+        out.push_str(rest);
+        Some(out)
+    }
+}
+
 /// An attachment's condition on another argument of the same call.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct When {
@@ -374,6 +408,35 @@ impl CompletionFiles {
             .and_then(|methods| methods.get(method))
             .and_then(|parameters| parameters.get(parameter))
             .map_or(&[], Vec::as_slice)
+    }
+
+    /// The values offered at `parameter` of `class::method` in a call whose other arguments are
+    /// `others`, each one's parameter name with its text when it is one string literal.
+    ///
+    /// An attachment without `when` applies at every call. One with `when` applies only when
+    /// `others` gives its parameter a literal equal to one of its strings, so a left-out argument
+    /// or one that is not a literal applies none. The values follow the attachments' order, and a
+    /// repeated `value` keeps the first one.
+    pub fn values_at(
+        &self,
+        class: &str,
+        method: &str,
+        parameter: &str,
+        others: &[(String, Option<String>)],
+    ) -> Vec<Arc<Value>> {
+        let mut values = Vec::new();
+        for attachment in self.attachments(class, method, parameter) {
+            let applies = attachment.when.as_ref().is_none_or(|when| {
+                others.iter().any(|(name, text)| {
+                    *name == when.parameter
+                        && text.as_ref().is_some_and(|text| when.equals.contains(text))
+                })
+            });
+            if applies {
+                extend_once(&mut values, &attachment.values);
+            }
+        }
+        values
     }
 
     /// The merged values of the set `name`.

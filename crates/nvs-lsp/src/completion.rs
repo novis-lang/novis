@@ -303,13 +303,28 @@
 //!   declares, and only the `Throwable` ones, the language's own included,
 //!   where the member expects an error (`Core\Test::assertThrows`).
 //!
+//! # What a completion file offers
+//!
+//! Inside a string argument at a parameter no mark claims, the list is the
+//! values the completion files attach to that parameter
+//! (`rule:ide/completion-files-offer-values-at-named-parameters`):
+//! [`crate::arguments::named_at`] names the parameter by the declaration the
+//! checker resolved the call to, and `CompletionFiles::values_at` keeps the
+//! attachments whose `when` the call's other arguments meet. A parameter with
+//! no value that applies is ordinary text, so the quote opens no list there.
+//! Each item's one edit replaces the literal's text ([`file_values`]), and
+//! carries no command, no other edit and no snippet. An item with no
+//! `filterText` filters on its value, which is the text being typed, and not on
+//! its label.
+//!
 //! **Known gaps.** Each gap is a record, and `bun nv gaps --module crates/nvs-lsp/src/completion.rs` lists them.
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::sync::Arc;
 
 use lsp_types::{
-    Command, CompletionItem, CompletionItemKind, CompletionItemLabelDetails, CompletionTextEdit,
-    Documentation, InsertTextFormat, MarkupContent, MarkupKind, TextEdit,
+    Command, CompletionItem, CompletionItemKind, CompletionItemLabelDetails, CompletionItemTag,
+    CompletionTextEdit, Documentation, InsertTextFormat, MarkupContent, MarkupKind, TextEdit,
 };
 use nvs_diagnostics::{BytePos, Diagnostics, PositionEncoding, SourceFile, Span};
 use nvs_hir::{QName, SymbolKind};
@@ -324,6 +339,7 @@ use nvs_types::{ExprInfo, Ty, TypeId};
 use rustc_hash::{FxHashMap, FxHashSet};
 use serde_json::{Value, json};
 
+use crate::completion_files::{self, CompletionFiles};
 use crate::definition::{
     ClassBound, class_literal, declared_type, imports_of, namespace_at, resolved_name,
     supertype_names, text_of,
@@ -367,6 +383,7 @@ enum Reach {
 pub fn at(
     analysed: &Analysed,
     symbols: &SymbolIndex,
+    files: &CompletionFiles,
     offset: BytePos,
     php: PhpNames,
     client: Client,
@@ -381,7 +398,7 @@ pub fn at(
         client,
         encoding,
     };
-    let mut items = match asked(analysed, &path, offset) {
+    let mut items = match asked(analysed, files, &path, offset) {
         Asked::Member(class, reach) => members_of(&cursor, &class, reach),
         Asked::TypeMember(owner) => type_members_of(&cursor, &owner),
         Asked::Namespace(prefix) => followed(
@@ -395,6 +412,7 @@ pub fn at(
         Asked::Literal(Literal::Class(text_start, bound)) => {
             class_names(&cursor, text_start, &bound)
         }
+        Asked::Literal(Literal::Values(literal, values)) => file_values(&cursor, literal, &values),
         Asked::Position => position(&cursor, php),
         Asked::Nothing => return Vec::new(),
     };
@@ -414,7 +432,7 @@ pub fn at(
 /// A request the developer raised by hand, or by typing a name, is not asked
 /// this.
 #[must_use]
-pub fn continues_a_trigger(analysed: &Analysed, offset: BytePos) -> bool {
+pub fn continues_a_trigger(analysed: &Analysed, files: &CompletionFiles, offset: BytePos) -> bool {
     let Some(upto) = analysed
         .map
         .file(analysed.entry)
@@ -428,7 +446,7 @@ pub fn continues_a_trigger(analysed: &Analysed, offset: BytePos) -> bool {
         .any(|spelling| upto.ends_with(spelling))
         || open_tag_written(upto).is_some()
         || (upto.ends_with(['/', '\'', '"'])
-            && literal_at(analysed, &analysed.index.at(offset), offset).is_some())
+            && literal_at(analysed, files, &analysed.index.at(offset), offset).is_some())
 }
 
 /// What every arm of a bare position reads: the analysis, the index, and where
@@ -535,6 +553,9 @@ enum Literal {
     /// starting at this byte after its opening quote, and the classes it may
     /// name.
     Class(BytePos, ClassBound),
+    /// An argument at a parameter a completion file names: the literal,
+    /// quotes included, and the values that apply at its call.
+    Values(Span, Vec<Arc<completion_files::Value>>),
 }
 
 /// A path literal the cursor is inside.
@@ -567,7 +588,12 @@ enum Files {
 /// [`crate::definition::class_literal`]'s, and an argument at a path
 /// parameter is [`crate::arguments::at`]'s. In every case the cursor has to be
 /// between the quotes.
-fn literal_at(analysed: &Analysed, path: &NodePath, offset: BytePos) -> Option<Literal> {
+fn literal_at(
+    analysed: &Analysed,
+    files: &CompletionFiles,
+    path: &NodePath,
+    offset: BytePos,
+) -> Option<Literal> {
     let inside = |span: Span| (span.start < offset && offset < span.end).then_some(span.start + 1);
     if let [string, parent, ..] = path.nodes()
         && string.kind == "Str"
@@ -590,6 +616,12 @@ fn literal_at(analysed: &Analysed, path: &NodePath, offset: BytePos) -> Option<L
             text_start: argument.span.start + 1,
             files: Files::All,
         }));
+    }
+    if let Some(named) = crate::arguments::named_at(analysed, offset) {
+        let values = files.values_at(&named.class, &named.method, &named.parameter, &named.others);
+        if !values.is_empty() {
+            return Some(Literal::Values(named.span, values));
+        }
     }
     let decl = path
         .nodes()
@@ -617,6 +649,77 @@ fn literal_at(analysed: &Analysed, path: &NodePath, offset: BytePos) -> Option<L
             files: Files::None,
         })
     })
+}
+
+/// The values a completion file offers at the string argument `literal`.
+///
+/// Each item's one edit replaces the literal's whole text, between its quotes,
+/// with the value escaped for the literal's quote. A literal with no closing
+/// quote yet has its text replaced to its end.
+fn file_values(
+    cursor: &Cursor<'_>,
+    literal: Span,
+    values: &[Arc<completion_files::Value>],
+) -> Vec<CompletionItem> {
+    let file = cursor.analysed.map.file(cursor.analysed.entry);
+    let raw = text_of(file, literal);
+    let quote = if raw.starts_with('"') { '"' } else { '\'' };
+    let closed = raw.len() >= 2 && raw.ends_with(quote);
+    let text = Span {
+        file: literal.file,
+        start: literal.start + 1,
+        end: if closed { literal.end - 1 } else { literal.end },
+    };
+    let range = range_at(file, text, cursor.encoding);
+    values
+        .iter()
+        .map(|value| CompletionItem {
+            label: value.label.clone().unwrap_or_else(|| value.value.clone()),
+            label_details: (value.label_detail.is_some() || value.label_description.is_some())
+                .then(|| CompletionItemLabelDetails {
+                    detail: value.label_detail.clone(),
+                    description: value.label_description.clone(),
+                }),
+            kind: Some(value.kind),
+            detail: value.title.clone(),
+            documentation: value.markdown().map(|value| {
+                Documentation::MarkupContent(MarkupContent {
+                    kind: MarkupKind::Markdown,
+                    value,
+                })
+            }),
+            tags: value
+                .deprecated
+                .then(|| vec![CompletionItemTag::DEPRECATED]),
+            sort_text: value.sort_text.clone(),
+            filter_text: Some(
+                value
+                    .filter_text
+                    .clone()
+                    .unwrap_or_else(|| value.value.clone()),
+            ),
+            preselect: value.preselect.then_some(true),
+            text_edit: Some(CompletionTextEdit::Edit(TextEdit {
+                range,
+                new_text: escaped(&value.value, quote),
+            })),
+            ..CompletionItem::default()
+        })
+        .collect()
+}
+
+/// `text` written inside a literal opened with `quote`: a backslash and the
+/// quote are escaped, and in a double-quoted literal a `$` too, so it is not
+/// read as a variable.
+fn escaped(text: &str, quote: char) -> String {
+    let mut out = String::with_capacity(text.len());
+    for ch in text.chars() {
+        if ch == '\\' || ch == quote || (quote == '"' && ch == '$') {
+            out.push('\\');
+        }
+        out.push(ch);
+    }
+    out
 }
 
 /// The namespaces an `autoload` prefix may name, for the text written before
@@ -826,9 +929,9 @@ fn paths(cursor: &Cursor<'_>, literal: &PathLiteral) -> Vec<CompletionItem> {
 /// in no access — a member name carries none — so the order costs the arms
 /// below nothing and buys the receiver half of `Core\Str::` an answer it would
 /// otherwise be refused for standing before the receiver's end.
-fn asked(analysed: &Analysed, path: &NodePath, offset: BytePos) -> Asked {
+fn asked(analysed: &Analysed, files: &CompletionFiles, path: &NodePath, offset: BytePos) -> Asked {
     // These literals are strings, so no other arm answers inside one.
-    if let Some(literal) = literal_at(analysed, path, offset) {
+    if let Some(literal) = literal_at(analysed, files, path, offset) {
         return Asked::Literal(literal);
     }
     // A cursor inside a run of markup is not writing a program, and a keyword

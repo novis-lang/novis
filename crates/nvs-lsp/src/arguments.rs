@@ -25,6 +25,13 @@
 //! in the index, so it is read off the text between the previous field's end
 //! and the value, which is a name and a `:` and nothing else.
 //!
+//! **A completion file's parameter is named, not marked.** [`named_at`]
+//! answers for a literal at any parameter, marked or not, with the declaring
+//! class, the method and the parameter that a completion file's attachment is
+//! keyed by (`rule:ide/completion-files-offer-values-at-named-parameters`),
+//! and the text of every other argument that is one string literal, which a
+//! `when` compares.
+//!
 //! **Where a path literal leads is the checker's join.** A relative literal at
 //! a path parameter was resolved while checking, and
 //! `nvs_types::ExprTypeTable::path_literal` keeps the absolute path under the
@@ -68,16 +75,87 @@ pub(crate) struct Argument {
     pub thrown: bool,
 }
 
-/// A node that holds the literal, with the spans of its own children.
+/// A string literal argument named the way a completion file names its
+/// parameter: by the class that declares the method the checker resolved the
+/// call to, the method, and the parameter.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct Named {
+    /// The literal, quotes included.
+    pub span: Span,
+    /// The declaring class's whole name, with no leading `\`.
+    pub class: String,
+    /// The method's name, `constructor` for the one a `new` runs.
+    pub method: String,
+    /// The parameter's name, without its `$`.
+    pub parameter: String,
+    /// Every other argument the call writes for a parameter, by that
+    /// parameter's name: the text of a lone string literal, and `None` for any
+    /// other expression. A parameter the call leaves out is not here.
+    pub others: Vec<(String, Option<String>)>,
+}
+
+/// A node that holds the literal, with the spans and kinds of its own
+/// children.
 struct Holder {
     kind: &'static str,
     span: Span,
     children: Vec<Span>,
+    child_kinds: Vec<&'static str>,
 }
 
 /// The marked argument literal the cursor at `offset` is inside, if any. The
 /// cursor has to be between the quotes.
 pub(crate) fn at(analysed: &Analysed, offset: BytePos) -> Option<Argument> {
+    let (literal, holders) = holders_at(analysed, offset)?;
+    classify(analysed, literal, &holders)
+}
+
+/// The string literal argument the cursor at `offset` is inside, named by its
+/// parameter, whatever the parameter's mark. The cursor has to be between the
+/// quotes, and the literal has to be an argument of a call the checker
+/// resolved, written for a parameter it named.
+pub(crate) fn named_at(analysed: &Analysed, offset: BytePos) -> Option<Named> {
+    let (literal, holders) = holders_at(analysed, offset)?;
+    let raw = text_of(analysed.map.file(analysed.entry), literal);
+    if !(raw.starts_with('\'') || raw.starts_with('"')) {
+        return None;
+    }
+    let parent = holders
+        .first()
+        .filter(|parent| CALLS.contains(&parent.kind))?;
+    let call = call_at(analysed, parent.span)?;
+    let index = parameter(analysed, call, parent, literal)?;
+    let open = opens_at(analysed, parent.span, &parent.children)?;
+    let file = analysed.map.file(analysed.entry);
+    let others = parent
+        .children
+        .iter()
+        .zip(&parent.child_kinds)
+        .filter(|(child, _)| child.start >= open)
+        .zip(&call.arg_slots)
+        .filter_map(|((child, kind), slot)| match slot {
+            ArgSlot::Param(other) if *other != index => {
+                let text = (*kind == "Str")
+                    .then(|| text_of(file, *child))
+                    .filter(|raw| raw.starts_with('\'') || raw.starts_with('"'))
+                    .map(|_| nvs_syntax::string_lit::cook_string_literal(file, *child));
+                Some((call.param_names.get(*other)?.clone(), text))
+            }
+            _ => None,
+        })
+        .collect();
+    Some(Named {
+        span: literal,
+        class: call.class.to_string(),
+        method: call.method.clone(),
+        parameter: call.param_names.get(index)?.clone(),
+        others,
+    })
+}
+
+/// The string literal the cursor at `offset` is inside, and the node that
+/// holds it and the one that holds that.
+fn holders_at(analysed: &Analysed, offset: BytePos) -> Option<(Span, Vec<Holder>)> {
     let path = analysed.index.at(offset);
     let [string, rest @ ..] = path.nodes() else {
         return None;
@@ -85,21 +163,20 @@ pub(crate) fn at(analysed: &Analysed, offset: BytePos) -> Option<Argument> {
     if string.kind != "Str" || !(string.span.start < offset && offset < string.span.end) {
         return None;
     }
-    let holders: Vec<Holder> = rest
+    let holders = rest
         .iter()
         .take(2)
-        .map(|node| Holder {
-            kind: node.kind,
-            span: node.span,
-            children: analysed
-                .index
-                .children_of(*node)
-                .into_iter()
-                .map(|child| child.span)
-                .collect(),
+        .map(|node| {
+            let children = analysed.index.children_of(*node);
+            Holder {
+                kind: node.kind,
+                span: node.span,
+                children: children.iter().map(|child| child.span).collect(),
+                child_kinds: children.iter().map(|child| child.kind).collect(),
+            }
         })
         .collect();
-    classify(analysed, string.span, &holders)
+    Some((string.span, holders))
 }
 
 /// Every marked argument literal the entry document writes, in the order they
@@ -137,6 +214,7 @@ fn visit<'n>(
                 kind: holder.kind,
                 span: holder.span,
                 children: holder.children.iter().map(|child| child.span).collect(),
+                child_kinds: holder.children.iter().map(|child| child.kind).collect(),
             })
             .collect();
         found.extend(classify(analysed, node.span, &holders));

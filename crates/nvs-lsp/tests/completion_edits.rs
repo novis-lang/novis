@@ -19,6 +19,7 @@ use lsp_types::{
     Position, Range, TextEdit,
 };
 use nvs_diagnostics::{PositionEncoding, SourceMap};
+use nvs_lsp::completion_files::CompletionFiles;
 use nvs_lsp::{
     CheckScope, Client, Documents, PhpNames, SymbolIndex, analyse, card, completion, regions,
     uri_of,
@@ -68,6 +69,7 @@ fn offered_in(path: &std::path::Path, client: Client, source: &str) -> Vec<Compl
     completion::at(
         &analysis,
         &index,
+        &CompletionFiles::default(),
         at,
         PhpNames::Off,
         client,
@@ -92,7 +94,7 @@ fn triggered(source: &str) -> bool {
     documents.open(uri.clone(), 1, source.to_owned());
     let analysis = analyse(&documents, &uri).expect("an open document analyses");
     let at = u32::try_from(source.len()).expect("a test document is short");
-    completion::continues_a_trigger(&analysis, at)
+    completion::continues_a_trigger(&analysis, &CompletionFiles::default(), at)
 }
 
 /// The one item labelled `label`.
@@ -289,7 +291,7 @@ fn a_quote_or_slash_at_a_marked_parameter_is_answered() {
         let analysis = analyse(&documents, &uri).expect("an open document analyses");
         let at = u32::try_from(cursor).expect("a test document is short");
         assert_eq!(
-            completion::continues_a_trigger(&analysis, at),
+            completion::continues_a_trigger(&analysis, &CompletionFiles::default(), at),
             answered,
             "`{source}`"
         );
@@ -790,6 +792,7 @@ fn card_of(source: &str, label: &str) -> Option<String> {
         completion::at(
             &analysis,
             &index,
+            &CompletionFiles::default(),
             at,
             PhpNames::Off,
             Client::default(),

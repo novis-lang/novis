@@ -283,7 +283,14 @@ pub fn serve(connection: &Connection) -> Result<(), ServerError> {
                         &pending,
                     )?;
                 }
-                let answered = answer(&documents, &index, &settings, encoding, request);
+                let answered = answer(
+                    &documents,
+                    &index,
+                    &completion_files,
+                    &settings,
+                    encoding,
+                    request,
+                );
                 connection.sender.send(answered.into())?;
             }
             Message::Notification(notification) => {
@@ -394,6 +401,7 @@ fn reanalyse(
 fn answer(
     documents: &Documents,
     index: &SymbolIndex,
+    completion_files: &CompletionFiles,
     settings: &Settings,
     encoding: PositionEncoding,
     request: Request,
@@ -460,7 +468,14 @@ fn answer(
         Completion::METHOD => match serde_json::from_value::<CompletionParams>(params) {
             Ok(params) => Response::new_ok(
                 id,
-                completion(documents, index, settings, encoding, &params),
+                completion(
+                    documents,
+                    index,
+                    completion_files,
+                    settings,
+                    encoding,
+                    &params,
+                ),
             ),
             Err(error) => unreadable(id, &method, &error),
         },
@@ -1043,7 +1058,8 @@ pub(crate) fn lenses_of_case(
 }
 
 /// [`completion`] for one `.lspt` case, over an index built for that case
-/// alone and for [`lenses_of_case`]'s reason.
+/// alone and for [`lenses_of_case`]'s reason. No completion file is read for a
+/// case: a case's folder holds none.
 ///
 /// The items and not a [`CompletionResponse`], because the runner narrows them
 /// by the two arguments a completion case may write before it renders any of
@@ -1059,6 +1075,7 @@ pub(crate) fn items_of_case(
     completion::at(
         analysed,
         &index,
+        &CompletionFiles::default(),
         offset,
         settings.php_names,
         settings.client,
@@ -1139,6 +1156,7 @@ fn reference_count(count: usize) -> String {
 fn completion(
     documents: &Documents,
     index: &SymbolIndex,
+    completion_files: &CompletionFiles,
     settings: &Settings,
     encoding: PositionEncoding,
     params: &CompletionParams,
@@ -1153,13 +1171,14 @@ fn completion(
         .context
         .as_ref()
         .is_some_and(|context| context.trigger_kind == CompletionTriggerKind::TRIGGER_CHARACTER);
-    if triggered && !completion::continues_a_trigger(&analysed, offset) {
+    if triggered && !completion::continues_a_trigger(&analysed, completion_files, offset) {
         return CompletionResponse::Array(Vec::new());
     }
     CompletionResponse::Array(card::keyed_to(
         completion::at(
             &analysed,
             index,
+            completion_files,
             offset,
             settings.php_names,
             settings.client,
