@@ -225,7 +225,7 @@ Conventions the whole file uses:
 - C.4 [The HTTP server](#tools-server) — `nvs serve`, the `[server]` block and its mounts, how a request finds the file that answers it, what a program reads about the door it came through, what reaches a running server, the drain, `nvs ctl` and `nvs service` *(nvs serve, server, HTTP, restart, restart required, deploy, hot reload, zero downtime, symlink, settle, revalidate_freq, listen, port, --listen, --port, [server], [[server.mount]], mount, prefix, host, scan, entry, origin, root, dispatch, static, static files, trusted_proxies, X-Forwarded-For, X-Forwarded-Proto, client IP, health_path, health check, max_in_flight, workers, timeout, drain, drain_timeout, graceful shutdown, reload, nvs ctl, control socket, nvs service, service, systemd, Windows service, Core\Request::mount, Core\Request\Mount, Core\Router::url, multi-tenant, subdirectory, virtual host, front controller, try_files, php -S, php-fpm, nginx, Apache, .htaccess, RewriteBase, SCRIPT_NAME, PATH_INFO, DocumentRoot)*
 - C.5 [Coming from PHP: every difference, and what to write instead](#tools-php-differences) — the short list of what changed, every PHP spelling the compiler refuses with its replacement and diagnostic code, what parses but behaves differently, and the dev tools that are built in *(PHP, migration, <?php, function, const, define, global, static, $$var, eval, extract, compact, settype, (int), cast, and, or, xor, ===, !==, list(), include, require_once, trait, __construct, __toString, __get, __set, __call, __invoke, __destruct, goto, declare, strict_types, use as, group use, leading backslash, array(), $s[0], mixed, yield from, use ($x), new class, type test, callable string, resource, unset, $_GET, $_POST, $_SERVER, $GLOBALS, $argv, die, print_r, var_dump, echo, elseif, endif, endforeach, #, ?>, &$x, reference, @, backtick, __DIR__, __FILE__, __LINE__, __CLASS__, PHP_EOL, Exception, getMessage, heredoc, nowdoc, ==, ===, equality, type juggling, strlen, mb_strlen, overflow, PHP_INT_MAX, octal, bcmath, gmp, decimal, preg_match, PCRE, ReDoS, password_hash, password_verify, PHPUnit, PHPStan, Psalm, PHP CS Fixer, PHP_CodeSniffer, Xdebug, Composer, differences, switch from PHP)*
 - C.6 [The editor: nvs lsp, nvs lsp-test and the VS Code extension](#tools-editor) — the language server — every request it answers, the diagnostics it publishes, the positions it speaks and the secrets it conceals — `nvs lsp-test`, the suite that freezes an editor answer as text, and the VS Code extension that is the reference client *(nvs lsp, language server, LSP, Language Server Protocol, editor, IDE, VS Code, stdio, initialize, hover, go to definition, completion, autocomplete, semantic tokens, syntax highlighting, document symbol, outline, selection range, folding, document link, code action, quick fix, publishDiagnostics, nvs/redactions, secret, position encoding, utf-8, utf-16, nvs lsp-test, .lspt, --coverage, extension, vsix, TextMate grammar, nvs.path, nvs.lsp.enable, nvs.secrets.redact, nvs.taint.mark, reveal secret, restart language server, activation)*
-- C.7 [Coding agents: nvs agent, and what nvs agent init installs](#tools-agents) — the four commands a coding agent reads the language through — `primer`, `index`, `find` and `show` — over the `Core` registry and the chapters of this reference, the `nvs check` loop that closes them, and `nvs agent init`, which writes an `AGENTS.md` stanza and one adapter per harness and states no language fact *(nvs agent, nvs agent primer, nvs agent index, nvs agent find, nvs agent show, nvs agent init, --all, --force, --check, fingerprint, coding agent, LLM, AI assistant, agent instructions, AGENTS.md, SKILL.md, .claude, Claude Code, skill, Cursor, .cursor, .mdc, GitHub Copilot, .instructions.md, adapter, pointer, stale documentation, hallucinated member, nvs check loop)*
+- C.7 [Coding agents: nvs agent, and what nvs agent init installs](#tools-agents) — the four commands a coding agent reads the language through — `primer`, `index`, `find` and `show` — over the `Core` registry and the chapters of this reference, the `nvs check` loop that closes them, and `nvs agent init`, which writes an `AGENTS.md` stanza and one adapter per harness and states no language fact *(nvs agent, nvs agent primer, nvs agent index, nvs agent find, nvs agent show, nvs agent init, --all, --force, --check, --json, JSON, fingerprint, coding agent, LLM, AI assistant, agent instructions, AGENTS.md, SKILL.md, .claude, Claude Code, skill, Cursor, .cursor, .mdc, GitHub Copilot, .instructions.md, adapter, pointer, stale documentation, hallucinated member, nvs check loop)*
 
 ### Part D — Coming from PHP
 
@@ -29179,7 +29179,7 @@ analysed as it arrives.
 <a id="tools-agents"></a>
 ## C.7 Coding agents: nvs agent, and what nvs agent init installs
 
-Keywords: nvs agent, nvs agent primer, nvs agent index, nvs agent find, nvs agent show, nvs agent init, --all, --force, --check, fingerprint, coding agent, LLM, AI assistant, agent instructions, AGENTS.md, SKILL.md, .claude, Claude Code, skill, Cursor, .cursor, .mdc, GitHub Copilot, .instructions.md, adapter, pointer, stale documentation, hallucinated member, nvs check loop
+Keywords: nvs agent, nvs agent primer, nvs agent index, nvs agent find, nvs agent show, nvs agent init, --all, --force, --check, --json, JSON, fingerprint, coding agent, LLM, AI assistant, agent instructions, AGENTS.md, SKILL.md, .claude, Claude Code, skill, Cursor, .cursor, .mdc, GitHub Copilot, .instructions.md, adapter, pointer, stale documentation, hallucinated member, nvs check loop
 
 ### nvs agent
 
@@ -29189,6 +29189,7 @@ Keywords: nvs agent, nvs agent primer, nvs agent index, nvs agent find, nvs agen
     nvs agent find <query>         the index lines whose symbol matches the query
     nvs agent show <symbol>        a member's card: signature, description, parameters, errors;
                                    a heading's section; a chapter's list of sections
+    --json                         with index, find or show: print the answer as one JSON document
 
 The surface a coding agent reads the language through. Every verb renders the document
 `nvs meta --json` prints and the chapters this binary carries, writes nothing to disk and caches
@@ -29243,6 +29244,19 @@ It is not yet the answer that the language lacks the thing — a keyword may be 
 heading that does not name it — so standard error says what was searched and points at the chapter
 map. `show` is the opposite — it was asked for one specific thing, and when it cannot resolve the
 symbol it exits non-zero and prints the nearest names it does have.
+
+**`--json` is for a tool that reads the answer.** With `--json`, `index`, `find` and `show` print
+one JSON document with `schemaVersion: 1`. For `index` and `find`, `entries` is a list with one
+record for each line. A record has the `symbol`, the `kind` and the `line`, and also `alias`,
+`signature`, `capability`, `title` and `summary`. A key is `null` when the entry does not have that
+part. The `kind` is `class`, `member`, `enum`, `exception`, `attribute`, `chapter`, `section`,
+`config`, `command`, `flag` or `code`. When nothing matches, `entries` is an empty list.
+
+For `show`, the document is the record with the parts of the card added. A member has `prose`,
+`params`, `returns` and `throws`. A class or an attribute has `prose` and `members`, and an enum
+has `prose` and `cases`. An exception has `parent` and `properties`, and a chapter has `sections`.
+A section, a key, a command, a flag and a code have `text`. An unknown symbol gives an `error` and a
+`nearest` list of records, and the command exits with a non-zero status.
 
 So the loop is three calls and a check: `find` the name, `show` its card, write the program, then
 `nvs check` it. A diagnostic names the spelling this language wants at the place the program got it

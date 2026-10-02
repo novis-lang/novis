@@ -2,7 +2,7 @@
 id: agents
 title: "Coding agents: nvs agent, and what nvs agent init installs"
 summary: the four commands a coding agent reads the language through — `primer`, `index`, `find` and `show` — over the `Core` registry and the chapters of this reference, the `nvs check` loop that closes them, and `nvs agent init`, which writes an `AGENTS.md` stanza and one adapter per harness and states no language fact
-keywords: nvs agent, nvs agent primer, nvs agent index, nvs agent find, nvs agent show, nvs agent init, --all, --force, --check, fingerprint, coding agent, LLM, AI assistant, agent instructions, AGENTS.md, SKILL.md, .claude, Claude Code, skill, Cursor, .cursor, .mdc, GitHub Copilot, .instructions.md, adapter, pointer, stale documentation, hallucinated member, nvs check loop
+keywords: nvs agent, nvs agent primer, nvs agent index, nvs agent find, nvs agent show, nvs agent init, --all, --force, --check, --json, JSON, fingerprint, coding agent, LLM, AI assistant, agent instructions, AGENTS.md, SKILL.md, .claude, Claude Code, skill, Cursor, .cursor, .mdc, GitHub Copilot, .instructions.md, adapter, pointer, stale documentation, hallucinated member, nvs check loop
 ---
 
 <!-- primer -->
@@ -14,6 +14,7 @@ keywords: nvs agent, nvs agent primer, nvs agent index, nvs agent find, nvs agen
     nvs agent find <query>         the index lines whose symbol matches the query
     nvs agent show <symbol>        a member's card: signature, description, parameters, errors;
                                    a heading's section; a chapter's list of sections
+    --json                         with index, find or show: print the answer as one JSON document
 
 The surface a coding agent reads the language through. Every verb renders the document
 `nvs meta --json` prints and the chapters this binary carries, writes nothing to disk and caches
@@ -68,6 +69,19 @@ It is not yet the answer that the language lacks the thing — a keyword may be 
 heading that does not name it — so standard error says what was searched and points at the chapter
 map. `show` is the opposite — it was asked for one specific thing, and when it cannot resolve the
 symbol it exits non-zero and prints the nearest names it does have.
+
+**`--json` is for a tool that reads the answer.** With `--json`, `index`, `find` and `show` print
+one JSON document with `schemaVersion: 1`. For `index` and `find`, `entries` is a list with one
+record for each line. A record has the `symbol`, the `kind` and the `line`, and also `alias`,
+`signature`, `capability`, `title` and `summary`. A key is `null` when the entry does not have that
+part. The `kind` is `class`, `member`, `enum`, `exception`, `attribute`, `chapter`, `section`,
+`config`, `command`, `flag` or `code`. When nothing matches, `entries` is an empty list.
+
+For `show`, the document is the record with the parts of the card added. A member has `prose`,
+`params`, `returns` and `throws`. A class or an attribute has `prose` and `members`, and an enum
+has `prose` and `cases`. An exception has `parent` and `properties`, and a chapter has `sections`.
+A section, a key, a command, a flag and a code have `text`. An unknown symbol gives an `error` and a
+`nearest` list of records, and the command exits with a non-zero status.
 
 So the loop is three calls and a check: `find` the name, `show` its card, write the program, then
 `nvs check` it. A diagnostic names the spelling this language wants at the place the program got it

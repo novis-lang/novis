@@ -839,7 +839,13 @@ enum AgentCommand {
     /// in it, and one per configuration key, command, flag and error code.
     // `rule:tooling/the-index-is-one-line-per-member`,
     // `rule:tooling/the-index-names-every-key-command-and-code`.
-    Index,
+    Index {
+        /// Print the lines as one JSON document: an `entries` array with one
+        /// record for each line, which has the line's symbol, its kind and the
+        /// line itself.
+        #[arg(long)]
+        json: bool,
+    },
     /// Print the index lines whose name matches a query: a class or member
     /// name, a heading of the reference, which is where a keyword such as
     /// `autoload` is found, or a configuration key, a command, a flag or an
@@ -854,6 +860,10 @@ enum AgentCommand {
         /// is written as it is typed, as `--port`.
         #[arg(allow_hyphen_values = true)]
         query: String,
+        /// Print the matching lines as the JSON document `index --json`
+        /// prints. No match gives an empty `entries` array.
+        #[arg(long)]
+        json: bool,
     },
     /// Print one symbol's card — its signature, its prose, its parameters and
     /// what it throws — or the section of the reference a line names.
@@ -863,6 +873,11 @@ enum AgentCommand {
         /// `config: `, `command: `, `flag: ` or `code: `, as `E0621`. A
         /// chapter's own name, as `programs`, lists its sections.
         symbol: String,
+        /// Print the card as one JSON object, with each part of the card as a
+        /// field. An unknown symbol gives an `error` and a `nearest` list, on
+        /// standard output, and the command still fails.
+        #[arg(long)]
+        json: bool,
     },
     /// Install this surface into the project in the working directory: an
     /// `AGENTS.md` stanza, and one adapter for each harness the tree shows, each
@@ -1708,9 +1723,9 @@ fn main() -> ExitCode {
         },
         Command::Agent { command } => match command {
             AgentCommand::Primer => agent::primer(),
-            AgentCommand::Index => agent::index(),
-            AgentCommand::Find { query } => agent::find(&query),
-            AgentCommand::Show { symbol } => agent::show(&symbol),
+            AgentCommand::Index { json } => agent::index(json),
+            AgentCommand::Find { query, json } => agent::find(&query, json),
+            AgentCommand::Show { symbol, json } => agent::show(&symbol, json),
             AgentCommand::Init { all, force, check } => agent::init(all, force, check),
         },
     }

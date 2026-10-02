@@ -576,6 +576,205 @@ fn find_with_no_match_prints_nothing_and_says_what_was_searched() {
     );
 }
 
+/// `nvs agent <args...> --json`, parsed, with whether it succeeded.
+fn agent_json(args: &[&str]) -> (serde_json::Value, bool) {
+    let mut args = args.to_vec();
+    args.push("--json");
+    let (out, _, ok) = agent(&args);
+    let document: serde_json::Value = serde_json::from_str(&out)
+        .unwrap_or_else(|error| panic!("`nvs agent {}` prints JSON: {error}", args.join(" ")));
+    assert_eq!(
+        document["schemaVersion"], 1,
+        "the document carries its schema version"
+    );
+    (document, ok)
+}
+
+/// The records of an `index --json` or `find --json` document.
+fn records(document: &serde_json::Value) -> &[serde_json::Value] {
+    document["entries"]
+        .as_array()
+        .expect("the document has an `entries` array")
+}
+
+/// `--json` is the same index as another rendering: one record per line, in
+/// the same order, each carrying that line, the symbol the line opens with and
+/// a kind. Every key is present on every record, as `null` where the entry has
+/// no such part.
+// covers: tools:agents/nvs-agent
+#[test]
+fn index_json_has_one_record_for_every_line_of_the_index() {
+    let lines = index();
+    let (document, ok) = agent_json(&["index"]);
+    assert!(ok, "`nvs agent index --json` succeeds");
+    let records = records(&document);
+    assert_eq!(records.len(), lines.len(), "one record per line");
+
+    let kinds = [
+        "class",
+        "member",
+        "enum",
+        "exception",
+        "attribute",
+        "chapter",
+        "section",
+        "config",
+        "command",
+        "flag",
+        "code",
+    ];
+    let keys = [
+        "symbol",
+        "kind",
+        "line",
+        "alias",
+        "signature",
+        "capability",
+        "title",
+        "summary",
+    ];
+    for (record, line) in records.iter().zip(&lines) {
+        assert_eq!(record["line"], line.as_str(), "the record carries its line");
+        assert_eq!(
+            record["symbol"],
+            symbol_of(line),
+            "the symbol is the one the line opens with: {line}"
+        );
+        let kind = record["kind"].as_str().unwrap_or_default();
+        assert!(kinds.contains(&kind), "a known kind: {record}");
+        for key in keys {
+            assert!(record.get(key).is_some(), "`{key}` is present: {record}");
+        }
+    }
+
+    let read = records
+        .iter()
+        .find(|record| record["symbol"] == r"Core\IO::read")
+        .expect(r"`Core\IO::read` has a record");
+    assert_eq!(read["kind"], "member");
+    assert_eq!(read["signature"], "read(string $path): string");
+    assert_eq!(read["capability"], "fs.read");
+    let key = records
+        .iter()
+        .find(|record| record["symbol"] == "[server] max_in_flight")
+        .expect("the key has a record");
+    assert_eq!(key["kind"], "config");
+    assert_eq!(key["alias"], "server.max_in_flight");
+}
+
+/// `find --json` lists the records of the lines `find` prints, and a query
+/// nothing matches is an empty list and a success, as the text form is.
+// covers: tools:agents/nvs-agent
+#[test]
+fn find_json_lists_the_matching_records_and_an_empty_list_for_no_match() {
+    let (text, _, _) = agent(&["find", r"Core\IO::read"]);
+    let (document, ok) = agent_json(&["find", r"Core\IO::read"]);
+    assert!(ok, "`nvs agent find --json` succeeds");
+    let lines: Vec<&str> = records(&document)
+        .iter()
+        .map(|record| record["line"].as_str().unwrap_or_default())
+        .collect();
+    assert_eq!(lines, text.lines().collect::<Vec<_>>(), "the same lines");
+    assert!(!lines.is_empty(), "the query matches");
+
+    let (document, ok) = agent_json(&["find", "strlen"]);
+    assert!(ok, "an empty result is an answer, not a failure");
+    assert!(records(&document).is_empty(), "no record: {document}");
+}
+
+/// `show --json` is the card with each of its parts as a key. The `line` is
+/// the card's first line, and each kind carries the parts its text card prints.
+// covers: tools:agents/nvs-agent
+#[test]
+fn show_json_gives_each_part_of_the_card_by_kind() {
+    let shown = |symbol: &str| {
+        let (text, _, ok) = agent(&["show", symbol]);
+        assert!(ok, "`nvs agent show {symbol}` succeeds");
+        let (card, ok) = agent_json(&["show", symbol]);
+        assert!(ok, "`nvs agent show {symbol} --json` succeeds");
+        assert_eq!(
+            card["line"],
+            text.lines().next().unwrap_or_default(),
+            "the card's line is the text card's first line"
+        );
+        (card, text)
+    };
+
+    let (member, _) = shown(r"Core\IO::read");
+    assert_eq!(member["kind"], "member");
+    assert_eq!(member["params"][0]["name"], "path");
+    assert!(member["returns"].is_string(), "{member}");
+    let throws: Vec<&str> = member["throws"]
+        .as_array()
+        .expect("`throws` is a list")
+        .iter()
+        .filter_map(|error| error["error"].as_str())
+        .collect();
+    assert!(throws.contains(&"IOError"), "{throws:?}");
+
+    let (class, _) = shown(r"Core\Str");
+    assert_eq!(class["kind"], "class");
+    assert!(
+        class["members"]
+            .as_array()
+            .expect("`members` is a list")
+            .iter()
+            .any(|member| member["symbol"] == r"Core\Str::length"),
+        "{class}"
+    );
+
+    let (section, _) = shown("programs#autoload-find-a-class-by-its-namespace");
+    assert_eq!(section["kind"], "section");
+    let body = section["text"].as_str().unwrap_or_default();
+    assert!(body.contains("autoload 'App' from './src';"), "{body}");
+
+    let (chapter, _) = shown("programs");
+    assert_eq!(chapter["kind"], "chapter");
+    assert!(chapter["summary"].is_string(), "{chapter}");
+    assert!(
+        chapter["sections"]
+            .as_array()
+            .expect("`sections` is a list")
+            .iter()
+            .any(|section| section["symbol"] == "programs#autoload-find-a-class-by-its-namespace"),
+        "{chapter}"
+    );
+
+    let (key, text) = shown("server.max_in_flight");
+    assert_eq!(key["kind"], "config");
+    assert_eq!(key["symbol"], "[server] max_in_flight");
+    let comment = key["text"].as_str().unwrap_or_default();
+    assert!(
+        text.contains(comment),
+        "the text card prints the same comment"
+    );
+
+    let (code, text) = shown("E0621");
+    assert_eq!(code["kind"], "code");
+    let card = code["text"].as_str().unwrap_or_default();
+    assert!(!card.is_empty() && text.contains(card), "{code}");
+}
+
+/// An unknown symbol fails under `--json` too. The document is still printed on
+/// standard output, as `nvs check --json`'s is, and names what was asked for and
+/// the records nearest to it.
+// covers: tools:agents/nvs-agent
+#[test]
+fn show_json_on_an_unknown_symbol_fails_with_the_nearest_records() {
+    let (document, ok) = agent_json(&["show", r"Core\Str::lenght"]);
+    assert!(!ok, "an unknown symbol is a failure");
+    let error = document["error"].as_str().unwrap_or_default();
+    assert!(error.contains(r"Core\Str::lenght"), "{document}");
+    assert!(
+        document["nearest"]
+            .as_array()
+            .expect("`nearest` is a list")
+            .iter()
+            .any(|record| record["symbol"] == r"Core\Str::length"),
+        "{document}"
+    );
+}
+
 /// A syntactic form is not a `Core` member, so a heading is the only way `find`
 /// can reach it — and a form with no heading reads, to an agent, as a feature
 /// that does not exist. Every form here is one that was, or could have been,

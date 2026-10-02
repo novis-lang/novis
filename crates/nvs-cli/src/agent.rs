@@ -114,13 +114,45 @@
 //! diagnostic code, which [`names`] derives. Those lines open with the kind of
 //! name they carry — `config: [server] max_in_flight` — so their symbol is not
 //! the line's first token, and that module says what it is instead.
+//!
+//! ## `--json`
+//!
+//! `index`, `find` and `show` each take `--json` for a consumer that parses
+//! rather than reads, and the document is another rendering of the same
+//! [`Entry`] and the same card, never a source of its own: the text card is
+//! rendered from the very [`card`] map `show --json` prints. Its shape follows
+//! `nvs check --json`'s (`rule:ide/check-json-is-the-diagnostic-record-as-a-document`):
+//! `schemaVersion` at the root, pretty-printed, every key present with `null`
+//! or `[]` for what was not written, and on a failure the document still goes
+//! to standard output while the exit status says it failed.
+//!
+//! ```text
+//! index, find  {schemaVersion, entries: [record]}
+//! record       {symbol, kind, line, alias, signature, capability, title, summary}
+//! show         record + the card's parts for its kind:
+//!                member     prose, params [{name, desc}], returns, throws [{error, desc}]
+//!                class      prose, members [{symbol, signature}]   (and an attribute)
+//!                enum       prose, cases [{name, desc}]
+//!                exception  parent, properties [string]
+//!                chapter    sections [{symbol, title, level, line}]
+//!                section, config, command, flag, code   text
+//! unknown      {schemaVersion, error, nearest: [record]}, exit non-zero
+//! ```
+//!
+//! A record's keys are the parts its line is written from, so a record says
+//! nothing its line does not, apart from a chapter's summary.
 
 use std::path::Path;
 use std::process::ExitCode;
 
-use serde_json::Value;
+use serde_json::{Map, Value, json};
 
 mod names;
+
+/// The shape of the three `--json` documents the module doc sketches, frozen
+/// the way `nvs check --json`'s is. It goes up when a key is removed or its
+/// meaning changes; a key added beside the others does not move it.
+const SCHEMA_VERSION: u64 = 1;
 
 /// The line that marks the section under it, on a line of its own.
 const MARKER: &str = "<!-- primer -->";
@@ -170,28 +202,59 @@ struct Chapter {
     text: &'static str,
 }
 
-/// One line of the index: the symbol `show` resolves, and the line `index`
-/// prints for it.
+/// One line of the index: the symbol `show` resolves, the kind of name it is,
+/// and the line `index` prints for it.
 struct Entry {
     symbol: String,
+    /// `class`, `member`, `enum`, `exception`, `attribute`, `chapter`,
+    /// `section`, `config`, `command`, `flag` or `code`.
+    kind: &'static str,
     line: String,
     /// A second name `find` and `show` reach the line by: a configuration
     /// key's dotted spelling, `server.max_in_flight`, beside the
     /// `[server] max_in_flight` its line writes.
     also: Option<String>,
+    /// A member's signature as the document spells it, without the class.
+    signature: Option<String>,
+    /// The capability a member's call is gated on, joined from the roster.
+    capability: Option<String>,
+    /// A chapter's title, or a heading's text.
+    title: Option<String>,
+    /// A chapter's front-matter summary, or the first sentence of a code's card.
+    summary: Option<String>,
     /// What `show` prints under the line for an entry whose text is its own
     /// rather than the document's; empty for every other entry.
     body: String,
 }
 
 impl Entry {
-    fn new(symbol: String, line: String) -> Self {
+    fn new(kind: &'static str, symbol: String, line: String) -> Self {
         Self {
             symbol,
+            kind,
             line,
             also: None,
+            signature: None,
+            capability: None,
+            title: None,
+            summary: None,
             body: String::new(),
         }
+    }
+
+    /// The entry as one record of the `--json` documents. Every key is always
+    /// present, and a part this kind of entry does not have is `null`.
+    fn record(&self) -> Map<String, Value> {
+        let mut out = Map::new();
+        out.insert("symbol".into(), Value::from(self.symbol.as_str()));
+        out.insert("kind".into(), Value::from(self.kind));
+        out.insert("line".into(), Value::from(self.line.as_str()));
+        out.insert("alias".into(), Value::from(self.also.clone()));
+        out.insert("signature".into(), Value::from(self.signature.clone()));
+        out.insert("capability".into(), Value::from(self.capability.clone()));
+        out.insert("title".into(), Value::from(self.title.clone()));
+        out.insert("summary".into(), Value::from(self.summary.clone()));
+        out
     }
 
     /// Whether `test` holds for the symbol or for the second name.
@@ -262,17 +325,25 @@ fn entries(document: &Value) -> Vec<Entry> {
             if !names.is_empty() {
                 line.push_str(&format!(": {}", names.join(", ")));
             }
-            out.push(Entry::new(class_name.to_owned(), line));
+            out.push(Entry::new("class", class_name.to_owned(), line));
         }
         for member in array(class, "members") {
             let symbol = format!("{class_name}::{}", text(member, "name"));
-            let mut line = format!("{class_name}::{}", text(member, "signature"));
-            if let Some((_, capability)) = gates.iter().find(|(gated, _)| *gated == symbol) {
+            let signature = text(member, "signature");
+            let mut line = format!("{class_name}::{signature}");
+            let capability = gates
+                .iter()
+                .find(|(gated, _)| *gated == symbol)
+                .map(|(_, capability)| *capability);
+            if let Some(capability) = capability {
                 line.push_str("  [");
                 line.push_str(capability);
                 line.push(']');
             }
-            out.push(Entry::new(symbol, line));
+            let mut entry = Entry::new("member", symbol, line);
+            entry.signature = Some(signature.to_owned());
+            entry.capability = capability.map(str::to_owned);
+            out.push(entry);
         }
     }
 
@@ -286,7 +357,7 @@ fn entries(document: &Value) -> Vec<Entry> {
         if !cases.is_empty() {
             line.push_str(&format!(" {{{}}}", cases.join(", ")));
         }
-        out.push(Entry::new(name.to_owned(), line));
+        out.push(Entry::new("enum", name.to_owned(), line));
     }
 
     for exception in array(document, "exceptions") {
@@ -296,18 +367,30 @@ fn entries(document: &Value) -> Vec<Entry> {
             line.push_str(" extends ");
             line.push_str(parent);
         }
-        out.push(Entry::new(name.to_owned(), line));
+        out.push(Entry::new("exception", name.to_owned(), line));
     }
 
     for attribute in array(document, "attributes") {
         let Some(name) = attribute.as_str() else {
             continue;
         };
-        out.push(Entry::new(name.to_owned(), format!("{name}  attribute")));
+        out.push(Entry::new(
+            "attribute",
+            name.to_owned(),
+            format!("{name}  attribute"),
+        ));
     }
 
     for topic in topics() {
-        out.push(Entry::new(topic.symbol, topic.line));
+        let kind = if topic.level == 0 {
+            "chapter"
+        } else {
+            "section"
+        };
+        let mut entry = Entry::new(kind, topic.symbol, topic.line);
+        entry.title = Some(topic.title);
+        entry.summary = topic.summary.map(str::to_owned);
+        out.push(entry);
     }
 
     out.extend(names::config_keys());
@@ -320,6 +403,10 @@ fn entries(document: &Value) -> Vec<Entry> {
 struct Topic {
     symbol: String,
     line: String,
+    /// The chapter's title, or the heading's text.
+    title: String,
+    /// The chapter's front-matter summary; nothing for a heading.
+    summary: Option<&'static str>,
     /// The heading's level, and `0` for the chapter itself.
     level: usize,
     /// The section from its heading to the next heading at its level or above.
@@ -335,6 +422,8 @@ fn topics() -> Vec<Topic> {
         out.push(Topic {
             symbol: chapter.id.to_owned(),
             line: format!("{}  chapter: {}", chapter.id, chapter.title),
+            title: chapter.title.to_owned(),
+            summary: Some(chapter.summary),
             level: 0,
             lines: Vec::new(),
         });
@@ -355,6 +444,8 @@ fn topics() -> Vec<Topic> {
             out.push(Topic {
                 line: format!("{symbol}  section: {heading}"),
                 symbol,
+                title: heading.to_owned(),
+                summary: None,
                 level,
                 lines: lines[i..end].to_vec(),
             });
@@ -411,15 +502,16 @@ fn without_rule_citations(line: &str) -> String {
     out
 }
 
-/// What `show` prints for a chapter or a section, or nothing where `symbol` is
-/// neither.
-///
-/// A section is the chapter's own text with the primer's markers taken out. A
-/// chapter is its summary over the lines of its sections, indented by depth.
-fn topic_card(symbol: &str) -> Option<String> {
+/// The card's own parts for a chapter or a section: a section's `text`, which
+/// is the chapter's own text with the primer's markers taken out, or a
+/// chapter's `sections`, each with its depth. The chapter's summary is already
+/// on its entry.
+fn topic_card(symbol: &str) -> Map<String, Value> {
     let topics = topics();
-    let topic = topics.iter().find(|topic| topic.symbol == symbol)?;
-    let mut out = format!("{}\n\n", topic.line);
+    let mut out = Map::new();
+    let Some(topic) = topics.iter().find(|topic| topic.symbol == symbol) else {
+        return out;
+    };
 
     if topic.level > 0 {
         let mut body = String::new();
@@ -427,28 +519,25 @@ fn topic_card(symbol: &str) -> Option<String> {
             body.push_str(without_rule_citations(line.trim_end()).as_str());
             body.push('\n');
         }
-        out.push_str(body.trim_end());
-        out.push('\n');
-        return Some(out);
+        out.insert("text".into(), Value::from(body.trim_end()));
+        return out;
     }
 
-    let summary = CHAPTERS
-        .iter()
-        .map(|text| chapter(text))
-        .find(|chapter| chapter.id == symbol)
-        .map_or("", |chapter| chapter.summary);
-    out.push_str(summary);
-    out.push_str("\n\nsections:\n");
     let prefix = format!("{symbol}#");
-    for section in topics
+    let sections: Vec<Value> = topics
         .iter()
         .filter(|section| section.symbol.starts_with(&prefix))
-    {
-        out.push_str(&"  ".repeat(section.level));
-        out.push_str(&section.line);
-        out.push('\n');
-    }
-    Some(out)
+        .map(|section| {
+            json!({
+                "symbol": section.symbol,
+                "title": section.title,
+                "level": section.level,
+                "line": section.line,
+            })
+        })
+        .collect();
+    out.insert("sections".into(), Value::from(sections));
+    out
 }
 
 /// The document that makes an agent productive: the marked chapter sections in
@@ -613,32 +702,54 @@ fn push_section(out: &mut String, lines: &[&str]) {
 /// One line per member the registry holds, one per enum, exception and
 /// attribute beside them, and one per chapter and heading this binary carries
 /// (`rule:tooling/the-index-is-one-line-per-member`).
-pub(crate) fn index() -> ExitCode {
+pub(crate) fn index(json: bool) -> ExitCode {
     let document = crate::meta::document();
+    print!("{}", lines(&entries(&document), json));
+    ExitCode::SUCCESS
+}
+
+/// `entries` as `index` and `find` print them: one line each, or with `json`
+/// the document whose `entries` are their records.
+fn lines(entries: &[Entry], json: bool) -> String {
+    if json {
+        let records: Vec<Value> = entries
+            .iter()
+            .map(|entry| Value::Object(entry.record()))
+            .collect();
+        return pretty(json!({ "schemaVersion": SCHEMA_VERSION, "entries": records }));
+    }
     let mut out = String::new();
-    for entry in entries(&document) {
+    for entry in entries {
         out.push_str(&entry.line);
         out.push('\n');
     }
-    print!("{out}");
-    ExitCode::SUCCESS
+    out
+}
+
+/// A `--json` document as it is printed: pretty, as `nvs check --json`'s is,
+/// with a line break after it.
+fn pretty(document: Value) -> String {
+    // It cannot fail: the document holds strings, integers and nulls, and
+    // `serde_json` only errors on a non-string map key or a non-finite float.
+    let mut out = serde_json::to_string_pretty(&document)
+        .expect("the document holds no unserializable value");
+    out.push('\n');
+    out
 }
 
 /// The index lines whose symbol contains `query`, compared without case.
 ///
-/// A query nothing matches still succeeds with nothing on standard output, and
-/// says on standard error what that silence covers and where to look next.
-pub(crate) fn find(query: &str) -> ExitCode {
+/// A query nothing matches still succeeds with nothing on standard output, or
+/// with `json` a document whose `entries` is empty, and says on standard error
+/// what that silence covers and where to look next.
+pub(crate) fn find(query: &str, json: bool) -> ExitCode {
     let document = crate::meta::document();
     let wanted = query.to_lowercase();
-    let mut out = String::new();
-    for entry in entries(&document) {
-        if entry.named(|name| name.contains(&wanted)) {
-            out.push_str(&entry.line);
-            out.push('\n');
-        }
-    }
-    if out.is_empty() {
+    let found: Vec<Entry> = entries(&document)
+        .into_iter()
+        .filter(|entry| entry.named(|name| name.contains(&wanted)))
+        .collect();
+    if found.is_empty() {
         eprintln!(
             "nothing matches `{query}`: no `Core` symbol, chapter heading, configuration key, command, flag or diagnostic code has it."
         );
@@ -646,27 +757,57 @@ pub(crate) fn find(query: &str) -> ExitCode {
             "a keyword may be written under a heading that does not name it: `nvs agent primer` ends with the chapter map, and `nvs agent show <chapter>` lists one chapter's sections."
         );
     }
-    print!("{out}");
+    print!("{}", lines(&found, json));
     ExitCode::SUCCESS
 }
 
 /// One symbol's card, or a refusal naming the symbols nearest to what was asked
 /// for.
-pub(crate) fn show(symbol: &str) -> ExitCode {
+///
+/// With `json` both go to standard output as one document, as `nvs check
+/// --json`'s diagnostics do: the card, or an `error` and the `nearest` entries'
+/// records. The exit status is what tells the two apart.
+pub(crate) fn show(symbol: &str, json: bool) -> ExitCode {
     let document = crate::meta::document();
     if let Some(entry) = show_target(&document, symbol) {
-        print!("{}", card(&document, &entry));
+        let card = card(&document, &entry);
+        if json {
+            let mut out = Map::new();
+            out.insert("schemaVersion".into(), Value::from(SCHEMA_VERSION));
+            out.extend(card);
+            print!("{}", pretty(Value::Object(out)));
+        } else {
+            print!("{}", render_card(&Value::Object(card)));
+        }
         return ExitCode::SUCCESS;
     }
 
-    eprintln!("no symbol named `{symbol}`");
-    let nearest = nearest(&entries(&document), &wanted(symbol));
+    let entries = entries(&document);
+    let nearest = nearest(&entries, &wanted(symbol));
+    let error = format!("no symbol named `{symbol}`");
+    if json {
+        let records: Vec<Value> = nearest
+            .iter()
+            .map(|entry| Value::Object(entry.record()))
+            .collect();
+        print!(
+            "{}",
+            pretty(json!({
+                "schemaVersion": SCHEMA_VERSION,
+                "error": error,
+                "nearest": records,
+            }))
+        );
+        return ExitCode::FAILURE;
+    }
+
+    eprintln!("{error}");
     if nearest.is_empty() {
         eprintln!("`nvs agent index` lists every symbol there is.");
     } else {
         eprintln!("nearest:");
-        for line in nearest {
-            eprintln!("  {line}");
+        for entry in nearest {
+            eprintln!("  {}", entry.symbol);
         }
     }
     ExitCode::FAILURE
@@ -697,23 +838,15 @@ fn wanted(symbol: &str) -> String {
 /// two names share, which recovers a misspelling in the middle as well as a
 /// wrong prefix. Nothing shorter than three characters is a match, or every
 /// symbol is one.
-fn nearest(entries: &[Entry], wanted: &str) -> Vec<String> {
-    let mut scored: Vec<(usize, &str)> = entries
+fn nearest<'a>(entries: &'a [Entry], wanted: &str) -> Vec<&'a Entry> {
+    let mut scored: Vec<(usize, &Entry)> = entries
         .iter()
-        .map(|entry| {
-            (
-                shared_run(&entry.symbol.to_lowercase(), wanted),
-                entry.symbol.as_str(),
-            )
-        })
+        .map(|entry| (shared_run(&entry.symbol.to_lowercase(), wanted), entry))
         .filter(|(run, _)| *run >= 3)
         .collect();
-    scored.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.1.cmp(b.1)));
+    scored.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.1.symbol.cmp(&b.1.symbol)));
     scored.truncate(8);
-    scored
-        .into_iter()
-        .map(|(_, symbol)| symbol.to_owned())
-        .collect()
+    scored.into_iter().map(|(_, entry)| entry).collect()
 }
 
 /// The length of the longest run of bytes `a` and `b` share.
@@ -736,96 +869,155 @@ fn shared_run(a: &str, b: &str) -> usize {
     longest
 }
 
-/// One symbol's card: its index line, then whatever its row wrote and nothing
-/// for what it did not.
-fn card(document: &Value, entry: &Entry) -> String {
-    let mut out = format!("{}\n", entry.line);
-    if !entry.body.is_empty() {
-        push_prose(&mut out, &entry.body);
-        return out;
+/// What a row lookup gives where the row is absent: indexing it gives `null`
+/// again, so every field read off it is the empty one.
+static ABSENT: Value = Value::Null;
+
+/// `text` as a card part: `null` where nothing was written.
+fn or_null(text: &str) -> Value {
+    if text.is_empty() {
+        Value::Null
+    } else {
+        Value::from(text)
     }
-    let Some((class_name, member_name)) = entry.symbol.split_once("::") else {
-        if let Some(card) = topic_card(&entry.symbol) {
-            return card;
-        }
-        push_class_card(&mut out, document, &entry.symbol);
-        push_roster_card(&mut out, document, &entry.symbol);
-        return out;
-    };
+}
 
-    let Some(member) = array(document, "classes")
+/// The row named `name` in the document's array under `key`.
+fn row<'a>(document: &'a Value, key: &str, name: &str) -> &'a Value {
+    array(document, key)
         .iter()
-        .find(|class| text(class, "name") == class_name)
-        .map(|class| array(class, "members"))
-        .and_then(|members| {
-            members
-                .iter()
-                .find(|member| text(member, "name") == member_name)
-        })
-    else {
-        return out;
-    };
+        .find(|row| text(row, "name") == name)
+        .unwrap_or(&ABSENT)
+}
 
-    let doc = &member["doc"];
-    push_prose(&mut out, text(doc, "short"));
-    push_pairs(&mut out, "params", array(doc, "params"), |param| {
-        (format!("${}", text(param, "name")), text(param, "desc"))
-    });
-    push_prose_section(&mut out, "returns", text(doc, "return"));
-    push_pairs(&mut out, "throws", array(doc, "errors"), |error| {
-        (text(error, "error").to_owned(), text(error, "desc"))
-    });
+/// `{name, desc}` for each row, the shape of a parameter and of an enum case.
+fn named_rows(rows: &[Value], name: &str) -> Value {
+    rows.iter()
+        .map(|row| json!({ name: text(row, name), "desc": or_null(text(row, "desc")) }))
+        .collect()
+}
+
+/// One symbol's card: the entry's record, then the parts its kind has. Every
+/// part a kind has is always present, as `null` or `[]` where its row wrote
+/// nothing, so the text card and `show --json` are two renderings of this.
+///
+/// A class's card lists its members, so the class name alone is a way into its
+/// members without knowing one of them. An attribute that is also a class,
+/// `Core\Test`, has the same card; one that is not has no members.
+fn card(document: &Value, entry: &Entry) -> Map<String, Value> {
+    let mut out = entry.record();
+    let symbol = entry.symbol.as_str();
+    match entry.kind {
+        "member" => {
+            let (class_name, member_name) = symbol.split_once("::").unwrap_or((symbol, ""));
+            let doc = &row(row(document, "classes", class_name), "members", member_name)["doc"];
+            out.insert("prose".into(), or_null(text(doc, "short")));
+            out.insert("params".into(), named_rows(array(doc, "params"), "name"));
+            out.insert("returns".into(), or_null(text(doc, "return")));
+            let throws: Value = array(doc, "errors")
+                .iter()
+                .map(|error| {
+                    json!({ "error": text(error, "error"), "desc": or_null(text(error, "desc")) })
+                })
+                .collect();
+            out.insert("throws".into(), throws);
+        }
+        "class" | "attribute" => {
+            let class = row(document, "classes", symbol);
+            out.insert("prose".into(), or_null(text(&class["doc"], "short")));
+            let members: Value = array(class, "members")
+                .iter()
+                .map(|member| {
+                    json!({
+                        "symbol": format!("{symbol}::{}", text(member, "name")),
+                        "signature": text(member, "signature"),
+                    })
+                })
+                .collect();
+            out.insert("members".into(), members);
+        }
+        "enum" => {
+            let doc = &row(document, "enums", symbol)["doc"];
+            out.insert("prose".into(), or_null(text(doc, "short")));
+            out.insert("cases".into(), named_rows(array(doc, "cases"), "name"));
+        }
+        "exception" => {
+            let exception = row(document, "exceptions", symbol);
+            out.insert("parent".into(), or_null(text(exception, "parent")));
+            let properties: Value = array(exception, "properties")
+                .iter()
+                .filter(|property| property.is_string())
+                .cloned()
+                .collect();
+            out.insert("properties".into(), properties);
+        }
+        "chapter" | "section" => out.extend(topic_card(symbol)),
+        _ => {
+            out.insert("text".into(), or_null(&entry.body));
+        }
+    }
     out
 }
 
-/// The card for a class: its own prose when the registry row carries a
-/// `ClassDoc`, then the index line of each of its members, so the class name
-/// alone is a way into its members without knowing one of them. A class with
-/// no card and no members writes nothing under its line.
-fn push_class_card(out: &mut String, document: &Value, symbol: &str) {
-    let Some(class) = array(document, "classes")
-        .iter()
-        .find(|class| text(class, "name") == symbol)
-    else {
-        return;
-    };
-    push_prose(out, text(&class["doc"], "short"));
-    let members = array(class, "members");
-    if members.is_empty() {
-        return;
+/// The text `show` prints for a [`card`]: its index line, then whatever its
+/// row wrote and nothing for what it did not.
+fn render_card(card: &Value) -> String {
+    let mut out = format!("{}\n", text(card, "line"));
+    match text(card, "kind") {
+        "member" => {
+            push_prose(&mut out, text(card, "prose"));
+            push_pairs(&mut out, "params", array(card, "params"), |param| {
+                (format!("${}", text(param, "name")), text(param, "desc"))
+            });
+            push_prose_section(&mut out, "returns", text(card, "returns"));
+            push_pairs(&mut out, "throws", array(card, "throws"), |error| {
+                (text(error, "error").to_owned(), text(error, "desc"))
+            });
+        }
+        "class" | "attribute" => {
+            push_prose(&mut out, text(card, "prose"));
+            let members = array(card, "members");
+            if !members.is_empty() {
+                out.push_str("\nmembers:\n");
+                let class = text(card, "symbol");
+                for member in members {
+                    out.push_str(&format!("  {class}::{}\n", text(member, "signature")));
+                }
+            }
+        }
+        "enum" => {
+            push_prose(&mut out, text(card, "prose"));
+            push_pairs(&mut out, "cases", array(card, "cases"), |case| {
+                (text(case, "name").to_owned(), text(case, "desc"))
+            });
+        }
+        "exception" => {
+            push_pairs(
+                &mut out,
+                "properties",
+                array(card, "properties"),
+                |property| (property.as_str().unwrap_or_default().to_owned(), ""),
+            );
+        }
+        "section" => {
+            out.push('\n');
+            out.push_str(text(card, "text"));
+            out.push('\n');
+        }
+        "chapter" => {
+            out.push('\n');
+            out.push_str(text(card, "summary"));
+            out.push_str("\n\nsections:\n");
+            for section in array(card, "sections") {
+                let level = section["level"].as_u64().unwrap_or_default();
+                out.push_str(&"  ".repeat(usize::try_from(level).unwrap_or_default()));
+                out.push_str(text(section, "line"));
+                out.push('\n');
+            }
+        }
+        _ => push_prose(&mut out, text(card, "text")),
     }
-    out.push_str("\nmembers:\n");
-    for member in members {
-        out.push_str(&format!("  {symbol}::{}\n", text(member, "signature")));
-    }
-}
-
-/// The card for a symbol that is not a member: an enum's cases, an exception's
-/// own properties, or an attribute, which is a name and nothing else.
-fn push_roster_card(out: &mut String, document: &Value, symbol: &str) {
-    if let Some(core_enum) = array(document, "enums")
-        .iter()
-        .find(|core_enum| text(core_enum, "name") == symbol)
-    {
-        let doc = &core_enum["doc"];
-        push_prose(out, text(doc, "short"));
-        push_pairs(out, "cases", array(doc, "cases"), |case| {
-            (text(case, "name").to_owned(), text(case, "desc"))
-        });
-        return;
-    }
-    if let Some(exception) = array(document, "exceptions")
-        .iter()
-        .find(|exception| text(exception, "name") == symbol)
-    {
-        let own: Vec<(String, &str)> = array(exception, "properties")
-            .iter()
-            .filter_map(|property| Some((property.as_str()?.to_owned(), "")))
-            .collect();
-        push_pairs(out, "properties", &own, |(name, desc)| {
-            (name.clone(), *desc)
-        });
-    }
+    out
 }
 
 /// A paragraph under the index line, or nothing where none was written.
@@ -925,6 +1117,8 @@ the installed version. That is why nothing about the language itself is written 
   shell removes the backslash from a namespaced name before grep sees it.
 - `nvs agent show <symbol>` — one card: a member's signature, prose, parameters and errors, a
   reference section, a key, a command's help, or an error code, as in `nvs agent show E0621`.
+
+`index`, `find` and `show` take `--json` when a tool reads the answer instead of a person.
 
 Then check what you wrote. `nvs check <file>` names what is wrong and where, `nvs check --json <file>`
 prints the same diagnostics as JSON, and `nvs test` runs the tests. That is the loop: read the primer

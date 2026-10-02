@@ -9,7 +9,8 @@
     "tooling/meta-json",
     "tooling/the-index-is-one-line-per-member",
     "tooling/a-primer-claim-is-executed",
-    "tooling/an-adapter-carries-protocol-and-never-language"
+    "tooling/an-adapter-carries-protocol-and-never-language",
+    "ide/check-json-is-the-diagnostic-record-as-a-document"
   ],
   "guardedBy": [
     "crates/nvs-cli/tests/agent.rs"

@@ -87,7 +87,7 @@ pub(super) fn config_keys() -> Vec<Entry> {
                 body.push_str("\n\n");
             }
             body.push_str(line.strip_prefix('#').unwrap_or(line));
-            let mut entry = Entry::new(symbol.clone(), format!("config: {symbol}"));
+            let mut entry = Entry::new("config", symbol.clone(), format!("config: {symbol}"));
             entry.also = also;
             entry.body = body;
             out.push(entry);
@@ -122,7 +122,7 @@ fn walk(command: &clap::Command, path: &str, out: &mut Vec<Entry>) {
             (None, None) => continue,
         };
         let symbol = format!("{path} {name}");
-        let mut entry = Entry::new(symbol.clone(), format!("flag: {symbol}"));
+        let mut entry = Entry::new("flag", symbol.clone(), format!("flag: {symbol}"));
         entry.body = arg
             .get_long_help()
             .or_else(|| arg.get_help())
@@ -135,7 +135,7 @@ fn walk(command: &clap::Command, path: &str, out: &mut Vec<Entry>) {
             continue;
         }
         let symbol = format!("{path} {}", sub.get_name());
-        let mut entry = Entry::new(symbol.clone(), format!("command: {symbol}"));
+        let mut entry = Entry::new("command", symbol.clone(), format!("command: {symbol}"));
         entry.body = sub
             .get_long_about()
             .or_else(|| sub.get_about())
@@ -154,11 +154,14 @@ pub(super) fn codes() -> Vec<Entry> {
         .map(|&code| {
             let card = nvs_diagnostics::code::card(code).unwrap_or_default();
             let mut line = format!("code: {code}");
+            let mut summary = None;
             if !card.is_empty() {
                 line.push_str("  ");
                 line.push_str(first_sentence(card));
+                summary = Some(first_sentence(card).to_owned());
             }
-            let mut entry = Entry::new(code.as_str().to_owned(), line);
+            let mut entry = Entry::new("code", code.as_str().to_owned(), line);
+            entry.summary = summary;
             entry.body = card.to_owned();
             entry
         })
