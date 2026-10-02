@@ -1,23 +1,33 @@
 {
-  "state": "**Goal `completion-files`, Stage 3's first item is on disk: a string argument at a parameter a completion file names offers the file's values.** `a_string_argument_at_a_named_parameter_offers_the_files_values` passes in `crates/nvs-lsp/tests/completion_file_values.rs`.\n\n`crate::arguments::named_at` names a literal argument by the declaring class, method and parameter the checker resolved, with the other arguments' literal texts. `CompletionFiles::values_at` keeps the attachments whose `when` those texts meet, merged with the first `value` kept, so `when` is already applied at completion. `completion::at` and `completion::continues_a_trigger` take `&CompletionFiles`, which `server.rs`'s `answer` passes in; a `.lspt` case gets an empty table. `Value::markdown` rewrites a relative link in `documentation` to a `file:` URI. The decisions are in the module docs of `completion.rs` (§ *What a completion file offers*) and `completion_files.rs`.\n\nSegments are not done: a value with a separator is still offered whole. Hover, definition, strict and the replacement (Stage 4) and the literal union (Stage 5) read nothing yet.\n\nThe driver's last floor failure, `dossier-core-http-part` with exit 9 and no output, passes when run by hand: it was the driver, not the tree.",
+  "state": "**Goal `completion-files`, Stage 3 is on disk: completion offers a completion file's values, from the attachments whose `when` the call meets, one segment at a time where a list has a separator.** Both Stage 3 checks' tests pass in `crates/nvs-lsp/tests/completion_file_values.rs`.\n\n`completion::file_values` splits a value with a separator at the text typed so far, and its edit replaces only the segment being typed; a segment that only leads further is its label and edit alone (module doc of `completion.rs`, § *What a completion file offers*). `continues_a_trigger` answers `.`, `/` and `:` inside such a string only where an applying value splits on that character, and `.` is a declared trigger. `rule:ide/completion-is-asked-where-a-spelling-ends` now says so, with `because` gaining 0242 and 0243.\n\nHover, definition, the strict check and the replacement (Stage 4) and the literal union (Stage 5) read nothing yet. The VS Code schema (Stage 6) is not written.\n\nThe perf figures for `lang:attributes`, `Core\\Router` and `Core\\Router\\Match`, staled by the `accessAs` commit, are measured again, and `bun nv proofs --gate` owes nothing.",
   "next": {
-    "stage": 3,
-    "title": "completion offers the values",
+    "stage": 4,
+    "title": "hover, go-to-definition, the strict check and the replacement",
     "files": [
-      "crates/nvs-lsp/src/completion.rs",
-      "crates/nvs-lsp/src/completion_files.rs",
-      "crates/nvs-lsp/tests/completion_file_values.rs"
+      "crates/nvs-lsp/src/hover.rs",
+      "crates/nvs-lsp/src/definition.rs",
+      "crates/nvs-lsp/src/server.rs",
+      "crates/nvs-lsp/tests/navigation.rs"
     ],
     "items": [
       {
         "done": false,
-        "text": "**`when` and segments** (`rule:ide/completion-files-offer-values-at-named-parameters` § *Where it reaches* and § *What an item may do*). `when` is applied in `crates/nvs-lsp/src/completion_files.rs:420` and needs only its test, `an_attachment_with_when_applies_only_when_the_other_argument_equals_one_of_its_strings`, in the new test file: a `when` met, one not met, a left-out argument and a non-literal argument. Segments go in `crates/nvs-lsp/src/completion.rs:659`: for a value with a `separator`, offer the distinct next segments after the text typed so far, each editing only the segment being typed, and a segment that only leads to longer values carries its text alone (the goal's standing decisions). `.` opens the next segment's list only inside such a string, so `crates/nvs-lsp/src/completion.rs` `continues_a_trigger` and the trigger list in `crates/nvs-lsp/src/capabilities.rs` need `.` too."
+        "text": "**Hover on a literal equal to a value** (`rule:ide/completion-files-offer-values-at-named-parameters` § *What else reads it*). An arm in the chain at `crates/nvs-lsp/src/hover.rs:120`, beside `class_literal` and `path_argument`: `crate::arguments::named_at` plus `CompletionFiles::values_at` (`crates/nvs-lsp/src/completion_files.rs:420`), the value whose `value` equals the literal's cooked text, shown as its `title` and `Value::markdown`. Hover takes no `&CompletionFiles` yet, so `server.rs` passes it as it does for completion. Test `hover_on_a_literal_equal_to_a_value_shows_its_title_and_documentation`."
+      },
+      {
+        "done": false,
+        "text": "**Go-to-definition answers the value's `location`** — `crates/nvs-lsp/src/definition.rs:131`, the start of its 1-based line as a `file:` URI, and no answer for a value without one. Run `bun nv loop --list --stage 4` and read the check's `tests` list in the goal record for the remaining names."
+      },
+      {
+        "done": false,
+        "text": "**Then the strict check and the deprecated hint** — built where a document's diagnostics are, `crates/nvs-lsp/src/diagnostics.rs:140`, with `crates/nvs-lsp/src/actions.rs` and two new codes in `crates/nvs-diagnostics/src/lib.rs` (goal § *Stage 4*). A second file set, so it is likely a session of its own."
       }
     ]
   },
   "backlog": [
-    "Stage 4: hover, definition, the strict check and the deprecated hint read `CompletionFiles` through `crate::arguments::named_at` and `Value::markdown`; the arms are `crates/nvs-lsp/src/server.rs:1198` (hover), `:670` (definition) and `:1418` (code actions).",
-    "Stage 5: a literal union parameter completes its members, merged with a file's values.",
-    "Stage 6: `editors/vscode/schemas/completion-file.json` is not written yet."
+    "Stage 5: a parameter typed as a union of string literals completes its members (goal § *Stage 5*).",
+    "Stage 6: `editors/vscode/schemas/completion-file.json` and the client watcher (goal § *Stage 6*).",
+    "Stage 7: the feature proofs for completion files (`bun nv proofs --id` once the feature is in the roster).",
+    "A typed text with an escape sequence is compared raw against a value's segments, so a value containing a quote or a backslash does not segment after one. Decide in `completion.rs`'s module doc if a fixture ever needs it."
   ]
 }

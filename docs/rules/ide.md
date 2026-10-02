@@ -1123,21 +1123,24 @@ built and dropped with the answer.
 
 <a id="ide-completion-is-asked-where-a-spelling-ends"></a>
 
-## A trigger character opens a list only where it finished `->`, `::`, `\`, `$` or `<?`, or opened or extended a `require` or `autoload` literal, the string of `as class<T>` or a string argument at a path or class-name parameter, and `$`, a lone `:` and `<?` each narrow what is offered
+## A trigger character opens a list only where it finished `->`, `::`, `\`, `$` or `<?`, or opened or extended a `require` or `autoload` literal, the string of `as class<T>`, a string argument at a path or class-name parameter or one at a parameter a completion file names, and `$`, a lone `:` and `<?` each narrow what is offered
 
 `rule:ide/completion-is-asked-where-a-spelling-ends`
 
-The completion trigger characters are `>`, `:`, `\`, `$`, `?`, `'`, `"` and `/`. The first five are the
-last character of `->`, of `::`, of a namespace separator, of a variable's `$` and of a half-written `<?`,
-and a request one of them raised is answered only where the text before the cursor ends in that whole
-spelling. Each of them is also an operator's character, and an editor asks on the keystroke: answering
-`$a >` or `Core\Str:` with whatever the position offers opens a list nobody asked for. `-` is not a
-trigger, because it finishes nothing. The last three open and extend a literal the compiler reads as a
-path or a name, and a request one of them raised is answered only where the cursor is inside one: a
+The completion trigger characters are `>`, `:`, `\`, `$`, `?`, `'`, `"`, `/` and `.`. The first five are
+the last character of `->`, of `::`, of a namespace separator, of a variable's `$` and of a half-written
+`<?`, and a request one of them raised is answered only where the text before the cursor ends in that
+whole spelling. Each of them is also an operator's character, and an editor asks on the keystroke:
+answering `$a >` or `Core\Str:` with whatever the position offers opens a list nobody asked for. `-` is
+not a trigger, because it finishes nothing. A quote and `/` open and extend a literal the compiler reads
+as a path or a name, and a request one of them raised is answered only where the cursor is inside one: a
 `require` or `autoload` path literal, an `autoload` prefix, the string converted with `as class<T>`, or a
-string argument at a path or class-name parameter. A quote opens one, a `/` starts a path's next segment,
-and a client offers nothing inside a string unless asked. Everywhere else a quote opens a string and `/` divides. A request the developer raised by hand, or
-by typing a name, is not held to this.
+string argument at a path or class-name parameter. A quote opens one and a `/` starts a path's next
+segment. A quote also opens a string argument at a parameter a completion file names
+([`ide/completion-files-offer-values-at-named-parameters`](ide.md#ide-completion-files-offer-values-at-named-parameters)), and inside one `.`, `/` and `:` start
+the next segment only where a value that applies at the call is split on that separator. A client offers
+nothing inside a string unless asked. Everywhere else a quote opens a string, `/` divides and `.`
+concatenates. A request the developer raised by hand, or by typing a name, is not held to this.
 
 Three spellings narrow what is offered whoever asked. **After `$`, only variables**: the ones the innermost
 body declared, each replacing the `$` already typed, because a lone `$` is no word to a client and one left
@@ -1156,7 +1159,7 @@ HTML service does not answer beside the two tags. The extra character is what ke
 the hole out of the region that follows, since a client reads a region as half-open. `<?xml` and every
 other processing instruction stay markup's own.
 
-<sub>See also [`ide/a-template-region-gets-the-editors-services-and-formatter`](ide.md#ide-a-template-region-gets-the-editors-services-and-formatter), [`statements/nvs-is-the-only-open-tag`](statements.md#statements-nvs-is-the-only-open-tag). Decided in [0193](../decisions/0193.md), [0240](../decisions/0240.md).</sub>
+<sub>See also [`ide/a-template-region-gets-the-editors-services-and-formatter`](ide.md#ide-a-template-region-gets-the-editors-services-and-formatter), [`statements/nvs-is-the-only-open-tag`](statements.md#statements-nvs-is-the-only-open-tag). Decided in [0193](../decisions/0193.md), [0240](../decisions/0240.md), [0242](../decisions/0242.md), [0243](../decisions/0243.md).</sub>
 
 <a id="ide-an-accepted-type-writes-what-follows-it"></a>
 

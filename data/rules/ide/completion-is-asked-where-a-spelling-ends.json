@@ -1,9 +1,11 @@
 {
-  "title": "A trigger character opens a list only where it finished `->`, `::`, `\\`, `$` or `<?`, or opened or extended a `require` or `autoload` literal, the string of `as class<T>` or a string argument at a path or class-name parameter, and `$`, a lone `:` and `<?` each narrow what is offered",
+  "title": "A trigger character opens a list only where it finished `->`, `::`, `\\`, `$` or `<?`, or opened or extended a `require` or `autoload` literal, the string of `as class<T>`, a string argument at a path or class-name parameter or one at a parameter a completion file names, and `$`, a lone `:` and `<?` each narrow what is offered",
   "status": "shipped",
   "because": [
     "0193",
-    "0240"
+    "0240",
+    "0242",
+    "0243"
   ],
   "seeAlso": [
     "ide/a-template-region-gets-the-editors-services-and-formatter",
@@ -11,6 +13,7 @@
   ],
   "guardedBy": [
     "crates/nvs-lsp/tests/completion_edits.rs",
+    "crates/nvs-lsp/tests/completion_file_values.rs",
     "tests/lsp/completion/a-half-written-open-tag-offers-the-two-tags-and-nothing-else.lspt",
     "tests/lsp/completion/a-lone-colon-after-a-name-offers-nothing.lspt",
     "tests/lsp/completion/a-dollar-offers-variables-and-nothing-else.lspt"

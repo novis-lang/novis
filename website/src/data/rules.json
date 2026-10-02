@@ -3291,7 +3291,7 @@
             {
               "id": "ide/completion-is-asked-where-a-spelling-ends",
               "slug": "completion-is-asked-where-a-spelling-ends",
-              "title": "A trigger character opens a list only where it finished `->`, `::`, `\\`, `$` or `<?`, or opened or extended a `require` or `autoload` literal, the string of `as class<T>` or a string argument at a path or class-name parameter, and `$`, a lone `:` and `<?` each narrow what is offered",
+              "title": "A trigger character opens a list only where it finished `->`, `::`, `\\`, `$` or `<?`, or opened or extended a `require` or `autoload` literal, the string of `as class<T>`, a string argument at a path or class-name parameter or one at a parameter a completion file names, and `$`, a lone `:` and `<?` each narrow what is offered",
               "status": "shipped",
               "href": "/docs/rules/ide/highlighting-and-completion/#completion-is-asked-where-a-spelling-ends",
               "diverges": null

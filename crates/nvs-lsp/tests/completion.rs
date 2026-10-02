@@ -94,16 +94,21 @@ fn analysed_at(path: &Path, source: &str) -> (Documents, Analysed) {
 /// the namespace arm reaches here is what a session's would reach.
 fn rendered(source: &str, at: u32) -> String {
     let (documents, analysis) = analysed(source);
-    rendered_with(&documents, &analysis, at)
+    rendered_with(&documents, &analysis, &CompletionFiles::default(), at)
 }
 
-/// [`rendered`], over an analysis already made.
-fn rendered_with(documents: &Documents, analysis: &Analysed, at: u32) -> String {
+/// [`rendered`], over an analysis already made and with `files` loaded.
+fn rendered_with(
+    documents: &Documents,
+    analysis: &Analysed,
+    files: &CompletionFiles,
+    at: u32,
+) -> String {
     let index = SymbolIndex::build(documents, CheckScope::Open, None);
     Response::Completion(completion::at(
         analysis,
         &index,
-        &CompletionFiles::default(),
+        files,
         at,
         PhpNames::All,
         Client::default(),
@@ -471,8 +476,10 @@ fn the_php_names_setting_selects_among_the_shapes_and_nothing_else() {
 /// The third column is what follows the cursor. A path character's construct
 /// is a `require` literal, closed after the cursor the way an editor closes a
 /// quote, in a document placed in this crate's own directory: a quote lists
-/// that directory, and `/` lists the one above it.
-const TRIGGERED: [(&str, &str, &str); 8] = [
+/// that directory, and `/` lists the one above it. The `.` construct is a
+/// string argument at the parameter [`TRIGGER_KEYS`] splits its values on `.`
+/// at.
+const TRIGGERED: [(&str, &str, &str); 9] = [
     (">", "$b->", ""),
     (":", "User::", ""),
     ("\\", "Core\\", ""),
@@ -481,13 +488,40 @@ const TRIGGERED: [(&str, &str, &str); 8] = [
     ("'", "require '", "';"),
     ("\"", "require \"", "\";"),
     ("/", "require '../", "';"),
+    (".", "User::label('shop.", "');"),
 ];
 
 /// A class with both halves declared, so every construct below has something
 /// of its own to answer with.
 const TRIGGER_DOC: &str = "<?nvs\nclass User {\n    public static int $count = 0;\n    \
-     public string $name = \"\";\n    public function greet(): string { return \"hi\"; }\n}\n\
+     public string $name = \"\";\n    public function greet(): string { return \"hi\"; }\n    \
+     public static function label(string $key): string { return $key; }\n}\n\
      var $b = new User();\n";
+
+/// The completion file the trigger cases are answered with: keys split on `.`
+/// at `User::label`'s `$key`.
+const TRIGGER_KEYS: &str = r#"{
+  "parameters": [
+    {
+      "method": "User::label",
+      "parameter": "key",
+      "values": { "separator": ".", "values": ["shop.cart", "shop.checkout"] }
+    }
+  ]
+}"#;
+
+/// [`TRIGGER_KEYS`], loaded from a scratch folder that is deleted again once
+/// it is read.
+fn trigger_files() -> CompletionFiles {
+    let root = Path::new(env!("CARGO_TARGET_TMPDIR"))
+        .join(format!("completion-triggers-{}", std::process::id()));
+    let folder = root.join(".novis").join("completion");
+    std::fs::create_dir_all(&folder).expect("a scratch directory");
+    std::fs::write(folder.join("keys.json"), TRIGGER_KEYS).expect("a writable scratch file");
+    let files = CompletionFiles::load(std::slice::from_ref(&root));
+    let _ = std::fs::remove_dir_all(&root);
+    files
+}
 
 /// A declared trigger character is a promise, and an unanswered one is worse
 /// than no trigger at all.
@@ -523,15 +557,16 @@ fn every_trigger_character_reaches_an_arm_that_is_not_the_position_list() {
     );
 
     let here = Path::new(env!("CARGO_MANIFEST_DIR")).join("nvs-trigger-case.nvs");
+    let files = trigger_files();
     for (character, construct, tail) in TRIGGERED {
         let source = format!("{TRIGGER_DOC}{construct}{tail}\n");
         let at = after(&source, construct);
         let (documents, analysis) = analysed_at(&here, &source);
         assert!(
-            completion::continues_a_trigger(&analysis, &CompletionFiles::default(), at),
+            completion::continues_a_trigger(&analysis, &files, at),
             "`{character}` ends `{construct}` and the request it raises is not answered"
         );
-        let offered = rendered_with(&documents, &analysis, at);
+        let offered = rendered_with(&documents, &analysis, &files, at);
         assert!(
             !offered.is_empty(),
             "`{character}` is a trigger character and `{construct}` is offered nothing"
@@ -659,7 +694,7 @@ fn sources() -> Vec<Source> {
 /// The completion-file arm reads the values `CompletionFiles::values_at`
 /// hands it, the table the completion files were loaded into, and reads no
 /// file itself.
-const SOURCED: [(&str, &str); 33] = [
+const SOURCED: [(&str, &str); 34] = [
     ("named_type", "..item("),
     ("type_row", "..named_type("),
     ("method_row", "..item("),
@@ -674,6 +709,7 @@ const SOURCED: [(&str, &str); 33] = [
     ("prefixes", "declarations_in("),
     ("class_names", "hierarchy::implements_interface("),
     ("file_values", "completion_files::Value"),
+    ("value_item", "completion_files::Value"),
     ("position", "words("),
     ("statement_words", "STATEMENT_WORDS"),
     ("followed", "Classes::of(cursor.symbols)"),

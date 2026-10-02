@@ -315,7 +315,10 @@
 //! Each item's one edit replaces the literal's text ([`file_values`]), and
 //! carries no command, no other edit and no snippet. An item with no
 //! `filterText` filters on its value, which is the text being typed, and not on
-//! its label.
+//! its label. A value from a list with a separator is offered one segment at a
+//! time, and its edit replaces only the segment being typed, so `.`, `/` and
+//! `:` open the next segment's list inside such a string and nowhere else
+//! ([`continues_a_trigger`]).
 //!
 //! **Known gaps.** Each gap is a record, and `bun nv gaps --module crates/nvs-lsp/src/completion.rs` lists them.
 
@@ -429,8 +432,11 @@ pub fn at(
 /// before it is the second byte of an open tag. Answering those with whatever
 /// the position offers opens a list nobody asked for, so a triggered request is
 /// answered only where the text before the cursor ends in the whole spelling.
-/// A request the developer raised by hand, or by typing a name, is not asked
-/// this.
+/// A quote is answered inside every literal this module answers inside, and
+/// `/` inside a path or a name. Inside a string a completion file offers values
+/// in, `.`, `/` and `:` start the next segment, so each is answered only where
+/// a value that applies there is split on it. A request the developer raised
+/// by hand, or by typing a name, is not asked this.
 #[must_use]
 pub fn continues_a_trigger(analysed: &Analysed, files: &CompletionFiles, offset: BytePos) -> bool {
     let Some(upto) = analysed
@@ -441,12 +447,26 @@ pub fn continues_a_trigger(analysed: &Analysed, files: &CompletionFiles, offset:
     else {
         return false;
     };
-    ["->", "::", "\\", "$"]
+    if ["->", "::", "\\", "$"]
         .iter()
         .any(|spelling| upto.ends_with(spelling))
         || open_tag_written(upto).is_some()
-        || (upto.ends_with(['/', '\'', '"'])
-            && literal_at(analysed, files, &analysed.index.at(offset), offset).is_some())
+    {
+        return true;
+    }
+    let Some(last) = upto.chars().next_back() else {
+        return false;
+    };
+    if !matches!(last, '\'' | '"' | '/' | '.' | ':') {
+        return false;
+    }
+    match literal_at(analysed, files, &analysed.index.at(offset), offset) {
+        Some(Literal::Values(_, values)) => {
+            matches!(last, '\'' | '"') || values.iter().any(|value| value.separator == Some(last))
+        }
+        Some(_) => matches!(last, '\'' | '"' | '/'),
+        None => false,
+    }
 }
 
 /// What every arm of a bare position reads: the analysis, the index, and where
@@ -653,9 +673,17 @@ fn literal_at(
 
 /// The values a completion file offers at the string argument `literal`.
 ///
-/// Each item's one edit replaces the literal's whole text, between its quotes,
-/// with the value escaped for the literal's quote. A literal with no closing
-/// quote yet has its text replaced to its end.
+/// A value from a list with no separator is offered whole, and its one edit
+/// replaces the literal's whole text, between its quotes. A value from a list
+/// with a separator is offered one segment at a time: the text before the
+/// cursor, up to its last separator, has to start the value, and the item is
+/// the segment that follows. Its edit replaces only the segment being typed,
+/// from that separator to the next one or to the end of the text. A segment
+/// that ends a value is that value's item, with every field the value gives.
+/// A segment that only leads to longer values is offered once, as its text and
+/// nothing else, and not at all where a value also ends there. Every edit
+/// writes its text escaped for the literal's quote, and a literal with no
+/// closing quote yet has its text read to its end.
 fn file_values(
     cursor: &Cursor<'_>,
     literal: Span,
@@ -670,42 +698,99 @@ fn file_values(
         start: literal.start + 1,
         end: if closed { literal.end - 1 } else { literal.end },
     };
-    let range = range_at(file, text, cursor.encoding);
-    values
-        .iter()
-        .map(|value| CompletionItem {
-            label: value.label.clone().unwrap_or_else(|| value.value.clone()),
-            label_details: (value.label_detail.is_some() || value.label_description.is_some())
-                .then(|| CompletionItemLabelDetails {
-                    detail: value.label_detail.clone(),
-                    description: value.label_description.clone(),
-                }),
-            kind: Some(value.kind),
-            detail: value.title.clone(),
-            documentation: value.markdown().map(|value| {
-                Documentation::MarkupContent(MarkupContent {
-                    kind: MarkupKind::Markdown,
-                    value,
-                })
+    let written = text_of(file, text);
+    let typed = written
+        .get(..(cursor.offset - text.start) as usize)
+        .unwrap_or(written);
+    let at = |offset: usize| text.start + BytePos::try_from(offset).expect("a literal is short");
+    let mut items = Vec::new();
+    let mut ends = BTreeSet::new();
+    let mut leads = BTreeMap::new();
+    for value in values {
+        let Some(separator) = value.separator else {
+            let range = range_at(file, text, cursor.encoding);
+            items.push(value_item(value, &value.value, range, quote));
+            continue;
+        };
+        let cut = typed
+            .rfind(separator)
+            .map_or(0, |found| found + separator.len_utf8());
+        let Some(rest) = value.value.strip_prefix(&typed[..cut]) else {
+            continue;
+        };
+        let end = written[cut..]
+            .find(separator)
+            .map_or(written.len(), |found| cut + found);
+        let segment = Span {
+            file: text.file,
+            start: at(cut),
+            end: at(end),
+        };
+        match rest.split_once(separator) {
+            None => {
+                ends.insert((segment.start, rest.to_owned()));
+                let range = range_at(file, segment, cursor.encoding);
+                items.push(value_item(value, rest, range, quote));
+            }
+            Some((next, _)) => {
+                leads
+                    .entry((segment.start, next.to_owned()))
+                    .or_insert(segment);
+            }
+        }
+    }
+    items.extend(
+        leads
+            .into_iter()
+            .filter(|(key, _)| !ends.contains(key))
+            .map(|((_, next), segment)| CompletionItem {
+                text_edit: Some(CompletionTextEdit::Edit(TextEdit {
+                    range: range_at(file, segment, cursor.encoding),
+                    new_text: escaped(&next, quote),
+                })),
+                label: next,
+                ..CompletionItem::default()
             }),
-            tags: value
-                .deprecated
-                .then(|| vec![CompletionItemTag::DEPRECATED]),
-            sort_text: value.sort_text.clone(),
-            filter_text: Some(
-                value
-                    .filter_text
-                    .clone()
-                    .unwrap_or_else(|| value.value.clone()),
-            ),
-            preselect: value.preselect.then_some(true),
-            text_edit: Some(CompletionTextEdit::Edit(TextEdit {
-                range,
-                new_text: escaped(&value.value, quote),
-            })),
-            ..CompletionItem::default()
-        })
-        .collect()
+    );
+    items
+}
+
+/// The item for the completion file's `value`, whose one edit replaces `range`
+/// with `text`, the whole value or the segment that ends it.
+fn value_item(
+    value: &completion_files::Value,
+    text: &str,
+    range: lsp_types::Range,
+    quote: char,
+) -> CompletionItem {
+    CompletionItem {
+        label: value.label.clone().unwrap_or_else(|| text.to_owned()),
+        label_details: (value.label_detail.is_some() || value.label_description.is_some()).then(
+            || CompletionItemLabelDetails {
+                detail: value.label_detail.clone(),
+                description: value.label_description.clone(),
+            },
+        ),
+        kind: Some(value.kind),
+        detail: value.title.clone(),
+        documentation: value.markdown().map(|value| {
+            Documentation::MarkupContent(MarkupContent {
+                kind: MarkupKind::Markdown,
+                value,
+            })
+        }),
+        tags: value
+            .deprecated
+            .then(|| vec![CompletionItemTag::DEPRECATED]),
+        sort_text: value.sort_text.clone(),
+        filter_text: Some(value.filter_text.clone().unwrap_or_else(|| text.to_owned())),
+        preselect: value.preselect.then_some(true),
+        text_edit: Some(CompletionTextEdit::Edit(TextEdit {
+            range,
+            new_text: escaped(text, quote),
+        })),
+        ..CompletionItem::default()
+    }
 }
 
 /// `text` written inside a literal opened with `quote`: a backslash and the
