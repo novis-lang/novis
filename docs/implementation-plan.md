@@ -47,21 +47,20 @@
 > `rule:testing/feature-proofs` is `bun nv proofs --owed`, and what a crate still owes is a gap
 > record under `data/gaps/` naming its owner.
 >
-> **Blocking:** Nothing holds the run. One thing waits on the user and gates only the chain's last
-> goal: GitHub starts no CI job while the account's payments fail, and goal `ci-green` needs `main`
-> pushed and a green `ci.yml` run for it. Every `spec-*-outstanding.txt` ratchet under
-> `crates/nvs-stdlib/tests/` now holds zero keys: goal `bigint` registered `Core\BigInt` and struck
-> the last one, by the user's decision of 2026-09-18, and goal `gap-zero` has walked: its ratchet
-> half, its deletion of the index and its gate sweep are all on disk, so what a shipped feature
-> still owes is a numbered `# Known gaps` item in the module doc that owes it and is written nowhere
-> else. The hold goal `unowned-closures` left — forty sheet-answered gaps tagged to it and none
-> built — was goal `decided-closures`, now walked, and the driver's owner gate refuses to reach a
-> goal while a gap still names it, so no goal can walk that way again. Every design call a goal
-> reaches is pre-authorized in its own § *Standing decisions*, and each goal names the numbered ADRs
-> it may open and no others. One standing precondition, and not a block: the goals whose floor
-> carries container-backed checks need a reachable Docker daemon, and [the goals
-> directory](agent/goals/) preflights it per entry rather than letting a session discover it
-> mid-run. Picking every dependency but the two the user named is pre-authorized under
+> **Blocking:** Nothing holds the run, and nothing waits on the user: goal `ci-green` is met, and
+> the latest `ci.yml` run on `main` is green for the code `HEAD` holds. Every
+> `spec-*-outstanding.txt` ratchet under `crates/nvs-stdlib/tests/` now holds zero keys: goal
+> `bigint` registered `Core\BigInt` and struck the last one, by the user's decision of 2026-09-18,
+> and goal `gap-zero` has walked: its ratchet half, its deletion of the index and its gate sweep are
+> all on disk, so what a shipped feature still owes is a numbered `# Known gaps` item in the module
+> doc that owes it and is written nowhere else. The hold goal `unowned-closures` left — forty
+> sheet-answered gaps tagged to it and none built — was goal `decided-closures`, now walked, and the
+> driver's owner gate refuses to reach a goal while a gap still names it, so no goal can walk that
+> way again. Every design call a goal reaches is pre-authorized in its own § *Standing decisions*,
+> and each goal names the numbered ADRs it may open and no others. One standing precondition, and
+> not a block: the goals whose floor carries container-backed checks need a reachable Docker daemon,
+> and [the goals directory](agent/goals/) preflights it per entry rather than letting a session
+> discover it mid-run. Picking every dependency but the two the user named is pre-authorized under
 > `rule:packaging/a-c-dependency-answers-two-questions`.
 
 **How the plan relates to the ADRs.** The plan is the record of *what* gets built, in what order, and how

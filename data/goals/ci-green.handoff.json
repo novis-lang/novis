@@ -1,5 +1,5 @@
 {
-  "state": "**Goal `ci-green` — CI is green on `main` — waits on one push by the user.** `bun nv ci-green` says\nthe latest green `ci.yml` run on `main` is for `8fe7f166c`, which is `origin/main`, and `HEAD`\n(`ba2f070ee` when this was written) is 327 commits past it, touching 2190 paths no run has seen.\n\nThe billing block is gone: the last four `workflow_dispatch` runs on `main` ended `success` after\nabout 25 minutes each (`gh run list --workflow ci.yml --branch main`), so a run that fails in\nseconds with zero steps is not what stands in the way now. The loop never pushes; the status line\nis a `BLOCKED` naming the commit to push.",
+  "state": "**Goal `ci-green` — CI is green on `main` — is met.** `bun nv ci-green` says the latest `ci.yml`\nrun on `main` succeeded and ran the code `HEAD` holds (`38d2fa51d`): the `workflow_dispatch` run\n37011888423 ended `success` in 26m28s. `bun nv verify --doc`, `bun nv owners --closes ci-green`\nand `bun nv playbook --closes ci-green` are all green, so the goal has nothing left to close.",
   "next": {
     "stage": 2,
     "title": "the run exists, and it is this commit's",
@@ -9,16 +9,12 @@
     ],
     "items": [
       {
-        "done": false,
-        "text": "**Ask the check again, after the push** — `tools/nv/cmd/ci-green.ts:44` (`run`). Green for `HEAD` meets the goal; a run still in progress is a `CONTINUE` that waits; a green run for older code again is a `BLOCKED` naming the new `HEAD`."
-      },
-      {
-        "done": false,
-        "text": "**A red run is fixed from its log** — `gh run view <id> --log-failed`, never by rewriting the check or the workflow (the goal's § *Standing decisions*); which lanes a push needed is `tools/nv/cmd/ci-changes.ts:1`, under `rule:testing/ci-lanes`."
+        "done": true,
+        "text": "**Ask the check again, after the push** — `tools/nv/cmd/ci-green.ts:44` (`run`). It is green for `38d2fa51d`."
       }
     ]
   },
   "backlog": [
-    "`bun nv peek --locate tools/nv/cmd/ci-green.ts:@run` answers NOT FOUND for `export async function run` at line 44; the handoff anchors the line instead (owner: `tools/nv/cmd/peek.ts`, not checked further)."
+    "A later push that turns `ci.yml` red is fixed from `gh run view <id> --log-failed`, under the goal's § *Standing decisions* (`docs/agent/goals/ci-green.md`)."
   ]
 }
