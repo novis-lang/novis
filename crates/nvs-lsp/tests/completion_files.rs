@@ -1,13 +1,19 @@
 //! The completion files are found, read, merged and read again only when they change, and what is
 //! wrong with one is found (`rule:ide/completion-files-offer-values-at-named-parameters`).
 //!
-//! Each test writes a workspace of its own under the repository's `.agent-tmp/` and deletes it when
-//! it ends.
+//! Each test writes a workspace of its own under cargo's scratch folder in `target/` and deletes it
+//! when it ends. That folder is not one `nvs_repo` names, so this binary reads nothing in the tree.
 
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
 
+use lsp_server::{Connection, Message, Notification, Request, RequestId};
+use lsp_types::{
+    ClientCapabilities, DidChangeWatchedFilesClientCapabilities, DidChangeWatchedFilesParams,
+    DidChangeWatchedFilesRegistrationOptions, FileChangeType, FileEvent, GlobPattern,
+    InitializeParams, RegistrationParams, WorkspaceClientCapabilities,
+};
 use nvs_lsp::completion_files::{CompletionFiles, FindingKind, Reload};
 
 /// A scratch workspace that deletes itself.
@@ -17,7 +23,7 @@ struct Workspace {
 
 impl Workspace {
     fn new(name: &str) -> Self {
-        let root = nvs_repo::path(".agent-tmp")
+        let root = Path::new(env!("CARGO_TARGET_TMPDIR"))
             .join(format!("completion-files-{}-{name}", std::process::id()));
         let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(&root).expect("a scratch directory");
@@ -435,4 +441,120 @@ fn a_replacement_on_a_value_that_is_not_deprecated_is_reported() {
         kinds(&workspace, &files, ".novis/completion/icons.json"),
         [FindingKind::ReplacementNotDeprecated]
     );
+}
+
+/// Runs a server for a client with `capabilities`, sends it one watcher event for `changed`, shuts
+/// it down, and returns every request it sent the client.
+///
+/// The client names no workspace folder, because the registration does not depend on one.
+fn requests_from_a_server(capabilities: ClientCapabilities, changed: &Path) -> Vec<Request> {
+    let (server, client) = Connection::memory();
+    let serving = std::thread::spawn(move || nvs_lsp::serve(&server));
+    let send = |message: Message| client.sender.send(message).expect("the server is reading");
+
+    let params = InitializeParams {
+        capabilities,
+        ..InitializeParams::default()
+    };
+    send(Message::Request(Request::new(
+        RequestId::from(1),
+        "initialize".to_owned(),
+        params,
+    )));
+    match client.receiver.recv() {
+        Ok(Message::Response(_)) => {}
+        other => panic!("expected the `initialize` response, got {other:?}"),
+    }
+    send(Message::Notification(Notification::new(
+        "initialized".to_owned(),
+        serde_json::json!({}),
+    )));
+    let event = DidChangeWatchedFilesParams {
+        changes: vec![FileEvent {
+            uri: nvs_lsp::uri_of(changed).expect("a scratch path is UTF-8"),
+            typ: FileChangeType::CREATED,
+        }],
+    };
+    send(Message::Notification(Notification::new(
+        "workspace/didChangeWatchedFiles".to_owned(),
+        event,
+    )));
+    send(Message::Request(Request::new(
+        RequestId::from(2),
+        "shutdown".to_owned(),
+        serde_json::json!(null),
+    )));
+
+    // The server answers `shutdown` after everything it sent before it, so every request it made
+    // is in hand when that answer arrives.
+    let mut requests = Vec::new();
+    loop {
+        match client.receiver.recv().expect("the server is still writing") {
+            Message::Request(request) => requests.push(request),
+            Message::Response(response) if response.id == RequestId::from(2) => break,
+            Message::Response(_) | Message::Notification(_) => {}
+        }
+    }
+    send(Message::Notification(Notification::new(
+        "exit".to_owned(),
+        serde_json::json!(null),
+    )));
+    serving
+        .join()
+        .expect("the server thread did not panic")
+        .expect("the server served the session without a protocol error");
+    requests
+}
+
+#[test]
+fn the_server_registers_a_watcher_for_completion_files_when_the_client_can() {
+    let workspace = Workspace::new("watcher");
+    let changed = workspace.write(
+        ".novis/completion/more.json",
+        r#"{ "sets": { "more": ["x"] } }"#,
+    );
+
+    let can_watch = ClientCapabilities {
+        workspace: Some(WorkspaceClientCapabilities {
+            did_change_watched_files: Some(DidChangeWatchedFilesClientCapabilities {
+                dynamic_registration: Some(true),
+                ..DidChangeWatchedFilesClientCapabilities::default()
+            }),
+            ..WorkspaceClientCapabilities::default()
+        }),
+        ..ClientCapabilities::default()
+    };
+    let requests = requests_from_a_server(can_watch, &changed);
+    let [request] = requests.as_slice() else {
+        panic!("expected one request, got {requests:?}");
+    };
+    assert_eq!(request.method, "client/registerCapability");
+    let params: RegistrationParams =
+        serde_json::from_value(request.params.clone()).expect("registration params");
+    let [registration] = params.registrations.as_slice() else {
+        panic!("expected one registration, got {:?}", params.registrations);
+    };
+    assert_eq!(registration.method, "workspace/didChangeWatchedFiles");
+    let options: DidChangeWatchedFilesRegistrationOptions = serde_json::from_value(
+        registration
+            .register_options
+            .clone()
+            .expect("the watcher's options"),
+    )
+    .expect("watcher options");
+    let globs: Vec<_> = options
+        .watchers
+        .iter()
+        .map(|watcher| watcher.glob_pattern.clone())
+        .collect();
+    assert_eq!(
+        globs,
+        [GlobPattern::String(
+            "**/.novis/completion/**/*.json".to_owned()
+        )]
+    );
+
+    // A client that cannot register a watcher is sent nothing it would have to refuse.
+    let requests = requests_from_a_server(ClientCapabilities::default(), &changed);
+    assert!(requests.is_empty(), "expected no request, got {requests:?}");
 }

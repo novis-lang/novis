@@ -1,0 +1,12 @@
+{
+  "lead": "A test binary's recorded keys are unioned run after run (`tools/nv/select/store.ts:344`), so once its record holds `tree:.`, `bun nv verify` keeps failing with \"it asked `nvs_repo::root` for the whole tree\" after the test has stopped reading the tree.",
+  "body": "`bun nv select --explain \"test:<pkg> test <name>\"` shows the stale key, and `bun -e 'import { SelectStore } from \"./tools/nv/select/store.ts\"; new SelectStore().removeAtom(\"test:<pkg> test <name>\")'` forgets it, so the next run records it again. Give a test's scratch folder `env!(\"CARGO_TARGET_TMPDIR\")`, as `crates/nvs-cli/tests/check_command.rs` does, never `nvs_repo::path(\".agent-tmp\")`.",
+  "files": [
+    "tools/nv/select/store.ts",
+    "crates/nvs-cli/tests/check_command.rs"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "tools/nv/select/store.ts:fresh"
+  }
+}

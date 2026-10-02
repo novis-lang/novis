@@ -38,6 +38,16 @@
 //! once rather than once per character. [`reanalyse`] is the work and [`serve`]'s
 //! loop is what holds it back; a request arriving in the window runs it first,
 //! because an answer is about the buffer as it stands.
+//!
+//! **The completion files are loaded once, beside the index, and kept current
+//! by the client's watcher** (`rule:ide/completion-files-offer-values-at-named-parameters`
+//! § *How it stays current*). When the client can register a watcher at run
+//! time, [`serve`] asks it to watch [`completion_files::WATCHED`] right after
+//! the handshake. A `workspace/didChangeWatchedFiles` event is handed to
+//! [`CompletionFiles::refresh`] path by path and is never a document-sync
+//! notification. The registration's response carries nothing, so it is read
+//! and ignored. A client that cannot register a watcher sees the files as they
+//! were when the server started.
 
 use std::collections::HashMap;
 use std::error::Error;
@@ -46,28 +56,30 @@ use std::time::Instant;
 
 use lsp_server::{Connection, ErrorCode, Message, Notification, Request, RequestId, Response};
 use lsp_types::notification::{
-    DidChangeTextDocument, DidCloseTextDocument, DidOpenTextDocument, Notification as _,
-    PublishDiagnostics,
+    DidChangeTextDocument, DidChangeWatchedFiles, DidCloseTextDocument, DidOpenTextDocument,
+    Notification as _, PublishDiagnostics,
 };
 use lsp_types::request::{
     CodeActionRequest, CodeLensRequest, Completion, DocumentHighlightRequest, DocumentLinkRequest,
     DocumentSymbolRequest, FoldingRangeRequest, GotoDefinition, GotoImplementation,
-    GotoTypeDefinition, HoverRequest, InlayHintRequest, References, Request as _,
-    ResolveCompletionItem, SelectionRangeRequest, SemanticTokensFullRequest, SignatureHelpRequest,
-    TypeHierarchyPrepare, TypeHierarchySubtypes, TypeHierarchySupertypes,
+    GotoTypeDefinition, HoverRequest, InlayHintRequest, References, RegisterCapability,
+    Request as _, ResolveCompletionItem, SelectionRangeRequest, SemanticTokensFullRequest,
+    SignatureHelpRequest, TypeHierarchyPrepare, TypeHierarchySubtypes, TypeHierarchySupertypes,
 };
 use lsp_types::{
     CodeAction, CodeActionKind, CodeActionOrCommand, CodeActionParams, CodeLens, CodeLensParams,
     Command, CompletionItem, CompletionParams, CompletionResponse, CompletionTriggerKind,
-    DidChangeTextDocumentParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
-    DocumentHighlight, DocumentHighlightKind, DocumentHighlightParams, DocumentLink,
-    DocumentLinkParams, DocumentSymbolParams, DocumentSymbolResponse, FoldingRange,
-    FoldingRangeParams, GotoDefinitionParams, GotoDefinitionResponse, HoverParams,
-    InitializeParams, InlayHint, InlayHintParams, Location, Position, PublishDiagnosticsParams,
-    Range, ReferenceParams, SelectionRange, SelectionRangeParams, SemanticTokens,
-    SemanticTokensParams, SemanticTokensResult, SignatureHelp, SignatureHelpParams, SymbolKind,
-    TextDocumentIdentifier, TextEdit, TypeHierarchyItem, TypeHierarchyPrepareParams,
-    TypeHierarchySubtypesParams, TypeHierarchySupertypesParams, Uri, WorkspaceEdit,
+    DidChangeTextDocumentParams, DidChangeWatchedFilesParams,
+    DidChangeWatchedFilesRegistrationOptions, DidCloseTextDocumentParams,
+    DidOpenTextDocumentParams, DocumentHighlight, DocumentHighlightKind, DocumentHighlightParams,
+    DocumentLink, DocumentLinkParams, DocumentSymbolParams, DocumentSymbolResponse,
+    FileSystemWatcher, FoldingRange, FoldingRangeParams, GlobPattern, GotoDefinitionParams,
+    GotoDefinitionResponse, HoverParams, InitializeParams, InlayHint, InlayHintParams, Location,
+    Position, PublishDiagnosticsParams, Range, ReferenceParams, Registration, RegistrationParams,
+    SelectionRange, SelectionRangeParams, SemanticTokens, SemanticTokensParams,
+    SemanticTokensResult, SignatureHelp, SignatureHelpParams, SymbolKind, TextDocumentIdentifier,
+    TextEdit, TypeHierarchyItem, TypeHierarchyPrepareParams, TypeHierarchySubtypesParams,
+    TypeHierarchySupertypesParams, Uri, WorkspaceEdit,
 };
 use nvs_diagnostics::{BytePos, PositionEncoding, SourceId, SourceMap};
 
@@ -75,6 +87,7 @@ use crate::actions;
 use crate::capabilities::initialize_result;
 use crate::card;
 use crate::completion;
+use crate::completion_files::{self, CompletionFiles};
 use crate::definition;
 use crate::diagnostics::{Phases, dimming, for_document};
 use crate::document::{Analysed, Documents, analyse, directory_uri_of, path_of, uri_of};
@@ -186,6 +199,14 @@ pub fn serve(connection: &Connection) -> Result<(), ServerError> {
     // client named.
     let mut index = SymbolIndex::build(&documents, settings.scope, settings.root.as_deref());
 
+    // The values the compiler does not derive, read from the same root the
+    // index walks. No root, at open scope, is no workspace and no files.
+    let mut completion_files =
+        CompletionFiles::load(&settings.root.iter().cloned().collect::<Vec<_>>());
+    if can_watch(&params) {
+        connection.sender.send(watch_completion_files().into())?;
+    }
+
     // The edit whose analysis `nvs.lsp.debounce` is holding back, and the
     // moment it runs if nothing gets there first. `None` is a server at rest,
     // which is what it is between one burst of typing and the next.
@@ -254,6 +275,10 @@ pub fn serve(connection: &Connection) -> Result<(), ServerError> {
                 connection.sender.send(answered.into())?;
             }
             Message::Notification(notification) => {
+                if notification.method == DidChangeWatchedFiles::METHOD {
+                    refresh_completion_files(&mut completion_files, notification.params);
+                    continue;
+                }
                 let Some(changed) = apply(&mut documents, notification) else {
                     continue;
                 };
@@ -290,8 +315,8 @@ pub fn serve(connection: &Connection) -> Result<(), ServerError> {
                     )?;
                 }
             }
-            // A response is an answer to a request this server has not yet
-            // learned to send.
+            // The one request this server sends is the watcher's registration,
+            // and its answer carries nothing to act on.
             Message::Response(_) => {}
         }
     }
@@ -1492,6 +1517,58 @@ struct Changed {
     /// replaced by the next one: two keystrokes in one buffer are one analysis,
     /// where a close arriving behind an edit is two things that both happened.
     edited: bool,
+}
+
+/// The id of the one request this server sends, the watcher's registration.
+const WATCH_COMPLETION_FILES: &str = "nvs/watch-completion-files";
+
+/// Whether the client can register a file watcher after the handshake.
+fn can_watch(params: &InitializeParams) -> bool {
+    params
+        .capabilities
+        .workspace
+        .as_ref()
+        .and_then(|workspace| workspace.did_change_watched_files)
+        .and_then(|watched| watched.dynamic_registration)
+        .unwrap_or(false)
+}
+
+/// The `client/registerCapability` request that asks the client to watch
+/// [`completion_files::WATCHED`]. The glob alone, with no kind, is a watcher for
+/// a file created, changed or deleted.
+fn watch_completion_files() -> Request {
+    let options = DidChangeWatchedFilesRegistrationOptions {
+        watchers: vec![FileSystemWatcher {
+            glob_pattern: GlobPattern::String(completion_files::WATCHED.to_owned()),
+            kind: None,
+        }],
+    };
+    let params = RegistrationParams {
+        registrations: vec![Registration {
+            id: WATCH_COMPLETION_FILES.to_owned(),
+            method: DidChangeWatchedFiles::METHOD.to_owned(),
+            register_options: serde_json::to_value(options).ok(),
+        }],
+    };
+    Request::new(
+        RequestId::from(WATCH_COMPLETION_FILES.to_owned()),
+        RegisterCapability::METHOD.to_owned(),
+        params,
+    )
+}
+
+/// Reads again each completion file a watcher event names. The event's kind is
+/// not read, because [`CompletionFiles::refresh`] looks at the file itself. A
+/// payload that will not deserialize is dropped, as [`apply`] drops one.
+fn refresh_completion_files(files: &mut CompletionFiles, params: serde_json::Value) {
+    let Ok(params) = serde_json::from_value::<DidChangeWatchedFilesParams>(params) else {
+        return;
+    };
+    for change in params.changes {
+        if let Some(path) = path_of(&change.uri) {
+            files.refresh(&path);
+        }
+    }
 }
 
 /// Applies a document-sync notification to the store, and says what it changed.
