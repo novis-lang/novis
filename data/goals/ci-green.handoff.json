@@ -1,5 +1,5 @@
 {
-  "state": "**Goal `ci-green` — CI is green on `main` — is met.** `bun nv ci-green` exits 0: the latest\n`ci.yml` run on `main` succeeded, and it ran `2270a76ce`, the code `HEAD` holds. `origin/main` is\nat that commit. `bun nv verify --doc` resolves every link, and `bun nv owners --closes ci-green`\nand `bun nv playbook --closes ci-green` name nothing, so no end-of-goal gate is red. The proofs\nfloor is clear: `bun nv proofs --gate` owes nothing over the whole roster.",
+  "state": "**Goal `ci-green` is met locally, and waits on one push.** The driver's sweep after the last DONE\nfound ThreadSanitizer red. The cause was not a race: the checkout moved from `D:\\mwl` to `E:\\mwl`,\nand `/var/tmp/nvs-tsan` still held test binaries with `/mnt/d/mwl` compiled in. `tools/tsan.sh` and\n`tools/leak-check.sh` now source `tools/target-checkout.sh`, which cleans a target directory another\ncheckout built. `bash tools/tsan.sh` prints `tsan: clean` from the rebuilt directory. That commit\ntouches `tools/`, which `bun nv ci-green` does not count as bookkeeping (`tools/nv/cmd/ci-green.ts:25`),\nso the goal needs `git push origin main` and a green `ci.yml` run for it.\n\nThe warm-start check (`bench --warm-start --max-work-ms 6`) passes on an idle machine at 5.9 ms. Its\nred in the sweep is load: under a concurrent tsan build the bench declines to measure.",
   "next": {
     "stage": 2,
     "title": "the run exists, and it is this commit's",
@@ -9,13 +9,12 @@
     ],
     "items": [
       {
-        "done": true,
-        "text": "**The latest `ci.yml` run on `main` is green for `HEAD`** — `tools/nv/cmd/ci-green.ts:1`, checked by `bun nv ci-green`."
+        "done": false,
+        "text": "**`bun nv ci-green` exits 0 once the user pushes `HEAD`** — `rule:testing/ci-lanes`; the check is `tools/nv/cmd/ci-green.ts:25`. A session only confirms the run, and never pushes."
       }
-    ],
-    "after": "The goal is reached; the driver moves the chain to the next goal."
+    ]
   },
   "backlog": [
-    "Nothing this goal owes. A later push that turns CI red is that push's session to fix, from the log (`docs/agent/goals/ci-green.md` § *Standing decisions*)."
+    "The warm-start check runs with 0.1 ms of margin on an idle machine and fails when the sweep overlaps it with a build — `tools/nv/cmd/bench.ts`, not checked whether the sweep can order it apart."
   ]
 }
