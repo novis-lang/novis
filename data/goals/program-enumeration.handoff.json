@@ -1,35 +1,21 @@
 {
-  "state": "**Goal `program-enumeration`: Stages 2 and 3 are on disk, and Stage 4, the proofs, is what is left.** `rule:programs/constructors` is `shipped`, guarded by three conformance cases and `crates/nvs-types/src/program.rs`.\n\n`Core\\Program::constructors<T, C>()` has its row and cards in `crates/nvs-stdlib/src/program.rs`. Stage 3 asked the handoff to say so if `CoreTy` needed a variant, and it did: `CoreTy::WrittenReturning(\"C\", &T)`. The row names `T` nowhere else, so plain `Written(\"C\")` made the call take one type argument. The expansion is `crates/nvs-types/src/program.rs:@expand_constructors`, recorded as `ExprInfo::ProgramConstructors`. `nvs-ir` lowers each `make` as a first-class-callable thunk whose `ThunkTarget::Build` body writes the `new` (`crates/nvs-ir/src/lower/closure.rs:@build_thunk_body`). The refusals are `E0838` (`C` is not a `callable(...)` returning `T`) and `E0839` (a listed class's constructor does not fit, with the reason as a note). The `nvs-lsp` jump already worked on both type arguments, and its test is in place.\n\nA shape type now accepts a keyword as a field name (`{class: string}`), as the object literal already did. The row's `class` field needed it.\n\nThe `Core\\Program` perf figures that the edit to `crates/nvs-stdlib/src/program.rs` made stale have been measured again.",
+  "state": "**Goal `program-enumeration`: Stages 2 and 3 are on disk, and Stage 4 has one item left, the reference.** `rule:programs/constructors` is `shipped`, guarded by three conformance cases and `crates/nvs-types/src/program.rs`.\n\n`Core\\Program::constructors` now has all its feature proofs: `about.md` and three examples in `docs/examples/core/Program/constructors/`, two `expect-refusal` attacks in `tests/hostile/core/Program/constructors/` (a private constructor is `E0839`, a `C` returning a class outside `T` is `E0838`), and `benches/members/core/Program/constructors.nvs` with its figure recorded (`calls 2`: the `make` closure and one method).\n\n`implementing` and `implementingWith` each have a fourth example that selects by an abstract base class, and both `about.md` files now say \"an interface or a class\".\n\n`bun nv proofs --verify --group 'Core\\Program'` passes, and `bun nv proofs --gate` owes nothing in the whole roster, so every proofs check in the record should be green.",
   "next": {
     "stage": 4,
     "title": "the feature proofs and the reference",
     "files": [
-      "docs/examples/core/Program/",
-      "tests/hostile/core/Program/",
-      "benches/members/core/Program/",
-      "docs/reference/core/Program.md"
+      "docs/reference/core/Program.md",
+      "data/reference/core/Program.json",
+      "docs/novis.md"
     ],
     "items": [
       {
         "done": false,
-        "text": "**`constructors`' `about.md` and three examples** (`rule:testing/feature-proofs`): a handler picked by name and built with a dependency, a plugin list built lazily, and a command table printed without building anything. Copy the shape of `docs/examples/core/Program/implementingWith/about.md:1`, and write each comment to `AGENTS.md` § *Text an end user reads*. `bun nv proofs --id 'Core\\Program::constructors'` names what is owed and where."
-      },
-      {
-        "done": false,
-        "text": "**The attack and the bench**: `tests/hostile/core/Program/constructors/` (a request tries to build a class whose constructor is private, then one outside `T`, and neither compiles), shaped like `tests/hostile/core/Program/implementing/01-a-constructor-that-throws-halfway.nvs:1`. Then `benches/members/core/Program/constructors.nvs` (build the list and call one `make`), shaped like `benches/members/core/Program/implementing.nvs:1`. Then `bun nv proofs --record-perf --group 'Core\\Program'`."
-      },
-      {
-        "done": false,
-        "text": "**`implementing` and `implementingWith` grow**: one new example in each directory selects by an abstract base class, and each `about.md` is rewritten whole to say \"an interface or a class\" (`docs/examples/core/Program/implementing/about.md:1`)."
-      },
-      {
-        "done": false,
-        "text": "**The reference**: rewrite `docs/reference/core/Program.md:1` for the class selector and `constructors`, then run `bun nv reference` to regenerate `docs/novis.md`. Finish with `bun nv proofs --comments docs/examples/core/Program tests/hostile/core/Program/constructors benches/members/core/Program/constructors.nvs` and `bun nv proofs --gate`."
+        "text": "**The reference** (`rule:programs/implementing`, `rule:programs/constructors`): rewrite `docs/reference/core/Program.md:1` for the class selector and `constructors`, then run `bun nv reference` to regenerate `docs/novis.md`. Then run `bun nv proofs --gate`, `bun nv verify --doc`, `bun nv owners --closes program-enumeration` and `bun nv playbook --closes program-enumeration`. If all are green, this is the goal's last item and the status is `DONE`."
       }
     ]
   },
   "backlog": [
-    "A variadic constructor gets an empty tail through `make`: `C`'s parameters fill only the fixed parameters (`crates/nvs-types/src/program.rs:@constructor_fitting`'s doc). Passing a tail would need `C` to name one, and a `callable(...)` type cannot.",
-    "`docs/reference/core/Program.md` and `data/reference/core/Program.json` still describe \"every class implementing an interface\". Stage 4's last item rewrites them."
+    "A variadic constructor gets an empty tail through `make`: `C`'s parameters fill only the fixed parameters (`crates/nvs-types/src/program.rs:@constructor_fitting`'s doc). Passing a tail would need `C` to name one, and a `callable(...)` type cannot."
   ]
 }
