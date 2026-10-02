@@ -95,8 +95,8 @@ session reads it in full, so it is a **bounded state file, not a changelog**.
      ([loop-authoring.md](loop-authoring.md) § 2); a group that names none gets the goal's base
      manifest, which is the wider pack and never a broken one.
   3. `## Backlog` — up to 6 one-line items, each with its owning doc; trim the stale ones. The next
-     goal starts from its own handoff record, so what must survive a goal switch is a `# Known gaps`
-     item in the module doc that owes it, tagged `— owner:`.
+     goal starts from its own handoff record, so what must survive a goal switch is a gap record
+     under `data/gaps/`, naming the module that owes it and the goal that owns it.
 
 **If the pack did not print something you needed, say so in the handoff**, naming the `context` field
 that was missing it. That manifest is maintained by the sessions that discover its gaps.

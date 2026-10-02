@@ -196,7 +196,7 @@ What the top comment says depends on the tree, and the rest is the same everywhe
 | an attack | `// Attack:` and then what it tries, and what should happen instead, in one or two plain sentences; each numbered step gets one line saying what it tries |
 | a bench | one sentence: what is measured, and where somebody meets it in real code |
 
-A directive line — `// bench:`, `// hostile:`, `// covers:`, `// dossier:`, `// requires:` — is read by
+A directive line — `// bench:`, `// hostile:`, `// covers:`, `// proof:`, `// requires:` — is read by
 a tool, is not prose, and is left exactly as its own README spells it.
 
 The same comment, first the way it goes wrong and then the way it is written:

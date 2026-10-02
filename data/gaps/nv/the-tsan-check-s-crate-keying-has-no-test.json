@@ -1,0 +1,6 @@
+{
+  "module": "tools/nv/select/checks.ts",
+  "title": "Which crates the TSan check is keyed to has no test.",
+  "text": "The heavy set's named prediction keys a `tools/tsan.sh` check to the workspace packages that script names (`tools/nv/select/checks.ts:474`), which is how a change to `nvs-host` or `nvs-runtime` reaches the ThreadSanitizer run. `tools/nv/test/select-checks.test.ts:182` checks only that a TSan check has no twin, and `tools/nv/test/affected.test.ts:17` only that it is heavy. If the script stops naming a crate, or `namedIn` stops matching, the run is no longer reached by the change it guards and every suite still passes. Closing this adds a test under `describe(\"the heavy set's named prediction\")` that pins the crates a `tools/tsan.sh` check is keyed to.",
+  "goal": "goal-closeout"
+}

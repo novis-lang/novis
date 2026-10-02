@@ -1,0 +1,6 @@
+{
+  "module": "tools/nv/lib/schema.ts",
+  "title": "No command writes `data/schema/`, so the website and the editors get no JSON Schema for a record type.",
+  "text": "Goal `tooling-overhaul` decided that one declaration under `tools/nv/schema/` gives a record type's static type, its runtime check and the JSON Schema that `data/schema/` publishes for the website and editors (`docs/agent/goals/tooling-overhaul.md:156`). `jsonSchema` is built (`tools/nv/lib/schema.ts:44`), but its one caller hashes it into the index's layout fingerprint (`tools/nv/lib/index.ts:178`), and `data/schema/` does not exist. Closing this writes one JSON Schema file per record type from `bun nv render`, has `bun nv render --check` fail when one is stale, and says so in the module docs of `tools/nv/lib/schema.ts` and `tools/nv/schema/index.ts`.",
+  "goal": "goal-closeout"
+}

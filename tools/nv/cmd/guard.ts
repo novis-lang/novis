@@ -7,7 +7,8 @@
 // Each rule in `RULES` denies one raw pattern, and each is narrow: a rule that denies a legitimate
 // command costs every session a round trip. The guard fails open. A payload it cannot read, a tool it
 // does not know and a command it cannot parse are all allowed. `tools/nv/test/guard.test.ts` holds one
-// command each rule denies and one near miss it allows, and a new rule lands with both.
+// command each rule denies and one near miss it allows, and a new rule lands with both. A tool that
+// replaces a raw habit adds its rule here in the same commit.
 //
 // A shell command is split into segments at `;`, `&&`, `||`, `|` and newlines, and each segment into
 // words with its quotes removed. This is not a shell: it is enough to find a command's name, its flags

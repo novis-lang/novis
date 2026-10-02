@@ -78,7 +78,7 @@ Search with several keywords per item, including the PHP name of the thing and t
 
 ```sh
 bun nv brief --where <keyword>      # rules; `(designed)` means decided and not built
-bun nv owners --registers           # the `# Known gaps` items and who owns each
+bun nv owners                       # every gap record under data/gaps/, and who owns each
 bun nv plan --show M<n>             # a milestone the search pointed at
 ```
 

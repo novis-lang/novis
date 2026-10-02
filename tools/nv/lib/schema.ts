@@ -1,7 +1,7 @@
 // The schema builder. One declaration gives three things: the static type (`Infer<typeof s>`), the
-// runtime check (`validate`), and the JSON Schema that `data/schema/` publishes (`jsonSchema`). A
-// fourth falls out of the same walk: `ordered`, which puts an object's keys in declaration order and
-// is how the writer makes every record's key order the schema's.
+// runtime check (`validate`), and a JSON Schema (`jsonSchema`), which the index hashes into its layout
+// fingerprint. A fourth falls out of the same walk: `ordered`, which puts an object's keys in
+// declaration order and is how the writer makes every record's key order the schema's.
 //
 // A reference is declared with `s.ref("<record type>")`. It is an id at run time and a foreign key in
 // the index, which is the only place it is checked against the records it names.

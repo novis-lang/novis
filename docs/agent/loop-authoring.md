@@ -319,7 +319,7 @@ written: the union of the anchors is the `modules` list.
 - **Dependency sweeps.** Also the user's to fire ([dependency-update.md](dependency-update.md)).
 - **Backlog work.** If a slice is not on the path to the acceptance list, it goes in the handoff's
   `## Backlog` and the session moves on — **and if it will still be true after this goal ends it is a
-  gap, so it goes in the `# Known gaps` block of the module doc that owes it**, tagged `— owner:`,
+  gap, so it is a record under `data/gaps/`** naming the module that owes it and the goal that owns it,
   where a goal switch cannot overwrite it. The handoff is state; a gap is not.
 - **Re-opening a standing decision.** That is what § 5 exists to prevent.
 - **Anything needing judgement about whether the goal is met.** The machine outranks the claim: the driver
