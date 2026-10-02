@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-lsp/src/completion.rs",
+  "title": "Completion offers no route names and no `nvs.toml` directives, and M10's acceptance paragraph asserts both.",
+  "text": "`rule:ide/completion-offers-only-what-the-compiler-derived` admits route names and their parameters, from the compiled route table, and `nvs.toml` directives, from the closed directive registry. `docs/plan/m10.md:208` asserts both against the producing table. Nothing in `crates/nvs-lsp/src/completion.rs` reads either table. Directive completion needs the extension to offer something in a `.toml` file, which `rule:ide/the-extension-claims-nvs-only` does not allow today, so that half is a decision first. Closing this builds route-name completion, and either builds directive completion under a rule that settles the `.toml` question or removes it from the rule and from M10.",
+  "goal": "goal-closeout"
+}

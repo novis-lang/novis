@@ -22,10 +22,18 @@ goal promised and did not build is not here: it is a gap record under `data/gaps
   `taintedPostAs` would make every other member's name read as a claim it does not make. A caller who
   finds the diagnosis verbose writes `tainted {…}` over the shape. Applies at `postAs` and its siblings
   in `crates/nvs-stdlib/src/request.rs`. From `input-shapes`.
+- **A guided install that cannot finish ends one way, whatever stopped it.** An unsupported platform, a
+  release list with no matching `major.minor` series and a network failure all end the same way. The
+  status item says which of the three it was, the release page stays one command away, and the
+  extension keeps working as a grammar-only client. Applies at the install commands `rule:ide/the-extension-guides-an-install-and-never-bundles-one`
+  designs, over `editors/vscode/src/install.ts`. From `editor-install`.
 
 ## Goals with nothing to keep
 
 `concurrency`, `governance`, `core-part-ii`, `database`, `server`, `carried-gaps`, `warm-start`,
 `temp-sweep`, `program-id`, `schema`, `typed-callable`, `doc-comments`, `resilient-tree`, `surface`,
 `lsp-server`, `editor`, `request-json`, `test-request`, `parses`, `unix-sockets`, `per-core`,
-`net-os-signal`, `formats`, `encoder-cycles`, `record-origin`, `agent-surface`, `xml-tree`, `gap-owners`.
+`net-os-signal`, `formats`, `encoder-cycles`, `record-origin`, `agent-surface`, `xml-tree`, `gap-owners`,
+`unowned-sweep`, `signed-urls`, `type-test`, `queue-purge`, `sqlite-queue`, `serve-runs-the-queue`,
+`workspace-index`, `editor-surfaces`, `resource-ceilings`, `config-is-written`, `event-streams`,
+`finish-response`, `markup-literal`, `fmt`.

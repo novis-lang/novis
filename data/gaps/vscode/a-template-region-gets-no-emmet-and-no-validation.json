@@ -1,0 +1,6 @@
+{
+  "module": "editors/vscode/src/regions.ts",
+  "title": "An inline-HTML region gets no Emmet expansion and no HTML validation, and the rule says it gets both.",
+  "text": "`rule:ide/a-template-region-gets-the-editors-services-and-formatter` names Emmet expansion and validation among the services a markup region gets. The module doc at `editors/vscode/src/regions.ts:22` says both are left unbuilt: Emmet expands from the document's own language, so it would need `emmet.includeLanguages` mapping `nvs` to `html`, which also turns it on in the Novis half; and the HTML service validates only documents it owns, and the virtual document is never opened. Closing this builds both with a mechanism that reaches only the markup, with a host test, or narrows the rule to the services the forwarding reaches.",
+  "goal": "goal-closeout"
+}
