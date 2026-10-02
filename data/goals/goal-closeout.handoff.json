@@ -1,26 +1,22 @@
 {
-  "state": "**Goal `goal-closeout`, Stage 2 (the registers).** The gap register, the four other registers and the playbook are audited. `bun nv owners --registers` counts them.\n\n`bun nv proofs --gate` owes nothing in the whole roster of 1171 features.\n\nThe plan's `Open now` and `Blocking` name nothing owed. The M0 to M7 acceptance paragraphs are checked clause by clause against the tree, and each says what tested code does. M2's fixture corpus is `tests/conformance/reject/` plus the checker's Rust tests. Of the 426 codes the registry declares, 400 are raised by a `.nvst` case or named by a Rust test. Of the other 26, only `E0830` was raised by the compiler, and it now has a reject case. The 25 left are declared and never raised. M4 names `Core\\Arr::keys` and `Core\\Json::encode`, with the differential case that compares the encoder with PHP's. M6's warm start names the gate that checks it: `bun nv bench --warm-start --max-work-ms 6`, under 6 ms of work.\n\nThat warm-start gate is a floor check only (from goals `core-io-file-and-1-more` and `tooling-overhaul`), and no CI step runs it. Stage 6 deletes the floor, so Stage 3 must keep it as a test or a CI step.\n\nOne clause names decided work the tree lacks: `bind`, `bindTo` and `call` on a `callable` (`data/gaps/nvs-types/a-callable-has-no-bind-bindto-or-call.json`, owned by `goal-closeout`). `bun nv owners --closes goal-closeout` lists 33 gaps for Stage 4.\n\n`bun nv import` is broken, because the rule index it reads was deleted. A playbook bullet is kept in sync by hand in both `docs/agent/playbook/<section>/<slug>.md` and `data/playbook/<section>/<slug>.json`.\n\nGoal `ci-green`'s floor check stays red until Stage 6. That is expected.",
+  "state": "**Goal `goal-closeout`, Stage 2 (the registers).** The gap register, the four other registers and the playbook are audited. `bun nv owners --registers` counts them.\n\n`bun nv proofs --gate` owes nothing in the whole roster of 1171 features.\n\nThe plan's `Open now` and `Blocking` name nothing owed. The M0 to M8 acceptance paragraphs are checked against the tree, and each says what tested code does. M8's paragraph (`docs/plan/m8.md:122`) now names where each item of ADRs 0051 and 0054–0060's M8 lists is tested. ADR 0055's list is M9 extension work, owned by goal `ext-compiler`. That audit found three things missing. CI did not run `bun nv gen-attribution --check-c-deps`, and the attribution job now does. A generator was accepted at `Core\\Cache` `put`, and `crates/nvs-runtime/src/graph.rs` `refusable` now refuses it at every copy boundary. Two gaps on the HTTP client's URL are filed for Stage 4.\n\nThe warm-start gate (`bun nv bench --warm-start --max-work-ms 6`) is a floor check only (from goals `core-io-file-and-1-more` and `tooling-overhaul`), and no CI step runs it. Stage 6 deletes the floor, so Stage 3 must keep it as a test or a CI step.\n\n`bun nv owners --closes goal-closeout` lists 35 gaps for Stage 4.\n\n`bun nv import` is broken, because the rule index it reads was deleted. A playbook bullet is kept in sync by hand in both `docs/agent/playbook/<section>/<slug>.md` and `data/playbook/<section>/<slug>.json`.\n\nGoal `ci-green`'s floor check stays red until Stage 6. That is expected.",
   "next": {
     "stage": 2,
     "title": "the registers",
     "files": [
-      "docs/plan/m8.md",
       "crates/nvs-diagnostics/src/lib.rs"
     ],
     "items": [
       {
         "done": false,
-        "text": "**M8's ADR lists** — `docs/plan/m8.md:122` defers to the M8 lists in ADRs 0051 and 0054–0060, which nobody has checked yet. Check each item against the tree, correct the paragraph where tested code does more, and file a gap owned by `goal-closeout` where decided work is missing."
-      },
-      {
-        "done": false,
-        "text": "**The 25 codes nothing raises** — `crates/nvs-diagnostics/src/lib.rs:127` declares `E0003`, `E0005`, `E0006`, `E0103`, `E0106`, `E0107`, `E0206`, `E0207`, `E0302`, `E0501`, `E0502`, `E0602`, `E0603`, `E0629`, `E0641`, `E0901` and `W1002`–`W1004`, `W1014`–`W1019`, and no crate outside the registry names their constants. Each one still gets a card in `nvs agent index`. Decide per code: retire it with the registry's \"retired, never reused\" comment, or file a gap for the check that should raise it. `rule:tooling/a-diagnostic-code-carries-its-card`."
+        "text": "**The 25 codes nothing raises** — `crates/nvs-diagnostics/src/lib.rs:127` declares `E0003`, `E0005`, `E0006`, `E0103`, `E0106`, `E0107`, `E0206`, `E0207`, `E0302`, `E0501`, `E0502`, `E0602`, `E0603`, `E0629`, `E0641`, `E0901` and `W1002`–`W1004`, `W1014`–`W1019`, and no crate outside the registry names their constants. Each one still gets a card in `nvs agent index`. Decide per code: retire it with the registry's \"retired, never reused\" comment (the shape at `crates/nvs-diagnostics/src/lib.rs:1676`), or file a gap for the check that should raise it. `rule:tooling/a-diagnostic-code-carries-its-card`."
       }
     ]
   },
   "backlog": [
     "Stage 3: read every goal in front of this one, in subagent batches of about fifteen (`docs/agent/goals/goal-closeout.md` § Stage 3). The warm-start floor check must become a test or a CI step there.",
-    "Stage 4: build the 33 gaps `bun nv owners --closes goal-closeout` lists, one crate per group (`docs/agent/goals/goal-closeout.md` § Stage 4).",
+    "Stage 4: build the 35 gaps `bun nv owners --closes goal-closeout` lists, one crate per group (`docs/agent/goals/goal-closeout.md` § Stage 4).",
+    "`rule:classes/graph-copy` lists a closure, an `inout` binding and a host handle as refused, and not a generator, which the runtime now refuses too (`docs/rules/classes/graph-copy.md`).",
     "`--deferrals`' keyword match (`tools/nv/cmd/owners.ts:@covers`) passes a gap whose crate name appears anywhere in the plan file. Stage 5 could make it stricter.",
     "`bun nv owners --registers` counts every playbook bullet as an open item (`tools/nv/cmd/owners.ts:227`), though only the `exists` and `test` kinds wait on owed work."
   ]

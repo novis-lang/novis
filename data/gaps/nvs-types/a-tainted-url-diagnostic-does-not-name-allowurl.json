@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-types/src/expr/args.rs",
+  "title": "A `tainted` URL at the HTTP client is refused without naming `Core\\Http::allowUrl`.",
+  "text": "ADR 0058's M8 list asks for a `tainted` URL at a client parameter to be a diagnostic naming `Core\\Http::allowUrl`. Today it is a bare `E0401`, \"expected `string|Core\\Http\\Target`, found `tainted string`\" (`tests/conformance/core/every-client-member-refuses-a-tainted-url.nvst`), and `check_shape_field` attaches a launderer help only at shape-field sinks. The URL sink has one door, which `core_lib.rs`'s roster test pins to `allowUrl`, so the help cannot push the wrong fix. Closing it is that help at every parameter whose type admits `Core\\Http\\Target`, and the case's expected output naming it.",
+  "goal": "goal-closeout"
+}

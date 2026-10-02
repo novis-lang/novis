@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-types/src/intrinsics.rs",
+  "title": "A literal URL at the HTTP client is not read while checking.",
+  "text": "`rule:security/outbound-url-is-a-sink` says a literal at an outbound URL parameter is validated while checking (`rule:expressions/intrinsic-literals`), and ADR 0058's M8 list asks for a malformed literal URL to be a compile error. The roster has a row for `Core\\Uri::parse` and none for `Core\\Http\\Client`'s request members or `Core\\Http::allowUrl`, so `Core\\Http\\Client::get(\"ht tp://exa mple\")` compiles while the same literal at `Core\\Uri::parse` is `E0769`. Closing it is a row per member whose `url` parameter is a sink, read with the URI grammar, and a reject case beside `tests/conformance/reject/a-malformed-literal-intrinsic-is-a-compile-error.nvst`.",
+  "goal": "goal-closeout"
+}
