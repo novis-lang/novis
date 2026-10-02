@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-ir/src/lib.rs",
-  "title": "The conversion roster in `nvs-ir`'s module doc still lists \"a `Core` class\" among targets that name no class to test against.",
-  "text": "`crates/nvs-ir/src/lib.rs:558` lists plain `object`, a shape, a `callable` and \"a `Core` class\" as object targets with no class to test against. Goal `core-class-tests` made `is` and `as` test against a `Core` class's descriptor, and `crates/nvs-runtime/src/graph.rs:75` states that both spellings answer for one. Closing this checks which `Core` targets still lower without a descriptor and rewrites the sentence to name exactly those.",
-  "goal": "goal-closeout"
-}

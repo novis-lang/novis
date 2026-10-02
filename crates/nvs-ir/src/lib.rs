@@ -554,10 +554,15 @@
 //!     [`ir::Terminator::Throw`] on the false edge and one free
 //!     [`ir::InstKind::Untag`] on the true one. A helper could not have
 //!     carried it anyway: helper arguments are stored as
-//!     `nvs_runtime::Value`s, and a class descriptor is not one. Every other
-//!     object target names no class to test against — plain `object`, a
-//!     shape, a `callable`, a `Core` class — and `nvs_types` refuses those
-//!     from a non-object operand where they are written (`E0711`). The
+//!     `nvs_runtime::Value`s, and a class descriptor is not one. A `Core`
+//!     class with instances is the same test against the descriptor the
+//!     process publishes (`lower::closure::declared_class` names which `Core`
+//!     classes have one), and a shape is
+//!     `lower::Lowering::lower_shape_conversion`'s field walk on the same two
+//!     edges. The object targets left name nothing to test against — plain
+//!     `object`, a `callable`, a `Core` namespace class, a shape whose fields
+//!     carry a qualifier — and `nvs_types` refuses those from a non-object
+//!     operand where they are written (`E0711`). The
 //!     *statically* typed downcasts are in neither list:
 //!     `object as Plain` and `Comparable as Cell` are one representation on
 //!     both sides, so `rule:types/erased-member-access` leaves the check to the member access.
