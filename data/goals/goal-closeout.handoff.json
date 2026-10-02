@@ -1,27 +1,27 @@
 {
-  "state": "**Goal `goal-closeout`, Stage 4 (finished in place) is under way.** Stage 3 is done: `docs/agent/goal-decisions.md` names every goal in front of `goal-closeout`.\n\nThe `nvs-diagnostics`, `benches`, `nvs-test`, `nvs-db` and `nvs-ir` gap directories are closed for this goal. The other three `nvs-ir` gaps are owned by milestones M10 and M12, so they stay with their owners.\n\nIn `nvs-syntax`, `E0003`, `E0106`, `E0107` and the one-namespace-per-file half of `E0243` are now raised. `Lexer::lex_number` reports a malformed number literal as one `TokenKind::Unknown`, and the parser's primary expression takes an `Unknown` as an error expression with no second diagnostic. `Parser::check_one_namespace` in `crates/nvs-syntax/src/parser/decl.rs` refuses a second `namespace X;` and one after a declaration. The fixtures that put two namespaces in one source now use one file per namespace. One `nvs-syntax` gap is left: `the-pipeline-bench-has-no-nested-twin`, a bench member, which is a different file set.\n\nThe floor check `the latest CI run on main succeeded for the code HEAD holds` is red only because `main` is many commits ahead of `origin/main` and the loop never pushes (`tools/nv/cmd/ci-green.ts`'s module doc). A person pushes. No session can close it. CI's `proofs` job has not had its first run for the same reason.\n\n`bun nv owners --closes goal-closeout` names the rest of the gaps, across many crates. Take them one directory at a time, smallest first. Stage 4 stops on `BLOCKED` only for \"too large\", which the goal's § *Stage 4* defines.\n\n`bun nv import` is broken, because the rule index it reads was deleted. Goal `ci-green`'s floor check stays red until Stage 6. That is expected.",
+  "state": "**Goal `goal-closeout`, Stage 4 (finished in place) is under way.** Stage 3 is done: `docs/agent/goal-decisions.md` names every goal in front of `goal-closeout`.\n\nThe `nvs-diagnostics`, `benches`, `nvs-test`, `nvs-db` and `nvs-ir` gap directories are closed for this goal. The other three `nvs-ir` gaps are owned by milestones M10 and M12, so they stay with their owners. One `nvs-syntax` gap is left: `the-pipeline-bench-has-no-nested-twin`, a bench member, which is a different file set.\n\nIn `nvs-cli`, `E0006` and `E0901` are now raised. `report_unreadable` in `crates/nvs-cli/src/main.rs` reports a source file that is not UTF-8 as `E0006` at its first bad byte, for `nvs check`, `nvs run`, `nvs ast` and `nvs fmt`. A `require`d file that is not UTF-8 was already `E_REQUIRE_TARGET_NOT_FOUND` at the `require` site, and stays so. `report_internal` renders every `CodegenError` and a missing script frame as `E0901`, from `nvs run`, `nvs test` and a spawned script.\n\nThe floor check `the latest CI run on main succeeded for the code HEAD holds` is red only because `main` is many commits ahead of `origin/main` and the loop never pushes (`tools/nv/cmd/ci-green.ts`'s module doc). A person pushes. No session can close it. CI's `proofs` job has not had its first run for the same reason.\n\n`bun nv owners --closes goal-closeout` names the rest of the gaps, across many crates. Take them one directory at a time, smallest first. Stage 4 stops on `BLOCKED` only for \"too large\", which the goal's § *Stage 4* defines.\n\n`bun nv import` is broken, because the rule index it reads was deleted. Goal `ci-green`'s floor check stays red until Stage 6. That is expected.",
   "next": {
     "stage": 4,
     "title": "finished in place",
     "files": [
       "crates/nvs-cli/src/main.rs",
-      "tests/conformance/reject/"
+      "crates/nvs-cli/src/agent.rs"
     ],
-    "note": "Each is a diagnostic code the code table declares and nothing raises. Raise it, pin it, and delete the gap record under `data/gaps/nvs-cli/`.",
+    "note": "Two `nvs-cli` gaps about text a user reads at the command line. Fix each, pin it, and delete its record under `data/gaps/nvs-cli/`.",
     "items": [
       {
         "done": false,
-        "text": "**A source file that is not UTF-8 is an uncoded read error, and `E0006` is never raised** — gap `a-source-file-that-is-not-utf-8-is-an-uncoded-read-error`. The source read is at `crates/nvs-cli/src/main.rs:2525`; the record also names the reads in `ast.rs` and `fmt.rs`, whose line numbers in it are stale."
+        "text": "**`nvs service --help` is not in the plain voice** — gap `service-help-is-not-in-the-plain-voice`. Rewrite the doc comments of `ServiceCommand` at `crates/nvs-cli/src/main.rs:1168` under `AGENTS.md` § *Text an end user reads*, and any help snapshot that reads them."
       },
       {
         "done": false,
-        "text": "**An internal compiler error prints no code, and `E0901` is never raised** — gap `an-internal-compiler-error-prints-no-code`. The two print sites are the `cache::unit_for` error at `crates/nvs-cli/src/main.rs:2673` and the missing script frame at `crates/nvs-cli/src/main.rs:2690`; the record's line numbers are stale."
+        "text": "**`nvs agent show` prints the `<!-- generated: attributes -->` marker** — gap `agent-show-prints-the-generated-attributes-marker`. `topic_card` at `crates/nvs-cli/src/agent.rs:526` filters only the `<!-- primer -->` marker (`crates/nvs-cli/src/agent.rs:175`). Expand the marker from the attribute roster or drop the line, and pin it with a test over that section."
       }
     ]
   },
   "backlog": [
-    "`the-pipeline-bench-has-no-nested-twin` (`data/gaps/nvs-syntax/`): a bench member beside `benches/members/lang/expressions/the-pipeline-operator.nvs` that runs the same calls nested.",
-    "The rest of `bun nv owners --closes goal-closeout`, one directory at a time, smallest first.",
-    "Stage 5 and Stage 6 of `docs/agent/goals/goal-closeout.md` once Stage 4 has no gap left."
+    "The rest of `crates/nvs-cli` under `data/gaps/nvs-cli/`: `a-reload-closes-no-connection`, `serve-and-a-spawned-script-have-no-program-id`, `the-warm-start-margin-runs-in-no-ci-step`, `serve-proxied-was-never-recorded-on-four-cores`.",
+    "`the-pipeline-bench-has-no-nested-twin` under `data/gaps/nvs-syntax/`, a bench member under `benches/members/`.",
+    "Several conformance comments say \"`bool as int` does not lower\" or \"a `catch` does not lower at file scope\", and `bun nv holes` lists no refusal site. Check each claim against the tree and rewrite the comment where it is stale (`tests/conformance/core/`, `tests/differential/core/`)."
   ]
 }
