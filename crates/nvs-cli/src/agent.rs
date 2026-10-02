@@ -1082,7 +1082,7 @@ const MARK: &str = "<!-- nvs agent: written by `nvs agent init`";
 
 /// The marker an `init` that wrote no fingerprint opened its stanza with.
 /// A unit that carries it, or an adapter with no marker at all, is judged
-/// against the `legacy` fingerprint its [`Unit`] names.
+/// against the `legacy` fingerprint its [`Adapter`] names.
 const LEGACY_OPEN: &str = "<!-- nvs agent: written by `nvs agent init` -->";
 
 /// The line that closes the `AGENTS.md` stanza.

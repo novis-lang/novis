@@ -14,7 +14,7 @@
 //!
 //! The literal is built by re-escaping each source character for the backtick
 //! form ([`render`]), and before it is offered it is parsed back
-//! ([`meaning`]): its segments, cooked, must equal the original's text, and its
+//! ([`Meaning`]): its segments, cooked, must equal the original's text, and its
 //! holes must be the original's expressions, in order. A case the escaper
 //! gets wrong is therefore never offered rather than offered wrong, and the
 //! comparison uses the lexer's and the cooker's own code, so a later change to
