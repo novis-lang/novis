@@ -1,3 +1,3 @@
-Core\Xml\Writer::endDocument(): `<entry>` is still open, so what this holds is not a document.
+Core\Xml\Writer::endDocument(): `<entry>` is still open, so the document is not complete.
 Core\Xml\Writer::endElement(): no element is open, so there is nothing to close.
 <?xml version="1.0" encoding="UTF-8"?><list><entry/></list>

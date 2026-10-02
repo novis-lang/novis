@@ -1,2 +1,2 @@
 <?xml version="1.0" encoding="UTF-8"?><note title="Tom's &quot;best&quot; &lt;idea&gt;">1 &lt; 2 &amp; 3 &gt; 2</note>
-Core\Xml\Writer::endDocument(): `<list>` is still open, so what this holds is not a document.
+Core\Xml\Writer::endDocument(): `<list>` is still open, so the document is not complete.

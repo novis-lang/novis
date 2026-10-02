@@ -408,8 +408,7 @@ fn connection_inbox(ctx: &mut Ctx, member: &str) -> Result<Rc<Inbox>, Fault> {
             ThrownClass::Logic,
             format!(
                 "`Core\\Topic::{member}` needs a connection and this program is not one: only a \
-                 script `Core\\Socket::upgrade` or `Core\\Sse::upgrade` opened runs inside a \
-                 connection isolate"
+                 script `Core\\Socket::upgrade` or `Core\\Sse::upgrade` opened has one"
             ),
         ));
     }

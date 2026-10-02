@@ -27,5 +27,5 @@ try {
     echo $refused->message, "\n";
 }
 --EXPECT--
-`Core\Topic::subscribe` needs a connection and this program is not one: only a script `Core\Socket::upgrade` or `Core\Sse::upgrade` opened runs inside a connection isolate
-`Core\Topic::unsubscribe` needs a connection and this program is not one: only a script `Core\Socket::upgrade` or `Core\Sse::upgrade` opened runs inside a connection isolate
+`Core\Topic::subscribe` needs a connection and this program is not one: only a script `Core\Socket::upgrade` or `Core\Sse::upgrade` opened has one
+`Core\Topic::unsubscribe` needs a connection and this program is not one: only a script `Core\Socket::upgrade` or `Core\Sse::upgrade` opened has one

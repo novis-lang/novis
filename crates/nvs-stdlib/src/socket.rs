@@ -903,7 +903,7 @@ fn no_connection(member: &str) -> Fault {
         ThrownClass::Logic,
         format!(
             "`Core\\Socket::{member}` needs a connection and this program is not one: only a \
-             script `Core\\Socket::upgrade` opened runs inside a connection isolate"
+             script `Core\\Socket::upgrade` opened has one"
         ),
     )
 }

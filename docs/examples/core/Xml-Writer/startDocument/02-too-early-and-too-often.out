@@ -1,4 +1,4 @@
 Core\Xml\Writer::startElement(): the document is not open, and `startDocument` is what opens it.
 Core\Xml\Writer::startDocument(): the document is already open.
 <?xml version="1.0" encoding="UTF-8"?><note/>
-Core\Xml\Writer::startDocument(): the document is finished, and `endDocument` has answered it.
+Core\Xml\Writer::startDocument(): the document is finished, and `endDocument` was already called.

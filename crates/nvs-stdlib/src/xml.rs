@@ -2947,7 +2947,7 @@ impl Pen {
         match self.count(STATE_SLOT)? {
             WRITING => Ok(()),
             BEFORE => self.refuse("the document is not open, and `startDocument` is what opens it"),
-            _ => self.refuse("the document is finished, and `endDocument` has answered it"),
+            _ => self.refuse("the document is finished, and `endDocument` was already called"),
         }
     }
 
@@ -3086,7 +3086,7 @@ fn start_document(receiver: Value) -> Result<Value, Fault> {
     match pen.count(STATE_SLOT)? {
         BEFORE => {}
         WRITING => return pen.refuse("the document is already open"),
-        _ => return pen.refuse("the document is finished, and `endDocument` has answered it"),
+        _ => return pen.refuse("the document is finished, and `endDocument` was already called"),
     }
     pen.emit(r#"<?xml version="1.0" encoding="UTF-8"?>"#)?;
     pen.set_count(STATE_SLOT, WRITING);
@@ -3107,7 +3107,7 @@ fn end_document(receiver: Value) -> Result<Value, Fault> {
     if open > 0 {
         let name = pen.innermost(open)?;
         return pen.refuse(&format!(
-            "`<{name}>` is still open, so what this holds is not a document"
+            "`<{name}>` is still open, so the document is not complete"
         ));
     }
     if !pen.flag(ROOT_SLOT)? {
