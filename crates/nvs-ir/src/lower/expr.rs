@@ -160,7 +160,7 @@ impl<'a> Lowering<'a> {
                 rhs,
             } => self.lower_coalesce(expr, lhs, rhs, env, cur),
             ExprKind::Ternary { cond, then, else_ } => {
-                self.lower_ternary(cond, then.as_deref(), else_, env, cur)
+                self.lower_ternary(cond, then.as_deref(), else_, expected, env, cur)
             }
             ExprKind::Match { subject, arms } => {
                 self.lower_match(subject, arms, expected, env, cur)
@@ -1771,6 +1771,12 @@ impl<'a> Lowering<'a> {
     /// types already erases to — see [`Self::join_representations`], which
     /// performs it, for why that is an erasure rather than a promotion.
     ///
+    /// Each arm is lowered under `expected`, the whole expression's own
+    /// expected type, because the checker infers each arm under it
+    /// (`nvs_types::expr::infer`'s `Ternary` arm). A number literal arm is
+    /// placed there: `uint $u = $c ? 1 : 2;` checks both arms as `uint`, so
+    /// both lower as [`Ty::Uint`] and join at it.
+    ///
     /// # Panics
     ///
     /// See [`Self::truthy_convert`]'s own panic doc for `cond`'s restriction.
@@ -1779,6 +1785,7 @@ impl<'a> Lowering<'a> {
         cond: &Expr,
         then: Option<&Expr>,
         else_: &Expr,
+        expected: Option<Ty>,
         env: &mut Env,
         cur: &mut BlockId,
     ) -> (ValueId, Ty) {
@@ -1814,7 +1821,7 @@ impl<'a> Lowering<'a> {
         let (then_v, then_ty, then_end) = match then {
             Some(then_expr) => {
                 let mut then_cur = then_block;
-                let (v, ty) = self.lower_expr(then_expr, None, &mut then_env, &mut then_cur);
+                let (v, ty) = self.lower_expr(then_expr, expected, &mut then_env, &mut then_cur);
                 if ty.is_refcounted() && self.aliasing_read(then_expr) {
                     self.emit_retain(then_cur, v);
                 }
@@ -1830,7 +1837,7 @@ impl<'a> Lowering<'a> {
 
         let mut else_env = pre_env.clone();
         let mut else_cur = else_block;
-        let (else_v, else_ty) = self.lower_expr(else_, None, &mut else_env, &mut else_cur);
+        let (else_v, else_ty) = self.lower_expr(else_, expected, &mut else_env, &mut else_cur);
         if else_ty.is_refcounted() && self.aliasing_read(else_) {
             self.emit_retain(else_cur, else_v);
         }

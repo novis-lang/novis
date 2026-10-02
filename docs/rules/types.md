@@ -611,10 +611,13 @@ things change.
   array, where the covariant read only passes one along. The two views share one copy-on-write
   buffer. `as array<float>` over `int` or `uint` elements is the one conversion that copies: it builds
   a new array of the same size with each such element converted.
-- The empty literal `[]` has type `array<never>`, which satisfies every `array<T>`.
 - **An array literal is checked against its target type wherever one is written, never inferred and
   then compared.** Each element is placed at the element type, so `[1, $count]` at `array<float>`
-  stores two floats, at any depth and in a shape field. Under `var` a literal has no target, and is
+  stores two floats, at any depth and in a shape field, and `[]` is an `array<T>` at every `array<T>`.
+  A ternary's arms, the default after `?:` and the right operand of `??` have the target of the whole
+  expression. Where that names none, a literal after `??` or `?:` is placed at the left operand's type
+  without `null`: `$values ?? []` over `?array<float>` is an `array<float>`, and `$names ?? [1]` over
+  `?array<string>` is a mismatch at the `1`. Under `var` a literal has no target, and is
   `array<T>` only when every element has the one type `T`; any other literal is refused there
   ([`types/var-inference`](types.md#types-var-inference)). A literal in any other position with no target, such as an `echo`
   argument, is `array<mixed>`.

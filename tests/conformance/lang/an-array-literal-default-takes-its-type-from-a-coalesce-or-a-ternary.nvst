@@ -1,0 +1,113 @@
+--TEST--
+An array literal written as the default of `??`, `?:` or a ternary arm takes the type of the position the whole expression is in, or else the left operand's type without `null`, a scalar default keeps its own type with no position, and a number literal arm runs at the `uint`, `decimal` or `float` its position places it at — `rule:types/arrays` and `rule:types/numeric-literal-placement`
+--FILE--
+<?nvs
+final class Totals
+{
+    // `$values ?? []` is an `array<float>`, so `foreach` can iterate it.
+    public static function sum(?array<float> $values): float
+    {
+        float $sum = 0.0;
+        foreach ($values ?? [] as float $value) {
+            $sum += $value;
+        }
+        return $sum;
+    }
+
+    // A typed local places `[]` at its own type.
+    public static function count(?array<float> $values): int
+    {
+        array<float> $list = $values ?? [];
+        return Core\Arr::count($list) as int;
+    }
+
+    // A return type places both arms of a ternary.
+    public static function pick(bool $c, array<float> $a): array<float>
+    {
+        return $c ? $a : [];
+    }
+
+    // `?:` places its default the same way.
+    public static function short(array<float> $a): array<float>
+    {
+        return $a ?: [];
+    }
+
+    // The elements of a non-empty default are placed too: `1` is stored as a float.
+    public static function both(?array<float> $a): array<float>
+    {
+        return $a ?? [1, 0.5];
+    }
+
+    public static function local(bool $c, array<float> $a): int
+    {
+        array<float> $x = $c ? $a : [];
+        return Core\Arr::count($x) as int;
+    }
+}
+
+echo Totals::sum([1.5, 2.0]), ' ', Totals::sum(null), ' ', Totals::count(null), "\n";
+echo Core\Arr::count(Totals::pick(false, [1.0])), ' ', Core\Arr::count(Totals::short([])), "\n";
+echo Core\Json::encode(Totals::both(null)), ' ', Totals::local(false, []), "\n";
+
+// With no position, the left operand's type places the default.
+?array<float> $none = null;
+foreach ($none ?? [2, 3] as float $v) {
+    echo $v / 2, ' ';
+}
+echo "\n";
+
+// A scalar default keeps its own type: the result is `int|string`.
+?int $missing = null;
+int|string $label = $missing ?? 'd';
+echo $label, "\n";
+?float $f = null;
+float $zero = $f ?? 0;
+echo $zero, "\n";
+
+// A number literal arm is placed at the type of the position, and runs as that type.
+bool $yes = Core\Arr::count([1]) > 0;
+bool $no = !$yes;
+uint $u = $yes ? 1 : 2;
+decimal $d = $yes ? 1.5 : 2.5;
+float $w = $yes ? 1 : 2.5;
+echo $u, ' ', $d, ' ', $w, "\n";
+uint $big = $no ? 1 : 18446744073709551615;
+?uint $nu = $yes ? 3 : 4;
+uint $nested = $yes ? ($no ? 5 : 6) : 7;
+echo $big, ' ', $nu ?? 0, ' ', $nested, "\n";
+
+// The same for the default of `?:` and of `??`.
+uint $zeroU = 0;
+uint $elvis = $zeroU ?: 8;
+?uint $maybeU = null;
+uint $fromU = $maybeU ?? 9;
+?decimal $maybeD = null;
+decimal $fromD = $maybeD ?? 0.1;
+float $quarter = $no ? 1 : 2;
+echo $elvis, ' ', $fromU, ' ', $fromD + (0.2 as decimal), ' ', $quarter / 4, "\n";
+
+final class Placed
+{
+    public static function u(bool $c): uint
+    {
+        return $c ? 10 : 20;
+    }
+
+    public static function d(?decimal $x): decimal
+    {
+        return $x ?? 1.25;
+    }
+}
+echo Placed::u(false), ' ', Placed::d(null), "\n";
+--EXPECT--
+3.5 0 0
+0 0
+[1.0,0.5] 0
+1 1.5
+d
+0
+1 1.5 1
+18446744073709551615 3 6
+8 9 0.3 0.5
+20 1.25

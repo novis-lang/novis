@@ -318,6 +318,37 @@ pub(crate) fn uint_operand_expectation(
     Some(interner.uint())
 }
 
+/// The expectation `$a ?? $b`'s right operand and `$a ?: $b`'s else arm,
+/// `operand`, are inferred under: the whole expression's own `expected` where
+/// the position names one, and otherwise `left`, the left operand's type
+/// without `null`, when `operand` is an array literal.
+///
+/// Both operands are a value of the whole expression, and the second is the
+/// default written for the first. An array literal has no type of its own
+/// to offer, so with no position to place it at it is `array<mixed>`, and
+/// `$values ?? []` would join into an `array<float>|array<mixed>` that
+/// `foreach` cannot drive. Placed at the left operand's type it is an
+/// `array<float>`, and its elements are checked against `float`, so
+/// `$names ?? [1]` over `?array<string>` is a mismatch at the `1`.
+///
+/// Any other operand keeps the type it has: `$count ?? "none"` is
+/// `int|string`. That is why the hint is limited to an array literal: a
+/// `match` and a `catch` check their arms against the expectation they are
+/// given, so a hint taken from the left would make them report a default the
+/// program means to be different.
+pub(crate) fn value_arm_expectation(
+    expected: Option<TypeId>,
+    operand: &Expr,
+    left: TypeId,
+    env: &mut Env<'_>,
+) -> Option<TypeId> {
+    if expected.is_some() {
+        return expected;
+    }
+    matches!(operand.unparenthesized().kind, ExprKind::ArrayLiteral(_))
+        .then(|| env.interner.without_null(left))
+}
+
 /// Whether a position typed `id` places an integer literal at `uint`.
 ///
 /// `rule:types/numeric-literal-placement`: `expr as T` is a placing position, and an enum's case

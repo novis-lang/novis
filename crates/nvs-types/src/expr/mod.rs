@@ -389,6 +389,19 @@ pub(crate) fn infer(
             // `&&` and its false edge after `||`, exactly as an `if`'s
             // then-block and `else` block would be, and the narrowing is taken
             // off again before the result is typed.
+            //
+            // `??`'s right operand is a value of the whole expression, so it is
+            // inferred under the whole expression's expectation, or under the
+            // left operand's type where it is an array literal and the
+            // position names none ([`value_arm_expectation`]). `infer`, not
+            // `check_expr`: the whole expression is checked against its
+            // position once, by its caller, so a wrong default is reported
+            // there with that position's own code, and only once. The operand
+            // is inferred inside its parentheses for the same reason: a
+            // parenthesised expression checks what it contains against its
+            // expectation, and the caller's check can be wider than that one.
+            // An argument takes a `tainted bytes` for a `bytes` parameter, so
+            // `Core\Bytes::length($b ?? ("" as tainted bytes))` compiles.
             let short_circuits = matches!(op, BinaryOp::And | BinaryOp::Or);
             let (lhs_ty, rhs_ty) = if !short_circuits
                 && matches!(lhs.kind, ExprKind::Int(_))
@@ -405,7 +418,12 @@ pub(crate) fn infer(
                     crate::locals::Narrowing::default()
                 };
                 let placed = uint_operand_expectation(rhs, lhs_ty, env.interner);
-                let rhs_ty = check_expr(rhs, placed, live, scope, ctx, env);
+                let rhs_ty = if *op == BinaryOp::Coalesce {
+                    let hint = placed.or_else(|| value_arm_expectation(expected, rhs, lhs_ty, env));
+                    infer(rhs.unparenthesized(), hint, live, scope, ctx, env)
+                } else {
+                    check_expr(rhs, placed, live, scope, ctx, env)
+                };
                 narrowed.restore(scope);
                 (lhs_ty, rhs_ty)
             };
@@ -446,17 +464,29 @@ pub(crate) fn infer(
             // truthy path — its type joins the union the same way an
             // explicit `then` branch would, and its `else` arm is the same
             // false edge as the long form's.
+            //
+            // Each arm is a value of the whole expression, so it is inferred
+            // under the whole expression's own expectation: `[]` in
+            // `return $c ? $a : [];` is the declared `array<float>`. It is
+            // `infer` for `??`'s reason in the `Binary` arm above. `$a ?: []`'s
+            // else arm takes `$a`'s type where the position names none, as
+            // `??`'s right operand does ([`value_arm_expectation`]).
             let then_ty = match then {
                 Some(then) => {
                     let narrowed = crate::locals::narrow(cond, true, scope, env);
-                    let ty = check_expr(then, None, live, scope, ctx, env);
+                    let ty = infer(then.unparenthesized(), expected, live, scope, ctx, env);
                     narrowed.restore(scope);
                     ty
                 }
                 None => cond_ty,
             };
+            let else_hint = if then.is_none() {
+                value_arm_expectation(expected, else_, cond_ty, env)
+            } else {
+                expected
+            };
             let narrowed = crate::locals::narrow(cond, false, scope, env);
-            let else_ty = check_expr(else_, None, live, scope, ctx, env);
+            let else_ty = infer(else_.unparenthesized(), else_hint, live, scope, ctx, env);
             narrowed.restore(scope);
             env.interner.make_union([then_ty, else_ty])
         }
