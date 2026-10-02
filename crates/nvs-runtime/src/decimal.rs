@@ -929,7 +929,7 @@ pub enum NotDecimal {
     Unreadable,
     /// An exact decimal literal whose value needs more than 96 mantissa bits
     /// or a scale past 28. `rule:types/decimal` is where the bound is, and
-    /// `Core\BigDecimal` is what lies past it.
+    /// `Core\BigInt` is the type for a whole number past it.
     PastRange,
 }
 

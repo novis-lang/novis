@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-diagnostics/src/lib.rs",
-  "title": "`E0456` tells the reader to use `Core\\BigDecimal`, and no such class is registered.",
-  "text": "The card at `crates/nvs-diagnostics/src/lib.rs:1660` ends \"Use `Core\\\\BigDecimal` for a larger value\", and the help at `crates/nvs-types/src/expr/literals.rs:772` and the doc at `crates/nvs-runtime/src/decimal.rs:932` name it too. No registry row under `crates/nvs-stdlib/src/` declares it, and goal `bigint` left it unscheduled as a feature the user has not asked for. `rule:types/decimal` names it as what lies past the scalar's range, and `docs/plan/m8.md:52` lists it beside `Core\\BigInt`. Closing this points the card and the help at a type that exists, `Core\\BigInt` for a whole number, and rewords the rule and the plan line so neither promises the class.",
-  "goal": "goal-closeout"
-}

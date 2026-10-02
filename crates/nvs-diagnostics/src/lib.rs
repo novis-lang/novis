@@ -1655,11 +1655,12 @@ pub mod code {
          `Core\\Decimal::pow` instead.",
     );
     /// A numeric literal placed at `decimal` whose mantissa exceeds 96 bits or
-    /// whose scale exceeds 28 — `rule:types/decimal`'s layout. `Core\BigDecimal` (§ 6)
-    /// is the type for a value beyond it.
+    /// whose scale exceeds 28 — `rule:types/decimal`'s layout. `Core\BigInt` is the
+    /// type for a whole number beyond it, and no type holds a fraction beyond it.
     pub const E_DECIMAL_LITERAL_OUT_OF_RANGE: Code = Code::new("E0456").card(
         "This number does not fit in a `decimal`. A `decimal` has at most 28 digits after the \
-         decimal point, and about 28 digits in total. Use `Core\\BigDecimal` for a larger value.",
+         decimal point, and about 28 digits in total. Use `Core\\BigInt` for a larger whole \
+         number.",
     );
     // `E0457` (`E_LITERAL_TYPE_UNCHECKED`) is **retired**, not reused.
     // `rule:types/literal-types`'s

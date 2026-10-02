@@ -769,7 +769,7 @@ pub(crate) fn report_decimal_out_of_range(reason: &str, span: Span, env: &mut En
         .with_primary(span, "outside `decimal`'s range")
         .with_help(
             "`decimal` holds a 96-bit mantissa at a scale of 0 to 28 (`rule:types/decimal`); \
-             `Core\\BigDecimal` is the type for a value beyond it",
+             `Core\\BigInt` is the type for a whole number beyond it",
         ),
     );
 }

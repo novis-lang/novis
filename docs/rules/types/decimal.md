@@ -4,8 +4,8 @@ is register-pair sized, allocation-free and refcount-free, and it costs **16 byt
 8 for a `float`.
 
 It is deliberately **not** arbitrary precision. World GDP in cents is 17 digits; Bitcoin to satoshis
-is 16. What lies beyond is `Core\BigDecimal` — arbitrary-precision, heap-allocated, method-based, no
-literal form — named here so the boundary is stated rather than discovered.
+is 16. A whole number beyond the range is a `Core\BigInt`, and no type holds a fraction beyond it.
+The boundary is stated here so that nobody has to discover it.
 
 Scale is carried for rendering and does not affect equality or hashing: `1.10 == 1.1000` is true, and
 `19.90` renders `"19.90"`. **Division is the one operation that may be inexact**, and its policy is
