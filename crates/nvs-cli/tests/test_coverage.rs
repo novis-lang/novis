@@ -21,11 +21,13 @@ fn scratch(case: &str) -> PathBuf {
     dir
 }
 
-/// Runs `nvs test` with `args` from `dir`.
+/// Runs `nvs test` with `args` from `dir`. `NOVIS_NO_INIT` keeps the run from writing the shipped
+/// `nvs.toml` into `dir`, so the only files a case finds afterwards are its own and the reports.
 fn test_in(dir: &Path, args: &[&str]) -> Output {
     Command::new(env!("CARGO_BIN_EXE_nvs"))
         .arg("test")
         .args(args)
+        .env("NOVIS_NO_INIT", "1")
         .current_dir(dir)
         .output()
         .expect("the `nvs` binary this test was built beside runs")
