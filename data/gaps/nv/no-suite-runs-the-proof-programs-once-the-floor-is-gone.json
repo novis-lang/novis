@@ -1,0 +1,6 @@
+{
+  "module": "tools/nv/cmd/verify.ts",
+  "title": "Only a goal check runs the feature roster's proof programs, so nothing runs them once the floor is gone.",
+  "text": "An example or an attack of the feature roster is run by `bun nv proofs --verify`, and only goal checks call it: each proofs goal's `dossier-*` check reaches every later goal through the floor (`tools/nv/lib/chain.ts:225`). `bun nv verify` marks a proof program the change reaches as owed and does not run it (`tools/nv/cmd/verify.ts:46`, `tools/nv/cmd/affected.ts:18`), and `.github/workflows/ci.yml` has no `proofs` step. Once Stage 5 removes the floor and Stage 6 deletes the walked goals, no suite checks that an example still prints its `.out` or that an attack still fails the way it is pinned. Closing this runs the proof programs from a suite, either as atoms `nv verify` runs when the change reaches them or as a `bun nv proofs --verify` step in CI, and says which in that tool's module doc.",
+  "goal": "goal-closeout"
+}

@@ -23377,7 +23377,7 @@ Opens a TCP connection to `$host` on `$port`, parking on the runtime's reactor w
 
 **Returns** `Core\Net\Stream` — An open `Core\Net\Stream`, closed with this request if the program does not close it first.
 
-**Throws** `RuntimeError` — The configuration does not grant `net.connect` for this host, the host resolves to no address, the address it resolves to is in a denied range, or `$port` is not a port.; `TimeoutError` — The handshake was still in flight when `$within` ran out.; `IOError` — The connection failed — refused, unreachable, or reset while it was being established.
+**Throws** `RuntimeError` — The configuration does not grant `net.connect` for this host, the host resolves to no address, the address it resolves to is in a denied range, `$port` is not a port, or `$within` is not a positive length of time.; `TimeoutError` — The handshake was still in flight when `$within` ran out.; `IOError` — The connection failed — refused, unreachable, or reset while it was being established.
 
 <a id="core-core-net-listen"></a>
 #### `Core\Net::listen`
@@ -23431,7 +23431,7 @@ Connects to the Unix-domain socket bound at `$path`, parking on the runtime's re
 
 **Returns** `Core\Net\Stream` — A connected `Core\Net\Stream`, closed with this request if the program does not close it first.
 
-**Throws** `RuntimeError` — The configuration does not grant `net.local` for this path, or this build has no Unix-domain transport.; `TimeoutError` — The connect was still in flight after `$within`.; `IOError` — The operating system refused the path — nothing is bound there, no permission, or a name too long for the platform.
+**Throws** `RuntimeError` — The configuration does not grant `net.local` for this path, this build has no Unix-domain transport, or `$within` is not a positive length of time.; `TimeoutError` — The connect was still in flight after `$within`.; `IOError` — The operating system refused the path — nothing is bound there, no permission, or a name too long for the platform.
 
 <a id="core-core-net-listenlocal"></a>
 #### `Core\Net::listenLocal`
@@ -23536,7 +23536,7 @@ Waits for the next client to connect, for no longer than `$within`, and returns 
 
 **Returns** `Core\Net\Stream` — The connection to the client. The request closes it when it ends, if the program has not closed it before.
 
-**Throws** `RuntimeError` — This handle is closed.; `TimeoutError` — No connection arrived within `$within`.; `IOError` — The operating system failed the accept.
+**Throws** `RuntimeError` — This handle is closed, or `$within` is not a positive length of time.; `TimeoutError` — No connection arrived within `$within`.; `IOError` — The operating system failed the accept.
 
 <a id="core-core-net-listener-port"></a>
 #### `Core\Net\Listener->port`
@@ -23594,7 +23594,7 @@ Sends one datagram to `$host` on `$port` and answers how many octets went. Needs
 
 **Returns** `uint` — How many octets went, which is `$payload`'s length on every success.
 
-**Throws** `RuntimeError` — The configuration does not grant `net.connect` for this host, the host resolves to no address, the address it resolves to is in a denied range, `$port` is not a port, or this handle is closed.; `TimeoutError` — The socket would not take the message within `$within`.; `IOError` — The operating system refused the send — the message is over the maximum size, or the network is unreachable.
+**Throws** `RuntimeError` — The configuration does not grant `net.connect` for this host, the host resolves to no address, the address it resolves to is in a denied range, `$port` is not a port, this handle is closed, or `$within` is not a positive length of time.; `TimeoutError` — The socket would not take the message within `$within`.; `IOError` — The operating system refused the send — the message is over the maximum size, or the network is unreachable.
 
 <a id="core-core-net-datagram-receive"></a>
 #### `Core\Net\Datagram->receive`
@@ -23612,7 +23612,7 @@ Waits for one datagram, no longer than `$within`, and answers it together with w
 
 **Returns** `Core\Net\Datagram\Message` — A `Core\Net\Datagram\Message` carrying the octets and the endpoint they came from.
 
-**Throws** `RuntimeError` — This handle is closed.; `TimeoutError` — No datagram arrived within `$within`.; `IOError` — The operating system failed the receive — on Windows, this is also how an earlier send of this socket's is reported unreachable.
+**Throws** `RuntimeError` — This handle is closed, or `$within` is not a positive length of time.; `TimeoutError` — No datagram arrived within `$within`.; `IOError` — The operating system failed the receive — on Windows, this is also how an earlier send of this socket's is reported unreachable.
 
 <a id="core-core-net-datagram-port"></a>
 #### `Core\Net\Datagram->port`
@@ -24399,7 +24399,7 @@ Calls `$object`'s `$name` method with `$arguments`, under exactly the visibility
 |---|---|---|
 | `$object` | `mixed` | An instance of the described class — the description is of a class, so the value to call on is named here rather than held. |
 | `$name` | `string` (neutral) | The method's name, `()` excluded, as the declaration writes it. |
-| `$arguments` | `array<mixed>` | One entry per declared parameter, in order, keys ignored. Required even where the method takes none, which is then `[]`. |
+| `$arguments` | `array<mixed>` | One entry per declared parameter, in order, keys ignored. Entries after the last parameter are ignored. Required even where the method takes none, which is then `[]`. |
 
 **Returns** `mixed` — Whatever the method returned, with its own declared type erased to `mixed`.
 
@@ -24416,7 +24416,7 @@ Builds an instance of the described class, running its constructor with `$argume
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$arguments` | `array<mixed>` | One entry per declared constructor parameter, in order, keys ignored. Required even where the class declares no constructor, which is then `[]`. |
+| `$arguments` | `array<mixed>` | One entry per declared constructor parameter, in order, keys ignored. Entries after the last parameter are ignored. Required even where the class declares no constructor, which is then `[]`. |
 
 **Returns** `mixed` — The new instance, with its own class erased to `mixed`. A class declaring no constructor answers with the allocation its declared defaults armed.
 

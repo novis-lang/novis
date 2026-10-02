@@ -46,4 +46,17 @@ goal promised and did not build is not here: it is a gap record under `data/gaps
 `m5-proofs`, `m4b-editor`, `m7-server-surface`, `m8-db-queue`, `m8-stdlib-depth`, `unowned-closures`,
 `class-scoped-types`, `worker-placement`, `core-class-tests`, `tds-bytes`, `cache-shared-dial`,
 `decided-closures`, `one-type-test`, `test-doubles`, `gap-zero`, `dossier`, `config-directives-1-3`,
-`config-directives-2-3`, `config-directives-3-3`, `types-enum-1-2`.
+`config-directives-2-3`, `config-directives-3-3`, `types-enum-1-2`, `types-enum-2-2`, `types-exception`,
+`types-interface`, `lang-programs`, `lang-types`, `lang-expressions`, `lang-statements`, `lang-classes`,
+`lang-enums`, `lang-iteration`, `lang-errors`, `lang-concurrency`, `lang-attributes`, `lang-testing`,
+`core-arr-1-4`, `core-arr-2-4`, `core-arr-3-4`, `core-arr-4-4`, `core-ast-and-2-more`, `core-bigint-1-2`,
+`core-bigint-2-2`, `core-budget`, `core-bytes`, `core-cache-and-5-more`, `core-cli-and-2-more`,
+`core-cli-progress-and-6-more`, `core-config`, `core-crypto-and-2-more`, `core-csrf-and-3-more`,
+`core-db-connection-and-2-more`, `core-db-row`, `core-db-rows-and-1-more`, `core-db-transaction-and-1-more`,
+`core-debug`, `core-decimal`, `core-encoding`, `core-env-and-4-more`, `core-html-and-1-more`,
+`core-http-client-and-2-more`, `core-http-response-and-1-more`, `core-http-socket-and-1-more`,
+`core-http-stream`, `core-io-1-2`, `core-io-2-2`, `core-io-file-and-1-more`, `core-json-and-6-more`,
+`core-math-1-3`, `core-math-2-3`, `core-math-3-3`, `core-metrics-and-4-more`, `core-net-listener-and-1-more`,
+`core-objectmap`, `core-objectset`, `core-os-and-2-more`, `core-path`, `core-process-and-4-more`,
+`core-queue-stats`, `core-random-and-1-more`, `core-ratelimit-and-3-more`,
+`core-reflect-classinfo-and-1-more`, `core-reflect-enuminfo-and-3-more`.
