@@ -6627,16 +6627,17 @@ class Deploy {
 `float` is not a type an option of `deploy` can be given at
 ```
 
-### `Core\Program::implementing<I>()`: every class implementing an interface
+### `Core\Program::implementing<I>()`: every class that is an `I`
 
 `Core\Program::implementing<I>()` expands, while compiling, to an array literal of `new C()` for
-every non-abstract class in the program that implements the interface `I`, **sorted by
-fully-qualified name**, so the order never depends on the file system. The classes are found by the
+every non-abstract class `C` in the program where `$c is I` holds, **sorted by fully-qualified
+name**, so the order never depends on the file system. `I` is an interface or a class. The classes are found by the
 `autoload` scan ([programs](#lang-programs)) even when nothing else names them, which is how the
 route and command tables find theirs too.
 
-- `I` must be an interface; a class or a shape is refused. Every implementing class needs a
-  constructor callable with no arguments — dependencies arrive through `I`'s own methods.
+- `I` is an interface, or a class with or without `abstract`. A class that is not abstract is in
+  its own list. An enum, a shape or a scalar is refused. Every listed class needs a constructor
+  callable with no arguments — dependencies arrive through `I`'s own methods.
 - The instances are built where the call stands, once per evaluation, like any other `new`.
 - An interface nothing implements answers `[]`.
 
@@ -17595,9 +17596,9 @@ id is 64 characters, and stable within the run: yes
 Core\Program::implementing<T>(): array<T>
 ```
 
-Returns a new object of every class that implements the interface `T`. You write the interface between `<` and `>`: `Core\Program::implementing<Module>()`. Abstract classes are not included. Each class needs a constructor without arguments, or the program does not compile. Novis finds the classes when it compiles the program, so nothing is searched while it runs.
+Returns a new object of every class that is a `T`. `T` is an interface or a class, and you write it between `<` and `>`: `Core\Program::implementing<Module>()`. When `T` is a class that is not abstract, `T` itself is in the list. Abstract classes are not included. Each class needs a constructor without arguments, or the program does not compile. Novis finds the classes when it compiles the program, so nothing is searched while it runs.
 
-**Returns** `array<T>` — An `array<T>` with one new object per class, sorted by class name. Every call creates new objects. The array is empty when no class implements `T`.
+**Returns** `array<T>` — An `array<T>` with one new object per class, sorted by class name. Every call creates new objects. The array is empty when no class is a `T`.
 
 <a id="core-core-program-implementingwith"></a>
 #### `Core\Program::implementingWith`
@@ -17606,7 +17607,7 @@ Returns a new object of every class that implements the interface `T`. You write
 Core\Program::implementingWith<I, T>(string $member = ""): array<{instance: I, attribute: ?T}>
 ```
 
-Returns the same objects as `implementing<I>()`, each with one attribute of its class. You write the interface `I` and the shape `T` of the attribute between `<` and `>`: `Core\Program::implementingWith<Page, {path: string}>("render")`. Novis reads the attributes when it compiles the program, so nothing is searched while it runs.
+Returns the same objects as `implementing<I>()`, each with one attribute of its class. You write the interface or class `I` and the shape `T` of the attribute between `<` and `>`: `Core\Program::implementingWith<Page, {path: string}>("render")`. Novis reads the attributes when it compiles the program, so nothing is searched while it runs.
 
 | Parameter | Type | Meaning |
 |---|---|---|

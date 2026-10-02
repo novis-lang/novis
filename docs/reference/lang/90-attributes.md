@@ -637,16 +637,17 @@ class Deploy {
 `float` is not a type an option of `deploy` can be given at
 ```
 
-# `Core\Program::implementing<I>()`: every class implementing an interface
+# `Core\Program::implementing<I>()`: every class that is an `I`
 
 `Core\Program::implementing<I>()` expands, while compiling, to an array literal of `new C()` for
-every non-abstract class in the program that implements the interface `I`, **sorted by
-fully-qualified name**, so the order never depends on the file system. The classes are found by the
+every non-abstract class `C` in the program where `$c is I` holds, **sorted by fully-qualified
+name**, so the order never depends on the file system. `I` is an interface or a class. The classes are found by the
 `autoload` scan ([programs](#lang-programs)) even when nothing else names them, which is how the
 route and command tables find theirs too.
 
-- `I` must be an interface; a class or a shape is refused. Every implementing class needs a
-  constructor callable with no arguments — dependencies arrive through `I`'s own methods.
+- `I` is an interface, or a class with or without `abstract`. A class that is not abstract is in
+  its own list. An enum, a shape or a scalar is refused. Every listed class needs a constructor
+  callable with no arguments — dependencies arrive through `I`'s own methods.
 - The instances are built where the call stands, once per evaluation, like any other `new`.
 - An interface nothing implements answers `[]`.
 

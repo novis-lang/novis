@@ -23,10 +23,10 @@
 //! time this pass runs, `Env::graph` holds every declaration the answer is
 //! drawn from, so the whole of this module is a lookup and two refusals.
 //!
-//! The two refusals are § 3's own sentences, and each is reported at the call:
-//! `T` must be an interface (`E0743`), and every class the enumeration would
-//! instantiate needs a no-argument constructor (`E0744`). Their own `Code`
-//! doc comments own why each is refused rather than worked around.
+//! The two refusals are each reported at the call: `T` must be an interface
+//! or a class (`E0743`), and every class the enumeration would instantiate
+//! needs a no-argument constructor (`E0744`). Their own `Code` doc comments
+//! own why each is refused rather than worked around.
 
 use nvs_diagnostics::{Diagnostic, code};
 use nvs_hir::{QName, SymbolKind};
@@ -84,11 +84,11 @@ pub(crate) fn expand(
         // has already been made; a second one names the same mistake twice.
         return;
     };
-    let Some(interface) = interface_of(call, "implementing", want, env) else {
+    let Some(selector) = selector_of(call, "implementing", want, env) else {
         return;
     };
-    let classes = nvs_hir::implementors(&interface, env.graph);
-    let Some(ctors) = constructors_of(&classes, &interface, call, live, scope, ctx, env) else {
+    let classes = nvs_hir::implementors(&selector, env.graph);
+    let Some(ctors) = constructors_of(&classes, &selector, call, live, scope, ctx, env) else {
         return;
     };
     env.exprs
@@ -121,13 +121,13 @@ pub(crate) fn expand_with(
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
 ) -> TypeId {
-    let (Some(want_interface), Some(want_shape)) =
+    let (Some(want_selector), Some(want_shape)) =
         (written.first().copied(), written.get(1).copied())
     else {
         // The type-argument count is `check_written_type_args`' refusal.
         return env.interner.mixed();
     };
-    let Some(interface) = interface_of(call, WITH, want_interface, env) else {
+    let Some(selector) = selector_of(call, WITH, want_selector, env) else {
         return env.interner.mixed();
     };
     if !matches!(env.interner.get(want_shape), Ty::Shape(_)) {
@@ -159,8 +159,8 @@ pub(crate) fn expand_with(
     });
     let computed_member = member_arg.is_some() && member_name.is_none();
 
-    let classes = nvs_hir::implementors(&interface, env.graph);
-    let Some(ctors) = constructors_of(&classes, &interface, call, live, scope, ctx, env) else {
+    let classes = nvs_hir::implementors(&selector, env.graph);
+    let Some(ctors) = constructors_of(&classes, &selector, call, live, scope, ctx, env) else {
         return env.interner.mixed();
     };
     let mut payloads = Vec::with_capacity(classes.len());
@@ -185,9 +185,9 @@ pub(crate) fn expand_with(
                         )
                         .with_primary(span, "no method, parameter or property of that name")
                         .with_help(format!(
-                            "`rule:programs/implementing-with`: the member is read on every class implementing \
-                             `{interface}`, so it is checked against each one's real declarations — \
-                             name a member `{interface}` declares, or the empty string for the \
+                            "`rule:programs/implementing-with`: the member is read on every class listed \
+                             for `{selector}`, so it is checked against each one's real declarations — \
+                             name a member `{selector}` declares, or the empty string for the \
                              class's own attributes"
                         )),
                     );
@@ -239,7 +239,7 @@ pub(crate) fn expand_with(
     let row = env.interner.shape(vec![
         ShapeField {
             name: "instance".to_owned(),
-            ty: want_interface,
+            ty: want_selector,
             required: true,
         },
         ShapeField {
@@ -251,26 +251,34 @@ pub(crate) fn expand_with(
     env.interner.array(row)
 }
 
-/// The interface a written type argument names, or `None` after reporting
-/// `E0743` — § 3's first refusal, shared by both enumerations.
-fn interface_of(call: &Expr, member: &str, want: TypeId, env: &mut Env<'_>) -> Option<QName> {
+/// The interface or class a written type argument names, or `None` after
+/// reporting `E0743` — the selector's one refusal, shared by both
+/// enumerations.
+///
+/// A class is accepted abstract or not. What the enumeration then lists is
+/// [`nvs_hir::implementors`]' answer for it: every non-abstract class that is
+/// a `T`, the class itself included when it is concrete.
+fn selector_of(call: &Expr, member: &str, want: TypeId, env: &mut Env<'_>) -> Option<QName> {
     let found = class_qname_of(want, env.interner).filter(|qname| {
         env.symbols
             .get(qname)
-            .is_some_and(|sym| sym.kind == SymbolKind::Interface)
+            .is_some_and(|sym| matches!(sym.kind, SymbolKind::Interface | SymbolKind::Class))
     });
     if found.is_none() {
         let found = env.interner.describe(want);
         env.diags.report(
             Diagnostic::error(
-                code::E_PROGRAM_TYPE_ARG_NOT_AN_INTERFACE,
-                format!("`Core\\Program::{member}` enumerates an interface, and `{found}` is not one"),
+                code::E_PROGRAM_TYPE_ARG_NOT_A_CLASS_OR_INTERFACE,
+                format!(
+                    "`Core\\Program::{member}` enumerates an interface or a class, and `{found}` \
+                     is neither"
+                ),
             )
             .with_primary(call.span, format!("`{found}` written here"))
             .with_help(
-                "`rule:programs/implementing`: the interface is what gives the enumerated instances a static \
-                 type — `object` is opaque and a shape describes data rather than methods, so \
-                 an array of anything else is one nothing can be called on",
+                "`rule:programs/implementing`: the type argument is what gives the enumerated instances \
+                 a static type — `object` is opaque and a shape describes data rather than methods, \
+                 so an array of anything else is one nothing can be called on",
             ),
         );
     }
@@ -287,7 +295,7 @@ fn interface_of(call: &Expr, member: &str, want: TypeId, env: &mut Env<'_>) -> O
 /// left every optional parameter unset — a `float $value = 1013.0` read `0`.
 fn constructors_of(
     classes: &[QName],
-    interface: &QName,
+    selector: &QName,
     call: &Expr,
     live: &mut FxHashSet<String>,
     scope: &LocalScope,
@@ -309,7 +317,7 @@ fn constructors_of(
                 Diagnostic::error(
                     code::E_PROGRAM_IMPLEMENTOR_NEEDS_NO_ARGUMENT_CONSTRUCTOR,
                     format!(
-                        "`{class}` implements `{interface}` and its constructor takes {} \
+                        "`{class}` is a `{selector}` and its constructor takes {} \
                          required argument(s)",
                         sig.required()
                     ),
@@ -321,8 +329,8 @@ fn constructors_of(
                 .with_help(format!(
                     "`rule:programs/implementing`: every class the enumeration instantiates needs a \
                      no-argument constructor, and dependencies arrive through \
-                     `{interface}`'s own methods instead — give `{class}` a \
-                     zero-argument `constructor`, or drop its `implements` clause",
+                     `{selector}`'s own methods instead — give `{class}` a \
+                     zero-argument `constructor`",
                 )),
             );
             return None;
@@ -428,22 +436,57 @@ mod tests {
         assert_eq!(labels, [Some("Alpha::constructor".to_owned()), None]);
     }
 
-    /// § 3's "`T` must be an interface type", reported where the type argument
-    /// is written. A class satisfies every *other* thing the signature asks
-    /// for — it is a named type, and one `new` could be written for it — so
-    /// this is the refusal that keeps the enumeration's static-type promise.
+    /// `rule:programs/implementing`'s class selector: an abstract base lists
+    /// its concrete descendants, a concrete class in the middle is in its own
+    /// list, and a class two levels down is reached through both. The answer
+    /// is asserted whole, so a walk that missed the reflexive case or the
+    /// second level fails here.
     #[test]
-    fn program_implementing_refuses_a_non_interface_type_argument() {
+    fn program_implementing_takes_a_class_and_lists_every_concrete_subclass() {
         let (exprs, span, diags) = check(
             "<?nvs\n\
-             class Alpha {}\n\
-             Core\\Program::implementing<Alpha>();\n",
+             abstract class Exporter {}\n\
+             class Csv extends Exporter {}\n\
+             class Tsv extends Csv {}\n\
+             abstract class Partial extends Csv {}\n\
+             class Wide extends Partial {}\n\
+             class Loose {}\n\
+             Core\\Program::implementing<Exporter>();\n",
+        );
+        assert!(!diags.has_errors(), "fixture failed to check: {diags:?}");
+        let Some(ExprInfo::ProgramInstances { classes, .. }) = exprs.lookup(span) else {
+            panic!("the call recorded no expansion: {:?}", exprs.lookup(span));
+        };
+        let names: Vec<String> = classes.iter().map(ToString::to_string).collect();
+        assert_eq!(names, ["Csv", "Tsv", "Wide"]);
+
+        let (exprs, span, diags) = check(
+            "<?nvs\n\
+             class Csv {}\n\
+             class Tsv extends Csv {}\n\
+             Core\\Program::implementing<Csv>();\n",
+        );
+        assert!(!diags.has_errors(), "fixture failed to check: {diags:?}");
+        let Some(ExprInfo::ProgramInstances { classes, .. }) = exprs.lookup(span) else {
+            panic!("the call recorded no expansion: {:?}", exprs.lookup(span));
+        };
+        let names: Vec<String> = classes.iter().map(ToString::to_string).collect();
+        assert_eq!(names, ["Csv", "Tsv"], "a concrete `T` is in its own list");
+    }
+
+    /// The selector's one refusal, reported where the type argument is
+    /// written: an enum is a named type that is neither an interface nor a
+    /// class, so it is the case a check for "any named type" would let through.
+    #[test]
+    fn program_implementing_refuses_a_type_argument_that_is_neither_an_interface_nor_a_class() {
+        let (exprs, span, diags) = check(
+            "<?nvs\n\
+             enum Suit { Hearts = 1 }\n\
+             Core\\Program::implementing<Suit>();\n",
         );
         assert!(
-            diags
-                .iter()
-                .any(|d| d.code
-                    == Some(nvs_diagnostics::code::E_PROGRAM_TYPE_ARG_NOT_AN_INTERFACE)),
+            diags.iter().any(|d| d.code
+                == Some(nvs_diagnostics::code::E_PROGRAM_TYPE_ARG_NOT_A_CLASS_OR_INTERFACE)),
             "expected E0743, got: {diags:?}"
         );
         assert!(

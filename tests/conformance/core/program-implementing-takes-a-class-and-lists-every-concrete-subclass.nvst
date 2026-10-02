@@ -1,0 +1,61 @@
+--TEST--
+`Core\Program::implementing<T>()` and `implementingWith<T, S>()` take a class: an abstract base lists its concrete descendants, a concrete base is in its own list, and a class two levels down is reached, all sorted by fully-qualified name (`rule:programs/implementing`, `rule:programs/implementing-with`)
+--FILE--
+<?nvs
+// covers: Core\Program::implementing
+// Membership is `$c is T` for a non-abstract `$c`. `Partial` is abstract, so it
+// is never listed, and `Wide` is listed through it. `Loose` is no `Exporter`.
+// The classes are declared out of order, so the printed order is the sort.
+abstract class Exporter {
+    public function name(): string { return "exporter"; }
+}
+
+class Pretty extends Json {
+    public function name(): string { return "pretty"; }
+}
+
+class Json extends Exporter {
+    public function name(): string { return "json"; }
+}
+
+abstract class Partial extends Exporter {}
+
+class Wide extends Partial {
+    public function name(): string { return "wide"; }
+}
+
+class Csv extends Exporter {
+    public function name(): string { return "csv"; }
+}
+
+class Loose {
+    public function name(): string { return "loose"; }
+}
+
+// An abstract base: every concrete class below it, at any depth.
+foreach (Core\Program::implementing<Exporter>() as Exporter $exporter) {
+    echo $exporter->name(), "\n";
+}
+echo "--\n";
+
+// A concrete base: the class itself, then its subclasses.
+foreach (Core\Program::implementing<Json>() as Json $json) {
+    echo $json->name(), "\n";
+}
+echo "--\n";
+
+// The joined form selects the same classes in the same order.
+foreach (Core\Program::implementingWith<Json, {label: string}>() as var $row) {
+    echo $row->instance->name(), " ", $row->attribute?->label ?? "none", "\n";
+}
+--EXPECT--
+csv
+json
+pretty
+wide
+--
+json
+pretty
+--
+json none
+pretty none

@@ -733,10 +733,12 @@ fn implements_interface_rec(
 /// than the rendered string, matching [`crate::AutoloadMap::render`]'s own
 /// ordering, so `Acme\App` sorts against `AcmeApp` the same way in both.
 ///
-/// `target` itself never appears in the answer even though
-/// [`implements_interface`] is reflexive: an interface is not a class, so
-/// its own entry carries [`ClassLinks::concrete`] `false`. Neither does a
-/// class that reaches `target` only through an abstract intermediate — the
+/// `target` may be an interface or a class, and [`implements_interface`]
+/// walks `extends` and `implements` alike, so a class lists its descendants.
+/// The walk is reflexive and the filter is [`ClassLinks::concrete`], so
+/// `target` is in its own answer exactly when it is a non-abstract class: an
+/// interface or an abstract class carries `concrete` `false`. A class that
+/// reaches `target` only through an abstract intermediate is listed — the
 /// intermediate is filtered, not the walk through it.
 ///
 /// The answer is over the declarations the graph *holds*. What makes that

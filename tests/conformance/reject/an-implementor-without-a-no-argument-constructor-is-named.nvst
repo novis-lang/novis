@@ -60,7 +60,7 @@ class Needy implements Module
 --EXPECT--
 
 --EXPECTF-ERROR--
-error[E0744]: `App\Needy` implements `App\Module` and its constructor takes 1 required argument(s)
+error[E0744]: `App\Needy` is a `App\Module` and its constructor takes 1 required argument(s)
    --> case.nvs:16:14
 %A
 error: aborting due to 1 error

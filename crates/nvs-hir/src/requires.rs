@@ -755,9 +755,9 @@ fn record_class_literal(operand: &Expr, ty: &Type, src: &SourceFile, out: &mut H
 const PROGRAM_CLASS: &str = r"Core\Program";
 /// The `Core\Program` members that expand to the enumeration, and so need
 /// every class the autoload roots declare. Each one alone opts the program
-/// in: a program that calls only `implementingWith` lists the same classes
-/// `implementing` would.
-const PROGRAM_SCAN_MEMBERS: &[&str] = &["implementing", "implementingWith"];
+/// in: a program that calls only `implementingWith` or only `constructors`
+/// lists the same classes `implementing` would.
+const PROGRAM_SCAN_MEMBERS: &[&str] = &["implementing", "implementingWith", "constructors"];
 const ROUTER_CLASS: &str = r"Core\Router";
 /// The `Core\Router` members whose answer comes from the route table, and so
 /// need the scan that builds it: the three link builders resolve a route name
@@ -3054,6 +3054,37 @@ class Unreached {}
         );
 
         let (module, diags) = resolve_entry(&dir, "with.nvs");
+        assert!(!diags.has_errors(), "{diags:?}");
+        assert!(module.symbols.contains(&QName::parse(r"Framework\Mailer")));
+    }
+
+    /// `rule:programs/constructors` lists the classes `implementing` would, so
+    /// it opts the program into the same scan on its own, as
+    /// `implementing_with_alone_opts_the_program_into_the_scan` pins for
+    /// `implementingWith`.
+    #[test]
+    fn constructors_alone_opts_the_program_into_the_scan() {
+        let dir = TempDir::new("autoload-scan-constructors");
+        fs::create_dir_all(dir.path.join("src")).expect("create root");
+        dir.write(
+            "Bootstrap.nvs",
+            "<?nvs\nautoload 'Framework' from './src';\n",
+        );
+        dir.write(
+            "src/Mailer.nvs",
+            "<?nvs\nnamespace Framework;\nclass Mailer {}\n",
+        );
+        dir.write(
+            "make.nvs",
+            concat!(
+                "<?nvs\n",
+                "require './Bootstrap.nvs';\n",
+                "interface Module {}\n",
+                "var $rows = Core\\Program::constructors<Module, callable(): Module>();\n",
+            ),
+        );
+
+        let (module, diags) = resolve_entry(&dir, "make.nvs");
         assert!(!diags.has_errors(), "{diags:?}");
         assert!(module.symbols.contains(&QName::parse(r"Framework\Mailer")));
     }

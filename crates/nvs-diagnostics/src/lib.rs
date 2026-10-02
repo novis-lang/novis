@@ -3810,21 +3810,23 @@ pub mod code {
          have either type, and a variable cannot store the result of a `void` call.",
     );
 
-    /// `Core\Program::implementing<T>()`'s type argument is not an interface.
+    /// `Core\Program::implementing<T>()`'s type argument is neither an
+    /// interface nor a class.
     ///
-    /// `rule:programs/implementing` writes the constraint into the signature itself — "`T` must
-    /// be an interface type" — and the ADR says why it is not a convenience:
-    /// the interface is what gives `$module->register($this)` a static type,
-    /// where [`E_METHOD_ON_ERASED_RECEIVER`]'s `object` is opaque and a shape
-    /// describes data rather than methods. A class, an enum or a scalar written
-    /// here would enumerate something, but nothing could then be *called* on
-    /// what came back, so the answer would be an array nobody can use.
+    /// `rule:programs/implementing`: the type argument is what gives
+    /// `$module->register($this)` a static type, where
+    /// [`E_METHOD_ON_ERASED_RECEIVER`]'s `object` is opaque and a shape
+    /// describes data rather than methods. An interface and a class both give
+    /// one. An enum, a shape or a scalar written here would enumerate
+    /// something nothing could then be *called* on, so the answer would be an
+    /// array nobody can use.
     ///
     /// Reported where the type argument is written, in the same pass that
     /// expands the call, because the expansion needs the answer anyway.
-    pub const E_PROGRAM_TYPE_ARG_NOT_AN_INTERFACE: Code = Code::new("E0743").card(
-        "The type argument of `Core\\Program::implementing` must be an interface. Write the \
-         interface that the classes implement, for example `implementing<Module>()`.",
+    pub const E_PROGRAM_TYPE_ARG_NOT_A_CLASS_OR_INTERFACE: Code = Code::new("E0743").card(
+        "The type argument of `Core\\Program::implementing` must be an interface or a class. \
+         Write the interface the classes implement or the class they extend, for example \
+         `implementing<Module>()`.",
     );
 
     /// A class the enumeration would instantiate declares a constructor that
@@ -3832,8 +3834,8 @@ pub mod code {
     ///
     /// `rule:programs/implementing`: "Each such class needs a no-argument constructor; a
     /// diagnostic names any that does not, and dependencies arrive through the
-    /// interface's own methods instead." The call expands to one `new`
-    /// expression per implementor and there is no call site to write arguments
+    /// type argument's own methods instead." The call expands to one `new`
+    /// expression per listed class and there is no call site to write arguments
     /// at, so this is refused rather than defaulted — a constructor parameter
     /// with a default would otherwise make the enumeration silently pick it.
     ///
@@ -3844,7 +3846,7 @@ pub mod code {
     pub const E_PROGRAM_IMPLEMENTOR_NEEDS_NO_ARGUMENT_CONSTRUCTOR: Code = Code::new("E0744").card(
         "`Core\\Program::implementing` creates each class it finds with no arguments, and this \
          class has a constructor that takes arguments. Remove the constructor's parameters, and \
-         pass those values through a method of the interface instead.",
+         pass those values through a method of the interface or base class instead.",
     );
 
     /// Two `#[Option]`s of one `#[Command]` claim the same short or long
@@ -5134,11 +5136,11 @@ pub mod code {
     /// unreachable, and the members it did answer would be the ones a call site
     /// never dispatches through.
     ///
-    /// [`E_PROGRAM_TYPE_ARG_NOT_AN_INTERFACE`] is the same demand at
-    /// `rule:programs/implementing`'s enumeration, and the two keep separate
-    /// codes because they want the interface for different reasons — that one
-    /// for the static type its answers carry, this one for the contract its
-    /// declarations are.
+    /// [`E_PROGRAM_TYPE_ARG_NOT_A_CLASS_OR_INTERFACE`] is the nearest demand,
+    /// at `rule:programs/implementing`'s enumeration, and it accepts a class:
+    /// that one wants only the static type its answers carry, which a class
+    /// gives too, and this one wants the contract an interface's declarations
+    /// are.
     ///
     /// A type argument that is not a class or interface *name* at all takes
     /// [`E_TYPE_ARG_NOT_A_CLASS`] instead, so one mistake is still one

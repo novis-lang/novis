@@ -31,8 +31,8 @@
 //! It is **not** one of [`crate::registry::WRITTEN_CLASS_MEMBERS`], which
 //! `Core\Json::decodeAs` is: that roster puts the *written class's* descriptor
 //! in argument slot 0 for a helper to hydrate against, and this member has no
-//! helper to hand anything to. What `T` names here is an interface, which has
-//! no descriptor at all.
+//! helper to hand anything to. What `T` names here is an interface or a class,
+//! and the expansion writes its `new`s without either one's descriptor.
 //!
 //! # Why `id()` is the one member here that cannot be folded
 //!
@@ -58,12 +58,13 @@ use crate::registry::{
 /// every consumer that matches on it cannot drift apart.
 pub(crate) const NAME: &str = "Core\\Program";
 
-/// `T` — the interface the enumeration is asked for, written at the call site.
+/// `T` — the interface or class the enumeration is asked for, written at the
+/// call site.
 /// [`CoreTy::Written`] owns why a variable appearing in no parameter position
 /// has to be supplied there.
 const T: CoreTy = CoreTy::Written("T");
 
-/// `I` — `implementingWith`'s interface, the same type argument `implementing`
+/// `I` — `implementingWith`'s interface or class, the same type argument `implementing`
 /// calls `T`, renamed because that member's second variable is the shape.
 const I: CoreTy = CoreTy::Written("I");
 
@@ -129,29 +130,31 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 /// `Core\Program`'s class card — `rule:core-api/reference-card`.
 const PROGRAM_CARD: ClassDoc = ClassDoc {
     short: "Information about the whole program. `implementing` returns a new object of every \
-            class that implements an interface. `implementingWith` returns the same objects, each \
-            with one attribute of its class. Novis finds these classes when it compiles the \
-            program, so nothing is searched while it runs. `id` returns a text that identifies \
+            class that implements an interface or extends a class. `implementingWith` returns the \
+            same objects, each with one attribute of its class. Novis finds these classes when \
+            it compiles the program, so nothing is searched while it runs. `id` returns a text that identifies \
             this version of the program.",
 };
 
 /// `Core\Program::implementing`'s reference card — `rule:core-api/reference-card`.
 const IMPLEMENTING_DOC: MethodDoc = MethodDoc {
-    short: "Returns a new object of every class that implements the interface `T`. You write the \
-            interface between `<` and `>`: `Core\\Program::implementing<Module>()`. Abstract \
-            classes are not included. Each class needs a constructor without arguments, or the \
-            program does not compile. Novis finds the classes when it compiles the program, so \
-            nothing is searched while it runs.",
+    short: "Returns a new object of every class that is a `T`. `T` is an interface or a class, \
+            and you write it between `<` and `>`: `Core\\Program::implementing<Module>()`. When \
+            `T` is a class that is not abstract, `T` itself is in the list. Abstract classes are \
+            not included. Each class needs a constructor without arguments, or the program does \
+            not compile. Novis finds the classes when it compiles the program, so nothing is \
+            searched while it runs.",
     params: &[],
     ret: "An `array<T>` with one new object per class, sorted by class name. Every call creates \
-          new objects. The array is empty when no class implements `T`.",
+          new objects. The array is empty when no class is a `T`.",
     errors: &[],
 };
 
 /// `Core\Program::implementingWith`'s reference card — `rule:core-api/reference-card`.
 const IMPLEMENTING_WITH_DOC: MethodDoc = MethodDoc {
     short: "Returns the same objects as `implementing<I>()`, each with one attribute of its class. \
-            You write the interface `I` and the shape `T` of the attribute between `<` and `>`: \
+            You write the interface or class `I` and the shape `T` of the attribute between `<` \
+            and `>`: \
             `Core\\Program::implementingWith<Page, {path: string}>(\"render\")`. Novis reads the \
             attributes when it compiles the program, so nothing is searched while it runs.",
     params: &[ParamDoc {
