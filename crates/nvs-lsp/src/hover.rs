@@ -82,6 +82,14 @@
 //! second spelling. What it adds is which parameter the cursor is on, counted
 //! off the argument spans the parser produced rather than off commas looked
 //! for here.
+//!
+//! **A string argument equal to a completion file's value shows that value.**
+//! [`file_value`] reads the values completion offers at the same argument,
+//! from the attachments that apply at the call
+//! (`rule:ide/completion-files-offer-values-at-named-parameters`), and the one
+//! whose `value` is the literal's text answers with its `title` and its
+//! documentation, a relative link resolved against the completion file's
+//! folder. A value that gives neither answers nothing here.
 
 use std::borrow::Cow;
 use std::fmt::Write as _;
@@ -99,6 +107,7 @@ use nvs_syntax::{DOC_MARKER, IndexNode};
 use nvs_types::{ExprInfo, ResolvedCall, TypeInterner};
 
 use crate::card::{core_member_hover, core_type_hover, namespace_card};
+use crate::completion_files::CompletionFiles;
 use crate::definition::{Target, attribute_at, class_literal_at, payload_path, site, target_of};
 use crate::document::Analysed;
 use crate::position::range_at;
@@ -109,7 +118,12 @@ use crate::position::range_at;
 /// documented or typed: no `///` run above the declaration its name reached, no
 /// registry row behind it, and no type recorded for the node itself.
 #[must_use]
-pub fn at(analysed: &Analysed, offset: BytePos, encoding: PositionEncoding) -> Option<Hover> {
+pub fn at(
+    analysed: &Analysed,
+    files: &CompletionFiles,
+    offset: BytePos,
+    encoding: PositionEncoding,
+) -> Option<Hover> {
     let nodes: Vec<Span> = analysed
         .index
         .at(offset)
@@ -120,6 +134,7 @@ pub fn at(analysed: &Analysed, offset: BytePos, encoding: PositionEncoding) -> O
     let (value, node) = autoload_prefix(analysed, offset)
         .or_else(|| class_literal(analysed, offset))
         .or_else(|| path_argument(analysed, offset))
+        .or_else(|| file_value(analysed, files, offset))
         .or_else(|| answer_in(analysed, &nodes, offset))
         .or_else(|| answer_in(analysed, &payload_path(analysed, offset), offset))
         .or_else(|| attribute(analysed, offset))?;
@@ -397,6 +412,28 @@ fn path_argument(analysed: &Analysed, offset: BytePos) -> Option<(String, Span)>
         format!("```text\n{}\n```\n\n{there}", target.display()),
         argument.span,
     ))
+}
+
+/// The `title` and documentation of the completion file's value whose `value`
+/// is the text of the string argument the cursor at `offset` is inside, and the
+/// literal's span. The values are the ones completion offers at that argument.
+fn file_value(
+    analysed: &Analysed,
+    files: &CompletionFiles,
+    offset: BytePos,
+) -> Option<(String, Span)> {
+    let named = crate::arguments::named_at(analysed, offset)?;
+    let text =
+        nvs_syntax::string_lit::cook_string_literal(analysed.map.file(analysed.entry), named.span);
+    let value = files
+        .values_at(&named.class, &named.method, &named.parameter, &named.others)
+        .into_iter()
+        .find(|value| value.value == text)?;
+    let parts: Vec<String> = [value.title.clone(), value.markdown()]
+        .into_iter()
+        .flatten()
+        .collect();
+    (!parts.is_empty()).then(|| (parts.join("\n\n"), named.span))
 }
 
 /// The namespace an `autoload` prefix maps and the directories a name under it

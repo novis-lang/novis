@@ -435,7 +435,10 @@ fn answer(
             }
         }
         GotoDefinition::METHOD => match serde_json::from_value::<GotoDefinitionParams>(params) {
-            Ok(params) => Response::new_ok(id, definition(documents, encoding, &params)),
+            Ok(params) => Response::new_ok(
+                id,
+                definition(documents, completion_files, encoding, &params),
+            ),
             Err(error) => unreadable(id, &method, &error),
         },
         // The same parameters as `definition`: LSP declares one position shape
@@ -456,7 +459,9 @@ fn answer(
             }
         }
         HoverRequest::METHOD => match serde_json::from_value::<HoverParams>(params) {
-            Ok(params) => Response::new_ok(id, hover(documents, encoding, &params)),
+            Ok(params) => {
+                Response::new_ok(id, hover(documents, completion_files, encoding, &params))
+            }
             Err(error) => unreadable(id, &method, &error),
         },
         SignatureHelpRequest::METHOD => {
@@ -669,6 +674,7 @@ fn semantic_tokens(
 /// [`definition::at`], which the `.lspt` suite calls too.
 fn definition(
     documents: &Documents,
+    completion_files: &CompletionFiles,
     encoding: PositionEncoding,
     params: &GotoDefinitionParams,
 ) -> Option<GotoDefinitionResponse> {
@@ -678,7 +684,7 @@ fn definition(
         &params.text_document_position_params.text_document.uri,
     )?;
     let offset = offset_at(analysed.map.file(analysed.entry), position, encoding);
-    let declared = definition::at(&analysed, offset, encoding)?;
+    let declared = definition::at(&analysed, completion_files, offset, encoding)?;
     Some(GotoDefinitionResponse::Scalar(Location {
         uri: uri_of(&declared.path)?,
         range: declared.range,
@@ -1197,6 +1203,7 @@ fn completion(
 /// drift apart.
 fn hover(
     documents: &Documents,
+    completion_files: &CompletionFiles,
     encoding: PositionEncoding,
     params: &HoverParams,
 ) -> Option<lsp_types::Hover> {
@@ -1206,7 +1213,7 @@ fn hover(
         &params.text_document_position_params.text_document.uri,
     )?;
     let offset = offset_at(analysed.map.file(analysed.entry), position, encoding);
-    hover::at(&analysed, offset, encoding)
+    hover::at(&analysed, completion_files, offset, encoding)
 }
 
 /// `textDocument/signatureHelp` — the row of the call the cursor is inside.

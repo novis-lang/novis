@@ -171,8 +171,13 @@ fn a_use_line_in_an_autoloaded_file_jumps_to_the_file_it_imports() {
     let analysed = analyse(&documents, &dir.uri("app/src/Index.nvs")).expect("it is open");
     let on_kernel = INDEX.find("Kernel;").expect("the import is written") + 3;
     let offset = u32::try_from(on_kernel).expect("a test document is short");
-    let declared = nvs_lsp::definition::at(&analysed, offset, PositionEncoding::Utf8)
-        .expect("the import resolved through the borrowed map");
+    let declared = nvs_lsp::definition::at(
+        &analysed,
+        &nvs_lsp::completion_files::CompletionFiles::default(),
+        offset,
+        PositionEncoding::Utf8,
+    )
+    .expect("the import resolved through the borrowed map");
     assert!(
         declared.path.ends_with("Framework/src/Kernel.nvs"),
         "{}",
@@ -383,8 +388,13 @@ fn a_braced_prefix_segment_hovers_as_the_directory_name_it_reaches() {
     let analysed = analyse(&documents, &dir.uri("Blog/public/index.nvs")).expect("it is open");
     let on_braces = boot.find("{..}").expect("the segment is written") + 1;
     let offset = u32::try_from(on_braces).expect("a test document is short");
-    let hover =
-        nvs_lsp::hover::at(&analysed, offset, PositionEncoding::Utf8).expect("the prefix hovers");
+    let hover = nvs_lsp::hover::at(
+        &analysed,
+        &nvs_lsp::completion_files::CompletionFiles::default(),
+        offset,
+        PositionEncoding::Utf8,
+    )
+    .expect("the prefix hovers");
     let lsp_types::HoverContents::Markup(markup) = hover.contents else {
         panic!("a hover is Markdown");
     };

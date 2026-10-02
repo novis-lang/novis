@@ -194,7 +194,13 @@ fn hovered(source: &str) -> (Analysed, Option<String>) {
     let cursor = source.find(CURSOR).expect("a cursor is written");
     let analysed = analysed(&source.replacen(CURSOR, "", 1));
     let at = u32::try_from(cursor).expect("a test document is short");
-    let value = hover::at(&analysed, at, nvs_diagnostics::PositionEncoding::Utf8).map(|hover| {
+    let value = hover::at(
+        &analysed,
+        &nvs_lsp::completion_files::CompletionFiles::default(),
+        at,
+        nvs_diagnostics::PositionEncoding::Utf8,
+    )
+    .map(|hover| {
         let lsp_types::HoverContents::Markup(markup) = hover.contents else {
             panic!("a hover is Markdown");
         };

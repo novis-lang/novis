@@ -86,6 +86,13 @@
 //! path the cursor is on. One that resolved to nothing answers nothing, and
 //! already carries its diagnostic.
 //!
+//! **A string argument equal to a completion file's value goes to its
+//! `location`.** [`file_value`] reads the values completion offers at the
+//! argument (`rule:ide/completion-files-offer-values-at-named-parameters`),
+//! and the one whose `value` is the literal's text answers the start of its
+//! 1-based line in its file. A value with no `location` answers nothing, and
+//! not the method the call resolved to either.
+//!
 //! **The whole graph, not the entry alone.** The cursor is always in the open
 //! document ([`crate::selection`]'s reasoning), but what it names may be
 //! declared in a required file — so the span answered here carries its own
@@ -106,6 +113,7 @@ use nvs_syntax::ast::{
 use nvs_types::{ExprInfo, ResolvedCall, Ty, TypeId, TypeInterner};
 use rustc_hash::FxHashMap;
 
+use crate::completion_files::CompletionFiles;
 use crate::document::Analysed;
 use crate::position::range_at;
 
@@ -126,11 +134,46 @@ pub struct Declared {
 /// `None` when the cursor is inside no node, when the node it is in resolved to
 /// no name this can follow, when the name is declared nowhere the analysis
 /// reached, or when it is declared in a file with no path — a `Core` class is
-/// the last of those, and it has no Novis declaration to open.
+/// the last of those, and it has no Novis declaration to open. A string
+/// argument equal to a value of `files` answers that value's `location`.
 #[must_use]
-pub fn at(analysed: &Analysed, offset: BytePos, encoding: PositionEncoding) -> Option<Declared> {
+pub fn at(
+    analysed: &Analysed,
+    files: &CompletionFiles,
+    offset: BytePos,
+    encoding: PositionEncoding,
+) -> Option<Declared> {
+    if let Some(located) = file_value(analysed, files, offset) {
+        return located;
+    }
     let (target, _) = named_at(analysed, offset)?;
     declared(analysed, &target, encoding)
+}
+
+/// The `location` of the completion file's value whose `value` is the text of
+/// the string argument the cursor at `offset` is inside, as the start of its
+/// line. The values are the ones completion offers at that argument. `None`
+/// where the text is no value, and `Some(None)` for a value with no
+/// `location`, which then has no definition.
+fn file_value(
+    analysed: &Analysed,
+    files: &CompletionFiles,
+    offset: BytePos,
+) -> Option<Option<Declared>> {
+    let named = crate::arguments::named_at(analysed, offset)?;
+    let text =
+        nvs_syntax::string_lit::cook_string_literal(analysed.map.file(analysed.entry), named.span);
+    let value = files
+        .values_at(&named.class, &named.method, &named.parameter, &named.others)
+        .into_iter()
+        .find(|value| value.value == text)?;
+    Some(value.location.clone().map(|(path, line)| {
+        let start = Position::new(line.get() - 1, 0);
+        Declared {
+            path,
+            range: Range::new(start, start),
+        }
+    }))
 }
 
 /// Where `target` is declared: the declaration the graph holds, or the stub
@@ -1558,7 +1601,13 @@ mod tests {
         let analysed = analyse(&documents, &uri).expect("an open document analyses");
         let found = source.find(written).expect("the document writes it") + written.len();
         let offset = u32::try_from(found).expect("a test document is short");
-        at(&analysed, offset, PositionEncoding::Utf8).map_or_else(
+        at(
+            &analysed,
+            &CompletionFiles::default(),
+            offset,
+            PositionEncoding::Utf8,
+        )
+        .map_or_else(
             || "none".to_owned(),
             |declared| {
                 format!(

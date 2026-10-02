@@ -489,7 +489,13 @@ fn selection_range(analysed: &Analysed, offset: BytePos) -> Response {
 /// lib/user.nvs--` section is therefore spelled `lib/user.nvs`, which is what
 /// makes a cross-file case readable.
 fn definition(analysed: &Analysed, files: &Materialised, offset: BytePos) -> Response {
-    let found = definition::at(analysed, offset, COLUMNS).map(|declared| Place {
+    let found = definition::at(
+        analysed,
+        &crate::completion_files::CompletionFiles::default(),
+        offset,
+        COLUMNS,
+    )
+    .map(|declared| Place {
         path: files.spelling(&declared.path),
         position: declared.range.start,
     });
@@ -531,7 +537,12 @@ fn completion(
 /// here rather than in a Rust test: the run is read the way a reader will see
 /// it. [`crate::hover::at`] is the same call the server makes.
 fn hover(analysed: &Analysed, offset: BytePos) -> Response {
-    Response::Hover(hover::at(analysed, offset, COLUMNS))
+    Response::Hover(hover::at(
+        analysed,
+        &crate::completion_files::CompletionFiles::default(),
+        offset,
+        COLUMNS,
+    ))
 }
 
 /// `textDocument/foldingRange` — where the entry document collapses.
