@@ -1,6 +1,6 @@
-// Every record type, in one list. The index builds a table for each, and `nv check` checks each. A
-// type is declared in a file of its own beside this one, with `defineRecord` from `../lib/schema.ts`,
-// and added here.
+// Every record type, in one list. The index builds a table for each, `nv check` checks each, and
+// `bun nv render` writes each one's JSON Schema to `data/schema/`. A type is declared in a file of its
+// own beside this one, with `defineRecord` from `../lib/schema.ts`, and added here.
 //
 // A file under `data/` belongs to the first type in this list whose directory and `idOf` accept it.
 // Two types share a directory only where their `idOf`s split it: a goal and its handoff, a topic and

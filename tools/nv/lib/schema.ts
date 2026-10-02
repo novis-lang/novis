@@ -1,6 +1,7 @@
 // The schema builder. One declaration gives three things: the static type (`Infer<typeof s>`), the
-// runtime check (`validate`), and a JSON Schema (`jsonSchema`), which the index hashes into its layout
-// fingerprint. A fourth falls out of the same walk: `ordered`, which puts an object's keys in
+// runtime check (`validate`), and a JSON Schema (`jsonSchema`). The index hashes the JSON Schema into
+// its layout fingerprint, and `bun nv render` writes it to `data/schema/<type>.schema.json` for the
+// website and editors. A fourth falls out of the same walk: `ordered`, which puts an object's keys in
 // declaration order and is how the writer makes every record's key order the schema's.
 //
 // A reference is declared with `s.ref("<record type>")`. It is an id at run time and a foreign key in

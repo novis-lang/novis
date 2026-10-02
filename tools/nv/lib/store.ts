@@ -22,6 +22,9 @@ export function dataDir(root: string = ROOT): string {
   return join(root, "data");
 }
 
+/** The JSON Schemas `bun nv render` writes, one per record type. They are under `data/` and are not records. */
+export const SCHEMA_DIR = "data/schema";
+
 /** The repo-relative path of the record `id` of `type`. */
 export function pathOf(type: RecordType<any>, id: string): string {
   return type.single ? `data/${type.dir}.json` : `data/${type.dir}/${id}${type.suffix ?? ".json"}`;
@@ -58,10 +61,12 @@ export function loadFile<T>(type: RecordType<T>, path: string, root: string = RO
   return { type, id, path, value: value as T, issues };
 }
 
-/** Every repo-relative `.json` path under `data/`, or under `data/<under>/` alone, sorted. */
+/** Every repo-relative `.json` path under `data/` outside `SCHEMA_DIR`, or under `data/<under>/` alone, sorted. */
 export function recordFiles(root: string = ROOT, under = ""): string[] {
   const out: string[] = [];
+  const schemas = join(root, SCHEMA_DIR);
   const walk = (dir: string) => {
+    if (dir === schemas) return;
     let entries;
     try {
       entries = readdirSync(dir, { withFileTypes: true });

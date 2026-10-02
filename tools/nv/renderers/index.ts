@@ -5,9 +5,10 @@
 
 import type { Renderer } from "../lib/render.ts";
 import { goalPlan } from "./goal-plan.ts";
+import { recordSchemas } from "./record-schemas.ts";
 import { websiteCore } from "./website-core.ts";
 import { websiteRules } from "./website-rules.ts";
 
-export const RENDERERS: Renderer[] = [websiteRules, goalPlan];
+export const RENDERERS: Renderer[] = [websiteRules, goalPlan, recordSchemas];
 
 export const WEBSITE_RENDERERS: Renderer[] = [websiteRules, websiteCore];

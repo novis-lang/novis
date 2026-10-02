@@ -7,6 +7,9 @@ import { chainGoals, liveGoal } from "../lib/chain.ts";
 import { ROOT } from "../lib/paths.ts";
 import { GOAL_PLAN, renderGoalPlan } from "../renderers/goal-plan.ts";
 import { apply, fill, lf, markdown, MARKER, orphans, removeOrphans } from "../lib/render.ts";
+import { recordFiles, SCHEMA_DIR } from "../lib/store.ts";
+import { recordSchemas, renderRecordSchemas } from "../renderers/record-schemas.ts";
+import { RECORDS } from "../schema/index.ts";
 import { isDraft, PAGES_DIR as CORE_DIR, parseSignature, websiteCore } from "../renderers/website-core.ts";
 import { PAGES_DIR, renderWebsiteRules, websiteRules } from "../renderers/website-rules.ts";
 import { scratch, type Scratch } from "./scratch.ts";
@@ -103,6 +106,18 @@ describe("render", () => {
     expect(rows).toEqual(goals.map((g) => [g.num, g.slug]));
     if (live) expect(plan.text).toContain(`\`${live.slug}\` is live at ${live.num} of ${goals.length}`);
     expect(plan.text.match(NUMBER_CITE)).toBeNull();
+  });
+
+  test("every record type has a JSON Schema under data/schema/, which no record walk reads", () => {
+    const outputs = renderRecordSchemas();
+    expect(outputs.map((o) => o.path)).toEqual(RECORDS.map((t) => `${SCHEMA_DIR}/${t.name}.schema.json`));
+    for (const o of outputs) {
+      const schema = JSON.parse(o.text);
+      expect(schema.$comment).toBe(MARKER);
+      expect(schema.$schema).toContain("json-schema.org");
+    }
+    expect(orphans([recordSchemas.owns!], outputs)).toEqual([]);
+    expect(recordFiles().filter((p) => p.startsWith(`${SCHEMA_DIR}/`))).toEqual([]);
   });
 
   test("two outputs for one path are an error", () => {
