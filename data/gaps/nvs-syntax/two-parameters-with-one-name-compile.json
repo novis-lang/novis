@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-syntax/src/parser/expr.rs",
+  "title": "Two parameters with the same name compile, and `E0107` is never raised.",
+  "text": "`public static function g(int $a, int $a): int { return $a; }` compiles, and `A::g(1, 2)` prints `2`. `crates/nvs-types/src/locals.rs:205` says the parser refuses a duplicate name with `E_BAD_PARAM_LIST` (`E0107`), and nothing does. `Parser::parse_param_list` (`crates/nvs-syntax/src/parser/expr.rs:1967`) is where a second parameter of one name should raise `E0107`, for a method, a closure and an arrow function alike. A required parameter after an optional one is already `E0452`, so `E0107`'s card is cut to the duplicate name in the same change.",
+  "goal": "goal-closeout"
+}
