@@ -278,11 +278,6 @@ pub struct Case {
     pub clean: Option<String>,
     /// `--ORACLE--` or `--ORACLE-DIVERGES--`.
     pub oracle: Option<Oracle>,
-    /// A section that parsed but cannot be honoured yet, and the milestone
-    /// that makes it reachable. A case carrying one is reported as a failure
-    /// rather than run, so nothing passes by ignoring half of what it asked
-    /// for.
-    pub unsupported: Option<String>,
 }
 
 impl Case {
@@ -323,7 +318,6 @@ fn err(message: impl Into<String>, line: Option<usize>) -> ParseError {
 const KNOWN: &[&str] = &[
     "TEST",
     "SKIPIF",
-    "INI",
     "ARGS",
     "ENV",
     "GET",
@@ -343,13 +337,6 @@ const KNOWN: &[&str] = &[
     "ORACLE-DIVERGES",
     "RUN",
 ];
-
-/// The `.phpt` sections that parse for the M11 importer's sake but have nothing
-/// to act on yet, each with what has to exist before it can be honoured.
-const NOT_YET: &[(&str, &str)] = &[(
-    "INI",
-    "`nvs.toml` is not read until M6 (`rule:config/the-file-is-nvs-toml-and-it-is-toml`), so an --INI-- section cannot be honoured",
-)];
 
 /// The one section name that takes an argument, and what the argument is.
 const TAKES_A_PATH: &str = "FILE";
@@ -648,10 +635,6 @@ pub fn parse(path: &Path, text: &str) -> Result<Case, ParseError> {
         ));
     }
 
-    let unsupported = NOT_YET.iter().find_map(|(name, why)| {
-        take(name).and_then(|(_, body)| (!body.trim().is_empty()).then(|| (*why).to_owned()))
-    });
-
     Ok(Case {
         path: path.to_path_buf(),
         title,
@@ -676,7 +659,6 @@ pub fn parse(path: &Path, text: &str) -> Result<Case, ParseError> {
             .map(|(_, body)| body)
             .filter(|body| !body.trim().is_empty()),
         oracle,
-        unsupported,
     })
 }
 
@@ -802,8 +784,6 @@ test
 --SKIPIF--
 <?nvs
 echo "skip - always";
---INI--
-memory_limit=1M
 --ARGS--
 first
 second
@@ -899,10 +879,6 @@ hi
             Some(Oracle::Diverges(
                 "PHP counts this one differently".to_owned()
             ))
-        );
-        assert!(
-            parsed.unsupported.is_some(),
-            "`--INI--` is not honoured yet"
         );
 
         let other = case(THE_OTHER_HALVES).expect("it parses");
@@ -1015,7 +991,6 @@ hi
         assert_eq!(parsed.file, "<?nvs\necho 1;\n");
         assert_eq!(parsed.expect, Some(Expectation::Exact("1\n".to_owned())));
         assert!(parsed.oracle.is_none());
-        assert!(parsed.unsupported.is_none());
     }
 
     #[test]
@@ -1127,9 +1102,6 @@ hi
         // over plaintext rather than one with a peer still to be decided.
         assert_eq!(request.client_ip, None);
         assert_eq!(request.scheme, None);
-        // Nothing about it is deferred: the runner writes the request beside
-        // the program and points `nvs run` at it (`crate::request`).
-        assert!(parsed.unsupported.is_none());
 
         let refused = case(&A_REQUEST.replace("--FILE--", "--RUN--\ntest\n--FILE--"))
             .expect_err("only `nvs run` takes a request");
@@ -1225,11 +1197,11 @@ hi
     }
 
     #[test]
-    fn the_deferred_section_parses_but_marks_the_case_unsupported() {
-        let parsed = case("--TEST--\nt\n--INI--\nx=1\n--FILE--\n<?nvs\n--EXPECT--\n\n")
-            .expect("a deferred section still parses");
-        let why = parsed.unsupported.expect("it marks the case unsupported");
-        assert!(why.contains("M6"), "{why}");
+    fn an_ini_section_is_refused_as_unknown() {
+        let e = case("--TEST--\nt\n--INI--\nx=1\n--FILE--\n<?nvs\n--EXPECT--\n\n")
+            .expect_err("Novis has no ini settings");
+        assert_eq!(e.message, "unknown section `--INI--`");
+        assert_eq!(e.line, Some(3));
     }
 
     /// [`Case::env`]'s rule at once: a line is split at its **first** `=` so a
@@ -1249,7 +1221,6 @@ hi
                 ("NVS_EMPTY".to_owned(), String::new()),
             ]
         );
-        assert!(parsed.unsupported.is_none());
     }
 
     /// A variable with no value and one set to the empty string are different
@@ -1260,13 +1231,6 @@ hi
             .expect_err("a line with no `=` is a parse error");
         assert_eq!(e.line, Some(5), "{e}");
         assert!(e.message.contains("`NAME=value`"), "{e}");
-    }
-
-    #[test]
-    fn an_empty_deferred_section_does_not_mark_the_case() {
-        let parsed = case("--TEST--\nt\n--INI--\n\n--FILE--\n<?nvs\n--EXPECT--\n\n")
-            .expect("an empty deferred section parses");
-        assert!(parsed.unsupported.is_none());
     }
 
     /// One line is one argument whatever it holds, and an empty line is not an

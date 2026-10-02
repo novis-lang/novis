@@ -26,9 +26,9 @@
 //! | `--FILE--` | the Novis program, required |
 //! | `--EXPECT--` | expected standard output, compared literally |
 //! | `--EXPECTF--` | expected standard output, with [`expect`]'s `%` escapes |
-//! | `--SKIPIF--` | a program whose output starting `skip` skips the case |
+//! | `--SKIPIF--` | a program whose output starting `skip` skips the case; one that exits non-zero fails it |
 //! | `--CLEAN--` | a program run afterwards, whose output is ignored |
-//! | `--INI--` | configuration for the run |
+
 //! | `--ARGS--` | the program's own arguments, one per line |
 //! | `--ENV--` | environment variables for the run, one `NAME=value` per line |
 //! | `--GET--` | the query string the case's request carries, on one line |

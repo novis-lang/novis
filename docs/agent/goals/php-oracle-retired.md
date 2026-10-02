@@ -133,10 +133,7 @@ Three file sets, in this order.
    unknown sections, refused with the error every unknown section gets. The `Oracle` enum, the `--php`
    flag and `php_available` are deleted. `crates/nvs-test/src/expect.rs:291`'s test is renamed for what
    the wildcards match, not for PHP. `crates/nvs-lsp/src/case.rs:639-641` keeps refusing the section in
-   an `.lspt`, because every unknown section is refused there.
-   **`--INI--` goes the same way.** It is parsed only so a `.phpt` importer could stay mechanical, and
-   nothing acts on it. It leaves the `NOT_YET` roster and becomes an unknown section. Gap
-   `data/gaps/nvs-test/ini-parses-and-nothing-can-act.json` is deleted with it.
+   an `.lspt`, because every unknown section is refused there. `--INI--` is already one.
 2. **The tree and the tools.** `git rm -r tests/differential`. Then `tools/nv/cmd/verify.ts:145` and
    `:904` (the step), `tools/nv/lib/chain.ts:119,147-150`, `tools/nv/cmd/gaps.ts` (`--differential`),
    `tools/nv/cmd/session.ts:223-227,1058`, `tools/nv/cmd/orient.ts:1451`, `tools/nv/cmd/proofs.ts:185`,

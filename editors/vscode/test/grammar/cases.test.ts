@@ -53,7 +53,7 @@ describe("the sections a case is made of", () => {
       "FILE",
       "FILE",
       "ARGS",
-      "INI",
+      "ENV",
       "EXPECT",
       "EXPECTF",
       "ORACLE",

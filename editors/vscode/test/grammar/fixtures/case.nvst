@@ -13,8 +13,8 @@ echo $u->name;
 function boot(): int { return 41; }
 --ARGS--
 --first
---INI--
-memory_limit=64M
+--ENV--
+NOVIS_X=1
 --EXPECT--
 41
 --EXPECTF--

@@ -75,7 +75,7 @@
     },
     "text-section": {
       "comment": "Every other section either format names. The body is literal — an expectation is compared byte for byte and colouring part of it would suggest the runner reads it as something. Only the delimiter is coloured, which is what tells a reader where one section ends. The longer spellings come first in the alternation so `EXPECT-ERROR` is read whole rather than as `EXPECT` followed by bytes that are not `--`.",
-      "begin": "^(--)(TEST|EXPECT-ERROR|EXPECT|ORACLE-DIVERGES|INI|ARGS|ENV|RUN|REQUEST)(--)$",
+      "begin": "^(--)(TEST|EXPECT-ERROR|EXPECT|ORACLE-DIVERGES|ARGS|ENV|RUN|REQUEST)(--)$",
       "beginCaptures": {
         "1": { "name": "punctuation.definition.section.nvst" },
         "2": { "name": "entity.name.section.nvst" },
