@@ -31,7 +31,7 @@ class Bench {
         while ($i < $rounds) {
             // Each round checks the token the round before chose, so no round can be left out.
             var $claims = Core\Jwt::verifyIssued<tainted {sub: string}>(
-                $tokens[$total % 2],
+                $tokens[($total % 2) as int],
                 $public,
                 "https://login.example.com",
                 "shop"

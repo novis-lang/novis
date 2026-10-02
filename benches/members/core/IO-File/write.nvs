@@ -11,7 +11,7 @@ class Bench {
         uint $size = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            uint $written = $file->write($lines[$total % 3]);
+            uint $written = $file->write($lines[($total % 3) as int]);
             $total = $total + $written;
             $size = $size + $written;
             // The file starts again at 1 MB, so the bench does not fill the disk.

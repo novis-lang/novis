@@ -12,7 +12,7 @@ class Bench {
         uint $i = 0;
         while ($i < $rounds) {
             // Chained: which price is split holds the count the last round made.
-            array<decimal> $parts = Core\Decimal::allocate($amounts[$total % 4], $evenly);
+            array<decimal> $parts = Core\Decimal::allocate($amounts[($total % 4) as int], $evenly);
             $total = $total + Core\Arr::count($parts);
             $i = $i + 1;
         }

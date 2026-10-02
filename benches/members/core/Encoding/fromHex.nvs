@@ -16,7 +16,7 @@ class Bench {
         while ($i < $rounds) {
             // Chained: the checksum read holds the count the round before gave.
             $total = $total + Core\Bytes::length(
-                Core\Encoding::fromHex($checksums[$total % 3]),
+                Core\Encoding::fromHex($checksums[($total % 3) as int]),
             );
             $i = $i + 1;
         }

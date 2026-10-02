@@ -13,7 +13,7 @@ class Bench {
         while ($i < $rounds) {
             // The password checked next depends on the last answer, so no
             // round can be skipped.
-            if (Core\Password::verify($typed[$total % 2], $stored)) {
+            if (Core\Password::verify($typed[($total % 2) as int], $stored)) {
                 $total = $total + 1;
             } else {
                 $total = $total + 3;

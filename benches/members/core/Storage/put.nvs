@@ -9,8 +9,8 @@ class Bench {
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            bytes $picture = $contents[$total % 2];
-            Core\Storage::put("bench", $keys[$total % 3], $picture);
+            bytes $picture = $contents[($total % 2) as int];
+            Core\Storage::put("bench", $keys[($total % 3) as int], $picture);
             $total = $total + Core\Bytes::length($picture);
             $i = $i + 1;
         }

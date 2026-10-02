@@ -13,7 +13,7 @@ class Bench {
         uint $i = 0;
         while ($i < $rounds) {
             // The path used next depends on the last result, so no round can be skipped.
-            string $way = Core\Path::relativeTo($paths[$total % 3], "/srv/shop/views/cart") ?? "";
+            string $way = Core\Path::relativeTo($paths[($total % 3) as int], "/srv/shop/views/cart") ?? "";
             $total = $total + Core\Str::length($way);
             $i = $i + 1;
         }

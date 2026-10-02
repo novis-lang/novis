@@ -17,7 +17,7 @@ class Bench {
         while ($i < $rounds) {
             // Chained: the value read this round comes from the count of the
             // rounds before it, so the two take turns.
-            $total = $total + (($values[$total % 2]->sign() + 2) as uint);
+            $total = $total + (($values[($total % 2) as int]->sign() + 2) as uint);
             $i = $i + 1;
         }
         return $total;

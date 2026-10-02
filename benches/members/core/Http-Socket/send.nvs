@@ -12,7 +12,7 @@ class Bench {
         uint $i = 0;
         while ($i < $rounds) {
             // Each round picks its message from what the round before counted.
-            string $update = $updates[$total % 3];
+            string $update = $updates[($total % 3) as int];
             $socket->send($update);
             $total = $total + Core\Str::length($update);
             $i = $i + 1;

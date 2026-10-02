@@ -9,7 +9,7 @@ class Bench {
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            $total = $total + Core\Arr::count(Core\Str::split($lists[$total % 3], ","));
+            $total = $total + Core\Arr::count(Core\Str::split($lists[($total % 3) as int], ","));
             $i = $i + 1;
         }
         return $total;

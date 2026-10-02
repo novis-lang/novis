@@ -16,7 +16,7 @@ class Bench {
         while ($i < $rounds) {
             // Chained: the secret read holds the count the round before gave.
             $total = $total + Core\Bytes::length(
-                Core\Encoding::fromBase32($secrets[$total % 3]),
+                Core\Encoding::fromBase32($secrets[($total % 3) as int]),
             );
             $i = $i + 1;
         }

@@ -24,7 +24,7 @@ class Bench {
         uint $i = 0;
         while ($i < $rounds) {
             // Chained: the text this round parses is picked by the last one.
-            var $sku = Sku::parse($codes[$total % 3]);
+            var $sku = Sku::parse($codes[($total % 3) as int]);
             $total = $total + Core\Str::length($sku->code);
             $i = $i + 1;
         }

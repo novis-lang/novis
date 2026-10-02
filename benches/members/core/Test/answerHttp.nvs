@@ -9,7 +9,7 @@ class Bench {
         uint $i = 0;
         while ($i < $rounds) {
             uint $status = 200 + ($total % 299);
-            Core\Test::answerHttp($urls[$total % 3], $status, {body: "ok"});
+            Core\Test::answerHttp($urls[($total % 3) as int], $status, {body: "ok"});
             $total = $total + $status;
             $i = $i + 1;
         }

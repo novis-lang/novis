@@ -18,7 +18,7 @@ class Bench {
         uint $i = 0;
         while ($i < $rounds) {
             // The line depends on the total so far, so no write can be skipped.
-            bytes $line = $lines[$total % 3];
+            bytes $line = $lines[($total % 3) as int];
             $program->writeStdin($line);
             $total = $total + Core\Bytes::length($line);
             $i = $i + 1;

@@ -9,7 +9,7 @@ class Bench {
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            tainted string $value = Core\Request::header($names[$total % 3]) ?? "";
+            tainted string $value = Core\Request::header($names[($total % 3) as int]) ?? "";
             $total = $total + Core\Str::length($value);
             $i = $i + 1;
         }

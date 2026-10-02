@@ -14,7 +14,7 @@ class Bench {
             array<string> $updated = Core\Arr::replaceRange($basket, 1, 1, $instead);
             // Last round's total decides which entry of the result this round
             // measures, so no round can be reused.
-            $total = $total + Core\Str::length($updated[$total % 4]);
+            $total = $total + Core\Str::length($updated[($total % 4) as int]);
             $i = $i + 1;
         }
         return $total;

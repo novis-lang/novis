@@ -14,7 +14,7 @@ class Bench {
         uint $i = 0;
         while ($i < $rounds) {
             // chained: last round's total picks the zone
-            Core\Time\DateTime $local = $now->in($zones[$total % 3]);
+            Core\Time\DateTime $local = $now->in($zones[($total % 3) as int]);
             $total = $total + $local->dayOfYear() % 13 + 1;
             $i = $i + 1;
         }

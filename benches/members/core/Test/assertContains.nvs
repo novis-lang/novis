@@ -8,7 +8,7 @@ class Bench {
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            Core\Test::assertContains($roles, $roles[$total % 4]);
+            Core\Test::assertContains($roles, $roles[($total % 4) as int]);
             $total = $total + 1 + ($total % 2);
             $i = $i + 1;
         }

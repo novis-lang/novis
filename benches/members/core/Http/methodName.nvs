@@ -14,7 +14,7 @@ class Bench {
         uint $i = 0;
         while ($i < $rounds) {
             // chained: the next method depends on the length of the last name
-            $total = $total + Core\Str::length(Core\Http::methodName($methods[($total + $i) % 4]));
+            $total = $total + Core\Str::length(Core\Http::methodName($methods[(($total + $i) % 4) as int]));
             $i = $i + 1;
         }
         return $total;

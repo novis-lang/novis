@@ -12,7 +12,7 @@ class Bench {
         uint $i = 0;
         while ($i < $rounds) {
             // Chained: which price is divided holds the last round's answer.
-            decimal $each = Core\Decimal::divExact($prices[$total % 4], $size);
+            decimal $each = Core\Decimal::divExact($prices[($total % 4) as int], $size);
             $total = $total + ($each as uint);
             $i = $i + 1;
         }

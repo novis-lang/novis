@@ -40,7 +40,7 @@ class Bench {
                 Core\Program::implementingWith<Check, Label>("name");
             // Chained: the row read this round is picked with the total the
             // round before left behind.
-            $total = $total + Core\Str::length($rows[$total % 3]->instance->name());
+            $total = $total + Core\Str::length($rows[($total % 3) as int]->instance->name());
             $i = $i + 1;
         }
         return $total;

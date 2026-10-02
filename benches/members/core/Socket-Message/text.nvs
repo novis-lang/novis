@@ -14,7 +14,7 @@ class Bench {
         uint $i = 0;
         while ($i < $rounds) {
             // chained: the next message depends on this one
-            if ($messages[$total % 3]->text() == null) {
+            if ($messages[($total % 3) as int]->text() == null) {
                 $total = $total + 1;
             } else {
                 $total = $total + 2;

@@ -29,7 +29,7 @@ class Bench {
         uint $i = 0;
         while ($i < $rounds) {
             // The next queue depends on the jobs counted so far.
-            $total = $total + Queue::stats($queues[$total % 2])->pending();
+            $total = $total + Queue::stats($queues[($total % 2) as int])->pending();
             $i = $i + 1;
         }
         return $total;

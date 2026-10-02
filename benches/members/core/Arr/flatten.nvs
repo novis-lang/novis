@@ -17,7 +17,7 @@ class Bench {
             array<string> $all = Core\Arr::flatten($tags);
             // Last round's total decides which tag this round reads, so no
             // round can be reused.
-            $total = $total + Core\Str::length($all[$total % 5]);
+            $total = $total + Core\Str::length($all[($total % 5) as int]);
             $i = $i + 1;
         }
         return $total;

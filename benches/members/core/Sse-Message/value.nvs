@@ -17,7 +17,7 @@ class Bench {
         uint $i = 0;
         while ($i < $rounds) {
             // chained: the next message depends on this one
-            $total = $total + ($messages[$total % 2]->value() as uint);
+            $total = $total + ($messages[($total % 2) as int]->value() as uint);
             $i = $i + 1;
         }
         return $total;

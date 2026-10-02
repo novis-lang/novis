@@ -20,7 +20,7 @@ class Bench {
         while ($i < $rounds) {
             // Chained: the product linked this round is picked with the length
             // counted in the round before.
-            string $url = Core\Router::url("product", ["sku" => $skus[$total % 3]]);
+            string $url = Core\Router::url("product", ["sku" => $skus[($total % 3) as int]]);
             $total = $total + Core\Str::length($url);
             $i = $i + 1;
         }

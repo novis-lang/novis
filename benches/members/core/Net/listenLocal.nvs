@@ -11,9 +11,9 @@ class Bench {
         while ($i < $rounds) {
             // Each round picks its path from what the round before counted.
             // The socket file stays after `close`, so each round also deletes it.
-            Core\Net\Listener $server = Core\Net::listenLocal($paths[$total % 1]);
+            Core\Net\Listener $server = Core\Net::listenLocal($paths[($total % 1) as int]);
             $server->close();
-            Core\IO::remove($paths[$total % 1]);
+            Core\IO::remove($paths[($total % 1) as int]);
             $total = $total + 1;
             $i = $i + 1;
         }

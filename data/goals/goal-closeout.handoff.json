@@ -1,27 +1,29 @@
 {
-  "state": "**Goal `goal-closeout`, Stage 4 (finished in place) is under way.** Stage 3 is done: `docs/agent/goal-decisions.md` names every goal in front of `goal-closeout`.\n\nEvery `tools/nv/` gap is closed. `bun nv render` writes one JSON Schema per record type to `data/schema/` (`tools/nv/renderers/record-schemas.ts`), `render --check` fails when one is stale, and `recordFiles` in `tools/nv/lib/store.ts` skips that directory so the index never reads a schema as a record.\n\nCI's `proofs` job (`.github/workflows/ci.yml`) runs every example and attack on three platforms; its first CI run has not happened yet. The floor check `the latest CI run on main succeeded for the code HEAD holds` is red only because `main` is many commits ahead of `origin/main` and the loop never pushes (`tools/nv/cmd/ci-green.ts`'s module doc). A person pushes; no session can close it.\n\n`bun nv owners --closes goal-closeout` names 79 gaps under the other `data/gaps/<module>/` directories. Take them one directory at a time, smallest first. Stage 4 stops on `BLOCKED` only for \"too large\", which the goal's § *Stage 4* defines.\n\n`bun nv import` is broken, because the rule index it reads was deleted. Goal `ci-green`'s floor check stays red until Stage 6. That is expected.",
+  "state": "**Goal `goal-closeout`, Stage 4 (finished in place) is under way.** Stage 3 is done: `docs/agent/goal-decisions.md` names every goal in front of `goal-closeout`.\n\nThe `nvs-diagnostics` and `benches` gap directories are closed. `E0456`'s card and help name `Core\\BigInt` for a larger whole number, and `rule:types/decimal` no longer promises a `Core\\BigDecimal`. Every member bench that indexed with a `uint` now writes `(… % N) as int`, and their figures were recorded again with `bun nv proofs --record-perf`.\n\nThe floor check `the latest CI run on main succeeded for the code HEAD holds` is red only because `main` is many commits ahead of `origin/main` and the loop never pushes (`tools/nv/cmd/ci-green.ts`'s module doc). A person pushes; no session can close it. CI's `proofs` job has not had its first run for the same reason.\n\n`bun nv owners --closes goal-closeout` names the gaps left under the other `data/gaps/<module>/` directories. Take them one directory at a time, smallest first: `nvs-db` and `nvs-test` hold two each, then `nvs-ir`, `nvs-server` and `website` two each. Stage 4 stops on `BLOCKED` only for \"too large\", which the goal's § *Stage 4* defines.\n\n`bun nv import` is broken, because the rule index it reads was deleted. Goal `ci-green`'s floor check stays red until Stage 6. That is expected.",
   "next": {
     "stage": 4,
     "title": "finished in place",
-    "files": [],
-    "note": "one file set per gap directory, the two smallest first.",
+    "files": [
+      "crates/nvs-test/src/"
+    ],
     "items": [
       {
         "done": false,
-        "text": "**`E0456` names `Core\\BigDecimal`, which does not exist** — `data/gaps/nvs-diagnostics/e0456-sends-the-reader-to-core-bigdecimal-which-does-not-exist.json`, at `crates/nvs-diagnostics/src/lib.rs:1658`. Point the help at what the tree really offers (`rule:types/decimal`), fix the doc comment, then delete the gap record."
+        "text": "**A `--SKIPIF--` that does not compile runs the case** — `data/gaps/nvs-test/a-skipif-that-does-not-compile-runs-the-case.json`, at `crates/nvs-test/src/run.rs:217`. The runner reads only the SKIPIF's stdout; make a SKIPIF that fails to compile or exits non-zero a failure of the case, add a test beside the runner's own, then delete the gap record."
       },
       {
         "done": false,
-        "text": "**Member benches index with `uint`** — `data/gaps/benches/member-benches-index-with-a-uint.json`, at `benches/members/README.md:30`. Fix the benches the README names, or the README, then delete the gap record."
+        "text": "**`--INI--` parses and nothing acts on it** — `data/gaps/nvs-test/ini-parses-and-nothing-can-act.json`, at `crates/nvs-test/src/case.rs:349`. `NOT_YET`'s reason still names M6, which has walked; reword it to say what is missing now (the test at `crates/nvs-test/src/case.rs:1232` asserts `M6`), or map INI keys to the configuration a case runs under if that is small. Then delete the gap record."
       },
       {
         "done": false,
-        "text": "**The next smallest directory** — `bun nv owners --closes goal-closeout`, at `tools/nv/cmd/owners.ts:413`; `data/gaps/nvs-db/`, `nvs-render/`, `nvs-test/` and `website/` have two each."
+        "text": "**`nvs-db`'s two gaps** — `data/gaps/nvs-db/`, at `crates/nvs-db/src/span.rs:1` and `crates/nvs-db/src/ddl.rs:1`. A different file set; take it only in a fresh session."
       }
     ]
   },
   "backlog": [
-    "Stage 5 (deletion becomes the rule) and Stage 6 (the old goals are deleted) — `docs/agent/goals/goal-closeout.md`.",
-    "Push `main` so CI runs the `proofs` job and `nv ci-green` can turn green — a person's step, `tools/nv/cmd/ci-green.ts`."
+    "`nvs-ir`, `nvs-server`, `website`: two gaps each — `bun nv owners --closes goal-closeout`.",
+    "`nvs-config` and `vscode`: three each; `nvs-host` four; `nvs-lsp` and `nvs-syntax` five; `nvs-cli` and `nvs-types` eight.",
+    "`docs/agent/goals/core-part-ii.md:189` still lists `Core\\BigDecimal`; Stage 6 deletes that goal's prose, so it is left."
   ]
 }

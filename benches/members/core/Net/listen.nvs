@@ -9,7 +9,7 @@ class Bench {
         uint $i = 0;
         while ($i < $rounds) {
             // Each round picks its address from what the round before counted.
-            Core\Net\Listener $server = Core\Net::listen($addresses[$total % 1], 0);
+            Core\Net\Listener $server = Core\Net::listen($addresses[($total % 1) as int], 0);
             $server->close();
             $total = $total + 1;
             $i = $i + 1;

@@ -12,7 +12,7 @@ class Bench {
         uint $i = 0;
         while ($i < $rounds) {
             // Each round picks its message from what the rounds before sent.
-            $total = $total + $sender->send("127.0.0.1", $port, $lines[$total % 2], 1s);
+            $total = $total + $sender->send("127.0.0.1", $port, $lines[($total % 2) as int], 1s);
             $i = $i + 1;
         }
         $sender->close();

@@ -10,7 +10,7 @@ class Bench {
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            string $field = $fields[$total % 3];
+            string $field = $fields[($total % 3) as int];
             $total = $total + ($field as uint);
             $total = $total + Core\Str::length(Core\Str::at($field, 0));
             if (Core\Str::compare($field, "42") < 0) {

@@ -13,7 +13,7 @@ class Bench {
         uint $i = 0;
         while ($i < $rounds) {
             // Each round checks the token the round before chose, so no round can be left out.
-            array<tainted string> $claims = Core\Jwt::verify($tokens[$total % 2], $key);
+            array<tainted string> $claims = Core\Jwt::verify($tokens[($total % 2) as int], $key);
             $total = $total + Core\Str::length($claims["sub"]);
             $i = $i + 1;
         }

@@ -11,7 +11,7 @@ class Bench {
         uint $i = 0;
         while ($i < $rounds) {
             // Chained: which file is read depends on the last round's total.
-            $total = $total + Core\Bytes::length(Core\Zip::read($archive, $names[$total % 2]));
+            $total = $total + Core\Bytes::length(Core\Zip::read($archive, $names[($total % 2) as int]));
             $i = $i + 1;
         }
         return $total;

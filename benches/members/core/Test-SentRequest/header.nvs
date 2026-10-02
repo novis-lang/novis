@@ -17,7 +17,7 @@ class Bench {
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            string $value = $request->header($names[$total % 3]) ?? "";
+            string $value = $request->header($names[($total % 3) as int]) ?? "";
             $total = $total + Core\Str::length($value) + 1;
             $i = $i + 1;
         }

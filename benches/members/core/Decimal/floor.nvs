@@ -11,7 +11,7 @@ class Bench {
         uint $i = 0;
         while ($i < $rounds) {
             // Chained: which amount is cut holds the last round's answer.
-            decimal $cents = Core\Decimal::floor($amounts[$total % 4], 0);
+            decimal $cents = Core\Decimal::floor($amounts[($total % 4) as int], 0);
             $total = $total + ($cents as uint) + 1;
             $i = $i + 1;
         }

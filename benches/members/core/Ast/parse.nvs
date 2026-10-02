@@ -15,7 +15,7 @@ class Bench {
         while ($i < $rounds) {
             // The snippet picked comes from last round's result, so no round
             // can be reused.
-            Core\Ast\Node $file = Core\Ast::parse($sources[$total % 3]);
+            Core\Ast\Node $file = Core\Ast::parse($sources[($total % 3) as int]);
             $total = $total + Core\Arr::count($file->nodes()) + 1;
             $i = $i + 1;
         }

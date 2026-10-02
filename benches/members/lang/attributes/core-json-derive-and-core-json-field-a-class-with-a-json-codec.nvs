@@ -22,7 +22,7 @@ class Bench {
         while ($i < $rounds) {
             // Chained: the price encoded this round is built from the length
             // counted in the round before.
-            string $document = Core\Json::encode(new Price($total % 1000, $currencies[$total % 3]));
+            string $document = Core\Json::encode(new Price($total % 1000, $currencies[($total % 3) as int]));
             $total = $total + Core\Str::length($document);
             $i = $i + 1;
         }

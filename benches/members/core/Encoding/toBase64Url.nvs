@@ -17,7 +17,7 @@ class Bench {
             // Chained: the identifier written holds the count the round
             // before gave.
             $total = $total + Core\Str::length(
-                Core\Encoding::toBase64Url($ids[$total % 3]),
+                Core\Encoding::toBase64Url($ids[($total % 3) as int]),
             );
             $i = $i + 1;
         }

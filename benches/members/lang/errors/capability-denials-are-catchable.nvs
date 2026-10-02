@@ -13,7 +13,7 @@ class Bench {
             try {
                 // Chained: the path read this round comes out of the last
                 // round's message, so the call stays inside the loop.
-                Core\IO::read($paths[$total % 3]);
+                Core\IO::read($paths[($total % 3) as int]);
             } catch (RuntimeError $denied) {
                 $total = $total + Core\Str::length($denied->message);
             }

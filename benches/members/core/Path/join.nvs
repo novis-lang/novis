@@ -9,7 +9,7 @@ class Bench {
         uint $i = 0;
         while ($i < $rounds) {
             // The name joined next depends on the last result, so no round can be skipped.
-            $total = $total + Core\Str::length(Core\Path::join("/srv/shop/storage", $names[$total % 3]));
+            $total = $total + Core\Str::length(Core\Path::join("/srv/shop/storage", $names[($total % 3) as int]));
             $i = $i + 1;
         }
         return $total;

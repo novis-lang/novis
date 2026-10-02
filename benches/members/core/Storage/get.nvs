@@ -11,7 +11,7 @@ class Bench {
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            bytes $saved = Core\Storage::get("bench", $keys[$total % 3]) ?? "" as bytes;
+            bytes $saved = Core\Storage::get("bench", $keys[($total % 3) as int]) ?? "" as bytes;
             $total = $total + Core\Bytes::length($saved);
             $i = $i + 1;
         }

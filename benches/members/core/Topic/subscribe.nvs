@@ -8,7 +8,7 @@ class Bench {
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            Core\Topic::subscribe($rooms[$total % 3]);
+            Core\Topic::subscribe($rooms[($total % 3) as int]);
             $total = $total + ($i % 2) + 1;   // chained: the next room depends on this round
             $i = $i + 1;
         }

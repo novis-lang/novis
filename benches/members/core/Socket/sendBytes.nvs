@@ -8,7 +8,7 @@ class Bench {
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            bytes $reading = $readings[$total % 3];
+            bytes $reading = $readings[($total % 3) as int];
             $conn->sendBytes($reading);
             $total = $total + Core\Bytes::length($reading);   // chained: the next reading depends on this one
             $i = $i + 1;

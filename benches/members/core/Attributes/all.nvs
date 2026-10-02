@@ -3,7 +3,7 @@
 // for every handler it knows about when the program starts.
 // bench: iterations 200000
 // bench: calls 0
-// bench: allocations 8
+// bench: allocations 6
 
 type Middleware = {name: string};
 
@@ -22,7 +22,7 @@ class Bench {
             array<Middleware> $layers = Core\Attributes::all<Middleware>(Orders::show(...));
             // Chained: the entry read this round is picked with the total carried
             // out of the round before.
-            $total = $total + Core\Str::length($layers[$total % 3]->name);
+            $total = $total + Core\Str::length($layers[($total % 3) as int]->name);
             $i = $i + 1;
         }
         return $total;

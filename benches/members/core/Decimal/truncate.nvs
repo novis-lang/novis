@@ -11,7 +11,7 @@ class Bench {
         uint $i = 0;
         while ($i < $rounds) {
             // Chained: the value cut holds the last round's answer.
-            $carried = Core\Decimal::truncate($carried + $amounts[$i % 4], 2);
+            $carried = Core\Decimal::truncate($carried + $amounts[($i % 4) as int], 2);
             $i = $i + 1;
         }
         return $carried;

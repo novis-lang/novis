@@ -15,7 +15,7 @@ class Bench {
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            if ($sent[$total % 2]->method() == Method::Delete) {
+            if ($sent[($total % 2) as int]->method() == Method::Delete) {
                 $total = $total + 1;
             }
             $total = $total + 2;

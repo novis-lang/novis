@@ -13,7 +13,7 @@ class Bench {
         uint $i = 0;
         while ($i < $rounds) {
             // The path changed next depends on the last result, so no round can be skipped.
-            $total = $total + Core\Str::length(Core\Path::withExtension($paths[$total % 3], "webp"));
+            $total = $total + Core\Str::length(Core\Path::withExtension($paths[($total % 3) as int], "webp"));
             $i = $i + 1;
         }
         return $total;

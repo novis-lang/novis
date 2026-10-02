@@ -13,7 +13,7 @@ class Bench {
         uint $i = 0;
         while ($i < $rounds) {
             // The path split next depends on the last result, so no round can be skipped.
-            $total = $total + Core\Arr::count(Core\Path::split($paths[$total % 3]));
+            $total = $total + Core\Arr::count(Core\Path::split($paths[($total % 3) as int]));
             $i = $i + 1;
         }
         return $total;

@@ -12,7 +12,7 @@ class Bench {
         while ($i < $rounds) {
             // Chained: the value rounded holds the last round's answer.
             $carried = Core\Decimal::round(
-                $carried + $lines[$i % 4],
+                $carried + $lines[($i % 4) as int],
                 Core\RoundMode::HalfUp,
                 2,
             );

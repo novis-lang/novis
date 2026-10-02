@@ -35,7 +35,7 @@ class Bench {
         while ($i < $rounds) {
             var $rows = Core\Program::constructors<Command, callable(Settings): Command>();
             // Chained: the total of the round before chooses which class is created.
-            callable(Settings): Command $make = $rows[$total % 3]->make;
+            callable(Settings): Command $make = $rows[($total % 3) as int]->make;
             $total = $total + $make($settings)->limit();
             $i = $i + 1;
         }

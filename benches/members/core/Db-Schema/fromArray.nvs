@@ -15,7 +15,7 @@ class Bench {
             var $schema = Schema::fromArray([
                 'tables' => [
                     [
-                        'name' => $names[$total % 3],
+                        'name' => $names[($total % 3) as int],
                         'columns' => [
                             ['name' => 'id', 'type' => 'int64', 'identity' => true],
                             ['name' => 'title', 'type' => 'text(200)', 'null' => true],

@@ -12,7 +12,7 @@ class Bench {
         while ($i < $rounds) {
             // Which of the three nodes is asked comes from last round's column,
             // so no round can be reused.
-            Core\Ast\Node $node = $top[$total % 3];
+            Core\Ast\Node $node = $top[($total % 3) as int];
             $total = $total + ($node->column() as uint);
             $i = $i + 1;
         }

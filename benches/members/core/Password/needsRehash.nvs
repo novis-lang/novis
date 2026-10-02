@@ -2,7 +2,7 @@
 // Measures checking whether a stored hash is out of date, as a login does after
 // the password is correct.
 // bench: iterations 200000
-// bench: allocations 2
+// bench: allocations 0
 
 class Bench {
     public static function run(uint $rounds): uint {
@@ -16,7 +16,7 @@ class Bench {
         while ($i < $rounds) {
             // The hash checked next depends on the total so far, so no round
             // can be skipped.
-            if (Core\Password::needsRehash($stored[$total % 3])) {
+            if (Core\Password::needsRehash($stored[($total % 3) as int])) {
                 $total = $total + 1;
             } else {
                 $total = $total + 2;

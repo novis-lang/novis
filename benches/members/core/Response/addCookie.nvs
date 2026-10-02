@@ -8,7 +8,7 @@ class Bench {
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            string $token = $tokens[$total % 3];
+            string $token = $tokens[($total % 3) as int];
             Core\Response::addCookie("sid", $token);
             $total = $total + Core\Str::length($token) + 1;   // chained: the next token depends on this one
             $i = $i + 1;

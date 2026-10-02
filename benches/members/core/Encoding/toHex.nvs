@@ -16,7 +16,7 @@ class Bench {
         while ($i < $rounds) {
             // Chained: the digest spelled holds the count the round before gave.
             $total = $total + Core\Str::length(
-                Core\Encoding::toHex($digests[$total % 3]),
+                Core\Encoding::toHex($digests[($total % 3) as int]),
             );
             $i = $i + 1;
         }

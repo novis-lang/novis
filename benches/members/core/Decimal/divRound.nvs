@@ -12,7 +12,7 @@ class Bench {
         uint $i = 0;
         while ($i < $rounds) {
             // Chained: the number divided holds the last round's answer.
-            decimal $bill = $bills[$i % 4] + $carried;
+            decimal $bill = $bills[($i % 4) as int] + $carried;
             $carried = Core\Decimal::divRound($bill, $people, 2, Core\RoundMode::HalfUp);
             $i = $i + 1;
         }

@@ -24,7 +24,7 @@ class Bench {
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            Settings $back = Core\Serialize::decode($payloads[$total % 3]) as Settings;
+            Settings $back = Core\Serialize::decode($payloads[($total % 3) as int]) as Settings;
             $total = $total + $back->pageSize + 1;
             $i = $i + 1;
         }

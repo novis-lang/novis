@@ -8,7 +8,7 @@ class Bench {
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            string $url = $urls[$total % 4];
+            string $url = $urls[($total % 4) as int];
             Core\Response::redirect($url);
             $total = $total + Core\Str::length($url);   // chained: the next address depends on this one
             $i = $i + 1;

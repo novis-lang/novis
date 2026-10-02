@@ -15,7 +15,7 @@ class Bench {
             array<string> $newest = Core\Arr::reverse($events);
             // Last round's total decides which entry this round reads, so no
             // round can be reused.
-            $total = $total + Core\Str::length($newest[$total % 6]);
+            $total = $total + Core\Str::length($newest[($total % 6) as int]);
             $i = $i + 1;
         }
         return $total;

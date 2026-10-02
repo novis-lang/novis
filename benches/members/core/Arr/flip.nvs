@@ -13,7 +13,7 @@ class Bench {
             array<string> $keyed = Core\Arr::flip($formats);
             // Last round's total decides which value this round looks up, so
             // no round can be reused.
-            $total = $total + Core\Str::length($keyed[$formats[$total % 6]]);
+            $total = $total + Core\Str::length($keyed[$formats[($total % 6) as int]]);
             $i = $i + 1;
         }
         return $total;

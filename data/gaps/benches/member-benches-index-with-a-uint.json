@@ -1,6 +1,0 @@
-{
-  "module": "benches/members/README.md",
-  "title": "Many member benches index their inputs with a `uint`, which the bench README says not to do.",
-  "text": "`benches/members/README.md:66` says to index with an `int`, because a `uint` subscript renders a string key and costs two allocations per read. Many benches still read `$names[$total % 3]` with a `uint` `$total`, among them every `Core\\Path` bench except one, for example `benches/members/core/Path/join.nvs:12`. Their timings and allocation counts include that cost, and a bench of a member that returns a scalar cannot declare `allocations 0` while it pays it. Closing this rewrites each such subscript as `($total % N) as int` and records the benches' figures again with `bun nv proofs --record-perf`.",
-  "goal": "goal-closeout"
-}

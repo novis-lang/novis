@@ -18,7 +18,7 @@ class Bench {
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            Core\Test::assertCalled($mailer, Mailer::send, {times: 1, with: [$recipients[$total % 3]]});
+            Core\Test::assertCalled($mailer, Mailer::send, {times: 1, with: [$recipients[($total % 3) as int]]});
             $total = $total + 1 + ($total % 2);
             $i = $i + 1;
         }

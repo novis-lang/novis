@@ -8,7 +8,7 @@ class Bench {
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            string $key = $keys[$total % 3];
+            string $key = $keys[($total % 3) as int];
             Core\Storage::put("bench", $key, "x" as bytes);
             Core\Storage::delete("bench", $key);
             $total = $total + 1 + $i % 2;

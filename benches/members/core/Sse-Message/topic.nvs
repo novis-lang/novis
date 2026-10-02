@@ -18,7 +18,7 @@ class Bench {
         uint $i = 0;
         while ($i < $rounds) {
             // chained: the next message depends on this one
-            if ($messages[$total % 2]->topic() == "prices") {
+            if ($messages[($total % 2) as int]->topic() == "prices") {
                 $total = $total + 1;
             } else {
                 $total = $total + 2;

@@ -12,7 +12,7 @@ class Bench {
         while ($i < $rounds) {
             // Last round's total decides which of the three values this round
             // reads, so no round can be reused.
-            if (Core\Arr::values($sent)[$total % 3] == "Ada") {
+            if (Core\Arr::values($sent)[($total % 3) as int] == "Ada") {
                 $total = $total + 1;
             } else {
                 $total = $total + 2;

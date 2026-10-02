@@ -16,7 +16,7 @@ class Bench {
         uint $i = 0;
         while ($i < $rounds) {
             // Each round reads the document the round before chose, so no round can be left out.
-            string $document = $documents[$total % 2];
+            string $document = $documents[($total % 2) as int];
             Core\Jwt\KeySet $keys = Core\Jwt\KeySet::read($document);
             $total = $total + 1 + Core\Str::length($document) % 2;
             $i = $i + 1;

@@ -14,7 +14,7 @@ class Bench {
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            $total = $total + Core\Str::length($sent[$total % 2]->url());
+            $total = $total + Core\Str::length($sent[($total % 2) as int]->url());
             $i = $i + 1;
         }
         return $total;

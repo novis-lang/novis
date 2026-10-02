@@ -11,7 +11,7 @@ class Bench {
         uint $i = 0;
         while ($i < $rounds) {
             // Each round connects, then the server takes the connection so the queue never fills.
-            Core\Net\Stream $client = Core\Net::connectLocal($paths[$total % 1], 5s);
+            Core\Net\Stream $client = Core\Net::connectLocal($paths[($total % 1) as int], 5s);
             Core\Net\Stream $accepted = $server->accept(5s);
             $client->close();
             $accepted->close();

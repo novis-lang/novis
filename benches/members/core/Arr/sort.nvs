@@ -13,7 +13,7 @@ class Bench {
             array<uint> $ordered = Core\Arr::sort($prices);
             // Last round's total decides which price this round reads, so no
             // round can be reused.
-            $total = $total + $ordered[$total % 6];
+            $total = $total + $ordered[($total % 6) as int];
             $i = $i + 1;
         }
         return $total;
