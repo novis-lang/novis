@@ -450,6 +450,23 @@ fn a_shape_field_can_be_marked_optional() {
     ));
 }
 
+/// `rule:types/shape-type`: a keyword is a field name in a shape type, as it
+/// is in the object literal, so `{class: string}` is the type of the value
+/// `{class: "Blog"}` builds.
+#[test]
+fn a_shape_field_may_be_named_by_a_keyword() {
+    let e = parse_ok("$m as {class: string, match?: int}");
+    let ExprKind::Conversion { ty, .. } = e.kind else {
+        panic!("expected a conversion: {e:?}");
+    };
+    let TypeKind::Atom(TypeAtom::Shape(fields)) = ty.kind else {
+        panic!("expected a shape: {ty:?}");
+    };
+    assert_eq!(fields.len(), 2);
+    assert!(fields[0].required);
+    assert!(!fields[1].required, "`match?:` marks the key optional");
+}
+
 /// `rule:types/shape-type`: `{a?: int}` and `{a: ?int}` say different things —
 /// a key that may be absent against a key that must be present holding `null` —
 /// so the two questions are answered by two separate fields of the parse, and

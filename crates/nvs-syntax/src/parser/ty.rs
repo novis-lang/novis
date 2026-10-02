@@ -775,7 +775,15 @@ impl<'src, 'd> Parser<'src, 'd> {
         let mut fields = Vec::new();
         while !self.at(TokenKind::RBrace) && !self.at(TokenKind::Eof) {
             let field_start = self.peek().span;
-            let name = self.expect(TokenKind::Ident, "a field name");
+            // A keyword is a field name here for the reason the value literal
+            // gives in `Self::parse_object_literal_expr`: `{class: string}`
+            // is the type of `{class: …}`, and a value the literal can build
+            // needs a type a declaration can write.
+            let name = if matches!(self.peek().kind, TokenKind::Keyword(_)) {
+                self.bump().span
+            } else {
+                self.expect(TokenKind::Ident, "a field name")
+            };
             let required = self.eat(TokenKind::Question).is_none();
             self.expect(TokenKind::Colon, "`:`");
             let ty = self.parse_type();
