@@ -1,5 +1,5 @@
 {
-  "live": "foreach-var",
+  "live": "var-array-literal",
   "goals": [
     "core-depth",
     "concurrency",
