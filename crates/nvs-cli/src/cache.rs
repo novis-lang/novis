@@ -2912,11 +2912,10 @@ mod tests {
     ///
     /// **This is `rule:expressions/preparation-preserves-behaviour`'s cache bullet too**, which
     /// therefore owes no test of its own. A prepared pattern or format plan has no address here:
-    /// the cache holds one file per compiled unit, and a prepared artifact is stored in that
-    /// unit's payload — `crates/nvs-types/src/intrinsics.rs` gap 2 is the channel that carries one
-    /// down to `nvs-ir`, and until it is built nothing is prepared at all. So the compiler build a
-    /// prepared entry came from is in the key exactly as the payload's is, and a foreign one misses
-    /// on both checks below rather than being read as a mismatch.
+    /// the cache holds one file per compiled unit, and what preparation stores rides in that
+    /// unit's code as a leading constant of the call (`nvs_ir::prepared_code`). So the compiler
+    /// build a prepared entry came from is in the key exactly as the payload's is, and a foreign
+    /// one misses on both checks below rather than being read as a mismatch.
     #[test]
     // A warm hit is a loaded host's; see `a_payload_is_a_miss_elsewhere`.
     #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
