@@ -253,8 +253,8 @@ impl Host for SchedulerHost {
         // back: a child the far core could not have prepared is still a child,
         // and running it here keeps every promise the placement makes but one —
         // it is its parent's child, charged to its tree, dying with it — and
-        // loses only the core it asked for. `crate::placed`'s `# Known gaps` is
-        // which placements those are.
+        // loses only the core it asked for. The docs in `crate::placed` and
+        // `crate::worker` say which placements those are.
         given_up_once_started(args, isolate.start(ctx))
     }
 }

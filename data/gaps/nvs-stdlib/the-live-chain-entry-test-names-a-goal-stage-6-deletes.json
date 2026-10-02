@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-stdlib/tests/spec_registry_coverage.rs",
+  "title": "`an_owner_that_is_not_a_live_chain_entry_fails` uses the walked goal `carried-gaps` as its live goal, and fails once the old goals are deleted.",
+  "text": "The test at `crates/nvs-stdlib/tests/spec_registry_coverage.rs:616` asserts `chain_goals()` contains `carried-gaps`, a goal walked long ago. Stage 6 of `goal-closeout` deletes every goal in front of it from `data/chain.json`, and this assertion then fails. Closing this takes the live goal from the chain record's `live` field, or the first entry of `goals`, rather than a fixed slug.",
+  "goal": "goal-closeout"
+}

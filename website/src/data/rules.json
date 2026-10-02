@@ -1,8 +1,8 @@
 {
   "totals": {
     "total": 1032,
-    "shipped": 791,
-    "designed": 241,
+    "shipped": 792,
+    "designed": 240,
     "diverging": 597
   },
   "topics": [
@@ -4275,8 +4275,8 @@
       "single": false,
       "counts": {
         "total": 89,
-        "shipped": 71,
-        "designed": 18,
+        "shipped": 72,
+        "designed": 17,
         "diverging": 30
       },
       "sections": [
@@ -4943,8 +4943,8 @@
           "url": "/docs/rules/security/protocols-and-tokens/",
           "counts": {
             "total": 12,
-            "shipped": 10,
-            "designed": 2,
+            "shipped": 11,
+            "designed": 1,
             "diverging": 6
           },
           "rules": [
@@ -4968,7 +4968,7 @@
               "id": "security/protocol-roster",
               "slug": "protocol-roster",
               "title": "A closed roster of application-layer security protocols lives in `Core`, and nothing joins it without meeting the test",
-              "status": "designed",
+              "status": "shipped",
               "href": "/docs/rules/security/protocols-and-tokens/#protocol-roster",
               "diverges": null
             },

@@ -1,7 +1,7 @@
 # Every member `docs/spec/01-core-library.md` §§ 1-12 writes as a table row that
 # `nvs_stdlib::registry::CLASSES` does not declare yet. One key per line,
 # `§<section> <the Member cell's own spelling>`, then the goal that will strike
-# it, named by its slug: `§7 pad  # carried-gaps`, read against
+# it, named by its slug: `§7 pad  # <goal-slug>`, read against
 # docs/agent/goals/ by `every_outstanding_key_names_an_owner`. That test's doc
 # owns the column.
 #

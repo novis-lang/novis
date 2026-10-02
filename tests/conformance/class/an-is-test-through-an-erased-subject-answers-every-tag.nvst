@@ -65,9 +65,8 @@ if ($narrowed != null) {
 mixed $base = new Animal();
 echo Ask::yn($base is Animal), Ask::yn($base is Dog), "\n";
 
-// Every tag a `mixed` can carry that is not an object answers `false` — the
-// answer PHP gives, and the reason this is a run-time question rather than the
-// `E0497` a *declared* scalar takes where it is written.
+// Every tag a `mixed` can carry that is not an object answers `false`, which
+// is the answer PHP gives.
 mixed $num = 7;
 mixed $ratio = 1.5;
 mixed $flag = true;

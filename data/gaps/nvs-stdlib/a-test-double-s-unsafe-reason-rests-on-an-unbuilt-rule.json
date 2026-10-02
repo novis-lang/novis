@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-stdlib/src/test.rs",
+  "title": "A test double's `unsafe` reason rests on `rule:testing/tests-never-reach-a-build`, which is `designed` and unguarded.",
+  "text": "The module doc at `crates/nvs-stdlib/src/test.rs:219` and the `unsafe_code` reason at `crates/nvs-stdlib/src/test.rs:4322` both argue a double cannot outlive its interface descriptor because `Core\\Test` is deleted from every build. `data/rules/testing/tests-never-reach-a-build.json` is `designed` with an empty `guardedBy`, and `Core\\Test` is reachable under `nvs run`: `data/proofs/policy.json:36` says a bench calling a clock member there gets the `LogicError`. Closing this either builds the rule, so `nvs run` and `nvs build` lower no test and a test proves it, or rewrites both reasons on a bound that holds under `nvs run` and tests it.",
+  "goal": "goal-closeout"
+}

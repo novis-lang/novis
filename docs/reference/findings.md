@@ -367,15 +367,13 @@ rows whose owner is an item number, 31 to 35. An item's owner is the row it sits
       drained by nobody — and that module's known gaps are § 7's `max_concurrent` and an isolate's
       own drain, both of which need a host that holds more than one tree.
 - [ ] **M2** `Core\Fatal::onUncaughtThrow` (`rule:errors/on-uncaught-throw`) — only `onLimit` exists.
-- [ ] **M3** `rule:testing/test-attribute`'s wider assertion roster (`assertStartsWith`, …) — `Core\Test` holds ten members.
-      Triaged, and it is one member wide rather than a roster: the roster's one home is
-      [docs/spec/01-core-library.md](../spec/01-core-library.md)'s Part II class table, and
-      `assertStartsWith` is on it nowhere — `rule:testing/assertions-are-typed` names it once as an example of what `nvs-lsp`
-      ranks by subject type. Against the spec's row, `Core\Test` is missing **`assertContains`**, which
-      is the only absent member ADR 0079 § 24 places in the milestone already landed (§§ 4-6, the M4S
-      tail); `double<T>`/`partial<T>`, `assertCalled`/`assertNeverCalled`, `assertCompletes`,
-      `assertMatchesInline` and `request` are that table's M5-to-M8 rows and are absent on schedule.
-      What is left is one `Core` member's five edits, not a documentation fix.
+- [x] **M3** `rule:testing/test-attribute`'s wider assertion roster (`assertStartsWith`, …). Closed:
+      the roster's one home is [docs/spec/01-core-library.md](../spec/01-core-library.md)'s Part II
+      class table, and `assertStartsWith` is on it nowhere — `rule:testing/assertions-are-typed` names
+      it once as an example of what `nvs-lsp` ranks by subject type. Every member that table gives
+      `Core\Test` is registered in `crates/nvs-stdlib/src/test.rs`: `assertContains`,
+      `assertMatchesInline`, `request`, `double<T>`/`partial<T>`, `assertCalled`/`assertNeverCalled`
+      and `assertCompletes` among them.
 - [x] **M4** `Core\Test\Failure` and `RecursionError` appear in no member card's `errors` list, only
       in the exception tree (behaviour verified by probe). Closed, one half stale and the other *no
       card owes it*: nine of `Core\Test`'s cards name `Core\Test\Failure` in `errors`

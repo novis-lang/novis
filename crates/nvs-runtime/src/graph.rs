@@ -72,10 +72,10 @@
 //! A decoded `Core` instance is a `mixed` a program gets back by naming its
 //! class. The value is rebuilt under its own descriptor — a `Core\Time\Date`
 //! arrives back as one, slots intact, because [`crate::Ctx::class_desc`] asks
-//! the `Core` resolver after the program's table — and all three spellings that
-//! read a descriptor answer for it: `$v is Core\Time\Date`,
-//! `$v is Core\Time\Date` and `$v as Core\Time\Date`, the last throwing
-//! where the other two answer `false`. The address they test against is the one
+//! the `Core` resolver after the program's table — and both spellings that
+//! read a descriptor answer for it: `$v is Core\Time\Date` and
+//! `$v as Core\Time\Date`, the second throwing where the first answers
+//! `false`. The address they test against is the one
 //! `nvs_stdlib::class_descriptors` publishes for the process.
 
 use std::collections::HashMap;

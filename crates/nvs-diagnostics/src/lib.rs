@@ -1805,7 +1805,7 @@ pub mod code {
          literal, `[]`, an enum case or a `const` of another class. Set any other value in the \
          constructor.",
     );
-    /// `$obj as ?SomeClass` — `rule:expressions/nullable-conversion-availability`'s class row: `instanceof` plus
+    /// `$obj as ?SomeClass` — `rule:expressions/nullable-conversion-availability`'s class row: `is` plus
     /// `rule:types/unions-and-mixed`'s narrowing already answers class membership, so the
     /// conversion would be R17's second spelling of a question the language
     /// already has one for. Reported for the written `?T` sugar only, since
@@ -1876,7 +1876,7 @@ pub mod code {
     /// `rule:types/conversion` makes it the one unchecked position, so it defers.
     ///
     /// The help follows the receiver: narrow one that can hold an object
-    /// (`instanceof` proves the class, `as ClassName` converts to it), and
+    /// (`is` proves the class, `as ClassName` converts to it), and
     /// convert or declare `mixed` for one that cannot.
     pub const E_METHOD_ON_ERASED_RECEIVER: Code = Code::new("E0477").card(
         "You can call a method only on an object of a known class. Test the class first with \
@@ -1918,7 +1918,7 @@ pub mod code {
     /// resolution does not supply. A plain `object` receiver has no element
     /// type either — the property reads as `mixed`, and `mixed` is not
     /// indexable anywhere else in the language. Narrow the receiver first
-    /// (`instanceof`, or `as ClassName`), or read the property into a typed
+    /// (`is`, or `as ClassName`), or read the property into a typed
     /// local, write the element there, and assign it back. This is the
     /// element-write twin of [`E_METHOD_ON_ERASED_RECEIVER`].
     pub const E_ELEMENT_WRITE_THROUGH_ERASED_PROPERTY: Code = Code::new("E0480").card(
@@ -2139,6 +2139,7 @@ pub mod code {
          `$x is $name` need a class. Write the class name, or convert the value once with \
          `$name as class<Base>` and use the result.",
     );
+    // `E0497` (`E_INSTANCEOF_SUBJECT_NOT_OBJECT`) is **retired**, not reused.
     /// An `isset(...)` operand that names no storage — `isset(f())`,
     /// `isset($a + 1)`, `isset(Foo::BAR)`.
     ///
@@ -4839,6 +4840,8 @@ pub mod code {
         "No value can have the type `void` or `never`, so `$x is void` has no answer. Test \
          against a type that a value can have.",
     );
+
+    // `E0812` (`E_TYPE_TEST_AGAINST_A_VALUE`) is **retired**, not reused.
 
     /// `$x is tainted string`, `$x is secret bytes` — a qualifier written where
     /// `is` takes a type (`rule:types/type-test`, the first of its two

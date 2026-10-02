@@ -42,8 +42,9 @@
 //!
 //! **There are no operators.** `$a + $b` over two objects is the compile error
 //! it is for any class, because Novis has no operator overloading (ADR 0054's
-//! own ground), and `nvs convert` maps `bcadd` and `bcpowmod` to [`CLASS`]'s
-//! `add` and `powMod` rather than to a spelling that does not exist.
+//! own ground), and `nvs convert` maps `bcpowmod` to [`CLASS`]'s `powMod`
+//! rather than to a spelling that does not exist. `bcadd` maps to `+` on two
+//! `decimal`s, which is the migration table's row.
 //!
 //! **`parse` is not `rule:expressions/try-parse`'s member**, and nothing here
 //! is owed a `tryParse` because of it: that rule's `parse` takes one `string`

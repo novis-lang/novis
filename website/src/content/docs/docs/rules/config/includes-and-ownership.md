@@ -340,7 +340,8 @@ directory is checked the same way.
 <a class="nv-rule-id" href="#a-secret-is-a-file-whose-content-is-the-value"><code>config/a-secret-is-a-file-whose-content-is-the-value</code></a>
 </div>
 
-A directive the registry marks **secret** — `[db.<name>] password` and `[mail.<name>] password` today —
+A directive the registry marks **secret** — `[db.<name>] password`, `[mail.<name>] password`,
+`[http.client.proxy] password`, `[http] csrf_key` and `[cache.shared] password` today —
 gains a `_file` sibling. Exactly one of the pair may be set; both is a refusal, so this is two sources
 for one value rather than a second spelling. The registry is one table, one row per pair, and a
 credential on the typed tree with no row fails a census rather than parsing and never being read.

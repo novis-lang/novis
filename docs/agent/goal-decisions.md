@@ -27,6 +27,11 @@ goal promised and did not build is not here: it is a gap record under `data/gaps
   status item says which of the three it was, the release page stays one command away, and the
   extension keeps working as a grammar-only client. Applies at the install commands `rule:ide/the-extension-guides-an-install-and-never-bundles-one`
   designs, over `editors/vscode/src/install.ts`. From `editor-install`.
+- **`Core\BigDecimal` is not scheduled.** ADR 0054 § 6 named it, and no spec row and no ratchet key
+  asks for it, so it is a feature the user has not requested and not a gap. `Core\BigInt` is the
+  arbitrary-precision type, and `decimal` with `Core\Decimal` is the bounded one. Applies at
+  `rule:types/decimal`'s "what lies beyond" and the `E0456` card in `crates/nvs-diagnostics/src/lib.rs`.
+  From `bigint`.
 
 ## Goals with nothing to keep
 
@@ -36,4 +41,9 @@ goal promised and did not build is not here: it is a gap record under `data/gaps
 `net-os-signal`, `formats`, `encoder-cycles`, `record-origin`, `agent-surface`, `xml-tree`, `gap-owners`,
 `unowned-sweep`, `signed-urls`, `type-test`, `queue-purge`, `sqlite-queue`, `serve-runs-the-queue`,
 `workspace-index`, `editor-surfaces`, `resource-ceilings`, `config-is-written`, `event-streams`,
-`finish-response`, `markup-literal`, `fmt`.
+`finish-response`, `markup-literal`, `fmt`, `template-format`, `webcrypto`, `http-client`,
+`process-cache`, `outbound-proxy`, `websocket-client`, `plan-truth`, `gap-register`, `m4-refusals`,
+`m5-proofs`, `m4b-editor`, `m7-server-surface`, `m8-db-queue`, `m8-stdlib-depth`, `unowned-closures`,
+`class-scoped-types`, `worker-placement`, `core-class-tests`, `tds-bytes`, `cache-shared-dial`,
+`decided-closures`, `one-type-test`, `test-doubles`, `gap-zero`, `dossier`, `config-directives-1-3`,
+`config-directives-2-3`, `config-directives-3-3`, `types-enum-1-2`.

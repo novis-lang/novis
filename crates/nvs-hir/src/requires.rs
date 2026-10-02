@@ -8,10 +8,11 @@
 //! [`resolve_program`] is the entry point that makes that happen for a
 //! `require` whose path is written as a plain string literal — `rule:statements/require-is-the-only-inclusion-construct`'s
 //! own M2 verification line calls this "statically resolved where the path
-//! is a literal; a dynamic path falls back to a runtime resolve," so a
-//! non-literal path (a variable, a concatenation, an interpolated string) is
-//! left alone entirely here: no diagnostic, nothing collected, exactly the
-//! dynamic fallback the ADR describes.
+//! is a literal; a dynamic path falls back to a runtime resolve," so a path
+//! that is not statically known (a variable, an interpolated string, and the
+//! other shapes the paragraph *A statically known path* lists below) is left alone
+//! entirely here: no diagnostic, nothing collected, exactly the dynamic
+//! fallback the ADR describes.
 //!
 //! The mechanism is the multi-file shape [`crate::resolve::Resolver`],
 //! [`crate::hierarchy::HierarchyResolver`], [`crate::members::MemberResolver`]
@@ -930,11 +931,11 @@ fn record_implements(clauses: &[ImplementsClause], src: &SourceFile, out: &mut H
     }
 }
 
-/// Walks `stmts` looking for every `require` expression whose path is a
-/// plain string literal, appending each one's cooked path text and span to
-/// `out`. A `require` whose path is anything else (a variable, a
-/// concatenation, an interpolated string) is left out entirely — that is
-/// the dynamic-fallback case this module does not touch.
+/// Walks `stmts` looking for every `require` expression whose path is
+/// statically known, appending each one's cooked path text and span to
+/// `out`. A `require` whose path is anything else (a variable, an
+/// interpolated string) is left out entirely — that is the
+/// dynamic-fallback case this module does not touch.
 ///
 /// The same walk harvests `rule:programs/no-runtime-autoload`'s other inputs — every `autoload`
 /// declaration, and every name that might need one — because they are found
