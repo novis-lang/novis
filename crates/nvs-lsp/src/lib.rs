@@ -101,6 +101,7 @@ mod capabilities;
 pub mod card;
 mod case;
 pub mod completion;
+pub mod completion_files;
 pub mod coverage;
 pub mod definition;
 pub mod diagnostics;

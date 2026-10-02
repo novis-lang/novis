@@ -57,6 +57,10 @@ rustc-hash.workspace = true
 # `lsp_server::Connection` takes and returns one — so this crate names the
 # type it converts through rather than reaching for a second JSON library.
 serde_json.workspace = true
+# The completion files' format (`crate::completion_files`), parsed with
+# `deny_unknown_fields` at every level so an unknown field is a finding that
+# names it. `serde_json` already links it; this names the derive.
+serde.workspace = true
 
 [dev-dependencies]
 # How this crate's tests reach files outside the package.
