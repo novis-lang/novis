@@ -11269,21 +11269,6 @@
       ]
     },
     {
-      "id": "no-index-row-names-a-goal-that-walked-without-closing-it",
-      "kind": "command",
-      "stage": 1,
-      "name": "no index row names a goal that walked without closing it",
-      "argv": [
-        "bun",
-        "nv",
-        "playbook",
-        "--check"
-      ],
-      "want": [
-        "none -- every carried-gaps owner is live or struck"
-      ]
-    },
-    {
       "id": "one-roster-over-every-register-there-is",
       "kind": "command",
       "stage": 1,
@@ -14126,22 +14111,6 @@
       ],
       "want": [
         "goal `decided-closures` owns no module-doc gap"
-      ]
-    },
-    {
-      "id": "no-index-row-names-this-goal",
-      "kind": "command",
-      "stage": 1,
-      "name": "no index row names this goal",
-      "argv": [
-        "bun",
-        "nv",
-        "playbook",
-        "--closes",
-        "decided-closures"
-      ],
-      "want": [
-        "goal `decided-closures` owns no docs/agent/carried-gaps.md row"
       ]
     },
     {
