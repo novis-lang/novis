@@ -311,8 +311,8 @@ const CONNECT_DOC: MethodDoc = MethodDoc {
         ErrorDoc {
             error: "RuntimeError",
             desc: "The configuration does not grant `net.connect` for this host, the host resolves \
-                   to no address, the address it resolves to is in a denied range, or `$port` is \
-                   not a port.",
+                   to no address, the address it resolves to is in a denied range, `$port` is not \
+                   a port, or `$within` is not a positive length of time.",
         },
         ErrorDoc {
             error: "TimeoutError",
@@ -421,8 +421,8 @@ const CONNECT_LOCAL_DOC: MethodDoc = MethodDoc {
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
-            desc: "The configuration does not grant `net.local` for this path, or this build has \
-                   no Unix-domain transport.",
+            desc: "The configuration does not grant `net.local` for this path, this build has no \
+                   Unix-domain transport, or `$within` is not a positive length of time.",
         },
         ErrorDoc {
             error: "TimeoutError",
@@ -659,7 +659,7 @@ const LISTENER_ACCEPT_DOC: MethodDoc = MethodDoc {
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
-            desc: "This handle is closed.",
+            desc: "This handle is closed, or `$within` is not a positive length of time.",
         },
         ErrorDoc {
             error: "TimeoutError",
@@ -808,7 +808,7 @@ const DATAGRAM_SEND_DOC: MethodDoc = MethodDoc {
             error: "RuntimeError",
             desc: "The configuration does not grant `net.connect` for this host, the host resolves \
                    to no address, the address it resolves to is in a denied range, `$port` is not \
-                   a port, or this handle is closed.",
+                   a port, this handle is closed, or `$within` is not a positive length of time.",
         },
         ErrorDoc {
             error: "TimeoutError",
@@ -845,7 +845,7 @@ const DATAGRAM_RECEIVE_DOC: MethodDoc = MethodDoc {
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
-            desc: "This handle is closed.",
+            desc: "This handle is closed, or `$within` is not a positive length of time.",
         },
         ErrorDoc {
             error: "TimeoutError",

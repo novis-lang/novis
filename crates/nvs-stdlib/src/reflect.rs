@@ -981,8 +981,9 @@ const CALL_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "arguments",
-            desc: "One entry per declared parameter, in order, keys ignored. Required even where \
-                   the method takes none, which is then `[]`.",
+            desc: "One entry per declared parameter, in order, keys ignored. Entries after the \
+                   last parameter are ignored. Required even where the method takes none, which \
+                   is then `[]`.",
             shape: &[],
         },
     ],
@@ -1012,8 +1013,9 @@ const CONSTRUCT_DOC: MethodDoc = MethodDoc {
             with.",
     params: &[ParamDoc {
         name: "arguments",
-        desc: "One entry per declared constructor parameter, in order, keys ignored. Required \
-               even where the class declares no constructor, which is then `[]`.",
+        desc: "One entry per declared constructor parameter, in order, keys ignored. Entries \
+               after the last parameter are ignored. Required even where the class declares no \
+               constructor, which is then `[]`.",
         shape: &[],
     }],
     ret: "The new instance, with its own class erased to `mixed`. A class declaring no \
