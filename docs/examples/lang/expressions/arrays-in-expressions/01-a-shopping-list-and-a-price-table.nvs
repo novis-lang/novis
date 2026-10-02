@@ -1,7 +1,9 @@
 <?nvs
 // Builds a shopping list and a table of prices, then reads both back.
 
-array<string> $basket = ["bread", "milk"];
+// `var` takes the type from the values. Every value is a string, so
+// `$basket` is an `array<string>`.
+var $basket = ["bread", "milk"];
 // `$basket[] = ...` adds a value at the end. Its key is the next number.
 $basket[] = "coffee";
 
@@ -9,16 +11,23 @@ foreach ($basket as string $position => string $item) {
     echo $position, ": ", $item, "\n";
 }
 
-// `[...$basket]` copies every value of the list into the new list.
+// You can also write the type yourself. `[...$basket]` copies every value
+// of the list into the new list.
 array<string> $withGift = [...$basket, "flowers"];
 echo Core\Arr::count($withGift), " items\n";
 
-// A table gives every value a name you choose.
-array<int> $prices = ["bread" => 250, "milk" => 120];
+// A table gives every value a name you choose. Every value is an `int`, so
+// `$prices` is an `array<int>`.
+var $prices = ["bread" => 250, "milk" => 120];
 $prices["coffee"] = 890;
 echo "milk costs ", $prices["milk"], " cents\n";
 
+// An empty array has no values to take a type from, so its type is written.
+array<int> $discounts = [];
+$discounts["milk"] = 20;
+echo "milk costs ", $prices["milk"] - $discounts["milk"], " cents on sale\n";
+
 // Every key is text. `$shelf[8]` and `$shelf["8"]` are the same entry, so a
 // number used as a key always finds the value you stored under it.
-array<string> $shelf = [8 => "tea"];
+var $shelf = [8 => "tea"];
 echo $shelf["8"], "\n";

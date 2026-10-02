@@ -2,7 +2,7 @@
 // Reads settings where a key may be missing. Reading a key that is not
 // there throws an error, so this shows the two safe ways to ask for one.
 
-array<string> $settings = ["theme" => "dark", "language" => "de"];
+var $settings = ["theme" => "dark", "language" => "de"];
 
 // `??` gives the value on the right when the key is missing.
 echo $settings["theme"] ?? "light", "\n";

@@ -8,15 +8,20 @@ class Proxy
     public int $port = 3128;
 }
 
-array<string> $settings = ["host" => "db.example.com"];
+array<array<string>> $settings = ["db" => ["host" => "db.example.com"]];
 
 // `??=` writes the right side only when the left side is missing. "host" is
 // already written, so it keeps its value, and "port" is added.
-$settings["host"] ??= "localhost";
-$settings["port"] ??= "5432";
+$settings["db"]["host"] ??= "localhost";
+$settings["db"]["port"] ??= "5432";
 
-// This prints "db.example.com:5432".
-echo $settings["host"], ":", $settings["port"], "\n";
+// This also works when the outer key is missing. There is no "cache" entry
+// yet, so `??=` creates it and writes "host" inside it.
+$settings["cache"]["host"] ??= "127.0.0.1";
+
+// This prints "db.example.com:5432" and then "127.0.0.1".
+echo $settings["db"]["host"], ":", $settings["db"]["port"], "\n";
+echo $settings["cache"]["host"], "\n";
 
 ?Proxy $proxy = null;
 
@@ -29,3 +34,13 @@ $proxy = new Proxy();
 // The same two lines read the object once there is one. This prints
 // "proxy.local:3128".
 echo $proxy?->host ?? "direct", ":", $proxy?->port ?? 0, "\n";
+
+// You can also write the test yourself. In the first side of `? :`, `$proxy`
+// is not `null`, so `->` is allowed. This prints "proxy.local".
+echo $proxy != null ? $proxy->host : "direct", "\n";
+
+// `&&` works the same way. Its right side runs only when `$proxy` is not
+// `null`. This prints "default proxy port".
+if ($proxy != null && $proxy->port == 3128) {
+    echo "default proxy port\n";
+}

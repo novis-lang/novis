@@ -2,7 +2,7 @@
 id: expressions
 title: Expressions and operators
 summary: every operator with its precedence and what it accepts, calls and closures, `match`, arrays and object literals in expression position, and the PHP spellings that do not parse
-keywords: operators, precedence, associativity, arithmetic, +, -, *, /, %, **, pow, concatenation, ., .=, ==, !=, ===, !==, <>, <=>, spaceship, comparison, <, <=, >, >=, &&, ||, !, and, or, xor, ??, ??=, ?:, elvis, ternary, ?->, nullsafe, match, is, new, clone, throw expression, print, isset, empty, unset, closure, fn, function, use, callable, first-class callable, named arguments, spread, ..., variadic, inout, array literal, subscript, append, [], destructuring, list(), object literal, shape, ++, --, increment, bitwise, &, |, ^, ~, <<, >>, shift, overflow, ArithmeticError, division by zero, @, backticks, eval, extract, compact, settype, variable variables, $$, =&, reference, |>, pipeline, pipe, $_, hole, substitution
+keywords: operators, precedence, associativity, arithmetic, +, -, *, /, %, **, pow, concatenation, ., .=, ==, !=, ===, !==, <>, <=>, spaceship, comparison, <, <=, >, >=, &&, ||, !, and, or, xor, ??, ??=, ??+=, ??-=, ??.=, defaulting assignment, ?:, elvis, ternary, ?->, nullsafe, match, is, new, clone, throw expression, print, isset, empty, unset, closure, fn, function, use, callable, first-class callable, named arguments, spread, ..., variadic, inout, array literal, subscript, append, [], destructuring, list(), object literal, shape, ++, --, increment, bitwise, &, |, ^, ~, <<, >>, shift, overflow, ArithmeticError, division by zero, @, backticks, eval, extract, compact, settype, variable variables, $$, =&, reference, |>, pipeline, pipe, $_, hole, substitution
 ---
 
 # Precedence and associativity
@@ -32,7 +32,7 @@ Highest first. A row binds tighter than every row below it.
 | `??` | right |
 | `? :` | right |
 | `catch (T $e) => …` | — |
-| `=` `+=` `-=` `*=` `/=` `%=` `**=` `.=` `??=` `&=` `\|=` `^=` `<<=` `>>=` | right |
+| `=` `+=` `-=` `*=` `/=` `%=` `**=` `.=` `??=` `??+=` `??-=` `??.=` `&=` `\|=` `^=` `<<=` `>>=` | right |
 | `print`, `throw`, `yield` | take everything to their right |
 
 - `as` binds tighter than every binary and prefix operator: `-$s as int` is `-($s as int)`, `$s as int ** 2` is `($s as int) ** 2`, and a converted quotient needs parentheses, `($a / $b) as int`. The conversion itself is the types chapter's.
@@ -261,7 +261,7 @@ echo ($a == $b) as string, "|", ($a == $same) as string, "|", ($a < $b) as strin
 
 # Logical operators and truth
 
-`&&` and `||` short-circuit and answer a `bool`; `!` negates. Their operands are read as conditions: `0`, `0.0`, `""`, `"0"`, `[]`, `null` and `false` are false and everything else is true, PHP's table — the one place a value is tested without `as bool`. `and`, `or` and `xor` do not parse.
+`&&` and `||` short-circuit and answer a `bool`; `!` negates. Their operands are read as conditions: `0`, `0.0`, `""`, `"0"`, `[]`, `null` and `false` are false and everything else is true, PHP's table — the one place a value is tested without `as bool`. `and`, `or` and `xor` do not parse. `&&` narrows its right operand as the `if` block of its left would, and `||` as the `else` block, so `$u != null && $u->active` compiles over a `?User` local; nothing proven holds after the expression.
 
 ```nvs
 <?nvs
@@ -300,10 +300,11 @@ xy3 Hello Ada, Ada!
 # `??`, `?:`, `?->` and the ternary
 
 - `$a ?? $b` answers `$a` unless it is `null` — or an absent array key, the one read of a missing key that does not throw. It is right-associative, so `$a ?? $b ?? $c` asks each in turn. On a value that can never be `null` it compiles and answers the left side.
-- `$a ??= $b` assigns only when `$a` is `null`.
+- `$a ??= $b` assigns only when `$a` is `null` or absent, read the way `??` reads it: an absent key at any level of the target is written, creating the arrays above it, so `$cfg["db"]["host"] ??= "localhost"` works on a `$cfg` with no `"db"` key, and the target's type need not include `null`.
+- `$a ??+= $v`, `$a ??-= $v` and `$a ??.= $v` are `$a = ($a ?? d) op $v` with `$a` evaluated once, where `d` is the zero of the target's type — `0`, `0.0`, the zero `decimal`, `""` — so `$byStatus[$s] ??+= 1` counts from a missing key. The written-out form decides every operand type, overflow and error; a target that is never `null` or absent takes the plain `+=`, `-=` or `.=`. There are exactly three: `($a ?? 100) -= 1` is `E0105`, and `$a = ($a ?? 100) - 1` is that program.
 - `$a ?: $b` tests `$a` as a condition and answers it when true, otherwise `$b`.
 - `$o?->p` and `$o?->m()` answer `null` when `$o` is `null`; the result is nullable. A `?->` chain cannot be assigned through.
-- `$c ? $a : $b` tests `$c` as a condition. The two arms may differ in type; the value is their union, and it widens at the binding (`float $x = $c ? 1 : 2.5`).
+- `$c ? $a : $b` tests `$c` as a condition. The two arms may differ in type; the value is their union, and it widens at the binding (`float $x = $c ? 1 : 2.5`). `$c` narrows the arms exactly as it narrows `if ($c)` and its `else`, so `$u != null ? $u->name : "guest"` compiles over a `?User` local.
 
 ```nvs
 <?nvs
@@ -322,6 +323,18 @@ echo ($empty ?: "default"), " ", (0 ?: 4), "\n";
 echo ($none?->get() == null) as string, " ", $some?->x, " ", $some?->get(), "\n";
 int $n = 5;
 echo $n > 3 ? "big" : "small", " ", $n > 9 ? "huge" : $n > 3 ? "big" : "small", "\n";
+array<array<int>> $t = [];
+$t["a"]["b"] ??= 4;
+$t["a"]["b"] ??= 9;
+$t["a"]["c"] ??+= 2;
+$t["a"]["c"] ??+= 2;
+?string $log = null;
+$log ??.= "x";
+?int $credit = null;
+$credit ??-= 3;
+echo $t["a"]["b"], " ", $t["a"]["c"], " ", $log, " ", $credit, "\n";
+?P $q = $none;
+echo $q != null ? $q->x : -1, " ", ($q != null && $q->x > 0) as string, "|", ($q == null || $q->x > 0) as string, "\n";
 ```
 ```output
 3 8
@@ -330,6 +343,8 @@ echo $n > 3 ? "big" : "small", " ", $n > 9 ? "huge" : $n > 3 ? "big" : "small", 
 default 4
 1 1 1
 big big
+4 4 x -3
+-1 |1
 ```
 
 ```nvs error
@@ -344,7 +359,7 @@ cannot be written through
 
 # Assignment
 
-`=` assigns to a local, a property, a static property or an array element, and is itself an expression whose value is the value written, so `$a = $b = 3` and `int $c = ($a = 5) + 1` both work. Every compound form `$x op= e` is `$x = $x op e` with `$x` evaluated once, and it cannot change the target's type: `$n /= 2` on an `int` is refused, because `/` answers `int|float`. A local is declared once, with a type (the types chapter); a plain `$x = …` to an undeclared name is a compile error.
+`=` assigns to a local, a property, a static property or an array element, and is itself an expression whose value is the value written, so `$a = $b = 3` and `int $c = ($a = 5) + 1` both work. Every compound form `$x op= e` is `$x = $x op e` with `$x` evaluated once, and it cannot change the target's type: `$n /= 2` on an `int` is refused, because `/` answers `int|float`. A local is declared once, with a type (the types chapter); a plain `$x = …` to an undeclared name is a compile error. `??=` and the defaulting forms `??+=`, `??-=` and `??.=`, which also write an absent key, are in the `??` section above.
 
 ```nvs
 <?nvs

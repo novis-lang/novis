@@ -3,8 +3,14 @@
 // the branch where the check is true, the compiler knows the type. You can
 // read the value there without converting it first.
 
-class Temperature {
+interface Reading {}
+
+class Temperature implements Reading {
     public function constructor(public float $celsius) {}
+}
+
+class Humidity implements Reading {
+    public function constructor(public int $percent) {}
 }
 
 class Report {
@@ -21,6 +27,18 @@ class Report {
         }
         return "unknown reading";
     }
+
+    // When the class is only known while the program runs, put it in a
+    // `class<Reading>` variable. `$reading is $kind` then checks against it.
+    public static function count(array<mixed> $readings, class<Reading> $kind): int {
+        int $found = 0;
+        foreach ($readings as string $key => mixed $reading) {
+            if ($reading is $kind) {
+                $found += 1;
+            }
+        }
+        return $found;
+    }
 }
 
 // This prints: temperature 21.5
@@ -34,3 +52,11 @@ echo Report::line("warm"), "\n";
 
 // This prints: unknown reading
 echo Report::line(true), "\n";
+
+array<mixed> $readings = [new Temperature(21.5), new Humidity(40), new Temperature(19.0), "warm"];
+
+// `as class<Reading>` turns a class name, here from a string, into a class
+// value. It throws an error if the name is not a `Reading`. This prints: 2 1
+class<Reading> $kind = "Temperature" as class<Reading>;
+echo Report::count($readings, $kind), " ";
+echo Report::count($readings, Humidity::class as class<Reading>), "\n";

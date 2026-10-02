@@ -19,33 +19,37 @@ array<Order> $orders = [
 ];
 
 decimal $revenue = 0.00;
-uint $shipped = 0;
 array<uint> $byStatus = [];
-string $slowest = "";
+array<uint> $itemsByStatus = [];
+string $large = "";
 
 foreach ($orders as Order $order) {
-    // A key that is not there yet cannot be read, so the first row for a
-    // status writes the starting value.
-    if (!Core\Arr::hasKey($byStatus, $order->status)) {
-        $byStatus[$order->status] = 0;
-    }
-    $byStatus[$order->status] += 1;
+    // `??+=` adds to a count that may not exist yet. The first row for a
+    // status finds no key, so its count starts at 0 and then becomes 1.
+    $byStatus[$order->status] ??+= 1;
 
+    // This is the same kind of update, written out in full. The first row
+    // for a status writes the starting value, and `+=` then adds to it.
+    if (!Core\Arr::hasKey($itemsByStatus, $order->status)) {
+        $itemsByStatus[$order->status] = 0;
+    }
+    $itemsByStatus[$order->status] += $order->items;
+
+    // These two values exist from the start, so the plain `+=` and `.=` are
+    // enough.
     if ($order->status == "paid") {
         $revenue += $order->amount;
-        $shipped += $order->items;
     }
-
     if ($order->items > 5) {
-        $slowest .= $order->status . " ";
+        $large .= $order->status . " ";
     }
 }
 
 // This prints: 148.24 taken over 10 items
-echo $revenue, " taken over ", $shipped, " items\n";
+echo $revenue, " taken over ", $itemsByStatus["paid"], " items\n";
 
 // This prints: paid 3, refunded 1
 echo "paid ", $byStatus["paid"], ", refunded ", $byStatus["refunded"], "\n";
 
 // This prints: large orders: paid
-echo "large orders: ", Core\Str::trim($slowest), "\n";
+echo "large orders: ", Core\Str::trim($large), "\n";
