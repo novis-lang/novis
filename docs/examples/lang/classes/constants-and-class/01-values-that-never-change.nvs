@@ -1,6 +1,6 @@
 <?nvs
 // Shows a class holding values that never change. Every constant writes its
-// type, and code inside the class reads it with `self::`.
+// type, and code inside the class reads it with `self::` or `static::`.
 
 class Upload {
     public const uint MAX_BYTES = 1048576;
@@ -8,10 +8,21 @@ class Upload {
     // The element type is `float`, so this constant holds 1.0 and 2.5.
     public const array<float> STEP_SECONDS = [1, 2.5];
 
-    // Returns true when a file of this size may be stored.
+    // Returns true when a file of this size may be stored. `static::MAX_BYTES`
+    // reads the constant of the class the call was made on.
     public static function fits(uint $bytes): bool {
-        return $bytes <= self::MAX_BYTES;
+        return $bytes <= static::MAX_BYTES;
     }
+
+    // `self::MAX_BYTES` always reads the value written in this class.
+    public static function describe(): string {
+        return static::MAX_BYTES as string . " of " . self::MAX_BYTES as string . " bytes";
+    }
+}
+
+// A subclass gives the constant a smaller value.
+class AvatarUpload extends Upload {
+    public const uint MAX_BYTES = 65536;
 }
 
 // From outside the class, the name of the class comes first. This prints
@@ -19,12 +30,17 @@ class Upload {
 echo Upload::MAX_BYTES, "\n";
 echo Upload::FOLDER, "\n";
 
-if (Upload::fits(500)) {
-    echo "500 bytes fit\n";
+// `fits` uses `static::`, so each class checks against its own limit.
+if (Upload::fits(500000)) {
+    echo "500000 bytes fit an upload\n";
 }
-if (!Upload::fits(4000000)) {
-    echo "4000000 bytes do not fit\n";
+if (!AvatarUpload::fits(500000)) {
+    echo "500000 bytes do not fit an avatar\n";
 }
+
+// This prints `65536 of 1048576 bytes`. The first number comes from
+// `static::`, the second from `self::`.
+echo AvatarUpload::describe(), "\n";
 
 // The first value is written as a whole number. The declared type makes it a
 // float, so this division prints 0.5.

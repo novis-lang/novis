@@ -14,7 +14,8 @@ array<string> $customerIds = [
 array<int> $orders = [];
 foreach ($customerIds as string $text) {
     string $key = Core\Uuid::parse($text)->toString();
-    $orders[$key] = ($orders[$key] ?? 0) + 1;
+    // `??+=` starts a missing key at 0, then adds 1.
+    $orders[$key] ??+= 1;
 }
 
 // This prints 3 orders for the first customer and 2 for the second.

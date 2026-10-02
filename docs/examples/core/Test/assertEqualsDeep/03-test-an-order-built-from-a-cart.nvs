@@ -14,7 +14,8 @@ class Checkout {
     public static function order(string $customer, array<string> $cart): Order {
         array<int> $counts = [];
         foreach ($cart as string $sku) {
-            $counts[$sku] = ($counts[$sku] ?? 0) + 1;
+            // `??+=` starts a missing key at 0, then adds 1.
+            $counts[$sku] ??+= 1;
         }
         array<Line> $lines = [];
         foreach ($counts as string $sku => int $quantity) {

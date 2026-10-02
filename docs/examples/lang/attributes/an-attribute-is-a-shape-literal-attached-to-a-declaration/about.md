@@ -3,7 +3,9 @@ enum, a method, a property, a class constant and a parameter can each carry one.
 
 Inside the brackets you write named values, as in `#[Route(path: "/users")]`. The name in front of the
 brackets must be a `type` alias for a shape, and Novis checks your values against that shape. An
-attribute is not a class. Novis creates nothing for it, and none of your code runs for it.
+alias declared inside a class, an interface or an enum is written with its owner, as in
+`#[Job::Meta(...)]`, the same way as in a type. An attribute is not a class. Novis creates nothing
+for it, and none of your code runs for it.
 
 Every value must be known while the program is compiled: a number, a string, `true`, `null`, a list, a
 class constant or an enum case. A variable or a function call there does not compile.
