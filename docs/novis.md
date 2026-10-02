@@ -40,7 +40,7 @@ Conventions the whole file uses:
 
 - A.1 [Programs, files and names](#lang-programs) — what a `.nvs` file is, how it runs, how names are spelled and resolved, and how one file reaches another *(<?nvs, <?=, ?>, inline HTML, shebang, nvs run, echo, print, comments, doc comment, ///, docblock, PHPDoc, @see, @example, exit, namespace, use, require, autoload, discover, class name, casing, constructor, visibility, top-level statements, main)*
 - A.2 [Types, declarations and conversions](#lang-types) — every type, how a binding declares one, every literal, the `as` conversion and its table, implicit widening, narrowing, truthiness, and the `tainted`/`secret` qualifiers *(bool, int, uint, float, decimal, string, bytes, array<T>, callable, class<T>, class reference, mixed, object, nullable, ?T, union, literal type, enum, shape, object literal, type alias, void, never, self, static, iterable, intersection, var, declaration, inout, variadic, default parameter, constant, literal, heredoc, nowdoc, interpolation, duration, html, markup, template, template literal, page, escape, xss, as, conversion, cast, (int), (string), (float), (bool), (array), intval, strval, floatval, boolval, settype, gettype, is_int, is_string, is_array, is_null, is_numeric, widening, narrowing, is, truthy, falsy, tainted, secret, resource)*
-- A.3 [Expressions and operators](#lang-expressions) — every operator with its precedence and what it accepts, calls and closures, `match`, arrays and object literals in expression position, and the PHP spellings that do not parse *(operators, precedence, associativity, arithmetic, +, -, *, /, %, **, pow, concatenation, ., .=, ==, !=, ===, !==, <>, <=>, spaceship, comparison, <, <=, >, >=, &&, ||, !, and, or, xor, ??, ??=, ?:, elvis, ternary, ?->, nullsafe, match, is, new, clone, throw expression, print, isset, empty, unset, closure, fn, function, use, callable, first-class callable, named arguments, spread, ..., variadic, inout, array literal, subscript, append, [], destructuring, list(), object literal, shape, ++, --, increment, bitwise, &, |, ^, ~, <<, >>, shift, overflow, ArithmeticError, division by zero, @, backticks, eval, extract, compact, settype, variable variables, $$, =&, reference, |>, pipeline, pipe, $_, hole, substitution)*
+- A.3 [Expressions and operators](#lang-expressions) — every operator with its precedence and what it accepts, calls and closures, `match`, arrays and object literals in expression position, and the PHP spellings that do not parse *(operators, precedence, associativity, arithmetic, +, -, *, /, %, **, pow, concatenation, ., .=, ==, !=, ===, !==, <>, <=>, spaceship, comparison, <, <=, >, >=, &&, ||, !, and, or, xor, ??, ??=, ??+=, ??-=, ??.=, defaulting assignment, ?:, elvis, ternary, ?->, nullsafe, match, is, new, clone, throw expression, print, isset, empty, unset, closure, fn, function, use, callable, first-class callable, named arguments, spread, ..., variadic, inout, array literal, subscript, append, [], destructuring, list(), object literal, shape, ++, --, increment, bitwise, &, |, ^, ~, <<, >>, shift, overflow, ArithmeticError, division by zero, @, backticks, eval, extract, compact, settype, variable variables, $$, =&, reference, |>, pipeline, pipe, $_, hole, substitution)*
 - A.4 [Statements and control flow](#lang-statements) — expression statements, blocks and local declarations, `if`, the four loops, `switch`, `break`/`continue` with levels, `return`, `try`/`catch`/`finally`, `throw`, `echo`, `unset`, and the PHP statement forms that do not parse *(statement, block, scope, definite assignment, if, elseif, else if, else, endif, alternative syntax, while, endwhile, do while, for, foreach, endforeach, as, key, value, inout, by reference, Iterator, Iterable, switch, case, default, fallthrough, break, continue, break 2, continue 2, levels, return, try, catch, finally, multi-catch, throw, echo, print, unset, exit, yield, goto, label, declare, strict_types, global, static variable)*
 - A.5 [Classes, interfaces and objects](#lang-classes) — declaring a class, its properties, methods and constants; inheritance; interfaces, default methods and `by` delegation; hooks, observers, `Stringable`, `Comparable`; what an object is and what `clone` copies *(class, constructor, __construct, new, public, protected, private, static, self, parent, $this, abstract, final, extends, implements, interface, trait, delegation, by, readonly, lateinit, property hooks, get, set, PropertyObserver, Stringable, __toString, Comparable, compareTo, clone, __clone, is, object, ?->, nullsafe, __get, __set, __call, __callStatic, __invoke, __destruct, anonymous class, const, ::class, class<T>, class reference, new $cls, late static binding)*
 - A.6 [Enums](#lang-enums) — `enum` declares a closed set of named integers — how cases get their values, how a case converts to and from its integer, and what stands in for PHP's enum methods *(enum, case, backed enum, BackedEnum, UnitEnum, int enum, uint enum, string enum, ->name, ->value, cases(), from(), tryFrom(), as int, as E, enum match, enum switch, enum case type, closed set, Core\Order)*
@@ -1229,9 +1229,9 @@ object without the fields a shape names, a name that denotes no class this progr
 `as T` cannot fail (`$i as ?int` on an `int`) and for a class target (`$o as ?Foo`): an object is
 tested with `is`. A `class<T>` target is not a class target and is available: `$name as
 ?class<Animal>` answers `null` for every name `as class<Animal>` would throw for — one that denotes
-no class, and one that denotes a class outside `Animal`'s hierarchy. A written-out `Foo::class`
-operand stays decided at compile time under both spellings, so `Rock::class as ?class<Animal>` is
-refused rather than answering `null`.
+no class, and one that denotes a class outside `Animal`'s hierarchy. A written-out `Foo::class` or
+string-literal operand stays decided at compile time under both spellings, so `Rock::class as
+?class<Animal>` and `'Rock' as ?class<Animal>` are refused rather than answering `null`.
 
 ```nvs
 <?nvs
@@ -1268,10 +1268,13 @@ cannot convert string "abc" to `int`
 -1 -1 42
 ```
 
-`as` is also the only way to obtain a `class<T>`, and there are two doors. A `Foo::class` operand is
-decided where it is written — a compile error when `Foo` is not a `T`, never a throw the program has
-to reach — while any other `string` is checked at run time against the classes this program declares
-to be `T`s.
+`as` is also the only way to obtain a `class<T>`, and there are two doors. A class name written out
+in the source — a `Foo::class` operand, or a plain string literal such as `'Shop\Dog'` — is decided
+where it is written: a compile error when it names no class (`E0303`) or a class that is not a `T`
+(`E0708`), never a throw the program has to reach. A string literal is the class's whole name, with
+no `namespace` or `use` applied, and its class is loaded through the `autoload` map the way
+`Foo::class` loads one. Any other `string` — a variable, a concatenation, a class constant — is
+checked at run time against the classes this program declares to be `T`s.
 
 ```nvs
 <?nvs
@@ -1301,6 +1304,38 @@ try {
 ```output
 woof a Dog
 cannot convert to `class<Animal>`: the value does not denote a class that is a `Animal`
+```
+
+The usual pairing is a literal default checked while compiling and a configured name checked while
+running, with `as ?class<T>` and `??` falling back from one to the other.
+
+```nvs
+<?nvs
+interface Renders {
+    public static function extension(): string;
+}
+class CsvReport implements Renders {
+    public static function extension(): string {
+        return "csv";
+    }
+}
+class<Renders> $fallback = 'CsvReport' as class<Renders>;
+string $setting = "PdfReport";
+class<Renders> $format = ($setting as ?class<Renders>) ?? $fallback;
+echo $format::extension(), "\n";
+```
+```output
+csv
+```
+
+```nvs error
+<?nvs
+class Animal {}
+class Rock {}
+class<Animal> $c = 'Rock' as class<Animal>;
+```
+```output
+`Rock` is not a `Animal`, so this can never be a `class<Animal>`
 ```
 
 ```nvs error
@@ -1359,6 +1394,42 @@ Inside the branch a test proves, a binding is read at the narrower type. Four sp
 - `$x == literal` (or an enum case) on a literal or enum-case union, on the edge that proves it.
 - `match (true)` and `switch (true)`: each arm's label is one of the tests above and narrows its
   own body. `default` narrows nothing.
+
+A ternary's arms and the right operand of `&&` and `||` are branches too, so the short forms need no
+`if`: `$c ? $a : $b` narrows its arms as `if ($c)` and its `else` would, `&&` narrows its right
+operand as the `if` block of its left, and `||` as the `else` block. Nothing proved holds after the
+expression.
+
+```nvs
+<?nvs
+class User {
+    public function constructor(public string $name, public bool $active) {}
+}
+class Admin {
+    public function canDelete(): bool {
+        return true;
+    }
+}
+class Check {
+    public static function label(?User $user): string {
+        return $user != null ? $user->name : "guest";
+    }
+    public static function on(?User $user): string {
+        return ($user != null && $user->active) ? "on" : "off";
+    }
+    public static function allowed(?User $user): string {
+        return ($user == null || $user->active) ? "yes" : "no";
+    }
+    public static function deletes(mixed $x): string {
+        return ($x is Admin && $x->canDelete()) ? "deletes" : "reads";
+    }
+}
+User $ada = new User("Ada", false);
+echo Check::label($ada), " ", Check::label(null), " ", Check::on($ada), " ", Check::allowed(null), " ", Check::allowed($ada), " ", Check::deletes(new Admin()), " ", Check::deletes($ada), "\n";
+```
+```output
+Ada guest off yes no deletes reads
+```
 
 A write to the binding inside the branch drops the narrowing. Narrowing is branch-local; a `?T`
 that was tested in one `if` is still `?T` after it, and `->` on an un-narrowed `?C` is refused.
@@ -1690,7 +1761,7 @@ no free function has this name
 <a id="lang-expressions"></a>
 ## A.3 Expressions and operators
 
-Keywords: operators, precedence, associativity, arithmetic, +, -, *, /, %, **, pow, concatenation, ., .=, ==, !=, ===, !==, <>, <=>, spaceship, comparison, <, <=, >, >=, &&, ||, !, and, or, xor, ??, ??=, ?:, elvis, ternary, ?->, nullsafe, match, is, new, clone, throw expression, print, isset, empty, unset, closure, fn, function, use, callable, first-class callable, named arguments, spread, ..., variadic, inout, array literal, subscript, append, [], destructuring, list(), object literal, shape, ++, --, increment, bitwise, &, |, ^, ~, <<, >>, shift, overflow, ArithmeticError, division by zero, @, backticks, eval, extract, compact, settype, variable variables, $$, =&, reference, |>, pipeline, pipe, $_, hole, substitution
+Keywords: operators, precedence, associativity, arithmetic, +, -, *, /, %, **, pow, concatenation, ., .=, ==, !=, ===, !==, <>, <=>, spaceship, comparison, <, <=, >, >=, &&, ||, !, and, or, xor, ??, ??=, ??+=, ??-=, ??.=, defaulting assignment, ?:, elvis, ternary, ?->, nullsafe, match, is, new, clone, throw expression, print, isset, empty, unset, closure, fn, function, use, callable, first-class callable, named arguments, spread, ..., variadic, inout, array literal, subscript, append, [], destructuring, list(), object literal, shape, ++, --, increment, bitwise, &, |, ^, ~, <<, >>, shift, overflow, ArithmeticError, division by zero, @, backticks, eval, extract, compact, settype, variable variables, $$, =&, reference, |>, pipeline, pipe, $_, hole, substitution
 
 ### Precedence and associativity
 
@@ -1719,7 +1790,7 @@ Highest first. A row binds tighter than every row below it.
 | `??` | right |
 | `? :` | right |
 | `catch (T $e) => …` | — |
-| `=` `+=` `-=` `*=` `/=` `%=` `**=` `.=` `??=` `&=` `\|=` `^=` `<<=` `>>=` | right |
+| `=` `+=` `-=` `*=` `/=` `%=` `**=` `.=` `??=` `??+=` `??-=` `??.=` `&=` `\|=` `^=` `<<=` `>>=` | right |
 | `print`, `throw`, `yield` | take everything to their right |
 
 - `as` binds tighter than every binary and prefix operator: `-$s as int` is `-($s as int)`, `$s as int ** 2` is `($s as int) ** 2`, and a converted quotient needs parentheses, `($a / $b) as int`. The conversion itself is the types chapter's.
@@ -1948,7 +2019,7 @@ echo ($a == $b) as string, "|", ($a == $same) as string, "|", ($a < $b) as strin
 
 ### Logical operators and truth
 
-`&&` and `||` short-circuit and answer a `bool`; `!` negates. Their operands are read as conditions: `0`, `0.0`, `""`, `"0"`, `[]`, `null` and `false` are false and everything else is true, PHP's table — the one place a value is tested without `as bool`. `and`, `or` and `xor` do not parse.
+`&&` and `||` short-circuit and answer a `bool`; `!` negates. Their operands are read as conditions: `0`, `0.0`, `""`, `"0"`, `[]`, `null` and `false` are false and everything else is true, PHP's table — the one place a value is tested without `as bool`. `and`, `or` and `xor` do not parse. `&&` narrows its right operand as the `if` block of its left would, and `||` as the `else` block, so `$u != null && $u->active` compiles over a `?User` local; nothing proven holds after the expression.
 
 ```nvs
 <?nvs
@@ -1987,10 +2058,11 @@ xy3 Hello Ada, Ada!
 ### `??`, `?:`, `?->` and the ternary
 
 - `$a ?? $b` answers `$a` unless it is `null` — or an absent array key, the one read of a missing key that does not throw. It is right-associative, so `$a ?? $b ?? $c` asks each in turn. On a value that can never be `null` it compiles and answers the left side.
-- `$a ??= $b` assigns only when `$a` is `null`.
+- `$a ??= $b` assigns only when `$a` is `null` or absent, read the way `??` reads it: an absent key at any level of the target is written, creating the arrays above it, so `$cfg["db"]["host"] ??= "localhost"` works on a `$cfg` with no `"db"` key, and the target's type need not include `null`.
+- `$a ??+= $v`, `$a ??-= $v` and `$a ??.= $v` are `$a = ($a ?? d) op $v` with `$a` evaluated once, where `d` is the zero of the target's type — `0`, `0.0`, the zero `decimal`, `""` — so `$byStatus[$s] ??+= 1` counts from a missing key. The written-out form decides every operand type, overflow and error; a target that is never `null` or absent takes the plain `+=`, `-=` or `.=`. There are exactly three: `($a ?? 100) -= 1` is `E0105`, and `$a = ($a ?? 100) - 1` is that program.
 - `$a ?: $b` tests `$a` as a condition and answers it when true, otherwise `$b`.
 - `$o?->p` and `$o?->m()` answer `null` when `$o` is `null`; the result is nullable. A `?->` chain cannot be assigned through.
-- `$c ? $a : $b` tests `$c` as a condition. The two arms may differ in type; the value is their union, and it widens at the binding (`float $x = $c ? 1 : 2.5`).
+- `$c ? $a : $b` tests `$c` as a condition. The two arms may differ in type; the value is their union, and it widens at the binding (`float $x = $c ? 1 : 2.5`). `$c` narrows the arms exactly as it narrows `if ($c)` and its `else`, so `$u != null ? $u->name : "guest"` compiles over a `?User` local.
 
 ```nvs
 <?nvs
@@ -2009,6 +2081,18 @@ echo ($empty ?: "default"), " ", (0 ?: 4), "\n";
 echo ($none?->get() == null) as string, " ", $some?->x, " ", $some?->get(), "\n";
 int $n = 5;
 echo $n > 3 ? "big" : "small", " ", $n > 9 ? "huge" : $n > 3 ? "big" : "small", "\n";
+array<array<int>> $t = [];
+$t["a"]["b"] ??= 4;
+$t["a"]["b"] ??= 9;
+$t["a"]["c"] ??+= 2;
+$t["a"]["c"] ??+= 2;
+?string $log = null;
+$log ??.= "x";
+?int $credit = null;
+$credit ??-= 3;
+echo $t["a"]["b"], " ", $t["a"]["c"], " ", $log, " ", $credit, "\n";
+?P $q = $none;
+echo $q != null ? $q->x : -1, " ", ($q != null && $q->x > 0) as string, "|", ($q == null || $q->x > 0) as string, "\n";
 ```
 ```output
 3 8
@@ -2017,6 +2101,8 @@ echo $n > 3 ? "big" : "small", " ", $n > 9 ? "huge" : $n > 3 ? "big" : "small", 
 default 4
 1 1 1
 big big
+4 4 x -3
+-1 |1
 ```
 
 ```nvs error
@@ -2031,7 +2117,7 @@ cannot be written through
 
 ### Assignment
 
-`=` assigns to a local, a property, a static property or an array element, and is itself an expression whose value is the value written, so `$a = $b = 3` and `int $c = ($a = 5) + 1` both work. Every compound form `$x op= e` is `$x = $x op e` with `$x` evaluated once, and it cannot change the target's type: `$n /= 2` on an `int` is refused, because `/` answers `int|float`. A local is declared once, with a type (the types chapter); a plain `$x = …` to an undeclared name is a compile error.
+`=` assigns to a local, a property, a static property or an array element, and is itself an expression whose value is the value written, so `$a = $b = 3` and `int $c = ($a = 5) + 1` both work. Every compound form `$x op= e` is `$x = $x op e` with `$x` evaluated once, and it cannot change the target's type: `$n /= 2` on an `int` is refused, because `/` answers `int|float`. A local is declared once, with a type (the types chapter); a plain `$x = …` to an undeclared name is a compile error. `??=` and the defaulting forms `??+=`, `??-=` and `??.=`, which also write an absent key, are in the `??` section above.
 
 ```nvs
 <?nvs
@@ -2461,12 +2547,12 @@ do {
 
 ### `for`
 
-`for (init; cond; step) body`. The init clause is **either** one typed local declaration — `int $i = 0`, or `var $i = 0` — **or** a comma-separated list of expressions over locals declared above the loop; never both, and never two declarations. The condition and the step are each a comma-separated list of expressions, any of them empty, so `for (;;)` loops until a `break`. A condition list runs every expression in it and decides on the last, so an assignment written before that last one happens on every test, including the one that ends the loop. The counter is an ordinary function-scoped local: it is readable after the loop with the value that ended it, and a second loop in the same function needs a different name. `continue` runs the step.
+`for (init; cond; step) body`. The init clause is **either** one local declaration — `var $i = 0`, or with a written type, `int $i = 0` — **or** a comma-separated list of expressions over locals declared above the loop; never both, and never two declarations. The condition and the step are each a comma-separated list of expressions, any of them empty, so `for (;;)` loops until a `break`. A condition list runs every expression in it and decides on the last, so an assignment written before that last one happens on every test, including the one that ends the loop. The counter is an ordinary function-scoped local: it is readable after the loop with the value that ended it, and a second loop in the same function needs a different name. `continue` runs the step.
 
 ```nvs
 <?nvs
 int $j = 10;
-for (int $i = 0; $i < 3; $i++, $j--) {
+for (var $i = 0; $i < 3; $i++, $j--) {
     echo $i, ":", $j, " ";
 }
 echo "\n", $i, " ", $j, "\n";
@@ -2497,37 +2583,49 @@ at most one binding
 
 ### `foreach`
 
-`foreach (subject as T $v)` or `foreach (subject as string $k => T $v)`. Every binding declares its type; an untyped `as $v` does not parse.
+`foreach (subject as var $v)` or `foreach (subject as var $k => var $v)`. Each binding writes `var` or its type — `foreach (subject as T $v)`, `foreach (subject as string $k => T $v)` — and the two may be mixed in one header. A binding with neither, `as $v`, does not parse.
 
-- Over an `array<T>`: the value binds as `T` and the key, when bound, is `string` — never `int`. `inout T $v` writes each element back into the array; `&$v` does not parse. The loop walks a copy, so appending to or unsetting from the array inside the body does not change what is visited (an `inout` loop walks the array itself).
+- `var` on the value binding takes the subject's element type `T`, with any qualifier on it such as `tainted`; `var` on the key binding takes `string`. The type is then fixed, exactly as if it were written. A written type is checked against the element type, and is the one to write when the binding must be wider than the element — `int|float $v` over an `array<int>` whose body stores a `float` in `$v`.
+- Over an `array<T>`: the value binds as `T` and the key, when bound, is `string` — never `int`. `inout var $v` or `inout T $v` writes each element back into the array; `&$v` does not parse. The loop walks a copy, so appending to or unsetting from the array inside the body does not change what is visited (an `inout` loop walks the array itself).
 - Over an `Iterator<T>` or an `Iterable<T>` — a generator, or a class implementing either — the value binds as `T` and there is no key to bind. The iteration chapter owns those interfaces and generators.
-- The subject is an expression, but `as` in the header belongs to `foreach`: converting the subject needs parentheses, `foreach (($m as array<int>) as int $v)`. An array literal as the subject has no element type; bind it to a typed local first.
+- The subject is an expression, but `as` in the header belongs to `foreach`: converting the subject needs parentheses, `foreach (($m as array<int>) as var $v)`. An array literal as the subject is `array<T>` under a `var` value binding when every element has the type `T`, as it is for `var $xs = [...]`; mixed element types or `[]` do not compile. Under a written binding type the literal has no element type, so bind it to a typed local first.
 - The body is one statement; `break`, `continue` and `return` leave it as they leave any loop.
-- A binding is declared by the loop, and a later `foreach` in the same function may declare the same name again.
+- A binding is declared by the loop, and a later `foreach` in the same function may declare the same name again at the same type, whether written or taken by `var`; at another type it is `E0406`.
 
 ```nvs
 <?nvs
-array<int> $prices = ["apple" => 3, "pear" => 5];
-foreach ($prices as int $p) {
+var $prices = ["apple" => 3, "pear" => 5];
+foreach ($prices as var $p) {
     echo $p, " ";
 }
 echo "\n";
-foreach ($prices as string $name => int $each) {
+foreach ($prices as var $name => var $each) {
     echo $name, "=", $each, " ";
 }
 echo "\n";
-foreach ($prices as inout int $doubled) {
+foreach ($prices as inout var $doubled) {
     $doubled = $doubled * 2;
 }
 echo Core\Json::encode($prices), "\n";
+foreach ($prices as string $name => int|float $amount) {
+    if ($amount > 6) {
+        $amount = $amount * 0.25;
+    }
+    echo $name, "=", $amount, " ";
+}
+echo "\n";
+foreach (["new", "sale"] as var $tag) echo $tag, " ";
+echo "\n";
 mixed $m = [7, 8];
-foreach (($m as array<int>) as int $v) echo $v;
+foreach (($m as array<int>) as var $v) echo $v;
 echo "\n";
 ```
 ```output
 3 5
 apple=3 pear=5
 {"apple":6,"pear":10}
+apple=6 pear=2.5
+new sale 
 78
 ```
 
@@ -2558,6 +2656,14 @@ foreach ($a as $v) { echo $v; }
 ```
 ```output
 a `foreach` binding writes its type, or `var`
+```
+
+```nvs error
+<?nvs
+foreach ([1, "two"] as var $x) { echo $x; }
+```
+```output
+`var` cannot infer an array whose elements have different types
 ```
 
 ### `switch`
@@ -4552,20 +4658,36 @@ Keywords: foreach, Iterable, Iterator, iterate, advance, current, yield, generat
 ### What `foreach` walks
 
 `foreach` accepts three things: an `array<T>`, an object implementing `Iterable<T>`, and an
-object implementing `Iterator<T>`. The binding is typed. Over an array it may bind the key as
-well (`foreach ($a as string $k => T $v)`); the array forms, `break`, `continue` and the rest of
-the statement are in the [statements](#lang-statements) chapter.
+object implementing `Iterator<T>`. Each of the three gives the value binding the element type `T`:
+`as var $v` takes it, and a written `as T $v` is checked against it. Over an array the loop may
+bind the key as well (`foreach ($a as var $k => var $v)`, the key a `string`); the other two have
+no key. The array forms, `break`, `continue` and the rest of the statement are in the
+[statements](#lang-statements) chapter.
 
 ```nvs
 <?nvs
-array<string> $names = ["a" => "Ada", "b" => "Bob"];
-foreach ($names as string $k => string $v) {
+class Letters implements Iterable<string> {
+    public function iterate(): Iterator<string> {
+        yield "x";
+        yield "y";
+    }
+}
+var $names = ["a" => "Ada", "b" => "Bob"];
+foreach ($names as var $k => var $v) {
     echo $k, "=", $v, ";";
+}
+echo "\n";
+foreach (new Letters() as var $letter) {
+    echo Core\Str::upper($letter);
+}
+foreach ($names as string $k => string $v) {
+    echo $k;
 }
 echo "\n";
 ```
 ```output
 a=Ada;b=Bob;
+XYab
 ```
 
 ### The two interfaces
@@ -28397,7 +28519,10 @@ populates.
 | `$a <> $b` | `!=` — the same comparison, and inequality has one spelling (`rule:expressions/one-equality-operator`) | `E0241` |
 | PHP's class-test operator, on every subject | `$x is A`, and `$x is $cls` for a class reference held in a binding — one type test for every type a value can inhabit, which answers rather than refuses when the declaration already settles it (`rule:php-migration/one-type-test`, `rule:types/type-test`) | `E0253` |
 
-`<=>`, `**`, `??`, `??=`, `?:`, `?->` and `.=` all work as in PHP.
+`<=>`, `**`, `??`, `??=`, `?:`, `?->` and `.=` all work as in PHP, and `??=` also writes a key absent
+at any level of its target. Novis adds `??+=`, `??-=` and `??.=`, which PHP does not have:
+`$hits[$page] ??+= 1` is `$hits[$page] = ($hits[$page] ?? 0) + 1` with the target worked out once
+(the expressions chapter).
 
 ### Control flow
 
