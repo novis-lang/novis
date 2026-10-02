@@ -349,7 +349,7 @@ pub(crate) fn run(
     let (unit, spans) = match compile(&checked, cache.as_ref(), coverage.any()) {
         Ok(both) => both,
         Err(error) => {
-            eprintln!("error: {error}");
+            crate::report_internal(error);
             return ExitCode::FAILURE;
         }
     };
@@ -663,8 +663,8 @@ impl nvs_runtime::inproc::Answering for UnderTest {
 /// this run shares — `rule:testing/isolate-per-test`'s "shares compiled code with its siblings"
 /// is this `Rc` and the program closure each child holds a clone of.
 ///
-/// `Err` is the message to render; a compile that fails ends the run rather
-/// than any one test.
+/// `Err` is the message [`crate::report_internal`] renders; a compile that
+/// fails ends the run rather than any one test.
 ///
 /// `cache` is `rule:packaging/an-artifact-is-one-immutable-content-addressed-file`'s artifact cache, or [`None`] for a run that consults
 /// none — every way it can fail to answer is a cold compile and nothing a

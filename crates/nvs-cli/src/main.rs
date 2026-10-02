@@ -2677,7 +2677,7 @@ fn run_run(
     ) {
         Ok(unit) => unit,
         Err(error) => {
-            eprintln!("error: {error}");
+            report_internal(error.to_string());
             return ExitCode::FAILURE;
         }
     };
@@ -2687,7 +2687,7 @@ fn run_run(
     // one holder, and an `Rc` is what lets the run and the seam both name it.
     let unit = std::rc::Rc::new(unit);
     let Some(entry) = unit.script() else {
-        eprintln!("internal error: the script frame was not compiled");
+        report_internal("the script frame was not compiled");
         return ExitCode::FAILURE;
     };
 
@@ -3633,6 +3633,27 @@ fn report_unreadable(path: &std::path::Path, err: &std::io::Error, sink: Sink) {
     eprintln!("error: could not read {}: {err}", path.display());
 }
 
+/// Renders an internal compiler error on standard error as `E0901`, with
+/// `message` as its text.
+///
+/// Every [`nvs_codegen::CodegenError`] comes here, `Unsupported` among them: a
+/// construct the checker accepted and the compiler cannot lower is a bug in
+/// Novis, never in the program, and `E0901` is the one code for that.
+fn report_internal(message: impl Into<String>) {
+    render_diagnostics(&mut internal_error(message), &SourceMap::new());
+}
+
+/// [`report_internal`]'s diagnostic, which has no span because the program's
+/// source is not where the fault is.
+fn internal_error(message: impl Into<String>) -> Diagnostics {
+    let mut diags = Diagnostics::new();
+    diags.report(nvs_diagnostics::Diagnostic::error(
+        nvs_diagnostics::code::E_INTERNAL,
+        message,
+    ));
+    diags
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
@@ -3943,5 +3964,23 @@ mod tests {
             service.get_positionals().all(|arg| arg.get_id() != "file"),
             "`service` acts on a registered server, never on a file to serve"
         );
+    }
+
+    /// An internal compiler error renders as `E0901` with the error's text, and
+    /// ends with the `nvs agent show` line every coded diagnostic ends with.
+    #[test]
+    fn an_internal_compiler_error_is_e0901() {
+        let diags = super::internal_error("the script frame was not compiled");
+        let mut out = Vec::new();
+        nvs_diagnostics::Renderer::new()
+            .with_color(false)
+            .render_all(diags.iter(), &nvs_diagnostics::SourceMap::new(), &mut out)
+            .expect("rendering to an in-memory buffer cannot fail");
+        let text = String::from_utf8(out).expect("the rendering is UTF-8");
+        assert!(
+            text.starts_with("error[E0901]: the script frame was not compiled\n"),
+            "{text}"
+        );
+        assert!(text.contains(nvs_diagnostics::AGENT_SHOW_LINE), "{text}");
     }
 }

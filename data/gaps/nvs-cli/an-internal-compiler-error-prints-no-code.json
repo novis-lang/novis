@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-cli/src/main.rs",
-  "title": "An internal compiler error prints a bare `error:` line, and `E0901` is never raised.",
-  "text": "`E_INTERNAL` (`E0901`) is declared with a card that asks the reader to report the bug, but nothing raises it. A `CodegenError` from `cache::unit_for` reaches `crates/nvs-cli/src/main.rs:2679` and is printed as `error: {error}`, and a missing script frame prints `internal error: the script frame was not compiled` at `crates/nvs-cli/src/main.rs:2690`. Neither carries a code, so neither ends with the `nvs agent show` line. `crates/nvs-cli/src/runner.rs:695` and `crates/nvs-cli/src/script.rs:1393` turn the same error into a string. Each of these paths should report `E0901` with the error's text as its message. `CodegenError::Unsupported` is a construct the compiler does not lower yet, and whether it shares `E0901` or gets a code of its own is decided in the same change.",
-  "goal": "goal-closeout"
-}

@@ -1397,7 +1397,10 @@ impl Compiler {
                     routes: Arc::new(crate::runtime_routes(&checked.exprs)),
                 })
             })
-            .map_err(|error| format!("`{path}`: {error}"));
+            .map_err(|error| {
+                crate::report_internal(format!("`{path}`: {error}"));
+                format!("`{path}` could not be compiled; see the errors above")
+            });
         (
             outcome,
             Trace {
