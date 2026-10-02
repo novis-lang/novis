@@ -1,5 +1,6 @@
 [package]
 name = "nvs-codegen"
+build = "../../tools/build/tests_without_pdb.rs"
 description = "Novis's baseline Cranelift backend: lowers nvs-ir to native code behind the ADR 0002 calling convention"
 version.workspace = true
 edition.workspace = true

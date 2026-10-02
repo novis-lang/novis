@@ -1,5 +1,6 @@
 [package]
 name = "nvs-fmt"
+build = "../../tools/build/tests_without_pdb.rs"
 description = "The `nvs fmt` formatter: one canonical layout for a `.nvs` file, printed from the lossless parse"
 version.workspace = true
 edition.workspace = true

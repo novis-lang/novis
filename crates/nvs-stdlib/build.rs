@@ -79,7 +79,11 @@ const INVENTORY_FLOOR: usize = 900;
 /// candidate then comes out undecided with nothing to say so.
 const ROW_FLOOR: usize = 800;
 
+#[path = "../../tools/build/tests_without_pdb.rs"]
+mod tests_without_pdb;
+
 fn main() {
+    tests_without_pdb::main();
     let manifest = PathBuf::from(env("CARGO_MANIFEST_DIR"));
     // crates/nvs-stdlib -> the workspace root.
     let workspace = manifest

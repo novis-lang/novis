@@ -1,5 +1,6 @@
 [package]
 name = "nvs-db"
+build = "../../tools/build/tests_without_pdb.rs"
 description = "The five database drivers: a borrowed sans-IO codec and a state machine of our own, over the parking stream"
 version.workspace = true
 edition.workspace = true

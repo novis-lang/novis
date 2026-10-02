@@ -1,5 +1,6 @@
 [package]
 name = "nvs-config"
+build = "../../tools/build/tests_without_pdb.rs"
 description = "The directive registry and the `nvs.toml` tree behind it"
 version.workspace = true
 edition.workspace = true

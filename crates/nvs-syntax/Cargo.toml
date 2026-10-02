@@ -1,5 +1,6 @@
 [package]
 name = "nvs-syntax"
+build = "../../tools/build/tests_without_pdb.rs"
 description = "Lexer and parser for Novis: dual-mode source (inline HTML + code), AST with spans"
 version.workspace = true
 edition.workspace = true

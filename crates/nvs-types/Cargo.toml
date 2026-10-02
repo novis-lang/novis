@@ -1,5 +1,6 @@
 [package]
 name = "nvs-types"
+build = "../../tools/build/tests_without_pdb.rs"
 description = "Novis type checker: interned declared types, local definite assignment, the arithmetic result-type table"
 version.workspace = true
 edition.workspace = true

@@ -24,7 +24,11 @@ use std::process::Command;
 #[path = "build/winres.rs"]
 mod winres;
 
+#[path = "../../tools/build/tests_without_pdb.rs"]
+mod tests_without_pdb;
+
 fn main() {
+    tests_without_pdb::main();
     let manifest = PathBuf::from(env("CARGO_MANIFEST_DIR"));
     // crates/nvs-cli -> the workspace root.
     let workspace = manifest

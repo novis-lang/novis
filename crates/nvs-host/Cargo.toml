@@ -1,5 +1,6 @@
 [package]
 name = "nvs-host"
+build = "../../tools/build/tests_without_pdb.rs"
 description = "The thread-per-core host: one pinned OS thread, one scheduler, one run queue of stackful coroutines"
 version.workspace = true
 edition.workspace = true

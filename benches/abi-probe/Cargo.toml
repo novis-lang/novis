@@ -1,5 +1,6 @@
 [package]
 name = "nvs-abi-probe"
+build = "../../tools/build/tests_without_pdb.rs"
 description = "Architecture invariants and cost baselines for Novis's calling convention, coroutines and extension sandbox"
 publish = false
 version.workspace = true

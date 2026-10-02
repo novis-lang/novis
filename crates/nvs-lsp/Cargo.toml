@@ -1,5 +1,6 @@
 [package]
 name = "nvs-lsp"
+build = "../../tools/build/tests_without_pdb.rs"
 description = "The `nvs lsp` language server: LSP 3.17 over stdio, synchronous, on the resilient tree"
 version.workspace = true
 edition.workspace = true

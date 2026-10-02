@@ -1,5 +1,6 @@
 [package]
 name = "nvs-runtime"
+build = "../../tools/build/tests_without_pdb.rs"
 description = "Novis runtime: the ADR 0002 helper ABI, the tagged value representation, refcounted strings, and the per-request context"
 version.workspace = true
 edition.workspace = true
