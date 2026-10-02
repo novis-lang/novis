@@ -131,7 +131,8 @@
 //! `request` runs a synthetic request through the program under test with no
 //! socket and no port, and [`RESPONSE`]'s two accessors are what it answers
 //! with. The mechanism is [`nvs_runtime::inproc`]'s and that module's doc is
-//! the one home of it. What the request carries is the block above's gap 3.
+//! the one home of it. What the request carries is
+//! `rule:testing/in-process-request`'s signature.
 //!
 //! **`#[Test(server: true)]` is a separate mechanism, and this class holds one
 //! word of it.** § 18 justifies the two as answering measurably different

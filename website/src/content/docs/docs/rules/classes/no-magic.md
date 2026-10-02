@@ -47,8 +47,8 @@ behaviour that exists ambiently, that no class opts into or out of, and whose co
 the size of the graph it recurses into. An ordering a class produces should be the ordering its own
 code states, once, reviewably.
 
-`Comparable` lives in the global namespace beside `Stringable`, not under `Core`, because it is a
-contract an ordinary class implements rather than a domain class holding `static` members. Equality
+`Comparable` lives in the global namespace beside `Stringable` and `Parses`, not under `Core`, because
+it is a contract an ordinary class implements rather than a domain class holding `static` members. Equality
 is a separate question and is unaffected: a `Comparable` class still compares by identity under `==`
 ([`expressions/object-identity-equality`](/docs/rules/expressions/truthiness-and-equality/#object-identity-equality "Two objects are equal only when they are the same object, and no class may change that")), and asking the content question explicitly is
 `$a->compareTo($b) == 0`.

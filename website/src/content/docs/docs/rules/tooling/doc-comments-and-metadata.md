@@ -289,8 +289,9 @@ having no owner class there. Each member's reference card ([`core-api/reference-
 `doc` key — `short`, `params` with each parameter's `name`, `desc` and shape keys, `return`, `errors` —
 and each member also carries its signature half: `kind`, `signature` in the spec's own spelling, `params`
 with types, qualifiers and defaults, `options`, `returns`; a class its `typeParams` and `constructor`, a
-constant its `type` and `value`. Four rosters the compiler declares outside the registry sit beside
-`classes` and `enums`: `exceptions`, `interfaces`, `attributes` and `directives`.
+constant its `type` and `value`. Five rosters declared outside the registry sit beside `classes` and
+`enums`: `exceptions`, `interfaces`, `attributes`, `directives`, and `capabilities`, one row per member
+of the capability table naming its `class`, its `member` and, when it needs one, its `capability`.
 
 The omission rule is the same at every level: a row with nothing written has no `doc` key, a written card
 carries only its non-empty fields, and no array is ever emitted empty. That is

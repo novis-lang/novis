@@ -277,6 +277,11 @@ A class whose `parse` takes **exactly one `string`** and can fail also carries
 **is** `parse` with the throw caught; it is never a second implementation, so there is exactly one
 answer to "is this text a `T`".
 
+The global interface `Parses` makes the pair a contract: its one required member is `parse(tainted
+string $s): static`, and `tryParse` is a default body on the interface rather than a second required
+member. A user class implementing `Parses` declares `parse` alone, and declares its own `tryParse` when
+it wants the non-throwing call.
+
 Three conditions keep the shape from regrowing into a `from`/`tryFrom` habit. The `parse` takes one
 `string` and nothing else — a parse taking a format or an options bag is a different shape and gets
 none. `tryParse` delegates to `parse`. And the spelling is `tryParse`: `…OrNull`, `…Safe` and `…Ex`

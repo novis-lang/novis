@@ -367,8 +367,8 @@ on a method that declares no route is refused rather than ignored.
 
 The parameter takes the same type list as a path capture and launders the same way
 ([`security/route-capture-is-laundered-by-its-type`](/docs/rules/security/laundering/#route-capture-is-laundered-by-its-type "A route capture is laundered by the parameter's own type, and a string capture stays tainted")): `string`, `int`, `uint`, `decimal`,
-`Core\Uuid`, an enum, or a closed set ([`routing/a-capture-narrows-to-a-closed-set`](/docs/rules/routing/declaring-a-route/#a-capture-narrows-to-a-closed-set "A capture narrows to a closed set with a literal-union or enum-subset type, never with a regex")); anything else
-is a compile error at the parameter. **A default is what makes the key optional**; a parameter without
+`Core\Uuid`, an enum, a closed set ([`routing/a-capture-narrows-to-a-closed-set`](/docs/rules/routing/declaring-a-route/#a-capture-narrows-to-a-closed-set "A capture narrows to a closed set with a literal-union or enum-subset type, never with a regex")), or a class
+implementing `Parses`; anything else is a compile error at the parameter. **A default is what makes the key optional**; a parameter without
 one is required. Both facts are what the generated API document reads
 ([`attributes/api-adds-and-cannot-contradict`](/docs/rules/attributes/#api-adds-and-cannot-contradict "#[Api] may add to the generated document and may not contradict the code")), and a declared `#[Query]` key is what
 `Core\Router::url` accepts beyond the captures ([`routing/a-leftover-link-key-is-a-query-string`](/docs/rules/routing/links-and-the-api-document/#a-leftover-link-key-is-a-query-string "A url() key that is not a capture becomes a percent-encoded query string, and one that is neither a capture nor a declared #[Query] parameter does not compile")).

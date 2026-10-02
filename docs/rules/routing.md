@@ -260,8 +260,8 @@ on a method that declares no route is refused rather than ignored.
 
 The parameter takes the same type list as a path capture and launders the same way
 ([`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type)): `string`, `int`, `uint`, `decimal`,
-`Core\Uuid`, an enum, or a closed set ([`routing/a-capture-narrows-to-a-closed-set`](routing.md#routing-a-capture-narrows-to-a-closed-set)); anything else
-is a compile error at the parameter. **A default is what makes the key optional**; a parameter without
+`Core\Uuid`, an enum, a closed set ([`routing/a-capture-narrows-to-a-closed-set`](routing.md#routing-a-capture-narrows-to-a-closed-set)), or a class
+implementing `Parses`; anything else is a compile error at the parameter. **A default is what makes the key optional**; a parameter without
 one is required. Both facts are what the generated API document reads
 ([`attributes/api-adds-and-cannot-contradict`](attributes.md#attributes-api-adds-and-cannot-contradict)), and a declared `#[Query]` key is what
 `Core\Router::url` accepts beyond the captures ([`routing/a-leftover-link-key-is-a-query-string`](routing.md#routing-a-leftover-link-key-is-a-query-string)).
