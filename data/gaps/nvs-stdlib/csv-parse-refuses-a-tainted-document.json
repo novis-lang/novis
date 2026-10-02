@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-stdlib/src/csv.rs",
+  "title": "`Core\\Csv::parse` declares its text as an unclassified `string`, so it refuses an uploaded document.",
+  "text": "`parse` declares `text` as `CoreTy::Str` (`crates/nvs-stdlib/src/csv.rs:222`), and an unclassified string parameter refuses a tainted argument (`rule:security/unclassified-parameter-refuses-tainted`, `crates/nvs-stdlib/src/registry.rs:1227`). An uploaded file is tainted, and `Core\\Encoding::decodeText` keeps the mark, because its input is `Contagious` (`crates/nvs-stdlib/src/encoding.rs:359`). So a request handler cannot parse the CSV file it was sent, although the module doc names an uploaded spreadsheet as this member's input. `Core\\Json::decode` declares its text `Contagious` (`crates/nvs-stdlib/src/json.rs:290`). Closing this classifies `parse`'s text as `Contagious`, so every cell carries the mark, and adds a conformance case that parses a tainted document.",
+  "goal": "goal-closeout"
+}

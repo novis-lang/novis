@@ -56,7 +56,11 @@ goal promised and did not build is not here: it is a gap record under `data/gaps
 `core-debug`, `core-decimal`, `core-encoding`, `core-env-and-4-more`, `core-html-and-1-more`,
 `core-http-client-and-2-more`, `core-http-response-and-1-more`, `core-http-socket-and-1-more`,
 `core-http-stream`, `core-io-1-2`, `core-io-2-2`, `core-io-file-and-1-more`, `core-json-and-6-more`,
-`core-math-1-3`, `core-math-2-3`, `core-math-3-3`, `core-metrics-and-4-more`, `core-net-listener-and-1-more`,
+`tooling-overhaul`, `core-math-1-3`, `core-math-2-3`, `core-math-3-3`, `core-metrics-and-4-more`, `core-net-listener-and-1-more`,
 `core-objectmap`, `core-objectset`, `core-os-and-2-more`, `core-path`, `core-process-and-4-more`,
 `core-queue-stats`, `core-random-and-1-more`, `core-ratelimit-and-3-more`,
-`core-reflect-classinfo-and-1-more`, `core-reflect-enuminfo-and-3-more`.
+`core-reflect-classinfo-and-1-more`, `core-reflect-enuminfo-and-3-more`, `core-regex-and-1-more`,
+`core-request-1-2`, `core-request-2-2`, `core-request-mount-and-1-more`, `core-response-and-1-more`,
+`core-router-and-4-more`, `core-serialize-and-1-more`, `core-session`, `core-signal-and-4-more`,
+`core-sse-and-2-more`, `core-str-1-3`, `core-str-2-3`, `core-str-3-3`, `core-taint-and-1-more`,
+`core-test-1-2`.

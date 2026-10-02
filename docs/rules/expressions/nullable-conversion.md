@@ -9,8 +9,9 @@ var $page = Core\Request::query('page') as ?uint ?? 1;
 var $mode = Core\Request::query('mode') as ?SortMode ?? SortMode::Newest;
 ```
 
-A `null` operand yields `null` rather than a diagnostic, which is what keeps the common shape one
-line. The cost is stated plainly: at such a site an **absent** value and a **malformed** one both
+A `null` operand that `as T` rejects yields `null` rather than a diagnostic, which is what keeps the
+common shape one line. Where `as T` accepts `null`, `as ?T` gives the same value: `null as string` is
+`""`, so `null as ?string` is `""` too. The cost is stated plainly: at such a site an **absent** value and a **malformed** one both
 reach the `??`. Where that distinction matters, test the operand for `null` before converting, or use
 the throwing form — a value that gates access is converted with plain `as T`.
 
