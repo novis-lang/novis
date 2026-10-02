@@ -1,36 +1,38 @@
 {
-  "state": "**Goal `coalesce-assign` — `??=` works as PHP's does, and `??+=`, `??-=` and `??.=` start from a default — has its decision record and nothing of its behaviour yet.** Goal `program-enumeration`'s whole list is this goal's Stage 1 floor.\n\nADR 0254 is on disk and is the goal's one record: it `creates` `rule:expressions/defaulting-assignment`\n(status `designed`, empty `guardedBy`, flipped to `shipped` with its two Stage 3 cases) and `modifies`\n`rule:php-migration/absent-storage-is-never-a-zero-value`, whose `because` already names 0254. That\nfragment's **prose is unchanged on purpose**: it is still true until `??=` writes an absent key, so its\nsecond paragraph is rewritten in the commit that lands item 2 below, not before. ADR 0254 § 7 and § 8\nare the decision a Stage 2 session implements; the goal file's § *Standing decisions* is the source.\n\nThe tree as it stands: `check_compound_assign` returns the target's type for every operator, so\n`return $this->x ??= f();` is `E0403` against a non-null return type. `$options[\"theme\"] ??= \"light\"`\non an absent key throws `undefined array key`, which is gap `nvs-ir/throws-on-an-array-key-that`, and\nthat gap's record says why marking `Env::coalesce_guarded` alone turns an `E0482` into a panic.\n`$a ??+= 1` is a parse error (`E0102`).",
+  "state": "**Goal `coalesce-assign` — Stage 2 (`??=` as PHP's) is on disk; Stage 3 (the three defaulting operators) has nothing yet.**\n\n`??=` now reads its target guarded and writes it plain (ADR 0254 § 7): `check_compound_assign`\nmarks each level with `presence::mark_guarded_target_reads` into the typed-expression table\n(`ExprTypeTable::is_guarded_target_read`), never into `Env::coalesce_guarded`, and `nvs-ir` consults\nthe mark only while `Lowering::reading_guarded_target` is set around the read in\n`lower_read_modify_write`. A nullable row under a `??=` target stays `E0482`. The expression's type\nis the target's without `null` when the right side has none (§ 8). Gap\n`nvs-ir/throws-on-an-array-key-that` is deleted, and `rule:php-migration/absent-storage-is-never-a-zero-value`'s\nsecond paragraph says the `??=` read is the same guarded read.\n\n`rule:expressions/defaulting-assignment` is still `designed`; it flips to `shipped` with the two\nStage 3 cases, as ADR 0254 says. `$a ??+= 1` is still `E0102`.\n\nAn absent optional shape field under `??=` takes the right side on the read and then throws on the\nwrite, exactly as the plain `$u->nick = \"b\"` does; nothing pins it, and the goal's one-sentence rule\nsays that is the right answer.",
   "next": {
-    "stage": 2,
-    "title": "`??=` as PHP's",
+    "stage": 3,
+    "title": "the three operators",
     "files": [
+      "crates/nvs-syntax/src/lexer.rs",
+      "crates/nvs-syntax/src/token.rs",
+      "crates/nvs-syntax/src/ast.rs",
+      "crates/nvs-syntax/src/parser/expr.rs",
       "crates/nvs-types/src/expr/assign.rs",
-      "crates/nvs-types/src/expr/presence.rs",
-      "crates/nvs-types/src/lib.rs",
       "crates/nvs-ir/src/lower/stmt.rs"
     ],
     "items": [
       {
         "done": false,
-        "text": "**The guarded read of a compound target** (ADR 0254 § 7) — `crates/nvs-types/src/expr/assign.rs:1290` (`check_compound_assign`) marks the target's levels for the read when the operator is `??=`, with the walk `crates/nvs-types/src/expr/presence.rs:100` (`mark_guarded_places`) is; the mark is one the read consults and the write does not, so `crates/nvs-ir/src/lower/stmt.rs:1554` (`row_ty_of`) still sees the ordinary row and `array<?array<int>> $g; $g[\"0\"][\"1\"] ??= 5;` stays `E0482`. Take it together with the next item: neither is testable alone."
+        "text": "**Three tokens and three `AssignOp`s** (ADR 0254, `rule:expressions/defaulting-assignment`) — `crates/nvs-syntax/src/lexer.rs:1009` lexes `??=` as one token beside `??`; add `??+=`, `??-=`, `??.=` there and at the token list `crates/nvs-syntax/src/lexer.rs:2646`, the kinds at `crates/nvs-syntax/src/token.rs:231`, the ops at `crates/nvs-syntax/src/ast.rs:371` (`AssignOp::binary_op` at `crates/nvs-syntax/src/ast.rs:385` keeps answering the operator, so a defaulting op needs its own question), and the parse at `crates/nvs-syntax/src/parser/expr.rs:256`. `$a ??-1` must still lex as `$a ?? -1`, and `??+` / `??-` are not operators. Test `the_defaulting_assignment_operators_lex_as_one_token_each`."
       },
       {
         "done": false,
-        "text": "**An absent key is written** (ADR 0254 § 7) — `crates/nvs-ir/src/lower/stmt.rs:538` (`lower_compound_assignment`) goes through `lower_read_modify_write`: the read of the target is the guarded one at every level, and the write is the plain one, so `$g[\"k\"][\"j\"] ??= 5` with no `\"k\"` creates the row. In the same commit: gap `data/gaps/nvs-ir/throws-on-an-array-key-that.json` is deleted, example 03 of `and-the-ternary` loses its `// proof: gap` line, and the second paragraph of `docs/rules/php-migration/absent-storage-is-never-a-zero-value.md` is rewritten whole to say the target of `??=` is the same guarded read, then `bun nv rules --render`."
+        "text": "**Typing** — `crates/nvs-types/src/expr/assign.rs:1300` (`check_compound_assign`): `$a ??op= $v` is `$a = ($a ?? d) op $v`, `d` the zero of the target's type (`int`/`\"\"` for `mixed` or a union), the read guarded like `??=`'s (`presence::mark_guarded_target_reads`), every refusal of `op` kept. Test `a_defaulting_add_assign_is_typed_as_the_sum_over_a_zero_of_the_target_type`, in `crates/nvs-types/tests/defaulting_assignment.rs`."
       },
       {
         "done": false,
-        "text": "**The result type** (ADR 0254 § 8) — `crates/nvs-types/src/expr/assign.rs:1329` (`check_compound_assign`'s return) returns, for `??=` alone, the target's type with `null` removed when the value's type has no `null`; every other operator and `crates/nvs-types/src/expr/assign.rs:728` (`check_assign`)'s plain `=` keep the target's type. Check the IR value's representation in a value position (`$x = ($o->p ??= v)`) agrees with the narrowed type; the pack's trap `?T ?? <literal>` is `mixed` is near this."
+        "text": "**Lowering** — `crates/nvs-ir/src/lower/stmt.rs:641` (`lower_read_modify_write`): one staged target, the guarded read (`reading_guarded_target` already exists), a `??` against a constant of the target's representation (`emit_const_one` at `crates/nvs-ir/src/lower/stmt.rs:719` is the model for a zero), then `op`. Test `a_defaulting_assignment_stages_its_target_once` in `crates/nvs-ir/src/lower/tests.rs`."
       },
       {
         "done": false,
-        "text": "**The two conformance cases and the named tests** of the goal file's Stage 2 checks, the hooked-property test in `crates/nvs-ir/src/lower/tests.rs:67` (beside `lower_script_src`) included; each new case is added to the `guardedBy` of `data/rules/php-migration/absent-storage-is-never-a-zero-value.json`."
+        "text": "**LSP, fmt and the conformance case** — `crates/nvs-lsp/src/completion.rs:1441` lists `??=` among the operators after which an expression is offered; `crates/nvs-fmt/src/space.rs:86` is where spacing runs, and how it spaces an operator is *not checked*. Then `tests/conformance/lang/defaulting-assignment-counts-subtracts-and-appends-from-nothing.nvst`, and the rule flips to `shipped` with its `guardedBy`."
       }
     ]
   },
   "backlog": [
-    "**Stage 3: the three operators** — the syntax file set first (`crates/nvs-syntax/src/lexer.rs:1008`, `token.rs`, `ast.rs`'s `AssignOp`, `parser/expr.rs:256`, `walk.rs:878`), then the meaning (`check_compound_assign`, `lower_read_modify_write`, `crates/nvs-lsp/src/completion.rs:1081`). Shares `assign.rs` and `stmt.rs` with Stage 2. `rule:expressions/defaulting-assignment` goes to `shipped` with its two cases in `guardedBy`.",
-    "**Stage 4: the feature proofs, and everything already on disk** — the new example and attack step under `lang:expressions/assignment`, the memoising getter under `lang:expressions/and-the-ternary`, then the documents Stage 0 lists, both `about.md` files, the regenerated `docs/novis.md`, and the closing search. Prose and programs only; no crate is open.",
-    "When this goal's last check goes green the driver takes goal `ci-green`."
+    "A write that narrows (`?int $n = null; $n ??= 1;` leaving `$n` an `int`) is for the user — goal file § *Standing decisions*.",
+    "`$a ?? ($a = f())` typed as the target — same, for the user.",
+    "`$this->x ??= 5` on an unwritten non-null typed property throws where PHP writes; `rule:classes/an-unwritten-property-read-throws` owns it, not this goal."
   ]
 }
