@@ -92,30 +92,81 @@ fn var_infers_an_array_literal_whose_elements_have_one_type() {
     );
 }
 
+/// A nested literal is typed first, so the outer one sees one `array<int>`
+/// per row and is `array<array<int>>`.
 #[test]
-fn var_infers_a_nested_literal_and_a_spread_from_their_elements() {
+fn var_infers_a_nested_array_literal_from_the_inside_out() {
+    let codes = codes_in(
+        "",
+        "var $grid = [[1, 2], [3]];\narray<array<int>> $g = $grid;\n",
+    );
+    assert!(codes.is_empty(), "{codes:?}");
+    let narrower = codes_in("", "var $grid = [[1], [2]];\narray<int> $flat = $grid;\n");
+    assert_eq!(narrower, [code::E_TYPE_MISMATCH]);
+}
+
+/// A spread gives its source's element type, a spread literal included.
+#[test]
+fn var_infers_through_a_spread_of_the_same_element_type() {
     let codes = codes_in(
         "array<int> $more",
-        "var $grid = [[1, 2], [3]];\narray<array<int>> $g = $grid;\n\
-         var $all = [...$more, ...[4, 5], 6];\narray<int> $a = $all;\n",
+        "var $all = [...$more, ...[4, 5], 6];\narray<int> $a = $all;\n",
     );
     assert!(codes.is_empty(), "{codes:?}");
 }
 
-/// Two types are refused once, whatever they are, and nothing is widened to a
-/// common type: `int` beside `float` is two types too.
+/// An element's type is what `var $e = <element>;` would give: a literal and
+/// an enum case widen to their base, so two different strings or two cases of
+/// one enum are one type, and a call gives its declared return type.
 #[test]
-fn var_refuses_an_array_literal_whose_elements_differ() {
-    for literal in [
-        "[1, 'a']",
-        "[1, null]",
-        "[1, 2.5]",
-        "[[1], ['a']]",
-        "[...[1], 'a']",
+fn var_gives_each_element_the_type_a_var_local_would() {
+    let diags = check_src(
+        "<?nvs\nenum Mode { Read, Write }\nclass T {\n  \
+         static function one(): int { return 1; }\n  function m(): void {\n    \
+         var $names = ['a', 'b'];\n    $names[] = 'c';\n    \
+         var $modes = [Mode::Read, Mode::Write];\n    array<Mode> $all = $modes;\n    \
+         var $counts = [T::one(), 2];\n    array<int> $ints = $counts;\n  }\n}\n",
+    );
+    assert!(!diags.has_errors(), "{diags:?}");
+}
+
+/// The help lines `var`'s refusal carries, for the diagnostics `check` reported
+/// over `var $x = {literal};`.
+fn refusal_help(literal: &str) -> Vec<String> {
+    let diags = check_in_method(&format!("var $x = {literal};\n"));
+    let codes: Vec<_> = diags.iter().filter_map(|d| d.code).collect();
+    assert_eq!(codes, [code::E_VAR_ARRAY_LITERAL_NEEDS_TYPE], "{literal}");
+    diags.iter().flat_map(|d| d.notes.clone()).collect()
+}
+
+/// Two types are refused once, whatever they are, and nothing is widened to a
+/// common type: `int` beside `float` is two types too. The help names the
+/// union to write.
+#[test]
+fn var_refuses_an_array_literal_whose_elements_differ_and_names_the_union() {
+    for (literal, union) in [
+        ("[1, 'a']", "array<int|string> $x = [1, 'a'];"),
+        ("[1, 2.5]", "array<int|float> $x = [1, 2.5];"),
+        ("[[1], ['a']]", "array<array<int>|array<string>> $x"),
+        ("[...[1], 'a']", "array<int|string> $x"),
     ] {
-        let codes = codes_in("", &format!("var $x = {literal};\n"));
-        assert_eq!(codes, [code::E_VAR_ARRAY_LITERAL_NEEDS_TYPE], "{literal}");
+        let help = refusal_help(literal);
+        assert!(
+            help.iter().any(|h| h.contains(union)),
+            "{literal}: {help:?}"
+        );
     }
+}
+
+/// `null` beside one other type is written as the nullable type.
+#[test]
+fn var_refuses_an_array_literal_with_null_and_names_the_nullable_type() {
+    let help = refusal_help("[1, null]");
+    assert!(
+        help.iter()
+            .any(|h| h.contains("`array<?int> $x = [1, null];`")),
+        "{help:?}"
+    );
 }
 
 /// A qualifier is part of the type, so `var` can neither drop nor invent one.
@@ -131,7 +182,7 @@ fn var_refuses_elements_that_differ_only_in_a_qualifier() {
 }
 
 #[test]
-fn var_refuses_an_empty_array_literal_nested_included() {
+fn var_refuses_an_empty_array_literal_at_any_depth() {
     for literal in ["[]", "[[1], []]", "[...[]]"] {
         let codes = codes_in("", &format!("var $x = {literal};\n"));
         assert_eq!(codes, [code::E_VAR_ARRAY_LITERAL_NEEDS_TYPE], "{literal}");
@@ -139,7 +190,7 @@ fn var_refuses_an_empty_array_literal_nested_included() {
 }
 
 #[test]
-fn var_refuses_a_parent_and_a_child_class() {
+fn var_refuses_an_array_literal_of_two_classes_even_when_one_extends_the_other() {
     let diags = check_src(
         "<?nvs\nclass User {}\nclass Admin extends User {}\nclass T {\n  \
          function m(): void {\n    var $people = [new User(), new Admin()];\n  }\n}\n",
@@ -157,11 +208,61 @@ fn var_over_a_literal_with_a_broken_element_reports_the_element_alone() {
 }
 
 #[test]
-fn foreach_var_over_a_one_type_array_literal_takes_its_element_type() {
+fn foreach_var_over_a_one_type_array_literal_subject_infers() {
     let reads = codes_in("", "foreach ([1, 2] as var $n) { int $m = $n; }\n");
     assert!(reads.is_empty(), "{reads:?}");
     let retyped = codes_in("", "foreach ([1, 2] as var $n) { string $s = $n; }\n");
     assert_eq!(retyped, [code::E_TYPE_MISMATCH]);
+}
+
+/// The one diagnostic `body` reports, which must be a mismatch, as its label
+/// messages and its notes.
+fn the_mismatch(body: &str) -> (Vec<String>, Vec<String>) {
+    let diags = check_in_method(body);
+    let all: Vec<_> = diags.iter().collect();
+    let [d] = all.as_slice() else {
+        panic!("one diagnostic, not {diags:?}");
+    };
+    assert_eq!(d.code, Some(code::E_TYPE_MISMATCH), "{d:?}");
+    let labels = d.labels.iter().map(|l| l.message.clone()).collect();
+    (labels, d.notes.clone())
+}
+
+/// A write that does not fit the type `var` took is the mismatch a written type
+/// gets, with a label on the `var` line and the declaration that would accept
+/// the value — through a subscript at the depth written, and for a scalar too.
+#[test]
+fn a_write_that_misses_a_var_inferred_element_type_names_the_var_line() {
+    let (labels, notes) = the_mismatch("var $prices = [10, 20];\n$prices[] = 12.5;\n");
+    assert!(
+        labels.contains(&"`var` gave `$prices` the type `array<int>` here".to_owned()),
+        "{labels:?}"
+    );
+    assert!(
+        notes
+            .iter()
+            .any(|n| n.contains("`array<int|float> $prices = [10, 20];`")),
+        "{notes:?}"
+    );
+    let (_, nested) = the_mismatch("var $grid = [[1], [2]];\n$grid[0][] = 1.5;\n");
+    assert!(
+        nested
+            .iter()
+            .any(|n| n.contains("`array<array<int|float>> $grid = [[1], [2]];`")),
+        "{nested:?}"
+    );
+    let (labels, scalar) = the_mismatch("var $n = 1;\n$n = 2.5;\n");
+    assert!(
+        labels.contains(&"`var` gave `$n` the type `int` here".to_owned()),
+        "{labels:?}"
+    );
+    assert!(
+        scalar.iter().any(|n| n.contains("`int|float $n = 1;`")),
+        "{scalar:?}"
+    );
+    let (labels, written) = the_mismatch("array<int> $w = [1];\n$w[] = 1.5;\n");
+    assert_eq!(labels.len(), 1, "{labels:?}");
+    assert!(written.is_empty(), "{written:?}");
 }
 
 /// `rule:ide/no-compile-path-calls-the-synthesis`: the synthesis has one
