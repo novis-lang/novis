@@ -299,7 +299,7 @@ xy3 Hello Ada, Ada!
 
 # `??`, `?:`, `?->` and the ternary
 
-- `$a ?? $b` answers `$a` unless it is `null` — or an absent array key, the one read of a missing key that does not throw. It is right-associative, so `$a ?? $b ?? $c` asks each in turn. On a value that can never be `null` it compiles and answers the left side.
+- `$a ?? $b` answers `$a` unless it is `null` — or an absent array key, the one read of a missing key that does not throw. It is right-associative, so `$a ?? $b ?? $c` asks each in turn. On a value that can never be `null` it compiles and answers the left side. An array literal on the right takes the whole expression's target type, or with none — under `var` — the left operand's type without `null`, so `var $tags = $byPost["x"] ?? [];` over an `array<array<string>>` is an `array<string>`, and `$names ?? [1]` over a `?array<string>` is a mismatch at the `1`.
 - `$a ??= $b` assigns only when `$a` is `null` or absent, read the way `??` reads it: an absent key at any level of the target is written, creating the arrays above it, so `$cfg["db"]["host"] ??= "localhost"` works on a `$cfg` with no `"db"` key, and the target's type need not include `null`.
 - `$a ??+= $v`, `$a ??-= $v` and `$a ??.= $v` are `$a = ($a ?? d) op $v` with `$a` evaluated once, where `d` is the zero of the target's type — `0`, `0.0`, the zero `decimal`, `""` — so `$byStatus[$s] ??+= 1` counts from a missing key. The written-out form decides every operand type, overflow and error; a target that is never `null` or absent takes the plain `+=`, `-=` or `.=`. There are exactly three: `($a ?? 100) -= 1` is `E0105`, and `$a = ($a ?? 100) - 1` is that program.
 - `$a ?: $b` tests `$a` as a condition and answers it when true, otherwise `$b`.

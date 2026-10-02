@@ -22,3 +22,11 @@ echo $nickname ?? $row["name"], "\n";
 // You can write several fallbacks in a row. The first one that is not `null`
 // is the result, so this prints "no nickname".
 echo $shortName ?? $nickname ?? "no nickname", "\n";
+
+array<array<string>> $tagsByPost = ["first" => ["news"]];
+
+// An empty list `[]` after `??` gets the type of the left side. So `$tags`
+// is an `array<string>`, and you can add a string to it. This prints 1.
+var $tags = $tagsByPost["second"] ?? [];
+$tags[] = "draft";
+echo Core\Arr::count($tags), "\n";
