@@ -32,6 +32,27 @@ goal promised and did not build is not here: it is a gap record under `data/gaps
   arbitrary-precision type, and `decimal` with `Core\Decimal` is the bounded one. Applies at
   `rule:types/decimal`'s "what lies beyond" and the `E0456` card in `crates/nvs-diagnostics/src/lib.rs`.
   From `bigint`.
+- **A description that fails the shape check is rewritten, and `about` is never skipped.** Too long
+  means it explains edge cases the tests own, too short means the lead sentence carries the page, so
+  neither is padded or trimmed to fit. Every feature has a website page, so `data/proofs/policy.json`
+  carries no `about` skip, although `tools/nv/proofs/collect.ts` would honour one. From
+  `the-description-is-owed`.
+- **A limit handler that cannot run without weakening the bound does not run.** Stopping the request is
+  priority 1 and its report is not, so the bound is left alone and the finding recorded. Applies at
+  `Ctx::run_limit_handler` in `crates/nvs-runtime/src/ctx/hooks.rs` and `rule:errors/on-limit`'s
+  reserves. From `limit-handler-reach`.
+- **`data/proofs/help-backlog.json` only shrinks.** Nothing is added to it: a feature that lands owes
+  its help at once. Applies at the `HELP_BACKLOG` reader in `tools/nv/proofs/collect.ts`. From
+  `core-class-cards`.
+- **`var` is not a house style.** Only the features a goal names are rewritten to `var`, in a
+  `foreach` binding or over an array literal. Every other program keeps its written type, because a
+  written element type tells a beginner what the loop or the array has, and neither form is preferred
+  in a new program. Applies under `docs/examples/`. From `foreach-var` and `var-array-literal`.
+- **CI's billing and runners are the user's, and a hosted-runner failure is fixed from its log.** A
+  session that finds CI blocked by billing says so and stops, because whether the repository becomes
+  public or gets a self-hosted runner is not its call. A failure that does not reproduce locally is
+  still a failure, and a platform `cfg` that hides the symptom is not a fix. Applies at
+  `tools/nv/cmd/ci-green.ts` and `.github/workflows/`. From `ci-green`.
 
 ## Goals with nothing to keep
 
@@ -66,4 +87,6 @@ goal promised and did not build is not here: it is a gap record under `data/gaps
 `core-test-1-2`, `core-test-2-2`, `core-test-response-and-1-more`, `core-time-and-1-more`,
 `core-time-datetime`, `core-time-duration-1-2`, `core-time-duration-2-2`, `core-time-instant-and-1-more`,
 `core-time-zone-and-2-more`, `core-uri-1-2`, `core-uri-2-2`, `core-uuid`, `core-validate-and-1-more`,
-`core-xml-node-and-1-more`, `core-xml-writer`, `core-zip`.
+`core-xml-node-and-1-more`, `core-xml-writer`, `core-zip`, `tools-cli`, `tools-config`,
+`tools-php-differences`, `tools-agents`, `tools-install`, `tools-server`, `plain-comments`,
+`path-literals-follow-up`, `program-enumeration`, `coalesce-assign`, `completion-files`.

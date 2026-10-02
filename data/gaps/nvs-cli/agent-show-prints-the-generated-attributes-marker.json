@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-cli/src/agent.rs",
+  "title": "`nvs agent show` prints the `<!-- generated: attributes -->` marker instead of the attribute table.",
+  "text": "`docs/reference/lang/90-attributes.md` has a `<!-- generated: attributes -->` marker where the website renders the table of compiler attributes. `topic_card` in this module filters only `<!-- primer -->` lines out of a section's text, so a reader of `nvs agent show` sees the raw marker and no table. Closing this expands the marker from the checker's roster of attribute cards, the same rows the website renders, or drops the line, and pins it with a test over that section.",
+  "goal": "goal-closeout"
+}

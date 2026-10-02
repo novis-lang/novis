@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-types/src/lib.rs",
+  "title": "A refused cast in arithmetic reports a second error for the `mixed` it leaves behind.",
+  "text": "`return $total + (int)$each;` in a method declared `: int` reports `E0225` for the cast and also `E0403`, because the refused cast is typed `mixed` and the sum inherits it. One mistake gives two diagnostics, and the second one points at the whole expression rather than at the cast. Closing this types a refused cast as its target type, the way the `as` its suggestion names would be typed, so the expression around it checks as written; a test pins one diagnostic for that line.",
+  "goal": "goal-closeout"
+}

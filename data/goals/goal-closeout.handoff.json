@@ -1,27 +1,32 @@
 {
-  "state": "**Goal `goal-closeout`, Stage 3 (every old goal is read), batches 1 to 10 are done.** `docs/agent/goal-decisions.md` names every goal on the chain from `core-depth` to `core-zip` (`data/chain.json:170`), in `## Decisions` or the closing `## Goals with nothing to keep` list. Stage 3's check stays red until every goal in front of `goal-closeout` is named there. The remaining 17 goals are batch 11 (`tools-cli` to `ci-green`). Each one is hand-written, has a `## Standing decisions` section of 3 to 12 bullets and a handoff `backlog` of 1 to 3 items.\n\nA `bun -e` one-liner over `data/chain.json` and `data/goals/<slug>.handoff.json` prints a batch's backlogs and counts each goal's standing decisions in one call. The guard denies a `grep` over `data/goals/*.json`. A Rust heap allocation made during a request is charged to that request by the global allocator (`crates/nvs-runtime/src/budget.rs` module doc), so a backlog item saying a `Vec` in `Ctx` \"charges no budget\" is stale.\n\nGaps owned by `goal-closeout`, and opened by this stage, all under `data/gaps/`: `nv/no-suite-runs-the-proof-programs-once-the-floor-is-gone`, `nv/tool-surfaces-checked-only-by-the-floor`, `nv/the-tsan-check-s-crate-keying-has-no-test`, `nv/data-schema-is-promised-and-nothing-writes-it`, `website/the-website-grammar-is-hand-written-beside-the-editors`, `nvs-stdlib/reference-cards-are-not-held-to-the-plain-voice`, `nvs-stdlib/csv-parse-refuses-a-tainted-document`, `nvs-stdlib/core-server-has-no-request-environment-or-trace-id`, `benches/member-benches-index-with-a-uint`, `nvs-stdlib/the-topic-table-has-no-ceiling-of-its-own`, `nvs-stdlib/a-topic-re-subscribe-allocates`, `nvs-stdlib/zip-extraction-creates-a-file-by-path-after-resolving-its-folder`. Stage 4 sorts them into done and too large.\n\n`bun nv import` is broken, because the rule index it reads was deleted. Goal `ci-green`'s floor check stays red until Stage 6. That is expected.",
+  "state": "**Goal `goal-closeout`, Stage 3 (every old goal is read) is done; Stage 4 (finished in place) is next.** `docs/agent/goal-decisions.md` names every goal on the chain in front of `goal-closeout`, in `## Decisions` or the closing `## Goals with nothing to keep` list, so Stage 3's check should be green on the next sweep.\n\nThe perf figures that session 0013's message edits staled in `socket.rs`, `topic.rs` and `xml.rs` are measured again (`docs/perf/members.ndjson`), and `bun nv proofs --gate` owes nothing over the whole roster.\n\n`bun nv owners --closes goal-closeout` lists 84 gaps owned by this goal. Stage 4 builds each one, strikes it as a stated bound in its module's prose, or gives it a milestone owner whose plan covers it. It stops on `BLOCKED` only for \"too large\", which the goal's § *Stage 4* defines. Group them by file set, one crate or tool directory at a time.\n\n`bun nv import` is broken, because the rule index it reads was deleted. Goal `ci-green`'s floor check stays red until Stage 6. That is expected.",
   "next": {
-    "stage": 3,
-    "title": "every old goal is read",
-    "files": [
-      "docs/agent/goal-decisions.md",
-      "data/gaps/",
-      "docs/rules/",
-      "docs/agent/"
-    ],
+    "stage": 4,
+    "title": "finished in place",
+    "files": [],
+    "note": "one file set: `tools/nv/`, the gaps whose module is under it.",
     "items": [
       {
         "done": false,
-        "text": "**Batch 11a, standing decisions** — `data/chain.json:171` to `data/chain.json:187`, from `tools-cli` to `ci-green`. Send two `Explore` subagents at once, about nine goals each. Each reads `docs/agent/goals/<slug>.md` § *Standing decisions* and returns, per bullet, the `file:line` of a rule fragment, decision record, module doc, reference page or test that states it, or \"no home\". Check each \"no home\" yourself, then write it as an entry under `## Decisions` in `docs/agent/goal-decisions.md:12`, or as a gap when it is work not built."
+        "text": "**`bun nv playbook --closes` reads the deleted carried-gaps index** — `data/gaps/nv/playbook-closes-reads-the-deleted-carried-gaps-index.json`, at `tools/nv/cmd/playbook.ts:58`. The DONE gate runs this command, so it comes first. `rule:tooling/the-chain-names-its-live-goal` and `bun nv owners` are where gap ownership is read now."
       },
       {
         "done": false,
-        "text": "**Batch 11b, backlogs, then the closing list** — the same seventeen goals. Check each handoff `backlog` item against the tree, fix a stale sentence in place, write a gap owned by `goal-closeout` for work still owed, and add each slug with nothing to keep to the closing list at `docs/agent/goal-decisions.md:36`. Several items name a file and line already, for example `crates/nvs-runtime/src/ctx/mod.rs:561` (`limit-handler-reach`) and `crates/nvs-types/tests/common/mod.rs` (`path-literals-follow-up`)."
+        "text": "**The TSan check's crate keying has no test** — `data/gaps/nv/the-tsan-check-s-crate-keying-has-no-test.json`, at `tools/nv/select/checks.ts:451`. Write the test beside the existing ones in `tools/nv/test/select-checks.test.ts`."
+      },
+      {
+        "done": false,
+        "text": "**Five `nv` commands are checked only by goal checks** — `data/gaps/nv/tool-surfaces-checked-only-by-the-floor.json`, at `tools/nv/main.ts:1`. Each needs a test under `tools/nv/test/` before Stage 5 removes the floor."
+      },
+      {
+        "done": false,
+        "text": "**No suite runs the proof programs once the floor is gone** — `data/gaps/nv/no-suite-runs-the-proof-programs-once-the-floor-is-gone.json`, at `tools/nv/cmd/verify.ts:1`."
       }
     ]
   },
   "backlog": [
-    "Stage 4: sort every gap `bun nv owners --closes goal-closeout` names into done and too large (`docs/agent/goals/goal-closeout.md` § Stage 4).",
-    "Stage 6 deletes the walked goals; goal `ci-green`'s floor check is red until then (`docs/agent/goals/goal-closeout.md` § Stage 6)."
+    "`nvs-runtime`, `nvs-stdlib` and `nvs-cli` hold most of the other 80 gaps; take each crate as one group (`bun nv owners --closes goal-closeout`).",
+    "`data/gaps/nvs-lsp/completion-file-images-are-not-checked-in-an-editor.json` is a check only the user can run. It is the likely \"too large\" `BLOCKED` of Stage 4.",
+    "`data/gaps/nvs-runtime/nvs-run-without-a-memory-limit-has-no-ceiling.json` needs a decision about a default ceiling, and may be the user's."
   ]
 }

@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-cli/src/main.rs",
+  "title": "The `nvs service` subcommand summaries are written in the repository's dense voice, not the plain one.",
+  "text": "`nvs service --help` prints a doc comment per subcommand. `uninstall` reads \"Take the registration away, leaving no key, …\", `status` reads \"Report the state the manager holds it in, and — over the control socket …\", and `stop` reads \"Ask it to stop, which a hosted server answers with a drain\". An end user reads these, and they break the plain-voice bounds `AGENTS.md` § *Text an end user reads* sets: a dash joins two ideas, and the subject is not the command. Goal `plain-comments` swept `.nvs` comments and `about.md`, not command-line help. Closing this rewrites the `Service` enum's doc comments in that voice, and any help snapshot test that reads them.",
+  "goal": "goal-closeout"
+}
