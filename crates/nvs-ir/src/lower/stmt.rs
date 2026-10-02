@@ -349,7 +349,7 @@ impl<'a> Lowering<'a> {
                 by_ref: false,
             } if op.binary_op().is_some() => {
                 let binop = op.binary_op().expect("guarded by the arm's own condition");
-                self.lower_compound_assignment(e, binop, target, value, env, cur);
+                self.lower_compound_assignment(e, binop, op.defaults(), target, value, env, cur);
             }
             ExprKind::MethodCall { .. } | ExprKind::StaticCall { .. } | ExprKind::New { .. } => {
                 let (v, ty) = self.lower_expr(e, None, env, cur);
@@ -529,16 +529,24 @@ impl<'a> Lowering<'a> {
     /// accumulation into it, so `$out .= $piece` in a loop is quadratic in the
     /// number of appends. Every other target keeps the rewrite, because a
     /// property or an element already needs the write-back the rewrite
-    /// performs; see [`InstKind::StrAppend`].
+    /// performs; see [`InstKind::StrAppend`]. A `??.=` takes it too: a local
+    /// whose representation is a plain string can never be `null`, so the
+    /// operator is the plain `.=` there.
     ///
     /// # Panics
     ///
     /// Panics naming the target when it is not one [`is_reevaluable_target`]
     /// accepts.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "the assignment's own parts plus the lowering context; a struct would buy its \
+                  one call site nothing"
+    )]
     pub(crate) fn lower_compound_assignment(
         &mut self,
         e: &Expr,
         op: BinaryOp,
+        defaults: bool,
         target: &Expr,
         value: &Expr,
         env: &mut Env,
@@ -556,7 +564,7 @@ impl<'a> Lowering<'a> {
                 return;
             }
         }
-        self.lower_read_modify_write(e.span, target, op, Some(value), false, env, cur);
+        self.lower_read_modify_write(e.span, target, op, defaults, Some(value), false, env, cur);
     }
     /// `$x++;` / `--$x;` — `rule:types/arithmetic`'s `± 1` over the target's own numeric
     /// type, through the same read-modify-write `$x += 1;` takes.
@@ -600,7 +608,7 @@ impl<'a> Lowering<'a> {
             IncDecOp::Inc => BinaryOp::Add,
             IncDecOp::Dec => BinaryOp::Sub,
         };
-        self.lower_read_modify_write(e.span, target, op, None, false, env, cur)
+        self.lower_read_modify_write(e.span, target, op, false, None, false, env, cur)
     }
     /// `$t ⊕= e;` and `$t++;` alike: read the target, combine, write it back,
     /// answering `(old, new)` for a position that wants one of them.
@@ -633,6 +641,13 @@ impl<'a> Lowering<'a> {
     /// `extra_owner` is [`Self::lower_store`]'s, passed straight through: the
     /// `new` half is the value that landed in the target, so a value position
     /// consuming it needs a reference of its own.
+    ///
+    /// `defaults` is `??+=`, `??-=` and `??.=`
+    /// (`rule:expressions/defaulting-assignment`): the read is guarded as
+    /// under `??=`, and the operator's left operand is `$t ?? d` rather than
+    /// `$t`, with `d` a constant staged at the target's representation. That
+    /// `??` is lowered by [`Self::lower_coalesce`] from the entry
+    /// `nvs_types` recorded under [`AssignOp::defaulted_read_span`].
     #[expect(
         clippy::too_many_arguments,
         reason = "the rewrite's own inputs plus the two `lower_store` needs; a struct would buy \
@@ -643,6 +658,7 @@ impl<'a> Lowering<'a> {
         span: Span,
         target: &Expr,
         op: BinaryOp,
+        defaults: bool,
         rhs: Option<&Expr>,
         extra_owner: bool,
         env: &mut Env,
@@ -663,11 +679,14 @@ impl<'a> Lowering<'a> {
             target.kind
         );
         let reads = self.staged_mark();
-        // `??=` reads its target the way `??` reads its left operand, so an
-        // absent key at any level gives `null` and the right side is written
-        // there. Only the read is guarded: the write below lowers the same
+        // `??=` and the three defaulting operators read their target the way
+        // `??` reads its left operand, so an absent key at any level gives
+        // `null`. Only the read is guarded: the write below lowers the same
         // levels as the plain `=` does, which builds a row that is not there.
-        let outer = std::mem::replace(&mut self.reading_guarded_target, op == BinaryOp::Coalesce);
+        let outer = std::mem::replace(
+            &mut self.reading_guarded_target,
+            op == BinaryOp::Coalesce || defaults,
+        );
         let (old, old_ty) = self.lower_expr(target, None, env, cur);
         self.reading_guarded_target = outer;
         self.stage(target.span, old, old_ty);
@@ -690,15 +709,20 @@ impl<'a> Lowering<'a> {
                 &one
             }
         };
+        let (lhs, hint) = if defaults {
+            self.defaulted_read(target, op, rhs.span, *cur)
+        } else {
+            (target.clone(), old_ty)
+        };
         let combined = Expr {
             kind: ExprKind::Binary {
                 op,
-                lhs: Box::new(target.clone()),
+                lhs: Box::new(lhs),
                 rhs: Box::new(rhs.clone()),
             },
             span,
         };
-        let (new, new_ty) = self.lower_expr(&combined, Some(old_ty), env, cur);
+        let (new, new_ty) = self.lower_expr(&combined, Some(hint), env, cur);
         // The read and the `1` are dropped before the write: the store lowers
         // the target's own sub-expressions again — which is where a plain `=`
         // lowers its own — and those are the entries that have to still be
@@ -709,6 +733,65 @@ impl<'a> Lowering<'a> {
         self.unstage_to(addresses);
         self.release_temporaries_since(temporaries, *cur);
         (old, old_ty, new, new_ty)
+    }
+    /// The `$t ?? d` a defaulting assignment applies its operator to, and the
+    /// representation of `d`, which is the operator's left operand whenever
+    /// `$t` is `null` or absent.
+    ///
+    /// `d` is the zero of the representation `nvs_types` recorded for `$t`
+    /// without `null`. A tagged one is a `mixed` or a union target, and
+    /// takes the `int` `0`, or the `string` `""` under `.`, which is what the
+    /// checker joined that union with. The zero is emitted here and staged
+    /// under [`Self::synthetic_span`], as an increment's `1` is.
+    fn defaulted_read(
+        &mut self,
+        target: &Expr,
+        op: BinaryOp,
+        value: Span,
+        cur: BlockId,
+    ) -> (Expr, Ty) {
+        let read_span = AssignOp::defaulted_read_span(target.span, value);
+        let non_null = match self.exprs.lookup(read_span) {
+            Some(ExprInfo::Coalesce { non_null, .. }) => {
+                erase_checked_ty(*non_null, self.checked_types)
+            }
+            _ => panic!(
+                "nvs-ir: a defaulting assignment at {read_span:?} has no recorded `??` — \
+                 `nvs_types::expr::assign::defaulted_read` records one under \
+                 `AssignOp::defaulted_read_span` for every one it checks"
+            ),
+        };
+        let (ty, kind) = match non_null {
+            Ty::Int => (Ty::Int, InstKind::ConstInt(0)),
+            Ty::Uint => (Ty::Uint, InstKind::ConstUint(0)),
+            Ty::Float => (Ty::Float, InstKind::ConstFloat(0.0)),
+            Ty::Decimal => (
+                Ty::Decimal,
+                InstKind::ConstDecimal {
+                    negative: false,
+                    mantissa: 0,
+                    scale: 0,
+                },
+            ),
+            Ty::Str => (Ty::Str, InstKind::ConstStr(String::new())),
+            _ if op == BinaryOp::Concat => (Ty::Str, InstKind::ConstStr(String::new())),
+            _ => (Ty::Int, InstKind::ConstInt(0)),
+        };
+        let (zero, _) = self.emit(cur, ty, kind);
+        let zero_span = self.synthetic_span();
+        self.stage(zero_span, zero, ty);
+        let read = Expr {
+            kind: ExprKind::Binary {
+                op: BinaryOp::Coalesce,
+                lhs: Box::new(target.clone()),
+                rhs: Box::new(Expr {
+                    kind: ExprKind::Int(zero_span),
+                    span: zero_span,
+                }),
+            },
+            span: read_span,
+        };
+        (read, ty)
     }
     /// The `1` an increment adds or subtracts, at the target's own
     /// representation.
@@ -965,6 +1048,7 @@ impl<'a> Lowering<'a> {
                     e.span,
                     target,
                     binop,
+                    op.defaults(),
                     Some(value),
                     true,
                     env,

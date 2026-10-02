@@ -4081,6 +4081,71 @@ fn coalesce_assign_on_a_hooked_property_reads_once_and_writes_once() {
     assert_eq!(text.matches("Post::$title::set").count(), 1, "{text}");
 }
 
+/// `??+=` evaluates its target once (`rule:expressions/defaulting-assignment`):
+/// a hooked property's `get` and `set` hooks run once each, and an element
+/// target reads each level guarded, once, and builds the row on the write,
+/// exactly as `??=` does.
+#[test]
+fn a_defaulting_assignment_stages_its_target_once() {
+    let (program, map, file) = lower_whole_file_with_src(concat!(
+        "<?nvs\n",
+        "class Post {\n",
+        "  public ?int $views {\n",
+        "    get => $this->views;\n",
+        "    set(?int $v) { $this->views = $v; }\n",
+        "  }\n",
+        "  function constructor() { $this->views = null; }\n",
+        "  public function seen(): int { return $this->views ??+= 1; }\n",
+        "}\n",
+    ));
+    let seen = program
+        .functions
+        .iter()
+        .find(|f| f.name == "Post::seen")
+        .expect("`seen` should have been lowered");
+    let text = print_function(seen, map.file(file));
+    assert_eq!(text.matches("Post::$views::get").count(), 1, "{text}");
+    assert_eq!(text.matches("Post::$views::set").count(), 1, "{text}");
+
+    let (f, map, file) = lower_first_method(concat!(
+        "<?nvs\nclass T {\n",
+        "  function fill(): void {\n",
+        "    array<array<string>> $g = [];\n",
+        "    $g[\"k\"][\"j\"] ??.= \"x\";\n",
+        "  }\n}\n",
+    ));
+    let text = print_function(&f, map.file(file));
+    assert_eq!(text.matches("array.get.ornull").count(), 1, "{text}");
+    assert_eq!(
+        text.matches("value_index_optional_get").count(),
+        1,
+        "{text}"
+    );
+    assert!(!text.contains("array.get v"), "a throwing read: {text}");
+    assert_eq!(text.matches("array_row_for_write").count(), 1, "{text}");
+}
+
+/// The default a defaulting assignment starts from is a constant of the
+/// target's own representation: `0` as a `uint`, a `float`, a `decimal` and
+/// an `int`, and `""` under `.`. A `mixed` target starts from the `int` `0`.
+#[test]
+fn a_defaulting_assignment_starts_from_a_constant_of_the_target_representation() {
+    for (decl, op, value, zero) in [
+        ("?uint $t = null;", "??+=", "1", "const.uint 0"),
+        ("?float $t = null;", "??-=", "1.5", "const.float 0"),
+        ("?decimal $t = null;", "??+=", "1.5", "const.decimal 0e-0"),
+        ("?int $t = null;", "??-=", "1", "const.int 0"),
+        ("?string $t = null;", "??.=", "\"x\"", "const.str \"\""),
+        ("mixed $t = null;", "??+=", "1", "const.int 0"),
+    ] {
+        let (f, map, file) = lower_first_method(&format!(
+            "<?nvs\nclass T {{\n  function m(): void {{\n    {decl}\n    $t {op} {value};\n  }}\n}}\n"
+        ));
+        let text = print_function(&f, map.file(file));
+        assert!(text.contains(zero), "{decl} {op}: {text}");
+    }
+}
+
 /// A resolved `Core\Router::url` releases the `$params` array it was handed —
 /// [`Lowering::lower_route_link`]'s own accounting, and the one thing about
 /// that arm which no snapshot of a *passing* program shows.

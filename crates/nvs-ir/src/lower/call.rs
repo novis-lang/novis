@@ -1159,8 +1159,9 @@ impl<'a> Lowering<'a> {
     /// A span no expression in this file can carry: empty, one past the last
     /// byte a `u32` offset can name.
     ///
-    /// The one thing staged under it is an increment's implicit `1`
-    /// ([`Self::lower_read_modify_write`]), whose span is never *read* —
+    /// The two things staged under it are an increment's implicit `1` and a
+    /// defaulting assignment's zero ([`Self::lower_read_modify_write`]), whose
+    /// span is never *read* —
     /// [`Self::lower_expr`] answers from [`Self::staged_targets`] before it
     /// looks at the expression's kind, so the `ExprKind::Int` wrapped around
     /// it never cooks any digits.
