@@ -4,7 +4,8 @@
   "because": [
     "0198",
     "0207",
-    "0208"
+    "0208",
+    "0257"
   ],
   "seeAlso": [
     "ide/an-open-document-is-its-own-entry-point",
@@ -12,6 +13,7 @@
     "ide/check-scope-defaults-to-the-workspace"
   ],
   "guardedBy": [
-    "crates/nvs-lsp/tests/autoload.rs"
+    "crates/nvs-lsp/tests/autoload.rs",
+    "crates/nvs-cli/tests/check_borrow.rs"
   ]
 }

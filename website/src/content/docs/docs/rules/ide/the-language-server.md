@@ -137,10 +137,18 @@ lands it on.
   the walk reads; an edit to any other file costs one search of its text for the two keywords.
 
 Under `nvs.check.scope = open` only the open documents are surveyed, so a map is lent once the file that
-declares it, or the entry that requires it, is open too. `nvs check` never borrows: it is handed the file
-a program starts from, and a program has one map.
+declares it, or the entry that requires it, is open too.
 
-<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/ide/the-language-server/#an-open-document-is-its-own-entry-point" title="Each open document is analysed as its own entry point, with open buffers overlaid on disk, and diagnostics are published only for open documents"><code>ide/an-open-document-is-its-own-entry-point</code></a> <a href="/docs/rules/programs/names-and-files/#autoload" title="autoload maps a prefix to roots, resolved relative to the file that declares it"><code>programs/autoload</code></a> <a href="/docs/rules/ide/the-language-server/#check-scope-defaults-to-the-workspace" title="The symbol index covers every file under the workspace folder by default, and open narrows it to the open documents and their require graph"><code>ide/check-scope-defaults-to-the-workspace</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0198.md">record 0198</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0207.md">record 0207</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0208.md">record 0208</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-lsp/tests/autoload.rs"><code>crates/nvs-lsp/tests/autoload.rs</code></a></dd></div></dl>
+`nvs check <file>` borrows by the same test, and searches only when it must. It walks the file first; when
+that walk found no declaration of the file's own program and reported `E0303` or `E0306`, it walks the
+`.nvs` files under the project root — the directory of the first `--config` file, else the working
+directory, skipping what the server skips — in path order, stops at the first lender that lends to the
+file, and checks the file again with that lender's declarations behind its own. A file that declares a
+map, or names nothing undeclared, is checked once and searches nothing; a file no lender reaches keeps
+the first walk's diagnostics. `nvs_hir::lenders` is the one implementation of what a lender is and whom it
+lends to, for the server and the command both.
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/ide/the-language-server/#an-open-document-is-its-own-entry-point" title="Each open document is analysed as its own entry point, with open buffers overlaid on disk, and diagnostics are published only for open documents"><code>ide/an-open-document-is-its-own-entry-point</code></a> <a href="/docs/rules/programs/names-and-files/#autoload" title="autoload maps a prefix to roots, resolved relative to the file that declares it"><code>programs/autoload</code></a> <a href="/docs/rules/ide/the-language-server/#check-scope-defaults-to-the-workspace" title="The symbol index covers every file under the workspace folder by default, and open narrows it to the open documents and their require graph"><code>ide/check-scope-defaults-to-the-workspace</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0198.md">record 0198</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0207.md">record 0207</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0208.md">record 0208</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0257.md">record 0257</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-lsp/tests/autoload.rs"><code>crates/nvs-lsp/tests/autoload.rs</code></a> <a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-cli/tests/check_borrow.rs"><code>crates/nvs-cli/tests/check_borrow.rs</code></a></dd></div></dl>
 
 </div>
 

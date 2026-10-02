@@ -1795,7 +1795,7 @@ impl Checked {
 /// `Err` is the exit code to return: a read failure, or at least one error
 /// diagnostic. Warnings are rendered and do not stop anything.
 fn front_end(path: &std::path::Path) -> Result<Checked, ExitCode> {
-    front_end_granted(path, None, false, Sink::Text, config::Init::Never)
+    front_end_granted(path, None, false, Sink::Text, config::Init::Never, None)
 }
 
 /// [`front_end`] with the deployment's `[capabilities]` block in front of it —
@@ -1830,12 +1830,16 @@ fn front_end(path: &std::path::Path) -> Result<Checked, ExitCode> {
 /// here rather than a choice at each [`emit_diagnostics`] call because a run
 /// has one: the two calls below are the two ways out of this function, and
 /// exactly one of them happens.
+///
+/// `survey` is the tree `nvs check` looks for a program to borrow an
+/// `autoload` map from, and `None` for every other caller ([`front_end_in`]).
 fn front_end_granted(
     path: &std::path::Path,
     config: Option<&[std::path::PathBuf]>,
     strict_docs: bool,
     sink: Sink,
     init: config::Init,
+    survey: Option<&std::path::Path>,
 ) -> Result<Checked, ExitCode> {
     front_end_in(
         SourceMap::new(),
@@ -1845,6 +1849,7 @@ fn front_end_granted(
         sink,
         init,
         None,
+        survey,
     )
 }
 
@@ -1863,6 +1868,7 @@ fn front_end_looking(path: &std::path::Path, looked: &mut Looked) -> Result<Chec
         Sink::Text,
         config::Init::Never,
         Some(looked),
+        None,
     )
 }
 
@@ -1922,6 +1928,7 @@ fn front_end_synthesized(path: &std::path::Path, text: &str) -> Result<Checked, 
         Sink::Text,
         config::Init::Never,
         None,
+        None,
     )
 }
 
@@ -1930,6 +1937,21 @@ fn front_end_synthesized(path: &std::path::Path, text: &str) -> Result<Checked, 
 ///
 /// `looked` is [`front_end_looking`]'s, filled at every way out after the entry
 /// file was asked for.
+///
+/// **`survey` is `nvs check`'s, and lends a class file its program's
+/// `autoload` map** (`rule:ide/an-autoloaded-file-borrows-its-programs-map`).
+/// A file a program autoloads may not declare `autoload`, so checked as its
+/// own entry point every autoloaded name in it is undeclared. When the walk
+/// below found no declaration of the entry's own and reported an undeclared
+/// name, the `.nvs` files under `survey` are searched in path order for the
+/// first program that lends to this file, and the walk runs again with that
+/// program's declarations behind the file's own. A file that declares its own
+/// map, or names nothing undeclared, is checked exactly once and nothing is
+/// searched. A file no program lends to keeps the first walk's diagnostics.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "one parameter per front-end question its four callers answer differently; a struct would be a second spelling of those callers"
+)]
 fn front_end_in(
     mut map: SourceMap,
     path: &std::path::Path,
@@ -1938,8 +1960,9 @@ fn front_end_in(
     sink: Sink,
     init: config::Init,
     looked: Option<&mut Looked>,
+    survey: Option<&std::path::Path>,
 ) -> Result<Checked, ExitCode> {
-    let id = match map.load(path) {
+    let mut id = match map.load(path) {
         Ok(id) => id,
         Err(err) => {
             eprintln!("error: could not read {}: {err}", path.display());
@@ -1958,22 +1981,27 @@ fn front_end_in(
         None => None,
     };
 
-    let mut diags = Diagnostics::new();
-    let stmts = parse_file(map.file(id), &mut diags);
-    check_declarations(&stmts, map.file(id), &mut diags);
-    // Every other file's parse and `check_declarations` happen inside the
-    // walk, as each `require` target is discovered; only the entry point is
-    // this function's to load.
     let core = nvs_stdlib::registry::link_targets();
-    let (module, loaded, autoload) = nvs_hir::resolve_program_linted(
-        id,
-        stmts,
-        &mut map,
-        nvs_hir::CoreRoster::Names(&core),
-        Some(nvs_stdlib::php_names::became),
-        &mut diags,
-        strict_docs,
-    );
+    let roster = nvs_hir::CoreRoster::Names(&core);
+    let plain = nvs_hir::lenders::is_plain(map.file(id).text());
+    let (mut diags, mut module, mut loaded, mut autoload) =
+        resolve_entry(&mut map, id, roster, strict_docs, &[]);
+    if let Some(root) = survey
+        && autoload.sites().is_empty()
+        && diags.iter().any(names_an_undeclared_type)
+        && let Some(lender) = nvs_hir::lenders::first_lender(root, path, plain)
+    {
+        map = SourceMap::new();
+        id = match map.load(path) {
+            Ok(id) => id,
+            Err(err) => {
+                eprintln!("error: could not read {}: {err}", path.display());
+                return Err(ExitCode::FAILURE);
+            }
+        };
+        (diags, module, loaded, autoload) =
+            resolve_entry(&mut map, id, roster, strict_docs, lender.sites());
+    }
 
     let mut interner = nvs_types::TypeInterner::new();
     let mut exprs = nvs_types::ExprTypeTable::new();
@@ -2028,6 +2056,50 @@ fn front_end_in(
     })
 }
 
+/// Parses the entry `id` and walks its `require`/`autoload` graph, with
+/// `borrowed` behind the entry's own `autoload` declarations.
+///
+/// Every other file's parse and `check_declarations` happen inside the walk,
+/// as each `require` target is discovered; only the entry point is this
+/// function's to parse.
+fn resolve_entry(
+    map: &mut SourceMap,
+    id: nvs_diagnostics::SourceId,
+    core: nvs_hir::CoreRoster<'_>,
+    strict_docs: bool,
+    borrowed: &[nvs_hir::autoload::Site],
+) -> (
+    Diagnostics,
+    nvs_hir::Module,
+    Vec<nvs_hir::Loaded>,
+    nvs_hir::AutoloadMap,
+) {
+    let mut diags = Diagnostics::new();
+    let stmts = parse_file(map.file(id), &mut diags);
+    check_declarations(&stmts, map.file(id), &mut diags);
+    let (module, loaded, autoload) = nvs_hir::resolve_program_linted(
+        id,
+        stmts,
+        map,
+        core,
+        Some(nvs_stdlib::php_names::became),
+        &mut diags,
+        strict_docs,
+        borrowed,
+    );
+    (diags, module, loaded, autoload)
+}
+
+/// Whether `diagnostic` says a class, interface, enum or `type` name, or a
+/// `use` of one, is declared nowhere. Those are the two a borrowed `autoload`
+/// map can change.
+fn names_an_undeclared_type(diagnostic: &nvs_diagnostics::Diagnostic) -> bool {
+    diagnostic.code.is_some_and(|code| {
+        code == nvs_diagnostics::code::E_UNDEFINED_CLASS
+            || code == nvs_diagnostics::code::E_UNRESOLVED_IMPORT
+    })
+}
+
 /// `nvs check`, and with `--autoload-map` also `rule:programs/autoload`'s last sentence:
 /// the resolved prefix → roots map, what a `discover` glob passed over and
 /// what an explicit prefix shadowed.
@@ -2066,7 +2138,8 @@ fn run_check(
     init: config::Init,
 ) -> ExitCode {
     let sink = if json { Sink::Json } else { Sink::Text };
-    match front_end_granted(path, Some(config), strict_docs, sink, init) {
+    let survey = survey_root(config);
+    match front_end_granted(path, Some(config), strict_docs, sink, init, Some(&survey)) {
         Ok(checked) => {
             if autoload_map {
                 let base = match path.parent() {
@@ -2081,6 +2154,18 @@ fn run_check(
         }
         Err(code) => code,
     }
+}
+
+/// The tree `nvs check` searches for a program that lends the checked file its
+/// `autoload` map: the directory of the first `--config` file, else the
+/// working directory (`.`), where the `nvs.toml` that applies is found.
+fn survey_root(config: &[std::path::PathBuf]) -> std::path::PathBuf {
+    config
+        .iter()
+        .find(|path| path.is_file())
+        .and_then(|file| file.parent())
+        .filter(|dir| !dir.as_os_str().is_empty())
+        .map_or_else(|| PathBuf::from("."), std::path::Path::to_path_buf)
 }
 
 /// `nvs build --openapi` — `rule:routing/api-document-is-a-deterministic-build-artifact`

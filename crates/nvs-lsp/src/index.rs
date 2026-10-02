@@ -70,7 +70,6 @@
 //! about rather than a text search for its name.
 
 use std::collections::BTreeMap;
-use std::fs;
 use std::path::{Path, PathBuf};
 
 use nvs_diagnostics::{BytePos, SourceFile, Span, canonical_key};
@@ -600,43 +599,11 @@ pub(crate) fn tree(
     if scope == CheckScope::Workspace
         && let Some(root) = root
     {
-        let mut found = Vec::new();
-        sources(root, &mut found);
-        for path in found {
+        for path in nvs_hir::lenders::sources(root) {
             selected.entry(canonical_key(&path)).or_insert(NO_BUFFER);
         }
     }
     selected.into_iter().collect()
-}
-
-/// Every `.nvs` file under `dir`, recursively.
-///
-/// A directory this process cannot read is skipped rather than failing the
-/// pass: a workspace with one unreadable directory in it is still a workspace,
-/// and an index that refused to build would take five features down with it.
-fn sources(dir: &Path, found: &mut Vec<PathBuf>) {
-    let Ok(entries) = fs::read_dir(dir) else {
-        return;
-    };
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if path.is_dir() {
-            // A build directory and a dot-directory hold no source anybody
-            // wrote, and `vendor` holds source nobody here edits.
-            let skip = path
-                .file_name()
-                .is_some_and(|name| name == "target" || name == "vendor")
-                || path
-                    .file_name()
-                    .and_then(|name| name.to_str())
-                    .is_some_and(|name| name.starts_with('.'));
-            if !skip {
-                sources(&path, found);
-            }
-        } else if path.extension().is_some_and(|ext| ext == "nvs") {
-            found.push(path);
-        }
-    }
 }
 
 /// The version of the open buffer for `key`, if a client has one.

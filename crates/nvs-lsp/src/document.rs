@@ -21,9 +21,10 @@
 //! file may not declare one, and a required file usually does not, so as its
 //! own entry point either would resolve none of the names its program
 //! resolves; a plain file beside a bootstrap is what `nvs test` runs as part
-//! of a directory. [`Documents::survey`] finds the programs that declare one,
-//! [`Documents::resurvey`] keeps that current, and [`analyse_file`] is the one
-//! place a map is lent.
+//! of a directory. What a lender is, and which files it lends to, is
+//! `nvs_hir::lenders`', which `nvs check` asks too. [`Documents::survey`]
+//! finds the programs that declare a map, [`Documents::resurvey`] keeps that
+//! current, and [`analyse_file`] is the one place a map is lent.
 //!
 //! **Diagnostics are published only for open documents.** Publishing for a file
 //! nobody opened is workspace-wide analysis, which is M10's, and
@@ -55,7 +56,7 @@ use std::path::{Path, PathBuf};
 
 use lsp_types::Uri;
 use nvs_diagnostics::{BytePos, Diagnostics, SourceId, SourceMap, Span, canonical_key};
-use nvs_hir::{AutoloadMap, Loaded, Module, resolve_program, resolve_program_borrowing};
+use nvs_hir::{AutoloadMap, Lender, Loaded, Module, resolve_program_borrowing};
 use nvs_syntax::{SyntaxIndex, Trivia, check_declarations, parse};
 use nvs_types::{ExprTypeTable, LocalBinding, TypeId, TypeInterner};
 
@@ -121,89 +122,12 @@ pub struct Documents {
     stubs: Option<Stubs>,
 }
 
-/// One program that declares `autoload`, as the files it autoloads or requires
-/// borrow it.
-///
-/// `rule:ide/an-open-document-is-its-own-entry-point` is why this exists: a
-/// file a program autoloads or requires is analysed as an entry point, does not
-/// write an `autoload` itself, and so has no map unless it is lent the one
-/// that reaches it.
-#[derive(Debug)]
-struct Lender {
-    /// The file the walk started from, under `canonical_key`.
-    entry: PathBuf,
-    /// Every file of its `require` chain that wrote a declaration, under
-    /// `canonical_key` — the files whose edit makes this lender stale.
-    declaring: Vec<PathBuf>,
-    /// Every other file its `require` chain read, under `canonical_key` —
-    /// the files that borrow this map without lying under a root, and whose
-    /// edit makes this lender stale when the edited text holds `require`.
-    reads: Vec<PathBuf>,
-    /// The directory of its entry, under `canonical_key`. A plain file under
-    /// it — one holding neither `require` nor `autoload` — borrows this map
-    /// too, which is how a directory `nvs test` runs as one program reads in
-    /// the editor as it runs.
-    dir: PathBuf,
-    /// The map those declarations built, which says what the program claims
-    /// and carries the sites it lends.
-    map: AutoloadMap,
-}
-
-/// `path` as a [`Lender`], or `None` for a file whose program declares no
-/// `autoload`.
-///
-/// The text is searched for `autoload` and `require` before anything is
-/// parsed, so a workspace pays one read per file and one walk per file that
-/// starts a chain: a program whose declaration sits in a file it requires
-/// holds neither keyword's declaration itself, and only the walk finds it.
-/// That walk is `nvs check`'s name resolution without the type phase, and it
-/// reads every file the program reaches. Its diagnostics are dropped: they are
-/// published when the file itself is analysed.
+/// `path` as a [`Lender`], walked with the open buffers in front of the files
+/// under them, or `None` for a file whose program declares no `autoload`.
 fn lender(documents: &Documents, path: &Path) -> Option<Lender> {
     let mut map = SourceMap::new();
     documents.overlay(&mut map);
-    let entry = map.load(path).ok()?;
-    let text = map.file(entry).text();
-    if !text.contains("autoload") && !text.contains("require") {
-        return None;
-    }
-
-    let mut diags = Diagnostics::new();
-    let stmts = parse(map.file(entry), &mut diags).stmts;
-    let (_, loaded, autoload) = resolve_program(
-        entry,
-        stmts,
-        &mut map,
-        nvs_hir::CoreRoster::Trusted,
-        &mut diags,
-    );
-    if autoload.sites().is_empty() {
-        return None;
-    }
-
-    let mut declaring: Vec<PathBuf> = autoload
-        .sites()
-        .iter()
-        .filter_map(|site| map.file(site.span.file).path().map(canonical_key))
-        .collect();
-    declaring.sort();
-    declaring.dedup();
-    let mut reads: Vec<PathBuf> = loaded
-        .iter()
-        .skip(1)
-        .filter_map(|file| map.file(file.id).path().map(canonical_key))
-        .collect();
-    reads.sort();
-    reads.dedup();
-    let key = canonical_key(path);
-    let dir = key.parent().map_or_else(PathBuf::new, Path::to_path_buf);
-    Some(Lender {
-        entry: key,
-        declaring,
-        reads,
-        dir,
-        map: autoload,
-    })
+    Lender::walk(map, path)
 }
 
 impl Documents {
@@ -342,30 +266,28 @@ impl Documents {
             .lenders
             .iter()
             .filter(|lender| {
-                lender.entry == key
-                    || lender.declaring.contains(&key)
-                    || (requires && lender.reads.contains(&key))
+                lender.entry() == key
+                    || lender.declaring().contains(&key)
+                    || (requires && lender.reads().contains(&key))
             })
-            .map(|lender| lender.entry.clone())
+            .map(|lender| lender.entry().to_path_buf())
             .collect();
         entries.push(key);
         entries.sort();
         entries.dedup();
 
         self.lenders
-            .retain(|lender| !entries.contains(&lender.entry));
+            .retain(|lender| !entries.iter().any(|entry| entry == lender.entry()));
         for entry in entries {
             if let Some(found) = lender(self, &entry) {
                 self.lenders.push(found);
             }
         }
-        self.lenders.sort_by(|a, b| a.entry.cmp(&b.entry));
+        self.lenders.sort_by(|a, b| a.entry().cmp(b.entry()));
     }
 
     /// The program `path` borrows its `autoload` map from: the first, in
-    /// entry-path order, that requires it, autoloads it, or has its entry in a
-    /// directory `path` lies under while `path` holds neither `require` nor
-    /// `autoload`.
+    /// entry-path order, that lends to it ([`Lender::lends_to`]).
     ///
     /// The first and not a union, because two programs sharing a source tree
     /// may give one prefix different roots, and a union of their maps is a map
@@ -377,19 +299,17 @@ impl Documents {
     /// declares anything starts a program of its own.
     fn lender_for(&self, path: &Path) -> Option<&Lender> {
         let key = canonical_key(path);
-        if self.lenders.iter().any(|lender| lender.entry == key) {
+        if self.lenders.iter().any(|lender| lender.entry() == key) {
             return None;
         }
         let mut plain: Option<bool> = None;
         self.lenders.iter().find(|lender| {
-            lender.reads.contains(&key)
-                || lender.map.claims(path)
-                || (key.starts_with(&lender.dir)
-                    && *plain.get_or_insert_with(|| {
-                        self.text_of(path).is_some_and(|text| {
-                            !text.contains("require") && !text.contains("autoload")
-                        })
-                    }))
+            lender.lends_to(path, || {
+                *plain.get_or_insert_with(|| {
+                    self.text_of(path)
+                        .is_some_and(|text| nvs_hir::lenders::is_plain(&text))
+                })
+            })
         })
     }
 
@@ -679,7 +599,7 @@ pub fn analyse_file(documents: &Documents, path: &Path, version: i32) -> Option<
     // has no map of its own to resolve a name through, so it borrows that
     // program's (`rule:ide/an-open-document-is-its-own-entry-point`).
     let lender = documents.lender_for(path);
-    let lent = lender.map_or_else(Vec::new, |lender| lender.declaring.clone());
+    let lent = lender.map_or_else(Vec::new, |lender| lender.declaring().to_vec());
     let (module, loaded, autoload) = resolve_program_borrowing(
         entry,
         stmts,
@@ -687,7 +607,7 @@ pub fn analyse_file(documents: &Documents, path: &Path, version: i32) -> Option<
         nvs_hir::CoreRoster::Names(&core),
         Some(nvs_stdlib::php_names::became),
         &mut diags,
-        lender.map_or(&[], |lender| lender.map.sites()),
+        lender.map_or(&[], |lender| lender.sites()),
     );
     let autoloads: Vec<nvs_hir::autoload::Site> = autoload
         .sites()

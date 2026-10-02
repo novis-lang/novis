@@ -44,6 +44,9 @@
 //!   `Core\Program::implementing<T>()` also gets § 3's scan here: every file
 //!   [`AutoloadMap::enumerate`] names is loaded, once, whether or not
 //!   anything mentions it.
+//! - [`lenders`] — [`Lender`]: which program lends its `autoload` map to a
+//!   file it autoloads or requires, for the language server's survey and for
+//!   `nvs check` on such a file.
 //!
 //! `nvs-hir` covers the name-resolution responsibilities the plan's M2
 //! paragraph lists for it, and records no gap of its own: what a module
@@ -60,6 +63,7 @@ pub mod errors;
 pub mod hierarchy;
 pub mod imports;
 pub mod interfaces;
+pub mod lenders;
 pub mod members;
 pub mod qname;
 pub mod requires;
@@ -74,6 +78,7 @@ pub use hierarchy::{
     undeclared_name_at,
 };
 pub use imports::{ImportSite, candidates, import_site};
+pub use lenders::Lender;
 pub use members::{ClassMembers, MemberResolver, MemberTable, PhpFunctions};
 pub use qname::QName;
 pub use requires::{Loaded, resolve_program, resolve_program_borrowing, resolve_program_linted};

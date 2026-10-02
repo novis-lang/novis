@@ -1,0 +1,10 @@
+{
+  "title": "`nvs check` on a file a program autoloads or requires checks it through that program's `autoload` map",
+  "status": "accepted",
+  "scope": "what `nvs check <file>` resolves a file's names through when the file declares no `autoload` of\nits own, which tree it searches for the program that lends one, and when it searches at all. Which\nprogram lends, and what a borrowed declaration may report, are [0198](0198.md)'s and unchanged.",
+  "dependsOn": [
+    "0198",
+    "0061"
+  ],
+  "validatedBy": "`crates/nvs-cli/tests/check_borrow.rs`, the language server's `crates/nvs-lsp/tests/autoload.rs`,\nand the run under *Verification*."
+}

@@ -227,7 +227,15 @@ pub fn resolve_program(
 ///
 /// `php` is what PHP's built-in functions became, which `E0320`'s help names
 /// the replacement from.
+///
+/// `borrowed` is what [`resolve_program_borrowing`] takes, and `nvs check`
+/// passes it when the file it checks is one a program autoloads or requires
+/// ([`crate::lenders`]). It is empty for a file a program starts from.
 #[must_use]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the walk's own inputs plus the two `nvs check` alone sets; a struct would be a second spelling of `walk`'s parameters"
+)]
 pub fn resolve_program_linted(
     entry_id: SourceId,
     entry_stmts: Vec<Stmt>,
@@ -236,9 +244,18 @@ pub fn resolve_program_linted(
     php: PhpFunctions,
     diags: &mut Diagnostics,
     strict_docs: bool,
+    borrowed: &[Site],
 ) -> (Module, Vec<Loaded>, AutoloadMap) {
     let stdlib = Stdlib { core, php };
-    walk(entry_id, entry_stmts, map, stdlib, diags, strict_docs, &[])
+    walk(
+        entry_id,
+        entry_stmts,
+        map,
+        stdlib,
+        diags,
+        strict_docs,
+        borrowed,
+    )
 }
 
 /// [`resolve_program`] for an entry that is not where its program starts —
@@ -251,8 +268,8 @@ pub fn resolve_program_linted(
 /// each still resolving against the directory of the file that wrote it, so
 /// the open file's names land on the files the real build lands them on.
 /// [`AutoloadMap::build_borrowing`] is what keeps a borrowed site from
-/// reporting anything. `nvs check` never calls this: it is given the entry
-/// point, and a program has one map.
+/// reporting anything. [`crate::lenders`] says which program lends, and
+/// [`resolve_program_linted`] takes the same input for `nvs check`.
 #[must_use]
 pub fn resolve_program_borrowing(
     entry_id: SourceId,

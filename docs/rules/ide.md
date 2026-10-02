@@ -270,10 +270,18 @@ lands it on.
   the walk reads; an edit to any other file costs one search of its text for the two keywords.
 
 Under `nvs.check.scope = open` only the open documents are surveyed, so a map is lent once the file that
-declares it, or the entry that requires it, is open too. `nvs check` never borrows: it is handed the file
-a program starts from, and a program has one map.
+declares it, or the entry that requires it, is open too.
 
-<sub>See also [`ide/an-open-document-is-its-own-entry-point`](ide.md#ide-an-open-document-is-its-own-entry-point), [`programs/autoload`](programs.md#programs-autoload), [`ide/check-scope-defaults-to-the-workspace`](ide.md#ide-check-scope-defaults-to-the-workspace). Decided in [0198](../decisions/0198.md), [0207](../decisions/0207.md), [0208](../decisions/0208.md).</sub>
+`nvs check <file>` borrows by the same test, and searches only when it must. It walks the file first; when
+that walk found no declaration of the file's own program and reported `E0303` or `E0306`, it walks the
+`.nvs` files under the project root — the directory of the first `--config` file, else the working
+directory, skipping what the server skips — in path order, stops at the first lender that lends to the
+file, and checks the file again with that lender's declarations behind its own. A file that declares a
+map, or names nothing undeclared, is checked once and searches nothing; a file no lender reaches keeps
+the first walk's diagnostics. `nvs_hir::lenders` is the one implementation of what a lender is and whom it
+lends to, for the server and the command both.
+
+<sub>See also [`ide/an-open-document-is-its-own-entry-point`](ide.md#ide-an-open-document-is-its-own-entry-point), [`programs/autoload`](programs.md#programs-autoload), [`ide/check-scope-defaults-to-the-workspace`](ide.md#ide-check-scope-defaults-to-the-workspace). Decided in [0198](../decisions/0198.md), [0207](../decisions/0207.md), [0208](../decisions/0208.md), [0257](../decisions/0257.md).</sub>
 
 <a id="ide-the-stub-tree-is-where-core-is-declared"></a>
 

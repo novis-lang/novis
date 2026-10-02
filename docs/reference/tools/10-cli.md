@@ -150,6 +150,15 @@ code is stable and is what the tables in this reference cite. The last line is p
 all the diagnostics. `nvs agent show E0401` prints what the error `E0401` means and how to fix it.
 `nvs check --json` does not print this line.
 
+You can check one class file of a program, such as `nvs check app/User.nvs`. A class file that a
+program loads with `autoload` cannot declare `autoload` itself. So when the file uses a class that no
+file declares, `nvs check` looks for the program that loads this file with `autoload` or `require`. It searches the `.nvs` files in
+the project folder in path order and uses the first program it finds. Then it checks the file with that
+program's `autoload` lines, and the result is the same as for the whole program. The project folder is
+the folder of the `--config` file, or else the folder you run the command in. The search skips
+`vendor`, `target` and folders whose names start with a dot. If no program loads the file, the
+errors are reported as usual.
+
 `--autoload-map` prints the resolved `autoload` map instead of `no errors` — every prefix, what a
 `discover` glob skipped, what was shadowed, and every root that does not exist — so an autoload
 declaration can be audited without running anything. A `{..}` prefix segment is shown as the
