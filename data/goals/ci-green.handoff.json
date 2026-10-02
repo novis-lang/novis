@@ -1,5 +1,5 @@
 {
-  "state": "**Goal `ci-green` — CI is green on `main` — is met.** `bun nv ci-green` says the latest `ci.yml`\nrun on `main` succeeded and ran the code `HEAD` holds (`38d2fa51d`): the `workflow_dispatch` run\n37011888423 ended `success` in 26m28s. `bun nv verify --doc`, `bun nv owners --closes ci-green`\nand `bun nv playbook --closes ci-green` are all green, so the goal has nothing left to close.",
+  "state": "**Goal `ci-green` — CI is green on `main` — is met, and so is its proofs floor.** Commit\n`a5e98c23a` rewrote `docs/reference/lang/30-expressions.md`, which staled the perf figure of\nevery `lang:expressions` feature whose anchor is that chapter, and grew two `about.md` files past\n200 words. This session measured the fourteen again into `docs/perf/members.ndjson` on the release\nbinary and cut `precedence-and-associativity/about.md` and `nvs-lsp/about.md` back under the bound,\nso `bun nv proofs --gate` owes nothing over the whole roster.",
   "next": {
     "stage": 2,
     "title": "the run exists, and it is this commit's",
@@ -10,11 +10,11 @@
     "items": [
       {
         "done": true,
-        "text": "**Ask the check again, after the push** — `tools/nv/cmd/ci-green.ts:44` (`run`). It is green for `38d2fa51d`."
+        "text": "**`bun nv ci-green` reads the latest `ci.yml` run on `main`** — `tools/nv/cmd/ci-green.ts:1`"
       }
     ]
   },
   "backlog": [
-    "A later push that turns `ci.yml` red is fixed from `gh run view <id> --log-failed`, under the goal's § *Standing decisions* (`docs/agent/goals/ci-green.md`)."
+    "A commit that edits a reference chapter stales every feature anchored on it; `bun nv proofs --record-perf --only <group>` re-measures them (`tools/nv/proofs/perf.ts`)."
   ]
 }
