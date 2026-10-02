@@ -215,30 +215,33 @@ struct Cli {
     #[command(subcommand)]
     command: Option<Command>,
 
-    /// Read this configuration file instead of `./nvs.toml`, and repeat it to
-    /// read several in order.
+    /// Reads this configuration file instead of `./nvs.toml`. Repeat the option
+    /// to read several files, in order.
     ///
-    /// Naming any file disables the search for `./nvs.toml` entirely, so an
-    /// operator who names a tree never gets a surprise merge with whatever
-    /// happens to be in the working directory. A relative path is resolved
-    /// against that directory, and one that does not exist is refused rather
-    /// than skipped.
+    /// When you name a file, `nvs` does not look for `./nvs.toml`. A relative
+    /// path starts at the current folder. A file that does not exist is an
+    /// error.
     ///
-    /// Accepted by every subcommand, because it selects the tree rather than
-    /// the command: `run` resolves the snapshot its request reads, and `config
-    /// check`/`config dump` audit the same files without running anything.
+    /// Every subcommand accepts this option.
+    // Every `///` line above is printed under each subcommand's `--help`, so it
+    // is written as `AGENTS.md` § *Text an end user reads* asks. Naming any file
+    // disables the search, so a named tree is never merged with whatever is in
+    // the working directory. It is global because it selects the tree rather
+    // than the command: `run` resolves the snapshot its request reads, and
+    // `config check`/`config dump` audit the same files without running
+    // anything.
     // `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`
     // step 1, and § 5 is the resolution against the working directory.
     #[arg(long, value_name = "PATH", global = true)]
     config: Vec<PathBuf>,
 
-    /// Do not write a `nvs.toml` when there is none to read.
+    /// Does not create `nvs.toml` when there is none.
     ///
-    /// A project command that finds no configuration writes the shipped
-    /// default file into the working directory and reads that; this leaves
-    /// the directory as it was and runs on the same defaults uncommented.
-    /// `NOVIS_NO_INIT` in the environment says the same thing, for a build
-    /// step that is not in a position to add a flag.
+    /// Without this option, a project command that finds no configuration file
+    /// creates `nvs.toml` with the default settings in the current folder. With
+    /// this option, the folder does not change, and the command uses the same
+    /// default settings. Setting `NOVIS_NO_INIT` in the environment does the
+    /// same.
     // `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`
     // step 3; see [`config::init_gate`].
     #[arg(long, global = true)]
@@ -653,11 +656,13 @@ enum Command {
         #[command(subcommand)]
         command: CtlCommand,
     },
-    /// Register this binary with the platform's service manager, or print what
-    /// registering it would store.
+    /// Installs, starts, stops and removes a Novis program that runs as a
+    /// system service.
     ///
-    /// A namespace of its own because every other subcommand acts on files with
-    /// no server involved, and these do not.
+    /// A system service runs in the background, with no terminal. It can start
+    /// when the computer starts.
+    // A namespace of its own because every other subcommand acts on files with
+    // no server involved, and these do not.
     // `rule:packaging/a-service-is-one-stored-argv`, matching `nvs ctl`'s
     // precedent; see [`service`], whose module doc owns how a verb reaches this
     // machine's own service manager.
@@ -665,11 +670,10 @@ enum Command {
         #[command(subcommand)]
         command: ServiceCommand,
     },
-    /// `nvs service install`, under the spelling `mysqld --install` and
-    /// `httpd -k install` built the muscle memory for.
-    ///
-    /// Hidden: § 1 names it an accepted alias rather than a second way to
-    /// write the command, and a help listing both would be advertising two.
+    /// Another name for `nvs service install`.
+    // The syntax `mysqld --install` and `httpd -k install` made familiar.
+    // Hidden: § 1 names it an accepted alias rather than a second way to write
+    // the command, and a help listing both would be advertising two.
     #[command(hide = true)]
     InstallService(ServiceInstall),
     /// Rewrite Novis files into the one canonical layout.
@@ -1166,67 +1170,71 @@ enum CtlCommand {
 /// [`service`]'s module doc owns why `run` is not here yet.
 #[derive(Subcommand)]
 enum ServiceCommand {
-    /// Store this command with the platform's service manager, and give the
-    /// account it runs as access to its configuration, its log folder and its
-    /// cache folder.
+    // Every `///` line below is printed by `nvs service --help`, so it is
+    // written as `AGENTS.md` § *Text an end user reads* asks.
+    /// Installs the command after `--` as a system service. The account that
+    /// the service runs as can then read its configuration file and write to
+    /// its log folder and its cache folder.
     #[command(after_help = SERVICE_INSTALL_EXAMPLE)]
     Install(ServiceInstall),
-    /// Take the registration away, leaving no key, no event-log source, no
-    /// unit and no granted access behind.
+    /// Removes an installed service. It also deletes everything that `install`
+    /// created, and takes back the access that `install` gave.
     Uninstall {
-        /// The service's name, as it was installed.
+        /// The name of the service, as it was installed.
         name: String,
-        /// Print the steps this would perform, and touch nothing.
+        /// Prints every step, and changes nothing.
         #[arg(long)]
         dry_run: bool,
     },
-    /// Ask the service manager to start the installed service.
+    /// Tells the service manager to start an installed service.
     Start {
-        /// The service's name.
+        /// The name of the service.
         name: String,
     },
-    /// Ask it to stop, which a hosted server answers with a drain.
+    /// Stops a running service. A server stops taking new requests. It
+    /// finishes the requests it already has, and then it exits.
     Stop {
-        /// The service's name.
+        /// The name of the service.
         name: String,
     },
-    /// Report the state the manager holds it in, and — over the control
-    /// socket its own configuration names — how many requests are in flight
-    /// and whether it is draining.
+    /// Prints the state of the service. For a server, it also prints how many
+    /// requests are running, and whether the server is stopping.
+    // The server's half is read over the control socket its own configuration
+    // names.
     Status {
-        /// The service's name.
+        /// The name of the service.
         name: String,
     },
-    /// Run the argv stored under this name in the foreground, as the service
-    /// manager would have started it.
+    /// Runs the stored command in this terminal. The service manager starts
+    /// the service with the same command.
     Run {
-        /// The service's name.
+        /// The name of the service.
         name: String,
     },
-    /// Print the service definition this argv would be installed as, and
-    /// install nothing.
+    /// Prints the service definition that `install` would create. It installs
+    /// nothing.
     Unit {
-        /// The service's name — the identity `sc create` and systemd use, and
-        /// the one `nvs ctl --socket` addresses one of several servers by.
+        /// The name of the service. The operating system uses this name.
+        /// `nvs ctl --socket` also uses it to reach one server when several
+        /// are running.
         name: String,
-        /// The account the service runs as. The default is the local system
-        /// account, `LocalSystem`; `SYSTEM` names the same account.
+        /// The account that the service runs as. The default is the local
+        /// system account, `LocalSystem`. `SYSTEM` is another name for the
+        /// same account.
         // `docs/decisions/0093.md` § 4.
         #[arg(long, value_name = "ACCOUNT")]
         account: Option<String>,
-        /// Refused (`E0633`). It exists so the refusal can name it: a command
-        /// line is readable by other users on the box, so an account password
-        /// is prompted for instead.
+        /// Not allowed. It gives error `E0633`. Other users on the computer
+        /// can read a command line. The installer prompts you for the password
+        /// instead.
         #[arg(long, value_name = "PASSWORD")]
         password: Option<String>,
-        /// The `nvs` arguments to store, verbatim.
+        /// The `nvs` command that the service runs, written after `--`.
         ///
-        /// `--` is mandatory, and it is what makes every parameter passable:
-        /// everything to its left is the installer's own, everything to its
-        /// right is stored untouched and never interpreted. Without it a
-        /// `--start` would be ambiguous between the installer and the hosted
-        /// program — a defect `mysqld --install` has and one Novis does not
-        /// inherit.
+        /// The `--` is required. Everything before it is an option of the
+        /// installer. Everything after it is stored exactly as you wrote it.
+        /// So the service command can use an option that the installer also
+        /// has, for example `--start`.
         // `docs/decisions/0093.md` § 1.
         #[arg(
             last = true,
@@ -1294,45 +1302,46 @@ const SERVICE_INSTALL_EXAMPLE: &str = r#"Examples:
 /// command that drifted apart in their options would be two commands.
 #[derive(clap::Args)]
 struct ServiceInstall {
-    /// The service's name — the identity `sc create` and systemd use, and the
-    /// one `nvs ctl --socket` addresses one of several servers by.
+    /// The name of the service. The operating system uses this name.
+    /// `nvs ctl --socket` also uses it to reach one server when several are
+    /// running.
     name: String,
-    /// The account the service runs as. The default is the local system
-    /// account, `LocalSystem`; `SYSTEM` names the same account.
+    /// The account that the service runs as. The default is the local system
+    /// account, `LocalSystem`. `SYSTEM` is another name for the same account.
     // `docs/decisions/0093.md` § 4.
     #[arg(long, value_name = "ACCOUNT")]
     account: Option<String>,
-    /// Refused (`E0633`). It exists so the refusal can name it: a command line
-    /// is readable by other users on the box, so an account password is
-    /// prompted for instead.
+    /// Not allowed. It gives error `E0633`. Other users on the computer can
+    /// read a command line. The installer prompts you for the password
+    /// instead.
     #[arg(long, value_name = "PASSWORD")]
     password: Option<String>,
-    /// When the manager starts it after a boot. The default is with the rest
-    /// of the automatic services.
+    /// When the service starts after the computer starts. The default is
+    /// together with the other automatic services.
     // `docs/decisions/0093.md` § 4.
     #[arg(long, value_enum, value_name = "MODE")]
     start: Option<service::registration::StartMode>,
-    /// What the manager does after a failure. The default starts it again.
+    /// What the service manager does when the service fails. The default
+    /// starts it again.
     #[arg(long, value_enum, value_name = "POLICY")]
     restart: Option<service::registration::Restart>,
-    /// A service that must come up first — a database, typically. Repeat it
-    /// for each one.
+    /// A service that must start first, for example a database. Repeat this
+    /// option for each one.
     #[arg(long, value_name = "SERVICE")]
     depends_on: Vec<String>,
-    /// What an administrator reads beside the name. The service's own name,
-    /// where nothing is written here.
+    /// A description that administrators see next to the name. The default is
+    /// the name of the service.
     #[arg(long, value_name = "TEXT")]
     description: Option<String>,
-    /// Print the steps this would perform, and touch nothing.
+    /// Prints every step, and changes nothing.
     #[arg(long)]
     dry_run: bool,
-    /// The `nvs` arguments to store, verbatim.
+    /// The `nvs` command that the service runs, written after `--`.
     ///
-    /// `--` is mandatory, and it is what makes every parameter passable:
-    /// everything to its left is the installer's own, everything to its right
-    /// is stored untouched and never interpreted. Without it a `--start` would
-    /// be ambiguous between the installer and the hosted program — a defect
-    /// `mysqld --install` has and one Novis does not inherit.
+    /// The `--` is required. Everything before it is an option of the
+    /// installer. Everything after it is stored exactly as you wrote it. So
+    /// the service command can use an option that the installer also has, for
+    /// example `--start`.
     // `docs/decisions/0093.md` § 1.
     #[arg(
         last = true,

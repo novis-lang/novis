@@ -1391,12 +1391,12 @@ pub(crate) mod registration {
     /// § 4's failure actions, as the one decision they carry.
     #[derive(Clone, Copy, PartialEq, Eq, Debug, Default, clap::ValueEnum)]
     pub(crate) enum Restart {
-        /// The manager starts the service again after a failure, which is what
-        /// `--restart on-failure` asks for and what an installer that was told
-        /// nothing does.
+        // `nvs service install --help` prints these two `///` lines.
+        /// The service manager starts the service again when it fails. This is
+        /// the default.
         #[default]
         OnFailure,
-        /// A failure leaves the service stopped.
+        /// The service stays stopped when it fails.
         Never,
     }
 
@@ -1413,12 +1413,16 @@ pub(crate) mod registration {
     /// When the manager starts the service after a boot (§ 4).
     #[derive(Clone, Copy, PartialEq, Eq, Debug, Default, clap::ValueEnum)]
     pub(crate) enum StartMode {
-        /// At boot, with the rest of the automatic services.
+        // `nvs service install --help` prints these three `///` lines. `Delayed`
+        // is § 4's delayed auto-start.
+        /// The service starts with the computer, together with the other
+        /// automatic services. This is the default.
         #[default]
         Automatic,
-        /// After them, which is § 4's delayed auto-start.
+        /// The service starts with the computer. On Windows, it starts after
+        /// the automatic services.
         Delayed,
-        /// Only when somebody asks.
+        /// The service starts only when somebody starts it.
         Manual,
     }
 

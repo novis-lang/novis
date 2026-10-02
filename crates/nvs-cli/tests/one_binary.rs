@@ -74,3 +74,41 @@ fn nvs_is_one_binary_with_a_subcommand_for_every_operation() {
         "{stderr}"
     );
 }
+
+/// `nvs service --help` and the help of each of its subcommands are written as
+/// `AGENTS.md` § *Text an end user reads* asks: no dash joins two sentences, and
+/// none of the words below, which an operator would have to look up, appears.
+#[test]
+fn nvs_service_help_is_written_in_the_plain_voice() {
+    let subs = [
+        "install",
+        "uninstall",
+        "start",
+        "stop",
+        "status",
+        "run",
+        "unit",
+    ];
+    let pages = std::iter::once(vec!["service", "--help"])
+        .chain(subs.iter().map(|sub| vec!["service", sub, "--help"]));
+    for args in pages {
+        let help = nvs(&args);
+        let stdout = String::from_utf8_lossy(&help.stdout);
+        assert_eq!(help.status.code(), Some(0), "`nvs {}`", args.join(" "));
+        assert!(!stdout.contains('—'), "`nvs {}`: {stdout}", args.join(" "));
+        for word in [
+            "refus",
+            "hands",
+            "verbatim",
+            "argv",
+            "registration",
+            "drain",
+        ] {
+            assert!(
+                !stdout.to_lowercase().contains(word),
+                "`nvs {}` says `{word}`: {stdout}",
+                args.join(" ")
+            );
+        }
+    }
+}
