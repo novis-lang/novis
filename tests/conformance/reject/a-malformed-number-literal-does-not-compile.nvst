@@ -1,0 +1,25 @@
+--TEST--
+a base prefix with no digit, a digit outside the base and an exponent with no digit are each one `E0003`
+--FILE--
+<?nvs
+// A number literal must have digits that its base allows.
+
+var $hex = 0x;
+var $bin = 0b102;
+var $exp = 1e;
+
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0003]: `0x` is not a valid number
+  --> case.nvs:4:12
+%A
+error[E0003]: `0b102` is not a valid number
+  --> case.nvs:5:12
+%A
+error[E0003]: `1e` is not a valid number
+  --> case.nvs:6:12
+%A
+error: aborting due to 3 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

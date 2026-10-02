@@ -1352,6 +1352,15 @@ impl<'src, 'd> Parser<'src, 'd> {
                     kind: ExprKind::Float(start),
                 }
             }
+            // The lexer reported this token when it made it, so it stands for
+            // one error expression and adds no diagnostic of its own.
+            TokenKind::Unknown => {
+                self.bump();
+                Expr {
+                    span: start,
+                    kind: ExprKind::Error(start),
+                }
+            }
             TokenKind::DurationLiteral => {
                 self.bump();
                 Expr {

@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-syntax/src/lexer.rs",
-  "title": "A malformed number literal is reported as some other error, and `E0003` is never raised.",
-  "text": "`E_INVALID_NUMBER` (`E0003`) is declared with a card, but the lexer never raises it. `$a = 0x;` reports `E0429`, \"this integer literal is too large\". `$a = 0b102;` lexes `0b10` and then `2`, and reports `E0101`, \"expected `;`\". `$a = 1e;` lexes `1` and then the name `e`, and reports `E0101` and `E0319`. The lexer should raise `E0003` once, over the whole literal: a `0x`, `0b` or `0o` prefix with no digit after it, a digit outside the prefix's base directly after the literal, and an exponent with no digit. A conformance case under `tests/conformance/reject/` pins each of the three.",
-  "goal": "goal-closeout"
-}

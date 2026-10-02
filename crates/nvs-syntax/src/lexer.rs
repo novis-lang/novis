@@ -757,29 +757,35 @@ impl<'a> Lexer<'a> {
     fn lex_number(&mut self, diags: &mut Diagnostics) {
         let start = self.pos;
         if self.peek() == Some('0') {
-            match self.peek_at(1) {
-                Some('x' | 'X') => {
-                    self.bump();
-                    self.bump();
-                    self.consume_digit_run(|c| c.is_ascii_hexdigit());
-                    self.push(TokenKind::IntLiteral, self.mk_span(start, self.pos));
+            let radix = match self.peek_at(1) {
+                Some('x' | 'X') => 16,
+                Some('o' | 'O') => 8,
+                Some('b' | 'B') => 2,
+                _ => 0,
+            };
+            if radix != 0 {
+                self.bump();
+                self.bump();
+                let digits = self.pos;
+                self.consume_digit_run(|c| c.is_digit(radix));
+                let has_digit = self.text[digits as usize..self.pos as usize]
+                    .bytes()
+                    .any(|b| b != b'_');
+                // A prefix with no digit, or a decimal digit the base does not
+                // have (`0b102`), makes the whole run one malformed literal.
+                let bad_digit = self.peek().is_some_and(|c| c.is_ascii_digit());
+                if !has_digit || bad_digit {
+                    self.consume_digit_run(|c| c.is_ascii_alphanumeric());
+                    let why = if bad_digit {
+                        "a digit here is not allowed in this base"
+                    } else {
+                        "the prefix has no digit after it"
+                    };
+                    self.report_invalid_number(start, why, diags);
                     return;
                 }
-                Some('o' | 'O') => {
-                    self.bump();
-                    self.bump();
-                    self.consume_digit_run(|c| matches!(c, '0'..='7'));
-                    self.push(TokenKind::IntLiteral, self.mk_span(start, self.pos));
-                    return;
-                }
-                Some('b' | 'B') => {
-                    self.bump();
-                    self.bump();
-                    self.consume_digit_run(|c| c == '0' || c == '1');
-                    self.push(TokenKind::IntLiteral, self.mk_span(start, self.pos));
-                    return;
-                }
-                _ => {}
+                self.push(TokenKind::IntLiteral, self.mk_span(start, self.pos));
+                return;
             }
         }
 
@@ -807,6 +813,15 @@ impl<'a> Lexer<'a> {
                     self.bump();
                 }
                 self.consume_digit_run(|c| c.is_ascii_digit());
+            } else if sign_len == 2 || !self.peek_at(1).is_some_and(Self::is_ident_continue) {
+                // `1e`, `1e+` and `1E-`: an exponent with no digit. A letter
+                // run such as `1each` stays an integer followed by a name.
+                self.bump();
+                if sign_len == 2 {
+                    self.bump();
+                }
+                self.report_invalid_number(start, "the exponent has no digit", diags);
+                return;
             }
         }
 
@@ -897,6 +912,21 @@ impl<'a> Lexer<'a> {
                 self.push(TokenKind::Unknown, span);
             }
         }
+    }
+
+    /// Reports `E0003` over the literal from `start` to here, and pushes it as
+    /// one [`TokenKind::Unknown`] so no later phase reads a value from it.
+    fn report_invalid_number(&mut self, start: BytePos, why: &str, diags: &mut Diagnostics) {
+        let span = self.mk_span(start, self.pos);
+        let text = &self.text[start as usize..self.pos as usize];
+        diags.report(
+            Diagnostic::error(
+                code::E_INVALID_NUMBER,
+                format!("`{text}` is not a valid number"),
+            )
+            .with_primary(span, why),
+        );
+        self.push(TokenKind::Unknown, span);
     }
 
     fn consume_digit_run(&mut self, is_digit: impl Fn(char) -> bool) {
@@ -2054,7 +2084,7 @@ mod tests {
     #[test]
     fn a_non_unit_suffix_is_still_an_integer_and_an_identifier() {
         assert_eq!(
-            kinds_ok("<?nvs 30foo 1e 30Something"),
+            kinds_ok("<?nvs 30foo 1each 30Something"),
             vec![
                 OpenTagNvs, IntLiteral, Ident, IntLiteral, Ident, IntLiteral, Ident, Eof
             ]
@@ -2073,6 +2103,42 @@ mod tests {
             assert!(diags.has_errors(), "{src} should be refused");
             assert_eq!(kinds, vec![OpenTagNvs, Unknown, Eof], "for {src}");
         }
+    }
+
+    /// A base prefix with no digit, a decimal digit the base does not have and
+    /// an exponent with no digit are each one `E0003` over the whole literal.
+    #[test]
+    fn a_malformed_number_literal_is_one_e0003() {
+        for (src, text) in [
+            ("<?nvs 0x;", "0x"),
+            ("<?nvs 0b_;", "0b_"),
+            ("<?nvs 0b102;", "0b102"),
+            ("<?nvs 0o78;", "0o78"),
+            ("<?nvs 1e;", "1e"),
+            ("<?nvs 1.5E-;", "1.5E-"),
+        ] {
+            let (kinds, diags) = kinds(src);
+            assert_eq!(
+                kinds,
+                vec![OpenTagNvs, Unknown, Semicolon, Eof],
+                "for {src}"
+            );
+            let all: Vec<_> = diags.iter().collect();
+            assert_eq!(all.len(), 1, "for {src}: {all:?}");
+            assert_eq!(all[0].code, Some(code::E_INVALID_NUMBER), "for {src}");
+            assert!(all[0].message.contains(&format!("`{text}`")), "for {src}");
+        }
+        assert_eq!(
+            kinds_ok("<?nvs 0x1e 1e3 0b10 1.5e+2"),
+            vec![
+                OpenTagNvs,
+                IntLiteral,
+                FloatLiteral,
+                IntLiteral,
+                FloatLiteral,
+                Eof
+            ]
+        );
     }
 
     /// The case of a unit is the one thing `rule:types/duration-literal` refuses that leaves a
