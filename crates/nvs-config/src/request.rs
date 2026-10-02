@@ -15,7 +15,8 @@
 //! one place that decides it.
 //!
 //! **What `set` refuses, it refuses by returning `false`** (`rule:config/three-changeability-classes`, and `m6.md`'s *Verify*): a
-//! name no [`Directive`](crate::directive::Directive) row governs, a `System` one, a value that
+//! name no [`Directive`](crate::directive::Directive) row governs, a name a row governs that is not
+//! a leaf key the file may write (`log`, `log.x`), a `System` one, a value that
 //! does not spell its unit, a value above the `[limits.hard]` ceiling, a
 //! [`RuntimeTighten`](Class::RuntimeTighten) one that does not narrow, an assignment that would
 //! leave this request holding one of `rule:http-server/cors-is-closed-until-origins-are-named` and `rule:http-server/cookies-are-secure-httponly-and-lax`'s meaningless `[http]` pairs, and a mode
@@ -36,8 +37,8 @@
 //!
 
 use std::borrow::Cow;
-use std::collections::BTreeMap;
-use std::sync::Arc;
+use std::collections::{BTreeMap, BTreeSet};
+use std::sync::{Arc, OnceLock};
 
 use crate::directive::{Class, lookup};
 use crate::mode;
@@ -100,9 +101,10 @@ impl Request {
     /// refused — the module doc lists what is refused, and none of it throws.
     pub fn set(&mut self, name: &str, value: &str) -> bool {
         let key = canonical(name);
-        // A name with an empty segment — `limits..memory` — is still governed by the `limits` row,
-        // but it is a key no reader ever asks for, so a set of it would change nothing and say `true`.
-        if key.split('.').any(str::is_empty) {
+        // A name under a settable block that is not one of its keys — `log`, `log.x`,
+        // `limits..memory` — is still governed by that block's row, but no reader ever asks for it,
+        // so a set of it would change nothing and say `true`.
+        if !is_key(&key) {
             return false;
         }
         let Some(row) = lookup(&key) else {
@@ -323,6 +325,55 @@ fn canonical(name: &str) -> Cow<'_, str> {
         return Cow::Owned(format!("limits.{name}"));
     }
     Cow::Borrowed(name)
+}
+
+/// Whether `key` is a leaf key an `nvs.toml` may write: one of the setting lines of the shipped
+/// default file, which `bun nv directives --check-template` holds to the typed tree key for key.
+///
+/// That file is the one roster of leaf keys this crate carries, so reading it here keeps no second
+/// list in step. The keys it writes under an example name — `db.main.path` — are in the set too,
+/// and no request-settable row governs one.
+///
+/// Cost: the set is built once per process, on the first `set`, and is a few kilobytes.
+fn is_key(key: &str) -> bool {
+    static KEYS: OnceLock<BTreeSet<String>> = OnceLock::new();
+    KEYS.get_or_init(|| leaf_keys(crate::default_file()))
+        .contains(key)
+}
+
+/// Every setting line's dotted key in `file`: `#name = …` under the nearest `[block]` or
+/// `[[entry]]` header above it, whether that header is live or commented out.
+fn leaf_keys(file: &str) -> BTreeSet<String> {
+    let mut keys = BTreeSet::new();
+    let mut block = "";
+    for line in file.lines() {
+        let line = line.trim();
+        let setting = line.strip_prefix('#').unwrap_or(line);
+        if let Some(header) = setting.strip_prefix('[') {
+            block = header
+                .split(']')
+                .next()
+                .unwrap_or_default()
+                .trim_start_matches('[');
+            continue;
+        }
+        // Prose is `# text`. A setting is `#name = value`, with no space after the `#`, so a line
+        // whose name is not a bare lower-case key is prose.
+        let Some((name, _)) = setting.split_once('=') else {
+            continue;
+        };
+        let name = name.trim_end();
+        let bare = |b: u8| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'_';
+        if name.is_empty() || !name.bytes().all(bare) {
+            continue;
+        }
+        keys.insert(if block.is_empty() {
+            name.to_string()
+        } else {
+            format!("{block}.{name}")
+        });
+    }
+    keys
 }
 
 /// A TOML scalar as the text § 5 crosses it as, and `None` for anything that is not one.

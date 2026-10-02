@@ -187,6 +187,36 @@ fn a_name_no_directive_governs_is_refused() {
     assert_eq!(request.get("nothing.like.this"), None);
 }
 
+/// A name a request-settable row governs is refused when it is not a leaf key the file may write:
+/// the row's block itself, a key the block does not have, and a key one segment past a real one.
+/// No reader asks for any of them, so storing one would change nothing and still answer `true`.
+#[test]
+fn a_name_a_settable_row_governs_that_is_not_a_key_is_refused() {
+    let mut request = Request::new(snapshot_of(BOUNDED));
+
+    for name in [
+        "log",
+        "log.x",
+        "log.target\0",
+        "limits",
+        "limits.bogus",
+        "limits..memory",
+        "http",
+        "http.bogus",
+        "http.client.socket.bogus",
+        "deferred.deadline.x",
+        "mode.default.x",
+    ] {
+        assert!(!request.set(name, "/"), "`{name}` is not a key");
+        assert_eq!(request.get(name), None, "`{name}` was stored");
+    }
+    assert!(
+        request.set("log.format", "text"),
+        "a key in a settable block"
+    );
+    assert_eq!(request.get("log.format").as_deref(), Some("text"));
+}
+
 /// § 5's `all()`: every leaf by dotted name, with the overlay folded over it — and the bare name a
 /// `set` used resolving to the same `limits.memory` the file wrote.
 #[test]
