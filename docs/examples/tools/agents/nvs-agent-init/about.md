@@ -1,9 +1,13 @@
 `nvs agent init` writes the files that tell a coding agent about the `nvs agent` commands. Run it
 in the directory of your project.
 
-The command adds a short section to the end of `AGENTS.md`, and your own text stays as it is. It
-also writes one file for each agent tool the project uses: Claude Code (`.claude/`), Cursor
-(`.cursor/`) and GitHub Copilot (`.github/instructions/`). With `--all`, it writes all of them.
+The command adds a short section to the end of `AGENTS.md`, and your own text stays as it is.
+Cursor, Codex and OpenCode read that file. Claude Code also gets a skill, and GitHub Copilot an
+instructions file.
+
+The command finds the agent that runs it. Run by hand, it writes only `AGENTS.md`. Use
+`--agent claude-code` (or `cursor`, `codex`, `copilot`, `opencode`) to choose an agent, and `--all`
+for every agent. A file it wrote earlier is kept up to date for every agent.
 
 These files name the commands and contain no facts about the language.
 

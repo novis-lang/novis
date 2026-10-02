@@ -1,8 +1,8 @@
 ---
 id: agents
 title: "Coding agents: nvs agent, and what nvs agent init installs"
-summary: the four commands a coding agent reads the language through — `primer`, `index`, `find` and `show` — over the `Core` registry and the chapters of this reference, the `nvs check` loop that closes them, and `nvs agent init`, which writes an `AGENTS.md` stanza and one adapter per harness and states no language fact
-keywords: nvs agent, nvs agent primer, nvs agent index, nvs agent find, nvs agent show, nvs agent init, --all, --force, --check, --json, JSON, fingerprint, coding agent, LLM, AI assistant, agent instructions, AGENTS.md, SKILL.md, .claude, Claude Code, skill, Cursor, .cursor, .mdc, GitHub Copilot, .instructions.md, adapter, pointer, stale documentation, hallucinated member, nvs check loop
+summary: the four commands a coding agent reads the language through — `primer`, `index`, `find` and `show` — over the `Core` registry and the chapters of this reference, the `nvs check` loop that closes them, and `nvs agent init`, which writes an `AGENTS.md` stanza and what the coding agent you run needs beside it, and states no language fact
+keywords: nvs agent, nvs agent primer, nvs agent index, nvs agent find, nvs agent show, nvs agent init, --agent, --all, --force, --check, --json, JSON, fingerprint, coding agent, LLM, AI assistant, agent instructions, AGENTS.md, SKILL.md, .claude, Claude Code, skill, Cursor, Codex, OpenCode, GitHub Copilot, .instructions.md, adapter, pointer, stale documentation, hallucinated member, nvs check loop
 ---
 
 <!-- primer -->
@@ -131,7 +131,7 @@ compiles, and a section that stops being true stops being printed rather than be
 
 # nvs agent init
 
-    nvs agent init [--all] [--force | --check]
+    nvs agent init [--agent <name>]... [--all] [--force | --check]
 
 Writes the files that tell a coding agent these commands exist, into the project in the working
 directory. It is the only command here that writes a file. Each file points at the commands above
@@ -151,17 +151,33 @@ Two kinds of file, and both say the same thing:
 
       <!-- /nvs agent -->
 
-- **One adapter per agent tool**, in the place that tool reads. `init` writes an adapter only when
-  the project already uses that tool:
+- **An adapter**, for an agent that does not always read `AGENTS.md`. An adapter is the agent's own
+  header over the same text the stanza has.
 
-  | Tool | File | Written when the project has |
-  |---|---|---|
-  | Claude Code | `.claude/skills/novis/SKILL.md` | a `.claude/` directory |
-  | Cursor | `.cursor/rules/novis.mdc` | a `.cursor/` directory |
-  | GitHub Copilot | `.github/instructions/novis.instructions.md` | `.github/copilot-instructions.md` or `.github/instructions/` |
+`init` installs for the coding agent that runs it. Each agent sets an environment variable in the
+commands it runs, and `init` reads it:
 
-  An adapter is the tool's own header over the same text the stanza has. `--all` writes every
-  adapter, also for tools the project does not use yet.
+| Agent | `--agent` | Found by | Gets beside `AGENTS.md` |
+|---|---|---|---|
+| Claude Code | `claude-code` | `CLAUDE_CODE_CHILD_SESSION` | the skill `.claude/skills/novis/SKILL.md` |
+| Cursor | `cursor` | `CURSOR_AGENT` | nothing |
+| Codex | `codex` | `CODEX_THREAD_ID` | nothing |
+| GitHub Copilot | `copilot` | `COPILOT_AGENT`, `AI_AGENT`, `COPILOT_AGENT_SESSION_ID` or `GITHUB_COPILOT_API_TOKEN` | the instructions file `.github/instructions/novis.instructions.md` |
+| OpenCode | `opencode` | `OPENCODE` | nothing |
+
+Claude Code reads `AGENTS.md` only in a project that has no `CLAUDE.md`, so it gets a skill. Copilot
+does not say which of its tools read `AGENTS.md`, so it gets its own instructions file. The other
+three read `AGENTS.md`.
+
+The first line `init` prints names the agent it chose, and the variable it found. When you run
+`init` yourself in a terminal, no agent is found, and only the stanza is written. `--agent <name>`
+installs for that agent instead, and you can give it more than once. `--all` installs for every
+agent in the table.
+
+A file that an earlier `init` wrote is kept up to date, whichever agent runs `init` now. So every
+person on a team gets the same files. An earlier `init` also wrote `.cursor/rules/novis.mdc` for
+Cursor. Cursor reads `AGENTS.md`, so `init` now deletes that file and prints `removed <path>`. If
+somebody changed the file, `init` leaves it and prints a note.
 
 **No file states a language fact.** It has no signature, no type and no error message. A copy of a
 fact gets old when the language changes, and the agent that reads it cannot tell. So the files
@@ -178,24 +194,27 @@ is computed from the text `init` wrote, so `init` can see whether somebody chang
 - When there is nothing to write, `init` prints `up to date`.
 
 Line endings do not count, so a checkout with CRLF line endings has the same fingerprint.
-`nvs agent primer` also prints one line on standard error when the project has a file that an
-older `nvs` wrote, so the agent learns about it.
+`nvs agent primer` also prints one line on standard error when `init` would change a file: one
+that an older `nvs` wrote, or one that the agent reading the primer needs and the project lacks.
 
-`--check` writes nothing. It prints `missing`, `outdated` or `edited` and the path for each file
-that is not current, and exits with a non-zero status. When every file is current it prints
-`up to date` and succeeds. You can run it in CI.
+`--check` writes nothing. It prints `missing`, `outdated`, `edited` or `retired` and the path for
+each file that is not current, and exits with a non-zero status. When every file is current it
+prints `up to date` and succeeds. You can run it in CI, where no agent is found, so it checks the
+stanza and the files that are already there.
 
-These are three runs in a project that has no `AGENTS.md` and no agent tool directory. The second
-run writes nothing. The third run has `--all`, so it writes every adapter:
+These are three runs in a terminal, in a project that has no `AGENTS.md`. The second run writes
+nothing. The third run has `--all`, so it installs for every agent:
 
 ```text
 $ nvs agent init
+agent: none detected; pass --agent <name> to install an agent's own files
 wrote AGENTS.md
 $ nvs agent init
+agent: none detected; pass --agent <name> to install an agent's own files
 up to date
 $ nvs agent init --all
+agent: every one (--all)
 wrote .claude/skills/novis/SKILL.md
-wrote .cursor/rules/novis.mdc
 wrote .github/instructions/novis.instructions.md
 ```
 

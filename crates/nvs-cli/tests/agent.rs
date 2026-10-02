@@ -1075,10 +1075,33 @@ fn tree(name: &str) -> PathBuf {
     dir
 }
 
-/// `nvs agent init <args...>`, run *in* `dir`, as `(stdout, stderr, success)`.
-fn init(dir: &Path, args: &[&str]) -> (String, String, bool) {
-    let out = Command::new(env!("CARGO_BIN_EXE_nvs"))
-        .args(["agent", "init"])
+/// Every environment variable `init` reads to find the agent that runs it.
+/// Each run here clears all of them on the child, so the agent that runs this
+/// test suite is never the one a test sees.
+const AGENT_VARS: &[&str] = &[
+    "CLAUDE_CODE_CHILD_SESSION",
+    "CURSOR_AGENT",
+    "CURSOR_PROJECT_DIR",
+    "CODEX_THREAD_ID",
+    "COPILOT_AGENT",
+    "AI_AGENT",
+    "COPILOT_AGENT_SESSION_ID",
+    "GITHUB_COPILOT_API_TOKEN",
+    "OPENCODE",
+];
+
+/// The variable Claude Code sets in the commands it runs.
+const CLAUDE: &[(&str, &str)] = &[("CLAUDE_CODE_CHILD_SESSION", "1")];
+
+/// `nvs <args...>`, run in `dir` with no agent variable set but `env`, as
+/// `(stdout, stderr, success)`.
+fn nvs_in(dir: &Path, env: &[(&str, &str)], args: &[&str]) -> (String, String, bool) {
+    let mut command = Command::new(env!("CARGO_BIN_EXE_nvs"));
+    for var in AGENT_VARS {
+        command.env_remove(var);
+    }
+    let out = command
+        .envs(env.iter().copied())
         .args(args)
         .current_dir(dir)
         .output()
@@ -1088,6 +1111,28 @@ fn init(dir: &Path, args: &[&str]) -> (String, String, bool) {
         String::from_utf8(out.stderr).expect("the output is UTF-8"),
         out.status.success(),
     )
+}
+
+/// `nvs agent init <args...>`, run in `dir` under the agent `env` names, with
+/// its first line — the one that says which agent it chose — as the second
+/// part of the answer: `(stdout without that line, the line, stderr, success)`.
+fn init_as(dir: &Path, env: &[(&str, &str)], args: &[&str]) -> (String, String, String, bool) {
+    let mut full = vec!["agent", "init"];
+    full.extend_from_slice(args);
+    let (out, err, ok) = nvs_in(dir, env, &full);
+    let (first, rest) = out.split_once('\n').unwrap_or((out.as_str(), ""));
+    assert!(
+        first.starts_with("agent: "),
+        "the first line names the agent: {out}"
+    );
+    (rest.to_owned(), first.to_owned(), err, ok)
+}
+
+/// `nvs agent init <args...>`, run in `dir` under no agent, as `(stdout
+/// without the agent line, stderr, success)`.
+fn init(dir: &Path, args: &[&str]) -> (String, String, bool) {
+    let (out, _, err, ok) = init_as(dir, &[], args);
+    (out, err, ok)
 }
 
 /// Every file under `dir`, relative to it with `/` separators and sorted, so a
@@ -1175,8 +1220,7 @@ fn init_run_twice_changes_nothing_the_first_run_wrote() {
 #[test]
 fn init_reads_a_crlf_checkout_of_what_it_wrote_as_up_to_date() {
     let dir = tree("crlf");
-    std::fs::create_dir_all(dir.join(".claude")).expect("the harness's own directory");
-    let (_, err, ok) = init(&dir, &[]);
+    let (_, _, err, ok) = init_as(&dir, CLAUDE, &[]);
     assert!(ok, "the first run succeeds: {err}");
 
     for relative in ["AGENTS.md", ".claude/skills/novis/SKILL.md"] {
@@ -1227,17 +1271,17 @@ fn init_refuses_to_overwrite_a_stanza_that_has_been_edited() {
     assert_eq!(read(&dir, "AGENTS.md"), edited, "and it changed nothing");
 }
 
-/// A harness is detected by the directory it already keeps in the project, so a
-/// tree with `.claude/` in it gets the skill beside the neutral stanza and a
-/// tree without one does not — which is the whole of the detection.
+/// Claude Code is found by the variable it sets in the commands it runs, so a
+/// run under it gets the skill beside the neutral stanza. A second run under
+/// no agent keeps the skill, because a file an earlier run wrote stays.
 // covers: tools:agents/nvs-agent-init
 #[test]
-fn init_writes_the_claude_skill_when_that_harness_is_present() {
+fn init_writes_the_claude_skill_when_claude_code_runs_it() {
     let dir = tree("claude");
-    std::fs::create_dir_all(dir.join(".claude")).expect("the harness's own directory");
 
-    let (out, err, ok) = init(&dir, &[]);
+    let (out, line, err, ok) = init_as(&dir, CLAUDE, &[]);
     assert!(ok, "`nvs agent init` succeeds: {err}");
+    assert_eq!(line, "agent: claude-code (CLAUDE_CODE_CHILD_SESSION)");
     assert_eq!(
         files(&dir),
         vec![
@@ -1377,8 +1421,9 @@ fn the_init_transcript_of_the_chapter_is_what_the_binary_prints() {
     let dir = tree("transcript");
     for (args, printed) in &steps {
         assert_eq!(args[0], "init", "the section's transcript runs `init` only");
-        let flags: Vec<&str> = args[1..].iter().map(String::as_str).collect();
-        let (out, err, ok) = init(&dir, &flags);
+        let mut full = vec!["agent"];
+        full.extend(args.iter().map(String::as_str));
+        let (out, err, ok) = nvs_in(&dir, &[], &full);
         assert!(ok, "`nvs agent {}` succeeds: {err}", args.join(" "));
         let lines: Vec<&str> = out.lines().collect();
         assert_eq!(
@@ -1406,8 +1451,8 @@ fn snapshot(dir: &Path) -> Vec<(String, Vec<u8>)> {
 /// closes, one whose markers are out of order or nested, one that is empty, text
 /// that is not UTF-8, and a directory where the file belongs. Each is refused by
 /// a message naming the file, with a failing status and no panic, and the tree
-/// is byte for byte what it was — the adapter the `.claude/` directory would
-/// have earned included.
+/// is byte for byte what it was — the skill a run under Claude Code would have
+/// written included.
 // covers: tools:agents/nvs-agent-init
 #[test]
 fn init_refuses_an_agents_file_it_cannot_read_as_its_own_and_changes_nothing() {
@@ -1432,11 +1477,10 @@ fn init_refuses_an_agents_file_it_cannot_read_as_its_own_and_changes_nothing() {
     ];
     for (name, bytes) in hostile {
         let dir = tree(&format!("hostile-{name}"));
-        std::fs::create_dir_all(dir.join(".claude")).expect("the harness's own directory");
         std::fs::write(dir.join("AGENTS.md"), &bytes).expect("the hostile file is written");
         let before = snapshot(&dir);
 
-        let (out, err, ok) = init(&dir, &[]);
+        let (out, _, err, ok) = init_as(&dir, CLAUDE, &[]);
         assert!(!ok, "`{name}` is a refusal: {out}");
         assert!(
             err.contains("AGENTS.md"),
@@ -1448,15 +1492,14 @@ fn init_refuses_an_agents_file_it_cannot_read_as_its_own_and_changes_nothing() {
 
     let dir = tree("hostile-directory");
     std::fs::create_dir_all(dir.join("AGENTS.md")).expect("a directory where the file belongs");
-    std::fs::create_dir_all(dir.join(".claude")).expect("the harness's own directory");
-    let (out, err, ok) = init(&dir, &[]);
+    let (out, _, err, ok) = init_as(&dir, CLAUDE, &[]);
     assert!(!ok, "a directory named `AGENTS.md` is a refusal: {out}");
     assert!(
         err.contains("AGENTS.md"),
         "the refusal names the file: {err}"
     );
     assert!(!err.contains("panicked"), "{err}");
-    assert!(files(&dir).is_empty(), "and it wrote nothing");
+    assert_eq!(files(&dir), Vec::<String>::new(), "and it wrote nothing");
 }
 
 /// A refusal is about the whole run, whichever file it names. The stanza is
@@ -1611,8 +1654,7 @@ fn init_updates_a_file_it_wrote_that_nobody_edited() {
     let current = fresh_text(skill);
     for crlf in [false, true] {
         let dir = tree(&format!("outdated-{crlf}"));
-        std::fs::create_dir_all(dir.join(".claude")).expect("the harness's own directory");
-        let (_, err, ok) = init(&dir, &[]);
+        let (_, _, err, ok) = init_as(&dir, CLAUDE, &[]);
         assert!(ok, "the first run succeeds: {err}");
 
         let mut older = refingerprint(&read(&dir, skill).replace("# Novis", "# Novis, older"));
@@ -1669,7 +1711,7 @@ fn init_updates_what_the_init_before_fingerprints_wrote() {
         std::fs::write(dir.join(skill), convert(legacy_skill.clone()))
             .expect("the legacy skill is written");
 
-        let note = primer_err(&dir);
+        let note = primer_err(&dir, &[]);
         assert!(
             note.contains("nvs agent init"),
             "the primer tells the agent the files are old: {note}"
@@ -1686,7 +1728,7 @@ fn init_updates_what_the_init_before_fingerprints_wrote() {
         assert!(agents.contains(current_stanza.trim_end()), "{agents}");
         assert_eq!(read(&dir, skill), fresh_text(skill));
         assert_eq!(
-            primer_err(&dir),
+            primer_err(&dir, &[]),
             "",
             "and the primer has nothing more to say"
         );
@@ -1709,7 +1751,11 @@ fn init_force_replaces_an_edited_file_and_check_names_it() {
     let (out, _, ok) = init(&dir, &["--check"]);
     assert!(!ok, "`--check` fails on an edited file");
     assert_eq!(out.trim_end(), "edited AGENTS.md");
-    assert_eq!(primer_err(&dir), "", "an edited file is not called old");
+    assert_eq!(
+        primer_err(&dir, &[]),
+        "",
+        "an edited file is not called old"
+    );
 
     let (_, err, ok) = init(&dir, &[]);
     assert!(!ok, "an edited file is a refusal");
@@ -1732,64 +1778,77 @@ fn init_force_replaces_an_edited_file_and_check_names_it() {
 #[test]
 fn init_check_writes_nothing_and_fails_until_every_file_is_current() {
     let dir = tree("check");
-    std::fs::create_dir_all(dir.join(".cursor")).expect("the harness's own directory");
+    let copilot: &[(&str, &str)] = &[("COPILOT_AGENT", "1")];
 
-    let (out, _, ok) = init(&dir, &["--check"]);
+    let (out, _, _, ok) = init_as(&dir, copilot, &["--check"]);
     assert!(!ok, "missing files fail the check");
     assert_eq!(
         out.lines().collect::<Vec<_>>(),
-        ["missing AGENTS.md", "missing .cursor/rules/novis.mdc"]
+        [
+            "missing AGENTS.md",
+            "missing .github/instructions/novis.instructions.md"
+        ]
     );
     assert!(files(&dir).is_empty(), "and it wrote nothing");
 
-    let (_, err, ok) = init(&dir, &[]);
+    let (_, _, err, ok) = init_as(&dir, copilot, &[]);
     assert!(ok, "the run succeeds: {err}");
     let (out, err, ok) = init(&dir, &["--check"]);
-    assert!(ok, "a current tree passes: {err}");
+    assert!(ok, "a current tree passes under no agent: {err}");
     assert_eq!(out.trim_end(), "up to date");
     let _ = std::fs::remove_dir_all(&dir);
 }
 
-/// Cursor is detected by `.cursor/`, and Copilot by its own instruction files.
-/// A `.github/` directory alone is in most projects, so it shows no harness.
+/// Each agent is found by a variable it sets in the commands it runs, and
+/// gets what its row of the table names: Claude Code a skill, Copilot an
+/// instructions file, and Codex, Cursor and OpenCode nothing but the stanza,
+/// because they read `AGENTS.md` themselves. A variable that is empty, or
+/// `AI_AGENT` naming another tool, finds nothing.
 // covers: tools:agents/nvs-agent-init
 #[test]
-fn init_writes_the_cursor_and_copilot_pointers_when_those_harnesses_are_present() {
-    let cursor = ".cursor/rules/novis.mdc";
+fn init_installs_what_the_agent_found_in_the_environment_needs() {
+    let skill = ".claude/skills/novis/SKILL.md";
     let copilot = ".github/instructions/novis.instructions.md";
-    let cases: [(&str, &[&str], Option<&str>); 4] = [
-        ("cursor", &[".cursor"], Some(cursor)),
-        ("github-only", &[".github/workflows"], None),
-        ("copilot-dir", &[".github/instructions"], Some(copilot)),
-        ("copilot-file", &[".github"], Some(copilot)),
+    let cases: &[(&str, &str, &str, Option<&str>)] = &[
+        ("CLAUDE_CODE_CHILD_SESSION", "1", "claude-code", Some(skill)),
+        ("CURSOR_AGENT", "1", "cursor", None),
+        ("CODEX_THREAD_ID", "a1", "codex", None),
+        ("COPILOT_AGENT", "1", "copilot", Some(copilot)),
+        (
+            "AI_AGENT",
+            "github_copilot_vscode_agent",
+            "copilot",
+            Some(copilot),
+        ),
+        ("COPILOT_AGENT_SESSION_ID", "s1", "copilot", Some(copilot)),
+        ("GITHUB_COPILOT_API_TOKEN", "t", "copilot", Some(copilot)),
+        ("OPENCODE", "1", "opencode", None),
+        ("AI_AGENT", "another_tool", "", None),
+        ("CLAUDE_CODE_CHILD_SESSION", "", "", None),
     ];
-    for (name, dirs, expected) in cases {
-        let dir = tree(&format!("harness-{name}"));
-        for sub in dirs {
-            std::fs::create_dir_all(dir.join(sub)).expect("the harness's own directory");
+    for (index, &(var, value, name, expected)) in cases.iter().enumerate() {
+        let dir = tree(&format!("detect-{index}"));
+        let (out, line, err, ok) = init_as(&dir, &[(var, value)], &[]);
+        assert!(ok, "`{var}={value}`: {err}");
+        if name.is_empty() {
+            assert!(line.starts_with("agent: none detected"), "{line}");
+        } else {
+            assert!(
+                line.starts_with(&format!("agent: {name} ({var})")),
+                "{line}"
+            );
         }
-        if name == "copilot-file" {
-            std::fs::write(dir.join(".github/copilot-instructions.md"), "Ours.\n")
-                .expect("the project's own instructions");
+        if expected.is_none() && !name.is_empty() {
+            assert!(line.ends_with("AGENTS.md is all it needs"), "{line}");
         }
-        let (out, err, ok) = init(&dir, &[]);
-        assert!(ok, "`{name}`: {err}");
-        let mut wrote: Vec<&str> = vec!["wrote AGENTS.md"];
-        let line = expected.map(|path| format!("wrote {path}"));
-        if let Some(line) = &line {
-            wrote.push(line);
-        }
-        assert_eq!(out.lines().collect::<Vec<_>>(), wrote, "`{name}`");
+        let mut wrote = vec!["wrote AGENTS.md".to_owned()];
+        wrote.extend(expected.map(|path| format!("wrote {path}")));
+        assert_eq!(out.lines().collect::<Vec<_>>(), wrote, "`{var}={value}`");
         if let Some(path) = expected {
-            assert_eq!(read(&dir, path), fresh_text(path), "`{name}`");
+            assert_eq!(read(&dir, path), fresh_text(path), "`{var}`");
         }
         let _ = std::fs::remove_dir_all(&dir);
     }
-
-    let mdc = fresh_text(cursor);
-    assert!(mdc.contains("\nglobs: **/*.nvs\n"), "{mdc}");
-    assert!(mdc.contains("\nalwaysApply: false\n"), "{mdc}");
-    assert!(mdc.contains("\ndescription: "), "{mdc}");
     let instructions = fresh_text(copilot);
     assert!(
         instructions.starts_with("---\napplyTo: \"**/*.nvs\"\n---\n"),
@@ -1797,31 +1856,129 @@ fn init_writes_the_cursor_and_copilot_pointers_when_those_harnesses_are_present(
     );
 }
 
-/// A project that ran `init` and now shows a harness this binary has a pointer
-/// for lacks a file, and the primer says so.
+/// `--agent` replaces the agent found in the environment, and may be given
+/// more than once. `--all` installs for every agent.
 // covers: tools:agents/nvs-agent-init
 #[test]
-fn the_primer_notes_a_harness_whose_pointer_is_missing_and_nothing_else() {
+fn init_agent_replaces_detection_and_all_installs_for_every_agent() {
+    let dir = tree("agent-flag");
+    let (out, line, err, ok) = init_as(&dir, CLAUDE, &["--agent", "copilot"]);
+    assert!(ok, "{err}");
+    assert_eq!(line, "agent: copilot (--agent)");
+    assert_eq!(
+        out.lines().collect::<Vec<_>>(),
+        [
+            "wrote AGENTS.md",
+            "wrote .github/instructions/novis.instructions.md"
+        ]
+    );
+    let (_, line, err, ok) = init_as(&dir, &[], &["--agent", "codex", "--agent", "cursor"]);
+    assert!(ok, "{err}");
+    assert_eq!(
+        line,
+        "agent: cursor, codex (--agent); AGENTS.md is all they need"
+    );
+    let (_, err, ok) = nvs_in(&dir, &[], &["agent", "init", "--agent", "nobody"]);
+    assert!(!ok, "an unknown name is refused: {err}");
+    assert!(
+        err.contains("claude-code"),
+        "the refusal lists the names: {err}"
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+
+    let dir = tree("all-flag");
+    let (_, line, err, ok) = init_as(&dir, &[], &["--all"]);
+    assert!(ok, "{err}");
+    assert_eq!(line, "agent: every one (--all)");
+    assert_eq!(
+        files(&dir),
+        [
+            ".claude/skills/novis/SKILL.md",
+            ".github/instructions/novis.instructions.md",
+            "AGENTS.md",
+        ]
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// The Cursor rule an earlier `init` wrote, as that binary wrote it: Cursor's
+/// front matter over the text every pointer carries.
+fn cursor_rule() -> String {
+    let skill = fresh_text(".claude/skills/novis/SKILL.md");
+    let body = skill
+        .strip_prefix("---\n")
+        .and_then(|rest| rest.split_once("---\n"))
+        .map(|(_, body)| body)
+        .expect("the skill opens on its front matter");
+    refingerprint(&format!(
+        "---\ndescription: How to look up the Novis language and check Novis code with the \
+         installed `nvs` binary. Use it whenever reading or writing Novis code.\n\
+         globs: **/*.nvs\nalwaysApply: false\n---\n{body}"
+    ))
+}
+
+/// Cursor reads `AGENTS.md`, so the rule an earlier `init` wrote for it is
+/// deleted by a re-run when nobody edited it, and left with a note when
+/// somebody did.
+// covers: tools:agents/nvs-agent-init
+#[test]
+fn init_removes_the_retired_cursor_rule_unless_it_was_edited() {
+    let rule = ".cursor/rules/novis.mdc";
+    for edited in [false, true] {
+        let dir = tree(&format!("retired-{edited}"));
+        let (_, err, ok) = init(&dir, &[]);
+        assert!(ok, "{err}");
+        let mut text = cursor_rule();
+        if edited {
+            text.push_str("Our own line.\n");
+        }
+        std::fs::create_dir_all(dir.join(".cursor/rules")).expect("the rule's directory");
+        std::fs::write(dir.join(rule), &text).expect("the old rule is written");
+
+        let (out, err, ok) = init(&dir, &["--check"]);
+        assert_eq!(
+            ok, edited,
+            "`--check` fails only on an untouched rule: {out}{err}"
+        );
+        let (out, err, ok) = init(&dir, &[]);
+        assert!(ok, "{err}");
+        if edited {
+            assert_eq!(out.trim_end(), "up to date");
+            assert!(err.contains(rule), "the note names the file: {err}");
+            assert_eq!(read(&dir, rule), text, "and leaves it");
+        } else {
+            assert_eq!(out.trim_end(), format!("removed {rule}"));
+            assert!(!dir.join(rule).exists(), "the rule is gone");
+        }
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+}
+
+/// A project that ran `init`, run now by an agent whose file it lacks, and
+/// the primer says so. Under no agent, the same project has no note.
+// covers: tools:agents/nvs-agent-init
+#[test]
+fn the_primer_notes_a_file_the_running_agent_lacks_and_nothing_else() {
     let dir = tree("primer-note");
-    assert_eq!(primer_err(&dir), "", "a project with no files has no note");
+    assert_eq!(
+        primer_err(&dir, &[]),
+        "",
+        "a project with no files has no note"
+    );
     let (_, err, ok) = init(&dir, &[]);
     assert!(ok, "the run succeeds: {err}");
-    assert_eq!(primer_err(&dir), "", "a current project has no note");
+    assert_eq!(primer_err(&dir, &[]), "", "a current project has no note");
 
-    std::fs::create_dir_all(dir.join(".cursor")).expect("the harness's own directory");
-    let note = primer_err(&dir);
+    let note = primer_err(&dir, CLAUDE);
     assert_eq!(note.lines().count(), 1, "the note is one line: {note}");
     assert!(note.contains("nvs agent init"), "{note}");
     let _ = std::fs::remove_dir_all(&dir);
 }
 
-/// `nvs agent primer`, run in `dir`, as its standard error.
-fn primer_err(dir: &Path) -> String {
-    let out = Command::new(env!("CARGO_BIN_EXE_nvs"))
-        .args(["agent", "primer"])
-        .current_dir(dir)
-        .output()
-        .expect("the `nvs` binary this test was built beside runs");
-    assert!(out.status.success(), "the primer succeeds");
-    String::from_utf8(out.stderr).expect("the output is UTF-8")
+/// `nvs agent primer`, run in `dir` under the agent `env` names, as its
+/// standard error.
+fn primer_err(dir: &Path, env: &[(&str, &str)]) -> String {
+    let (_, err, ok) = nvs_in(dir, env, &["agent", "primer"]);
+    assert!(ok, "the primer succeeds");
+    err
 }

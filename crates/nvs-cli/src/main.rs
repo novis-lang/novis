@@ -880,18 +880,30 @@ enum AgentCommand {
         json: bool,
     },
     /// Install this surface into the project in the working directory: an
-    /// `AGENTS.md` stanza, and one adapter for each harness the tree shows, each
-    /// naming the four commands above and the `nvs check` loop.
+    /// `AGENTS.md` stanza, and the files the coding agent you run needs beside
+    /// it. Each file names the four commands above and the `nvs check` loop.
     ///
-    /// None of them states a language fact, for any reason — that is what the
-    /// four commands are for, and a copy of one of their answers would be stale
-    /// the day the member it describes changes.
+    /// The agent is found from the environment it runs commands in. Codex,
+    /// Cursor and OpenCode read `AGENTS.md`, so they need no other file. Claude
+    /// Code gets a skill and GitHub Copilot an instructions file.
+    ///
+    /// None of the files states a language fact. The four commands give those
+    /// answers, and a copy of one would be wrong after the language changes.
     ///
     /// Running it again updates every file it wrote that nobody has edited
-    /// since, and refuses a file somebody has edited.
+    /// since, whichever agent runs it, and refuses a file somebody has edited.
     // `rule:tooling/an-adapter-carries-protocol-and-never-language`.
     Init {
-        /// Write every adapter, rather than only the harnesses this tree shows.
+        /// Install for this agent, and not the one found in the environment.
+        /// Give it more than once for more than one agent.
+        #[arg(
+            long = "agent",
+            value_name = "NAME",
+            value_parser = clap::builder::PossibleValuesParser::new(agent::agent_names()),
+            conflicts_with = "all"
+        )]
+        agents: Vec<String>,
+        /// Install for every agent this command knows.
         #[arg(long)]
         all: bool,
         /// Replace a file somebody edited after `init` wrote it.
@@ -1726,7 +1738,17 @@ fn main() -> ExitCode {
             AgentCommand::Index { json } => agent::index(json),
             AgentCommand::Find { query, json } => agent::find(&query, json),
             AgentCommand::Show { symbol, json } => agent::show(&symbol, json),
-            AgentCommand::Init { all, force, check } => agent::init(all, force, check),
+            AgentCommand::Init {
+                agents,
+                all,
+                force,
+                check,
+            } => agent::init(&agent::InitOptions {
+                agents,
+                all,
+                force,
+                check,
+            }),
         },
     }
 }

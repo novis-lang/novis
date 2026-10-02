@@ -20,9 +20,13 @@
 //! ## The install
 //!
 //! `init` writes an `AGENTS.md` stanza — harness-neutral, delimited by markers
-//! it owns — and beside it one adapter per harness the tree shows (a Claude Code
-//! skill, a Cursor rule, a Copilot instructions file), each naming those
-//! commands and the `nvs check` loop.
+//! it owns — and beside it what the agent running it needs, by [`AGENTS`]: the
+//! row whose environment variable is set, the `--agent` names, or every row
+//! with `--all`. An agent that reads `AGENTS.md` itself gets nothing more; the
+//! Claude Code skill and the Copilot instructions file are the two pointers,
+//! each naming those commands and the `nvs check` loop. A pointer an earlier run
+//! wrote is kept current whichever agent runs now, and one this binary no
+//! longer writes ([`RETIRED`]) is deleted while nobody has edited it.
 //! `rule:tooling/an-adapter-carries-protocol-and-never-language` is why none of
 //! them names anything else: a language fact written into a pointer is a copy
 //! that goes stale the day the member changes, and every copy is read by an
@@ -1142,9 +1146,9 @@ const CLAUDE_FRONT: &str = concat!(
     "---\n",
 );
 
-/// The front matter of a Cursor project rule. The agent attaches the rule when a
-/// `.nvs` file is in play, or when the description says it is relevant. Cursor
-/// reads `globs` unquoted.
+/// The front matter of the Cursor project rule an earlier `init` wrote. Nothing
+/// writes it now, because Cursor reads `AGENTS.md` itself; [`RETIRED`] keeps it
+/// so a re-run can tell an untouched copy from an edited one.
 const CURSOR_FRONT: &str = concat!(
     "---\n",
     "description: How to look up the Novis language and check Novis code with the installed `nvs` \
@@ -1158,60 +1162,193 @@ const CURSOR_FRONT: &str = concat!(
 /// applies it to every `.nvs` file.
 const COPILOT_FRONT: &str = concat!("---\n", "applyTo: \"**/*.nvs\"\n", "---\n");
 
-/// One harness's pointer: where its file goes, the paths whose presence says
-/// that harness is in use here, the front matter it opens with, and the
-/// fingerprint of the file an `init` before fingerprints wrote there, when it
-/// wrote one.
+/// One agent's pointer: where its file goes, the front matter it opens with,
+/// and the fingerprint of the file an `init` before fingerprints wrote there,
+/// when it wrote one.
 ///
-/// The front matter is the only part a harness owns. What the file *says* is
+/// The front matter is the only part an agent owns. What the file *says* is
 /// [`PROTOCOL`], identical in every one of them, which is what keeps this list
-/// open: another harness is another row, adding one decides nothing, and none of
+/// open: another agent is another row, adding one decides nothing, and none of
 /// them can disagree with the language because none of them says anything about
 /// it.
 #[derive(Debug)]
 struct Adapter {
     path: &'static str,
-    present: &'static [&'static str],
     front: &'static str,
     legacy: Option<&'static str>,
 }
 
 impl Adapter {
-    /// The whole file: this harness's front matter, the marker, and the
+    /// The whole file: this agent's front matter, the marker, and the
     /// protocol every pointer carries under one title.
     fn text(&self) -> String {
         owned(self.front, &format!("\n# Novis\n\n{PROTOCOL}"))
     }
+}
 
-    /// Whether the tree under `root` shows this harness in use.
-    fn is_present(&self, root: &Path) -> bool {
-        self.present.iter().any(|path| root.join(path).exists())
+/// The Claude Code skill. Claude Code reads `AGENTS.md` only in a project with
+/// no `CLAUDE.md`, so the skill is what reaches it everywhere else.
+const CLAUDE_SKILL: Adapter = Adapter {
+    path: ".claude/skills/novis/SKILL.md",
+    front: CLAUDE_FRONT,
+    legacy: Some(LEGACY_CLAUDE),
+};
+
+/// The Copilot path-specific instructions file. Which Copilot surface reads
+/// `AGENTS.md` is not documented, and every one of them reads this file.
+const COPILOT_INSTRUCTIONS: Adapter = Adapter {
+    path: ".github/instructions/novis.instructions.md",
+    front: COPILOT_FRONT,
+    legacy: None,
+};
+
+/// Pointers an earlier `init` wrote and this one does not. A re-run deletes an
+/// untouched one and leaves an edited one where it is, with a note.
+const RETIRED: &[Adapter] = &[Adapter {
+    path: ".cursor/rules/novis.mdc",
+    front: CURSOR_FRONT,
+    legacy: None,
+}];
+
+/// An environment variable whose presence says a command runs under an agent:
+/// set and not empty, and when `prefix` is given, with a value that opens with
+/// it.
+#[derive(Debug)]
+struct Detect {
+    var: &'static str,
+    prefix: Option<&'static str>,
+}
+
+/// A coding agent `init` installs for: the name `--agent` takes, the variables
+/// that say a command runs under it, and the pointer it needs beside
+/// `AGENTS.md`.
+///
+/// An agent that reads `AGENTS.md` itself has no pointer. ADR 0260 has the
+/// sources for every row.
+#[derive(Debug)]
+struct Agent {
+    name: &'static str,
+    detect: &'static [Detect],
+    pointer: Option<&'static Adapter>,
+}
+
+impl Agent {
+    /// The first of this agent's variables that is set, if one is.
+    fn detected(&self) -> Option<&'static str> {
+        self.detect.iter().find_map(|detect| {
+            let value = std::env::var_os(detect.var)?;
+            let value = value.to_string_lossy();
+            let matches =
+                !value.is_empty() && detect.prefix.is_none_or(|prefix| value.starts_with(prefix));
+            matches.then_some(detect.var)
+        })
     }
 }
 
-/// Every harness `init` knows how to point at. Copilot is detected by its own
-/// instruction files, because a `.github` directory alone is in most projects
-/// whichever harness they use.
-const ADAPTERS: &[Adapter] = &[
-    Adapter {
-        path: ".claude/skills/novis/SKILL.md",
-        present: &[".claude"],
-        front: CLAUDE_FRONT,
-        legacy: Some(LEGACY_CLAUDE),
+/// Every agent `init` knows, in the order it reports them.
+const AGENTS: &[Agent] = &[
+    Agent {
+        name: "claude-code",
+        // Claude Code sets this in the commands its own tools run. `CLAUDECODE`
+        // is also set in an editor's integrated terminal, so it is not used.
+        detect: &[Detect {
+            var: "CLAUDE_CODE_CHILD_SESSION",
+            prefix: None,
+        }],
+        pointer: Some(&CLAUDE_SKILL),
     },
-    Adapter {
-        path: ".cursor/rules/novis.mdc",
-        present: &[".cursor"],
-        front: CURSOR_FRONT,
-        legacy: None,
+    Agent {
+        name: "cursor",
+        detect: &[Detect {
+            var: "CURSOR_AGENT",
+            prefix: None,
+        }],
+        pointer: None,
     },
-    Adapter {
-        path: ".github/instructions/novis.instructions.md",
-        present: &[".github/copilot-instructions.md", ".github/instructions"],
-        front: COPILOT_FRONT,
-        legacy: None,
+    Agent {
+        name: "codex",
+        detect: &[Detect {
+            var: "CODEX_THREAD_ID",
+            prefix: None,
+        }],
+        pointer: None,
+    },
+    Agent {
+        name: "copilot",
+        detect: &[
+            Detect {
+                var: "COPILOT_AGENT",
+                prefix: None,
+            },
+            Detect {
+                var: "AI_AGENT",
+                prefix: Some("github_copilot"),
+            },
+            Detect {
+                var: "COPILOT_AGENT_SESSION_ID",
+                prefix: None,
+            },
+            Detect {
+                var: "GITHUB_COPILOT_API_TOKEN",
+                prefix: None,
+            },
+        ],
+        pointer: Some(&COPILOT_INSTRUCTIONS),
+    },
+    Agent {
+        name: "opencode",
+        detect: &[Detect {
+            var: "OPENCODE",
+            prefix: None,
+        }],
+        pointer: None,
     },
 ];
+
+/// The names `--agent` takes, in the table's order.
+pub(crate) fn agent_names() -> Vec<&'static str> {
+    AGENTS.iter().map(|agent| agent.name).collect()
+}
+
+/// Which agents a run installs for, and the line that says how they were
+/// chosen: the `--agent` names when there are any, every agent with `all`, and
+/// otherwise the agents whose variables are set.
+fn chosen(asked: &[String], all: bool) -> (Vec<&'static Agent>, String) {
+    let (agents, why): (Vec<&'static Agent>, Vec<String>) = if !asked.is_empty() {
+        let agents: Vec<&'static Agent> = AGENTS
+            .iter()
+            .filter(|agent| asked.iter().any(|name| name == agent.name))
+            .collect();
+        let names: Vec<&str> = agents.iter().map(|agent| agent.name).collect();
+        (agents, vec![format!("{} (--agent)", names.join(", "))])
+    } else if all {
+        (
+            AGENTS.iter().collect(),
+            vec!["every one (--all)".to_owned()],
+        )
+    } else {
+        AGENTS
+            .iter()
+            .filter_map(|agent| {
+                let var = agent.detected()?;
+                Some((agent, format!("{} ({var})", agent.name)))
+            })
+            .unzip()
+    };
+    if agents.is_empty() {
+        let line = "agent: none detected; pass --agent <name> to install an agent's own files";
+        return (agents, line.to_owned());
+    }
+    let mut line = format!("agent: {}", why.join(", "));
+    if agents.iter().all(|agent| agent.pointer.is_none()) {
+        line.push_str(if agents.len() == 1 {
+            "; AGENTS.md is all it needs"
+        } else {
+            "; AGENTS.md is all they need"
+        });
+    }
+    (agents, line)
+}
 
 /// The stanza as it belongs in `AGENTS.md`, with no trailing newline, which is
 /// both what `init` writes and what it compares an existing stanza against.
@@ -1263,14 +1400,53 @@ fn judge(found: &str, written: &str, legacy: Option<&str>) -> State {
 }
 
 /// What one run owes one file: nothing, the text to create it with, the text
-/// to update it to, or a refusal unless `--force`, which carries the text
-/// `--force` writes instead.
+/// to update it to, a refusal unless `--force`, which carries the text
+/// `--force` writes instead, or the removal of what `init` put there — the
+/// file's text without it, or `None` to delete the file.
 #[derive(Debug)]
 enum Owed {
     Nothing,
     Missing(String),
     Outdated(String),
     Edited(String),
+    Unwanted(Option<String>),
+}
+
+/// What kind of thing a planned change is about, which is what decides the
+/// word printed beside its path.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Kind {
+    /// The stanza or a pointer this binary writes.
+    Pointer,
+    /// A pointer this binary no longer writes.
+    Retired,
+}
+
+impl Kind {
+    /// The word a run prints for `owed`, and with `check` the word `--check`
+    /// prints. `None` when there is nothing to say.
+    fn word(self, owed: &Owed, check: bool) -> Option<&'static str> {
+        Some(match (self, owed, check) {
+            (_, Owed::Nothing, _) => return None,
+            (_, Owed::Missing(_), true) => "missing",
+            (_, Owed::Missing(_), false) => "wrote",
+            (_, Owed::Outdated(_), true) => "outdated",
+            (_, Owed::Edited(_), true) => "edited",
+            (_, Owed::Outdated(_) | Owed::Edited(_), false) => "updated",
+            (Kind::Retired, Owed::Unwanted(_), true) => "retired",
+            (_, Owed::Unwanted(_), _) => "removed",
+        })
+    }
+}
+
+/// What `init` was asked to do.
+#[derive(Debug)]
+pub(crate) struct InitOptions {
+    /// The `--agent` names, empty when none was given.
+    pub(crate) agents: Vec<String>,
+    pub(crate) all: bool,
+    pub(crate) force: bool,
+    pub(crate) check: bool,
 }
 
 impl Owed {
@@ -1284,15 +1460,64 @@ impl Owed {
     }
 }
 
-/// Install the surface into this project: the `AGENTS.md` stanza, and one
-/// adapter for each harness the tree shows — every one of them when `all`.
+/// Everything one run owes the project under `root`, judged before anything
+/// is written: the changes, the notes about files it leaves alone, and the
+/// errors that refuse the run.
+#[derive(Debug, Default)]
+struct Plan {
+    changes: Vec<(&'static str, Kind, Owed)>,
+    notes: Vec<String>,
+    errors: Vec<String>,
+}
+
+/// What a run owes for `agents`: the stanza always, the pointer of each of
+/// those agents, every pointer an earlier run wrote whichever agent it was
+/// for, and the removal of a retired pointer nobody edited.
+fn plan(root: &Path, agents: &[&'static Agent]) -> Plan {
+    let mut plan = Plan::default();
+    match stanza_owed(&root.join("AGENTS.md")) {
+        Ok(owed) => plan.changes.push(("AGENTS.md", Kind::Pointer, owed)),
+        Err(error) => plan.errors.push(error),
+    }
+    for adapter in AGENTS.iter().filter_map(|agent| agent.pointer) {
+        let wanted = agents
+            .iter()
+            .any(|agent| agent.pointer.is_some_and(|it| std::ptr::eq(it, adapter)));
+        match adapter_owed(root, adapter) {
+            Ok(Owed::Missing(_)) if !wanted => {}
+            Ok(owed) => plan.changes.push((adapter.path, Kind::Pointer, owed)),
+            Err(error) => plan.errors.push(error),
+        }
+    }
+    for adapter in RETIRED {
+        match adapter_owed(root, adapter) {
+            Ok(Owed::Missing(_)) => {}
+            Ok(Owed::Edited(_)) => plan.notes.push(format!(
+                "note: {} is no longer written by `nvs agent init`, and it was edited, so it \
+                 is left alone",
+                adapter.path
+            )),
+            Ok(_) => {
+                plan.changes
+                    .push((adapter.path, Kind::Retired, Owed::Unwanted(None)));
+            }
+            Err(error) => plan.errors.push(error),
+        }
+    }
+    plan
+}
+
+/// Install the surface into this project: the `AGENTS.md` stanza, and what
+/// each chosen agent needs beside it ([`chosen`] says which).
 ///
 /// A missing file is written, a file that still matches its fingerprint is
 /// updated to this binary's text, and an edited one is refused unless `force`.
-/// With `check` nothing is written, and each file that is missing, outdated or
-/// edited is named instead. Every file is read and judged before any is
-/// written, so a refusal about one of them leaves all of them as they were.
-pub(crate) fn init(all: bool, force: bool, check: bool) -> ExitCode {
+/// A file an earlier run wrote is kept current whichever agent runs now, so
+/// every member of a team gets the same files. With `check` nothing is
+/// written, and each file that is missing, outdated or edited is named
+/// instead. Every file is read and judged before any is written, so a refusal
+/// about one of them leaves all of them as they were.
+pub(crate) fn init(options: &InitOptions) -> ExitCode {
     let root = match std::env::current_dir() {
         Ok(root) => root,
         Err(error) => {
@@ -1300,37 +1525,20 @@ pub(crate) fn init(all: bool, force: bool, check: bool) -> ExitCode {
             return ExitCode::FAILURE;
         }
     };
-
-    let mut owed: Vec<(&'static str, Owed)> = Vec::new();
-    let mut errors: Vec<String> = Vec::new();
-    match stanza_owed(&root.join("AGENTS.md")) {
-        Ok(state) => owed.push(("AGENTS.md", state)),
-        Err(error) => errors.push(error),
-    }
-    for adapter in ADAPTERS {
-        if !all && !adapter.is_present(&root) {
-            continue;
-        }
-        match adapter_owed(&root, adapter) {
-            Ok(state) => owed.push((adapter.path, state)),
-            Err(error) => errors.push(error),
-        }
-    }
-    for error in &errors {
+    let (agents, line) = chosen(&options.agents, options.all);
+    println!("{line}");
+    let plan = plan(&root, &agents);
+    for error in &plan.errors {
         eprintln!("error: {error}");
     }
 
-    if check {
-        let mut clean = errors.is_empty();
-        for (path, state) in &owed {
-            let word = match state {
-                Owed::Nothing => continue,
-                Owed::Missing(_) => "missing",
-                Owed::Outdated(_) => "outdated",
-                Owed::Edited(_) => "edited",
-            };
-            println!("{word} {path}");
-            clean = false;
+    if options.check {
+        let mut clean = plan.errors.is_empty();
+        for (path, kind, owed) in &plan.changes {
+            if let Some(word) = kind.word(owed, true) {
+                println!("{word} {path}");
+                clean = false;
+            }
         }
         if !clean {
             return ExitCode::FAILURE;
@@ -1339,10 +1547,10 @@ pub(crate) fn init(all: bool, force: bool, check: bool) -> ExitCode {
         return ExitCode::SUCCESS;
     }
 
-    let mut refused = !errors.is_empty();
-    if !force {
-        for (path, state) in &owed {
-            if matches!(state, Owed::Edited(_)) {
+    let mut refused = !plan.errors.is_empty();
+    if !options.force {
+        for (path, _, owed) in &plan.changes {
+            if matches!(owed, Owed::Edited(_)) {
                 refused = true;
                 eprintln!(
                     "error: {path} has changed since `nvs agent init` wrote it, so it is left \
@@ -1354,15 +1562,25 @@ pub(crate) fn init(all: bool, force: bool, check: bool) -> ExitCode {
     if refused {
         return ExitCode::FAILURE;
     }
+    for note in &plan.notes {
+        eprintln!("{note}");
+    }
 
     let mut wrote = false;
-    for (path, state) in owed {
-        let (word, text) = match state {
-            Owed::Nothing => continue,
-            Owed::Missing(text) => ("wrote", text),
-            Owed::Outdated(text) | Owed::Edited(text) => ("updated", text),
+    for (path, kind, owed) in plan.changes {
+        let Some(word) = kind.word(&owed, false) else {
+            continue;
         };
-        if let Err(error) = write_file(&root.join(path), &text) {
+        let done = match owed {
+            Owed::Missing(text)
+            | Owed::Outdated(text)
+            | Owed::Edited(text)
+            | Owed::Unwanted(Some(text)) => write_file(&root.join(path), &text),
+            Owed::Unwanted(None) => std::fs::remove_file(root.join(path))
+                .map_err(|error| format!("{path} cannot be removed: {error}")),
+            Owed::Nothing => Ok(()),
+        };
+        if let Err(error) = done {
             eprintln!("error: {error}");
             return ExitCode::FAILURE;
         }
@@ -1375,22 +1593,24 @@ pub(crate) fn init(all: bool, force: bool, check: bool) -> ExitCode {
     ExitCode::SUCCESS
 }
 
-/// The one line `primer` puts on standard error when the project in the working
-/// directory carries files an older `init` wrote and nobody edited since, or
-/// carries the stanza and lacks the adapter of a harness it shows. `None` when
-/// it carries none of them. It reads only `AGENTS.md` and the adapter paths.
+/// The one line `primer` puts on standard error when a re-run of `init` would
+/// change something in the project in the working directory: a file an older
+/// `init` wrote that nobody edited since, a retired pointer, or — once the
+/// stanza is there — a file the agent running now needs and lacks. `None`
+/// when it would change nothing, and for a project with no stanza.
 pub(crate) fn stale_note() -> Option<&'static str> {
     let root = std::env::current_dir().ok()?;
-    let stanza = stanza_owed(&root.join("AGENTS.md")).ok()?;
-    let installed = !matches!(stanza, Owed::Missing(_));
-    let mut stale = matches!(stanza, Owed::Outdated(_));
-    for adapter in ADAPTERS {
-        match adapter_owed(&root, adapter) {
-            Ok(Owed::Outdated(_)) => stale = true,
-            Ok(Owed::Missing(_)) if installed && adapter.is_present(&root) => stale = true,
-            _ => {}
-        }
-    }
+    let (agents, _) = chosen(&[], false);
+    let plan = plan(&root, &agents);
+    let installed = plan
+        .changes
+        .iter()
+        .any(|(path, _, owed)| *path == "AGENTS.md" && !matches!(owed, Owed::Missing(_)));
+    let stale = plan.changes.iter().any(|(path, _, owed)| match owed {
+        Owed::Nothing | Owed::Edited(_) => false,
+        Owed::Missing(_) => installed && *path != "AGENTS.md",
+        Owed::Outdated(_) | Owed::Unwanted(_) => true,
+    });
     stale.then_some(
         "note: this project's agent files are older than this nvs; \
          run `nvs agent init` to update them",
@@ -1438,7 +1658,7 @@ fn stanza_owed(path: &Path) -> Result<Owed, String> {
     Ok(Owed::from(state, replaced))
 }
 
-/// What one harness's pointer owes: the file when it is missing, otherwise what
+/// What one agent's pointer owes: the file when it is missing, otherwise what
 /// [`judge`] makes of the file there.
 fn adapter_owed(root: &Path, adapter: &Adapter) -> Result<Owed, String> {
     let text = adapter.text();
