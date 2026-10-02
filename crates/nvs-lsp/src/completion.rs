@@ -314,6 +314,11 @@
 //! checker resolved the call to, and `CompletionFiles::values_at` keeps the
 //! attachments whose `when` the call's other arguments meet. A parameter with
 //! no value that applies is ordinary text, so the quote opens no list there.
+//! A parameter whose declared type is made only of string literal types, with
+//! or without `null` (`rule:types/literal-types`), is offered each literal as an item of kind
+//! `value`, after the values the files give it ([`named_values`]). A literal a
+//! file also lists is offered once, as the file's value, which may carry a
+//! label and documentation the type does not.
 //! Each item's one edit replaces the literal's text ([`file_values`]), and
 //! carries no command, no other edit and no snippet. An item with no
 //! `filterText` filters on its value, which is the text being typed, and not on
@@ -682,15 +687,21 @@ fn literal_at(
 }
 
 /// The string argument the cursor at `offset` is inside, quotes included, and
-/// the values a completion file offers at it, from the attachments that apply
-/// at its call. `None` where no value applies.
+/// the values offered at it: those of the completion-file attachments that
+/// apply at its call, then each member of the parameter's string literal union
+/// that no file lists. `None` where no value applies.
 fn named_values(
     analysed: &Analysed,
     files: &CompletionFiles,
     offset: BytePos,
 ) -> Option<(Span, Vec<Arc<completion_files::Value>>)> {
     let named = crate::arguments::named_at(analysed, offset)?;
-    let values = files.values_at(&named.class, &named.method, &named.parameter, &named.others);
+    let mut values = files.values_at(&named.class, &named.method, &named.parameter, &named.others);
+    for member in named.members {
+        if !values.iter().any(|value| value.value == member) {
+            values.push(Arc::new(completion_files::Value::member(member)));
+        }
+    }
     (!values.is_empty()).then_some((named.span, values))
 }
 

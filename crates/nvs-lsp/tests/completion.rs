@@ -694,7 +694,11 @@ fn sources() -> Vec<Source> {
 /// The completion-file arm reads the values `CompletionFiles::values_at`
 /// hands it, the table the completion files were loaded into, and reads no
 /// file itself. At a path or class-name parameter it adds those values to the
-/// arm the mark chose, through the same function.
+/// arm the mark chose, through the same function. A string literal union's
+/// members reach that arm as values too, and add no producer of their own:
+/// `crate::arguments` reads them off `ResolvedCall::param_tys` and the
+/// checker's type interner, the types the checker recorded on the call it
+/// resolved.
 const SOURCED: [(&str, &str); 35] = [
     ("named_type", "..item("),
     ("type_row", "..named_type("),

@@ -2,7 +2,9 @@
 //! attachments whose `when` the call meets and one segment at a time where a list has a
 //! separator, and each item changes only that string. A literal equal to a value hovers as that
 //! value, and one that is no value at a `strict` parameter is warned on
-//! (`rule:ide/completion-files-offer-values-at-named-parameters`).
+//! (`rule:ide/completion-files-offer-values-at-named-parameters`). A parameter typed as a union of
+//! string literals offers its members with no file, and merged with a file's values
+//! (`rule:types/literal-types`).
 //!
 //! Each test writes a workspace of its own under cargo's scratch folder in `target/` and deletes it
 //! when it ends, as `tests/completion_files.rs` does.
@@ -872,4 +874,98 @@ fn a_dot_outside_such_a_string_opens_nothing() {
         "Label::text('shop.<|>');",
     );
     assert!(!triggered, "no file names the parameter");
+}
+
+/// A method whose `$mode` is a union of string literals, one whose `$size` adds `null` to its
+/// strings, one whose `$count` adds an `int` literal, and one whose `$text` is a plain `string`.
+const MODES: &str = "class Mode {\n    \
+     public static function set(\"light\"|\"dark\"|\"it's\" $mode): string {\n        \
+     return $mode;\n    }\n\n    \
+     public static function size(\"small\"|\"large\"|null $size): string {\n        \
+     return 'size';\n    }\n\n    \
+     public static function count(\"none\"|\"many\"|3 $count): string {\n        \
+     return 'count';\n    }\n\n    \
+     public static function plain(string $text): string {\n        return $text;\n    }\n}\n\n";
+
+/// The list offered at the cursor in `call`, written after [`MODES`], with no completion file, and
+/// whether a trigger character there opens it.
+fn moded(name: &str, call: &str) -> (Vec<CompletionItem>, bool) {
+    let workspace = Workspace::new(name);
+    offered(
+        &workspace,
+        &CompletionFiles::default(),
+        &format!("{MODES}{call}"),
+    )
+}
+
+#[test]
+fn a_string_argument_at_a_literal_union_parameter_offers_its_members() {
+    let (items, _) = moded("union", "Mode::set('<|>');");
+    assert_eq!(labels(&items), ["dark", "it's", "light"]);
+    for item in &items {
+        assert_eq!(item.kind, Some(CompletionItemKind::VALUE), "{}", item.label);
+    }
+
+    // Each item replaces the text between the quotes, escaped for the quote.
+    let line = u32::try_from(format!("{CLASSES}{MODES}").lines().count()).expect("short");
+    let text = Range::new(Position::new(line, 11), Position::new(line, 16));
+    let (items, _) = moded("union-edits", "Mode::set('li<|>ght');");
+    assert_eq!(edit(&items, "dark"), ("dark".to_owned(), text));
+    assert_eq!(edit(&items, "it's"), ("it\\'s".to_owned(), text));
+}
+
+#[test]
+fn a_nullable_literal_union_offers_its_string_members() {
+    let (items, _) = moded("nullable", "Mode::size('<|>');");
+    assert_eq!(labels(&items), ["large", "small"]);
+}
+
+#[test]
+fn a_quote_opens_the_list_at_a_literal_union_parameter() {
+    for quoted in ["Mode::set('<|>');", "Mode::set(\"<|>\");"] {
+        let (_, triggered) = moded("union-quote", quoted);
+        assert!(triggered, "{quoted}");
+    }
+    let (_, triggered) = moded("union-plain-quote", "Mode::plain('<|>');");
+    assert!(!triggered, "a plain `string` opens nothing");
+}
+
+#[test]
+fn a_literal_union_parameter_with_a_completion_file_offers_both_lists_merged() {
+    let workspace = Workspace::new("union-merged");
+    workspace.write(
+        ".novis/completion/modes.json",
+        r#"{ "parameters": [ { "method": "App\\Ui\\Mode::set", "parameter": "mode", "values": [
+            { "value": "dark", "label": "Dark", "title": "Dark colours" }, "system"
+        ] } ] }"#,
+    );
+    let files = workspace.load();
+    let (items, triggered) = offered(&workspace, &files, &format!("{MODES}Mode::set('<|>');"));
+    assert!(triggered);
+
+    // `dark` is offered once, as the file's value with its label and title.
+    assert_eq!(labels(&items), ["Dark", "it's", "light", "system"]);
+    assert_eq!(
+        named(&items, "Dark").detail.as_deref(),
+        Some("Dark colours")
+    );
+    assert_eq!(edit(&items, "Dark").0, "dark");
+}
+
+#[test]
+fn a_parameter_typed_string_offers_no_literal_members() {
+    // A plain `string`, and a union with an `int` literal among its strings.
+    for (name, call) in [
+        ("plain", "Mode::plain('<|>');"),
+        ("mixed", "Mode::count('<|>');"),
+    ] {
+        let (items, triggered) = moded(name, call);
+        assert!(
+            !items
+                .iter()
+                .any(|item| item.kind == Some(CompletionItemKind::VALUE)),
+            "{call}: {items:?}"
+        );
+        assert!(!triggered, "{call}");
+    }
 }

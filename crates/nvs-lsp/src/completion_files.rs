@@ -223,6 +223,29 @@ pub struct Value {
 }
 
 impl Value {
+    /// A value no completion file declares: one member of a parameter's string literal union,
+    /// offered as `value` with its text as its label and no other field.
+    #[must_use]
+    pub fn member(value: String) -> Self {
+        Self {
+            value,
+            label: None,
+            label_detail: None,
+            label_description: None,
+            kind: CompletionItemKind::VALUE,
+            title: None,
+            documentation: None,
+            deprecated: false,
+            sort_text: None,
+            filter_text: None,
+            preselect: false,
+            location: None,
+            replacement: None,
+            separator: None,
+            folder: Arc::from(Path::new("")),
+        }
+    }
+
     /// [`Self::documentation`], with each relative link and image target rewritten as a `file:`
     /// URI under [`Self::folder`]. A target with a scheme, an absolute path or a `#` fragment is
     /// left as written.

@@ -30,7 +30,10 @@
 //! class, the method and the parameter that a completion file's attachment is
 //! keyed by (`rule:ide/completion-files-offer-values-at-named-parameters`),
 //! and the text of every other argument that is one string literal, which a
-//! `when` compares. [`named_in_document`] names every such literal the
+//! `when` compares, and the string literal types the parameter's declared type
+//! lists, read off `nvs_types::ResolvedCall::param_tys` so a literal union is
+//! offered with no file at all (`rule:types/literal-types`).
+//! [`named_in_document`] names every such literal the
 //! document writes, which the diagnostics read a completion file's `strict`
 //! against.
 //!
@@ -94,6 +97,10 @@ pub(crate) struct Named {
     /// parameter's name: the text of a lone string literal, and `None` for any
     /// other expression. A parameter the call leaves out is not here.
     pub others: Vec<(String, Option<String>)>,
+    /// The string literal types in the parameter's declared type, each as its
+    /// text: `["a", "b"]` for `"a"|"b"` and for `"a"|"b"|null`, and nothing for
+    /// `string` or for a union with any other member.
+    pub members: Vec<String>,
 }
 
 /// A node that holds the literal, with the spans and kinds of its own
@@ -169,7 +176,32 @@ fn name(analysed: &Analysed, literal: Span, holders: &[Holder]) -> Option<Named>
         method: call.method.clone(),
         parameter: call.param_names.get(index)?.clone(),
         others,
+        members: call
+            .param_tys
+            .get(index)
+            .map(|ty| string_members(analysed, *ty))
+            .unwrap_or_default(),
     })
+}
+
+/// The text of each string literal type in `ty`, in the order the union lists
+/// them, where `ty` is made only of string literal types and `null`. Any other
+/// member, an `int` literal or `string` included, makes it empty.
+fn string_members(analysed: &Analysed, ty: TypeId) -> Vec<String> {
+    let interner = &analysed.interner;
+    let members = match interner.get(ty) {
+        Ty::Union(members) => members.clone(),
+        _ => vec![ty],
+    };
+    let mut found = Vec::new();
+    for member in members {
+        match interner.get(member) {
+            Ty::StringLiteral(text) => found.push(text.clone()),
+            Ty::Null => {}
+            _ => return Vec::new(),
+        }
+    }
+    found
 }
 
 /// The string literal the cursor at `offset` is inside, and the node that
