@@ -1,0 +1,370 @@
+{
+  "title": "a deprecated member names its replacement as code, every use of it is rewritten with one click, and a `// TODO:` comment is a list the tools keep",
+  "milestone": null,
+  "position": "last",
+  "files": [],
+  "context": {
+    "modules": [
+      "crates/nvs-types/src/derive.rs",
+      "crates/nvs-types/src/attributes.rs",
+      "crates/nvs-types/src/paths.rs",
+      "crates/nvs-types/src/expr/calls.rs",
+      "crates/nvs-types/src/expr/members.rs",
+      "crates/nvs-types/src/expr/assign.rs",
+      "crates/nvs-diagnostics/src/diagnostic.rs",
+      "crates/nvs-lsp/src/actions.rs",
+      "crates/nvs-lsp/src/diagnostics.rs",
+      "crates/nvs-syntax/src/lexer.rs",
+      "crates/nvs-cli/src/check.rs",
+      "crates/nvs-config/src/directive.rs",
+      "crates/nvs-runtime/src/ctx/mod.rs",
+      "crates/nvs-codegen/src/emit.rs"
+    ],
+    "rules": [
+      "attributes/attach-sites-and-forms",
+      "attributes/inert-metadata",
+      "ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows",
+      "ide/a-code-action-writes-only-what-is-already-determined",
+      "tooling/doc-comment-tags-are-see-and-example",
+      "packaging/a-forced-break-is-announced-before-it-lands",
+      "php-migration/a-deprecation-is-a-refusal"
+    ],
+    "adrs": [
+      "0046"
+    ],
+    "shapes": [
+      "A commit message"
+    ],
+    "playbook": [
+      "Tooling > the end",
+      "Tooling > one call reads",
+      "Tooling > a commit message",
+      "Tooling > a [context]*",
+      "Tooling > another agent",
+      "Running things > target/release/nvs.exe is"
+    ],
+    "plan": [
+      "Open now",
+      "Blocking"
+    ],
+    "milestones": []
+  },
+  "stages": [
+    {
+      "number": 2,
+      "title": "the attribute and the warning",
+      "summary": "Adds `#[Core\\Deprecated]`, checks its replacement where it is declared, and raises `W1003` at every use.",
+      "context": {
+        "rules": [
+          "attributes/payload-is-a-compile-time-constant",
+          "ide/no-refactoring-introduces-an-alias"
+        ],
+        "adrs": [],
+        "shapes": [
+          "A decision record",
+          "A rule fragment",
+          "A diagnostic",
+          "A `.nvst` test case"
+        ]
+      }
+    },
+    {
+      "number": 3,
+      "title": "the rewrite",
+      "summary": "Fills the template in at every use and carries the result as `W1003`'s suggestion, so the editor offers it as a quick fix.",
+      "context": {
+        "rules": [
+          "ide/no-refactoring-introduces-an-alias",
+          "ide/diagnostics-are-phase-gated"
+        ],
+        "adrs": [],
+        "shapes": [
+          "An `.lspt` case"
+        ]
+      }
+    },
+    {
+      "number": 4,
+      "title": "the todo comment",
+      "summary": "Collects `// TODO:` comments and shows them in the editor and on the command line.",
+      "context": {
+        "rules": [],
+        "adrs": [],
+        "shapes": []
+      }
+    },
+    {
+      "number": 5,
+      "title": "`nvs check`",
+      "summary": "Adds `--deny`, `--fix` and `--todos` to `nvs check`.",
+      "context": {
+        "rules": [
+          "ide/check-json-is-the-diagnostic-record-as-a-document"
+        ],
+        "adrs": [],
+        "shapes": []
+      }
+    },
+    {
+      "number": 6,
+      "title": "the setting",
+      "summary": "Makes a use of deprecated code write a log record or throw while it runs, when the setting says so.",
+      "context": {
+        "rules": [
+          "config/every-block-is-argued-where-it-is-added",
+          "config/a-mode-is-five-defaults",
+          "config/a-runtime-set-is-request-local",
+          "errors/throwable-hierarchy"
+        ],
+        "adrs": [],
+        "shapes": [
+          "A `.nvst` test case"
+        ]
+      }
+    },
+    {
+      "number": 7,
+      "title": "the proofs",
+      "summary": "Adds the tests, examples, attacks, benches and reference text for the attribute, the todo comment and the setting.",
+      "context": {
+        "rules": [
+          "testing/feature-proofs"
+        ],
+        "adrs": [],
+        "shapes": [
+          "Feature proofs — an example, an attack, a bench, a `covers:` marker"
+        ]
+      }
+    }
+  ],
+  "checks": [
+    {
+      "id": "nvs-types-a-deprecation-template-is-checked-where-it-is-declared",
+      "kind": "cargo-named",
+      "stage": 2,
+      "name": "nvs-types (`#[Core\\Deprecated]` is on the roster, and its template is refused where it does not compile, does not fit, is less visible or names something deprecated)",
+      "args": [
+        "test",
+        "-p",
+        "nvs-types"
+      ],
+      "tests": [
+        "a_deprecated_attribute_takes_since_note_and_replace",
+        "a_deprecated_attribute_on_an_attach_site_it_does_not_take_is_refused",
+        "a_deprecation_template_that_does_not_compile_is_refused_at_the_declaration",
+        "a_deprecation_template_whose_type_does_not_fit_is_refused",
+        "a_deprecation_template_naming_a_less_visible_member_is_refused",
+        "a_deprecation_template_naming_a_deprecated_member_is_refused",
+        "a_class_replacement_missing_a_public_member_is_refused"
+      ]
+    },
+    {
+      "id": "nvs-types-every-use-of-a-deprecated-member-warns",
+      "kind": "cargo-named",
+      "stage": 2,
+      "name": "nvs-types (every use of a deprecated method, constructor, property, constant, enum case, parameter and class is `W1003`, and nothing inside a deprecated declaration warns)",
+      "args": [
+        "test",
+        "-p",
+        "nvs-types"
+      ],
+      "tests": [
+        "every_use_of_a_deprecated_member_is_w1003",
+        "a_passed_deprecated_parameter_is_w1003_and_an_omitted_one_is_not",
+        "a_type_position_naming_a_deprecated_class_is_w1003",
+        "an_override_of_a_deprecated_method_is_w1003",
+        "a_use_inside_a_deprecated_declaration_does_not_warn",
+        "the_w1003_message_names_since_note_and_the_replacement"
+      ]
+    },
+    {
+      "id": "a-deprecation-template-that-does-not-fit-does-not-compile",
+      "kind": "nvs-suite",
+      "stage": 2,
+      "name": "a deprecation template that does not compile, does not fit, is less visible or names something deprecated is refused where it is declared",
+      "args": [
+        "test",
+        "tests/conformance/"
+      ],
+      "cases": [
+        "tests/conformance/reject/a-deprecation-template-that-does-not-fit-does-not-compile.nvst"
+      ]
+    },
+    {
+      "id": "nvs-types-a-deprecation-fix-is-the-template-filled-in",
+      "kind": "cargo-named",
+      "stage": 3,
+      "name": "nvs-types (the fix fills the template in by position, name and default, keeps every side effect once and in order, and is not offered where a `var` line would change when the code runs)",
+      "args": [
+        "test",
+        "-p",
+        "nvs-types"
+      ],
+      "tests": [
+        "a_deprecation_fix_fills_arguments_by_position_and_by_name",
+        "a_deprecation_fix_writes_the_default_of_an_omitted_argument",
+        "a_deprecation_fix_writes_the_receiver_for_this",
+        "a_deprecation_fix_parenthesizes_only_a_lower_precedence_argument",
+        "a_deprecation_fix_moves_an_impure_argument_used_twice_to_a_var_line",
+        "a_deprecation_fix_moves_impure_arguments_the_template_reorders",
+        "a_deprecation_fix_keeps_an_impure_argument_the_template_drops",
+        "a_deprecation_fix_is_not_offered_where_a_var_line_would_change_when_the_code_runs",
+        "a_deprecation_fix_writes_a_name_the_use_site_resolves_and_adds_its_import",
+        "a_deprecation_fix_renames_a_deprecated_class_in_every_position",
+        "every_deprecation_fix_compiles_without_w1003_and_a_second_fix_changes_nothing"
+      ]
+    },
+    {
+      "id": "nvs-lsp-a-deprecated-use-is-struck-through-and-fixed",
+      "kind": "cargo-named",
+      "stage": 3,
+      "name": "nvs-lsp (`W1003` carries the deprecated tag and its quick fix, a deprecated member's completion item is tagged, and its hover shows the replacement)",
+      "args": [
+        "test",
+        "-p",
+        "nvs-lsp"
+      ],
+      "tests": [
+        "a_deprecated_use_carries_the_deprecated_tag",
+        "a_deprecated_use_offers_its_fix_as_a_quick_fix_and_under_fix_all",
+        "a_deprecated_member_completion_item_is_tagged_deprecated",
+        "hover_on_a_deprecated_member_shows_since_note_and_replacement"
+      ]
+    },
+    {
+      "id": "nvs-syntax-a-todo-comment-is-collected",
+      "kind": "cargo-named",
+      "stage": 4,
+      "name": "nvs-syntax (a `// TODO:` line comment is collected with its text, and no other comment is)",
+      "args": [
+        "test",
+        "-p",
+        "nvs-syntax"
+      ],
+      "tests": [
+        "a_todo_line_comment_is_collected_with_its_text",
+        "a_doc_comment_a_block_comment_and_a_lowercase_todo_are_not_collected"
+      ]
+    },
+    {
+      "id": "nvs-lsp-a-todo-is-published-as-information",
+      "kind": "cargo-named",
+      "stage": 4,
+      "name": "nvs-lsp (a todo comment is published at `Information` level beside the file's diagnostics)",
+      "args": [
+        "test",
+        "-p",
+        "nvs-lsp"
+      ],
+      "tests": [
+        "a_todo_comment_is_published_at_information_level"
+      ]
+    },
+    {
+      "id": "nvs-cli-check-denies-fixes-and-lists-todos",
+      "kind": "cargo-named",
+      "stage": 5,
+      "name": "nvs-cli (`nvs check --deny` fails on what it names outside `vendor/`, `--fix` applies every safe fix until none applies, and `--todos` lists every todo)",
+      "args": [
+        "test",
+        "-p",
+        "nvs-cli"
+      ],
+      "tests": [
+        "check_deny_deprecated_fails_on_a_deprecated_use",
+        "check_deny_todo_fails_on_a_todo_comment",
+        "check_deny_ignores_what_is_under_vendor",
+        "check_fix_applies_every_safe_fix_until_none_applies",
+        "check_fix_never_writes_under_vendor",
+        "check_todos_lists_every_todo_in_path_and_line_order",
+        "check_json_carries_the_todos"
+      ]
+    },
+    {
+      "id": "nvs-config-errors-deprecated-is-a-runtime-directive",
+      "kind": "cargo-named",
+      "stage": 6,
+      "name": "nvs-config (`[errors] deprecated` takes `ignore`, `log` or `throw`, defaults to `ignore` in every mode, and is `Runtime`-class)",
+      "args": [
+        "test",
+        "-p",
+        "nvs-config"
+      ],
+      "tests": [
+        "errors_deprecated_defaults_to_ignore_in_every_mode",
+        "errors_deprecated_refuses_a_value_not_in_its_list",
+        "errors_deprecated_is_runtime_class"
+      ]
+    },
+    {
+      "id": "nvs-codegen-a-deprecation-check-is-emitted-only-at-deprecated-uses",
+      "kind": "cargo-named",
+      "stage": 6,
+      "name": "nvs-codegen (a deprecated method checks on entry, a deprecated property, constant, case, class or parameter at its use, and a program with no deprecated use emits no check)",
+      "args": [
+        "test",
+        "-p",
+        "nvs-codegen"
+      ],
+      "tests": [
+        "a_deprecated_method_checks_the_setting_on_entry",
+        "a_deprecated_property_constant_case_class_and_parameter_check_at_the_use",
+        "a_program_with_no_deprecated_use_emits_no_deprecation_check"
+      ]
+    },
+    {
+      "id": "a-deprecated-use-logs-or-throws-when-the-setting-says-so",
+      "kind": "nvs-suite",
+      "stage": 6,
+      "name": "a use of deprecated code runs unchanged under `ignore`, throws `Core\\DeprecatedError` naming the replacement under `throw`, and a request's setting does not reach the next one",
+      "args": [
+        "test",
+        "tests/conformance/"
+      ],
+      "cases": [
+        "tests/conformance/lang/a-deprecated-use-throws-only-when-the-setting-says-so.nvst"
+      ]
+    },
+    {
+      "id": "dossier-the-whole-roster-owes-nothing-with-deprecation-and-todo",
+      "kind": "command",
+      "stage": 7,
+      "name": "proofs: the whole roster owes nothing with the deprecation attribute, the todo comment and the setting in it",
+      "argv": [
+        "bun",
+        "nv",
+        "proofs",
+        "--gate"
+      ],
+      "want": [
+        "nothing owed in the whole roster"
+      ]
+    }
+  ],
+  "env": {
+    "docker": {
+      "compose": "tests/db/compose.yaml",
+      "services": [
+        "postgres",
+        "redis"
+      ],
+      "memoizeOn": [
+        "crates/nvs-server",
+        "crates/nvs-db",
+        "tests/db"
+      ]
+    },
+    "valgrind": {
+      "skip": [
+        "examples/fatal.nvs",
+        "examples/uncaught.nvs",
+        "examples/cache-shared-socket.nvs",
+        "examples/queue-sqlite.nvs",
+        "examples/cache-shared-tls.nvs"
+      ]
+    },
+    "wsl": {
+      "targetDir": "/var/tmp/nvs-target-wsl"
+    }
+  }
+}

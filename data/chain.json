@@ -190,6 +190,7 @@
     "growth-proof",
     "coverage-depth",
     "php-oracle-retired",
+    "deprecated-and-todo",
     "ext-design",
     "ext-host",
     "ext-compiler",
