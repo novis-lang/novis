@@ -7429,7 +7429,7 @@
             {
               "id": "observability/three-endings-fire-the-exit-queue",
               "slug": "three-endings-fire-the-exit-queue",
-              "title": "The exit queue drains once — at a normal end, at `exit` and at an uncaught throw — and the report says which ending it was",
+              "title": "The exit queue drains once — at a normal end, at `exit`, at an uncaught throw and at `Core\\Script::finish()` — and the report says which ending it was",
               "status": "shipped",
               "href": "/docs/rules/observability/exit-hooks/#three-endings-fire-the-exit-queue",
               "diverges": null
