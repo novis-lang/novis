@@ -254,6 +254,9 @@ impl<'src, 'd> Parser<'src, 'd> {
             TokenKind::LtLtEquals => AssignOp::ShlAssign,
             TokenKind::GtGtEquals => AssignOp::ShrAssign,
             TokenKind::QuestionQuestionEquals => AssignOp::CoalesceAssign,
+            TokenKind::QuestionQuestionPlusEquals => AssignOp::CoalesceAddAssign,
+            TokenKind::QuestionQuestionMinusEquals => AssignOp::CoalesceSubAssign,
+            TokenKind::QuestionQuestionDotEquals => AssignOp::CoalesceConcatAssign,
             _ => return target,
         };
         self.bump();

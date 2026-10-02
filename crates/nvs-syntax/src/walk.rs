@@ -876,6 +876,9 @@ fn assign_op(op: AssignOp) -> &'static str {
         AssignOp::ShlAssign => "ShlAssign",
         AssignOp::ShrAssign => "ShrAssign",
         AssignOp::CoalesceAssign => "CoalesceAssign",
+        AssignOp::CoalesceAddAssign => "CoalesceAddAssign",
+        AssignOp::CoalesceSubAssign => "CoalesceSubAssign",
+        AssignOp::CoalesceConcatAssign => "CoalesceConcatAssign",
     }
 }
 

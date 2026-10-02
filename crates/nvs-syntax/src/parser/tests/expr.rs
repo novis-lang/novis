@@ -107,6 +107,51 @@ fn assignment_is_right_associative() {
     ));
 }
 
+/// `rule:expressions/defaulting-assignment`: each of the three is an
+/// assignment like `+=`, so `$a ??+= $b ??-= 1` nests on the right and `??`
+/// on the right side is an ordinary operand.
+#[test]
+fn the_defaulting_assignment_operators_parse_as_right_associative_assignments() {
+    for (src, want) in [
+        ("$a ??+= 1", AssignOp::CoalesceAddAssign),
+        ("$a ??-= 1", AssignOp::CoalesceSubAssign),
+        ("$a ??.= 'x'", AssignOp::CoalesceConcatAssign),
+    ] {
+        let e = parse_ok(src);
+        assert!(
+            matches!(e.kind, ExprKind::Assign { op, by_ref: false, .. } if op == want),
+            "{src}: {e:?}"
+        );
+        assert!(want.defaults());
+    }
+    let e = parse_ok("$a ??+= $b ??-= $c ?? 1");
+    let ExprKind::Assign {
+        op: AssignOp::CoalesceAddAssign,
+        value,
+        ..
+    } = e.kind
+    else {
+        panic!("expected `??+=`: {e:?}");
+    };
+    let ExprKind::Assign {
+        op: AssignOp::CoalesceSubAssign,
+        value: inner,
+        ..
+    } = value.kind
+    else {
+        panic!("expected `??-=` on the right: {value:?}");
+    };
+    assert!(matches!(
+        inner.kind,
+        ExprKind::Binary {
+            op: BinaryOp::Coalesce,
+            ..
+        }
+    ));
+    assert!(!AssignOp::CoalesceAssign.defaults());
+    assert!(!AssignOp::AddAssign.defaults());
+}
+
 #[test]
 fn invalid_assignment_target_is_diagnosed_but_still_parses() {
     let (e, diags) = parse_with_diags("1 = 2");

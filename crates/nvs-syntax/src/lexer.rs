@@ -1005,6 +1005,17 @@ impl<'a> Lexer<'a> {
                 if self.starts_with("?->") {
                     op!(3, TokenKind::NullsafeArrow)
                 }
+                // The three defaulting operators each end in `=`, so `$a ??-1`
+                // is still a `??` and a `-1`: no prefix of these is a token.
+                if self.starts_with("??+=") {
+                    op!(4, TokenKind::QuestionQuestionPlusEquals)
+                }
+                if self.starts_with("??-=") {
+                    op!(4, TokenKind::QuestionQuestionMinusEquals)
+                }
+                if self.starts_with("??.=") {
+                    op!(4, TokenKind::QuestionQuestionDotEquals)
+                }
                 if self.starts_with("??=") {
                     op!(3, TokenKind::QuestionQuestionEquals)
                 }
@@ -2651,6 +2662,56 @@ mod tests {
                 Arrow,
                 Eof,
             ]
+        );
+    }
+
+    /// `rule:expressions/defaulting-assignment`: each of the three is one
+    /// token, beside `??=` and `??`.
+    #[test]
+    fn the_defaulting_assignment_operators_lex_as_one_token_each() {
+        assert_eq!(
+            kinds_ok("<?nvs ??+= ??-= ??.= ??= ??"),
+            vec![
+                OpenTagNvs,
+                QuestionQuestionPlusEquals,
+                QuestionQuestionMinusEquals,
+                QuestionQuestionDotEquals,
+                QuestionQuestionEquals,
+                QuestionQuestion,
+                Eof,
+            ]
+        );
+    }
+
+    /// Every defaulting operator ends in `=`, so a `??` before a signed
+    /// literal or a `.5` is still a `??`.
+    #[test]
+    fn a_coalesce_before_a_signed_literal_is_still_a_coalesce() {
+        assert_eq!(
+            kinds_ok("<?nvs $a ??-1"),
+            vec![
+                OpenTagNvs,
+                Variable,
+                QuestionQuestion,
+                Minus,
+                IntLiteral,
+                Eof
+            ]
+        );
+        assert_eq!(
+            kinds_ok("<?nvs $a ??+1"),
+            vec![
+                OpenTagNvs,
+                Variable,
+                QuestionQuestion,
+                Plus,
+                IntLiteral,
+                Eof
+            ]
+        );
+        assert_eq!(
+            kinds_ok("<?nvs $a ??.5"),
+            vec![OpenTagNvs, Variable, QuestionQuestion, FloatLiteral, Eof]
         );
     }
 

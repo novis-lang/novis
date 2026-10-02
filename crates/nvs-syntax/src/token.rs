@@ -229,6 +229,12 @@ pub enum TokenKind {
     QuestionQuestion,
     /// `??=`
     QuestionQuestionEquals,
+    /// `??+=` — `rule:expressions/defaulting-assignment`.
+    QuestionQuestionPlusEquals,
+    /// `??-=`
+    QuestionQuestionMinusEquals,
+    /// `??.=`
+    QuestionQuestionDotEquals,
     /// `.`
     Dot,
     /// `.=`

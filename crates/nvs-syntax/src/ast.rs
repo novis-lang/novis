@@ -369,6 +369,9 @@ pub enum AssignOp {
     ShlAssign,
     ShrAssign,
     CoalesceAssign,
+    CoalesceAddAssign,
+    CoalesceSubAssign,
+    CoalesceConcatAssign,
 }
 
 impl AssignOp {
@@ -398,7 +401,40 @@ impl AssignOp {
             Self::ShlAssign => BinaryOp::Shl,
             Self::ShrAssign => BinaryOp::Shr,
             Self::CoalesceAssign => BinaryOp::Coalesce,
+            Self::CoalesceAddAssign => BinaryOp::Add,
+            Self::CoalesceSubAssign => BinaryOp::Sub,
+            Self::CoalesceConcatAssign => BinaryOp::Concat,
         })
+    }
+
+    /// Whether this is one of the three defaulting operators, `??+=`, `??-=`
+    /// and `??.=` (`rule:expressions/defaulting-assignment`).
+    ///
+    /// [`Self::binary_op`] answers the operator such an assignment applies, so
+    /// `$a ??+= $v` is `$a = ($a ?? d) + $v`: the read is the guarded one `??`
+    /// makes of its left operand, and `d` is the zero of the target's type.
+    /// Every consumer that reads `binary_op` alone would type and lower the
+    /// plain `+=`, so each one asks this too.
+    #[must_use]
+    pub fn defaults(self) -> bool {
+        matches!(
+            self,
+            Self::CoalesceAddAssign | Self::CoalesceSubAssign | Self::CoalesceConcatAssign
+        )
+    }
+
+    /// The span the `$a ?? d` inside a defaulting assignment is recorded
+    /// under: from the target's start to the value's start, so the target
+    /// and the operator. No written expression ends after an operator, so no
+    /// other entry in the checker's table has it, and `nvs_types` and
+    /// `nvs_ir` both reach that one entry through this.
+    #[must_use]
+    pub fn defaulted_read_span(target: Span, value: Span) -> Span {
+        Span {
+            file: target.file,
+            start: target.start,
+            end: value.start,
+        }
     }
 }
 
