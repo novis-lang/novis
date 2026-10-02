@@ -3,7 +3,7 @@
 
 # The editor
 
-*60 of 80 rules below are **designed** rather than shipped, and are marked where they appear.*
+*60 of 81 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="ide-one-grammar-one-tree"></a>
 
@@ -528,26 +528,35 @@ added to the extension's frozen roster under that roster's own rule: a name is a
 
 <a id="ide-a-code-action-ships-only-a-fix-a-diagnostic-already-knows"></a>
 
-## A code action ships only where its replacement text is already in a diagnostic's suggestions — two at M4B, and no other  *(designed — not yet in the compiler)*
+## A quick fix ships only where its replacement text is already in a diagnostic's suggestions, and the one action the server computes for itself is the html-literal rewrite  *(designed — not yet in the compiler)*
 
 `rule:ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`
 
-M4B ships two code actions and only two: the casing fix ([`core-api/identifier-casing`](core-api.md#core-api-identifier-casing)) and the
-legacy-cast fix `(int)$x` → `$x as int` ([`types/no-legacy-cast`](types.md#types-no-legacy-cast)). They are admitted for one reason,
-and it is not that they are useful: their replacement text is already computed, sitting in the
-`Diagnostic::suggestions` field `nvs-diagnostics` has carried since M0. The provider is a translation from
-`Suggestion` to `CodeAction` — a dozen lines and no new analysis.
+A quick fix ships only where its replacement text is already computed, sitting in the
+`Diagnostic::suggestions` field `nvs-diagnostics` has carried since M0. The casing fix
+([`core-api/identifier-casing`](core-api.md#core-api-identifier-casing)) and the legacy-cast fix `(int)$x` → `$x as int`
+([`types/no-legacy-cast`](types.md#types-no-legacy-cast)) are admitted for that reason and not because they are useful: the provider is a translation from `Suggestion` to `CodeAction` — a dozen lines and no
+new analysis.
 
 The boundary is exactly that. A quick fix whose replacement a diagnostic already knows may ship; one that
-would need the checker to compute something new is M10's. Both are registered under `source.fixAll.nvs`
-so `editor.codeActionsOnSave` composes them with format-on-save when that arrives.
+would need the checker to compute something new is M10's. Every fix is registered under
+`source.fixAll.nvs` as well as `quickfix`, so `editor.codeActionsOnSave` composes them with
+format-on-save.
 
 The third fix admitted under the same boundary is the import an undeclared name's diagnostic carries
 ([`ide/an-undeclared-name-offers-its-import`](ide.md#ide-an-undeclared-name-offers-its-import)): the checker computes the `use` line and its place
 where it raises `E0303`, so the provider's translation is what it was, and the server still resolves
 nothing of its own.
 
-<sub>See also [`core-api/identifier-casing`](core-api.md#core-api-identifier-casing), [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed), [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic), [`ide/narrow-an-annotation-to-its-literal`](ide.md#ide-narrow-an-annotation-to-its-literal), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency). Decided in [0099](../decisions/0099.md), [0040](../decisions/0040.md), [0201](../decisions/0201.md).</sub>
+One code action is not a fix and has no diagnostic behind it: the rewrite of a string or a `.` chain as
+an html literal ([`ide/a-string-converts-to-an-html-literal`](ide.md#ide-a-string-converts-to-an-html-literal)). Nothing about the string is wrong,
+so there is no diagnostic to carry it, and the server computes it from the expression under the cursor
+alone, with no type or module question. It is the only such action, it is filed under its own
+`refactor.rewrite.htmlLiteral` kind, and it is never under `source.fixAll.nvs` or `quickfix`, because
+applying it changes what the line prints. Any further action the server computes for itself is still
+M10's.
+
+<sub>See also [`core-api/identifier-casing`](core-api.md#core-api-identifier-casing), [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed), [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic), [`ide/narrow-an-annotation-to-its-literal`](ide.md#ide-narrow-an-annotation-to-its-literal), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency), [`ide/a-string-converts-to-an-html-literal`](ide.md#ide-a-string-converts-to-an-html-literal). Decided in [0099](../decisions/0099.md), [0040](../decisions/0040.md), [0201](../decisions/0201.md), [0259](../decisions/0259.md).</sub>
 
 <a id="ide-a-quick-fix-is-a-diagnostics-own-suggestion"></a>
 
@@ -580,7 +589,53 @@ as a quick fix and never under `source.fixAll.nvs`, since a save that applied ev
 write one over another. `W1022`'s likely grouping is one ([`expressions/misread-grouping-warns`](expressions.md#expressions-misread-grouping-warns)),
 and the parentheses that keep the current meaning beside it are not.
 
-<sub>See also [`ide/the-tree-survives-a-syntax-error`](ide.md#ide-the-tree-survives-a-syntax-error), [`ide/the-first-server-answers-a-closed-list`](ide.md#ide-the-first-server-answers-a-closed-list), [`routing/a-quick-fix-writes-a-derived-path`](routing.md#routing-a-quick-fix-writes-a-derived-path), [`core-api/identifier-casing`](core-api.md#core-api-identifier-casing), [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`statements/require-is-the-only-inclusion-construct`](statements.md#statements-require-is-the-only-inclusion-construct), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic), [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed), [`ide/a-code-action-writes-only-what-is-already-determined`](ide.md#ide-a-code-action-writes-only-what-is-already-determined), [`expressions/misread-grouping-warns`](expressions.md#expressions-misread-grouping-warns). Decided in [0040](../decisions/0040.md), [0039](../decisions/0039.md), [0099](../decisions/0099.md), [0256](../decisions/0256.md).</sub>
+A rewrite with no diagnostic behind it is not an inspection. The one there is, a string converted to
+an html literal ([`ide/a-string-converts-to-an-html-literal`](ide.md#ide-a-string-converts-to-an-html-literal)), is offered beside the quick fixes
+under its own `refactor.rewrite.htmlLiteral` kind and never under `source.fixAll.nvs`, since it
+changes what the line prints.
+
+<sub>See also [`ide/the-tree-survives-a-syntax-error`](ide.md#ide-the-tree-survives-a-syntax-error), [`ide/the-first-server-answers-a-closed-list`](ide.md#ide-the-first-server-answers-a-closed-list), [`routing/a-quick-fix-writes-a-derived-path`](routing.md#routing-a-quick-fix-writes-a-derived-path), [`core-api/identifier-casing`](core-api.md#core-api-identifier-casing), [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`statements/require-is-the-only-inclusion-construct`](statements.md#statements-require-is-the-only-inclusion-construct), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic), [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed), [`ide/a-code-action-writes-only-what-is-already-determined`](ide.md#ide-a-code-action-writes-only-what-is-already-determined), [`expressions/misread-grouping-warns`](expressions.md#expressions-misread-grouping-warns), [`ide/a-string-converts-to-an-html-literal`](ide.md#ide-a-string-converts-to-an-html-literal). Decided in [0040](../decisions/0040.md), [0039](../decisions/0039.md), [0099](../decisions/0099.md), [0258](../decisions/0258.md), [0259](../decisions/0259.md).</sub>
+
+<a id="ide-a-string-converts-to-an-html-literal"></a>
+
+## A string or a `.` chain of strings and values converts to the html literal that prints the same text, as a code action the server computes and an editor only applies
+
+`rule:ide/a-string-converts-to-an-html-literal`
+
+A cursor on a string, or a selection covering one exactly, is offered **Convert to html literal**, a
+code action of kind `refactor.rewrite.htmlLiteral` that replaces the string with the ``html`…` ``
+literal printing the same text ([`core-classes/html-literal`](core-classes.md#core-classes-html-literal)). On an operand of a `.` chain the
+whole chain converts, since half a chain converted is a `Core\Html\Markup` concatenated with a string.
+
+```nvs
+echo "<b>" . $name . "</b> is " . Core\Str::upper("here") . '!';
+echo html`<b>{$name}</b> is <?= Core\Str::upper("here") ?>!`;
+```
+
+| Written | In the literal |
+|---|---|
+| a double-quoted string | its text and its `$name` and `{$…}` holes as written, `\"` as `"`, every escape both grammars share kept |
+| a single-quoted string | its text, with each `$` that would open a hole written `\$` |
+| a backtick, a `{` that would open a hole or draw `W1012`, a `<` that would open `<?=`, `<?nvs` or `<?php` | `` \` ``, `\{`, `\x3C` |
+| a variable, or a property or offset read on one, as a chain operand | a `{$…}` hole |
+| any other chain operand | a `<?= … ?>` hole |
+
+It is not offered on a heredoc or nowdoc, whose body is dedented by its closing label; on an html
+literal, a template region or an attribute's argument; at an array key, a subscript, a `case` label, a
+`match` condition, a constant's value or the path of a `require`, `use` or `autoload`; or on a chain
+with a comment between its operands, which the rewrite would drop. Whether the result type-checks is
+not asked: the preview is the review.
+
+Before it is offered, the literal written is parsed back, and its segments must cook to the original
+text and its holes must be the original expressions, in order — so a string the conversion cannot
+write exactly is offered nothing rather than something else. The server computes it from the
+expression alone, so every client gets the same edit, and the VS Code command
+`nvs.convertToHtmlLiteral` only asks the editor to apply the action by its kind. It is never under
+`source.fixAll.nvs`: a plain string echoed is escaped as text and a literal's segments are markup, so
+applying it changes what the line prints, which is why it is a refactor and not a fix
+([`ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`](ide.md#ide-a-code-action-ships-only-a-fix-a-diagnostic-already-knows)).
+
+<sub>See also [`core-classes/html-literal`](core-classes.md#core-classes-html-literal), [`ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`](ide.md#ide-a-code-action-ships-only-a-fix-a-diagnostic-already-knows), [`ide/a-quick-fix-is-a-diagnostics-own-suggestion`](ide.md#ide-a-quick-fix-is-a-diagnostics-own-suggestion), [`ide/the-index-answers-the-cursor`](ide.md#ide-the-index-answers-the-cursor). Decided in [0259](../decisions/0259.md).</sub>
 
 <a id="ide-an-undeclared-name-offers-its-import"></a>
 

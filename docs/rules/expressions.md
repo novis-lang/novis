@@ -128,7 +128,7 @@ Two errors name the same kind of parentheses. `E0105` on `$ok && $row = $next`, 
 about a target nobody meant. `E0706` on `$flags & 4 == 4`, which is `$flags & (4 == 4)`, offers
 `($flags & 4) == 4`.
 
-<sub>See also [`ide/a-quick-fix-is-a-diagnostics-own-suggestion`](ide.md#ide-a-quick-fix-is-a-diagnostics-own-suggestion), [`expressions/nullable-condition-lint`](expressions.md#expressions-nullable-condition-lint), [`expressions/truthy-positions`](expressions.md#expressions-truthy-positions), [`expressions/catch-expression-precedence`](expressions.md#expressions-catch-expression-precedence). Decided in [0256](../decisions/0256.md).</sub>
+<sub>See also [`ide/a-quick-fix-is-a-diagnostics-own-suggestion`](ide.md#ide-a-quick-fix-is-a-diagnostics-own-suggestion), [`expressions/nullable-condition-lint`](expressions.md#expressions-nullable-condition-lint), [`expressions/truthy-positions`](expressions.md#expressions-truthy-positions), [`expressions/catch-expression-precedence`](expressions.md#expressions-catch-expression-precedence). Decided in [0258](../decisions/0258.md).</sub>
 
 <a id="expressions-one-equality-operator"></a>
 
