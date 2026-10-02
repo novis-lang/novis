@@ -213,7 +213,7 @@ Constructor promotion (`public function constructor(public int $x)`), `static::`
 | PHP | Novis | Code |
 |---|---|---|
 | `$a = [1, 2];` | `array<int> $a = [1, 2];` — a variable is declared with its type before it is assigned | `E0301` |
-| `var $a = [1, 2];` | `array<int> $a = [1, 2];` — `var` cannot find the element type of an array literal | `E0414` |
+| `var $a = [1, "a"];` | `array<int\|string> $a = [1, "a"];` — `var` finds an array's type only when every element has the same type | `E0414` |
 | `foreach ([1, 2] as $n)` | bind the literal to a typed local first | `E0401` |
 | `array(1, 2)` | accepted; `[1, 2]` is the usual spelling | — |
 | `["a" => $x] = $arr;` keyed destructuring | give each variable its type: `["a" => int $x] = $arr;` | parse error `E0101` |

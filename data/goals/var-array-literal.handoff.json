@@ -1,40 +1,30 @@
 {
-  "state": "**Goal `var-array-literal` — `var` infers an array literal whose elements all have one type — has just started; nothing of it has landed yet.** Goal `foreach-var`'s whole list is this goal's Stage 1 floor.\n\nThe design is settled and is the user's, in one sentence: an array literal under `var` is\n`array<T>` when every element has the same type, and otherwise it is refused with a help line\nnaming the type to write. The goal file's § *Standing decisions* answers every call a session\nmeets, and no session re-decides one.\n\nTwo facts about the tree as the goal was written. The refusal is one `matches!` in the `var` arm of\n`crates/nvs-types/src/locals.rs`, so the checker half is small. The synthesis that\n`rule:ide/no-compile-path-calls-the-synthesis` describes is **designed and not built** — no crate\nholds it — so Stage 2 writes it rather than calling it.",
+  "state": "**Goal `var-array-literal` — Stage 2 has landed whole.** `var $ids = [1, 2, 3];` is `array<int>`, and a\nliteral whose elements have two or more types, an empty one at any depth, or a `foreach ([…] as var $x)`\nsubject of two types is `E0414` with a help line naming the declaration to write. Decision record 0252\nholds the reasoning; `rule:types/var-inference`, `rule:types/arrays` and\n`rule:ide/no-compile-path-calls-the-synthesis` (now `shipped`) were rewritten with it.\n\nThe synthesis is `synthesize_array_literal` in `crates/nvs-types/src/expr/literals.rs`; its one caller is\n`var_array_literal` in `crates/nvs-types/src/locals.rs`, which the `var` arm and the `foreach` subject\ncall. Each element is checked once with no expectation and, on success, recorded at `T` as a written\ntarget records it. The guard `only_var_and_the_foreach_subject_call_the_synthesis` counts the callers.\n\nStage 0's sentences are rewritten in the rules, both reference chapters, the PHP-differences table, the\n`E0414` card, two playbook bullets and three older reject cases, and `website/` is re-rendered.",
   "next": {
-    "stage": 2,
-    "title": "the literal infers",
+    "stage": 3,
+    "title": "the later write, the editor and the lowering",
     "files": [
-      "crates/nvs-types/src/expr/literals.rs",
-      "crates/nvs-types/src/locals.rs",
-      "crates/nvs-types/src/expr/iteration.rs",
-      "crates/nvs-diagnostics/src/lib.rs"
+      "crates/nvs-types/src/expr/assign.rs",
+      "crates/nvs-lsp/src/hints.rs",
+      "crates/nvs-ir/src/lower/tests.rs"
     ],
     "items": [
       {
         "done": false,
-        "text": "**The decision record** — one new record, written first, from the goal's § *Standing decisions*; it `modifies` `types/var-inference`, `types/arrays` and `ide/no-compile-path-calls-the-synthesis`, and the three fragments are rewritten whole with it."
+        "text": "**The IR-equality test** — beside `crates/nvs-ir/src/lower/tests.rs:2509` (`assert_var_binding_lowers_as_written`): `var $x = [1, 2];` and `array<int> $x = [1, 2];` lower to the same IR, and so do a nested literal and a spread (goal file § *Stage 3*)."
       },
       {
         "done": false,
-        "text": "**The synthesis** — one function beside `crates/nvs-types/src/expr/literals.rs:@check_array_literal`: `array<T>` when every element has one interned type, nested literals first, spreads by their element type; otherwise the reason, with the canonical union for the help line."
+        "text": "**The inlay hint** — `crates/nvs-lsp/src/hints.rs:12` reads the binding's checked type; a test pins `: array<int>` on an inferred literal (goal file § *Stage 3*)."
       },
       {
         "done": false,
-        "text": "**The `var` arm calls it** — `crates/nvs-types/src/locals.rs`'s `None` arm: on success the literal is checked against `array<T>` and the binding declared at it; on refusal `E_VAR_ARRAY_LITERAL_NEEDS_TYPE` with a message per case and a help line naming the written declaration."
-      },
-      {
-        "done": false,
-        "text": "**The `foreach` subject follows** — `crates/nvs-types/src/expr/iteration.rs`: a bare literal subject under a `var` binding goes through the same function. Goal `foreach-var`'s two refusing checks keep their names; their literal becomes one whose elements differ."
-      },
-      {
-        "done": false,
-        "text": "**The two conformance cases and the named tests** of the goal file's Stage 2 checks; `tests/conformance/lang/var-refuses-a-bare-array-literal.nvst` is folded into the refusing case and deleted, and the two rule records that list it name the new cases."
+        "text": "**The later write** — `var $prices = [10, 20]; $prices[] = 12.5;` names the `var` line and `array<int|float> $prices = [10, 20];` in its help; start from `crates/nvs-types/src/expr/assign.rs:493` (`report_mismatch`) and `bun nv peek --locate` the append's own report (goal file § *Stage 3*)."
       }
     ]
   },
   "backlog": [
-    "**Stage 3: the later write, the editor and the lowering** — the help line on a write that misses an inferred element type, `crates/nvs-lsp/src/hints.rs`'s inlay hint, and the IR-equality test in `crates/nvs-ir/src/lower/tests.rs`. Shares no file with Stage 2 beyond `nvs-types`, so it is its own session.",
-    "**Stage 4: the feature proofs, and everything already on disk** — the new example and attack step, then the documents Stage 0 lists, the two features' `about.md` and examples, the regenerated `docs/novis.md`, and the closing search. Prose and programs only; no crate is open.",
-    "When this goal's last check goes green the driver takes goal `ci-green`."
+    "The help line for a qualifier mix prints `array<tainted string|string>`; whether that union compiles as written is *not checked* — Stage 3's later-write work is the place to try it (goal file § *Standing decisions*).",
+    "Stage 4: one example under `docs/examples/lang/types/array-t/`, the attack step, both `about.md`s, and a fenced program that runs in `docs/reference/lang/20-types.md`'s `var` bullet (goal file § *Stage 4*)."
   ]
 }

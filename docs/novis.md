@@ -619,8 +619,9 @@ n=2 1
 - A local is declared once. Every later `$x = …` is an assignment and carries no type. Declaring the
   same name again is refused, and so is assigning a name that was never declared.
 - `var $x = expr;` infers the type from the initializer and fixes it forever: `var $n = 41;` makes an
-  `int`, and `$n = "x"` is then refused. `var` refuses a bare array literal, because `[1, 2]` on its
-  own has no element type — write `array<int> $xs = [1, 2];`.
+  `int`, and `$n = "x"` is then refused. `var $xs = [1, 2];` makes an `array<int>`, because every
+  element is an `int`. An array whose elements have different types, such as `[1, "a"]`, or an
+  empty array is refused. Write its type instead: `array<int|string> $xs = [1, "a"];`.
 - Locals are function-scoped: a name declared inside an `if` or a loop body is visible after it, and
   the counter a `for` header declares stays visible after the loop. A `catch (T $e)` binding is a
   declaration too, so two `catch` blocks in one function name two different variables.
@@ -648,10 +649,10 @@ expected `int`, found `string`
 
 ```nvs error
 <?nvs
-var $xs = [1, 2, 3];
+var $xs = [1, "two", 3];
 ```
 ```output
-cannot infer an array literal's element type
+cannot infer an array whose elements have different types
 ```
 
 ### Numbers: `bool`, `int`, `uint`, `float`, `decimal`
@@ -2255,7 +2256,7 @@ anonymous `function` literals are not supported
 
 ### Arrays in expressions
 
-An array literal is `[a, b]`, `["k" => v]`, or both mixed; a literal needs a declared target type — `array<int> $a = [1, 2]`, never `var $a = [1, 2]`. `[...$a, x]` copies `$a`'s entries into the literal, renumbering an integer-looking key under the literal's own counter and preserving every other, which is PHP's own spread (`rule:types/arrays`). Every key is a `string`: an `int` or `uint` subscript names the same entry as its decimal spelling, so `$a[8]` and `$a["8"]` are one key while `"08"` is another, and a `foreach` key binding is always `string`.
+An array literal is `[a, b]`, `["k" => v]`, or both mixed. A literal is checked against its declared target type, as in `array<int> $a = [1, 2]`. Under `var` it has no target: `var $a = [1, 2]` is an `array<int>` because every element is an `int`, and a literal whose elements have different types, or an empty one, needs its type written. `[...$a, x]` copies `$a`'s entries into the literal, renumbering an integer-looking key under the literal's own counter and preserving every other, which is PHP's own spread (`rule:types/arrays`). Every key is a `string`: an `int` or `uint` subscript names the same entry as its decimal spelling, so `$a[8]` and `$a["8"]` are one key while `"08"` is another, and a `foreach` key binding is always `string`.
 
 - `$a["k"]` reads; an absent key **throws** a `RuntimeError` (`undefined array key`). `$a["k"] ?? $d` is the read that does not.
 - `$a["k"] = v` writes, `$a[] = v` appends at the highest integer key so far plus one (`0` in an empty array), and both reach into nested arrays: `$g["r"]["c"] = 1` creates the inner array. `[]` is only a write target.
@@ -28448,7 +28449,7 @@ Constructor promotion (`public function constructor(public int $x)`), `static::`
 | PHP | Novis | Code |
 |---|---|---|
 | `$a = [1, 2];` | `array<int> $a = [1, 2];` — a variable is declared with its type before it is assigned | `E0301` |
-| `var $a = [1, 2];` | `array<int> $a = [1, 2];` — `var` cannot find the element type of an array literal | `E0414` |
+| `var $a = [1, "a"];` | `array<int\|string> $a = [1, "a"];` — `var` finds an array's type only when every element has the same type | `E0414` |
 | `foreach ([1, 2] as $n)` | bind the literal to a typed local first | `E0401` |
 | `array(1, 2)` | accepted; `[1, 2]` is the usual spelling | — |
 | `["a" => $x] = $arr;` keyed destructuring | give each variable its type: `["a" => int $x] = $arr;` | parse error `E0101` |

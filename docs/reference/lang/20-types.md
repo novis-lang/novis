@@ -29,8 +29,9 @@ n=2 1
 - A local is declared once. Every later `$x = …` is an assignment and carries no type. Declaring the
   same name again is refused, and so is assigning a name that was never declared.
 - `var $x = expr;` infers the type from the initializer and fixes it forever: `var $n = 41;` makes an
-  `int`, and `$n = "x"` is then refused. `var` refuses a bare array literal, because `[1, 2]` on its
-  own has no element type — write `array<int> $xs = [1, 2];`.
+  `int`, and `$n = "x"` is then refused. `var $xs = [1, 2];` makes an `array<int>`, because every
+  element is an `int`. An array whose elements have different types, such as `[1, "a"]`, or an
+  empty array is refused. Write its type instead: `array<int|string> $xs = [1, "a"];`.
 - Locals are function-scoped: a name declared inside an `if` or a loop body is visible after it, and
   the counter a `for` header declares stays visible after the loop. A `catch (T $e)` binding is a
   declaration too, so two `catch` blocks in one function name two different variables.
@@ -58,10 +59,10 @@ expected `int`, found `string`
 
 ```nvs error
 <?nvs
-var $xs = [1, 2, 3];
+var $xs = [1, "two", 3];
 ```
 ```output
-cannot infer an array literal's element type
+cannot infer an array whose elements have different types
 ```
 
 # Numbers: `bool`, `int`, `uint`, `float`, `decimal`

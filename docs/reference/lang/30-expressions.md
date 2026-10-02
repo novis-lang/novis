@@ -569,7 +569,7 @@ anonymous `function` literals are not supported
 
 # Arrays in expressions
 
-An array literal is `[a, b]`, `["k" => v]`, or both mixed; a literal needs a declared target type — `array<int> $a = [1, 2]`, never `var $a = [1, 2]`. `[...$a, x]` copies `$a`'s entries into the literal, renumbering an integer-looking key under the literal's own counter and preserving every other, which is PHP's own spread (`rule:types/arrays`). Every key is a `string`: an `int` or `uint` subscript names the same entry as its decimal spelling, so `$a[8]` and `$a["8"]` are one key while `"08"` is another, and a `foreach` key binding is always `string`.
+An array literal is `[a, b]`, `["k" => v]`, or both mixed. A literal is checked against its declared target type, as in `array<int> $a = [1, 2]`. Under `var` it has no target: `var $a = [1, 2]` is an `array<int>` because every element is an `int`, and a literal whose elements have different types, or an empty one, needs its type written. `[...$a, x]` copies `$a`'s entries into the literal, renumbering an integer-looking key under the literal's own counter and preserving every other, which is PHP's own spread (`rule:types/arrays`). Every key is a `string`: an `int` or `uint` subscript names the same entry as its decimal spelling, so `$a[8]` and `$a["8"]` are one key while `"08"` is another, and a `foreach` key binding is always `string`.
 
 - `$a["k"]` reads; an absent key **throws** a `RuntimeError` (`undefined array key`). `$a["k"] ?? $d` is the read that does not.
 - `$a["k"] = v` writes, `$a[] = v` appends at the highest integer key so far plus one (`0` in an empty array), and both reach into nested arrays: `$g["r"]["c"] = 1` creates the inner array. `[]` is only a write target.
