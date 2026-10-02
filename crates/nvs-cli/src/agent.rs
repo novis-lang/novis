@@ -20,19 +20,25 @@
 //! ## The install
 //!
 //! `init` writes an `AGENTS.md` stanza — harness-neutral, delimited by markers
-//! it owns — and beside it one adapter per harness the tree shows, each naming
-//! those commands and the `nvs check` loop.
+//! it owns — and beside it one adapter per harness the tree shows (a Claude Code
+//! skill, a Cursor rule, a Copilot instructions file), each naming those
+//! commands and the `nvs check` loop.
 //! `rule:tooling/an-adapter-carries-protocol-and-never-language` is why none of
 //! them names anything else: a language fact written into a pointer is a copy
 //! that goes stale the day the member changes, and every copy is read by an
 //! agent with no way to know it is old. So [`PROTOCOL`] is the whole of what
-//! every pointer says, and an [`Adapter`] contributes only the header its own
-//! harness reads it through.
+//! every pointer says, and an [`Adapter`] contributes only the front matter its
+//! own harness reads it through.
 //!
-//! Re-running rewrites nothing. A stanza that still reads as this binary would
-//! write it is left alone; one that does not is named in a refusal, because the
-//! difference between an upgrade and an edit is not something this can see, and
-//! overwriting a reader's own sentence is the worse of the two mistakes.
+//! Every unit `init` writes carries a marker with the [`fingerprint`] of the
+//! text around it, so a re-run tells an upgrade from an edit: a unit that still
+//! matches its fingerprint is replaced with this binary's text, and one that
+//! does not is refused unless `--force`, because overwriting a reader's own
+//! sentence is the worse mistake. A unit an `init` before fingerprints wrote is
+//! held to the `LEGACY_*` fingerprint of that text. `--check` writes nothing
+//! and fails while any unit is missing, outdated or edited, and `primer` puts
+//! one line on standard error while the working directory has an outdated one,
+//! so the agent that reads the primer learns of it with nobody in between.
 //!
 //! ## The primer, and where its text comes from
 //!
@@ -449,6 +455,9 @@ fn topic_card(symbol: &str) -> Option<String> {
 /// the order `rule:tooling/a-primer-claim-is-executed` fixes, then the chapter
 /// map from the chapters' own front matter.
 pub(crate) fn primer() -> ExitCode {
+    if let Some(note) = stale_note() {
+        eprintln!("{note}");
+    }
     let document = crate::meta::document();
     let chapters: Vec<Chapter> = CHAPTERS.iter().map(|text| chapter(text)).collect();
     let classes = array(&document, "classes");
@@ -853,13 +862,48 @@ fn push_pairs<T>(out: &mut String, heading: &str, rows: &[T], each: impl Fn(&T) 
     }
 }
 
-/// The line that opens the `AGENTS.md` stanza, and the line that closes it.
+/// What every marker `init` writes opens with. The `AGENTS.md` stanza opens on
+/// the marker, and an adapter carries it on the line under its front matter.
 ///
-/// They delimit the region `init` owns, so a stanza that has been edited is a
-/// difference it can see rather than one it silently overwrites, and a project's
-/// own prose above and below the pair is never read.
-const STANZA_OPEN: &str = "<!-- nvs agent: written by `nvs agent init` -->";
+/// The whole marker is this, `, fingerprint `, the [`fingerprint`] of the text
+/// around it, and ` -->`. An HTML comment is what every harness here passes
+/// over, and a front-matter key is not: a harness may reject a key it does not
+/// know.
+const MARK: &str = "<!-- nvs agent: written by `nvs agent init`";
+
+/// The marker an `init` that wrote no fingerprint opened its stanza with.
+/// A unit that carries it, or an adapter with no marker at all, is judged
+/// against the `legacy` fingerprint its [`Unit`] names.
+const LEGACY_OPEN: &str = "<!-- nvs agent: written by `nvs agent init` -->";
+
+/// The line that closes the `AGENTS.md` stanza.
+///
+/// The open marker and this delimit the region `init` owns, so a project's own
+/// prose above and below the pair is never read.
 const STANZA_CLOSE: &str = "<!-- /nvs agent -->";
+
+/// The [`fingerprint`] of the stanza, and of the Claude Code skill, as the
+/// `init` before fingerprints wrote them. A file that still reads as that text
+/// was not edited, so it is updated like any other.
+const LEGACY_STANZA: &str = "78328bd5";
+const LEGACY_CLAUDE: &str = "e55b58b7";
+
+/// The fingerprint of a unit `init` writes: the first eight hex digits of the
+/// BLAKE3 hash of its text with the marker line taken out and every `\r\n`
+/// read as `\n`. BLAKE3 is fixed by its specification, so the same text gives
+/// the same fingerprint on every platform and from every build. A checkout
+/// under Git's `core.autocrlf` therefore still reads as untouched.
+fn fingerprint(text: &str) -> String {
+    let text = text.replace("\r\n", "\n");
+    blake3::hash(text.as_bytes()).to_hex()[..8].to_owned()
+}
+
+/// A unit's text: `before`, the marker carrying the fingerprint of `before`
+/// and `after` together, then `after`.
+fn owned(before: &str, after: &str) -> String {
+    let print = fingerprint(&format!("{before}{after}"));
+    format!("{before}{MARK}, fingerprint {print} -->\n{after}")
+}
 
 /// What every pointer says, in every harness: where to ask, and the check loop.
 ///
@@ -869,43 +913,63 @@ const STANZA_CLOSE: &str = "<!-- /nvs agent -->";
 /// nothing about the language cannot disagree with the binary that answers.
 const PROTOCOL: &str = "\
 Novis is the language this project is written in, and the `nvs` binary installed on this machine is
-its documentation. It answers from the registry it compiles against, so an answer can never describe
-a version that is not installed — which is why nothing about the language itself is written here.
+its documentation. It answers from the registry it compiles against, so an answer always describes
+the installed version. That is why nothing about the language itself is written here.
 
 - `nvs agent primer` — read once, before writing anything. The short document that makes a coding
   agent productive.
-- `nvs agent index` — one line per member of the standard library.
-- `nvs agent find <query>` — the index lines whose class or member name matches. A command rather
-  than a grep, because a namespaced name loses its backslash to the shell before grep sees it.
-- `nvs agent show <symbol>` — one symbol's card: its signature, its prose, its parameters and what
-  it throws.
+- `nvs agent index` — one line per standard library member, reference heading, configuration key,
+  command, flag and error code.
+- `nvs agent find <query>` — the index lines whose name matches: a member, a keyword such as
+  `autoload`, a configuration key, a command, a flag or an error code. Use it instead of grep: the
+  shell removes the backslash from a namespaced name before grep sees it.
+- `nvs agent show <symbol>` — one card: a member's signature, prose, parameters and errors, a
+  reference section, a key, a command's help, or an error code, as in `nvs agent show E0621`.
 
-Then check what you wrote. `nvs check <file>` names what is wrong and where, and `nvs test` runs the
-suite. That is the loop — read the primer once, `find` a name, `show` its card, `nvs check` — and
-the diagnostic is part of the documentation rather than an alternative to it.
+Then check what you wrote. `nvs check <file>` names what is wrong and where, `nvs check --json <file>`
+prints the same diagnostics as JSON, and `nvs test` runs the tests. That is the loop: read the primer
+once, `find` a name, `show` its card, `nvs check`.
+
+`nvs agent init` wrote this text, and running it again updates it to the installed `nvs`.
 ";
 
-/// The front matter a Claude Code skill is found and summarised by, over the
-/// title its body opens with.
+/// The front matter a Claude Code skill is found and summarised by.
 ///
-/// Spelled a line at a time so the const stays indented with the code around
-/// it: a multi-line literal would have to begin every one of its lines at
-/// column 0. The format is the one thing here a harness owns.
-const CLAUDE_HEADER: &str = concat!(
+/// Each front matter here is spelled a line at a time so the const stays
+/// indented with the code around it: a multi-line literal would have to begin
+/// every one of its lines at column 0. The format is the one thing here a
+/// harness owns.
+const CLAUDE_FRONT: &str = concat!(
     "---\n",
     "name: novis\n",
     "description: Ask the installed `nvs` binary about the Novis language and check what you \
      wrote — the primer, the index, one symbol's card, then `nvs check`. Use it whenever reading \
      or writing Novis code.\n",
     "---\n",
-    "\n",
-    "# Novis\n",
 );
 
-/// One harness's pointer: where its file goes, the directory whose presence says
-/// that harness is in use here, and the header it opens with.
+/// The front matter of a Cursor project rule. The agent attaches the rule when a
+/// `.nvs` file is in play, or when the description says it is relevant. Cursor
+/// reads `globs` unquoted.
+const CURSOR_FRONT: &str = concat!(
+    "---\n",
+    "description: How to look up the Novis language and check Novis code with the installed `nvs` \
+     binary. Use it whenever reading or writing Novis code.\n",
+    "globs: **/*.nvs\n",
+    "alwaysApply: false\n",
+    "---\n",
+);
+
+/// The front matter of a GitHub Copilot path-specific instructions file, which
+/// applies it to every `.nvs` file.
+const COPILOT_FRONT: &str = concat!("---\n", "applyTo: \"**/*.nvs\"\n", "---\n");
+
+/// One harness's pointer: where its file goes, the paths whose presence says
+/// that harness is in use here, the front matter it opens with, and the
+/// fingerprint of the file an `init` before fingerprints wrote there, when it
+/// wrote one.
 ///
-/// The header is the only part a harness owns. What the file *says* is
+/// The front matter is the only part a harness owns. What the file *says* is
 /// [`PROTOCOL`], identical in every one of them, which is what keeps this list
 /// open: another harness is another row, adding one decides nothing, and none of
 /// them can disagree with the language because none of them says anything about
@@ -913,38 +977,128 @@ const CLAUDE_HEADER: &str = concat!(
 #[derive(Debug)]
 struct Adapter {
     path: &'static str,
-    present: &'static str,
-    header: &'static str,
+    present: &'static [&'static str],
+    front: &'static str,
+    legacy: Option<&'static str>,
 }
 
 impl Adapter {
-    /// The whole file: this harness's header over the protocol every pointer
-    /// carries.
-    fn body(&self) -> String {
-        format!("{}\n{PROTOCOL}", self.header)
+    /// The whole file: this harness's front matter, the marker, and the
+    /// protocol every pointer carries under one title.
+    fn text(&self) -> String {
+        owned(self.front, &format!("\n# Novis\n\n{PROTOCOL}"))
+    }
+
+    /// Whether the tree under `root` shows this harness in use.
+    fn is_present(&self, root: &Path) -> bool {
+        self.present.iter().any(|path| root.join(path).exists())
     }
 }
 
-/// Every harness `init` knows how to point at.
-const ADAPTERS: &[Adapter] = &[Adapter {
-    path: ".claude/skills/novis/SKILL.md",
-    present: ".claude",
-    header: CLAUDE_HEADER,
-}];
+/// Every harness `init` knows how to point at. Copilot is detected by its own
+/// instruction files, because a `.github` directory alone is in most projects
+/// whichever harness they use.
+const ADAPTERS: &[Adapter] = &[
+    Adapter {
+        path: ".claude/skills/novis/SKILL.md",
+        present: &[".claude"],
+        front: CLAUDE_FRONT,
+        legacy: Some(LEGACY_CLAUDE),
+    },
+    Adapter {
+        path: ".cursor/rules/novis.mdc",
+        present: &[".cursor"],
+        front: CURSOR_FRONT,
+        legacy: None,
+    },
+    Adapter {
+        path: ".github/instructions/novis.instructions.md",
+        present: &[".github/copilot-instructions.md", ".github/instructions"],
+        front: COPILOT_FRONT,
+        legacy: None,
+    },
+];
 
 /// The stanza as it belongs in `AGENTS.md`, with no trailing newline, which is
 /// both what `init` writes and what it compares an existing stanza against.
 fn stanza() -> String {
-    format!("{STANZA_OPEN}\n\n## Novis\n\n{PROTOCOL}\n{STANZA_CLOSE}")
+    owned("", &format!("\n## Novis\n\n{PROTOCOL}\n{STANZA_CLOSE}"))
+}
+
+/// How a unit `init` writes stands against the text this binary writes.
+#[derive(Debug, PartialEq)]
+enum State {
+    /// It reads as this binary writes it.
+    Current,
+    /// It reads as an earlier `init` wrote it, so nobody edited it.
+    Outdated,
+    /// Its text no longer matches the fingerprint it carries, or it carries none.
+    Edited,
+}
+
+/// Judge `found`, a unit read from disk, against `written`, what this binary
+/// writes there. `legacy` is the fingerprint a unit with the old marker, or
+/// with no marker, is held to.
+fn judge(found: &str, written: &str, legacy: Option<&str>) -> State {
+    let found = found.replace("\r\n", "\n");
+    if found == written {
+        return State::Current;
+    }
+    let (line, rest) = match found.find(MARK) {
+        Some(start) => {
+            let end = found[start..]
+                .find('\n')
+                .map_or(found.len(), |at| start + at + 1);
+            let line = found[start..end].trim_end_matches('\n');
+            (Some(line), format!("{}{}", &found[..start], &found[end..]))
+        }
+        None => (None, found.clone()),
+    };
+    let recorded = match line {
+        Some(line) if line != LEGACY_OPEN => line
+            .strip_prefix(MARK)
+            .and_then(|tail| tail.strip_prefix(", fingerprint "))
+            .and_then(|tail| tail.strip_suffix(" -->")),
+        _ => legacy,
+    };
+    if recorded.is_some_and(|recorded| recorded == fingerprint(&rest)) {
+        State::Outdated
+    } else {
+        State::Edited
+    }
+}
+
+/// What one run owes one file: nothing, the text to create it with, the text
+/// to update it to, or a refusal unless `--force`, which carries the text
+/// `--force` writes instead.
+#[derive(Debug)]
+enum Owed {
+    Nothing,
+    Missing(String),
+    Outdated(String),
+    Edited(String),
+}
+
+impl Owed {
+    /// The owed state of a unit whose replacement is `text`.
+    fn from(state: State, text: String) -> Self {
+        match state {
+            State::Current => Owed::Nothing,
+            State::Outdated => Owed::Outdated(text),
+            State::Edited => Owed::Edited(text),
+        }
+    }
 }
 
 /// Install the surface into this project: the `AGENTS.md` stanza, and one
 /// adapter for each harness the tree shows — every one of them when `all`.
 ///
-/// Each is written into a tree that has none and left alone in a tree that
-/// already carries it. Every file is read and judged before any is written, so
-/// a refusal about one of them leaves all of them as they were.
-pub(crate) fn init(all: bool) -> ExitCode {
+/// A missing file is written, a file that still matches its fingerprint is
+/// updated to this binary's text, and an edited one is refused unless `force`.
+/// With `check` nothing is written, and each file that is missing, outdated or
+/// edited is named instead. Every file is read and judged before any is
+/// written, so a refusal about one of them leaves all of them as they were.
+pub(crate) fn init(all: bool, force: bool, check: bool) -> ExitCode {
     let root = match std::env::current_dir() {
         Ok(root) => root,
         Err(error) => {
@@ -953,60 +1107,118 @@ pub(crate) fn init(all: bool) -> ExitCode {
         }
     };
 
-    let mut owed: Vec<(&'static str, String)> = Vec::new();
+    let mut owed: Vec<(&'static str, Owed)> = Vec::new();
+    let mut errors: Vec<String> = Vec::new();
     match stanza_owed(&root.join("AGENTS.md")) {
-        Ok(Some(text)) => owed.push(("AGENTS.md", text)),
-        Ok(None) => {}
-        Err(error) => {
-            eprintln!("error: {error}");
-            return ExitCode::FAILURE;
-        }
+        Ok(state) => owed.push(("AGENTS.md", state)),
+        Err(error) => errors.push(error),
     }
-
     for adapter in ADAPTERS {
-        if !all && !root.join(adapter.present).exists() {
+        if !all && !adapter.is_present(&root) {
             continue;
         }
         match adapter_owed(&root, adapter) {
-            Ok(Some(text)) => owed.push((adapter.path, text)),
-            Ok(None) => {}
-            Err(error) => {
-                eprintln!("error: {error}");
-                return ExitCode::FAILURE;
+            Ok(state) => owed.push((adapter.path, state)),
+            Err(error) => errors.push(error),
+        }
+    }
+    for error in &errors {
+        eprintln!("error: {error}");
+    }
+
+    if check {
+        let mut clean = errors.is_empty();
+        for (path, state) in &owed {
+            let word = match state {
+                Owed::Nothing => continue,
+                Owed::Missing(_) => "missing",
+                Owed::Outdated(_) => "outdated",
+                Owed::Edited(_) => "edited",
+            };
+            println!("{word} {path}");
+            clean = false;
+        }
+        if !clean {
+            return ExitCode::FAILURE;
+        }
+        println!("up to date");
+        return ExitCode::SUCCESS;
+    }
+
+    let mut refused = !errors.is_empty();
+    if !force {
+        for (path, state) in &owed {
+            if matches!(state, Owed::Edited(_)) {
+                refused = true;
+                eprintln!(
+                    "error: {path} has changed since `nvs agent init` wrote it, so it is left \
+                     alone; run `nvs agent init --force` to replace it"
+                );
             }
         }
     }
-
-    if owed.is_empty() {
-        println!("up to date");
+    if refused {
+        return ExitCode::FAILURE;
     }
-    for (path, text) in owed {
+
+    let mut wrote = false;
+    for (path, state) in owed {
+        let (word, text) = match state {
+            Owed::Nothing => continue,
+            Owed::Missing(text) => ("wrote", text),
+            Owed::Outdated(text) | Owed::Edited(text) => ("updated", text),
+        };
         if let Err(error) = write_file(&root.join(path), &text) {
             eprintln!("error: {error}");
             return ExitCode::FAILURE;
         }
-        println!("wrote {path}");
+        println!("{word} {path}");
+        wrote = true;
+    }
+    if !wrote {
+        println!("up to date");
     }
     ExitCode::SUCCESS
 }
 
-/// What `AGENTS.md` has to read as to carry the stanza, or `None` when it
-/// already does.
+/// The one line `primer` puts on standard error when the project in the working
+/// directory carries files an older `init` wrote and nobody edited since, or
+/// carries the stanza and lacks the adapter of a harness it shows. `None` when
+/// it carries none of them. It reads only `AGENTS.md` and the adapter paths.
+pub(crate) fn stale_note() -> Option<&'static str> {
+    let root = std::env::current_dir().ok()?;
+    let stanza = stanza_owed(&root.join("AGENTS.md")).ok()?;
+    let installed = !matches!(stanza, Owed::Missing(_));
+    let mut stale = matches!(stanza, Owed::Outdated(_));
+    for adapter in ADAPTERS {
+        match adapter_owed(&root, adapter) {
+            Ok(Owed::Outdated(_)) => stale = true,
+            Ok(Owed::Missing(_)) if installed && adapter.is_present(&root) => stale = true,
+            _ => {}
+        }
+    }
+    stale.then_some(
+        "note: this project's agent files are older than this nvs; \
+         run `nvs agent init` to update them",
+    )
+}
+
+/// What `AGENTS.md` owes the stanza.
 ///
 /// A file with no stanza gains one at its foot, so a project's own instructions
-/// keep the opening of their own document. A file whose stanza already reads as
-/// [`stanza`] is untouched. Anything else is refused rather than rewritten.
-fn stanza_owed(path: &Path) -> Result<Option<String>, String> {
+/// keep the opening of their own document. A stanza is judged by [`judge`], and
+/// its replacement changes only the region between the markers.
+fn stanza_owed(path: &Path) -> Result<Owed, String> {
     let block = stanza();
     let existing = match std::fs::read_to_string(path) {
         Ok(text) => text,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-            return Ok(Some(format!("{block}\n")));
+            return Ok(Owed::Missing(format!("{block}\n")));
         }
         Err(error) => return Err(format!("AGENTS.md cannot be read: {error}")),
     };
 
-    let Some(open) = existing.find(STANZA_OPEN) else {
+    let Some(open) = existing.find(MARK) else {
         let mut out = existing;
         if !out.is_empty() && !out.ends_with('\n') {
             out.push('\n');
@@ -1016,7 +1228,7 @@ fn stanza_owed(path: &Path) -> Result<Option<String>, String> {
         }
         out.push_str(&block);
         out.push('\n');
-        return Ok(Some(out));
+        return Ok(Owed::Missing(out));
     };
 
     let Some(close) = existing[open..].find(STANZA_CLOSE) else {
@@ -1027,39 +1239,18 @@ fn stanza_owed(path: &Path) -> Result<Option<String>, String> {
     };
 
     let end = open + close + STANZA_CLOSE.len();
-    if reads_as(&existing[open..end], &block) {
-        return Ok(None);
-    }
-    Err(format!(
-        "AGENTS.md's `nvs agent` stanza is not the one this binary writes, so it is left alone; \
-         delete the block from `{STANZA_OPEN}` to `{STANZA_CLOSE}` and run this again"
-    ))
+    let state = judge(&existing[open..end], &block, Some(LEGACY_STANZA));
+    let replaced = format!("{}{block}{}", &existing[..open], &existing[end..]);
+    Ok(Owed::from(state, replaced))
 }
 
-/// Whether text read from disk is the text this binary writes, with every
-/// `\r\n` read as `\n`. A Windows checkout under Git's `core.autocrlf` holds
-/// what [`init`] wrote with CRLF line endings, and that is the same text, so it
-/// is up to date and not refused.
-fn reads_as(on_disk: &str, written: &str) -> bool {
-    on_disk.replace("\r\n", "\n") == written.replace("\r\n", "\n")
-}
-
-/// What one harness's pointer has to read as, or `None` when the file already
-/// does.
-///
-/// A file that already reads as [`Adapter::body`] is untouched; one that reads
-/// as anything else is refused, for the reason [`stanza_owed`] refuses a
-/// changed stanza.
-fn adapter_owed(root: &Path, adapter: &Adapter) -> Result<Option<String>, String> {
-    let body = adapter.body();
+/// What one harness's pointer owes: the file when it is missing, otherwise what
+/// [`judge`] makes of the file there.
+fn adapter_owed(root: &Path, adapter: &Adapter) -> Result<Owed, String> {
+    let text = adapter.text();
     match std::fs::read_to_string(root.join(adapter.path)) {
-        Ok(text) if reads_as(&text, &body) => Ok(None),
-        Ok(_) => Err(format!(
-            "{} is not the pointer this binary writes, so it is left alone; \
-             delete it and run this again",
-            adapter.path
-        )),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(Some(body)),
+        Ok(found) => Ok(Owed::from(judge(&found, &text, adapter.legacy), text)),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(Owed::Missing(text)),
         Err(error) => Err(format!("{} cannot be read: {error}", adapter.path)),
     }
 }

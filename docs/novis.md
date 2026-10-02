@@ -225,7 +225,7 @@ Conventions the whole file uses:
 - C.4 [The HTTP server](#tools-server) — `nvs serve`, the `[server]` block and its mounts, how a request finds the file that answers it, what a program reads about the door it came through, what reaches a running server, the drain, `nvs ctl` and `nvs service` *(nvs serve, server, HTTP, restart, restart required, deploy, hot reload, zero downtime, symlink, settle, revalidate_freq, listen, port, --listen, --port, [server], [[server.mount]], mount, prefix, host, scan, entry, origin, root, dispatch, static, static files, trusted_proxies, X-Forwarded-For, X-Forwarded-Proto, client IP, health_path, health check, max_in_flight, workers, timeout, drain, drain_timeout, graceful shutdown, reload, nvs ctl, control socket, nvs service, service, systemd, Windows service, Core\Request::mount, Core\Request\Mount, Core\Router::url, multi-tenant, subdirectory, virtual host, front controller, try_files, php -S, php-fpm, nginx, Apache, .htaccess, RewriteBase, SCRIPT_NAME, PATH_INFO, DocumentRoot)*
 - C.5 [Coming from PHP: every difference, and what to write instead](#tools-php-differences) — the short list of what changed, every PHP spelling the compiler refuses with its replacement and diagnostic code, what parses but behaves differently, and the dev tools that are built in *(PHP, migration, <?php, function, const, define, global, static, $$var, eval, extract, compact, settype, (int), cast, and, or, xor, ===, !==, list(), include, require_once, trait, __construct, __toString, __get, __set, __call, __invoke, __destruct, goto, declare, strict_types, use as, group use, leading backslash, array(), $s[0], mixed, yield from, use ($x), new class, type test, callable string, resource, unset, $_GET, $_POST, $_SERVER, $GLOBALS, $argv, die, print_r, var_dump, echo, elseif, endif, endforeach, #, ?>, &$x, reference, @, backtick, __DIR__, __FILE__, __LINE__, __CLASS__, PHP_EOL, Exception, getMessage, heredoc, nowdoc, ==, ===, equality, type juggling, strlen, mb_strlen, overflow, PHP_INT_MAX, octal, bcmath, gmp, decimal, preg_match, PCRE, ReDoS, password_hash, password_verify, PHPUnit, PHPStan, Psalm, PHP CS Fixer, PHP_CodeSniffer, Xdebug, Composer, differences, switch from PHP)*
 - C.6 [The editor: nvs lsp, nvs lsp-test and the VS Code extension](#tools-editor) — the language server — every request it answers, the diagnostics it publishes, the positions it speaks and the secrets it conceals — `nvs lsp-test`, the suite that freezes an editor answer as text, and the VS Code extension that is the reference client *(nvs lsp, language server, LSP, Language Server Protocol, editor, IDE, VS Code, stdio, initialize, hover, go to definition, completion, autocomplete, semantic tokens, syntax highlighting, document symbol, outline, selection range, folding, document link, code action, quick fix, publishDiagnostics, nvs/redactions, secret, position encoding, utf-8, utf-16, nvs lsp-test, .lspt, --coverage, extension, vsix, TextMate grammar, nvs.path, nvs.lsp.enable, nvs.secrets.redact, nvs.taint.mark, reveal secret, restart language server, activation)*
-- C.7 [Coding agents: nvs agent, and what nvs agent init installs](#tools-agents) — the four commands a coding agent reads the language through — `primer`, `index`, `find` and `show` — over the `Core` registry and the chapters of this reference, the `nvs check` loop that closes them, and `nvs agent init`, which writes an `AGENTS.md` stanza and one adapter per harness and states no language fact *(nvs agent, nvs agent primer, nvs agent index, nvs agent find, nvs agent show, nvs agent init, --all, coding agent, LLM, AI assistant, agent instructions, AGENTS.md, SKILL.md, .claude, Claude Code, skill, adapter, pointer, stale documentation, hallucinated member, nvs check loop)*
+- C.7 [Coding agents: nvs agent, and what nvs agent init installs](#tools-agents) — the four commands a coding agent reads the language through — `primer`, `index`, `find` and `show` — over the `Core` registry and the chapters of this reference, the `nvs check` loop that closes them, and `nvs agent init`, which writes an `AGENTS.md` stanza and one adapter per harness and states no language fact *(nvs agent, nvs agent primer, nvs agent index, nvs agent find, nvs agent show, nvs agent init, --all, --force, --check, fingerprint, coding agent, LLM, AI assistant, agent instructions, AGENTS.md, SKILL.md, .claude, Claude Code, skill, Cursor, .cursor, .mdc, GitHub Copilot, .instructions.md, adapter, pointer, stale documentation, hallucinated member, nvs check loop)*
 
 ### Part D — Coming from PHP
 
@@ -29179,7 +29179,7 @@ analysed as it arrives.
 <a id="tools-agents"></a>
 ## C.7 Coding agents: nvs agent, and what nvs agent init installs
 
-Keywords: nvs agent, nvs agent primer, nvs agent index, nvs agent find, nvs agent show, nvs agent init, --all, coding agent, LLM, AI assistant, agent instructions, AGENTS.md, SKILL.md, .claude, Claude Code, skill, adapter, pointer, stale documentation, hallucinated member, nvs check loop
+Keywords: nvs agent, nvs agent primer, nvs agent index, nvs agent find, nvs agent show, nvs agent init, --all, --force, --check, fingerprint, coding agent, LLM, AI assistant, agent instructions, AGENTS.md, SKILL.md, .claude, Claude Code, skill, Cursor, .cursor, .mdc, GitHub Copilot, .instructions.md, adapter, pointer, stale documentation, hallucinated member, nvs check loop
 
 ### nvs agent
 
@@ -29292,20 +29292,19 @@ compiles, and a section that stops being true stops being printed rather than be
 
 ### nvs agent init
 
-    nvs agent init [--all]
+    nvs agent init [--all] [--force | --check]
 
-Installs the surface into the project in the working directory, by writing the pointers that tell a
-coding agent these commands exist. It is the only verb here that writes a file, and what it writes
-is a pointer at the four above rather than anything one of them would answer.
+Writes the files that tell a coding agent these commands exist, into the project in the working
+directory. It is the only command here that writes a file. Each file points at the commands above
+and says nothing else.
 
 Two kinds of file, and both say the same thing:
 
-- **`AGENTS.md`** — harness-neutral, and read by most agent harnesses. It gains a stanza delimited
-  by the two comment markers `init` owns, at the foot of whatever the file already said, so a
-  project's own instructions keep the opening of their own document. A project with no `AGENTS.md`
-  gets one holding the stanza alone.
+- **`AGENTS.md`** is read by most agent tools. `init` adds a stanza at the end of the file, between
+  two comment markers. Your own text above and below the markers stays as it is. A project with no
+  `AGENTS.md` gets a new one that has only the stanza.
 
-      <!-- nvs agent: written by `nvs agent init` -->
+      <!-- nvs agent: written by `nvs agent init`, fingerprint 1a2b3c4d -->
 
       ## Novis
 
@@ -29313,27 +29312,42 @@ Two kinds of file, and both say the same thing:
 
       <!-- /nvs agent -->
 
-- **One adapter per harness**, in the place that harness looks: a Claude Code skill at
-  `.claude/skills/novis/SKILL.md`, written when the tree has a `.claude/` directory. An adapter is
-  that harness's own header over the same protocol the stanza carries, so what it says is fixed and
-  only where it goes is the harness's. `--all` writes every adapter whether or not the tree shows
-  the harness, which is what a project sets up for contributors on other tools.
+- **One adapter per agent tool**, in the place that tool reads. `init` writes an adapter only when
+  the project already uses that tool:
 
-**No adapter states a language fact.** Not a signature, not a type, not a refusal. A language fact
-written into a pointer is a copy of an answer, and a copy is read by an agent that has no way to
-know it is old — which is the failure the commands above exist to remove. A pointer says where to
-ask; the binary answers.
+  | Tool | File | Written when the project has |
+  |---|---|---|
+  | Claude Code | `.claude/skills/novis/SKILL.md` | a `.claude/` directory |
+  | Cursor | `.cursor/rules/novis.mdc` | a `.cursor/` directory |
+  | GitHub Copilot | `.github/instructions/novis.instructions.md` | `.github/copilot-instructions.md` or `.github/instructions/` |
 
-**Re-running rewrites nothing.** A stanza or an adapter that still reads as this binary writes it is
-left alone, and line endings do not count: a checkout with CRLF line endings is the same text.
-`init` prints `wrote <path>` for each file it created, and `up to date` when it created none. A
-stanza or adapter holding anything else is refused — the message names the file and says to
-delete the block and run the command again, the exit status is non-zero, and nothing on disk
-changes. An upgrade and an edit somebody made on purpose look identical from the file, so both take
-the same answer, which is the one that cannot destroy the reader's own sentence.
+  An adapter is the tool's own header over the same text the stanza has. `--all` writes every
+  adapter, also for tools the project does not use yet.
 
-These are three runs in a project that has no `AGENTS.md` and no `.claude/` directory. The second
-run creates nothing. The third run has `--all`, so it creates the Claude Code skill:
+**No file states a language fact.** It has no signature, no type and no error message. A copy of a
+fact gets old when the language changes, and the agent that reads it cannot tell. So the files
+only say which commands to run, and the installed `nvs` gives the answers.
+
+**Run it again after you update `nvs`.** Each file has a fingerprint in its marker. The fingerprint
+is computed from the text `init` wrote, so `init` can see whether somebody changed the file:
+
+- A file that is missing is written, and `init` prints `wrote <path>`.
+- A file that nobody changed, but that an older `nvs` wrote, is replaced with the current text.
+  `init` prints `updated <path>`.
+- A file that somebody changed is not touched. `init` prints an error that names the file, exits
+  with a non-zero status, and writes no file at all. `--force` replaces the changed file.
+- When there is nothing to write, `init` prints `up to date`.
+
+Line endings do not count, so a checkout with CRLF line endings has the same fingerprint.
+`nvs agent primer` also prints one line on standard error when the project has a file that an
+older `nvs` wrote, so the agent learns about it.
+
+`--check` writes nothing. It prints `missing`, `outdated` or `edited` and the path for each file
+that is not current, and exits with a non-zero status. When every file is current it prints
+`up to date` and succeeds. You can run it in CI.
+
+These are three runs in a project that has no `AGENTS.md` and no agent tool directory. The second
+run writes nothing. The third run has `--all`, so it writes every adapter:
 
 ```text
 $ nvs agent init
@@ -29342,6 +29356,8 @@ $ nvs agent init
 up to date
 $ nvs agent init --all
 wrote .claude/skills/novis/SKILL.md
+wrote .cursor/rules/novis.mdc
+wrote .github/instructions/novis.instructions.md
 ```
 
 ### A worked session

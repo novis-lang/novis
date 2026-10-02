@@ -1,0 +1,9 @@
+{
+  "title": "`nvs agent init` updates every file it wrote that nobody has edited since, told apart by a fingerprint in the file's own marker",
+  "status": "accepted",
+  "scope": "what a re-run of `nvs agent init` does to the files an earlier run wrote, how a project and an\nagent learn that those files are older than the installed binary, and which harnesses get an\nadapter. What a pointer may say is [0167](0167.md)'s and unchanged.",
+  "dependsOn": [
+    "0167"
+  ],
+  "validatedBy": "`crates/nvs-cli/tests/agent.rs` — the `init_*` cases, `every_unit_carries_a_fingerprint_in_its_marker`\nand `the_primer_notes_a_harness_whose_pointer_is_missing_and_nothing_else`."
+}

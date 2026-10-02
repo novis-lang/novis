@@ -1,13 +1,16 @@
 {
-  "title": "`nvs agent init` writes one pointer per harness, and no adapter ever states a language fact",
-  "status": "designed",
+  "title": "`nvs agent init` writes one pointer per harness and keeps it current with the installed binary, and no adapter ever states a language fact",
+  "status": "shipped",
   "because": [
-    "0167"
+    "0167",
+    "0256"
   ],
   "seeAlso": [
     "tooling/an-agent-asks-the-binary",
     "tooling/a-primer-claim-is-executed",
     "ide/the-extension-guides-an-install-and-never-bundles-one"
   ],
-  "guardedBy": []
+  "guardedBy": [
+    "crates/nvs-cli/tests/agent.rs"
+  ]
 }

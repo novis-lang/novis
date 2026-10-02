@@ -871,11 +871,21 @@ enum AgentCommand {
     /// None of them states a language fact, for any reason — that is what the
     /// four commands are for, and a copy of one of their answers would be stale
     /// the day the member it describes changes.
+    ///
+    /// Running it again updates every file it wrote that nobody has edited
+    /// since, and refuses a file somebody has edited.
     // `rule:tooling/an-adapter-carries-protocol-and-never-language`.
     Init {
         /// Write every adapter, rather than only the harnesses this tree shows.
         #[arg(long)]
         all: bool,
+        /// Replace a file somebody edited after `init` wrote it.
+        #[arg(long)]
+        force: bool,
+        /// Write nothing; name each file that is missing, outdated or edited,
+        /// and fail when there is one.
+        #[arg(long, conflicts_with = "force")]
+        check: bool,
     },
 }
 
@@ -1701,7 +1711,7 @@ fn main() -> ExitCode {
             AgentCommand::Index => agent::index(),
             AgentCommand::Find { query } => agent::find(&query),
             AgentCommand::Show { symbol } => agent::show(&symbol),
-            AgentCommand::Init { all } => agent::init(all),
+            AgentCommand::Init { all, force, check } => agent::init(all, force, check),
         },
     }
 }

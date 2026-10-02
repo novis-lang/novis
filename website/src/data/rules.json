@@ -1,8 +1,8 @@
 {
   "totals": {
     "total": 1030,
-    "shipped": 788,
-    "designed": 242,
+    "shipped": 789,
+    "designed": 241,
     "diverging": 596
   },
   "topics": [
@@ -2277,8 +2277,8 @@
       "single": false,
       "counts": {
         "total": 67,
-        "shipped": 45,
-        "designed": 22,
+        "shipped": 46,
+        "designed": 21,
         "diverging": 40
       },
       "sections": [
@@ -2595,8 +2595,8 @@
           "url": "/docs/rules/tooling/doc-comments-and-metadata/",
           "counts": {
             "total": 14,
-            "shipped": 8,
-            "designed": 6,
+            "shipped": 9,
+            "designed": 5,
             "diverging": 6
           },
           "rules": [
@@ -2707,8 +2707,8 @@
             {
               "id": "tooling/an-adapter-carries-protocol-and-never-language",
               "slug": "an-adapter-carries-protocol-and-never-language",
-              "title": "`nvs agent init` writes one pointer per harness, and no adapter ever states a language fact",
-              "status": "designed",
+              "title": "`nvs agent init` writes one pointer per harness and keeps it current with the installed binary, and no adapter ever states a language fact",
+              "status": "shipped",
               "href": "/docs/rules/tooling/doc-comments-and-metadata/#an-adapter-carries-protocol-and-never-language",
               "diverges": null
             }

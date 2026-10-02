@@ -1283,3 +1283,346 @@ fn a_refused_adapter_leaves_the_stanza_unwritten() {
     assert!(!out.contains("wrote"), "it wrote nothing: {out}");
     assert_eq!(snapshot(&dir), before, "and `AGENTS.md` does not exist");
 }
+
+/// What every marker `init` writes opens with.
+const MARK: &str = "<!-- nvs agent: written by `nvs agent init`";
+
+/// The protocol the `init` before fingerprints wrote, verbatim, which is what a
+/// project that ran that binary still carries.
+const LEGACY_PROTOCOL: &str = "\
+Novis is the language this project is written in, and the `nvs` binary installed on this machine is
+its documentation. It answers from the registry it compiles against, so an answer can never describe
+a version that is not installed — which is why nothing about the language itself is written here.
+
+- `nvs agent primer` — read once, before writing anything. The short document that makes a coding
+  agent productive.
+- `nvs agent index` — one line per member of the standard library.
+- `nvs agent find <query>` — the index lines whose class or member name matches. A command rather
+  than a grep, because a namespaced name loses its backslash to the shell before grep sees it.
+- `nvs agent show <symbol>` — one symbol's card: its signature, its prose, its parameters and what
+  it throws.
+
+Then check what you wrote. `nvs check <file>` names what is wrong and where, and `nvs test` runs the
+suite. That is the loop — read the primer once, `find` a name, `show` its card, `nvs check` — and
+the diagnostic is part of the documentation rather than an alternative to it.
+";
+
+/// The `AGENTS.md` and the Claude Code skill the `init` before fingerprints
+/// wrote, as `(stanza file, skill)`.
+fn legacy() -> (String, String) {
+    let stanza = format!(
+        "<!-- nvs agent: written by `nvs agent init` -->\n\n## Novis\n\n{LEGACY_PROTOCOL}\n\
+         <!-- /nvs agent -->\n"
+    );
+    let skill = format!(
+        "---\nname: novis\ndescription: Ask the installed `nvs` binary about the Novis language \
+         and check what you wrote — the primer, the index, one symbol's card, then `nvs check`. \
+         Use it whenever reading or writing Novis code.\n---\n\n# Novis\n\n{LEGACY_PROTOCOL}"
+    );
+    (stanza, skill)
+}
+
+/// `text` with its marker carrying the fingerprint of the text around it, the
+/// way `init` computes it: BLAKE3 over the text without the marker line, with
+/// `\r\n` read as `\n`, cut to eight hex digits. The text must be one unit, as
+/// an adapter is.
+fn refingerprint(text: &str) -> String {
+    let start = text.find(MARK).expect("the unit carries a marker");
+    let end = start + text[start..].find('\n').expect("the marker ends its line") + 1;
+    let rest = format!("{}{}", &text[..start], &text[end..]).replace("\r\n", "\n");
+    let print = &blake3::hash(rest.as_bytes()).to_hex()[..8];
+    format!(
+        "{}{MARK}, fingerprint {print} -->\n{}",
+        &text[..start],
+        &text[end..]
+    )
+}
+
+/// The texts a fresh `init --all` writes, as `(path, text)`, each call in a
+/// directory of its own because tests run in parallel.
+fn fresh() -> Vec<(String, String)> {
+    static CALLS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+    let call = CALLS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let name = format!("fresh-{call}");
+    let out = pointers(&name);
+    let _ = std::fs::remove_dir_all(
+        Path::new(env!("CARGO_TARGET_TMPDIR")).join(format!("nvs-agent-init-{name}")),
+    );
+    out
+}
+
+/// The pointer a fresh run writes at `path`.
+fn fresh_text(path: &str) -> String {
+    fresh()
+        .into_iter()
+        .find(|(at, _)| at == path)
+        .map(|(_, text)| text)
+        .unwrap_or_else(|| panic!("a fresh run writes {path}"))
+}
+
+/// Every unit `init` writes opens its own text with a marker that carries a
+/// fingerprint, and an adapter keeps its front matter on the first line, where
+/// its harness looks for it.
+// covers: tools:agents/nvs-agent-init
+#[test]
+fn every_unit_carries_a_fingerprint_in_its_marker() {
+    for (path, text) in fresh() {
+        let line = text
+            .lines()
+            .find(|line| line.starts_with(MARK))
+            .unwrap_or_else(|| panic!("{path} carries a marker"));
+        let print = line
+            .strip_prefix(MARK)
+            .and_then(|tail| tail.strip_prefix(", fingerprint "))
+            .and_then(|tail| tail.strip_suffix(" -->"))
+            .unwrap_or_else(|| panic!("{path}'s marker carries a fingerprint: {line}"));
+        assert_eq!(print.len(), 8, "{path}: {line}");
+        assert!(
+            print.chars().all(|c| c.is_ascii_hexdigit()),
+            "{path}: {line}"
+        );
+        if path != "AGENTS.md" {
+            assert!(
+                text.starts_with("---\n"),
+                "{path} opens on its front matter"
+            );
+        }
+        // The stanza ends at its close marker, and the line break after it is
+        // the file's own.
+        let unit = if path == "AGENTS.md" {
+            text.trim_end_matches('\n')
+        } else {
+            &text
+        };
+        assert_eq!(
+            refingerprint(unit),
+            unit,
+            "{path}: the fingerprint is BLAKE3's"
+        );
+    }
+}
+
+/// A unit that still matches its fingerprint was written by `init` and not
+/// edited, so a re-run replaces it with this binary's text — with its line
+/// endings converted to CRLF or not.
+// covers: tools:agents/nvs-agent-init
+#[test]
+fn init_updates_a_file_it_wrote_that_nobody_edited() {
+    let skill = ".claude/skills/novis/SKILL.md";
+    let current = fresh_text(skill);
+    for crlf in [false, true] {
+        let dir = tree(&format!("outdated-{crlf}"));
+        std::fs::create_dir_all(dir.join(".claude")).expect("the harness's own directory");
+        let (_, err, ok) = init(&dir, &[]);
+        assert!(ok, "the first run succeeds: {err}");
+
+        let mut older = refingerprint(&read(&dir, skill).replace("# Novis", "# Novis, older"));
+        if crlf {
+            older = older.replace('\n', "\r\n");
+        }
+        std::fs::write(dir.join(skill), &older).expect("the older pointer is written");
+
+        let (out, err, ok) = init(&dir, &["--check"]);
+        assert!(!ok, "`--check` fails on an outdated file: {out}{err}");
+        assert_eq!(
+            out.lines().collect::<Vec<_>>(),
+            [format!("outdated {skill}")]
+        );
+
+        let (out, err, ok) = init(&dir, &[]);
+        assert!(ok, "an untouched outdated file is updated: {err}");
+        assert_eq!(
+            out.lines().collect::<Vec<_>>(),
+            [format!("updated {skill}")]
+        );
+        assert_eq!(
+            read(&dir, skill),
+            current,
+            "it now reads as this binary writes it"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+}
+
+/// The stanza and the skill the `init` before fingerprints wrote carry no
+/// fingerprint, and are recognised by the text that binary wrote. Both are
+/// updated, in a LF and in a CRLF checkout, and the project's own text above
+/// the stanza is kept.
+// covers: tools:agents/nvs-agent-init
+#[test]
+fn init_updates_what_the_init_before_fingerprints_wrote() {
+    let skill = ".claude/skills/novis/SKILL.md";
+    let theirs = "# Ours\n\nOur own rules.\n\n";
+    let (stanza, legacy_skill) = legacy();
+    let current_stanza = fresh_text("AGENTS.md");
+    for crlf in [false, true] {
+        let dir = tree(&format!("legacy-{crlf}"));
+        let convert = |text: String| {
+            if crlf {
+                text.replace('\n', "\r\n")
+            } else {
+                text
+            }
+        };
+        std::fs::create_dir_all(dir.join(".claude/skills/novis")).expect("the skill directory");
+        std::fs::write(dir.join("AGENTS.md"), convert(format!("{theirs}{stanza}")))
+            .expect("the legacy stanza is written");
+        std::fs::write(dir.join(skill), convert(legacy_skill.clone()))
+            .expect("the legacy skill is written");
+
+        let note = primer_err(&dir);
+        assert!(
+            note.contains("nvs agent init"),
+            "the primer tells the agent the files are old: {note}"
+        );
+
+        let (out, err, ok) = init(&dir, &[]);
+        assert!(ok, "a legacy install is updated, not refused: {err}");
+        assert_eq!(
+            out.lines().collect::<Vec<_>>(),
+            ["updated AGENTS.md".to_owned(), format!("updated {skill}")]
+        );
+        let agents = read(&dir, "AGENTS.md");
+        assert!(agents.starts_with(&convert(theirs.to_owned())), "{agents}");
+        assert!(agents.contains(current_stanza.trim_end()), "{agents}");
+        assert_eq!(read(&dir, skill), fresh_text(skill));
+        assert_eq!(
+            primer_err(&dir),
+            "",
+            "and the primer has nothing more to say"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+}
+
+/// An edited file is refused and left byte for byte as it was. `--force`
+/// replaces it, and `--check` names it.
+// covers: tools:agents/nvs-agent-init
+#[test]
+fn init_force_replaces_an_edited_file_and_check_names_it() {
+    let dir = tree("force");
+    let (_, err, ok) = init(&dir, &[]);
+    assert!(ok, "the first run succeeds: {err}");
+    let written = read(&dir, "AGENTS.md");
+    let edited = written.replace("## Novis", "## Novis, as we use it");
+    std::fs::write(dir.join("AGENTS.md"), &edited).expect("the edited file is written");
+
+    let (out, _, ok) = init(&dir, &["--check"]);
+    assert!(!ok, "`--check` fails on an edited file");
+    assert_eq!(out.trim_end(), "edited AGENTS.md");
+    assert_eq!(primer_err(&dir), "", "an edited file is not called old");
+
+    let (_, err, ok) = init(&dir, &[]);
+    assert!(!ok, "an edited file is a refusal");
+    assert!(
+        err.contains("--force"),
+        "the refusal names the way out: {err}"
+    );
+    assert_eq!(read(&dir, "AGENTS.md"), edited, "and it changed nothing");
+
+    let (out, err, ok) = init(&dir, &["--force"]);
+    assert!(ok, "`--force` succeeds: {err}");
+    assert_eq!(out.trim_end(), "updated AGENTS.md");
+    assert_eq!(read(&dir, "AGENTS.md"), written);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// `--check` writes nothing. It fails and names each missing file until a run
+/// writes them, then says `up to date` and succeeds.
+// covers: tools:agents/nvs-agent-init
+#[test]
+fn init_check_writes_nothing_and_fails_until_every_file_is_current() {
+    let dir = tree("check");
+    std::fs::create_dir_all(dir.join(".cursor")).expect("the harness's own directory");
+
+    let (out, _, ok) = init(&dir, &["--check"]);
+    assert!(!ok, "missing files fail the check");
+    assert_eq!(
+        out.lines().collect::<Vec<_>>(),
+        ["missing AGENTS.md", "missing .cursor/rules/novis.mdc"]
+    );
+    assert!(files(&dir).is_empty(), "and it wrote nothing");
+
+    let (_, err, ok) = init(&dir, &[]);
+    assert!(ok, "the run succeeds: {err}");
+    let (out, err, ok) = init(&dir, &["--check"]);
+    assert!(ok, "a current tree passes: {err}");
+    assert_eq!(out.trim_end(), "up to date");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// Cursor is detected by `.cursor/`, and Copilot by its own instruction files.
+/// A `.github/` directory alone is in most projects, so it shows no harness.
+// covers: tools:agents/nvs-agent-init
+#[test]
+fn init_writes_the_cursor_and_copilot_pointers_when_those_harnesses_are_present() {
+    let cursor = ".cursor/rules/novis.mdc";
+    let copilot = ".github/instructions/novis.instructions.md";
+    let cases: [(&str, &[&str], Option<&str>); 4] = [
+        ("cursor", &[".cursor"], Some(cursor)),
+        ("github-only", &[".github/workflows"], None),
+        ("copilot-dir", &[".github/instructions"], Some(copilot)),
+        ("copilot-file", &[".github"], Some(copilot)),
+    ];
+    for (name, dirs, expected) in cases {
+        let dir = tree(&format!("harness-{name}"));
+        for sub in dirs {
+            std::fs::create_dir_all(dir.join(sub)).expect("the harness's own directory");
+        }
+        if name == "copilot-file" {
+            std::fs::write(dir.join(".github/copilot-instructions.md"), "Ours.\n")
+                .expect("the project's own instructions");
+        }
+        let (out, err, ok) = init(&dir, &[]);
+        assert!(ok, "`{name}`: {err}");
+        let mut wrote: Vec<&str> = vec!["wrote AGENTS.md"];
+        let line = expected.map(|path| format!("wrote {path}"));
+        if let Some(line) = &line {
+            wrote.push(line);
+        }
+        assert_eq!(out.lines().collect::<Vec<_>>(), wrote, "`{name}`");
+        if let Some(path) = expected {
+            assert_eq!(read(&dir, path), fresh_text(path), "`{name}`");
+        }
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    let mdc = fresh_text(cursor);
+    assert!(mdc.contains("\nglobs: **/*.nvs\n"), "{mdc}");
+    assert!(mdc.contains("\nalwaysApply: false\n"), "{mdc}");
+    assert!(mdc.contains("\ndescription: "), "{mdc}");
+    let instructions = fresh_text(copilot);
+    assert!(
+        instructions.starts_with("---\napplyTo: \"**/*.nvs\"\n---\n"),
+        "{instructions}"
+    );
+}
+
+/// A project that ran `init` and now shows a harness this binary has a pointer
+/// for lacks a file, and the primer says so.
+// covers: tools:agents/nvs-agent-init
+#[test]
+fn the_primer_notes_a_harness_whose_pointer_is_missing_and_nothing_else() {
+    let dir = tree("primer-note");
+    assert_eq!(primer_err(&dir), "", "a project with no files has no note");
+    let (_, err, ok) = init(&dir, &[]);
+    assert!(ok, "the run succeeds: {err}");
+    assert_eq!(primer_err(&dir), "", "a current project has no note");
+
+    std::fs::create_dir_all(dir.join(".cursor")).expect("the harness's own directory");
+    let note = primer_err(&dir);
+    assert_eq!(note.lines().count(), 1, "the note is one line: {note}");
+    assert!(note.contains("nvs agent init"), "{note}");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// `nvs agent primer`, run in `dir`, as its standard error.
+fn primer_err(dir: &Path) -> String {
+    let out = Command::new(env!("CARGO_BIN_EXE_nvs"))
+        .args(["agent", "primer"])
+        .current_dir(dir)
+        .output()
+        .expect("the `nvs` binary this test was built beside runs");
+    assert!(out.status.success(), "the primer succeeds");
+    String::from_utf8(out.stderr).expect("the output is UTF-8")
+}

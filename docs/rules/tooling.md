@@ -3,7 +3,7 @@
 
 # Tooling
 
-*22 of 67 rules below are **designed** rather than shipped, and are marked where they appear.*
+*21 of 67 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="tooling-shebang-opens-code-mode"></a>
 
@@ -1281,25 +1281,34 @@ and it is met by what the primer selects — never by trimming what a selected s
 
 <a id="tooling-an-adapter-carries-protocol-and-never-language"></a>
 
-## `nvs agent init` writes one pointer per harness, and no adapter ever states a language fact  *(designed — not yet in the compiler)*
+## `nvs agent init` writes one pointer per harness and keeps it current with the installed binary, and no adapter ever states a language fact
 
 `rule:tooling/an-adapter-carries-protocol-and-never-language`
 
 `nvs agent init` installs the surface into a project by writing one pointer per harness — an `AGENTS.md`
-stanza, which is harness-neutral, and beside it an adapter for each harness that is present, such as a
-Claude Code skill at `.claude/skills/novis/SKILL.md`. Each names the four `nvs agent` commands and the
-`nvs check` loop.
+stanza, which is harness-neutral, and beside it an adapter for each harness that is present: a Claude
+Code skill at `.claude/skills/novis/SKILL.md`, a Cursor rule at `.cursor/rules/novis.mdc`, and a GitHub
+Copilot instructions file at `.github/instructions/novis.instructions.md`. Each names the four
+`nvs agent` commands, the `nvs check` loop with its `--json` form, and `nvs test`.
 
 **No adapter states a language fact.** Not a member signature, not a refusal, not a type. A language
 fact written into an adapter is a copy that goes stale the day the member changes, and every copy is
 read by an agent that has no way to know it is old — which is the failure the whole surface is arranged
 to avoid. An adapter says where to ask; the binary answers.
 
+**A pointer follows the installed binary.** Each unit `init` writes carries a marker with a
+fingerprint of the text it wrote — BLAKE3 over the text without the marker line, `\r\n` read as `\n`,
+eight hex digits. A re-run replaces a unit that still matches its fingerprint and refuses, naming it
+and writing nothing, one that does not, unless `--force`. Every unit is judged before any is written.
+`--check` writes nothing and fails while a unit is missing, outdated or edited, and `nvs agent primer`
+puts one line on standard error while the working directory holds an outdated unit, so the agent
+reading the primer learns of it with nobody in between.
+
 That is what keeps the adapter list open. Another harness is another short pointer file, adding one
 decides nothing and reopens nothing, and none of them can disagree with the language, because none of
 them says anything about it.
 
-<sub>See also [`tooling/an-agent-asks-the-binary`](tooling.md#tooling-an-agent-asks-the-binary), [`tooling/a-primer-claim-is-executed`](tooling.md#tooling-a-primer-claim-is-executed), [`ide/the-extension-guides-an-install-and-never-bundles-one`](ide.md#ide-the-extension-guides-an-install-and-never-bundles-one). Decided in [0167](../decisions/0167.md).</sub>
+<sub>See also [`tooling/an-agent-asks-the-binary`](tooling.md#tooling-an-agent-asks-the-binary), [`tooling/a-primer-claim-is-executed`](tooling.md#tooling-a-primer-claim-is-executed), [`ide/the-extension-guides-an-install-and-never-bundles-one`](ide.md#ide-the-extension-guides-an-install-and-never-bundles-one). Decided in [0167](../decisions/0167.md), [0256](../decisions/0256.md).</sub>
 
 <a id="tooling-convert-php-front-end"></a>
 
