@@ -223,6 +223,24 @@ describe("the heavy set's named prediction", () => {
     }
   });
 
+  test("a TSan check builds the packages tools/tsan.sh names with what they are compiled against, and every package when it names none", () => {
+    const tsanGraph: Graph = new Map([
+      pkg("nvs-syntax", "crates/nvs-syntax"),
+      pkg("nvs-runtime", "crates/nvs-runtime", [["nvs-syntax", "normal"]]),
+      pkg("nvs-host", "crates/nvs-host", [["nvs-runtime", "normal"]]),
+      pkg("nvs-cli", "crates/nvs-cli", [["nvs-host", "normal"]]),
+    ]);
+    const tsan = check({ argv: ["wsl.exe", "--", "bash", "-lc", "bash tools/tsan.sh"] });
+    expect(heavyCrates(tsan, tsanGraph)).toEqual({ crates: ["nvs-host", "nvs-runtime", "nvs-syntax"], extra: ["tools/tsan.sh"] });
+    const t = scratch();
+    try {
+      t.put("tools/tsan.sh", "# nvs-hosted and nvs-cli-extra are not packages\ncargo test -p nvs-hosted\n");
+      expect(heavyCrates(tsan, tsanGraph, t.root).crates).toEqual(["nvs-cli", "nvs-host", "nvs-runtime", "nvs-syntax"]);
+    } finally {
+      t.cleanup();
+    }
+  });
+
   test("its keys are every Rust file of those crates, each directory that holds one, and what it reads besides", () => {
     const files = ["crates/nvs-host/src/lib.rs", "crates/nvs-host/src/io/mod.rs", "crates/nvs-syntax/src/lib.rs", "crates/nvs-cli/src/main.rs"];
     const keys = [...heavyKeys(check({ kind: "cargo-named", args: ["test", "--release", "-p", "nvs-host"] }), graph, files).keys()].sort();
