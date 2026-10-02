@@ -1,0 +1,12 @@
+{
+  "lead": "Renaming a test that a walked goal's record names fails `bun nv chain --check`, and so does renaming a `docs/reference/` heading.",
+  "body": "A walked goal's `cargo-named` check still lists the old test name. A heading's slug is a feature's id under `rule:testing/feature-proofs`, so the rename leaves that feature's examples, attack, bench and `// covers:` cases under the old id. Before you rename either one, search `data/goals/` with the Grep tool and `git grep` the old id. Then point the records at the new name, and `git mv` the proofs directories and the bench file to the new id in the same commit.",
+  "files": [
+    "docs/reference/",
+    "tools/nv/cmd/chain.ts"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "tools/nv/cmd/chain.ts:which no Rust file spells"
+  }
+}
