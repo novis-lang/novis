@@ -194,9 +194,6 @@ pub fn php_available(opts: &Options) -> bool {
 /// `--ORACLE--` case is skipped, with the reason, when it is false.
 #[must_use]
 pub fn run_case(case: &Case, opts: &Options, workdir: &Path, php_available: bool) -> Outcome {
-    if let Some(why) = &case.unsupported {
-        return Outcome::Fail(vec![format!("unsupported: {why}")]);
-    }
     if !php_available && matches!(case.oracle, Some(Oracle::Php(_))) {
         return Outcome::Skip(format!(
             "no PHP oracle: `{}` could not be run (pass --php)",
@@ -233,15 +230,8 @@ pub fn run_case(case: &Case, opts: &Options, workdir: &Path, php_available: bool
         ) {
             Err(error) => return Outcome::Fail(vec![format!("--SKIPIF--: {error}")]),
             Ok(output) => {
-                let text = String::from_utf8_lossy(&output.stdout);
-                let text = text.trim();
-                if let Some(reason) = text.strip_prefix("skip") {
-                    let reason = reason.trim();
-                    return Outcome::Skip(if reason.is_empty() {
-                        "--SKIPIF--".to_owned()
-                    } else {
-                        reason.to_owned()
-                    });
+                if let Some(outcome) = skipif_verdict(&output) {
+                    return outcome;
                 }
             }
         }
@@ -268,6 +258,30 @@ pub fn run_case(case: &Case, opts: &Options, workdir: &Path, php_available: bool
         );
     }
     outcome
+}
+
+/// What a `--SKIPIF--` program's run says about its case, or `None` to run it.
+///
+/// A SKIPIF that exits non-zero fails the case with its stderr, whatever it
+/// printed. One that does not compile prints nothing, so reading its stdout
+/// alone would run a case whose author meant to guard it — green on a machine
+/// where the guarded service is up, red everywhere else.
+fn skipif_verdict(output: &Output) -> Option<Outcome> {
+    if !output.status.success() {
+        let failed = match output.status.code() {
+            Some(code) => format!("--SKIPIF-- failed; it exited {code}"),
+            None => "--SKIPIF-- failed".to_owned(),
+        };
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Some(Outcome::Fail(vec![failed, indented("stderr", &stderr)]));
+    }
+    let text = String::from_utf8_lossy(&output.stdout);
+    let reason = text.trim().strip_prefix("skip")?.trim();
+    Some(Outcome::Skip(if reason.is_empty() {
+        "--SKIPIF--".to_owned()
+    } else {
+        reason.to_owned()
+    }))
 }
 
 fn judge(case: &Case, opts: &Options, workdir: &Path, record: &[(String, String)]) -> Outcome {
@@ -701,6 +715,43 @@ mod tests {
             dir.join(format!("{stem}.log")).display().to_string()
         );
         assert_eq!(value("NOVIS_NO_FILE_CACHE"), "1");
+    }
+
+    /// A finished process's output, with `code` as its exit status.
+    fn exited(code: i32, stdout: &str, stderr: &str) -> Output {
+        #[cfg(unix)]
+        let status = std::os::unix::process::ExitStatusExt::from_raw(code << 8);
+        #[cfg(windows)]
+        let status = std::os::windows::process::ExitStatusExt::from_raw(code.cast_unsigned());
+        Output {
+            status,
+            stdout: stdout.as_bytes().to_vec(),
+            stderr: stderr.as_bytes().to_vec(),
+        }
+    }
+
+    #[test]
+    fn skipif_that_exits_nonzero_fails_the_case() {
+        let verdict = skipif_verdict(&exited(1, "", "error[E0605]: not granted\n"));
+        assert_eq!(
+            verdict,
+            Some(Outcome::Fail(vec![
+                "--SKIPIF-- failed; it exited 1".to_owned(),
+                "  stderr:\n    error[E0605]: not granted".to_owned(),
+            ]))
+        );
+        assert!(
+            matches!(
+                skipif_verdict(&exited(1, "skip no store\n", "")),
+                Some(Outcome::Fail(_))
+            ),
+            "a SKIPIF that failed is not believed when it says skip"
+        );
+        assert_eq!(
+            skipif_verdict(&exited(0, "skip no store\n", "")),
+            Some(Outcome::Skip("no store".to_owned()))
+        );
+        assert_eq!(skipif_verdict(&exited(0, "", "")), None);
     }
 
     #[test]
