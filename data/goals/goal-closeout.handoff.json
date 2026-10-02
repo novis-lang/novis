@@ -1,26 +1,37 @@
 {
-  "state": "**Goal `goal-closeout`, Stage 4 (finished in place) is under way.** Stage 3 is done: `docs/agent/goal-decisions.md` names every goal in front of `goal-closeout`.\n\nThe `nvs-diagnostics`, `benches`, `nvs-test` and `nvs-db` gap directories are closed for this goal. In `nvs-ir`, the conversion-roster gap is closed: the module doc now names the object targets that keep `E0711` (plain `object`, a `callable`, a `Core` namespace class, a shape whose fields carry a qualifier). One `nvs-ir` gap is left for this goal, the computed `require` below. The other three `nvs-ir` gaps are owned by milestones M10 and M12, so they stay with their owners.\n\nThe floor check `the latest CI run on main succeeded for the code HEAD holds` is red only because `main` is many commits ahead of `origin/main` and the loop never pushes (`tools/nv/cmd/ci-green.ts`'s module doc). A person pushes. No session can close it. CI's `proofs` job has not had its first run for the same reason.\n\n`bun nv owners --closes goal-closeout` names about 74 gaps across many crates. Take them one directory at a time, smallest first. Stage 4 stops on `BLOCKED` only for \"too large\", which the goal's § *Stage 4* defines.\n\n`bun nv import` is broken, because the rule index it reads was deleted. Goal `ci-green`'s floor check stays red until Stage 6. That is expected.",
+  "state": "**Goal `goal-closeout`, Stage 4 (finished in place) is under way.** Stage 3 is done: `docs/agent/goal-decisions.md` names every goal in front of `goal-closeout`.\n\nThe `nvs-diagnostics`, `benches`, `nvs-test`, `nvs-db` and `nvs-ir` gap directories are closed for this goal. The last `nvs-ir` gap closed by keeping `rule:statements/require-is-the-only-inclusion-construct` as written: a `require` with no compiled file (a computed path, or a literal in a source with no folder) evaluates its path and throws a `RuntimeError` at the site (`lower_unloaded_require` in `crates/nvs-ir/src/lower/exception.rs`), pinned by `tests/conformance/lang/a-require-with-a-computed-path-throws.nvst`. The other three `nvs-ir` gaps are owned by milestones M10 and M12, so they stay with their owners.\n\nThe floor check `the latest CI run on main succeeded for the code HEAD holds` is red only because `main` is many commits ahead of `origin/main` and the loop never pushes (`tools/nv/cmd/ci-green.ts`'s module doc). A person pushes. No session can close it. CI's `proofs` job has not had its first run for the same reason.\n\n`bun nv owners --closes goal-closeout` names 73 gaps across many crates. Take them one directory at a time, smallest first. Stage 4 stops on `BLOCKED` only for \"too large\", which the goal's § *Stage 4* defines.\n\n`bun nv import` is broken, because the rule index it reads was deleted. Goal `ci-green`'s floor check stays red until Stage 6. That is expected.",
   "next": {
     "stage": 4,
     "title": "finished in place",
     "files": [
-      "crates/nvs-ir/src/lower/stmt.rs",
-      "crates/nvs-ir/src/lower/expr.rs",
-      "crates/nvs-hir/src/requires.rs"
+      "crates/nvs-syntax/src/parser/decl.rs",
+      "crates/nvs-syntax/src/parser/expr.rs",
+      "crates/nvs-syntax/src/parser/mod.rs",
+      "crates/nvs-syntax/src/lexer.rs"
     ],
+    "note": "Each is a diagnostic code the code table declares and the parser never raises. Raise it, pin it with a `tests/conformance/reject/` case, and delete the gap record under `data/gaps/nvs-syntax/`.",
     "items": [
       {
         "done": false,
-        "text": "**A `require` with a computed path runs nothing** — `data/gaps/nvs-ir/a-require-with-a-computed-path-runs-nothing.json`, under `rule:statements/require-is-the-only-inclusion-construct`. The statement arm is at `crates/nvs-ir/src/lower/stmt.rs:403` and the value arm, which yields a tagged `1`, is at `crates/nvs-ir/src/lower/expr.rs:653`. The path walk that gives up on a computed path is at `crates/nvs-hir/src/requires.rs:1356`. Decide first. Throwing a `RuntimeError` at the site keeps the rule as written and stays in `nvs-ir`. Refusing the path where it is written (next free `E0328`) narrows the rule, and this goal may open no ADR but Stage 5's. Both close the security hole. Pin it with a conformance case, then delete the gap record."
+        "text": "**A repeated or misplaced modifier compiles, and `E0106` is never raised** — gap `a-repeated-or-misplaced-modifier-compiles`. The modifier loop is at `crates/nvs-syntax/src/parser/decl.rs:188`."
       },
       {
         "done": false,
-        "text": "**The next smallest gap directory** — `bun nv owners --closes goal-closeout` lists it, anchored where the gap's `module` names it, starting from `data/gaps/` as `crates/nvs-ir/src/lib.rs:1` was this session."
+        "text": "**Two parameters with one name compile, and `E0107` is never raised** — gap `two-parameters-with-one-name-compile`. The list parse is at `crates/nvs-syntax/src/parser/expr.rs:1967`."
+      },
+      {
+        "done": false,
+        "text": "**A second `namespace X;` in one file compiles, and `E0243` is never raised** — gap `a-second-namespace-statement-in-one-file-compiles`. The declaration parse is at `crates/nvs-syntax/src/parser/decl.rs:311`."
+      },
+      {
+        "done": false,
+        "text": "**A malformed number literal is reported as another error, and `E0003` is never raised** — gap `a-malformed-number-literal-is-reported-as-something-else`. The number lexer is at `crates/nvs-syntax/src/lexer.rs:757`."
       }
     ]
   },
   "backlog": [
-    "The floor check on CI waits for a person to push `main` (`tools/nv/cmd/ci-green.ts`).",
-    "Stage 5 (deletion becomes the rule) and Stage 6 (the old goals are deleted) follow Stage 4 (`docs/agent/goals/goal-closeout.md`)."
+    "`crates/nvs-syntax/src/parser/expr.rs`'s other gap, `the-pipeline-bench-has-no-nested-twin`, is a bench and not a diagnostic; take it after the group above.",
+    "Whether `nvs build --compile` refuses a computed `require` path, as `rule:packaging/a-bundled-require-resolves-at-build-time` says it must, is not checked.",
+    "The remaining gap directories, smallest first, from `bun nv owners --closes goal-closeout`."
   ]
 }
