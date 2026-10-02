@@ -1,5 +1,5 @@
 {
-  "live": "var-array-literal",
+  "live": "program-enumeration",
   "goals": [
     "core-depth",
     "concurrency",
