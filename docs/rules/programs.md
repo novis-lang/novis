@@ -3,7 +3,7 @@
 
 # Programs
 
-*6 of 21 rules below are **designed** rather than shipped, and are marked where they appear.*
+*7 of 22 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="programs-audience"></a>
 
@@ -156,35 +156,36 @@ are written down as they are incurred.
 
 <a id="programs-implementing"></a>
 
-## `Core\Program::implementing<T>()` is the one enumeration, and it expands while compiling
+## `Core\Program::implementing<T>()` lists every concrete class that is a `T`, for an interface or a class, and it expands while compiling
 
 `rule:programs/implementing`
 
 ```php
-function Core\Program::implementing<T>(): array<T>;   // T must be an interface type
+function Core\Program::implementing<T>(): array<T>;   // T is an interface or a class
 ```
 
-It expands, while compiling, to an array literal of `new` expressions — one per non-abstract class in
-the program implementing `T`, **sorted by fully-qualified name**, so the order never depends on
-filesystem enumeration. Each such class needs a no-argument constructor; a diagnostic names any that
-does not, and dependencies arrive through the interface's own methods instead. Because the expansion is
-ordinary `new` evaluated at the call site, the instances are per-request like every other object and
-nothing crosses an isolate boundary.
+It expands, while compiling, to an array literal of `new` expressions — one per non-abstract class `C`
+in the program for which `$c is T` holds, **sorted by fully-qualified name**, so the order never depends
+on filesystem enumeration. `T` may be an interface or a class, abstract or not, and a concrete `T` is in
+its own list. Each listed class needs a no-argument constructor; a diagnostic names any that does not,
+and a class whose constructor takes arguments is enumerated through [`programs/constructors`](programs.md#programs-constructors)
+instead. Because the expansion is ordinary `new` evaluated at the call site, the instances are
+per-request like every other object and nothing crosses an isolate boundary.
 
-The selector is an interface rather than an attribute because the interface is what gives the loop body
-a static type to call through: `object` is opaque, shape types describe data rather than methods, and
-`callable` carries no signature.
+The selector is a type rather than an attribute because a type is what gives the loop body something to
+call through: `object` is opaque, shape types describe data rather than methods, and bare `callable`
+carries no signature. An interface and a class both give it, so every other type argument is refused.
 
 Answering the query means parsing and collecting declarations from every file under every autoload root
 — the one place resolution is not lazy, and the only thing in Novis that makes a compiled unit depend
 on a *directory's contents* rather than a file's bytes. It is therefore opt-in: **a program that calls
-neither this member, nor `implementingWith`, nor a `Core\Router` or `Core\Request` member whose answer
-comes from the compile-time route table performs no scan at all**, and a program calling any of them pays the directory-listing
-dependency once, however many it calls. Type checking and lowering stay
-lazy regardless — a discovered class nobody calls is never checked past its declaration and never
-reaches codegen.
+no `Core\Program` enumeration member — this one, `implementingWith` or `constructors` — nor a
+`Core\Router` or `Core\Request` member whose answer comes from the compile-time route table performs no
+scan at all**, and a program calling any of them pays the directory-listing dependency once, however
+many it calls. Type checking and lowering stay lazy regardless — a discovered class nobody calls is
+never checked past its declaration and never reaches codegen.
 
-<sub>See also [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload), [`programs/autoload`](programs.md#programs-autoload), [`programs/framework-refusals`](programs.md#programs-framework-refusals). Decided in [0061](../decisions/0061.md).</sub>
+<sub>See also [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload), [`programs/autoload`](programs.md#programs-autoload), [`programs/framework-refusals`](programs.md#programs-framework-refusals), [`programs/constructors`](programs.md#programs-constructors). Decided in [0061](../decisions/0061.md), [0253](../decisions/0253.md).</sub>
 
 <a id="programs-implementing-with"></a>
 
@@ -202,8 +203,10 @@ instance and what `Core\Attributes::get<T>` answers for that class's own `$membe
 an empty name, its method for a method name, its property or constructor parameter otherwise, so a
 promoted parameter is read once. `attribute` is the one attached literal satisfying `T`, or `null`.
 
+`I` is an interface or a class, selected exactly as `implementing<I>` selects it.
+
 It exists because the two cannot be composed by a program. A retrieval names its target where it is
-written, and inside a loop over the enumeration the variable is typed as the interface, so no class is
+written, and inside a loop over the enumeration the variable is typed as `I`, so no listed class is
 written anywhere; a framework could enumerate its classes or read their attributes, and not both. The
 compiler holds both lists at the same moment, and the join is one retrieval fold per class — nothing
 about what a retrieval target may be changes, and no reflection table reaches the compiled unit.
@@ -214,7 +217,35 @@ is not a shape is `E0729`. A `$member` that is not a string literal names no ros
 `attribute` is `null`, as the retrieval's computed member folds. The enumeration's own two refusals
 hold unchanged.
 
-<sub>See also [`programs/implementing`](programs.md#programs-implementing), [`attributes/structural-retrieval`](attributes.md#attributes-structural-retrieval), [`attributes/retrieval-folds-while-checking`](attributes.md#attributes-retrieval-folds-while-checking). Decided in [0212](../decisions/0212.md).</sub>
+<sub>See also [`programs/implementing`](programs.md#programs-implementing), [`attributes/structural-retrieval`](attributes.md#attributes-structural-retrieval), [`attributes/retrieval-folds-while-checking`](attributes.md#attributes-retrieval-folds-while-checking). Decided in [0212](../decisions/0212.md), [0253](../decisions/0253.md).</sub>
+
+<a id="programs-constructors"></a>
+
+## `Core\Program::constructors<T, C>()` lists the enumeration's classes with one closure each, typed by `C`, and it expands while compiling  *(designed — not yet in the compiler)*
+
+`rule:programs/constructors`
+
+```php
+function Core\Program::constructors<T, C>(): array<{class: string, make: C}>;   // C is callable(...): T
+```
+
+It expands, while compiling, to an array literal of one row per class [`programs/implementing`](programs.md#programs-implementing)'s
+`implementing<T>()` would list, **in the same order**, so the two can be zipped. `class` is the
+fully-qualified name. `make` is the ordinary closure `fn(<C's parameters>): T => new Class(<the same
+arguments, in order>)`, checked exactly as that closure would be if it were written at the call site —
+argument types, defaults and the visibility `new` faces there. No new calling path and no reflection is
+involved: the rows are what a program could have written by hand, had it known the list.
+
+`C` must be a `callable(...)` type whose return type is `T`, or the call is refused. A class whose
+constructor that closure does not fit is refused on the call, naming the class, with the ordinary error
+attached as a note. The enumeration's no-argument-constructor demand does not apply here: this member
+is how a class whose constructor takes dependencies is enumerated.
+
+Nothing is built until `make` is called. Each call allocates one closure per listed class, charged to
+the request and freed with the array, and calling it opts the program into the same scan the other
+enumeration members do.
+
+<sub>See also [`programs/implementing`](programs.md#programs-implementing), [`programs/implementing-with`](programs.md#programs-implementing-with), [`types/callable-signature`](types.md#types-callable-signature). Decided in [0253](../decisions/0253.md).</sub>
 
 <a id="programs-compile-target"></a>
 
@@ -584,15 +615,15 @@ would be a second spelling of one job. `Web\Response::view` renders a `.nvs` fil
   or ambiguous binding is a compile error naming the interface and the constructor parameter, rather
   than a container exception in production. A container that resolves a class by string name is the
   mechanism behind facades, and nothing it would need still exists.
-- **No plugin auto-discovery beyond what exists.** [`programs/implementing`](programs.md#programs-implementing) is the one enumeration;
-  there is no scan of a vendor directory for service providers.
+- **No plugin auto-discovery beyond what exists.** [`programs/implementing`](programs.md#programs-implementing)'s scan is the only
+  discovery; there is no scan of a vendor directory for service providers.
 - **No configuration cache, no route cache, no autoload dump.** Every one of those exists in PHP
   frameworks to move compile-time work off the request path, and every one of them is work Novis
   already does while compiling.
 - **No second way to do anything the language does.** The framework ships no collections of its own, no
   date type, no string helpers and no error hierarchy.
 
-<sub>See also [`programs/first-party-framework`](programs.md#programs-first-party-framework), [`programs/implementing`](programs.md#programs-implementing). Decided in [0082](../decisions/0082.md).</sub>
+<sub>See also [`programs/first-party-framework`](programs.md#programs-first-party-framework), [`programs/implementing`](programs.md#programs-implementing). Decided in [0082](../decisions/0082.md), [0253](../decisions/0253.md).</sub>
 
 <a id="programs-no-migration-runner"></a>
 

@@ -10,6 +10,7 @@ Every rule carrying a `divergesFromPhp` note, with the rule that owns it. Genera
 | Programs | existing PHP packages, frameworks and code do not run, and no document may imply otherwise | [`programs/no-compatibility-promise`](rules/programs.md#programs-no-compatibility-promise) |
 | Programs | a plugin roster is a compile-time array literal, not a `foreach` over `new $className` | [`programs/implementing`](rules/programs.md#programs-implementing) |
 | Programs | a plugin roster with its metadata is one compile-time array literal, not a `ReflectionClass` sweep over discovered classes | [`programs/implementing-with`](rules/programs.md#programs-implementing-with) |
+| Programs | a plugin factory list is a compile-time array literal of closures, not `new $className(...$args)` over discovered names | [`programs/constructors`](rules/programs.md#programs-constructors) |
 | Programs | there is no `spl_autoload_register`, no `__autoload` and no `new $name` — a name held in a string can never reach a file | [`programs/no-runtime-autoload`](rules/programs.md#programs-no-runtime-autoload) |
 | Programs | the map is a declaration in source rather than a registered loader or a `psr-4` manifest, and it travels with the code instead of with the deployment | [`programs/autoload`](rules/programs.md#programs-autoload) |
 | Programs | PSR-4 imposes this by convention; here it is a diagnostic | [`programs/one-declaration-per-autoloaded-file`](rules/programs.md#programs-one-declaration-per-autoloaded-file) |

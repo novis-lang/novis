@@ -16,13 +16,13 @@ next:
 
 <p class="nv-section-lead">How a name reaches the file that declares it — while compiling, with no loader running anywhere.</p>
 
-<div class="nv-counts"><div class="nv-count" data-kind="total"><span class="nv-count-value">10</span><span class="nv-count-label">rules</span></div><div class="nv-count" data-kind="shipped"><span class="nv-count-value">9</span><span class="nv-count-label">shipped</span></div><div class="nv-count" data-kind="designed"><span class="nv-count-value">1</span><span class="nv-count-label">designed</span></div><div class="nv-count" data-kind="php"><span class="nv-count-value">7</span><span class="nv-count-label">differ from PHP</span></div></div>
+<div class="nv-counts"><div class="nv-count" data-kind="total"><span class="nv-count-value">11</span><span class="nv-count-label">rules</span></div><div class="nv-count" data-kind="shipped"><span class="nv-count-value">9</span><span class="nv-count-label">shipped</span></div><div class="nv-count" data-kind="designed"><span class="nv-count-value">2</span><span class="nv-count-label">designed</span></div><div class="nv-count" data-kind="php"><span class="nv-count-value">8</span><span class="nv-count-label">differ from PHP</span></div></div>
 
-<ol class="nv-rule-list"><li><a href="#implementing"><code>Core\Program::implementing&lt;T&gt;()</code> is the one enumeration, and it expands while compiling</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#implementing-with"><code>Core\Program::implementingWith&lt;I, T&gt;($member)</code> joins the enumeration with one attribute per class, and it expands while compiling</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#compile-target">A compile target changes the host context, never the language</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#no-runtime-autoload">A name reaches its file while compiling; there is no runtime loader of any kind</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#autoload"><code>autoload</code> maps a prefix to roots, resolved relative to the file that declares it</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#one-declaration-per-autoloaded-file">A file reached by autoload declares exactly one thing, under the name the map finds it by</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#path-case">A <code>require</code> path is compared against the on-disk entry exactly, on every OS</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#path-literals-resolve-from-their-file">A relative path literal at a path parameter names a file beside the source file that wrote it, and a relative path built at run time throws</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#program-id"><code>Core\Program::id()</code> is 64 hex characters naming this program's code and environment</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#bundle-trust-domain">A bundled executable is one trust domain: a program, never a service</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li></ol>
+<ol class="nv-rule-list"><li><a href="#implementing"><code>Core\Program::implementing&lt;T&gt;()</code> lists every concrete class that is a <code>T</code>, for an interface or a class, and it expands while compiling</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#implementing-with"><code>Core\Program::implementingWith&lt;I, T&gt;($member)</code> joins the enumeration with one attribute per class, and it expands while compiling</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#constructors"><code>Core\Program::constructors&lt;T, C&gt;()</code> lists the enumeration's classes with one closure each, typed by <code>C</code>, and it expands while compiling</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#compile-target">A compile target changes the host context, never the language</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#no-runtime-autoload">A name reaches its file while compiling; there is no runtime loader of any kind</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#autoload"><code>autoload</code> maps a prefix to roots, resolved relative to the file that declares it</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#one-declaration-per-autoloaded-file">A file reached by autoload declares exactly one thing, under the name the map finds it by</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#path-case">A <code>require</code> path is compared against the on-disk entry exactly, on every OS</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#path-literals-resolve-from-their-file">A relative path literal at a path parameter names a file beside the source file that wrote it, and a relative path built at run time throws</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#program-id"><code>Core\Program::id()</code> is 64 hex characters naming this program's code and environment</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#bundle-trust-domain">A bundled executable is one trust domain: a program, never a service</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li></ol>
 
 <div class="nv-rule" id="implementing">
 
-## `Core\Program::implementing<T>()` is the one enumeration, and it expands while compiling
+## `Core\Program::implementing<T>()` lists every concrete class that is a `T`, for an interface or a class, and it expands while compiling
 
 <div class="nv-rule-tags">
 <span class="nv-rule-status" data-status="shipped">Shipped</span>
@@ -31,35 +31,36 @@ next:
 </div>
 
 ```php
-function Core\Program::implementing<T>(): array<T>;   // T must be an interface type
+function Core\Program::implementing<T>(): array<T>;   // T is an interface or a class
 ```
 
-It expands, while compiling, to an array literal of `new` expressions — one per non-abstract class in
-the program implementing `T`, **sorted by fully-qualified name**, so the order never depends on
-filesystem enumeration. Each such class needs a no-argument constructor; a diagnostic names any that
-does not, and dependencies arrive through the interface's own methods instead. Because the expansion is
-ordinary `new` evaluated at the call site, the instances are per-request like every other object and
-nothing crosses an isolate boundary.
+It expands, while compiling, to an array literal of `new` expressions — one per non-abstract class `C`
+in the program for which `$c is T` holds, **sorted by fully-qualified name**, so the order never depends
+on filesystem enumeration. `T` may be an interface or a class, abstract or not, and a concrete `T` is in
+its own list. Each listed class needs a no-argument constructor; a diagnostic names any that does not,
+and a class whose constructor takes arguments is enumerated through [`programs/constructors`](/docs/rules/programs/names-and-files/#constructors "Core\Program::constructors<T, C>() lists the enumeration's classes with one closure each, typed by C, and it expands while compiling")
+instead. Because the expansion is ordinary `new` evaluated at the call site, the instances are
+per-request like every other object and nothing crosses an isolate boundary.
 
-The selector is an interface rather than an attribute because the interface is what gives the loop body
-a static type to call through: `object` is opaque, shape types describe data rather than methods, and
-`callable` carries no signature.
+The selector is a type rather than an attribute because a type is what gives the loop body something to
+call through: `object` is opaque, shape types describe data rather than methods, and bare `callable`
+carries no signature. An interface and a class both give it, so every other type argument is refused.
 
 Answering the query means parsing and collecting declarations from every file under every autoload root
 — the one place resolution is not lazy, and the only thing in Novis that makes a compiled unit depend
 on a *directory's contents* rather than a file's bytes. It is therefore opt-in: **a program that calls
-neither this member, nor `implementingWith`, nor a `Core\Router` or `Core\Request` member whose answer
-comes from the compile-time route table performs no scan at all**, and a program calling any of them pays the directory-listing
-dependency once, however many it calls. Type checking and lowering stay
-lazy regardless — a discovered class nobody calls is never checked past its declaration and never
-reaches codegen.
+no `Core\Program` enumeration member — this one, `implementingWith` or `constructors` — nor a
+`Core\Router` or `Core\Request` member whose answer comes from the compile-time route table performs no
+scan at all**, and a program calling any of them pays the directory-listing dependency once, however
+many it calls. Type checking and lowering stay lazy regardless — a discovered class nobody calls is
+never checked past its declaration and never reaches codegen.
 
 <aside class="nv-rule-diverges">
 <p class="nv-rule-diverges-label">Where this differs from PHP</p>
 <p>A plugin roster is a compile-time array literal, not a <code>foreach</code> over <code>new $className</code></p>
 </aside>
 
-<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/programs/names-and-files/#no-runtime-autoload" title="A name reaches its file while compiling; there is no runtime loader of any kind"><code>programs/no-runtime-autoload</code></a> <a href="/docs/rules/programs/names-and-files/#autoload" title="autoload maps a prefix to roots, resolved relative to the file that declares it"><code>programs/autoload</code></a> <a href="/docs/rules/programs/the-framework/#framework-refusals" title="The framework has no ORM, no runtime container, and no second way to do anything"><code>programs/framework-refusals</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0061.md">record 0061</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/program-implementing-enumerates-every-implementor.nvst"><code>tests/conformance/core/program-implementing-enumerates-every-implementor.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/program-implementing-expands-to-new-expressions-at-the-call-site.nvst"><code>tests/conformance/core/program-implementing-expands-to-new-expressions-at-the-call-site.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/lang/a-class-named-only-by-an-attribute-is-autoloaded.nvst"><code>tests/conformance/lang/a-class-named-only-by-an-attribute-is-autoloaded.nvst</code></a></dd></div></dl>
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/programs/names-and-files/#no-runtime-autoload" title="A name reaches its file while compiling; there is no runtime loader of any kind"><code>programs/no-runtime-autoload</code></a> <a href="/docs/rules/programs/names-and-files/#autoload" title="autoload maps a prefix to roots, resolved relative to the file that declares it"><code>programs/autoload</code></a> <a href="/docs/rules/programs/the-framework/#framework-refusals" title="The framework has no ORM, no runtime container, and no second way to do anything"><code>programs/framework-refusals</code></a> <a href="/docs/rules/programs/names-and-files/#constructors" title="Core\Program::constructors&lt;T, C&gt;() lists the enumeration's classes with one closure each, typed by C, and it expands while compiling"><code>programs/constructors</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0061.md">record 0061</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0253.md">record 0253</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/program-implementing-enumerates-every-implementor.nvst"><code>tests/conformance/core/program-implementing-enumerates-every-implementor.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/program-implementing-expands-to-new-expressions-at-the-call-site.nvst"><code>tests/conformance/core/program-implementing-expands-to-new-expressions-at-the-call-site.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/lang/a-class-named-only-by-an-attribute-is-autoloaded.nvst"><code>tests/conformance/lang/a-class-named-only-by-an-attribute-is-autoloaded.nvst</code></a></dd></div></dl>
 
 </div>
 
@@ -77,14 +78,16 @@ reaches codegen.
 function Core\Program::implementingWith<I, T>(string $member = ""): array<{instance: I, attribute: ?T}>;
 ```
 
-[`programs/implementing`](/docs/rules/programs/names-and-files/#implementing "Core\Program::implementing<T>() is the one enumeration, and it expands while compiling")'s enumeration joined with [`attributes/structural-retrieval`](/docs/rules/attributes/#structural-retrieval "A retrieval matches a payload by the shape it satisfies, never by the name it was attached under")'s retrieval
+[`programs/implementing`](/docs/rules/programs/names-and-files/#implementing "Core\Program::implementing<T>() lists every concrete class that is a T, for an interface or a class, and it expands while compiling")'s enumeration joined with [`attributes/structural-retrieval`](/docs/rules/attributes/#structural-retrieval "A retrieval matches a payload by the shape it satisfies, never by the name it was attached under")'s retrieval
 in one expansion: one row per class the enumeration would instantiate, in its order, each carrying the
 instance and what `Core\Attributes::get<T>` answers for that class's own `$member` — the class itself for
 an empty name, its method for a method name, its property or constructor parameter otherwise, so a
 promoted parameter is read once. `attribute` is the one attached literal satisfying `T`, or `null`.
 
+`I` is an interface or a class, selected exactly as `implementing<I>` selects it.
+
 It exists because the two cannot be composed by a program. A retrieval names its target where it is
-written, and inside a loop over the enumeration the variable is typed as the interface, so no class is
+written, and inside a loop over the enumeration the variable is typed as `I`, so no listed class is
 written anywhere; a framework could enumerate its classes or read their attributes, and not both. The
 compiler holds both lists at the same moment, and the join is one retrieval fold per class — nothing
 about what a retrieval target may be changes, and no reflection table reaches the compiled unit.
@@ -100,7 +103,46 @@ hold unchanged.
 <p>A plugin roster with its metadata is one compile-time array literal, not a <code>ReflectionClass</code> sweep over discovered classes</p>
 </aside>
 
-<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/programs/names-and-files/#implementing" title="Core\Program::implementing&lt;T&gt;() is the one enumeration, and it expands while compiling"><code>programs/implementing</code></a> <a href="/docs/rules/attributes/#structural-retrieval" title="A retrieval matches a payload by the shape it satisfies, never by the name it was attached under"><code>attributes/structural-retrieval</code></a> <a href="/docs/rules/attributes/#retrieval-folds-while-checking" title="A retrieval is answered while checking and replaced by its answer, so ambiguity is a compile error"><code>attributes/retrieval-folds-while-checking</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0212.md">record 0212</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/program-implementing-with-joins-each-instance-with-its-attribute.nvst"><code>tests/conformance/core/program-implementing-with-joins-each-instance-with-its-attribute.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/program-implementing-with-reads-the-class-or-a-property-by-name.nvst"><code>tests/conformance/core/program-implementing-with-reads-the-class-or-a-property-by-name.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/reject/program-implementing-with-names-a-member-every-implementor-declares.nvst"><code>tests/conformance/reject/program-implementing-with-names-a-member-every-implementor-declares.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/reject/program-implementing-with-answers-at-most-one-attribute-per-class.nvst"><code>tests/conformance/reject/program-implementing-with-answers-at-most-one-attribute-per-class.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-types/src/program.rs"><code>crates/nvs-types/src/program.rs</code></a></dd></div></dl>
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/programs/names-and-files/#implementing" title="Core\Program::implementing&lt;T&gt;() lists every concrete class that is a T, for an interface or a class, and it expands while compiling"><code>programs/implementing</code></a> <a href="/docs/rules/attributes/#structural-retrieval" title="A retrieval matches a payload by the shape it satisfies, never by the name it was attached under"><code>attributes/structural-retrieval</code></a> <a href="/docs/rules/attributes/#retrieval-folds-while-checking" title="A retrieval is answered while checking and replaced by its answer, so ambiguity is a compile error"><code>attributes/retrieval-folds-while-checking</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0212.md">record 0212</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0253.md">record 0253</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/program-implementing-with-joins-each-instance-with-its-attribute.nvst"><code>tests/conformance/core/program-implementing-with-joins-each-instance-with-its-attribute.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/program-implementing-with-reads-the-class-or-a-property-by-name.nvst"><code>tests/conformance/core/program-implementing-with-reads-the-class-or-a-property-by-name.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/reject/program-implementing-with-names-a-member-every-implementor-declares.nvst"><code>tests/conformance/reject/program-implementing-with-names-a-member-every-implementor-declares.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/reject/program-implementing-with-answers-at-most-one-attribute-per-class.nvst"><code>tests/conformance/reject/program-implementing-with-answers-at-most-one-attribute-per-class.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-types/src/program.rs"><code>crates/nvs-types/src/program.rs</code></a></dd></div></dl>
+
+</div>
+
+<div class="nv-rule" id="constructors">
+
+## `Core\Program::constructors<T, C>()` lists the enumeration's classes with one closure each, typed by `C`, and it expands while compiling
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="designed">Designed</span>
+<span class="nv-rule-flag">Differs from PHP</span>
+<a class="nv-rule-id" href="#constructors"><code>programs/constructors</code></a>
+</div>
+
+```php
+function Core\Program::constructors<T, C>(): array<{class: string, make: C}>;   // C is callable(...): T
+```
+
+It expands, while compiling, to an array literal of one row per class [`programs/implementing`](/docs/rules/programs/names-and-files/#implementing "Core\Program::implementing<T>() lists every concrete class that is a T, for an interface or a class, and it expands while compiling")'s
+`implementing<T>()` would list, **in the same order**, so the two can be zipped. `class` is the
+fully-qualified name. `make` is the ordinary closure `fn(<C's parameters>): T => new Class(<the same
+arguments, in order>)`, checked exactly as that closure would be if it were written at the call site —
+argument types, defaults and the visibility `new` faces there. No new calling path and no reflection is
+involved: the rows are what a program could have written by hand, had it known the list.
+
+`C` must be a `callable(...)` type whose return type is `T`, or the call is refused. A class whose
+constructor that closure does not fit is refused on the call, naming the class, with the ordinary error
+attached as a note. The enumeration's no-argument-constructor demand does not apply here: this member
+is how a class whose constructor takes dependencies is enumerated.
+
+Nothing is built until `make` is called. Each call allocates one closure per listed class, charged to
+the request and freed with the array, and calling it opts the program into the same scan the other
+enumeration members do.
+
+<aside class="nv-rule-diverges">
+<p class="nv-rule-diverges-label">Where this differs from PHP</p>
+<p>A plugin factory list is a compile-time array literal of closures, not <code>new $className(...$args)</code> over discovered names</p>
+</aside>
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/programs/names-and-files/#implementing" title="Core\Program::implementing&lt;T&gt;() lists every concrete class that is a T, for an interface or a class, and it expands while compiling"><code>programs/implementing</code></a> <a href="/docs/rules/programs/names-and-files/#implementing-with" title="Core\Program::implementingWith&lt;I, T&gt;($member) joins the enumeration with one attribute per class, and it expands while compiling"><code>programs/implementing-with</code></a> <a href="/docs/rules/types/closures/#callable-signature" title="A callable type may name its parameters, and must then name its return type"><code>types/callable-signature</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0253.md">record 0253</a></dd></div></dl>
 
 </div>
 
@@ -168,7 +210,7 @@ source, not one held at run time, and is loaded while compiling ([`types/class-r
 <p>There is no <code>spl_autoload_register</code>, no <code>__autoload</code> and no <code>new $name</code> — a name held in a string can never reach a file</p>
 </aside>
 
-<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/programs/names-and-files/#autoload" title="autoload maps a prefix to roots, resolved relative to the file that declares it"><code>programs/autoload</code></a> <a href="/docs/rules/programs/names-and-files/#implementing" title="Core\Program::implementing&lt;T&gt;() is the one enumeration, and it expands while compiling"><code>programs/implementing</code></a> <a href="/docs/rules/programs/names-and-files/#one-declaration-per-autoloaded-file" title="A file reached by autoload declares exactly one thing, under the name the map finds it by"><code>programs/one-declaration-per-autoloaded-file</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0061.md">record 0061</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0028.md">record 0028</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0052.md">record 0052</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0250.md">record 0250</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/lang/a-class-reached-only-through-autoload-runs.nvst"><code>tests/conformance/lang/a-class-reached-only-through-autoload-runs.nvst</code></a></dd></div></dl>
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/programs/names-and-files/#autoload" title="autoload maps a prefix to roots, resolved relative to the file that declares it"><code>programs/autoload</code></a> <a href="/docs/rules/programs/names-and-files/#implementing" title="Core\Program::implementing&lt;T&gt;() lists every concrete class that is a T, for an interface or a class, and it expands while compiling"><code>programs/implementing</code></a> <a href="/docs/rules/programs/names-and-files/#one-declaration-per-autoloaded-file" title="A file reached by autoload declares exactly one thing, under the name the map finds it by"><code>programs/one-declaration-per-autoloaded-file</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0061.md">record 0061</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0028.md">record 0028</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0052.md">record 0052</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0250.md">record 0250</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/lang/a-class-reached-only-through-autoload-runs.nvst"><code>tests/conformance/lang/a-class-reached-only-through-autoload-runs.nvst</code></a></dd></div></dl>
 
 </div>
 

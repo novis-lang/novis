@@ -132,12 +132,12 @@ would be a second spelling of one job. `Web\Response::view` renders a `.nvs` fil
   unrepresentable: it needs a property-read fallback, properties that are not definitely initialized,
   and a shape decided at run time, and all three are already refused elsewhere.
 - **No runtime service container, and no facades.** Wiring is constructor injection resolved **while
-  compiling**: [`programs/implementing`](/docs/rules/programs/names-and-files/#implementing "Core\Program::implementing<T>() is the one enumeration, and it expands while compiling") finds the one implementation of an interface, and a missing
+  compiling**: [`programs/implementing`](/docs/rules/programs/names-and-files/#implementing "Core\Program::implementing<T>() lists every concrete class that is a T, for an interface or a class, and it expands while compiling") finds the one implementation of an interface, and a missing
   or ambiguous binding is a compile error naming the interface and the constructor parameter, rather
   than a container exception in production. A container that resolves a class by string name is the
   mechanism behind facades, and nothing it would need still exists.
-- **No plugin auto-discovery beyond what exists.** [`programs/implementing`](/docs/rules/programs/names-and-files/#implementing "Core\Program::implementing<T>() is the one enumeration, and it expands while compiling") is the one enumeration;
-  there is no scan of a vendor directory for service providers.
+- **No plugin auto-discovery beyond what exists.** [`programs/implementing`](/docs/rules/programs/names-and-files/#implementing "Core\Program::implementing<T>() lists every concrete class that is a T, for an interface or a class, and it expands while compiling")'s scan is the only
+  discovery; there is no scan of a vendor directory for service providers.
 - **No configuration cache, no route cache, no autoload dump.** Every one of those exists in PHP
   frameworks to move compile-time work off the request path, and every one of them is work Novis
   already does while compiling.
@@ -149,7 +149,7 @@ would be a second spelling of one job. `Web\Response::view` renders a `.nvs` fil
 <p>The ORM, the service container, the facade, the route cache and the autoload dump have no equivalent, and each is absent by construction rather than by omission</p>
 </aside>
 
-<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/programs/the-framework/#first-party-framework" title="Novis ships the framework, split by the standard-library placement tests"><code>programs/first-party-framework</code></a> <a href="/docs/rules/programs/names-and-files/#implementing" title="Core\Program::implementing&lt;T&gt;() is the one enumeration, and it expands while compiling"><code>programs/implementing</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0082.md">record 0082</a></dd></div></dl>
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/programs/the-framework/#first-party-framework" title="Novis ships the framework, split by the standard-library placement tests"><code>programs/first-party-framework</code></a> <a href="/docs/rules/programs/names-and-files/#implementing" title="Core\Program::implementing&lt;T&gt;() lists every concrete class that is a T, for an interface or a class, and it expands while compiling"><code>programs/implementing</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0082.md">record 0082</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0253.md">record 0253</a></dd></div></dl>
 
 </div>
 

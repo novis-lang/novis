@@ -1,0 +1,11 @@
+{
+  "title": "`Core\\Program`'s enumeration selects by a class as well as an interface, and `constructors<T, C>()` hands back one typed constructor per class",
+  "status": "accepted",
+  "scope": "what `implementing<T>` and `implementingWith<T, S>` accept as `T`, and one new compiler-owned\nmember, `constructors<T, C>()`, answering the same list as closures. The scan, the order and the\nper-request instances are unchanged and stay with their own records.",
+  "dependsOn": [
+    "0061",
+    "0212",
+    "0136"
+  ],
+  "validatedBy": "the conformance and reject cases the three rules' `guardedBy` names, and the scan opt-in test in `crates/nvs-hir/src/requires.rs`."
+}

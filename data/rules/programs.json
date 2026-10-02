@@ -9,6 +9,7 @@
     "programs/memory-priority",
     "programs/implementing",
     "programs/implementing-with",
+    "programs/constructors",
     "programs/compile-target",
     "programs/no-runtime-autoload",
     "programs/autoload",

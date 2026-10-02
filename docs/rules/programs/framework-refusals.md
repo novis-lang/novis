@@ -7,8 +7,8 @@
   or ambiguous binding is a compile error naming the interface and the constructor parameter, rather
   than a container exception in production. A container that resolves a class by string name is the
   mechanism behind facades, and nothing it would need still exists.
-- **No plugin auto-discovery beyond what exists.** `rule:programs/implementing` is the one enumeration;
-  there is no scan of a vendor directory for service providers.
+- **No plugin auto-discovery beyond what exists.** `rule:programs/implementing`'s scan is the only
+  discovery; there is no scan of a vendor directory for service providers.
 - **No configuration cache, no route cache, no autoload dump.** Every one of those exists in PHP
   frameworks to move compile-time work off the request path, and every one of them is work Novis
   already does while compiling.

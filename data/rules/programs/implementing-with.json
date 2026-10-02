@@ -2,7 +2,8 @@
   "title": "`Core\\Program::implementingWith<I, T>($member)` joins the enumeration with one attribute per class, and it expands while compiling",
   "status": "shipped",
   "because": [
-    "0212"
+    "0212",
+    "0253"
   ],
   "divergesFromPhp": "a plugin roster with its metadata is one compile-time array literal, not a `ReflectionClass` sweep over discovered classes",
   "seeAlso": [

@@ -8,8 +8,10 @@ instance and what `Core\Attributes::get<T>` answers for that class's own `$membe
 an empty name, its method for a method name, its property or constructor parameter otherwise, so a
 promoted parameter is read once. `attribute` is the one attached literal satisfying `T`, or `null`.
 
+`I` is an interface or a class, selected exactly as `implementing<I>` selects it.
+
 It exists because the two cannot be composed by a program. A retrieval names its target where it is
-written, and inside a loop over the enumeration the variable is typed as the interface, so no class is
+written, and inside a loop over the enumeration the variable is typed as `I`, so no listed class is
 written anywhere; a framework could enumerate its classes or read their attributes, and not both. The
 compiler holds both lists at the same moment, and the join is one retrieval fold per class — nothing
 about what a retrieval target may be changes, and no reflection table reaches the compiled unit.

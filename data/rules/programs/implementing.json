@@ -1,14 +1,16 @@
 {
-  "title": "`Core\\Program::implementing<T>()` is the one enumeration, and it expands while compiling",
+  "title": "`Core\\Program::implementing<T>()` lists every concrete class that is a `T`, for an interface or a class, and it expands while compiling",
   "status": "shipped",
   "because": [
-    "0061"
+    "0061",
+    "0253"
   ],
   "divergesFromPhp": "a plugin roster is a compile-time array literal, not a `foreach` over `new $className`",
   "seeAlso": [
     "programs/no-runtime-autoload",
     "programs/autoload",
-    "programs/framework-refusals"
+    "programs/framework-refusals",
+    "programs/constructors"
   ],
   "guardedBy": [
     "tests/conformance/core/program-implementing-enumerates-every-implementor.nvst",

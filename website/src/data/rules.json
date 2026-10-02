@@ -1,9 +1,9 @@
 {
   "totals": {
-    "total": 1028,
+    "total": 1029,
     "shipped": 786,
-    "designed": 242,
-    "diverging": 594
+    "designed": 243,
+    "diverging": 595
   },
   "topics": [
     {
@@ -12,10 +12,10 @@
       "url": "/docs/rules/programs/",
       "single": false,
       "counts": {
-        "total": 21,
+        "total": 22,
         "shipped": 15,
-        "designed": 6,
-        "diverging": 9
+        "designed": 7,
+        "diverging": 10
       },
       "sections": [
         {
@@ -78,16 +78,16 @@
           "blurb": "How a name reaches the file that declares it — while compiling, with no loader running anywhere.",
           "url": "/docs/rules/programs/names-and-files/",
           "counts": {
-            "total": 10,
+            "total": 11,
             "shipped": 9,
-            "designed": 1,
-            "diverging": 7
+            "designed": 2,
+            "diverging": 8
           },
           "rules": [
             {
               "id": "programs/implementing",
               "slug": "implementing",
-              "title": "`Core\\Program::implementing<T>()` is the one enumeration, and it expands while compiling",
+              "title": "`Core\\Program::implementing<T>()` lists every concrete class that is a `T`, for an interface or a class, and it expands while compiling",
               "status": "shipped",
               "href": "/docs/rules/programs/names-and-files/#implementing",
               "diverges": "a plugin roster is a compile-time array literal, not a `foreach` over `new $className`"
@@ -99,6 +99,14 @@
               "status": "shipped",
               "href": "/docs/rules/programs/names-and-files/#implementing-with",
               "diverges": "a plugin roster with its metadata is one compile-time array literal, not a `ReflectionClass` sweep over discovered classes"
+            },
+            {
+              "id": "programs/constructors",
+              "slug": "constructors",
+              "title": "`Core\\Program::constructors<T, C>()` lists the enumeration's classes with one closure each, typed by `C`, and it expands while compiling",
+              "status": "designed",
+              "href": "/docs/rules/programs/names-and-files/#constructors",
+              "diverges": "a plugin factory list is a compile-time array literal of closures, not `new $className(...$args)` over discovered names"
             },
             {
               "id": "programs/compile-target",
