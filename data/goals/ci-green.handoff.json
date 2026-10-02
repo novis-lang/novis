@@ -1,5 +1,5 @@
 {
-  "state": "**Goal `ci-green` — CI is green on `main` — has just started; nothing of it has landed yet.** The last\ngenerated goal's whole list is this goal's Stage 1 floor.\n\nThis was goal `gap-zero`'s stage 4, moved to the end of the chain by the user on 2026-09-18 because\nGitHub starts no job while the account's payments fail. The loop never pushes, so `origin/main` is\nas far behind as the run is long, and the first answer here is expected to be a `BLOCKED` asking the\nuser to push `main` — or naming the billing block, if it is still in force.",
+  "state": "**Goal `ci-green` — CI is green on `main` — waits on one push by the user.** `bun nv ci-green` says\nthe latest green `ci.yml` run on `main` is for `8fe7f166c`, which is `origin/main`, and `HEAD`\n(`ba2f070ee` when this was written) is 327 commits past it, touching 2190 paths no run has seen.\n\nThe billing block is gone: the last four `workflow_dispatch` runs on `main` ended `success` after\nabout 25 minutes each (`gh run list --workflow ci.yml --branch main`), so a run that fails in\nseconds with zero steps is not what stands in the way now. The loop never pushes; the status line\nis a `BLOCKED` naming the commit to push.",
   "next": {
     "stage": 2,
     "title": "the run exists, and it is this commit's",
@@ -10,16 +10,15 @@
     "items": [
       {
         "done": false,
-        "text": "**Ask the check** — `tools/nv/cmd/ci-green.ts:@run` says which of the three it is: no green run, a green run for older code (a `BLOCKED` asking for the push, naming the commit), or green."
+        "text": "**Ask the check again, after the push** — `tools/nv/cmd/ci-green.ts:44` (`run`). Green for `HEAD` meets the goal; a run still in progress is a `CONTINUE` that waits; a green run for older code again is a `BLOCKED` naming the new `HEAD`."
       },
       {
         "done": false,
-        "text": "**A run that ends `failure` in seconds with zero steps is the billing block** — `gh run view` on its URL shows the annotation; that is a `BLOCKED` naming it, never a fix in the tree."
+        "text": "**A red run is fixed from its log** — `gh run view <id> --log-failed`, never by rewriting the check or the workflow (the goal's § *Standing decisions*); which lanes a push needed is `tools/nv/cmd/ci-changes.ts:1`, under `rule:testing/ci-lanes`."
       }
     ]
   },
   "backlog": [
-    "Stage 3: a leg that really ran and went red is ordinary work — `gh run view --log-failed`, fix, ask for the push again. File set: whatever the log names, plus `tools/nv/cmd/ci-changes.ts`.",
-    "When this goal's last check goes green the chain is walked."
+    "`bun nv peek --locate tools/nv/cmd/ci-green.ts:@run` answers NOT FOUND for `export async function run` at line 44; the handoff anchors the line instead (owner: `tools/nv/cmd/peek.ts`, not checked further)."
   ]
 }
