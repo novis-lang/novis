@@ -1,29 +1,47 @@
 <?nvs
-// A value that might be missing is asked about first. Inside the branch where
-// the answer is "it is there", the program reads it as an ordinary value:
-// nothing is converted, and nothing is given a second name.
+// Shows how to use a value that might be `null` once you have checked it.
 
-class Greeting
+class Account
 {
-    public static function forName(?string $name): string
+    // In `$nickname != null ? A : B`, the value is a `string` inside `A`.
+    // So `A` can use it like any other string.
+    public static function greeting(?string $nickname): string
     {
-        if ($name == null) {
-            return "hello, stranger";
+        return $nickname != null ? "hello, " . Core\Str::upperFirst($nickname) : "hello, stranger";
+    }
+
+    // The right side of `&&` runs only when the left side is true.
+    // So on the right side, `$email` is a `string`.
+    public static function canReceiveMail(?string $email): bool
+    {
+        return $email != null && Core\Str::contains($email, "@");
+    }
+
+    // The right side of `||` runs only when the left side is false.
+    // So on the right side, `$coupon` is a `string`.
+    public static function paysFullPrice(?string $coupon): bool
+    {
+        return $coupon == null || Core\Str::startsWith($coupon, "EXPIRED-");
+    }
+
+    // An `if` block does the same for several lines of code.
+    // After the `return`, the rest of the method uses `$nickname` as a `string`.
+    public static function badge(?string $nickname): string
+    {
+        if ($nickname == null) {
+            return "no badge";
         }
 
-        // Past that guard the name is a plain string, so it can be measured
-        // and joined like any other one.
-        return "hello, " . $name . ", all " . (Core\Str::length($name) as string) . " letters of you";
+        string $initial = Core\Str::upper(Core\Str::slice($nickname, 0, 1));
+        return $initial . " for " . $nickname;
     }
 }
 
-echo Greeting::forName("Ada"), "\n";
-echo Greeting::forName(null), "\n";
-
-// The test reads just as well the other way round: the branch that runs is the
-// one the question proved.
-?string $note = "packed";
-
-if ($note != null) {
-    echo Core\Str::length($note), "\n";
-}
+echo Account::greeting("ada"), "\n";
+echo Account::greeting(null), "\n";
+echo Account::canReceiveMail("ada@example.com") ? "send mail" : "no mail", "\n";
+echo Account::canReceiveMail(null) ? "send mail" : "no mail", "\n";
+echo Account::paysFullPrice(null) ? "full price" : "discount", "\n";
+echo Account::paysFullPrice("SPRING10") ? "full price" : "discount", "\n";
+echo Account::badge("ada"), "\n";
+echo Account::badge(null), "\n";

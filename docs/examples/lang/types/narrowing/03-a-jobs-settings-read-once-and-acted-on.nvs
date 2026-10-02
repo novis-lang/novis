@@ -1,6 +1,6 @@
 <?nvs
 // A job's settings are a mode, which is one of three words, and a mailbox that may be `null`.
-// Checking a field such as `$job->mode` does not narrow its type inside the `if`.
+// Checking a field such as `$job->mode` does not change its type.
 // Checking a local variable does. So `plan` copies each field to a variable first.
 
 class Job
@@ -16,11 +16,7 @@ class Runner
         ?string $mailbox = $job->failureMailbox;
         "read"|"write"|"admin" $mode = $job->mode;
 
-        string $notify = "nobody is told";
-
-        if ($mailbox != null) {
-            $notify = "failures go to " . $mailbox;
-        }
+        string $notify = $mailbox != null ? "failures go to " . $mailbox : "nobody is told";
 
         if ($mode == "admin") {
             // Inside this `if`, `$mode` can only be "admin". So it can be

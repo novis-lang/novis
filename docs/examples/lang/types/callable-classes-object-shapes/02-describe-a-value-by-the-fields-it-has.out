@@ -1,2 +1,5 @@
 (3, 4)
 (10, 20) office
+(7, 1)
+cannot convert a value of another type to `{x: int, y: int}`
+not on the grid

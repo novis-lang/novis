@@ -1,14 +1,17 @@
-The types that name a doer or a thing rather than a plain value: a function you can pass around, a
-class, any object at all, and an object described by the fields it carries.
+The types for things that are not plain values: a function you can pass around, a class, any
+object, and an object described by the fields it has.
 
-`callable` holds a function written with `fn`, and nothing else — a name kept in a piece of text is
-never callable here. A class, interface or enum name is a type wherever a type is written, and
-`object` is the one type every instance fits, with `is` and `as` getting the real class back out of
-it. Where a program has to pick a class while it is running, it carries a class reference instead of
-the class's name as text: turn the name into one once, and create, call and test through the result
-afterwards. A shape describes an object by the fields it has rather than the class it came from, and
-an object literal builds one on the spot; a value carrying more fields than the shape asks for still
-fits it.
+`callable` is a function written with `fn`. A class, interface or enum name is a type wherever you
+write a type, and `object` is the type every instance fits. A shape describes an object by its
+fields, and a value with more fields still fits it. `as Point` checks that a value has the fields
+and throws an error if not. `is Point` does the same check and gives `true` or `false`.
 
-**Good to know:** a call through a `callable` answers a value of unknown kind, so say what it is
-where you use it — `$f(4) as int`.
+To pick a class while the program runs, convert its name with `as class<T>`. A name in a string
+literal is checked when the program compiles. A name from a setting is checked when it runs, and
+`as ?class<T>` gives `null` for a wrong name.
+
+**Good to know:** a call through a `callable` returns a `mixed` value, so convert the result where
+you use it: `$f(4) as int`.
+
+**The examples below** pass a pricing rule around, check a value against a shape, and pick a
+report class from a literal and from a setting.

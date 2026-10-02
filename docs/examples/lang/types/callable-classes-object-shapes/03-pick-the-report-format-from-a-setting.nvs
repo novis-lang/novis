@@ -1,7 +1,7 @@
 <?nvs
 // Picks a report format from a setting. The setting is text, and the program needs a class.
-// `as class<Renders>` converts the text to a class reference once.
-// The program then uses `$format` to create the report and to call the static method `extension`.
+// `as class<Renders>` converts a class name to a class reference.
+// The program uses the reference to create the report and to call the static method `extension`.
 
 interface Renders {
     public function render(array<string> $rows): string;
@@ -27,11 +27,19 @@ class LinesReport implements Renders {
 }
 
 array<string> $rows = ["north", "south"];
-string $setting = "CsvReport";
 
-class<Renders> $format = $setting as class<Renders>;
-Renders $report = new $format();
+// A class name in a string literal is checked when the program compiles.
+// If `CsvReport` did not implement `Renders`, the program would not compile.
+class<Renders> $default = 'CsvReport' as class<Renders>;
 
-echo $format::extension(), "\n";
-echo $report->render($rows), "\n";
-echo ($report is CsvReport) ? "wrote a spreadsheet\n" : "wrote plain text\n";
+// A name from a setting is checked when the program runs. `as ?class<Renders>` gives `null`
+// for a name that is not a `Renders` class. Then `??` uses the default format.
+array<string> $settings = ["LinesReport", "PdfReport"];
+
+foreach ($settings as string $setting) {
+    class<Renders> $format = ($setting as ?class<Renders>) ?? $default;
+    Renders $report = new $format();
+
+    echo $setting, " writes a .", $format::extension(), " file:\n";
+    echo $report->render($rows), "\n";
+}

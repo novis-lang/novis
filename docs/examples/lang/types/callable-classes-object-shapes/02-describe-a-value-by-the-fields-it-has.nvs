@@ -1,8 +1,6 @@
 <?nvs
-// A point on a map, described by the fields it carries rather than by a class
-// it was made from. A shape needs a name to be written in front of a value,
-// so it gets one with `type`. A value carrying more fields than the shape asks
-// for still fits it.
+// A point on a map, described by the fields it has and not by a class.
+// A shape needs a name to be written in front of a variable, so it gets one with `type`.
 
 type Point = {x: int, y: int};
 
@@ -12,8 +10,26 @@ class Grid {
     }
 }
 
+// A value with more fields than the shape asks for still fits it.
 Point $home = {x: 3, y: 4};
 var $pin = {x: 10, y: 20, label: "office"};
 
 echo Grid::describe($home), "\n";
 echo Grid::describe($pin), " ", $pin->label, "\n";
+
+// A call through a `callable` returns a `mixed` value.
+callable $findPlace = fn(string $name): mixed => $name == "depot" ? {x: 7, y: 1} : {city: $name};
+
+// `as Point` checks that the value has an `int` field `x` and an `int` field `y`.
+// If a field is missing, it throws an error. The second call shows this.
+echo Grid::describe($findPlace("depot") as Point), "\n";
+
+try {
+    echo Grid::describe($findPlace("Vienna") as Point), "\n";
+} catch (RuntimeError $e) {
+    echo $e->message, "\n";
+}
+
+// `is Point` does the same check and gives `true` or `false`, so nothing is thrown.
+mixed $place = $findPlace("Vienna");
+echo $place is Point ? Grid::describe($place) : "not on the grid", "\n";

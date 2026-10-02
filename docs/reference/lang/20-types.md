@@ -639,9 +639,9 @@ object without the fields a shape names, a name that denotes no class this progr
 `as T` cannot fail (`$i as ?int` on an `int`) and for a class target (`$o as ?Foo`): an object is
 tested with `is`. A `class<T>` target is not a class target and is available: `$name as
 ?class<Animal>` answers `null` for every name `as class<Animal>` would throw for — one that denotes
-no class, and one that denotes a class outside `Animal`'s hierarchy. A written-out `Foo::class`
-operand stays decided at compile time under both spellings, so `Rock::class as ?class<Animal>` is
-refused rather than answering `null`.
+no class, and one that denotes a class outside `Animal`'s hierarchy. A written-out `Foo::class` or
+string-literal operand stays decided at compile time under both spellings, so `Rock::class as
+?class<Animal>` and `'Rock' as ?class<Animal>` are refused rather than answering `null`.
 
 ```nvs
 <?nvs
@@ -678,10 +678,13 @@ cannot convert string "abc" to `int`
 -1 -1 42
 ```
 
-`as` is also the only way to obtain a `class<T>`, and there are two doors. A `Foo::class` operand is
-decided where it is written — a compile error when `Foo` is not a `T`, never a throw the program has
-to reach — while any other `string` is checked at run time against the classes this program declares
-to be `T`s.
+`as` is also the only way to obtain a `class<T>`, and there are two doors. A class name written out
+in the source — a `Foo::class` operand, or a plain string literal such as `'Shop\Dog'` — is decided
+where it is written: a compile error when it names no class (`E0303`) or a class that is not a `T`
+(`E0708`), never a throw the program has to reach. A string literal is the class's whole name, with
+no `namespace` or `use` applied, and its class is loaded through the `autoload` map the way
+`Foo::class` loads one. Any other `string` — a variable, a concatenation, a class constant — is
+checked at run time against the classes this program declares to be `T`s.
 
 ```nvs
 <?nvs
@@ -711,6 +714,38 @@ try {
 ```output
 woof a Dog
 cannot convert to `class<Animal>`: the value does not denote a class that is a `Animal`
+```
+
+The usual pairing is a literal default checked while compiling and a configured name checked while
+running, with `as ?class<T>` and `??` falling back from one to the other.
+
+```nvs
+<?nvs
+interface Renders {
+    public static function extension(): string;
+}
+class CsvReport implements Renders {
+    public static function extension(): string {
+        return "csv";
+    }
+}
+class<Renders> $fallback = 'CsvReport' as class<Renders>;
+string $setting = "PdfReport";
+class<Renders> $format = ($setting as ?class<Renders>) ?? $fallback;
+echo $format::extension(), "\n";
+```
+```output
+csv
+```
+
+```nvs error
+<?nvs
+class Animal {}
+class Rock {}
+class<Animal> $c = 'Rock' as class<Animal>;
+```
+```output
+`Rock` is not a `Animal`, so this can never be a `class<Animal>`
 ```
 
 ```nvs error
@@ -769,6 +804,42 @@ Inside the branch a test proves, a binding is read at the narrower type. Four sp
 - `$x == literal` (or an enum case) on a literal or enum-case union, on the edge that proves it.
 - `match (true)` and `switch (true)`: each arm's label is one of the tests above and narrows its
   own body. `default` narrows nothing.
+
+A ternary's arms and the right operand of `&&` and `||` are branches too, so the short forms need no
+`if`: `$c ? $a : $b` narrows its arms as `if ($c)` and its `else` would, `&&` narrows its right
+operand as the `if` block of its left, and `||` as the `else` block. Nothing proved holds after the
+expression.
+
+```nvs
+<?nvs
+class User {
+    public function constructor(public string $name, public bool $active) {}
+}
+class Admin {
+    public function canDelete(): bool {
+        return true;
+    }
+}
+class Check {
+    public static function label(?User $user): string {
+        return $user != null ? $user->name : "guest";
+    }
+    public static function on(?User $user): string {
+        return ($user != null && $user->active) ? "on" : "off";
+    }
+    public static function allowed(?User $user): string {
+        return ($user == null || $user->active) ? "yes" : "no";
+    }
+    public static function deletes(mixed $x): string {
+        return ($x is Admin && $x->canDelete()) ? "deletes" : "reads";
+    }
+}
+User $ada = new User("Ada", false);
+echo Check::label($ada), " ", Check::label(null), " ", Check::on($ada), " ", Check::allowed(null), " ", Check::allowed($ada), " ", Check::deletes(new Admin()), " ", Check::deletes($ada), "\n";
+```
+```output
+Ada guest off yes no deletes reads
+```
 
 A write to the binding inside the branch drops the narrowing. Narrowing is branch-local; a `?T`
 that was tested in one `if` is still `?T` after it, and `->` on an un-narrowed `?C` is refused.

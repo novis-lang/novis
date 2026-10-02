@@ -5,12 +5,15 @@
 
 array<string> $answers = ["30", "thirty", "30.5", ""];
 
+// `??` replaces `null` with a default value. Here the default is 14 days.
 foreach ($answers as string $answer) {
-    ?int $days = $answer as ?int;
+    int $days = ($answer as ?int) ?? 14;
+    echo "a trial of ", $days, " days\n";
+}
 
-    if ($days != null) {
-        echo $days + 1, "\n";
-    } else {
-        echo "not a whole number of days\n";
+// To tell the user which answers were wrong, compare the result with `null` yourself.
+foreach ($answers as string $answer) {
+    if (($answer as ?int) == null) {
+        echo "not a whole number: \"", $answer, "\"\n";
     }
 }

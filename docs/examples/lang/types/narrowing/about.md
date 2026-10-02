@@ -1,13 +1,14 @@
-A test that proves what a value is lets you use it as that thing, inside the branch the test guards.
+A test that proves what a value is lets you use it as that thing, in the code the test guards.
 
-A value that might be missing, one that could be several different kinds of thing, or one that is one
-of a few fixed words: ask about it in an `if`, and inside that branch the program reads it as whatever
-the question proved. You do not convert it and you do not give it a second name — it already was that,
-and now the language knows.
+The shortest form is one expression: `$user != null ? $user->name : "guest"`. The right side of `&&`
+runs only when the left side is true, so `$user != null && $user->active` works too. `||` works the
+same way when its left side is false. An `if` block or a `match (true)` arm does the same for more
+code. You can test for `null`, test the kind of object with `is`, or compare with a fixed word. When
+you are sure what a value is, `as` converts it and throws an error if you are wrong.
 
-Four questions do this: whether a value is missing, what kind of thing it is, whether it equals one of
-a closed set of values, and any of those three asked again as the arms of a `match (true)`.
+**Good to know:** a test works only for a variable, and only until you write to it. Copy a field
+such as `$job->mode` to a variable first.
 
-**Good to know:** what was proved holds inside that branch only, and only for a plainly named value.
-Writing to the value inside the branch gives the proof up, and a test on something reached through an
-arrow or an index proves nothing about the next read of it — put that in a value of its own first.
+**The examples below** use a value that might be `null` in one expression and then in an `if`
+block. Then they check the kind of an object, with `as` as the strict form, and act on a job's
+settings.

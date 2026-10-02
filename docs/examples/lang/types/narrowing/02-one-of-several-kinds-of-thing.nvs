@@ -1,11 +1,10 @@
 <?nvs
-// A value can be one of several kinds of thing. Asking which kind it is lets
-// you reach the members that kind has, inside the branch where the answer
-// holds. Asking about one kind says nothing about the rest, so the last one
-// still has to be named.
+// Shows how to check which kind of object a value is, and then use it as that kind.
 
 class Card
 {
+    public function constructor(public bool $contactless) {}
+
     public function pay(): string
     {
         return "paid by card";
@@ -22,6 +21,15 @@ class Cash
 
 class Till
 {
+    // On the right side of `&&`, `$payment` is a `Card`.
+    // So the right side can read the `contactless` property.
+    public static function canTap(Card|Cash $payment): bool
+    {
+        return $payment is Card && $payment->contactless;
+    }
+
+    // Inside the `if` block, `$payment` is a `Card`. After it, the type is still `Card|Cash`.
+    // `as Cash` converts it to `Cash`, and throws an error if it is not `Cash`.
     public static function take(Card|Cash $payment): string
     {
         if ($payment is Card) {
@@ -31,8 +39,7 @@ class Till
         return ($payment as Cash)->count();
     }
 
-    // The same questions can be the arms of a `match (true)`, and each arm
-    // reads the value as what its own test proved.
+    // Each arm of `match (true)` uses the value as the kind that arm checked.
     public static function describe(mixed $thing): string
     {
         return match (true) {
@@ -44,7 +51,9 @@ class Till
     }
 }
 
-echo Till::take(new Card()), "\n";
+echo Till::canTap(new Card(true)) ? "tap to pay" : "insert the card", "\n";
+echo Till::canTap(new Cash()) ? "tap to pay" : "insert the card", "\n";
+echo Till::take(new Card(false)), "\n";
 echo Till::take(new Cash()), "\n";
 echo Till::describe(new Cash()), "\n";
 echo Till::describe("keep the change"), "\n";
