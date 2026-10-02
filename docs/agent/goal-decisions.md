@@ -17,8 +17,15 @@ goal promised and did not build is not here: it is a gap record under `data/gaps
   out because nothing current uses them. `sha3` and `crc32c` are in, because each is worth a crate: SHA-3
   rides the same traits as the SHA-2 family, and CRC32C is the checksum object stores send. Applies at
   the `DIGEST` roster in `crates/nvs-stdlib/src/hash.rs` and spec § 11's `Digest`. From `core-depth`.
+- **No `Core` member names a qualifier, and the taint diagnosis has no opt-out.** `body`, `post`, `query`,
+  `header`, `cookie` and `Part::filename` all return tainted values, and their names do not say so. A
+  `taintedPostAs` would make every other member's name read as a claim it does not make. A caller who
+  finds the diagnosis verbose writes `tainted {…}` over the shape. Applies at `postAs` and its siblings
+  in `crates/nvs-stdlib/src/request.rs`. From `input-shapes`.
 
 ## Goals with nothing to keep
 
 `concurrency`, `governance`, `core-part-ii`, `database`, `server`, `carried-gaps`, `warm-start`,
-`temp-sweep`, `program-id`, `schema`, `typed-callable`, `doc-comments`, `resilient-tree`, `surface`.
+`temp-sweep`, `program-id`, `schema`, `typed-callable`, `doc-comments`, `resilient-tree`, `surface`,
+`lsp-server`, `editor`, `request-json`, `test-request`, `parses`, `unix-sockets`, `per-core`,
+`net-os-signal`, `formats`, `encoder-cycles`, `record-origin`, `agent-surface`, `xml-tree`, `gap-owners`.

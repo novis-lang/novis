@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-stdlib/src/test.rs",
+  "title": "Spec § 13 still writes `Core\\Test` as one table cell, and `Core\\Test\\Response` has no row of its own.",
+  "text": "Goal `test-request` promised to turn the `Core\\Test` row of `docs/spec/01-core-library.md:1017` into a bullet shaped like § 15's, with each member written out, and to give `Core\\Test\\Response` its own row. The row is still one cell with the response members written inline. The coverage gate at `crates/nvs-stdlib/tests/spec_registry_coverage.rs` stays excluded for § 13 on purpose. Closing this rewrites the row and adds the `Core\\Test\\Response` row, and leaves the gate as it is.",
+  "goal": "goal-closeout"
+}

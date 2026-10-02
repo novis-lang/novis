@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-lsp/src/server.rs",
+  "title": "The language server ignores `$/cancelRequest`, so a request the client cancelled is still answered.",
+  "text": "`rule:ide/the-server-is-synchronous` says `$/cancelRequest` cancels an in-flight request. The notification arm at `crates/nvs-lsp/src/server.rs:296` handles only the document and watched-file notifications, and `apply` drops every other one at `crates/nvs-lsp/src/server.rs:1779`. No code in `crates/nvs-lsp/src/` names `cancelRequest`. The only cancellation is the document-version check in `analyse_current`. Closing this answers a cancelled request that is still queued with the `RequestCancelled` error, with a test in the server's suite.",
+  "goal": "goal-closeout"
+}

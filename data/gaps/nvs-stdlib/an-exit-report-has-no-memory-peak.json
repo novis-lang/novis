@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-stdlib/src/script.rs",
+  "title": "`Script\\ExitReport` has no `memoryPeak`, and the shipped rule that declares it says it does.",
+  "text": "`rule:observability/script-on-exit` is `shipped`, and its signature block at `docs/rules/observability/script-on-exit.md:15` declares `Script\\ExitReport::memoryPeak(): int`. The class at `crates/nvs-stdlib/src/script.rs:282` has `reason`, `status` and `error` and no `memoryPeak`. The runtime already records the peak (`rule:observability/a-memory-peak-is-recorded-not-asked-for`, read by `Core\\Budget::memoryPeak`). Closing this adds the member, reading the same mark at the moment the exit queue drains, with a conformance case under `tests/conformance/core/`.",
+  "goal": "goal-closeout"
+}

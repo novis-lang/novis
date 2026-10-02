@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-runtime/src/metrics.rs",
+  "title": "The `nvs_request_memory_peak_bytes` histogram and the `[limits] memory_high_water` warning are designed and unbuilt.",
+  "text": "`rule:observability/default-series` lists `nvs_request_memory_peak_bytes`, and `rule:observability/memory-high-water-writes-a-warn` specifies the `[limits] memory_high_water` fraction. Both are `designed`. `DEFAULT` at `crates/nvs-runtime/src/metrics.rs:188` has no peak family, and no crate reads `memory_high_water`. Goal `net-os-signal` promised both as two of the three peak readings. Closing this builds both, with the boot-time refusal of a value outside `0.0..=1.0`, and moves both rules to `shipped`.",
+  "goal": "goal-closeout"
+}

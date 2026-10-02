@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-runtime/src/budget.rs",
+  "title": "The cost of updating the memory high-water mark on every allocation is argued and never measured.",
+  "text": "The module doc at `crates/nvs-runtime/src/budget.rs:155` says the peak update is a compare that stores only when it moves, and costs a few instructions. Decision record 0148 § 6 calls that an argument that still has to survive a measurement. Nothing under `benches/abi-probe/` measures an allocation with and without the update. Closing this adds that probe and makes the module doc cite what it measures.",
+  "goal": "goal-closeout"
+}
