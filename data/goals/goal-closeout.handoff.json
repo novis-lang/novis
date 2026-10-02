@@ -1,27 +1,23 @@
 {
-  "state": "**Goal `goal-closeout`, Stage 4 (finished in place) is under way.** Stage 3 is done: `docs/agent/goal-decisions.md` names every goal in front of `goal-closeout`.\n\nThe `nvs-diagnostics`, `benches`, `nvs-test`, `nvs-db` and `nvs-ir` gap directories are closed for this goal. The other three `nvs-ir` gaps are owned by milestones M10 and M12. One `nvs-syntax` gap is left: `the-pipeline-bench-has-no-nested-twin`, a bench member, which is a different file set.\n\nIn `nvs-cli`, `nvs service --help`, each of its subcommands' help and the global `--config` and `--no-init` help are in the plain voice, pinned by `nvs_service_help_is_written_in_the_plain_voice` in `crates/nvs-cli/tests/one_binary.rs`. `nvs agent show` prints each `<!-- generated: <roster> -->` marker's rows from `nvs meta`'s document (`generated` in `crates/nvs-cli/src/agent.rs`), pinned in `crates/nvs-cli/tests/agent.rs`. Other subcommands' `--help` text was not swept and is still in the dense voice.\n\nThe floor check `the latest CI run on main succeeded for the code HEAD holds` is red only because `main` is many commits ahead of `origin/main` and the loop never pushes (`tools/nv/cmd/ci-green.ts`'s module doc). A person pushes. No session can close it.\n\n`bun nv owners --closes goal-closeout` names the rest of the gaps, across many crates. Take them one directory at a time, smallest first. Stage 4 stops on `BLOCKED` only for \"too large\", which the goal's § *Stage 4* defines.\n\n`bun nv import` is broken, because the rule index it reads was deleted. Goal `ci-green`'s floor check stays red until Stage 6. That is expected.",
+  "state": "**Goal `goal-closeout`, Stage 4 (finished in place) is under way.** Stage 3 is done: `docs/agent/goal-decisions.md` names every goal in front of `goal-closeout`.\n\nThe `nvs-diagnostics`, `benches`, `nvs-test`, `nvs-db` and `nvs-ir` gap directories are closed for this goal. The other three `nvs-ir` gaps are owned by milestones M10 and M12. One `nvs-syntax` gap is left: `the-pipeline-bench-has-no-nested-twin`, a bench member, which is a different file set.\n\nIn `nvs-config`, `Core\\Config::set` now refuses a name a settable row governs that is not a leaf key. The roster is the setting lines of the shipped `crates/nvs-config/src/default.toml` (`is_key` in `crates/nvs-config/src/request.rs`), which `bun nv directives --check-template` holds to the typed tree. It is pinned by `a_name_a_settable_row_governs_that_is_not_a_key_is_refused` in `crates/nvs-config/tests/request.rs`. Two `nvs-config` gaps are left: the slow path walk below, and `the-repository-nvs-toml-cites-adrs-not-rules`.\n\nIn `nvs-cli`, the `nvs service` help and `nvs agent show` markers are done. Other subcommands' `--help` text was not swept and is still in the dense voice.\n\nThe floor check `the latest CI run on main succeeded for the code HEAD holds` is red only because `main` is many commits ahead of `origin/main` and the loop never pushes (`tools/nv/cmd/ci-green.ts`'s module doc). A person pushes. No session can close it.\n\n`bun nv owners --closes goal-closeout` names the rest of the gaps, across many crates. Take them one directory at a time, smallest first. Stage 4 stops on `BLOCKED` only for \"too large\", which the goal's § *Stage 4* defines. `bun nv import` is broken, because the rule index it reads was deleted. Goal `ci-green`'s floor check stays red until Stage 6. That is expected.",
   "next": {
     "stage": 4,
     "title": "finished in place",
     "files": [
-      "crates/nvs-config/src/request.rs",
-      "crates/nvs-config/src/capability.rs"
+      "crates/nvs-config/src/capability.rs",
+      "nvs.toml"
     ],
-    "note": "The `nvs-config` crate's gaps. Fix each, pin it, and delete its record under `data/gaps/nvs-config/`. Each record calls part of its fix a decision; the goal's standing decisions pre-authorize it, so judge each against Stage 4's \"too large\" before starting.",
+    "note": "The last two `nvs-config` gaps. Fix each, pin it, and delete its record under `data/gaps/nvs-config/`.",
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Config::set` answers `true` for a name that is not a key** — gap `a-set-of-a-name-that-is-not-a-key-answers-true`, at `crates/nvs-config/src/request.rs:101`. The fix needs a Rust-side roster of leaf keys, which only `bun nv directives` derives today."
-      },
-      {
-        "done": false,
-        "text": "**A path of many missing folders is slow to refuse** — gap `a-path-of-many-missing-folders-is-slow-to-refuse`, at `crates/nvs-config/src/capability.rs:932` (`resolved`)."
+        "text": "**A path of many missing folders is slow to refuse** — gap `a-path-of-many-missing-folders-is-slow-to-refuse`, at `crates/nvs-config/src/capability.rs:932` (`resolved`). The record calls a length bound a decision. A fix without a new refusal: the walk only ever tries ancestors inside the trailing run of `Normal` components (it returns `None` at the first `..`, root or prefix), so binary-search the deepest prefix in that run that `Files::canonical` answers, for O(log n) calls. It gives the walk's answer exactly when \"a prefix resolves\" is monotone along plain names. Write that argument in the doc comment, and check the case where a folder the OS can traverse still fails to canonicalize (an ACL that denies reading it). Run the `nvs-runtime` capability tests, whose `Files` doubles may not be prefix-closed. The hostile case `tests/hostile/tools/install/when-something-is-refused/02-a-path-two-million-folders-deep.nvs` carries the gap's `// proof:` marker, and that line goes when the record goes."
       }
     ]
   },
   "backlog": [
-    "Gap `the-repository-nvs-toml-cites-adrs-not-rules` (`data/gaps/nvs-config/`): rewrite the root `nvs.toml`'s ADR citations as `rule:` ids. Small, but a root file cannot be a `## Next group` anchor (`ANCHOR_RE` in `tools/nv/cmd/orient.ts`).",
-    "The remaining `nvs-cli` gaps, `serve-and-a-spawned-script-have-no-program-id` first.",
-    "`the-pipeline-bench-has-no-nested-twin` (`nvs-syntax`), a bench member."
+    "`nvs-config`'s `the-repository-nvs-toml-cites-adrs-not-rules` — the root `nvs.toml`'s comments cite ADR sections, not `rule:` ids. A root file is no anchor `nv orient` can expand, so it is not a group item.",
+    "`nvs-syntax`'s `the-pipeline-bench-has-no-nested-twin` — a nested-call twin for the pipeline bench under `benches/members/`.",
+    "The other `nvs-cli` subcommands' `--help` text is still in the dense voice — `crates/nvs-cli/tests/one_binary.rs` pins only `nvs service`."
   ]
 }
