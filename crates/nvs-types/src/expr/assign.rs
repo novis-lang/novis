@@ -536,7 +536,9 @@ pub(crate) fn mismatch(
                      value instead: `{{{name}: $value->{name}}}`"
                 ))
             }
-            None => match unconverted_array_help(expected, actual, env) {
+            None => match null_help(expected, actual, env)
+                .or_else(|| unconverted_array_help(expected, actual, env))
+            {
                 Some(help) => diag.with_help(help),
                 None => diag,
             },
@@ -622,6 +624,43 @@ fn unconverted_field(
         let converts = scalar && is_assignable(*from_ty, to.ty, env.interner, graph, signatures);
         let fits = field_fits(*from_ty, to.ty, env.interner, graph, signatures);
         (converts && !fits).then_some((to.name, *from_ty, to.ty))
+    })
+}
+
+/// The help line for a value whose only problem is that it can be `null`:
+/// `actual` is nullable, `expected` is not, and `actual` without `null` fits
+/// `expected`. Where the type has an empty value a program usually means by
+/// `null` — `[]`, `''`, `0`, `0.0`, `false` — the help writes the `??` that
+/// supplies it, so `Core\Arr::count($a)` over a `?array<int>` is told to
+/// write `$a ?? []`. Any other type is told to test for `null` first. `None`
+/// for every other mismatch.
+fn null_help(expected: TypeId, actual: TypeId, env: &mut Env<'_>) -> Option<String> {
+    let (signatures, graph) = (env.signatures, env.graph);
+    if !env.interner.is_nullable(actual) || env.interner.is_nullable(expected) {
+        return None;
+    }
+    let present = env.interner.without_null(actual);
+    if !is_assignable(present, expected, env.interner, graph, signatures) {
+        return None;
+    }
+    let present_desc = env.interner.describe(present);
+    let empty = match env.interner.get(present) {
+        Ty::Array(_) => Some("[]"),
+        Ty::String => Some("''"),
+        Ty::Int | Ty::Uint => Some("0"),
+        Ty::Float => Some("0.0"),
+        Ty::Bool => Some("false"),
+        _ => None,
+    };
+    Some(match empty {
+        Some(empty) => format!(
+            "this value can be `null`, and `null` is not allowed here. To use `{empty}` when \
+             it is `null`, write `$value ?? {empty}`"
+        ),
+        None => format!(
+            "this value can be `null`, and `null` is not allowed here. Test it with \
+             `if ($value != null)` first. Inside that `if`, it is `{present_desc}`"
+        ),
     })
 }
 
