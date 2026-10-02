@@ -297,6 +297,12 @@
           }
         ]
       }
+    ],
+    "jsonValidation": [
+      {
+        "fileMatch": "**/.novis/completion/**/*.json",
+        "url": "./schemas/completion-file.json"
+      }
     ]
   },
   "scripts": {

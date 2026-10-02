@@ -1,0 +1,224 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Novis completion file",
+  "description": "Values the editor offers in a string argument at the method parameters this file names. The file is data and is never run. The language server checks the methods and parameters it names.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "sets": {
+      "description": "Named lists of values. A set's name is shared by every completion file in the workspace.",
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/definitions/list"
+      }
+    },
+    "parameters": {
+      "description": "The parameters values are offered at.",
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/attachment"
+      }
+    }
+  },
+  "definitions": {
+    "list": {
+      "description": "An array of values, or an object whose values are split on a separator and offered one segment at a time.",
+      "oneOf": [
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/value"
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["separator", "values"],
+          "properties": {
+            "separator": {
+              "description": "The character each value is split on. Typing it opens the next segment's list.",
+              "enum": [".", "/", ":"]
+            },
+            "values": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/value"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "value": {
+      "description": "A value: the text to insert, or an object with that text in `value` and the fields of the completion item.",
+      "oneOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["value"],
+          "properties": {
+            "value": {
+              "description": "The text the item inserts.",
+              "type": "string"
+            },
+            "label": {
+              "description": "The text the list shows. It is `value` when left out.",
+              "type": "string"
+            },
+            "labelDetail": {
+              "description": "Text shown right after the label.",
+              "type": "string"
+            },
+            "labelDescription": {
+              "description": "Text shown at the end of the line, after the label.",
+              "type": "string"
+            },
+            "kind": {
+              "description": "The item's icon. It is `value` when left out.",
+              "enum": [
+                "text",
+                "method",
+                "function",
+                "constructor",
+                "field",
+                "variable",
+                "class",
+                "interface",
+                "module",
+                "property",
+                "unit",
+                "value",
+                "enum",
+                "keyword",
+                "snippet",
+                "color",
+                "file",
+                "reference",
+                "folder",
+                "enumMember",
+                "constant",
+                "struct",
+                "event",
+                "operator",
+                "typeParameter"
+              ]
+            },
+            "title": {
+              "description": "The heading of the item's details and of its hover.",
+              "type": "string"
+            },
+            "documentation": {
+              "description": "Markdown shown under the title. A relative link or image resolves against this file's folder.",
+              "type": "string"
+            },
+            "deprecated": {
+              "description": "Shows the item struck through, and gives a hint where a program uses the value.",
+              "type": "boolean"
+            },
+            "sortText": {
+              "description": "The text the list sorts the item by.",
+              "type": "string"
+            },
+            "filterText": {
+              "description": "The text the list filters the item by. It is `value` when left out.",
+              "type": "string"
+            },
+            "preselect": {
+              "description": "Selects the item when the list opens.",
+              "type": "boolean"
+            },
+            "location": {
+              "description": "Where the value is defined. Go to definition on the value opens this place.",
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["file", "line"],
+              "properties": {
+                "file": {
+                  "description": "The file, relative to this file's folder.",
+                  "type": "string"
+                },
+                "line": {
+                  "description": "The line, counted from 1.",
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            },
+            "replacement": {
+              "description": "The value to use instead of this deprecated one. The hint's quick fix writes it.",
+              "type": "string"
+            }
+          }
+        }
+      ]
+    },
+    "attachment": {
+      "description": "One parameter and the values offered at it.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["method", "parameter"],
+      "anyOf": [
+        {
+          "required": ["set"]
+        },
+        {
+          "required": ["values"]
+        }
+      ],
+      "properties": {
+        "method": {
+          "description": "The method, as `Class::method` with the class's whole name. A constructor is `Class::constructor`.",
+          "type": "string",
+          "pattern": "^[^:]+::[^:]+$"
+        },
+        "parameter": {
+          "description": "The parameter's name, without its `$`.",
+          "type": "string"
+        },
+        "set": {
+          "description": "The name of a set in `sets`, in this file or another one.",
+          "type": "string"
+        },
+        "values": {
+          "$ref": "#/definitions/list"
+        },
+        "when": {
+          "description": "Offers these values only when another argument of the call is a string equal to one of `equals`.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["parameter", "equals"],
+          "properties": {
+            "parameter": {
+              "description": "The other parameter's name, without its `$`.",
+              "type": "string"
+            },
+            "equals": {
+              "description": "The string, or the strings, the other argument must equal.",
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "strict": {
+          "description": "Warns on a string written at this parameter that is not one of its values.",
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}
