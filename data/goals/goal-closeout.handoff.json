@@ -1,27 +1,27 @@
 {
-  "state": "**Goal `goal-closeout`, Stage 4 (finished in place) is under way.** Stage 3 is done: `docs/agent/goal-decisions.md` names every goal in front of `goal-closeout`.\n\nThe `nvs-diagnostics`, `benches`, `nvs-test`, `nvs-db` and `nvs-ir` gap directories are closed for this goal. The other three `nvs-ir` gaps are owned by milestones M10 and M12, so they stay with their owners. One `nvs-syntax` gap is left: `the-pipeline-bench-has-no-nested-twin`, a bench member, which is a different file set.\n\nIn `nvs-cli`, `E0006` and `E0901` are now raised. `report_unreadable` in `crates/nvs-cli/src/main.rs` reports a source file that is not UTF-8 as `E0006` at its first bad byte, for `nvs check`, `nvs run`, `nvs ast` and `nvs fmt`. A `require`d file that is not UTF-8 was already `E_REQUIRE_TARGET_NOT_FOUND` at the `require` site, and stays so. `report_internal` renders every `CodegenError` and a missing script frame as `E0901`, from `nvs run`, `nvs test` and a spawned script.\n\nThe floor check `the latest CI run on main succeeded for the code HEAD holds` is red only because `main` is many commits ahead of `origin/main` and the loop never pushes (`tools/nv/cmd/ci-green.ts`'s module doc). A person pushes. No session can close it. CI's `proofs` job has not had its first run for the same reason.\n\n`bun nv owners --closes goal-closeout` names the rest of the gaps, across many crates. Take them one directory at a time, smallest first. Stage 4 stops on `BLOCKED` only for \"too large\", which the goal's § *Stage 4* defines.\n\n`bun nv import` is broken, because the rule index it reads was deleted. Goal `ci-green`'s floor check stays red until Stage 6. That is expected.",
+  "state": "**Goal `goal-closeout`, Stage 4 (finished in place) is under way.** Stage 3 is done: `docs/agent/goal-decisions.md` names every goal in front of `goal-closeout`.\n\nThe `nvs-diagnostics`, `benches`, `nvs-test`, `nvs-db` and `nvs-ir` gap directories are closed for this goal. The other three `nvs-ir` gaps are owned by milestones M10 and M12. One `nvs-syntax` gap is left: `the-pipeline-bench-has-no-nested-twin`, a bench member, which is a different file set.\n\nIn `nvs-cli`, `nvs service --help`, each of its subcommands' help and the global `--config` and `--no-init` help are in the plain voice, pinned by `nvs_service_help_is_written_in_the_plain_voice` in `crates/nvs-cli/tests/one_binary.rs`. `nvs agent show` prints each `<!-- generated: <roster> -->` marker's rows from `nvs meta`'s document (`generated` in `crates/nvs-cli/src/agent.rs`), pinned in `crates/nvs-cli/tests/agent.rs`. Other subcommands' `--help` text was not swept and is still in the dense voice.\n\nThe floor check `the latest CI run on main succeeded for the code HEAD holds` is red only because `main` is many commits ahead of `origin/main` and the loop never pushes (`tools/nv/cmd/ci-green.ts`'s module doc). A person pushes. No session can close it.\n\n`bun nv owners --closes goal-closeout` names the rest of the gaps, across many crates. Take them one directory at a time, smallest first. Stage 4 stops on `BLOCKED` only for \"too large\", which the goal's § *Stage 4* defines.\n\n`bun nv import` is broken, because the rule index it reads was deleted. Goal `ci-green`'s floor check stays red until Stage 6. That is expected.",
   "next": {
     "stage": 4,
     "title": "finished in place",
     "files": [
-      "crates/nvs-cli/src/main.rs",
-      "crates/nvs-cli/src/agent.rs"
+      "crates/nvs-config/src/request.rs",
+      "crates/nvs-config/src/capability.rs"
     ],
-    "note": "Two `nvs-cli` gaps about text a user reads at the command line. Fix each, pin it, and delete its record under `data/gaps/nvs-cli/`.",
+    "note": "The `nvs-config` crate's gaps. Fix each, pin it, and delete its record under `data/gaps/nvs-config/`. Each record calls part of its fix a decision; the goal's standing decisions pre-authorize it, so judge each against Stage 4's \"too large\" before starting.",
     "items": [
       {
         "done": false,
-        "text": "**`nvs service --help` is not in the plain voice** — gap `service-help-is-not-in-the-plain-voice`. Rewrite the doc comments of `ServiceCommand` at `crates/nvs-cli/src/main.rs:1168` under `AGENTS.md` § *Text an end user reads*, and any help snapshot that reads them."
+        "text": "**`Core\\Config::set` answers `true` for a name that is not a key** — gap `a-set-of-a-name-that-is-not-a-key-answers-true`, at `crates/nvs-config/src/request.rs:101`. The fix needs a Rust-side roster of leaf keys, which only `bun nv directives` derives today."
       },
       {
         "done": false,
-        "text": "**`nvs agent show` prints the `<!-- generated: attributes -->` marker** — gap `agent-show-prints-the-generated-attributes-marker`. `topic_card` at `crates/nvs-cli/src/agent.rs:526` filters only the `<!-- primer -->` marker (`crates/nvs-cli/src/agent.rs:175`). Expand the marker from the attribute roster or drop the line, and pin it with a test over that section."
+        "text": "**A path of many missing folders is slow to refuse** — gap `a-path-of-many-missing-folders-is-slow-to-refuse`, at `crates/nvs-config/src/capability.rs:932` (`resolved`)."
       }
     ]
   },
   "backlog": [
-    "The rest of `crates/nvs-cli` under `data/gaps/nvs-cli/`: `a-reload-closes-no-connection`, `serve-and-a-spawned-script-have-no-program-id`, `the-warm-start-margin-runs-in-no-ci-step`, `serve-proxied-was-never-recorded-on-four-cores`.",
-    "`the-pipeline-bench-has-no-nested-twin` under `data/gaps/nvs-syntax/`, a bench member under `benches/members/`.",
-    "Several conformance comments say \"`bool as int` does not lower\" or \"a `catch` does not lower at file scope\", and `bun nv holes` lists no refusal site. Check each claim against the tree and rewrite the comment where it is stale (`tests/conformance/core/`, `tests/differential/core/`)."
+    "Gap `the-repository-nvs-toml-cites-adrs-not-rules` (`data/gaps/nvs-config/`): rewrite the root `nvs.toml`'s ADR citations as `rule:` ids. Small, but a root file cannot be a `## Next group` anchor (`ANCHOR_RE` in `tools/nv/cmd/orient.ts`).",
+    "The remaining `nvs-cli` gaps, `serve-and-a-spawned-script-have-no-program-id` first.",
+    "`the-pipeline-bench-has-no-nested-twin` (`nvs-syntax`), a bench member."
   ]
 }
