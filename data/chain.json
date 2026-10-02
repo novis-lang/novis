@@ -1,5 +1,5 @@
 {
-  "live": "ci-green",
+  "live": "goal-closeout",
   "goals": [
     "core-depth",
     "concurrency",
