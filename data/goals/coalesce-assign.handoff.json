@@ -1,38 +1,31 @@
 {
-  "state": "**Goal `coalesce-assign` — Stage 2 (`??=` as PHP's) is on disk; Stage 3 (the three defaulting operators) has nothing yet.**\n\n`??=` now reads its target guarded and writes it plain (ADR 0254 § 7): `check_compound_assign`\nmarks each level with `presence::mark_guarded_target_reads` into the typed-expression table\n(`ExprTypeTable::is_guarded_target_read`), never into `Env::coalesce_guarded`, and `nvs-ir` consults\nthe mark only while `Lowering::reading_guarded_target` is set around the read in\n`lower_read_modify_write`. A nullable row under a `??=` target stays `E0482`. The expression's type\nis the target's without `null` when the right side has none (§ 8). Gap\n`nvs-ir/throws-on-an-array-key-that` is deleted, and `rule:php-migration/absent-storage-is-never-a-zero-value`'s\nsecond paragraph says the `??=` read is the same guarded read.\n\n`rule:expressions/defaulting-assignment` is still `designed`; it flips to `shipped` with the two\nStage 3 cases, as ADR 0254 says. `$a ??+= 1` is still `E0102`.\n\nAn absent optional shape field under `??=` takes the right side on the read and then throws on the\nwrite, exactly as the plain `$u->nick = \"b\"` does; nothing pins it, and the goal's one-sentence rule\nsays that is the right answer.",
+  "state": "**Goal `coalesce-assign` — Stages 2 and 3 are on disk; Stage 4 (the feature proofs and the reference) has nothing yet.**\n\n`??+=`, `??-=` and `??.=` lex as one token each, parse as `AssignOp::CoalesceAddAssign`,\n`CoalesceSubAssign` and `CoalesceConcatAssign`, and `AssignOp::defaults` says which ops default.\n`check_compound_assign` types `$a = ($a ?? d) op $v` through `defaulted_read`, which records the\n`??` under `AssignOp::defaulted_read_span` (target start to value start). `lower_read_modify_write`\nreads that entry back in `Lowering::defaulted_read`, stages the zero under `synthetic_span`, and\nlowers the same `??` the written-out form would. A type with no zero is its own `d`, so it meets\nthe plain operator's refusal; `rule:expressions/defaulting-assignment` says so and is `shipped`,\nguarded by the two Stage 3 cases and `crates/nvs-types/tests/defaulting_assignment.rs`. Valgrind\nover a `??.=` fixture (element, nested row, local, property, value position) is clean.\n\n`nvs fmt` respaces no operator at all, `$a+=1` included; its test pins that the three format to\nthemselves rather than being refused.",
   "next": {
-    "stage": 3,
-    "title": "the three operators",
+    "stage": 4,
+    "title": "the feature proofs and the reference",
     "files": [
-      "crates/nvs-syntax/src/lexer.rs",
-      "crates/nvs-syntax/src/token.rs",
-      "crates/nvs-syntax/src/ast.rs",
-      "crates/nvs-syntax/src/parser/expr.rs",
-      "crates/nvs-types/src/expr/assign.rs",
-      "crates/nvs-ir/src/lower/stmt.rs"
+      "docs/examples/lang/expressions/assignment/",
+      "docs/examples/lang/expressions/and-the-ternary/",
+      "tests/hostile/lang/expressions/assignment/",
+      "docs/reference/lang/30-expressions.md"
     ],
     "items": [
       {
         "done": false,
-        "text": "**Three tokens and three `AssignOp`s** (ADR 0254, `rule:expressions/defaulting-assignment`) — `crates/nvs-syntax/src/lexer.rs:1009` lexes `??=` as one token beside `??`; add `??+=`, `??-=`, `??.=` there and at the token list `crates/nvs-syntax/src/lexer.rs:2646`, the kinds at `crates/nvs-syntax/src/token.rs:231`, the ops at `crates/nvs-syntax/src/ast.rs:371` (`AssignOp::binary_op` at `crates/nvs-syntax/src/ast.rs:385` keeps answering the operator, so a defaulting op needs its own question), and the parse at `crates/nvs-syntax/src/parser/expr.rs:256`. `$a ??-1` must still lex as `$a ?? -1`, and `??+` / `??-` are not operators. Test `the_defaulting_assignment_operators_lex_as_one_token_each`."
+        "text": "**`lang:expressions/assignment`'s proofs** (goal § *Stage 4*, `rule:expressions/defaulting-assignment`) — a new example beside `docs/examples/lang/expressions/assignment/03-tallying-a-report-as-its-rows-arrive.nvs:1` that counts words with `??+=` and groups lines with `??.=`; a new numbered step in `tests/hostile/lang/expressions/assignment/01-scalar-variables-into-every-mixed-slot.nvs:1` (a `tainted` string appended with `??.=` stays `tainted`, `??+=` at the largest `int` throws `ArithmeticError`); `docs/examples/lang/expressions/assignment/about.md:1` inside its word band. `bun nv proofs --id 'lang:expressions/assignment'` and `bun nv proofs --comments` over the new files."
       },
       {
         "done": false,
-        "text": "**Typing** — `crates/nvs-types/src/expr/assign.rs:1300` (`check_compound_assign`): `$a ??op= $v` is `$a = ($a ?? d) op $v`, `d` the zero of the target's type (`int`/`\"\"` for `mixed` or a union), the read guarded like `??=`'s (`presence::mark_guarded_target_reads`), every refusal of `op` kept. Test `a_defaulting_add_assign_is_typed_as_the_sum_over_a_zero_of_the_target_type`, in `crates/nvs-types/tests/defaulting_assignment.rs`."
+        "text": "**`lang:expressions/and-the-ternary`'s proofs** — `docs/examples/lang/expressions/and-the-ternary/03-settings-with-their-gaps-filled-in.nvs:1` runs with no gap line; one example gains a memoising getter returning `$this->x ??= …`; `docs/examples/lang/expressions/and-the-ternary/about.md:1`."
       },
       {
         "done": false,
-        "text": "**Lowering** — `crates/nvs-ir/src/lower/stmt.rs:641` (`lower_read_modify_write`): one staged target, the guarded read (`reading_guarded_target` already exists), a `??` against a constant of the target's representation (`emit_const_one` at `crates/nvs-ir/src/lower/stmt.rs:719` is the model for a zero), then `op`. Test `a_defaulting_assignment_stages_its_target_once` in `crates/nvs-ir/src/lower/tests.rs`."
-      },
-      {
-        "done": false,
-        "text": "**LSP, fmt and the conformance case** — `crates/nvs-lsp/src/completion.rs:1441` lists `??=` among the operators after which an expression is offered; `crates/nvs-fmt/src/space.rs:86` is where spacing runs, and how it spaces an operator is *not checked*. Then `tests/conformance/lang/defaulting-assignment-counts-subtracts-and-appends-from-nothing.nvst`, and the rule flips to `shipped` with its `guardedBy`."
+        "text": "**The reference and the `covers:` markers** — `docs/reference/lang/30-expressions.md:35` (the precedence row gains the three) and `docs/reference/lang/30-expressions.md:303` (§ on `??=`, plus a fenced program using the three operators and an absent key under `??=`); every document goal § *Stage 0* lists, rewritten whole; `covers:` markers on `tests/conformance/lang/defaulting-assignment-counts-subtracts-and-appends-from-nothing.nvst:1` and the Stage 2 case; then `bun nv reference` regenerates `docs/novis.md`."
       }
     ]
   },
   "backlog": [
-    "A write that narrows (`?int $n = null; $n ??= 1;` leaving `$n` an `int`) is for the user — goal file § *Standing decisions*.",
-    "`$a ?? ($a = f())` typed as the target — same, for the user.",
-    "`$this->x ??= 5` on an unwritten non-null typed property throws where PHP writes; `rule:classes/an-unwritten-property-read-throws` owns it, not this goal."
+    "A write narrowing its target on the next line (`?int $n = null; $n ??+= 1;` leaves `$n` a `?int`) — for the user, goal § *Standing decisions*.",
+    "`$a ?? ($a = f())` typed without `null` — for the user, same section."
   ]
 }

@@ -17,6 +17,28 @@ fn formatted(source: &str) -> String {
     format(map.file(id)).unwrap_or_else(|refusal| panic!("{refusal}"))
 }
 
+/// `??+=`, `??-=` and `??.=` (`rule:expressions/defaulting-assignment`) are
+/// each one token, so the printer keeps each whole and leaves the one space
+/// either side as written, as it does around every other assignment operator,
+/// and the file is formatted rather than refused.
+#[test]
+fn a_defaulting_assignment_operator_is_spaced_as_an_assignment() {
+    let canonical = "\
+<?nvs
+class Shop
+{
+    public function tally(array<int> $counts, ?string $log): void
+    {
+        $counts['a'] ??+= 1;
+        $counts['b'] ??-= 2;
+        $log ??.= 'x';
+        $counts['c'] += 1;
+    }
+}
+";
+    assert_eq!(formatted(canonical), canonical);
+}
+
 #[test]
 fn a_qualifier_sits_one_space_before_its_type() {
     // A property, a parameter, a return type and a local, each written with a

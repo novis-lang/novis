@@ -3,7 +3,7 @@
 
 # Expressions
 
-*5 of 29 rules below are **designed** rather than shipped, and are marked where they appear.*
+*4 of 29 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="expressions-truthy-positions"></a>
 
@@ -336,7 +336,7 @@ reserved is what lets the diagnostic fire.
 
 <a id="expressions-defaulting-assignment"></a>
 
-## `??+=`, `??-=` and `??.=` are `$a = ($a ?? d) op $v` with the target evaluated once and `d` the zero of the target's type  *(designed — not yet in the compiler)*
+## `??+=`, `??-=` and `??.=` are `$a = ($a ?? d) op $v` with the target evaluated once and `d` the zero of the target's type
 
 `rule:expressions/defaulting-assignment`
 
@@ -349,8 +349,9 @@ when written out refuses the operator with the same code.
 `d` is the zero of the target's own type: `0` for `int` and `uint`, `0.0` for `float`, the zero
 `decimal`, and `""` for `string`. For a `mixed` or union target it is the `int` `0` for `??+=` and
 `??-=` and the `string` `""` for `??.=`, and the operator is answered from the runtime tag
-([`types/arithmetic`](types.md#types-arithmetic)). A target that can never be `null` or absent takes the plain `+=`, `-=` or
-`.=`. The target's declared type is unchanged afterwards and nothing is narrowed ([`types/narrowing`](types.md#types-narrowing)).
+([`types/arithmetic`](types.md#types-arithmetic)). A type with no zero, such as a `bool`, an enum or an array, is its own `d`,
+so the operator is refused with the codes the plain `+=`, `-=` or `.=` is refused with. A target that
+can never be `null` or absent takes the plain `+=`, `-=` or `.=`. The target's declared type is unchanged afterwards and nothing is narrowed ([`types/narrowing`](types.md#types-narrowing)).
 
 There are exactly three, and no syntax writes another default: `($a ?? 100) -= 1` is `E0105`, and
 `$a = ($a ?? 100) - 1` is that program. `$a ??-1` is a `??` and a `-1`, because each operator ends in

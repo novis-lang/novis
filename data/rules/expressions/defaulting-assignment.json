@@ -1,6 +1,6 @@
 {
   "title": "`??+=`, `??-=` and `??.=` are `$a = ($a ?? d) op $v` with the target evaluated once and `d` the zero of the target's type",
-  "status": "designed",
+  "status": "shipped",
   "because": [
     "0254"
   ],
@@ -10,5 +10,9 @@
     "types/arithmetic",
     "types/narrowing"
   ],
-  "guardedBy": []
+  "guardedBy": [
+    "tests/conformance/lang/defaulting-assignment-counts-subtracts-and-appends-from-nothing.nvst",
+    "tests/conformance/reject/defaulting-assignment-keeps-every-refusal-of-its-operator.nvst",
+    "crates/nvs-types/tests/defaulting_assignment.rs"
+  ]
 }

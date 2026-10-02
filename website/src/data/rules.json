@@ -1,8 +1,8 @@
 {
   "totals": {
     "total": 1030,
-    "shipped": 787,
-    "designed": 243,
+    "shipped": 788,
+    "designed": 242,
     "diverging": 596
   },
   "topics": [
@@ -727,8 +727,8 @@
       "single": false,
       "counts": {
         "total": 29,
-        "shipped": 24,
-        "designed": 5,
+        "shipped": 25,
+        "designed": 4,
         "diverging": 18
       },
       "sections": [
@@ -833,8 +833,8 @@
           "url": "/docs/rules/expressions/conversion-and-intrinsics/",
           "counts": {
             "total": 9,
-            "shipped": 8,
-            "designed": 1,
+            "shipped": 9,
+            "designed": 0,
             "diverging": 6
           },
           "rules": [
@@ -866,7 +866,7 @@
               "id": "expressions/defaulting-assignment",
               "slug": "defaulting-assignment",
               "title": "`??+=`, `??-=` and `??.=` are `$a = ($a ?? d) op $v` with the target evaluated once and `d` the zero of the target's type",
-              "status": "designed",
+              "status": "shipped",
               "href": "/docs/rules/expressions/conversion-and-intrinsics/#defaulting-assignment",
               "diverges": "PHP has none of the three operators; its `$a[$k]++` and `$a[$k] .= $s` on an absent key read it as `null` with a warning"
             },

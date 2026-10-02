@@ -1439,6 +1439,9 @@ fn placed(before: &[TokenKind]) -> Written {
         | T::LtLtEquals
         | T::GtGtEquals
         | T::QuestionQuestionEquals
+        | T::QuestionQuestionPlusEquals
+        | T::QuestionQuestionMinusEquals
+        | T::QuestionQuestionDotEquals
         | T::QuestionQuestion
         | T::Dot
         | T::Plus

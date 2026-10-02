@@ -49,6 +49,26 @@ const RECEIVER: &str = "$b->";
 /// `source` analysed as its own entry point, out of an open buffer alone —
 /// nothing here `require`s anything, so no directory is needed
 /// (`nvs_diagnostics::SourceMap::load`).
+/// After `??+=`, `??-=` or `??.=` the cursor is where an expression goes, so
+/// what is offered there is what is offered after `+=` in the same document
+/// (`rule:expressions/defaulting-assignment`).
+#[test]
+fn completion_after_a_defaulting_assignment_operator_offers_an_expression() {
+    let at = |op: &str| {
+        let source = format!(
+            "<?nvs\nclass Shop {{\n  function m(): void {{\n    ?int $total = null;\n    \
+             $total {op} \n  }}\n}}\n"
+        );
+        let written = format!("$total {op} ");
+        rendered(&source, after(&source, &written))
+    };
+    let plain = at("+=");
+    assert!(plain.contains("$total"), "{plain}");
+    for op in ["??+=", "??-=", "??.="] {
+        assert_eq!(at(op), plain, "{op}");
+    }
+}
+
 fn analysed(source: &str) -> (Documents, Analysed) {
     analysed_at(
         &std::env::temp_dir().join("nvs-completion-case.nvs"),
