@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-stdlib/src/regex.rs",
-  "title": "`Core\\Regex::split` builds its array past the memory limit before the breach is reported.",
-  "text": "[`nvs_core_regex_split`] appends every piece with `NvsArray::append`, which asks no budget before it grows, so [`crate::budget`] records the breach only once the block is held and the poll that reports it runs after the member returns. `tests/hostile/core/Regex/split/01-millions-of-pieces.nvs` splits fifty million characters with an empty pattern and stops at about 1.2 GB held against a 256 MiB ceiling. Closing it is an affordability ask in front of each append, the one `NvsArray::affords_write` makes for a compiled write, reached from a producer; every `Core` member that appends in a loop over input is then read against it.",
-  "goal": "goal-closeout"
-}

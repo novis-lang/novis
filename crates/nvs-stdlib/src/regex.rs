@@ -2038,20 +2038,31 @@ nvs_runtime::nvs_helper! {
 /// **No piece is collected here.** A caller turns each one into a value as it
 /// arrives, so the split holds no `Vec` of sixteen bytes per piece beside the
 /// result, which for an empty pattern is sixteen times the subject.
+///
+/// `each` returns whether the split goes on, so a caller that can afford no
+/// more pieces stops it at the piece it could not keep.
 fn each_piece<'a>(
     compiled: &Compiled,
     subject: &'a str,
     pieces: Option<usize>,
     pattern: &str,
     budget: usize,
-    mut each: impl FnMut(&'a str),
+    mut each: impl FnMut(&'a str) -> bool,
 ) -> Result<(), Fault> {
     let pieces = pieces.unwrap_or(usize::MAX);
     match compiled {
-        Compiled::Linear(re) => re.splitn(subject, pieces).for_each(each),
+        Compiled::Linear(re) => {
+            for piece in re.splitn(subject, pieces) {
+                if !each(piece) {
+                    break;
+                }
+            }
+        }
         Compiled::Backtracking(re) => {
             for piece in re.splitn(subject, pieces) {
-                each(piece.map_err(|err| budget_exhausted("split", pattern, budget, &err))?);
+                if !each(piece.map_err(|err| budget_exhausted("split", pattern, budget, &err))?) {
+                    break;
+                }
             }
         }
     }
@@ -2099,19 +2110,37 @@ nvs_runtime::nvs_helper! {
             // A negative limit needs the count before the first piece is kept,
             // so the split runs twice: once counting, once building.
             let mut all = 0_usize;
-            each_piece(&compiled, subject, None, pattern, budget, |_| all += 1)?;
+            each_piece(&compiled, subject, None, pattern, budget, |_| {
+                all += 1;
+                true
+            })?;
             let dropped = usize::try_from(limit.unsigned_abs()).unwrap_or(usize::MAX);
             (None, all.saturating_sub(dropped))
         };
 
+        // Every append asks the request's memory limit first. An empty pattern
+        // makes one piece per character, so the array can be many times the
+        // subject, and the allocator's own compare is noticed only once the
+        // member returns. A `false` has already recorded the breach.
         let mut out = NvsArray::new();
         let mut seen = 0_usize;
+        let mut afforded = true;
         each_piece(&compiled, subject, wanted, pattern, budget, |piece| {
             seen += 1;
             if seen <= kept && (keep_empty || !piece.is_empty()) {
+                if !out.affords_write() {
+                    afforded = false;
+                    return false;
+                }
                 out.append(Value::str(NvsStr::new(piece.as_bytes())));
             }
+            true
         })?;
+        if !afforded {
+            return Err(Fault::fatal(
+                "Core\\Regex::split: the pieces are more than the request's memory limit allows",
+            ));
+        }
         Ok(Value::array(out))
     }
 }

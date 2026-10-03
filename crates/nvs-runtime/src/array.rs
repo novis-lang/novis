@@ -951,7 +951,9 @@ impl NvsArray {
     /// them. A `false` has already recorded the breach and asked for the poll
     /// that reports it, so what the caller owes is an operation that allocates
     /// nothing and an answer that costs nothing — for [`nvs_array_set`] and
-    /// [`nvs_array_set_index`], the array unchanged.
+    /// [`nvs_array_set_index`], the array unchanged. A `Core` member that
+    /// appends in a loop over its input asks it in front of every append, and
+    /// stops with a fatal fault on the first `false`.
     ///
     /// A shared handle is priced at the copy **and** one growth of it, because
     /// [`Table::separate`] reserves room for the live entries exactly, so the
@@ -962,7 +964,8 @@ impl NvsArray {
     /// The ask is made whatever it costs, zero included: a balance already
     /// past the ceiling is a request that is over, and a write it makes after
     /// that is one it is not entitled to however little it would take.
-    fn affords_write(&self) -> bool {
+    #[must_use]
+    pub fn affords_write(&self) -> bool {
         let table = self.header().table.borrow();
         let ask = if self.refcount() == 1 {
             table.growth_cost()
