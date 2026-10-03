@@ -1,0 +1,36 @@
+--TEST--
+`Core\Script\ExitReport::memoryPeak` is the request's high-water mark read at the ending, so it shows a spike the script already gave back, and memory a hook uses does not move it — `rule:observability/script-on-exit`
+--FILE--
+<?nvs
+// covers: Core\Script\ExitReport::memoryPeak
+// The spike is a 4 MiB string, released before the script ends. A reading of
+// the held figure at the ending would no longer see it, and the peak still does.
+// The hook then holds 8 MiB of its own: the report was built before the hook
+// ran, so a second reading is the same number.
+Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
+    int $peak = $report->memoryPeak();
+    if ($peak >= 4194304) {
+        echo "peak: the spike is recorded\n";
+    } else {
+        echo "peak: the spike is missing\n";
+    }
+
+    string $inHook = Core\Str::repeat("y", 8388608);
+    if ($report->memoryPeak() == $peak) {
+        echo "peak: fixed at the ending\n";
+    } else {
+        echo "peak: moved by the hook\n";
+    }
+    echo "hook held ", Core\Str::length($inHook), " bytes\n";
+});
+
+string $spike = Core\Str::repeat("x", 4194304);
+echo "spike held ", Core\Str::length($spike), " bytes\n";
+$spike = "";
+echo "the last statement ran\n";
+--EXPECT--
+spike held 4194304 bytes
+the last statement ran
+peak: the spike is recorded
+peak: fixed at the ending
+hook held 8388608 bytes

@@ -1,0 +1,31 @@
+--TEST--
+`Core\Script\ExitReport::memoryPeak` is filled for an `exit` ending as well, and it counts a string the script still held when `exit` ran — `rule:observability/script-on-exit`
+--FILE--
+<?nvs
+// covers: Core\Script\ExitReport::memoryPeak
+// The script ends with `exit(3)` while it still holds a 2 MiB string. The
+// report's status is `3`, and its peak counts that string.
+Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
+    string $named = match ($report->reason()) {
+        Core\Script\ExitReason::Normal => "Normal",
+        Core\Script\ExitReason::ExitCall => "ExitCall",
+        Core\Script\ExitReason::UncaughtThrow => "UncaughtThrow",
+        Core\Script\ExitReason::Finish => "Finish",
+    };
+    echo $named, " ", $report->status(), "\n";
+    if ($report->memoryPeak() >= 2097152) {
+        echo "peak: the held string is counted\n";
+    } else {
+        echo "peak: the held string is missing\n";
+    }
+});
+
+string $held = Core\Str::repeat("h", 2097152);
+echo "holding ", Core\Str::length($held), " bytes\n";
+exit(3);
+--EXPECT--
+holding 2097152 bytes
+ExitCall 3
+peak: the held string is counted
+--EXPECTF-ERROR--
+%A

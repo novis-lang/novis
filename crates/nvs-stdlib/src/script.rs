@@ -293,12 +293,11 @@ const THROWABLE: CoreTy = CoreTy::Instance("Throwable");
 
 /// `rule:observability/script-on-exit`'s report, as the instance each hook is handed.
 ///
-/// Three accessors rather than the three *properties* § 1 sketches, which is
-/// the same departure `Core\RateLimit\Decision` makes and for the identical
-/// reason: a `Core`-owned instance has no property a program can reach
+/// Four accessors rather than four *properties*, which is the same departure
+/// `Core\RateLimit\Decision` makes and for the identical reason: a
+/// `Core`-owned instance has no property a program can reach
 /// ([`CoreTy::Instance`] is the home of that rule), so `$report->reason` would
 /// resolve a class, find no member and reach `nvs-ir` with nothing to call.
-/// The ADR's own § 1 spells the accessors now.
 ///
 /// **Readonly is structural here rather than enforced.** There is no member
 /// that writes a slot, and a `Core` class has no constructor a program may
@@ -340,8 +339,20 @@ pub(crate) const EXIT_REPORT: CoreClass = CoreClass {
             symbol: ERROR_SYMBOL,
             doc: Some(&ERROR_DOC),
         },
+        CoreMethod {
+            name: "memoryPeak",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            // `int` because the rule's signature block declares it so; the
+            // figure is the one `Core\Budget::memoryPeak` reads, saturated at
+            // `i64::MAX` in [`report_of`].
+            return_ty: CoreTy::Int,
+            symbol: MEMORY_PEAK_SYMBOL,
+            doc: Some(&MEMORY_PEAK_DOC),
+        },
     ],
-    slots: &["reason", "status", "error"],
+    slots: &["reason", "status", "error", "memoryPeak"],
     constants: &[],
 };
 
@@ -349,8 +360,8 @@ pub(crate) const EXIT_REPORT: CoreClass = CoreClass {
 const EXIT_REPORT_CARD: ClassDoc = ClassDoc {
     short: "Describes how a script ended. Each function added with `Core\\Script::onExit()` \
             receives one. `reason()` returns the kind of ending, `status()` returns the exit \
-            status, and `error()` returns the exception that ended the script, if there was one. \
-            The values cannot change.",
+            status, `error()` returns the exception that ended the script, if there was one, and \
+            `memoryPeak()` returns the most memory the script used. The values cannot change.",
 };
 
 /// `Core\Script\ExitReport::reason`'s reference card — `rule:core-api/reference-card`.
@@ -378,6 +389,16 @@ const ERROR_DOC: MethodDoc = MethodDoc {
     params: &[],
     ret: "When the reason is `UncaughtThrow`, the `Throwable` that nothing caught, with its own \
           class, message and backtrace. For every other ending, `null`.",
+    errors: &[],
+};
+
+/// `Core\Script\ExitReport::memoryPeak`'s reference card — `rule:core-api/reference-card`.
+const MEMORY_PEAK_DOC: MethodDoc = MethodDoc {
+    short: "Returns the most memory the script used while it ran, in bytes. This is the same \
+            number `Core\\Budget::memoryPeak()` returns.",
+    params: &[],
+    ret: "The highest number of bytes the script held at one time, read when the script ended. \
+          It is read before the first function runs, so memory a function uses does not change it.",
     errors: &[],
 };
 
@@ -419,15 +440,17 @@ pub const FINISH_SYMBOL: &str = "nvs_core_script_finish";
 /// [`is_finish`]'s own doc and [`THROWABLE`]'s.
 pub use nvs_runtime::{FINISH_MARKER_NAME, is_finish};
 
-/// The symbols [`EXIT_REPORT`]'s three accessors are reached through.
+/// The symbols [`EXIT_REPORT`]'s four accessors are reached through.
 const REASON_SYMBOL: &str = "nvs_core_script_exit_report_reason";
 const STATUS_SYMBOL: &str = "nvs_core_script_exit_report_status";
 const ERROR_SYMBOL: &str = "nvs_core_script_exit_report_error";
+const MEMORY_PEAK_SYMBOL: &str = "nvs_core_script_exit_report_memory_peak";
 
 /// [`EXIT_REPORT`]'s slots, by index — the layout its `slots` names.
 const REASON_SLOT: usize = 0;
 const STATUS_SLOT: usize = 1;
 const ERROR_SLOT: usize = 2;
+const MEMORY_PEAK_SLOT: usize = 3;
 
 /// The symbol `spawn script <path> with(…)` lowers to.
 pub const SPAWN_SYMBOL: &str = "nvs_core_script_spawn";
@@ -473,6 +496,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         REASON_SYMBOL => (nvs_core_script_exit_report_reason as *const ()).cast(),
         STATUS_SYMBOL => (nvs_core_script_exit_report_status as *const ()).cast(),
         ERROR_SYMBOL => (nvs_core_script_exit_report_error as *const ()).cast(),
+        MEMORY_PEAK_SYMBOL => (nvs_core_script_exit_report_memory_peak as *const ()).cast(),
         _ => return None,
     })
 }
@@ -488,7 +512,11 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
 /// its own: the caller's `Thrown` is what keeps the object alive at the ending,
 /// and the report outlives neither by design — [`run_exit_hooks`] releases it
 /// the moment the drain is over.
-fn report_of(reason: i64, status: i64, error: Option<&nvs_runtime::Thrown>) -> Value {
+///
+/// `peak` is `Ctx::memory_peak` read at the ending, so a hook's own
+/// allocations never move the figure it is handed, and a byte count past
+/// `i64::MAX` saturates rather than wrapping negative.
+fn report_of(reason: i64, status: i64, error: Option<&nvs_runtime::Thrown>, peak: usize) -> Value {
     let error = error.map_or_else(Value::null, |thrown| {
         let value = thrown.as_value();
         #[expect(
@@ -504,9 +532,10 @@ fn report_of(reason: i64, status: i64, error: Option<&nvs_runtime::Thrown>) -> V
         }
         value
     });
+    let peak = Value::int(i64::try_from(peak).unwrap_or(i64::MAX));
     crate::instance::build(
         &EXIT_REPORT,
-        [Value::int(reason), Value::int(status), error],
+        [Value::int(reason), Value::int(status), error, peak],
     )
 }
 
@@ -541,16 +570,19 @@ pub fn run_exit_hooks(
     outcome: Result<(), i32>,
     thrown: Option<&nvs_runtime::Thrown>,
 ) {
+    let peak = ctx.memory_peak();
     let report = match outcome {
-        Ok(()) => report_of(NORMAL, 0, None),
-        Err(status) if status == nvs_runtime::EXITED => report_of(EXIT_CALL, ctx.exit_code(), None),
+        Ok(()) => report_of(NORMAL, 0, None, peak),
+        Err(status) if status == nvs_runtime::EXITED => {
+            report_of(EXIT_CALL, ctx.exit_code(), None, peak)
+        }
         Err(status)
             if status == nvs_runtime::THROWN
                 && thrown.is_some_and(|thrown| is_finish(&thrown.class_name())) =>
         {
-            report_of(FINISH, 0, None)
+            report_of(FINISH, 0, None, peak)
         }
-        Err(status) if status == nvs_runtime::THROWN => report_of(UNCAUGHT_THROW, 1, thrown),
+        Err(status) if status == nvs_runtime::THROWN => report_of(UNCAUGHT_THROW, 1, thrown, peak),
         Err(_) => return,
     };
     ctx.run_exit_hooks(report);
@@ -1226,6 +1258,14 @@ nvs_runtime::nvs_helper! {
     /// the live object rather than a report built from it.
     fn nvs_core_script_exit_report_error(_ctx, args: [1]) {
         slot_of(args, ERROR_SLOT, "error")
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Script\ExitReport::memoryPeak(): int` — the request's high-water
+    /// mark, read once at the ending and before the first hook ran.
+    fn nvs_core_script_exit_report_memory_peak(_ctx, args: [1]) {
+        slot_of(args, MEMORY_PEAK_SLOT, "memoryPeak")
     }
 }
 
@@ -1933,7 +1973,7 @@ mod tests {
             super::UNCAUGHT_THROW,
             super::FINISH,
         ] {
-            let report = super::report_of(reason, 0, None);
+            let report = super::report_of(reason, 0, None, 0);
             for read in 1..=2 {
                 let answer = call(
                     super::nvs_core_script_exit_report_reason,
@@ -1954,7 +1994,7 @@ mod tests {
     fn status_answers_the_number_it_was_built_with_unchanged() {
         let mut ctx = Ctx::buffered();
         for status in [0, 1, 42, 255, -1, i64::MIN, i64::MAX] {
-            let report = super::report_of(super::EXIT_CALL, status, None);
+            let report = super::report_of(super::EXIT_CALL, status, None, 0);
             let answer = call(
                 super::nvs_core_script_exit_report_status,
                 &mut ctx,
@@ -1962,6 +2002,25 @@ mod tests {
             )
             .expect("`status` cannot fail");
             assert_eq!(answer.as_int(), Some(status));
+            release(report);
+        }
+    }
+
+    /// `memoryPeak` answers the byte count the report was built with, and one
+    /// past `i64::MAX` saturates there rather than wrapping negative.
+    // covers: Core\Script\ExitReport::memoryPeak
+    #[test]
+    fn memory_peak_answers_the_mark_it_was_built_with_saturating_at_the_top() {
+        let mut ctx = Ctx::buffered();
+        for (peak, want) in [(0, 0), (4096, 4096), (usize::MAX, i64::MAX)] {
+            let report = super::report_of(super::NORMAL, 0, None, peak);
+            let answer = call(
+                super::nvs_core_script_exit_report_memory_peak,
+                &mut ctx,
+                &[report],
+            )
+            .expect("`memoryPeak` cannot fail");
+            assert_eq!(answer.as_int(), Some(want));
             release(report);
         }
     }
@@ -1974,7 +2033,7 @@ mod tests {
     #[test]
     fn error_answers_the_thrown_object_itself_as_a_reference_of_its_own() {
         let mut ctx = Ctx::buffered();
-        let none = super::report_of(super::EXIT_CALL, 2, None);
+        let none = super::report_of(super::EXIT_CALL, 2, None, 0);
         let answer = call(super::nvs_core_script_exit_report_error, &mut ctx, &[none])
             .expect("`error` cannot fail");
         assert_eq!(
@@ -1995,7 +2054,7 @@ mod tests {
             .as_value()
             .obj_ptr()
             .expect("an installed class promotes the failure to an object");
-        let report = super::report_of(super::UNCAUGHT_THROW, 1, Some(&thrown));
+        let report = super::report_of(super::UNCAUGHT_THROW, 1, Some(&thrown), 0);
         let answer = call(
             super::nvs_core_script_exit_report_error,
             &mut ctx,
