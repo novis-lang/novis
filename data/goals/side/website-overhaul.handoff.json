@@ -1,34 +1,37 @@
 {
-  "state": "**Side goal `website-overhaul`, stage 2 in progress.** The nav, the per-area sidebars, the removals and the in-place examples are on disk, as before.\n\n`bun nv site` is written: `tools/nv/cmd/site.ts`, its module doc the home of what each mode and part does. `--stale`, `--stamp`, `--build` and `--check` work. The parts `structure` and `stale` pass on this tree, and `--build` prints `site: built`. `reference`, `syntax`, `guides`, `in-depth` and `apps` print \"not written yet\" and fail until their stages write them. Its tests are `tools/nv/test/site.test.ts`, and the goal record's check now names that path.\n\nEvery handwritten page carries `covers: []`, and `covers` is in the content schema in `website/src/content.config.ts`. `website/src/components/Snippet.astro` shows `website/snippets/<path>` and its `.out`. `website/snippets/` does not exist yet, and no lock file exists yet: no page covers a feature.\n\n`.claude/settings.json` allows `Bash(bun nv site:*)` and `PowerShell(bun nv site:*)`, and `bun nv verify` is green.\n\n`site snippets` fails on the inline Novis fences in `index.mdx` and `install/hello-world.mdx`. `site prose` fails on dashes and long sentences in `index.mdx`, `install/*`, `sponsoring.mdx` and `in-depth/what-changed.mdx`. Stages 5 and 6 rewrite those pages, and the rewrite is what closes both.",
+  "state": "**Side goal `website-overhaul`, stage 2 written, stage 3 next.** The nav, the per-area sidebars, the removals and the in-place examples are on disk.\n\n`bun nv site` (`tools/nv/cmd/site.ts`, its module doc the home of each mode and part) has `--stale`, `--stamp`, `--build` and `--check`. `structure` and `stale` pass on this tree. `reference`, `syntax`, `guides`, `in-depth` and `apps` print \"not written yet\" until their stages write them.\n\nThe wrap gate is on disk: `bun nv session --wrap` calls `wrapGate` in `site.ts` and refuses every broken id, and every stale page the session made stale itself. `--check` prints it under `== SITE`. CI's `proofs` job runs `bun nv site --check structure snippets stale prose` after `proofs --verify`, and the `proofs` lane now includes `website/`. `rule:testing/website-pages-are-stamped` is the rule, and ADR 0262 is the stage's record. `rule:testing/examples-live-in-the-repository` now says \"read in place\".\n\nEvery handwritten page carries `covers: []`. `website/snippets/` and `website/site.lock.json` do not exist yet.\n\n`site snippets` fails on the inline Novis fences in `index.mdx` and `install/hello-world.mdx`, and `site prose` fails on `index.mdx`, `install/*`, `sponsoring.mdx` and `in-depth/what-changed.mdx`. Stages 5 and 6 rewrite those pages, and the rewrite closes both. Until then CI's new step is red on this branch, which is expected, because the goal sweeps once at its end.",
   "next": {
-    "stage": 2,
-    "title": "the structure and the stale guard",
+    "stage": 3,
+    "title": "Reference, generated and complete",
     "files": [
-      "tools/nv/cmd/session.ts",
-      ".github/workflows/ci.yml",
-      "docs/rules/testing/",
-      "data/rules/testing/",
-      "docs/decisions/",
-      "data/decisions/"
+      "tools/nv/renderers/website-core.ts",
+      "website/src/lib/core.ts",
+      "website/src/components/Method*.astro",
+      "tools/nv/cmd/site.ts"
     ],
     "items": [
       {
         "done": false,
-        "text": "**The wrap gate: `nv session --wrap` refuses while `bun nv site --stale` reports a broken id, or a stale page whose feature this slice changed** — goal § Stage 2 *The wrap gate*; the tree gates are at `tools/nv/cmd/session.ts:478`, and `staleness` at `tools/nv/cmd/site.ts:180` is what to call"
+        "text": "**One dynamic route renders every Core member from `core.json`, its `about.md` and all its examples, and the per-member `.mdx` stubs are deleted** after the handwritten prose on the non-draft ones moves into each member's `about.md`. Goal § Stage 3 *Generated, never edited by hand*. Anchors: `tools/nv/renderers/website-core.ts:1`, `website/src/lib/core.ts:1`"
       },
       {
         "done": false,
-        "text": "**CI runs `bun nv site --check structure snippets stale prose` in the job that runs `bun nv proofs --verify`** — the step goes after `.github/workflows/ci.yml:294`, and `--check` is at `tools/nv/cmd/site.ts:488`; `pages.yml` stays build-only"
+        "text": "**No empty heading, and `related:` lines in `about.md` render as links and fail the build on an unknown id.** Goal § Stage 3 *Related* and *A heading with nothing under it*. Anchor: `website/src/components/MethodExamples.astro:1`"
       },
       {
         "done": false,
-        "text": "**The stage's decision record, and `rule:testing/examples-live-in-the-repository` rewritten to \"read in place\"** — take the next free ADR number right before writing; the rule's fragment is `docs/rules/testing/examples-live-in-the-repository.md:1`, then `bun nv rules --render`"
+        "text": "**Configuration and CLI sub-areas, one page per `nvs.toml` block and per command.** Goal § Stage 3 *Three sub-areas*. Anchor: `tools/nv/renderers/website-core.ts:1`"
+      },
+      {
+        "done": false,
+        "text": "**`--check reference`, replacing its \"not written yet\" entry in `LATER`.** Goal § Stage 3 *`--check reference`*. Anchor: `tools/nv/cmd/site.ts:64`"
       }
     ]
   },
   "backlog": [
-    "Stage 5 converts `install/hello-world.mdx`'s two Novis fences to snippets and rewrites the Install pages inside the prose bounds (goal § Stage 5).",
-    "Stage 6 rewrites `index.mdx` and fixes `sponsoring.mdx` and `in-depth/what-changed.mdx` against the prose bounds (goal § Stage 6).",
-    "The parts `reference`, `syntax`, `guides`, `in-depth` and `apps` of `tools/nv/cmd/site.ts` are written by their stages, each replacing its `LATER` row."
+    "Stage 4, Syntax: `website/src/content/docs/syntax/**` and `website/snippets/syntax/**` — goal § Stage 4.",
+    "Stage 5, Install, Guides and the Notes app — goal § Stage 5.",
+    "Stage 6, In-Depth, the home page and the plain-English read — goal § Stage 6.",
+    "The wrap gate infers a stale page's cause from the paths changed. ADR 0262 § Revisiting names when to hash the card at the session's base instead."
   ]
 }
