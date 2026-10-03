@@ -79,7 +79,7 @@ use std::ops::ControlFlow;
 use std::path::Path;
 use std::pin::Pin;
 use std::rc::Rc;
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, Mutex, PoisonError, RwLock};
 use std::task::{Context, Poll};
 use std::time::{Duration, Instant};
 
@@ -622,6 +622,68 @@ impl Draining {
     pub fn bit(&self) -> &Drain {
         &self.0
     }
+
+    /// The drain a connection accepted under the tree `generation` reads: this
+    /// server's drain joined with that tree's, so a stop and a reload both
+    /// close it the same way.
+    fn for_connection(&self, generations: &Generations, generation: u64) -> Self {
+        Self(Drain::any_of(&[
+            &self.0,
+            &generations.drain_for(generation),
+        ]))
+    }
+}
+
+/// The drain of the connections accepted under each published tree.
+///
+/// `rule:concurrency/a-drain-closes-a-connection-cleanly` gives a reload the
+/// ending a stop has, so the connections accepted under the tree a reload
+/// replaces are drained, and the accept loop keeps accepting under the new
+/// one. One drain is held, the newest tree's. A newer generation begins it and
+/// takes its place, whether a reload ([`Generations::retire_before`]) or an
+/// accept loop that saw the newer tree first ([`Generations::drain_for`]) asks.
+/// So a connection accepted between the publish and the reload's call is
+/// still given the new tree's drain.
+///
+/// Memory: one drain per tree that still has a connection open, freed with the
+/// last of them.
+#[derive(Debug)]
+pub struct Generations(Mutex<(u64, Drain)>);
+
+impl Default for Generations {
+    fn default() -> Self {
+        Self(Mutex::new((0, Drain::detached())))
+    }
+}
+
+impl Generations {
+    /// The drain of the connections accepted under the tree `generation`. It
+    /// has already begun when a newer tree has been published.
+    pub fn drain_for(&self, generation: u64) -> Drain {
+        let mut held = self.held();
+        if generation < held.0 {
+            let retired = Drain::detached();
+            retired.begin();
+            return retired;
+        }
+        if generation > held.0 {
+            held.1.begin();
+            *held = (generation, Drain::detached());
+        }
+        held.1.clone()
+    }
+
+    /// Begin the drain of every connection accepted under a tree older than
+    /// `generation`, which is the tree a reload has just published.
+    pub fn retire_before(&self, generation: u64) {
+        drop(self.drain_for(generation));
+    }
+
+    /// The held drain, taking a poisoned lock as the pair it holds: nothing
+    /// done under it can leave the pair half written.
+    fn held(&self) -> std::sync::MutexGuard<'_, (u64, Drain)> {
+        self.0.lock().unwrap_or_else(PoisonError::into_inner)
+    }
 }
 
 /// What every connection this server hands over is served under: `rule:http-server/the-server-block-is-boot-class`'s
@@ -632,8 +694,8 @@ impl Draining {
 /// of a connection's context — an [`Arc`] each, so every core answers under the
 /// one valve and the one configuration. A connection copies its waits and
 /// bounds out of the snapshot published when it is accepted, and keeps that
-/// copy for its whole life: a reload reaches the next connection, never one
-/// already open.
+/// copy for its whole life. A reload reaches the next connection, and drains
+/// the ones already open ([`Generations`]).
 #[derive(Clone, Debug)]
 pub struct Serving {
     /// § 5's in-flight ceiling, asked before the handler is.
@@ -655,6 +717,9 @@ pub struct Serving {
     /// unaffected either way: it holds the [`Arc`] it took, and the clone here
     /// is taken once at its start.
     current: Arc<nvs_config::Current>,
+    /// The drain of the connections accepted under each tree `current` has
+    /// published, which a reload begins for the tree it replaced.
+    generations: Arc<Generations>,
 }
 
 impl Serving {
@@ -708,7 +773,16 @@ impl Serving {
             admission,
             policy: Arc::new(RwLock::new(Arc::new(policy))),
             current,
+            generations: Arc::new(Generations::default()),
         }
+    }
+
+    /// The drains of the trees this server has accepted under, for whoever
+    /// publishes into its holder: that publisher retires the old tree's
+    /// connections with [`Generations::retire_before`].
+    #[must_use]
+    pub fn generations(&self) -> Arc<Generations> {
+        Arc::clone(&self.generations)
     }
 
     /// The header set, the cross-origin policy and the proxy list a request
@@ -2366,6 +2440,13 @@ where
     // already exists is adopted rather than started again.
     let mut metered = serving.current.load();
     crate::metrics::meter_this_core(&metered.config);
+    // The drain every connection this core accepts under one tree reads, made
+    // again only when an accept finds a newer tree published. So an accept
+    // costs no lock and no registration while the tree stays the same.
+    let mut accepted_under = (
+        metered.generation,
+        draining.for_connection(&serving.generations, metered.generation),
+    );
     let outstanding = Rc::new(Cell::new(0_usize));
     let mut backoff = AcceptBackoff::default();
     // One registration for the whole loop rather than one per park: this task
@@ -2411,6 +2492,12 @@ where
             }
         };
         let published = serving.current.load();
+        if published.generation != accepted_under.0 {
+            accepted_under = (
+                published.generation,
+                draining.for_connection(&serving.generations, published.generation),
+            );
+        }
         if !Arc::ptr_eq(&published, &metered) {
             crate::metrics::meter_this_core(&published.config);
             metered = published;
@@ -2421,11 +2508,13 @@ where
         // connection clones is shared by every core rather than by every
         // connection on this one.
         let serving = serving.clone();
-        // Cloned beside it for the same reason and used by neither this
-        // function's own tail nor the request path: `rule:concurrency/connection-bounds-are-finite`'s shutdown
-        // close is taken by a connection isolate's own loop, so what the drain
-        // needs is a handle on the far side of the hand-over.
-        let draining_here = draining.clone();
+        // The connection's own drain, which this server's stop and a reload
+        // that replaces the tree it was accepted under both begin.
+        // `rule:concurrency/connection-bounds-are-finite`'s shutdown close is
+        // taken by a connection isolate's own loop, so what the drain needs is
+        // a handle on the far side of the hand-over. The health probe and
+        // `Core\Server::isDraining()` read the server's drain, never this one.
+        let draining_here = accepted_under.1.clone();
         // Counted in *here* rather than inside the body, so that a connection
         // handed over is already outstanding by the time the shutdown below can
         // look; `Served`'s `Drop` is what counts it back out, and it is a drop

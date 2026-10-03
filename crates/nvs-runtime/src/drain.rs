@@ -66,14 +66,28 @@
 //! its own — stops a **server**, and reporting the process as draining because
 //! one of them stopped would be the fail-*closed* direction of the same error
 //! `Drain::process` exists to prevent.
+//!
+//! # A drain that follows others
+//!
+//! [`Drain::any_of`] is a drain that begins when any of the drains it was made
+//! from begins, and that can also be begun on its own. A connection reads one:
+//! its server's drain, which a stop begins, joined with the drain of the
+//! configuration it was accepted under, which a reload begins
+//! (`rule:concurrency/a-drain-closes-a-connection-cleanly`). Everything a
+//! connection does at its waits is then the same for both endings. The link
+//! is an ordinary registration on each parent, held by the joined drain and
+//! dropped with it, and the parent's wake reaches the joined drain through a
+//! weak pointer, so a parent never keeps a joined drain alive.
 
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex, OnceLock, PoisonError};
+use std::sync::{Arc, Mutex, OnceLock, PoisonError, Weak};
 
-/// One drain: the bit, and the wakes owed the moment it is set.
+/// One drain: the bit, the wakes owed the moment it is set, and the
+/// registrations that begin it when a drain it follows begins.
 struct State {
     begun: AtomicBool,
     parked: Mutex<Parked>,
+    follows: Vec<DrainWake>,
 }
 
 impl State {
@@ -81,6 +95,7 @@ impl State {
     fn fresh() -> Self {
         Self {
             begun: AtomicBool::new(false),
+            follows: Vec::new(),
             parked: Mutex::new(Parked {
                 next: 0,
                 held: Vec::new(),
@@ -137,6 +152,35 @@ impl Drain {
     #[must_use]
     pub fn detached() -> Self {
         Self(Arc::new(State::fresh()))
+    }
+
+    /// A drain that begins when any of `parents` begins, and that
+    /// [`Drain::begin`] can also begin on its own.
+    ///
+    /// It has already begun when one of `parents` has. Memory: one registration
+    /// on each parent, for as long as the returned drain lives.
+    #[must_use]
+    pub fn any_of(parents: &[&Self]) -> Self {
+        let joined = Self(Arc::new_cyclic(|me: &Weak<State>| {
+            let mut state = State::fresh();
+            for parent in parents {
+                let me = Weak::clone(me);
+                let link = parent.wake_at_drain(move || {
+                    if let Some(me) = me.upgrade() {
+                        Self(me).begin();
+                    }
+                });
+                state.follows.extend(link);
+            }
+            state
+        }));
+        // A parent that began while the state above was being built fired a
+        // wake that could not reach it yet. That parent's bit is set before it
+        // fires anything, so this read finds it.
+        if parents.iter().any(|parent| parent.is_draining()) {
+            joined.begin();
+        }
+        joined
     }
 
     /// Stop accepting, and wake everything parked: from here the probe answers
@@ -389,6 +433,58 @@ mod tests {
             parked.load(Ordering::Relaxed),
             1,
             "dropping one registration took another one's wake with it"
+        );
+    }
+
+    /// A joined drain begins with either parent, wakes what is parked on it,
+    /// and beginning it begins neither parent.
+    #[test]
+    fn a_joined_drain_begins_with_either_parent_and_never_the_other_way() {
+        let server = Drain::detached();
+        let generation = Drain::detached();
+        let joined = Drain::any_of(&[&server, &generation]);
+        let (woken, wake) = counter();
+        let _parked = joined.wake_at_drain(wake);
+        generation.begin();
+        assert!(
+            joined.is_draining(),
+            "the second parent's drain was not followed"
+        );
+        assert_eq!(
+            woken.load(Ordering::Relaxed),
+            1,
+            "the joined drain's wait was not woken"
+        );
+        assert!(
+            !server.is_draining(),
+            "a joined drain began its other parent"
+        );
+
+        let alone = Drain::any_of(&[&server]);
+        alone.begin();
+        assert!(
+            !server.is_draining(),
+            "beginning a joined drain began its parent"
+        );
+        server.begin();
+        assert!(
+            Drain::any_of(&[&server]).is_draining(),
+            "a drain joined to one that had begun reported accepting"
+        );
+    }
+
+    /// A parent holds no joined drain alive: dropping the joined drain takes
+    /// its registration off the parent, so a parent's list grows with the
+    /// drains alive now and not with every one made from it.
+    #[test]
+    fn a_dropped_joined_drain_leaves_nothing_on_its_parent() {
+        let parent = Drain::detached();
+        for _ in 0..3 {
+            drop(Drain::any_of(&[&parent]));
+        }
+        assert!(
+            parent.parked().held.is_empty(),
+            "a dropped joined drain stayed registered"
         );
     }
 }

@@ -28211,8 +28211,11 @@ foreach ($orders as string $order) {
 }
 ```
 
-**A reload does not drain.** `nvs ctl reload` closes no connection. A request that is running
-finishes with the configuration it started with, and `nvs ctl status` still prints
+**A reload drains the connections that are open.** `nvs ctl reload` closes each connection
+that was opened before it, the same way a stop does. A request that is running finishes with the
+configuration it started with, and then its connection closes. The server still accepts new
+connections, and they use the new configuration. The health path still answers `200`,
+`Core\Server::isDraining()` still returns `false`, and `nvs ctl status` still prints
 `draining: false`.
 
 ### nvs ctl

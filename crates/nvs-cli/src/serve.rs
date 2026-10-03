@@ -497,15 +497,18 @@ pub(crate) fn run(
     // socket is not its only caller: a service manager's stop and reload
     // reach the same process through `crate::dispatch`, which takes it from
     // where this installs it.
-    let host = Arc::new(crate::control::Process::new(
-        Arc::clone(&current),
-        config.to_vec(),
-        path.map(Path::to_path_buf),
-        Arc::clone(&compiler),
-        Arc::clone(&admission),
-        nvs_server::Draining::process(),
-        told.clone(),
-    ));
+    let host = Arc::new(
+        crate::control::Process::new(
+            Arc::clone(&current),
+            config.to_vec(),
+            path.map(Path::to_path_buf),
+            Arc::clone(&compiler),
+            Arc::clone(&admission),
+            nvs_server::Draining::process(),
+            told.clone(),
+        )
+        .draining_through(serving.generations()),
+    );
     crate::control::install(Arc::clone(&host));
     // A saved configuration file reaches this process without anybody pushing
     // it — `rule:config/the-config-is-an-immutable-snapshot`.

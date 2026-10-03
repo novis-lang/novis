@@ -67,6 +67,15 @@
 //! report carries a fact rather than a prediction: the units are dropped and the
 //! compiler is keying on the published environment before the answer is written.
 //!
+//! **A reload drains the connections the old tree accepted.**
+//! `rule:concurrency/a-drain-closes-a-connection-cleanly` gives a reload the
+//! ending a stop has, so a published tree begins the drain of every connection
+//! accepted under an older one ([`nvs_server::Generations`]). An idle
+//! connection closes, and one with a request running finishes it under the old
+//! tree and then closes. The accept loops keep accepting, and the health probe
+//! and `Core\Server::isDraining()` still report a server that is serving: they
+//! read the process's drain, which only a stop begins.
+//!
 //! Cost, as `rule:programs/memory-priority` requires: one of these per process,
 //! holding the roots as written, the pending restart keys with their two values,
 //! and the last refusal the check logged. A reload holds one snapshot's worth of
@@ -97,7 +106,7 @@ use nvs_diagnostics::{Diagnostic, Renderer, SourceMap};
 use nvs_render::{Level, Node, Record, Rendered, Scalar};
 use nvs_runtime::LogWriter;
 use nvs_server::control::{Address, Checked, Controlled, Endpoint, Pending, Report};
-use nvs_server::{Admission, Ceiling, Draining};
+use nvs_server::{Admission, Ceiling, Draining, Generations};
 
 use crate::script::Compiler;
 use crate::service::{Notify, State};
@@ -143,6 +152,9 @@ pub(crate) struct Process {
     admission: Arc<Admission>,
     /// This process's drain bit.
     draining: Draining,
+    /// The drains of the connections accepted under each published tree, which
+    /// a publish begins for every tree older than the one it published.
+    generations: Arc<Generations>,
     /// Whatever started this process, told `RELOADING=1` and `READY=1` around
     /// the reload below — the transitions `rule:packaging/the-generated-unit-is-hardened`'s
     /// `Type=notify` unit is owed, from the one function every spelling of a
@@ -243,6 +255,7 @@ impl Process {
             compiler,
             admission,
             draining,
+            generations: Arc::new(Generations::default()),
             notify,
             reloading: Mutex::new(()),
             pending: Mutex::new(Vec::new()),
@@ -253,6 +266,17 @@ impl Process {
             passes: AtomicU64::new(0),
             stats: AtomicU64::new(0),
         }
+    }
+
+    /// The same process, draining the connections the server behind
+    /// `generations` accepted under a tree a reload replaces.
+    ///
+    /// A step after the constructor because a process over a tree that no
+    /// server is serving has no connection to drain.
+    #[must_use]
+    pub(crate) fn draining_through(mut self, generations: Arc<Generations>) -> Self {
+        self.generations = generations;
+        self
     }
 
     /// Answers the control endpoint `endpoint` on a thread of its own, and
@@ -451,6 +475,10 @@ impl Process {
         // still answering.
         let report = nvs_config::control::reload(&self.current, next, self.compiler.held(), &keep)
             .map_err(|refusal| rendered(&refusal, &sources))?;
+        // After the publish, so a connection accepted from here on is under the
+        // new tree and is not drained with the old one.
+        self.generations
+            .retire_before(self.current.load().generation);
         // The new endpoint answers before the old one stops.
         match moved {
             Move::Open(endpoint) => {

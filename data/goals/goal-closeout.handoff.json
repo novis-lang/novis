@@ -1,25 +1,29 @@
 {
-  "state": "**Goal `goal-closeout`, Stage 4 (finished in place) is under way.** Stage 3 is done: `docs/agent/goal-decisions.md` names every goal in front of `goal-closeout`.\n\nThe `nvs-server` gap directory now has one record, `span-has-no-window`, which M10 owns. This goal owes nothing more there. The drain period now ends a response being written whether it is buffered or streamed (`crate::io`'s `ConnectionIo::closing`). A response that begins once the period is over, such as the drain's own `503`, gets one `write_idle_timeout` in total. `crate::io`'s two unit tests are the bound, and both fail without it. `a_whole_response_still_being_written_at_the_drain_periods_end_is_cut` in `serve.rs` is the outcome only, because `hyper`'s read probe during a parked write already ends `Phase::Write` early.\n\nThe `nvs-diagnostics`, `benches`, `nvs-test`, `nvs-db`, `nvs-ir`, `nvs-config` and `nvs-server` gap directories are closed for this goal. One `nvs-syntax` gap is left, `the-pipeline-bench-has-no-nested-twin`, which is a bench member in a different file set.\n\nIn `nvs-cli`, the other subcommands' `--help` text has not been swept and is still in the dense voice.\n\nThe floor check `the latest CI run on main succeeded for the code HEAD holds` is red only because `main` is many commits ahead of `origin/main`, and the loop never pushes (module doc of `tools/nv/cmd/ci-green.ts`). A person has to push, so no session can close it.\n\n`bun nv owners --closes goal-closeout` names the rest of the gaps across many crates. Smallest directories first: `website` (2), `vscode` (3), `nvs-cli` (4) and `nvs-host` (4). Stage 4 stops on `BLOCKED` only for \"too large\", as the goal's § *Stage 4* defines it. `bun nv import` is broken because the rule index it reads was deleted. Goal `ci-green`'s floor check stays red until Stage 6, as expected.",
+  "state": "**Goal `goal-closeout`, Stage 4 (finished in place) is under way.** Stage 3 is done: `docs/agent/goal-decisions.md` names every goal in front of `goal-closeout`.\n\nA reload now drains the connections the old tree accepted, the way a stop does (`rule:concurrency/a-drain-closes-a-connection-cleanly`). `nvs_server::Generations` on `Serving` holds one drain per published tree; `Process::published` in `crates/nvs-cli/src/control.rs` retires the older trees after the publish, and an accept loop that sees a newer tree first does the same. A connection reads `nvs_runtime::Drain::any_of` over the server's drain and its tree's drain. The health probe and `Core\\Server::isDraining()` still read the process drain only. Gap `a-reload-closes-no-connection` is deleted.\n\nThe `nvs-diagnostics`, `benches`, `nvs-test`, `nvs-db`, `nvs-ir`, `nvs-config` and `nvs-server` gap directories are closed for this goal. One `nvs-syntax` gap is left, `the-pipeline-bench-has-no-nested-twin`, which is a bench member in a different file set.\n\nIn `nvs-cli`, three gaps name this goal, and the other subcommands' `--help` text has not been swept and is still in the dense voice.\n\nThe floor check `the latest CI run on main succeeded for the code HEAD holds` is red only because `main` is many commits ahead of `origin/main`, and the loop never pushes (module doc of `tools/nv/cmd/ci-green.ts`). A person has to push, so no session can close it.\n\n`bun nv owners --closes goal-closeout` names the rest of the gaps across many crates: `nvs-host` (4), `nvs-lsp` (5), `nvs-runtime` and `nvs-stdlib` the largest. Stage 4 stops on `BLOCKED` only for \"too large\", as the goal's § *Stage 4* defines it. `bun nv import` is broken because the rule index it reads was deleted. Goal `ci-green`'s floor check stays red until Stage 6, as expected.",
   "next": {
     "stage": 4,
     "title": "finished in place",
     "files": [
-      "crates/nvs-cli/src/control.rs",
-      "crates/nvs-runtime/src/drain.rs",
-      "crates/nvs-cli/tests/live_config.rs"
+      "crates/nvs-cli/src/serve.rs",
+      "crates/nvs-cli/src/main.rs"
     ],
     "items": [
       {
         "done": false,
-        "text": "**A reload drains the connections the previous generation accepted** — gap `a-reload-closes-no-connection` (`rule:concurrency/a-drain-closes-a-connection-cleanly`: a reload closes connections the same way a stop does). `Process::reload` at `crates/nvs-cli/src/control.rs:602` begins no drain, and `Drain` at `crates/nvs-runtime/src/drain.rs:123` is one process-wide bit that also stops the accept loop. First decide whether a drain per published generation fits this goal, or is Stage 4's \"too large\": the gap record says what it changes. `a_reload_closes_no_connection_and_begins_no_drain` at `crates/nvs-cli/tests/live_config.rs:751` is the case that changes with it."
+        "text": "**A served request and a spawned script carry the program id** — gap `serve-and-a-spawned-script-have-no-program-id` (`rule:programs/program-id`). The only `Ctx::set_program_id` call is the `nvs run` path at `crates/nvs-cli/src/main.rs:2877`; the request context under `nvs serve` is built in `crates/nvs-cli/src/serve.rs`, and the gap record names the hot-reload pointer swap as the second place the id is computed."
+      },
+      {
+        "done": false,
+        "text": "**`serve-proxied` on four cores** — gap `serve-proxied-was-never-recorded-on-four-cores`: workers start at `crates/nvs-cli/src/serve.rs:715` and the scaling test is at `crates/nvs-cli/src/serve.rs:3784`. Decide whether a recording is a session's to make or a stated bound in the bench's prose."
       }
     ]
   },
   "backlog": [
-    "`nvs-cli`: the other three gaps (`cache.rs`, `main.rs`, `serve.rs`) and the `--help` voice sweep — `bun nv owners --closes goal-closeout`.",
-    "`nvs-host`: four gaps in `group.rs`, `stack.rs` and `watchdog.rs`. The `group.rs` one needs a per-group stop that a safepoint poll can read.",
-    "`website` (2) and `vscode` (3): the smallest gap directories left.",
-    "`nvs-syntax`: `the-pipeline-bench-has-no-nested-twin`, a bench member under `benches/members/`.",
-    "`bun nv import` reads a deleted rule index — `tools/nv/cmd/import.ts`."
+    "`the-warm-start-margin-runs-in-no-ci-step` — `crates/nvs-cli/src/cache.rs:3015` and `.github/workflows/ci.yml`.",
+    "`nvs-cli` `--help` sweep of the remaining subcommands into the plain voice.",
+    "`nvs-host` gaps (4): `group.rs`, `stack.rs`, `watchdog.rs` twice.",
+    "`nvs-syntax` gap `the-pipeline-bench-has-no-nested-twin`, a bench member.",
+    "`bun nv import` reads a deleted rule index — `tools/nv/cmd/import.ts`.",
+    "`crates/nvs-cli/tests/live_config.rs`'s `Server::reload` races the configuration check under load (playbook, *Running things*)."
   ]
 }

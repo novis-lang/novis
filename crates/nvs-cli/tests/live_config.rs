@@ -742,17 +742,47 @@ if (Core\Request::query("hold") == "yes") {
 echo Core\Server::isDraining() ? "draining" : "serving";
 "#;
 
-/// A reload begins no drain. A request in flight when `nvs ctl reload`
-/// publishes a changed tree keeps its connection and is answered, and the
-/// reloaded health probe, `nvs ctl status` and `Core\Server::isDraining()` all
-/// report a server that is still accepting.
+/// A connection to `server` with one whole request answered on it, so it is
+/// kept alive and was accepted under the tree published now.
+fn kept_alive(server: &Server) -> TcpStream {
+    let mut stream = TcpStream::connect(server.addr).expect("the server accepts");
+    stream
+        .set_read_timeout(Some(BOUND))
+        .expect("a read timeout can be set");
+    write!(stream, "GET / HTTP/1.1\r\nHost: localhost\r\n\r\n").expect("the request is written");
+    let mut head = Vec::new();
+    let mut byte = [0_u8; 1];
+    while !head.ends_with(b"\r\n\r\n") {
+        stream
+            .read_exact(&mut byte)
+            .unwrap_or_else(|error| panic!("the first answer ended early: {error}"));
+        head.push(byte[0]);
+    }
+    let head = String::from_utf8_lossy(&head).to_lowercase();
+    let length: usize = head
+        .lines()
+        .find_map(|line| line.strip_prefix("content-length:"))
+        .and_then(|value| value.trim().parse().ok())
+        .unwrap_or_else(|| panic!("the first answer has no length: {head}"));
+    stream
+        .read_exact(&mut vec![0; length])
+        .expect("the first answer's body arrives");
+    stream
+}
+
+/// A reload drains the connections the old tree accepted, and nothing else. A
+/// kept-alive connection with no request is closed. A request in flight when
+/// `nvs ctl reload` publishes a changed tree is answered. The reloaded health
+/// probe, `nvs ctl status` and `Core\Server::isDraining()` all report a
+/// server that is still accepting.
 // covers: tools:server/stopping-and-reloading-the-drain
 #[test]
-fn a_reload_closes_no_connection_and_begins_no_drain() {
-    let server = Server::start("reload-no-drain", "", &[("app.nvs", PAUSING)]);
+fn a_reload_drains_the_connections_the_old_tree_accepted() {
+    let server = Server::start("reload-drain", "", &[("app.nvs", PAUSING)]);
     server.awaits("/", "the boot's program", |answer| {
         answer.status == 200 && answer.body == "serving"
     });
+    let mut idle = kept_alive(&server);
 
     thread::scope(|scope| {
         let held = scope.spawn(|| server.get("/?hold=yes"));
@@ -768,13 +798,21 @@ fn a_reload_closes_no_connection_and_begins_no_drain() {
         // The probe's empty body is what tells it from the program, which
         // answers every path until the reload names this one.
         server.reload("[server]\nhealth_path = \"/up\"\n");
+        // Before any new connection, so the close is the reload's own and not
+        // the next accept's.
+        let closed = idle.read(&mut [0_u8; 1]);
+        assert!(
+            matches!(closed, Ok(0)),
+            "the kept-alive connection the old tree accepted was not closed cleanly: \
+             {closed:?}"
+        );
         server.awaits("/up", "the reloaded health path", |answer| {
             answer.status == 200 && answer.body.is_empty()
         });
         let status = server.ctl("status");
         assert!(
             status.contains("draining: false\n"),
-            "the reload began a drain: {status}"
+            "the reload drained the server and not only its connections: {status}"
         );
 
         let answer = held.join().expect("the held request's thread panicked");
@@ -2506,7 +2544,8 @@ fn watching_the_configuration_costs_no_request_a_filesystem_call() {
 /// The waits are read when a connection is accepted. After a reload shortens
 /// `[server] header_timeout`, a new connection that sends nothing is closed
 /// within the new wait. A connection accepted before the reload keeps the
-/// wait it started with, so a head it sends slowly is still answered.
+/// wait it started with, so a head it began before the reload and finishes
+/// slowly is still answered.
 #[test]
 fn a_changed_server_timeout_applies_to_the_next_connection() {
     let server = Server::start(
@@ -2515,30 +2554,10 @@ fn a_changed_server_timeout_applies_to_the_next_connection() {
         &[("app.nvs", PLAIN)],
     );
     server.awaits("/", "the boot's answer", |answer| answer.status == 200);
-    // One whole request on a kept-alive connection, so it is certainly
-    // accepted under the boot's configuration.
-    let mut before = TcpStream::connect(server.addr).expect("the server accepts");
-    before
-        .set_read_timeout(Some(BOUND))
-        .expect("a read timeout can be set");
-    write!(before, "GET / HTTP/1.1\r\nHost: localhost\r\n\r\n").expect("the request is written");
-    let mut head = Vec::new();
-    let mut byte = [0_u8; 1];
-    while !head.ends_with(b"\r\n\r\n") {
-        before
-            .read_exact(&mut byte)
-            .unwrap_or_else(|error| panic!("the first answer ended early: {error}"));
-        head.push(byte[0]);
-    }
-    let head = String::from_utf8_lossy(&head).to_lowercase();
-    let length: usize = head
-        .lines()
-        .find_map(|line| line.strip_prefix("content-length:"))
-        .and_then(|value| value.trim().parse().ok())
-        .unwrap_or_else(|| panic!("the first answer has no length: {head}"));
-    before
-        .read_exact(&mut vec![0; length])
-        .expect("the first answer's body arrives");
+    let mut before = kept_alive(&server);
+    // The head is begun before the reload, so the reload's drain finds a
+    // request in progress and lets it finish.
+    write!(before, "GET / HTTP/1.1\r\n").expect("the first line is written");
 
     server.reload("[server]\nheader_timeout = \"1s\"\n");
 
@@ -2556,9 +2575,9 @@ fn a_changed_server_timeout_applies_to_the_next_connection() {
         server.said()
     );
 
-    // Three seconds between the head's first line and the rest of it: past
-    // the reloaded wait, and well inside the one this connection started with.
-    write!(before, "GET / HTTP/1.1\r\n").expect("the first line is written");
+    // At least three seconds between the head's first line and the rest of
+    // it: past the reloaded wait, and well inside the one this connection
+    // started with and the drain period.
     thread::sleep(Duration::from_secs(3));
     write!(before, "Host: localhost\r\nConnection: close\r\n\r\n")
         .expect("the rest of the head is written");
