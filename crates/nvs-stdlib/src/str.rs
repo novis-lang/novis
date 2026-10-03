@@ -3509,8 +3509,24 @@ nvs_runtime::nvs_helper! {
     /// `Core\Str::lower(string $s): string` — replacing PHP's `strtolower` and
     /// `mb_strtolower`. Unicode's full lowercase mapping; see this module's
     /// docs for why there is only one of them.
+    ///
+    /// The same mapping `str::to_lowercase` applies, final sigma included, but
+    /// written through [`case_mapped`] so the memory limit sees every byte:
+    /// `İ`, two bytes, becomes three. Only `Σ` depends on its neighbours, and
+    /// [`word_final_sigma`] decides it.
     fn nvs_core_str_lower(_ctx, args: [1]) {
-        produced(&text(&args[0], "lower", "the subject")?.to_lowercase())
+        let subject = text(&args[0], "lower", "the subject")?;
+        case_mapped(
+            subject,
+            subject.char_indices().flat_map(|(at, c)| {
+                let c = match c {
+                    'Σ' if word_final_sigma(subject, at) => 'ς',
+                    'Σ' => 'σ',
+                    c => c,
+                };
+                c.to_lowercase()
+            }),
+        )
     }
 }
 
@@ -3518,27 +3534,11 @@ nvs_runtime::nvs_helper! {
     /// `Core\Str::upper(string $s): string` — replacing PHP's `strtoupper` and
     /// `mb_strtoupper`.
     ///
-    /// Written straight into the result, starting at the subject's length:
-    /// Unicode's uppercase mapping can triple a text (`ΐ`, two bytes, becomes
-    /// three characters and six bytes), and the writer asks the request's
-    /// memory limit before each growth, so no buffer the limit never saw is
-    /// built first. `lower` still builds a `String` before its result, to keep
-    /// `str::to_lowercase`'s final-sigma rule; that buffer is at most half as
-    /// long again as the subject.
+    /// Written through [`case_mapped`]: Unicode's uppercase mapping can triple
+    /// a text (`ΐ`, two bytes, becomes three characters and six bytes).
     fn nvs_core_str_upper(_ctx, args: [1]) {
         let subject = text(&args[0], "upper", "the subject")?;
-        built(subject.len(), |out| {
-            let mut run = [0u8; 256];
-            let mut used = 0;
-            for mapped in subject.chars().flat_map(char::to_uppercase) {
-                if run.len() - used < 4 {
-                    out.push(&run[..used]);
-                    used = 0;
-                }
-                used += mapped.encode_utf8(&mut run[used..]).len();
-            }
-            out.push(&run[..used]);
-        })
+        case_mapped(subject, subject.chars().flat_map(char::to_uppercase))
     }
 }
 
@@ -3580,10 +3580,13 @@ nvs_runtime::nvs_helper! {
     /// caseless test that does. Two members rather than a third option,
     /// because folding is a value a caller can hold on to — a lookup key
     /// folds once and is compared many times.
+    ///
+    /// Written through [`case_mapped`], since folding expands too (`ΐ` becomes
+    /// three characters).
     fn nvs_core_str_fold(_ctx, args: [1]) {
-        produced(&caseless::default_case_fold_str(
-            text(&args[0], "fold", "the subject")?,
-        ))
+        use caseless::Caseless as _;
+        let subject = text(&args[0], "fold", "the subject")?;
+        case_mapped(subject, subject.chars().default_case_fold())
     }
 }
 
@@ -3908,6 +3911,103 @@ fn map_first(subject: &str, upper: bool) -> HelperResult {
     })
 }
 
+/// `mapped` written straight into the result, starting at the subject's
+/// length — the shared body of `lower`, `upper` and `fold`.
+///
+/// A case mapping can make a text longer, and the writer asks the request's
+/// memory limit before each growth, so no buffer the limit never saw is built
+/// first. Characters are gathered in a small run on the stack and pushed a run
+/// at a time.
+fn case_mapped(subject: &str, mapped: impl Iterator<Item = char>) -> HelperResult {
+    built(subject.len(), |out| {
+        let mut run = [0u8; 256];
+        let mut used = 0;
+        for c in mapped {
+            if run.len() - used < 4 {
+                out.push(&run[..used]);
+                used = 0;
+            }
+            used += c.encode_utf8(&mut run[used..]).len();
+        }
+        out.push(&run[..used]);
+    })
+}
+
+/// Whether the `Σ` at byte `at` of `subject` lowers to `ς` — Unicode's
+/// `Final_Sigma` condition, exactly as `str::to_lowercase` applies it: a cased
+/// letter before it and none after it, each looked for past any
+/// case-ignorable characters.
+fn word_final_sigma(subject: &str, at: usize) -> bool {
+    cased_past_ignorables(subject[..at].chars().rev())
+        && !cased_past_ignorables(subject[at + 'Σ'.len_utf8()..].chars())
+}
+
+/// What a character is to [`word_final_sigma`]'s look in one direction.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum SigmaContext {
+    /// Cased and not case-ignorable: the look stops and finds a letter.
+    Cased,
+    /// Case-ignorable: the look steps over it.
+    Ignorable,
+    /// Neither: the look stops and finds nothing.
+    Other,
+}
+
+/// Whether the first character of `chars` that is not case-ignorable is cased.
+///
+/// The last character classified is kept, so a long run of one mark costs
+/// one probe.
+fn cased_past_ignorables(chars: impl Iterator<Item = char>) -> bool {
+    let mut last: Option<(char, SigmaContext)> = None;
+    for c in chars {
+        let context = match last {
+            Some((seen, context)) if seen == c => context,
+            _ => sigma_context(c),
+        };
+        last = Some((c, context));
+        match context {
+            SigmaContext::Cased => return true,
+            SigmaContext::Ignorable => {}
+            SigmaContext::Other => return false,
+        }
+    }
+    false
+}
+
+/// `c`'s [`SigmaContext`], with the standard library as the only table.
+///
+/// The `Cased` and `Case_Ignorable` properties are not public in `std`, so a
+/// character outside the common ranges is classified by asking
+/// `str::to_lowercase` about a three-character probe: `1cΣ` ends in `ς` only
+/// when `c` is cased and not ignorable, and `AcΣ` only when it is either. The
+/// probe's few bytes are the only allocation, and the answer is `std`'s own,
+/// so `lower` cannot drift from `str::to_lowercase` across a Unicode update.
+/// The fast paths are held to the probe by this module's tests.
+fn sigma_context(c: char) -> SigmaContext {
+    match c {
+        'A'..='Z' | 'a'..='z' | 'Α'..='Ρ' | 'Σ'..='Ω' | 'α'..='ω' => SigmaContext::Cased,
+        '\'' | '.' | ':' | '^' | '`' | '\u{300}'..='\u{36f}' => SigmaContext::Ignorable,
+        c if c.is_ascii() => SigmaContext::Other,
+        c => probed_sigma_context(c),
+    }
+}
+
+/// [`sigma_context`] without its fast paths.
+fn probed_sigma_context(c: char) -> SigmaContext {
+    let ends_final = |before: char| {
+        let mut probe = String::with_capacity(12);
+        probe.extend([before, c, 'Σ']);
+        probe.to_lowercase().ends_with('ς')
+    };
+    if ends_final('1') {
+        SigmaContext::Cased
+    } else if ends_final('A') {
+        SigmaContext::Ignorable
+    } else {
+        SigmaContext::Other
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use nvs_runtime::{Ctx, NvsArray, NvsStr, OutputSink, Value, call};
@@ -3980,6 +4080,53 @@ mod tests {
             taken(run(super::nvs_core_str_upper_first, &[s("ßen")]).expect("no failure")),
             "SSen"
         );
+    }
+
+    // covers: Core\Str::lower
+    #[test]
+    fn lower_applies_the_final_sigma_rule_exactly_as_std_does() {
+        for subject in [
+            "ΣΑΣ Σ",
+            "ΟΔΟΣ.",
+            "ΟΔΟΣ'Α",
+            "Α\u{301}Σ\u{301}",
+            "Σ",
+            "1Σ",
+            "ΑΣ\u{483}\u{483}Β",
+            "ʰΣ",
+            "Aʰ\u{345}Σ",
+            "ǅΣ Σǅ",
+            "İΣ ﬁΣ",
+        ] {
+            assert_eq!(
+                taken(run(super::nvs_core_str_lower, &[s(subject)]).expect("no failure")),
+                subject.to_lowercase(),
+                "{subject:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn the_sigma_contexts_fast_paths_agree_with_the_probe() {
+        let fast = ('\0'..='\u{7f}').chain('\u{300}'..='\u{3ff}');
+        for c in fast {
+            assert_eq!(
+                super::sigma_context(c),
+                super::probed_sigma_context(c),
+                "{c:?}"
+            );
+        }
+    }
+
+    // covers: Core\Str::fold
+    #[test]
+    fn fold_expands_the_way_the_table_says() {
+        for subject in ["Straße", "ﬁΐ", "ΣΑΣ"] {
+            assert_eq!(
+                taken(run(super::nvs_core_str_fold, &[s(subject)]).expect("no failure")),
+                caseless::default_case_fold_str(subject),
+            );
+        }
     }
 
     // covers: Core\Str::lower, Core\Str::lowerFirst, Core\Str::upper, Core\Str::upperFirst
