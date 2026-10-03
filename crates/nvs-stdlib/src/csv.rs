@@ -35,6 +35,11 @@
 //! going to answer with, instead of through a `String` it would then copy
 //! again.
 //!
+//! `parse`'s text is `Contagious` under
+//! `rule:security/unclassified-parameter-refuses-tainted`, as
+//! `Core\Json::decode`'s is: every cell is a slice of the document, so a
+//! tainted upload parses and each cell comes back `tainted string`.
+//!
 //! # The dialect: three bytes, and each one is the caller's
 //!
 //! `{separator?, quote?, escape?}` are the three knobs every real CSV dialect
@@ -219,7 +224,10 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         CoreMethod {
             name: "parse",
             names: &["text"],
-            params: &[CoreTy::Str, CoreTy::Options(PARSE_OPTIONS)],
+            params: &[
+                CoreTy::Text(Qual::Contagious),
+                CoreTy::Options(PARSE_OPTIONS),
+            ],
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Array(&CoreTy::Str)),
             symbol: "nvs_core_csv_parse",

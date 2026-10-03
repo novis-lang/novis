@@ -4696,7 +4696,6 @@ mod tests {
     const UNCLASSIFIED: &[(&str, &str)] = &[
         ("Core\\Router", "url"),
         ("Core\\Router", "urlAbsolute"),
-        ("Core\\Csv", "parse"),
         ("Core\\Csv", "format"),
     ];
 
