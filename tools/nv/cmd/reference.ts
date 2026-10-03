@@ -83,6 +83,10 @@ const CODE_DECL_RE = /Code::new\("(E\d{4})"\)/g;
 const CODE_CITED_RE = /\bE\d{4}\b/g;
 /** A parenthesised decision citation inside a registry card, which names a file the reference's readers do not have. */
 const ADR_PAREN_RE = /\s*\(ADR \d{4}(?: §+ [\p{L}\p{N}_.\-]+)?\)/gu;
+/** A parenthesised rule citation and the spaces before it: a backticked `rule:` token inside brackets, as
+ * `nvs agent show` strips it (`without_rule_citations` in `crates/nvs-cli/src/agent.rs`). It names a file of
+ * this repository, which the reference's reader does not have. A citation written into a sentence stays. */
+const RULE_PAREN_RE = / *\(`rule:.*?`\)/g;
 /** A `Core` member as a program calls it: the qualified name, and the parenthesis that makes it a call. */
 const CALLED_RE = /(Core\\[A-Za-z0-9_\\]*[A-Za-z0-9_]::[A-Za-z_][A-Za-z0-9_]*)\(/;
 
@@ -516,7 +520,7 @@ function build(reg: Json): string {
   for (const [name, table] of Object.entries(TABLES)) {
     if (!used.has(name)) lines.push(anchor(anchorId("roster", name)), `## ${name}`, "", table(reg), "");
   }
-  const text = lines.join("\n").replace(/\n{3,}/g, "\n\n");
+  const text = lines.join("\n").replace(RULE_PAREN_RE, "").replace(/\n{3,}/g, "\n\n");
   return `${text.replace(/\n+$/, "")}\n`;
 }
 
