@@ -38,19 +38,20 @@
 //!
 //! # The shape a test method must have
 //!
-//! The other three of § 1's five compile errors are about the *declaration*
-//! rather than the payload, and all three are decided in [`check_class_tests`]
+//! The other four of § 1's six compile errors are about the *declaration*
+//! rather than the payload, and all four are decided in [`check_class_tests`]
 //! because that walk is already holding each member's [`MethodMember`]: a
-//! `#[Test]` that is `static`, that is not `public`, or that returns anything
-//! but `void`. [`check_method_shape`] is their one home, and they share one
-//! code ([`code::E_TEST_METHOD_SHAPE`]) because they are one question asked
-//! once — the runner constructs the class and calls the member with no
-//! arguments and no result, so a `static` member has no receiver for §§ 8-9's
-//! `#[Fixture]` to be installed on, a non-`public` one cannot be called from
-//! outside its class at all, and a returned value has nowhere to go. The
-//! fourth, two `#[Test]` methods sharing one name, is `E_DUPLICATE_DECLARATION`
-//! — the same code the option written twice already draws, one mistake drawing
-//! one code — and the fifth is the roster's own type check above.
+//! `#[Test]` that is `static`, that is not `public`, that returns anything
+//! but `void`, or that has no body. [`check_method_shape`] is their one home,
+//! and they share one code ([`code::E_TEST_METHOD_SHAPE`]) because they are
+//! one question asked once — the runner constructs the class and calls the
+//! member with no arguments and no result, so a `static` member has no
+//! receiver for §§ 8-9's `#[Fixture]` to be installed on, a non-`public` one
+//! cannot be called from outside its class at all, a returned value has
+//! nowhere to go, and an `abstract` one has no code to call. The fifth, two
+//! `#[Test]` methods sharing one name, is `E_DUPLICATE_DECLARATION` — the same
+//! code the option written twice already draws, one mistake drawing one code
+//! — and the sixth is the roster's own type check above.
 //!
 //! Each is read off the **resolved** [`crate::signatures::MethodSig`] rather
 //! than off the modifier list a second time, so an omitted visibility keyword
@@ -965,9 +966,9 @@ fn check_fixture_payload(attr: &Attribute, env: &mut Env<'_>) {
     }
 }
 
-/// `rule:testing/test-attribute`'s three declaration-shape refusals, for one `#[Test]` method.
+/// `rule:testing/test-attribute`'s four declaration-shape refusals, for one `#[Test]` method.
 ///
-/// All three are read off the resolved signature rather than off `m`'s own
+/// All four are read off the resolved signature rather than off `m`'s own
 /// modifier list, for the reason this module's docs give: an omitted
 /// visibility keyword is already `E_MISSING_VISIBILITY` and reads as `public`
 /// everywhere else, so re-deriving it here would name one mistake twice. `m`
@@ -977,8 +978,7 @@ fn check_fixture_payload(attr: &Attribute, env: &mut Env<'_>) {
 ///
 /// A method the signature table has no row for is left alone: it is either
 /// a name `nvs_syntax` is already refusing or a duplicate of one, and there is
-/// nothing here that a second diagnostic about its shape would add. A body-less
-/// method is none of the shapes it refuses; this module's `# Known gaps` has it.
+/// nothing here that a second diagnostic about its shape would add.
 fn check_method_shape(m: &MethodMember, method: &str, class: &QName, env: &mut Env<'_>) {
     let signatures = env.signatures;
     let Some(sig) = signatures
@@ -1012,6 +1012,15 @@ fn check_method_shape(m: &MethodMember, method: &str, class: &QName, env: &mut E
             method,
             &format!("returns `{returned}`"),
             "a test reports by asserting rather than by returning, so declare `: void`",
+            env,
+        );
+    }
+    if !sig.has_body {
+        report_shape(
+            m,
+            method,
+            "has no body",
+            "the runner calls a test, so drop the `abstract` and write its body",
             env,
         );
     }

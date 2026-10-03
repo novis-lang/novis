@@ -3592,24 +3592,25 @@ pub mod code {
          directly.",
     );
     /// A `#[Test]` method whose declaration is not the shape `rule:testing/test-attribute`
-    /// requires: `static`, not `public`, or returning anything but `void`.
+    /// requires: `static`, not `public`, returning anything but `void`, or
+    /// declared with no body.
     ///
-    /// One code for the family rather than three, because it is one question —
+    /// One code for the family rather than four, because it is one question —
     /// what shape a test method must have — and the runner asks it once: it
     /// constructs the class and calls the member with no arguments and no
     /// result, so a `static` member has no receiver for a `#[Fixture]` to be
     /// installed on, a non-`public` one cannot be called from outside the
-    /// class at all, and a returned value has nowhere to go and nothing that
-    /// would look at it. Each help names the modifier or the annotation to
-    /// change.
+    /// class at all, a returned value has nowhere to go and nothing that
+    /// would look at it, and an `abstract` one has no code to call. Each help
+    /// names the modifier or the annotation to change.
     ///
-    /// The fourth error in that bullet — two `#[Test]` methods with one name —
+    /// The fifth error in that bullet — two `#[Test]` methods with one name —
     /// is [`E_DUPLICATE_DECLARATION`] instead, being the same mistake the
-    /// option written twice already draws, and the fifth (`skip: true`) is the
+    /// option written twice already draws, and the sixth (`skip: true`) is the
     /// option roster's own type check.
     pub const E_TEST_METHOD_SHAPE: Code = Code::new("E0733").card(
-        "A `#[Test]` method must be `public`, must not be `static`, and must return `void`. \
-         Write it as `public function name(): void`.",
+        "A `#[Test]` method must be `public`, must not be `static` or `abstract`, and must return \
+         `void`. Write it as `public function name(): void { ... }`.",
     );
     /// A `#[Test(retries: n)]` with no `because:` beside it.
     ///

@@ -2,7 +2,6 @@
 // Attack: a method marked `#[Test]` is `abstract`, so it has no body and the
 // test runner has nothing to call. The program should not compile.
 // hostile: expect-refusal
-// proof: gap nvs-types/abstract-test-method-is-accepted
 
 use Core\Test;
 

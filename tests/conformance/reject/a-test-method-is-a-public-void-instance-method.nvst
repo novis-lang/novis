@@ -1,15 +1,15 @@
 --TEST--
-a `#[Test]` method that is `static`, that is not `public` or that returns anything but `void` is refused where it is declared, and two sharing one name with it — `rule:testing/test-attribute`
+a `#[Test]` method that is `static`, that is not `public`, that returns anything but `void` or that has no body is refused where it is declared, and two sharing one name with it — `rule:testing/test-attribute`
 --FILE--
 <?nvs
 // covers: lang:testing/a-test-is-a-method-marked-test
-// `rule:testing/test-attribute`: these are compile errors, not skipped tests. Three of the
-// five are about the declaration rather than the payload — a `#[Test]`
-// that is `static`, that is not `public`, or that returns anything but
-// `void` — and they share one code because they are one question: the
-// runner constructs the class and calls the member with no arguments and
-// no result. The fourth, two `#[Test]` methods sharing one name, is the
-// `E0304` an option written twice already draws.
+// `rule:testing/test-attribute`: these are compile errors, not skipped tests. Four of the
+// six are about the declaration rather than the payload — a `#[Test]`
+// that is `static`, that is not `public`, that returns anything but
+// `void`, or that has no body — and they share one code because they are
+// one question: the runner constructs the class and calls the member with
+// no arguments and no result. The fifth, two `#[Test]` methods sharing one
+// name, is the `E0304` an option written twice already draws.
 use Core\Test;
 
 // The accepted half first, so a position that stops being accepted fails
@@ -51,6 +51,12 @@ class Refused {
     public function twiceOver(): void {}
 }
 
+// An `abstract` test has no body, so the runner has nothing to call.
+abstract class RefusedBodiless {
+    #[Test]
+    abstract public function aTestHasABody(): void;
+}
+
 echo "unreachable\n";
 --EXPECT--
 
@@ -79,5 +85,8 @@ error[E0733]: the `#[Test]` method `everyShapeAtOnce` returns `string`
 error[E0304]: `Refused` declares two `#[Test]` methods named `twiceOver`
    --> case.nvs:48:21
 %A
-error: aborting due to 8 errors
+error[E0733]: the `#[Test]` method `aTestHasABody` has no body
+   --> case.nvs:54:30
+%A
+error: aborting due to 9 errors
 To read what a code means and how to fix it, run `nvs agent show <code>`.
