@@ -1,0 +1,1039 @@
+{
+  "pages": [
+    {
+      "area": "config",
+      "slug": "app",
+      "url": "/reference/config/app/",
+      "title": "[[app]]",
+      "group": "Blocks",
+      "intro": {
+        "id": "tools:config/app-per-application-blocks",
+        "title": "`[[app]]` — per-application blocks",
+        "examples": "tools/config/app-per-application-blocks"
+      },
+      "keys": [
+        {
+          "id": "directive:app",
+          "title": "app",
+          "examples": "config/app",
+          "key": "app",
+          "class": "System",
+          "apply": "Reload"
+        }
+      ]
+    },
+    {
+      "area": "config",
+      "slug": "cache",
+      "url": "/reference/config/cache/",
+      "title": "[cache]",
+      "group": "Blocks",
+      "intro": null,
+      "keys": [
+        {
+          "id": "directive:cache.shared",
+          "title": "cache.shared",
+          "examples": "config/cache-shared",
+          "key": "cache.shared",
+          "class": "System",
+          "apply": "Reload"
+        },
+        {
+          "id": "directive:cache.local",
+          "title": "cache.local",
+          "examples": "config/cache-local",
+          "key": "cache.local",
+          "class": "System",
+          "apply": "Reload"
+        },
+        {
+          "id": "directive:cache.process",
+          "title": "cache.process",
+          "examples": "config/cache-process",
+          "key": "cache.process",
+          "class": "System",
+          "apply": "Reload"
+        }
+      ]
+    },
+    {
+      "area": "config",
+      "slug": "capabilities",
+      "url": "/reference/config/capabilities/",
+      "title": "[capabilities]",
+      "group": "Blocks",
+      "intro": {
+        "id": "tools:config/capabilities",
+        "title": "`[capabilities]`",
+        "examples": "tools/config/capabilities"
+      },
+      "keys": [
+        {
+          "id": "directive:capabilities",
+          "title": "capabilities",
+          "examples": "config/capabilities",
+          "key": "capabilities",
+          "class": "RuntimeTighten",
+          "apply": "Reload"
+        }
+      ]
+    },
+    {
+      "area": "config",
+      "slug": "control",
+      "url": "/reference/config/control/",
+      "title": "[control]",
+      "group": "Blocks",
+      "intro": null,
+      "keys": [
+        {
+          "id": "directive:control.socket",
+          "title": "control.socket",
+          "examples": "config/control-socket",
+          "key": "control.socket",
+          "class": "System",
+          "apply": "Reload"
+        }
+      ]
+    },
+    {
+      "area": "config",
+      "slug": "debug",
+      "url": "/reference/config/debug/",
+      "title": "[debug]",
+      "group": "Blocks",
+      "intro": null,
+      "keys": [
+        {
+          "id": "directive:debug.keep_temporary",
+          "title": "debug.keep_temporary",
+          "examples": "config/debug-keep_temporary",
+          "key": "debug.keep_temporary",
+          "class": "System",
+          "apply": "Reload"
+        },
+        {
+          "id": "directive:debug.inline",
+          "title": "debug.inline",
+          "examples": "config/debug-inline",
+          "key": "debug.inline",
+          "class": "RuntimeTighten",
+          "apply": "Reload"
+        }
+      ]
+    },
+    {
+      "area": "config",
+      "slug": "deferred",
+      "url": "/reference/config/deferred/",
+      "title": "[deferred]",
+      "group": "Blocks",
+      "intro": null,
+      "keys": [
+        {
+          "id": "directive:deferred.max_concurrent",
+          "title": "deferred.max_concurrent",
+          "examples": "config/deferred-max_concurrent",
+          "key": "deferred.max_concurrent",
+          "class": "System",
+          "apply": "Reload"
+        },
+        {
+          "id": "directive:deferred.deadline",
+          "title": "deferred.deadline",
+          "examples": "config/deferred-deadline",
+          "key": "deferred.deadline",
+          "class": "Runtime",
+          "apply": "Reload"
+        }
+      ]
+    },
+    {
+      "area": "config",
+      "slug": "extension",
+      "url": "/reference/config/extension/",
+      "title": "[extension]",
+      "group": "Blocks",
+      "intro": null,
+      "keys": [
+        {
+          "id": "directive:extension",
+          "title": "extension",
+          "examples": "config/extension",
+          "key": "extension",
+          "class": "System",
+          "apply": "Reload"
+        }
+      ]
+    },
+    {
+      "area": "config",
+      "slug": "http",
+      "url": "/reference/config/http/",
+      "title": "[http]",
+      "group": "Blocks",
+      "intro": null,
+      "keys": [
+        {
+          "id": "directive:http",
+          "title": "http",
+          "examples": "config/http",
+          "key": "http",
+          "class": "Runtime",
+          "apply": "Reload"
+        },
+        {
+          "id": "directive:http.csrf_key",
+          "title": "http.csrf_key",
+          "examples": "config/http-csrf_key",
+          "key": "http.csrf_key",
+          "class": "System",
+          "apply": "Reload"
+        },
+        {
+          "id": "directive:http.csrf_key_file",
+          "title": "http.csrf_key_file",
+          "examples": "config/http-csrf_key_file",
+          "key": "http.csrf_key_file",
+          "class": "System",
+          "apply": "Reload"
+        },
+        {
+          "id": "directive:http.client.pool_idle",
+          "title": "http.client.pool_idle",
+          "examples": "config/http-client-pool_idle",
+          "key": "http.client.pool_idle",
+          "class": "System",
+          "apply": "Reload"
+        },
+        {
+          "id": "directive:http.client.pool_idle_timeout",
+          "title": "http.client.pool_idle_timeout",
+          "examples": "config/http-client-pool_idle_timeout",
+          "key": "http.client.pool_idle_timeout",
+          "class": "System",
+          "apply": "Reload"
+        },
+        {
+          "id": "directive:http.client.tls",
+          "title": "http.client.tls",
+          "examples": "config/http-client-tls",
+          "key": "http.client.tls",
+          "class": "System",
+          "apply": "Reload"
+        },
+        {
+          "id": "directive:http.client.proxy",
+          "title": "http.client.proxy",
+          "examples": "config/http-client-proxy",
+          "key": "http.client.proxy",
+          "class": "System",
+          "apply": "Reload"
+        },
+        {
+          "id": "directive:http.client.socket",
+          "title": "http.client.socket",
+          "examples": "config/http-client-socket",
+          "key": "http.client.socket",
+          "class": "Runtime",
+          "apply": "Reload"
+        }
+      ]
+    },
+    {
+      "area": "config",
+      "slug": "include",
+      "url": "/reference/config/include/",
+      "title": "[[include]]",
+      "group": "Blocks",
+      "intro": {
+        "id": "tools:config/include-a-tree-of-files",
+        "title": "`[[include]]` — a tree of files",
+        "examples": "tools/config/include-a-tree-of-files"
+      },
+      "keys": [
+        {
+          "id": "directive:include",
+          "title": "include",
+          "examples": "config/include",
+          "key": "include",
+          "class": "System",
+          "apply": "Reload"
+        }
+      ]
+    },
+    {
+      "area": "config",
+      "slug": "io",
+      "url": "/reference/config/io/",
+      "title": "[io]",
+      "group": "Blocks",
+      "intro": null,
+      "keys": [
+        {
+          "id": "directive:io.temp_root",
+          "title": "io.temp_root",
+          "examples": "config/io-temp_root",
+          "key": "io.temp_root",
+          "class": "System",
+          "apply": "Reload"
+        }
+      ]
+    },
+    {
+      "area": "config",
+      "slug": "limits",
+      "url": "/reference/config/limits/",
+      "title": "[limits]",
+      "group": "Blocks",
+      "intro": {
+        "id": "tools:config/limits-and-limits-hard",
+        "title": "`[limits]` and `[limits.hard]`",
+        "examples": "tools/config/limits-and-limits-hard"
+      },
+      "keys": [
+        {
+          "id": "directive:limits",
+          "title": "limits",
+          "examples": "config/limits",
+          "key": "limits",
+          "class": "Runtime",
+          "apply": "Reload"
+        },
+        {
+          "id": "directive:limits.hard",
+          "title": "limits.hard",
+          "examples": "config/limits-hard",
+          "key": "limits.hard",
+          "class": "System",
+          "apply": "Reload"
+        },
+        {
+          "id": "directive:limits.fatal_reserve_memory",
+          "title": "limits.fatal_reserve_memory",
+          "examples": "config/limits-fatal_reserve_memory",
+          "key": "limits.fatal_reserve_memory",
+          "class": "System",
+          "apply": "Reload"
+        },
+        {
+          "id": "directive:limits.fatal_reserve_time",
+          "title": "limits.fatal_reserve_time",
+          "examples": "config/limits-fatal_reserve_time",
+          "key": "limits.fatal_reserve_time",
+          "class": "System",
+          "apply": "Reload"
+        },
+        {
+          "id": "directive:limits.max_script_depth",
+          "title": "limits.max_script_depth",
+          "examples": "config/limits-max_script_depth",
+          "key": "limits.max_script_depth",
+          "class": "System",
+          "apply": "Reload"
+        },
+        {
+          "id": "directive:limits.max_decompressed",
+          "title": "limits.max_decompressed",
+          "examples": "config/limits-max_decompressed",
+          "key": "limits.max_decompressed",
+          "class": "System",
+          "apply": "Reload"
+        },
+        {
+          "id": "directive:limits.max_decompression_ratio",
+          "title": "limits.max_decompression_ratio",
+          "examples": "config/limits-max_decompression_ratio",
+          "key": "limits.max_decompression_ratio",
+          "class": "System",
+          "apply": "Reload"
+        },
+        {
+          "id": "directive:limits.memory_high_water",
+          "title": "limits.memory_high_water",
+          "examples": "config/limits-memory_high_water",
+          "key": "limits.memory_high_water",
+          "class": "System",
+          "apply": "Reload"
+        }
+      ]
+    },
+    {
+      "area": "config",
+      "slug": "log",
+      "url": "/reference/config/log/",
+      "title": "[log]",
+      "group": "Blocks",
+      "intro": null,
+      "keys": [
+        {
+          "id": "directive:log",
+          "title": "log",
+          "examples": "config/log",
+          "key": "log",
+          "class": "Runtime",
+          "apply": "Reload"
+        },
+        {
+          "id": "directive:log.handler",
+          "title": "log.handler",
+          "examples": "config/log-handler",
+          "key": "log.handler",
+          "class": "System",
+          "apply": "Reload"
+        },
+        {
+          "id": "directive:log.handler_reserve_memory",
+          "title": "log.handler_reserve_memory",
+          "examples": "config/log-handler_reserve_memory",
+          "key": "log.handler_reserve_memory",
+          "class": "System",
+          "apply": "Reload"
+        },
+        {
+          "id": "directive:log.handler_reserve_time",
+          "title": "log.handler_reserve_time",
+          "examples": "config/log-handler_reserve_time",
+          "key": "log.handler_reserve_time",
+          "class": "System",
+          "apply": "Reload"
+        },
+        {
+          "id": "directive:log.target",
+          "title": "log.target",
+          "examples": "config/log-target",
+          "key": "log.target",
+          "class": "System",
+          "apply": "Reload"
+        }
+      ]
+    },
+    {
+      "area": "config",
+      "slug": "metrics",
+      "url": "/reference/config/metrics/",
+      "title": "[metrics]",
+      "group": "Blocks",
+      "intro": null,
+      "keys": [
+        {
+          "id": "directive:metrics",
+          "title": "metrics",
+          "examples": "config/metrics",
+          "key": "metrics",
+          "class": "System",
+          "apply": "Reload"
+        }
+      ]
+    },
+    {
+      "area": "config",
+      "slug": "mode",
+      "url": "/reference/config/mode/",
+      "title": "[mode]",
+      "group": "Blocks",
+      "intro": {
+        "id": "tools:config/mode",
+        "title": "`[mode]`",
+        "examples": "tools/config/mode"
+      },
+      "keys": [
+        {
+          "id": "directive:mode.default",
+          "title": "mode.default",
+          "examples": "config/mode-default",
+          "key": "mode.default",
+          "class": "Runtime",
+          "apply": "Reload"
+        },
+        {
+          "id": "directive:mode.ceiling",
+          "title": "mode.ceiling",
+          "examples": "config/mode-ceiling",
+          "key": "mode.ceiling",
+          "class": "System",
+          "apply": "Reload"
+        }
+      ]
+    },
+    {
+      "area": "config",
+      "slug": "opcache",
+      "url": "/reference/config/opcache/",
+      "title": "[opcache]",
+      "group": "Blocks",
+      "intro": null,
+      "keys": [
+        {
+          "id": "directive:opcache",
+          "title": "opcache",
+          "examples": "config/opcache",
+          "key": "opcache",
+          "class": "System",
+          "apply": "Reload"
+        },
+        {
+          "id": "directive:opcache.file_cache_dir",
+          "title": "opcache.file_cache_dir",
+          "examples": "config/opcache-file_cache_dir",
+          "key": "opcache.file_cache_dir",
+          "class": "System",
+          "apply": "Reload"
+        }
+      ]
+    },
+    {
+      "area": "config",
+      "slug": "queue",
+      "url": "/reference/config/queue/",
+      "title": "[queue]",
+      "group": "Blocks",
+      "intro": null,
+      "keys": [
+        {
+          "id": "directive:queue.connection",
+          "title": "queue.connection",
+          "examples": "config/queue-connection",
+          "key": "queue.connection",
+          "class": "System",
+          "apply": "Reload"
+        },
+        {
+          "id": "directive:queue.workers",
+          "title": "queue.workers",
+          "examples": "config/queue-workers",
+          "key": "queue.workers",
+          "class": "System",
+          "apply": "Reload"
+        },
+        {
+          "id": "directive:queue.max_attempts",
+          "title": "queue.max_attempts",
+          "examples": "config/queue-max_attempts",
+          "key": "queue.max_attempts",
+          "class": "System",
+          "apply": "Reload"
+        },
+        {
+          "id": "directive:queue.visibility",
+          "title": "queue.visibility",
+          "examples": "config/queue-visibility",
+          "key": "queue.visibility",
+          "class": "System",
+          "apply": "Reload"
+        }
+      ]
+    },
+    {
+      "area": "config",
+      "slug": "schedule",
+      "url": "/reference/config/schedule/",
+      "title": "[schedule]",
+      "group": "Blocks",
+      "intro": null,
+      "keys": [
+        {
+          "id": "directive:schedule",
+          "title": "schedule",
+          "examples": "config/schedule",
+          "key": "schedule",
+          "class": "System",
+          "apply": "Reload"
+        }
+      ]
+    },
+    {
+      "area": "config",
+      "slug": "server",
+      "url": "/reference/config/server/",
+      "title": "[server]",
+      "group": "Blocks",
+      "intro": {
+        "id": "tools:server/the-server-block",
+        "title": "The `[server]` block",
+        "examples": "tools/server/the-server-block"
+      },
+      "keys": [
+        {
+          "id": "directive:server",
+          "title": "server",
+          "examples": "config/server",
+          "key": "server",
+          "class": "System",
+          "apply": "Reload"
+        },
+        {
+          "id": "directive:server.listen",
+          "title": "server.listen",
+          "examples": "config/server-listen",
+          "key": "server.listen",
+          "class": "System",
+          "apply": "Boot"
+        },
+        {
+          "id": "directive:server.socket_mode",
+          "title": "server.socket_mode",
+          "examples": "config/server-socket_mode",
+          "key": "server.socket_mode",
+          "class": "System",
+          "apply": "Boot"
+        },
+        {
+          "id": "directive:server.workers",
+          "title": "server.workers",
+          "examples": "config/server-workers",
+          "key": "server.workers",
+          "class": "System",
+          "apply": "Boot"
+        },
+        {
+          "id": "directive:server.watchdog_margin",
+          "title": "server.watchdog_margin",
+          "examples": "config/server-watchdog_margin",
+          "key": "server.watchdog_margin",
+          "class": "System",
+          "apply": "Boot"
+        }
+      ]
+    },
+    {
+      "area": "config",
+      "slug": "session",
+      "url": "/reference/config/session/",
+      "title": "[session]",
+      "group": "Blocks",
+      "intro": null,
+      "keys": [
+        {
+          "id": "directive:session",
+          "title": "session",
+          "examples": "config/session",
+          "key": "session",
+          "class": "System",
+          "apply": "Reload"
+        }
+      ]
+    },
+    {
+      "area": "config",
+      "slug": "trace",
+      "url": "/reference/config/trace/",
+      "title": "[trace]",
+      "group": "Blocks",
+      "intro": null,
+      "keys": [
+        {
+          "id": "directive:trace",
+          "title": "trace",
+          "examples": "config/trace",
+          "key": "trace",
+          "class": "System",
+          "apply": "Reload"
+        }
+      ]
+    },
+    {
+      "area": "config",
+      "slug": "the-file-and-where-it-is-read-from",
+      "url": "/reference/config/the-file-and-where-it-is-read-from/",
+      "title": "The file and where it is read from",
+      "group": "Topics",
+      "intro": {
+        "id": "tools:config/the-file-and-where-it-is-read-from",
+        "title": "The file and where it is read from",
+        "examples": "tools/config/the-file-and-where-it-is-read-from"
+      },
+      "keys": []
+    },
+    {
+      "area": "config",
+      "slug": "the-blocks-the-binary-accepts",
+      "url": "/reference/config/the-blocks-the-binary-accepts/",
+      "title": "The blocks the binary accepts",
+      "group": "Topics",
+      "intro": {
+        "id": "tools:config/the-blocks-the-binary-accepts",
+        "title": "The blocks the binary accepts",
+        "examples": "tools/config/the-blocks-the-binary-accepts"
+      },
+      "keys": []
+    },
+    {
+      "area": "config",
+      "slug": "values-and-units",
+      "url": "/reference/config/values-and-units/",
+      "title": "Values and units",
+      "group": "Topics",
+      "intro": {
+        "id": "tools:config/values-and-units",
+        "title": "Values and units",
+        "examples": "tools/config/values-and-units"
+      },
+      "keys": []
+    },
+    {
+      "area": "config",
+      "slug": "network-grants-the-addresses-and-endpoints-they-reach",
+      "url": "/reference/config/network-grants-the-addresses-and-endpoints-they-reach/",
+      "title": "Network grants: the addresses and endpoints they reach",
+      "group": "Topics",
+      "intro": {
+        "id": "tools:config/network-grants-the-addresses-and-endpoints-they-reach",
+        "title": "Network grants: the addresses and endpoints they reach",
+        "examples": "tools/config/network-grants-the-addresses-and-endpoints-they-reach"
+      },
+      "keys": []
+    },
+    {
+      "area": "config",
+      "slug": "trust",
+      "url": "/reference/config/trust/",
+      "title": "Trust",
+      "group": "Topics",
+      "intro": {
+        "id": "tools:config/trust",
+        "title": "Trust",
+        "examples": "tools/config/trust"
+      },
+      "keys": []
+    },
+    {
+      "area": "config",
+      "slug": "secrets-from-files",
+      "url": "/reference/config/secrets-from-files/",
+      "title": "Secrets from files",
+      "group": "Topics",
+      "intro": {
+        "id": "tools:config/secrets-from-files",
+        "title": "Secrets from files",
+        "examples": "tools/config/secrets-from-files"
+      },
+      "keys": []
+    },
+    {
+      "area": "config",
+      "slug": "reading-and-changing-it-from-a-program-core-config",
+      "url": "/reference/config/reading-and-changing-it-from-a-program-core-config/",
+      "title": "Reading and changing it from a program: `Core\\Config`",
+      "group": "Topics",
+      "intro": {
+        "id": "tools:config/reading-and-changing-it-from-a-program-core-config",
+        "title": "Reading and changing it from a program: `Core\\Config`",
+        "examples": "tools/config/reading-and-changing-it-from-a-program-core-config"
+      },
+      "keys": []
+    },
+    {
+      "area": "config",
+      "slug": "auditing-a-tree",
+      "url": "/reference/config/auditing-a-tree/",
+      "title": "Auditing a tree",
+      "group": "Topics",
+      "intro": {
+        "id": "tools:config/auditing-a-tree",
+        "title": "Auditing a tree",
+        "examples": "tools/config/auditing-a-tree"
+      },
+      "keys": []
+    },
+    {
+      "area": "cli",
+      "slug": "one-binary",
+      "url": "/reference/cli/one-binary/",
+      "title": "One binary",
+      "group": "Commands",
+      "intro": {
+        "id": "tools:cli/one-binary",
+        "title": "One binary",
+        "examples": "tools/cli/one-binary"
+      },
+      "keys": []
+    },
+    {
+      "area": "cli",
+      "slug": "files-extensions-and-tags",
+      "url": "/reference/cli/files-extensions-and-tags/",
+      "title": "Files, extensions and tags",
+      "group": "Commands",
+      "intro": {
+        "id": "tools:cli/files-extensions-and-tags",
+        "title": "Files, extensions and tags",
+        "examples": "tools/cli/files-extensions-and-tags"
+      },
+      "keys": []
+    },
+    {
+      "area": "cli",
+      "slug": "nvs-run",
+      "url": "/reference/cli/nvs-run/",
+      "title": "nvs run",
+      "group": "Commands",
+      "intro": {
+        "id": "tools:cli/nvs-run",
+        "title": "nvs run",
+        "examples": "tools/cli/nvs-run"
+      },
+      "keys": []
+    },
+    {
+      "area": "cli",
+      "slug": "nvs-check",
+      "url": "/reference/cli/nvs-check/",
+      "title": "nvs check",
+      "group": "Commands",
+      "intro": {
+        "id": "tools:cli/nvs-check",
+        "title": "nvs check",
+        "examples": "tools/cli/nvs-check"
+      },
+      "keys": []
+    },
+    {
+      "area": "cli",
+      "slug": "nvs-test",
+      "url": "/reference/cli/nvs-test/",
+      "title": "nvs test",
+      "group": "Commands",
+      "intro": {
+        "id": "tools:cli/nvs-test",
+        "title": "nvs test",
+        "examples": "tools/cli/nvs-test"
+      },
+      "keys": []
+    },
+    {
+      "area": "cli",
+      "slug": "nvs-build-compile",
+      "url": "/reference/cli/nvs-build-compile/",
+      "title": "nvs build --compile",
+      "group": "Commands",
+      "intro": {
+        "id": "tools:cli/nvs-build-compile",
+        "title": "nvs build --compile",
+        "examples": "tools/cli/nvs-build-compile"
+      },
+      "keys": []
+    },
+    {
+      "area": "cli",
+      "slug": "nvs-build-openapi",
+      "url": "/reference/cli/nvs-build-openapi/",
+      "title": "nvs build --openapi",
+      "group": "Commands",
+      "intro": {
+        "id": "tools:cli/nvs-build-openapi",
+        "title": "nvs build --openapi",
+        "examples": "tools/cli/nvs-build-openapi"
+      },
+      "keys": []
+    },
+    {
+      "area": "cli",
+      "slug": "nvs-api-diff",
+      "url": "/reference/cli/nvs-api-diff/",
+      "title": "nvs api diff",
+      "group": "Commands",
+      "intro": {
+        "id": "tools:cli/nvs-api-diff",
+        "title": "nvs api diff",
+        "examples": "tools/cli/nvs-api-diff"
+      },
+      "keys": []
+    },
+    {
+      "area": "cli",
+      "slug": "nvs-config-check-and-nvs-config-dump",
+      "url": "/reference/cli/nvs-config-check-and-nvs-config-dump/",
+      "title": "nvs config check and nvs config dump",
+      "group": "Commands",
+      "intro": {
+        "id": "tools:cli/nvs-config-check-and-nvs-config-dump",
+        "title": "nvs config check and nvs config dump",
+        "examples": "tools/cli/nvs-config-check-and-nvs-config-dump"
+      },
+      "keys": []
+    },
+    {
+      "area": "cli",
+      "slug": "nvs-info",
+      "url": "/reference/cli/nvs-info/",
+      "title": "nvs info",
+      "group": "Commands",
+      "intro": {
+        "id": "tools:cli/nvs-info",
+        "title": "nvs info",
+        "examples": "tools/cli/nvs-info"
+      },
+      "keys": []
+    },
+    {
+      "area": "cli",
+      "slug": "nvs-meta-json",
+      "url": "/reference/cli/nvs-meta-json/",
+      "title": "nvs meta --json",
+      "group": "Commands",
+      "intro": {
+        "id": "tools:cli/nvs-meta-json",
+        "title": "nvs meta --json",
+        "examples": "tools/cli/nvs-meta-json"
+      },
+      "keys": []
+    },
+    {
+      "area": "cli",
+      "slug": "nvs-ast",
+      "url": "/reference/cli/nvs-ast/",
+      "title": "nvs ast",
+      "group": "Commands",
+      "intro": {
+        "id": "tools:cli/nvs-ast",
+        "title": "nvs ast",
+        "examples": "tools/cli/nvs-ast"
+      },
+      "keys": []
+    },
+    {
+      "area": "cli",
+      "slug": "the-compile-cache",
+      "url": "/reference/cli/the-compile-cache/",
+      "title": "The compile cache",
+      "group": "Commands",
+      "intro": {
+        "id": "tools:cli/the-compile-cache",
+        "title": "The compile cache",
+        "examples": "tools/cli/the-compile-cache"
+      },
+      "keys": []
+    },
+    {
+      "area": "cli",
+      "slug": "nvs-serve",
+      "url": "/reference/cli/nvs-serve/",
+      "title": "nvs serve",
+      "group": "Server",
+      "intro": {
+        "id": "tools:server/nvs-serve",
+        "title": "nvs serve",
+        "examples": "tools/server/nvs-serve"
+      },
+      "keys": []
+    },
+    {
+      "area": "cli",
+      "slug": "nvs-ctl",
+      "url": "/reference/cli/nvs-ctl/",
+      "title": "nvs ctl",
+      "group": "Server",
+      "intro": {
+        "id": "tools:server/nvs-ctl",
+        "title": "nvs ctl",
+        "examples": "tools/server/nvs-ctl"
+      },
+      "keys": []
+    },
+    {
+      "area": "cli",
+      "slug": "nvs-service",
+      "url": "/reference/cli/nvs-service/",
+      "title": "nvs service",
+      "group": "Server",
+      "intro": {
+        "id": "tools:server/nvs-service",
+        "title": "nvs service",
+        "examples": "tools/server/nvs-service"
+      },
+      "keys": []
+    },
+    {
+      "area": "cli",
+      "slug": "nvs-lsp",
+      "url": "/reference/cli/nvs-lsp/",
+      "title": "nvs lsp",
+      "group": "Editor",
+      "intro": {
+        "id": "tools:editor/nvs-lsp",
+        "title": "nvs lsp",
+        "examples": "tools/editor/nvs-lsp"
+      },
+      "keys": []
+    },
+    {
+      "area": "cli",
+      "slug": "nvs-lsp-test",
+      "url": "/reference/cli/nvs-lsp-test/",
+      "title": "nvs lsp-test",
+      "group": "Editor",
+      "intro": {
+        "id": "tools:editor/nvs-lsp-test",
+        "title": "nvs lsp-test",
+        "examples": "tools/editor/nvs-lsp-test"
+      },
+      "keys": []
+    },
+    {
+      "area": "cli",
+      "slug": "the-vs-code-extension",
+      "url": "/reference/cli/the-vs-code-extension/",
+      "title": "The VS Code extension",
+      "group": "Editor",
+      "intro": {
+        "id": "tools:editor/the-vs-code-extension",
+        "title": "The VS Code extension",
+        "examples": "tools/editor/the-vs-code-extension"
+      },
+      "keys": []
+    },
+    {
+      "area": "cli",
+      "slug": "nvs-agent",
+      "url": "/reference/cli/nvs-agent/",
+      "title": "nvs agent",
+      "group": "Coding agents",
+      "intro": {
+        "id": "tools:agents/nvs-agent",
+        "title": "nvs agent",
+        "examples": "tools/agents/nvs-agent"
+      },
+      "keys": []
+    },
+    {
+      "area": "cli",
+      "slug": "nvs-agent-primer",
+      "url": "/reference/cli/nvs-agent-primer/",
+      "title": "nvs agent primer",
+      "group": "Coding agents",
+      "intro": {
+        "id": "tools:agents/nvs-agent-primer",
+        "title": "nvs agent primer",
+        "examples": "tools/agents/nvs-agent-primer"
+      },
+      "keys": []
+    },
+    {
+      "area": "cli",
+      "slug": "nvs-agent-init",
+      "url": "/reference/cli/nvs-agent-init/",
+      "title": "nvs agent init",
+      "group": "Coding agents",
+      "intro": {
+        "id": "tools:agents/nvs-agent-init",
+        "title": "nvs agent init",
+        "examples": "tools/agents/nvs-agent-init"
+      },
+      "keys": []
+    },
+    {
+      "area": "cli",
+      "slug": "a-worked-session",
+      "url": "/reference/cli/a-worked-session/",
+      "title": "A worked session",
+      "group": "Coding agents",
+      "intro": {
+        "id": "tools:agents/a-worked-session",
+        "title": "A worked session",
+        "examples": "tools/agents/a-worked-session"
+      },
+      "keys": []
+    }
+  ]
+}

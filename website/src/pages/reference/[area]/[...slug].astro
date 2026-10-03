@@ -1,0 +1,130 @@
+---
+/**
+ * Every Configuration and CLI page, and the landing page of each area,
+ * generated from src/data/reference.json and each feature's `about.md`,
+ * examples and `nvs.toml` (src/lib/feature.ts). Nothing here is edited per
+ * page. A block's page opens with the chapter section that introduces the
+ * block, and then has one section per key. A section with nothing in it is
+ * not rendered, heading included. The Core classes are the sibling route
+ * under core/.
+ */
+import type { GetStaticPaths } from 'astro'
+import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro'
+import { Code } from '@astrojs/starlight/components'
+import { GITHUB_URL, GITHUB_BRANCH } from '@config/site.mjs'
+import FeatureExamples from '~/components/FeatureExamples.astro'
+import SeeAlso from '~/components/SeeAlso.astro'
+import { aboutFor, configFor, examplesFor, inlineHtml, type About } from '~/lib/feature'
+import { APPLIED_AT, CHANGED_BY, pages, type RefPage } from '~/lib/reference'
+
+const AREAS = {
+  config: { title: 'Configuration', description: 'Every block of `nvs.toml`, and each of its keys.' },
+  cli: { title: 'CLI commands', description: 'Every `nvs` command, and what it does.' },
+} as const
+
+export const getStaticPaths = (() =>
+  (['config', 'cli'] as const).flatMap((area) => [
+    { params: { area, slug: undefined }, props: { area, page: null } },
+    ...pages.filter((p) => p.area === area).map((page) => ({ params: { area, slug: page.slug }, props: { area, page } })),
+  ])) satisfies GetStaticPaths
+
+interface Props {
+  area: 'config' | 'cli'
+  page: RefPage | null
+}
+
+const { area, page } = Astro.props
+const plain = (s: string) => s.replace(/`/g, '')
+
+type Heading = { depth: number; slug: string; text: string }
+const headings: Heading[] = []
+
+let title = AREAS[area].title
+let description = plain(AREAS[area].description)
+let editUrl: string | false = false
+let intro: About | null = null
+let introConfig: string | null = null
+let introExamples = false
+let keys: { key: string; slug: string; about: About | null; config: string | null; examples: boolean; notes: string[]; feature: RefPage['keys'][number] }[] = []
+let related: string[] = []
+let groups: { label: string; items: { url: string; title: string; summary: string }[] }[] = []
+
+if (page) {
+  title = plain(page.title)
+  intro = page.intro ? aboutFor(page.intro) : null
+  introConfig = page.intro ? configFor(page.intro) : null
+  introExamples = page.intro ? examplesFor(page.intro).length > 0 : false
+  if (intro) editUrl = `${GITHUB_URL}/edit/${GITHUB_BRANCH}/${intro.path}`
+  keys = page.keys.map((k) => ({
+    key: k.key,
+    slug: k.key.replace(/[^a-z0-9]+/gi, '-').toLowerCase(),
+    about: aboutFor(k),
+    config: configFor(k),
+    examples: examplesFor(k).length > 0,
+    notes: [CHANGED_BY[k.class], APPLIED_AT[k.apply]].filter(Boolean).map(inlineHtml),
+    feature: k,
+  }))
+  description = intro?.summary || keys.find((k) => k.about)?.about?.summary || title
+  related = [...new Set([...(intro?.related ?? []), ...keys.flatMap((k) => k.about?.related ?? [])])]
+  // The order of the pushes is the order of the page, which the table of contents follows.
+  if (introConfig || introExamples) headings.push({ depth: 2, slug: 'examples', text: 'Examples' })
+  for (const k of keys) headings.push({ depth: 2, slug: k.slug, text: k.key })
+  if (related.length > 0) headings.push({ depth: 2, slug: 'related', text: 'Related' })
+} else {
+  const byGroup = new Map<string, { url: string; title: string; summary: string }[]>()
+  for (const p of pages.filter((p) => p.area === area)) {
+    const first = p.intro ?? p.keys[0]
+    const summary = first ? (aboutFor(first)?.summary ?? '') : ''
+    if (!byGroup.has(p.group)) byGroup.set(p.group, [])
+    byGroup.get(p.group)!.push({ url: p.url, title: p.title, summary })
+  }
+  groups = [...byGroup].map(([label, items]) => ({ label, items }))
+  for (const g of groups) headings.push({ depth: 2, slug: g.label.toLowerCase().replace(/[^a-z0-9]+/g, '-'), text: g.label })
+}
+---
+
+<StarlightPage frontmatter={{ title, description, editUrl }} headings={headings}>
+  {
+    page ? (
+      <>
+        {intro && intro.blocks.map((html) => <Fragment set:html={html} />)}
+        {(introConfig || introExamples) && (
+          <>
+            <h2 id="examples">Examples</h2>
+            {introConfig && <Code code={introConfig} lang="toml" title="nvs.toml" />}
+            {introExamples && page.intro && <FeatureExamples feature={page.intro} />}
+          </>
+        )}
+        {keys.map((k) => (
+          <section class="config-key">
+            <h2 id={k.slug}>
+              <code>{k.key}</code>
+            </h2>
+            {k.about && k.about.blocks.map((html) => <Fragment set:html={html} />)}
+            {k.notes.map((html) => <p set:html={html} />)}
+            {k.config && <Code code={k.config} lang="toml" title="nvs.toml" />}
+            {k.examples && <FeatureExamples feature={k.feature} />}
+          </section>
+        ))}
+        {related.length > 0 && <SeeAlso ids={related} />}
+      </>
+    ) : (
+      <>
+        <p set:html={inlineHtml(AREAS[area].description)} />
+        {groups.map((g) => (
+          <>
+            <h2 id={g.label.toLowerCase().replace(/[^a-z0-9]+/g, '-')}>{g.label}</h2>
+            <ul>
+              {g.items.map((item) => (
+                <li>
+                  <a href={item.url} set:html={inlineHtml(item.title)} />
+                  {item.summary && <>: {item.summary}</>}
+                </li>
+              ))}
+            </ul>
+          </>
+        ))}
+      </>
+    )
+  }
+</StarlightPage>

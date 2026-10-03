@@ -35,6 +35,8 @@ renders them all at build time, and a member's prose is its `about.md`.
 | `src/data/core-changelog.json` | human | per-member changelog entries |
 | `src/pages/reference/core/[...slug].astro` | human | the one route that renders every Core class and member page |
 | `src/content/docs/reference/core/index.mdx` | human | the Core reference's landing page |
+| `src/data/reference.json` | tool | the Configuration and CLI pages, regenerated with `core.json` |
+| `src/pages/reference/[area]/[...slug].astro` | human | the one route that renders every Configuration and CLI page and both landing pages |
 | `../docs/examples/**` | the proofs sweep | each member's `about.md` and examples, read in place by `src/lib/feature.ts`; the site holds no copy. `bun nv proofs --run` runs each example and diffs it against its `.out` file |
 | `config/spec-overrides.mjs` | human | corrections for spec table rows the renderer cannot read — every fix goes here, never into the renderer |
 | `config/site.mjs` | human | **all placeholder URLs live here** — swap them once to go live. It also holds `AREAS`, the four areas the header, the footer, the sidebars and `llms.txt` are built from |
@@ -69,6 +71,20 @@ renders them all at build time, and a member's prose is its `about.md`.
    names become the Related links, and a name with no page fails the build. Each
    member's `examples` field in `core.json` is its feature path in the proofs roster,
    which is the directory its `about.md` and examples are read from.
+
+## How the Configuration and CLI reference works
+
+The same `bun nv render --website` writes `src/data/reference.json` from the proofs
+roster (`../tools/nv/renderers/website-reference.ts`, which says how pages are grouped).
+Configuration is one page per `nvs.toml` block: the chapter section that introduces the
+block, then one section per key with its `about.md`, who may change it, its `nvs.toml`
+and its examples. A `tools:config` section that names no block is a page of its own.
+CLI is one page per section of the `cli`, `editor` and `agents` chapters and per `nvs …`
+section of `server`. `src/pages/reference/[area]/[...slug].astro` renders both areas,
+with the same rule that a section with nothing in it is left out. `bun nv site --check
+reference` fails when a roster feature has no page, either data file is behind the
+binary, a page shows fewer examples than its features have, or a `related:` name has no
+Core page.
 
 Novis code blocks get syntax highlighting from `config/novis.tmLanguage.json`
 (languages `novis` / `nvs` in fenced code blocks). `sync:render` writes it from the editors'

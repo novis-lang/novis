@@ -1,10 +1,11 @@
 /**
- * What a Core member's page reads from `docs/examples/`, in place: its
- * `about.md` and its examples. The site keeps no copy of either.
+ * What a Reference page reads from `docs/examples/`, in place: a feature's
+ * `about.md`, its examples and its `nvs.toml`. The site keeps no copy of any.
  *
- * A member's directory is its `examples` field in core.json, which is the
- * member's feature path in the proofs roster (`core/Time-Date/at`), so no
- * page splits an id into a path by hand.
+ * A feature's directory is its `examples` field in core.json or
+ * reference.json, which is its feature path in the proofs roster
+ * (`core/Time-Date/at`, `config/limits-hard`), so no page splits an id into a
+ * path by hand.
  *
  * `about.md` is plain paragraphs and `-` lists with inline code, bold,
  * italics and links, which is all the about pages use. Its last line may be
@@ -12,7 +13,7 @@
  * as prose, each name becomes a link, and a name with no page fails the build.
  */
 import changelog from '../data/core-changelog.json'
-import { classes, type CoreMember } from './core'
+import { classes } from './core'
 import { withBase } from './base'
 
 export interface Change {
@@ -29,16 +30,22 @@ export function changesFor(id: string): Change[] {
 // The globs are relative to this file, so their keys start with this prefix.
 const ROOT = '../../../docs/examples/'
 
-const abouts = import.meta.glob('../../../docs/examples/core/**/about.md', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
-const sources = import.meta.glob('../../../docs/examples/core/**/*.nvs', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
-const outputs = import.meta.glob('../../../docs/examples/core/**/*.out', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
+const abouts = import.meta.glob('../../../docs/examples/{core,config,tools}/**/about.md', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
+const sources = import.meta.glob('../../../docs/examples/{core,config,tools}/**/*.nvs', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
+const outputs = import.meta.glob('../../../docs/examples/{core,config,tools}/**/*.out', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
+const tomls = import.meta.glob('../../../docs/examples/{config,tools}/**/nvs.toml', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
+
+/** Anything with a directory under `docs/examples/`: a Core member, a configuration key, a CLI section. */
+export interface Feature {
+  examples: string
+}
 
 const byName = new Map<string, string>()
 for (const cls of classes) for (const m of cls.members) byName.set(`${cls.name}::${m.name}`, m.id)
 
 const escapeHtml = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 
-function inlineHtml(md: string): string {
+export function inlineHtml(md: string): string {
   return md
     .split(/(`[^`]+`)/)
     .map((part) =>
@@ -92,10 +99,10 @@ export interface About {
   path: string
 }
 
-/** The member's `about.md`, or `null` when it has none. */
-export function aboutFor(member: CoreMember): About | null {
-  const path = `docs/examples/${member.examples}/about.md`
-  const text = abouts[`${ROOT}${member.examples}/about.md`]
+/** The feature's `about.md`, or `null` when it has none. */
+export function aboutFor(feature: Feature): About | null {
+  const path = `docs/examples/${feature.examples}/about.md`
+  const text = abouts[`${ROOT}${feature.examples}/about.md`]
   if (text === undefined) return null
   const lines = text.trimEnd().split(/\r?\n/)
   const last = /^related:\s*(.*)$/.exec(lines[lines.length - 1] ?? '')
@@ -120,14 +127,19 @@ export interface Example {
   output: string | undefined
 }
 
+/** The `nvs.toml` the feature's examples run with, or `null` when they need none. */
+export function configFor(feature: Feature): string | null {
+  return tomls[`${ROOT}${feature.examples}/nvs.toml`]?.trimEnd() ?? null
+}
+
 /**
- * Every example of the member, ordered by filename. `NN-some-title.nvs` is one
- * example, and a sibling `NN-some-title.out` is its output, which
+ * Every example of the feature, ordered by filename. `NN-some-title.nvs` is
+ * one example, and a sibling `NN-some-title.out` is its output, which
  * `bun nv proofs --run` checks. A file in a subdirectory is a companion file,
  * not an example.
  */
-export function examplesFor(member: CoreMember): Example[] {
-  const dir = `${ROOT}${member.examples}/`
+export function examplesFor(feature: Feature): Example[] {
+  const dir = `${ROOT}${feature.examples}/`
   return Object.keys(sources)
     .filter((p) => p.startsWith(dir) && !p.slice(dir.length).includes('/'))
     .sort()

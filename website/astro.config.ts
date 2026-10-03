@@ -15,6 +15,20 @@ const core = JSON.parse(fs.readFileSync('./src/data/core.json', 'utf8')) as {
   }[]
 }
 
+// Configuration and CLI pages, from src/data/reference.json, one sidebar
+// group per page group in the order the data lists them.
+const reference = JSON.parse(fs.readFileSync('./src/data/reference.json', 'utf8')) as {
+  pages: { area: 'config' | 'cli'; url: string; title: string; group: string }[]
+}
+const referenceSidebar = (area: 'config' | 'cli') => {
+  const groups = new Map<string, { label: string; link: string }[]>()
+  for (const p of reference.pages.filter((p) => p.area === area)) {
+    if (!groups.has(p.group)) groups.set(p.group, [])
+    groups.get(p.group)!.push({ label: p.title.replace(/`/g, ''), link: p.url })
+  }
+  return [...groups].map(([label, items]) => ({ label, collapsed: true, items }))
+}
+
 // Syntax highlighting for Novis code fences (```novis / ```nvs). `npm run sync:render` writes this
 // file from the editors' grammar.
 const novisGrammar = JSON.parse(fs.readFileSync('./config/novis.tmLanguage.json', 'utf8'))
@@ -119,6 +133,14 @@ export default defineConfig({
             {
               label: 'Core classes',
               items: [{ label: 'All classes', link: '/reference/core/' }, ...coreSidebar],
+            },
+            {
+              label: 'Configuration',
+              items: [{ label: 'All blocks', link: '/reference/config/' }, ...referenceSidebar('config')],
+            },
+            {
+              label: 'CLI commands',
+              items: [{ label: 'All commands', link: '/reference/cli/' }, ...referenceSidebar('cli')],
             },
           ],
         },

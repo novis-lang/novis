@@ -1,0 +1,31 @@
+---
+/**
+ * Every example of one feature, with its output when it has one, read in
+ * place from `docs/examples/` by `examplesFor` in src/lib/feature.ts. With a
+ * `heading`, the examples sit under an `h2` of that text. Without one, they
+ * sit under the caller's own `h2`. Each example's title is an `h3`. A page
+ * renders this only when the feature has an example.
+ */
+import { Code } from '@astrojs/starlight/components'
+import { examplesFor, type Feature } from '~/lib/feature'
+
+interface Props {
+  feature: Feature
+  heading?: string
+  id?: string
+}
+
+const { feature, heading, id } = Astro.props
+const examples = examplesFor(feature)
+---
+
+<section class="method-examples">
+  {heading && <h2 id={id}>{heading}</h2>}
+  {examples.map((ex) => (
+    <div class="method-example">
+      <h3>{ex.title}</h3>
+      <Code code={ex.code} lang="novis" />
+      {ex.output !== undefined && <Code code={ex.output} lang="txt" title="Output" />}
+    </div>
+  ))}
+</section>

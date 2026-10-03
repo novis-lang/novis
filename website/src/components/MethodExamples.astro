@@ -1,12 +1,11 @@
 ---
 /**
- * Every example of one member, with its output when it has one, read in place
- * from `docs/examples/` by `examplesFor` in src/lib/feature.ts. The page
- * renders this only when the member has an example.
+ * Every example of one member under an "Examples" heading, by
+ * FeatureExamples. The page renders this only when the member has an
+ * example.
  */
-import { Code } from '@astrojs/starlight/components'
+import FeatureExamples from '~/components/FeatureExamples.astro'
 import { findMember } from '~/lib/core'
-import { examplesFor } from '~/lib/feature'
 
 interface Props {
   id: string
@@ -14,16 +13,6 @@ interface Props {
 
 const found = findMember(Astro.props.id)
 if (!found) throw new Error(`MethodExamples: unknown member id "${Astro.props.id}"`)
-const examples = examplesFor(found.member)
 ---
 
-<section class="method-examples">
-  <h2 id="examples">Examples</h2>
-  {examples.map((ex) => (
-    <div class="method-example">
-      <h3>{ex.title}</h3>
-      <Code code={ex.code} lang="novis" />
-      {ex.output !== undefined && <Code code={ex.output} lang="txt" title="Output" />}
-    </div>
-  ))}
-</section>
+<FeatureExamples feature={found.member} heading="Examples" id="examples" />

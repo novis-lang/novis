@@ -22,14 +22,16 @@
 //
 // The registry comes from a built binary, so this renderer is in `--website` alone. CI's docs job runs
 // `nv render --check` without building one, and its `reference` job builds one and runs
-// `nv render --website --check`.
+// `nv render --website --check`. It also writes the Configuration and CLI reference data,
+// `website-reference.ts`, from the proofs roster over the same `nvs meta --json`.
 
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { join, posix } from "node:path";
 import type { Output, Renderer } from "../lib/render.ts";
 import { load } from "../lib/store.ts";
-import { classTail } from "../proofs/roster.ts";
+import { classTail, roster, type Meta } from "../proofs/roster.ts";
+import { REFERENCE_FILE, referenceData } from "./website-reference.ts";
 import { specCoreMembers } from "../schema/spec.ts";
 
 export const SPEC = "docs/spec/01-core-library.md";
@@ -65,6 +67,8 @@ interface Registry {
   enumDocs: Map<string, { short: string; cases: Map<string, string> }>;
   /** `Core\Math::PI` to its one sentence. */
   constDocs: Map<string, string>;
+  /** The whole of `nvs meta --json`, which the proofs roster reads. */
+  meta: Meta & { directives?: { key: string; class: string; apply: string }[] };
 }
 
 /** `NVS_BIN` when it is set, otherwise the most recently built of `target/debug` and `target/release`. */
@@ -88,7 +92,7 @@ function registry(root: string): Registry {
   const run = spawnSync(nvs, ["meta", "--json"], { encoding: "utf8", timeout: 60_000, maxBuffer: 256 * 1024 * 1024 });
   if (run.error || run.status !== 0) throw new Error(`${nvs} meta --json failed: ${run.error?.message ?? run.stderr}`);
   const parsed = JSON.parse(run.stdout);
-  const out: Registry = { implemented: new Map(), classes: [], docs: new Map(), enumDocs: new Map(), constDocs: new Map() };
+  const out: Registry = { implemented: new Map(), classes: [], docs: new Map(), enumDocs: new Map(), constDocs: new Map(), meta: parsed };
   for (const cls of parsed.classes ?? []) {
     out.implemented.set(cls.name, (cls.members ?? []).map((m: { name: string }) => m.name));
     out.classes.push({
@@ -753,7 +757,11 @@ export async function renderWebsiteCore(root: string): Promise<Output[]> {
     }
   }
 
-  return [{ path: DATA_FILE, text: `${JSON.stringify({ classes: published }, null, 2)}\n` }];
+  const pages = referenceData(await roster("", reg.meta), reg.meta.directives ?? []);
+  return [
+    { path: DATA_FILE, text: `${JSON.stringify({ classes: published }, null, 2)}\n` },
+    { path: REFERENCE_FILE, text: `${JSON.stringify({ pages }, null, 2)}\n` },
+  ];
 }
 
 export const websiteCore: Renderer = {
