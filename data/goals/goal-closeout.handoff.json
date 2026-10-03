@@ -1,23 +1,27 @@
 {
-  "state": "**Goal `goal-closeout`, Stage 4 (finished in place).** The gap `the-pipeline-bench-has-no-nested-twin` is closed. A bench may now have a sibling `<name>.twin.nvs`: the same operation written another way. `--record-perf` times it in the same sweep and records `twin_ns_per_op` and `twin_ratio` (the bench's figure over the twin's). It is a figure, never a finding. `benches/members/README.md` § *What a bench declares* documents it, and the comment check covers the twin. `benches/members/lang/expressions/the-pipeline-operator.twin.nvs` writes the three calls nested; its first record gives a twin ratio of 0.97x.\n\nA `decimal` *property* default is still refused (`E0472`), because `nvs_runtime::FieldDefault` has no `decimal` recipe. The module doc of `crates/nvs-types/src/defaults.rs` says so.\n\n`startsWith` and `endsWith` still compare bytes. Whether they join the search family is still open.\n\nThe only `nvs-runtime` gap left is `enum-case-that-reached-a-mixed`. It needs an ADR beyond Stage 5's one slot, so it waits for the user. It goes to `BLOCKED` only once it is the last goal-owned gap in the tree.\n\nThe floor check `the latest CI run on main succeeded for the code HEAD holds` is red only because `main` is ahead of `origin/main`, and the loop never pushes. A person has to push.\n\n`bun nv owners --closes goal-closeout` names the rest: 26 gaps in `nvs-lsp`, `nvs-stdlib`, `nvs-types`, `nvs-runtime`, `editors/vscode` and `website`.",
+  "state": "**Goal `goal-closeout`, Stage 4 (finished in place).** The gap `the-live-chain-entry-test-names-a-goal-stage-6-deletes` is closed. `an_owner_that_is_not_a_live_chain_entry_fails` now reads its live slug from `data/chain.json`'s `live` through the helper `chain_live()`, so Stage 6's deletion of the old goals no longer breaks it.\n\nA `decimal` *property* default is still refused (`E0472`), because `nvs_runtime::FieldDefault` has no `decimal` recipe. The module doc of `crates/nvs-types/src/defaults.rs` says so.\n\n`startsWith` and `endsWith` still compare bytes. Whether they join the search family is still open.\n\nThe only `nvs-runtime` gap left is `enum-case-that-reached-a-mixed`. It needs an ADR beyond Stage 5's one slot, so it waits for the user. It goes to `BLOCKED` only once it is the last goal-owned gap in the tree.\n\nThe floor check `the latest CI run on main succeeded for the code HEAD holds` is red only because `main` is ahead of `origin/main`, and the loop never pushes. A person has to push.\n\n`bun nv owners --closes goal-closeout` names the rest: 25 gaps in `nvs-lsp`, `nvs-stdlib`, `nvs-types`, `nvs-runtime`, `editors/vscode` and `website`.",
   "next": {
     "stage": 4,
     "title": "finished in place",
     "files": [
-      "crates/nvs-stdlib/tests/spec_registry_coverage.rs",
-      "data/chain.json"
+      "editors/vscode/src/extension.ts",
+      "editors/vscode/package.json"
     ],
     "items": [
       {
         "done": false,
-        "text": "**The live-chain-entry test reads the live goal from the chain record** (`data/gaps/nvs-stdlib/the-live-chain-entry-test-names-a-goal-stage-6-deletes.json`). `an_owner_that_is_not_a_live_chain_entry_fails` at `crates/nvs-stdlib/tests/spec_registry_coverage.rs:616` asserts the walked goal `carried-gaps` is on the chain, and Stage 6 deletes it. Take the slug from `data/chain.json`'s `live` instead, then delete the gap (`rule:tooling/the-chain-names-its-live-goal`)."
+        "text": "**`nvs.checkWorkspace` is contributed and registered** (`data/gaps/vscode/nvs-check-workspace-is-not-contributed.json`, the gap's own text names the two rules). Register it beside the other commands at `editors/vscode/src/extension.ts:115` and contribute it in `editors/vscode/package.json:193`, or strike the promise from the rules if the gap's text says the design moved."
+      },
+      {
+        "done": false,
+        "text": "**The guided install is reached by a command** (gap `the-guided-install-is-reached-by-no-command`). Register `nvs.downloadBinary` at `editors/vscode/src/extension.ts:115` and contribute it at `editors/vscode/package.json:193`."
       }
     ]
   },
   "backlog": [
-    "`the-website-grammar-is-hand-written-beside-the-editors` — `website/config/novis.tmLanguage.json`.",
-    "`rendered-core-pages-lag-the-tree` — `website/scripts`.",
-    "`nvs-check-workspace-is-not-contributed` and `the-guided-install-is-reached-by-no-command` — `editors/vscode/src/extension.ts`.",
-    "`enum-case-that-reached-a-mixed` waits for the user (needs a second ADR slot)."
+    "`crates/nvs-lsp/src/server.rs`: `a-cancel-request-notification-is-ignored` and `the-code-lens-shows-only-a-reference-count` share one file — a good group after this one.",
+    "Stage 5's check `the goal switch deletes the goal it leaves` names a test filter no file matches yet; it is the next stage's first item.",
+    "Stage 6's check wants the chain to start at `goal-closeout`; 184 goals are still in front of it.",
+    "The other 21 gaps `bun nv owners --closes goal-closeout` names."
   ]
 }

@@ -425,6 +425,21 @@ fn chain_goals() -> BTreeSet<String> {
         .collect()
 }
 
+/// The chain's `live` — the goal the loop works on now, which
+/// `rule:tooling/the-chain-names-its-live-goal` keeps on the `goals` list. A
+/// test that needs a slug the chain is sure to hold reads it here, because any
+/// fixed slug is one a later cleanup can delete.
+fn chain_live() -> String {
+    let path = nvs_repo::path("data/chain.json");
+    let text = fs::read_to_string(&path).unwrap_or_else(|err| panic!("{}: {err}", path.display()));
+    let chain: serde_json::Value =
+        serde_json::from_str(&text).unwrap_or_else(|err| panic!("{}: {err}", path.display()));
+    chain["live"]
+        .as_str()
+        .unwrap_or_else(|| panic!("{}: `live` is not a slug", path.display()))
+        .to_owned()
+}
+
 /// The first milestone a key may be deferred to.
 ///
 /// Everything before it is complete at the end of the program, so a key tagged
@@ -616,15 +631,15 @@ fn every_outstanding_key_names_an_owner() {
 fn an_owner_that_is_not_a_live_chain_entry_fails() {
     let goals = chain_goals();
     let plan = plan_milestones();
-    let live = "carried-gaps".to_owned();
+    let live = chain_live();
     let orphan = "no-such-goal".to_owned();
     let unplanned = "M99".to_owned();
     let finished = "M9".to_owned();
 
     assert!(
         goals.contains(live.as_str()),
-        "goal `{live}` is not on the chain, so this case is asserting nothing — take a slug from \
-         docs/agent/goals/"
+        "the chain's live goal `{live}` is not on its own `goals` list, so data/chain.json is \
+         broken"
     );
     assert!(
         !goals.contains(orphan.as_str()),
