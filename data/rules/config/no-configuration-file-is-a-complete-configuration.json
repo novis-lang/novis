@@ -14,6 +14,7 @@
   ],
   "guardedBy": [
     "tests/conformance/core/config-unconfigured-host-answers-as-an-empty-configuration.nvst",
-    "crates/nvs-config/tests/resolve.rs"
+    "crates/nvs-config/tests/resolve.rs",
+    "crates/nvs-runtime/tests/configured_limits.rs"
   ]
 }

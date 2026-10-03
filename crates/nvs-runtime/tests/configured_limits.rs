@@ -124,6 +124,33 @@ fn an_unstated_uncapped_or_malformed_cpu_time_is_no_ceiling() {
     );
 }
 
+/// The same three spellings for `[limits] memory`, which
+/// `rule:config/no-configuration-file-is-a-complete-configuration` states as the default: a request
+/// whose configuration names no memory ceiling, `nvs run` included, holds whatever the host gives it.
+/// The armed threshold is asked as well as the reading, because the allocator compares against that
+/// and not against [`Ctx::memory_limit`].
+#[test]
+fn an_unstated_uncapped_or_malformed_memory_is_no_ceiling() {
+    for written in [
+        "[limits]\ncpu_time = \"2s\"\n",
+        "[limits]\nmemory = false\n",
+        "[limits]\nmemory = \"a lot\"\n",
+    ] {
+        let ctx = ctx_reading(written);
+        assert_eq!(ctx.memory_limit(), 0, "{written}");
+        assert_eq!(
+            nvs_runtime::budget::armed_ceiling(),
+            0,
+            "{written} armed a ceiling"
+        );
+    }
+    assert_eq!(
+        Ctx::new(OutputSink::Buffer(Vec::new())).memory_limit(),
+        0,
+        "a request with no configuration at all",
+    );
+}
+
 /// `[limits] max_script_depth` is the one ceiling in this block whose *unstated* reading is a
 /// number rather than "no cap", and `Ctx::max_script_depth`'s field doc owns why. Asserted here as
 /// the whole shape it differs in — unstated, malformed and a written zero all default, and only

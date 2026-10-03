@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-runtime/src/lib.rs",
-  "title": "`nvs run` with no `[limits] memory` in any configuration file has no memory ceiling, and nothing says whether that is meant.",
-  "text": "A string-doubling loop under `nvs run` with no `[limits] memory` stopped only when the allocator failed, at tens of gigabytes, with the process's own `memory allocation of … bytes failed` and not the request's `FATAL`. Goal `tools-server` saw this and it is not checked again here. `docs/reference/tools/20-config.md` says an unset `cpu_time` is no limit and says nothing about an unset `memory`, and neither does this crate's module doc. Closing this decides whether a command-line run gets a default ceiling, writes the answer into a rule fragment under `docs/rules/` and the chapter, and pins it with a test.",
-  "goal": "goal-closeout"
-}
