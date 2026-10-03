@@ -1,0 +1,20 @@
+<?nvs
+// A class that implements `Parses` creates an object from a string with its `parse` method.
+// The string is `tainted` because it comes from outside the program.
+class Slug implements Parses {
+    public function constructor(public tainted string $text) {}
+
+    public static function parse(tainted string $s): static {
+        if ($s != Core\Str::lower($s)) {
+            throw new ParseError("a slug is written in lower case");
+        }
+        return new static($s);
+    }
+}
+
+echo Slug::parse("hello-world")->text, "\n";
+try {
+    echo Slug::parse("Hello-World")->text, "\n";
+} catch (ParseError $e) {
+    echo $e->message, "\n";
+}

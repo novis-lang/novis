@@ -1,0 +1,11 @@
+<?nvs
+// `is Point` checks that a value has every field of the shape, with the right types.
+type Point = {x: int, y: int};
+
+mixed $good = {x: 5, y: 6};
+mixed $bad = {x: 5};
+echo ($good is Point) ? "yes" : "no", " ", ($bad is Point) ? "yes" : "no", "\n";
+
+// `as Point` does the same check. It throws an error if the check fails.
+Point $checked = $good as Point;
+echo $checked->x + $checked->y, "\n";

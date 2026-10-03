@@ -1,0 +1,52 @@
+---
+title: Working with objects
+covers: ['lang:classes/objects-are-handles', 'lang:classes/nullable-objects-and', 'lang:classes/object-the-top-of-every-class-type', 'lang:classes/what-a-class-cannot-declare', 'lang:types/callable-classes-object-shapes', 'lang:expressions/is-new-clone-throw-print-exit-isset-empty']
+description: How objects are shared between variables, how clone copies one, how ?-> handles null, and the object type.
+---
+import Snippet from '@components/Snippet.astro'
+
+A variable that contains an object points to it. Assigning the variable, passing it to a method,
+or storing it in an array does not copy the object.
+
+<Snippet src="syntax/objects/01-handles.nvs" />
+
+- A change through one variable is seen through every other variable that points to the object.
+- `==` on two objects is `true` only when they are the same object.
+- `clone $a` creates a new object of the same class. Each property is copied.
+- An array property is copied. An object property is not copied: the clone points to the same object.
+- No method runs when an object is cloned.
+
+## Objects that can be null
+
+`?Box` is a `Box` or `null`. Using `->` on a value that can be `null` does not compile. Use `?->`,
+or check for `null` first.
+
+<Snippet src="syntax/objects/02-nullsafe.nvs" />
+
+- `$none?->label` is `null` when `$none` is `null`. The rest of the expression does not run.
+- `??` gives a value to use in place of `null`: `$none?->label ?? "gone"`.
+
+## The object type
+
+A variable of type `object` can contain an object of any class.
+
+<Snippet src="syntax/objects/03-object.nvs" />
+
+- You can read a property through `object`. If the object has no such property, it throws an error.
+- You cannot call a method through `object`. Check the class with `is` first, or convert with `as`.
+- `$x is Tag` is `true` when `$x` is a `Tag` or an object of a child class of `Tag`. It is `false` for `null`.
+- With an interface name, `is` is `true` for every class that implements the interface.
+- `callable` is the type of a closure. An object is never a `callable`.
+
+## What a class cannot have
+
+- Methods whose names start with `__`, like `__get`, `__call` or `__destruct`. Names cannot start with `_`.
+- Anonymous classes. `new class { ... }` does not compile. Give the class a name.
+- A destructor. Novis frees an object when nothing points to it.
+
+## Do and don't
+
+- Do use `clone` when you need a separate copy to change.
+- Do use `?->` and `??` for an object that can be `null`.
+- Don't use `object` when you know the class. A class type lets the compiler check every call.
+- Don't expect `==` to compare properties. It checks if both sides are the same object.

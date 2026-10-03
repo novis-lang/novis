@@ -1,0 +1,17 @@
+<?nvs
+// A method that returns `$this` can be chained.
+class Counter {
+    private int $n = 0;
+
+    public function bump(): self {
+        $this->n = $this->n + 1;
+        return $this;
+    }
+
+    public function value(): int {
+        return $this->n;
+    }
+}
+
+var $c = new Counter();
+echo $c->bump()->bump()->bump()->value(), "\n";

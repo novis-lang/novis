@@ -1,0 +1,13 @@
+<?nvs
+// A class that implements `Stringable` can be printed and joined to a string.
+// Novis calls its `toString` method.
+class Money implements Stringable {
+    public function constructor(private int $cents) {}
+
+    public function toString(): string {
+        return ($this->cents / 100) . " EUR";
+    }
+}
+
+var $m = new Money(250);
+echo $m, " | ", "total: " . $m, " | ", "in {$m}", " | ", $m as string, "\n";

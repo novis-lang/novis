@@ -1,0 +1,3 @@
+set balance=7
+get balance
+7

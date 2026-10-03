@@ -1,0 +1,18 @@
+<?nvs
+// `?Box` is a `Box` or `null`. `?->` returns `null` when the object is `null`.
+class Box {
+    public function constructor(public string $label) {}
+
+    public function inner(): ?Box {
+        return null;
+    }
+}
+
+?Box $some = new Box("here");
+?Box $none = null;
+echo $some?->label ?? "gone", " ", $none?->label ?? "gone", " ", $some?->inner()?->label ?? "gone", "\n";
+
+// Inside this `if`, `$some` is not `null`, so `->` is allowed.
+if ($some != null) {
+    echo $some->label, "\n";
+}

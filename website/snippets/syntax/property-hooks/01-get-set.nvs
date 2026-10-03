@@ -1,0 +1,31 @@
+<?nvs
+// A `set` hook runs on every write to the property. A `get` hook runs on every read.
+class Temperature {
+    public int $celsius {
+        get => $this->celsius;
+        set (int $v) {
+            if ($v < -273) {
+                throw new LogicError("below absolute zero");
+            }
+            $this->celsius = $v;
+        }
+    }
+
+    // This property has only a `get` hook. It is calculated from `$celsius`.
+    public int $doubled {
+        get => $this->celsius * 2;
+    }
+
+    public function constructor(int $start) {
+        $this->celsius = $start;
+    }
+}
+
+var $t = new Temperature(20);
+echo $t->celsius, " ", $t->doubled, "\n";
+try {
+    $t->celsius = -300;
+} catch (LogicError $e) {
+    echo "error: ", $e->message, "\n";
+}
+echo $t->celsius, "\n";

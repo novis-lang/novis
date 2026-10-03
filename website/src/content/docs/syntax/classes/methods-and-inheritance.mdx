@@ -1,0 +1,49 @@
+---
+title: Methods and inheritance
+covers: ['lang:classes/methods-self-static-and-parent', 'lang:classes/inheritance']
+description: How self, static and parent work in methods, how a class extends another, and what abstract and final mean.
+---
+import Snippet from '@components/Snippet.astro'
+
+A method is a function inside a class. An instance method uses `$this`. A `static` method has no
+`$this`, and you call it with the class name: `Registry::make()`.
+
+<Snippet src="syntax/class-methods/01-self-static.nvs" />
+
+- `self` is the class where the code is written. `self::tag()` always calls `Registry::tag`.
+- `static` is the class the call was made on. On `LeafRegistry`, `static::tag()` calls `LeafRegistry::tag`.
+- `new self()` and `new static()` create an object of that class.
+- A return type of `static` means the method returns an object of the class the call was made on.
+- `static::` is not allowed inside a closure. Read the value into a variable before the closure.
+
+A method that returns `$this` can be chained.
+
+<Snippet src="syntax/class-methods/02-chaining.nvs" />
+
+## Extending a class
+
+`class Dog extends Animal` creates a class that has every member of `Animal`. `Dog` can replace
+a method with its own version. A class extends one class at most.
+
+<Snippet src="syntax/class-methods/03-extends.nvs" />
+
+- `parent::describe()` calls the version of `describe` in the parent class.
+- When the parent has a constructor, the child's constructor must call `parent::constructor(...)`.
+  Otherwise the class does not compile.
+- A child class without a constructor uses its parent's constructor.
+- A variable of type `Animal` can contain a `Dog`. The method that runs is the `Dog` version.
+
+## abstract and final
+
+<Snippet src="syntax/class-methods/04-abstract.nvs" />
+
+- An `abstract` class can have methods without a body. You cannot create an object of it with `new`.
+- A class that extends it must write every `abstract` method, or it does not compile.
+- A `final` class cannot be extended. A `final` method cannot be replaced in a child class.
+
+## Do and don't
+
+- Do use `static` when a child class should be able to change what a method returns.
+- Do call `parent::constructor(...)` first in a child constructor.
+- Don't build long chains of classes. An interface is often simpler.
+- Don't look for traits. They do not exist. Use an interface with default methods instead.

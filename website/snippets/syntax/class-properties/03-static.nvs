@@ -1,0 +1,15 @@
+<?nvs
+// A `static` property belongs to the class. Every object of the class shares it.
+class Registry {
+    public static int $count = 0;
+    public static ?string $last;
+
+    public static function note(string $name): void {
+        self::$count = self::$count + 1;
+        self::$last = $name;
+    }
+}
+
+Registry::note("a");
+Registry::note("b");
+echo Registry::$count, " ", Registry::$last ?? "none", "\n";

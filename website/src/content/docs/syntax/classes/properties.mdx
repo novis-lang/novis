@@ -1,0 +1,48 @@
+---
+title: Properties and constants
+covers: ['lang:classes/properties', 'lang:types/properties-and-constants']
+description: How to declare a property with a type and a default, the readonly, lateinit and static properties, and class constants.
+---
+import Snippet from '@components/Snippet.astro'
+
+A property is written as `visibility type $name`, with an optional default:
+`public int $size = 8;`. A class constant is written as `visibility const type NAME = value;`.
+
+<Snippet src="syntax/class-properties/01-defaults.nvs" />
+
+- A default must be a value the compiler knows: a literal, `[]`, an enum case or a class constant.
+- `null` is a valid default only when the type allows it, for example `?string`.
+- A property without a default must be set by the constructor, on every path. If one path does
+  not set it, the class does not compile.
+- A class constant is read as `self::NAME` inside the class and `Config::NAME` outside it.
+- `Config::class` is the class name as a string: `"Config"`.
+
+## readonly and lateinit
+
+<Snippet src="syntax/class-properties/02-readonly-lateinit.nvs" />
+
+- A `readonly` property is set once, in the constructor. Any other write does not compile.
+- A `readonly` property has no default. A value that is known when you write the class is a `const`.
+- `lateinit` is for a property that is set after the constructor runs. Its type must be a class
+  or an interface.
+- Reading a `lateinit` property before it is set throws an error.
+
+## static properties
+
+A `static` property belongs to the class, not to one object. You read it with `self::$name`
+inside the class and `Registry::$name` outside it.
+
+<Snippet src="syntax/class-properties/03-static.nvs" />
+
+- A `static` property needs a default, or a type that allows `null`. Then it starts as `null`.
+- Each request has its own copy of every `static` property. One request never sees the value
+  another request set.
+- `static::$name` does not compile. Write `self::$name`.
+
+## Do and don't
+
+- Do give every property a type and, where you can, a default.
+- Do use `readonly` for a value that must not change after the object is created.
+- Don't use `lateinit` to skip setting a property in the constructor. Use it only when the value
+  really arrives later.
+- Don't use a `static` property to keep data between requests. Every request starts with the default.

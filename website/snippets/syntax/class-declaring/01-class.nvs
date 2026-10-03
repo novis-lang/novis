@@ -1,0 +1,22 @@
+<?nvs
+// A class with two properties, a constructor and one method.
+class Point {
+    public int $x;
+    public int $y;
+    private string $label = "p";
+
+    // The constructor is the method named `constructor`. It runs when you write `new Point(...)`.
+    public function constructor(int $x, int $y) {
+        $this->x = $x;
+        $this->y = $y;
+    }
+
+    public function describe(): string {
+        return $this->label . "(" . $this->x . ", " . $this->y . ")";
+    }
+}
+
+// `new` creates an object. `->` reads a property or calls a method.
+var $p = new Point(1, 2);
+$p->x = 5;
+echo $p->describe(), "\n";

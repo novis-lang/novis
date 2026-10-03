@@ -1,0 +1,22 @@
+<?nvs
+// A constructor parameter with `public` or `private` in front of it is also a property.
+class Person {
+    public function constructor(public string $name, private int $age = 30) {}
+
+    public function age(): int {
+        return $this->age;
+    }
+}
+
+// This class has no constructor, so `new Counter()` takes no arguments.
+class Counter {
+    public int $n = 0;
+}
+
+var $a = new Person("Ada");
+var $b = new Person("Bob", 41);
+echo $a->name, " ", $a->age(), "; ", $b->name, " ", $b->age(), "\n";
+
+var $c = new Counter();
+$c->n = $c->n + 1;
+echo $c->n, "\n";

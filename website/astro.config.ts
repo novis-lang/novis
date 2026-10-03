@@ -195,6 +195,19 @@ export default defineConfig({
                 { label: 'Closures with fn', link: '/syntax/functions/closures/' },
               ],
             },
+            {
+              label: 'Classes and objects',
+              items: [
+                { label: 'Declaring a class', link: '/syntax/classes/declaring/' },
+                { label: 'Properties and constants', link: '/syntax/classes/properties/' },
+                { label: 'Methods and inheritance', link: '/syntax/classes/methods-and-inheritance/' },
+                { label: 'Interfaces', link: '/syntax/classes/interfaces/' },
+                { label: 'Stringable, Comparable and Parses', link: '/syntax/classes/standard-interfaces/' },
+                { label: 'Property hooks', link: '/syntax/classes/property-hooks/' },
+                { label: 'Working with objects', link: '/syntax/classes/objects/' },
+                { label: 'Object literals and shapes', link: '/syntax/classes/object-literals/' },
+              ],
+            },
           ],
         },
         {

@@ -14,6 +14,44 @@
   "syntax/basics/variables.mdx": {
     "lang:types/every-binding-has-a-type": "dd36d2fa193703ff"
   },
+  "syntax/classes/declaring.mdx": {
+    "lang:classes/declaring-a-class": "d6fdb30070c13ea0"
+  },
+  "syntax/classes/interfaces.mdx": {
+    "lang:classes/interfaces": "9e2ecd46ca6c3266"
+  },
+  "syntax/classes/methods-and-inheritance.mdx": {
+    "lang:classes/inheritance": "811cec4790b76882",
+    "lang:classes/methods-self-static-and-parent": "e65d41f7533f60c9"
+  },
+  "syntax/classes/object-literals.mdx": {
+    "lang:expressions/object-literals": "81637df7d132d976"
+  },
+  "syntax/classes/objects.mdx": {
+    "lang:classes/nullable-objects-and": "95b0936d37e271ee",
+    "lang:classes/object-the-top-of-every-class-type": "73f013ceceb14939",
+    "lang:classes/objects-are-handles": "cdafefedd67c6e81",
+    "lang:classes/what-a-class-cannot-declare": "3ce2f31542d5d2fa",
+    "lang:expressions/is-new-clone-throw-print-exit-isset-empty": "d300c54e1196cd33",
+    "lang:types/callable-classes-object-shapes": "af7f10957928b59f"
+  },
+  "syntax/classes/properties.mdx": {
+    "lang:classes/properties": "7a7374e8cb875aaf",
+    "lang:types/properties-and-constants": "acca6527bf9c316e"
+  },
+  "syntax/classes/property-hooks.mdx": {
+    "lang:classes/property-hooks": "8c5217027713ba4e",
+    "lang:classes/propertyobserver": "4e8f9bfde3c2b73b",
+    "PropertyObserver": "87615bf94d657464"
+  },
+  "syntax/classes/standard-interfaces.mdx": {
+    "Comparable": "391e6f137abae931",
+    "lang:classes/comparable": "9d838bf89caea2d5",
+    "lang:classes/parses": "2c15005ea53bab37",
+    "lang:classes/stringable": "bf20b8f76c264fe3",
+    "Parses": "76732b35d3fe313a",
+    "Stringable": "2a07d08fab1b1475"
+  },
   "syntax/control-flow/break-continue-return.mdx": {
     "lang:statements/break-and-continue": "17583e24037ffa62",
     "lang:statements/return": "590137cb9dc139e3"

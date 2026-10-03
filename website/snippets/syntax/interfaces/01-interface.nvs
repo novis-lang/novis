@@ -1,0 +1,31 @@
+<?nvs
+// An interface lists methods a class must have. It can also have constants and methods with a body.
+interface Greets {
+    public const int MAX_LEN = 20;
+
+    public function name(): string;
+
+    // A method with a body is a default. Every class that implements `Greets` gets it.
+    public function greet(): string {
+        return "Hello, " . $this->name() . "!";
+    }
+}
+
+interface Counts {
+    public function count(): int;
+}
+
+class Person implements Greets, Counts {
+    public function constructor(private string $who) {}
+
+    public function name(): string {
+        return $this->who;
+    }
+
+    public function count(): int {
+        return 1;
+    }
+}
+
+Greets $g = new Person("Ada");
+echo $g->greet(), " ", Greets::MAX_LEN, " ", ($g is Counts) as string, "\n";

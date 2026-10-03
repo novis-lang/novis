@@ -1,0 +1,15 @@
+<?nvs
+// Assigning an object to a new variable does not copy it. Both variables point to one object.
+class Note {
+    public array<string> $lines = [];
+}
+
+var $a = new Note();
+var $same = $a;
+$same->lines[] = "one";
+echo Core\Arr::count($a->lines), " ", ($a == $same) ? "same" : "different", "\n";
+
+// `clone` creates a new object with a copy of every property.
+var $copy = clone $a;
+$copy->lines[] = "two";
+echo Core\Arr::count($a->lines), " ", Core\Arr::count($copy->lines), " ", ($a == $copy) ? "same" : "different", "\n";

@@ -1,0 +1,32 @@
+<?nvs
+// `readonly` means only the constructor can set the property.
+class Id {
+    public function constructor(public readonly int $value) {}
+}
+
+class Logger {
+    public function name(): string {
+        return "log";
+    }
+}
+
+// `lateinit` means the property is set after the constructor. Reading it before that throws an error.
+class Widget {
+    public lateinit Logger $logger;
+
+    public function attach(Logger $l): void {
+        $this->logger = $l;
+    }
+}
+
+var $id = new Id(1);
+echo $id->value, "\n";
+
+var $w = new Widget();
+try {
+    echo $w->logger->name(), "\n";
+} catch (Throwable $e) {
+    echo "error: ", $e->message, "\n";
+}
+$w->attach(new Logger());
+echo $w->logger->name(), "\n";

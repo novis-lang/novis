@@ -1,0 +1,20 @@
+<?nvs
+// `{x: 1, y: 2}` creates an object with two fields. The type `{x: int, y: int}` is its shape.
+type Point = {x: int, y: int};
+
+class Geo {
+    public static function sum(Point $p): int {
+        return $p->x + $p->y;
+    }
+}
+
+Point $p = {x: 1, y: 2};
+$p->x = 10;
+
+// An object with more fields still has the shape `Point`.
+var $q = {x: 3, y: 4, label: "q"};
+echo Geo::sum($p), " ", Geo::sum($q), " ", $q->label, "\n";
+
+// A closure that returns an object literal puts it in parentheses.
+callable $make = fn(int $x): Point => ({x: $x, y: 0});
+echo ($make(5) as Point)->x, "\n";

@@ -1,0 +1,38 @@
+---
+title: Property hooks
+covers: ['lang:classes/property-hooks', 'lang:classes/propertyobserver', 'PropertyObserver']
+description: How get and set hooks run code on every read and write of a property, and how PropertyObserver reports every change.
+---
+import Snippet from '@components/Snippet.astro'
+
+A property can have a `get` hook and a `set` hook. The `get` hook runs on every read of the
+property. The `set` hook runs on every write.
+
+<Snippet src="syntax/property-hooks/01-get-set.nvs" />
+
+- `get => expression;` returns the value of the expression.
+- `set (int $v) { ... }` gets the new value in `$v`.
+- Inside its own hooks, `$this->celsius` is the stored value. It does not run the hook again.
+- The hooks also run for writes in the constructor, and in child classes.
+- When `set` throws an error, the property keeps its old value.
+- A property with only a `get` hook can be written only inside its own class.
+- You cannot write one array element through a hooked property. Copy the array to a variable,
+  change it, and assign it back.
+
+## PropertyObserver
+
+A class that implements `PropertyObserver` has two methods: `onPropertyGet` and `onPropertySet`.
+Novis calls them after every read and every write of a property of the class.
+
+<Snippet src="syntax/property-hooks/02-observer.nvs" />
+
+- Each method gets the name of the property and its value.
+- The observer cannot change the value. If `onPropertySet` throws an error, the write fails.
+- A class that does not implement `PropertyObserver` does not run any extra code.
+
+## Do and don't
+
+- Do use a `set` hook to check a value before it is stored.
+- Do use a `get`-only property for a value calculated from other properties.
+- Don't do slow work in a hook. It runs on every read or write.
+- Don't look for `__get` or `__set`. They do not exist. Use hooks or `PropertyObserver`.

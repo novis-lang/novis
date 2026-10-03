@@ -1,0 +1,17 @@
+<?nvs
+// Each property has a type. A default value must be a literal, `[]`, an enum case or a constant.
+enum Mode { Off, On }
+
+class Config {
+    public const int DEFAULT_SIZE = 8;
+    public Mode $mode = Mode::On;
+    public int $size = self::DEFAULT_SIZE;
+    public array<int> $ports = [];
+    public ?string $label = null;
+}
+
+var $c = new Config();
+echo $c->mode as int, " ", $c->size, " ", Core\Arr::count($c->ports), " ", $c->label ?? "none", "\n";
+
+// A class constant is read with the class name and `::`.
+echo Config::DEFAULT_SIZE, "\n";

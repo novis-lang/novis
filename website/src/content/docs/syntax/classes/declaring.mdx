@@ -1,0 +1,47 @@
+---
+title: Declaring a class
+covers: ['lang:classes/declaring-a-class']
+description: How to write a class with properties, a constructor and methods, and how to create an object with new.
+---
+import Snippet from '@components/Snippet.astro'
+
+A class describes a kind of object. It has properties, which contain the object's data, and
+methods, which are functions that work on that data. You create an object of the class with `new`.
+
+<Snippet src="syntax/class-declaring/01-class.nvs" />
+
+- The constructor is the method named `constructor`. `new Point(1, 2)` calls it with `1` and `2`.
+- Inside a method, `$this` is the object the method was called on.
+- `->` reads a property or calls a method: `$p->x`, `$p->describe()`.
+- Every class is written at the top level of a file. A class inside another class does not compile.
+
+## Visibility
+
+Every property, method and constant starts with `public`, `protected` or `private`. A member
+without one does not compile.
+
+- `public` can be used from anywhere.
+- `protected` can be used inside the class and inside classes that extend it.
+- `private` can be used only inside the class itself.
+- Using a member from a place it is not visible is a compile error. This also applies to a
+  `private` constructor: `new` from outside the class does not compile.
+
+## Constructor parameters that are properties
+
+A constructor parameter with `public`, `protected` or `private` in front of it is also a
+property. Novis creates the property and sets it from the argument.
+
+<Snippet src="syntax/class-declaring/02-promotion.nvs" />
+
+- A default value on the parameter is used when the caller leaves the argument out.
+- A class does not need a constructor when every property has a default. Then `new` takes no
+  arguments.
+- An unknown method, an unknown property or a wrong number of arguments is a compile error.
+  You cannot add a property to an object at run time.
+
+## Do and don't
+
+- Do write the visibility on every member. Start with `private` and make it wider only when needed.
+- Do use constructor parameters as properties when the constructor only copies its arguments.
+- Don't name the constructor `__construct`. It does not compile. Name it `constructor`.
+- Don't try to add a property that the class does not declare. It does not compile.
