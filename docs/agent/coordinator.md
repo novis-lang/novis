@@ -441,7 +441,10 @@ harness's classifier, which denies the risky ones; a denied call does not stop t
 to it as an error. The allowlist is therefore the set of commands a session runs routinely: every
 `nv` command but `bg`, `release` and `relink`, the git, cargo and binary calls a slice is made of, and
 scratch removal under `.agent-tmp/`. Broad rules — `Bash(*)`, an interpreter, `Agent` — are dropped by
-the harness in this mode, so a command added there is added narrowly or not at all. The tree must be
+the harness in this mode, so a command added there is added narrowly or not at all. The driver grows the
+list itself before each session, in its own commit: a new `nv` command at once, and a command prefix the
+classifier approved in three sessions and never blocked. A refused call is never added; it is a ledger
+line naming the rule a person may add by hand. `tools/nv/driver/allow.ts` owns which prefixes qualify. The tree must be
 trusted ([setup.md](../setup.md), *Machine-local harness settings*), or the allowlist is ignored and every such call
 waits on the classifier. `--permission-mode bypassPermissions` still runs a session unreviewed, when a
 run needs it.

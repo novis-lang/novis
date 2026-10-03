@@ -117,6 +117,7 @@ import { head } from "../lib/git.ts";
 import { run as runProc } from "../lib/proc.ts";
 import { AGAIN, LOGDIR, RUN_ENV, RUNDIR, driverChanged, driverFiles, launch, ledger, loadRun, openingLine, pendingJudge, saveRun, type LaunchOptions, type RunState } from "../driver/launch.ts";
 import { respawn } from "../driver/respawn.ts";
+import { AllowWatch, loadSeen, record as recordAllow, saveSeen, settle as settleAllow } from "../driver/allow.ts";
 import { insideWorktree, landing, launchSide } from "../driver/side.ts";
 import { bringUp, docGate, enoughDisk, ownerGate, preflight, sweepDisk } from "../driver/gates.ts";
 import { chainGoals, type Goal, goalPlan, liveGoal, setLive, SIDE_ENV, sideGoal, sidePlan } from "../lib/chain.ts";
@@ -1118,6 +1119,15 @@ async function serve(f: TurnFlags, state: RunState, fresh: boolean, touched: Tou
       }
     }
 
+    // The rules earlier sessions earned, committed before this one starts, which is when the harness reads them.
+    const allowed = standIn() ? { added: [] } : await settleAllow(loadSeen());
+    if ("skipped" in allowed) step(`allowlist: owed rules wait -- ${allowed.skipped}`, C.YELLOW);
+    else if (allowed.added.length > 0) {
+      step(`allowlist: added ${allowed.added.join(", ")}`, C.CYAN);
+      ledger(`- ${number} allowlist: the driver added ${allowed.added.map((r) => `\`${r}\``).join(", ")}`);
+    }
+    const allowWatch = new AllowWatch();
+
     const effort = f.effort ? `, --effort ${f.effort}` : "";
     step(`launching ${exe.join(" ")} (--model ${f.model}${effort}, --permission-mode ${f.permissionMode}${rejoin ? `, --resume ${rejoin}` : ""})`);
     TICKER.set({ phase: "launching" });
@@ -1136,6 +1146,7 @@ async function serve(f: TurnFlags, state: RunState, fresh: boolean, touched: Tou
       (e) => {
         latest = readLimit(e) ?? latest;
         touched.note(e);
+        allowWatch.note(e);
         session.feed(e);
         renderer.event(e);
       },
@@ -1157,6 +1168,17 @@ async function serve(f: TurnFlags, state: RunState, fresh: boolean, touched: Tou
     const tokens = renderer.tokens();
     step(`session ${index} ended after ${mmss((performance.now() - startedAt) / 1000)}, claude exit ${launched.code}${tokens ? `, ${tokens}` : ""}`, C.CYAN);
     const where = log.slice(ROOT.length + 1).replace(/\\/g, "/");
+    if (!standIn()) {
+      const seen = loadSeen();
+      const outcome = allowWatch.outcome();
+      const refused = new Set(recordAllow(seen, launched.sessionId || where, outcome));
+      saveSeen(seen);
+      for (const { key, command } of outcome.blocked) {
+        if (!refused.has(key)) continue;
+        const [tool, prefix] = key.split("\t");
+        ledger(`- ${number} allowlist: refused \`${command.split("\n")[0]!.slice(0, 160)}\` -- \`${tool}(${prefix}:*)\` is never added by the driver; add it to .claude/settings.json by hand if it is wanted -- see ${where}`);
+      }
+    }
 
     // The wall is judged before the exit code, because it explains it: a refused session exits non-zero
     // exactly like a crashed one, and neither a retry nor the tree can help with it.
