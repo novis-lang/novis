@@ -161,6 +161,13 @@ pub enum Outcome {
     /// state a bare-message fault with no exception class installed leaves —
     /// and `raise` handles that as it already does everywhere else.
     Threw(Thrown),
+    /// A child stopped on a `FATAL` (a limit, most often), every sibling was
+    /// cancelled, and the call waited. The member stops its own caller with the
+    /// same message as a `FATAL`, so no `catch` sees a limit a child reached
+    /// (`rule:errors/on-limit`). The message is all that is carried, because
+    /// a `FATAL` is never an object anybody catches. [`Ctx::take_fatal`] is
+    /// where the host reads it.
+    Fatal(String),
     /// The deadline expired, every child was cancelled, and the call waited.
     /// The member turns this into `TimeoutError`; the host does not know that
     /// class.

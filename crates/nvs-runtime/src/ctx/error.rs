@@ -228,6 +228,36 @@ impl Ctx {
         // A message has no object yet and so no frame to supersede: whatever
         // failure [`Self::raise_sited`] marked one for is the one this replaces.
         self.site_frame_pending = false;
+        self.pending_fatal = false;
+    }
+
+    /// Records the message behind a `FATAL` status and says it is one, for a
+    /// caller that cannot return the status itself. The `pending_fatal`
+    /// field's doc owns which caller that is.
+    pub fn set_pending_fatal(&mut self, message: impl Into<Cow<'static, str>>) {
+        self.set_pending(message);
+        self.pending_fatal = true;
+    }
+
+    /// Says that the failure already pending is behind a `FATAL` status,
+    /// where the code that returned the status recorded only its message.
+    /// Nothing pending means nothing to mark.
+    pub fn mark_pending_fatal(&mut self) {
+        self.pending_fatal = self.pending.is_some();
+    }
+
+    /// Takes the pending failure's message where it is a `FATAL`, clearing it,
+    /// and leaves a `THROWN` exactly where it is.
+    ///
+    /// A message and not an object, because a `FATAL` is never caught: what
+    /// is left to do with it is to stop the next caller with the same words.
+    pub fn take_fatal(&mut self) -> Option<String> {
+        if !self.pending_fatal {
+            return None;
+        }
+        self.pending_fatal = false;
+        let pending = self.pending.take()?;
+        Some(pending.message().into_owned())
     }
 
     /// Installs the class a bare-message failure is promoted to — spec
@@ -370,6 +400,7 @@ impl Ctx {
         // below would have `body`'s answer to "is the innermost frame still
         // provisional" rather than its own.
         let saved_site_frame = std::mem::take(&mut self.site_frame_pending);
+        let saved_fatal = std::mem::take(&mut self.pending_fatal);
         let out = body(self);
         if self.pending.is_some() {
             // Taken rather than borrowed: the report needs this context, and
@@ -387,6 +418,7 @@ impl Ctx {
         // its own on this context does not get to be the one that comes back.
         drop(std::mem::replace(&mut self.pending, saved));
         self.site_frame_pending = saved_site_frame;
+        self.pending_fatal = saved_fatal;
         out
     }
 
@@ -401,6 +433,7 @@ impl Ctx {
     pub fn raise(&mut self, thrown: Thrown) {
         self.pending = Some(Pending::Thrown(thrown));
         self.site_frame_pending = false;
+        self.pending_fatal = false;
     }
 
     /// [`Self::raise`] for Novis's own `throw`: `seeded` is
@@ -417,6 +450,7 @@ impl Ctx {
     pub(crate) fn raise_sited(&mut self, thrown: Thrown, seeded: bool) {
         self.pending = Some(Pending::Thrown(thrown));
         self.site_frame_pending |= seeded;
+        self.pending_fatal = false;
     }
 
     /// Records a `THROWN` of `class` carrying `message`, with each pair in
@@ -754,6 +788,7 @@ impl Ctx {
     /// no backtrace to show.
     #[must_use]
     pub fn take_thrown(&mut self) -> Thrown {
+        self.pending_fatal = false;
         let Some(pending) = self.pending.take() else {
             return Thrown::none();
         };

@@ -314,7 +314,8 @@ fn given_up_once_started(
 /// Why a group stopped starting children.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Ending {
-    /// A child threw. The first one by completion order is in [`Group::thrown`].
+    /// A child threw or stopped on a `FATAL`. The first throw by completion
+    /// order is in [`Group::thrown`], and the first `FATAL` in [`Group::fatal`].
     Threw,
     /// The deadline passed before the last child returned.
     TimedOut,
@@ -352,6 +353,18 @@ struct Group {
     /// The **first** throw by completion order; every later one is written
     /// rather than kept.
     thrown: Option<Thrown>,
+    /// The message of the first child that stopped on a `FATAL`. It ends the
+    /// group the way a throw does, and wins over one, because a limit ends the
+    /// request whatever else failed.
+    fatal: Option<String>,
+}
+
+impl Group {
+    /// Whether a child threw or stopped on a `FATAL`, either of which ends the
+    /// group.
+    fn failed(&self) -> bool {
+        self.thrown.is_some() || self.fatal.is_some()
+    }
 }
 
 /// A child's half of the group, moved into its body.
@@ -404,6 +417,9 @@ impl Child {
         // propagate nor a second throw to write down. Its slot stays empty,
         // exactly as it does for a child a forced unwind tore down.
         let cancelled = ctx.cancelled();
+        // A limit the child reached is taken first, so it is never handed to
+        // the caller as a throw a `catch` would see.
+        let fatal = if cancelled { None } else { ctx.take_fatal() };
         // Two statements, because `pending()` borrows the context and
         // `take_thrown` needs it back.
         let failed = !cancelled && ctx.pending().is_some();
@@ -427,6 +443,18 @@ impl Child {
             unsafe {
                 answer.release();
             }
+            return;
+        }
+        if let Some(message) = fatal {
+            #[expect(
+                unsafe_code,
+                reason = "the job transferred this reference and the limit means \
+                          no slot will take it"
+            )]
+            unsafe {
+                answer.release();
+            }
+            group.fatal.get_or_insert(message);
             return;
         }
         let Some(thrown) = thrown else {
@@ -490,6 +518,7 @@ fn run_as_children(ctx: &mut Ctx, jobs: Vec<Job>, bounds: Bounds, wake: Rc<Wake>
         slots: (0..count).map(|_| Slot::default()).collect(),
         outstanding: 0,
         thrown: None,
+        fatal: None,
     }));
     let mut queue: VecDeque<(usize, Job)> = jobs.into_iter().enumerate().collect();
     let mut running: Vec<TaskId> = Vec::new();
@@ -563,7 +592,7 @@ fn run_as_children(ctx: &mut Ctx, jobs: Vec<Job>, bounds: Bounds, wake: Rc<Wake>
         }
 
         // 4. Decide whether this is the wake that ends the group.
-        if ending.is_none() && group.borrow().thrown.is_some() {
+        if ending.is_none() && group.borrow().failed() {
             ending = Some(Ending::Threw);
         }
         if ending.is_none() && expires.is_some_and(|at| Instant::now() >= at) {
@@ -640,17 +669,21 @@ fn collect(ctx: &mut Ctx, group: &Rc<RefCell<Group>>, ending: Option<Ending>) ->
         }
     }
 
+    let fatal = group.fatal.take();
     let mut failed = group.thrown.take();
-    if ending == Some(Ending::Cancelled)
+    if (ending == Some(Ending::Cancelled) || fatal.is_some())
         && let Some(thrown) = failed.take()
     {
-        // The caller is being torn down, so there is nobody left to propagate
-        // to — and § 4's "never swallowed" holds all the same, through the
-        // channel a second throw already uses.
+        // The caller is being torn down, or stopped by a child's limit, so
+        // there is nobody left to propagate to — and § 4's "never swallowed"
+        // holds all the same, through the channel a second throw already uses.
         let message = format!("uncaught in a cancelled group: {}\n", thrown.message());
         let _ = ctx.write_diagnostic(message.as_bytes());
     }
-    if failed.is_some() || matches!(ending, Some(Ending::TimedOut | Ending::Cancelled)) {
+    if fatal.is_some()
+        || failed.is_some()
+        || matches!(ending, Some(Ending::TimedOut | Ending::Cancelled))
+    {
         for slot in &mut group.slots {
             if let Some(answer) = slot.answer.take() {
                 #[expect(
@@ -663,10 +696,11 @@ fn collect(ctx: &mut Ctx, group: &Rc<RefCell<Group>>, ending: Option<Ending>) ->
                 }
             }
         }
-        return match (failed, ending) {
-            (Some(thrown), _) => Outcome::Threw(thrown),
-            (None, Some(Ending::Cancelled)) => Outcome::Cancelled,
-            (None, _) => Outcome::TimedOut,
+        return match (fatal, failed, ending) {
+            (Some(message), _, _) => Outcome::Fatal(message),
+            (None, Some(thrown), _) => Outcome::Threw(thrown),
+            (None, None, Some(Ending::Cancelled)) => Outcome::Cancelled,
+            (None, None, _) => Outcome::TimedOut,
         };
     }
 
@@ -722,7 +756,10 @@ fn run_here(ctx: &mut Ctx, jobs: Vec<Job>, bounds: Bounds) -> Outcome {
                 }
             }
             match ending {
-                Ending::Threw => Outcome::Threw(ctx.take_thrown()),
+                Ending::Threw => match ctx.take_fatal() {
+                    Some(message) => Outcome::Fatal(message),
+                    None => Outcome::Threw(ctx.take_thrown()),
+                },
                 Ending::TimedOut => Outcome::TimedOut,
                 // Unreachable here: this path has no task, so there is nothing
                 // for a scheduler to have cancelled — the jobs ran on the
@@ -1277,6 +1314,36 @@ mod tests {
         sched.run();
 
         assert!(over.get(), "one stack is past a ceiling of half a stack");
+    }
+
+    /// A child stopped on a `FATAL` ends its group as one, even where a sibling
+    /// threw first, so the caller is never handed a limit as a throw it could
+    /// catch: `rule:errors/on-limit`.
+    #[test]
+    fn a_child_s_fatal_is_the_group_s_fatal_and_never_a_throw() {
+        let mut sched = Scheduler::new();
+        let seen = Rc::new(RefCell::new(String::new()));
+        let out = Rc::clone(&seen);
+
+        sched.spawn(Ctx::buffered(), TaskRoot::Request, move |ctx| {
+            let jobs: Vec<Job> = vec![
+                Box::new(|child: &mut Ctx| {
+                    child.set_pending("an ordinary throw");
+                    Value::null()
+                }),
+                Box::new(|child: &mut Ctx| {
+                    child.set_pending_fatal("the request exceeded its memory limit");
+                    Value::null()
+                }),
+            ];
+            *out.borrow_mut() = match group(ctx, jobs, Bounds::default()) {
+                Outcome::Fatal(message) => message,
+                other => format!("not a FATAL: {other:?}"),
+            };
+        });
+        sched.run();
+
+        assert_eq!(*seen.borrow(), "the request exceeded its memory limit");
     }
 
     /// A child's `echo` reaches the request in **job** order, whatever order the

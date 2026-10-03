@@ -357,9 +357,15 @@ fn bounds(args: &[Value], at: usize, member: &str) -> Result<Bounds, Fault> {
 fn call_child(ctx: &mut Ctx, callback: Value, args: &[Value]) -> Value {
     match nvs_runtime::call_closure(ctx, callback, args) {
         Ok(answer) => answer,
-        // The callee already recorded what failed; that is the whole of what
-        // this variant means.
-        Err(Fault::Pending(_)) => Value::null(),
+        // The callee already recorded what failed. Which tier it was is the
+        // status, and a `FATAL` is said on the context because a job has no
+        // status to return it in.
+        Err(Fault::Pending(status)) => {
+            if status == nvs_runtime::FATAL {
+                ctx.mark_pending_fatal();
+            }
+            Value::null()
+        }
         Err(Fault::Thrown(class, message)) => {
             ctx.set_pending_as(class, message);
             Value::null()
@@ -377,14 +383,14 @@ fn call_child(ctx: &mut Ctx, callback: Value, args: &[Value]) -> Value {
             Value::null()
         }
         Err(Fault::Fatal(message)) => {
-            ctx.set_pending(message);
+            ctx.set_pending_fatal(message);
             Value::null()
         }
         // `Fault` is `#[non_exhaustive]`: a variant added later still has to
         // reach the child's context as *something*, and the tier that cannot
         // be silently wrong is the fatal one.
         Err(other) => {
-            ctx.set_pending(format!(
+            ctx.set_pending_fatal(format!(
                 "internal error: an unhandled fault reached a task child: {other:?}"
             ));
             Value::null()
@@ -417,6 +423,7 @@ fn run_group(
             ctx.raise(thrown);
             Err(Fault::Pending(nvs_runtime::THROWN))
         }
+        Some(Outcome::Fatal(message)) => Err(Fault::fatal(message)),
         Some(Outcome::TimedOut) => Err(Fault::thrown_as(
             ThrownClass::Timeout,
             format!("{member}: the deadline expired before every child returned"),

@@ -750,6 +750,19 @@ pub struct Ctx {
     ///
     /// **What it spends:** one word per request.
     site_frame_pending: bool,
+    /// Whether [`Self::pending`] is behind a `FATAL` rather than a `THROWN`.
+    /// [`Ctx::set_pending_fatal`] and [`Ctx::mark_pending_fatal`] set it, and
+    /// recording or taking any other failure clears it.
+    ///
+    /// Everywhere else the returned status says which tier a failure is. This
+    /// is for the one seam with no status to return: a [`crate::host::Job`]
+    /// answers a value, so a child that stopped on a limit says so here, and
+    /// [`Ctx::take_fatal`] is how its group stops the caller with the same
+    /// `FATAL` rather than handing it a throw a `catch` would see
+    /// (`rule:errors/on-limit`).
+    ///
+    /// **What it spends:** one word per request.
+    pending_fatal: bool,
     /// Where `echo` writes.
     output: OutputSink,
     /// Where a **diagnostic** writes — `rule:errors/debug-dump`'s destination for a CLI `Core\Debug::dump`, and later for the log

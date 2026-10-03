@@ -222,6 +222,18 @@ fn run_one(ctx: &mut Ctx, work: Deferred) {
                 .push(("origin".to_owned(), crate::floor::text(ORIGIN)));
             crate::floor::report(ctx, &record);
         }
+        // A limit stopped the work. It is the work's ending and not the
+        // request's, which has already answered, so it is reported at the
+        // floor beside the other two rather than stopping anything else.
+        Some(Outcome::Fatal(message)) => {
+            let mut record =
+                crate::floor::note(Level::Error, &format!("deferred work stopped: {message}"));
+            record
+                .envelope
+                .fields
+                .push(("origin".to_owned(), crate::floor::text(ORIGIN)));
+            crate::floor::report(ctx, &record);
+        }
         Some(Outcome::TimedOut) => {
             let mut record =
                 crate::floor::note(Level::Error, "deferred work stopped: its deadline expired");
@@ -257,9 +269,14 @@ fn run_one(ctx: &mut Ctx, work: Deferred) {
 fn call_deferred(child: &mut Ctx, closure: Value) -> Value {
     match crate::call_closure(child, closure, &[]) {
         Ok(answer) => answer,
-        // The callee already recorded what failed; that is the whole of what
-        // this variant means.
-        Err(crate::Fault::Pending(_)) => Value::null(),
+        // The callee already recorded what failed, and the status says which
+        // tier: a `FATAL` is said on the context, where the host reads it.
+        Err(crate::Fault::Pending(status)) => {
+            if status == crate::FATAL {
+                child.mark_pending_fatal();
+            }
+            Value::null()
+        }
         Err(crate::Fault::Thrown(class, message)) => {
             child.set_pending_as(class, message);
             Value::null()
