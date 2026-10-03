@@ -2,24 +2,24 @@
 // Shows a method that throws an error with the tool's own message when the tool fails.
 // requires: unix
 
-class Folders {
-    public static function list(string $folder): string {
-        var $result = Core\Process::run("/bin/ls", [$folder]);
+class Tools {
+    public static function run(string $path, array<string> $arguments): string {
+        var $result = Core\Process::run($path, $arguments);
         if ($result->exitCode() != 0) {
-            // The message from `ls` says what went wrong. `Core\Str::trim` removes the new line.
+            // The tool's message says what went wrong. `Core\Str::trim` removes the new line.
             string $message = Core\Str::trim($result->stderr() as string);
-            throw new RuntimeError("could not list the folder: " . $message);
+            throw new RuntimeError("the tool failed: " . $message);
         }
         return $result->stdout() as string;
     }
 }
 
 // This folder has three folders, so `ls` prints their names.
-echo Folders::list("docs/examples/core/Process-Result");
+echo Tools::run("/bin/ls", ["docs/examples/core/Process-Result"]);
 
-// This folder does not exist. The error contains the message from `ls`.
+// This shell script writes a message to stderr and fails. The error contains that message.
 try {
-    echo Folders::list("/no-such-folder");
+    echo Tools::run("/bin/sh", ["-c", "echo 'the disk is full' >&2; exit 1"]);
 } catch (RuntimeError $failed) {
     echo $failed->message, "\n";
 }

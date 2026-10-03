@@ -6,16 +6,16 @@ class Tools {
     public static function run(string $path, array<string> $arguments): string {
         var $result = Core\Process::run($path, $arguments);
         // A tool returns an exit code that is not `0` when it fails.
-        // Then this method throws an error with that exit code.
+        // Then this method throws an error.
         if ($result->exitCode() != 0) {
-            throw new RuntimeError("the tool failed with exit code " . $result->exitCode());
+            throw new RuntimeError("the tool failed");
         }
         return $result->stdout() as string;
     }
 }
 
 // `ls` lists the files in a folder. This folder exists, so the list is printed.
-echo Tools::run("/bin/ls", ["docs/examples/core/Path"]);
+echo Tools::run("/bin/ls", ["docs/examples/core/Process-Result"]);
 
 // This folder does not exist, so `ls` fails and `Tools::run` throws.
 try {

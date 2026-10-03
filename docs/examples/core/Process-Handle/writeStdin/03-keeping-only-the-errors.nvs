@@ -3,7 +3,7 @@
 // requires: unix
 
 // `grep ERROR` prints only the lines of its input that contain `ERROR`.
-var $filter = Core\Process::spawn("/bin/grep", ["ERROR"]);
+var $filter = Core\Process::spawn("/usr/bin/grep", ["ERROR"]);
 
 // The log is sent one line at a time, as a program does while it reads a large file.
 array<string> $log = [

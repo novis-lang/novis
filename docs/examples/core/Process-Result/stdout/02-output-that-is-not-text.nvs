@@ -2,8 +2,8 @@
 // Shows that the output of a program can be data that is not text.
 // requires: unix
 
-// `printf` writes three bytes here. The last one, `\xff`, is not valid UTF-8.
-var $result = Core\Process::run("/usr/bin/printf", ["AB\\xff"]);
+// `printf` writes three bytes here. The last one, `\377`, is not valid UTF-8.
+var $result = Core\Process::run("/usr/bin/printf", ["AB\\377"]);
 bytes $data = $result->stdout();
 
 // `bytes` can contain any data. This prints `3`.

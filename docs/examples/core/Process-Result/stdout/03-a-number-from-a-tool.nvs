@@ -2,18 +2,19 @@
 // Shows a small method that asks a system tool for one value and returns it as clean text.
 // requires: unix
 
-class Dates {
-    // `date` formats a Unix timestamp. `-u` uses UTC, so the result is the same everywhere.
-    public static function day(int $timestamp): string {
-        var $result = Core\Process::run("/bin/date", ["-u", "-d", "@" . $timestamp, "+%Y-%m-%d"]);
+class Days {
+    // `expr` calculates with whole numbers. A day has 86400 seconds, so this
+    // returns how many whole days passed between 1970-01-01 and the timestamp.
+    public static function since1970(int $timestamp): string {
+        var $result = Core\Process::run("/bin/expr", [$timestamp as string, "/", "86400"]);
         if ($result->exitCode() != 0) {
-            throw new RuntimeError("date failed with exit code " . $result->exitCode());
+            throw new RuntimeError("expr failed with exit code " . $result->exitCode());
         }
         // The output ends with a new line. `Core\Str::trim` removes it.
         return Core\Str::trim($result->stdout() as string);
     }
 }
 
-// This prints `2023-11-14` and then `1970-01-01`.
-echo Dates::day(1700000000), "\n";
-echo Dates::day(0), "\n";
+// This prints `19675` and then `1`.
+echo Days::since1970(1700000000), "\n";
+echo Days::since1970(86400), "\n";

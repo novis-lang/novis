@@ -3,10 +3,10 @@
 // requires: unix
 
 // `true` does nothing and succeeds. This prints `0`.
-echo Core\Process::run("/bin/true", [])->exitCode(), "\n";
+echo Core\Process::run("/usr/bin/true", [])->exitCode(), "\n";
 
 // `false` does nothing and fails. This prints `1`.
-echo Core\Process::run("/bin/false", [])->exitCode(), "\n";
+echo Core\Process::run("/usr/bin/false", [])->exitCode(), "\n";
 
 // A shell script can choose its own exit code. This prints `42`.
 echo Core\Process::run("/bin/sh", ["-c", "exit 42"])->exitCode(), "\n";
