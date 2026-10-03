@@ -1,24 +1,20 @@
 {
-  "state": "**Goal `goal-closeout`, Stage 4 (finished in place).** The gap `a-match-inside-a-character-reports-the-wrong-position` is closed. Every `Core\\Str` search member matches only on grapheme boundaries: `find_from` and `rfind_from` in `crates/nvs-stdlib/src/str.rs` reject a candidate whose start or end is inside a cluster, and `contains` and `split` now search through them too. The Rust test `a_search_never_matches_inside_a_grapheme` and the conformance cases `tests/conformance/core/str-index-of-finds-no-match-inside-a-grapheme.nvst` and `str-search-family-matches-whole-graphemes-only.nvst` pin it. `Core\\Str`'s perf is re-measured.\n\nAll three tests of `php-oracle-retired`'s `nvs-stdlib-the-m11-decisions-hold` check now exist, and its three Stage 7 gap records are deleted.\n\n`startsWith` and `endsWith` still compare bytes, so `startsWith(\"e\\u{301}\", \"e\")` is `true`. The goal prose lists the search family without them; whether they join it is open.\n\nThe only `nvs-runtime` gap left is `enum-case-that-reached-a-mixed`. It needs an ADR beyond Stage 5's one slot, so it waits for the user. It goes to `BLOCKED` only once it is the last goal-owned gap in the tree.\n\nThe floor check `the latest CI run on main succeeded for the code HEAD holds` is red only because `main` is ahead of `origin/main`, and the loop never pushes. A person has to push.\n\nA change to a `Core` implementation file stales the perf figure of every feature it implements. Re-measure each with `bun nv proofs --record-perf --group 'Core\\<Class>'` (the group is the full class name).\n\n`bun nv owners --closes goal-closeout` names the rest: 33 gaps in `nvs-lsp`, `nvs-stdlib`, `nvs-syntax`, `nvs-types`, `editors/vscode` and `website`.",
+  "state": "**Goal `goal-closeout`, Stage 4 (finished in place).** The gap `a-topic-re-subscribe-allocates` is closed. `topic_of` in `crates/nvs-stdlib/src/topic.rs` returns the argument's borrowed `&str`, so the table lookup copies nothing, and a name is copied only when `join` inserts a row. `Core\\Topic::subscribe`'s bench records 0 allocations. `Core\\Topic`'s perf and `Core\\Str`'s perf (the driver's failing stale check) are both re-measured.\n\n`startsWith` and `endsWith` still compare bytes, so `startsWith(\"e\\u{301}\", \"e\")` is `true`. The goal prose lists the search family without them, and whether they join it is still open.\n\nThe only `nvs-runtime` gap left is `enum-case-that-reached-a-mixed`. It needs an ADR beyond Stage 5's one slot, so it waits for the user. It goes to `BLOCKED` only once it is the last goal-owned gap in the tree.\n\nThe floor check `the latest CI run on main succeeded for the code HEAD holds` is red only because `main` is ahead of `origin/main`, and the loop never pushes. A person has to push.\n\nA change to a `Core` implementation file stales the perf figure of every feature it implements. Re-measure each with `bun nv proofs --record-perf --group 'Core\\<Class>'` (the group is the full class name).\n\n`bun nv owners --closes goal-closeout` names the rest: 32 gaps in `nvs-lsp`, `nvs-stdlib`, `nvs-syntax`, `nvs-types`, `editors/vscode` and `website`.",
   "next": {
     "stage": 4,
     "title": "finished in place",
     "files": [],
-    "note": "one file set: `crates/nvs-stdlib/src/topic.rs` and its conformance cases.",
+    "note": "one file set: `crates/nvs-stdlib/src/topic.rs`, `crates/nvs-runtime/src/peer.rs`, and the `rule:core-classes/topic` fragment.",
     "items": [
       {
         "done": false,
-        "text": "**A re-subscribe to a joined topic allocates nothing** (`data/gaps/nvs-stdlib/a-topic-re-subscribe-allocates.json`). `Core\\Topic::subscribe` at `crates/nvs-stdlib/src/topic.rs:621` checks membership before it allocates. Delete the gap record, and re-measure `Core\\Topic`'s perf."
-      },
-      {
-        "done": false,
-        "text": "**The topic table has a ceiling of its own** (`data/gaps/nvs-stdlib/the-topic-table-has-no-ceiling-of-its-own.json`). One connection's subscriptions in `crates/nvs-stdlib/src/topic.rs:621` are bounded, and a subscription past the bound throws. If the bound needs a new setting, that is a design call: record the tradeoff and stop before an ADR."
+        "text": "**The topic table has a ceiling of its own** (`data/gaps/nvs-stdlib/the-topic-table-has-no-ceiling-of-its-own.json`). Today `join` at `crates/nvs-stdlib/src/topic.rs:427` puts every name and row on the detached balance with no bound. The cheapest shape is a per-connection count on `Inbox` at `crates/nvs-runtime/src/peer.rs:197`, beside `INBOX_CAP` at `crates/nvs-runtime/src/peer.rs:153`. `join` increments it only when it pushes a new `Weak`, `leave` decrements it, and past a fixed cap `subscribe` throws a `LogicError`. A name-length bound is needed as well, or one long name still grows the table without limit. Then update the module doc's § *What it spends*, the rule fragment, and the hostile case `tests/hostile/core/Topic/subscribe/01-a-connection-that-joins-every-topic.nvs`, delete the gap, and re-measure `Core\\Topic`."
       }
     ]
   },
   "backlog": [
-    "Whether `Core\\Str::startsWith`/`endsWith` match on grapheme boundaries too — `crates/nvs-stdlib/src/str.rs` `nvs_core_str_starts_with`.",
-    "`enum-case-that-reached-a-mixed` waits for the user — `crates/nvs-runtime/src/lib.rs`.",
-    "The remaining goal-owned gaps — `bun nv owners --closes goal-closeout`."
+    "`Core\\Str::startsWith` and `endsWith` compare bytes and may match inside a grapheme. Whether they join the search family is open (`docs/agent/goals/goal-closeout.md`).",
+    "`enum-case-that-reached-a-mixed` (nvs-runtime) needs an ADR past Stage 5's slot, so it waits for the user.",
+    "The other gaps `bun nv owners --closes goal-closeout` names."
   ]
 }
