@@ -267,6 +267,10 @@ These are the user's calls, made on 2026-10-03, unless marked as mine. No sessio
 - **No review stop.** The run goes straight to `SIDE GOAL GREEN`, and the user reviews everything,
   including the standout-feature list, before it lands.
 - **No redirects for removed URLs.** The site was never public, so nothing outside links to it.
+- **Test once, at the goal's end.** The record says `sweep: "done"`, so the driver sweeps only after a
+  session that reports `DONE`. Between sessions there is no sweep. A session runs `bun nv verify` once
+  before its wrap, and only the `bun nv site --check` parts its own work touched. It runs no other
+  test, build or check. The user's call (2026-10-04): the time goes into the work.
 - **Mine, 2026-10-03:** examples are read in place, not mirrored; snippets live under
   `website/snippets/`; `covers:` uses the proofs roster's feature ids; one `site.ts` with parts in
   place of several tools.
