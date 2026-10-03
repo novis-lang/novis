@@ -600,10 +600,16 @@ reaches a file, which is what [`statements/nothing-gets-a-second-name`](/docs/ru
 </div>
 
 The extension forwards requests inside an inline-HTML region to VS Code's built-in HTML, CSS and
-JavaScript language services, so the half of a `.nvs` file that is markup gets Emmet expansion, tag
-closing and renaming, the colour picker, hover and validation. Since
-[`programs/first-party-framework`](/docs/rules/programs/the-framework/#first-party-framework "Novis ships the framework, split by the standard-library placement tests") makes inline HTML the template engine, that region is where a web
-application's markup is written, not an edge case.
+JavaScript language services, so the half of a `.nvs` file that is markup gets what those services
+answer as providers: completion, hover, the colour picker and the linked ranges that rename a tag.
+Since [`programs/first-party-framework`](/docs/rules/programs/the-framework/#first-party-framework "Novis ships the framework, split by the standard-library placement tests") makes inline HTML the template engine, that region is where
+a web application's markup is written, not an edge case.
+
+**Emmet expansion and HTML validation are not among them.** Neither is a provider a request can be
+forwarded to: Emmet expands from the language of the document the cursor is in, and the HTML service
+publishes validation only for documents opened as HTML. Emmet would take `emmet.includeLanguages`
+mapping `nvs` to `html`, which turns it on in the Novis half as well, so the extension contributes
+neither; a user who wants Emmet in a template sets that mapping themselves.
 
 **A markup literal's body is a region too.** ``html`…` `` ([`core-classes/html-literal`](/docs/rules/core-classes/regex-html-and-introspection/#html-literal "html…  is a Core\Html\Markup whose segments are trusted and whose holes are escaped")) is markup
 written in expression position rather than at file scope, so it gets the same services on the same
@@ -640,7 +646,7 @@ the second off, format-on-save is `nvs fmt` and nothing else.
 
 <aside class="nv-rule-diverges">
 <p class="nv-rule-diverges-label">Where this differs from PHP</p>
-<p>The markup half of a file gets Emmet, tag closing, the colour picker and the HTML formatter as in a PHP editor, but each markup chunk is indented from the <code>?&gt;</code> that opened it — the Novis block's depth — rather than from the markup's own nesting alone</p>
+<p>The markup half of a file gets completion, hover, tag renaming, the colour picker and the HTML formatter as in a PHP editor, but each markup chunk is indented from the <code>?&gt;</code> that opened it — the Novis block's depth — rather than from the markup's own nesting alone</p>
 </aside>
 
 <dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/ide/security-in-the-editor/#redaction-ranges-come-from-the-server" title="The editor conceals a secret value by default, and the ranges come from the language server rather than a client guess"><code>ide/redaction-ranges-come-from-the-server</code></a> <a href="/docs/rules/programs/the-framework/#first-party-framework" title="Novis ships the framework, split by the standard-library placement tests"><code>programs/first-party-framework</code></a> <a href="/docs/rules/tooling/the-formatter/#fmt-is-never-a-diagnostic" title="nvs fmt is a separate opt-in tool: no compiler command runs it, an unformatted file is never a diagnostic, and an editor composes it with quick fixes in the client"><code>tooling/fmt-is-never-a-diagnostic</code></a> <a href="/docs/rules/ide/one-server-thin-clients/#one-server-two-thin-clients" title="Language smarts and formatting of Novis have one implementation each, nvs-lsp and nvs-fmt, and an editor client holds none of either"><code>ide/one-server-two-thin-clients</code></a> <a href="/docs/rules/ide/one-server-thin-clients/#contributions-are-frozen-and-only-ever-added" title="A setting name and a command id are public API: the roster is frozen, and anything later is added, never renamed"><code>ide/contributions-are-frozen-and-only-ever-added</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0108.md">record 0108</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0169.md">record 0169</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0173.md">record 0173</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-lsp/tests/regions.rs"><code>crates/nvs-lsp/tests/regions.rs</code></a> <a href="https://github.com/novis-lang/novis/blob/main/editors/vscode/test/contributions/contributions.test.ts"><code>editors/vscode/test/contributions/contributions.test.ts</code></a> <a href="https://github.com/novis-lang/novis/blob/main/editors/vscode/test/surfaces/template.test.ts"><code>editors/vscode/test/surfaces/template.test.ts</code></a></dd></div></dl>

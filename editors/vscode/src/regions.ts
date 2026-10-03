@@ -21,13 +21,12 @@
 //
 // **What forwarding does not reach.** A request is forwarded by asking the editor to run a provider
 // over the virtual document, so what arrives is what a provider answers: completion, hover, the
-// colour picker and the linked ranges that rename a tag. Two of the things the rule names are not
-// providers and do not arrive this way. **Emmet** expands an abbreviation from the language of the
-// document the cursor is in, so it would take `emmet.includeLanguages` mapping `nvs` to `html` —
-// which turns abbreviation expansion on in the Novis half of the file as well, and is why nothing
-// here contributes it. **Validation** is published per document by the HTML service for the
-// documents it owns, and this virtual one is never opened in an editor for it to own. Both need a
-// mechanism this file does not have, and are left unbuilt rather than half-registered here.
+// colour picker and the linked ranges that rename a tag. **Emmet** expands an abbreviation from the
+// language of the document the cursor is in, so it would take `emmet.includeLanguages` mapping `nvs`
+// to `html` — which turns abbreviation expansion on in the Novis half of the file as well, and is why
+// nothing here contributes it. **Validation** is published per document by the HTML service for the
+// documents it owns, and this virtual one is never opened in an editor for it to own. The rule names
+// neither among what a region gets.
 //
 // **The regions are asked for per request rather than held.** A boundary is a lex
 // (`crates/nvs-lsp/src/regions.rs` § *a lex, and not an analysis*), so the answer is cheap and one
@@ -104,8 +103,7 @@ export function install(context: ExtensionContext): void {
     workspace.registerTextDocumentContentProvider(SCHEME, content()),
     workspace.onDidCloseTextDocument((document) => forget(document)),
     // Completion, hover and the colour picker: the three the rule names that a service answers for
-    // a position or for a document. Emmet and tag closing ride the same HTML service the first of
-    // them reaches.
+    // a position or for a document.
     //
     // `<` and `/` are trigger characters because a tag is what the user is opening or closing when
     // they matter; VS Code asks on a word character without being told.

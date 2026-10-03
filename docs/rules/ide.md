@@ -1390,10 +1390,16 @@ reaches a file, which is what [`statements/nothing-gets-a-second-name`](statemen
 `rule:ide/a-template-region-gets-the-editors-services-and-formatter`
 
 The extension forwards requests inside an inline-HTML region to VS Code's built-in HTML, CSS and
-JavaScript language services, so the half of a `.nvs` file that is markup gets Emmet expansion, tag
-closing and renaming, the colour picker, hover and validation. Since
-[`programs/first-party-framework`](programs.md#programs-first-party-framework) makes inline HTML the template engine, that region is where a web
-application's markup is written, not an edge case.
+JavaScript language services, so the half of a `.nvs` file that is markup gets what those services
+answer as providers: completion, hover, the colour picker and the linked ranges that rename a tag.
+Since [`programs/first-party-framework`](programs.md#programs-first-party-framework) makes inline HTML the template engine, that region is where
+a web application's markup is written, not an edge case.
+
+**Emmet expansion and HTML validation are not among them.** Neither is a provider a request can be
+forwarded to: Emmet expands from the language of the document the cursor is in, and the HTML service
+publishes validation only for documents opened as HTML. Emmet would take `emmet.includeLanguages`
+mapping `nvs` to `html`, which turns it on in the Novis half as well, so the extension contributes
+neither; a user who wants Emmet in a template sets that mapping themselves.
 
 **A markup literal's body is a region too.** ``html`…` `` ([`core-classes/html-literal`](core-classes.md#core-classes-html-literal)) is markup
 written in expression position rather than at file scope, so it gets the same services on the same
