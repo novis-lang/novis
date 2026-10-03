@@ -12,6 +12,13 @@
 //! `rule:ide/the-request-set-is-closed`'s list is implemented; the set that
 //! gets a refusal is everything outside that list, permanently.
 //!
+//! **A `$/cancelRequest` stops a request this thread has not reached yet.**
+//! Before a request is answered, [`cancelled`] reads what the channel already
+//! holds, and a cancel naming the request is answered with `RequestCancelled`
+//! and no work. A cancel for a request already answered is dropped, because
+//! there is nothing left to stop. Nothing interrupts an answer once it has
+//! started, which is the thread `rule:ide/the-server-is-synchronous` names.
+//!
 //! An arm answers out of the two stores it is handed — the open documents and
 //! the one workspace symbol index — and out of what the client configured, and
 //! writes nothing back to any of them. The
@@ -57,15 +64,15 @@
 //! the index ([`CompletionFiles::check`]), so they are published again when an
 //! edit changes the index and changes what the check finds.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::error::Error;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
 use lsp_server::{Connection, ErrorCode, Message, Notification, Request, RequestId, Response};
 use lsp_types::notification::{
-    DidChangeTextDocument, DidChangeWatchedFiles, DidCloseTextDocument, DidOpenTextDocument,
-    Notification as _, PublishDiagnostics,
+    Cancel, DidChangeTextDocument, DidChangeWatchedFiles, DidCloseTextDocument,
+    DidOpenTextDocument, Notification as _, PublishDiagnostics,
 };
 use lsp_types::request::{
     CodeActionRequest, CodeLensRequest, Completion, DocumentHighlightRequest, DocumentLinkRequest,
@@ -222,50 +229,73 @@ pub fn serve(connection: &Connection) -> Result<(), ServerError> {
     // which is what it is between one burst of typing and the next.
     let mut waiting: Option<(Changed, Instant)> = None;
 
+    // Messages already taken off the channel to look for a `$/cancelRequest`
+    // ([`cancelled`]), in the order they arrived. They are read before the
+    // channel, so the client's order is kept.
+    let mut backlog: VecDeque<Message> = VecDeque::new();
+
     loop {
         // What is left of that window, and `None` for a server at rest, which
         // waits on the channel with no deadline at all.
         let left = waiting
             .as_ref()
             .map(|(_, ready)| ready.saturating_duration_since(Instant::now()));
-        let message = match left {
-            Some(left) => match connection.receiver.recv_timeout(left) {
-                Ok(message) => message,
-                Err(error) if error.is_timeout() => {
-                    // The window elapsed with nothing behind it, so the
-                    // keystroke it was waiting out was the last one.
-                    if let Some((pending, _)) = waiting.take() {
-                        reanalyse(
-                            connection,
-                            &mut documents,
-                            &mut index,
-                            &mut completion_files,
-                            settings.scope,
-                            encoding,
-                            &pending,
-                        )?;
+        let message = if let Some(message) = backlog.pop_front() {
+            message
+        } else {
+            match left {
+                Some(left) => match connection.receiver.recv_timeout(left) {
+                    Ok(message) => message,
+                    Err(error) if error.is_timeout() => {
+                        // The window elapsed with nothing behind it, so the
+                        // keystroke it was waiting out was the last one.
+                        if let Some((pending, _)) = waiting.take() {
+                            reanalyse(
+                                connection,
+                                &mut documents,
+                                &mut index,
+                                &mut completion_files,
+                                settings.scope,
+                                encoding,
+                                &pending,
+                            )?;
+                        }
+                        continue;
                     }
-                    continue;
-                }
-                // The reader thread is gone, which is the end this loop reached
-                // before it ever waited for anything.
-                Err(_) => return Ok(()),
-            },
-            None => match connection.receiver.recv() {
-                Ok(message) => message,
-                Err(_) => return Ok(()),
-            },
+                    // The reader thread is gone, which is the end this loop reached
+                    // before it ever waited for anything.
+                    Err(_) => return Ok(()),
+                },
+                None => match connection.receiver.recv() {
+                    Ok(message) => message,
+                    Err(_) => return Ok(()),
+                },
+            }
         };
 
         match message {
             Message::Request(request) => {
                 // `shutdown` is answered and then waited on: the client sends
-                // `exit` next, and `handle_shutdown` consumes it. Returning
-                // here is what ends the loop — and a deferred analysis is
-                // dropped with it, because a client that is leaving has no use
-                // for a squiggle.
-                if connection.handle_shutdown(&request)? {
+                // `exit` next, and `shut_down` consumes it. Returning here is
+                // what ends the loop — and a deferred analysis is dropped with
+                // it, because a client that is leaving has no use for a
+                // squiggle.
+                if shut_down(connection, &mut backlog, &request)? {
                     return Ok(());
+                }
+                // A request the client cancelled before this thread reached it
+                // gets `RequestCancelled` and no work. One already answered
+                // cannot be cancelled, and its cancel is dropped below.
+                if cancelled(connection, &mut backlog, &request.id) {
+                    connection.sender.send(
+                        Response::new_err(
+                            request.id,
+                            ErrorCode::RequestCanceled as i32,
+                            "the client cancelled this request".to_owned(),
+                        )
+                        .into(),
+                    )?;
+                    continue;
                 }
                 // An answer is about the buffer as it stands, so a request cuts
                 // the window short rather than being answered off an index the
@@ -310,6 +340,11 @@ pub fn serve(connection: &Connection) -> Result<(), ServerError> {
                 connection.sender.send(answered.into())?;
             }
             Message::Notification(notification) => {
+                // A cancel read here names a request this thread has already
+                // answered, so there is nothing left to stop.
+                if notification.method == Cancel::METHOD {
+                    continue;
+                }
                 if notification.method == DidChangeWatchedFiles::METHOD {
                     refresh_completion_files(
                         connection,
@@ -362,6 +397,71 @@ pub fn serve(connection: &Connection) -> Result<(), ServerError> {
             // and its answer carries nothing to act on.
             Message::Response(_) => {}
         }
+    }
+}
+
+/// Whether a `$/cancelRequest` naming `id` has already arrived, and removes it
+/// from `backlog` when it has.
+///
+/// The client sends a cancel after its request, so the cancel can only be found
+/// behind it. Every message the channel already holds is moved into `backlog`
+/// first, without waiting for more. The backlog is never longer than what the
+/// client has sent and this thread has not handled yet.
+fn cancelled(connection: &Connection, backlog: &mut VecDeque<Message>, id: &RequestId) -> bool {
+    backlog.extend(connection.receiver.try_iter());
+    let Some(at) = backlog.iter().position(|message| match message {
+        Message::Notification(notification) if notification.method == Cancel::METHOD => {
+            notification
+                .params
+                .get("id")
+                .and_then(|named| serde_json::from_value::<RequestId>(named.clone()).ok())
+                .is_some_and(|named| &named == id)
+        }
+        _ => false,
+    }) else {
+        return false;
+    };
+    backlog.remove(at);
+    true
+}
+
+/// Answers `request` and waits for `exit` when `request` is `shutdown`, and
+/// returns whether it was.
+///
+/// This is `Connection::handle_shutdown`, with one change: `exit` is read from
+/// `backlog` before the channel. [`cancelled`] can move `exit` into `backlog`
+/// while it looks for a cancel, and a wait on the channel alone would then never
+/// see it.
+///
+/// # Errors
+///
+/// When the message after `shutdown` is not `exit`, or none arrives within 30
+/// seconds.
+fn shut_down(
+    connection: &Connection,
+    backlog: &mut VecDeque<Message>,
+    request: &Request,
+) -> Result<bool, ServerError> {
+    if request.method != lsp_types::request::Shutdown::METHOD {
+        return Ok(false);
+    }
+    connection
+        .sender
+        .send(Response::new_ok(request.id.clone(), ()).into())?;
+    let next = match backlog.pop_front() {
+        Some(message) => message,
+        None => connection
+            .receiver
+            .recv_timeout(std::time::Duration::from_secs(30))
+            .map_err(|error| format!("no `exit` after `shutdown`: {error}"))?,
+    };
+    match next {
+        Message::Notification(notification)
+            if notification.method == lsp_types::notification::Exit::METHOD =>
+        {
+            Ok(true)
+        }
+        other => Err(format!("unexpected message after `shutdown`: {other:?}").into()),
     }
 }
 
