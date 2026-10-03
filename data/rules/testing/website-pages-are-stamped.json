@@ -1,0 +1,15 @@
+{
+  "title": "A website page lists the features it covers, and the session that changes one rereads and re-stamps its pages",
+  "status": "shipped",
+  "because": [
+    "0263"
+  ],
+  "seeAlso": [
+    "testing/examples-live-in-the-repository",
+    "testing/feature-proofs"
+  ],
+  "guardedBy": [
+    "tools/nv/test/site.test.ts",
+    "tools/nv/cmd/site.ts"
+  ]
+}

@@ -30,6 +30,7 @@
     "testing/a-directory-of-programs-is-one-test-program",
     "testing/one-slice-is-one-feature",
     "testing/examples-live-in-the-repository",
+    "testing/website-pages-are-stamped",
     "testing/hostile-case-contract",
     "testing/feature-proofs",
     "testing/roster-is-derived",

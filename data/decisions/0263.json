@@ -1,0 +1,9 @@
+{
+  "title": "The website reads examples in place, and every handwritten page is stamped against the features it covers",
+  "status": "accepted",
+  "scope": "how the website's handwritten pages and snippets are kept true to the features they explain, and where its examples\nare read from. What the site's areas are and what each holds is the website goal's, and is not decided here.",
+  "dependsOn": [
+    "0134"
+  ],
+  "validatedBy": "`tools/nv/test/site.test.ts`, and `bun nv site --check` in CI's `proofs` job."
+}

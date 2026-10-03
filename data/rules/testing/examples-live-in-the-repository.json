@@ -1,12 +1,14 @@
 {
-  "title": "`docs/examples/` is authoritative and the website mirrors it",
+  "title": "`docs/examples/` is the only copy of every example, and the website reads it in place",
   "status": "shipped",
   "because": [
-    "0134"
+    "0134",
+    "0263"
   ],
   "seeAlso": [
     "testing/feature-proofs",
-    "testing/proof-attribution"
+    "testing/proof-attribution",
+    "testing/website-pages-are-stamped"
   ],
   "guardedBy": [
     "docs/examples/README.md"

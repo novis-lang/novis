@@ -3,7 +3,7 @@
 
 # Testing
 
-*13 of 57 rules below are **designed** rather than shipped, and are marked where they appear.*
+*13 of 58 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="testing-test-attribute"></a>
 
@@ -656,18 +656,40 @@ emission writes the chain that is *left*.
 
 <a id="testing-examples-live-in-the-repository"></a>
 
-## `docs/examples/` is authoritative and the website mirrors it
+## `docs/examples/` is the only copy of every example, and the website reads it in place
 
 `rule:testing/examples-live-in-the-repository`
 
-`docs/examples/` is authoritative, and the website's example tree is a mirror rebuilt from it. The
-site's own rule is unchanged — tool-owned files are regenerated, human-owned files are never
-overwritten — and this simply makes the example tree one of the tool-owned ones.
+`docs/examples/` is the only copy of every example, and the website build reads it in place. Nothing
+copies it into `website/`, so there is no mirror to rebuild and no second copy to fall out of date.
 
 They live in the repository because the same sweep that tests a feature writes its examples, and a
 sweep cannot write into a tree it is not allowed to touch.
 
-<sub>See also [`testing/feature-proofs`](testing.md#testing-feature-proofs), [`testing/proof-attribution`](testing.md#testing-proof-attribution). Decided in [0134](../decisions/0134.md).</sub>
+<sub>See also [`testing/feature-proofs`](testing.md#testing-feature-proofs), [`testing/proof-attribution`](testing.md#testing-proof-attribution), [`testing/website-pages-are-stamped`](testing.md#testing-website-pages-are-stamped). Decided in [0134](../decisions/0134.md), [0263](../decisions/0263.md).</sub>
+
+<a id="testing-website-pages-are-stamped"></a>
+
+## A website page lists the features it covers, and the session that changes one rereads and re-stamps its pages
+
+`rule:testing/website-pages-are-stamped`
+
+Every handwritten website page lists in `covers:` the proofs roster's ids of the features it explains,
+and `website/site.lock.json` records the hash each feature had when the page was last reread against
+it. The hash covers the feature's help card or reference section, its `about.md` and its examples.
+
+A covered id the roster no longer has is **broken**. A covered feature whose hash moved since the
+page's stamp is **stale**. `bun nv session --wrap` refuses every broken id, and every stale page the
+session made stale itself: the session that changes a feature rereads the pages that cover it, fixes
+them and runs `bun nv site --stamp`, the same way it owes the feature's proofs. CI's `proofs` job runs
+`bun nv site --check` over the whole tree, so a stale page the wrap did not attribute is still caught
+before a merge.
+
+A stamp is written by whoever reread the page, never to quiet the check. Every snippet a page shows
+lives under `website/snippets/` beside its expected output, and runs in that same CI step, so no page
+carries Novis code that is not known to run.
+
+<sub>See also [`testing/examples-live-in-the-repository`](testing.md#testing-examples-live-in-the-repository), [`testing/feature-proofs`](testing.md#testing-feature-proofs). Decided in [0263](../decisions/0263.md).</sub>
 
 <a id="testing-hostile-case-contract"></a>
 
