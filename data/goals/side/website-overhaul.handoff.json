@@ -1,5 +1,5 @@
 {
-  "state": "**Side goal `website-overhaul`, stage 4 (Syntax) is in progress. These pages are written: \"Start here\", the Basics, \"Values and types\", Operators, Control flow, Errors and Functions.**\n\n`tools/nv/cmd/site.ts` `syntaxProblems` is the `syntax` part, tested in `tools/nv/test/site.test.ts`. Every Syntax page except `syntax/index.mdx` needs a non-empty `covers:`, a `<Snippet>` and a `## Do and don't` list.\n\nOn disk: `website/src/content/docs/syntax/start-here.mdx`, `syntax/basics/*.mdx`, `syntax/values/*.mdx`, `syntax/operators/*.mdx`, `syntax/control-flow/*.mdx`, `syntax/errors/*.mdx` and `syntax/functions/{declaring,parameters,calls,closures}.mdx`. Snippets sit flat under `website/snippets/syntax/<page>/`, with no section level, and must exit 0 when run from the repo root. Sidebar entries are in `website/astro.config.ts`, and stamps are in `website/site.lock.json` (`bun nv site --stamp syntax/<group>/<page>.mdx ...`, with the `.mdx`). A front-matter value with `: ` in it must be quoted, or `covers:` reads as missing. A class id with backslashes goes in single quotes: `'Core\\Db\\DbError'`.\n\nNovis has no free functions and no user generics, so the Functions pages teach static methods and leave generics out. `site structure`, `stale` and `reference` pass. `site syntax` reports 53 uncovered features: Classes (17 ids, including `Comparable`, `Stringable`, `Parses`, `PropertyObserver`, `lang:types/callable-classes-object-shapes`, `lang:types/properties-and-constants`, `lang:expressions/object-literals`, `lang:expressions/is-new-clone-throw-print-exit-isset-empty`), `lang:programs/*` (5), `lang:concurrency/*` (10), `lang:attributes/*` (9) and `lang:testing/*` (7). `snippets` and `prose` fail only on `index.mdx`, `install/*`, `sponsoring.mdx` and `in-depth/what-changed.mdx`, which stages 5 and 6 rewrite.",
+  "state": "**Side goal `website-overhaul`, stage 4 (Syntax) is in progress. These pages are written: \"Start here\", the Basics, \"Values and types\", Operators, Control flow, Errors, Functions and Classes and objects.**\n\n`tools/nv/cmd/site.ts` `syntaxProblems` is the `syntax` part, tested in `tools/nv/test/site.test.ts`. Every Syntax page except `syntax/index.mdx` needs a non-empty `covers:`, a `<Snippet>` and a `## Do and don't` list.\n\nOn disk: `website/src/content/docs/syntax/start-here.mdx`, `syntax/basics/*.mdx`, `syntax/values/*.mdx`, `syntax/operators/*.mdx`, `syntax/control-flow/*.mdx`, `syntax/errors/*.mdx`, `syntax/functions/*.mdx` and `syntax/classes/*.mdx` (8 pages, from `declaring` to `object-literals`). Snippets sit flat under `website/snippets/syntax/<dir>/`, with no section level, and must exit 0 when run from the repo root. A snippet dir name is free, but must not clash with an existing one (`declaring` is the Functions one, so the class pages use `class-declaring`, `class-properties`, `class-methods`). Sidebar entries are in `website/astro.config.ts`, and stamps are in `website/site.lock.json` (`bun nv site --stamp syntax/<group>/<page>.mdx ...`, with the `.mdx`). A front-matter value with `: ` in it must be quoted, including `description:`, or `covers:` reads as missing. A class id with backslashes goes in single quotes: `'Core\\Db\\DbError'`.\n\n`site structure`, `stale` and `reference` pass. `site syntax` reports 31 uncovered features: `lang:programs/*` (5), `lang:concurrency/*` (10), `lang:attributes/*` (9) and `lang:testing/*` (7). `snippets` and `prose` fail only on `index.mdx`, `install/*`, `sponsoring.mdx` and `in-depth/what-changed.mdx`, which stages 5 and 6 rewrite.",
   "next": {
     "stage": 4,
     "title": "Syntax",
@@ -8,21 +8,25 @@
     "items": [
       {
         "done": false,
-        "text": "**Classes and objects**: classes and constructors, properties, methods with `self`/`static`/`parent`, inheritance, interfaces, property hooks, `Stringable`, `Comparable`, `Parses`, `PropertyObserver`, objects as handles, `?->` and `object`, object literals and shapes. A new sidebar group `syntax/classes/` after Functions, about six pages. It covers every `lang:classes/*` id plus the eight ids named in State. Goal § Stage 4. Anchors: `docs/reference/lang/50-classes.md:8`, `docs/reference/lang/50-classes.md:436`, `docs/reference/lang/50-classes.md:908`, `docs/reference/lang/50-classes.md:1018`, `docs/reference/lang/20-types.md:186`, `website/astro.config.ts:189`"
+        "text": "**Programs and files**: namespaces and `use`, `require`, autoload, file paths, ending a program. A new sidebar group `syntax/programs/` after \"Classes and objects\", about three pages. It covers `lang:programs/*`. Goal § Stage 4. Anchors: `docs/reference/lang/10-programs.md:194`, `docs/reference/lang/10-programs.md:242`, `docs/reference/lang/10-programs.md:274`, `docs/reference/lang/10-programs.md:303`, `docs/reference/lang/10-programs.md:341`, `website/astro.config.ts:199`"
       },
       {
         "done": false,
-        "text": "**Programs and files**: namespaces and `use`, `require`, autoload, file paths, ending a program. It covers `lang:programs/*`. Anchors: `docs/reference/lang/10-programs.md:194`, `docs/reference/lang/10-programs.md:341`"
+        "text": "**Concurrency**: tasks, `Core\\Task::all`/`map`, limits and deadlines, a child's throw, channels, isolates with `spawn script`. A sidebar group `syntax/concurrency/`, about four pages. It covers `lang:concurrency/*`. Anchors: `docs/reference/lang/80-concurrency.md:8`, `docs/reference/lang/80-concurrency.md:97`, `docs/reference/lang/80-concurrency.md:168`, `docs/reference/lang/80-concurrency.md:213`, `docs/reference/lang/80-concurrency.md:406`"
       },
       {
         "done": false,
-        "text": "**Concurrency**: tasks, `Core\\Task::all`/`map`, limits and deadlines, channels, isolates. It covers `lang:concurrency/*`. Anchors: `docs/reference/lang/80-concurrency.md:1`"
+        "text": "**Attributes**: attribute syntax, reading them back, JSON derive, routes and access, commands, `Core\\Program::implementing`. It covers `lang:attributes/*`. Anchors: `docs/reference/lang/90-attributes.md:8`, `docs/reference/lang/90-attributes.md:171`, `docs/reference/lang/90-attributes.md:286`, `docs/reference/lang/90-attributes.md:546`, `docs/reference/lang/90-attributes.md:642`"
+      },
+      {
+        "done": false,
+        "text": "**Testing**: `#[Test]`, setUp, options, fixtures, `TestWith`, assertions, `nvs test`. It covers `lang:testing/*`. Anchors: `docs/reference/lang/95-testing.md:8`, `docs/reference/lang/95-testing.md:182`, `docs/reference/lang/95-testing.md:280`, `docs/reference/lang/95-testing.md:348`"
       }
     ]
   },
   "backlog": [
-    "Attributes pages, covering `lang:attributes/*` (goal § Stage 4).",
-    "Testing pages, covering `lang:testing/*` (goal § Stage 4).",
-    "`docs/reference/lang/30-expressions.md:552` says `Class::m(...)` is not a way to get a closure, but `K::twice(...)` and `Core\\Str::length(...)` compile and run as closures. The reference text or the compiler is wrong; the Functions pages say neither."
+    "Stage 5: Install and Guides (goal § Stage 5), including the Notes app in `apps/notes/`.",
+    "Stage 6: In-Depth, the home page and the last links (goal § Stage 6).",
+    "`index.mdx`, `install/*`, `sponsoring.mdx` and `in-depth/what-changed.mdx` still fail `snippets` and `prose`. Stages 5 and 6 rewrite them."
   ]
 }
