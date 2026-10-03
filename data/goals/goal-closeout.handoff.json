@@ -1,22 +1,23 @@
 {
-  "state": "**Goal `goal-closeout`, Stage 4 (finished in place).** Eight of `nvs-runtime`'s ten goal-owned gaps are closed. The two newest:\n\n- `the-peak-update-cost-is-argued-and-never-measured`: `the_memory_mark_stays_small_beside_the_allocation_it_fronts` in `benches/abi-probe/tests/perf_guards.rs` times the real `budget::carry` pair against a platform heap round trip, and `budget.rs` § *What it spends* cites it.\n- `a-core-call-with-a-large-string-costs-time-per-byte`: the cost was `NvsStr::text_of`'s debug `from_utf8` over the whole payload. It now validates whole up to `VALIDATED_WHOLE` and at head and tail past it (`reads_as_text` in `crates/nvs-runtime/src/string.rs`).\n\nThe floor check `the latest CI run on main succeeded for the code HEAD holds` is red only because `main` is ahead of `origin/main`, and the loop never pushes. A person has to push.\n\n`bun nv owners --closes goal-closeout` names the rest, in `nvs-lsp`, `nvs-runtime` (two), `nvs-stdlib`, `nvs-types`, `editors/vscode` and `website`.",
+  "state": "**Goal `goal-closeout`, Stage 4 (finished in place).** Nine of `nvs-runtime`'s ten goal-owned gaps are closed. The newest is `the-peak-histogram-and-the-high-water-warn-are-unbuilt`:\n\n- `nvs_request_memory_peak_bytes` is the tenth `DEFAULT` family, with `MEMORY_BUCKETS`, in `crates/nvs-runtime/src/metrics.rs`.\n- `[limits] memory_high_water` is a `System` ratio key, refused at boot outside `0..=1` by `nvs_config::app::high_water`.\n- `Ctx::report_memory_peak` in `crates/nvs-runtime/src/ctx/limits.rs` records both. `nvs-host`'s isolate `finish` calls it for a served request.\n- Both rules are `shipped`.\n\nThe only `nvs-runtime` gap left is `enum-case-that-reached-a-mixed`. It needs an ADR beyond Stage 5's one slot, so it waits for the user. It goes to `BLOCKED` only once it is the last goal-owned gap in the tree.\n\nThe floor check `the latest CI run on main succeeded for the code HEAD holds` is red only because `main` is ahead of `origin/main`, and the loop never pushes. A person has to push.\n\n`bun nv owners --closes goal-closeout` names the other 42, in `nvs-lsp`, `nvs-stdlib`, `nvs-syntax`, `nvs-types`, `editors/vscode` and `website`.",
   "next": {
     "stage": 4,
     "title": "finished in place",
     "files": [],
-    "note": "one file set: the peak's end-of-request reading in `nvs-runtime` and the server door.",
+    "note": "one file set: `nvs-types`' method-shape checks.",
     "items": [
       {
         "done": false,
-        "text": "**Build `nvs_request_memory_peak_bytes` and `[limits] memory_high_water`** (`rule:observability/default-series`, `rule:observability/memory-high-water-writes-a-warn`, gap `the-peak-histogram-and-the-high-water-warn-are-unbuilt`). Add the `route`-labelled histogram family to `DEFAULT` at `crates/nvs-runtime/src/metrics.rs:188` with byte buckets, and record it beside `Registry::request` at `crates/nvs-runtime/src/metrics.rs:649`. The peak is per `Ctx` (`crates/nvs-runtime/src/ctx/limits.rs:121`), so it must be read before the request's context ends. The door counts the request at `crates/nvs-server/src/serve.rs:1316` after that context is gone, and takes the route label at `crates/nvs-server/src/serve.rs:1510`. The warn is one `Warn` record written like `slow_query_record` at `crates/nvs-stdlib/src/db/span.rs:117`. The key needs a boot refusal outside `0.0..=1.0` in `nvs-config`. Both rules move to `shipped`. This slice is large: start it in a fresh session."
+        "text": "**Refuse an `abstract` `#[Test]` method** (`rule:testing/test-attribute`, gap `abstract-test-method-is-accepted`). `check_method_shape` at `crates/nvs-types/src/testing.rs:982` refuses four shapes, and a method with no body is none of them. A fifth refusal is a change to the rule's list of refusals, so the fragment is rewritten with it. The hostile proof is `tests/hostile/lang/testing/a-test-is-a-method-marked-test/02-a-marked-method-with-no-body.nvs`."
       },
       {
         "done": false,
-        "text": "**Decide `enum-case-that-reached-a-mixed`** (`crates/nvs-runtime/src/lib.rs:1`). Closing it spends the reserved tag and overturns `rule:enums/representation`, which needs an ADR beyond Stage 5's one slot. Per Stage 4 that is `BLOCKED` for the user, once it is the last `nvs-runtime` gap, unless a milestone's plan file genuinely covers enum representation."
+        "text": "**A `never` body that reaches its end does not compile** (`rule:php-migration/a-body-never-falls-off-its-end`, gap `a-never-method-that-reaches-its-end-returns`). `check_body_exits` at `crates/nvs-types/src/check.rs:919` exempts `never` from `E0739`. The gap record names the fix: `crate::returns` counts a call typed `never` as leaving, then the exemption goes."
       }
     ]
   },
   "backlog": [
+    "`enum-case-that-reached-a-mixed` (`crates/nvs-runtime/src/lib.rs`): `BLOCKED` for the user once it is the last goal-owned gap — `docs/agent/goals/goal-closeout.md` § Stage 4.",
     "The other crates' goal-owned gaps, one crate per group — `bun nv owners --closes goal-closeout`.",
     "Stage 5's decision record and the switch that deletes the goal it leaves — `docs/agent/goals/goal-closeout.md` § Stage 5."
   ]
