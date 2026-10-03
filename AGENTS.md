@@ -134,11 +134,14 @@ which are whole where they stand.
 ## Text an end user reads
 
 **This section is the whole rule, and it is here because nothing checks the wording: it is followed at
-the first write, not repaired afterwards.** It covers every comment in a `.nvs` file under
-`docs/examples/`, `tests/hostile/` and `benches/members/`, every `about.md`, and every `Core` reference
-card (`rule:core-api/reference-card`). Those are published on
-the website and read by somebody who looked a feature up and has never seen this repository. **A
-beginner and an expert should both read it once and come away with the same picture.**
+the first write, not repaired afterwards.** It covers **everything a user sees**: every page of the
+website, every `about.md`, every `Core` reference card (`rule:core-api/reference-card`), every comment
+in a `.nvs` file the website publishes — under `docs/examples/`, `tests/hostile/`, `benches/members/`
+and `website/snippets/` — the help text `nvs` prints for a command or a flag, and the message of every
+diagnostic. Help text and diagnostics are held to it when they are written or changed. The docs only
+agents read stay out of it: the rules, the decision records, the goals, the files under `docs/agent/`
+and this file. Everything it covers is read by somebody who looked a feature up and has never seen this
+repository. **A beginner and an expert should both read it once and come away with the same picture.**
 
 **Write it the way a good manual does, not the way this file does.** This file, the orientation pack,
 the rules and the goals are written in a dense essay voice, and an agent that has just read them writes
