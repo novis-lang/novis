@@ -1,19 +1,20 @@
 {
-  "state": "**Goal `goal-closeout`, Stage 4 (finished in place).** The gap `core-http-tlsinfo-expiry-is-a` is closed. `Core\\Http\\TlsInfo::expiry` throws a `RuntimeError` for a leaf whose `notAfter` is past the last `Core\\Time\\Instant`, and its reference card names that error. `http.rs` has no gap left.\n\nThe perf ledger has current figures for every `Core\\Http` feature, and `bun nv proofs --gate` owes nothing across the whole roster. `directive:limits.memory_high_water` now has its about, example, attack and conformance case.\n\nThe only `nvs-runtime` gap left is `enum-case-that-reached-a-mixed`. It needs an ADR beyond Stage 5's one slot, so it waits for the user. It goes to `BLOCKED` only once it is the last goal-owned gap in the tree.\n\nThe floor check `the latest CI run on main succeeded for the code HEAD holds` is red only because `main` is ahead of `origin/main`, and the loop never pushes. A person has to push.\n\nA change to a `Core` implementation file stales the perf figure of every feature it implements. Re-measure with `bun nv proofs --record-perf --group <class>` after the fix is committed, or the driver's dossier checks go red.\n\n`bun nv owners --closes goal-closeout` names the rest, in `nvs-lsp`, `nvs-stdlib`, `nvs-syntax`, `nvs-types`, `editors/vscode` and `website`.",
+  "state": "**Goal `goal-closeout`, Stage 4 (finished in place).** The gap `regex-split-builds-its-array-past-the` is closed. `Core\\Regex::split` asks `NvsArray::affords_write` before each append and stops with a fatal fault, so `tests/hostile/core/Regex/split/01-millions-of-pieces.nvs` step 6 stops under the 256 MiB ceiling. `NvsArray::affords_write` is now public for any `Core` member that appends in a loop.\n\n`Core\\Regex`'s perf figures are re-measured. `Core\\Regex::matches` still shows its known-gap `allocations 0` line, owned by `regex-matches-allocates-on-every-call`.\n\nThe only `nvs-runtime` gap left is `enum-case-that-reached-a-mixed`. It needs an ADR beyond Stage 5's one slot, so it waits for the user. It goes to `BLOCKED` only once it is the last goal-owned gap in the tree.\n\nThe floor check `the latest CI run on main succeeded for the code HEAD holds` is red only because `main` is ahead of `origin/main`, and the loop never pushes. A person has to push.\n\nA change to a `Core` implementation file stales the perf figure of every feature it implements. Re-measure with `bun nv proofs --record-perf --group <class>` after the fix is committed, or the driver's dossier checks go red.\n\n`bun nv owners --closes goal-closeout` names the rest, in `nvs-lsp`, `nvs-stdlib`, `nvs-syntax`, `nvs-types`, `editors/vscode` and `website`.",
   "next": {
     "stage": 4,
     "title": "finished in place",
     "files": [],
-    "note": "one file set: `crates/nvs-stdlib/src/regex.rs` and its hostile case.",
+    "note": "one file set: `crates/nvs-stdlib/src/str.rs` and its hostile case.",
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Regex::split` builds its array past the memory limit** (gap `regex-split-builds-its-array-past-the`, `rule:errors/on-limit`). It is `nvs_core_regex_split` at `crates/nvs-stdlib/src/regex.rs:2086`. Charge each piece to the budget before the array grows, keep `tests/hostile/core/Regex/split/01-millions-of-pieces.nvs` green, delete the gap, then re-measure `Core\\Regex`'s perf with `bun nv proofs --record-perf --group 'Core\\Regex'`."
+        "text": "**Case conversion builds its result outside the memory limit** (gap `case-conversion-builds-its-result-outside-the`, `rule:errors/on-limit`). `nvs_core_str_lower` at `crates/nvs-stdlib/src/str.rs:3512` still goes through `str::to_lowercase`; `nvs_core_str_upper` at `crates/nvs-stdlib/src/str.rs:3528` already writes through a writer, so check what `lowerFirst`, `upperFirst` and `fold` still owe. Keep the final-sigma rule, keep `tests/hostile/core/Str/lower/01-a-text-that-grows.nvs` green, delete the gap, then `bun nv proofs --record-perf --group 'Core\\Str'`."
       }
     ]
   },
   "backlog": [
-    "The other `nvs-stdlib` gaps `bun nv owners --closes goal-closeout` names, one file set each.",
-    "`enum-case-that-reached-a-mixed` waits for the user's ADR decision."
+    "`a-match-inside-a-character-reports-the-wrong-position` (`crates/nvs-stdlib/src/str.rs`) is a PHP-compatibility decision, not a slice.",
+    "`enum-case-that-reached-a-mixed` waits for the user (ADR slot).",
+    "`buffered-read-is-not-held-to` (`crates/nvs-stdlib/src/db/mod.rs`) is the same memory-limit family as the split fix."
   ]
 }
