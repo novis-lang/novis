@@ -12,10 +12,8 @@
     "build": "astro build",
     "preview": "astro preview",
     "astro": "astro",
-    "sync": "npm run sync:render && node scripts/sync-examples.mjs",
-    "sync:render": "bun ../tools/nv/main.ts render --website",
-    "sync:examples": "node scripts/sync-examples.mjs",
-    "examples:check": "node scripts/check-examples.mjs"
+    "sync": "npm run sync:render",
+    "sync:render": "bun ../tools/nv/main.ts render --website"
   },
   "dependencies": {
     "@astrojs/starlight": "^0.41.9",

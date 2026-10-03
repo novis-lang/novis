@@ -2,12 +2,12 @@
 
 Astro + Starlight. Everything the site needs — tooling, configuration, content — lives inside
 this folder. The repository's unattended loop does not write here; what it writes is the
-example tree at `../docs/examples/`, which `sync:examples` mirrors into `examples/` like
-any other generated input. Updating the site from the repository is **one command, fired
-by a human (or an agent that was asked to)**:
+example tree at `../docs/examples/`, which the build reads in place, so the site keeps no copy
+of it. Updating the site from the repository is **one command, fired by a human (or an agent
+that was asked to)**:
 
 ```sh
-npm run sync     # pull the Core reference and the examples from the repository
+npm run sync     # pull the Core reference from the repository
 npm run build    # build the static site into dist/ 
 npx astro build --base /novis/ # build with a custom base
 ```
@@ -19,10 +19,8 @@ npx astro build --base /novis/ # build with a custom base
 | `npm run dev` | dev server with live reload |
 | `npm run build` | production build into `dist/` |
 | `npm run preview` | serve the built site locally |
-| `npm run sync` | the render and the examples mirror, in order |
+| `npm run sync` | the render, under the name a human types |
 | `npm run sync:render` | `bun nv render --website`: publish the spec + registry → `src/data/core.json` + the Core member pages |
-| `npm run sync:examples` | mirror `../docs/examples/` → `examples/` |
-| `npm run examples:check` | run every example in `examples/` through the real `nvs` binary and diff against its `.out` file |
 
 ## Who owns which file
 
@@ -41,7 +39,7 @@ wherever it kept a component.
 | `config/novis.tmLanguage.json` | tool | rendered from the editors' grammar on every sync — edit `../editors/vscode/syntaxes/nvs.tmLanguage.json` |
 | `src/data/core-changelog.json` | human | per-member changelog entries |
 | `src/content/docs/reference/core/**.mdx` | **per page** | tool-owned (regenerated every `sync:render`) while `novis.draft: true`; remove the flag to take ownership — then yours: lead text, description, parameter docs, errors, tips, `<SeeAlso ids={…}>` |
-| `examples/**` | tool | a mirror of `../docs/examples/`, emptied and rewritten on every `sync:examples` — edit the repository's copy, which is where the sweep that writes them lives ([ADR 0134](../docs/decisions/0134.md)). **Gitignored**: it is the same bytes twice. `examples:check` runs it, so a stale mirror fails here rather than shipping |
+| `../docs/examples/**` | the proofs sweep | read in place by `src/components/MethodExamples.astro`; the site holds no copy. `bun nv proofs --run` runs each one and diffs it against its `.out` file |
 | `config/spec-overrides.mjs` | human | corrections for spec table rows the renderer cannot read — every fix goes here, never into the renderer |
 | `config/site.mjs` | human | **all placeholder URLs live here** — swap them once to go live. It also holds `AREAS`, the four areas the header, the footer, the sidebars and `llms.txt` are built from |
 | `config/external-links.mjs` | human | the rule that a link off the site opens in a new tab with `rel="noopener noreferrer nofollow"` — except the project's own repository and Discord links, which open in a new tab with no `rel`: an integration decorates content links at build time, and a component spreads `externalLinkAttrs(href)` onto any anchor it writes itself |

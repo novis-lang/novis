@@ -3,8 +3,8 @@
 Every feature Novis ships owes three real-world examples
 (`rule:testing/feature-proofs`), and this is where they live. They are
 **the website's copy**, kept in the repository so that the same sweep that tests a feature writes
-them: `npm run sync:examples` in [`website/`](../../website/README.md) copies this tree into the
-site, and nothing edits them there.
+them: the [website](../../website/README.md) build reads this tree in place and keeps no copy of
+it.
 
 `bun nv proofs --run` is what runs them. This file owns what an example **is**;
 that tool owns how it is checked, the way [`benches/userland/README.md`](../../benches/userland/README.md)
@@ -101,7 +101,7 @@ a program somebody skims for fifteen seconds and then writes their own version o
   cannot be shown in one file, so the companion goes under the example's own directory — `parts/`,
   `app/`, `packages/`. It has to be a *subdirectory*: the sweep counts `*.nvs` at the directory's
   top level only, so a companion beside the examples would be read as a fourth one, while the
-  website mirror walks the whole tree and ships a companion below it. Write each companion so that
+  website reads the whole tree and shows a companion below it. Write each companion so that
   running it on its own does nothing and succeeds.
 - **Real work, not `foo`/`bar`.** A cart total, a log line, a slug, a config key, a retry — the
   thing a person is actually holding when they reach for this feature. Three examples means three
