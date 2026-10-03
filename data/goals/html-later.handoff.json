@@ -1,0 +1,32 @@
+{
+  "state": "**Goal `html-later` — `Core\\Html::later`: a page goes out at once, and its slow parts fill in as they are ready — has not started; nothing of it has landed yet.** No floor is carried: goal `goal-closeout` made a finished goal deleted, and the suites and `nv verify` are the floor.\n\nThe design is the user's (method name, `<template for>` with a polyfill, the route field plus the call, the error fragment, concurrency on a normal route) plus calls of mine the goal file lists as unconfirmed. Today every response is buffered whole and `Core\\Response::stream` is the only early byte.",
+  "next": {
+    "stage": 2,
+    "title": "`later` on a normal route",
+    "files": [
+      "crates/nvs-stdlib/src/html.rs",
+      "crates/nvs-stdlib/src/task.rs",
+      "crates/nvs-runtime/src/ctx/output.rs",
+      "crates/nvs-runtime/src/deferred.rs"
+    ],
+    "items": [
+      {
+        "done": false,
+        "text": "**The decision record**, from the goal's § *Standing decisions*, rewriting `rule:concurrency/nothing-is-still-running-when-a-call-returns` and `rule:concurrency/after-response-outlives-the-connection` and adding the `later` rule — `docs/rules/concurrency/after-response-outlives-the-connection.md:9`, `crates/nvs-runtime/src/deferred.rs:1`."
+      },
+      {
+        "done": false,
+        "text": "**`Core\\Html::later`**, its task a child of the request, the placeholder with the per-request token, and the one assembly pass — `crates/nvs-stdlib/src/html.rs:619`, `crates/nvs-stdlib/src/task.rs:577`, `crates/nvs-runtime/src/ctx/output.rs:51`."
+      },
+      {
+        "done": false,
+        "text": "**The bounds and the head rule** — `[limits] later_deadline` and `max_later`, and `LogicError` for a head change inside a `later` closure — `crates/nvs-config/src/default.toml:70`."
+      }
+    ]
+  },
+  "backlog": [
+    "**Stage 3: slotted delivery** — the route field, `Core\\Response::slotted()`, the shell, the fills, the polyfill; `crates/nvs-server/src/serve.rs:1785`, `crates/nvs-runtime/src/routes.rs:289`.",
+    "**Stage 4: tests, the editor and the help**; **Stage 5: the proofs and the reference**.",
+    "When this goal's last check goes green the driver deletes it and takes goal `performance-pass`."
+  ]
+}

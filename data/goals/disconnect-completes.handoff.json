@@ -27,6 +27,6 @@
   "backlog": [
     "**Stage 3: the server** — `Peer::drop` detaches, the admission place goes with it, the grace and the drain bound it; `crates/nvs-server/src/serve.rs:964`.",
     "**Stage 4: the proofs** — a new `# When the client goes away` section in `docs/reference/tools/25-server.md` and its feature proofs.",
-    "When this goal's last check goes green the driver deletes it and takes goal `performance-pass`."
+    "When this goal's last check goes green the driver deletes it and takes goal `html-later`."
   ]
 }
