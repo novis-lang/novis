@@ -252,10 +252,10 @@ const INTRINSICS: &[Intrinsic] = &[
         restriction: None,
         grammar: Grammar::Uri,
     },
-    // `rule:security/outbound-url-is-a-sink`'s literal URL. These seven reach
-    // `nvs_stdlib::http::transport`'s `parts`, which refuses both of what
+    // `rule:security/outbound-url-is-a-sink`'s literal URL. Every member below
+    // reaches `nvs_stdlib::http`'s `judged_host`, which refuses both of what
     // `Grammar::Uri` refuses — a text that is not a URI reference and a port
-    // past `65535` — so a refusal here is one the request would have thrown.
+    // past `65535` — so a refusal here is one the call would have thrown.
     Intrinsic {
         owner: r"Core\Http\Client",
         member: "get",
@@ -308,6 +308,30 @@ const INTRINSICS: &[Intrinsic] = &[
         owner: r"Core\Http\Client",
         member: "request",
         at: 1,
+        field: None,
+        restriction: None,
+        grammar: Grammar::Uri,
+    },
+    Intrinsic {
+        owner: r"Core\Http\Client",
+        member: "stream",
+        at: 1,
+        field: None,
+        restriction: None,
+        grammar: Grammar::Uri,
+    },
+    Intrinsic {
+        owner: r"Core\Http\Client",
+        member: "openSocket",
+        at: 0,
+        field: None,
+        restriction: None,
+        grammar: Grammar::Uri,
+    },
+    Intrinsic {
+        owner: r"Core\Http",
+        member: "allowUrl",
+        at: 0,
         field: None,
         restriction: None,
         grammar: Grammar::Uri,

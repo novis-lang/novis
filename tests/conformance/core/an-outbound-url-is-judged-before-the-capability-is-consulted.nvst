@@ -5,13 +5,15 @@
 // `rule:http-server/allow-url-pins-the-address` makes this the one door an outbound URL passes through, and the
 // order of its questions is part of the contract: what is wrong with the text
 // is decided here, and what is wrong with the deployment is decided by the
-// capability. A caller reading these four sentences can tell which of the two
+// capability. A caller reading these five sentences can tell which of the two
 // they are looking at without knowing what the operator granted.
 
 // Not a URL at all. There is no host in it, so there is nothing the policy
-// could even be asked about.
+// could even be asked about. The text arrives in a variable, because the same
+// literal is refused while compiling.
+var $notAUrl = "not a url";
 try {
-    var $bad = Core\Http::allowUrl("not a url");
+    var $bad = Core\Http::allowUrl($notAUrl);
 } catch (RuntimeError $refused) {
     echo $refused->message, "\n";
 }
@@ -35,6 +37,15 @@ try {
     echo $refused->message, "\n";
 }
 
+// A port past 65535. No connection could be made to it, so the URL is refused
+// before the policy is asked about its host.
+var $farPort = "http://example.com:99999/";
+try {
+    var $unreachable = Core\Http::allowUrl($farPort);
+} catch (RuntimeError $refused) {
+    echo $refused->message, "\n";
+}
+
 // And only then the deployment: this configuration grants `net.connect` to
 // nobody, so the host is refused before it is looked up. An ungranted program
 // cannot use this member as a resolver.
@@ -47,5 +58,6 @@ try {
 Core\Http::allowUrl: this text is not a URL, so there is no host in it to approve
 Core\Http::allowUrl: the scheme must be `http`, `https`, `ws` or `wss`, and this URL names `ftp`
 Core\Http::allowUrl: the URL names no host, so there is nothing to resolve and pin
+Core\Http::allowUrl: the URL's port is past 65535, so it names no TCP port to connect to
 Core\Http::allowUrl needs the capability `net.connect` for example.com, which is not granted
 help: grant it in nvs.toml under `[capabilities.net]`

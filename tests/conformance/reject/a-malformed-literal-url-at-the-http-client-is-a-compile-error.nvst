@@ -1,10 +1,10 @@
 --TEST--
-a malformed literal URL at a `Core\Http\Client` request member is refused while checking, and the same text behind a variable is not (`rule:security/outbound-url-is-a-sink` and `rule:expressions/intrinsic-literals`)
+a malformed literal URL at an outbound `Core\Http\Client` member or `Core\Http::allowUrl` is refused while checking, and the same text behind a variable is not (`rule:security/outbound-url-is-a-sink` and `rule:expressions/intrinsic-literals`)
 --FILE--
 <?nvs
 // The URL grammar is `Core\Uri::parse`'s, so the refusal is its sentence. Each
-// member is asked at the parameter its URL fills: `request` at argument 1,
-// behind the method. The variable-borne twin adds no diagnostic, and the count
+// member is asked at the parameter its URL fills: `request` and `stream` at
+// argument 1, behind the method. The variable-borne twin adds no diagnostic, and the count
 // in the final line is what asserts it.
 var $badUrl = "https://exa mple.test/x";
 var $a = Core\Http\Client::get("https://exa mple.test/x");
@@ -15,6 +15,9 @@ var $e = Core\Http\Client::delete("https://exa mple.test/x");
 var $f = Core\Http\Client::head("https://exa mple.test/x");
 var $g = Core\Http\Client::request(Core\Http\Method::Get, "https://exa mple.test/x");
 var $h = Core\Http\Client::get("http://example.test:99999/x");
+var $i = Core\Http\Client::stream(Core\Http\Method::Get, "https://exa mple.test/x");
+var $j = Core\Http\Client::openSocket("wss://exa mple.test/x");
+var $k = Core\Http::allowUrl("https://example.test:99999/x");
 var $runtime = Core\Http\Client::get($badUrl);
 
 echo "unreachable\n";
@@ -45,5 +48,14 @@ error[E0769]: this literal is not one this member can read: %s
 error[E0769]: this literal is not one this member can read: the authority's port is not a TCP port number. %s
    --> case.nvs:14:32
 %A
-error: aborting due to 8 errors
+error[E0769]: this literal is not one this member can read: %s
+   --> case.nvs:15:58
+%A
+error[E0769]: this literal is not one this member can read: %s
+   --> case.nvs:16:39
+%A
+error[E0769]: this literal is not one this member can read: the authority's port is not a TCP port number. %s
+   --> case.nvs:17:30
+%A
+error: aborting due to 11 errors
 To read what a code means and how to fix it, run `nvs agent show <code>`.

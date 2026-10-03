@@ -520,7 +520,7 @@ impl Roster {
 /// # Errors
 ///
 /// A thrown `RuntimeError` for a text that is not a URL, a scheme outside the
-/// roster, or a URL that names no host.
+/// roster, a URL that names no host, or a port past `65535`.
 fn judged_host(text: &str, member: &str, roster: Roster) -> Result<String, Fault> {
     let reference = UriRef::parse(text).map_err(|_| {
         Fault::thrown(format!(
@@ -564,6 +564,14 @@ fn judged_host(text: &str, member: &str, roster: Roster) -> Result<String, Fault
     let host = Authority::host(&authority);
     if host.is_empty() {
         return Err(no_host());
+    }
+    // A port past `65535` is refused here as well as by the connection's own
+    // reading, so a call a test answers from its table fails as a real one does,
+    // and `allowUrl` never approves a URL nothing could connect to.
+    if authority.port_to_u16().is_err() {
+        return Err(Fault::thrown(format!(
+            "{member}: the URL's port is past 65535, so it names no TCP port to connect to"
+        )));
     }
     Ok(host.to_owned())
 }
