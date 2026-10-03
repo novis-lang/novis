@@ -1,15 +1,11 @@
 {
-  "state": "**Goal `goal-closeout`, Stage 4 (finished in place).** Five of `nvs-runtime`'s ten goal-owned gaps are closed. The newest is `erased-write-checks-no-class`. An erased write (`$object->field =`, `$obj->$key =`, `Core\\Reflect\\ClassInfo::set`) into a field declared as classes and at most `null` now checks the written object's class. It also refuses any other non-`null` value there. The checker resolves the labels (`nvs_ir::lower`'s `admitted_classes`), `ir::Class::field_classes` carries them, and `ClassDesc::field_classes` holds them for `write_erased_property`. The `nvs-runtime` object module doc § *What a shape write checks* states what is still unchecked: a shape's class identity and an array's element type.\n\nThe floor check `the latest CI run on main succeeded for the code HEAD holds` is red only because `main` is ahead of `origin/main`, and the loop never pushes. A person has to push.\n\n`bun nv owners --closes goal-closeout` names 47 gaps, in `nvs-lsp`, `nvs-runtime` (five), `nvs-stdlib`, `nvs-types`, `editors/vscode` and `website`.",
+  "state": "**Goal `goal-closeout`, Stage 4 (finished in place).** Six of `nvs-runtime`'s ten goal-owned gaps are closed. The newest is `a-call-on-a-value-that-is-not-a-closure-is-an-internal-error`. A compiled `$f(...)` whose callee is not a closure now throws a catchable `LogicError` naming what it is (`require_closure` in the closure call path), and `rule:types/callable-is-a-closure` states it. The hostile attack `03-values-that-are-not-functions-are-called.nvs` passes without its marker, and a conformance case pins every message.\n\nThe floor check `the latest CI run on main succeeded for the code HEAD holds` is red only because `main` is ahead of `origin/main`, and the loop never pushes. A person has to push.\n\n`bun nv owners --closes goal-closeout` names 46 gaps, in `nvs-lsp`, `nvs-runtime` (four), `nvs-stdlib`, `nvs-types`, `editors/vscode` and `website`.",
   "next": {
     "stage": 4,
     "title": "finished in place",
     "files": [],
-    "note": "one file set: `nvs-runtime`'s closure call path and the crate's remaining gap records.",
+    "note": "one file set: `nvs-runtime`'s remaining gap records and the modules they name.",
     "items": [
-      {
-        "done": false,
-        "text": "**`a-call-on-a-value-that-is-not-a-closure-is-an-internal-error`** — `crates/nvs-runtime/src/closure.rs:454` and `crates/nvs-runtime/src/closure.rs:724` answer `Fault::fatal` for a non-closure callee behind a `mixed`. Decide the throw (`rule:types/callable-is-a-closure` is silent; a catchable `RuntimeError` in `write_erased_property`'s wording is the obvious match), then make `tests/hostile/tools/agents/a-worked-session/03-values-that-are-not-functions-are-called.nvs` pass and remove its marker."
-      },
       {
         "done": false,
         "text": "**The other four `nvs-runtime` gaps, built or struck as stated bounds** — `enum-case-that-reached-a-mixed` (`crates/nvs-runtime/src/lib.rs:1`, needs an ADR, so strike it as a bound or defer it to a milestone), `a-core-call-with-a-large-string-costs-time-per-byte` (`crates/nvs-runtime/src/lib.rs:1`), `the-peak-update-cost-is-argued-and-never-measured` (`crates/nvs-runtime/src/budget.rs:155`), and `the-peak-histogram-and-the-high-water-warn-are-unbuilt` (`crates/nvs-runtime/src/metrics.rs:188`)."
