@@ -281,22 +281,41 @@ pub struct Located {
 }
 
 impl Located {
-    /// Where `node` starts: its 1-based line, its 1-based column counted in
-    /// `char`s, and its byte offset into the source.
+    /// Where every node of [`tree`](Self::tree) starts, the root included, in
+    /// post-order — each node's children before the node itself, which is the
+    /// order a tree is built bottom-up in. Each is its 1-based line, its
+    /// 1-based column counted in `char`s, and its byte offset into the source.
     ///
     /// The line and the column are 1-based because they are what a person is
     /// shown beside a path, which is the whole reason a node carries them;
-    /// [`nvs_diagnostics::SourceFile::line_col`] counts from zero and this is
-    /// the one place the two conventions meet.
+    /// [`nvs_diagnostics::SourceFile::line_cols_in`] counts from zero and this
+    /// is the one place the two conventions meet. One batch rather than one
+    /// question per node, because a column asked alone is a scan from its
+    /// line's start, and a tree written on one line would pay that per node.
     #[must_use]
-    pub fn position(&self, node: &Node) -> (u32, u32, u32) {
-        let (line, col) = self.map.file(node.span.file).line_col(node.span.start);
-        (
-            u32::try_from(line).unwrap_or(u32::MAX).saturating_add(1),
-            u32::try_from(col).unwrap_or(u32::MAX).saturating_add(1),
-            node.span.start,
-        )
+    pub fn positions(&self) -> Vec<(u32, u32, u32)> {
+        let mut starts = Vec::new();
+        post_order(&self.tree, &mut starts);
+        let file = self.map.file(self.tree.span.file);
+        file.line_cols_in(&starts, nvs_diagnostics::PositionEncoding::Utf32)
+            .into_iter()
+            .zip(starts)
+            .map(|((line, col), start)| {
+                (
+                    u32::try_from(line).unwrap_or(u32::MAX).saturating_add(1),
+                    u32::try_from(col).unwrap_or(u32::MAX).saturating_add(1),
+                    start,
+                )
+            })
+            .collect()
     }
+}
+
+fn post_order(node: &Node, out: &mut Vec<u32>) {
+    for child in &node.children {
+        post_order(child, out);
+    }
+    out.push(node.span.start);
 }
 
 /// Parses `source` exactly as the compiler parses a file of that name, and

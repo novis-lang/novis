@@ -437,12 +437,18 @@ const OFFSET_DOC: MethodDoc = MethodDoc {
 /// limit already bounds the depth at 96 levels — see `nvs_syntax::parser`'s
 /// depth guard, which is the reason this cannot be handed a tree deep enough
 /// to matter.
-fn instance_of(node: &nvs_syntax::walk::Node, parsed: &nvs_syntax::walk::Located) -> Value {
+///
+/// `positions` is [`nvs_syntax::walk::Located::positions`], consumed in the
+/// post-order this recursion builds in.
+fn instance_of(
+    node: &nvs_syntax::walk::Node,
+    positions: &mut impl Iterator<Item = (u32, u32, u32)>,
+) -> Value {
     let mut children = NvsArray::new();
     for child in &node.children {
-        children.append(instance_of(child, parsed));
+        children.append(instance_of(child, positions));
     }
-    let (line, column, offset) = parsed.position(node);
+    let (line, column, offset) = positions.next().unwrap_or_default();
     crate::instance::build(
         class_of(node.kind),
         [
@@ -552,7 +558,7 @@ nvs_runtime::nvs_helper! {
                     format!("Core\\Ast::parse(): {message}"),
                 )
             })?;
-        Ok(instance_of(&parsed.tree, &parsed))
+        Ok(instance_of(&parsed.tree, &mut parsed.positions().into_iter()))
     }
 }
 

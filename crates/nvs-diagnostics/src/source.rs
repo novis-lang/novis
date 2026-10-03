@@ -132,6 +132,43 @@ impl SourceFile {
         (line, upto.chars().map(|ch| encoding.width(ch)).sum())
     }
 
+    /// [`line_col_in`](Self::line_col_in) for every offset in `positions`,
+    /// answered in the order they were given.
+    ///
+    /// One sweep over the text in offset order, so a caller asking about every
+    /// node of a tree pays O(text + n log n) rather than one scan from the
+    /// line's start per offset — which on a file written as one long line is
+    /// the square of that line's length. Each answer equals `line_col_in`'s.
+    #[must_use]
+    pub fn line_cols_in(
+        &self,
+        positions: &[BytePos],
+        encoding: PositionEncoding,
+    ) -> Vec<(usize, usize)> {
+        let mut order: Vec<usize> = (0..positions.len()).collect();
+        order.sort_by_key(|&i| positions[i]);
+        let mut out = vec![(0, 0); positions.len()];
+        let (mut line, mut at, mut col) = (0, 0, 0);
+        for i in order {
+            let pos = (positions[i] as usize).min(self.text.len());
+            while let Some(&start) = self.line_starts.get(line + 1) {
+                if start as usize > pos {
+                    break;
+                }
+                line += 1;
+                at = start as usize;
+                col = 0;
+            }
+            col += self.text[at..pos]
+                .chars()
+                .map(|ch| encoding.width(ch))
+                .sum::<usize>();
+            at = pos;
+            out[i] = (line, col);
+        }
+        out
+    }
+
     /// The 0-based line and *character* column of `pos`.
     ///
     /// The column counts `char`s, not bytes, so a diagnostic on a line
@@ -456,6 +493,33 @@ mod tests {
         let f = map.file(id);
         assert_eq!(f.line_count(), 2);
         assert_eq!(f.line_text(1), Some(""));
+    }
+
+    #[test]
+    fn a_batch_of_offsets_answers_what_one_offset_at_a_time_does() {
+        let mut map = SourceMap::new();
+        let text = "ä€x\nab\n\n😀c\n";
+        let id = map.add("t.nvs", text);
+        let f = map.file(id);
+        let mut positions: Vec<BytePos> = text
+            .char_indices()
+            .map(|(i, _)| u32::try_from(i).unwrap())
+            .collect();
+        positions.push(u32::try_from(text.len()).unwrap());
+        positions.push(u32::try_from(text.len()).unwrap() + 5);
+        positions.reverse();
+        positions.push(7);
+        for encoding in [
+            PositionEncoding::Utf8,
+            PositionEncoding::Utf16,
+            PositionEncoding::Utf32,
+        ] {
+            let each: Vec<_> = positions
+                .iter()
+                .map(|&pos| f.line_col_in(pos, encoding))
+                .collect();
+            assert_eq!(f.line_cols_in(&positions, encoding), each, "{encoding:?}");
+        }
     }
 
     #[test]
