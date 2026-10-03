@@ -1128,11 +1128,19 @@ where
     // body's.
     let beat_due: crate::bounds::NextBeat = Rc::new(Cell::new(None));
     let beat_due = &beat_due;
+    // When the drain period cuts the request this connection is running, if a
+    // drain has begun and the request is parked. Filed by the loop below for
+    // the same reason as `beat_due`.
+    let cut_due: Cell<Option<Instant>> = Cell::new(None);
+    let cut_due = &cut_due;
+    let drain_period = waits.drain;
     let io = ConnectionIo::new(stream, waits).ending_at_drain(draining);
     // Taken before the adapter is handed to `hyper`, because that is the last
     // moment anything on this side can reach it.
     let phase = io.phase();
     let phase = &phase;
+    let drain_seen = io.drain_seen();
+    let drain_seen = &drain_seen;
     let service = service_fn(move |request: Request<Incoming>| async move {
         // A head that framed is a head that arrived: what this connection is
         // waiting for from here is the body, and then nothing until the answer
@@ -1423,6 +1431,7 @@ where
                     Ok(running) => {
                         let mut peer = Peer(Some(running));
                         let mut parked = false;
+                        let mut cut = false;
                         // No waker is registered, and that is the seam rather
                         // than an omission: what ends this wait is the
                         // isolate's own end waking the **task** that started it
@@ -1455,13 +1464,29 @@ where
                                 return Poll::Ready(Some(head));
                             }
                             if peer.finished() {
-                                Poll::Ready(None)
-                            } else {
-                                parked = true;
-                                Poll::Pending
+                                return Poll::Ready(None);
                             }
+                            // `rule:concurrency/a-drain-closes-a-connection-cleanly`:
+                            // the drain period bounds a request whose program is
+                            // still running, and such a request moves no bytes, so
+                            // no wait of the adapter's ends it. The cut is taken
+                            // here, at the end of the same period the adapter's
+                            // waits end at.
+                            let cut_at = draining
+                                .is_draining()
+                                .then(|| drain_seen.period_ends(drain_period));
+                            if cut_at.is_some_and(|at| at <= Instant::now()) {
+                                cut = true;
+                                return Poll::Ready(None);
+                            }
+                            // The drive files the wake for this instant after
+                            // its pass, for `crate::bounds::wake_at`'s reason.
+                            cut_due.set(cut_at);
+                            parked = true;
+                            Poll::Pending
                         })
                         .await;
+                        cut_due.set(None);
                         // A request that made this future answer `Pending` left
                         // `hyper`'s read side blocked on the head it speculated
                         // about while the isolate ran — and a blocked read side
@@ -1496,6 +1521,15 @@ where
                                     recording,
                                 });
                                 head
+                            }
+                            // The drain period ended with the program still
+                            // running. Dropping the peer cancels the request
+                            // tree and waits for it to end, as a disconnect
+                            // does, and the client is told the server is going
+                            // away.
+                            None if cut => {
+                                drop(peer);
+                                cut_by_the_drain()
                             }
                             // Nothing left to wait for, so this join does not
                             // park.
@@ -1689,10 +1723,13 @@ where
         joined_when_ended(writing, &mut ctx.borrow_mut());
         // Last, and after the whole pass rather than inside it: an event stream
         // that is about to park has to be woken in time to write its keep-alive,
-        // and `crate::bounds::wake_at` owns why this is the only place that
-        // deadline survives being filed.
+        // and a request the drain period cuts in time to be cut.
+        // `crate::bounds::wake_at` owns why this is the only place that
+        // deadline survives being filed. The cut's entry may replace an earlier
+        // socket deadline. That wait is then read at the cut's wake, and it
+        // ends no later than the request it belongs to.
         if polled.is_pending()
-            && let Some(at) = beat_due.get()
+            && let Some(at) = beat_due.get().into_iter().chain(cut_due.get()).min()
         {
             crate::bounds::wake_at(at);
         }
@@ -2086,6 +2123,23 @@ fn event_stream(
 fn failed() -> Response<Answer> {
     let mut response = Response::new(Answer::empty());
     *response.status_mut() = StatusCode::INTERNAL_SERVER_ERROR;
+    response
+}
+
+/// `503` with `Connection: close`, for a request the drain period ended while
+/// its program was still running
+/// (`rule:concurrency/a-drain-closes-a-connection-cleanly`).
+///
+/// [`Reply::draining`]'s status, and no `Retry-After` for its reason: this
+/// process is on its way out. The client gets a status it can retry on
+/// another instance, where closing the connection with no answer would look
+/// like a network failure.
+fn cut_by_the_drain() -> Response<Answer> {
+    let mut response = Response::new(Answer::empty());
+    *response.status_mut() = StatusCode::SERVICE_UNAVAILABLE;
+    response
+        .headers_mut()
+        .insert(header::CONNECTION, HeaderValue::from_static("close"));
     response
 }
 
@@ -8927,6 +8981,80 @@ mod tests {
         assert!(
             closed && took < Duration::from_secs(5),
             "the drain waited out a period on an idle connection: closed after {took:?}"
+        );
+    }
+
+    /// `rule:concurrency/a-drain-closes-a-connection-cleanly`'s bound on work
+    /// in progress, for a request whose program is still running: at the drain
+    /// period's end the request tree is cancelled, the client is answered
+    /// `503` with `Connection: close`, and the accept loop's drain returns.
+    ///
+    /// The program sleeps far longer than [`CLIENT_PATIENCE`], so a drain that
+    /// waited for it fails by the clock rather than passing slowly. The drain
+    /// is the accept loop's own, begun once the one connection is accepted.
+    #[test]
+    fn a_request_still_running_at_the_drain_periods_end_is_answered_503() {
+        let mut listener = NvsListener::bind("127.0.0.1:0".parse().expect("a literal address"))
+            .expect("the OS refused a port");
+        let addr = listener
+            .local_addr()
+            .expect("a bound listener had no address");
+
+        let client = std::thread::spawn(move || {
+            let mut socket = TcpStream::connect(addr).expect("the loopback refused a connection");
+            socket
+                .set_read_timeout(Some(CLIENT_PATIENCE))
+                .expect("the socket refused a read timeout");
+            socket
+                .write_all(b"GET /slow HTTP/1.1\r\nHost: localhost\r\n\r\n")
+                .expect("the write failed");
+            let began = Instant::now();
+            let mut seen = String::new();
+            let closed = socket.read_to_string(&mut seen).is_ok();
+            (closed, seen, began.elapsed())
+        });
+
+        let sleeps_past_the_drain = Rc::new(|_request: Request<Incoming>, _origin: Origin| {
+            let program: Program = Box::new(|_child: &mut Ctx, _args| {
+                let _ = nvs_host::sleep(Duration::from_secs(600));
+                Value::null()
+            });
+            Reply::run(Isolate::new(program, Value::null(), Output::Capture))
+        });
+        let waits = Waits {
+            drain: Duration::from_millis(300),
+            ..Waits::default()
+        };
+        let mut sched = nvs_host::Scheduler::new();
+        let _installed =
+            nvs_host::reactor::install(nvs_host::Reactor::new().expect("the OS refused a poll"));
+        sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, move |_ctx| {
+            serve_on_this_core(
+                &mut listener,
+                &sleeps_past_the_drain,
+                waits,
+                &wide_open(),
+                &Draining::detached(),
+                |_note| {},
+                || ControlFlow::Break(()),
+            )
+            .expect("the accept loop failed");
+        });
+        nvs_host::run_until_idle(&mut sched).expect("the loop failed");
+
+        let (closed, seen, took) = client.join().expect("the client thread panicked");
+        assert!(
+            seen.starts_with("HTTP/1.1 503 Service Unavailable\r\n"),
+            "a request still running at the drain period's end was not answered 503 \
+             (closed {closed} after {took:?}): {seen}"
+        );
+        assert!(
+            seen.to_ascii_lowercase().contains("connection: close"),
+            "the 503 did not tell the client the connection closes: {seen}"
+        );
+        assert!(
+            closed && took < Duration::from_secs(5),
+            "the drain waited for the running request: closed after {took:?}"
         );
     }
 

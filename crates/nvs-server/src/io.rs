@@ -136,15 +136,34 @@ pub enum Phase {
     /// Idle between one response and the next request's first byte —
     /// `keepalive_timeout`.
     ///
-    /// The one phase a drain also bounds: from the moment a connection sitting
-    /// here sees the drain, its wait ends at the drain period's end at the
-    /// latest, with the same `TimedOut` the keep-alive wait ends in — rather
-    /// than the drain waiting out the rest of `keepalive_timeout` for a byte
-    /// the peer may never send ([`ConnectionIo::ending_at_drain`]). That is
-    /// the backstop: the close itself comes sooner, from `crate::serve`'s
-    /// drive asking `hyper` to shut down once this phase is reached under a
-    /// drain, which closes an idle connection at once.
+    /// The phase a drain closes at once: `crate::serve`'s drive asks `hyper`
+    /// to shut down once this phase is reached under a drain, which closes an
+    /// idle connection on that poll. The drain period's end
+    /// ([`ConnectionIo::ending_at_drain`]) is the backstop.
     KeepAlive,
+}
+
+/// When one connection first saw the drain, which is when its drain period
+/// starts (`rule:concurrency/a-drain-closes-a-connection-cleanly`: the period
+/// starts when a connection first sees the drain, not when the drain began).
+///
+/// One cell shared by the adapter and the request running on the connection,
+/// so the waits and the request are cut at the same instant.
+#[derive(Clone, Debug, Default)]
+pub struct DrainSeen(Rc<Cell<Option<Instant>>>);
+
+impl DrainSeen {
+    /// The instant this connection's drain period ends. The first call is the
+    /// moment the connection saw the drain, so it starts the period.
+    #[must_use]
+    pub fn period_ends(&self, period: Duration) -> Instant {
+        let seen = self.0.get().unwrap_or_else(|| {
+            let now = Instant::now();
+            self.0.set(Some(now));
+            now
+        });
+        seen + period
+    }
 }
 
 impl Phase {
@@ -156,6 +175,19 @@ impl Phase {
             Phase::Write => waits.write_idle,
             Phase::KeepAlive => waits.keepalive,
         }
+    }
+
+    /// Whether a connection in this phase is owed no answer, which makes it
+    /// one the drain period may close by ending its wait.
+    ///
+    /// A peer still sending its head, or idle between requests, has no request
+    /// to answer. In [`Phase::Body`] the request is running, and
+    /// `crate::serve`'s service cuts it at the period's end and answers `503`.
+    /// A wait cut here would close the connection before that answer is
+    /// written. [`Phase::Write`] is a response already being written, and it
+    /// finishes under its own wait.
+    fn is_owed_nothing(self) -> bool {
+        matches!(self, Phase::Head | Phase::KeepAlive)
     }
 }
 
@@ -183,12 +215,9 @@ pub struct ConnectionIo {
     /// the deadline it is about to be judged against forward — and a poll
     /// that is the first to see the drain does re-arm without progress.
     armed: Option<(Phase, bool)>,
-    /// When this connection first saw the drain, which is when its drain
-    /// period starts (`rule:concurrency/a-drain-closes-a-connection-cleanly`:
-    /// the period starts when a connection first sees the drain, not when the
-    /// drain began).
-    drain_seen: Option<Instant>,
-    /// The drain that ends a [`Phase::KeepAlive`] wait, or `None` for a
+    /// When this connection first saw the drain — [`DrainSeen`].
+    drain_seen: DrainSeen,
+    /// The drain that bounds this connection's waits, or `None` for a
     /// connection nothing drains — [`ConnectionIo::ending_at_drain`].
     draining: Option<Draining>,
     /// The wake that re-polls this connection when that drain begins, held for
@@ -207,34 +236,36 @@ impl ConnectionIo {
             waits,
             phase: Rc::new(Cell::new(Phase::Head)),
             armed: None,
-            drain_seen: None,
+            drain_seen: DrainSeen::default(),
             draining: None,
             woken_at_drain: None,
         }
     }
 
-    /// Bounds this connection's [`Phase::KeepAlive`] wait by the drain period
-    /// once `draining` begins, and re-polls a connection already parked in it
-    /// so the drive that owns it reads the drain at once.
+    /// Bounds this connection's head and keep-alive waits by the drain period
+    /// once `draining` begins, and re-polls a connection already parked so the
+    /// drive that owns it reads the drain at once.
     ///
-    /// The other three phases are untouched: a request whose head, body or
-    /// response is moving is exactly what a drain exists to finish
-    /// (`rule:concurrency/a-drain-closes-a-connection-cleanly`), and the wait
-    /// between requests is the one that would otherwise compose the drain
-    /// period with `keepalive_timeout`. The re-poll is what makes the close
-    /// prompt: `crate::serve`'s drive reads this phase and the drain on every
-    /// poll and asks `hyper` to shut the connection down, and `hyper` closes
-    /// an idle one on that same poll. The period this arms is the bound
-    /// behind that. This phase is also read off `hyper`'s end-of-stream probe
-    /// during a streaming body, which is why the close is `hyper`'s to take
-    /// and not this adapter's: only `hyper` knows whether a response is still
-    /// moving. Called on the task that will drive the connection, because the
-    /// wake is issued against that task; a drain that has already begun
-    /// registers nothing, and the first idle poll reads the bit and arms the
-    /// same bound.
+    /// `rule:concurrency/a-drain-closes-a-connection-cleanly` has the period
+    /// bound work in progress, so a head still arriving at its end ends in
+    /// `TimedOut` like any other expired wait ([`Phase::is_owed_nothing`] says
+    /// why the other two phases are not cut here). An idle
+    /// connection closes sooner than that: the re-poll is what makes its close
+    /// prompt, because `crate::serve`'s drive reads [`Phase::KeepAlive`] and
+    /// the drain on every poll and asks `hyper` to shut the connection down,
+    /// and `hyper` closes an idle one on that same poll. That phase is also
+    /// read off `hyper`'s end-of-stream probe during a streaming body, which
+    /// is why the close is `hyper`'s to take and not this adapter's: only
+    /// `hyper` knows whether a response is still moving. A request whose
+    /// program is still running moves no bytes, so no wait here ends it;
+    /// `crate::serve`'s service cuts it at the same period through
+    /// [`ConnectionIo::drain_seen`]. Called on the task that will drive the
+    /// connection, because the wake is issued against that task; a drain that
+    /// has already begun registers nothing, and the first poll reads the bit
+    /// and arms the same bound.
     ///
     /// What it spends: one registration on the process's drain per connection,
-    /// released with this adapter, and one atomic load per idle poll.
+    /// released with this adapter, and one atomic load per arming.
     #[must_use]
     pub fn ending_at_drain(mut self, draining: &Draining) -> Self {
         self.woken_at_drain = nvs_host::wake_at_drain(draining.bit());
@@ -255,6 +286,16 @@ impl ConnectionIo {
         Rc::clone(&self.phase)
     }
 
+    /// The handle on when this connection first saw the drain, for the
+    /// request the connection loop runs on it.
+    ///
+    /// Shared rather than copied for [`ConnectionIo::phase`]'s reason, and so
+    /// that the adapter and the request read one period and not two.
+    #[must_use]
+    pub fn drain_seen(&self) -> DrainSeen {
+        self.drain_seen.clone()
+    }
+
     /// Puts the current phase's wait on the stream, or refreshes it.
     ///
     /// `progressed` is what makes a wait idle rather than total: bytes moved,
@@ -263,13 +304,13 @@ impl ConnectionIo {
     /// to see it.
     fn arm(&mut self, progressed: bool) {
         let phase = self.phase.get();
-        // The drain bounds the idle wait and no other: a request that is
-        // moving is served to its end, and the next idle wait after it is
-        // what the drain period then caps — already in the past, if the
-        // period is over, which is `TimedOut` on the next park.
-        let closing = (phase == Phase::KeepAlive
+        // Under a drain the two phases that owe no answer end at the drain
+        // period's end at the latest — already in the past, if the period is
+        // over, which is `TimedOut` on the next park. [`Phase::is_owed_nothing`]
+        // says why the other two are not cut here.
+        let closing = (phase.is_owed_nothing()
             && self.draining.as_ref().is_some_and(Draining::is_draining))
-        .then(|| *self.drain_seen.get_or_insert_with(Instant::now) + self.waits.drain);
+        .then(|| self.drain_seen.period_ends(self.waits.drain));
         let armed = (phase, closing.is_some());
         if !progressed && self.armed == Some(armed) {
             return;

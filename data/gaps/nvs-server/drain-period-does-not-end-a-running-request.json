@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-server/src/io.rs",
-  "title": "The drain period does not end a request that is still running.",
-  "text": "`rule:concurrency/a-drain-closes-a-connection-cleanly` has the drain period bound work in progress, from the moment its connection first sees the drain. [`ConnectionIo::arm`] applies `Waits::drain` to [`Phase::KeepAlive`] alone, so an ordinary HTTP request whose program is still running when a stop arrives is answered in full however long that takes, under its own limits and the three other waits, and `crate::serve`'s accept loop parks with no deadline until it is. A `Core\\Time::sleep` in such a request is not woken either: `nvs_runtime::peer::sleep` reads the drain only on a connection that has a peer. An upgraded connection and an event stream are bounded as the rule says (`crate::socket`, `crate::bounds`). Ending a running request at the period needs the drain to reach a request's own cancellation, which is a decision about what the client is then sent and not a change to this adapter.",
-  "goal": "goal-closeout"
-}
