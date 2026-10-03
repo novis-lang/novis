@@ -1958,7 +1958,7 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_str_contains(_ctx, args: [2]) {
         let haystack = text(&args[0], "contains", "the subject")?;
         let needle = text(&args[1], "contains", "the needle")?;
-        Ok(Value::bool(haystack.contains(needle)))
+        Ok(Value::bool(find_from(haystack, needle, false).is_some()))
     }
 }
 
@@ -2069,9 +2069,8 @@ nvs_runtime::nvs_helper! {
         // entries, and an append asks no budget. Counting only reads the
         // subject, and it keeps no list of pieces aside, so a negative limit
         // walks the pieces a second time instead of collecting them.
-        // `split` yields one piece more than `matches` finds, since both search
-        // the same way, and a limit of `0` means one piece — see the docs above.
-        let found = subject.matches(separator).count() + 1;
+        // A limit of `0` means one piece — see the docs above.
+        let found = separated(subject, separator).count();
         let count = if limit >= 0 {
             found.min(usize::try_from(limit).unwrap_or(usize::MAX).max(1))
         } else {
@@ -2086,16 +2085,43 @@ nvs_runtime::nvs_helper! {
             )));
         }
         if limit >= 0 {
-            for piece in subject.splitn(count, separator) {
-                out.append(Value::str(NvsStr::new(piece.as_bytes())));
+            // `count` is at least one, and the last piece is the remainder.
+            let mut rest = subject;
+            for _ in 1..count {
+                let Some((at, matched)) = find_from(rest, separator, false) else {
+                    break;
+                };
+                out.append(Value::str(NvsStr::new(&rest.as_bytes()[..at])));
+                rest = &rest[at + matched..];
             }
+            out.append(Value::str(NvsStr::new(rest.as_bytes())));
         } else {
-            for piece in subject.split(separator).take(count) {
+            for piece in separated(subject, separator).take(count) {
                 out.append(Value::str(NvsStr::new(piece.as_bytes())));
             }
         }
         Ok(Value::array(out))
     }
+}
+
+/// The pieces a non-empty `separator` cuts `subject` into, left to right, with
+/// every occurrence found by [`find_from`] so that none cuts a grapheme.
+/// One piece more than there are occurrences.
+fn separated<'a>(subject: &'a str, separator: &'a str) -> impl Iterator<Item = &'a str> {
+    let mut rest = Some(subject);
+    std::iter::from_fn(move || {
+        let text = rest?;
+        match find_from(text, separator, false) {
+            Some((at, matched)) => {
+                rest = Some(&text[at + matched..]);
+                Some(&text[..at])
+            }
+            None => {
+                rest = None;
+                Some(text)
+            }
+        }
+    })
 }
 
 nvs_runtime::nvs_helper! {
@@ -2418,16 +2444,32 @@ nvs_runtime::nvs_helper! {
 /// `SS`. That is the same boundary [`map_first`] already sits on, and it is
 /// what keeps a match's byte length derivable from the subject alone.
 ///
-/// The case-insensitive scan is Knuth–Morris–Pratt over those per-`char`
-/// mappings, so it is linear in the haystack plus the needle. Trying the needle
-/// at every start is the haystack's length times the needle's, which a request
-/// reaches with one long needle that almost matches. The tables cost about
-/// 28 bytes per needle `char`, per call, freed before it returns.
+/// **A match starts and ends on a grapheme boundary**, or it is not a match:
+/// every position in a `string` is a grapheme (`rule:types/string-is-utf8`),
+/// so `"e"` does not occur in a decomposed `"é"`, and one regional indicator
+/// does not occur in a flag. [`whole_clusters`] is that test, and every member
+/// of the search family reaches it through this function or [`rfind_from`].
+///
+/// The scan is Knuth–Morris–Pratt over per-`char` keys, so it is linear in the
+/// haystack plus the needle. Trying the needle at every start is the haystack's
+/// length times the needle's, which a request reaches with one long needle
+/// that almost matches — or, case-sensitively, one whose every occurrence
+/// starts inside a cluster. The tables cost about 28 bytes per needle `char`,
+/// per call, freed before it returns. A case-sensitive search tries
+/// `str::find` first, and pays for the tables only when that first occurrence
+/// is not on boundaries.
+///
+/// A haystack cut from a larger subject at a grapheme boundary has the same
+/// boundaries as that subject over the part it covers, so a caller may pass a
+/// suffix or a prefix that starts or ends on one.
 fn find_from(haystack: &str, needle: &str, case_insensitive: bool) -> Option<(usize, usize)> {
     if !case_insensitive {
-        return haystack.find(needle).map(|at| (at, needle.len()));
+        let at = haystack.find(needle)?;
+        if whole_clusters(haystack, at, at + needle.len()) {
+            return Some((at, needle.len()));
+        }
     }
-    let wanted: Vec<Lowered> = needle.chars().map(lowered).collect();
+    let wanted: Vec<Lowered> = needle.chars().map(|c| key(c, case_insensitive)).collect();
     if wanted.is_empty() {
         return Some((0, 0));
     }
@@ -2438,16 +2480,20 @@ fn find_from(haystack: &str, needle: &str, case_insensitive: bool) -> Option<(us
     let mut q = 0usize;
     for (j, (at, found)) in haystack.char_indices().enumerate() {
         starts[j % wanted.len()] = at;
-        let key = lowered(found);
-        while q > 0 && key != wanted[q] {
+        let next = key(found, case_insensitive);
+        while q > 0 && next != wanted[q] {
             q = fallback[q - 1];
         }
-        if key == wanted[q] {
+        if next == wanted[q] {
             q += 1;
         }
         if q == wanted.len() {
             let start = starts[(j + 1 - wanted.len()) % wanted.len()];
-            return Some((start, at + found.len_utf8() - start));
+            let end = at + found.len_utf8();
+            if whole_clusters(haystack, start, end) {
+                return Some((start, end - start));
+            }
+            q = fallback[q - 1];
         }
     }
     None
@@ -2455,38 +2501,89 @@ fn find_from(haystack: &str, needle: &str, case_insensitive: bool) -> Option<(us
 
 /// Where the **last** occurrence of `needle` that lies wholly inside
 /// `haystack` begins — [`find_from`] run from the end, with the same two
-/// matching modes.
+/// matching modes and the same grapheme-boundary test.
 ///
-/// A case-insensitive match compares one `char` with one `char`, so every
-/// match spans the needle's `char` count, and the match that ends last is also
-/// the one that starts last. The scan therefore runs Knuth–Morris–Pratt over
-/// the reversed needle and the haystack's characters read backwards, and stops
-/// at the first match it completes. That keeps it linear, where finding every
+/// A match compares one `char` with one `char`, so every match spans the
+/// needle's `char` count, and the match that ends last is also the one that
+/// starts last. The scan therefore runs Knuth–Morris–Pratt over the reversed
+/// needle and the haystack's characters read backwards, and stops at the first
+/// match on boundaries it completes. That keeps it linear, where finding every
 /// overlapping match from the front and keeping the last costs the haystack's
 /// length times the needle's when the needle matches almost everywhere.
 fn rfind_from(haystack: &str, needle: &str, case_insensitive: bool) -> Option<usize> {
     if !case_insensitive {
-        return haystack.rfind(needle);
+        let at = haystack.rfind(needle)?;
+        if whole_clusters(haystack, at, at + needle.len()) {
+            return Some(at);
+        }
     }
-    let wanted: Vec<Lowered> = needle.chars().rev().map(lowered).collect();
+    let wanted: Vec<Lowered> = needle
+        .chars()
+        .rev()
+        .map(|c| key(c, case_insensitive))
+        .collect();
     if wanted.is_empty() {
         return Some(haystack.len());
     }
     let fallback = fallback_of(&wanted);
+    // The byte offsets the last `wanted.len()` characters read end at, so a
+    // match's end is known when its first character is read.
+    let mut ends = vec![0usize; wanted.len()];
     let mut q = 0usize;
-    for (at, found) in haystack.char_indices().rev() {
-        let key = lowered(found);
-        while q > 0 && key != wanted[q] {
+    for (j, (at, found)) in haystack.char_indices().rev().enumerate() {
+        ends[j % wanted.len()] = at + found.len_utf8();
+        let next = key(found, case_insensitive);
+        while q > 0 && next != wanted[q] {
             q = fallback[q - 1];
         }
-        if key == wanted[q] {
+        if next == wanted[q] {
             q += 1;
         }
         if q == wanted.len() {
-            return Some(at);
+            let end = ends[(j + 1 - wanted.len()) % wanted.len()];
+            if whole_clusters(haystack, at, end) {
+                return Some(at);
+            }
+            q = fallback[q - 1];
         }
     }
     None
+}
+
+/// Whether `haystack[start..end]` is a run of whole grapheme clusters: both
+/// ends are cluster boundaries.
+///
+/// Two ASCII bytes either side of an offset are a boundary unless they are
+/// `\r\n`, which is the one ASCII pair UAX #29 joins, so text that is ASCII
+/// around a match never reaches the segmenter.
+fn whole_clusters(haystack: &str, start: usize, end: usize) -> bool {
+    on_boundary(haystack, start) && on_boundary(haystack, end)
+}
+
+fn on_boundary(haystack: &str, at: usize) -> bool {
+    let bytes = haystack.as_bytes();
+    if at == 0 || at >= bytes.len() {
+        return true;
+    }
+    let (before, after) = (bytes[at - 1], bytes[at]);
+    if before.is_ascii() && after.is_ascii() {
+        return !(before == b'\r' && after == b'\n');
+    }
+    // The whole haystack is the one chunk, so the cursor never asks for
+    // context before it, and the `Err` arm is unreachable.
+    unicode_segmentation::GraphemeCursor::new(at, bytes.len(), true)
+        .is_boundary(haystack, 0)
+        .unwrap_or(false)
+}
+
+/// The key one haystack or needle `char` is compared by: its [`lowered`]
+/// mapping when the search ignores case, and the `char` itself otherwise.
+fn key(c: char, case_insensitive: bool) -> Lowered {
+    if case_insensitive {
+        lowered(c)
+    } else {
+        [c, '\0', '\0']
+    }
 }
 
 /// Knuth–Morris–Pratt's failure table for `wanted`: entry `i` is the length of
@@ -5362,6 +5459,103 @@ mod tests {
         let status = run(super::nvs_core_str_count_of, &[s("abc"), s("")])
             .expect_err("an empty needle is refused");
         assert_eq!(status, nvs_runtime::THROWN);
+    }
+
+    /// Every member of the search family finds only a match that starts and
+    /// ends on a grapheme boundary: a combining mark, one regional indicator
+    /// of a flag, and a base letter without its mark are not found, and an
+    /// occurrence that overlaps a rejected one still is.
+    // covers: Core\Str::indexOf, Core\Str::lastIndexOf, Core\Str::contains, Core\Str::countOf, Core\Str::before, Core\Str::after, Core\Str::split, Core\Str::replace
+    #[test]
+    fn a_search_never_matches_inside_a_grapheme() {
+        let flag_de = "\u{1f1e9}\u{1f1ea}";
+        let index_of = |subject: &str, needle: &str, case_insensitive: bool| {
+            run(
+                super::nvs_core_str_index_of,
+                &[
+                    s(subject),
+                    s(needle),
+                    Value::int(0),
+                    Value::bool(case_insensitive),
+                ],
+            )
+            .expect("indexOf never fails")
+            .as_uint()
+        };
+        let last_index_of = |subject: &str, needle: &str, case_insensitive: bool| {
+            run(
+                super::nvs_core_str_last_index_of,
+                &[
+                    s(subject),
+                    s(needle),
+                    Value::int(i64::MAX),
+                    Value::bool(case_insensitive),
+                ],
+            )
+            .expect("lastIndexOf never fails")
+            .as_uint()
+        };
+        // The gap's four examples: a mark alone, half a flag at the end, a
+        // flag read across two flags, and a base letter without its mark.
+        assert_eq!(index_of("e\u{301}x", "\u{301}", false), None);
+        assert_eq!(index_of(&format!("ab{flag_de}"), "\u{1f1ea}", false), None);
+        assert_eq!(
+            index_of(&format!("{flag_de}{flag_de}"), "\u{1f1ea}\u{1f1e9}", false),
+            None
+        );
+        assert_eq!(index_of("e\u{301}", "e", false), None);
+        // Whole clusters are still found, at the position `slice` reads.
+        assert_eq!(index_of("e\u{301}x", "x", false), Some(1));
+        assert_eq!(index_of("e\u{301}x", "e\u{301}", false), Some(0));
+        assert_eq!(
+            index_of(&format!("{flag_de}{flag_de}"), flag_de, false),
+            Some(0)
+        );
+        // The first occurrence is inside a cluster, and the next one is not.
+        assert_eq!(index_of("a\u{301}aa", "a", false), Some(1));
+        assert_eq!(index_of("E\u{301} e", "e", true), Some(2));
+        assert_eq!(last_index_of("e e\u{301}", "e", false), Some(0));
+        assert_eq!(last_index_of("e E\u{301}", "e", true), Some(0));
+        assert_eq!(last_index_of("e\u{301}", "\u{301}", true), None);
+
+        let contains = run(super::nvs_core_str_contains, &[s("cafe\u{301}"), s("fe")])
+            .expect("contains never fails");
+        assert_eq!(contains.as_bool(), Some(false));
+        let count = run(
+            super::nvs_core_str_count_of,
+            &[s("e\u{301} e ee\u{301}"), s("e")],
+        )
+        .expect("a non-empty needle never fails");
+        assert_eq!(count.as_uint(), Some(2));
+        let cut = |member: unsafe extern "C" fn(*mut Ctx, *const Value, *mut Value) -> i32,
+                   last: bool| {
+            taken(
+                run(member, &[s("ae\u{301}be"), s("e"), Value::bool(last)])
+                    .expect("the needle occurs, so the result is a string"),
+            )
+        };
+        assert_eq!(cut(super::nvs_core_str_before, false), "ae\u{301}b");
+        assert_eq!(cut(super::nvs_core_str_after, false), "");
+        assert_eq!(cut(super::nvs_core_str_before, true), "ae\u{301}b");
+        assert_eq!(split_at("e\u{301},e,x", "e", i64::MAX), ["e\u{301},", ",x"]);
+        assert_eq!(split_at("e\u{301}xe", "e", 2), ["e\u{301}x", ""]);
+        assert_eq!(split_at("e\u{301}xe", "e", -1), ["e\u{301}x"]);
+        assert_eq!(
+            taken(
+                run(
+                    super::nvs_core_str_replace,
+                    &[
+                        s("e\u{301}e"),
+                        s("e"),
+                        s("x"),
+                        Value::bool(false),
+                        Value::uint(u64::MAX),
+                    ],
+                )
+                .expect("replace never fails")
+            ),
+            "e\u{301}x"
+        );
     }
 
     /// The backward search answers what finding every overlapping occurrence

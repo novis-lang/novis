@@ -1,0 +1,29 @@
+--TEST--
+`Core\Str::indexOf` finds a needle only where it starts and ends on a grapheme boundary, so a mark alone, half a flag, a flag read across two flags and a letter without its mark are not found — `rule:types/string-is-utf8`
+--FILE--
+<?nvs
+// Every position in a `string` counts graphemes, so a match must cover whole
+// graphemes. Each row prints the position, or `99` when nothing matches.
+string $flag = "\u{1f1e9}\u{1f1ea}";
+
+// A combining mark alone is part of the letter before it.
+echo (Core\Str::indexOf("e\u{301}x", "\u{301}") ?? 99) as string, "\n";
+// The second half of a flag at the end of the text.
+echo (Core\Str::indexOf("ab" . $flag, "\u{1f1ea}") ?? 99) as string, "\n";
+// The end of one flag and the start of the next one.
+echo (Core\Str::indexOf($flag . $flag, "\u{1f1ea}\u{1f1e9}") ?? 99) as string, "\n";
+// A letter without the mark that follows it.
+echo (Core\Str::indexOf("e\u{301}", "e") ?? 99) as string, "\n";
+
+// Whole graphemes are found, at the position `Core\Str::slice` reads.
+echo (Core\Str::indexOf("e\u{301}x", "x") ?? 99) as string, "\n";
+echo (Core\Str::indexOf($flag . $flag, $flag, {from: 1}) ?? 99) as string, "\n";
+echo (Core\Str::indexOf("a\u{301}aa", "a") ?? 99) as string, "\n";
+--EXPECT--
+99
+99
+99
+99
+1
+1
+1

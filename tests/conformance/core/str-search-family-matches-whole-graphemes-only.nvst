@@ -1,0 +1,25 @@
+--TEST--
+Every `Core\Str` search member skips an occurrence that starts or ends inside a grapheme: `lastIndexOf`, `contains`, `countOf`, `before`, `after`, `split` and `replace` agree with `indexOf` — `rule:types/string-is-utf8`
+--FILE--
+<?nvs
+// "e\u{301}" is one grapheme: the letter e with an accent mark on it.
+// The plain "e" that is part of it is not a match for any of these methods.
+echo (Core\Str::lastIndexOf("e e\u{301}", "e") ?? 99) as string, "\n";
+echo (Core\Str::lastIndexOf("e E\u{301}", "e", {caseInsensitive: true}) ?? 99) as string, "\n";
+echo Core\Str::contains("cafe\u{301}", "fe") as string, "|\n";
+echo Core\Str::countOf("e\u{301} e ee\u{301}", "e") as string, "\n";
+
+// Each of these lines prints `1` when the result is the text on the right.
+echo (Core\Str::before("ae\u{301}be", "e") == "ae\u{301}b") as string, "\n";
+echo (Core\Str::after("e\u{301}xey", "e") == "y") as string, "\n";
+echo (Core\Str::join(Core\Str::split("e\u{301},e,x", "e"), "|") == "e\u{301},|,x") as string, "\n";
+echo (Core\Str::replace("e\u{301}e", "e", "x") == "e\u{301}x") as string, "\n";
+--EXPECT--
+0
+0
+|
+2
+1
+1
+1
+1
