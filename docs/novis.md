@@ -29092,7 +29092,7 @@ as nothing.
 
 | Setting | Default | What it does |
 |---|---|---|
-| `nvs.path` | `""` | absolute path to the `nvs` binary. Empty means look it up on `PATH` |
+| `nvs.path` | `""` | absolute path to the `nvs` binary. Empty, or a path where there is no file, means look it up on `PATH` |
 | `nvs.lsp.enable` | `true` | whether to run the server at all. Off leaves the TextMate colour and nothing else |
 | `nvs.lsp.trace.server` | `"off"` | log the frames exchanged with the server into the Novis output channel — `off`, `messages`, or `verbose` for the frame bodies too |
 | `nvs.check.scope` | `"workspace"` | which files the server reads, so which types completion offers and which files diagnostics are published for — `workspace` for every file under the workspace folder, which is also the only scope an unreferenced private member is dimmed at, `open` for the open documents and what they require or autoload |
@@ -29127,9 +29127,11 @@ Every one is under the **Novis** category in the command palette.
 | `nvs.hideSecrets` | Hide Secrets | conceals every range revealed in this window again |
 | `nvs.convertToHtmlLiteral` | Convert to html literal | applies the server's **Convert to html literal** action at the cursor. It is also in the editor's context menu |
 | `nvs.checkWorkspace` | Check Workspace | indexes every `.nvs` file in the workspace once, and says how many files the index holds. `nvs.check.scope` keeps its value |
-| `nvs.run` | Run File | contributed and not yet answered |
-| `nvs.test` | Run Tests | contributed and not yet answered |
-| `nvs.showAst` | Show AST | contributed and not yet answered |
+| `nvs.run` | Run File | starts the `nvs` task that checks the open file, then compiles and runs it |
+| `nvs.test` | Run Tests | starts the `nvs` task that runs the open file's `#[Test]` methods, or the `.nvst` cases under it |
+| `nvs.showAst` | Show AST | shows the open file's syntax tree, from `nvs ast --json`, in the editor's tree view |
+| `nvs.downloadBinary` | Download nvs | installs the newest `nvs` release this extension can talk to. See below |
+| `nvs.openReleases` | Open Releases | opens the release page in the browser |
 
 #### Which binary answered, and which it refuses
 
@@ -29142,6 +29144,32 @@ The client refuses a server outside its own `major.minor` series. It learns the 
 read it from; a binary from another series is stopped there and is never handed a document, a
 request or the editor's attention. The extension and `nvs` ship from one commit, so the versions
 agree unless a `nvs.path` points somewhere else on purpose.
+
+The client looks for `nvs` in three places, in this order, and uses the first one that starts and
+passes the version check:
+
+1. the file `nvs.path` names;
+2. `nvs` on `PATH`;
+3. the copy **Novis: Download nvs** installed.
+
+When the server is answering, the status item says which of the three it came from.
+
+#### Installing nvs from the editor
+
+The extension does not include `nvs`. When none of the three places has one that answers, the status
+item says so, and clicking it starts the download. A message offers the same two commands:
+
+- **Novis: Download nvs** finds the newest release with the same `major.minor` version as the
+  extension, and downloads the archive for this machine. It checks the archive against the
+  release's `SHA256SUMS` file before it unpacks anything. If the check fails, it keeps nothing and
+  names the file that failed. The binary goes into the extension's own storage, and the server
+  restarts on it.
+- **Novis: Open Releases** opens the release page. Use it to download `nvs` yourself, for example
+  to verify the archive with `gh attestation verify`.
+
+Nothing is downloaded unless you run one of these commands. There is no check for updates. The
+installed copy is always the last of the three places, and it is never written into `nvs.path`. An
+`nvs` you install yourself later is used before it.
 
 #### Concealed values, on this side of the wire
 

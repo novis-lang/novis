@@ -1,27 +1,27 @@
 {
-  "state": "**Goal `goal-closeout`, Stage 4 (finished in place).** The gap `nvs-check-workspace-is-not-contributed` is closed. `nvs.checkWorkspace` is contributed and registered, and it sends the server's fifth request of its own, `nvs/checkWorkspace`. The server answers it in its main loop, because it is the one request that changes what the server holds: it runs the workspace survey and index build again and answers with the number of indexed files. `rule:ide/the-request-set-is-closed` and `rule:ide/check-scope-defaults-to-the-workspace` say so, and `crates/nvs-lsp/tests/references.rs` tests it.\n\nA `decimal` *property* default is still refused (`E0472`), because `nvs_runtime::FieldDefault` has no `decimal` recipe. The module doc of `crates/nvs-types/src/defaults.rs` says so.\n\n`startsWith` and `endsWith` still compare bytes. Whether they join the search family is still open.\n\nThe only `nvs-runtime` gap left is `enum-case-that-reached-a-mixed`. It needs an ADR beyond Stage 5's one slot, so it waits for the user. It goes to `BLOCKED` only once it is the last goal-owned gap in the tree.\n\nThe floor check `the latest CI run on main succeeded for the code HEAD holds` is red only because `main` is ahead of `origin/main`, and the loop never pushes. A person has to push.\n\n`bun nv owners --closes goal-closeout` names the rest: 24 gaps in `nvs-lsp`, `nvs-stdlib`, `nvs-types`, `nvs-runtime`, `editors/vscode` and `website`.",
+  "state": "**Goal `goal-closeout`, Stage 4 (finished in place).** The gap `the-guided-install-is-reached-by-no-command` is closed, and `rule:ide/the-extension-guides-an-install-and-never-bundles-one` is `shipped`. `nvs.downloadBinary` and `nvs.openReleases` are contributed and registered. `editors/vscode/src/binary.ts` tries three candidates in order (`nvs.path`, `PATH`, the installed copy), and `extension.ts` falls back to the installed copy when the first candidate does not start or is refused at `initialize`. The status item names the candidate that answered, and offers the download when none does. `docs/reference/tools/40-editor.md` has the install section, and its command table no longer says `nvs.run`, `nvs.test` and `nvs.showAst` are unanswered.\n\nA `decimal` *property* default is still refused (`E0472`), because `nvs_runtime::FieldDefault` has no `decimal` recipe. The module doc of `crates/nvs-types/src/defaults.rs` says so.\n\n`startsWith` and `endsWith` still compare bytes. Whether they join the search family is still open.\n\nThe only `nvs-runtime` gap left is `enum-case-that-reached-a-mixed`. It needs an ADR beyond Stage 5's one slot, so it waits for the user. It goes to `BLOCKED` only once it is the last goal-owned gap in the tree.\n\nThe floor check `the latest CI run on main succeeded for the code HEAD holds` is red only because `main` is ahead of `origin/main`, and the loop never pushes. A person has to push.\n\n`bun nv owners --closes goal-closeout` names the rest: 23 gaps in `nvs-lsp`, `nvs-stdlib`, `nvs-types`, `nvs-runtime`, `editors/vscode` and `website`.",
   "next": {
     "stage": 4,
     "title": "finished in place",
     "files": [
-      "editors/vscode/src/extension.ts",
-      "editors/vscode/src/binary.ts",
-      "editors/vscode/package.json"
+      "editors/vscode/src/regions.ts",
+      "editors/vscode/test/host/surfaces.test.ts",
+      "docs/rules/ide/a-template-region-gets-the-editors-services-and-formatter.md"
     ],
     "items": [
       {
         "done": false,
-        "text": "**The guided install is reached by a command** (gap `the-guided-install-is-reached-by-no-command`, `rule:ide/the-extension-guides-an-install-and-never-bundles-one`). Register `nvs.downloadBinary` and `nvs.openReleases` beside the others at `editors/vscode/src/extension.ts:127`, contribute both after `nvs.checkWorkspace` in `editors/vscode/package.json:229`, add the managed copy as the last candidate at `editors/vscode/src/binary.ts:32`, and add both to the roster at `editors/vscode/test/contributions/contributions.test.ts:98`. The gap's text lists the rest: the status item, the mismatch offer, the reference section and the rule's status."
+        "text": "**A markup region gets Emmet and validation, or the rule names only what it gets** (gap `a-template-region-gets-no-emmet-and-no-validation`, `rule:ide/a-template-region-gets-the-editors-services-and-formatter`). The module doc at `editors/vscode/src/regions.ts:22` says why neither is built. Either build both with a mechanism that reaches only the markup, with a host test, or narrow the rule's fragment to the services the forwarding reaches; the narrowing is the cheap close and the gap's text allows it."
       },
       {
         "done": false,
-        "text": "**The reference's command table is current** — `docs/reference/tools/40-editor.md:308` still says `nvs.run`, `nvs.test` and `nvs.showAst` are \"not yet answered\", and `editors/vscode/src/extension.ts:118` registers all three."
+        "text": "**The guided install gets a host case** — `editors/vscode/test/host/surfaces.test.ts:1` reads the status item through `Surface`; a case with `nvs.path` at a missing file and nothing on `PATH` asserts the item's command is `nvs.downloadBinary` (`rule:ide/the-extension-guides-an-install-and-never-bundles-one`, `editors/vscode/src/extension.ts:330`). Only if the host suite can run with an empty `PATH`."
       }
     ]
   },
   "backlog": [
-    "The other `editors/vscode` gaps — `bun nv owners --closes goal-closeout` lists them.",
-    "`enum-case-that-reached-a-mixed` waits for the user's ADR decision (`data/gaps/`).",
-    "`startsWith` / `endsWith` and the search family — open in `nvs-stdlib`'s `Str` module doc."
+    "`nvs-lsp` gaps: `a-cancel-request-notification-is-ignored`, `the-code-lens-shows-only-a-reference-count`, `an-unused-use-is-never-dimmed` (`crates/nvs-lsp/src/server.rs`, `index.rs`).",
+    "`website` gaps: the hand-written grammar and the stale rendered `Core` pages (`website/scripts`).",
+    "`enum-case-that-reached-a-mixed` waits for the user (ADR slot)."
   ]
 }
