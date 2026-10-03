@@ -1,0 +1,34 @@
+---
+title: Closures with fn
+covers: ['lang:expressions/closures-fn']
+description: How to write a closure with fn, store it in a callable, and which outside variables it can use.
+---
+import Snippet from '@components/Snippet.astro'
+
+A closure is a function without a name. You write it with `fn` and store it in a `callable`
+variable: `callable $double = fn(int $x): int => $x * 2;`.
+
+<Snippet src="syntax/closures/01-fn.nvs" />
+
+- `fn(...) => expression` returns the value of the expression.
+- `fn(...): int => { ... }` runs a block. The block uses `return`, and the return type is required.
+- Every parameter has a type.
+- `fn` is the only way to write a closure. `function () {}` does not compile.
+
+## Outside variables
+
+A closure can use the variables around it. It copies each one when the closure is created.
+
+<Snippet src="syntax/closures/02-capture.nvs" />
+
+- A later change to the outside variable does not change the closure's copy.
+- A change inside the closure does not change the outside variable.
+- Inside a method, a closure can use `$this`.
+- To use a method as a closure, wrap it: `fn(string $s): int => Core\Str::length($s)`.
+
+## Do and don't
+
+- Do keep a closure short. Write a method when it needs many lines.
+- Do write the return type on a closure with a block body.
+- Don't expect a closure to see a later change to an outside variable. It has a copy.
+- Don't write `function () {}` for a closure. It does not compile. Use `fn`.

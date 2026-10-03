@@ -1,0 +1,14 @@
+<?nvs
+// Every function is a method of a class. `static` means you call it on the class.
+class Price {
+    public static function withShipping(int $cents): int {
+        return $cents + 500;
+    }
+
+    // `void` means the method returns nothing.
+    public static function show(int $cents): void {
+        echo "Price: ", $cents, "\n";
+    }
+}
+
+Price::show(Price::withShipping(1000));

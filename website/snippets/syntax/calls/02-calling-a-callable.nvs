@@ -1,0 +1,10 @@
+<?nvs
+// A variable of type `callable` contains a function. You call it like a method.
+callable $add = fn(int $x): int => $x + 1;
+array<callable> $ops = ["double" => fn(int $x): int => $x * 2];
+
+// The result type is `mixed`, so `as int` converts it.
+int $r = $add(1) as int;
+
+// An extra argument is ignored. This prints `2 2 8`.
+echo $r, " ", $add(1, 99), " ", $ops["double"](4), "\n";

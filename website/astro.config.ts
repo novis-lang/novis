@@ -186,6 +186,15 @@ export default defineConfig({
                 { label: 'Assertions and dumping values', link: '/syntax/errors/assert-and-dump/' },
               ],
             },
+            {
+              label: 'Functions',
+              items: [
+                { label: 'Declaring a function', link: '/syntax/functions/declaring/' },
+                { label: 'Parameters and inout', link: '/syntax/functions/parameters/' },
+                { label: 'Calling a function', link: '/syntax/functions/calls/' },
+                { label: 'Closures with fn', link: '/syntax/functions/closures/' },
+              ],
+            },
           ],
         },
         {

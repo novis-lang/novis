@@ -1,0 +1,20 @@
+<?nvs
+// A closure copies each outside variable it uses, at the moment it is created.
+string $prefix = "one";
+callable $tag = fn(string $s): string => $prefix . ":" . $s;
+$prefix = "two";
+// The closure still has the old value. This prints `one:x`.
+echo $tag("x"), "\n";
+
+class Counter {
+    public int $base = 10;
+
+    // Inside a method, a closure can use `$this`.
+    public function adder(): callable {
+        return fn(int $x): int => $this->base + $x;
+    }
+}
+
+Counter $c = new Counter();
+// This prints `15`.
+echo $c->adder()(5), "\n";

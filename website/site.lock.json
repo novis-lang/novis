@@ -89,6 +89,18 @@
     "lang:statements/throw": "d98da1aaaa686567",
     "lang:statements/try-catch-finally": "bcfe6b5f24665829"
   },
+  "syntax/functions/calls.mdx": {
+    "lang:expressions/calls": "f48b263308e48fa2"
+  },
+  "syntax/functions/closures.mdx": {
+    "lang:expressions/closures-fn": "b238dbacf4feabb3"
+  },
+  "syntax/functions/declaring.mdx": {
+    "lang:types/void-never-self-static": "656a82389884795e"
+  },
+  "syntax/functions/parameters.mdx": {
+    "lang:types/parameters": "81ea0a157ec619a7"
+  },
   "syntax/operators/arithmetic.mdx": {
     "lang:expressions/arithmetic": "537f01ba95d7cd24",
     "lang:expressions/assignment": "d0b9aae015dcb3c3"

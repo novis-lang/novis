@@ -1,0 +1,14 @@
+<?nvs
+// `fn` creates a closure. A closure is a function that you store in a variable.
+callable $double = fn(int $x): int => $x * 2;
+
+// A closure with a block body uses `return`, and must declare its return type.
+callable $sum = fn(array<int> $xs): int => {
+    int $t = 0;
+    foreach ($xs as int $x) {
+        $t += $x;
+    }
+    return $t;
+};
+
+echo $double(4), " ", $sum([1, 2, 3]), "\n";

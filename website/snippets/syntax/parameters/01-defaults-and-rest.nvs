@@ -1,0 +1,14 @@
+<?nvs
+class Sum {
+    // `$second` has a default value. `...$rest` collects all other arguments in an array.
+    public static function of(int $first, int $second = 2, int ...$rest): int {
+        int $total = $first + $second;
+        foreach ($rest as int $r) {
+            $total = $total + $r;
+        }
+        return $total;
+    }
+}
+
+// This prints `3 2 13`.
+echo Sum::of(1), " ", Sum::of(1, 1), " ", Sum::of(1, 1, 5, 6), "\n";

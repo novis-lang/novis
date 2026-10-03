@@ -1,0 +1,30 @@
+<?nvs
+class Greeter {
+    public function constructor(private string $greeting) {}
+
+    public function greet(string $name, string $mark = "!"): string {
+        return $this->greeting . ", " . $name . $mark;
+    }
+
+    public static function make(): Greeter {
+        return new Greeter("Hi");
+    }
+
+    public static function sum(int ...$xs): int {
+        int $t = 0;
+        foreach ($xs as int $x) {
+            $t += $x;
+        }
+        return $t;
+    }
+}
+
+// A call on the result of another call. This prints `Hi, Ada!`.
+echo Greeter::make()->greet("Ada"), "\n";
+
+// Named arguments can come in any order. This prints `Yo, Bob?`.
+echo new Greeter("Yo")->greet(mark: "?", name: "Bob"), "\n";
+
+// `...$xs` passes each element of the array as one argument. This prints `6 9 0`.
+array<int> $xs = [4, 5];
+echo Greeter::sum(1, 2, 3), " ", Greeter::sum(...$xs), " ", Greeter::sum(), "\n";

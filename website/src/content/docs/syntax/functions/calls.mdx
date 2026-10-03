@@ -1,0 +1,37 @@
+---
+title: Calling a function
+covers: ['lang:expressions/calls']
+description: How to call a method with positional and named arguments, spread an array, and call a callable.
+---
+import Snippet from '@components/Snippet.astro'
+
+`Class::name(args)` calls a static method. `$object->name(args)` calls a method on an object. You
+can pass an argument by position, or by name: `greet(name: "Bob")`.
+
+<Snippet src="syntax/calls/01-named-and-spread.nvs" />
+
+- Named arguments can come in any order. A named argument can skip a parameter that has a default.
+- The arguments are evaluated from left to right, in the order you write them.
+- You can call a method on the result of a call: `Greeter::make()->greet("Ada")`.
+- `new Greeter("Yo")->greet(...)` needs no parentheses around the `new`.
+- `...$xs` passes each element of an array as one argument. It only works for a `...$rest`
+  parameter.
+
+## Calling a callable
+
+A `callable` variable contains a function. You call it with parentheses: `$add(1)`.
+
+<Snippet src="syntax/calls/02-calling-a-callable.nvs" />
+
+- The result of the call is `mixed`. Use `as` to get a type: `$add(1) as int`.
+- An extra argument is ignored. Too few arguments throw an error when the call runs.
+- An array element is called the same way: `$ops["double"](4)`.
+- A callable in a property needs parentheses: `($this->callback)(1)`.
+
+## Do and don't
+
+- Do use a named argument when the meaning of a value is not clear: `resize(width: 80)`.
+- Do convert the result of a callable with `as` before you use it.
+- Don't call a `callable` with too few arguments. The call throws an error.
+- Don't write `$this->callback(1)` for a property. It looks for a method named `callback`, and
+  does not compile.

@@ -1,0 +1,36 @@
+<?nvs
+class Base {
+    // `static` as a return type means the class the method was called on.
+    public static function make(): static {
+        return new static();
+    }
+
+    // `self` means the class that declares the method.
+    public function same(): self {
+        return $this;
+    }
+
+    public function name(): string {
+        return "base";
+    }
+
+    // `never` means the method does not return. It always throws or ends the program.
+    public static function fail(string $why): never {
+        throw new LogicError($why);
+    }
+}
+
+final class Child extends Base {
+    public function name(): string {
+        return "child";
+    }
+}
+
+// `Child::make()` creates a `Child`, so this prints `child base`.
+echo Child::make()->name(), " ", Base::make()->same()->name(), "\n";
+
+try {
+    Base::fail("stopped");
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}

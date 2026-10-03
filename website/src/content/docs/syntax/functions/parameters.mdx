@@ -1,0 +1,35 @@
+---
+title: Parameters and inout
+covers: ['lang:types/parameters']
+description: How to write parameters with a type, a default value, a variable number of arguments, and inout.
+---
+import Snippet from '@components/Snippet.astro'
+
+A parameter is written `int $first`: a type, then the variable. It can have a default value,
+`int $second = 2`. The last parameter can collect all other arguments: `int ...$rest`.
+
+<Snippet src="syntax/parameters/01-defaults-and-rest.nvs" />
+
+- A default value is a literal, such as `2`, `"!"` or `null`.
+- Inside the method, `...$rest` is an `array<int>`. It is empty when no extra arguments are given.
+- Only the last parameter can be `...$rest`.
+
+## inout
+
+Normally a method gets a copy of each argument. An `inout` parameter is different. When the method
+changes it, the caller's variable changes too.
+
+<Snippet src="syntax/parameters/02-inout.nvs" />
+
+- The call writes `inout` before the argument: `Counter::bump(inout $count)`.
+- The argument must be a local variable. An array element or a property is not allowed.
+- A `foreach` variable can be `inout`. A change to it changes the array.
+- A closure cannot have an `inout` parameter.
+- `&` does not mean "by reference" anywhere in Novis. Use `inout`.
+
+## Do and don't
+
+- Do give a parameter a default value when most calls use the same value.
+- Do use `inout` when a method must change the caller's variable, such as a counter.
+- Don't use `inout` to return a result. Use the return value. It is easier to read.
+- Don't write `&$x`. It does not compile.
