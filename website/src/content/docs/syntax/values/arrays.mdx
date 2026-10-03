@@ -1,6 +1,6 @@
 ---
 title: Arrays and array<T>
-covers: ['lang:types/array-t']
+covers: ['lang:types/array-t', 'lang:expressions/arrays-in-expressions']
 description: How to create an array, add items, read them back and loop over them.
 ---
 import Snippet from '@components/Snippet.astro'
@@ -28,9 +28,22 @@ These lines do not compile:
 - `echo $scores;`. Print it with `Core\Json::encode($scores)`.
 - `$a + $b` on two arrays. Use `Core\Arr::underlay`.
 
+## Spread and destructuring
+
+`[...$a, 30]` creates a new array with the items of `$a` and then `30`. `[int $x, int $y] = $pair;`
+reads the first two items of `$pair` into two new variables.
+
+<Snippet src="syntax/arrays/03-spread-and-destructuring.nvs" />
+
+- A spread numbers the items with number keys again. It keeps every other key.
+- Each variable in a destructuring needs its type. `var` is not allowed there.
+- A key that is not in the array throws a `RuntimeError`, the same as `$a["k"]`.
+- `list($a, $b) = $pair;` does not compile. Use `[int $a, int $b] = $pair;`.
+
 ## Do and don't
 
 - Do write the value type: `array<string> $names = [];`.
 - Do use `Core\Arr` methods to count, sort and filter.
+- Do use destructuring to read a fixed number of items, such as a pair.
 - Don't use an array as a record with fixed fields. A class or an object literal gives each field
   its own type.

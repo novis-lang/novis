@@ -1,0 +1,21 @@
+<?nvs
+// `...$a` copies the items of `$a` into a new array.
+array<int> $a = [10, 20];
+array<int> $b = [...$a, 30, "k" => 40];
+echo Core\Json::encode($b), "\n";
+
+// Destructuring reads items into new variables. Each variable needs its type.
+array<int> $pair = [1, 2];
+[int $first, int $second] = $pair;
+echo $first, " ", $second, "\n";
+
+// An empty place skips an item. A key reads the item with that key.
+[, int $last] = $pair;
+array<string> $row = ["id" => "7", "name" => "Ada"];
+["name" => string $name, "id" => string $id] = $row;
+echo $last, " ", $name, " ", $id, "\n";
+
+// Nested brackets read from nested arrays.
+array<array<int>> $points = [[1, 2], [3, 4]];
+[[int $x1, int $y1], [int $x2, int $y2]] = $points;
+echo $x1 + $x2, " ", $y1 + $y2, "\n";
