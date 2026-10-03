@@ -1,5 +1,5 @@
 {
-  "state": "**Side goal `website-overhaul`, stage 4 (Syntax) is in progress. These pages are written: \"Start here\", the Basics, \"Values and types\", Operators, Control flow, Errors, Functions and Classes and objects.**\n\n`tools/nv/cmd/site.ts` `syntaxProblems` is the `syntax` part, tested in `tools/nv/test/site.test.ts`. Every Syntax page except `syntax/index.mdx` needs a non-empty `covers:`, a `<Snippet>` and a `## Do and don't` list.\n\nOn disk: `website/src/content/docs/syntax/start-here.mdx`, `syntax/basics/*.mdx`, `syntax/values/*.mdx`, `syntax/operators/*.mdx`, `syntax/control-flow/*.mdx`, `syntax/errors/*.mdx`, `syntax/functions/*.mdx` and `syntax/classes/*.mdx` (8 pages, from `declaring` to `object-literals`). Snippets sit flat under `website/snippets/syntax/<dir>/`, with no section level, and must exit 0 when run from the repo root. A snippet dir name is free, but must not clash with an existing one (`declaring` is the Functions one, so the class pages use `class-declaring`, `class-properties`, `class-methods`). Sidebar entries are in `website/astro.config.ts`, and stamps are in `website/site.lock.json` (`bun nv site --stamp syntax/<group>/<page>.mdx ...`, with the `.mdx`). A front-matter value with `: ` in it must be quoted, including `description:`, or `covers:` reads as missing. A class id with backslashes goes in single quotes: `'Core\\Db\\DbError'`.\n\n`site structure`, `stale` and `reference` pass. `site syntax` reports 31 uncovered features: `lang:programs/*` (5), `lang:concurrency/*` (10), `lang:attributes/*` (9) and `lang:testing/*` (7). `snippets` and `prose` fail only on `index.mdx`, `install/*`, `sponsoring.mdx` and `in-depth/what-changed.mdx`, which stages 5 and 6 rewrite.",
+  "state": "**Side goal `website-overhaul`, stage 4 (Syntax) is in progress. These pages are written: \"Start here\", the Basics, \"Values and types\", Operators, Control flow, Errors, Functions, Classes and objects, Programs and files, and Concurrency.**\n\n`tools/nv/cmd/site.ts` `syntaxProblems` is the `syntax` part, tested in `tools/nv/test/site.test.ts`. Every Syntax page except `syntax/index.mdx` needs a non-empty `covers:`, a `<Snippet>` and a `## Do and don't` list.\n\nOn disk: `website/src/content/docs/syntax/` has `start-here.mdx`, `basics/`, `values/`, `operators/`, `control-flow/`, `errors/`, `functions/`, `classes/`, `programs/` (3 pages) and `concurrency/` (4 pages). Snippets sit under `website/snippets/syntax/<dir>/` and must exit 0 when run from the repo root, so a child or helper file (a `require`d file, an autoloaded class, a `spawn script` child) is itself a snippet: it needs a `.out` (empty is fine), a page that shows it, and must not throw when run alone (`isolates/check-stock.nvs` throws only when `args:` says so). An `nvs.toml` beside a snippet is passed as `--config` (`site.ts` `snippetProblems`), which is how `file-paths/` grants `fs.read` and `isolates/` grants `script.spawn`. A snippet dir name must not clash with an existing one. Sidebar entries are in `website/astro.config.ts`, stamps in `website/site.lock.json` (`bun nv site --stamp syntax/<group>/<page>.mdx ...`). A front-matter value with `: ` in it must be quoted.\n\n`site structure`, `stale` and `reference` pass. `site syntax` reports 16 uncovered features: `lang:attributes/*` (9) and `lang:testing/*` (7). `snippets` and `prose` fail only on `index.mdx`, `install/*`, `sponsoring.mdx` and `in-depth/what-changed.mdx`, which stages 5 and 6 rewrite.",
   "next": {
     "stage": 4,
     "title": "Syntax",
@@ -8,25 +8,22 @@
     "items": [
       {
         "done": false,
-        "text": "**Programs and files**: namespaces and `use`, `require`, autoload, file paths, ending a program. A new sidebar group `syntax/programs/` after \"Classes and objects\", about three pages. It covers `lang:programs/*`. Goal § Stage 4. Anchors: `docs/reference/lang/10-programs.md:194`, `docs/reference/lang/10-programs.md:242`, `docs/reference/lang/10-programs.md:274`, `docs/reference/lang/10-programs.md:303`, `docs/reference/lang/10-programs.md:341`, `website/astro.config.ts:199`"
+        "text": "**Attributes**: attribute syntax, reading them back, the names the compiler acts on, JSON derive, routes and access, `Core\\Api`, commands, `Core\\Program::implementing` and `implementingWith`. A sidebar group `syntax/attributes/` after \"Concurrency\", about four pages. It covers `lang:attributes/*`. Anchors: `docs/reference/lang/90-attributes.md:8`, `docs/reference/lang/90-attributes.md:171`, `docs/reference/lang/90-attributes.md:286`, `docs/reference/lang/90-attributes.md:546`, `docs/reference/lang/90-attributes.md:642`, `website/astro.config.ts:220`"
       },
       {
         "done": false,
-        "text": "**Concurrency**: tasks, `Core\\Task::all`/`map`, limits and deadlines, a child's throw, channels, isolates with `spawn script`. A sidebar group `syntax/concurrency/`, about four pages. It covers `lang:concurrency/*`. Anchors: `docs/reference/lang/80-concurrency.md:8`, `docs/reference/lang/80-concurrency.md:97`, `docs/reference/lang/80-concurrency.md:168`, `docs/reference/lang/80-concurrency.md:213`, `docs/reference/lang/80-concurrency.md:406`"
+        "text": "**Testing**: `#[Test]`, setUp, options, fixtures, `TestWith`, assertions, `nvs test`. A sidebar group `syntax/testing/`, about two pages. It covers `lang:testing/*`. A test file run with `nvs run` must still exit 0. Anchors: `docs/reference/lang/95-testing.md:8`, `docs/reference/lang/95-testing.md:182`, `docs/reference/lang/95-testing.md:280`, `docs/reference/lang/95-testing.md:348`"
       },
       {
         "done": false,
-        "text": "**Attributes**: attribute syntax, reading them back, JSON derive, routes and access, commands, `Core\\Program::implementing`. It covers `lang:attributes/*`. Anchors: `docs/reference/lang/90-attributes.md:8`, `docs/reference/lang/90-attributes.md:171`, `docs/reference/lang/90-attributes.md:286`, `docs/reference/lang/90-attributes.md:546`, `docs/reference/lang/90-attributes.md:642`"
-      },
-      {
-        "done": false,
-        "text": "**Testing**: `#[Test]`, setUp, options, fixtures, `TestWith`, assertions, `nvs test`. It covers `lang:testing/*`. Anchors: `docs/reference/lang/95-testing.md:8`, `docs/reference/lang/95-testing.md:182`, `docs/reference/lang/95-testing.md:280`, `docs/reference/lang/95-testing.md:348`"
+        "text": "**Close stage 4**: `bun nv site --check syntax` passes, and `syntax/index.mdx` links every group. Anchors: `website/src/content/docs/syntax/index.mdx:1`"
       }
     ]
   },
   "backlog": [
     "Stage 5: Install and Guides (goal § Stage 5), including the Notes app in `apps/notes/`.",
     "Stage 6: In-Depth, the home page and the last links (goal § Stage 6).",
-    "`index.mdx`, `install/*`, `sponsoring.mdx` and `in-depth/what-changed.mdx` still fail `snippets` and `prose`. Stages 5 and 6 rewrite them."
+    "`index.mdx`, `install/*`, `sponsoring.mdx` and `in-depth/what-changed.mdx` still fail `snippets` and `prose`. Stages 5 and 6 rewrite them.",
+    "`tools/nv/test/site.test.ts` has no case for the sibling `nvs.toml` that `snippetProblems` passes as `--config`."
   ]
 }
