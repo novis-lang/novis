@@ -1,7 +1,6 @@
 <?nvs
 // Attack: values that are not functions are called as functions. Each value is `mixed`,
 // so the file compiles. Each call should throw an error that `catch` receives.
-// proof: gap nvs-runtime/a-call-on-a-value-that-is-not-a-closure-is-an-internal-error
 
 class Box
 {

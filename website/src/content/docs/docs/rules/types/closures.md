@@ -47,6 +47,10 @@ whatever methods the object's class declares; a method literally named `__invoke
 ordinary method with no special meaning. `()` therefore stays one thing rather than a second operator
 any class can opt into.
 
+A callee the checker cannot prove is a closure — one typed `mixed`, or a `?callable` that holds
+`null` — is checked when the call runs. A value that is not a closure throws a catchable `LogicError`
+naming what it is, the class the same call throws for an argument of the wrong type.
+
 The rule is the same at every position typed `callable` — a parameter, a property, a return type, a
 stdlib signature: the argument must already be a closure by the time it arrives, never a string, an
 array, or an object the checker would have to interpret.

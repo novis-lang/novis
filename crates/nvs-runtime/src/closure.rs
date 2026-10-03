@@ -414,9 +414,14 @@ crate::nvs_helper! {
 /// program-reachable and therefore a throw
 /// (`rule:errors/propagation`).
 ///
+/// The callee itself is checked first, for the same reason: a callee typed
+/// `mixed` or `?callable` reaches here unproven, so a value that is not a
+/// closure is program-reachable and throws ([`require_closure`]) rather than
+/// reaching the engine faults below.
+///
 /// # Errors
 ///
-/// The catchable `LogicError` above, plus everything [`call_closure`] itself
+/// The catchable `LogicError`s above, plus everything [`call_closure`] itself
 /// answers with.
 fn call_closure_from_nvs(
     ctx: &mut Ctx,
@@ -424,6 +429,7 @@ fn call_closure_from_nvs(
     passed: &[Value],
     tags: TagCheck,
 ) -> Result<Value, Fault> {
+    require_closure(closure)?;
     let arity = closure_arity(closure)?;
     if passed.len() < arity {
         return Err(Fault::thrown_as(
@@ -435,6 +441,50 @@ fn call_closure_from_nvs(
         ));
     }
     call_closure_with(ctx, closure, passed, tags)
+}
+
+/// `rule:types/callable-is-a-closure`'s run-time half: a compiled `$f(...)`
+/// whose callee is not a closure throws a `LogicError` naming what it is.
+///
+/// # Errors
+///
+/// The catchable `LogicError` for a value whose tag or class is not a
+/// closure's, and [`Fault::Fatal`] for an object with no class descriptor.
+fn require_closure(closure: Value) -> Result<(), Fault> {
+    let called = match closure.obj_ptr() {
+        Some(ptr) if !ptr.is_null() => {
+            #[expect(
+                unsafe_code,
+                reason = "the caller owns a reference to this object, so the \
+                          allocation and its descriptor are both live for this read"
+            )]
+            let desc: *const ClassDesc = unsafe { NvsObj::class_of(ptr) };
+            if desc.is_null() {
+                return Err(Fault::fatal(
+                    "internal error: a called object has no class descriptor".to_owned(),
+                ));
+            }
+            #[expect(
+                unsafe_code,
+                reason = "just checked the descriptor is non-null, and it is owned by \
+                          the compiled unit's class table for that unit's whole life"
+            )]
+            let class = unsafe { &*desc };
+            if class.is_closure() {
+                return Ok(());
+            }
+            format!("an object of class `{}`", class.name())
+        }
+        _ => match closure.tag() {
+            Some(Tag::Null) => "`null`".to_owned(),
+            Some(tag) => format!("a value of type `{}`", tag.describe()),
+            None => "a malformed value".to_owned(),
+        },
+    };
+    Err(Fault::thrown_as(
+        crate::ThrownClass::Logic,
+        format!("{called} cannot be called: only a closure is a `callable`"),
+    ))
 }
 
 /// How many parameters `closure` declares — [`CLOSURE_ARITY_SLOT`], read
