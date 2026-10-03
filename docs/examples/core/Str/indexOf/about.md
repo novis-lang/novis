@@ -16,3 +16,8 @@ nothing is found, and `false` is easy to mix up with position `0`.
 
 **The examples below** find a word and check for a missing one, use both options, and mark a
 search term in a product name.
+
+**Good to know:** to check only whether the text is in the string, use `Core\Str::contains`. To get
+the text before or after a match, use `Core\Str::before` or `Core\Str::after`.
+
+related: Core\Str::contains, Core\Str::lastIndexOf, Core\Str::before, Core\Str::after

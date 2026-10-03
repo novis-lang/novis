@@ -14,4 +14,9 @@ placeholder needs a value, and every value must be used. A template built while 
 throws a `LogicError` if it does not fit its values. The template must be trusted text, so a string
 from a user is not allowed.
 
+`%f` always writes a `.` before the decimals. To write a number with a separator between thousands,
+use `Core\Math::format` with its `groupSeparator` option.
+
 This replaces PHP's `sprintf`.
+
+related: Core\Math::format, Core\Str::padStart

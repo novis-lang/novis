@@ -6,5 +6,11 @@ part of the pattern in round brackets, and you can read it by its number or by i
 option sets the position where the search starts. Positions count characters, not bytes. This
 replaces PHP's `preg_match` with its `$matches` array.
 
+The pattern must be text from your program. A pattern from a user does not compile here. To search
+for text a user typed, put it in the pattern with `Core\Regex::quote`.
+
 **Good to know:** always check for `null` before you read the match. To find every match instead of
-the first one, use `Core\Regex::matchAll`.
+the first one, use `Core\Regex::matchAll`. To only check whether the pattern matches, use
+`Core\Regex::matches`.
+
+related: Core\Regex::matches, Core\Regex::matchAll, Core\Regex::quote

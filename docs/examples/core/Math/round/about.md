@@ -6,7 +6,8 @@ into `1200`. The result is always a `float`.
 
 The `mode` option decides what happens to a value exactly halfway between two results, such as
 `2.5`. The default, `Core\RoundMode::HalfUp`, rounds it away from zero, so `2.5` becomes `3`.
-`HalfEven` gives the even neighbour, and `Up` and `Down` round every value away from or toward zero.
+`HalfDown` rounds it toward zero, so `2.5` becomes `2`. `HalfEven` gives the even neighbour, and
+`HalfOdd` gives the odd one. `Up` and `Down` round every value away from or toward zero.
 
 A `float` cannot store most decimal fractions exactly. `1.005` is stored as a number slightly
 below it, so with two decimal places it rounds down to `1`. Use a `decimal` when the digits must
@@ -14,3 +15,5 @@ be exact, such as for money.
 
 **The examples below** show `precision` and `mode`, then tens and hundreds, then an average
 rating shown with one decimal place.
+
+related: Core\Math::ceil, Core\Math::floor, Core\Math::truncate

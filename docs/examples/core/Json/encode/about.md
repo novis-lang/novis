@@ -13,3 +13,5 @@ an object that contains itself.
 
 **The examples below** write a list and an array, write readable JSON, and build the answer of an
 API request from a class.
+
+related: Core\Json::decode, Core\Json::isValid
