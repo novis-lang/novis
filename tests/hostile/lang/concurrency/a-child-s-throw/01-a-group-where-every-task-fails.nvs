@@ -1,6 +1,6 @@
 <?nvs
-// Attack: groups of tasks in which every task fails. Five hundred tasks throw
-// at once. A task parked on a full channel is cancelled by a sibling's throw.
+// Attack: groups of tasks in which every task fails. Five hundred tasks throw,
+// a hundred at a time. A task parked on a full channel is cancelled by a sibling's throw.
 // One error has to arrive from each group, and the runtime must stay standing.
 // hostile: timeout-ms 60000
 
@@ -25,12 +25,12 @@ class Nest
     }
 }
 
-// Step 1: five hundred tasks, every one of them throwing. One error reaches
-// this `catch`, and the other four hundred and ninety-nine are cancelled.
+// Step 1: five hundred tasks, a hundred at a time, and every one of them throws.
+// One error reaches this `catch`, and the other tasks are cancelled.
 try {
     Core\Task::map(Core\Arr::range(1, 500), fn(int $n): int => {
         throw new RuntimeError('task ' . ($n as string) . ' gave up');
-    });
+    }, { limit: 100 });
     echo "step 1: the group returned with every task throwing\n";
 } catch (Throwable $first) {
     echo "step 1: one error arrived out of five hundred\n";

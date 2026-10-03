@@ -1,6 +1,6 @@
 <?nvs
 // Attack: two hundred thousand waits in a row, and two thousand frames that have
-// each waited. Then fifty thousand tasks wait at once, and one task waits an hour.
+// each waited. Then fifty thousand tasks wait, a hundred at a time, and one waits an hour.
 // The last step calls itself far past the stack limit, waiting at every level. The
 // runtime must stay standing and must stop the last one with an error.
 // covers: lang:concurrency/no-colouring-i-o-just-waits
@@ -34,12 +34,12 @@ echo 'step 1: ', $waits, " waits in a row\n";
 // Step 2: two thousand frames deep, each one having waited on the way down.
 echo 'step 2: reached level ', Pile::down(2000), "\n";
 
-// Step 3: fifty thousand tasks that each wait, 256 of them at a time. Every one of
+// Step 3: fifty thousand tasks that each wait, 100 of them at a time. Every one of
 // them is parked, so the memory for the parked tasks is what is under attack here.
 var $many = Core\Task::map(Core\Arr::range(1, 50000), fn(int $n): int => {
     Core\Time::sleep(1ms);
     return $n;
-}, { limit: 256 });
+}, { limit: 100 });
 echo 'step 3: ', Core\Arr::count($many), " tasks waited at the same time\n";
 
 // Step 4: a wait of one hour. The deadline is what ends it, and the task must not

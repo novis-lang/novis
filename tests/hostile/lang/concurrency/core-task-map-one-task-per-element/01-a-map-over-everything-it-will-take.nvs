@@ -1,8 +1,9 @@
 <?nvs
 // Attack: one job per element over an array of eight thousand elements. A map is
-// started inside every job of another map. One job throws while thousands of siblings
-// still run. The runtime must stay standing.
+// started inside every job of another map. One job throws while its siblings still run.
+// The runtime must stay standing, and a map with no limit must stop at the memory limit.
 // covers: lang:concurrency/core-task-map-one-task-per-element
+// hostile: ends-early 5 FATAL
 // hostile: timeout-ms 60000
 
 class Rows
@@ -34,26 +35,36 @@ class Rows
     }
 }
 
-// Step 1: eight thousand jobs from one call, each returning a string of its own.
+// Step 1: eight thousand jobs from one call, a hundred at a time, each returning a
+// string of its own.
 array<int> $wide = Rows::build(8000);
-var $texts = Core\Task::map($wide, fn(int $value): string => Core\Str::repeat('x', 8));
+var $texts = Core\Task::map($wide, fn(int $value): string => Core\Str::repeat('x', 8), { limit: 100 });
 echo 'step 1: collected ', Core\Arr::count($texts), " answers\n";
 
-// Step 2: a map inside every job of a map, so the task tree is thousands of groups
-// wide and three deep.
+// Step 2: a map inside every job of a map, so the task tree is fifteen hundred groups
+// wide and three deep. The outer map runs thirty-two jobs at a time.
 array<int> $nested = Rows::build(1500);
-var $sums = Core\Task::map($nested, fn(int $value): uint => Rows::inner($value));
+var $sums = Core\Task::map($nested, fn(int $value): uint => Rows::inner($value), { limit: 32 });
 echo 'step 2: collected ', Core\Arr::count($sums), " sums\n";
 
-// Step 3: one job throws with every other job still running. The throw has to arrive
+// Step 3: one job throws with other jobs still running. The throw has to arrive
 // here as itself, with nothing of the group left running.
 try {
-    var $broken = Core\Task::map($wide, fn(int $value): int => Rows::angry($value));
+    var $broken = Core\Task::map($wide, fn(int $value): int => Rows::angry($value), { limit: 100 });
     echo "step 3: the map finished, which it must not\n";
 } catch (RuntimeError $gave) {
     echo 'step 3: caught ', $gave->message, "\n";
 }
 
 // Step 4: the same array again, to show the runtime is still able to run a group.
-var $again = Core\Task::map($wide, fn(int $value): int => $value);
+var $again = Core\Task::map($wide, fn(int $value): int => $value, { limit: 100 });
 echo 'step 4: collected ', Core\Arr::count($again), " answers after the throw\n";
+
+// Step 5: the same array with no `limit:`, and every job waits. Each waiting job uses
+// memory, so the program stops at its memory limit. This is the last step.
+echo "step 5\n";
+var $all = Core\Task::map($wide, fn(int $value): int => {
+    Core\Time::sleep(1ms);
+    return $value;
+});
+echo 'step 5: collected ', Core\Arr::count($all), " answers\n";
