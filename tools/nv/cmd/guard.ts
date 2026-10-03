@@ -1,8 +1,9 @@
 // `bun nv guard`: the one `PreToolUse` hook, wired in `.claude/settings.json` for `Read`, `Bash` and
 // `PowerShell`. It reads the harness's event from standard input and denies a call that does by hand
 // what an `nv` command or an AGENTS.md rule already covers. A denial's reason starts `guard: <rule>:`
-// and names the call to make instead. A hook's denial holds in bypass mode too, which is the mode the
-// loop runs its sessions in, so this is where a habit is stopped rather than a prompt.
+// and names the call to make instead. A hook's denial holds in every permission mode, including
+// the `auto` mode the loop runs its sessions in and the allowlist they match, so this is where a habit is
+// stopped rather than a prompt.
 //
 // Each rule in `RULES` denies one raw pattern, and each is narrow: a rule that denies a legitimate
 // command costs every session a round trip. The guard fails open. A payload it cannot read, a tool it

@@ -53,7 +53,7 @@
 // `.loop/log.md`, then exit 75, which asks for the next turn. A session that changed driver code the turn
 // had imported is not swept by that turn, which would judge it with the code it replaced: the turn exits
 // 75 at once, and the next one serves no session and sweeps that one (`driver/launch.ts`'s
-// `driverChanged`). It takes `--model` (`opus`), `--effort`, `--permission-mode` (`bypassPermissions`),
+// `driverChanged`). It takes `--model` (`opus`), `--effort`, `--permission-mode` (`auto`),
 // `--max-sessions`, `--max-stalls` (10), `--max-retries` (3), `--max-limit-wait` (21600 seconds),
 // `--min-free-gb` (`nv disk`'s `MIN_FREE_GB`), `--keep-runs` (`nv disk`'s `KEEP_RUNS`) and `--no-hold`. The
 // run is the one `NOVIS_LOOP_RUN` names, and `.loop/run.json` carries its counts from turn to turn. A turn
@@ -628,7 +628,7 @@ interface TurnFlags extends LaunchOptions, Caps {
 function parseTurn(args: string[]): TurnFlags | null {
   const out: TurnFlags = {
     model: "opus",
-    permissionMode: "bypassPermissions",
+    permissionMode: "auto",
     maxSessions: Infinity,
     maxStalls: 10,
     maxRetries: 3,

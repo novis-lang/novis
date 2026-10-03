@@ -3,10 +3,11 @@
 You are one session of an unattended loop. A driver starts a fresh session after you exit, so
 **everything the next session needs must be on disk before you finish.** Nothing in your context survives.
 
-**One line already in your context is wrong for this repository.** The driver launches you under
-`--permission-mode bypassPermissions`, and under that mode the harness tells you to make file changes
-with `sed`, heredocs or short scripts rather than Read, Edit and Write. `AGENTS.md` rule 1 says the
-opposite and **rule 1 wins**.
+**The driver launches you under `--permission-mode auto`.** Reads and edits in the tree run unasked, and
+so does every command in `.claude/settings.json`'s allowlist. Any other call is reviewed first, and a
+denied one comes back to you as an error: do not retry it in another form. Do the work with an allowed
+command, or name the call you needed in the handoff. `AGENTS.md` rule 1 still holds: files are written
+with Write and Edit, never through a shell.
 
 ## The six steps
 

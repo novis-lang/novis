@@ -6,7 +6,8 @@ person.
 
 The orientation pack follows the verdict. It is context, not a worklist: do not take the goal's next
 item. `AGENTS.md` still holds in full, rule 1 included: the driver runs you under
-`bypassPermissions`, and files are still written with Write and Edit, never through a shell.
+`--permission-mode auto`, so a call outside `.claude/settings.json`'s allowlist is reviewed and may be
+denied, and files are still written with Write and Edit, never through a shell.
 
 ## The five steps
 

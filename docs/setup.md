@@ -175,9 +175,9 @@ third if anyone will work in this tree interactively.
    entirely — one `Ignoring N permissions.allow entries … this workspace has not been trusted` line, and
    then a prompt for every call the file already allows. Trust is per-machine state in
    `~/.claude.json`: open the tree in an interactive `claude` once and accept, or set
-   `projects["<absolute path to the tree>"].hasTrustDialogAccepted: true`. The loop does not need it —
-   `bypassPermissions` answers everything either way — so an untrusted tree costs an interactive session
-   and nothing else.
+   `projects["<absolute path to the tree>"].hasTrustDialogAccepted: true`. The loop needs it
+   too: its sessions run under `--permission-mode auto`, where the allowlist is what lets a session run
+   `cargo`, `git commit` and `bun nv` without each call going to the harness's classifier.
 
 CI installs `cargo-deny` and `cargo-geiger`; a development machine needs neither. `cargo-fuzz` is the WSL
 side's, above.

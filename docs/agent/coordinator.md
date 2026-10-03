@@ -432,12 +432,19 @@ always, `[r]` only while a usage limit is being waited out — which is where th
 the point of use rather than here. The block paints only on a terminal, so a redirected run, `nohup` or
 CI is unchanged; `--no-status` turns it off on a terminal too, and the control files still work.
 
-`--permission-mode` defaults to `bypassPermissions`, and that is not an incidental default. A `claude -p`
-session auto-denies any tool call that would otherwise prompt, so under `default` an unattended session
-cannot run `cargo`, cannot commit, and cannot write its own handoff file — the run would halt on
-consecutive no-commit stalls having done nothing. Every session in the loop therefore runs unreviewed
-against this working tree; that is the cost of the design, and the reason `.loop/stop` and Ctrl-C are both
-documented above.
+`--permission-mode` defaults to `auto`, and that is not an incidental default. A `claude -p` session
+auto-denies any tool call that would otherwise prompt, so under `default` an unattended session cannot
+run `cargo`, cannot commit, and cannot write its own handoff file — the run would halt on consecutive
+no-commit stalls having done nothing. Under `auto`, reads and edits inside the tree run unasked, a call
+that matches `.claude/settings.json`'s allowlist runs unasked, and every other call is reviewed by the
+harness's classifier, which denies the risky ones; a denied call does not stop the session, it comes back
+to it as an error. The allowlist is therefore the set of commands a session runs routinely: every
+`nv` command but `bg`, `release` and `relink`, the git, cargo and binary calls a slice is made of, and
+scratch removal under `.agent-tmp/`. Broad rules — `Bash(*)`, an interpreter, `Agent` — are dropped by
+the harness in this mode, so a command added there is added narrowly or not at all. The tree must be
+trusted ([setup.md](../setup.md), *Machine-local harness settings*), or the allowlist is ignored and every such call
+waits on the classifier. `--permission-mode bypassPermissions` still runs a session unreviewed, when a
+run needs it.
 
 Watch it with `tail -f .loop/log.md` (`Get-Content .loop/log.md -Wait` in PowerShell). Stop it by pressing
 `s` (press it again within five seconds to take it back) or by creating
