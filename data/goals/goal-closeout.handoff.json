@@ -1,26 +1,25 @@
 {
-  "state": "**Goal `goal-closeout`, Stage 4 (finished in place) is under way.** Stage 3 is done: `docs/agent/goal-decisions.md` names every goal in front of `goal-closeout`.\n\nThe binary's cost guards now run in CI. In `.github/workflows/ci.yml`, the step `Warm-start and core-scaling margins` builds `nvs` in release and runs both `*_by_the_margin_this_test_names` tests: the warm start in `crates/nvs-cli/src/cache.rs` and the four-core scaling in `crates/nvs-cli/src/serve.rs`. The step `Warm-start budget` runs `bun nv bench --warm-start --max-work-ms 6` unrelaxed and relies on the leg's own quiet-floor abstention on a busy runner. Both are on the `native` lane. The step comment says a change under `crates/nvs-cli/` alone is measured by the nightly. Gap `the-warm-start-margin-runs-in-no-ci-step` is deleted. These steps have never run on a hosted runner. The first pushed run's Windows wall clock against the job's 60-minute `timeout-minutes` and the budget's verdict on Linux are not checked.\n\nThe floor check `the latest CI run on main succeeded for the code HEAD holds` is red only because `main` is many commits ahead of `origin/main`, and the loop never pushes (module doc of `tools/nv/cmd/ci-green.ts`). A person has to push, so no session can close it.\n\n`bun nv owners --closes goal-closeout` names many gaps across crates: `nvs-host` (4), `nvs-lsp` (5), `nvs-runtime` and `nvs-stdlib` the largest, plus `nvs-types`, `editors/vscode` and `website`. Stage 4 stops on `BLOCKED` only for \"too large\", as the goal's § *Stage 4* defines it. In `nvs-cli`, the other subcommands' `--help` text has not been swept and is still in the dense voice. `bun nv import` is broken because the rule index it reads was deleted.",
+  "state": "**Goal `goal-closeout`, Stage 4 (finished in place) is under way.** Stage 3 is done: `docs/agent/goal-decisions.md` names every goal in front of `goal-closeout`.\n\nThe watchdog margin is configurable. `[server] watchdog_margin` is a `System`, `Boot` directive: `nvs_config::server::watchdog_margin_for` reads it like a `[server]` wait (`E0619` for `0` or `false`), and `nvs serve` builds its one watchdog with `nvs_host::Watchdog::reporting_after`. It is under `[server]` and not `[limits]`, because `[limits]` repeats per app and the process has one watchdog. `rule:config/reloadability-is-its-own-field` now names four `Boot` keys. The interval keeps no key, and the module doc of `crates/nvs-host/src/watchdog.rs` says why. Gap `the-watchdog-margin-is-compiled-in` is deleted.\n\nThe floor check `the latest CI run on main succeeded for the code HEAD holds` is red only because `main` is many commits ahead of `origin/main`, and the loop never pushes (module doc of `tools/nv/cmd/ci-green.ts`). A person has to push, so no session can close it. The CI steps `Warm-start and core-scaling margins` and `Warm-start budget` have never run on a hosted runner.\n\n`bun nv owners --closes goal-closeout` names many gaps across crates: `nvs-host` (3), `nvs-lsp` (5), `nvs-runtime` and `nvs-stdlib` the largest, plus `nvs-types`, `editors/vscode` and `website`. Stage 4 stops on `BLOCKED` only for \"too large\", as the goal's § *Stage 4* defines it. In `nvs-cli`, the other subcommands' `--help` text is still in the dense voice. `bun nv import` is broken because the rule index it reads was deleted.",
   "next": {
     "stage": 4,
     "title": "finished in place",
     "files": [],
-    "note": "one file set: `crates/nvs-host/src/watchdog.rs`, the `[limits]` schema in `nvs-config`, and the call that builds the watchdog in `nvs serve`.",
+    "note": "one file set: the request tree's CPU ceiling in `nvs-runtime` and the isolate a served request runs in.",
     "items": [
       {
         "done": false,
-        "text": "**The watchdog margin is a `[limits]` key** — gap `the-watchdog-margin-is-compiled-in`, `rule:http-server/a-wedged-core-is-detected-by-its-deadline`: `DEFAULT_MARGIN` at `crates/nvs-host/src/watchdog.rs:151` and the paragraph at `crates/nvs-host/src/watchdog.rs:53`, with `Watchdog::with` at `crates/nvs-host/src/watchdog.rs:757`. Add the key with today's values as defaults, pass it through, and test that a configured margin is the one a stall is reported against."
+        "text": "**A `cpu_time` set at run time on a served request is enforced** — gap `a-cpu-time-set-at-run-time-is-not-enforced`, `rule:config/three-changeability-classes`: the served program's `Core\\Config::set(\"cpu_time\", …)` moves the isolate's number while the tree stays charged against the root's. Read `crates/nvs-host/src/isolate.rs:571` (`Isolate::start`) and `crates/nvs-runtime/src/ctx/limits.rs:522` (`set_cpu_limit`), decide whether the root's ceiling follows the set or the set returns `false`, and pin the served half beside `tests/conformance/error/a-cpu-time-narrowed-by-config-set-stops-a-loop-that-calls-nothing.nvst`."
       },
       {
         "done": false,
-        "text": "**A `cpu_time` set at run time on a served request** — gap `a-cpu-time-set-at-run-time-is-not-enforced`: the tree's ceiling is the root's, read through `cpu_limit` at `crates/nvs-runtime/src/ctx/safepoint.rs:436` and `crates/nvs-runtime/src/ctx/limits.rs:495`. Either the root's ceiling follows the request's own `Core\\Config::set`, capped by `[limits.hard]`, or `docs/reference/tools/20-config.md` § *`cpu_time` and `wall_time`* is corrected. The goal's § *Standing decisions* says tested code ahead of a document wins, so decide which side is the gap."
+        "text": "**A task stack is charged to its request** — gap `a-task-stack-is-not-charged-to-its-request` under `data/gaps/nvs-host/`, read from `crates/nvs-host/src/scheduler.rs:803` (`Scheduler::spawn`)."
       }
     ]
   },
   "backlog": [
-    "The other two `nvs-host` gaps: `a-task-that-never-waits-outlives-its-groups-deadline` (`crates/nvs-host/src/group.rs`) and `a-task-stack-is-not-charged-to-its-request` (`crates/nvs-host/src/stack.rs`).",
-    "`nvs-syntax` gap `the-pipeline-bench-has-no-nested-twin`, a bench member under `benches/members/`.",
-    "The `nvs-lsp` gaps, five, over `crates/nvs-lsp/src/server.rs`, `completion.rs` and `index.rs`.",
-    "The `nvs-cli` `--help` sweep into the plain voice.",
-    "`bun nv import` reads a deleted rule index (`tools/nv/cmd/import.ts`)."
+    "`nvs-host` gap `a-task-that-never-waits-outlives-its-groups-deadline` — its module names it.",
+    "`nvs-cli` subcommands' `--help` text in the dense voice — `AGENTS.md` § *Text an end user reads*.",
+    "`bun nv import` reads a deleted rule index — `tools/nv/cmd/import.ts`.",
+    "`nvs-lsp`, `nvs-runtime`, `nvs-stdlib` gaps — `bun nv owners --closes goal-closeout`."
   ]
 }
