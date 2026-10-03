@@ -1,0 +1,11 @@
+{
+  "lead": "A `## Next group` item cannot anchor a file at the repository root or under `data/`.",
+  "body": "`ANCHOR_RE` in `tools/nv/cmd/orient.ts` accepts only paths under `crates`, `tools`, `tests`, `benches`, `examples`, `fuzz`, `docs` and `editors`, so `bun nv session --wrap` refuses `nvs.toml:1` and a gap record's `file:NN`. Anchor the item on the rule fragment or code it touches, and give the root file's line numbers as plain text.",
+  "files": [
+    "tools/nv/cmd/orient.ts"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "tools/nv/cmd/orient.ts:(?:crates|tools|tests|benches|examples|fuzz|docs|editors)"
+  }
+}
