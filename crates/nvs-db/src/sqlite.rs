@@ -810,7 +810,11 @@ impl SqliteConn {
         let handle = Arc::clone(&self.handle);
         let inserted = Arc::clone(&self.inserted);
         let owned = sql.to_owned();
-        let read = nvs_host::blocking::run(move || step(&handle, &inserted, &owned, &params));
+        // Read on this thread, because the pool thread that steps the statement
+        // is armed with no ceiling of its own.
+        let headroom = nvs_runtime::budget::headroom();
+        let read =
+            nvs_host::blocking::run(move || step(&handle, &inserted, &owned, &params, headroom));
 
         match read {
             Ok(read) => {
@@ -829,6 +833,12 @@ impl SqliteConn {
                 // there is no half-written message to be lost in. This is the
                 // one driver whose failure path can honestly return to `Idle`.
                 self.state.set(State::Idle);
+                // The rows were freed on the pool thread, so this balance never
+                // held them. Asking for them here records the refusal on the
+                // thread whose poll reports the request's breach.
+                if let Some(Overran(held)) = e.get_ref().and_then(|why| why.downcast_ref()) {
+                    let _ = nvs_runtime::budget::affords(*held);
+                }
                 Err(e)
             }
         }
@@ -1329,6 +1339,23 @@ struct Read {
     last_insert_id: Option<i64>,
 }
 
+/// A stepped result that grew past the request's memory headroom: how many
+/// bytes the pool thread held when [`step`] stopped.
+#[derive(Debug)]
+struct Overran(usize);
+
+impl std::fmt::Display for Overran {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "the result set grew to {} bytes, past the request's memory limit",
+            self.0
+        )
+    }
+}
+
+impl std::error::Error for Overran {}
+
 /// Prepare, bind, step to exhaustion, and hand back what is owned.
 ///
 /// Free rather than a method for the reason the playbook gives about the other
@@ -1338,11 +1365,19 @@ struct Read {
 /// have been a method — the shape is shared anyway, because a reader comparing
 /// the drivers should not have to work out that one of them is different for a
 /// reason that is not about the protocol.
+///
+/// **`headroom` is the caller's, because this thread has no ceiling.** It is
+/// what the request may still allocate ([`nvs_runtime::budget::headroom`]), and
+/// the rows are measured against it after each one is read. A result that
+/// grows past it stops with [`Overran`], so the pool thread holds at most one
+/// row more than the request could. The check is two thread-local reads per
+/// row. `None` steps to the end.
 fn step(
     handle: &Mutex<rusqlite::Connection>,
     inserted: &InsertedRow,
     sql: &str,
     params: &[SqliteValue],
+    headroom: Option<usize>,
 ) -> io::Result<Read> {
     let guard = lock(handle);
     let mut statement = guard.prepare_cached(sql).map_err(server_error)?;
@@ -1360,8 +1395,16 @@ fn step(
     let mut cursor = statement
         .query(rusqlite::params_from_iter(params))
         .map_err(server_error)?;
+    let start = nvs_runtime::budget::live_bytes();
     while let Some(cells) = read_row(&mut cursor, width)? {
         rows.push(cells);
+        if let Some(room) = headroom {
+            let held =
+                usize::try_from(nvs_runtime::budget::live_bytes().wrapping_sub(start)).unwrap_or(0);
+            if held > room {
+                return Err(io::Error::new(io::ErrorKind::OutOfMemory, Overran(held)));
+            }
+        }
     }
     drop(cursor);
     drop(statement);

@@ -743,6 +743,42 @@ pub fn affords(bytes: usize) -> bool {
     false
 }
 
+/// What the running request may still allocate before it crosses its ceiling,
+/// or `None` where nothing holds it to one.
+///
+/// For work this thread hands to another thread while it waits. A job on
+/// `nvs_host::blocking`'s pool allocates on a thread armed with no ceiling, and
+/// what it builds is carried onto this balance only when it returns. So the job
+/// is handed this figure before it starts and stops once it holds more, and the
+/// caller then asks [`affords`] for what the job reached, which records the
+/// refusal. `None` in the cases [`affords`] answers without reading the
+/// balance: an uncapped request, and a thread inside [`Reporting`] or
+/// [`Detached`].
+#[must_use]
+pub fn headroom() -> Option<usize> {
+    let ceiling = CEILING.with(Cell::get);
+    if ceiling == 0 || REPORTING.with(Cell::get) || DETACHING.with(Cell::get) {
+        return None;
+    }
+    Some(usize::try_from(ceiling.saturating_sub(LIVE.with(Cell::get))).unwrap_or(0))
+}
+
+/// Whether the running request now holds more than its ceiling.
+///
+/// For a loop that builds one value out of many allocations and reaches no
+/// poll on the way, such as a buffered database read appending its rows.
+/// [`add`] has already raised the poll flag at the crossing, and this is how
+/// the loop learns of it before its next row. The `FATAL` is
+/// [`Ctx::memory_breach`](crate::Ctx::memory_breach)'s to write.
+#[must_use]
+pub fn over_ceiling() -> bool {
+    let ceiling = CEILING.with(Cell::get);
+    ceiling != 0
+        && !REPORTING.with(Cell::get)
+        && !DETACHING.with(Cell::get)
+        && LIVE.with(Cell::get) > ceiling
+}
+
 /// The counters that say an allocation was made, whoever ends up holding the
 /// bytes.
 ///

@@ -330,9 +330,9 @@ pub(super) fn queried_rows(
     // the arm that read the span is still holding the thing the span is filed
     // on. Each arm hands back what [`QueryWatch::taken`] took, which is `None`
     // where nothing is reading rather than where a driver has no span.
-    let (answered, taken) = match bound_connection(ctx, statement.key, named, deadline)? {
+    let read = match bound_connection(ctx, statement.key, named, deadline)? {
         nvs_db::Connection::Postgres(postgres) => {
-            postgres_rows(postgres, &statement, &sending, source, watch, named)?
+            postgres_rows(postgres, &statement, &sending, source, watch, named)
         }
         nvs_db::Connection::MySql(mysql) => mysql_rows(
             Framed::MySql(mysql),
@@ -341,7 +341,7 @@ pub(super) fn queried_rows(
             source,
             watch,
             named,
-        )?,
+        ),
         nvs_db::Connection::MariaDb(maria) => mysql_rows(
             Framed::MariaDb(maria),
             &statement,
@@ -349,19 +349,45 @@ pub(super) fn queried_rows(
             source,
             watch,
             named,
-        )?,
+        ),
         nvs_db::Connection::SqlServer(tds) => {
-            tds_rows(tds, &statement, &sending, source, watch, named)?
+            tds_rows(tds, &statement, &sending, source, watch, named)
         }
         // The one arm that does not read `sending`: its parameters went out as
         // storage classes, which [`Binds`] holds separately and this driver
         // takes owned.
-        nvs_db::Connection::Sqlite(sqlite) => {
-            sqlite_rows(sqlite, &statement, source, watch, named)?
-        }
+        nvs_db::Connection::Sqlite(sqlite) => sqlite_rows(sqlite, &statement, source, watch, named),
     };
+    // A read stopped at the memory ceiling ends the request with the limit's
+    // `FATAL`, which names the ceiling and the reading, and no `catch` sees it.
+    // [`rows_fit`]'s own fault is only for a caller with no context to ask.
+    let (answered, taken) = read.map_err(|fault| ctx.memory_breach().unwrap_or(fault))?;
     watch.file(ctx, taken);
     Ok(answered)
+}
+
+/// Whether the rows read so far still fit in the request's memory ceiling,
+/// asked after every row a buffered read appends.
+///
+/// **Per row, because a row is the step the read controls.** A row's values
+/// allocate through the ctx-less value helpers, which raise the poll flag at
+/// the crossing but reach no poll inside the loop. So without this the
+/// request held its whole result before anything stopped it. The check is
+/// two thread-local reads per row, beside the allocations each row already
+/// makes. `rule:programs/memory-priority` is the bound it keeps, and `stream`
+/// needs none of this because it returns to the program between rows.
+///
+/// # Errors
+///
+/// A [`Fault::fatal`] once the request holds more than its ceiling.
+/// [`queried_rows`] replaces it with [`nvs_runtime::Ctx::memory_breach`]'s.
+fn rows_fit(named: &str) -> Result<(), Fault> {
+    if nvs_runtime::budget::over_ceiling() {
+        return Err(Fault::fatal(format!(
+            "{named}: the rows do not fit in the request's memory limit"
+        )));
+    }
+    Ok(())
 }
 
 /// `rule:core-classes/db-statement-members`'s `Write`, as the driver answered it and before it becomes the
@@ -464,6 +490,7 @@ pub(super) fn postgres_rows(
             one.set(NvsStr::new(column.name.as_bytes()), value);
         }
         rows.append(Value::array(one));
+        rows_fit(named)?;
     }
     // After the drain, so the span carries the duration the caller waited and
     // the rows it actually got.
@@ -714,6 +741,7 @@ pub(super) fn mysql_rows(
             one.set(NvsStr::new(column.name_ref()), value);
         }
         rows.append(Value::array(one));
+        rows_fit(named)?;
     }
     // After the drain, as [`postgres_rows`]: the terminator is what freezes the
     // duration, and the rows counted are the ones that came back.
@@ -788,6 +816,7 @@ pub(super) fn tds_rows(
             one.set(NvsStr::new(column.name.as_bytes()), value);
         }
         rows.append(Value::array(one));
+        rows_fit(named)?;
     }
     // After the drain, as the other two: the `DONE` token is what freezes the
     // duration and the count the span carries.
@@ -971,6 +1000,7 @@ pub(super) fn sqlite_rows(
         }
         span.row();
         rows.append(Value::array(one));
+        rows_fit(named)?;
     }
     // No affected count on a read: `nvs_db::SqliteRows::affected` answers what
     // the last data-changing statement on this *connection* reported, which is
@@ -1678,6 +1708,69 @@ mod tests {
             2,
             "the result changed under a statement that ran after it"
         );
+    }
+
+    /// **A buffered read stops at the memory ceiling while its rows arrive.**
+    /// The result here is about twenty megabytes and the request may hold two.
+    /// SQLite steps the statement on a pool thread with no ceiling of its own,
+    /// so the job is handed the request's headroom and stops at it. The request
+    /// then ends with the limit's `FATAL`, and its own peak stays near the
+    /// ceiling because the rows never crossed back.
+    // covers: Core\Db\Connection::query
+    #[test]
+    fn a_buffered_read_stops_at_the_memory_ceiling_before_its_last_row() {
+        let block = nvs_config::tree::Database {
+            driver: Some(String::from("sqlite")),
+            path: Some(String::from(":memory:")),
+            ..nvs_config::tree::Database::default()
+        };
+        let target = nvs_db::SqliteTarget::resolve(&block).expect("a `sqlite` block resolves");
+        let mut conn = nvs_db::sqlite::open(&target).expect("an in-memory database opens");
+
+        let limit = 2 << 20;
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        ctx.set_memory_limit(limit);
+        let statement = crate::db::bind::Statement {
+            key: 0,
+            block: Value::null(),
+            sql: String::from(
+                "with recursive many(n) as (select 1 union all select n + 1 from many \
+                 where n < 1000) select n, hex(zeroblob(10000)) as filler from many",
+            ),
+            binds: crate::db::bind::Binds::Sqlite(Vec::new()),
+        };
+        let read = sqlite_rows(
+            &mut conn,
+            &statement,
+            None,
+            crate::db::span::QueryWatch::named(&ctx, None),
+            "query",
+        );
+
+        // 1. The read stops, and the request reports the limit's breach.
+        assert!(
+            read.is_err(),
+            "a result ten times the ceiling was read whole"
+        );
+        drop(read);
+        let breach = ctx
+            .memory_breach()
+            .expect("a read stopped at the ceiling leaves the request over its limit");
+        assert!(
+            format!("{breach:?}").contains("memory limit"),
+            "the breach does not name the limit: {breach:?}"
+        );
+
+        // 2. The request never held the result: its peak stays near the ceiling.
+        assert!(
+            ctx.memory_peak() < 2 * limit,
+            "the request held {} bytes under a ceiling of {limit}",
+            ctx.memory_peak()
+        );
+
+        // 3. The connection runs the next statement.
+        conn.query("select 1", Vec::new())
+            .expect("the connection is free after a read stopped at the ceiling");
     }
 
     /// **`Core\Db\Write::changed` is the count the server itself reported, and
