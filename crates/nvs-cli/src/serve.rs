@@ -3777,8 +3777,8 @@ mod tests {
     /// **Skipped in the debug profile**, for the reason `benches/abi-probe`'s
     /// guards are: a cost margin holds only on an idle machine, and
     /// `nv verify` runs this binary beside every other test binary in
-    /// the workspace. The driver runs it under `--release` once its sweep has
-    /// finished and the box is idle — the release checks `bun nv loop` runs.
+    /// the workspace. CI's `Warm-start and core-scaling margins` step runs it
+    /// under `--release` on all three runners.
     #[test]
     #[cfg_attr(
         debug_assertions,

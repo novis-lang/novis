@@ -194,6 +194,30 @@ jobs:
         if: needs.changes.outputs.native == 'true'
         run: cargo test --release -p nvs-abi-probe
 
+      # The binary's own cost guards, in release for the reason the probe's are, and on the same lane:
+      # its inputs are the code generator and the runtime, and the nightly turns every lane on, so a
+      # change under `crates/nvs-cli/` alone is measured there. The binary is built first because the
+      # budget below times it. The test filter is the suffix both margin tests share: a warm start over
+      # a cold one in `cache.rs`, and four cores over one in `serve.rs`. Both are ratios, so they hold
+      # on all three runners, and the scaling test measures nothing on a runner with fewer than four
+      # logical CPUs.
+      - name: Warm-start and core-scaling margins
+        if: needs.changes.outputs.native == 'true'
+        shell: bash
+        run: |
+          cargo build --release -p nvs-cli
+          cargo test --release -p nvs-cli --bin nvs -- by_the_margin_this_test_names
+
+      # The warm-start budget is absolute where the margins above are ratios, so it is the one guard a
+      # hosted runner can fail by being slow rather than by the tree having moved. It runs here with the
+      # same `--max-work-ms 6` a development machine is held to, unrelaxed, because the leg abstains on a
+      # busy box by itself: when `nvs --version` alone is over its quiet floor it prints "not measured"
+      # and passes (`tools/nv/cmd/bench.ts` § *The warm-start figure*). A runner under that floor is as
+      # quiet as a development machine, and a figure over budget there is a regression in the tree.
+      - name: Warm-start budget
+        if: needs.changes.outputs.native == 'true'
+        run: bun nv bench --warm-start --max-work-ms 6
+
   # ---------------------------------------------------------------------------
   # Every feature's examples and attacks, run once each on the proof binary, after the gate that
   # says no feature owes a proof (`tools/nv/cmd/proofs.ts`). This is the one suite that runs them:
