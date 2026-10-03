@@ -126,6 +126,9 @@ fn check_arg_list(
             Some(want) if admitted.any() => {
                 check_arg_admitting_quals(&arg.value, want, admitted, live, scope, ctx, env)
             }
+            Some(want) if admits_http_target(want, env) => {
+                check_url_arg(&arg.value, want, live, scope, ctx, env)
+            }
             _ => check_arg(&arg.value, expected, live, scope, ctx, env),
         };
         // Only a whole argument can be written back: a `...` hands over a
@@ -773,8 +776,8 @@ pub(crate) fn check_options_arg(
 /// the same refusal has a different answer: a `tainted` value at
 /// `Core\Db::query`'s statement text is a bound parameter's job (`rule:security/sink-predicate`
 /// ) and at the HTML sink it is `Core\Html::escape`'s, so naming the escape
-/// hatch there would push the wrong fix at every one of them. A shape key that
-/// *does* gain a launderer is where this grows its second case.
+/// hatch there would push the wrong fix at every one of them. The outbound URL
+/// parameter has a launderer of its own, and [`check_url_arg`] names it.
 fn check_shape_field(
     value: &Expr,
     field: &crate::ty::CoreShapeField,
@@ -806,6 +809,58 @@ fn check_shape_field(
              greppable, and carries in the source the reason the value can be trusted",
             field.name
         ));
+    }
+    env.diags.report(diag);
+    actual
+}
+
+/// Whether a parameter accepts a `Core\Http\Target` — the outbound URL sink of
+/// `rule:security/outbound-url-is-a-sink`, which only `Core\Http::allowUrl`
+/// answers with.
+fn admits_http_target(expected: TypeId, env: &mut Env<'_>) -> bool {
+    let target = env.interner.class(QName::parse(r"Core\Http\Target"));
+    is_assignable(target, expected, env.interner, env.graph, env.signatures)
+}
+
+/// [`check_expr`] for an argument at an outbound URL parameter
+/// ([`admits_http_target`]), which names the launderer when `tainted` is the
+/// whole objection.
+///
+/// It is [`check_shape_field`]'s help for the one sink with a launderer of its
+/// own: `Core\Http::allowUrl` is the only member that answers a
+/// `Core\Http\Target`, so naming it cannot push the wrong fix. The guards are
+/// [`check_expr`]'s, and a parenthesised argument is left to it, because its
+/// `Paren` arm re-enters there and would report the mismatch a second time.
+fn check_url_arg(
+    value: &Expr,
+    expected: TypeId,
+    live: &mut FxHashSet<String>,
+    scope: &LocalScope,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) -> TypeId {
+    if matches!(value.kind, ExprKind::Paren(_)) {
+        return check_expr(value, Some(expected), live, scope, ctx, env);
+    }
+    let refused_before = env.refused_exprs;
+    let errors_before = env.diags.error_count();
+    let actual = infer(value, Some(expected), live, scope, ctx, env);
+    if env.refused_exprs != refused_before || env.diags.error_count() != errors_before {
+        return actual;
+    }
+    if is_assignable(actual, expected, env.interner, env.graph, env.signatures) {
+        note_float_widening(value, actual, expected, env);
+        return actual;
+    }
+    let laundered = untainted(actual, env.interner);
+    let qualifier_alone = carries_tainted(actual, env.interner)
+        && is_assignable(laundered, expected, env.interner, env.graph, env.signatures);
+    let mut diag = mismatch(value.span, expected, actual, env);
+    if qualifier_alone {
+        diag = diag.with_help(
+            "a `tainted` URL is a sink: pass it through `Core\\Http::allowUrl($url)` first, \
+             which checks the address and returns the `Core\\Http\\Target` this parameter accepts",
+        );
     }
     env.diags.report(diag);
     actual

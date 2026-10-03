@@ -1,5 +1,5 @@
 --TEST--
-Every `Core\Http\Client` member refuses a `tainted` URL and accepts what the launderer answers, so `Core\Http::allowUrl` is the only way one reaches the outbound door — `rule:security/outbound-url-is-a-sink` and `rule:http-server/allow-url-pins-the-address`
+Every `Core\Http\Client` member refuses a `tainted` URL and accepts what the launderer answers, so `Core\Http::allowUrl` is the only way one reaches the outbound door, and every refusal names it — `rule:security/outbound-url-is-a-sink` and `rule:http-server/allow-url-pins-the-address`
 --FILE--
 <?nvs
 // `rule:security/outbound-url-is-a-sink` makes the URL parameter of every outbound member a sink: the
@@ -37,23 +37,37 @@ var $h = Core\Http\Client::get($pinned);
 error[E0401]: expected `string|Core\Http\Target`, found `tainted string`
    --> case.nvs:16:32
 %A
+   = help: a `tainted` URL is a sink: pass it through `Core\Http::allowUrl($url)` first, %s
+
 error[E0401]: expected `string|Core\Http\Target`, found `tainted string`
    --> case.nvs:17:33
 %A
+   = help: a `tainted` URL is a sink: pass it through `Core\Http::allowUrl($url)` first, %s
+
 error[E0401]: expected `string|Core\Http\Target`, found `tainted string`
    --> case.nvs:18:32
 %A
+   = help: a `tainted` URL is a sink: pass it through `Core\Http::allowUrl($url)` first, %s
+
 error[E0401]: expected `string|Core\Http\Target`, found `tainted string`
    --> case.nvs:19:34
 %A
+   = help: a `tainted` URL is a sink: pass it through `Core\Http::allowUrl($url)` first, %s
+
 error[E0401]: expected `string|Core\Http\Target`, found `tainted string`
    --> case.nvs:20:35
 %A
+   = help: a `tainted` URL is a sink: pass it through `Core\Http::allowUrl($url)` first, %s
+
 error[E0401]: expected `string|Core\Http\Target`, found `tainted string`
    --> case.nvs:21:33
 %A
+   = help: a `tainted` URL is a sink: pass it through `Core\Http::allowUrl($url)` first, %s
+
 error[E0401]: expected `string|Core\Http\Target`, found `tainted string`
    --> case.nvs:22:59
 %A
+   = help: a `tainted` URL is a sink: pass it through `Core\Http::allowUrl($url)` first, %s
+
 error: aborting due to 7 errors
 To read what a code means and how to fix it, run `nvs agent show <code>`.
