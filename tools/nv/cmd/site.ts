@@ -31,12 +31,12 @@
 // footer has no prev/next and the Astro config has no redirect), `snippets` (no handwritten page has an
 // inline Novis fence, every `<Snippet src="..."/>` names a file under `website/snippets/`, every snippet
 // is used, keeps the comment bounds of `bun nv proofs --comments`, and prints exactly its `.out` with
-// exit 0), `stale` (no page lacks `covers:`, no id is broken and no page is stale) and `prose` (the
-// countable bounds of AGENTS.md § *Text an end user reads* over every handwritten page's prose: no
-// sentence over 25 words, no dash joining two sentences, and no paragraph over six sentences). The
-// legal pages are kept out of `prose`, since their wording is the law's. `reference`, `syntax`,
-// `guides`, `in-depth` and `apps` belong to the later stages of goal `website-overhaul` and fail
-// until those stages write them.
+// exit 0), `stale` (no page lacks `covers:`, no id is broken and no page is stale), `reference` (see
+// `referenceProblems`) and `prose` (the countable bounds of AGENTS.md § *Text an end user reads* over
+// every handwritten page's prose: no sentence over 25 words, no dash joining two sentences, and no
+// paragraph over six sentences). The legal pages are kept out of `prose`, since their wording is the
+// law's. `syntax`, `guides`, `in-depth` and `apps` belong to the later stages of goal
+// `website-overhaul` and fail until those stages write them.
 
 import { createHash } from "node:crypto";
 import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
@@ -47,6 +47,8 @@ import { run as runProc } from "../lib/proc.ts";
 import { comparePaths } from "../lib/py.ts";
 import { commentProblems } from "../proofs/collect.ts";
 import { ABOUT, EXAMPLES, examplesDir, implFile, metaJson, roster, RosterError, type Entry, type Meta } from "../proofs/roster.ts";
+import { DATA_FILE, renderWebsiteCore } from "../renderers/website-core.ts";
+import { REFERENCE_FILE, type Page as RefPage } from "../renderers/website-reference.ts";
 
 export const summary = "the website's stale guard, checks and build: nv site --stale | --stamp PAGE... | --check [PART...] | --build";
 
@@ -61,7 +63,9 @@ const LEGAL = ["impressum.md", "datenschutz.md"];
 export const PARTS = ["structure", "snippets", "stale", "reference", "syntax", "guides", "in-depth", "apps", "prose"] as const;
 type Part = (typeof PARTS)[number];
 /** The stage of goal `website-overhaul` that writes each part not written yet. */
-const LATER: Partial<Record<Part, number>> = { reference: 3, syntax: 4, guides: 5, apps: 5, "in-depth": 6 };
+const LATER: Partial<Record<Part, number>> = { syntax: 4, guides: 5, apps: 5, "in-depth": 6 };
+/** Where `--build` writes the site, which `reference` reads. */
+const DIST = "website/dist";
 
 const SENTENCE_WORDS = 25;
 const PARAGRAPH_SENTENCES = 6;
@@ -459,6 +463,71 @@ function binary(explicit: string | undefined): string | null {
   return null;
 }
 
+/** A roster feature Reference owes a page: a Core member, a directive, a `tools:config` section, or a
+ * section of the `cli`, `editor` or `agents` chapter or an `nvs …` section of `server`. */
+function referenceOwes(e: Entry): boolean {
+  if (e.kind === "member" || e.kind === "directive") return true;
+  const m = /^tools:([^/]+)\/(.+)$/.exec(e.id);
+  if (!m) return false;
+  return ["config", "cli", "editor", "agents"].includes(m[1]!) || (m[1] === "server" && m[2]!.startsWith("nvs-"));
+}
+
+/**
+ * The `reference` part. `core.json` and `reference.json` are what `bun nv render --website` writes from
+ * this binary today. Every roster feature `referenceOwes` has a page, through the feature path both
+ * files carry. Every name on an `about.md` file's `related:` line is a Core member with a page. And in
+ * the built site, no page says "Not documented yet", and every Reference page shows one example block
+ * per example file of every feature on it.
+ */
+async function referenceProblems(w: World, nvs: string, root: string = ROOT): Promise<string[]> {
+  const problems: string[] = [];
+  const saved = process.env.NVS_BIN;
+  process.env.NVS_BIN = nvs;
+  try {
+    for (const out of await renderWebsiteCore(root)) {
+      if (readAt(root, out.path) !== out.text) problems.push(`${out.path}: not current against this binary: run \`bun nv render --website\``);
+    }
+  } finally {
+    if (saved === undefined) delete process.env.NVS_BIN;
+    else process.env.NVS_BIN = saved;
+  }
+
+  const core = JSON.parse(readAt(root, DATA_FILE) || '{"classes":[]}') as { classes: { name: string; members: { name: string; url: string; examples: string }[] }[] };
+  const refPages = (JSON.parse(readAt(root, REFERENCE_FILE) || '{"pages":[]}') as { pages: RefPage[] }).pages;
+  /** Each page's URL, with the feature paths it shows. */
+  const shown = new Map<string, string[]>();
+  for (const cls of core.classes) for (const m of cls.members) shown.set(m.url, [m.examples]);
+  for (const p of refPages) shown.set(p.url, [...(p.intro ? [p.intro.examples] : []), ...p.keys.map((k) => k.examples)]);
+  const paged = new Set([...shown.values()].flat());
+  for (const e of w.entries) if (referenceOwes(e) && !paged.has(e.path)) problems.push(`${e.id}: has no Reference page`);
+
+  const names = new Set(core.classes.flatMap((c) => c.members.map((m) => `${c.name}::${m.name}`)));
+  for (const path of filesUnder(root, EXAMPLES).filter((p) => p.endsWith(`/${ABOUT}`))) {
+    const last = readAt(root, path).trimEnd().split("\n").pop() ?? "";
+    const m = /^related:\s*(.*)$/.exec(last);
+    if (!m) continue;
+    for (const name of m[1]!.split(",").map((n) => n.trim()).filter(Boolean)) {
+      if (!names.has(name)) problems.push(`${path}: the related: line names ${name}, which has no Core page`);
+    }
+  }
+
+  if (!existsSync(join(root, DIST))) return [...problems, `${DIST}: no built site: run \`bun nv site --build\``];
+  for (const path of filesUnder(root, DIST).filter((p) => p.endsWith(".html"))) {
+    if (readAt(root, path).includes("Not documented yet")) problems.push(`${path}: says "Not documented yet"`);
+  }
+  for (const [url, features] of shown) {
+    const html = readAt(root, `${DIST}${url}index.html`);
+    if (!html) {
+      problems.push(`${url}: not in the built site`);
+      continue;
+    }
+    const want = features.reduce((n, f) => n + filesUnder(root, `${EXAMPLES}/${f}`).filter((p) => p.endsWith(".nvs") && p.split("/").length === `${EXAMPLES}/${f}`.split("/").length + 1).length, 0);
+    const got = html.split('class="method-example"').length - 1;
+    if (got !== want) problems.push(`${url}: shows ${got} example(s), and its features have ${want}`);
+  }
+  return problems;
+}
+
 async function world(nvs: string): Promise<World> {
   const meta = await metaJson(nvs);
   return { entries: await roster(nvs, meta), meta };
@@ -486,7 +555,10 @@ async function check(parts: Part[], nvs: string | null): Promise<number> {
         });
     } else if (nvs === null) problems = ["no `nvs` binary: build one, or pass --nvs"];
     else if (part === "snippets") problems = await snippetProblems(nvs);
-    else {
+    else if (part === "reference") {
+      w ??= await world(nvs);
+      problems = await referenceProblems(w, nvs);
+    } else {
       w ??= await world(nvs);
       const s = staleness(w);
       problems = [...s.unlisted.map((p) => `${p}: has no \`covers:\` line`), ...s.broken.map((b) => `broken: ${b}`), ...s.stale.map((x) => `stale: ${x}`)];
