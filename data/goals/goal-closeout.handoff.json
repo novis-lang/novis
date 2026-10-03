@@ -1,27 +1,27 @@
 {
-  "state": "**Goal `goal-closeout`, Stage 4 (finished in place).** The gap `the-live-chain-entry-test-names-a-goal-stage-6-deletes` is closed. `an_owner_that_is_not_a_live_chain_entry_fails` now reads its live slug from `data/chain.json`'s `live` through the helper `chain_live()`, so Stage 6's deletion of the old goals no longer breaks it.\n\nA `decimal` *property* default is still refused (`E0472`), because `nvs_runtime::FieldDefault` has no `decimal` recipe. The module doc of `crates/nvs-types/src/defaults.rs` says so.\n\n`startsWith` and `endsWith` still compare bytes. Whether they join the search family is still open.\n\nThe only `nvs-runtime` gap left is `enum-case-that-reached-a-mixed`. It needs an ADR beyond Stage 5's one slot, so it waits for the user. It goes to `BLOCKED` only once it is the last goal-owned gap in the tree.\n\nThe floor check `the latest CI run on main succeeded for the code HEAD holds` is red only because `main` is ahead of `origin/main`, and the loop never pushes. A person has to push.\n\n`bun nv owners --closes goal-closeout` names the rest: 25 gaps in `nvs-lsp`, `nvs-stdlib`, `nvs-types`, `nvs-runtime`, `editors/vscode` and `website`.",
+  "state": "**Goal `goal-closeout`, Stage 4 (finished in place).** The gap `nvs-check-workspace-is-not-contributed` is closed. `nvs.checkWorkspace` is contributed and registered, and it sends the server's fifth request of its own, `nvs/checkWorkspace`. The server answers it in its main loop, because it is the one request that changes what the server holds: it runs the workspace survey and index build again and answers with the number of indexed files. `rule:ide/the-request-set-is-closed` and `rule:ide/check-scope-defaults-to-the-workspace` say so, and `crates/nvs-lsp/tests/references.rs` tests it.\n\nA `decimal` *property* default is still refused (`E0472`), because `nvs_runtime::FieldDefault` has no `decimal` recipe. The module doc of `crates/nvs-types/src/defaults.rs` says so.\n\n`startsWith` and `endsWith` still compare bytes. Whether they join the search family is still open.\n\nThe only `nvs-runtime` gap left is `enum-case-that-reached-a-mixed`. It needs an ADR beyond Stage 5's one slot, so it waits for the user. It goes to `BLOCKED` only once it is the last goal-owned gap in the tree.\n\nThe floor check `the latest CI run on main succeeded for the code HEAD holds` is red only because `main` is ahead of `origin/main`, and the loop never pushes. A person has to push.\n\n`bun nv owners --closes goal-closeout` names the rest: 24 gaps in `nvs-lsp`, `nvs-stdlib`, `nvs-types`, `nvs-runtime`, `editors/vscode` and `website`.",
   "next": {
     "stage": 4,
     "title": "finished in place",
     "files": [
       "editors/vscode/src/extension.ts",
+      "editors/vscode/src/binary.ts",
       "editors/vscode/package.json"
     ],
     "items": [
       {
         "done": false,
-        "text": "**`nvs.checkWorkspace` is contributed and registered** (`data/gaps/vscode/nvs-check-workspace-is-not-contributed.json`, the gap's own text names the two rules). Register it beside the other commands at `editors/vscode/src/extension.ts:115` and contribute it in `editors/vscode/package.json:193`, or strike the promise from the rules if the gap's text says the design moved."
+        "text": "**The guided install is reached by a command** (gap `the-guided-install-is-reached-by-no-command`, `rule:ide/the-extension-guides-an-install-and-never-bundles-one`). Register `nvs.downloadBinary` and `nvs.openReleases` beside the others at `editors/vscode/src/extension.ts:127`, contribute both after `nvs.checkWorkspace` in `editors/vscode/package.json:229`, add the managed copy as the last candidate at `editors/vscode/src/binary.ts:32`, and add both to the roster at `editors/vscode/test/contributions/contributions.test.ts:98`. The gap's text lists the rest: the status item, the mismatch offer, the reference section and the rule's status."
       },
       {
         "done": false,
-        "text": "**The guided install is reached by a command** (gap `the-guided-install-is-reached-by-no-command`). Register `nvs.downloadBinary` at `editors/vscode/src/extension.ts:115` and contribute it at `editors/vscode/package.json:193`."
+        "text": "**The reference's command table is current** — `docs/reference/tools/40-editor.md:308` still says `nvs.run`, `nvs.test` and `nvs.showAst` are \"not yet answered\", and `editors/vscode/src/extension.ts:118` registers all three."
       }
     ]
   },
   "backlog": [
-    "`crates/nvs-lsp/src/server.rs`: `a-cancel-request-notification-is-ignored` and `the-code-lens-shows-only-a-reference-count` share one file — a good group after this one.",
-    "Stage 5's check `the goal switch deletes the goal it leaves` names a test filter no file matches yet; it is the next stage's first item.",
-    "Stage 6's check wants the chain to start at `goal-closeout`; 184 goals are still in front of it.",
-    "The other 21 gaps `bun nv owners --closes goal-closeout` names."
+    "The other `editors/vscode` gaps — `bun nv owners --closes goal-closeout` lists them.",
+    "`enum-case-that-reached-a-mixed` waits for the user's ADR decision (`data/gaps/`).",
+    "`startsWith` / `endsWith` and the search family — open in `nvs-stdlib`'s `Str` module doc."
   ]
 }
