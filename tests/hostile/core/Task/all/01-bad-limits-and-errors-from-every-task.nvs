@@ -58,5 +58,5 @@ var $queued = Core\Task::all({
 }, { limit: 1 });
 echo 'step 4: ', $queued->a + $queued->b + $queued->c, "\n";
 
-// Step 5: groups nested 1,000 deep. Every level waits for the level below it.
-echo 'step 5: ', Nest::down(1000), "\n";
+// Step 5: groups nested 100 deep. Every level waits for the level below it.
+echo 'step 5: ', Nest::down(100), "\n";

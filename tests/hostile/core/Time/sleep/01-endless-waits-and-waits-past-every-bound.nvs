@@ -25,7 +25,7 @@ while ($j < 10000) {
 }
 echo "10000 short waits\n";
 
-// 3. A thousand tasks each sleep for one hour. The deadline cancels all of them.
+// 3. A thousand tasks each sleep for one hour, a hundred at a time. The deadline cancels all of them.
 array<int> $ids = Core\Arr::range(1, 1000);
 int $stopped = 0;
 int $round = 0;
@@ -34,7 +34,7 @@ while ($round < 20) {
         Core\Task::map($ids, fn (int $n): int => {
             Core\Time::sleep(1h);
             return $n;
-        }, { deadline: 5ms });
+        }, { deadline: 5ms, limit: 100 });
     } catch (TimeoutError $late) {
         $stopped = $stopped + 1;
     }

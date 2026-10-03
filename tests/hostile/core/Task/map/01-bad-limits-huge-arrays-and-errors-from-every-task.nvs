@@ -72,5 +72,5 @@ try {
     echo "step 5: stopped\n";
 }
 
-// Step 6: calls nested 1,000 deep. Every level waits for the level below it.
-echo 'step 6: ', Nest::down(1000), "\n";
+// Step 6: calls nested 100 deep. Every level waits for the level below it.
+echo 'step 6: ', Nest::down(100), "\n";

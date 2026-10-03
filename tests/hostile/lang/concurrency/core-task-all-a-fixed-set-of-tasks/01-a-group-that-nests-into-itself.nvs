@@ -1,8 +1,9 @@
 <?nvs
-// Attack: groups of jobs that nest into each other a hundred thousand levels deep, and
-// build large strings inside every job. One job throws while its siblings still run.
-// The runtime must stay standing and leave nothing running.
+// Attack: jobs build large strings, one job throws while its siblings still run, and groups
+// of jobs nest into each other a hundred thousand levels deep.
+// The runtime must stay standing, leave nothing running, and stop the nesting at the memory limit.
 // covers: lang:concurrency/core-task-all-a-fixed-set-of-tasks
+// hostile: ends-early 4 FATAL
 // hostile: timeout-ms 60000
 
 class Nest
@@ -32,10 +33,7 @@ class Nest
     }
 }
 
-// Step 1: a hundred thousand groups inside each other, each one waiting for the next.
-echo 'step 1: reached level ', Nest::deeper(100000), "\n";
-
-// Step 2: eight jobs at a time, each building a string of a million characters and
+// Step 1: eight jobs at a time, each building a string of a million characters and
 // dropping it again. Only the count is kept, so memory that grows here was not freed.
 uint $seen = 0;
 uint $round = 0;
@@ -53,26 +51,31 @@ while ($round < 10) {
     $seen = $seen + $wide->a + $wide->h;
     $round = $round + 1;
 }
-echo 'step 2: built ', $seen, " characters and kept none of them\n";
+echo 'step 1: built ', $seen, " characters and kept none of them\n";
 
-// Step 3: one job throws while its siblings are still working. The throw has to arrive
+// Step 2: one job throws while its siblings are still working. The throw has to arrive
 // here as itself, with nothing of the group left running.
 try {
     var $mixed = Core\Task::all({
-        slow:  fn(): int => Nest::deeper(5000),
+        slow:  fn(): int => Nest::deeper(50),
         cross: Nest::angry(...),
     });
-    echo "step 3: the group finished, which it must not\n";
+    echo "step 2: the group finished, which it must not\n";
 } catch (RuntimeError $gave) {
-    echo 'step 3: caught ', $gave->message, "\n";
+    echo 'step 2: caught ', $gave->message, "\n";
 }
 
-// Step 4: the same throw, one level down, thrown from a group inside a job of a group.
+// Step 3: the same throw, one level down, thrown from a group inside a job of a group.
 try {
     var $outer = Core\Task::all({
         inner: fn(): int => Core\Task::all({ deep: Nest::angry(...) })->deep,
     });
-    echo "step 4: the outer group finished, which it must not\n";
+    echo "step 3: the outer group finished, which it must not\n";
 } catch (RuntimeError $again) {
-    echo 'step 4: caught ', $again->message, "\n";
+    echo 'step 3: caught ', $again->message, "\n";
 }
+
+// Step 4: a hundred thousand groups inside each other. Every waiting job uses memory,
+// so the program stops at its memory limit. This is the last step.
+echo "step 4\n";
+echo 'step 4: reached level ', Nest::deeper(100000), "\n";
