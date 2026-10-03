@@ -1,0 +1,38 @@
+---
+title: Comments and doc comments
+covers:
+  - lang:programs/comments
+  - lang:programs/doc-comments
+description: Notes for the reader, and doc comments that tools show.
+---
+import Snippet from '@components/Snippet.astro'
+
+A comment is a note for the person who reads the code. The program runs the same way without it.
+`//` and `#` start a comment that ends at the end of the line. `/*` starts a block comment, and `*/`
+ends it.
+
+<Snippet src="syntax/comments/01-comments.nvs" />
+
+`#[` is not a comment. It starts an attribute.
+
+## Doc comments
+
+Use this when you write a class, a method or a constant that other people call. A doc comment starts
+with exactly three slashes, `///`. It describes the declaration on the next line. The editor shows it
+when you point at the name, and `nvs doc` puts it in the documentation.
+
+<Snippet src="syntax/comments/02-doc-comments.nvs" />
+
+Several `///` lines in a row are one doc comment. You can use Markdown in it. Two tags are allowed
+at the start of a line: `@see` and `@example`. Any other tag, such as `@param`, does not compile.
+The signature already has the types.
+
+A `/** ... */` block is a normal comment. Tools do not read it. When it stands above a declaration,
+the compiler shows a warning.
+
+## Do and don't
+
+- Do write `///` above each public class and method.
+- Do write `//` for a short note inside a function.
+- Don't write `/** ... */` above a declaration. Write `///` instead.
+- Don't leave an empty line between a `///` comment and its declaration. That does not compile.

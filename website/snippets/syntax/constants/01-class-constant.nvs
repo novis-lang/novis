@@ -1,0 +1,15 @@
+<?nvs
+// A constant belongs to a class. It has a type and a value that never changes.
+final class Cart {
+    public const int MAX_ITEMS = 20;
+    public const string CURRENCY = "EUR";
+
+    // Inside the class, `self::MAX_ITEMS` reads the constant.
+    public static function isFull(int $items): bool {
+        return $items >= self::MAX_ITEMS;
+    }
+}
+
+// Outside the class, write the class name in front.
+echo Cart::MAX_ITEMS, " ", Cart::CURRENCY, "\n";
+echo Cart::isFull(25) ? "full" : "not full", "\n";

@@ -1,0 +1,47 @@
+---
+title: Start here
+covers: ['lang:programs/a-complete-program-annotated']
+description: A first look at Novis code, and what is new if you know PHP.
+---
+import Snippet from '@components/Snippet.astro'
+
+A Novis program is a text file that ends in `.nvs`. You run it with `nvs run`. There is no build
+step and no `main` function. The statements in the file run from top to bottom.
+
+<Snippet src="syntax/start-here/01-first-program.nvs" />
+
+Run it:
+
+```sh
+nvs run first-program.nvs
+```
+
+## If you know PHP
+
+The syntax of Novis comes from PHP, so much of it looks familiar. These are the things that are new
+or different:
+
+- The open tag is `<?nvs`. The tag `<?php` does not compile.
+- Every variable has a type, and the type never changes. `var` takes the type from the first value.
+- There are no casts. The `as` operator converts a value, and it throws an error if that is not
+  possible.
+- There are no global functions. Every built-in function is a method of a `Core` class, such as
+  `Core\Arr::count`.
+- Options are one object literal at the end of a call: `{order: Core\Order::Asc}`.
+- The constructor is called `constructor`. There are no magic methods such as `__toString`.
+- A doc comment starts with `///`.
+- A program can read files or open connections only when `nvs.toml` allows it.
+
+## How these pages are ordered
+
+Each page explains one part of the language. It shows the short way to write it first. When there is
+a longer way that does more, the page shows it under "Use this when". Each page ends with a short
+list of things to do and things to avoid.
+
+Start with [Files and statements](/syntax/basics/files-and-statements/).
+
+## Do and don't
+
+- Do give every variable the type you mean. The compiler then finds mistakes for you.
+- Do look up a function in [Reference](/reference/core/) when you need one.
+- Don't look for a global function such as `count()`. Use the `Core` method instead.

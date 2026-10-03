@@ -1,0 +1,7 @@
+<?nvs
+// The statements in the file are the program. They run from top to bottom.
+echo "first", "\n";
+echo "second", "\n";
+
+// `echo` writes all of its values with nothing between them.
+echo "one", "-", "two", "\n";

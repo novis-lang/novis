@@ -1,0 +1,20 @@
+{
+  "syntax/basics/comments.mdx": {
+    "lang:programs/comments": "9acb13a1eb668099",
+    "lang:programs/doc-comments": "9d3846bee8114157"
+  },
+  "syntax/basics/constants.mdx": {
+    "lang:classes/constants-and-class": "d3d9ba2f00eb8f27"
+  },
+  "syntax/basics/files-and-statements.mdx": {
+    "lang:programs/a-program-is-a-file-of-top-level-statements": "f51c46ee225c7f7a",
+    "lang:programs/code-mode-and-html-mode": "5bdc9710eec0dda5",
+    "lang:programs/names-and-casing": "a65bd70500311de2"
+  },
+  "syntax/basics/variables.mdx": {
+    "lang:types/every-binding-has-a-type": "dd36d2fa193703ff"
+  },
+  "syntax/start-here.mdx": {
+    "lang:programs/a-complete-program-annotated": "57bfda16febb6b64"
+  }
+}

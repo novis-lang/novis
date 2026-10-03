@@ -124,7 +124,19 @@ export default defineConfig({
         },
         {
           label: 'Syntax',
-          items: [{ label: 'Overview', link: '/syntax/' }],
+          items: [
+            { label: 'Overview', link: '/syntax/' },
+            { label: 'Start here', link: '/syntax/start-here/' },
+            {
+              label: 'Basics',
+              items: [
+                { label: 'Files and statements', link: '/syntax/basics/files-and-statements/' },
+                { label: 'Comments and doc comments', link: '/syntax/basics/comments/' },
+                { label: 'Variables and var', link: '/syntax/basics/variables/' },
+                { label: 'Constants', link: '/syntax/basics/constants/' },
+              ],
+            },
+          ],
         },
         {
           label: 'Reference',

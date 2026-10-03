@@ -1,0 +1,31 @@
+---
+title: Constants
+covers: ['lang:classes/constants-and-class']
+description: Values that never change, declared in a class.
+---
+import Snippet from '@components/Snippet.astro'
+
+A constant is a value that never changes. Every constant belongs to a class. You write its
+visibility, its type, its name and its value: `public const int MAX_ITEMS = 20;`.
+
+<Snippet src="syntax/constants/01-class-constant.nvs" />
+
+Inside the class, `self::MAX_ITEMS` reads the constant. Everywhere else, write the class name:
+`Cart::MAX_ITEMS`. There are no global constants.
+
+The value must be known when the program compiles. A literal works, and so does an array of
+literals. A function call does not.
+
+## Constants that a subclass changes
+
+Use this when a subclass declares the same constant with its own value. `static::NAME` reads the
+value of the class the method was called on. `self::NAME` always reads the value of the class that
+contains the code. A subclass that declares the constant again must keep its type.
+
+`Cart::class` is the name of the class as a `string`. It is `"Cart"`.
+
+## Do and don't
+
+- Do use a constant for a fixed limit or a fixed label, such as `MAX_ITEMS`.
+- Do write constant names in `SCREAMING_SNAKE_CASE`.
+- Don't use a constant for a value that comes from configuration. Read it when the program runs.

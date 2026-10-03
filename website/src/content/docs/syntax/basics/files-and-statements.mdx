@@ -1,0 +1,50 @@
+---
+title: Files and statements
+covers:
+  - lang:programs/a-program-is-a-file-of-top-level-statements
+  - lang:programs/code-mode-and-html-mode
+  - lang:programs/names-and-casing
+description: What a Novis file is, how its statements run, and how names are written.
+---
+import Snippet from '@components/Snippet.astro'
+
+A program is one `.nvs` file. It starts with the tag `<?nvs`. The statements after the tag run from
+top to bottom. Each statement ends with `;`.
+
+<Snippet src="syntax/files-and-statements/01-statements.nvs" />
+
+`echo` writes text to the output. It does not add a new line, so the program writes `"\n"` itself.
+
+## HTML around the code
+
+Use this when the program writes a page. Text outside the tags goes to the output unchanged. `?>`
+ends the code, and `<?nvs` starts it again. `<?= $value ?>` writes one value into the text.
+
+<Snippet src="syntax/files-and-statements/02-html-mode.nvs" />
+
+A loop or an `if` can start in one code block and end in another. The text between them is repeated
+or skipped. In a web request, `<?= ?>` escapes the value, so it cannot add HTML tags to the page.
+
+A file that starts with `#!` is code from its second line. It needs no `<?nvs` tag. Use this for a
+script that you start directly from the terminal.
+
+## How names are written
+
+The compiler checks how each name is written. A name in the wrong case does not compile.
+
+| Name | How to write it | Example |
+|---|---|---|
+| class, interface, enum, namespace | `PascalCase` | `OrderLine` |
+| method, property, parameter, variable | `camelCase` | `$lineCount` |
+| class constant | `SCREAMING_SNAKE_CASE` | `MAX_LINES` |
+| enum case | `PascalCase` | `Rank::Gold` |
+| the constructor | `constructor` | `function constructor()` |
+
+No name may start with `_`. Names are case-sensitive.
+
+## Do and don't
+
+- Do leave the `<?nvs` tag open in a file that has only code.
+- Do use `<?= ?>` to put a value into a page. It escapes the value for you.
+- Don't write `<?php`. It does not compile.
+- Don't start a name with `_`.

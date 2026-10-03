@@ -1,0 +1,39 @@
+---
+title: Variables and var
+covers: ['lang:types/every-binding-has-a-type']
+description: How to declare a variable, give it a type, and change its value.
+---
+import Snippet from '@components/Snippet.astro'
+
+Every variable has a type. You declare a variable once, with its type in front of its name. After
+that, you assign new values without the type.
+
+<Snippet src="syntax/variables/01-declare.nvs" />
+
+`string $label;` declares a variable with no value. Reading it before it has a value does not
+compile.
+
+## Let the value decide the type
+
+Use this when the type is clear from the value. `var` takes the type from the first value, and the
+type stays the same after that.
+
+<Snippet src="syntax/variables/02-var.nvs" />
+
+`var` cannot guess the type of an empty array, or of an array with items of different types. Write
+the type for those: `array<int|string> $items = [1, "a"];`.
+
+A variable declared inside an `if` or a loop can be used after it. Its scope is the whole function.
+
+These lines do not compile:
+
+- `int $x = 1;` and then `int $x = 2;`. A variable is declared only once.
+- `int $count = 1;` and then `$count = "two";`. The type of `$count` is `int`.
+- `$total = 5;` when `$total` was never declared.
+
+## Do and don't
+
+- Do write the type when it helps the reader, such as for a function result.
+- Do use `var` when the value already shows the type.
+- Don't use one variable for values of different types. Declare a second variable.
+- Don't use `var` for an empty array. Write `array<string> $names = [];`.
