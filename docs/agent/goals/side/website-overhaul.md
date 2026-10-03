@@ -82,8 +82,8 @@ File set: `AGENTS.md`, `website/astro.config.ts`, `website/src/components/{Heade
   space, `site-index.mdx` if nothing links it, and `<Pagination/>` from the footer. Their generators go
   too: `websiteRules` leaves both renderer lists, `nv decisions --render` stops writing website JSON,
   and `sync:decisions` leaves `package.json`. `docs/decisions.md` and `nv decisions --check` stay,
-  because they serve the repo and not the site. Old URLs (`/docs/…`, `/why-novis/`) redirect to the
-  nearest new page, so links from outside do not break.
+  because they serve the repo and not the site. **No redirects:** the site was never public, so no
+  old URL needs to keep working, and a removed page simply stops existing.
 - **Examples are read in place.** The site reads `docs/examples/**` directly at build time (an Astro
   content loader, or a Vite glob with `server.fs.allow` widened to the repo root). The mirror
   directory, `sync-examples.mjs` and its `.gitignore` line are deleted. A CI Pages build then shows
@@ -106,7 +106,7 @@ File set: `AGENTS.md`, `website/astro.config.ts`, `website/src/components/{Heade
     passes. A failing part lists its problems and exits non-zero. Parts: `structure`, `snippets`,
     `stale`, `reference`, `syntax`, `guides`, `in-depth`, `apps`, `prose`. Each stage below says what
     its part asserts. `structure` asserts the nav order above, no `<Pagination/>`, no removed page,
-    and the redirects. `snippets` runs every snippet through `nvs` and diffs it against `.out`, and
+    and no redirect entry in the Astro config. `snippets` runs every snippet through `nvs` and diffs it against `.out`, and
     fails on any inline Novis fence in a handwritten page. `stale` fails on any broken id or stale
     page. `prose` applies the three countable bounds that `bun nv proofs --comments` applies (lines
     in a block, words in a sentence, a dash joining two sentences) to the prose of every handwritten
@@ -236,7 +236,7 @@ File set: `website/src/content/docs/{index.mdx,in-depth/**}`, `website/src/compo
   (each linking to its Guides page), four cards for the four areas, and the Install button. The old
   claims are removed.
 - **`--check in-depth`** asserts the eight sections exist and each has a page. **`structure`** now also
-  asserts that no page links to a removed URL except through a redirect.
+  asserts that no page links to a URL the site does not build.
 - **The whole site is then read once against `AGENTS.md` § *Text an end user reads*** by a subagent
   that did not write it. Every page it flags is rewritten from what it means to say, never trimmed until
   `--check prose` passes.
@@ -266,7 +266,8 @@ These are the user's calls, made on 2026-10-03, unless marked as mine. No sessio
 - **The plain-English rule covers everything a user sees**, and internal docs stay out of it.
 - **No review stop.** The run goes straight to `SIDE GOAL GREEN`, and the user reviews everything,
   including the standout-feature list, before it lands.
-- **Mine, 2026-10-03:** examples are read in place, not mirrored; old URLs redirect; snippets live under
+- **No redirects for removed URLs.** The site was never public, so nothing outside links to it.
+- **Mine, 2026-10-03:** examples are read in place, not mirrored; snippets live under
   `website/snippets/`; `covers:` uses the proofs roster's feature ids; one `site.ts` with parts in
   place of several tools.
 - **ADR slot: one.** The website's structure and its stale guard are one decision record, written by
