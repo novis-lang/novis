@@ -1,26 +1,22 @@
 {
-  "state": "**Goal `goal-closeout`, Stage 4 (finished in place) is under way.** Stage 3 is done: `docs/agent/goal-decisions.md` names every goal in front of `goal-closeout`.\n\nThe `nvs-diagnostics`, `benches`, `nvs-test`, `nvs-db`, `nvs-ir` and `nvs-config` gap directories are closed for this goal. One `nvs-syntax` gap is left, `the-pipeline-bench-has-no-nested-twin`, which is a bench member in a different file set.\n\nIn `nvs-server`, the state-bleed suite now has a connection arm, `the_state_bleed_suite_passes_across_a_connection_boundary`. One gap of this goal is left there, `drain-period-does-not-end-a-response-being-written`, and its record now names the design: an error type on `Answer`'s body and a period end its request-scoped stream arm reads. `span-has-no-window` is owned by M10, not this goal.\n\nIn `nvs-cli`, the other subcommands' `--help` text has not been swept and is still in the dense voice.\n\nThe floor check `the latest CI run on main succeeded for the code HEAD holds` is red only because `main` is many commits ahead of `origin/main`, and the loop never pushes (module doc of `tools/nv/cmd/ci-green.ts`). A person has to push, so no session can close it.\n\n`bun nv owners --closes goal-closeout` names the rest of the gaps across many crates. Smallest directories first: `website` (2), `vscode` (3), `nvs-cli` (4) and `nvs-host` (4). Stage 4 stops on `BLOCKED` only for \"too large\", as the goal's § *Stage 4* defines it. `bun nv import` is broken because the rule index it reads was deleted. Goal `ci-green`'s floor check stays red until Stage 6, as expected.",
+  "state": "**Goal `goal-closeout`, Stage 4 (finished in place) is under way.** Stage 3 is done: `docs/agent/goal-decisions.md` names every goal in front of `goal-closeout`.\n\nThe `nvs-diagnostics`, `benches`, `nvs-test`, `nvs-db`, `nvs-ir` and `nvs-config` gap directories are closed for this goal. One `nvs-syntax` gap is left, `the-pipeline-bench-has-no-nested-twin`, which is a bench member in a different file set.\n\nIn `nvs-server`, a streamed response now ends in `DrainPeriodEnded` at the drain period's end, so `hyper` aborts with no terminating chunk (`a_response_still_streaming_at_the_drain_periods_end_is_cut_without_its_last_chunk`). The gap `drain-period-does-not-end-a-response-being-written` now names only the buffered half, and its record names the design and the `503` trap. `span-has-no-window` is owned by M10, not this goal.\n\nIn `nvs-cli`, the other subcommands' `--help` text has not been swept and is still in the dense voice.\n\nThe floor check `the latest CI run on main succeeded for the code HEAD holds` is red only because `main` is many commits ahead of `origin/main`, and the loop never pushes (module doc of `tools/nv/cmd/ci-green.ts`). A person has to push, so no session can close it.\n\n`bun nv owners --closes goal-closeout` names the rest of the gaps across many crates. Smallest directories first: `website` (2), `vscode` (3), `nvs-cli` (4) and `nvs-host` (4). Stage 4 stops on `BLOCKED` only for \"too large\", as the goal's § *Stage 4* defines it. `bun nv import` is broken because the rule index it reads was deleted. Goal `ci-green`'s floor check stays red until Stage 6, as expected.",
   "next": {
     "stage": 4,
     "title": "finished in place",
     "files": [],
-    "note": "one file set: `crates/nvs-server/src/serve.rs`, `crates/nvs-server/src/io.rs` and the gap record under `data/gaps/nvs-server/`.",
+    "note": "one file set: `crates/nvs-server/src/io.rs`, `crates/nvs-server/src/serve.rs` and the gap record under `data/gaps/nvs-server/`.",
     "items": [
       {
         "done": false,
-        "text": "**The drain period ends a streamed response being written** — gap `drain-period-does-not-end-a-response-being-written` (`rule:concurrency/a-drain-closes-a-connection-cleanly`). `Answer`'s `Body` impl at `crates/nvs-server/src/serve.rs:233` has `type Error = Infallible`; give the request-scoped arm of `Answer::Streaming` (`alive: None`, built at `crates/nvs-server/src/serve.rs:174`) the connection's `DrainSeen` (`crates/nvs-server/src/io.rs:153`), the drain period and the drive's `cut_due` cell, the way the head wait's cut reads them at `crates/nvs-server/src/serve.rs:1475`. At the period's end `poll_frame` answers `Some(Err(_))`, so `hyper` aborts without the terminating chunk and the end of `serve_connection` abandons the `Streamed` peer. The test sits beside `a_request_still_running_at_the_drain_periods_end_is_answered_503` and asserts that the client reads no terminating chunk. Delete the record once it is closed."
-      },
-      {
-        "done": false,
-        "text": "**A buffered response being written under a drain** — the same record's other half. Decide whether `write_idle` is the bound, which the rule's \"work in progress\" may already allow, and say so in the rule's fragment, or cut the write wait at the period's end in `crates/nvs-server/src/io.rs:313` without cutting a `503` in flight."
+        "text": "**The drain period ends a buffered response being written** — gap `drain-period-does-not-end-a-response-being-written` (`rule:concurrency/a-drain-closes-a-connection-cleanly`: the period bounds a response that is moving). Add `Phase::Write` to the phases whose wait ends at the period's end in `ConnectionIo::arm` at `crates/nvs-server/src/io.rs:313`, and keep the `503` that `cut_by_the_drain` at `crates/nvs-server/src/serve.rs:2137` writes at that same instant from being cut on its first park (the gap record says why). The test sits beside `a_response_still_streaming_at_the_drain_periods_end_is_cut_without_its_last_chunk`: a whole body larger than the socket buffers and a client that reads it slowly past the period. Delete the record once it is closed."
       }
     ]
   },
   "backlog": [
-    "`nvs-cli`'s other subcommands' `--help` text, in the plain voice of `AGENTS.md` § *Text an end user reads* (`data/gaps/nvs-cli/`).",
-    "`website` (2), `vscode` (3) and `nvs-host` (4) gaps, from `bun nv owners --closes goal-closeout`.",
-    "`nvs-syntax`'s `the-pipeline-bench-has-no-nested-twin`, a bench member (`data/gaps/nvs-syntax/`).",
-    "`bun nv import` reads a deleted rule index (`tools/nv/cmd/import.ts`).",
-    "The CI floor check needs a person to push `main` (`tools/nv/cmd/ci-green.ts`)."
+    "`website` (2), `vscode` (3), `nvs-cli` (4) and `nvs-host` (4) gap directories — `bun nv owners --closes goal-closeout`.",
+    "`nvs-syntax`'s `the-pipeline-bench-has-no-nested-twin` — a bench member under `benches/members/`.",
+    "The `nvs-cli` subcommands' `--help` text, still in the dense voice — `AGENTS.md` § *Text an end user reads*.",
+    "`bun nv import` reads a deleted rule index — `tools/nv/cmd/import.ts`.",
+    "The CI floor check needs a person to push `main` — `tools/nv/cmd/ci-green.ts`."
   ]
 }
