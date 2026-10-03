@@ -1,37 +1,23 @@
 {
-  "state": "**Side goal `website-overhaul`, stage 2 in progress.** The nav, the per-area sidebars and the removals are on disk. The header is Guides, Syntax, Reference, In-Depth (each with its subtitle), Install as a button, then Sponsoring, all read from `AREAS` and `INSTALL` in `website/config/site.mjs`, which the footer, the mobile menu and `llms.txt` read too. `website/src/routeData.ts` narrows the sidebar to the current area's top-level group and gives a page outside every area no sidebar. `<Pagination/>` is gone. The rulebook pages, `rules.json`, `website-rules.ts`, the decisions page and `decisions.json`, Why Novis and its claims, and the site index are deleted; `nv decisions --render` writes only `docs/decisions.md`. The Core pages moved to `/reference/core/`, installation and hello-world to `/install/`, release notes to `/in-depth/what-changed/`. No `/docs/` URL remains and no redirect exists. The area landing pages are short placeholders that stages 4 to 6 replace.\n\nThe site has not been built since: the worktree has no `website/node_modules`, so `npm ci` in `website/` comes before the first `bun nv site --build`.",
+  "state": "**Side goal `website-overhaul`, stage 2 in progress.** The nav, the per-area sidebars and the removals are on disk. The header is Guides, Syntax, Reference, In-Depth, Install as a button, then Sponsoring, all read from `AREAS` and `INSTALL` in `website/config/site.mjs`. `website/src/routeData.ts` narrows the sidebar to the current area. No `/docs/` URL remains and no redirect exists. The area landing pages are short placeholders that stages 4 to 6 replace.\n\nThe examples are read in place: `website/src/components/MethodExamples.astro` globs `../../../docs/examples/core/` directly, joins a nested class's parts with `-` as the proofs roster does, and skips companion files in subdirectories. `website/scripts/` (the sync and check scripts), the `sync:examples` and `examples:check` npm scripts and the `examples/` ignore line are gone. `website/README.md` and `docs/examples/README.md` say so. `rule:testing/examples-live-in-the-repository` still says \"the website mirrors it\": its fragment is rewritten under the stage's decision record, item 2 below.\n\n`website/node_modules` is installed in this worktree. The site has not been built since the nav change: the goal allows no build outside `bun nv site --check`, and that command is not written yet.",
   "next": {
     "stage": 2,
     "title": "the structure and the stale guard",
-    "files": [
-      "website/package.json",
-      "website/scripts/",
-      "website/src/components/MethodExamples.astro",
-      "website/.gitignore",
-      "tools/nv/cmd/site.ts",
-      "tools/nv/main.ts",
-      "tools/nv/cmd/session.ts",
-      ".github/workflows/ci.yml"
-    ],
+    "files": [],
+    "note": "one file set: `tools/nv/cmd/site.ts` (new), `tools/nv/main.ts`, `tools/nv/cmd/session.ts`, `.github/workflows/ci.yml`, `docs/rules/testing/`, `data/rules/testing/`.",
     "items": [
       {
         "done": false,
-        "text": "**Read examples in place and delete the mirror** — `website/scripts/sync-examples.mjs:1`, `website/src/components/MethodExamples.astro:24`"
+        "text": "**`bun nv site`: snippets, `covers:`, the lock, `--stale`, `--check`, `--build`, `--stamp`, its tests** — `tools/nv/main.ts:1`, `tools/nv/proofs/roster.ts:24`, `website/src/components/MethodExamples.astro:24`"
       },
       {
         "done": false,
-        "text": "**`bun nv site`: snippets, `covers:`, the lock, `--stale`, `--check`, `--build`, `--stamp`, its tests** — `tools/nv/main.ts:1`, `website/src/content.config.ts:6`"
-      },
-      {
-        "done": false,
-        "text": "**The wrap gate and the CI step**, and the stage's decision record — `tools/nv/cmd/session.ts:499`, `.github/workflows/ci.yml:293`"
+        "text": "**The wrap gate and the CI step, the stage's decision record, and `rule:testing/examples-live-in-the-repository` rewritten to \"read in place\"** — `tools/nv/cmd/session.ts:499`, `.github/workflows/ci.yml:293`, `docs/rules/testing/examples-live-in-the-repository.md:1`"
       }
     ]
   },
   "backlog": [
-    "`covers:` is not in the content schema yet (`website/src/content.config.ts`); the five new landing pages need `covers: []` once it is. Owner: goal doc § Stage 2.",
-    "`TYPES_PAGE` in `website/src/lib/core.ts` points at `/syntax/` until Syntax has type pages. Owner: § Stage 4.",
-    "`bun nv render --website` re-rendered 150 Core stubs from the current binary while moving them; stage 3 deletes them all. Owner: § Stage 3.",
-    "`docs/agent/goals/php-oracle-retired.md` still names the old `website/src/content/docs/docs/` paths; it is another goal's frozen prose and was left alone."
+    "The first `bun nv site --build` after the nav change may surface broken links from the moved pages (`docs/agent/goals/side/website-overhaul.md`, stage 2).",
+    "`.github/workflows/pages.yml:58` still describes `npm run sync` as publishing the rulebook, which is deleted; fix it with the CI step."
   ]
 }
