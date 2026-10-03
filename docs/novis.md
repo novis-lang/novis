@@ -28528,7 +28528,7 @@ populates.
 | `resource` | no such type; a handle is an object of a `Core` class | `E0303` |
 | `iterable $x` | `array<T>` for an array, `Iterable<T>` for a generator or an object; an `array<T>` is not an `Iterable<T>` | `E0401` at the call |
 | `callable $f = "strlen";`, `callable $f = [$obj, "m"];`, `callable $f = "A::m";` | only a closure is callable: `fn(string $s): uint => Core\Str::length($s)` | `E0418`, `E0419` |
-| `never` return type | the same `never`; end every path of the body with `throw`. A `return;` in it is refused | `E0822` |
+| `never` return type | the same `never`; end every path of the body with `throw`, `exit` or a call to another `never` function. A path that reaches the end of the body does not compile, and a `return;` in it is refused | `E0739`, `E0822` |
 | `public int $x = 1 + 2;`, `public string $s = "a" . "b";` | write the value, or compute it in the constructor; a default is one literal, `null`, `[]`, an enum case or a constant | `E0472` |
 | `1 == "1"` | convert one side: `$n == ($s as int)` — disjoint types do not compare | `E0466` |
 | `"3" * 2`, `"a" < "b"` | `($s as int) * 2`; `Core\Str::compare($a, $b)` | `E0716`, `E0715` |

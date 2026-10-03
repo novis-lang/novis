@@ -1,21 +1,24 @@
 {
-  "state": "**Goal `goal-closeout`, Stage 4 (finished in place).** `nvs-types` closed `abstract-test-method-is-accepted`: a `#[Test]` method with no body is now the fourth `E0733` shape refusal, and `rule:testing/test-attribute` lists five malformed shapes. Six `nvs-types` gaps are left.\n\nThe only `nvs-runtime` gap left is `enum-case-that-reached-a-mixed`. It needs an ADR beyond Stage 5's one slot, so it waits for the user. It goes to `BLOCKED` only once it is the last goal-owned gap in the tree.\n\nThe floor check `the latest CI run on main succeeded for the code HEAD holds` is red only because `main` is ahead of `origin/main`, and the loop never pushes. A person has to push.\n\n`bun nv owners --closes goal-closeout` names the rest, in `nvs-lsp`, `nvs-stdlib`, `nvs-syntax`, `nvs-types`, `editors/vscode` and `website`.",
+  "state": "**Goal `goal-closeout`, Stage 4 (finished in place).** `nvs-types` closed `a-never-method-that-reaches-its-end-returns`: a `never` body that reaches its end is `E0739`, and a statement typed `never` counts as an exit in `crates/nvs-types/src/returns.rs` unless it is a method call some subtype overrides. Five `nvs-types` gaps are left.\n\nThe only `nvs-runtime` gap left is `enum-case-that-reached-a-mixed`. It needs an ADR beyond Stage 5's one slot, so it waits for the user. It goes to `BLOCKED` only once it is the last goal-owned gap in the tree.\n\nThe floor check `the latest CI run on main succeeded for the code HEAD holds` is red only because `main` is ahead of `origin/main`, and the loop never pushes. A person has to push.\n\n`bun nv owners --closes goal-closeout` names the rest, in `nvs-lsp`, `nvs-stdlib`, `nvs-syntax`, `nvs-types`, `editors/vscode` and `website`.",
   "next": {
     "stage": 4,
     "title": "finished in place",
     "files": [],
-    "note": "one file set: `nvs-types`' body-exit walk, `crates/nvs-types/src/check.rs` and `crates/nvs-types/src/returns.rs`.",
+    "note": "one file set: the HTTP client's URL parameter in `nvs-types`, `crates/nvs-types/src/expr/args.rs` and `crates/nvs-types/src/intrinsics.rs`.",
     "items": [
       {
         "done": false,
-        "text": "**A `never` body that reaches its end does not compile** (`rule:php-migration/a-body-never-falls-off-its-end`, gap `a-never-method-that-reaches-its-end-returns`). `check_body_exits` at `crates/nvs-types/src/check.rs:919` exempts `never` from `E0739`. `block_always_exits` at `crates/nvs-types/src/returns.rs:46` walks statements syntactically and counts only `throw` and `exit`; it must also count a call typed `never`, then the exemption goes and the rule's last sentence is rewritten. `crates/nvs-ir/src/lower/mod.rs:4092` erases `never` to `void` and stays."
+        "text": "**A `tainted` URL at a client parameter names `Core\\Http::allowUrl` in its help** (`rule:security/outbound-url-is-a-sink`, gap `a-tainted-url-diagnostic-does-not-name-allowurl`). `check_shape_field` at `crates/nvs-types/src/expr/args.rs:778` attaches a launderer help only at shape-field sinks. Add it at every parameter whose type admits `Core\\Http\\Target`, and update `tests/conformance/core/every-client-member-refuses-a-tainted-url.nvst`."
+      },
+      {
+        "done": false,
+        "text": "**A malformed literal URL at the HTTP client does not compile** (`rule:expressions/intrinsic-literals`, gap `a-literal-url-at-the-http-client-is-not-read-while-checking`). `Core\\Uri::parse`'s row is at `crates/nvs-types/src/intrinsics.rs:541`. Add a row per `Core\\Http\\Client` request member and `Core\\Http::allowUrl`, plus a reject case beside `tests/conformance/reject/a-malformed-literal-intrinsic-is-a-compile-error.nvst`."
       }
     ]
   },
   "backlog": [
-    "The other `nvs-types` gaps, one group each — `bun nv gaps --module crates/nvs-types/src`.",
-    "`enum-case-that-reached-a-mixed` (`crates/nvs-runtime/src/lib.rs`): `BLOCKED` for the user once it is the last goal-owned gap — `docs/agent/goals/goal-closeout.md` § Stage 4.",
-    "The other crates' goal-owned gaps, one crate per group — `bun nv owners --closes goal-closeout`.",
-    "Stage 5's decision record and the switch that deletes the goal it leaves — `docs/agent/goals/goal-closeout.md` § Stage 5."
+    "An override's argument and return types are not checked against the method it replaces (the `E0404` card in `crates/nvs-diagnostics/src/lib.rs` says no decision has reached it). So a call to an overridden `never` method is not an exit. No gap record names this yet. Not checked whether the IR's `CallVirtual` keeps a wrongly typed override memory-safe.",
+    "`nvs-types` gaps left: `a-decimal-constant-has-no-folded-value` (`defaults.rs`), `a-callable-has-no-bind-bindto-or-call` (`expr/calls.rs`), `an-isolate-result-output-is-typed-string` (`expr/isolate.rs`), `a-refused-cast-also-reports-the-mixed-it-leaves` (`lib.rs`).",
+    "`enum-case-that-reached-a-mixed` (`nvs-runtime`) waits for the user's ADR decision."
   ]
 }
