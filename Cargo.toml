@@ -74,18 +74,18 @@ nvs-lsp = { path = "crates/nvs-lsp", version = "0.0.1" }
 nvs-fmt = { path = "crates/nvs-fmt", version = "0.0.1" }
 
 # --- codegen backend (versions validated by the M0 spikes) ---
-cranelift = "0.135"
-cranelift-jit = "0.135"
-cranelift-module = "0.135"
-cranelift-native = "0.135"
+cranelift = "0.136"
+cranelift-jit = "0.136"
+cranelift-module = "0.136"
+cranelift-native = "0.136"
 # The second `Module` behind the one lowering walk — ADR 0042 § 2's relocatable
 # object payload. Same version as its four siblings above, and it must stay so:
 # they share `cranelift-codegen`'s types.
-cranelift-object = "0.135"
+cranelift-object = "0.136"
 # The reader for what that one writes, and a test dependency only: an object's
 # relocation table is the evidence that an address was left for a loader rather
 # than baked in. Same version `cranelift-object` already resolved to.
-object = { version = "0.39", default-features = false, features = ["read", "std"] }
+object = { version = "0.40", default-features = false, features = ["read", "std"] }
 
 # --- coroutines (stackful; validated on windows-msvc by the M0 spike) ---
 corosensei = "0.2"
@@ -304,10 +304,10 @@ rcgen = { version = "0.14", default-features = false, features = [
     "pem",
 ] }
 
-# --- extension sandbox (M9). Built on the same cranelift version above;
-# --- spike #4 confirmed wasmtime 48 and cranelift 0.135 coexist.
+# --- extension sandbox (M9). Built on the same cranelift version above, so the
+# --- two move together: wasmtime N pins cranelift 0.(N+87) exactly.
 # --- See docs/decisions/0003.md.
-wasmtime = "48"
+wasmtime = "49"
 
 # --- the language server's wire and its vocabulary (ADR 0099 §§ 1-5) ---
 # `rule:ide/the-server-is-synchronous` is "a reader thread, a writer thread, one
@@ -403,7 +403,7 @@ memmap2 = "0.9"
 # that crate's own dependency, so naming it here adds no crate and no C.
 # Upstream marks it internal to wasmtime and unsupported elsewhere; the pin is
 # what answers that, and `nvs_codegen::make_executable` is the one call site.
-wasmtime-internal-jit-icache-coherence = "48"
+wasmtime-internal-jit-icache-coherence = "49"
 
 # --- Unicode text segmentation (ADR 0009 § 2's grapheme granularity) ---
 # UAX #29 extended grapheme cluster boundaries, which `string`'s default
