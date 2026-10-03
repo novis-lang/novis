@@ -1,24 +1,23 @@
 {
-  "state": "**Goal `goal-closeout`, Stage 4 (finished in place).** The gap `a-refused-cast-also-reports-the-mixed-it-leaves` is closed. The parser gives back PHP's `(T)expr` as `ExprKind::Conversion { legacy: true }` after it reports `E0225`. `infer_conversion` in `crates/nvs-types/src/expr/operators.rs` types a legacy conversion as `T` and runs none of the conversion's own checks. So `return $total + (int)$each;` in an `: int` method reports `E0225` alone, and `tests/conformance/reject/a-refused-cast-in-a-sum-reports-one-error.nvst` pins that. The semantic-token walker in `crates/nvs-lsp/src/semantic.rs` colours nothing inside a legacy conversion (`rule:ide/rejected-syntax-gets-no-colour`).\n\nA `decimal` *property* default is still refused (`E0472`), because `nvs_runtime::FieldDefault` has no `decimal` recipe. The module doc of `crates/nvs-types/src/defaults.rs` says so.\n\n`startsWith` and `endsWith` still compare bytes, so `startsWith(\"e\\u{301}\", \"e\")` is `true`. Whether they join the search family is still open.\n\nThe only `nvs-runtime` gap left is `enum-case-that-reached-a-mixed`. It needs an ADR beyond Stage 5's one slot, so it waits for the user. It goes to `BLOCKED` only once it is the last goal-owned gap in the tree.\n\nThe floor check `the latest CI run on main succeeded for the code HEAD holds` is red only because `main` is ahead of `origin/main`, and the loop never pushes. A person has to push.\n\n`bun nv owners --closes goal-closeout` names the rest: 27 gaps in `nvs-lsp`, `nvs-stdlib`, `nvs-syntax`, `nvs-types`, `editors/vscode` and `website`.",
+  "state": "**Goal `goal-closeout`, Stage 4 (finished in place).** The gap `the-pipeline-bench-has-no-nested-twin` is closed. A bench may now have a sibling `<name>.twin.nvs`: the same operation written another way. `--record-perf` times it in the same sweep and records `twin_ns_per_op` and `twin_ratio` (the bench's figure over the twin's). It is a figure, never a finding. `benches/members/README.md` § *What a bench declares* documents it, and the comment check covers the twin. `benches/members/lang/expressions/the-pipeline-operator.twin.nvs` writes the three calls nested; its first record gives a twin ratio of 0.97x.\n\nA `decimal` *property* default is still refused (`E0472`), because `nvs_runtime::FieldDefault` has no `decimal` recipe. The module doc of `crates/nvs-types/src/defaults.rs` says so.\n\n`startsWith` and `endsWith` still compare bytes. Whether they join the search family is still open.\n\nThe only `nvs-runtime` gap left is `enum-case-that-reached-a-mixed`. It needs an ADR beyond Stage 5's one slot, so it waits for the user. It goes to `BLOCKED` only once it is the last goal-owned gap in the tree.\n\nThe floor check `the latest CI run on main succeeded for the code HEAD holds` is red only because `main` is ahead of `origin/main`, and the loop never pushes. A person has to push.\n\n`bun nv owners --closes goal-closeout` names the rest: 26 gaps in `nvs-lsp`, `nvs-stdlib`, `nvs-types`, `nvs-runtime`, `editors/vscode` and `website`.",
   "next": {
     "stage": 4,
     "title": "finished in place",
     "files": [
-      "tools/nv/proofs/perf.ts",
-      "tools/nv/proofs/collect.ts",
-      "benches/members/lang/expressions/"
+      "crates/nvs-stdlib/tests/spec_registry_coverage.rs",
+      "data/chain.json"
     ],
     "items": [
       {
         "done": false,
-        "text": "**The pipeline bench gets a nested-call twin** (`data/gaps/nvs-syntax/the-pipeline-bench-has-no-nested-twin.json`). Benches are found per feature, and the sweep times only one sibling kind, `<name>.scale.nvs`, at `tools/nv/proofs/perf.ts:139` (found at `tools/nv/proofs/collect.ts:454`). Add a second sibling kind the same way, `<name>.nested.nvs` or similar, timed in the same sweep and recorded beside the bench's own figure. Then write `benches/members/lang/expressions/the-pipeline-operator.nested.nvs` with the same three calls written nested, and delete the gap. Document the sibling in `benches/members/README.md` § *What a bench declares* (`rule:testing/feature-proofs`)."
+        "text": "**The live-chain-entry test reads the live goal from the chain record** (`data/gaps/nvs-stdlib/the-live-chain-entry-test-names-a-goal-stage-6-deletes.json`). `an_owner_that_is_not_a_live_chain_entry_fails` at `crates/nvs-stdlib/tests/spec_registry_coverage.rs:616` asserts the walked goal `carried-gaps` is on the chain, and Stage 6 deletes it. Take the slug from `data/chain.json`'s `live` instead, then delete the gap (`rule:tooling/the-chain-names-its-live-goal`)."
       }
     ]
   },
   "backlog": [
-    "`enum-case-that-reached-a-mixed` waits for the user: it needs an ADR beyond Stage 5's slot (`data/gaps/nvs-runtime/`).",
-    "`startsWith` and `endsWith` compare bytes; whether they join the grapheme search family is open (`crates/nvs-stdlib/src/str.rs`).",
-    "A `decimal` property default needs a `decimal` recipe in `nvs_runtime::FieldDefault` (`crates/nvs-types/src/defaults.rs` module doc).",
-    "The 27 gaps `bun nv owners --closes goal-closeout` names."
+    "`the-website-grammar-is-hand-written-beside-the-editors` — `website/config/novis.tmLanguage.json`.",
+    "`rendered-core-pages-lag-the-tree` — `website/scripts`.",
+    "`nvs-check-workspace-is-not-contributed` and `the-guided-install-is-reached-by-no-command` — `editors/vscode/src/extension.ts`.",
+    "`enum-case-that-reached-a-mixed` waits for the user (needs a second ADR slot)."
   ]
 }
