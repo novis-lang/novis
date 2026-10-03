@@ -19989,7 +19989,7 @@ Joins this connection to `$topic`. A value published to that topic then arrives 
 
 **Returns** `void` — Nothing. If a connection subscribes twice to the same topic, a published value still arrives only once.
 
-**Throws** `LogicError` — `$topic` is empty, or this script is not a WebSocket connection or an event stream. Only a script that `Core\Socket::upgrade` or `Core\Sse::upgrade` started can subscribe.
+**Throws** `LogicError` — `$topic` is empty or longer than 256 bytes, or this script is not a WebSocket connection or an event stream. Only a script that `Core\Socket::upgrade` or `Core\Sse::upgrade` started can subscribe. One connection can join at most 1024 topics at the same time, so joining one more also throws this error.
 
 <a id="core-core-topic-publish"></a>
 #### `Core\Topic::publish`
@@ -20007,7 +20007,7 @@ Sends a copy of `$value` to every connection that subscribed to `$topic`, and re
 
 **Returns** `uint` — The number of subscribers the value was sent to. It is `0` for a topic nobody joined. Any script can publish, so an ordinary web request can tell the connections that something changed. A connection that publishes to a topic it joined also receives the value. A subscriber with too many unread messages is skipped and not counted. It is being closed, and `publish` never waits for it.
 
-**Throws** `LogicError` — `$topic` is empty, or `$value` cannot be copied to another connection, such as an object with a `secret` property. The error is thrown even when nobody joined the topic.
+**Throws** `LogicError` — `$topic` is empty or longer than 256 bytes, or `$value` cannot be copied to another connection, such as an object with a `secret` property. The error is thrown even when nobody joined the topic.
 
 <a id="core-core-topic-unsubscribe"></a>
 #### `Core\Topic::unsubscribe`
@@ -20024,7 +20024,7 @@ Removes this connection from `$topic`. A value published to that topic after thi
 
 **Returns** `void` — Nothing. Leaving a topic this connection never joined is not an error.
 
-**Throws** `LogicError` — `$topic` is empty, or this script is not a WebSocket connection or an event stream. These are the same two errors `subscribe` throws.
+**Throws** `LogicError` — `$topic` is empty or longer than 256 bytes, or this script is not a WebSocket connection or an event stream. `subscribe` throws the same errors.
 
 <a id="core-core-sse"></a>
 ### `Core\Sse`
