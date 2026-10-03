@@ -4412,6 +4412,40 @@ echo Core\Router::{member}("Docs::here", []);
         )
     }
 
+    /// `rule:programs/program-id` under `nvs serve`: a served request reads
+    /// the id of the unit the compiler handed the door, computed by the same
+    /// formula `nvs run` uses. A spawned script runs through the same
+    /// `program_over` seam, so this one path covers both.
+    #[test]
+    fn a_served_request_reads_its_programs_id() {
+        let dir = std::env::temp_dir().join(format!("nvs-serve-program-id-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("a directory to write the entry in");
+        let path = dir.join("app.nvs");
+        let source = "<?nvs\necho Core\\Program::id();\n";
+        std::fs::write(&path, source).expect("the entry is writable");
+        let config = nvs_config::Config::default();
+        let compiler = Compiler::new(&config);
+        let (program, _routes) = compiler
+            .compiled(&path.to_string_lossy())
+            .expect("the entry compiles");
+        let mut ctx = Ctx::new(OutputSink::Buffer(Vec::new()));
+        let done = Isolate::new(program, Value::null(), Output::Capture)
+            .answering(Inbound::new("GET", "/", ""))
+            .run(&mut ctx)
+            .expect("a null argument crosses into an isolate");
+        std::fs::remove_dir_all(&dir).expect("the case removes what it wrote");
+        let expected = nvs_config::cache::program_id(
+            &[nvs_config::cache::content_hash(source.as_bytes())],
+            nvs_config::cache::env_hash(&config),
+        )
+        .to_string();
+        assert!(done.ok, "the request ends without a throw");
+        assert_eq!(
+            String::from_utf8(done.output).expect("an id is text"),
+            expected
+        );
+    }
+
     /// `rule:routing/an-origin-is-per-mount-and-checked-at-boot` at the door:
     /// the mount a request selected is what decides the origin its program
     /// links from, and the process serving it has none of its own.

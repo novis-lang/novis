@@ -259,8 +259,9 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_program_id(ctx, _args: [0]) {
         let id = ctx.program_id().to_owned();
         if id.is_empty() {
-            // no case can reach this: every `nvs run` writes the id onto the
-            // context before the program starts, so a `.nvst` case — which is
+            // no case can reach this: `nvs run`, a served request and a
+            // spawned script all write the id onto the context before the
+            // program starts, so a `.nvst` case — which is
             // a program with a `nvs run` in front of it — has no way to be
             // handed a context without one. `id_refuses_a_context_no_host_wrote_an_identity_onto`
             // asserts it instead, over a `Ctx` built by hand.
@@ -336,7 +337,7 @@ mod tests {
     fn id_answers_the_identity_the_host_wrote_and_shortens_nothing() {
         let mut ctx = Ctx::new(OutputSink::Sink);
         let written = "0".repeat(32) + &"f".repeat(32);
-        ctx.set_program_id(written.clone());
+        ctx.set_program_id(written.as_str().into());
         let answer = call(super::nvs_core_program_id, &mut ctx, &[])
             .expect("a context carrying an identity answers it");
         assert_eq!(

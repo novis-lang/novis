@@ -2879,7 +2879,8 @@ fn run_run(
             &cache::unit_digests(&checked.program_files()),
             nvs_config::cache::env_hash(&for_compiler.config),
         )
-        .to_string(),
+        .to_string()
+        .into(),
     );
     // Hands the context the unit's class table: the class a helper's
     // bare-message failure is promoted to, and the shared ownership that lets

@@ -931,7 +931,7 @@ pub struct Ctx {
     program_name: String,
     /// The identity of the whole program this context runs — what
     /// `rule:programs/no-runtime-autoload`'s
-    /// `Core\Program::id()` answers, as 64 lowercase hex characters, or empty
+    /// `Core\Program::id()` answers, as 64 lowercase hex characters, or `None`
     /// for a context no host wrote one onto.
     ///
     /// **Written before the program runs and never during it**, like every
@@ -942,11 +942,14 @@ pub struct Ctx {
     /// this slot and hashes nothing, so a first call cannot be the request that
     /// pays for every unit digest, and two reads in one run cannot disagree.
     ///
-    /// **What it spends:** 64 bytes per context that was handed one, and one
-    /// empty `String` — no allocation — for every context that was not.
-    /// O(in-flight requests), per
-    /// `rule:programs/memory-priority`.
-    program_id: String,
+    /// Shared rather than owned because a server computes the id once per
+    /// compiled unit and writes it onto every request that unit serves: a
+    /// reference count is what keeps that write off the allocator.
+    ///
+    /// **What it spends:** one pointer per context, and the 64 bytes behind it
+    /// once per compiled program rather than once per context.
+    /// O(in-flight requests), per `rule:programs/memory-priority`.
+    program_id: Option<std::sync::Arc<str>>,
     /// `rule:testing/determinism-declared-on-the-test`'s fixed clock: the wall-clock reading `Core\Time::now` answers
     /// with, in nanoseconds since the Unix epoch, or `None` for a context that
     /// reads the host's clock.

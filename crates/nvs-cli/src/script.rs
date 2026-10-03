@@ -193,6 +193,13 @@ pub(crate) struct Compiled {
     /// Empty for a program with no `#[Route]`, which is `rule:routing/table-is-opt-in`'s opt-in
     /// rule and is one case rather than an `Option`'s two.
     routes: Arc<nvs_runtime::routes::Routes>,
+    /// `rule:programs/program-id`'s identity of the program this unit is,
+    /// computed once here, where the resolved graph and the environment digest
+    /// are both in hand. Every context [`program_over`] arms shares it, so a
+    /// served request and a spawned child read the same 64 bytes. A reload
+    /// that moves the environment drops the unit and compiles a new one, so
+    /// the id follows the swap with nothing else to update.
+    id: Arc<str>,
 }
 
 /// What one written path resolved to last, and when that was checked — [ADR
@@ -1389,12 +1396,17 @@ impl Compiler {
             &checked.enums,
             &checked.layouts,
         );
+        let id: Arc<str> =
+            nvs_config::cache::program_id(&crate::cache::unit_digests(&files), self.env())
+                .to_string()
+                .into();
         let cache = shared(&self.cache).clone();
         let outcome = crate::cache::unit_for(&lowered, program, cache.as_ref())
             .map(|(unit, _)| {
                 Arc::new(Compiled {
                     unit: Arc::new(unit),
                     routes: Arc::new(crate::runtime_routes(&checked.exprs)),
+                    id,
                 })
             })
             .map_err(|error| {
@@ -1768,6 +1780,10 @@ fn program_over(compiled: Arc<Compiled>) -> Program {
         if !compiled.routes.rows().is_empty() {
             ctx.set_routes(Arc::clone(&compiled.routes));
         }
+        // And its identity, which `Core\Program::id()` reads. A child is a
+        // program of its own, so it reads its own unit's id and not its
+        // parent's.
+        ctx.set_program_id(Arc::clone(&compiled.id));
         // Ownership discharged into the isolate's own root; the seam's type
         // doc owns why this and not a release here.
         ctx.set_isolate_argument(args);

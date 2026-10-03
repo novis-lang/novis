@@ -165,7 +165,7 @@ impl Ctx {
             routes: None,
             arguments: Vec::new(),
             program_name: String::new(),
-            program_id: String::new(),
+            program_id: None,
             config: None,
             grant_filter: None,
             trace_context: crate::trace_context::TraceContext::started(),
@@ -517,14 +517,14 @@ impl Ctx {
     /// formula and for why nothing here recomputes or truncates it.
     #[must_use]
     pub fn program_id(&self) -> &str {
-        &self.program_id
+        self.program_id.as_deref().unwrap_or_default()
     }
 
     /// Hands this program its identity, before it runs — computed by
     /// `nvs_config::cache::program_id` where the resolved graph and the
     /// environment digest are both in hand, which is the only place they are.
-    pub fn set_program_id(&mut self, id: String) {
-        self.program_id = id;
+    pub fn set_program_id(&mut self, id: std::sync::Arc<str>) {
+        self.program_id = Some(id);
     }
 
     /// `rule:testing/determinism-declared-on-the-test`'s fixed clock in nanoseconds since the Unix epoch, or
@@ -673,7 +673,7 @@ mod tests {
         assert!(ctx.program_id().is_empty());
 
         let id = "0123456789abcdef".repeat(4);
-        ctx.set_program_id(id.clone());
+        ctx.set_program_id(id.as_str().into());
         assert_eq!(ctx.program_id(), id);
     }
 
