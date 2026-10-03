@@ -1,23 +1,19 @@
 {
-  "state": "**Goal `goal-closeout`, Stage 4 (finished in place).** The gap `a-literal-url-at-the-http-client-is-not-read-while-checking` is closed. Every outbound URL member has a `Grammar::Uri` row in `crates/nvs-types/src/intrinsics.rs`: the seven request members, `stream`, `openSocket` and `Core\\Http::allowUrl`. `judged_host` in `crates/nvs-stdlib/src/http.rs` now refuses a port past `65535`, so a call answered from a test's table and `allowUrl` both throw where the connection would.\n\nThe only `nvs-runtime` gap left is `enum-case-that-reached-a-mixed`. It needs an ADR beyond Stage 5's one slot, so it waits for the user. It goes to `BLOCKED` only once it is the last goal-owned gap in the tree.\n\nThe floor check `the latest CI run on main succeeded for the code HEAD holds` is red only because `main` is ahead of `origin/main`, and the loop never pushes. A person has to push.\n\n`bun nv owners --closes goal-closeout` names the rest, in `nvs-lsp`, `nvs-stdlib`, `nvs-syntax`, `nvs-types`, `editors/vscode` and `website`.",
+  "state": "**Goal `goal-closeout`, Stage 4 (finished in place).** The gap `core-http-tlsinfo-expiry-is-a` is closed. `Core\\Http\\TlsInfo::expiry` throws a `RuntimeError` for a leaf whose `notAfter` is past the last `Core\\Time\\Instant`, and its reference card names that error. `http.rs` has no gap left.\n\nThe perf ledger has current figures for every `Core\\Http` feature, and `bun nv proofs --gate` owes nothing across the whole roster. `directive:limits.memory_high_water` now has its about, example, attack and conformance case.\n\nThe only `nvs-runtime` gap left is `enum-case-that-reached-a-mixed`. It needs an ADR beyond Stage 5's one slot, so it waits for the user. It goes to `BLOCKED` only once it is the last goal-owned gap in the tree.\n\nThe floor check `the latest CI run on main succeeded for the code HEAD holds` is red only because `main` is ahead of `origin/main`, and the loop never pushes. A person has to push.\n\nA change to a `Core` implementation file stales the perf figure of every feature it implements. Re-measure with `bun nv proofs --record-perf --group <class>` after the fix is committed, or the driver's dossier checks go red.\n\n`bun nv owners --closes goal-closeout` names the rest, in `nvs-lsp`, `nvs-stdlib`, `nvs-syntax`, `nvs-types`, `editors/vscode` and `website`.",
   "next": {
     "stage": 4,
     "title": "finished in place",
     "files": [],
-    "note": "one file set: `crates/nvs-stdlib/src/http.rs`'s TLS report and its tests.",
+    "note": "one file set: `crates/nvs-stdlib/src/regex.rs` and its hostile case.",
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Http\\TlsInfo::expiry` is a fatal for a far-future `notAfter`** (gap `core-http-tlsinfo-expiry-is-a`, `rule:http-server/a-reply-reports-its-tls-session`). It is `nvs_core_http_tls_info_expiry` at `crates/nvs-stdlib/src/http.rs:4832`. Make the value it reads representable or the refusal a thrown error, add a test from Rust, and delete the gap."
-      },
-      {
-        "done": false,
-        "text": "**`Core\\Regex::split` builds its array past the memory limit** (gap `regex-split-builds-its-array-past-the`) — a different file, so a session of its own unless the first is quick. It is `nvs_core_regex_split` at `crates/nvs-stdlib/src/regex.rs:2086`."
+        "text": "**`Core\\Regex::split` builds its array past the memory limit** (gap `regex-split-builds-its-array-past-the`, `rule:errors/on-limit`). It is `nvs_core_regex_split` at `crates/nvs-stdlib/src/regex.rs:2086`. Charge each piece to the budget before the array grows, keep `tests/hostile/core/Regex/split/01-millions-of-pieces.nvs` green, delete the gap, then re-measure `Core\\Regex`'s perf with `bun nv proofs --record-perf --group 'Core\\Regex'`."
       }
     ]
   },
   "backlog": [
-    "`enum-case-that-reached-a-mixed` (`crates/nvs-runtime/src/lib.rs`) waits for an ADR slot from the user.",
-    "The CI floor check needs a person to push `main`."
+    "The other `nvs-stdlib` gaps `bun nv owners --closes goal-closeout` names, one file set each.",
+    "`enum-case-that-reached-a-mixed` waits for the user's ADR decision."
   ]
 }

@@ -23029,7 +23029,7 @@ When the leaf certificate stops being valid — its `notAfter` field.
 
 **Returns** `Core\Time\Instant` — The instant the peer's certificate expires, which is the check an operator most wants a program to make about a partner it calls.
 
-**Throws** `RuntimeError` — The peer presented no certificate, or a leaf that is not X.509 this can read. `version`, `cipher`, `verified` and `peerChain` answer either way, since none of them reads inside a certificate.
+**Throws** `RuntimeError` — The peer presented no certificate, or a leaf that is not X.509 this can read. `version`, `cipher`, `verified` and `peerChain` answer either way, since none of them reads inside a certificate.; `RuntimeError` — The certificate has no end date. Its `notAfter` is `9999-12-31`, which is later than the last `Core\Time\Instant`.
 
 <a id="core-core-http-socket"></a>
 ### `Core\Http\Socket`
