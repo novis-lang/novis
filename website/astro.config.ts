@@ -70,7 +70,7 @@ export default defineConfig({
         Footer: './src/components/Footer.astro',
         Sidebar: './src/components/Sidebar.astro',
         Head: './src/components/Head.astro',
-        PageTitle: './src/components/PageTitle.astro',
+
         MobileMenuFooter: './src/components/MobileMenuFooter.astro',
         // The mobile menu button on every page, sidebar or not.
         PageFrame: './src/components/PageFrame.astro',

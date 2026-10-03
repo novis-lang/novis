@@ -1,8 +1,7 @@
 ---
 /**
- * The default "Errors" body: the registry's error list when the toolchain
- * provides one (ADR 0117), else an honest placeholder. A human replaces this
- * component with prose when the defaults are not enough.
+ * A member's "Errors" section body: each error its registry card lists, and
+ * when it is thrown. The page renders this only when the card lists one.
  */
 import { findMember } from '~/lib/core'
 
@@ -12,27 +11,17 @@ interface Props {
 
 const { id } = Astro.props
 const found = findMember(id)
-if (!found) throw new Error(`MethodErrors: unknown member id "${id}" — run \`npm run sync:render\`?`)
-const { member } = found
-
-const errors = member.doc?.errors ?? []
+if (!found) throw new Error(`MethodErrors: unknown member id "${id}"`)
+const errors = found.member.doc?.errors ?? []
 ---
 
-{
-  errors.length > 0 ? (
-    <ul class="nv-param-docs">
-      {errors.map((e) => (
-        <li>
-          <strong>
-            <code>{e.error}</code>
-          </strong>{' '}
-          — {e.descHtml ? <span set:html={e.descHtml} /> : <em>not documented yet.</em>}
-        </li>
-      ))}
-    </ul>
-  ) : (
-    <p>
-      <em>Not documented yet.</em>
-    </p>
-  )
-}
+<ul class="nv-param-docs">
+  {errors.map((e) => (
+    <li>
+      <strong>
+        <code>{e.error}</code>
+      </strong>
+      {e.descHtml && <>{' '}— <span set:html={e.descHtml} /></>}
+    </li>
+  ))}
+</ul>

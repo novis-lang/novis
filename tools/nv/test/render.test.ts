@@ -9,7 +9,7 @@ import { apply, fill, lf, markdown, MARKER, orphans, removeOrphans } from "../li
 import { recordFiles, SCHEMA_DIR } from "../lib/store.ts";
 import { recordSchemas, renderRecordSchemas } from "../renderers/record-schemas.ts";
 import { RECORDS } from "../schema/index.ts";
-import { isDraft, PAGES_DIR as CORE_DIR, parseSignature, websiteCore } from "../renderers/website-core.ts";
+import { parseSignature } from "../renderers/website-core.ts";
 import { EDITOR_GRAMMAR, renderWebsiteGrammar } from "../renderers/website-grammar.ts";
 import { scratch, type Scratch } from "./scratch.ts";
 
@@ -72,15 +72,6 @@ describe("render", () => {
     expect(existsSync(join(tmp.root, "site/index.mdx"))).toBe(true);
   });
 
-  test("a Core page is an orphan only while it is still a draft, since a person owns the rest", () => {
-    tmp = scratch();
-    tmp.put(`${CORE_DIR}/index.mdx`, "hub\n");
-    tmp.put(`${CORE_DIR}/str/gone.mdx`, "---\nnovis:\n  draft: true\n---\n");
-    tmp.put(`${CORE_DIR}/str/kept.mdx`, "---\nnovis:\n  kind: method\n---\n");
-    expect(orphans([websiteCore.owns!], [], tmp.root)).toEqual([`${CORE_DIR}/str/gone.mdx`]);
-    expect(isDraft("---\ndraft: true\n---\n")).toBe(true);
-    expect(isDraft("draft: true\n")).toBe(false);
-  });
 
   test("a spec signature reads its receiver, its parameters and its options bag", () => {
     const sig = parseSignature("`$d->plus(Duration $by, ?int ...$rest = null, {utc?: bool}): DateTime — note`")!;

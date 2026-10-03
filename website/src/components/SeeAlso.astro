@@ -1,9 +1,8 @@
 ---
 /**
- * "See also" block: related Core members, by id (e.g. "Str.isEmpty").
- * Managed by hand in each method page's `<SeeAlso ids={[…]} />` line; renders
- * nothing while the list is empty. Unknown ids fail the build loudly, so a
- * renamed member cannot leave a dead reference behind.
+ * A member's "Related" section: links to the members its `about.md` names on
+ * its `related:` line, which src/lib/feature.ts reads and checks. The page
+ * renders this only when that line names one.
  */
 import { findMember } from '~/lib/core'
 
@@ -19,7 +18,6 @@ const entries = ids.map((id) => {
     id,
     url: found.member.url,
     label: `${found.cls.name}::${found.member.name}`,
-    hint: found.member.replaces && !/^nothing\b/i.test(found.member.replaces) ? found.member.replaces.replace(/`/g, '') : '',
   }
 })
 ---
@@ -27,14 +25,14 @@ const entries = ids.map((id) => {
 {
   entries.length > 0 && (
     <section class="method-see-also">
-      <h2 id="see-also">See also</h2>
+      <h2 id="related">Related</h2>
       <ul>
         {entries.map((e) => (
           <li>
             <a href={e.url}>
               <code>{e.label}</code>
             </a>
-            {e.hint && <span class="method-see-also-hint"> — replaces {e.hint}</span>}
+
           </li>
         ))}
       </ul>

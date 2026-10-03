@@ -58,6 +58,8 @@ export interface CoreMember {
   implemented: boolean
   slug: string
   url: string
+  /** The member's feature path in the proofs roster, which is its directory under `docs/examples/`. */
+  examples: string
   fromOverride?: boolean
   notesHtml?: string
   doc?: CoreMemberDoc

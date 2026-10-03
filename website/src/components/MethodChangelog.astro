@@ -1,43 +1,36 @@
 ---
 /**
- * Per-member changelog block. Data lives in src/data/core-changelog.json
- * (keyed by member id); a member with no entries renders nothing, so pages
- * carry the block from day one and it appears when the first release
- * changes something.
+ * A member's changelog: one row per release that changed it, from
+ * src/data/core-changelog.json. The page renders this only when there is a
+ * row, so it never shows an empty table.
  */
-import changelog from '../data/core-changelog.json'
+import { changesFor } from '~/lib/feature'
 
 interface Props {
   id: string
 }
 
-const { id } = Astro.props
-const entries = (changelog as Record<string, { version: string; change: string }[] | unknown>)[id]
-const list = Array.isArray(entries) ? (entries as { version: string; change: string }[]) : []
+const list = changesFor(Astro.props.id)
 ---
 
-{
-  list.length > 0 && (
-    <section class="method-changelog">
-      <h2 id="changelog">Changelog</h2>
-      <table>
-        <thead>
-          <tr>
-            <th scope="col">Version</th>
-            <th scope="col">Change</th>
-          </tr>
-        </thead>
-        <tbody>
-          {list.map((e) => (
-            <tr>
-              <td>
-                <code>{e.version}</code>
-              </td>
-              <td>{e.change}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </section>
-  )
-}
+<section class="method-changelog">
+  <h2 id="changelog">Changelog</h2>
+  <table>
+    <thead>
+      <tr>
+        <th scope="col">Version</th>
+        <th scope="col">Change</th>
+      </tr>
+    </thead>
+    <tbody>
+      {list.map((e) => (
+        <tr>
+          <td>
+            <code>{e.version}</code>
+          </td>
+          <td>{e.change}</td>
+        </tr>
+      ))}
+    </tbody>
+  </table>
+</section>

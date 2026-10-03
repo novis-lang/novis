@@ -1,0 +1,110 @@
+---
+/**
+ * Every Core class page and member page, generated from src/data/core.json and
+ * the member's `about.md` and examples (src/lib/feature.ts). Nothing here is
+ * edited per page: a member's prose is its `about.md`, its parameters, return
+ * value and errors are its registry card, and its examples are the files
+ * beside `about.md`. A section with nothing in it is not rendered, heading
+ * included. The landing page, /reference/core/, is the handwritten
+ * src/content/docs/reference/core/index.mdx.
+ */
+import type { GetStaticPaths } from 'astro'
+import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro'
+import { GITHUB_URL, GITHUB_BRANCH } from '@config/site.mjs'
+import ClassOverview from '~/components/ClassOverview.astro'
+import MethodSignature from '~/components/MethodSignature.astro'
+import ParamDocs from '~/components/ParamDocs.astro'
+import MethodReturn from '~/components/MethodReturn.astro'
+import MethodErrors from '~/components/MethodErrors.astro'
+import MethodChangelog from '~/components/MethodChangelog.astro'
+import MethodExamples from '~/components/MethodExamples.astro'
+import SeeAlso from '~/components/SeeAlso.astro'
+import { classes, type CoreClass, type CoreMember } from '~/lib/core'
+import { aboutFor, changesFor, examplesFor } from '~/lib/feature'
+
+export const getStaticPaths = (() =>
+  classes.flatMap((cls) => [
+    { params: { slug: cls.slug }, props: { cls, member: null } },
+    ...cls.members.map((member) => ({ params: { slug: `${cls.slug}/${member.slug}` }, props: { cls, member } })),
+  ])) satisfies GetStaticPaths
+
+interface Props {
+  cls: CoreClass
+  member: CoreMember | null
+}
+
+const { cls, member } = Astro.props
+
+type Heading = { depth: number; slug: string; text: string }
+const headings: Heading[] = []
+const section = (slug: string, text: string, present: boolean) => {
+  if (present) headings.push({ depth: 2, slug, text })
+  return present
+}
+
+let title = cls.name
+let description = `Every method of ${cls.name}, with its signature.`
+let editUrl: string | false = false
+let body: string[] = []
+let related: string[] = []
+let show = { params: false, options: false, returns: false, errors: false, changes: false, examples: false, related: false }
+
+if (member) {
+  const about = aboutFor(member)
+  title = `${cls.name}::${member.name}`
+  description = about?.summary || member.doc?.shortHtml?.replace(/<[^>]+>/g, '') || description
+  if (about) editUrl = `${GITHUB_URL}/edit/${GITHUB_BRANCH}/${about.path}`
+  body = about ? about.blocks : [member.doc?.shortHtml || member.notesHtml || ''].filter(Boolean)
+  related = about?.related ?? []
+  // The order of the calls is the order of the page, which the table of contents follows.
+  show = {
+    params: section('parameters', 'Parameters', member.params.length > 0),
+    options: section('options', 'Options', member.options.length > 0),
+    returns: section('return-value', 'Return value', true),
+    errors: section('errors', 'Errors', (member.doc?.errors ?? []).length > 0),
+    changes: section('changelog', 'Changelog', changesFor(member.id).length > 0),
+    examples: section('examples', 'Examples', examplesFor(member).length > 0),
+    related: section('related', 'Related', related.length > 0),
+  }
+}
+---
+
+<StarlightPage frontmatter={{ title, description, editUrl }} headings={headings}>
+  {
+    member ? (
+      <>
+        <MethodSignature id={member.id} />
+        {body.map((html) => <Fragment set:html={html} />)}
+        {show.params && (
+          <>
+            <h2 id="parameters">Parameters</h2>
+            <ParamDocs id={member.id} kind="params" />
+          </>
+        )}
+        {show.options && (
+          <>
+            <h2 id="options">Options</h2>
+            <ParamDocs id={member.id} kind="options" />
+          </>
+        )}
+        {show.returns && (
+          <>
+            <h2 id="return-value">Return value</h2>
+            <MethodReturn id={member.id} />
+          </>
+        )}
+        {show.errors && (
+          <>
+            <h2 id="errors">Errors</h2>
+            <MethodErrors id={member.id} />
+          </>
+        )}
+        {show.changes && <MethodChangelog id={member.id} />}
+        {show.examples && <MethodExamples id={member.id} />}
+        {show.related && <SeeAlso ids={related} />}
+      </>
+    ) : (
+      <ClassOverview id={cls.id} />
+    )
+  }
+</StarlightPage>

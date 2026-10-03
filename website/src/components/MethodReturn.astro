@@ -1,8 +1,7 @@
 ---
 /**
- * The default "Return value" body: the type from the spec-derived data, the
- * description from the registry when the toolchain provides one (ADR 0117).
- * A human replaces this component with prose when there is more to say.
+ * A member's "Return value" section body: the type from core.json, and the
+ * registry card's sentence about it when the card has one.
  */
 import { findMember } from '~/lib/core'
 
@@ -12,11 +11,10 @@ interface Props {
 
 const { id } = Astro.props
 const found = findMember(id)
-if (!found) throw new Error(`MethodReturn: unknown member id "${id}" — run \`npm run sync:render\`?`)
+if (!found) throw new Error(`MethodReturn: unknown member id "${id}"`)
 const { member } = found
 ---
 
 <p>
-  Returns <code>{member.returnType}</code>.{' '}
-  {member.doc?.returnHtml ? <span set:html={member.doc.returnHtml} /> : <em>Not documented yet.</em>}
+  Returns <code>{member.returnType}</code>.{member.doc?.returnHtml && <>{' '}<span set:html={member.doc.returnHtml} /></>}
 </p>

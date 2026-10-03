@@ -1,62 +1,29 @@
 ---
 /**
- * Runnable examples for one member, read in place from the repository's
- * `docs/examples/core/<Class>/<method>/`. The site keeps no copy of them.
- *
- * Each `NN-some-title.nvs` file becomes one example, ordered by filename; a
- * sibling `NN-some-title.out` file, when present, is shown as the expected
- * output, and `bun nv proofs --run` is what checks it. Renders nothing when
- * the member has no examples yet.
+ * Every example of one member, with its output when it has one, read in place
+ * from `docs/examples/` by `examplesFor` in src/lib/feature.ts. The page
+ * renders this only when the member has an example.
  */
 import { Code } from '@astrojs/starlight/components'
 import { findMember } from '~/lib/core'
-
-// The glob below is relative to this file, so its keys start with this prefix.
-const ROOT = '../../../docs/examples/core/'
+import { examplesFor } from '~/lib/feature'
 
 interface Props {
   id: string
 }
 
-const { id } = Astro.props
-const found = findMember(id)
-if (!found) throw new Error(`MethodExamples: unknown member id "${id}"`)
-
-// `Str.length` -> docs/examples/core/Str/length/, `Ast.Node.kind` -> docs/examples/core/Ast-Node/kind/:
-// the class directory joins a nested class's parts with `-`, as the proofs roster names it.
-const parts = id.split('.')
-const memberName = parts.pop() as string
-const dir = `${ROOT}${parts.join('-')}/${memberName}/`
-
-const sources = import.meta.glob('../../../docs/examples/core/**/*.nvs', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
-const outputs = import.meta.glob('../../../docs/examples/core/**/*.out', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
-
-const examples = Object.keys(sources)
-  // A companion file sits in a subdirectory and is not an example of its own.
-  .filter((p) => p.startsWith(dir) && !p.slice(dir.length).includes('/'))
-  .sort()
-  .map((p) => {
-    const base = p.replace(/\.nvs$/, '')
-    const name = base.slice(dir.length)
-    const title = name
-      .replace(/^\d+-/, '')
-      .replace(/-/g, ' ')
-      .replace(/^./, (c) => c.toUpperCase())
-    return { title, code: sources[p].trim(), output: outputs[`${base}.out`]?.trimEnd() }
-  })
+const found = findMember(Astro.props.id)
+if (!found) throw new Error(`MethodExamples: unknown member id "${Astro.props.id}"`)
+const examples = examplesFor(found.member)
 ---
 
-{
-  examples.length > 0 && (
-    <section class="method-examples">
-      <h2 id="examples">Examples</h2>
-      {examples.map((ex) => (
-        <div class="method-example">
-          <h3>{ex.title}</h3>
-          <Code code={ex.code} lang="novis" />
-          {ex.output !== undefined && <Code code={ex.output} lang="txt" title="Output" />}
-        </div>
-      ))}
-    </section>
-  )
-}
+<section class="method-examples">
+  <h2 id="examples">Examples</h2>
+  {examples.map((ex) => (
+    <div class="method-example">
+      <h3>{ex.title}</h3>
+      <Code code={ex.code} lang="novis" />
+      {ex.output !== undefined && <Code code={ex.output} lang="txt" title="Output" />}
+    </div>
+  ))}
+</section>

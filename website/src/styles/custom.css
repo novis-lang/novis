@@ -313,11 +313,6 @@
   color: var(--nv-ok);
 }
 
-.method-see-also-hint {
-  color: var(--nv-quiet);
-  font-size: var(--sl-text-sm);
-}
-
 /* ------------------------------------------------------------- class pages */
 
 .class-member-count {
@@ -332,16 +327,7 @@
   white-space: nowrap;
 }
 
-/* ------------------------------------------------------------ draft notice */
 
-.nv-draft-note {
-  border: 1px dashed var(--sl-color-hairline);
-  border-radius: 0.5rem;
-  padding: 0.5rem 0.9rem;
-  margin-top: 1rem;
-  font-size: var(--sl-text-xs);
-  color: var(--nv-quiet);
-}
 
 /* ------------------------------------------------------------ landing page */
 

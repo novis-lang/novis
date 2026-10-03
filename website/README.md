@@ -20,32 +20,26 @@ npx astro build --base /novis/ # build with a custom base
 | `npm run build` | production build into `dist/` |
 | `npm run preview` | serve the built site locally |
 | `npm run sync` | the render, under the name a human types |
-| `npm run sync:render` | `bun nv render --website`: publish the spec + registry → `src/data/core.json` + the Core member pages |
+| `npm run sync:render` | `bun nv render --website`: publish the spec + registry → `src/data/core.json` |
 
 ## Who owns which file
 
 The whole design hangs on one rule: **tool-owned files are regenerated from scratch;
-human-owned files are never overwritten.** For Core reference pages, ownership is
-per page and the `novis.draft: true` frontmatter flag is the switch: while it stands,
-the page is tool-owned and `sync:render` regenerates it on every run (so its defaults can
-never go stale); removing the flag hands the page to humans forever. The stubs contain
-no generated prose — every default renders at build time from `core.json` through the
-`Method*` components, so even a human-owned page keeps following the repository
-wherever it kept a component.
+human-owned files are never overwritten.** No Core reference page is a file: one route
+renders them all at build time, and a member's prose is its `about.md`.
 
 | Path | Owner | Notes |
 | --- | --- | --- |
 | `src/data/core.json` | tool | regenerated on every sync |
 | `config/novis.tmLanguage.json` | tool | rendered from the editors' grammar on every sync — edit `../editors/vscode/syntaxes/nvs.tmLanguage.json` |
 | `src/data/core-changelog.json` | human | per-member changelog entries |
-| `src/content/docs/reference/core/**.mdx` | **per page** | tool-owned (regenerated every `sync:render`) while `novis.draft: true`; remove the flag to take ownership — then yours: lead text, description, parameter docs, errors, tips, `<SeeAlso ids={…}>` |
-| `../docs/examples/**` | the proofs sweep | read in place by `src/components/MethodExamples.astro`; the site holds no copy. `bun nv proofs --run` runs each one and diffs it against its `.out` file |
+| `src/pages/reference/core/[...slug].astro` | human | the one route that renders every Core class and member page |
+| `src/content/docs/reference/core/index.mdx` | human | the Core reference's landing page |
+| `../docs/examples/**` | the proofs sweep | each member's `about.md` and examples, read in place by `src/lib/feature.ts`; the site holds no copy. `bun nv proofs --run` runs each example and diffs it against its `.out` file |
 | `config/spec-overrides.mjs` | human | corrections for spec table rows the renderer cannot read — every fix goes here, never into the renderer |
 | `config/site.mjs` | human | **all placeholder URLs live here** — swap them once to go live. It also holds `AREAS`, the four areas the header, the footer, the sidebars and `llms.txt` are built from |
 | `config/external-links.mjs` | human | the rule that a link off the site opens in a new tab with `rel="noopener noreferrer nofollow"` — except the project's own repository and Discord links, which open in a new tab with no `rel`: an integration decorates content links at build time, and a component spreads `externalLinkAttrs(href)` onto any anchor it writes itself |
 
-A page whose member leaves the published set is deleted while it is still tool-owned. A
-human-owned one stays until a human deletes it.
 
 ## How the Core reference works
 
@@ -66,10 +60,14 @@ human-owned one stays until a human deletes it.
    parameter/shape-key/return/error descriptions, authored next to the Rust
    implementation. Precedence is **field-wise**: a doc field the registry carries wins,
    one it lacks falls back to the spec, so documentation moves member by member.
-4. Member pages render every default from the data at build time (`<MethodSignature>`,
-   `<MethodLead>`, `<MethodDescription>`, `<ParamDocs>`, `<MethodReturn>`,
-   `<MethodErrors>`); human prose replaces a component where the default is not enough,
-   and survives every sync once the page's `draft` flag is removed.
+4. `src/pages/reference/core/[...slug].astro` renders a page per published class and
+   member. A member page is its signature, its `about.md` (or the card's short
+   description when it has none), then Parameters, Options, Return value, Errors,
+   Changelog, Examples and Related. A section with nothing in it is left out, heading
+   included. The last line of `about.md` may be `related: Core\Bytes::length, …`: the
+   names become the Related links, and a name with no page fails the build. Each
+   member's `examples` field in `core.json` is its feature path in the proofs roster,
+   which is the directory its `about.md` and examples are read from.
 
 Novis code blocks get syntax highlighting from `config/novis.tmLanguage.json`
 (languages `novis` / `nvs` in fenced code blocks). `sync:render` writes it from the editors'
@@ -153,11 +151,10 @@ and white is the ground the mark's own disc already carries under its lower half
 1. Replace `SITE_URL` in `config/site.mjs` — GitHub and Discord already point at the real ones.
 2. Replace the sitemap URL in `public/robots.txt`.
 3. Replace the demo data in `src/content/docs/impressum.md` and `datenschutz.md`.
-4. Review pages still carrying `draft: true`.
-5. Set the Pages source to **GitHub Actions** and the custom domain to `SITE_URL`'s host. No
+4. Set the Pages source to **GitHub Actions** and the custom domain to `SITE_URL`'s host. No
    `CNAME` file: GitHub writes one only when publishing from a branch, and ignores any that exists
    when a workflow publishes — one in `public/` would ship as a dead file at `/CNAME`.
-6. `npm run sync`, review what it wrote, and commit it — publishing is the push, not a command.
+5. `npm run sync`, review what it wrote, and commit it — publishing is the push, not a command.
 
 ## How it is published
 

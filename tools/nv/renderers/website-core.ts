@@ -1,5 +1,6 @@
-// The website's Core reference: `website/src/data/core.json`, and a stub page per published class and
-// member under `website/src/content/docs/reference/core/`.
+// The website's Core reference data: `website/src/data/core.json`. One route,
+// `website/src/pages/reference/core/[...slug].astro`, renders a page per published class and member
+// from it, and nothing under `website/src/content/` is written by this file.
 //
 // Three sources, each read once. The member tables are the `spec_core_members` record, which
 // `nv import` reads out of `docs/spec/01-core-library.md`. The prose the record does not carry — each
@@ -13,9 +14,9 @@
 // card field it wins; where it lacks one, the website's `Method*` components fall back to the spec at
 // build time, so this file only attaches what the registry reported.
 //
-// A stub page is this renderer's while its front matter says `draft: true`, and is rewritten on every
-// render. Removing that line gives the page to a person, and the renderer never writes it again. A
-// draft page whose member is no longer published is deleted; a person's page is left alone.
+// Each member carries `examples`, its feature path in the proofs roster (`core/Time-Date/at`), and
+// nothing else from `docs/examples/`: the route reads the member's `about.md` and examples in place
+// under `docs/examples/<examples>/` (`rule:testing/examples-live-in-the-repository`).
 //
 // The registry comes from a built binary, so this renderer is in `--website` alone. CI's docs job runs
 // `nv render --check` without building one, and its `reference` job builds one and runs
@@ -26,14 +27,11 @@ import { existsSync, readFileSync, statSync } from "node:fs";
 import { join, posix } from "node:path";
 import type { Output, Renderer } from "../lib/render.ts";
 import { load } from "../lib/store.ts";
+import { classTail } from "../proofs/roster.ts";
 import { specCoreMembers } from "../schema/spec.ts";
 
 export const SPEC = "docs/spec/01-core-library.md";
-export const PAGES_DIR = "website/src/content/docs/reference/core";
 export const DATA_FILE = "website/src/data/core.json";
-
-/** The handwritten landing page of the Core reference. */
-export const HANDWRITTEN = ["index.mdx"];
 
 /** The spec's own table separator, as `nv import` reads it. */
 const SEPARATOR = /^\|(\s*:?-+:?\s*\|)+\s*$/;
@@ -321,6 +319,7 @@ interface Member {
   doc?: Record<string, unknown>;
   slug?: string;
   url?: string;
+  examples?: string;
 }
 
 interface Class {
@@ -662,127 +661,6 @@ function attachCards(classes: Class[], reg: Registry, site: Site): void {
   }
 }
 
-// ---------------------------------------------------------------- the stub pages
-
-/** Whether a page's front matter still says `draft: true`, which makes it this renderer's. */
-export function isDraft(text: string): boolean {
-  const fm = /^---\r?\n([\s\S]*?)\r?\n---/.exec(text);
-  return fm ? /\bdraft:\s*true\b/.test(fm[1]!) : false;
-}
-
-const yaml = (s: string) => JSON.stringify(s);
-
-/** Markdown as plain text, for a front-matter `description`. */
-const plain = (s: string) =>
-  s
-    .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
-    .replace(/`/g, "")
-    .replace(/\*\*?/g, "")
-    .trim();
-
-/** The Replaces cell as a phrase, or ''. Its backticks stay: they are MDX-safe and protect `<=>`. */
-function replacesPhrase(replaces: string): string {
-  const clean = replaces.replace(/\s*\(([^)]*)\)/g, "").trim();
-  return !clean || /^nothing\b/i.test(clean) ? "" : clean;
-}
-
-const OWNERSHIP = `{/* OWNERSHIP: while \`draft: true\` stands above, this page is TOOL-OWNED and
-    \`bun nv render --website\` REGENERATES it on every run — edits here will be lost.
-    To take ownership, remove \`draft: true\`; the tool then never touches this
-    file again. Keep a <Method...> component wherever its default (rendered
-    from the repository's own data) is good enough; replace one with your own
-    prose where it is not. */}`;
-
-function classPage(cls: Class): string {
-  return `---
-title: ${yaml(cls.name)}
-description: ${yaml(`The ${cls.name} class of the Novis Core library — every member, with signatures and status.`)}
-sidebar:
-  label: ${yaml(cls.id.replace(/\./g, "\\"))}
-  order: 0
-novis:
-  kind: class
-  id: ${yaml(cls.id)}
-  draft: true
----
-
-import ClassOverview from '@components/ClassOverview.astro'
-
-${OWNERSHIP}
-
-{/* Group note: if this class needs an important note at the top (like the
-    UTF-8 note on Str), write it here as a normal Starlight aside. */}
-
-<ClassOverview id=${yaml(cls.id)} />
-`;
-}
-
-function memberPage(cls: Class, m: Member, reg: Registry): string {
-  const repl = replacesPhrase(m.replaces);
-  const lead = m.doc?.shortHtml
-    ? plain(String(reg.docs.get(`${cls.name}::${m.name}`)?.short ?? ""))
-    : repl
-      ? `Novis's replacement for PHP's ${plain(repl)}.`
-      : `A member of ${cls.name}.`;
-  const hasParams = m.params.length > 0;
-  const hasOptions = m.options.length > 0;
-  const imports = [
-    `import MethodLead from '@components/MethodLead.astro'`,
-    `import MethodSignature from '@components/MethodSignature.astro'`,
-    `import MethodDescription from '@components/MethodDescription.astro'`,
-    ...(hasParams || hasOptions ? [`import ParamDocs from '@components/ParamDocs.astro'`] : []),
-    `import MethodReturn from '@components/MethodReturn.astro'`,
-    `import MethodErrors from '@components/MethodErrors.astro'`,
-    `import MethodChangelog from '@components/MethodChangelog.astro'`,
-    `import MethodExamples from '@components/MethodExamples.astro'`,
-    `import SeeAlso from '@components/SeeAlso.astro'`,
-  ].join("\n");
-  const id = yaml(m.id);
-  const params = hasParams ? `\n### Parameters\n\n<ParamDocs id=${id} kind="params" />\n` : "";
-  const options = hasOptions ? `\n### Options\n\n<ParamDocs id=${id} kind="options" />\n` : "";
-  return `---
-title: ${yaml(`${cls.name}::${m.name}`)}
-description: ${yaml(lead)}
-sidebar:
-  label: ${yaml(m.name)}
-novis:
-  kind: method
-  id: ${id}
-  draft: true
----
-
-${imports}
-
-${OWNERSHIP}
-
-<MethodLead id=${id} />
-
-<MethodSignature id=${id} />
-
-## Description
-
-<MethodDescription id=${id} />
-${params}${options}
-## Return value
-
-<MethodReturn id=${id} />
-
-## Errors
-
-<MethodErrors id=${id} />
-
-<MethodChangelog id=${id} />
-
-{/* Tips & tricks: add a "## Tips" section here when there is something worth
-    saying. The section is simply absent until then. */}
-
-<MethodExamples id=${id} />
-
-{/* Related members: list ids like "Str.isEmpty". Renders nothing while empty. */}
-<SeeAlso ids={[]} />
-`;
-}
-
 // ---------------------------------------------------------------- the renderer
 
 export async function renderWebsiteCore(root: string): Promise<Output[]> {
@@ -809,28 +687,14 @@ export async function renderWebsiteCore(root: string): Promise<Output[]> {
     for (const m of cls.members) {
       m.slug = m.name.toLowerCase();
       m.url = `/reference/core/${cls.slug}/${m.slug}/`;
+      m.examples = `core/${classTail(cls.name)}/${m.name}`;
     }
   }
 
-  const outputs: Output[] = [{ path: DATA_FILE, text: `${JSON.stringify({ classes: published }, null, 2)}\n` }];
-  /** A page is written when it is missing or still a draft; a person's page is left as it is. */
-  const stub = (path: string, text: string) => {
-    const full = join(root, path);
-    if (!existsSync(full) || isDraft(readFileSync(full, "utf8"))) outputs.push({ path, text });
-  };
-  for (const cls of published) {
-    stub(`${PAGES_DIR}/${cls.slug}/index.mdx`, classPage(cls));
-    for (const m of cls.members) stub(`${PAGES_DIR}/${cls.slug}/${m.slug}.mdx`, memberPage(cls, m, reg));
-  }
-  return outputs;
+  return [{ path: DATA_FILE, text: `${JSON.stringify({ classes: published }, null, 2)}\n` }];
 }
 
 export const websiteCore: Renderer = {
   name: "website-core",
   render: renderWebsiteCore,
-  owns: {
-    dir: PAGES_DIR,
-    keep: HANDWRITTEN,
-    mine: (path, root) => path.endsWith(".mdx") && isDraft(readFileSync(join(root, path), "utf8")),
-  },
 };

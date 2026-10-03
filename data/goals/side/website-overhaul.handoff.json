@@ -1,26 +1,30 @@
 {
-  "state": "**Side goal `website-overhaul`, stage 2 written, stage 3 next.** The nav, the per-area sidebars, the removals and the in-place examples are on disk.\n\n`bun nv site` (`tools/nv/cmd/site.ts`, its module doc the home of each mode and part) has `--stale`, `--stamp`, `--build` and `--check`. `structure` and `stale` pass on this tree. `reference`, `syntax`, `guides`, `in-depth` and `apps` print \"not written yet\" until their stages write them.\n\nThe wrap gate is on disk: `bun nv session --wrap` calls `wrapGate` in `site.ts` and refuses every broken id, and every stale page the session made stale itself. `--check` prints it under `== SITE`. CI's `proofs` job runs `bun nv site --check structure snippets stale prose` after `proofs --verify`, and the `proofs` lane now includes `website/`. `rule:testing/website-pages-are-stamped` is the rule, and ADR 0262 is the stage's record. `rule:testing/examples-live-in-the-repository` now says \"read in place\".\n\nEvery handwritten page carries `covers: []`. `website/snippets/` and `website/site.lock.json` do not exist yet.\n\n`site snippets` fails on the inline Novis fences in `index.mdx` and `install/hello-world.mdx`, and `site prose` fails on `index.mdx`, `install/*`, `sponsoring.mdx` and `in-depth/what-changed.mdx`. Stages 5 and 6 rewrite those pages, and the rewrite closes both. Until then CI's new step is red on this branch, which is expected, because the goal sweeps once at its end.",
+  "state": "**Side goal `website-overhaul`, stage 3 half written.** Every Core class and member page is generated, and nothing under `website/src/content/docs/reference/core/` is a file but the landing `index.mdx`.\n\n`website/src/pages/reference/core/[...slug].astro` renders each class and member from `core.json`, the member's `about.md` and its examples. `website/src/lib/feature.ts` reads both in place, parses the `related:` line and fails the build on a name with no page. A section with nothing in it is left out, and \"Not documented yet\" is gone from the built site. Each member's `examples` field in `core.json` is its roster path, written by `tools/nv/renderers/website-core.ts` with `classTail`. `website/README.md` § *How the Core reference works* is the home of the page's shape.\n\nThe published set is still the spec's tables crossed with the registry: 26 classes and 299 members. The roster has many more Core members (`Http`, `Cli`, `BigInt` and others), which have no page yet. `--check reference` needs every one of them.\n\nNine members' `about.md` gained the facts their old page had and a `related:` line. No other `about.md` has one yet.\n\n`site structure` and `site stale` pass. `snippets` and `prose` still fail on the pages stages 5 and 6 rewrite.",
   "next": {
     "stage": 3,
     "title": "Reference, generated and complete",
     "files": [
       "tools/nv/renderers/website-core.ts",
       "website/src/lib/core.ts",
-      "website/src/components/Method*.astro",
+      "website/astro.config.ts",
       "tools/nv/cmd/site.ts"
     ],
     "items": [
       {
-        "done": false,
-        "text": "**One dynamic route renders every Core member from `core.json`, its `about.md` and all its examples, and the per-member `.mdx` stubs are deleted** after the handwritten prose on the non-draft ones moves into each member's `about.md`. Goal § Stage 3 *Generated, never edited by hand*. Anchors: `tools/nv/renderers/website-core.ts:1`, `website/src/lib/core.ts:1`"
+        "done": true,
+        "text": "**One dynamic route renders every Core member from `core.json`, its `about.md` and all its examples, and the per-member `.mdx` stubs are deleted.** Anchor: `website/src/pages/reference/core/[...slug].astro:1`"
+      },
+      {
+        "done": true,
+        "text": "**No empty heading, and `related:` lines in `about.md` render as links and fail the build on an unknown id.** Anchor: `website/src/lib/feature.ts:1`"
       },
       {
         "done": false,
-        "text": "**No empty heading, and `related:` lines in `about.md` render as links and fail the build on an unknown id.** Goal § Stage 3 *Related* and *A heading with nothing under it*. Anchor: `website/src/components/MethodExamples.astro:1`"
+        "text": "**Every Core class the registry holds is published, not only those the spec's tables name.** `parseSpec` keeps a class only when `docs/spec/01-core-library.md` has its table, so a registry class without one gets no page. Build a member record from the registry's own signature for those. Goal § Stage 3 *`--check reference`* (every Core feature in the roster has a page). Anchors: `tools/nv/renderers/website-core.ts:607`, `tools/nv/renderers/website-core.ts:680`, `tools/nv/proofs/roster.ts:266`"
       },
       {
         "done": false,
-        "text": "**Configuration and CLI sub-areas, one page per `nvs.toml` block and per command.** Goal § Stage 3 *Three sub-areas*. Anchor: `tools/nv/renderers/website-core.ts:1`"
+        "text": "**Configuration and CLI sub-areas, one page per `nvs.toml` block and per command.** Goal § Stage 3 *Three sub-areas*. Anchors: `website/astro.config.ts:116`, `website/src/pages/reference/core/[...slug].astro:1`"
       },
       {
         "done": false,
@@ -29,6 +33,8 @@
     ]
   },
   "backlog": [
+    "A class page's summary is the spec chapter's prose, with rule ids and internal words in it. It needs a plain description, and no file owns one yet — `website/src/components/ClassOverview.astro`.",
+    "`related:` lines for the other members where a reader clearly wants the link — goal § Stage 3 *Related*.",
     "Stage 4, Syntax: `website/src/content/docs/syntax/**` and `website/snippets/syntax/**` — goal § Stage 4.",
     "Stage 5, Install, Guides and the Notes app — goal § Stage 5.",
     "Stage 6, In-Depth, the home page and the plain-English read — goal § Stage 6.",
