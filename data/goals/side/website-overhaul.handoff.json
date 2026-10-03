@@ -1,24 +1,21 @@
 {
-  "state": "**Side goal `website-overhaul` is written and nothing of it is built yet.** The site today is Astro + Starlight with a Docs tree (rulebook, decisions, release notes, 325 Core pages, 314 of them drafts), a Why Novis page over 13 claims, and no example on the live site, because the mirror is gitignored and Pages never syncs it. The goal's prose has the user's eleven calls from 2026-10-03 and the measured starting point.",
+  "state": "**Side goal `website-overhaul`, stage 2 in progress.** `AGENTS.md` § *Text an end user reads* now covers everything a user sees: website pages, `about.md`, comments in published `.nvs` (including `website/snippets/`), `nvs` help text and diagnostic messages, and excludes the agent-only docs. Nothing of the site itself is built yet. The site today is Astro + Starlight with a Docs tree (rulebook, decisions, release notes, 325 Core pages, 314 of them drafts), a Why Novis page over 13 claims, and no example on the live site, because the mirror is gitignored and Pages never syncs it.",
   "next": {
     "stage": 2,
     "title": "the structure and the stale guard",
     "files": [
-      "AGENTS.md",
       "website/astro.config.ts",
       "website/src/components/Header.astro",
       "website/src/components/Footer.astro",
       "website/package.json",
+      "website/scripts/",
       "tools/nv/cmd/site.ts",
+      "tools/nv/main.ts",
       "tools/nv/renderers/index.ts",
       "tools/nv/cmd/session.ts",
       ".github/workflows/ci.yml"
     ],
     "items": [
-      {
-        "done": false,
-        "text": "**Widen the plain-English rule** to everything a user sees — `AGENTS.md` § *Text an end user reads*"
-      },
       {
         "done": false,
         "text": "**Nav, sidebars, removals and redirects** — `website/src/components/Header.astro:28`, `website/astro.config.ts:128`, `website/src/components/Footer.astro:50`"
@@ -37,5 +34,7 @@
       }
     ]
   },
-  "backlog": []
+  "backlog": [
+    "None yet; the goal's prose, `docs/agent/goals/side/website-overhaul.md`, owns the later stages."
+  ]
 }
