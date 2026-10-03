@@ -151,6 +151,17 @@ export default defineConfig({
                 { label: 'Tainted and secret strings', link: '/syntax/values/tainted-and-secret/' },
               ],
             },
+            {
+              label: 'Operators',
+              items: [
+                { label: 'Arithmetic and assignment', link: '/syntax/operators/arithmetic/' },
+                { label: 'Comparison and logic', link: '/syntax/operators/comparison/' },
+                { label: '?? and ??=', link: '/syntax/operators/null-coalescing/' },
+                { label: 'String operators', link: '/syntax/operators/string-operators/' },
+                { label: 'The pipeline operator |>', link: '/syntax/operators/pipeline/' },
+                { label: 'Precedence', link: '/syntax/operators/precedence/' },
+              ],
+            },
           ],
         },
         {

@@ -1,0 +1,34 @@
+---
+title: String operators
+covers: ['lang:expressions/string-operators']
+description: How . joins values into a string, and how .= adds to a string variable.
+---
+import Snippet from '@components/Snippet.astro'
+
+`.` joins two values into one string. `.=` adds a value to the end of a string variable.
+
+<Snippet src="syntax/string-operators/01-concatenation.nvs" />
+
+Each side of `.` can be one of these:
+
+- a `string`
+- a number: `int`, `uint`, `float` or `decimal`
+- a `bool`. `true` becomes `"1"`, and `false` becomes `""`
+- `null`, which becomes `""`
+- an object whose class implements `Stringable`
+
+An array, `bytes` and an enum case do not compile with `.`. Use `Core\Json::encode($array)` for
+an array, and `$data as string` for `bytes`.
+
+## Use this when you build a string from many values
+
+A double-quoted string can contain variables. `"Hello $name"` and `"Hello {$user->name}"` are
+often easier to read than many `.` operators. [Strings and interpolation](/syntax/values/strings/)
+shows all the ways to write a string.
+
+## Do and don't
+
+- Do use interpolation for short messages with a few values.
+- Do use `.=` to build a string in a loop.
+- Don't use `+` to join strings. `+` works on numbers only.
+- Don't use `.` to build HTML. Use an `html` literal. It escapes each value for you.

@@ -1,0 +1,14 @@
+<?nvs
+// `??` gives the left value when it is not `null`. Otherwise it gives the right value.
+?string $nickname = null;
+echo $nickname ?? "guest", "\n";
+
+// `??` also gives the right value for a key that is not in the array.
+array<int> $stock = ["apples" => 3];
+echo $stock["apples"] ?? 0, " ", $stock["pears"] ?? 0, "\n";
+
+// `??=` sets the variable only when it is `null`.
+?int $limit = null;
+$limit ??= 10;
+$limit ??= 20;
+echo $limit, "\n";

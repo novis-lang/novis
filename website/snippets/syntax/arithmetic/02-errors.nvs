@@ -1,0 +1,15 @@
+<?nvs
+// Dividing by zero throws an `ArithmeticError`.
+try {
+    echo 1 / 0, "\n";
+} catch (ArithmeticError $first) {
+    echo $first->message, "\n";
+}
+
+// A `uint` cannot go below zero. This also throws an `ArithmeticError`.
+uint $stock = 0;
+try {
+    echo $stock - 1, "\n";
+} catch (ArithmeticError $second) {
+    echo $second->message, "\n";
+}

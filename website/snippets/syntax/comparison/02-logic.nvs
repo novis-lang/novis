@@ -1,0 +1,16 @@
+<?nvs
+class User {
+    public function constructor(public bool $active) {}
+}
+
+// `&&` checks the right side only when the left side is true.
+// So `$user->active` runs only when `$user` is not `null`.
+?User $user = null;
+echo $user != null && $user->active ? "active" : "not active", "\n";
+
+// `!` turns true into false. An empty array counts as false.
+array<int> $cart = [];
+echo !$cart ? "empty" : "has items", "\n";
+
+// `<` does not work on strings. `Core\Str::compare` returns -1, 0 or 1.
+echo Core\Str::compare("apple", "banana"), "\n";

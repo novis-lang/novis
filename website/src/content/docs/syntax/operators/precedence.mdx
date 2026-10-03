@@ -1,0 +1,72 @@
+---
+title: Precedence
+covers: ['lang:expressions/precedence-and-associativity', 'lang:expressions/operators-php-has-that-do-not-parse', 'lang:expressions/refused-in-expression-position']
+description: Which operator runs first, and the operators and functions that do not exist.
+---
+import Snippet from '@components/Snippet.astro'
+
+Precedence decides which operator runs first. `*` runs before `+`, so `1 + 2 * 3` is `7`.
+
+<Snippet src="syntax/precedence/01-precedence.nvs" />
+
+The table lists the operators in order. A row runs before every row below it.
+
+| Operators | Order inside the row |
+|---|---|
+| `->` `?->` `::` `[]` `()` `$x++` `$x--` `as` | left to right |
+| `new` `clone` | |
+| `**` | right to left |
+| `-$x` `+$x` `~` `++$x` `--$x` | |
+| `\|>` | left to right |
+| `is` | left to right |
+| `!` | |
+| `*` `/` `%` | left to right |
+| `+` `-` | left to right |
+| `<<` `>>` | left to right |
+| `.` | left to right |
+| `<` `<=` `>` `>=` | left to right |
+| `==` `!=` `<=>` | left to right |
+| `&` | left to right |
+| `^` | left to right |
+| `\|` | left to right |
+| `&&` | left to right |
+| `\|\|` | left to right |
+| `??` | right to left |
+| `? :` | right to left |
+| `catch` in an expression | |
+| `=` `+=` `-=` `.=` `??=` and the other assignments | right to left |
+| `print` `throw` `yield` | |
+
+- `-2 ** 2` is `-4`, because `**` runs before the minus sign.
+- `-$s as int` is `-($s as int)`. Write `($a / $b) as int` to convert a result.
+- `!$o is User` is `!($o is User)`.
+- `"sum: " . 1 + 2` is `"sum: 3"`, because `+` runs before `.`.
+
+The compiler warns when `??` or `? :` is next to `+` or `.` without parentheses. The warning
+shows the parentheses to add.
+
+## Operators that do not exist
+
+| Not in Novis | Write |
+|---|---|
+| `and`, `or`, `xor` | `&&`, `\|\|`, and `!=` between two `bool` values |
+| `===`, `!==`, `<>` | `==`, `!=` |
+| `(int)$x` | `$x as int` |
+| `@` before an expression | `try` and `catch` |
+| `$a = &$b` | an `inout` parameter, or an object |
+| `$$name` | an `array<T>` with the names as keys |
+| `$a + $b` on two arrays | `Core\Arr::underlay($a, $b)` |
+| `$s[0]` on a string | `Core\Str::at($s, 0)` |
+| `` `ls` `` | `Core\Process::run` |
+| `eval`, `extract`, `compact`, `settype` | `require`, an array index, `as` |
+| `die`, `include` | `exit`, `require` |
+
+A function such as `strlen` does not exist either. Use a method of a `Core` class, such as
+`Core\Str::length($s)`. The compiler error names the method to use.
+
+## Do and don't
+
+- Do add parentheses when you are not sure which operator runs first.
+- Do read the compiler warning about `??` and `? :`. It shows both possible meanings.
+- Don't write `-2 ** 2` when you mean `(-2) ** 2`.
+- Don't write long expressions with many operators. Store a part in a variable with a clear name.

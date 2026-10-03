@@ -1,0 +1,47 @@
+---
+title: Comparison and logic
+covers: ['lang:expressions/comparison-and-equality', 'lang:expressions/logical-operators-and-truth']
+description: How == and != compare values, how < and <=> order them, and the operators && || and !.
+---
+import Snippet from '@components/Snippet.astro'
+
+`==` checks if two values are equal, and `!=` checks if they are different. Neither operator
+converts a value to another type.
+
+<Snippet src="syntax/comparison/01-equality.nvs" />
+
+| Values | Equal when |
+|---|---|
+| numbers | they have the same value. `1 == 1.0` is true |
+| strings | they have the same characters. `"1" == "01"` is false |
+| arrays | they have the same keys and values in the same order |
+| objects | they are the same object. A copy made with `clone` is not equal |
+| enum cases | they are the same case |
+
+Two values that can never be equal do not compile. `1 == "1"` is an example. Convert one side
+first: `$s == ($n as string)`.
+
+`<`, `<=`, `>`, `>=` and `<=>` compare numbers and `bool` values. `<=>` returns `-1`, `0` or `1`.
+Objects can be compared when their class implements `Comparable`.
+
+## Logic
+
+<Snippet src="syntax/comparison/02-logic.nvs" />
+
+- `&&` is true when both sides are true. It checks the right side only when the left side is true.
+- `||` is true when one side is true. It checks the right side only when the left side is false.
+- `!` turns `true` into `false` and `false` into `true`.
+
+These values count as false: `false`, `0`, `0.0`, `""`, `"0"`, `[]` and `null`. Every other value
+counts as true.
+
+## Use this when you compare strings
+
+`<` and `>` do not work on strings. `Core\Str::compare($a, $b)` returns `-1`, `0` or `1`.
+
+## Do and don't
+
+- Do test a nullable value with `!= null &&` before you use it on the same line.
+- Do use `Core\Str::compare` to sort strings.
+- Don't write `and`, `or` or `xor`. Write `&&`, `||`, and `!=` between two `bool` values.
+- Don't write `===`. `==` already compares without converting.

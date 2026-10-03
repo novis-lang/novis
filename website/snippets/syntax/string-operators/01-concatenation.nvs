@@ -1,0 +1,14 @@
+<?nvs
+// `.` joins two values into one string.
+string $name = "Ada";
+int $age = 36;
+echo "Name: " . $name . ", age: " . $age, "\n";
+
+// `.=` adds text to the end of a string variable.
+string $path = "/users";
+$path .= "/";
+$path .= 42;
+echo $path, "\n";
+
+// `true` becomes "1". `false` and `null` become an empty string.
+echo "[" . true . "][" . false . "][" . null . "]", "\n";

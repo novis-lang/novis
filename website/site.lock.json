@@ -14,6 +14,28 @@
   "syntax/basics/variables.mdx": {
     "lang:types/every-binding-has-a-type": "dd36d2fa193703ff"
   },
+  "syntax/operators/arithmetic.mdx": {
+    "lang:expressions/arithmetic": "537f01ba95d7cd24",
+    "lang:expressions/assignment": "d0b9aae015dcb3c3"
+  },
+  "syntax/operators/comparison.mdx": {
+    "lang:expressions/comparison-and-equality": "d9461e5271186485",
+    "lang:expressions/logical-operators-and-truth": "ee2dc00eaf11b2fb"
+  },
+  "syntax/operators/null-coalescing.mdx": {
+    "lang:expressions/and-the-ternary": "d082efd61d67d36b"
+  },
+  "syntax/operators/pipeline.mdx": {
+    "lang:expressions/the-pipeline-operator": "ebc56f2d1a052a84"
+  },
+  "syntax/operators/precedence.mdx": {
+    "lang:expressions/operators-php-has-that-do-not-parse": "3e99546919aed506",
+    "lang:expressions/precedence-and-associativity": "a058f698d75a15dc",
+    "lang:expressions/refused-in-expression-position": "b4d273ec0c6798c4"
+  },
+  "syntax/operators/string-operators.mdx": {
+    "lang:expressions/string-operators": "c8d6801532018731"
+  },
   "syntax/start-here.mdx": {
     "lang:programs/a-complete-program-annotated": "57bfda16febb6b64",
     "lang:types/what-does-not-exist": "4b29ab1c109b9cca"

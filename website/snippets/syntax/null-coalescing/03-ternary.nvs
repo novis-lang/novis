@@ -1,0 +1,16 @@
+<?nvs
+class User {
+    public function constructor(public string $name) {}
+}
+
+// `? :` picks one of two values. The condition comes first.
+int $items = 5;
+echo $items > 3 ? "many" : "few", "\n";
+
+// `?:` gives the left value when it counts as true. Otherwise it gives the right value.
+string $title = "";
+echo $title ?: "Untitled", "\n";
+
+// `?->` reads a property only when the object is not `null`. Otherwise the result is `null`.
+?User $user = null;
+echo $user?->name ?? "nobody", "\n";
