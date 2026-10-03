@@ -1,23 +1,34 @@
 {
-  "state": "**Side goal `website-overhaul`, stage 2 in progress.** The nav, the per-area sidebars and the removals are on disk. The header is Guides, Syntax, Reference, In-Depth, Install as a button, then Sponsoring, all read from `AREAS` and `INSTALL` in `website/config/site.mjs`. `website/src/routeData.ts` narrows the sidebar to the current area. No `/docs/` URL remains and no redirect exists. The area landing pages are short placeholders that stages 4 to 6 replace.\n\nThe examples are read in place: `website/src/components/MethodExamples.astro` globs `../../../docs/examples/core/` directly, joins a nested class's parts with `-` as the proofs roster does, and skips companion files in subdirectories. `website/scripts/` (the sync and check scripts), the `sync:examples` and `examples:check` npm scripts and the `examples/` ignore line are gone. `website/README.md` and `docs/examples/README.md` say so. `rule:testing/examples-live-in-the-repository` still says \"the website mirrors it\": its fragment is rewritten under the stage's decision record, item 2 below.\n\n`website/node_modules` is installed in this worktree. The site has not been built since the nav change: the goal allows no build outside `bun nv site --check`, and that command is not written yet.",
+  "state": "**Side goal `website-overhaul`, stage 2 in progress.** The nav, the per-area sidebars, the removals and the in-place examples are on disk, as before.\n\n`bun nv site` is written: `tools/nv/cmd/site.ts`, its module doc the home of what each mode and part does. `--stale`, `--stamp`, `--build` and `--check` work. The parts `structure` and `stale` pass on this tree, and `--build` prints `site: built`. `reference`, `syntax`, `guides`, `in-depth` and `apps` print \"not written yet\" and fail until their stages write them. Its tests are `tools/nv/test/site.test.ts`, and the goal record's check now names that path.\n\nEvery handwritten page carries `covers: []`, and `covers` is in the content schema in `website/src/content.config.ts`. `website/src/components/Snippet.astro` shows `website/snippets/<path>` and its `.out`. `website/snippets/` does not exist yet, and no lock file exists yet: no page covers a feature.\n\n`.claude/settings.json` allows `Bash(bun nv site:*)` and `PowerShell(bun nv site:*)`, and `bun nv verify` is green.\n\n`site snippets` fails on the inline Novis fences in `index.mdx` and `install/hello-world.mdx`. `site prose` fails on dashes and long sentences in `index.mdx`, `install/*`, `sponsoring.mdx` and `in-depth/what-changed.mdx`. Stages 5 and 6 rewrite those pages, and the rewrite is what closes both.",
   "next": {
     "stage": 2,
     "title": "the structure and the stale guard",
-    "files": [],
-    "note": "one file set: `tools/nv/cmd/site.ts` (new), `tools/nv/main.ts`, `tools/nv/cmd/session.ts`, `.github/workflows/ci.yml`, `docs/rules/testing/`, `data/rules/testing/`.",
+    "files": [
+      "tools/nv/cmd/session.ts",
+      ".github/workflows/ci.yml",
+      "docs/rules/testing/",
+      "data/rules/testing/",
+      "docs/decisions/",
+      "data/decisions/"
+    ],
     "items": [
       {
         "done": false,
-        "text": "**`bun nv site`: snippets, `covers:`, the lock, `--stale`, `--check`, `--build`, `--stamp`, its tests** — `tools/nv/main.ts:1`, `tools/nv/proofs/roster.ts:24`, `website/src/components/MethodExamples.astro:24`"
+        "text": "**The wrap gate: `nv session --wrap` refuses while `bun nv site --stale` reports a broken id, or a stale page whose feature this slice changed** — goal § Stage 2 *The wrap gate*; the tree gates are at `tools/nv/cmd/session.ts:478`, and `staleness` at `tools/nv/cmd/site.ts:180` is what to call"
       },
       {
         "done": false,
-        "text": "**The wrap gate and the CI step, the stage's decision record, and `rule:testing/examples-live-in-the-repository` rewritten to \"read in place\"** — `tools/nv/cmd/session.ts:499`, `.github/workflows/ci.yml:293`, `docs/rules/testing/examples-live-in-the-repository.md:1`"
+        "text": "**CI runs `bun nv site --check structure snippets stale prose` in the job that runs `bun nv proofs --verify`** — the step goes after `.github/workflows/ci.yml:294`, and `--check` is at `tools/nv/cmd/site.ts:488`; `pages.yml` stays build-only"
+      },
+      {
+        "done": false,
+        "text": "**The stage's decision record, and `rule:testing/examples-live-in-the-repository` rewritten to \"read in place\"** — take the next free ADR number right before writing; the rule's fragment is `docs/rules/testing/examples-live-in-the-repository.md:1`, then `bun nv rules --render`"
       }
     ]
   },
   "backlog": [
-    "The first `bun nv site --build` after the nav change may surface broken links from the moved pages (`docs/agent/goals/side/website-overhaul.md`, stage 2).",
-    "`.github/workflows/pages.yml:58` still describes `npm run sync` as publishing the rulebook, which is deleted; fix it with the CI step."
+    "Stage 5 converts `install/hello-world.mdx`'s two Novis fences to snippets and rewrites the Install pages inside the prose bounds (goal § Stage 5).",
+    "Stage 6 rewrites `index.mdx` and fixes `sponsoring.mdx` and `in-depth/what-changed.mdx` against the prose bounds (goal § Stage 6).",
+    "The parts `reference`, `syntax`, `guides`, `in-depth` and `apps` of `tools/nv/cmd/site.ts` are written by their stages, each replacing its `LATER` row."
   ]
 }
