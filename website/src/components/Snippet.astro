@@ -1,0 +1,31 @@
+---
+/**
+ * One Novis program from website/snippets/ and what it prints. A handwritten
+ * page shows Novis code only through this component:
+ *
+ *   <Snippet src="syntax/match/01-basic.nvs" />
+ *
+ * The output is the `.out` file beside the program. `bun nv site --check
+ * snippets` runs every snippet and checks that it prints exactly that file.
+ */
+import { Code } from '@astrojs/starlight/components'
+
+interface Props {
+  /** The path under website/snippets/. */
+  src: string
+}
+
+// The globs below are relative to this file, so their keys start with this prefix.
+const ROOT = '../../snippets/'
+
+const sources = import.meta.glob('../../snippets/**/*.nvs', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
+const outputs = import.meta.glob('../../snippets/**/*.out', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
+
+const { src } = Astro.props
+const code = sources[`${ROOT}${src}`]
+if (code === undefined) throw new Error(`Snippet: no file website/snippets/${src}`)
+const output = outputs[`${ROOT}${src.replace(/\.nvs$/, '.out')}`]
+---
+
+<Code code={code.trimEnd()} lang="novis" />
+{output !== undefined && output.trim() !== '' && <Code code={output.trimEnd()} lang="txt" title="Output" />}

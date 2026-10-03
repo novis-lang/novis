@@ -215,7 +215,7 @@ function chapterFeatures(directory: string, area: "lang" | "tools"): Entry[] {
 }
 
 type Doc = { short?: string } | null | undefined;
-interface Meta {
+export interface Meta {
   classes?: { name: string; doc?: Doc; members?: { name: string; doc?: Doc; signature?: string }[] }[];
   exceptions?: unknown[];
   enums?: unknown[];
@@ -225,7 +225,7 @@ interface Meta {
 
 /** What `nvs meta --json` prints. A binary that cannot print it ends the command. It writes no footprint
  * log, since it prints every class and card: `noteRoster` names the part of it a verdict read. */
-async function metaJson(nvs: string): Promise<Meta> {
+export async function metaJson(nvs: string): Promise<Meta> {
   progress("proofs: reading the roster (`nvs meta --json`)");
   const out = await runProc([nvs, "meta", "--json"], { timeoutMs: 120_000, env: { NVS_FOOTPRINT_LOG: "" } });
   if (out.code !== 0) throw new RosterError(`\`${nvs} meta --json\` failed:\n${out.stderr.trim()}`);
@@ -261,9 +261,10 @@ const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "obj
 /** A value as Python's `str()` prints it inside an f-string. */
 const pyStr = (v: unknown) => (v === undefined ? "" : v === null ? "None" : String(v));
 
-/** Every feature Novis ships, in the order the sources give them. */
-export async function roster(nvs: string): Promise<Entry[]> {
-  const doc = await metaJson(nvs);
+/** Every feature Novis ships, in the order the sources give them. `doc` is `nvs meta --json` when the
+ * caller has already read it. */
+export async function roster(nvs: string, doc?: Meta): Promise<Entry[]> {
+  doc ??= await metaJson(nvs);
   const anchors = unrecorded(() => new Map([...registry()].map(([k, v]) => [k, `${v[0]}:${v[1]}`])));
   const tables = tableAnchors();
   const phpNames = twins();

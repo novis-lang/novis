@@ -7,6 +7,8 @@ export const collections = {
     loader: docsLoader(),
     schema: docsSchema({
       extend: z.object({
+        /** The features a handwritten page explains, as the proofs roster names them. `bun nv site` reads it. */
+        covers: z.array(z.string()).optional(),
         /** Novis-specific page metadata, set by the sync tooling's stubs. */
         novis: z
           .object({

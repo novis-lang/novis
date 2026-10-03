@@ -1,5 +1,6 @@
 ---
 title: Datenschutzerklärung
+covers: []
 description: Datenschutzerklärung gemäß DSGVO für die Novis-Projektwebsite.
 template: splash
 editUrl: false

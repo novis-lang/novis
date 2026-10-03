@@ -131,7 +131,7 @@
       "argv": [
         "bun",
         "test",
-        "tools/nv/cmd/site.test.ts"
+        "tools/nv/test/site.test.ts"
       ],
       "want": [
         " 0 fail"
