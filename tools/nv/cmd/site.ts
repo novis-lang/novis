@@ -32,10 +32,10 @@
 // inline Novis fence, every `<Snippet src="..."/>` names a file under `website/snippets/`, every snippet
 // is used, keeps the comment bounds of `bun nv proofs --comments`, and prints exactly its `.out` with
 // exit 0), `stale` (no page lacks `covers:`, no id is broken and no page is stale), `reference` (see
-// `referenceProblems`) and `prose` (the countable bounds of AGENTS.md § *Text an end user reads* over
-// every handwritten page's prose: no sentence over 25 words, no dash joining two sentences, and no
-// paragraph over six sentences). The legal pages are kept out of `prose`, since their wording is the
-// law's. `syntax`, `guides`, `in-depth` and `apps` belong to the later stages of goal
+// `referenceProblems`), `syntax` (see `syntaxProblems`) and `prose` (the countable bounds of AGENTS.md
+// § *Text an end user reads* over every handwritten page's prose: no sentence over 25 words, no dash
+// joining two sentences, and no paragraph over six sentences). The legal pages are kept out of `prose`,
+// since their wording is the law's. `guides`, `in-depth` and `apps` belong to the later stages of goal
 // `website-overhaul` and fail until those stages write them.
 
 import { createHash } from "node:crypto";
@@ -63,7 +63,7 @@ const LEGAL = ["impressum.md", "datenschutz.md"];
 export const PARTS = ["structure", "snippets", "stale", "reference", "syntax", "guides", "in-depth", "apps", "prose"] as const;
 type Part = (typeof PARTS)[number];
 /** The stage of goal `website-overhaul` that writes each part not written yet. */
-const LATER: Partial<Record<Part, number>> = { syntax: 4, guides: 5, apps: 5, "in-depth": 6 };
+const LATER: Partial<Record<Part, number>> = { guides: 5, apps: 5, "in-depth": 6 };
 /** Where `--build` writes the site, which `reference` reads. */
 const DIST = "website/dist";
 
@@ -528,6 +528,29 @@ async function referenceProblems(w: World, nvs: string, root: string = ROOT): Pr
   return problems;
 }
 
+/** The landing page of Syntax, which explains no one feature. */
+const SYNTAX_INDEX = "syntax/index.mdx";
+/** The heading a Syntax page's best practice is under, with the list it needs below it. */
+const DO_DONT_RE = /^## Do and don['’]t[ \t]*\n+- /m;
+
+/**
+ * The `syntax` part: every Syntax page but the landing page covers at least one feature, shows at least
+ * one `<Snippet>` and has a `## Do and don't` heading with a list under it, and no language or type
+ * feature is uncovered.
+ */
+export function syntaxProblems(world: World, root: string = ROOT): string[] {
+  const problems: string[] = [];
+  for (const page of pages(root)) {
+    if (!page.key.startsWith("syntax/") || page.key === SYNTAX_INDEX) continue;
+    const at = `${DOCS}/${page.key}`;
+    if (!page.covers?.length) problems.push(`${at}: covers no feature`);
+    if (!/<Snippet\s+src=/.test(page.body)) problems.push(`${at}: shows no <Snippet>`);
+    if (!DO_DONT_RE.test(page.body)) problems.push(`${at}: has no \`## Do and don't\` heading with a list under it`);
+  }
+  for (const id of staleness(world, root).uncovered) problems.push(`uncovered: ${id}`);
+  return problems;
+}
+
 async function world(nvs: string): Promise<World> {
   const meta = await metaJson(nvs);
   return { entries: await roster(nvs, meta), meta };
@@ -558,6 +581,9 @@ async function check(parts: Part[], nvs: string | null): Promise<number> {
     else if (part === "reference") {
       w ??= await world(nvs);
       problems = await referenceProblems(w, nvs);
+    } else if (part === "syntax") {
+      w ??= await world(nvs);
+      problems = syntaxProblems(w);
     } else {
       w ??= await world(nvs);
       const s = staleness(w);

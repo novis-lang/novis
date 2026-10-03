@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { DOCS, paragraphs, proseProblems, snippetShape, stamp, staleness, wrapProblems, type World } from "../cmd/site.ts";
+import { DOCS, paragraphs, proseProblems, snippetShape, stamp, staleness, syntaxProblems, wrapProblems, type World } from "../cmd/site.ts";
 import type { Entry } from "../proofs/roster.ts";
 import { scratch, type Scratch } from "./scratch.ts";
 
@@ -100,6 +100,28 @@ describe("nv site --check snippets", () => {
       "website/snippets/guides/b/01-unused.nvs: no page shows it",
       "website/snippets/guides/b/01-unused.nvs: no .out beside it",
     ]);
+  });
+});
+
+describe("nv site --check syntax", () => {
+  test("a Syntax page with no snippet or no Do and don't list is named, and so is each uncovered feature", () => {
+    const root = site().root;
+    s.put(`${DOCS}/syntax/index.mdx`, "---\ntitle: Syntax\ncovers: []\n---\n\nText.\n");
+    s.put(`${DOCS}/syntax/empty.mdx`, "---\ntitle: Empty\ncovers: []\n---\n\n## Do and don't\n\nText.\n");
+    expect(syntaxProblems(world(), root)).toEqual([
+      `${DOCS}/syntax/empty.mdx: covers no feature`,
+      `${DOCS}/syntax/empty.mdx: shows no <Snippet>`,
+      `${DOCS}/syntax/empty.mdx: has no \`## Do and don't\` heading with a list under it`,
+      `${DOCS}/syntax/match.mdx: shows no <Snippet>`,
+      `${DOCS}/syntax/match.mdx: has no \`## Do and don't\` heading with a list under it`,
+      "uncovered: lang:statements/while",
+    ]);
+  });
+
+  test("a page with covers, a snippet and a Do and don't list passes", () => {
+    const root = site().root;
+    s.put(`${DOCS}/syntax/match.mdx`, "---\ntitle: match\ncovers: ['lang:statements/match', 'lang:statements/while']\n---\n\n<Snippet src=\"syntax/match/01-basic.nvs\" />\n\n## Do and don't\n\n- Do this.\n");
+    expect(syntaxProblems(world(), root)).toEqual([]);
   });
 });
 
