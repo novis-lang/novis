@@ -24,26 +24,20 @@ topology either peer has. The measurement `bun nv bench --serve-vs-fpm` takes �
 FastCGI frame, no proxy on either side — is the artificial one, which is why its record carries a
 caveat saying so in every row.
 
-## The one-core fact, and the two arms it forces
+## The CPU budget, and the two arms
 
-**`nvs serve` runs on one core.** `crates/nvs-cli/src/serve.rs` § *Decision: one socket, and the flag
-is the last word* is the statement of it: `[server] listen` is a flat array, this loop binds the
-first entry, and binding all of them is `nvs_host::NvsListener::from_std`'s fan-out — a slice that
-has not landed. PHP-FPM has a process manager and `pm.max_children`, so it uses as many cores as it
-is given.
-
-A benchmark that ignores this measures 16 PHP workers against 1 Novis core and reports the missing
-fan-out as a language result. Docker is what makes the honest version cheap, and it is the reason
-this leg is containers rather than two processes on the host: **a CPU budget is a compose key.** So
-there are two arms and each says what it is:
+**Both peers use every CPU they are given.** `nvs serve` starts one worker per CPU it can see
+(`[server] workers`, whose default is that count), and PHP-FPM starts its whole `pm.max_children`
+pool. Inside a container both see every CPU of the host, so neither worker count is the limit. Docker
+is what makes the comparison honest, and it is the reason this leg is containers rather than two
+processes on the host: **a CPU budget is a compose key.** So there are two arms and each says what
+it is:
 
 - **`--arm fair` (the default)** — one CPU to each backend container. This is the
-  runtime-against-runtime number, and the only one of the two that a claim about Novis may be built
-  on.
-- **`--arm deployed`** — `n` CPUs to each container, where `nvs serve` can still only use one of
-  them. It is recorded because it is what an operator would see today, and every row it writes
-  carries the caveat naming the unlanded fan-out. **It is not a language comparison** and must not be
-  quoted as one.
+  runtime-against-runtime number on a single core.
+- **`--arm deployed`** — `n` CPUs to each container, four unless `--backend-cpus` says otherwise.
+  It is what an operator sees on a multi-core box, and the fair arm beside it shows how each peer
+  scales from one CPU to `n`.
 
 **Fairness is the CPU budget, and deliberately not the worker count.** The tempting version of the
 fair arm — one core *and one PHP worker* against one Novis core — does not merely mislead, it does
@@ -130,7 +124,7 @@ tag.
 
 ```sh
 bun nv bench-proxied                                  # the fair arm, both stacks
-bun nv bench-proxied --arm deployed --backend-cpus 8  # PHP's pool against our one core
+bun nv bench-proxied --arm deployed --backend-cpus 8  # both peers on eight cpus
 bun nv bench-proxied --record benches/serve-proxied.json
 bun nv bench-proxied --nvs-bin /var/tmp/nvs-target-wsl/release/nvs   # skip the image build
 bun nv bench-proxied --down                           # tear both stacks down and stop

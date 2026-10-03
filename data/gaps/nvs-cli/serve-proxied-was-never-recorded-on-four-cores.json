@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-cli/src/serve.rs",
-  "title": "`benches/serve-proxied.json` was never recorded again after `nvs serve` began serving on every core.",
-  "text": "`nvs serve` starts one worker per core at `crates/nvs-cli/src/serve.rs:715`, and `serve_throughput_scales_from_one_core_to_four_by_the_margin_this_test_names` at `crates/nvs-cli/src/serve.rs:3784` asserts the scaling. The deployed arm of `benches/serve-proxied.json` was recorded before that, and its caveat at `benches/serve-proxied.json:145` still says `nvs serve` can use only one of its four cpus. Closing this records the bench again with `bun nv bench-proxied` on one and four cores and drops the caveat that is no longer true.",
-  "goal": "goal-closeout"
-}

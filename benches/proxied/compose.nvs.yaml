@@ -27,10 +27,8 @@ services:
     image: nvs-bench-serve:local
 
     # The same budget `compose.php.yaml` gives its backend, in both arms -- the driver sets them
-    # from one number. `nvs serve` can use only one core of whatever it is given
-    # (`crates/nvs-cli/src/serve.rs` binds one socket and runs one accept loop), and leaving the
-    # allowance equal anyway is what makes the deployed arm price *that* rather than an inequality
-    # this benchmark created.
+    # from one number. `nvs serve` starts one worker per CPU the container can see, which is more
+    # than the quota in both arms, so this allowance is what bounds it -- as it bounds FPM's pool.
     cpus: ${NVS_CPUS:-1}
 
     volumes:

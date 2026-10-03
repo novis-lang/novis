@@ -16,9 +16,9 @@ services:
   php:
     image: php:8.5.9-fpm
 
-    # The budget the whole comparison rests on. `nvs serve` is one core (README § *The one-core
-    # fact*), so the fair arm gives PHP exactly one too, and the deployed arm raises both this and
-    # `pm.max_children` together while Novis stays at one -- which is what that arm exists to price.
+    # The budget the whole comparison rests on, and the same number `compose.nvs.yaml` gives
+    # `nvs serve` (README § *The CPU budget, and the two arms*): one cpu in the fair arm, and
+    # `--backend-cpus` in the deployed arm.
     cpus: ${BACKEND_CPUS:-1}
 
     working_dir: /app

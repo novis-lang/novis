@@ -1,7 +1,7 @@
 // `bun nv bench-proxied`: nginx in front of `nvs serve` and in front of PHP-FPM, one stack at a time.
 //
 //     bun nv bench-proxied --record benches/serve-proxied.json     # the fair arm, recorded
-//     bun nv bench-proxied --arm deployed --backend-cpus 8         # PHP's pool against our one core
+//     bun nv bench-proxied --arm deployed --backend-cpus 8         # both peers on eight cpus
 //     bun nv bench-proxied --nvs-bin /var/tmp/nvs-target-wsl/release/nvs   # skip the image build
 //     bun nv bench-proxied --down                                  # tear both stacks down
 //
@@ -119,8 +119,8 @@ function help(): string {
     "options:",
     "  -h, --help            show this help message and exit",
     "  --arm {fair,deployed}",
-    "                        fair: one core and one PHP worker each (the only language comparison).",
-    "                        deployed: PHP gets a pool across --backend-cpus while nvs serve keeps its one core",
+    "                        fair: one cpu to each backend (the runtime-against-runtime number).",
+    "                        deployed: --backend-cpus to each backend, which both peers use whole",
     "  --backend-cpus N      the CPU budget given to EACH backend container (default 1 for fair, 4 for",
     "                        deployed). The PHP worker count is sized from --concurrency instead;",
     "                        php/pool.conf.in says why",
@@ -231,9 +231,14 @@ function compose(stack: string, args: string[], env: Record<string, string>, cap
  * **Services are named rather than defaulted, and that is load-bearing.** The origin arms are measured
  * with the proxy not yet started; § *Why the origin is measured before its proxy exists* in `main` is the
  * reason, and it is a correctness one rather than a tidiness one.
+ *
+ * **`--build` on every call**, because `nvs-bench-serve:local` is a tag compose reuses whenever it
+ * exists: without the flag a run measures whatever binary the image was first built from and records
+ * this checkout's commit beside it. Docker's layer cache makes the rebuild of an unchanged tree cheap,
+ * and the services that only name an image have nothing to build.
  */
 function up(stack: string, env: Record<string, string>, ...services: string[]): void {
-  const done = compose(stack, ["up", "-d", "--wait", ...services], env, false);
+  const done = compose(stack, ["up", "-d", "--wait", "--build", ...services], env, false);
   if (done.code !== 0) throw new Error(`\`docker compose -f ${basename(stack)} up ${services.join(" ")}\` failed with ${done.code}`);
 }
 
@@ -412,7 +417,7 @@ async function main(o: Options): Promise<number> {
 
   const backendCpus = o.backendCpus ?? (o.arm === "fair" ? 1 : 4);
   if (o.arm === "fair" && backendCpus !== 1) {
-    throw new Fail(`--arm fair is one core against one core; --backend-cpus ${backendCpus} is the deployed arm and must say so`);
+    throw new Fail(`--arm fair is one cpu against one cpu; --backend-cpus ${backendCpus} is the deployed arm and must say so`);
   }
   if (o.requests < 1 || o.concurrency < 1 || o.reps < 1) throw new Fail("--requests, --concurrency and --reps must each be at least 1");
 
@@ -425,10 +430,9 @@ async function main(o: Options): Promise<number> {
   const phpChildren = Math.max(2 * o.concurrency, 96);
   renderPool(phpChildren);
 
-  // The same budget PHP's container gets, in both arms. `nvs serve` can only use one core of it (one
-  // socket, one accept loop), and that is exactly the point: the allowance is equal and the limit is
-  // Novis's own, so the deployed arm prices the unlanded fan-out rather than an inequality this harness
-  // introduced.
+  // The same budget PHP's container gets, in both arms. `nvs serve` starts one worker per CPU the
+  // container can see, as FPM starts its whole pool, so the `cpus:` quota and not either worker count
+  // is what bounds the two peers equally.
   const nvsEnv: Record<string, string> = { NVS_CPUS: String(backendCpus), NVS_BUILD_COMMIT: commit };
   const phpEnv: Record<string, string> = { BACKEND_CPUS: String(backendCpus) };
   if (o.nvsBin !== null) {
@@ -437,7 +441,7 @@ async function main(o: Options): Promise<number> {
   }
 
   console.log(`case ${CASE}, arm ${o.arm}: ${o.requests} requests over ${o.concurrency} connection(s), ${o.reps} rep(s), best of reps`);
-  console.log(`  backend budget: php ${backendCpus} cpu / ${phpChildren} worker(s), nvs serve ${backendCpus} cpu / 1 core; nginx 4 cpu on both sides`);
+  console.log(`  backend budget: php ${backendCpus} cpu / ${phpChildren} worker(s), nvs serve ${backendCpus} cpu / one worker per visible cpu; nginx 4 cpu on both sides`);
   console.log();
 
   const arms: Record<string, Arm> = {};
@@ -456,8 +460,8 @@ async function main(o: Options): Promise<number> {
   // a 30-second socket timeout while the container's own log shows healthy 200s going past, which is
   // about as misleading as a failure gets.
   //
-  // The Novis stack is phased the same way and does not need to be: `nvs serve` answers every connection
-  // on its one core. It is done anyway because arm 3 against arm 4 is only a comparison if the two were
+  // The Novis stack is phased the same way and does not need to be: `nvs serve` accepts every connection
+  // it is offered. It is done anyway because arm 3 against arm 4 is only a comparison if the two were
   // taken under the same conditions, and "the proxy was running for one of them" is a difference.
   try {
     console.log("  bringing up php-fpm alone, for the origin arm ...");
@@ -496,7 +500,7 @@ async function main(o: Options): Promise<number> {
       nvsEnv,
       "nginx-nvs-serve",
       "nginx -> nvs serve",
-      "`rule:http-server/two-deployments-and-nothing-a-proxy-owns`'s proxied origin, one core",
+      `\`rule:http-server/two-deployments-and-nothing-a-proxy-owns\`'s proxied origin, ${backendCpus} cpu`,
     );
   } catch (e) {
     throw new Fail(`${messageOf(e)}\nnvs said:\n${logsOf(NVS_STACK, "nvs")}`);
@@ -543,10 +547,9 @@ async function main(o: Options): Promise<number> {
   ];
   if (o.arm === "deployed") {
     caveats.push(
-      `deployed arm: both containers are given ${backendCpus} cpus, but nvs serve can ` +
-        "use only one of them -- binding a listener across cores is an unlanded slice " +
-        "(crates/nvs-cli/src/serve.rs), while php-fpm's process manager uses the whole budget. " +
-        "This prices that slice; it is not a language comparison",
+      `deployed arm: both containers are given ${backendCpus} cpus and both use all of them -- ` +
+        "php-fpm through its process manager, nvs serve through one worker per CPU the container " +
+        "can see. Each peer starts more workers than the quota has cpus, so the quota is the bound",
     );
   } else {
     caveats.push(
