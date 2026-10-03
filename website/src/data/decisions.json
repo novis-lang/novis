@@ -167,6 +167,12 @@
           "headline": "Whole numbers at a nullable float",
           "body": "`?float $price = 3;` stores `3.0`, and so does an `int` argument, property, return, shape field or array element where the declared type is `?float`, `float|string` or another union that holds `float` but not `int`. A `?int` value stored there is converted when it holds a number. The conversion throws for a whole number above 2^53, as it does at a plain `float`.",
           "url": "https://github.com/novis-lang/novis/blob/main/docs/decisions/0239.md"
+        },
+        {
+          "adr": "0261",
+          "headline": "An enum case in a `mixed` is still an enum case",
+          "body": "An enum case that you put in a `mixed` variable or an `array<mixed>` is always truthy, as it is everywhere else. `$value is int` is `false` for it, and `$value is Signal` is `true`. A callback parameter typed as an enum accepts an enum case and throws an error for a plain `int`.",
+          "url": "https://github.com/novis-lang/novis/blob/main/docs/decisions/0261.md"
         }
       ]
     },

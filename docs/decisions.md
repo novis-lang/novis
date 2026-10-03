@@ -236,6 +236,12 @@ array element where the declared type is `?float`, `float|string` or another uni
 `float` but not `int`. A `?int` value stored there is converted when it holds a number. The
 conversion throws for a whole number above 2^53, as it does at a plain `float`.
 
+**An enum case in a `mixed` is still an enum case**
+
+An enum case that you put in a `mixed` variable or an `array<mixed>` is always truthy, as it is
+everywhere else. `$value is int` is `false` for it, and `$value is Signal` is `true`. A callback
+parameter typed as an enum accepts an enum case and throws an error for a plain `int`.
+
 ## How code is written
 
 Spelling. What parses and what does not, which PHP forms were kept and which were rejected, naming, visibility, and the shape of a file.
