@@ -1,0 +1,41 @@
+<?nvs
+// Attack: many exit functions each make a large string to raise the peak in the
+// report. Every function should read the same peak, and the runtime must not crash.
+// hostile: timeout-ms 30000
+// hostile: ends-early 3 RuntimeError
+
+final class Seen
+{
+    public static int $first = -1;
+    public static int $changed = 0;
+}
+
+// 1. The first function saves the peak it reads.
+Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
+    Seen::$first = $report->memoryPeak();
+});
+
+// 2. 200 functions each make a 64 KiB string, keep it, and read the peak again.
+final class Kept
+{
+    public static array<string> $strings = [];
+}
+int $i = 0;
+while ($i < 200) {
+    Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
+        Kept::$strings[] = Core\Str::repeat('z', 65536);
+        if ($report->memoryPeak() != Seen::$first) {
+            Seen::$changed = Seen::$changed + 1;
+        }
+    });
+    $i = $i + 1;
+}
+
+// The last function prints how many reads differed from the first one.
+Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
+    echo 'changed: ', Seen::$changed, "\n";
+});
+
+// 3. The script ends with an error that nothing catches.
+echo "step 3\n";
+throw new RuntimeError('the job failed');

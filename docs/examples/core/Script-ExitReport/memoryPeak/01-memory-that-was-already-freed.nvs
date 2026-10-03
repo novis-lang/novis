@@ -1,0 +1,13 @@
+<?nvs
+// Shows that the peak includes memory the script freed before it ended.
+
+Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
+    // The 4 MiB string is freed now, but the peak still includes it.
+    // This prints "peak is at least 4 MiB: yes".
+    echo "peak is at least 4 MiB: ", $report->memoryPeak() >= 4194304 ? "yes" : "no", "\n";
+});
+
+string $big = Core\Str::repeat("x", 4194304);
+echo "the string has ", Core\Str::length($big), " bytes\n";
+$big = "";
+echo "the string is freed\n";
