@@ -418,6 +418,84 @@ impl SymbolIndex {
             .collect()
     }
 
+    /// The methods `method` overrides: up each edge its class was written
+    /// with, the nearest type that declares a method of the same name, in the
+    /// order the edges were written.
+    ///
+    /// Nearest and not every one: what a method replaces is the one it would
+    /// otherwise have inherited, and a declaration further up that branch is
+    /// what *that* one overrides. A type reached twice, through a diamond or a
+    /// cycle the checker has already reported, is walked once.
+    #[must_use]
+    pub fn overridden(&self, method: &str) -> Vec<&Declaration> {
+        let Some((owner, name)) = method.rsplit_once("::") else {
+            return Vec::new();
+        };
+        let mut seen = vec![owner.to_owned()];
+        let mut found = Vec::new();
+        for above in self.supertypes(owner) {
+            self.nearest_above(above, name, &mut seen, &mut found);
+        }
+        found
+    }
+
+    /// [`SymbolIndex::overridden`] for one branch, from `ty` upwards.
+    fn nearest_above<'a>(
+        &'a self,
+        ty: &'a Declaration,
+        name: &str,
+        seen: &mut Vec<String>,
+        found: &mut Vec<&'a Declaration>,
+    ) {
+        if seen.contains(&ty.symbol) {
+            return;
+        }
+        seen.push(ty.symbol.clone());
+        if let Some(declared) = self.method_of(&ty.symbol, name) {
+            found.push(declared);
+            return;
+        }
+        for above in self.supertypes(&ty.symbol) {
+            self.nearest_above(above, name, seen, found);
+        }
+    }
+
+    /// Every method that overrides `method`: each type below its class, at any
+    /// depth, that declares a method of the same name, nearer levels first and
+    /// each level in file and then source order.
+    ///
+    /// Every depth and not only the nearest, because each of them replaces
+    /// this method for the objects of its own class, which is what a reader
+    /// above the declaration wants counted.
+    #[must_use]
+    pub fn overriders(&self, method: &str) -> Vec<&Declaration> {
+        let Some((owner, name)) = method.rsplit_once("::") else {
+            return Vec::new();
+        };
+        let mut seen = vec![owner.to_owned()];
+        let mut pending = self.subtypes(owner);
+        let mut found = Vec::new();
+        let mut next = 0;
+        while let Some(&ty) = pending.get(next) {
+            next += 1;
+            if seen.contains(&ty.symbol) {
+                continue;
+            }
+            seen.push(ty.symbol.clone());
+            if let Some(declared) = self.method_of(&ty.symbol, name) {
+                found.push(declared);
+            }
+            pending.extend(self.subtypes(&ty.symbol));
+        }
+        found
+    }
+
+    /// The method `ty` itself declares under `name`, if it declares one.
+    fn method_of(&self, ty: &str, name: &str) -> Option<&Declaration> {
+        self.declaration(&format!("{ty}::{name}"))
+            .filter(|declared| declared.kind == DeclKind::Method)
+    }
+
     /// Where `symbol` was declared, if the index holds a declaration for it.
     ///
     /// One declaration and not a list: a name is declared once

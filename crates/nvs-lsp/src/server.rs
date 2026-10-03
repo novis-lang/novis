@@ -1135,11 +1135,13 @@ const fn symbol_kind(kind: DeclKind) -> SymbolKind {
 }
 
 /// `textDocument/codeLens` — how many uses the index holds of each name this
-/// document declares.
+/// document declares, and where a type or a method sits in its hierarchy.
 ///
 /// The third reader `rule:ide/five-features-are-one-reference-index` names, and
-/// the cheapest of them: [`SymbolIndex::declarations_in`] is one map lookup and
-/// the count is [`SymbolIndex::occurrences`], so no front end runs here at all.
+/// the cheapest of them: [`SymbolIndex::declarations_in`] is one map lookup,
+/// the count is [`SymbolIndex::occurrences`] and the hierarchy is the
+/// [`SymbolIndex::subtypes`] edge `textDocument/typeHierarchy` reads, so no
+/// front end runs here at all.
 /// That matters more here than for a cursor answer — a client asks for the
 /// lenses of every visible document and asks again after every edit, which is
 /// the cost `nvs.codeLens.enable` exists to let a developer refuse, and
@@ -1154,7 +1156,12 @@ const fn symbol_kind(kind: DeclKind) -> SymbolKind {
 ///
 /// **Every declaration the index holds gets one**, an enum case included: a
 /// case's reads are recorded against the case, so the count above one is the
-/// count of the sites that read it.
+/// count of the sites that read it. **A hierarchy lens is written only where
+/// it has something to say**: a type something extends or implements, a method
+/// that overrides one, a method something overrides. Its absence is the
+/// answer everywhere else, and a "no subclasses" above every class would be a
+/// second line of nothing on most declarations of a file. Each follows the
+/// reference count over the same name, in [`hierarchy_lenses`]'s order.
 fn code_lens(
     documents: &Documents,
     index: &SymbolIndex,
@@ -1178,17 +1185,63 @@ fn code_lens(
         index
             .declarations_in(&path)
             .iter()
-            .map(|declared| CodeLens {
-                range: range_of(file, declared.site.start, declared.site.end, encoding),
-                command: Some(Command {
-                    title: reference_count(index.occurrences(&declared.symbol).len()),
-                    command: String::new(),
-                    arguments: None,
-                }),
-                data: None,
+            .flat_map(|declared| {
+                let range = range_of(file, declared.site.start, declared.site.end, encoding);
+                std::iter::once(reference_count(index.occurrences(&declared.symbol).len()))
+                    .chain(hierarchy_lenses(index, declared))
+                    .map(move |title| CodeLens {
+                        range,
+                        command: Some(Command {
+                            title,
+                            command: String::new(),
+                            arguments: None,
+                        }),
+                        data: None,
+                    })
             })
             .collect(),
     )
+}
+
+/// The hierarchy lenses above `declared`, as their titles: what extends or
+/// implements a type, then what a method overrides and how many override it.
+///
+/// A class's subtypes are subclasses, and an interface's are its
+/// implementations, an interface that extends it among them, because that is
+/// the word a developer reading the interface reaches for. A method names what
+/// it overrides, since that is one or two declarations; what overrides it is a
+/// count, since that list grows with the workspace.
+fn hierarchy_lenses(index: &SymbolIndex, declared: &Declaration) -> Vec<String> {
+    let counted = |count: usize, one: &str, many: &str| match count {
+        1 => format!("1 {one}"),
+        _ => format!("{count} {many}"),
+    };
+    let mut titles = Vec::new();
+    match declared.kind {
+        DeclKind::Class | DeclKind::Interface => {
+            let below = index.subtypes(&declared.symbol).len();
+            if below > 0 {
+                titles.push(if declared.kind == DeclKind::Class {
+                    counted(below, "subclass", "subclasses")
+                } else {
+                    counted(below, "implementation", "implementations")
+                });
+            }
+        }
+        DeclKind::Method => {
+            let above = index.overridden(&declared.symbol);
+            if !above.is_empty() {
+                let names: Vec<&str> = above.iter().map(|over| over.symbol.as_str()).collect();
+                titles.push(format!("overrides {}", names.join(", ")));
+            }
+            let below = index.overriders(&declared.symbol).len();
+            if below > 0 {
+                titles.push(counted(below, "override", "overrides"));
+            }
+        }
+        _ => {}
+    }
+    titles
 }
 
 /// The settings one `.lspt` case is answered under.

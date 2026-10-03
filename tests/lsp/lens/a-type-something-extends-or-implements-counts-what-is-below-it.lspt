@@ -1,0 +1,19 @@
+--TEST--
+an interface counts its implementations and a class its subclasses in a lens after the reference count, and a type nothing is below gets no second lens, `rule:ide/five-features-are-one-reference-index`
+--FILE--
+<?nvs
+interface Shape {}
+class Square implements Shape {}
+class Circle implements Shape {}
+class Animal {}
+class Dog extends Animal {}
+--REQUEST--
+codeLens
+--EXPECT--
+2:11 2 implementations
+2:11 2 references
+3:7 no references
+4:7 no references
+5:7 1 reference
+5:7 1 subclass
+6:7 no references

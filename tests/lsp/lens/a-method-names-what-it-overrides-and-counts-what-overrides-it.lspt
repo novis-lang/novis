@@ -1,0 +1,31 @@
+--TEST--
+a method names the nearest method it overrides up each edge, skipping a class that declares none, and counts every method below that overrides it, `rule:ide/five-features-are-one-reference-index`
+--FILE--
+<?nvs
+class Animal {
+    public function speak(): string { return ""; }
+}
+class Dog extends Animal {
+    public function speak(): string { return "woof"; }
+}
+class Puppy extends Dog {}
+class Pup extends Puppy {
+    public function speak(): string { return "yip"; }
+}
+--REQUEST--
+codeLens
+--EXPECT--
+2:7 1 reference
+2:7 1 subclass
+3:21 2 overrides
+3:21 no references
+5:7 1 reference
+5:7 1 subclass
+6:21 1 override
+6:21 no references
+6:21 overrides Animal::speak
+8:7 1 reference
+8:7 1 subclass
+9:7 no references
+10:21 no references
+10:21 overrides Dog::speak
