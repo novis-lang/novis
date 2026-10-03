@@ -76,9 +76,11 @@
 //! (`rule:types/literal-types`), so `uint $n = Limits::MAX;` above `i64::MAX` is refused
 //! here even though the literal `= 18446744073709551615` is accepted.
 //!
-//! **A `decimal` default is refused:** [`ConstArg`] has no variant for
-//! `nvs_ir::ir::InstKind::ConstDecimal`, so `decimal $vat = 0.19` is
-//! `E_PARAM_DEFAULT_NOT_LITERAL` — a clean refusal, not a wrong constant.
+//! **A `decimal` literal folds to [`ConstArg::Decimal`]** at a parameter
+//! default and a class constant, read from its digits by
+//! [`decimal_literal_parts`], so `decimal $vat = 0.19` is exactly `0.19`. A
+//! *property* default of that type is still refused, because
+//! `nvs_runtime::FieldDefault` has no `decimal` recipe for the slot.
 //!
 //! ## Known gap
 //!
@@ -87,6 +89,7 @@
 use nvs_diagnostics::{Diagnostic, Span, code};
 use nvs_syntax::ast::{ArrayItem, Expr, ExprKind, UnaryOp};
 
+pub use crate::expr::literals::decimal_literal_parts;
 use crate::ty::{Ty, TypeId};
 use crate::{Ctx, Env};
 
@@ -130,6 +133,17 @@ pub enum ConstArg {
     Uint(u64),
     /// `float`
     Float(f64),
+    /// `decimal`, as `nvs_ir::ir::InstKind::ConstDecimal`'s own three parts —
+    /// read from the literal's text by [`decimal_literal_parts`], never
+    /// through an `f64`.
+    Decimal {
+        /// The sign; a zero mantissa is never negative.
+        negative: bool,
+        /// The unsigned mantissa, at most 96 bits.
+        mantissa: u128,
+        /// Digits after the point, at most 28.
+        scale: u8,
+    },
     /// `string`, already cooked — escapes resolved by
     /// [`crate::string_lit::cook_string_literal`], the same routine every
     /// other string literal in the program goes through, so a default is never
@@ -268,7 +282,7 @@ pub(crate) fn eval_param_default(
             .with_primary(expr.span, "not a constant of the declared type")
             .with_help(
                 "a default is evaluated once, at the call site that omits it — write a \
-                 `bool`/`int`/`uint`/`float`/`string` literal, optionally negated, an enum \
+                 `bool`/`int`/`uint`/`float`/`decimal`/`string` literal, optionally negated, an enum \
                  case or another class's `const`",
             ),
         );
@@ -310,7 +324,10 @@ pub(crate) fn eval_property_default(
         const_reference_default(expr, declared, ctx, &mut reported, env)
     } else {
         literal_default(expr, declared, env)
-    };
+    }
+    // A slot's default is a `nvs_runtime::FieldDefault` recipe, and that set
+    // has no `decimal` member, so the module doc's refusal is applied here.
+    .filter(|value| !matches!(value, ConstArg::Decimal { .. }));
     if value.is_none() && !reported {
         let want = env.interner.describe(declared);
         env.diags.report(
@@ -410,6 +427,15 @@ fn const_reference_default(
             Some(crate::consts::ConstValue::Bool(value)) => Some(ConstArg::Bool(*value)),
             Some(crate::consts::ConstValue::Int(value)) => Some(ConstArg::Int(*value)),
             Some(crate::consts::ConstValue::Float(value)) => Some(ConstArg::Float(*value)),
+            Some(&crate::consts::ConstValue::Decimal {
+                negative,
+                mantissa,
+                scale,
+            }) => Some(ConstArg::Decimal {
+                negative,
+                mantissa,
+                scale,
+            }),
             Some(crate::consts::ConstValue::Str(value)) => Some(ConstArg::Str(value.clone())),
             Some(crate::consts::ConstValue::Ineligible) | None => None,
         }
@@ -509,6 +535,7 @@ fn place_const(value: ConstArg, declared: TypeId, env: &Env<'_>) -> Option<Const
         | (Ty::Int, ConstArg::Int(_))
         | (Ty::Uint, ConstArg::Uint(_))
         | (Ty::Float, ConstArg::Float(_))
+        | (Ty::Decimal, ConstArg::Decimal { .. })
         | (
             Ty::String | Ty::TaintedString | Ty::SecretString | Ty::SecretTaintedString,
             ConstArg::Str(_),
@@ -525,6 +552,15 @@ fn place_const(value: ConstArg, declared: TypeId, env: &Env<'_>) -> Option<Const
             Some(ConstArg::Float(widened))
         }
         _ => None,
+    }
+}
+
+/// A [`ConstArg::Decimal`] from its parts, with a zero never negative.
+fn decimal_const(negated: bool, mantissa: u128, scale: u8) -> ConstArg {
+    ConstArg::Decimal {
+        negative: negated && mantissa != 0,
+        mantissa,
+        scale,
     }
 }
 
@@ -616,6 +652,15 @@ fn literal_atom_default(
             let f = m as f64;
             ConstArg::Float(if negated { -f } else { f })
         }),
+        // `rule:types/numeric-literal-placement`: `decimal` places a fractional
+        // literal and an integer one alike, and both are read from the text.
+        (Ty::Decimal, ExprKind::Float(span)) => {
+            let (mantissa, scale) = decimal_literal_parts(crate::span_text(env.src, *span))?;
+            Some(decimal_const(negated, mantissa, scale))
+        }
+        (Ty::Decimal, ExprKind::Int(span)) => {
+            int_magnitude(*span, env).map(|m| decimal_const(negated, u128::from(m), 0))
+        }
         (
             Ty::String | Ty::TaintedString | Ty::SecretString | Ty::SecretTaintedString,
             ExprKind::Str(span),

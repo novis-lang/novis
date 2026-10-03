@@ -1952,7 +1952,7 @@ fn check_class_format(
         };
         for field in fields {
             match codec_field(&field, class, format, params, ctx, env) {
-                FieldOutcome::Kept(field) => codec.fields.push(field),
+                FieldOutcome::Kept(field) => codec.fields.push(*field),
                 FieldOutcome::Skipped => {}
                 FieldOutcome::Refused => refused = true,
             }
@@ -2038,7 +2038,7 @@ fn attribute_span(
 /// refused must not be told so twice.
 enum FieldOutcome {
     /// A field, in declaration order, in the wire contract.
-    Kept(DerivedField),
+    Kept(Box<DerivedField>),
     /// `rule:core-classes/derive-field-list`'s `#[Json\Field(skip: true)]`.
     Skipped,
     /// Refused by § 2 or § 6, with the diagnostic already reported.
@@ -2172,7 +2172,7 @@ fn codec_field(
         format,
     });
     let erased = codec_ty(carried, env.interner, env.enums);
-    FieldOutcome::Kept(DerivedField {
+    FieldOutcome::Kept(Box::new(DerivedField {
         key: overrides.name.unwrap_or_else(|| name.clone()),
         property: name,
         ty: erased.ty,
@@ -2184,7 +2184,7 @@ fn codec_field(
         required,
         param,
         default,
-    })
+    }))
 }
 
 /// `rule:core-classes/derive-field-list`'s "every non-skipped field must also be a constructor

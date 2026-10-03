@@ -76,7 +76,22 @@ pub enum ConstValue {
     /// Folded for [`Self::Bool`]'s reason, and `mixed` in type position for
     /// the same one: `rule:types/constant-in-type-position` names `string` and `int` and stops.
     Float(f64),
-    /// Declared, but not one of the four above: `Foo::ROWS = [1, 2]`,
+    /// A constant declared `decimal`, as the literal's own digits — the parts
+    /// [`crate::defaults::ConstArg::Decimal`] carries.
+    ///
+    /// The one value folded by its *declared* type: [`fold_const`] reads the
+    /// annotation, because a fractional literal is untyped until placed
+    /// (`rule:types/numeric-literal-placement`), and folding `0.20` as a
+    /// `float` would round the digits a `decimal` keeps.
+    Decimal {
+        /// The sign; a zero mantissa is never negative.
+        negative: bool,
+        /// The unsigned mantissa, at most 96 bits.
+        mantissa: u128,
+        /// Digits after the point, at most 28.
+        scale: u8,
+    },
+    /// Declared, but not one of the five above: `Foo::ROWS = [1, 2]`,
     /// `Foo::WHEN = Core\Time\Instant::now()`, or an integer whose magnitude
     /// no `int` holds.
     ///
@@ -285,8 +300,48 @@ pub(crate) fn type_carries_secret(ty: &Type) -> bool {
 /// the same [`ConstValue::Ineligible`] for everything else. Sharing the function
 /// rather than the table is what keeps one grammar — a second fold would be a
 /// second answer to `const X = -1;` waiting to differ.
+///
+/// A constant declared `decimal` is the one exception to folding the value
+/// alone: its literal is read as [`ConstValue::Decimal`], and anything else
+/// there is [`ConstValue::Ineligible`].
 pub(crate) fn fold_const(c: &ConstMember, src: &SourceFile) -> ConstValue {
+    if c.ty
+        .as_ref()
+        .is_some_and(|ty| matches!(ty.kind, TypeKind::Atom(TypeAtom::Decimal)))
+    {
+        return fold_decimal(&c.value, src);
+    }
     fold_expr(&c.value, src)
+}
+
+/// A `decimal` constant's written value: an integer or fractional literal,
+/// optionally negated, read from its digits.
+fn fold_decimal(value: &Expr, src: &SourceFile) -> ConstValue {
+    let (negated, inner) = match &value.kind {
+        ExprKind::Unary {
+            op: UnaryOp::Neg,
+            expr: inner,
+        } => (true, &**inner),
+        _ => (false, value),
+    };
+    let parts = match &inner.kind {
+        ExprKind::Float(span) => crate::defaults::decimal_literal_parts(span_text(src, *span)),
+        ExprKind::Int(span) => {
+            let (radix, digits) = crate::expr::int_literal_digits(src, *span);
+            u128::from_str_radix(&digits, radix)
+                .ok()
+                .filter(|&m| m < 1 << 96)
+                .map(|m| (m, 0))
+        }
+        _ => None,
+    };
+    parts.map_or(ConstValue::Ineligible, |(mantissa, scale)| {
+        ConstValue::Decimal {
+            negative: negated && mantissa != 0,
+            mantissa,
+            scale,
+        }
+    })
 }
 
 /// One written expression, folded to the constant it is.

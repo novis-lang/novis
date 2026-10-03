@@ -739,6 +739,35 @@ pub(crate) fn decimal_literal_overflow(text: &str) -> Option<&'static str> {
     }
 }
 
+/// A numeric literal's text as `rule:types/decimal`'s `(mantissa, scale)`, or
+/// `None` where [`decimal_literal_overflow`] names a bound it exceeds.
+///
+/// Read from the *digits* rather than through an `f64`, so `19.99` placed at
+/// `decimal` is exact to the full 29 significant digits. An exponent is folded
+/// into the scale and trailing zeros are kept, for the reasons
+/// [`decimal_literal_overflow`] gives. A plain decimal integer literal reads as
+/// scale 0. Two readers: a folded `decimal` constant
+/// ([`crate::defaults::ConstArg::Decimal`]) and `nvs_ir`'s placed literal, so
+/// the two cannot disagree about one spelling.
+pub fn decimal_literal_parts(text: &str) -> Option<(u128, u8)> {
+    if decimal_literal_overflow(text).is_some() {
+        return None;
+    }
+    let cleaned: String = text.chars().filter(|&c| c != '_').collect();
+    let (numeric, exponent) = match cleaned.split_once(['e', 'E']) {
+        Some((numeric, exponent)) => (numeric, exponent.parse::<i32>().ok()?),
+        None => (cleaned.as_str(), 0),
+    };
+    let (whole, fraction) = numeric.split_once('.').unwrap_or((numeric, ""));
+    let mut digits = format!("{whole}{fraction}");
+    let scale = i32::try_from(fraction.len()).ok()? - exponent;
+    if scale < 0 {
+        digits.push_str(&"0".repeat(usize::try_from(scale.unsigned_abs()).ok()?));
+    }
+    let mantissa = digits.parse::<u128>().ok()?;
+    Some((mantissa, u8::try_from(scale.max(0)).ok()?))
+}
+
 /// Reports `rule:types/decimal`'s bound for a fractional literal placed at `decimal`.
 pub(crate) fn check_decimal_float_literal(span: Span, report_span: Span, env: &mut Env<'_>) {
     let text = span_text(env.src, span).to_owned();

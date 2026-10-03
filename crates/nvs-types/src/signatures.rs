@@ -1473,6 +1473,7 @@ fn folded_const_ty(qname: &QName, name: &str, env: &mut Env<'_>) -> TypeId {
         Some(crate::consts::ConstValue::Int(_)) => env.interner.int(),
         Some(crate::consts::ConstValue::Bool(_)) => env.interner.bool_ty(),
         Some(crate::consts::ConstValue::Float(_)) => env.interner.float(),
+        Some(crate::consts::ConstValue::Decimal { .. }) => env.interner.decimal(),
         Some(crate::consts::ConstValue::Ineligible) | None => env.interner.mixed(),
     }
 }

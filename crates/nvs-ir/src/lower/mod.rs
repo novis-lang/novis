@@ -357,6 +357,9 @@ fn field_default(value: &nvs_types::ConstArg) -> Option<nvs_types::FieldDefault>
         ConstArg::EmptyArray => Some(FieldDefault::EmptyArray),
         ConstArg::Null
         | ConstArg::Bytes(_)
+        // `nvs_types::defaults::eval_property_default` refuses a `decimal`
+        // default, since this recipe set has no member for one.
+        | ConstArg::Decimal { .. }
         // Not a value at all, and a `Core` bag's omission fill besides — a
         // property slot already starts in this state without a default.
         | ConstArg::NeverWritten
@@ -3330,45 +3333,15 @@ fn clean_digits(src: &SourceFile, span: nvs_diagnostics::Span) -> String {
     span_text(src, span).chars().filter(|&c| c != '_').collect()
 }
 
-/// A fractional literal's text as `rule:types/decimal`'s `(mantissa, scale)`, with any exponent folded into the scale, or
-/// `None` where either bound is exceeded.
-///
-/// Read from the *digits* rather than through an `f64`, which is what makes
-/// § 2's placing rule worth having: `19.99 as decimal` is exact to the full 29
-/// significant digits instead of recovering only the ~17 an `f64` round-trips.
-/// Trailing zeros are kept, because § 4 makes scale observable in rendering.
-///
-/// Deliberately a second implementation of `nvs_types::expr`'s
-/// `decimal_literal_overflow`, for the reason that function's own doc comment
-/// gives for `int_literal_digits`: the dependency runs the other way, and the
-/// checker has to *report* an out-of-range literal where this only has to
-/// build an in-range one. A literal this refuses has already been diagnosed
-/// there, so the caller panics rather than folding a wrong value.
+/// A fractional literal's text as `rule:types/decimal`'s `(mantissa, scale)` —
+/// [`nvs_types::defaults::decimal_literal_parts`], the one reading a folded
+/// `decimal` constant also takes, so a placed literal and a constant written
+/// with the same digits are the same value. A literal it refuses has already
+/// been diagnosed by the checker, so the caller panics rather than folding a
+/// wrong value.
 pub(crate) fn decimal_literal_parts(text: &str) -> Option<(u128, u8)> {
-    let (numeric, exponent) = match text.split_once(['e', 'E']) {
-        Some((numeric, exponent)) => (numeric, exponent.parse::<i32>().ok()?),
-        None => (text, 0),
-    };
-    let (whole, fraction) = numeric.split_once('.').unwrap_or((numeric, ""));
-    let mut digits = format!("{whole}{fraction}");
-    let scale = i32::try_from(fraction.len()).ok()? - exponent;
-    if scale < 0 {
-        // A positive exponent wider than the fractional part is an integer:
-        // shift the point right by padding the mantissa instead.
-        digits.push_str(&"0".repeat(usize::try_from(scale.unsigned_abs()).ok()?));
-    }
-    let mantissa = digits.parse::<u128>().ok()?;
-    let scale = u8::try_from(scale.max(0)).ok()?;
-    (mantissa <= DECIMAL_MAX_MANTISSA && scale <= DECIMAL_MAX_SCALE).then_some((mantissa, scale))
+    nvs_types::defaults::decimal_literal_parts(text)
 }
-
-/// `rule:types/decimal`'s mantissa bound, restated here for the same reason
-/// [`decimal_literal_parts`] is: `nvs_runtime::decimal`, which owns it, is not
-/// a dependency of this crate.
-const DECIMAL_MAX_MANTISSA: u128 = (1u128 << 96) - 1;
-
-/// `rule:types/decimal`'s scale bound — see [`DECIMAL_MAX_MANTISSA`].
-const DECIMAL_MAX_SCALE: u8 = 28;
 
 /// Cooks a plain, non-interpolated string literal's span — `nvs_syntax::ast::ExprKind::Str`'s
 /// own doc comment: a single-quoted string, or a double-quoted/heredoc/nowdoc string with no

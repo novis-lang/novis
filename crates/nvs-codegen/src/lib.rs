@@ -1685,7 +1685,9 @@ fn constant_value(value: &nvs_ir::ConstValue) -> nvs_runtime::ConstantValue {
         ConstValue::Int(value) => ConstantValue::Int(*value),
         ConstValue::Bool(value) => ConstantValue::Bool(*value),
         ConstValue::Float(value) => ConstantValue::Float(*value),
-        ConstValue::Ineligible => ConstantValue::Opaque,
+        // The descriptor's table has no `decimal` value, so a reflective read
+        // reports it absent rather than as a rounded `float`.
+        ConstValue::Decimal { .. } | ConstValue::Ineligible => ConstantValue::Opaque,
     }
 }
 

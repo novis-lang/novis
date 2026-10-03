@@ -576,13 +576,14 @@ fn lower_class_const_type(
             let value = *value;
             env.interner.int_literal(value)
         }
-        // `rule:types/constant-in-type-position`'s literal types are `string` and `int`; a `bool` or
-        // `float` constant is folded (`crate::defaults` reads the value) but
-        // has no literal type to *be*, so it is the same mistake as an array
-        // constant here.
+        // `rule:types/constant-in-type-position`'s literal types are `string` and `int`; a `bool`,
+        // `float` or `decimal` constant is folded (`crate::defaults` reads the
+        // value) but has no literal type to *be*, so it is the same mistake as
+        // an array constant here.
         Some(
             crate::consts::ConstValue::Bool(_)
             | crate::consts::ConstValue::Float(_)
+            | crate::consts::ConstValue::Decimal { .. }
             | crate::consts::ConstValue::Ineligible,
         ) => report_not_const(span, qname, name, env),
         None => {

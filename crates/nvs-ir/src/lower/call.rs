@@ -676,6 +676,18 @@ impl<'a> Lowering<'a> {
             nvs_types::ConstArg::Int(v) => (Ty::Int, InstKind::ConstInt(*v)),
             nvs_types::ConstArg::Uint(v) => (Ty::Uint, InstKind::ConstUint(*v)),
             nvs_types::ConstArg::Float(v) => (Ty::Float, InstKind::ConstFloat(*v)),
+            &nvs_types::ConstArg::Decimal {
+                negative,
+                mantissa,
+                scale,
+            } => (
+                Ty::Decimal,
+                InstKind::ConstDecimal {
+                    negative,
+                    mantissa,
+                    scale,
+                },
+            ),
             nvs_types::ConstArg::Str(s) => (Ty::Str, InstKind::ConstStr(s.clone())),
             nvs_types::ConstArg::Bytes(b) => (Ty::Bytes, InstKind::ConstBytes(b.clone())),
             // The same instruction a written `[]` lowers to — an empty
