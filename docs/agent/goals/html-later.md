@@ -198,7 +198,8 @@ moment it is ready.
 
 One file set: `crates/nvs-server/src/serve.rs`, `crates/nvs-runtime/src/stream.rs`,
 `crates/nvs-runtime/src/routes.rs`, `crates/nvs-runtime/src/ctx/output.rs`,
-`crates/nvs-types/src/derive.rs`, `crates/nvs-types/src/routes.rs`, `crates/nvs-stdlib/src/response.rs`.
+`crates/nvs-types/src/derive.rs`, `crates/nvs-types/src/routes.rs`, `crates/nvs-stdlib/src/response.rs`,
+and for the browser test `tools/nv/cmd/ci-changes.ts`, `.github/workflows/ci.yml`, `package.json`.
 
 - **The two switches.** `#[Core\Route(…, slotted: true)]` is the usual one: a new optional field,
   carried to the runtime's route table as `csrf` is (`crates/nvs-runtime/src/routes.rs:289`), and
@@ -282,6 +283,32 @@ One file set: `crates/nvs-server/src/serve.rs`, `crates/nvs-runtime/src/stream.r
   - **The browser is downloaded only when it is needed.** The check is selected by `bun nv
     affected` only when the polyfill constant or this test changes, and the download lands in
     Playwright's own cache, never in the tree.
+  - **Where the polyfill lives.** The polyfill and the trigger are one real JavaScript file each,
+    `crates/nvs-server/src/slotted/polyfill.js` and `crates/nvs-server/src/slotted/trigger.js`,
+    already minified by hand and pulled into the binary with `include_str!`. The test serves the
+    same two files, so the browser runs exactly the bytes Novis sends. Their `sha256` values are
+    constants beside them, and a Rust test fails when a file changes and its constant does not.
+- **CI runs the browser test.** CI runs no `bun test` today, so the test gets its own lane and its
+  own job, and is never folded into an existing one.
+  - **A lane `browser`** in `LANES` in `tools/nv/cmd/ci-changes.ts`, the one home of the lane
+    policy (`rule:testing/ci-lanes`). It matches `crates/nvs-server/src/slotted/`,
+    `tools/nv/test/html-later-polyfill.test.ts`, `package.json`, `bun.lock` (where the
+    Playwright version is pinned) and `.github/workflows/`, as every lane does. A push that
+    changes none of these never starts a browser.
+  - **A job `browser`** in `.github/workflows/ci.yml`, written in the shape of the jobs beside
+    it: `needs: changes`, gated on that lane, `ubuntu-latest` only, because a browser behaves the
+    same on every host and the native code is not under test here. Checkout, `setup-bun` with the
+    same pinned commit, `bun install --frozen-lockfile`, the Playwright browser cache, the install,
+    the test. Its `timeout-minutes` is twice its measured time on a warm cache, as the file's own
+    comment says every job's is.
+  - **The browser is cached in CI.** `actions/cache`, with the same pinned commit the extension
+    host job uses, on Playwright's browser folder (`~/.cache/ms-playwright`), keyed on the hash of
+    `bun.lock`, so a Playwright upgrade downloads once and every other run downloads nothing. The
+    install step is `bunx playwright-core install --with-deps chromium --only-shell`, which also
+    installs the system libraries the headless shell needs on the runner.
+  - **The nightly and a `full` run** turn every lane on, so the test runs there whatever changed.
+  - **The new dev dependency goes through the `attribution` and `supply-chain` jobs** like any
+    other, and `THIRD-PARTY-LICENSES.txt` is regenerated if that job asks for it.
 
 ## Stage 4 — tests, the editor and the help
 

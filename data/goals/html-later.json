@@ -16,7 +16,9 @@
       "crates/nvs-runtime/src/routes.rs",
       "crates/nvs-server/src/serve.rs",
       "crates/nvs-types/src/derive.rs",
-      "crates/nvs-types/src/routes.rs"
+      "crates/nvs-types/src/routes.rs",
+      "tools/nv/cmd/ci-changes.ts",
+      ".github/workflows/ci.yml"
     ],
     "rules": [
       "concurrency/nothing-is-still-running-when-a-call-returns",
@@ -72,7 +74,8 @@
         "rules": [
           "http-server/secure-headers-with-nothing-written",
           "http-server/a-requests-blast-radius-is-bounded-at-four-tiers",
-          "concurrency/a-stream-that-outlives-its-request-is-a-connection"
+          "concurrency/a-stream-that-outlives-its-request-is-a-connection",
+          "testing/ci-lanes"
         ],
         "adrs": []
       }
@@ -162,6 +165,7 @@
         "the_polyfill_is_at_most_one_kilobyte",
         "a_slot_adds_at_most_120_bytes_beyond_its_content",
         "a_slot_name_carries_a_16_character_token",
+        "the_polyfill_and_trigger_hashes_match_their_files",
         "a_slotted_response_carries_no_content_length_and_turns_off_proxy_buffering",
         "slotted_from_a_route_attribute_and_from_the_call_are_the_same",
         "slotted_after_the_main_script_ended_throws",
@@ -182,6 +186,20 @@
       ],
       "want": [
         "0 fail"
+      ]
+    },
+    {
+      "id": "ci-has-a-browser-lane",
+      "kind": "command",
+      "stage": 3,
+      "name": "CI has a `browser` lane, and a change to the polyfill turns it on",
+      "argv": [
+        "bun",
+        "-e",
+        "const r=Bun.spawnSync(['bun','nv','ci-changes','--lanes']);const t=r.stdout.toString();const w=require('fs').readFileSync('.github/workflows/ci.yml','utf8');const m=[];if(!t.includes('\"browser\"')||!t.includes('crates/nvs-server/src/slotted/'))m.push('the browser lane');if(!/\\n  browser:\\n/.test(w)||!w.includes('needs.changes.outputs.browser'))m.push('the browser job');if(m.length){console.log('missing: '+m.join(', '));process.exit(1)}console.log('the browser lane and job are there')"
+      ],
+      "want": [
+        "the browser lane and job are there"
       ]
     },
     {
