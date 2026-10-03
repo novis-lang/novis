@@ -154,12 +154,20 @@ async function measureOne(nvs: string, bench: string, reps: number, floor: numbe
       );
     }
   }
+  // The same operation written another way, timed in the same sweep so the two figures compare. A record
+  // only: which form should win is the bench's own claim, and a same-run ratio is honest to a factor.
+  const twin = bench.replace(/\.nvs$/, ".twin.nvs");
+  if (existsSync(abs(twin))) {
+    const [twinTotal] = await timeProgram(nvs, twin, reps);
+    const twinNs = Math.max(0, (twinTotal - floor) / iterationsOf(twin));
+    Object.assign(fig, { twin_ns_per_op: round(twinNs, 3), twin_ratio: round(twinNs > 0 ? nsPerOp / twinNs : Infinity, 3) });
+  }
   return [fig, findings];
 }
 
 /** The fields a record holds as Python floats, written with a `.0` when whole so every line of the ledger
  * reads alike. */
-const FLOATS = new Set(["ns_per_op", "median_ns_per_op", "statements", "calls", "allocations", "bytes", "scale", "scale_ns_per_op", "scale_ratio", "unit_ns", "ratio"]);
+const FLOATS = new Set(["ns_per_op", "median_ns_per_op", "statements", "calls", "allocations", "bytes", "scale", "scale_ns_per_op", "scale_ratio", "twin_ns_per_op", "twin_ratio", "unit_ns", "ratio"]);
 
 /** One ledger line, as Python's `json.dumps` wrote the lines before it. `field` is the record's own key a
  * value sits under, and is empty inside a nested value. */
@@ -275,6 +283,7 @@ export async function recordPerf(out: string[], nvs: string, entries: Entry[], p
     print(
       `  ${ljust(e.id, 44)} ${n("ns_per_op", 1, 10)} ${rjust(fixed(rec.ratio as number, 3), 9)}  ${n("statements", 2, 7)} ${n("calls", 2, 7)} ${n("allocations", 2, 7)} ${n("bytes", 1, 9)}` +
         ("scale" in fig ? `   scale x${general(fig.scale as number)}: ${fixed(fig.scale_ratio as number, 2)}x` : "") +
+        ("twin_ratio" in fig ? `   twin: ${fixed(fig.twin_ratio as number, 2)}x` : "") +
         (findings.length ? `   known-gap: ${findings.join("; ")}` : ""),
     );
   }

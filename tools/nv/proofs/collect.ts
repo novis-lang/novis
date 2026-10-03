@@ -451,8 +451,8 @@ export function owed(entry: Entry, proofs: Proofs, policy: Policy, skips: Skips)
     // Not a proof of its own: it judges the programs the other proofs are made of.
     const programs = [...proofs.examples, ...proofs.hostile];
     if (proofs.bench) {
-      const scale = proofs.bench.replace(/\.nvs$/, "") + ".scale.nvs";
-      programs.push(proofs.bench, ...(existsSync(join(ROOT, scale)) ? [scale] : []));
+      const siblings = [".scale.nvs", ".twin.nvs"].map((s) => proofs.bench!.replace(/\.nvs$/, s));
+      programs.push(proofs.bench, ...siblings.filter((f) => existsSync(join(ROOT, f))));
     }
     const missed = programs.map((f) => [f, commentProblems(f)] as const).filter(([, problems]) => problems.length > 0);
     if (missed.length > 0) {
