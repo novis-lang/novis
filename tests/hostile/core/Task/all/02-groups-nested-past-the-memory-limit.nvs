@@ -4,7 +4,6 @@
 // stop at its memory limit with an error.
 // hostile: ends-early 2 FATAL
 // hostile: timeout-ms 30000
-// proof: gap nvs-host/a-task-stack-is-not-charged-to-its-request
 
 class Nest
 {

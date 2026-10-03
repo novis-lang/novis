@@ -247,6 +247,11 @@ impl Ctx {
     /// its [`Drop`] releases nothing the parent owns — there is exactly one
     /// owner of those slots and it is still the parent.
     ///
+    /// **The memory budget is the request's**, zero point and ceiling both, so
+    /// a task's reading is the whole request's on this core and a task past
+    /// `[limits] memory` is stopped at its own next poll. The parent is usually
+    /// parked in the group while its children run, so its polls stop nothing.
+    ///
     /// Everything a *task* owns rather than a request starts fresh: the output
     /// buffer, the capture stack, the assertion ledger, the pending failure,
     /// the yielder and the stack bounds — the yielder and the bounds because
@@ -319,6 +324,15 @@ impl Ctx {
         // reaches the task whether it was spawned before the flag was raised or
         // after it.
         child.share_safepoint_with(self);
+        // The memory reading and its ceiling the same way: a task allocates on
+        // the core's balance its request is measured on, so it reads that
+        // balance from the request's zero point and is stopped at the request's
+        // ceiling, which is the one the allocator already has armed. A task with
+        // a zero point of its own would read only what it allocated, under no
+        // ceiling at all.
+        child.memory_base = self.memory_base;
+        child.memory_limit = self.memory_limit;
+        child.fatal_reserve = self.fatal_reserve;
         // Sealed rather than empty: `rule:concurrency/after-response-outlives-the-connection`'s queue is the *request's*, and
         // one on a child would be drained by nobody and released when the child
         // ended. `crate::deferred` is the one home for that rule and for why a

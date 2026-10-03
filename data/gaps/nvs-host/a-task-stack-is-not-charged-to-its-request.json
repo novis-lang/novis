@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-host/src/stack.rs",
-  "title": "A task's stack is not charged to the request that owns it, so nested groups pass the memory limit.",
-  "text": "`rule:concurrency/a-task-stack-is-reserved-wide-and-pooled` charges each task's 1 MiB reservation to its request, and nothing does: `group.rs`'s `run_as_children` takes a stack from the pool through `spawn_child` and asks `nvs_runtime::budget` nothing. A `Core\\Task::all` whose one field calls a method that starts the next group nests one waiting task per level, and 100,000 levels under `[limits] memory = \"256M\"` complete with the process at about 4 GB resident on a Windows debug build. `[limits] max_tasks` is read by nothing either (`crates/nvs-config/src/default.toml` says so), so no bound reaches the chain at all. Closing it means charging the reservation at the spawn and giving it back when the child's guard drops, which crosses task switches on the core's per-thread balance and is admission arithmetic's question as much as this module's. `tests/hostile/core/Task/all/02-groups-nested-past-the-memory-limit.nvs` carries this record's marker.",
-  "goal": "goal-closeout"
-}

@@ -86,6 +86,14 @@
 //! `rule:programs/memory-priority`. Per thread: one
 //! word, the installed pointer [`crate::Scheduler::run`] publishes.
 //!
+//! The stack is charged to the request as its whole reservation
+//! ([`crate::stack::TASK_STACK_SIZE`]), as
+//! `rule:concurrency/a-task-stack-is-reserved-wide-and-pooled` says, and
+//! [`Child`] is what holds the charge: it is moved onto the core's balance
+//! when the child is made and off it when the child's guard drops. So groups
+//! nested inside groups stop at `[limits] memory`, one reservation per waiting
+//! level, rather than at whatever the host has left.
+//!
 //! # Where a placement goes instead
 //!
 //! A child spawned `on: "worker"` reaches another core whichever entry form it
@@ -351,7 +359,8 @@ struct Group {
 /// The `Drop` is the mechanism, not the bookkeeping: it fires when the body
 /// finishes, when a forced unwind tears the body's stack down mid-way, and when
 /// the scheduler drops a body it never resumed — the three ways a child can
-/// stop existing, all of which the parent has to see.
+/// stop existing, all of which the parent has to see. It also gives back the
+/// stack reservation [`Child::new`] charged, which is why only `new` makes one.
 struct Child {
     group: Rc<RefCell<Group>>,
     wake: Rc<Wake>,
@@ -362,6 +371,24 @@ struct Child {
 }
 
 impl Child {
+    /// A child's guard, with its stack's reservation charged to the request.
+    ///
+    /// The charge is [`nvs_runtime::budget::carry`] rather than an allocation:
+    /// the bytes are address space the scheduler reserves, not heap, so they
+    /// raise the balance and meet the ceiling without counting an allocation.
+    /// The balance is the core's, and every task of the tree that runs on this
+    /// core already allocates against it, so the charge crossing task switches
+    /// is the same arrangement as the rest of the child's memory.
+    fn new(group: Rc<RefCell<Group>>, wake: Rc<Wake>, index: usize, timed: bool) -> Self {
+        nvs_runtime::budget::carry(STACK_CHARGE);
+        Self {
+            group,
+            wake,
+            index,
+            timed,
+        }
+    }
+
     /// Runs this child's job and files what it produced.
     fn run(&self, job: Job, ctx: &mut Ctx) {
         // The child's half of the event's split, and the reason it is a flag
@@ -438,6 +465,7 @@ impl std::fmt::Debug for Child {
 
 impl Drop for Child {
     fn drop(&mut self) {
+        nvs_runtime::budget::carry(-STACK_CHARGE);
         let mut group = self.group.borrow_mut();
         group.outstanding = group.outstanding.saturating_sub(1);
         drop(group);
@@ -447,6 +475,13 @@ impl Drop for Child {
         self.wake.wake();
     }
 }
+
+/// What one child's stack is charged to its request: the whole reservation.
+#[expect(
+    clippy::cast_possible_wrap,
+    reason = "1 MiB is far inside `isize` on every target this builds for"
+)]
+const STACK_CHARGE: isize = crate::stack::TASK_STACK_SIZE as isize;
 
 /// The module doc's § 2 sequence, which is `rule:concurrency/nothing-is-still-running-when-a-call-returns`.
 fn run_as_children(ctx: &mut Ctx, jobs: Vec<Job>, bounds: Bounds, wake: Rc<Wake>) -> Outcome {
@@ -487,12 +522,7 @@ fn run_as_children(ctx: &mut Ctx, jobs: Vec<Job>, bounds: Bounds, wake: Rc<Wake>
             // read behind it and the child's own timing all wait on the same
             // answer: `None` while both debug bits are off.
             let open = ctx.open_spawn(SpawnForm::Task);
-            let child = Child {
-                group: Rc::clone(&group),
-                wake: Rc::clone(&wake),
-                index,
-                timed: open.is_some(),
-            };
+            let child = Child::new(Rc::clone(&group), Rc::clone(&wake), index, open.is_some());
             spawns[index] = open;
             group.borrow_mut().outstanding += 1;
             let spawned = spawn_child(child_ctx, TaskRoot::Request, move |child_ctx| {
@@ -1178,6 +1208,75 @@ mod tests {
             6,
             "one store, three writers, the parent reads it"
         );
+    }
+
+    /// A child reads the request's memory against the request's ceiling, with
+    /// its own stack reservation charged while it runs and given back when it
+    /// ends: `rule:concurrency/a-task-stack-is-reserved-wide-and-pooled`.
+    #[test]
+    fn a_child_s_stack_is_charged_to_the_request_while_it_runs() {
+        const CHARGE: usize = crate::stack::TASK_STACK_SIZE;
+        let mut sched = Scheduler::new();
+        let mut parent = ctx();
+        parent.set_memory_limit(64 * CHARGE);
+        // (before, the child's reading, the child's ceiling, after)
+        let seen = Rc::new(std::cell::Cell::new((0, 0, 0, 0)));
+        let out = Rc::clone(&seen);
+
+        sched.spawn(parent, TaskRoot::Request, move |ctx| {
+            let before = ctx.memory_used();
+            let inside = Rc::new(std::cell::Cell::new((0, 0)));
+            let child_saw = Rc::clone(&inside);
+            let jobs: Vec<Job> = vec![Box::new(move |child: &mut Ctx| {
+                child_saw.set((child.memory_used(), child.memory_limit()));
+                Value::int(0)
+            })];
+            assert!(matches!(
+                group(ctx, jobs, Bounds::default()),
+                Outcome::Completed(_)
+            ));
+            let (during, ceiling) = inside.get();
+            out.set((before, during, ceiling, ctx.memory_used()));
+        });
+        sched.run();
+
+        let (before, during, ceiling, after) = seen.get();
+        assert_eq!(
+            ceiling,
+            64 * CHARGE,
+            "the child is held to the request's ceiling"
+        );
+        assert!(
+            during >= before + CHARGE,
+            "the child's reading is the request's, its own stack included: {before} then {during}"
+        );
+        assert!(
+            after < before + CHARGE / 2,
+            "the reservation is given back when the child ends: {before} then {after}"
+        );
+    }
+
+    /// A request whose ceiling is smaller than one stack has a child that is
+    /// over it from its first poll, which is what stops groups nested past
+    /// `[limits] memory`.
+    #[test]
+    fn a_child_whose_stack_passes_the_request_s_ceiling_is_over_it() {
+        let mut sched = Scheduler::new();
+        let mut parent = ctx();
+        parent.set_memory_limit(crate::stack::TASK_STACK_SIZE / 2);
+        let over = Rc::new(std::cell::Cell::new(false));
+        let out = Rc::clone(&over);
+
+        sched.spawn(parent, TaskRoot::Request, move |ctx| {
+            let jobs: Vec<Job> = vec![Box::new(move |child: &mut Ctx| {
+                out.set(child.memory_breach().is_some());
+                Value::int(0)
+            })];
+            let _ = group(ctx, jobs, Bounds::default());
+        });
+        sched.run();
+
+        assert!(over.get(), "one stack is past a ceiling of half a stack");
     }
 
     /// A child's `echo` reaches the request in **job** order, whatever order the
