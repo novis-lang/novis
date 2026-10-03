@@ -1,5 +1,5 @@
 {
-  "state": "**Side goal `website-overhaul`, stage 4 (Syntax) is in progress: \"Start here\", the four Basics pages and the ten \"Values and types\" pages are written.**\n\n`tools/nv/cmd/site.ts` `syntaxProblems` is the `syntax` part, tested in `tools/nv/test/site.test.ts`. Every Syntax page except `syntax/index.mdx` needs a non-empty `covers:`, a `<Snippet>` and a `## Do and don't` list.\n\nOn disk: `website/src/content/docs/syntax/start-here.mdx`, `syntax/basics/*.mdx` and `syntax/values/{numbers,strings,bool-and-null,arrays,nullable,union-types,enums,as,is,tainted-and-secret}.mdx`. Snippets sit flat under `website/snippets/syntax/<page>/`, with no `basics/` or `values/` level. Sidebar entries are in `website/astro.config.ts`, stamps in `website/site.lock.json`. The enums page also covers all 34 Core enums. Start here covers `lang:types/what-does-not-exist`.\n\n`site structure`, `stale` and `reference` pass. `site syntax` reports 115 uncovered features. Four `lang:types/*` sections are left for later pages: `callable-classes-object-shapes` and `properties-and-constants` go to Classes, and `parameters` and `void-never-self-static` go to Functions. The Throwable tree goes to Errors. `Comparable`, `Stringable`, `Parses` and `PropertyObserver` go to Classes (interfaces). `Iterable` and `Iterator` go to the iteration page. `snippets` and `prose` fail only on pages that stages 5 and 6 rewrite.",
+  "state": "**Side goal `website-overhaul`, stage 4 (Syntax) is in progress: \"Start here\", the Basics pages, the \"Values and types\" pages and the six Operators pages are written.**\n\n`tools/nv/cmd/site.ts` `syntaxProblems` is the `syntax` part, tested in `tools/nv/test/site.test.ts`. Every Syntax page except `syntax/index.mdx` needs a non-empty `covers:`, a `<Snippet>` and a `## Do and don't` list.\n\nOn disk: `website/src/content/docs/syntax/start-here.mdx`, `syntax/basics/*.mdx`, `syntax/values/*.mdx` and `syntax/operators/{arithmetic,comparison,null-coalescing,string-operators,pipeline,precedence}.mdx`. Snippets sit flat under `website/snippets/syntax/<page>/`, with no section level. Sidebar entries are in `website/astro.config.ts`, stamps in `website/site.lock.json` (`bun nv site --stamp <page>...`). A front-matter value with `: ` in it must be quoted, or `covers:` reads as missing.\n\n`site structure`, `stale` and `reference` pass. `site syntax` reports 105 uncovered features. Ids already assigned to later pages: `lang:types/callable-classes-object-shapes`, `lang:types/properties-and-constants`, `lang:expressions/object-literals`, `Comparable`, `Stringable`, `Parses` and `PropertyObserver` go to Classes. `lang:types/parameters`, `lang:types/void-never-self-static`, `lang:expressions/calls` and `lang:expressions/closures-fn` go to Functions. `lang:expressions/match` goes to Control flow. `lang:expressions/is-new-clone-throw-print-exit-isset-empty` goes to Classes (it covers `new` and `clone`). `lang:expressions/arrays-in-expressions` (destructuring) goes on `syntax/values/arrays.mdx`. The Throwable tree goes to Errors. `snippets` and `prose` fail only on pages that stages 5 and 6 rewrite.",
   "next": {
     "stage": 4,
     "title": "Syntax",
@@ -8,22 +8,20 @@
     "items": [
       {
         "done": false,
-        "text": "**Operators**: arithmetic, comparison, `??` and `??=`, string operators, precedence. Covers `lang:expressions/*`. Goal § Stage 4. Anchors: `docs/reference/lang/30-expressions.md:8`, `website/astro.config.ts:139`"
+        "text": "**Control flow**: if, match, loops and foreach, break and continue, return, switch. Covers `lang:statements/*` except the try, catch and throw sections, plus `lang:expressions/match` and `lang:iteration/*` with `Iterable` and `Iterator`. Goal § Stage 4. Anchors: `docs/reference/lang/40-statements.md:43`, `docs/reference/lang/60-iteration.md:8`, `website/astro.config.ts:154`"
       },
       {
         "done": false,
-        "text": "**Control flow**: if, match, loops and foreach, break and continue. Covers `lang:statements/*` except try, catch and throw, and `lang:iteration/*` with `Iterable` and `Iterator`. Anchors: `docs/reference/lang/40-statements.md:43`, `docs/reference/lang/60-iteration.md:1`"
+        "text": "**Errors**: throw and catch, catch as an expression, error types, rethrowing, checked returns. Covers `lang:errors/*`, `lang:statements/try-catch-finally`, `lang:statements/catch-as-an-expression`, `lang:statements/throw` and the Throwable tree. Goal § Stage 4. Anchors: `docs/reference/lang/70-errors.md:8`, `docs/reference/lang/40-statements.md:313`"
       },
       {
         "done": false,
-        "text": "**Errors**: throw and catch, error types, checked returns. Covers `lang:errors/*`, the try, catch and throw sections of the statements chapter, and the `Throwable` tree ids. Anchors: `docs/reference/lang/70-errors.md:8`"
+        "text": "**Destructuring on the arrays page**: add a section and a snippet to `syntax/values/arrays.mdx`, covering `lang:expressions/arrays-in-expressions`, and re-stamp it. Anchors: `docs/reference/lang/30-expressions.md:586`, `website/src/content/docs/syntax/values/arrays.mdx:1`"
       }
     ]
   },
   "backlog": [
-    "Functions pages (goal § Stage 4): must cover `lang:types/parameters` and `lang:types/void-never-self-static`.",
-    "Classes and objects pages: must cover `lang:types/callable-classes-object-shapes`, `lang:types/properties-and-constants` and the Core interfaces `Comparable`, `Stringable`, `Parses`, `PropertyObserver`.",
-    "Programs and files, Special syntax, concurrency, attributes and testing pages (goal § Stage 4).",
-    "Stage 5 and 6 pages fix the remaining `snippets` and `prose` failures."
+    "Functions, Classes and objects, Programs and files, Special syntax, and pages for the `lang/` chapters the outline misses (concurrency, attributes, testing): goal § Stage 4.",
+    "Stages 5 and 6 rewrite the pages that `snippets` and `prose` fail on: goal § Stage 5, § Stage 6."
   ]
 }
