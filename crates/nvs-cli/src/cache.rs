@@ -3015,6 +3015,8 @@ mod tests {
     fn a_warm_start_is_faster_than_a_cold_one_by_the_margin_this_test_names() {
         use std::time::{Duration, Instant};
 
+        let _alone = crate::testing::measuring_alone();
+
         /// The factor a warm start must clear. Under it, § *Revisiting* is owed a look.
         const MARGIN: u32 = 4;
         /// Sample pairs. The best of nine clears the margin with room to spare on an idle

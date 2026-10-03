@@ -72,3 +72,15 @@ pub(crate) fn open_to_the_world(dir: &Path) {
         );
     }
 }
+
+/// Held for the whole of every `…_by_the_margin_this_test_names` test, so no two of them measure at
+/// once. libtest runs the tests one filter selects in parallel, and a margin holds only on an idle
+/// machine: `crate::cache`'s warm-start margin compiles on one busy thread, and beside it on a
+/// four-CPU runner one of `crate::serve`'s four pinned workers shares its CPU with the compiler,
+/// which roughly doubles the four-core arm and fails the scaling margin.
+pub(crate) fn measuring_alone() -> std::sync::MutexGuard<'static, ()> {
+    static MEASURING: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    MEASURING
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+}

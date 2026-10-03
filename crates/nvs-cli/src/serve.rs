@@ -3817,6 +3817,7 @@ mod tests {
         ignore = "a cost margin needs an idle machine; the driver's release slot is one"
     )]
     fn serve_throughput_scales_from_one_core_to_four_by_the_margin_this_test_names() {
+        let _alone = crate::testing::measuring_alone();
         const CORES: usize = 4;
         const ROUNDS: usize = 3;
         /// Four cores serve at least half again the requests per second one
