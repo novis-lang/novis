@@ -244,11 +244,16 @@ impl Isolate {
     /// **What is published is the tree, and the registration crosses rather
     /// than the publication because the tree is not in hand here.** It is the
     /// context [`Self::start`] is called on: that context's safepoint handle is
-    /// the root's, its `Ctx::cpu_limit` is the ceiling the whole tree divides
-    /// (`rule:security/isolate-budget-is-the-trees`), and a caller that
-    /// published at this line would be publishing whatever context it built the
-    /// isolate from. A tree under no cap is published like any other —
-    /// [`Registration::publish`] owns why.
+    /// the root's, and a caller that published at this line would be
+    /// publishing whatever context it built the isolate from. A tree under no
+    /// cap is published like any other — [`Registration::publish`] owns why.
+    ///
+    /// A watched isolate is the request, so it also states the tree's CPU
+    /// ceiling from its first statement, starting from the one the context
+    /// [`Self::start`] is called on stated: `Ctx::take_tree_cpu_limit` owns
+    /// why, and it is what lets the program's `Core\Config::set("cpu_time", …)`
+    /// move the ceiling the whole tree divides
+    /// (`rule:security/isolate-budget-is-the-trees`).
     ///
     /// The publication is cleared when this isolate's body ends, however it
     /// ends. One slot per registered thread is the whole of what a registration
@@ -638,13 +643,11 @@ impl Isolate {
         // `rule:errors/on-limit`'s CPU ceiling reaches a request that allocates
         // nothing, writes nothing and calls nothing only if a thread that is not
         // this one is charging it, and what such a thread charges is the
-        // **tree's** handle, which carries the tree's ceiling. It is read off this
-        // context rather than off the child below, and it has to be: the CPU
-        // ceiling stays the root's and `Ctx::isolate` carries none of it down,
-        // where the memory half crosses as what remains of the same number. The
-        // word is the child's either way, `Ctx::share_safepoint_with` being what
-        // hands it over. Published before the child is built, so a runaway is
-        // published ahead of the code that runs away.
+        // **tree's** handle, which carries the tree's ceiling and is read again
+        // on every sweep. The handle is this context's, and the child below
+        // shares it through `Ctx::share_safepoint_with`. Published before the
+        // child is built, so a runaway is published ahead of the code that
+        // runs away.
         //
         // [`Unpublished`] is what clears it, and the two are deliberately not
         // symmetrical: the publication is one store made here, and the guard
@@ -688,6 +691,14 @@ impl Isolate {
         // A widening is refused inside and leaves the inherited ceiling
         // standing, so this line can only ever take room away.
         ctx.narrow(&mut isolate_ctx, &narrowing);
+        // A watched isolate is the request itself, so from its first statement
+        // it is the one that states the tree's CPU ceiling, starting from the
+        // connection's. Its `Core\Config::set("cpu_time", …)` then moves the
+        // ceiling the sweep compares with, as the root's does under `nvs run`.
+        // The handler is charged to the engine's reserve and never takes it.
+        if watch.is_some() && charge == Charge::Tree {
+            isolate_ctx.take_tree_cpu_limit(ctx);
+        }
         // The request this child answers, on the context that will run it and
         // before it can run — [`Isolate::answering`] owns why it arrives here
         // rather than on the parent, and `Ctx::set_inbound` why it is written
@@ -1554,6 +1565,58 @@ mod tests {
         assert!(
             dog.running().is_empty(),
             "a finished isolate was still offered as the request to stop"
+        );
+    }
+
+    /// `rule:errors/on-limit`'s CPU ceiling is the request's to move: a served
+    /// request's program runs in a watched isolate, and the ceiling it sets is
+    /// the one its tree is charged against. A `spawn script` child is never
+    /// watched, and the ceiling it sets stays its own
+    /// (`rule:security/isolate-budget-is-the-trees`).
+    #[test]
+    fn a_watched_isolate_states_its_trees_cpu_ceiling_and_an_unwatched_one_does_not() {
+        let mut ctx = parent();
+        ctx.set_cpu_limit(10_000_000_000);
+        let dog = Rc::new(crate::Watchdog::new());
+        let registered = Rc::new(dog.register_requests());
+
+        // What the tree states before the program moves it, and after.
+        let seen: Rc<Cell<(u64, u64)>> = Rc::new(Cell::new((0, 0)));
+        let narrowing = |seen: &Rc<Cell<(u64, u64)>>| -> Program {
+            let recorded = Rc::clone(seen);
+            Box::new(move |child: &mut Ctx, _args| {
+                let before = child.safepoint_view().cpu_limit();
+                child.set_cpu_limit(2_000_000_000);
+                recorded.set((before, child.safepoint_view().cpu_limit()));
+                Value::null()
+            })
+        };
+
+        let done = run(
+            Isolate::new(narrowing(&seen), Value::null(), Output::Capture)
+                .watched_by(Rc::clone(&registered)),
+            &mut ctx,
+        )
+        .expect("the argument crossed");
+        assert!(done.ok, "the watched child failed");
+        assert_eq!(
+            seen.get(),
+            (10_000_000_000, 2_000_000_000),
+            "the request's own ceiling was not the one its tree is charged against"
+        );
+
+        ctx.reroot();
+        ctx.set_cpu_limit(10_000_000_000);
+        let done = run(
+            Isolate::new(narrowing(&seen), Value::null(), Output::Capture),
+            &mut ctx,
+        )
+        .expect("the argument crossed");
+        assert!(done.ok, "the unwatched child failed");
+        assert_eq!(
+            seen.get(),
+            (10_000_000_000, 10_000_000_000),
+            "a spawned child moved the ceiling of the tree it divides"
         );
     }
 

@@ -458,15 +458,17 @@ pub struct Ctx {
     /// there. [`Self::join_tree`] is the only writer and
     /// [`Self::share_safepoint_with`] carries the answer down.
     on_root_core: bool,
-    /// Whether this context is its request tree's root, which is every context
-    /// until it joins another's tree.
+    /// Whether this context states its request tree's CPU ceiling, which is
+    /// every context until it joins another's tree, and the served request's
+    /// own isolate after it does.
     ///
     /// What it decides is who writes [`TreeState::cpu_limit`]: a tree is charged
-    /// against one CPU ceiling and that ceiling is the root's
+    /// against one CPU ceiling and that ceiling is the request's
     /// (`rule:security/isolate-budget-is-the-trees`), so a child that narrows
     /// its own `[limits] cpu_time` moves its own number and leaves the tree's
-    /// where the root put it. [`Self::share_safepoint_with`] and
-    /// [`Self::join_tree`] are the only writers.
+    /// where the request put it. [`Self::share_safepoint_with`] and
+    /// [`Self::join_tree`] clear it, and [`Self::take_tree_cpu_limit`] sets it
+    /// on the isolate a served request runs in.
     tree_root: bool,
     /// What this context has already published into its tree's off-core
     /// counters, or `None` for one that publishes nothing — which is every

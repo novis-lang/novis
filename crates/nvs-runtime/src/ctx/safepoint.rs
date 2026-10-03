@@ -78,6 +78,30 @@ impl Ctx {
         }
     }
 
+    /// Makes this context — a child of `parent`, already in its tree — the one
+    /// that states the tree's CPU ceiling from here on, starting from the
+    /// ceiling `parent` stated.
+    ///
+    /// For the one child that *is* its request: a served request's program
+    /// runs in an isolate made from the connection's context
+    /// ([`Self::isolate`]), and the tree is the request's, freshly started by
+    /// [`Self::reroot`]. So the program's `Core\Config::set("cpu_time", …)` is
+    /// the request moving its own ceiling, within `[limits.hard]` exactly as a
+    /// root's is, and has to reach what the watchdog charges.
+    /// `nvs_host::Isolate::watched_by` is the only caller; a `spawn script`
+    /// child never is one, so `rule:security/isolate-budget-is-the-trees`'s
+    /// child still moves its own number and never the tree's.
+    ///
+    /// Both halves of the slice cross, because the reserve is carved out of the
+    /// ceiling ([`Self::refresh_limits`]) and a child stopped with none would
+    /// have nothing to report the breach with.
+    pub fn take_tree_cpu_limit(&mut self, parent: &Self) {
+        self.cpu_limit = parent.cpu_limit;
+        self.fatal_reserve_time = parent.fatal_reserve_time;
+        self.tree_root = true;
+        self.publish_cpu_limit();
+    }
+
     /// Starts a request tree of its own on this context: a safepoint word and a
     /// deadline nothing else polls, in place of the two it was sharing.
     ///
