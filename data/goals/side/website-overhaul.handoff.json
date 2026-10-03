@@ -1,39 +1,23 @@
 {
-  "state": "**Side goal `website-overhaul`, stage 3 half written.** Every Core class and member page is generated, and nothing under `website/src/content/docs/reference/core/` is a file but the landing `index.mdx`.\n\n`website/src/pages/reference/core/[...slug].astro` renders each class and member from `core.json`, the member's `about.md` and its examples. `website/src/lib/feature.ts` reads both in place, parses the `related:` line and fails the build on a name with no page. A section with nothing in it is left out, and \"Not documented yet\" is gone from the built site. Each member's `examples` field in `core.json` is its roster path, written by `tools/nv/renderers/website-core.ts` with `classTail`. `website/README.md` § *How the Core reference works* is the home of the page's shape.\n\nThe published set is still the spec's tables crossed with the registry: 26 classes and 299 members. The roster has many more Core members (`Http`, `Cli`, `BigInt` and others), which have no page yet. `--check reference` needs every one of them.\n\nNine members' `about.md` gained the facts their old page had and a `related:` line. No other `about.md` has one yet.\n\n`site structure` and `site stale` pass. `snippets` and `prose` still fail on the pages stages 5 and 6 rewrite.",
+  "state": "**Side goal `website-overhaul`, stage 3: every Core feature in the roster has a page.** Configuration, CLI and `--check reference` are still open.\n\n`website/src/pages/reference/core/[...slug].astro` renders each class and member from `core.json`, the member's `about.md` and its examples. `website/src/lib/feature.ts` reads both in place, parses the `related:` line and fails the build on a name with no page. A section with nothing in it is left out. `website/README.md` § *How the Core reference works* is the home of the page's shape.\n\n`tools/nv/renderers/website-core.ts` `addRegistryMembers` adds every registered class and member the spec's tables do not name, built from the registry's own signature. `core.json` now has 145 classes and 885 members, the same 885 the roster counts. The 299 spec-stated records are unchanged. The 16 registered classes with no member (`Core\\Regex\\Pattern`, `Core\\Http\\Lines` and others) have no page, and no roster feature either. `bun nv site --build` passes with them.\n\nNine members' `about.md` have a `related:` line. No other `about.md` has one yet.\n\n`site structure` and `site stale` pass. `snippets` and `prose` still fail on the pages stages 5 and 6 rewrite.",
   "next": {
     "stage": 3,
     "title": "Reference, generated and complete",
-    "files": [
-      "tools/nv/renderers/website-core.ts",
-      "website/src/lib/core.ts",
-      "website/astro.config.ts",
-      "tools/nv/cmd/site.ts"
-    ],
+    "files": [],
+    "note": "one file set: `website/astro.config.ts`, `tools/nv/cmd/site.ts`, `tools/nv/proofs/roster.ts`, a new route beside `website/src/pages/reference/core/[...slug].astro`.",
     "items": [
       {
-        "done": true,
-        "text": "**One dynamic route renders every Core member from `core.json`, its `about.md` and all its examples, and the per-member `.mdx` stubs are deleted.** Anchor: `website/src/pages/reference/core/[...slug].astro:1`"
-      },
-      {
-        "done": true,
-        "text": "**No empty heading, and `related:` lines in `about.md` render as links and fail the build on an unknown id.** Anchor: `website/src/lib/feature.ts:1`"
+        "done": false,
+        "text": "**Configuration and CLI sub-areas, one page per `nvs.toml` block and per command.** The roster's config features are the 51 `directive:<key>` entries at `config/<block>[-<key>]`, blocks and keys both, plus the `tools:config/*` chapter sections. Its CLI features are `tools:cli/*`, `tools:server/nvs-*`, `tools:editor/*` and `tools:agents/*`; `tools:php-differences/*` and `tools:install/*` belong to In-Depth and Install. Goal § Stage 3 *Three sub-areas*. Anchors: `website/astro.config.ts:116`, `website/src/pages/reference/core/[...slug].astro:1`, `tools/nv/proofs/roster.ts:314`"
       },
       {
         "done": false,
-        "text": "**Every Core class the registry holds is published, not only those the spec's tables name.** `parseSpec` keeps a class only when `docs/spec/01-core-library.md` has its table, so a registry class without one gets no page. Build a member record from the registry's own signature for those. Goal § Stage 3 *`--check reference`* (every Core feature in the roster has a page). Anchors: `tools/nv/renderers/website-core.ts:607`, `tools/nv/renderers/website-core.ts:680`, `tools/nv/proofs/roster.ts:266`"
-      },
-      {
-        "done": false,
-        "text": "**Configuration and CLI sub-areas, one page per `nvs.toml` block and per command.** Goal § Stage 3 *Three sub-areas*. Anchors: `website/astro.config.ts:116`, `website/src/pages/reference/core/[...slug].astro:1`"
-      },
-      {
-        "done": false,
-        "text": "**`--check reference`, replacing its \"not written yet\" entry in `LATER`.** Goal § Stage 3 *`--check reference`*. Anchor: `tools/nv/cmd/site.ts:64`"
+        "text": "**`--check reference`, replacing its \"not written yet\" entry in `LATER`.** It compares the roster's `member`, `directive` and CLI `tool` entries with the built pages, and `core.json` against a fresh render when a binary is built. Goal § Stage 3 *`--check reference`*. Anchor: `tools/nv/cmd/site.ts:64`"
       }
     ]
   },
   "backlog": [
-    "A class page's summary is the spec chapter's prose, with rule ids and internal words in it. It needs a plain description, and no file owns one yet — `website/src/components/ClassOverview.astro`.",
+    "A class page's summary is the spec chapter's prose, with rule ids and internal words in it. The 119 registry-only classes use the class card's one sentence instead. A plain description needs a home — `website/src/components/ClassOverview.astro`.",
     "`related:` lines for the other members where a reader clearly wants the link — goal § Stage 3 *Related*.",
     "Stage 4, Syntax: `website/src/content/docs/syntax/**` and `website/snippets/syntax/**` — goal § Stage 4.",
     "Stage 5, Install, Guides and the Notes app — goal § Stage 5.",
