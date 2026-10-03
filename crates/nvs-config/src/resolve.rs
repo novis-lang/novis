@@ -154,6 +154,17 @@ pub trait Files {
     /// Whether the path is there at all. Only [`Include::optional`](crate::tree::Include::optional)
     /// and § 1's step 2 ask, and both of them treat absence as an answer rather than a failure.
     fn exists(&self, path: &Path) -> bool;
+
+    /// Whether `path` is certainly not there, and so nothing below it is either: no such entry, or
+    /// a name the platform cannot hold at all. `false` whenever that is not certain — a folder that
+    /// is there and may not be read, a dangling symlink, any other failure.
+    ///
+    /// Separate from [`exists`](Files::exists), which is `false` for all of those alike. Only
+    /// [`crate::capability::resolved`] asks, to skip the ancestors of a path that cannot be pinned,
+    /// and the default skips none of them: slower, and never a different answer.
+    fn missing(&self, _path: &Path) -> bool {
+        false
+    }
 }
 
 /// The real filesystem.
@@ -209,6 +220,16 @@ impl Files for Disk {
     fn exists(&self, path: &Path) -> bool {
         nvs_footprint::exists(path);
         path.exists()
+    }
+
+    fn missing(&self, path: &Path) -> bool {
+        nvs_footprint::exists(path);
+        std::fs::symlink_metadata(path).is_err_and(|err| {
+            matches!(
+                err.kind(),
+                std::io::ErrorKind::NotFound | std::io::ErrorKind::InvalidFilename
+            )
+        })
     }
 }
 

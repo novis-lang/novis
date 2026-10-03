@@ -43,7 +43,6 @@
 //!
 
 use std::collections::BTreeMap;
-use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 
 use crate::resolve::{Files, Origin};
@@ -928,24 +927,51 @@ fn canonical_root(root: &mut String, files: &dyn Files) {
 /// canonicalizer would be proving it about a different path than the one the grant was compared
 /// against, and a `..` gets through exactly there — the same reason [`Capabilities::allows`] takes
 /// its canonicalizer as a parameter rather than reaching for the filesystem.
+///
+/// **The walk skips the ancestors [`Files::missing`] rules out, by a binary search.** Asking
+/// [`Files::canonical`] about each ancestor in turn costs one call per missing folder, each over the
+/// whole remaining prefix, so a path a request names with many missing folders costs time quadratic
+/// in its depth. The ancestors the walk can anchor at are the trailing run of plain names, since it
+/// stops at the first `..`, root or prefix. Along that run "missing" is closed downwards: a folder
+/// that is not there has nothing below it, and a prefix too long to name has only longer ones below
+/// it. So the missing ancestors are exactly the deepest few, the search finds the deepest ancestor
+/// that is not missing in a logarithmic number of calls, and the walk resumes there — every one it
+/// skipped would have failed to canonicalize, so the answer is the one the full walk gives. "Canonicalizes" is **not** closed the same way,
+/// which is why the search asks `missing` and never `canonical`: on Windows a folder whose ACL
+/// denies reading it fails to canonicalize while a folder inside it does not, and a search that took
+/// that failure for absence would anchor above it and leave a reparse point below it unresolved.
 #[must_use]
 pub fn resolved(path: &Path, files: &dyn Files) -> Option<PathBuf> {
     if let Ok(found) = files.canonical(path) {
         return Some(found);
     }
-    let mut tail: Vec<&OsStr> = Vec::new();
-    let mut cursor = path;
-    loop {
-        let name = cursor.file_name()?;
-        let parent = here(cursor.parent()?);
-        tail.push(name);
-        if let Ok(base) = files.canonical(parent) {
-            let mut resolved = base;
-            resolved.extend(tail.iter().rev());
-            return Some(resolved);
-        }
-        cursor = parent;
+    // `walk[i]` is `path` with its last `i` names removed, for every `i` the walk may anchor at.
+    let mut walk = vec![path];
+    while let Some(&cursor) = walk.last()
+        && cursor.file_name().is_some()
+        && let Some(parent) = cursor.parent()
+    {
+        walk.push(here(parent));
     }
+    let (mut first, mut last) = (1, walk.len());
+    while first < last {
+        let middle = first + (last - first) / 2;
+        if files.missing(walk[middle]) {
+            first = middle + 1;
+        } else {
+            last = middle;
+        }
+    }
+    (first..walk.len()).find_map(|anchor| {
+        let mut resolved = files.canonical(walk[anchor]).ok()?;
+        resolved.extend(
+            walk[..anchor]
+                .iter()
+                .rev()
+                .filter_map(|step| step.file_name()),
+        );
+        Some(resolved)
+    })
 }
 
 /// The empty parent, spelled as the current directory; every other parent unchanged.

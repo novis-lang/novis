@@ -6,9 +6,10 @@
 //! The refusal a program *sees* is `nvs_runtime::capability::require`'s and belongs to
 //! `-p nvs-stdlib`; keeping the two apart is `capability.rs`'s own module doc.
 
+use std::cell::Cell;
 use std::path::{Component, Path, PathBuf};
 
-use nvs_config::capability::{Cap, Scope};
+use nvs_config::capability::{Cap, Scope, resolved};
 use nvs_config::resolve::Files;
 use nvs_config::tree::Capabilities;
 use nvs_config::trust::Untrusted;
@@ -61,6 +62,11 @@ struct Disk {
     /// What a relative path is resolved against, empty until a case says otherwise — which leaves
     /// every relative path spelled exactly as it was written.
     cwd: PathBuf,
+    /// A folder that is there and fails to canonicalize, as one whose ACL denies reading it does on
+    /// Windows while a folder inside it still canonicalizes.
+    locked: Vec<PathBuf>,
+    /// How many times `canonical` and `missing` were called, together.
+    asked: Cell<usize>,
 }
 
 impl Disk {
@@ -70,7 +76,15 @@ impl Disk {
             real: paths.iter().map(|path| p(path)).collect(),
             links: Vec::new(),
             cwd: PathBuf::new(),
+            locked: Vec::new(),
+            asked: Cell::new(0),
         }
+    }
+
+    /// The same disk, plus a folder at `at` that is there and fails to canonicalize.
+    fn locking(mut self, at: &str) -> Self {
+        self.locked.push(p(at));
+        self
     }
 
     /// The same disk, plus a symlink at `at` landing on `target`.
@@ -100,7 +114,11 @@ impl Files for Disk {
         if path.as_os_str().is_empty() {
             return Err("the empty path names nothing".to_string());
         }
+        self.asked.set(self.asked.get() + 1);
         let asked = lexical(&self.cwd.join(path));
+        if self.locked.contains(&asked) {
+            return Err(format!("access denied: {}", asked.display()));
+        }
         if let Some((_, target)) = self.links.iter().find(|(at, _)| *at == asked) {
             return Ok(target.clone());
         }
@@ -129,6 +147,22 @@ impl Files for Disk {
 
     fn exists(&self, path: &Path) -> bool {
         self.canonical(path).is_ok()
+    }
+
+    /// Missing when nothing on this disk is at `path` or below it, which is closed downwards the
+    /// way a real disk is.
+    fn missing(&self, path: &Path) -> bool {
+        self.asked.set(self.asked.get() + 1);
+        if path.as_os_str().is_empty() {
+            return false;
+        }
+        let asked = lexical(&self.cwd.join(path));
+        let mut there = self
+            .real
+            .iter()
+            .chain(&self.locked)
+            .chain(self.links.iter().map(|(at, _)| at));
+        !there.any(|at| at.starts_with(&asked))
     }
 }
 
@@ -267,6 +301,49 @@ fn a_bare_relative_path_resolves_against_its_grant() {
             outside.display(),
         );
     }
+}
+
+/// A path with many missing folders under its grant is pinned at the deepest folder that is there,
+/// in a number of questions that grows with the logarithm of its depth and not with the depth.
+// covers: tools:config/capabilities
+#[test]
+fn a_path_of_many_missing_folders_is_resolved_in_few_questions() {
+    let disk = Disk::of(&["/srv", "/srv/app", "/srv/app/uploads"]);
+    let deep = format!("/srv/app/uploads/{}copy.txt", "a/".repeat(100_000));
+
+    let pinned = resolved(&raw(&deep), &disk).expect("the grant's own folder is there");
+
+    assert_eq!(pinned, p(&deep));
+    assert!(
+        disk.asked.get() < 64,
+        "{} questions for a path 100000 folders deep",
+        disk.asked.get(),
+    );
+}
+
+/// A folder that is there and fails to canonicalize does not move the anchor above it. A symlink
+/// inside it still resolves, so a path through that symlink lands where the symlink points and is
+/// refused.
+// covers: tools:config/capabilities
+#[test]
+fn a_folder_that_fails_to_canonicalize_does_not_hide_a_symlink_below_it() {
+    let disk = Disk::of(&[
+        "/srv",
+        "/srv/app",
+        "/srv/app/uploads",
+        "/elsewhere",
+        "/elsewhere/dir",
+    ])
+    .locking("/srv/app/uploads/locked")
+    .linking("/srv/app/uploads/locked/link", "/elsewhere/dir");
+    let granted = granting("[fs]\nwrite = [\"/srv/app/uploads\"]\n", &disk);
+    let through = raw("/srv/app/uploads/locked/link/a/b/c/new.txt");
+
+    assert_eq!(
+        resolved(&through, &disk),
+        Some(p("/elsewhere/dir/a/b/c/new.txt")),
+    );
+    assert!(!granted.allows(Cap::FsWrite, Scope::Path(through.as_path()), &disk));
 }
 
 /// An address literal, for the exception test below.

@@ -1,7 +1,6 @@
 <?nvs
 // Attack: a program may write only in `uploads`. It writes a file that is two million folders
 // deep in `config`. The write should fail at once, and the program should print `denied`.
-// proof: gap nvs-config/a-path-of-many-missing-folders-is-slow-to-refuse
 
 // `Here::path` returns its argument as a full path. A relative path in a string literal
 // starts at the folder of this file.
