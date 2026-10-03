@@ -1,32 +1,26 @@
 {
-  "state": "**Side goal `website-overhaul`, stage 2 in progress.** `AGENTS.md` § *Text an end user reads* now covers everything a user sees: website pages, `about.md`, comments in published `.nvs` (including `website/snippets/`), `nvs` help text and diagnostic messages, and excludes the agent-only docs. Nothing of the site itself is built yet. The site today is Astro + Starlight with a Docs tree (rulebook, decisions, release notes, 325 Core pages, 314 of them drafts), a Why Novis page over 13 claims, and no example on the live site, because the mirror is gitignored and Pages never syncs it.",
+  "state": "**Side goal `website-overhaul`, stage 2 in progress.** The nav, the per-area sidebars and the removals are on disk. The header is Guides, Syntax, Reference, In-Depth (each with its subtitle), Install as a button, then Sponsoring, all read from `AREAS` and `INSTALL` in `website/config/site.mjs`, which the footer, the mobile menu and `llms.txt` read too. `website/src/routeData.ts` narrows the sidebar to the current area's top-level group and gives a page outside every area no sidebar. `<Pagination/>` is gone. The rulebook pages, `rules.json`, `website-rules.ts`, the decisions page and `decisions.json`, Why Novis and its claims, and the site index are deleted; `nv decisions --render` writes only `docs/decisions.md`. The Core pages moved to `/reference/core/`, installation and hello-world to `/install/`, release notes to `/in-depth/what-changed/`. No `/docs/` URL remains and no redirect exists. The area landing pages are short placeholders that stages 4 to 6 replace.\n\nThe site has not been built since: the worktree has no `website/node_modules`, so `npm ci` in `website/` comes before the first `bun nv site --build`.",
   "next": {
     "stage": 2,
     "title": "the structure and the stale guard",
     "files": [
-      "website/astro.config.ts",
-      "website/src/components/Header.astro",
-      "website/src/components/Footer.astro",
       "website/package.json",
       "website/scripts/",
+      "website/src/components/MethodExamples.astro",
+      "website/.gitignore",
       "tools/nv/cmd/site.ts",
       "tools/nv/main.ts",
-      "tools/nv/renderers/index.ts",
       "tools/nv/cmd/session.ts",
       ".github/workflows/ci.yml"
     ],
     "items": [
       {
         "done": false,
-        "text": "**Nav, sidebars and removals, with no redirects** — `website/src/components/Header.astro:28`, `website/astro.config.ts:128`, `website/src/components/Footer.astro:50`"
-      },
-      {
-        "done": false,
         "text": "**Read examples in place and delete the mirror** — `website/scripts/sync-examples.mjs:1`, `website/src/components/MethodExamples.astro:24`"
       },
       {
         "done": false,
-        "text": "**`bun nv site`: snippets, `covers:`, the lock, `--stale`, `--check`, `--build`, `--stamp`, its tests** — `tools/nv/main.ts:1`"
+        "text": "**`bun nv site`: snippets, `covers:`, the lock, `--stale`, `--check`, `--build`, `--stamp`, its tests** — `tools/nv/main.ts:1`, `website/src/content.config.ts:6`"
       },
       {
         "done": false,
@@ -35,6 +29,9 @@
     ]
   },
   "backlog": [
-    "None yet; the goal's prose, `docs/agent/goals/side/website-overhaul.md`, owns the later stages."
+    "`covers:` is not in the content schema yet (`website/src/content.config.ts`); the five new landing pages need `covers: []` once it is. Owner: goal doc § Stage 2.",
+    "`TYPES_PAGE` in `website/src/lib/core.ts` points at `/syntax/` until Syntax has type pages. Owner: § Stage 4.",
+    "`bun nv render --website` re-rendered 150 Core stubs from the current binary while moving them; stage 3 deletes them all. Owner: § Stage 3.",
+    "`docs/agent/goals/php-oracle-retired.md` still names the old `website/src/content/docs/docs/` paths; it is another goal's frozen prose and was left alone."
   ]
 }
