@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-server/src/serve.rs",
-  "title": "The state-bleed suite runs across a request, a child isolate and a core, but never across an upgraded connection.",
-  "text": "`rule:concurrency/a-connection-is-a-root-isolate` makes a WebSocket or SSE connection a root isolate, and goal `server` promised it as the suite's next parameterisation, not a second suite. `the_state_bleed_suite_passes_within_a_request_and_across_an_isolate_boundary` at `crates/nvs-server/src/serve.rs:6652` and `the_state_bleed_suite_passes_across_a_core_boundary` at `:6680` are the only arms. Closing this adds an arm that runs the same rows in a connection's isolate after the request that opened it has ended, and passes them to `nothing_bled`.",
-  "goal": "goal-closeout"
-}

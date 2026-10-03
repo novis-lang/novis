@@ -6634,9 +6634,12 @@ mod tests {
     /// breath**: "which the shared `Isolate` makes a parameterisation rather
     /// than a second suite". [`SUITE`] is the rows; an arm differs only in what
     /// the second run *is* — the next request on the connection, a child
-    /// isolate the request starts before it ends, or
+    /// isolate the request starts before it ends,
     /// [`the_state_bleed_suite_passes_across_a_core_boundary`]'s request on
-    /// another worker. Every run is the same [`Isolate`] type, which is the
+    /// another worker, or
+    /// [`the_state_bleed_suite_passes_across_a_connection_boundary`]'s isolate
+    /// an upgrade opens once the request has ended. Every run is the same
+    /// [`Isolate`] type, which is the
     /// property being spent: a second isolation path would make one of these
     /// arms say nothing about the others.
     ///
@@ -6660,7 +6663,7 @@ mod tests {
                 across_an_isolate_boundary(),
             ),
         ] {
-            nothing_bled(boundary, &answer);
+            nothing_bled(boundary, answer_lines(&answer));
         }
     }
 
@@ -6681,19 +6684,72 @@ mod tests {
         let Some(answer) = across_a_core_boundary() else {
             return;
         };
-        nothing_bled("a request on another core", &answer);
+        nothing_bled("a request on another core", answer_lines(&answer));
     }
 
-    /// One arm's answer, asserted: the row count first, then every row's own
-    /// line.
+    /// The same suite, run where the second run is the **connection isolate**
+    /// an upgrade opens: the upgrading request plants every row and fills
+    /// § 1's slot, and the isolate in the slot probes them once that request
+    /// has ended (`rule:concurrency/a-connection-is-a-root-isolate`).
+    ///
+    /// The request's marker rides on its query, because an upgradable request
+    /// carries no body. The probing run writes nowhere a peer reads: the `101`
+    /// is the connection's last response, so its answer lines come back
+    /// through `said` and not off the wire.
+    #[test]
+    fn the_state_bleed_suite_passes_across_a_connection_boundary() {
+        assert!(
+            BLEEDING_UPGRADE.ends_with(BLED),
+            "the upgrading request's query no longer carries the marker"
+        );
+        let said = Rc::new(RefCell::new(String::new()));
+        let handler_said = Rc::clone(&said);
+        let seen = upgrade_once(
+            move || {
+                Rc::new(move |request: Request<Incoming>, _origin: Origin| {
+                    let (inbound, supply) = carrying(request);
+                    let said = Rc::clone(&handler_said);
+                    let program: Program = Box::new(move |child: &mut Ctx, _args| {
+                        plant_the_suite(child);
+                        let probing: Program = Box::new(move |conn: &mut Ctx, _args| {
+                            said.borrow_mut().push_str(&probe_the_suite(conn));
+                            Value::null()
+                        });
+                        assert!(
+                            Door::Socket.fill(child, probing),
+                            "the upgrading request was offered no slot"
+                        );
+                        Value::null()
+                    });
+                    Reply::Run(
+                        Isolate::new(program, Value::null(), Output::Capture).answering(inbound),
+                        supply,
+                    )
+                })
+            },
+            BLEEDING_UPGRADE,
+            Door::Socket,
+        );
+        assert!(
+            seen.contains(ACCEPT),
+            "the upgrading request was not answered the handshake: {seen}"
+        );
+        nothing_bled("the connection an upgrade opened", &said.borrow());
+    }
+
+    /// The path [`the_state_bleed_suite_passes_across_a_connection_boundary`]
+    /// upgrades on, with [`BLED`] in its query.
+    const BLEEDING_UPGRADE: &str = "/bleed?leak=bled-c0ffee";
+
+    /// One arm's answer lines, asserted: the row count first, then every row's
+    /// own line.
     ///
     /// The count is asserted beside the answers because a row that silently
     /// stopped running would otherwise pass by not contradicting anything — the
     /// row table is the assertion, not the four lines a reader can see. And the
     /// rows that bled are collected rather than asserted one at a time, so a
     /// failure reports every one of them instead of the first in the table.
-    fn nothing_bled(boundary: &str, answer: &str) {
-        let lines = answer_lines(answer);
+    fn nothing_bled(boundary: &str, lines: &str) {
         assert_eq!(
             lines.lines().count(),
             SUITE.len(),
