@@ -1,0 +1,11 @@
+{
+  "lead": "A hostile step that is meant to stop at the memory limit by fanning out tasks must make every task wait.",
+  "body": "Tasks that never wait finish without piling up, so a `Core\\Task::map` over eight thousand trivial jobs with no `limit:` runs to its last line, and the `ends-early <step> FATAL` marker then fails as \"ran to its last line\". Put a `Core\\Time::sleep(1ms)` in the job, as `tests/hostile/lang/concurrency/core-task-map-one-task-per-element/01-a-map-over-everything-it-will-take.nvs` step 5 does.",
+  "files": [
+    "tests/hostile/lang/concurrency/core-task-map-one-task-per-element/01-a-map-over-everything-it-will-take.nvs"
+  ],
+  "until": {
+    "kind": "rule",
+    "arg": "concurrency/a-task-stack-is-reserved-wide-and-pooled"
+  }
+}
