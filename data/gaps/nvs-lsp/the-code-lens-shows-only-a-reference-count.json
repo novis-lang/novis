@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-lsp/src/server.rs",
-  "title": "The code lens shows a reference count and nothing else: no implementors, and no method it overrides or is overridden by.",
-  "text": "`rule:ide/five-features-are-one-reference-index` says the lens above a declaration shows the reference count, a type's implementors, and the methods a method overrides and is overridden by. `code_lens` at `crates/nvs-lsp/src/server.rs:1005` builds one lens per declaration whose title is `reference_count` alone. Closing this adds the two hierarchy lenses, read from the same index `textDocument/typeHierarchy` reads, with an `.lspt` case for each.",
-  "goal": "goal-closeout"
-}
