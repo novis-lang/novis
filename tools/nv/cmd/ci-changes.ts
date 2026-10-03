@@ -74,12 +74,13 @@ const LANES: Record<string, string[]> = {
     "docs/spec/", "data/spec/", "website/", "tools/nv/renderers/", ".github/workflows/",
   ],
   // What `bun nv proofs --verify` reads: the binary's inputs, every feature's examples, attacks, benches
-  // and chapters, the perf ledger, the proof policy and the gap records a `proof: gap` marker names.
+  // and chapters, the perf ledger, the proof policy and the gap records a `proof: gap` marker names,
+  // and what `bun nv site --check` reads beside them: the website's pages, snippets and lock.
   // Gates `proofs`.
   proofs: [
     "crates/", "benches/", "tests/", "tools/", "Cargo.toml", "Cargo.lock", "rust-toolchain.toml",
     "docs/examples/", "docs/reference/", "docs/perf/", "data/proofs/", "data/gaps/",
-    ".github/workflows/",
+    "website/", ".github/workflows/",
   ],
   // The five-driver matrix against real servers: the harness that points each driver at a container,
   // the compose file those containers come from, and -- added by `dbLane` below -- every package

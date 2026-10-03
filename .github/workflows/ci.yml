@@ -293,6 +293,12 @@ jobs:
       - name: Feature proofs
         run: bun nv proofs --verify --nvs target/proof/nvs${{ runner.os == 'Windows' && '.exe' || '' }}
 
+      # The website's stale guard, against the same binary: the nav and sidebars, every snippet run
+      # against its `.out`, no broken id or stale page, and the countable prose bounds.
+      # `tools/nv/cmd/site.ts` is what each part asserts.
+      - name: Website stale guard
+        run: bun nv site --check structure snippets stale prose --nvs target/proof/nvs${{ runner.os == 'Windows' && '.exe' || '' }}
+
   # ---------------------------------------------------------------------------
   # The database matrix, against real servers rather than mocks, which is what
   # `rule:core-classes/db-one-api`'s *Verification* section asks for.
