@@ -1,24 +1,28 @@
 {
-  "state": "**Side goal `website-overhaul`, stage 3 is done: Reference has a page for every Core, configuration and CLI feature, and `bun nv site --check reference` passes.**\n\n`tools/nv/renderers/website-reference.ts` groups the proofs roster into `website/src/data/reference.json`: one Configuration page per `nvs.toml` block (20), one per `tools:config` section that names no block (8), and one CLI page per section of `cli`, `editor`, `agents` and the `nvs …` sections of `server` (22). `website-core.ts` writes it beside `core.json` from the same `nvs meta --json`. `website/src/pages/reference/[area]/[...slug].astro` renders those pages and both landing pages. `website/README.md` § *How the Configuration and CLI reference works* is the home of the page shape.\n\n`website/src/lib/feature.ts` now reads any feature directory under `docs/examples/{core,config,tools}/`, including its `nvs.toml`. `FeatureExamples.astro` renders the examples for both routes.\n\n`--check reference` (`tools/nv/cmd/site.ts` `referenceProblems`) re-renders both data files against the binary, matches every roster feature to a page by feature path, checks every `related:` name, and reads `website/dist` for \"Not documented yet\" and one example block per example file. It needs `bun nv site --build` first.\n\n`site structure`, `site stale` and `site reference` pass. `snippets` and `prose` still fail on the pages stages 5 and 6 rewrite.",
+  "state": "**Side goal `website-overhaul`, stage 4 (Syntax) is in progress: `--check syntax` exists, and \"Start here\" and the four Basics pages are written.**\n\n`tools/nv/cmd/site.ts` `syntaxProblems` is the `syntax` part. Every Syntax page except `syntax/index.mdx` needs a non-empty `covers:`, a `<Snippet>` and a `## Do and don't` heading with a `- ` list under it. Every roster feature `isSyntaxFeature` names must be covered, and each one that is not covered is listed as `uncovered:`. `tools/nv/test/site.test.ts` tests it.\n\nOn disk: `website/src/content/docs/syntax/start-here.mdx` and `syntax/basics/{files-and-statements,comments,variables,constants}.mdx`, their snippets under `website/snippets/syntax/`, the sidebar entries in `website/astro.config.ts`, and their stamps in `website/site.lock.json`. Each page follows goal § Stage 4: the short way first, then \"Use this when\", then Do and don't.\n\n`site structure`, `stale` and `reference` pass, and the site builds. `site syntax` reports 171 uncovered features: 118 `lang:` sections, plus 53 Core types the roster files under `types/` (the `Throwable` tree, `Comparable` and the other Core interfaces, every Core enum). `snippets` and `prose` fail only on the pages stages 5 and 6 rewrite.",
   "next": {
     "stage": 4,
     "title": "Syntax",
     "files": [],
-    "note": "one file set: `tools/nv/cmd/site.ts`, `website/src/content/docs/syntax/`, `website/snippets/syntax/`, read against `docs/reference/lang/`.",
+    "note": "one file set: `website/src/content/docs/syntax/`, `website/snippets/syntax/`, `website/astro.config.ts`, read against `docs/reference/lang/`.",
     "items": [
       {
         "done": false,
-        "text": "**`--check syntax`, replacing its entry in `LATER`.** Every `lang:` and `types:` roster feature is covered by a Syntax page, and every Syntax page has `covers:`, a snippet and a Do / Don't section. `staleness` already computes `uncovered`. Goal § Stage 4. Anchors: `tools/nv/cmd/site.ts:66`, `tools/nv/cmd/site.ts:224`"
+        "text": "**Values and types**: numbers, strings and interpolation, bool and null, arrays and `array<T>`, nullable `?T`, union types, enums, `as`, `is`. Covers the `lang:types/*` sections and `lang:enums/*`. The Core enums (`Core\\Order` and the rest) go in the `covers:` of the enums page. Goal § Stage 4. Anchors: `docs/reference/lang/20-types.md:68`, `docs/reference/lang/55-enums.md:1`, `website/astro.config.ts:126`"
       },
       {
         "done": false,
-        "text": "**\"Start here\" and the Basics pages**, from the outline in goal § Stage 4, each with a snippet under `website/snippets/syntax/` and a Do / Don't list. PHP is named on \"Start here\" only. `rule:testing/examples-live-in-the-repository`. Anchors: `website/src/content/docs/syntax/index.mdx:1`, `docs/reference/lang/10-programs.md:1`"
+        "text": "**Operators and Control flow**: covers `lang:expressions/*` and `lang:statements/*` except try, catch and throw, which go to Errors. Anchors: `docs/reference/lang/30-expressions.md:1`, `docs/reference/lang/40-statements.md:1`"
+      },
+      {
+        "done": false,
+        "text": "**Errors**: throw and catch, error types, checked returns. Covers `lang:errors/*`, the statements chapter's try, catch and throw sections, and the `Throwable` tree with every Core exception. Anchors: `docs/reference/lang/70-errors.md:1`"
       }
     ]
   },
   "backlog": [
-    "The `tools:server` sections that are not `nvs …` commands (mounts, the drain, `trusted_proxies`, what a program reads, what reaches a server) have no Reference page. They fit a Guide or In-Depth page (goal § Stage 5 or 6).",
-    "`related:` lines: nine Core `about.md` files have one. Add one where a reader clearly wants the link (goal § Stage 3 *Related*).",
-    "`snippets` and `prose` fail on pages stages 5 and 6 rewrite (goal § Stage 5, § Stage 6)."
+    "Functions, Classes and objects (with the Core interfaces `Comparable`, `Stringable`, `Parses`, `PropertyObserver`, `Iterable`, `Iterator`), Programs and files, Special syntax, and pages for `lang:` chapters the outline misses (concurrency, iteration, testing). Goal § Stage 4.",
+    "Stage 5 rewrites `install/hello-world.mdx`, `install/index.mdx` and `sponsoring.mdx`, which fail `snippets` and `prose`. Goal § Stage 5.",
+    "Stage 6 rewrites `index.mdx` and `in-depth/what-changed.mdx`. Goal § Stage 6."
   ]
 }
