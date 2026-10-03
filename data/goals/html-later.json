@@ -157,13 +157,31 @@
         "fills_arrive_in_the_order_their_later_finished",
         "the_polyfill_is_sent_once_and_only_with_a_fill",
         "the_end_of_the_document_is_held_back_until_the_last_fill",
-        "the_polyfill_hash_is_added_only_to_a_policy_that_limits_scripts",
+        "the_polyfill_and_trigger_hashes_are_added_only_to_a_policy_that_limits_scripts",
+        "every_fill_ends_with_the_trigger",
+        "the_polyfill_is_at_most_one_kilobyte",
+        "a_slot_adds_at_most_120_bytes_beyond_its_content",
+        "a_slot_name_carries_a_16_character_token",
         "a_slotted_response_carries_no_content_length_and_turns_off_proxy_buffering",
         "slotted_from_a_route_attribute_and_from_the_call_are_the_same",
         "slotted_after_the_main_script_ended_throws",
         "a_slotted_route_without_later_is_sent_whole",
         "a_limit_breach_on_a_slotted_route_fills_every_unfilled_slot_with_its_error_and_ends",
         "a_slotted_response_holds_its_admission_place_until_its_last_fill"
+      ]
+    },
+    {
+      "id": "the-polyfill-acts-only-where-the-browser-did-not",
+      "kind": "command",
+      "stage": 3,
+      "name": "the polyfill fills each slot once, changes nothing the browser already applied, and changes nothing on a second call",
+      "argv": [
+        "bun",
+        "test",
+        "tools/nv/test/html-later-polyfill.test.ts"
+      ],
+      "want": [
+        "0 fail"
       ]
     },
     {

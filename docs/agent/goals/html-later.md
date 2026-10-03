@@ -66,20 +66,22 @@ is the reference this goal was written against):
 ```html
 <main>
   <h1>A post</h1>
-  <?start name="nvs-7f3a…-1"><p>Loading comments…</p><?end>
+  <?start name="nvs-Xq3vT9aLw2RkPz0b-1"><p>Loading comments…</p><?end>
 </main>
 …
 <script>/* the polyfill, once */</script>
-<template for="nvs-7f3a…-2">…recommendations…</template>
-<template for="nvs-7f3a…-1">…comments…</template>
+<template for="nvs-Xq3vT9aLw2RkPz0b-2">…recommendations…</template><script>_nvs()</script>
+<template for="nvs-Xq3vT9aLw2RkPz0b-1">…comments…</template><script>_nvs()</script>
 </body></html>
 ```
 
 `<template for>` is in the HTML standard. Chrome 148 has it behind a flag and the other browsers do
 not have it yet, so the runtime sends a small inline polyfill once per slotted response, before the
-first fill. A browser that supports the feature natively skips the polyfill. Today's parsers read
-`<?start …>` as a comment, so the polyfill finds the placeholders as comments. When every browser
-ships the feature, the polyfill is removed and nobody's code changes.
+first fill. The server cannot know what the browser supports, so the polyfill is always sent. It
+does nothing where the browser already did the work: it fills only a placeholder whose `?start`
+marker and `<template for>` are both still in the page. Today's parsers read `<?start …>` as a
+comment, so the polyfill finds the placeholders as comments. When every browser ships the feature,
+the polyfill is removed and nobody's code changes.
 
 **Why not declarative shadow DOM**, which works without JavaScript in every current browser: the
 layout would live inside a shadow root, so the page's CSS does not reach it and
@@ -146,9 +148,11 @@ One file set: `crates/nvs-stdlib/src/html.rs`, `crates/nvs-stdlib/src/task.rs`,
   memory, CPU, `max_tasks`. The response does not end while one is running. A `later` called inside
   a `later` closure is the request's child too, and its placeholder is part of its parent's output.
 - **The placeholder.** `later` returns a `Core\Html\Markup` whose bytes are
-  `<?start name="nvs-<token>-<n>">` + the placeholder + `<?end>`. `<token>` is 128 random bits made
-  once per request, so no author text and no visitor input can name a slot: a visitor's string is
-  escaped before it reaches the sink, and an author cannot know the token. `<n>` counts the
+  `<?start name="nvs-<token>-<n>">` + the placeholder + `<?end>`. `<token>` is 96 random bits made
+  once per request, written as 16 base64url characters, so no author text and no visitor input can
+  name a slot: a visitor's string is escaped before it reaches the sink, and an author cannot know
+  the token. 96 bits cannot be guessed, and the name appears twice per slot on the wire, so it is
+  kept short. `<n>` counts the
   request's `later` calls from 1. The runtime finds a placeholder in the buffered body by that
   token, so `Core\Html\Markup` keeps its one slot (`CARRIER_TEXT_SLOT`,
   `crates/nvs-runtime/src/ctx/output.rs:51`) and `+`, `Core\Html::join` and partials carry a
@@ -208,19 +212,33 @@ One file set: `crates/nvs-server/src/serve.rs`, `crates/nvs-runtime/src/stream.r
   the main script ends: a page whose main script is slow sends late, and that is the developer's
   to move into a `later`.
 - **Fills, in the order they finish.** Each fill is `<template for="nvs-<token>-<n>">` + the
-  closure's output + `</template>`, written as one chunk. The polyfill `<script>` is written once,
-  just before the first fill.
+  closure's output + `</template>` + the trigger `<script>_nvs()</script>`, written as one chunk.
+  The polyfill `<script>` is written once per response, just before the first fill, and never on a
+  normal route or on a slotted response with no fill.
 - **The end of the document.** If the shell ends in `</body>` and `</html>` (case-insensitive,
   whitespace allowed), those bytes are held back and written after the last fill, so every fill is
   inside `<body>`. A shell that does not end that way gets its fills after its last byte, where
   every HTML parser still puts them in `<body>`.
-- **The polyfill** is Novis's own, written for this goal and kept as a constant beside its
-  `sha256`: a few lines that find the `?start` comments and move each `<template for>`'s content
-  into place, and do nothing in a browser that supports the feature. No third-party script is
-  shipped. When the response carries a `Content-Security-Policy` with `script-src` (or a
-  `default-src` that covers scripts), the runtime adds the polyfill's `'sha256-…'` to it. With the
-  default policy, which sets only `frame-ancestors` (`crates/nvs-config/src/default.toml:317-321`),
-  nothing is added.
+- **The polyfill** is Novis's own, written for this goal and kept as a minified constant beside its
+  `sha256`. No third-party script is shipped. It defines one function, `_nvs()`, which fills every
+  placeholder whose `<template for>` has arrived, and it runs `_nvs()` once when it loads.
+  - **It acts only where the browser did not.** It fills a placeholder only when its `?start`
+    marker and its `<template for>` are both still in the page, and it removes both when it has
+    filled it. A browser that applied the fill while parsing leaves nothing for it to do, so it
+    never needs to ask the browser whether it supports the feature, never fills a slot twice, and
+    also covers a browser that supports only part of it. Whether a native browser removes the
+    template, the marker or both is not documented, which is why the polyfill tests both.
+  - **No MutationObserver.** Each fill is followed by the same trigger, `<script>_nvs()</script>`,
+    so a fill appears as soon as its chunk is parsed and not after an observer's delay. The trigger
+    is identical every time, so one hash covers it as one covers the polyfill.
+  - **The CSP.** When the response carries a `Content-Security-Policy` with `script-src` (or a
+    `default-src` that covers scripts), the runtime adds the two `'sha256-…'` values, the
+    polyfill's and the trigger's, to it. With the default policy, which sets only
+    `frame-ancestors` (`crates/nvs-config/src/default.toml:317-321`), nothing is added.
+- **Size limits, enforced by tests.** The minified polyfill is at most 1 KB. The bytes a slot adds
+  on the wire beyond its own content and placeholder (the `?start` and `?end` markers, the
+  `<template for>` wrapper and the trigger) are at most 120. A change that goes over either fails
+  the test, and the limit is raised only by the user.
 - **Headers.** A slotted response is chunked and has no `Content-Length`. It carries
   `X-Accel-Buffering: no`, so nginx sends each fill as it comes and does not hold the response. A
   proxy that compresses or buffers on its own can still delay fills; the reference says so. Novis
@@ -234,8 +252,18 @@ One file set: `crates/nvs-server/src/serve.rs`, `crates/nvs-runtime/src/stream.r
   main script does for any `HEAD`.
 - **Pinned by** the Stage 3 checks: the first chunk arrives while a `later` task is still parked;
   fills arrive in finishing order; the polyfill is sent once and only on a response with a fill;
-  `</body></html>` is held back; the CSP hash is added only to a policy that limits scripts; a
+  every fill ends with the trigger; `</body></html>` is held back; the two CSP hashes are added
+  only to a policy that limits scripts; the polyfill and the per-slot overhead stay inside their
+  size limits; a
   `later` that sets a header still throws; `Core\Response::slotted()` after the main script throws.
+- **The polyfill's own test** runs it against a DOM: a page where the fills are still templates
+  gets every slot filled once and both markers removed; a page where the browser already applied
+  the fills (no template, or no marker, left) is not changed at all; a fill whose template arrives
+  before the polyfill and one that arrives after it are both filled; calling `_nvs()` twice changes
+  nothing the second time. The repository has no DOM library and no browser test today, so the
+  session adds `happy-dom` as a dev dependency in the root `package.json` for this test alone, and
+  writes it as
+  `tools/nv/test/html-later-polyfill.test.ts` reading the constant from the Rust source.
 
 ## Stage 4 — tests, the editor and the help
 
@@ -287,12 +315,16 @@ One file set: `crates/nvs-stdlib/src/test.rs`, `crates/nvs-lsp/src/completion.rs
   On a normal route the `later` closures run concurrently. An app mixes slotted and normal routes
   freely, and the code of a component does not depend on which one includes it. **`later` adds no
   limit of its own**: it shares the request's limits, and a limit breach fails every unfilled slot,
-  as the same page without slotting would fail.
+  as the same page without slotting would fail. **The polyfill** is sent once per slotted response
+  with a fill, acts only where the browser did not, uses the identical `_nvs()` trigger after each
+  fill and no MutationObserver, and stays within two size limits a test enforces: 1 KB for the
+  polyfill, 120 bytes of overhead per slot. Slot names carry a 96-bit token in 16 characters.
 - **My calls, not yet confirmed by the user:** the option names `placeholder`, `error` and
-  `deadline`; the closure returning `void` or `Markup`; the per-request random token in slot names;
+  `deadline`; the closure returning `void` or `Markup`; `happy-dom` as a dev dependency for the
+  polyfill's test;
   cancelling a `later` whose placeholder is never written; `LogicError` for a placeholder written
   twice; the optional per-call `deadline` with no default; Novis's own polyfill and its CSP
-  hash; holding back `</body></html>`; nothing sent before the main script ends; after-response
+  hashes; holding back `</body></html>`; nothing sent before the main script ends; after-response
   work running after the last fill. A session that finds one of these impossible writes it under
   the handoff's `## Backlog` for the user rather than choosing again.
 - **Not in this goal:** flushing the shell before the main script ends; a `later` in `<head>`
