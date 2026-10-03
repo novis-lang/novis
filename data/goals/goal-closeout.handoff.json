@@ -1,25 +1,24 @@
 {
-  "state": "**Goal `goal-closeout`, Stage 4 (finished in place) is under way.** Stage 3 is done: `docs/agent/goal-decisions.md` names every goal in front of `goal-closeout`.\n\nA served request's `Core\\Config::set(\"cpu_time\", …)` now moves the ceiling its tree is charged against. `nvs_host::Isolate::start` calls `Ctx::take_tree_cpu_limit` on a watched isolate (`Charge::Tree` only), which takes the connection's ceiling and reserve and makes the isolate the context that publishes into `TreeState::cpu_limit`. A `spawn script` child is never watched and still moves only its own number. The test `a_watched_isolate_states_its_trees_cpu_ceiling_and_an_unwatched_one_does_not` in `crates/nvs-host/src/isolate.rs` pins both halves. Gap `a-cpu-time-set-at-run-time-is-not-enforced` is deleted.\n\nThe floor check `the latest CI run on main succeeded for the code HEAD holds` is red only because `main` is many commits ahead of `origin/main`, and the loop never pushes (module doc of `tools/nv/cmd/ci-green.ts`). A person has to push, so no session can close it.\n\n`bun nv owners --closes goal-closeout` still names many gaps: `nvs-host` (2), `nvs-lsp` (5), `nvs-runtime` and `nvs-stdlib` the largest, plus `nvs-types`, `editors/vscode` and `website`. Stage 4 stops on `BLOCKED` only for \"too large\", as the goal's § *Stage 4* defines it.",
+  "state": "**Goal `goal-closeout`, Stage 4 (finished in place) is under way.** Stage 3 is done: `docs/agent/goal-decisions.md` names every goal in front of `goal-closeout`.\n\nA `Core\\Task` child is now held to its request's memory ceiling. `Ctx::child` in `crates/nvs-runtime/src/ctx/isolate.rs` copies the parent's memory zero point, ceiling and limit-handler reserve, so a child reads the whole request's balance on its core and stops at its own next poll. Each child's 1 MiB stack reservation is charged by `Child::new` in `crates/nvs-host/src/group.rs` and given back by `Child`'s `Drop`, per `rule:concurrency/a-task-stack-is-reserved-wide-and-pooled`. The two tests `a_child_s_stack_is_charged_to_the_request_while_it_runs` and `a_child_whose_stack_passes_the_request_s_ceiling_is_over_it` pin it, and `tests/hostile/core/Task/all/02-groups-nested-past-the-memory-limit.nvs` now passes with no gap marker. Gap `a-task-stack-is-not-charged-to-its-request` is deleted.\n\n`[limits] max_tasks` is still read by nothing (`crates/nvs-config/src/default.toml` says so), and no gap owns that.\n\nThe floor check `the latest CI run on main succeeded for the code HEAD holds` is red only because `main` is many commits ahead of `origin/main`, and the loop never pushes (module doc of `tools/nv/cmd/ci-green.ts`). A person has to push, so no session can close it.\n\n`bun nv owners --closes goal-closeout` still names 53 gaps: `nvs-host` (1), `nvs-lsp`, `nvs-runtime` and `nvs-stdlib` the largest, plus `nvs-types`, `editors/vscode` and `website`. Stage 4 stops on `BLOCKED` only for \"too large\", as the goal's § *Stage 4* defines it.",
   "next": {
     "stage": 4,
     "title": "finished in place",
     "files": [],
-    "note": "one file set: the task scheduler and group runner in `nvs-host`, and the request's memory budget in `nvs-runtime`.",
+    "note": "one file set: the group runner in `nvs-host` and the safepoint word in `nvs-runtime`.",
     "items": [
       {
         "done": false,
-        "text": "**A task stack is charged to its request** — gap `a-task-stack-is-not-charged-to-its-request`, `rule:concurrency/a-task-stack-is-reserved-wide-and-pooled`: `crates/nvs-host/src/group.rs:452` (`run_as_children`) takes a pooled stack through `crates/nvs-host/src/scheduler.rs:1201` (`spawn_child`) and charges nothing. Charge the reservation at the spawn and give it back when the child's guard drops; first decide whether this is Stage 4's \"too large\" (it crosses task switches on the core's per-thread balance). `tests/hostile/core/Task/all/02-groups-nested-past-the-memory-limit.nvs` carries the gap's marker."
+        "text": "**A task that never waits is stopped at its group's deadline** — gap `a-task-that-never-waits-outlives-its-groups-deadline`, `rule:concurrency/limit-and-deadline-are-the-only-bounds`: `crates/nvs-host/src/group.rs:605` (`arm_deadline`) arms a reactor timer that a child looping without a call never lets fire, and the poll reads only the tree's word, `crates/nvs-runtime/src/ctx/safepoint.rs:59` (`share_safepoint_with`). It needs a per-group stop that a poll can read. First decide whether that is Stage 4's \"too large\". `tests/hostile/core/Task/all/03-tasks-that-never-wait.nvs` carries the gap's marker."
       },
       {
         "done": false,
-        "text": "**A task that never waits is stopped at its group's deadline** — gap `a-task-that-never-waits-outlives-its-groups-deadline` under `data/gaps/nvs-host/`, read from `crates/nvs-host/src/group.rs:452`."
+        "text": "**`[limits] max_tasks` bounds the tasks a request has in flight, or the key is struck** — no gap yet: `crates/nvs-config/src/default.toml` documents it as read by nothing, and `crates/nvs-host/src/group.rs:452` (`run_as_children`) is where a count would be asked. Write a gap under `data/gaps/nvs-host/` first if it does not fit this session."
       }
     ]
   },
   "backlog": [
-    "`nvs-cli` subcommands' `--help` text in the dense voice — `AGENTS.md` § *Text an end user reads*.",
-    "`bun nv import` reads a deleted rule index — `tools/nv/cmd/import.ts`.",
-    "`nvs-lsp`, `nvs-runtime`, `nvs-stdlib` gaps — `bun nv owners --closes goal-closeout`.",
-    "A `spawn script` child's `limits: cpu_time` sub-cap is set on the child and never published to the tree — read from `Ctx::narrow_under` in `crates/nvs-runtime/src/ctx/isolate.rs`, not reproduced; file a gap if it holds."
+    "`Core\\Regex::split` and case conversion build past the memory limit before asking (`data/gaps/nvs-stdlib/`), both on `nvs_runtime::budget::affords`.",
+    "The many `nvs-lsp` and `nvs-stdlib` gaps `bun nv owners --closes goal-closeout` lists.",
+    "`main` must be pushed by a person before the CI floor check can pass."
   ]
 }
