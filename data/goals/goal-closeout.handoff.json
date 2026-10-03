@@ -1,22 +1,19 @@
 {
-  "state": "**Goal `goal-closeout`, Stage 4 (finished in place).** Nine of `nvs-runtime`'s ten goal-owned gaps are closed. The newest is `the-peak-histogram-and-the-high-water-warn-are-unbuilt`:\n\n- `nvs_request_memory_peak_bytes` is the tenth `DEFAULT` family, with `MEMORY_BUCKETS`, in `crates/nvs-runtime/src/metrics.rs`.\n- `[limits] memory_high_water` is a `System` ratio key, refused at boot outside `0..=1` by `nvs_config::app::high_water`.\n- `Ctx::report_memory_peak` in `crates/nvs-runtime/src/ctx/limits.rs` records both. `nvs-host`'s isolate `finish` calls it for a served request.\n- Both rules are `shipped`.\n\nThe only `nvs-runtime` gap left is `enum-case-that-reached-a-mixed`. It needs an ADR beyond Stage 5's one slot, so it waits for the user. It goes to `BLOCKED` only once it is the last goal-owned gap in the tree.\n\nThe floor check `the latest CI run on main succeeded for the code HEAD holds` is red only because `main` is ahead of `origin/main`, and the loop never pushes. A person has to push.\n\n`bun nv owners --closes goal-closeout` names the other 42, in `nvs-lsp`, `nvs-stdlib`, `nvs-syntax`, `nvs-types`, `editors/vscode` and `website`.",
+  "state": "**Goal `goal-closeout`, Stage 4 (finished in place).** `nvs-types` closed `abstract-test-method-is-accepted`: a `#[Test]` method with no body is now the fourth `E0733` shape refusal, and `rule:testing/test-attribute` lists five malformed shapes. Six `nvs-types` gaps are left.\n\nThe only `nvs-runtime` gap left is `enum-case-that-reached-a-mixed`. It needs an ADR beyond Stage 5's one slot, so it waits for the user. It goes to `BLOCKED` only once it is the last goal-owned gap in the tree.\n\nThe floor check `the latest CI run on main succeeded for the code HEAD holds` is red only because `main` is ahead of `origin/main`, and the loop never pushes. A person has to push.\n\n`bun nv owners --closes goal-closeout` names the rest, in `nvs-lsp`, `nvs-stdlib`, `nvs-syntax`, `nvs-types`, `editors/vscode` and `website`.",
   "next": {
     "stage": 4,
     "title": "finished in place",
     "files": [],
-    "note": "one file set: `nvs-types`' method-shape checks.",
+    "note": "one file set: `nvs-types`' body-exit walk, `crates/nvs-types/src/check.rs` and `crates/nvs-types/src/returns.rs`.",
     "items": [
       {
         "done": false,
-        "text": "**Refuse an `abstract` `#[Test]` method** (`rule:testing/test-attribute`, gap `abstract-test-method-is-accepted`). `check_method_shape` at `crates/nvs-types/src/testing.rs:982` refuses four shapes, and a method with no body is none of them. A fifth refusal is a change to the rule's list of refusals, so the fragment is rewritten with it. The hostile proof is `tests/hostile/lang/testing/a-test-is-a-method-marked-test/02-a-marked-method-with-no-body.nvs`."
-      },
-      {
-        "done": false,
-        "text": "**A `never` body that reaches its end does not compile** (`rule:php-migration/a-body-never-falls-off-its-end`, gap `a-never-method-that-reaches-its-end-returns`). `check_body_exits` at `crates/nvs-types/src/check.rs:919` exempts `never` from `E0739`. The gap record names the fix: `crate::returns` counts a call typed `never` as leaving, then the exemption goes."
+        "text": "**A `never` body that reaches its end does not compile** (`rule:php-migration/a-body-never-falls-off-its-end`, gap `a-never-method-that-reaches-its-end-returns`). `check_body_exits` at `crates/nvs-types/src/check.rs:919` exempts `never` from `E0739`. `block_always_exits` at `crates/nvs-types/src/returns.rs:46` walks statements syntactically and counts only `throw` and `exit`; it must also count a call typed `never`, then the exemption goes and the rule's last sentence is rewritten. `crates/nvs-ir/src/lower/mod.rs:4092` erases `never` to `void` and stays."
       }
     ]
   },
   "backlog": [
+    "The other `nvs-types` gaps, one group each — `bun nv gaps --module crates/nvs-types/src`.",
     "`enum-case-that-reached-a-mixed` (`crates/nvs-runtime/src/lib.rs`): `BLOCKED` for the user once it is the last goal-owned gap — `docs/agent/goals/goal-closeout.md` § Stage 4.",
     "The other crates' goal-owned gaps, one crate per group — `bun nv owners --closes goal-closeout`.",
     "Stage 5's decision record and the switch that deletes the goal it leaves — `docs/agent/goals/goal-closeout.md` § Stage 5."
