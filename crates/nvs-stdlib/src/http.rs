@@ -2160,7 +2160,14 @@ const EXPIRY_DOC: MethodDoc = MethodDoc {
     params: &[],
     ret: "The instant the peer's certificate expires, which is the check an operator most wants \
           a program to make about a partner it calls.",
-    errors: &[LEAF_ERROR],
+    errors: &[LEAF_ERROR, NO_END_ERROR],
+};
+
+/// `Core\Http\TlsInfo::expiry`'s own refusal, beside the [`LEAF_ERROR`] it shares.
+const NO_END_ERROR: ErrorDoc = ErrorDoc {
+    error: "RuntimeError",
+    desc: "The certificate has no end date. Its `notAfter` is `9999-12-31`, which is later \
+           than the last `Core\\Time\\Instant`.",
 };
 
 /// The refusal the three leaf readers share, written once because it is one
@@ -4828,16 +4835,20 @@ nvs_runtime::nvs_helper! {
     ///
     /// # Errors
     ///
-    /// [`nvs_core_http_tls_info_subject`]'s two.
+    /// [`nvs_core_http_tls_info_subject`]'s two, and a `RuntimeError` for a leaf
+    /// whose `notAfter` no `Core\Time\Instant` names.
     fn nvs_core_http_tls_info_expiry(_ctx, args: [1]) {
         let object = crate::instance::receiver(args[0], &TLS_INFO, "expiry")?;
         let read = leaf_of(&chain_of(object), "expiry")?;
-        // A `notAfter` past `Core\Time\Instant`'s last instant, such as RFC
-        // 5280's `99991231235959Z` for a certificate with no end, is this fatal:
-        // the module doc's first known gap.
+        // A `notAfter` past `Core\Time\Instant`'s last instant is RFC 5280's
+        // `99991231235959Z` for a certificate with no end, which the peer chose
+        // and the program cannot fix, so it is catchable like `leaf_of`'s two.
+        // The last instant is not returned in its place: it is a date the
+        // certificate does not hold.
         crate::time::instant_at_system_time(read.expiry()).ok_or_else(|| {
-            Fault::fatal(format!(
-                "{TLS_INFO_NAME}::expiry read a `notAfter` no `Core\\Time\\Instant` names"
+            Fault::thrown(format!(
+                "{TLS_INFO_NAME}::expiry: the peer's certificate has no end date \
+                 (`notAfter` is past the last `Core\\Time\\Instant`)"
             ))
         })
     }
@@ -7871,5 +7882,39 @@ mod tests {
                 "the refusal says which of the two happened: {message}"
             );
         }
+    }
+
+    /// `Core\Http\TlsInfo::expiry` over a leaf whose `notAfter` is RFC 5280's
+    /// `99991231235959Z`, the date for a certificate with no end: no
+    /// `Core\Time\Instant` names it, so the read is a catchable `RuntimeError`
+    /// and never a fatal. `Core\Test::tlsSession` takes an `Instant` and cannot
+    /// describe this leaf, so only a Rust test reaches it.
+    #[test]
+    fn an_expiry_with_no_end_is_a_runtime_error() {
+        let mut ctx = Ctx::buffered();
+        let now = std::time::SystemTime::now();
+        let described = nvs_host::tls::described(&nvs_host::tls::Description {
+            version: None,
+            cipher: None,
+            subject: "CN=api.example.com",
+            issuer: "CN=Example Test CA",
+            expiry: std::time::UNIX_EPOCH + std::time::Duration::from_secs(253_402_300_799),
+            now,
+        })
+        .expect("a certificate may end at the last second of 9999");
+        let info = super::tls_info_of(&described, true);
+        let read = nvs_runtime::call(super::nvs_core_http_tls_info_expiry, &mut ctx, &[info]);
+        #[expect(unsafe_code, reason = "this frame owns the session")]
+        unsafe {
+            info.release();
+        }
+        assert!(read.is_err(), "no instant names a certificate with no end");
+        assert_eq!(
+            ctx.pending_class().as_deref(),
+            Some("RuntimeError"),
+            "a peer's certificate with no end is catchable, never a fatal"
+        );
+        let message = ctx.take_pending().expect("the refusal is a thrown error");
+        assert!(message.contains("no end date"), "{message}");
     }
 }
