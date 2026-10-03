@@ -52,10 +52,11 @@ renders them all at build time, and a member's prose is its `about.md`.
    prose gives each class its summary, enums and constants. A row the renderer cannot
    read is a **render warning**, fixed in `config/spec-overrides.mjs`.
 2. The built `nvs` binary's registry (`nvs meta --json`, ADR 0117) says what is
-   implemented, and **only implemented members are published**: a member the registry
-   does not hold gets no page, a class with no registered member does not appear at
-   all, and both arrive on the render after they land. With no binary built, the render
-   stops.
+   implemented, and **every registered member is published, and nothing else**: a
+   member the registry does not hold gets no page, and a class with no registered member
+   does not appear at all. A registered class or member the spec's tables do not name is
+   built from the registry's own signature, so the published set is the proofs roster's
+   Core features. With no binary built, the render stops.
 3. The same registry carries each member's card: short description,
    parameter/shape-key/return/error descriptions, authored next to the Rust
    implementation. Precedence is **field-wise**: a doc field the registry carries wins,

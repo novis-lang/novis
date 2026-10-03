@@ -10,9 +10,11 @@
 // member, enum case and constant. `website/config/spec-overrides.mjs` corrects what the chapter states
 // only in prose.
 //
-// Only an implemented member is published, and a class with none is not. Where the registry carries a
-// card field it wins; where it lacks one, the website's `Method*` components fall back to the spec at
-// build time, so this file only attaches what the registry reported.
+// Every registered member is published, and nothing else. A member the spec's tables state takes its
+// signature, notes and section from there; a registered class or member they do not name is built from
+// the registry's own signature, so the published set is the proofs roster's Core features. Where the
+// registry carries a card field it wins; where it lacks one, the website's `Method*` components fall
+// back to the spec at build time, so this file only attaches what the registry reported.
 //
 // Each member carries `examples`, its feature path in the proofs roster (`core/Time-Date/at`), and
 // nothing else from `docs/examples/`: the route reads the member's `about.md` and examples in place
@@ -45,9 +47,18 @@ interface MemberCard {
   errors?: { error?: string; desc?: string }[];
 }
 
+interface RegistryMember {
+  name: string;
+  kind: string;
+  /** `length(string $s): uint`, with no receiver and no class prefix. */
+  signature: string;
+}
+
 interface Registry {
   /** Class name to the names of its registered members. */
   implemented: Map<string, string[]>;
+  /** Every registered class in the binary's order, with its class card's one sentence and its members. */
+  classes: { name: string; short: string; members: RegistryMember[] }[];
   /** `Core\Str::length` to that member's card. */
   docs: Map<string, MemberCard>;
   /** `Core\Order` to its short card and each case's description. */
@@ -77,9 +88,14 @@ function registry(root: string): Registry {
   const run = spawnSync(nvs, ["meta", "--json"], { encoding: "utf8", timeout: 60_000, maxBuffer: 256 * 1024 * 1024 });
   if (run.error || run.status !== 0) throw new Error(`${nvs} meta --json failed: ${run.error?.message ?? run.stderr}`);
   const parsed = JSON.parse(run.stdout);
-  const out: Registry = { implemented: new Map(), docs: new Map(), enumDocs: new Map(), constDocs: new Map() };
+  const out: Registry = { implemented: new Map(), classes: [], docs: new Map(), enumDocs: new Map(), constDocs: new Map() };
   for (const cls of parsed.classes ?? []) {
     out.implemented.set(cls.name, (cls.members ?? []).map((m: { name: string }) => m.name));
+    out.classes.push({
+      name: cls.name,
+      short: typeof cls.doc?.short === "string" ? cls.doc.short : "",
+      members: (cls.members ?? []).map((m: RegistryMember) => ({ name: m.name, kind: m.kind, signature: m.signature })),
+    });
     for (const m of cls.members ?? []) if (m.doc) out.docs.set(`${cls.name}::${m.name}`, m.doc);
     for (const c of cls.constants ?? []) if (typeof c.doc === "string" && c.doc) out.constDocs.set(`${cls.name}::${c.name}`, c.doc);
   }
@@ -610,6 +626,51 @@ export function parseSpec(text: string, tables: SpecTable[], overrides: Override
   return { classes: list, warnings };
 }
 
+// ---------------------------------------------------------------- the registry's own members, added
+
+/**
+ * `classes` with every registered class and member the spec's tables do not name, each built from the
+ * registry's own signature. The proofs roster counts every registered member as a feature, and each
+ * one gets a page. An instance member's receiver is its class's last segment, `$bigInt`. A class the
+ * spec names but the overrides hide stays hidden.
+ */
+export function addRegistryMembers(classes: Class[], reg: Pick<Registry, "classes">, overrides: Overrides): Class[] {
+  const byName = new Map(classes.map((c) => [c.name, c]));
+  const hidden = new Set(Object.entries(overrides.classes ?? {}).filter(([, v]) => v.hide).map(([k]) => (k.startsWith("Core\\") ? k : `Core\\${k}`)));
+  for (const rc of reg.classes) {
+    if (hidden.has(rc.name) || rc.name === "Core\\Unknown") continue;
+    let cls = byName.get(rc.name);
+    if (!cls) {
+      cls = { id: classIdOf(rc.name), name: rc.name, section: "", summary: rc.short, surface: "", adrs: [], enums: [], constants: [], members: [], unparsed: [] };
+      byName.set(rc.name, cls);
+    }
+    const last = rc.name.slice(rc.name.lastIndexOf("\\") + 1);
+    const receiver = last.charAt(0).toLowerCase() + last.slice(1);
+    for (const rm of rc.members) {
+      if (cls.members.some((m) => m.name === rm.name)) continue;
+      const sig = parseSignature(rm.signature);
+      if (!sig) throw new Error(`the registry's signature for ${rc.name}::${rm.name} does not parse: ${rm.signature}`);
+      const isStatic = rm.kind === "static";
+      cls.members.push({
+        id: `${cls.id}.${rm.name}`,
+        name: rm.name,
+        static: isStatic,
+        receiver: isStatic ? null : receiver,
+        generics: sig.generics,
+        signature: sig.signature,
+        params: sig.params,
+        options: sig.options,
+        returnType: sig.returnType,
+        replaces: "",
+        notes: "",
+        qualifier: "",
+        section: cls.section,
+      });
+    }
+  }
+  return [...byName.values()].sort((a, b) => a.id.localeCompare(b.id));
+}
+
 // ---------------------------------------------------------------- the registry's cards, attached
 
 function attachCards(classes: Class[], reg: Registry, site: Site): void {
@@ -669,9 +730,10 @@ export async function renderWebsiteCore(root: string): Promise<Output[]> {
   const record = load(specCoreMembers, root)[0];
   if (!record || record.issues.length > 0) throw new Error("the spec_core_members record is missing or does not match its schema: run `bun nv check`");
 
-  const { classes, warnings } = parseSpec(readFileSync(join(root, SPEC), "utf8"), record.value.tables, overrides);
-  for (const w of warnings) console.warn(`nv render: website-core: ${w}`);
+  const spec = parseSpec(readFileSync(join(root, SPEC), "utf8"), record.value.tables, overrides);
+  for (const w of spec.warnings) console.warn(`nv render: website-core: ${w}`);
   const reg = registry(root);
+  const classes = addRegistryMembers(spec.classes, reg, overrides);
   attachCards(classes, reg, site);
 
   for (const cls of classes) {
