@@ -1,0 +1,59 @@
+---
+title: Enums
+covers: ['lang:enums/declaring-an-enum', 'lang:enums/a-case-is-its-integer', 'lang:enums/from-an-integer-back-to-a-case', 'lang:enums/comparing-cases', 'lang:enums/match-and-switch-over-an-enum', 'lang:enums/an-enum-as-a-type', 'lang:enums/a-union-of-cases-is-a-narrower-type', 'lang:enums/what-replaces-php-s-enum-members', 'lang:enums/core-enums', 'Core\Order', 'Core\SetOn', 'Core\NormalForm', 'Core\RoundMode', 'Core\Charset', 'Core\Unit', 'Core\Weekday', 'Core\Digest', 'Core\Codec', 'Core\Crypto\Cipher', 'Core\Crypto\KeyKind', 'Core\Crypto\KeyFormat', 'Core\Mime\Type', 'Core\Xml\NodeKind', 'Core\Log\Level', 'Core\Env\Mode', 'Core\Http\Method', 'Core\Audience', 'Core\Response\Redirect', 'Core\Response\SameSite', 'Core\Cli\Stream', 'Core\Cli\ColorDepth', 'Core\Cli\Shell', 'Core\Reflect\TypeKind', 'Core\IO\FileMode', 'Core\Cldr\PluralCategory', 'Core\Script\ExitReason', 'Core\Db\Driver', 'Core\Db\Tls', 'Core\Db\Isolation', 'Core\Db\ColumnType', 'Core\Db\ErrorKind', 'Core\Db\Plan\Grade', 'Core\Queue\State']
+description: How to declare an enum, convert a case to and from a number, and use enums from Core.
+---
+import Snippet from '@components/Snippet.astro'
+
+An enum is a type with a fixed list of named cases. Each case is a whole number.
+
+<Snippet src="syntax/enums/01-declare.nvs" />
+
+- The cases are separated by commas. Case names start with a capital letter.
+- `enum Size: uint { ... }` makes every case a `uint`. Without `: uint`, every case is an `int`.
+- Two cases can have the same number.
+- An enum contains only cases. It has no methods and no constants.
+
+## Convert between a case and a number
+
+`as int` gives the number of a case. `as Status` gives the case for a number.
+
+<Snippet src="syntax/enums/02-from-a-number.nvs" />
+
+- `echo Status::Draft;` and `Status::Draft as string` do not compile. Write
+  `(Status::Draft as int) as string`.
+- `==` and `!=` compare two cases of the same enum. To sort cases, compare their numbers.
+- `Status::Draft == 0` does not compile. A case is not a plain number.
+
+## Use this when you need a name or a list of cases
+
+A case has no `->name` and an enum has no `cases()` method. Write a class with a `match` for the
+names and a method that returns the list.
+
+<Snippet src="syntax/enums/03-names-and-lists.nvs" />
+
+A `match` with no arm for the value and no `default` throws an error. A `switch` over an enum works
+too.
+
+## Use this when only some cases are allowed
+
+A type can list some cases of an enum: `Mode::Read|Mode::Write`.
+
+<Snippet src="syntax/enums/04-some-cases.nvs" />
+
+Passing `Mode::Delete` to `Files::open` does not compile. `as Mode::Read|Mode::Write` throws an error
+when the value is a different case.
+
+## Enums from Core
+
+Many `Core` methods take an enum from `Core`, such as `Core\Order`, `Core\RoundMode` or
+`Core\Weekday`. They work like your own enums. [Reference](/reference/core/) lists every one.
+
+<Snippet src="syntax/enums/05-core-enum.nvs" />
+
+## Do and don't
+
+- Do use an enum for a fixed set of choices, such as a status or a mode.
+- Do use `as ?Status` for a number from outside the program. You then handle `null`.
+- Don't use a case as an array key. Use its number: `$names[$status as int]`.
+- Don't add behaviour to an enum. Put it in a class that takes the enum.

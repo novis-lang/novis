@@ -1,0 +1,17 @@
+<?nvs
+enum Status { Draft, Review, Published }
+
+// `as Status` converts a number to the case with that number.
+Status $status = 2 as Status;
+echo $status == Status::Published ? "published" : "other", "\n";
+
+// `as ?Status` gives `null` when no case has the number.
+?Status $unknown = 9 as ?Status;
+echo $unknown == null ? "no such status" : "found", "\n";
+
+// `as Status` throws an error when no case has the number.
+try {
+    Status $bad = 9 as Status;
+} catch (RuntimeError $e) {
+    echo $e->message, "\n";
+}

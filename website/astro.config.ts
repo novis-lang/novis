@@ -136,6 +136,21 @@ export default defineConfig({
                 { label: 'Constants', link: '/syntax/basics/constants/' },
               ],
             },
+            {
+              label: 'Values and types',
+              items: [
+                { label: 'Numbers', link: '/syntax/values/numbers/' },
+                { label: 'Strings and interpolation', link: '/syntax/values/strings/' },
+                { label: 'Bool and null', link: '/syntax/values/bool-and-null/' },
+                { label: 'Arrays and array<T>', link: '/syntax/values/arrays/' },
+                { label: 'Nullable types', link: '/syntax/values/nullable/' },
+                { label: 'Union types', link: '/syntax/values/union-types/' },
+                { label: 'Enums', link: '/syntax/values/enums/' },
+                { label: 'Converting with as', link: '/syntax/values/as/' },
+                { label: 'Type tests with is', link: '/syntax/values/is/' },
+                { label: 'Tainted and secret strings', link: '/syntax/values/tainted-and-secret/' },
+              ],
+            },
           ],
         },
         {

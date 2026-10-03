@@ -1,0 +1,9 @@
+<?nvs
+// `int|string` is an `int` or a `string`.
+int|string $id = 42;
+$id = "A-7";
+
+// A type can list exact values. `$mode` can only be "read" or "write".
+"read"|"write" $mode = "read";
+
+echo $id, " ", $mode, "\n";

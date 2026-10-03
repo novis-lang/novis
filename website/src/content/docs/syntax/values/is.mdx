@@ -1,0 +1,37 @@
+---
+title: Type tests with is
+covers: ['lang:types/narrowing']
+description: How to test the type of a value with is, and how a test changes the type inside a branch.
+---
+import Snippet from '@components/Snippet.astro'
+
+`$value is Cat` is `true` when `$value` is a `Cat` object. Inside the branch where the test is true,
+the variable has the type `Cat`.
+
+<Snippet src="syntax/is/01-is.nvs" />
+
+The new type holds only inside the branch. After `if ($pet is Cat) { return ...; }`, `$pet` is still
+a `Dog|Cat`, so the last line converts it with `as Dog`.
+
+These tests change the type in the same way:
+
+- `$x == null` and `$x != null` on a `?T`
+- `$x == "read"` on a type that lists exact values, and `$x == Mode::Read` on an enum
+- the right side of `&&` and `||`, and the two sides of `? :`
+
+## Use this when there are many types to test
+
+`match (true)` runs the first arm whose test is true. Each arm has the type its own test proved.
+
+<Snippet src="syntax/is/02-match-true.nvs" />
+
+To test whether a `mixed` value is a number, convert it: `($value as ?int) != null`. There is no
+`is int`.
+
+Assigning a new value to the variable inside the branch ends the new type.
+
+## Do and don't
+
+- Do test with `is` before you call a method that only one class has.
+- Do use `match (true)` for three or more tests.
+- Don't convert with `as Cat` when the value may be another class. `as` throws an error then.

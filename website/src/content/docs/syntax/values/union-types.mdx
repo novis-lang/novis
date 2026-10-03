@@ -1,0 +1,37 @@
+---
+title: Union types
+covers: ['lang:types/nullable-union-literal-and-enum-case-types', 'lang:types/type-aliases', 'lang:types/mixed']
+description: Types that accept one of several types or one of several exact values, type aliases and mixed.
+---
+import Snippet from '@components/Snippet.astro'
+
+`A|B` accepts a value of type `A` or of type `B`. A type can also list exact values, such as
+`"read"|"write"`.
+
+<Snippet src="syntax/union-types/01-union.nvs" />
+
+`$mode = "delete";` does not compile, because `"delete"` is not in the list.
+
+## Use this when a type is long or used in many places
+
+`type Name = ...;` gives a type a name. Write it at the top of a file, or inside a class.
+
+<Snippet src="syntax/union-types/02-alias.nvs" />
+
+An alias inside a class is used as `Owner::Name` outside it. `type Bar = Foo;` does not compile when
+`Foo` is a class, because a class already has a name.
+
+## Use this when the type is not known
+
+`mixed` accepts a value of any type. The program checks what the value is when it runs.
+
+<Snippet src="syntax/union-types/03-mixed.nvs" />
+
+A `mixed` value does not go into a typed variable or parameter by itself. Convert it with `as`, or
+test it with `is`.
+
+## Do and don't
+
+- Do use a list of exact values for a small set of strings, such as `"asc"|"desc"`.
+- Do use an [enum](/syntax/values/enums/) when the set has a name and is used in many places.
+- Don't use `mixed` for a value whose type you know. You lose the compiler's checks.

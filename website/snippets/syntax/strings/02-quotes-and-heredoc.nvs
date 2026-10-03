@@ -1,0 +1,13 @@
+<?nvs
+string $name = "Ada";
+
+// A single-quoted string prints every character as it is written.
+echo 'Hello $name\n', "\n";
+
+// A heredoc is a double-quoted string over many lines.
+// The indentation of the closing `TXT` is removed from every line.
+echo <<<TXT
+    Name: $name
+      Role: admin
+    TXT;
+echo "\n";

@@ -1,0 +1,24 @@
+<?nvs
+class Dog {
+    public function speak(): string {
+        return "woof";
+    }
+}
+
+class Cat {
+    public function purr(): string {
+        return "prr";
+    }
+}
+
+class Pets {
+    public static function sound(Dog|Cat $pet): string {
+        // `is` tests the class. Inside the `if`, `$pet` is a `Cat`.
+        if ($pet is Cat) {
+            return $pet->purr();
+        }
+        return ($pet as Dog)->speak();
+    }
+}
+
+echo Pets::sound(new Cat()), " ", Pets::sound(new Dog()), "\n";

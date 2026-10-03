@@ -1,0 +1,30 @@
+---
+title: Nullable types
+covers: ['lang:types/nullable-union-literal-and-enum-case-types']
+description: How ?T allows null, and how to use a value that may be null.
+---
+import Snippet from '@components/Snippet.astro'
+
+`?T` is a `T` or `null`. A type without `?` can never be `null`.
+
+<Snippet src="syntax/nullable/01-nullable.nvs" />
+
+`$a ?? $b` gives `$a` when it is not `null`, and `$b` when it is.
+
+## Use this when you need the value itself
+
+Test the value with `== null` or `!= null` first. After the test, the variable has the type without
+`?`.
+
+<Snippet src="syntax/nullable/02-check-for-null.nvs" />
+
+- `$user->name` on a `?User` does not compile until you test it.
+- `?->` calls a method or reads a property only when the object is not `null`. Otherwise the result
+  is `null`.
+- `$value as int` on a `?int` throws an error when the value is `null`.
+
+## Do and don't
+
+- Do use `?T` for a value that can be missing, such as an optional setting.
+- Do give a default with `??` when one makes sense.
+- Don't use `?T` when the value is always there. Every reader then has to handle `null`.

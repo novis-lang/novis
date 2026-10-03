@@ -1,0 +1,12 @@
+<?nvs
+// Each case is a number. The first case is `0`, the next is `1`, and so on.
+enum Size { Small, Medium, Large }
+
+// You can give a case its own number. A case without one is the previous number plus one.
+enum Status { Draft = 10, Review, Published = 30 }
+
+Size $size = Size::Medium;
+echo $size as int, " ", Status::Review as int, " ", Status::Published as int, "\n";
+
+// `==` compares two cases of the same enum.
+echo $size == Size::Medium ? "medium" : "other", "\n";

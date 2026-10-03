@@ -1,0 +1,20 @@
+<?nvs
+class User {
+    public function constructor(public string $name) {}
+}
+
+class Show {
+    public static function name(?User $user): string {
+        // After this test, `$user` is a `User`, so `->name` is allowed.
+        if ($user == null) {
+            return "nobody";
+        }
+        return $user->name;
+    }
+}
+
+echo Show::name(new User("Ada")), " ", Show::name(null), "\n";
+
+// `?->` reads a property only when the object is not `null`. Otherwise the result is `null`.
+?User $missing = null;
+echo $missing?->name ?? "none", "\n";

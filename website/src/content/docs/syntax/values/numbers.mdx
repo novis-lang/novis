@@ -1,0 +1,51 @@
+---
+title: Numbers
+covers: ['lang:types/numbers-bool-int-uint-float-decimal', 'lang:types/literals']
+description: The number types int, uint, float and decimal, and the ways to write a number.
+---
+import Snippet from '@components/Snippet.astro'
+
+Novis has four number types:
+
+| Type | What it is |
+|---|---|
+| `int` | a whole number, from about minus 9.2 quintillion to plus 9.2 quintillion |
+| `uint` | a whole number that is never negative |
+| `float` | a number with a fraction, such as `3.5` |
+| `decimal` | an exact number with up to 28 digits after the point |
+
+<Snippet src="syntax/numbers/01-numbers.nvs" />
+
+`/` between two whole numbers gives a `float`. `7 / 2` is `3.5`, and `6 / 3` is `2`.
+
+A number that is too big for its type throws an `ArithmeticError`. The value never wraps around.
+
+## Ways to write a number
+
+<Snippet src="syntax/numbers/02-literals.nvs" />
+
+- `1.5`, `.5` and `1e3` are `float` values. `1e3` is `1000`.
+- `017` is the decimal number seventeen. Octal numbers start with `0o`.
+- A duration unit is one of `ns`, `us`, `ms`, `s`, `m`, `h`, `d` and `w`. Units can follow each
+  other, as in `1h30m`.
+
+## Use this when you need a number that is never negative
+
+<Snippet src="syntax/numbers/03-uint.nvs" />
+
+A number without a type, such as `2`, takes the type of the place where you write it. So
+`float $rate = 2;` stores the `float` value `2`.
+
+These lines do not compile:
+
+- `$count + $stock` when `$count` is an `int` and `$stock` is a `uint`. Convert one side with `as`.
+- `$price + $rate` when `$price` is a `decimal` and `$rate` is a `float`.
+- `true as int`. Write `$flag ? 1 : 0`.
+
+## Do and don't
+
+- Do use `int` for counts and IDs.
+- Do use `decimal` for money. `0.1` plus `0.2` is exactly `0.3` in a `decimal`.
+- Don't use `float` for money. A `float` cannot store most decimal fractions exactly.
+- Don't use `uint` only to say "not negative" inside your own code. Mixing it with `int` needs `as`
+  on every line.

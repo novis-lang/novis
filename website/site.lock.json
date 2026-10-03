@@ -15,6 +15,84 @@
     "lang:types/every-binding-has-a-type": "dd36d2fa193703ff"
   },
   "syntax/start-here.mdx": {
-    "lang:programs/a-complete-program-annotated": "57bfda16febb6b64"
+    "lang:programs/a-complete-program-annotated": "57bfda16febb6b64",
+    "lang:types/what-does-not-exist": "4b29ab1c109b9cca"
+  },
+  "syntax/values/arrays.mdx": {
+    "lang:types/array-t": "f1a68a3d63f2eddb"
+  },
+  "syntax/values/as.mdx": {
+    "lang:types/the-conversion-operator-as": "e84193557b2be89d",
+    "lang:types/widening-without-as": "1ef61165e202f27e"
+  },
+  "syntax/values/bool-and-null.mdx": {
+    "lang:types/truthiness": "ba0f72220bb24482"
+  },
+  "syntax/values/enums.mdx": {
+    "Core\\Audience": "690d2a6edc2eb591",
+    "Core\\Charset": "2a993835856562a7",
+    "Core\\Cldr\\PluralCategory": "5a76f2386d9371c0",
+    "Core\\Cli\\ColorDepth": "afd592785674a6b0",
+    "Core\\Cli\\Shell": "cc3f0d4acf8c5b60",
+    "Core\\Cli\\Stream": "741da5e23b34666b",
+    "Core\\Codec": "84e6b51dafee9a9e",
+    "Core\\Crypto\\Cipher": "5a9e86551fcbb7a7",
+    "Core\\Crypto\\KeyFormat": "0ecfd18820d46c78",
+    "Core\\Crypto\\KeyKind": "96a638ba9f6235f7",
+    "Core\\Db\\ColumnType": "495389eea4ac6c15",
+    "Core\\Db\\Driver": "e9f503398dadd6b8",
+    "Core\\Db\\ErrorKind": "a569f4e17c2fd033",
+    "Core\\Db\\Isolation": "025feb613b2454ec",
+    "Core\\Db\\Plan\\Grade": "62d6119579e77120",
+    "Core\\Db\\Tls": "a57396b41759f843",
+    "Core\\Digest": "7f189cdefeebb30e",
+    "Core\\Env\\Mode": "211dbe615cc04807",
+    "Core\\Http\\Method": "d25e4847da784935",
+    "Core\\IO\\FileMode": "89e2d0c9a8dc996c",
+    "Core\\Log\\Level": "d8db2f410fc2697e",
+    "Core\\Mime\\Type": "119a652662bc378b",
+    "Core\\NormalForm": "2a7f4d239a0330f1",
+    "Core\\Order": "b889d7c1a9a80c8f",
+    "Core\\Queue\\State": "1e124e915d5e5234",
+    "Core\\Reflect\\TypeKind": "d433be14ae93894e",
+    "Core\\Response\\Redirect": "20235b5b589d8229",
+    "Core\\Response\\SameSite": "36c681ae41db640d",
+    "Core\\RoundMode": "d481cd918ab6f7a6",
+    "Core\\Script\\ExitReason": "76691588cdc22e1b",
+    "Core\\SetOn": "e8686a61e64d960b",
+    "Core\\Unit": "325e36d708bf2e5a",
+    "Core\\Weekday": "2f056b0af834e8c0",
+    "Core\\Xml\\NodeKind": "432da8b0356a5c5c",
+    "lang:enums/a-case-is-its-integer": "c8ba40a8e393513e",
+    "lang:enums/a-union-of-cases-is-a-narrower-type": "cad547e25d56a997",
+    "lang:enums/an-enum-as-a-type": "4aedddc5b4996f6c",
+    "lang:enums/comparing-cases": "e01ffe788609eebf",
+    "lang:enums/core-enums": "59e5a98b342e1c52",
+    "lang:enums/declaring-an-enum": "cc9e120a5a174683",
+    "lang:enums/from-an-integer-back-to-a-case": "a61ca2711a8f3f88",
+    "lang:enums/match-and-switch-over-an-enum": "5eef5c6c9dc56195",
+    "lang:enums/what-replaces-php-s-enum-members": "d513ee76b1f78ff9"
+  },
+  "syntax/values/is.mdx": {
+    "lang:types/narrowing": "ee92a08aef72dddf"
+  },
+  "syntax/values/nullable.mdx": {
+    "lang:types/nullable-union-literal-and-enum-case-types": "80c478eec46a7b98"
+  },
+  "syntax/values/numbers.mdx": {
+    "lang:types/literals": "a02efff51a0bc757",
+    "lang:types/numbers-bool-int-uint-float-decimal": "788438269e5375ad"
+  },
+  "syntax/values/strings.mdx": {
+    "lang:types/literals": "a02efff51a0bc757",
+    "lang:types/text-string-and-bytes": "a310f08ce2aeaf49"
+  },
+  "syntax/values/tainted-and-secret.mdx": {
+    "lang:types/qualifiers-tainted-and-secret": "4d9a603a542bc54e"
+  },
+  "syntax/values/union-types.mdx": {
+    "lang:types/mixed": "439a32c0e6f3d8e3",
+    "lang:types/nullable-union-literal-and-enum-case-types": "80c478eec46a7b98",
+    "lang:types/type-aliases": "204da5ca8277a34a"
   }
 }

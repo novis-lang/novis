@@ -1,0 +1,36 @@
+---
+title: Arrays and array<T>
+covers: ['lang:types/array-t']
+description: How to create an array, add items, read them back and loop over them.
+---
+import Snippet from '@components/Snippet.astro'
+
+An array is an ordered list of values. Each value has a key. `array<int>` is an array whose values
+are all `int`.
+
+<Snippet src="syntax/arrays/01-arrays.nvs" />
+
+- `[10, 20]` gives the keys `"0"` and `"1"`. `["name" => "Ada"]` sets each key yourself.
+- `$scores[1]` and `$scores["1"]` read the same item.
+- `Core\Arr` has the methods for arrays, such as `Core\Arr::count` and `Core\Arr::sort`.
+
+## Copies and nested arrays
+
+<Snippet src="syntax/arrays/02-copy-and-nest.nvs" />
+
+Assigning an array to a second variable, or passing it to a function, gives a copy. A change through
+one variable never shows in the other.
+
+These lines do not compile:
+
+- `array<int> $a = [1, "two"];`. Every value must be an `int`. Use `array<int|string>` or
+  `array<mixed>` for values of different types.
+- `echo $scores;`. Print it with `Core\Json::encode($scores)`.
+- `$a + $b` on two arrays. Use `Core\Arr::underlay`.
+
+## Do and don't
+
+- Do write the value type: `array<string> $names = [];`.
+- Do use `Core\Arr` methods to count, sort and filter.
+- Don't use an array as a record with fixed fields. A class or an object literal gives each field
+  its own type.

@@ -1,0 +1,11 @@
+<?nvs
+class Greeter {
+    // `?string` is a string or `null`.
+    public static function greet(?string $name): string {
+        // `??` gives the value on the right when the left side is `null`.
+        return "Hello " . ($name ?? "guest");
+    }
+}
+
+echo Greeter::greet("Ada"), "\n";
+echo Greeter::greet(null), "\n";

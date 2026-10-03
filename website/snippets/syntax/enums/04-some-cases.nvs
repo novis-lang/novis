@@ -1,0 +1,15 @@
+<?nvs
+enum Mode { Read, Write, Delete }
+
+class Files {
+    // This parameter accepts only `Mode::Read` or `Mode::Write`.
+    public static function open(Mode::Read|Mode::Write $mode): string {
+        return $mode == Mode::Read ? "opened to read" : "opened to write";
+    }
+}
+
+echo Files::open(Mode::Write), "\n";
+
+// A value of type `Mode` needs `as` to enter the smaller set.
+Mode $chosen = Mode::Read;
+echo Files::open($chosen as Mode::Read|Mode::Write), "\n";

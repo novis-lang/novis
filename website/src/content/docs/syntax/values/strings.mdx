@@ -1,0 +1,44 @@
+---
+title: Strings and interpolation
+covers: ['lang:types/text-string-and-bytes', 'lang:types/literals']
+description: How to write a string, put values into it, and work with binary data.
+---
+import Snippet from '@components/Snippet.astro'
+
+A `string` is text. Write it in double quotes, and put a variable straight into it.
+
+<Snippet src="syntax/strings/01-interpolation.nvs" />
+
+- `$name` and `$user[city]` work without braces.
+- In braces, the expression must start with a variable: `{$user->name}`, `{$items[0] + 1}`.
+- A `{` that is not followed by `$` is normal text.
+- `\n` is a new line, `\t` is a tab, `\"` is a quote and `\$` is a dollar sign.
+
+## Use this when the text has no variables
+
+A single-quoted string prints every character as written. Only `\\` and `\'` are escapes. A heredoc
+is useful for text over many lines.
+
+<Snippet src="syntax/strings/02-quotes-and-heredoc.nvs" />
+
+`<<<'TXT'`, with the marker in single quotes, is a nowdoc. It prints `$name` as written.
+
+## Length, joining and bytes
+
+A `string` is always valid UTF-8. Its length is the number of characters a person sees. Binary data
+has its own type, `bytes`.
+
+<Snippet src="syntax/strings/03-length-and-bytes.nvs" />
+
+- `.` joins two strings.
+- `$word[0]` does not compile. Use `Core\Str::at` or `Core\Str::slice`.
+- `==` tests if two strings are equal. Use `Core\Str::compare` to sort them. `"a" < "b"` does not
+  compile.
+- `bytes as string` throws an error if the bytes are not valid UTF-8.
+
+## Do and don't
+
+- Do use double quotes and interpolation for short messages.
+- Do use `Core\Str` methods to measure and cut a string.
+- Don't do arithmetic on a string. `"3" * 2` does not compile. Convert it first: `"3" as int`.
+- Don't keep binary data in a `string`. Use `bytes`.

@@ -1,6 +1,6 @@
 ---
 title: Start here
-covers: ['lang:programs/a-complete-program-annotated']
+covers: ['lang:programs/a-complete-program-annotated', 'lang:types/what-does-not-exist']
 description: A first look at Novis code, and what is new if you know PHP.
 ---
 import Snippet from '@components/Snippet.astro'
@@ -25,6 +25,8 @@ or different:
 - Every variable has a type, and the type never changes. `var` takes the type from the first value.
 - There are no casts. The `as` operator converts a value, and it throws an error if that is not
   possible.
+- There are no functions such as `intval`, `gettype` or `is_int`. Use `as` to convert a value and
+  `is` to test its class.
 - There are no global functions. Every built-in function is a method of a `Core` class, such as
   `Core\Arr::count`.
 - Options are one object literal at the end of a call: `{order: Core\Order::Asc}`.

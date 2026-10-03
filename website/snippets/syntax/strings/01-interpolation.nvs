@@ -1,0 +1,9 @@
+<?nvs
+// A double-quoted string puts the value of each variable into the text.
+string $name = "Ada";
+array<string> $user = ["city" => "Vienna"];
+echo "Hello $name from $user[city]\n";
+
+// Braces take any expression that starts with a variable.
+int $count = 2;
+echo "{$name} has {$count + 1} messages\n";

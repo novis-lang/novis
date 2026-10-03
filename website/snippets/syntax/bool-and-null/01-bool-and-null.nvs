@@ -1,0 +1,8 @@
+<?nvs
+// A `bool` is `true` or `false`.
+bool $done = false;
+
+// `null` means "no value". Only a type with `?` in front can be `null`.
+?string $nickname = null;
+
+echo $done ? "done" : "open", " ", $nickname ?? "no nickname", "\n";

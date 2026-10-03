@@ -1,0 +1,17 @@
+<?nvs
+// `int` is a whole number. `float` is a number with a fraction.
+int $items = 7;
+float $half = $items / 2;
+echo $items, " ", $half, "\n";
+
+// `decimal` is exact. Use it for money.
+decimal $price = 19.99;
+echo $price * 3, "\n";
+
+// An `int` that grows too big throws an `ArithmeticError`.
+int $big = 9223372036854775807;
+try {
+    echo $big + 1, "\n";
+} catch (ArithmeticError $e) {
+    echo $e->message, "\n";
+}

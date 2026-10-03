@@ -1,0 +1,10 @@
+<?nvs
+// An underscore makes a long number easier to read. It does not change the value.
+int $million = 1_000_000;
+
+// Hexadecimal, binary and octal numbers start with `0x`, `0b` and `0o`.
+echo $million, " ", 0x1F, " ", 0b101, " ", 0o17, "\n";
+
+// A number with a unit is a `Core\Time\Duration`.
+Core\Time\Duration $wait = 1h30m;
+echo $wait, " is ", $wait->toSeconds(), " seconds\n";

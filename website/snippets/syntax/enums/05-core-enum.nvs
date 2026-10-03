@@ -1,0 +1,5 @@
+<?nvs
+// `Core` methods take enums from `Core`, such as `Core\Order`.
+array<int> $numbers = [3, 1, 2];
+array<int> $sorted = Core\Arr::sort($numbers, {order: Core\Order::Desc});
+echo Core\Json::encode($sorted), "\n";

@@ -1,0 +1,17 @@
+<?nvs
+// `as int` converts a string of digits to a number.
+string $input = "42";
+int $number = $input as int;
+echo $number + 1, "\n";
+
+// `as string` converts a number to text.
+string $text = 3.5 as string;
+echo $text . "!", "\n";
+
+// A conversion that is not possible throws an error. 3.9 is not a whole number.
+float $price = 3.9;
+try {
+    echo $price as int, "\n";
+} catch (ArithmeticError $e) {
+    echo $e->message, "\n";
+}

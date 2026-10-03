@@ -1,0 +1,13 @@
+<?nvs
+// Assigning an array makes a copy. Changing the copy does not change the original.
+array<int> $first = [1, 2];
+array<int> $second = $first;
+$second[] = 3;
+echo Core\Arr::count($first), " ", Core\Arr::count($second), "\n";
+
+// An array can contain arrays.
+array<array<int>> $grid = [[1, 2], [3, 4]];
+echo $grid[1][0], "\n";
+
+// `Core\Json::encode` turns an array into text you can print.
+echo Core\Json::encode($grid), "\n";

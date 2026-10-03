@@ -1,0 +1,44 @@
+---
+title: Converting with as
+covers: ['lang:types/the-conversion-operator-as', 'lang:types/widening-without-as']
+description: How to convert a value to another type with as, and which conversions happen by themselves.
+---
+import Snippet from '@components/Snippet.astro'
+
+`value as T` converts a value to the type `T`. If the conversion is not possible, it throws an error.
+
+<Snippet src="syntax/as/01-as.nvs" />
+
+- A number that does not fit throws an `ArithmeticError`. `3.9 as int` throws, and `-1 as uint`
+  throws.
+- Any other failed conversion throws a `RuntimeError`, such as `"abc" as int`.
+- The whole string must be a number. `" 42"`, `""` and `"12.0" as int` throw.
+- `as` comes before every other operator. `7 / 2 as int` is `7 / (2 as int)`.
+
+## Use this when the conversion may fail
+
+`as ?T` gives `null` when the conversion is not possible.
+
+<Snippet src="syntax/as/02-as-nullable.nvs" />
+
+`$count as ?int` does not compile when `$count` is already an `int`, because that conversion cannot
+fail. To test the class of an object, use [`is`](/syntax/values/is/).
+
+## Conversions without as
+
+These conversions happen when you assign a value, pass it or return it:
+
+- an `int` or a `uint` into a `float`
+- a value of type `T` into `?T`, into a union that contains `T`, or into `mixed`
+- an object into a parent class or an interface the class implements
+- an exact value into its type, such as `"read"` into `string`
+
+Every other conversion needs `as`. That includes `int` into `uint`, a number into a `string` and
+`?int` into `int`.
+
+## Do and don't
+
+- Do use `as ?int` with `??` for input that may be wrong: `($input as ?int) ?? 0`.
+- Do use `as int` when wrong input is an error.
+- Don't write `(int)$value`. It does not compile. Write `$value as int`.
+- Don't round with `as int`. Use `Core\Math::round` first.
