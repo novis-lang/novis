@@ -103,8 +103,10 @@ when the work is genuinely that milestone's scope, never to clear the gate. Each
 Stage 3's third question is written. The order is by file set, as always: gaps in one crate are one
 group.
 
-Something too large to finish here stops the run with `BLOCKED` naming it. "Too large" means it needs a
-design record beyond the one Stage 5 opens, or it needs a decision only the user can make.
+Something too large to finish here does not stop the run. "Too large" means it needs a design record
+beyond the slots § *Standing decisions* allows, or a decision only the user can make. The session writes
+it as a question in § *Questions for the user at the goal end*, and the run goes on with the next gap,
+then Stages 5 and 6. A gap waiting on a question keeps its record until the answer is built.
 
 ## Stage 5 — deletion becomes the rule
 
@@ -157,8 +159,27 @@ rule working as written.
 
 ## Standing decisions
 
-- **Finish in place, by the user's decision of 2026-10-01.** The audit does the work it finds. It
-  stops on `BLOCKED` only for Stage 4's "too large".
+- **Finish in place, by the user's decision of 2026-10-01.** The audit does the work it finds.
+- **One stop, at the end, by the user's decision of 2026-10-03.** No session writes `BLOCKED` for a
+  question while other work is left. It writes the question in § *Questions for the user at the goal
+  end* and carries on. The check `no question waits for the user` keeps the goal from being reached
+  while one is open. The session that finds that check the only red one writes `BLOCKED` and names
+  the section. The user answers every question at once, and the next sessions build the answers.
+- **The CI check never asks for a push, by the user's decision of 2026-10-03.** Stage 1 already says
+  so: the check leaves with goal `ci-green`'s record in Stage 6. A handoff that says a person has to
+  push is wrong, and no question is written for it.
+- **An enum gets its own runtime tag, by the user's decision of 2026-10-03.** Gap
+  `enum-case-that-reached-a-mixed` is closed by spending the tag `rule:enums/representation`
+  reserves. A case turned into a tagged value carries the enum tag, so in `mixed` it is always truthy
+  (`rule:enums/truthiness`) and is told apart from an `int`. This is one decision record. It rewrites
+  `rule:enums/representation` whole, and a statically typed enum still costs nothing.
+- **Checked returns stay, by the user's decision of 2026-10-03.** If the unwind canary
+  `benches/abi-probe/tests/unwind_unavailable.rs` trips again (a `cranelift-jit` that unwinds
+  through JIT frames), checked returns are kept, because coroutine stack switches and visible
+  error-path refcount drops still favour them. That is one decision record. It rewrites
+  `rule:errors/propagation`'s sentence about unwind tables, and it turns the canary around so it
+  records that unwinding works and fails if that changes back. The tree is back on `cranelift` 0.135,
+  where the canary is green, so nothing is owed unless a bump trips it.
 - **No carried floor, by the user's decision of 2026-10-01.** The suites and `nv verify` protect
   finished work. Stage 3's third question is how a check that proved more than a suite becomes a test.
 - **Deletion is the rule from this goal on, never before it.** The record says so. Goals walked before
@@ -176,4 +197,77 @@ rule working as written.
 - **Subagents.** Stage 3 runs one subagent per batch of about fifteen goals. Each is read-only, stays
   under 250k of context, writes any scratch file under `.agent-tmp/` and deletes it before it reports.
   The session writes the gaps and `docs/agent/goal-decisions.md` from their reports.
-- **ADR slots:** one new record, Stage 5's, and no other number.
+- **ADR slots:** Stage 5's record, the enum tag's record, and the checked-return record only if the
+  canary trips. No other number. Read the next free number right before writing each one, because
+  another agent may take a number at the same time. Any other design record is a question in the
+  section below.
+
+## Questions for the user at the goal end
+
+Each question is one `### ` heading under this section, written when a session meets it, and is
+answered by the user with the others at the goal end. A question says, in order:
+
+- **Gap** — the slug, and the `file:line` that owes the work.
+- **What has to be decided** — in two or three sentences someone outside the session can follow.
+- **Options** — two to four, each with what it costs in performance, memory, usability and
+  simplicity, and what the sessions would build for it.
+- **Recommendation** — one option and why, under the priority ordering in `AGENTS.md`.
+- **Answer:** `open` — the user replaces `open` with the choice. A session that builds the answer
+  deletes the whole question.
+
+The check `no question waits for the user` fails while a line `- **Answer:** open` is left.
+
+### Does a completion file's image show in an editor hover?
+
+- **Gap** — `completion-file-images-are-not-checked-in-an-editor`,
+  `data/gaps/nvs-lsp/completion-file-images-are-not-checked-in-an-editor.json`.
+- **What has to be decided** — Nobody has looked at it. A loop session cannot open VS Code. The
+  hover text already renders, and goal `completion-files` accepted that as the fallback.
+- **Options** —
+  1. *You check it.* Press F5 in `editors/vscode`, open a project with a `.novis/completion/` file
+     whose description has an image link, and hover a completed value. Report "image shows" or
+     "text only". It takes a few minutes. The session writes the result into the module doc, and on
+     "text only" it states the text as the bound.
+  2. *Strike it unchecked.* The module doc says the image was never checked in an editor, and the
+     text fallback is the bound. No work, but the docs then promise nothing about images.
+- **Recommendation** — 1. It is the only way to know, and it costs a few minutes.
+- **Answer:** open
+
+### May the extension offer completion inside `nvs.toml`?
+
+- **Gap** — `route-name-and-directive-completion-are-unbuilt`, `crates/nvs-lsp/src/completion.rs`
+  and `docs/plan/m10.md:208`. Route-name completion is built either way. This question is only the
+  directive half.
+- **What has to be decided** — `rule:ide/the-extension-claims-nvs-only` says the extension registers
+  `.nvs` only. Its reason is not to fight other extensions over `.php`. Directive completion needs a
+  provider in a TOML file.
+- **Options** —
+  1. *A provider for files named `nvs.toml` only.* The extension does not claim the TOML language.
+     It adds one completion provider with the selector `**/nvs.toml`, fed by the directive registry.
+     VS Code merges it with a TOML extension's completion, so nothing is fought over. The rule is
+     rewritten to say so. Cost: one provider and its host test, nothing at run time.
+  2. *Drop directive completion.* It is removed from the rule and from M10's acceptance. No work,
+     but a user writes `nvs.toml` with no help from the editor.
+- **Recommendation** — 1. `nvs.toml` is where most users make their first mistakes, and the
+  provider is small.
+- **Answer:** open
+
+### Are `Core` reference cards held to the plain voice?
+
+- **Gap** — `reference-cards-are-not-held-to-the-plain-voice`, for example
+  `crates/nvs-stdlib/src/objset.rs:157` and `crates/nvs-stdlib/src/math.rs:623`.
+- **What has to be decided** — A card is what `nvs help`, a hover and the website print for a member,
+  so an end user reads it. `AGENTS.md` § *Text an end user reads* does not cover cards today, and
+  many cards use words that section forbids ("holds", "drops").
+- **Options** —
+  1. *Hold cards to it, and rewrite them here.* `rule:core-api/reference-card` points to that
+     section, and sessions rewrite every card by file set. The number of cards to rewrite is not
+     counted. It may be many sessions.
+  2. *Hold cards to it, and rewrite them later.* The rule changes now. The rewrite becomes a gap
+     owned by a milestone at M9 or later, and the cards are fixed when their classes are next
+     touched.
+  3. *Do not hold cards to it.* The rule says cards are exempt. No work, but help, hover and website
+     text read in two voices.
+- **Recommendation** — 2. The rule is right for every card a reader sees. Rewriting all of them is
+  wording work that would delay `performance-pass` without changing any behaviour.
+- **Answer:** open

@@ -135,6 +135,20 @@
       ]
     },
     {
+      "id": "no-question-waits-for-the-user",
+      "kind": "command",
+      "stage": 4,
+      "name": "no question waits for the user",
+      "argv": [
+        "bun",
+        "-e",
+        "const fs=require('fs');const t=fs.readFileSync('docs/agent/goals/goal-closeout.md','utf8');const s=t.slice(t.indexOf('## Questions for the user at the goal end'));const open=s.split(/\\n(?=### )/).slice(1).filter(q=>/^- \\*\\*Answer:\\*\\* open\\s*$/m.test(q)).map(q=>q.split('\\n')[0].slice(4));if(open.length){console.log('questions still open for the user: '+open.join(' | '));process.exit(1)}console.log('no question waits for the user')"
+      ],
+      "want": [
+        "no question waits for the user"
+      ]
+    },
+    {
       "id": "the-goal-switch-deletes-the-goal-it-leaves",
       "kind": "command",
       "stage": 5,
