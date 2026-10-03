@@ -1,0 +1,12 @@
+{
+  "lead": "A served case in `crates/nvs-server/src/serve.rs` cannot tell which socket wait a drain ended, and `nvs_host::run_until_idle` may return with the connection still parked.",
+  "body": "`hyper` reads while a large write is parked, which moves the phase in `crates/nvs-server/src/io.rs` from `Write` to `KeepAlive`, and Windows takes a 32 MiB body in one non-blocking write. Assert a wait's bound on the adapter's stream deadline in `crates/nvs-server/src/io.rs`'s tests, drive a served case with `run_the_core`, and run it in WSL to see a partial write.",
+  "files": [
+    "crates/nvs-server/src/serve.rs",
+    "crates/nvs-server/src/io.rs"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "crates/nvs-server/src/io.rs:a_response_being_written_ends_at_the_drain_periods_end"
+  }
+}
