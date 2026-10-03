@@ -329,7 +329,8 @@ pub use object::{
     read_erased_property_owned, write_erased_property,
 };
 pub use peer::{
-    Closing, Delivery, INBOX_CAP, Inbox, PeerError, PeerFrame, PeerSocket, slow_subscribers_closed,
+    Closing, Delivery, INBOX_CAP, Inbox, PeerError, PeerFrame, PeerSocket, TOPIC_CAP,
+    slow_subscribers_closed,
 };
 pub use string::{
     CAP_OFFSET, COUNT_UNKNOWN, GRAPHEMES_OFFSET, HEADER_ALIGN, IMMORTAL_REFCOUNT, LEN_OFFSET,

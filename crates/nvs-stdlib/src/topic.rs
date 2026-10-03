@@ -49,10 +49,32 @@
 //!
 //! **What it spends:** one map entry per topic that has a live subscriber on
 //! this core, and one [`Weak`] — two words — per subscription. Both are
-//! O(live connections × topics each joined) and neither is O(publishes) or
-//! O(connections served). A topic whose last subscriber went away keeps its
-//! entry only until the next walk of that name, and an empty one is removed
+//! O(live connections × topics each joined), and the next decision caps the
+//! second factor; neither is O(publishes) or O(connections served). A topic
+//! whose last subscriber went away keeps its entry until the next walk of that
+//! name or the next sweep, whichever comes first, and an empty one is removed
 //! rather than left behind.
+//!
+//! # Decision: the table has a ceiling per connection, and a sweep for the rows nobody walks
+//!
+//! The table's bytes are the process's (the next decision), so a connection's
+//! own `[limits] memory` does not bound what it puts here. Two fixed numbers
+//! do: a connection may be in at most [`nvs_runtime::TOPIC_CAP`] rows at once,
+//! and a name is at most [`NAME_CAP`] bytes. Past either, the member throws a
+//! `LogicError` the script can catch, and the table is unchanged. **What it
+//! spends:** at most `TOPIC_CAP × NAME_CAP` bytes of names, plus a row each,
+//! per live connection, which is a quarter of a megabyte and O(live
+//! connections). They are numbers rather than settings because nothing an
+//! application does on purpose comes near either, and a setting is one more
+//! thing an operator can raise past what the table should hold.
+//!
+//! A ceiling on *live* connections alone is not one on the table: a connection
+//! that joins a name nobody else uses and then ends leaves a row of dead
+//! handles that no walk of that name will ever prune. So an insert that finds
+//! the table at twice the size the last sweep left it walks every row, drops
+//! the dead handles and removes the rows left empty. That is O(rows) once per
+//! as many inserts, so O(1) amortized per `subscribe`, and it keeps the table
+//! within twice its live rows, or [`SWEEP_FLOOR`] rows, whichever is larger.
 //!
 //! # Decision: the table's own bytes are the process's, and the inbox behind a `Weak` is not
 //!
@@ -283,9 +305,10 @@ const SUBSCRIBE_DOC: MethodDoc = MethodDoc {
           arrives only once.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "`$topic` is empty, or this script is not a WebSocket connection or an event \
-               stream. Only a script that `Core\\Socket::upgrade` or `Core\\Sse::upgrade` \
-               started can subscribe.",
+        desc: "`$topic` is empty or longer than 256 bytes, or this script is not a WebSocket \
+               connection or an event stream. Only a script that `Core\\Socket::upgrade` or \
+               `Core\\Sse::upgrade` started can subscribe. One connection can join at most 1024 \
+               topics at the same time, so joining one more also throws this error.",
     }],
 };
 
@@ -316,7 +339,8 @@ const PUBLISH_DOC: MethodDoc = MethodDoc {
           is being closed, and `publish` never waits for it.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "`$topic` is empty, or `$value` cannot be copied to another connection, such as an \
+        desc: "`$topic` is empty or longer than 256 bytes, or `$value` cannot be copied to \
+               another connection, such as an \
                object with a `secret` property. The error is thrown even when nobody joined the \
                topic.",
     }],
@@ -334,8 +358,8 @@ const UNSUBSCRIBE_DOC: MethodDoc = MethodDoc {
     ret: "Nothing. Leaving a topic this connection never joined is not an error.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "`$topic` is empty, or this script is not a WebSocket connection or an event \
-               stream. These are the same two errors `subscribe` throws.",
+        desc: "`$topic` is empty or longer than 256 bytes, or this script is not a WebSocket \
+               connection or an event stream. `subscribe` throws the same errors.",
     }],
 };
 
@@ -360,12 +384,19 @@ thread_local! {
         std::cell::RefCell::new(HashMap::new());
 }
 
+/// The longest topic name, in bytes, any of the three members takes — the
+/// other half of the table's ceiling, beside [`nvs_runtime::TOPIC_CAP`]. The
+/// module doc's ceiling decision owns why both are fixed numbers, and why all
+/// three members check it: a name `subscribe` cannot join is one `publish`
+/// could never reach anybody with.
+const NAME_CAP: usize = 256;
+
 /// The topic name an argument carries, checked.
 ///
 /// # Errors
 ///
-/// A `LogicError` for the empty name — the module doc owns why that is the
-/// call's fault and why it is asked first.
+/// A `LogicError` for the empty name and for one longer than [`NAME_CAP`] —
+/// the module doc owns why that is the call's fault and why it is asked first.
 fn topic_of<'a>(argument: &'a Value, member: &str) -> Result<&'a str, Fault> {
     // Unreachable from source: the row declares `string`, so `E0401` refuses
     // every other spelling before this body runs.
@@ -379,6 +410,16 @@ fn topic_of<'a>(argument: &'a Value, member: &str) -> Result<&'a str, Fault> {
         return Err(Fault::thrown_as(
             ThrownClass::Logic,
             format!("`Core\\Topic::{member}` needs a topic name and was given an empty one"),
+        ));
+    }
+    if name.len() > NAME_CAP {
+        return Err(Fault::thrown_as(
+            ThrownClass::Logic,
+            format!(
+                "`Core\\Topic::{member}` takes a topic name of at most {NAME_CAP} bytes and was \
+                 given one of {}",
+                name.len()
+            ),
         ));
     }
     Ok(name)
@@ -424,12 +465,25 @@ fn connection_inbox(ctx: &mut Ctx, member: &str) -> Result<Rc<Inbox>, Fault> {
 /// What the row then holds is reported to [`crate::bus`], because a publisher
 /// on another core counts and reaches this topic through that number and
 /// through nothing else.
-fn join(topic: &str, inbox: &Rc<Inbox>) {
+///
+/// # Errors
+///
+/// A `LogicError` when this would be the connection's topic past
+/// [`nvs_runtime::TOPIC_CAP`]. A topic it already joined is never refused.
+fn join(topic: &str, inbox: &Rc<Inbox>) -> Result<(), Fault> {
     let live = SUBSCRIBERS.with_borrow_mut(|table| {
         let Some(row) = table.get_mut(topic) else {
+            if !inbox.may_join() {
+                return Err(too_many_topics());
+            }
+            if table.len() >= NEXT_SWEEP.get() {
+                sweep(table);
+                NEXT_SWEEP.set(table.len().saturating_mul(2).max(SWEEP_FLOOR));
+            }
             let _bracket = budget::Detached::begin();
             table.insert(Box::from(topic), vec![Rc::downgrade(inbox)]);
-            return 1;
+            inbox.joined();
+            return Ok(1);
         };
         // Outside the bracket on purpose: what this drops is the last handle
         // onto a dead connection's inbox, and that allocation is its own
@@ -439,12 +493,61 @@ fn join(topic: &str, inbox: &Rc<Inbox>) {
             .iter()
             .any(|held| held.upgrade().is_some_and(|live| Rc::ptr_eq(&live, inbox)))
         {
+            if !inbox.may_join() {
+                return Err(too_many_topics());
+            }
             let _bracket = budget::Detached::begin();
             row.push(Rc::downgrade(inbox));
+            inbox.joined();
         }
-        row.len()
-    });
+        Ok(row.len())
+    })?;
     crate::bus::note_subscribers(topic, live);
+    Ok(())
+}
+
+/// `subscribe`'s refusal past [`nvs_runtime::TOPIC_CAP`].
+fn too_many_topics() -> Fault {
+    // no case can reach this: a `.nvst` case is not a connection, so its
+    // `subscribe` throws before the table is reached. The `#[test]`
+    // `a_connection_joins_at_most_its_cap_of_topics` asserts it instead.
+    Fault::thrown_as(
+        ThrownClass::Logic,
+        format!(
+            "`Core\\Topic::subscribe` cannot join more than {} topics on one connection: leave \
+             one with `Core\\Topic::unsubscribe` first",
+            nvs_runtime::TOPIC_CAP
+        ),
+    )
+}
+
+/// The table size below which a new row never sweeps — small enough that a
+/// sweep is cheap, large enough that a server with a few topics never runs one.
+const SWEEP_FLOOR: usize = 64;
+
+thread_local! {
+    /// How many rows the table may reach before the next insert sweeps it:
+    /// twice what the last sweep left, and never under [`SWEEP_FLOOR`].
+    static NEXT_SWEEP: std::cell::Cell<usize> = const { std::cell::Cell::new(SWEEP_FLOOR) };
+}
+
+/// Drops every subscriber whose connection has ended, in every row, and every
+/// row that is left with nobody — the module doc's ceiling decision, for the
+/// rows nobody walks again.
+///
+/// Split the way [`subscribers_of`] splits it, and for the same reason: the
+/// dead handles go back outside the bracket and only the names and rows are
+/// freed inside one.
+fn sweep(table: &mut HashMap<Box<str>, Vec<Weak<Inbox>>>) {
+    for (name, row) in table.iter_mut() {
+        let before = row.len();
+        row.retain(|held| held.strong_count() > 0);
+        if row.len() != before {
+            crate::bus::note_subscribers(name, row.len());
+        }
+    }
+    let _bracket = budget::Detached::begin();
+    table.retain(|_, row| !row.is_empty());
 }
 
 /// Takes `inbox` out of `topic`'s row, and the row out of the table once it
@@ -457,7 +560,18 @@ fn leave(topic: &str, inbox: &Rc<Inbox>) {
         let Some(row) = table.get_mut(topic) else {
             return 0;
         };
-        row.retain(|held| held.upgrade().is_some_and(|live| !Rc::ptr_eq(&live, inbox)));
+        let mut found = false;
+        row.retain(|held| match held.upgrade() {
+            Some(live) if Rc::ptr_eq(&live, inbox) => {
+                found = true;
+                false
+            }
+            Some(_) => true,
+            None => false,
+        });
+        if found {
+            inbox.left();
+        }
         let live = row.len();
         if row.is_empty() {
             // The row holds nothing by now, so what the removal frees is the
@@ -621,7 +735,7 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_topic_subscribe(ctx, args: [1]) {
         let topic = topic_of(&args[0], "subscribe")?;
         let inbox = connection_inbox(ctx, "subscribe")?;
-        join(topic, &inbox);
+        join(topic, &inbox)?;
         Ok(Value::null())
     }
 }
@@ -787,40 +901,124 @@ mod tests {
     /// measured by a row it did not allocate and did not free.
     ///
     /// `rule:concurrency/a-cross-request-stores-bytes-are-its-own-balance` asked
-    /// of this module's half of the bus. The name is long enough that a charge
-    /// for it cannot hide in the noise of a call: the process's balance takes it
-    /// and the connection's does not, and the unsubscribe gives it back to the
-    /// same balance rather than crediting whichever connection happened to be
-    /// the last one out. The module doc's accounting decision is why the prune
-    /// beside it is deliberately outside the bracket.
+    /// of this module's half of the bus. The names add up to enough that a
+    /// charge for them cannot hide in the noise of the calls: the process's
+    /// balance takes them and the connection's does not, and the unsubscribes
+    /// give them back to the same balance rather than crediting whichever
+    /// connection happened to be the last one out. The module doc's accounting
+    /// decision is why the prune beside it is deliberately outside the bracket.
     #[test]
     fn a_subscription_is_charged_to_the_process_and_not_to_the_connection() {
-        /// A name long enough to show through what a call allocates around it.
-        const NAME: usize = 256 * 1024;
+        /// How many names, each as long as a name may be.
+        const NAMES: usize = 512;
+        const TOTAL: usize = NAMES * super::NAME_CAP;
 
-        let name = format!("room:{}", "n".repeat(NAME));
+        let names: Vec<String> = (0..NAMES)
+            .map(|i| format!("{i:05}:{}", "n".repeat(super::NAME_CAP - 6)))
+            .collect();
         let mut joining = connected();
         let live = budget::live_bytes();
         let held = budget::detached_bytes();
-        call(nvs_core_topic_subscribe, &mut joining, &name).expect("it joins");
+        for name in &names {
+            call(nvs_core_topic_subscribe, &mut joining, name).expect("it joins");
+        }
 
         assert!(
-            budget::detached_bytes() - held >= NAME.cast_signed(),
-            "the row's name reached no balance at all, so nothing holds it to the process"
+            budget::detached_bytes() - held >= TOTAL.cast_signed(),
+            "the rows' names reached no balance at all, so nothing holds them to the process"
         );
         assert!(
-            budget::live_bytes() - live < NAME.cast_signed(),
-            "the connection was charged for a table row that outlives it"
+            budget::live_bytes() - live < TOTAL.cast_signed(),
+            "the connection was charged for table rows that outlive it"
         );
 
         let stored = budget::detached_bytes();
-        call(nvs_core_topic_unsubscribe, &mut joining, &name).expect("and leaves");
+        for name in &names {
+            call(nvs_core_topic_unsubscribe, &mut joining, name).expect("and leaves");
+        }
         assert!(
-            budget::detached_bytes() <= stored - NAME.cast_signed(),
-            "the row was freed on some balance other than the one it was allocated on, so a \
-             connection that prunes a name is credited for bytes it never held"
+            budget::detached_bytes() <= stored - TOTAL.cast_signed(),
+            "the rows were freed on some balance other than the one they were allocated on, so \
+             a connection that prunes a name is credited for bytes it never held"
         );
-        assert_eq!(subscriber_count(&name), 0, "and the row is gone");
+        assert_eq!(subscriber_count(&names[0]), 0, "and the rows are gone");
+    }
+
+    /// `nvs_runtime::TOPIC_CAP` topics join, the next one throws, a topic
+    /// already joined still joins, and leaving one makes room for another.
+    #[test]
+    fn a_connection_joins_at_most_its_cap_of_topics() {
+        let mut ctx = connected();
+        for i in 0..nvs_runtime::TOPIC_CAP {
+            call(nvs_core_topic_subscribe, &mut ctx, &format!("cap:{i}")).expect("under the cap");
+        }
+        assert!(
+            call(nvs_core_topic_subscribe, &mut ctx, "cap:one-more").is_err(),
+            "one topic past the cap joined"
+        );
+        assert_eq!(
+            subscriber_count("cap:one-more"),
+            0,
+            "and the refusal left no row"
+        );
+        call(nvs_core_topic_subscribe, &mut ctx, "cap:0").expect("a topic already joined");
+
+        call(nvs_core_topic_unsubscribe, &mut ctx, "cap:0").expect("it leaves");
+        call(nvs_core_topic_subscribe, &mut ctx, "cap:one-more").expect("and that makes room");
+
+        // A second connection has a cap of its own.
+        let mut other = connected();
+        call(nvs_core_topic_subscribe, &mut other, "cap:1").expect("another connection joins");
+        for i in 0..nvs_runtime::TOPIC_CAP {
+            call(nvs_core_topic_unsubscribe, &mut ctx, &format!("cap:{i}")).expect("it leaves");
+        }
+        call(nvs_core_topic_unsubscribe, &mut ctx, "cap:one-more").expect("it leaves");
+    }
+
+    /// A name of `NAME_CAP` bytes is taken by all three members, and one byte
+    /// more is refused by each of them.
+    #[test]
+    fn a_name_past_the_cap_is_refused_by_every_member() {
+        let fits = "f".repeat(super::NAME_CAP);
+        let long = "l".repeat(super::NAME_CAP + 1);
+        let mut ctx = connected();
+
+        call(nvs_core_topic_subscribe, &mut ctx, &fits).expect("the longest name joins");
+        assert_eq!(publish(&mut ctx, &fits, "hi"), Ok(1), "and is published to");
+        call(nvs_core_topic_unsubscribe, &mut ctx, &fits).expect("and is left");
+        drained(&mut ctx, &fits);
+
+        assert!(
+            call(nvs_core_topic_subscribe, &mut ctx, &long).is_err(),
+            "subscribe took it"
+        );
+        assert!(publish(&mut ctx, &long, "hi").is_err(), "publish took it");
+        assert!(
+            call(nvs_core_topic_unsubscribe, &mut ctx, &long).is_err(),
+            "unsubscribe took it"
+        );
+        assert_eq!(subscriber_count(&long), 0, "and no row was made");
+    }
+
+    /// A row whose only subscriber ended, under a name nobody walks again, is
+    /// removed by a later insert's sweep — so the table stays O(live
+    /// connections) and not O(connections served).
+    #[test]
+    fn a_row_nobody_walks_again_is_swept() {
+        for i in 0..(super::SWEEP_FLOOR * 4) {
+            let mut gone = connected();
+            call(nvs_core_topic_subscribe, &mut gone, &format!("swept:{i}")).expect("it joins");
+        }
+        let rows = super::SUBSCRIBERS.with_borrow(|table| {
+            table
+                .keys()
+                .filter(|name| name.starts_with("swept:"))
+                .count()
+        });
+        assert!(
+            rows <= super::SWEEP_FLOOR * 2,
+            "{rows} rows of ended connections are still in the table"
+        );
     }
 
     /// One `publish` call, with the name and a text payload as arguments, and

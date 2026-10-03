@@ -1,0 +1,33 @@
+--TEST--
+All three `Core\Topic` members refuse a name longer than 256 bytes, and take one of exactly 256 — `rule:core-classes/topic`
+--FILE--
+<?nvs
+// The name is checked before the connection, so `subscribe` and `unsubscribe`
+// report the long name here and not that this case is no connection. A name
+// of exactly 256 bytes is taken: nobody joined it, so `publish` returns 0.
+var $long = Core\Str::repeat("x", 257);
+
+try {
+    Core\Topic::subscribe($long);
+} catch (LogicError $refused) {
+    echo $refused->message, "\n";
+}
+
+try {
+    Core\Topic::publish($long, "anything");
+} catch (LogicError $refused) {
+    echo $refused->message, "\n";
+}
+
+try {
+    Core\Topic::unsubscribe($long);
+} catch (LogicError $refused) {
+    echo $refused->message, "\n";
+}
+
+echo Core\Topic::publish(Core\Str::repeat("x", 256), "anything"), "\n";
+--EXPECT--
+`Core\Topic::subscribe` takes a topic name of at most 256 bytes and was given one of 257
+`Core\Topic::publish` takes a topic name of at most 256 bytes and was given one of 257
+`Core\Topic::unsubscribe` takes a topic name of at most 256 bytes and was given one of 257
+0

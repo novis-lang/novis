@@ -152,6 +152,18 @@ impl Delivery {
 /// and not a burst.
 pub const INBOX_CAP: usize = 256;
 
+/// How many topics one connection may have joined at once before the next
+/// `subscribe` is refused.
+///
+/// The topic table's rows are the process's bytes rather than the connection's
+/// (`nvs_stdlib::topic` owns why), so the connection's own memory limit does not
+/// bound them, and this does. Together with the bound on a name's length it caps
+/// what one live connection can put in the table, which keeps the table
+/// O(live connections). 1024 is far more than an application joins on purpose
+/// — a room, a user, a few feeds — and reaching it means a loop is subscribing
+/// to names it builds.
+pub const TOPIC_CAP: usize = 1024;
+
 thread_local! {
     /// How many subscribers this core has closed for overflowing — § 4's "a
     /// metric increments", read back by [`slow_subscribers_closed`].
@@ -220,6 +232,11 @@ pub struct Inbox {
     /// **What it spends:** one pointer pair per connection that has ever
     /// subscribed or been published to, and nothing on a request.
     waiting: std::cell::RefCell<Option<crate::host::Waker>>,
+    /// How many topics this connection has joined and not left — the count
+    /// [`TOPIC_CAP`] bounds. The topic table moves it with [`Self::joined`] and
+    /// [`Self::left`], and nothing else does, so a row this connection is in is
+    /// counted exactly once.
+    topics: std::cell::Cell<usize>,
 }
 
 impl std::fmt::Debug for Inbox {
@@ -232,6 +249,7 @@ impl std::fmt::Debug for Inbox {
             .field("queued", &self.queue.borrow().len())
             .field("overflowed", &self.overflowed.get())
             .field("parked", &self.waiting.borrow().is_some())
+            .field("topics", &self.topics.get())
             .finish()
     }
 }
@@ -324,6 +342,23 @@ impl Inbox {
     #[must_use]
     pub fn pop(&self) -> Option<Delivery> {
         self.queue.borrow_mut().pop_front()
+    }
+
+    /// Whether this connection may join one more topic — [`TOPIC_CAP`]'s test,
+    /// asked before the table allocates anything for the new row.
+    #[must_use]
+    pub fn may_join(&self) -> bool {
+        self.topics.get() < TOPIC_CAP
+    }
+
+    /// Counts one topic this connection has just been put in the row of.
+    pub fn joined(&self) {
+        self.topics.set(self.topics.get().saturating_add(1));
+    }
+
+    /// Counts one topic this connection has just been taken out of the row of.
+    pub fn left(&self) {
+        self.topics.set(self.topics.get().saturating_sub(1));
     }
 
     /// How many deliveries are waiting — § 4's bounded queue reads this, and
