@@ -366,7 +366,7 @@ thread_local! {
 ///
 /// A `LogicError` for the empty name — the module doc owns why that is the
 /// call's fault and why it is asked first.
-fn topic_of(argument: &Value, member: &str) -> Result<String, Fault> {
+fn topic_of<'a>(argument: &'a Value, member: &str) -> Result<&'a str, Fault> {
     // Unreachable from source: the row declares `string`, so `E0401` refuses
     // every other spelling before this body runs.
     let name = argument.as_text().ok_or_else(|| {
@@ -381,7 +381,7 @@ fn topic_of(argument: &Value, member: &str) -> Result<String, Fault> {
             format!("`Core\\Topic::{member}` needs a topic name and was given an empty one"),
         ));
     }
-    Ok(name.to_owned())
+    Ok(name)
 }
 
 /// This connection's delivery queue, for the member that is about to put it in
@@ -621,7 +621,7 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_topic_subscribe(ctx, args: [1]) {
         let topic = topic_of(&args[0], "subscribe")?;
         let inbox = connection_inbox(ctx, "subscribe")?;
-        join(&topic, &inbox);
+        join(topic, &inbox);
         Ok(Value::null())
     }
 }
@@ -646,7 +646,7 @@ nvs_runtime::nvs_helper! {
     /// those cores reported, which is this module's fourth decision.
     fn nvs_core_topic_publish(_ctx, args: [2]) {
         let topic = topic_of(&args[0], "publish")?;
-        let subscribers = subscribers_of(&topic);
+        let subscribers = subscribers_of(topic);
         let mut first = Some(cross(args[1])?);
         let mut delivered: u64 = 0;
         for inbox in &subscribers {
@@ -669,7 +669,7 @@ nvs_runtime::nvs_helper! {
             // this core is the only one that pushes into its own subscribers'
             // queues, and neither call suspends — so the refusal is written for
             // the ownership rule rather than for a path a publish reaches.
-            if let Some(refused) = inbox.push(Delivery::new(topic.as_str(), copy)) {
+            if let Some(refused) = inbox.push(Delivery::new(topic, copy)) {
                 release_crossed(refused.into_value());
                 continue;
             }
@@ -678,8 +678,8 @@ nvs_runtime::nvs_helper! {
         if let Some(unused) = first {
             release_crossed(unused);
         }
-        if crate::bus::subscribers_elsewhere(&topic) > 0 {
-            delivered += crate::bus::hand_off(&topic, externalize(args[1])?);
+        if crate::bus::subscribers_elsewhere(topic) > 0 {
+            delivered += crate::bus::hand_off(topic,externalize(args[1])?);
         }
         Ok(Value::uint(delivered))
     }
@@ -695,7 +695,7 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_topic_unsubscribe(ctx, args: [1]) {
         let topic = topic_of(&args[0], "unsubscribe")?;
         let inbox = connection_inbox(ctx, "unsubscribe")?;
-        leave(&topic, &inbox);
+        leave(topic, &inbox);
         Ok(Value::null())
     }
 }
