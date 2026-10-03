@@ -115,8 +115,8 @@ fn node_of(value: Value, caps: &Caps, depth: usize, seen: &mut Seen) -> Node {
     match value.tag() {
         None | Some(Tag::Null) | Some(Tag::Unset) => Node::Scalar(Scalar::Null),
         Some(Tag::Bool) => Node::Scalar(Scalar::Bool(value.as_bool() == Some(true))),
-        Some(Tag::Int) => Node::Scalar(Scalar::Int(value.as_int().unwrap_or(0))),
-        Some(Tag::Uint) => Node::Scalar(Scalar::Uint(value.as_uint().unwrap_or(0))),
+        Some(Tag::Int | Tag::EnumInt) => Node::Scalar(Scalar::Int(value.as_int().unwrap_or(0))),
+        Some(Tag::Uint | Tag::EnumUint) => Node::Scalar(Scalar::Uint(value.as_uint().unwrap_or(0))),
         Some(Tag::Float) => Node::Scalar(Scalar::Float(value.as_float().unwrap_or(f64::NAN))),
         Some(Tag::Decimal) => Node::Scalar(Scalar::Decimal(
             value

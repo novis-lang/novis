@@ -28,8 +28,9 @@ through the `int → float` widening (`rule:types/implicit-widening`): `float $a
 An operand whose static type names no row — `mixed`, a union, the `int|float` a division returns — is
 answered from its runtime **tag**: the rows above where the tags name one, and the same refusal as a
 *catchable throw* where they do not, carrying the diagnostic's own wording. A union that can hold an
-enum case is the exception and is refused where it is written, because a case carries its backing
-integer's tag (`rule:enums/representation`) and no tag test can tell it from a number.
+enum case is the exception and is refused where it is written: a case reaches arithmetic only
+through `as int` or `as uint`, and a tagged operand's arithmetic reads a case as its backing integer
+(`rule:enums/representation`).
 
 Overflow throwing is the divergence this table is least willing to trade. A silent promotion to
 `float` changes a binding's type behind its declaration, and a silent wrap is the classic

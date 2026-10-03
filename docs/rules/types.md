@@ -259,14 +259,15 @@ through the `int → float` widening ([`types/implicit-widening`](types.md#types
 An operand whose static type names no row — `mixed`, a union, the `int|float` a division returns — is
 answered from its runtime **tag**: the rows above where the tags name one, and the same refusal as a
 *catchable throw* where they do not, carrying the diagnostic's own wording. A union that can hold an
-enum case is the exception and is refused where it is written, because a case carries its backing
-integer's tag ([`enums/representation`](enums.md#enums-representation)) and no tag test can tell it from a number.
+enum case is the exception and is refused where it is written: a case reaches arithmetic only
+through `as int` or `as uint`, and a tagged operand's arithmetic reads a case as its backing integer
+([`enums/representation`](enums.md#enums-representation)).
 
 Overflow throwing is the divergence this table is least willing to trade. A silent promotion to
 `float` changes a binding's type behind its declaration, and a silent wrap is the classic
 size-computation bug. Code that wants unbounded magnitude declares `float`, or converts.
 
-<sub>See also [`types/ordering`](types.md#types-ordering), [`types/uint`](types.md#types-uint), [`types/decimal`](types.md#types-decimal), [`types/implicit-widening`](types.md#types-implicit-widening). Decided in [0007](../decisions/0007.md), [0054](../decisions/0054.md), [0010](../decisions/0010.md), [0035](../decisions/0035.md).</sub>
+<sub>See also [`types/ordering`](types.md#types-ordering), [`types/uint`](types.md#types-uint), [`types/decimal`](types.md#types-decimal), [`types/implicit-widening`](types.md#types-implicit-widening). Decided in [0007](../decisions/0007.md), [0054](../decisions/0054.md), [0010](../decisions/0010.md), [0035](../decisions/0035.md), [0261](../decisions/0261.md).</sub>
 
 <a id="types-implicit-widening"></a>
 
@@ -890,9 +891,9 @@ if ($m is int) {
 `array<T>` with a named element type, and a shape, each cost an O(n) walk — the same walk
 `as array<T>` already performs, in a spelling that answers instead of throwing. An enum is its cases:
 `$x is Rank` answers exactly what asking every `$x is Rank::Case` in turn answers, at one payload
-compare per case, and [`enums/representation`](enums.md#enums-representation) owns what that can tell apart — a value that reached
-`mixed` is its backing integer, so a case is not distinguishable there from that integer nor from
-another enum's case of the same value. Every other row is one tag comparison, or the descriptor walk
+compare per case after one tag comparison, and [`enums/representation`](enums.md#enums-representation) owns what that can tell
+apart — a case that reached `mixed` carries an enum tag, so it is told apart from an integer, but not
+from another enum's case of the same value and backing. Every other row is one tag comparison, or the descriptor walk
 the class-test instruction performs.
 
 There is no float literal type to test against ([`types/literal-types`](types.md#types-literal-types)), so `$x is 3.14` is
@@ -950,7 +951,7 @@ migration spelling. `string` and `bytes` are separate the same way
 `is` is simply the first spelling that makes them reachable from a mechanical rewrite of PHP source.
 What that rewrite does with PHP's own class-test operator is [`php-migration/one-type-test`](php-migration.md#php-migration-one-type-test)'s.
 
-<sub>See also [`types/narrowing`](types.md#types-narrowing), [`types/conversion`](types.md#types-conversion), [`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`types/literal-types`](types.md#types-literal-types), [`types/class-reference-sites`](types.md#types-class-reference-sites), [`php-migration/one-type-test`](php-migration.md#php-migration-one-type-test). Decided in [0150](../decisions/0150.md), [0192](../decisions/0192.md).</sub>
+<sub>See also [`types/narrowing`](types.md#types-narrowing), [`types/conversion`](types.md#types-conversion), [`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`types/literal-types`](types.md#types-literal-types), [`types/class-reference-sites`](types.md#types-class-reference-sites), [`php-migration/one-type-test`](php-migration.md#php-migration-one-type-test). Decided in [0150](../decisions/0150.md), [0192](../decisions/0192.md), [0261](../decisions/0261.md).</sub>
 
 <a id="types-narrowing"></a>
 

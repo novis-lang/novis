@@ -253,12 +253,10 @@ pub enum Ty {
     /// Not refcounted, no allocation, no descriptor: `rule:enums/no-class-machinery`'s "a case is
     /// an integer constant, inlined at every use site."
     ///
-    /// Materialized into a `nvs_runtime::Value` it takes `Tag::Int`/`Tag::Uint`
-    /// rather than a tag of its own, which `rule:enums/representation` does reserve. The tag
-    /// only has to answer "which type is this?" for a value whose static type
-    /// is *not* known — the `mixed` case — and that is the same still-open
-    /// representation question [`Self::Tagged`] names. Deciding an enum's tag
-    /// ahead of it would be deciding half of it twice.
+    /// Materialized into a `nvs_runtime::Value` it takes a tag of its own,
+    /// `Tag::EnumInt` or `Tag::EnumUint` over the same payload
+    /// (`rule:enums/representation`), so the same rule still holds once the
+    /// static type is gone.
     Enum(EnumRepr),
     /// The address of one 16-byte `nvs_runtime::Value` cell — what a `&T`
     /// parameter is, and the only thing this representation is ever used for.

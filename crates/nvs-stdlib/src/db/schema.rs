@@ -67,8 +67,8 @@ fn node_of(value: Value, at: &str, depth: usize) -> Result<nvs_db::schema::Node,
     };
     match value.tag() {
         Some(Tag::Bool) => Ok(Node::Bool(value.as_bool() == Some(true))),
-        Some(Tag::Int) => Ok(Node::Int(value.as_int().unwrap_or(0))),
-        Some(Tag::Uint) => Ok(Node::Uint(value.as_uint().unwrap_or(0))),
+        Some(Tag::Int | Tag::EnumInt) => Ok(Node::Int(value.as_int().unwrap_or(0))),
+        Some(Tag::Uint | Tag::EnumUint) => Ok(Node::Uint(value.as_uint().unwrap_or(0))),
         Some(Tag::Float) => Ok(Node::Float(value.as_float().unwrap_or(f64::NAN))),
         // A name and a type spelling are both text, and both are compared byte
         // for byte further down — so a string that is not UTF-8 is refused here

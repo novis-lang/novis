@@ -4332,17 +4332,19 @@ pub fn param_tag_nibble(ty: Ty) -> u8 {
         // declared type, and an `inout $x` parameter is refused before it gets here.
         Ty::Null | Ty::Ref | Ty::ClassDesc => 0,
         Ty::Bool => 1,
-        // `rule:enums/closed-integer-type`'s enum travels as its backing integer, tag included, so
-        // these two rows are why an enum and its backing type are one
-        // representation here and two enums over one backing are as well —
-        // `tests/conformance/core/arr-a-callback-enum-parameter-is-its-backing-integer.nvst`
-        // pins the agreement, and the `int`/`uint` split that keeps it exact.
-        Ty::Int | Ty::Enum(EnumRepr::Int) => 2,
-        Ty::Uint | Ty::Enum(EnumRepr::Uint) => 3,
+        Ty::Int => 2,
+        Ty::Uint => 3,
         Ty::Float => 4,
         Ty::Str => 5,
         Ty::Array => 6,
         Ty::Object => 7,
+        // `rule:enums/representation`'s enum tags, one per backing type. The
+        // tag names no enum, so two enums over one backing pass each other's
+        // check —
+        // `tests/conformance/core/arr-a-callback-enum-parameter-checks-the-enum-tag.nvst`
+        // pins both halves.
+        Ty::Enum(EnumRepr::Int) => 8,
+        Ty::Enum(EnumRepr::Uint) => 9,
         Ty::Decimal => 10,
         Ty::Bytes => 11,
         // `Tagged` accepts every tag by construction. `Void` is not a value

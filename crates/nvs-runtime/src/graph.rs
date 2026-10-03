@@ -236,9 +236,14 @@ fn walk<C: Carrier>(
         ))
     })?;
     match tag {
-        Tag::Null | Tag::Bool | Tag::Int | Tag::Uint | Tag::Float | Tag::Decimal => {
-            Ok(carrier.scalar(value))
-        }
+        Tag::Null
+        | Tag::Bool
+        | Tag::Int
+        | Tag::Uint
+        | Tag::EnumInt
+        | Tag::EnumUint
+        | Tag::Float
+        | Tag::Decimal => Ok(carrier.scalar(value)),
         Tag::Str | Tag::Bytes => {
             let adopt = carrier.adopt(value);
             // The borrow ends with this call: `as_str_bytes` reads the

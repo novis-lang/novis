@@ -1,0 +1,16 @@
+{
+  "title": "An enum case in a tagged value carries an enum tag of its own, one per backing type, over its backing integer's payload",
+  "status": "accepted",
+  "scope": "the runtime tag an enum case takes once it is materialized into a 16-byte value, and which readers of a tagged value\nsee it. What an enum costs where its static type is known is [0010](0010.md)'s and is unchanged.",
+  "dependsOn": [
+    "0010",
+    "0035",
+    "0150"
+  ],
+  "validatedBy": "`tests/conformance/enum/a-case-backed-by-zero-in-a-mixed-is-truthy-and-not-an-int.nvst` and\n`tests/conformance/core/arr-a-callback-enum-parameter-checks-the-enum-tag.nvst`.",
+  "summary": {
+    "group": "types",
+    "headline": "An enum case in a `mixed` is still an enum case",
+    "body": "An enum case that you put in a `mixed` variable or an `array<mixed>` is always truthy, as it is\neverywhere else. `$value is int` is `false` for it, and `$value is Signal` is `true`. A callback\nparameter typed as an enum accepts an enum case and throws an error for a plain `int`."
+  }
+}

@@ -74,12 +74,11 @@ echo "held=", $held, "/3\n";
 // 2. Every falsy row of `rule:expressions/truthy-table`'s table that is *not* `null`: both
 // integer zeroes (the `uint` one comes from `Core\Arr::count`, which is the
 // only way to name one here without a literal), both float zeroes, the empty
-// string and the one-character `"0"` the string row also calls falsy, `false`,
-// the empty array, and an enum case backed by `0` -- `rule:enums/truthiness` is why that
-// last one is worth a row at all. Each must *fail*, and the falsy count is
-// asserted beside it so a member that quietly grew the truthy table's reading
-// cannot pass both halves.
-array<mixed> $falsy = [0, Core\Arr::count($empty), 0.0, -0.0, "", "0", false, [], Level::Off];
+// string and the one-character `"0"` the string row also calls falsy, `false`
+// and the empty array. Each must *fail*, and the falsy count is asserted beside
+// it so a member that quietly grew the truthy table's reading cannot pass both
+// halves.
+array<mixed> $falsy = [0, Core\Arr::count($empty), 0.0, -0.0, "", "0", false, []];
 
 int $falsyFailed = 0;
 int $wereFalsy = 0;
@@ -91,13 +90,15 @@ foreach ($falsy as mixed $isFalsy) {
         $wereFalsy = $wereFalsy + 1;
     }
 }
-echo "falsyFailed=", $falsyFailed, "/9 wereFalsy=", $wereFalsy, "/9\n";
+echo "falsyFailed=", $falsyFailed, "/8 wereFalsy=", $wereFalsy, "/8\n";
 
 // 3. The other side of the same boundary: a truthy subject fails identically,
 // so "failed" is never the falsy table's answer being reported under another
 // name. `"0.0"` and a one-element array are the two rows PHP readers most often
 // expect to go the other way -- `rule:expressions/truthy-table` lists both as truthy.
-array<mixed> $truthy = [1, "a", true, [0], "0.0", Level::On];
+// So is an enum case backed by `0`, here as in every condition
+// (`rule:enums/truthiness`), because it keeps its own tag in a `mixed`.
+array<mixed> $truthy = [1, "a", true, [0], "0.0", Level::On, Level::Off];
 
 int $truthyFailed = 0;
 int $wereTruthy = 0;
@@ -109,7 +110,7 @@ foreach ($truthy as mixed $isTruthy) {
         $wereTruthy = $wereTruthy + 1;
     }
 }
-echo "truthyFailed=", $truthyFailed, "/6 wereTruthy=", $wereTruthy, "/6\n";
+echo "truthyFailed=", $truthyFailed, "/7 wereTruthy=", $wereTruthy, "/7\n";
 
 // 4. The agreement, over all eighteen subjects at once: `assertNull($x)` holds
 // exactly where `assertSame($x, null)` holds. The verdicts are compared rather
@@ -144,8 +145,8 @@ echo Ask::reported([]), "\n";
 echo Ask::reported(false), "\n";
 --EXPECT--
 held=3/3
-falsyFailed=9/9 wereFalsy=9/9
-truthyFailed=6/6 wereTruthy=6/6
+falsyFailed=8/8 wereFalsy=8/8
+truthyFailed=7/7 wereTruthy=7/7
 agreed=18/18
 Core\Test::assertNull failed: `$actual` is 0
 Core\Test::assertNull failed: `$actual` is 0

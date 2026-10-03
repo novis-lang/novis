@@ -93,14 +93,11 @@ pub(crate) fn tag_of(ty: Ty) -> Result<Tag, CodegenError> {
         // The one representation whose tag is the whole of it — see
         // `nvs_ir::Ty::Null`.
         Ty::Null => Tag::Null,
-        // `rule:enums/representation` reserves a tag of its own for an enum; this uses the
-        // backing type's instead, deliberately. A tag only has to answer
-        // "which type is this?" where the static type does not — the `mixed`
-        // case below, whose representation is still open. Deciding an enum's
-        // tag before that would be deciding half the same question twice.
-        // `nvs_ir::Ty::Enum`'s own doc comment records this.
-        Ty::Enum(EnumRepr::Int) => Tag::Int,
-        Ty::Enum(EnumRepr::Uint) => Tag::Uint,
+        // `rule:enums/representation`: a case in a tagged value carries an enum
+        // tag of its own, one per backing type, so a `mixed` tells it from an
+        // integer and judges it truthy. The payload is the backing integer's.
+        Ty::Enum(EnumRepr::Int) => Tag::EnumInt,
+        Ty::Enum(EnumRepr::Uint) => Tag::EnumUint,
         Ty::Array => Tag::Array,
         Ty::Object => Tag::Object,
         // Not an Novis value at all: a class descriptor rides in the payload

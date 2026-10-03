@@ -1,0 +1,89 @@
+--TEST--
+A closure parameter declaring an enum is checked against the enum tag of its backing type, so an enum is told apart from its backing integer and the two backings from each other, while two enums with one backing are not told apart — `rule:enums/representation` and `rule:types/conversion`
+--FILE--
+<?nvs
+// `nvs_ir::lower::param_tag_nibble` gives an enum parameter the enum tag of
+// its backing type. The tag names no enum, so `Mode` and `Level` pass each
+// other's check, and it names the backing, so `Weight` is told apart.
+enum Mode: int {
+    Read = 1,
+    Write = 2,
+}
+// A second `int`-backed enum sharing nothing with `Mode` but its backing.
+enum Level: int {
+    Low = 1,
+    High = 2,
+}
+// The same set of cases over the other backing.
+enum Weight: uint {
+    Light = 1,
+    Heavy = 2,
+}
+
+// Nine declarations, asked of every subject in the same order. Handing a
+// closure to a `Core` member's `callable` option is the runtime's own call,
+// which is what runs the check.
+array<callable> $decls = [
+    fn (Mode $v, string $k) => true,
+    fn (Level $v, string $k) => true,
+    fn (Weight $v, string $k) => true,
+    fn (int $v, string $k) => true,
+    fn (uint $v, string $k) => true,
+    fn (string $v, string $k) => true,
+    fn (bool $v, string $k) => true,
+    // `rule:types/conversion`'s one implicit widening takes an `int` or a
+    // `uint` and nothing else, so an enum case is not widened.
+    fn (float $v, string $k) => true,
+    // The one unchecked position, the control that accepts every subject.
+    fn (mixed $v, string $k) => true,
+];
+
+array<Mode> $modes = [Mode::Read, Mode::Write];
+array<int> $ints = [7, 8];
+array<Weight> $weights = [Weight::Light, Weight::Heavy];
+// The elements are converted rather than written as bare literals: an integer
+// literal in an array-literal element position keeps the `int` representation
+// whatever the array's declared element type says.
+array<uint> $uints = [7 as uint, 8 as uint];
+
+// `y` is "the member ran", `n` is "the call threw `LogicError`". `unique`
+// calls `by` once per element, through its option bag's unchecked `callable`.
+var $a = "";
+foreach ($decls as callable $d) {
+    try { Core\Arr::unique($modes, {by: $d}); $a = $a . "y"; }
+    catch (LogicError $e) { $a = $a . "n"; }
+}
+var $b = "";
+foreach ($decls as callable $d) {
+    try { Core\Arr::unique($ints, {by: $d}); $b = $b . "y"; }
+    catch (LogicError $e) { $b = $b . "n"; }
+}
+var $c = "";
+foreach ($decls as callable $d) {
+    try { Core\Arr::unique($weights, {by: $d}); $c = $c . "y"; }
+    catch (LogicError $e) { $c = $c . "n"; }
+}
+var $u = "";
+foreach ($decls as callable $d) {
+    try { Core\Arr::unique($uints, {by: $d}); $u = $u . "y"; }
+    catch (LogicError $e) { $u = $u . "n"; }
+}
+echo $a, "\n", $b, "\n", $c, "\n", $u, "\n";
+
+// A case reaches a parameter of the other enum as the `1` it is. The closed
+// set `as Mode` tests belongs to the conversion, and a `callable`'s parameter
+// is not one.
+echo Core\Str::join(Core\Arr::keys(Core\Arr::countBy($modes, {by: fn (Level $v, string $k) => ($v as int) as string})), ","), "\n";
+// An `int` does not reach a `Mode` parameter, and the error names both types.
+try {
+    Core\Arr::countBy($ints, {by: fn (Mode $v, string $k) => ($v as int) as string});
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}
+--EXPECT--
+yynnnnnny
+nnnynnnyy
+nnynnnnny
+nnnnynnyy
+1,2
+argument 1 to a `callable` must be of type enum, int given

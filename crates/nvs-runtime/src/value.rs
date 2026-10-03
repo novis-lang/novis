@@ -30,11 +30,12 @@ use crate::string::{NvsStr, StrHeader};
 /// Which of the runtime's representations a [`Value`]'s payload is.
 ///
 /// The roster is the plan's § *Value representation*, and every entry on it
-/// has a representation behind it. Discriminants 8 and 9 are holes, left open
-/// rather than closed up: `nvs_ir::lower::param_tag_nibble` writes these
-/// numbers down in a crate that cannot name this type, and compiled code
-/// embeds them, so a discriminant that moves moves in two crates at once and
-/// in every artifact already built against the old one.
+/// has a representation behind it. A discriminant never moves:
+/// `nvs_ir::lower::param_tag_nibble` writes these numbers down in a crate that
+/// cannot name this type, and compiled code embeds them, so a discriminant
+/// that moves moves in two crates at once and in every artifact already built
+/// against the old one. Every discriminant is also below 15, the nibble
+/// `nvs_ir::lower::FN_PARAM_TAG_ANY` keeps for "any tag".
 /// [`Self::Unset`] is not on that roster at all: it is a storage
 /// state rather than a value, and its own doc comment says why it lives here.
 #[repr(u8)]
@@ -70,7 +71,17 @@ pub enum Tag {
     /// context's table, for the reason `nvs_stdlib::instance`'s module doc
     /// gives, so neither shape is a row of its own here.
     Object = 7,
-    /// `decimal` — `rule:types/decimal`'s
+    /// A case of an `int`-backed enum; the payload is the case's `i64`, exactly
+    /// as [`Self::Int`]'s is (`rule:enums/representation`).
+    ///
+    /// Only a reader that asks *which type* a value is sees this tag:
+    /// [`Value::exact_tag`]. [`Value::tag`] answers [`Self::Int`] for it, so
+    /// every reader that decodes a payload reads a case as its backing integer.
+    EnumInt = 8,
+    /// A case of a `uint`-backed enum; the payload is the case's `u64`, read
+    /// as [`Self::Uint`] by [`Value::tag`] for [`Self::EnumInt`]'s reason.
+    EnumUint = 9,
+    /// `decimal` —`rule:types/decimal`'s
     /// scalar, and the one tag whose value does **not** fit in the payload
     /// alone: its 96-bit mantissa spans the padding bytes too, so a `decimal`
     /// is the whole sixteen bytes rather than a tag plus eight. See
@@ -124,7 +135,8 @@ impl Tag {
             5 => Self::Str,
             6 => Self::Array,
             7 => Self::Object,
-            // 8 and 9 are the roster's holes — see [`Tag`]'s own docs.
+            8 => Self::EnumInt,
+            9 => Self::EnumUint,
             10 => Self::Decimal,
             11 => Self::Bytes,
             12 => Self::Unset,
@@ -151,6 +163,7 @@ impl Tag {
             Self::Str => "string",
             Self::Array => "array",
             Self::Object => "object",
+            Self::EnumInt | Self::EnumUint => "enum",
             Self::Decimal => "decimal",
             Self::Bytes => "bytes",
             // The one entry that is not a Novis type name, because the
@@ -165,6 +178,17 @@ impl Tag {
     #[must_use]
     pub const fn is_refcounted(self) -> bool {
         matches!(self, Self::Str | Self::Bytes | Self::Array | Self::Object)
+    }
+
+    /// The tag whose payload this one's payload is: an enum case's backing
+    /// integer, and every other tag itself.
+    #[must_use]
+    pub const fn payload_tag(self) -> Self {
+        match self {
+            Self::EnumInt => Self::Int,
+            Self::EnumUint => Self::Uint,
+            other => other,
+        }
     }
 }
 
@@ -345,10 +369,42 @@ impl Value {
         Self::new(tag, bits)
     }
 
-    /// This value's tag, or `None` if the tag byte denotes no representation.
+    /// How this value's payload is read, or `None` if the tag byte denotes no
+    /// representation. An enum case answers its backing integer's tag
+    /// ([`Tag::payload_tag`]), so a reader that decodes a payload needs no arm
+    /// for an enum.
     #[must_use]
     pub const fn tag(self) -> Option<Tag> {
+        match Tag::from_byte(self.tag) {
+            Some(tag) => Some(tag.payload_tag()),
+            None => None,
+        }
+    }
+
+    /// This value's own tag, or `None` if the tag byte denotes no
+    /// representation. It differs from [`Self::tag`] only for an enum case,
+    /// and it is what a reader uses that asks which type a value is: a
+    /// condition (`rule:enums/truthiness`), a declared slot's write check, a
+    /// closure parameter's check.
+    #[must_use]
+    pub const fn exact_tag(self) -> Option<Tag> {
         Tag::from_byte(self.tag)
+    }
+
+    /// An enum case: `EnumInt` for an `int`-backed enum, `EnumUint` for a
+    /// `uint`-backed one. A test builds one with this; compiled code writes
+    /// the tag itself.
+    ///
+    /// # Panics
+    ///
+    /// If `tag` is not one of the two enum tags.
+    #[must_use]
+    pub const fn enum_case(tag: Tag, bits: u64) -> Self {
+        assert!(
+            matches!(tag, Tag::EnumInt | Tag::EnumUint),
+            "not an enum tag"
+        );
+        Self::new(tag, bits)
     }
 
     /// The raw tag byte, whether or not it denotes a representation.

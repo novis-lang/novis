@@ -6771,9 +6771,9 @@ fn test_shape(
 ///
 /// [`Ty::Enum`] and not the backing scalar itself, because the two are the
 /// same word and different types: `nvs_codegen::ty::tag_of` answers an enum
-/// with its backing type's tag (`rule:enums/representation`), while
-/// [`payload_repr`] is what steps down to the scalar where a payload is
-/// actually compared.
+/// with an enum tag of its own (`rule:enums/representation`), so the tag test
+/// tells a case from an integer, while [`payload_repr`] is what steps down to
+/// the scalar where a payload is actually compared.
 fn enum_repr(backing: nvs_types::EnumBacking) -> Ty {
     match backing {
         nvs_types::EnumBacking::Int => Ty::Enum(EnumRepr::Int),
@@ -6787,9 +6787,8 @@ fn enum_repr(backing: nvs_types::EnumBacking) -> Ty {
 ///
 /// A case compares one representation down for
 /// [`Lowering::reinterpret_enum_to_backing`]'s reason — `nvs-codegen`'s binary
-/// operator table carries no [`Ty::Enum`] row — and the tag is unaffected,
-/// `nvs_codegen::ty::tag_of` already answering an enum with its backing type's
-/// (`rule:enums/representation`).
+/// operator table carries no [`Ty::Enum`] row. The tag test before it still
+/// reads the enum's own tag.
 fn payload_repr(repr: Ty) -> Ty {
     match repr {
         Ty::Enum(EnumRepr::Int) => Ty::Int,

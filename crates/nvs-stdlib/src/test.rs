@@ -4122,8 +4122,8 @@ fn shown(value: Value) -> String {
         None | Some(Tag::Null) => "null".to_owned(),
         Some(Tag::Unset) => "never written".to_owned(),
         Some(Tag::Bool) => (value.as_bool() == Some(true)).to_string(),
-        Some(Tag::Int) => value.as_int().unwrap_or(0).to_string(),
-        Some(Tag::Uint) => value.as_uint().unwrap_or(0).to_string(),
+        Some(Tag::Int | Tag::EnumInt) => value.as_int().unwrap_or(0).to_string(),
+        Some(Tag::Uint | Tag::EnumUint) => value.as_uint().unwrap_or(0).to_string(),
         Some(Tag::Float) => value.as_float().unwrap_or(f64::NAN).to_string(),
         Some(Tag::Decimal) => value
             .as_decimal()

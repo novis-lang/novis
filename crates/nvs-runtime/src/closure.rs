@@ -716,7 +716,7 @@ pub(crate) fn check_param_tags(callee: &str, word: u64, args: &mut [Value]) -> R
                 i + 1
             ))
         })?;
-        let given = arg.tag().ok_or_else(|| {
+        let given = arg.exact_tag().ok_or_else(|| {
             Fault::fatal(format!(
                 "internal error: argument {} to {callee} carried tag {}, which denotes no \
                  representation",

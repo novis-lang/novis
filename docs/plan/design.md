@@ -268,7 +268,7 @@ the one below — request framing is a security-critical parser.
 
 16-byte tagged value: `{ tag: u8, _pad: [u8;7], bits: u64 }`. NaN-boxing is rejected because PHP semantics
 require full-range `i64`. Tags: `null | bool | int(i64) | uint(u64) | float(f64) | string | array | object |
-decimal | bytes`, beside the never-written storage state a property slot carries
+enum-int | enum-uint | decimal | bytes` (`rule:enums/representation` owns the two enum tags), beside the never-written storage state a property slot carries
 (`rule:classes/an-unwritten-property-read-throws`). There is no `closure` or `resource` tag: a closure is an
 ordinary object (`rule:types/callable-is-a-closure`) and an engine-owned handle is a `Core` class holding a
 key into its own context's table, so neither buys a second heap shape or a second release path.

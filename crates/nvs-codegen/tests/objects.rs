@@ -249,9 +249,9 @@ fn a_literal_test_is_one_tag_comparison_with_a_payload_compare_behind_it() {
 
 #[test]
 fn an_enum_case_test_is_that_same_shape_one_representation_down() {
-    // `rule:enums/representation` makes a case its backing integer, so the
-    // tag is that integer's and the payload compare is against the case's own
-    // value. A subject whose static type is the enum has answered the tag
+    // `rule:enums/representation` gives a case in a tagged value an enum tag
+    // over its backing integer, and the payload compare is against the case's
+    // own value. A subject whose static type is the enum has answered the tag
     // half already, and the relabel to the backing integer is
     // `InstKind::Reinterpret`, which emits no machine instruction — so both
     // tests together are two machine compares.
@@ -261,17 +261,13 @@ fn an_enum_case_test_is_that_same_shape_one_representation_down() {
     assert_eq!(count(&program, "ClassTest"), 0, "{program:?}");
     assert_eq!(count(&program, "ToArrayOf"), 0, "{program:?}");
     assert_eq!(output_of(source), "1");
-    // A `mixed` subject pays the tag comparison, and answers the same for one
-    // holding the backing integer alone. That is `rule:enums/representation`'s
-    // own stated consequence — "a value that reaches `mixed` is not
-    // distinguishable there from its backing integer" — and not a choice this
-    // operator makes; the tag it reserves for an enum is what would separate
-    // the two. Pinned rather than left implicit, because the day that tag is
-    // spent this assertion is what says which answer changed.
+    // A `mixed` subject pays the tag comparison, and the enum tag is what
+    // tells the case from a `mixed` holding its backing integer alone: only
+    // the first of the three answers `1`.
     let erased = "<?nvs\nenum Rank {\n    Bronze,\n    Silver,\n    Gold,\n}\n\nmixed $r = Rank::Silver;\nmixed $i = 1;\nmixed $s = \"x\";\necho $r is Rank::Silver, $i is Rank::Silver, $s is Rank::Silver;\n";
     let erased_program = kinds(erased);
     assert_eq!(count(&erased_program, "TagIs"), 3, "{erased_program:?}");
-    assert_eq!(output_of(erased), "11");
+    assert_eq!(output_of(erased), "1");
 }
 
 #[test]

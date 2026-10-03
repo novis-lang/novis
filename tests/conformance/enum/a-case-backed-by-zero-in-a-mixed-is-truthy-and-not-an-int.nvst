@@ -1,0 +1,31 @@
+--TEST--
+An enum case that passes through an `array<mixed>` keeps its own runtime tag, so a case backed by `0` is truthy there and is not an `int` — `rule:enums/representation` and `rule:enums/truthiness`
+--FILE--
+<?nvs
+enum Signal: int {
+    Idle = 0,
+    Busy = 1,
+}
+
+// The case keeps its tag in a `mixed` slot, so the condition reads the case
+// and not the `0` behind it.
+array<mixed> $values = [Signal::Idle, 0];
+echo $values[0] ? "truthy" : "falsy", "\n";
+echo $values[1] ? "truthy" : "falsy", "\n";
+
+// The type test tells the case from an integer of the same value.
+echo $values[0] is Signal ? "Signal" : "not Signal", "\n";
+echo $values[0] is int ? "int" : "not int", "\n";
+echo $values[1] is Signal ? "Signal" : "not Signal", "\n";
+
+// Converting it back still reads the backing integer.
+echo ($values[0] as Signal) as int, "\n";
+echo $values[0] as int, "\n";
+--EXPECT--
+truthy
+falsy
+Signal
+not int
+not Signal
+0
+0

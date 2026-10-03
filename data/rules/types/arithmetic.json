@@ -5,7 +5,8 @@
     "0007",
     "0054",
     "0010",
-    "0035"
+    "0035",
+    "0261"
   ],
   "divergesFromPhp": "`PHP_INT_MAX + 1` throws `ArithmeticError` instead of becoming a `float`, `int` against `uint` does not compile, and a `bool`, `string`, `array<T>` or object operand has no `+` at all",
   "seeAlso": [

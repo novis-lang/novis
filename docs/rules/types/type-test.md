@@ -37,9 +37,9 @@ if ($m is int) {
 `array<T>` with a named element type, and a shape, each cost an O(n) walk — the same walk
 `as array<T>` already performs, in a spelling that answers instead of throwing. An enum is its cases:
 `$x is Rank` answers exactly what asking every `$x is Rank::Case` in turn answers, at one payload
-compare per case, and `rule:enums/representation` owns what that can tell apart — a value that reached
-`mixed` is its backing integer, so a case is not distinguishable there from that integer nor from
-another enum's case of the same value. Every other row is one tag comparison, or the descriptor walk
+compare per case after one tag comparison, and `rule:enums/representation` owns what that can tell
+apart — a case that reached `mixed` carries an enum tag, so it is told apart from an integer, but not
+from another enum's case of the same value and backing. Every other row is one tag comparison, or the descriptor walk
 the class-test instruction performs.
 
 There is no float literal type to test against (`rule:types/literal-types`), so `$x is 3.14` is

@@ -101,15 +101,17 @@ An enum value is its backing integer and nothing more — zero additional bytes 
 which the type system makes the common case, codegen already knows which enum it is and there is
 nothing further to carry.
 
-A runtime tag of its own is **reserved for an enum but not spent**. Materialized into a tagged
-value, a case takes the tag of the type backing it, `Int` or `Uint`. A tag only has to answer "which
-type is this?" where the static type does not — the `mixed` case, whose representation is still
-open. The consequence to obey today: a value that reaches `mixed` is not distinguishable there from
-its backing integer, nor one enum from another enum with the same backing.
+Materialized into a tagged value — a `mixed`, an `array<mixed>` element, an erased parameter — a
+case takes an **enum tag of its own**, one per backing type: `EnumInt` over an `int` payload and
+`EnumUint` over a `uint` one. A condition, a type test, a closure parameter's check and a declared
+slot's write check read that tag, so a case in a `mixed` is always truthy ([`enums/truthiness`](enums.md#enums-truthiness)),
+`is int` is `false` for it and `is` an enum is `false` for a plain integer. Every reader that only
+decodes the value — printing, conversion, comparison, `===`, serialization — reads it as its backing
+integer. The tag names no enum, so two enums with the same backing are not told apart in a `mixed`.
 
 Crossing an isolate boundary copies a plain scalar, with no object identity to preserve or discard.
 
-<sub>See also [`enums/no-class-machinery`](enums.md#enums-no-class-machinery), [`enums/one-backing-type`](enums.md#enums-one-backing-type), [`enums/closed-integer-type`](enums.md#enums-closed-integer-type). Decided in [0010](../decisions/0010.md), [0007](../decisions/0007.md), [0006](../decisions/0006.md), [0004](../decisions/0004.md).</sub>
+<sub>See also [`enums/no-class-machinery`](enums.md#enums-no-class-machinery), [`enums/one-backing-type`](enums.md#enums-one-backing-type), [`enums/closed-integer-type`](enums.md#enums-closed-integer-type). Decided in [0010](../decisions/0010.md), [0007](../decisions/0007.md), [0006](../decisions/0006.md), [0004](../decisions/0004.md), [0261](../decisions/0261.md).</sub>
 
 <a id="enums-truthiness"></a>
 

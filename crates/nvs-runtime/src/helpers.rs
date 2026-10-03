@@ -1831,11 +1831,11 @@ pub fn value_to_string(value: Value) -> Result<Value, Fault> {
                 b"".as_slice()
             })))
         }
-        Some(Tag::Int) => {
+        Some(Tag::Int | Tag::EnumInt) => {
             let n = value.as_int().ok_or_else(|| refused("this value"))?;
             Ok(Value::str(NvsStr::new(n.to_string().as_bytes())))
         }
-        Some(Tag::Uint) => {
+        Some(Tag::Uint | Tag::EnumUint) => {
             let n = value.as_uint().ok_or_else(|| refused("this value"))?;
             Ok(Value::str(NvsStr::new(n.to_string().as_bytes())))
         }
@@ -2199,7 +2199,7 @@ fn element_has_tag(value: Value, tags: u64) -> bool {
     if nibble == crate::closure::CLOSURE_PARAM_TAG_ANY {
         return true;
     }
-    let (Some(required), Some(given)) = (Tag::from_byte(nibble), value.tag()) else {
+    let (Some(required), Some(given)) = (Tag::from_byte(nibble), value.exact_tag()) else {
         return false;
     };
     if given != required {
@@ -2968,21 +2968,20 @@ crate::nvs_helper! {
 /// `nvs_ir::ty::Ty::Tagged` operand — a `mixed`, a union, a `?T` no test
 /// narrowed — reaches it through [`nvs_value_truthy`], which is `rule:expressions/truthy-table`'s own last table row rather than a fallback below it.
 ///
-/// One divergence lives here and it is not this function's to fix: **an enum
-/// case tagged into a `mixed` reads as its backing integer**, so a case backed
-/// by `0` is falsy where `rule:enums/truthiness` makes every statically-typed enum case
-/// truthy. `nvs_codegen::ty::tag_of` is where that is decided — `rule:enums/representation`
-/// reserves an enum tag that nothing writes, so by the time a case is
-/// here it is indistinguishable from the `int` behind it.
+/// The match is over [`Value::exact_tag`], because an enum case carries its
+/// own tag (`rule:enums/representation`) and is always truthy, a case backed
+/// by `0` included (`rule:enums/truthiness`). [`Value::tag`] would read it as
+/// that `0`.
 ///
 /// A `Tag::Object` value is always truthy, which includes an exception and a
-/// closure alike (`rule:enums/truthiness`); a tag byte denoting nothing at all is falsy,
+/// closure alike; a tag byte denoting nothing at all is falsy,
 /// the same "report what can be be sure of" floor every other decoder here
 /// takes.
 #[must_use]
 pub fn value_truthy(value: Value) -> bool {
-    match value.tag() {
+    match value.exact_tag() {
         None | Some(Tag::Null) => false,
+        Some(Tag::EnumInt | Tag::EnumUint) => true,
         Some(Tag::Bool) => value.as_bool() == Some(true),
         Some(Tag::Int) => value.as_int().is_some_and(|n| n != 0),
         Some(Tag::Uint) => value.as_uint().is_some_and(|n| n != 0),

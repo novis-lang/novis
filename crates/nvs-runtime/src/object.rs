@@ -5069,7 +5069,7 @@ pub fn write_erased_property(
         )));
     };
     if let Some(declared) = desc.field_tag(slot) {
-        let actual = value.tag();
+        let actual = value.exact_tag();
         if actual != Some(declared) {
             return Err(Fault::thrown(format!(
                 "`{}` declares field `{name}` as {}, so a {} cannot be written to it",

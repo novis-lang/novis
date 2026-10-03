@@ -1895,8 +1895,9 @@ fn kind_of(tag: Tag) -> Option<i64> {
     Some(match tag {
         Tag::Null => 0,
         Tag::Bool => 1,
-        Tag::Int => 2,
-        Tag::Uint => 3,
+        // An enum case is its backing integer here, as `Value::tag` reads it.
+        Tag::Int | Tag::EnumInt => 2,
+        Tag::Uint | Tag::EnumUint => 3,
         Tag::Float => 4,
         Tag::Decimal => 5,
         Tag::Str => 6,
@@ -4801,6 +4802,11 @@ mod tests {
             let Some(tag) = Tag::from_byte(byte) else {
                 continue;
             };
+            // An enum tag is read as its backing integer's tag, which the
+            // sweep reaches on its own byte.
+            if tag.payload_tag() != tag {
+                continue;
+            }
             match kind_of(tag) {
                 Some(kind) => answered.push(kind),
                 None => unrepresented.push(tag),
