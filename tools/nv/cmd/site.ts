@@ -387,7 +387,10 @@ async function snippetProblems(nvs: string): Promise<string[]> {
   const { problems, snippets } = snippetShape();
   for (const p of snippets) {
     for (const c of commentProblems(p)) problems.push(`${p}:${c}`);
-    const out = await runProc([nvs, "run", p], { cwd: ROOT, timeoutMs: 60_000 });
+    // An `nvs.toml` beside a snippet is its configuration, as it is beside a feature proof.
+    const config = join(p.slice(0, p.lastIndexOf("/")), "nvs.toml");
+    const argv = existsSync(join(ROOT, config)) ? [nvs, "run", "--config", config, p] : [nvs, "run", p];
+    const out = await runProc(argv, { cwd: ROOT, timeoutMs: 60_000 });
     const want = readAt(ROOT, p.replace(/\.nvs$/, ".out"));
     const norm = (s: string) => s.replace(/\r\n?/g, "\n").trimEnd();
     if (out.code !== 0) problems.push(`${p}: exit ${out.code}: ${out.stderr.trim().split("\n")[0] ?? ""}`);
