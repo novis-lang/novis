@@ -1,23 +1,21 @@
 {
-  "state": "**Goal `goal-closeout`, Stage 4 (finished in place).** `Core\\Script\\ExitReport::memoryPeak` has all its feature proofs: `about.md`, three examples, a bench measured into `docs/perf/members.ndjson`, and an attack under `tests/hostile/core/Script-ExitReport/memoryPeak/`. `bun nv proofs --gate` says nothing is owed in the whole roster, and the `Core\\Reflect`, `Core\\Script` and `Core\\Script\\ExitReport` group checks are green.\n\nGap `zip-extraction-creates-a-file-by-path-after-resolving-its-folder` needs a design for a door that walks from a folder handle. `capability::create` checks a path and then opens it again, so every write door has the same window. It is a question in the goal prose's § *Questions for the user at the goal end*. Four questions wait there. Do not build it before the answer.\n\n**No session stops on `BLOCKED` before the goal end.** A question goes in that section, and the session carries on.\n\nThe floor check `the latest CI run on main succeeded for the code HEAD holds` is red because `main` is ahead of `origin/main`. It leaves with goal `ci-green`'s record in Stage 6, and nobody pushes for it.\n\n`bun nv owners --closes goal-closeout` names 17 gaps in `nvs-lsp`, `nvs-stdlib`, `nvs-types` and `website`.",
+  "state": "**Goal `goal-closeout`, Stage 4 (finished in place).** A removal from an identity chain in `Core\\ObjectSet` and `Core\\ObjectMap` now keeps insertion order. `NvsArray::rename` gives an entry a new key at the same position, and `identity_store::vacate` uses it. The gap record is deleted. The conformance case `tests/conformance/core/object-map-remove-keeps-the-order-when-keys-share-a-hash.nvst` makes the collision from Novis: arrays that differ only below the identity hash's depth share a hash.\n\nGap `zip-extraction-creates-a-file-by-path-after-resolving-its-folder` needs a design for a door that walks from a folder handle. It is a question in the goal prose's § *Questions for the user at the goal end*. Four questions wait there. Do not build it before the answer.\n\n**No session stops on `BLOCKED` before the goal end.** A question goes in that section, and the session carries on.\n\nThe floor check `the latest CI run on main succeeded for the code HEAD holds` is red because `main` is ahead of `origin/main`. It leaves with goal `ci-green`'s record in Stage 6, and nobody pushes for it.\n\n`bun nv owners --closes goal-closeout` names 16 gaps in `nvs-lsp`, `nvs-stdlib`, `nvs-types` and `website`.",
   "next": {
     "stage": 4,
     "title": "finished in place",
     "files": [
-      "crates/nvs-stdlib/src/identity_store.rs",
-      "tests/conformance/core/"
+      "crates/nvs-stdlib/src/ast.rs",
+      "crates/nvs-diagnostics/src/source.rs"
     ],
     "items": [
       {
         "done": false,
-        "text": "**Removing a value from an identity chain keeps the collection's order** — gap `a-removal-inside-a-hash-chain-reorders-the-collection` under `data/gaps/nvs-stdlib/`. `vacate` is at `crates/nvs-stdlib/src/identity_store.rs:121`, and its test `vacating_the_middle_of_a_chain_keeps_it_dense` at `crates/nvs-stdlib/src/identity_store.rs:287`. Read the gap record, keep insertion order when a chain is compacted, add a conformance case that removes a member whose hash another member shares, then delete the gap record."
+        "text": "**A tree's node positions are answered in one ordered sweep** — gap `nodes-column-is-counted-from-the` under `data/gaps/nvs-stdlib/`, `rule:ide/positions-have-one-home`. `instance_of` at `crates/nvs-stdlib/src/ast.rs:440` asks one position per node, and `SourceFile::line_col_in` at `crates/nvs-diagnostics/src/source.rs:128` scans the line each time. Add a batch question to `nvs-diagnostics`, use it from `ast.rs`, unmark the attack `tests/hostile/core/Ast/parse/02-a-program-written-on-one-long-line.nvs`, then delete the gap record."
       }
     ]
   },
   "backlog": [
-    "`Core\\Zip::extract` handle-relative walk — waits for the question in `docs/agent/goals/goal-closeout.md`.",
-    "`json-decoder-still-recurses-on-the-native` stack — `crates/nvs-stdlib/src/json.rs`.",
-    "`buffered-read-is-not-held-to` the memory ceiling — `crates/nvs-stdlib/src/db/mod.rs`.",
-    "`nodes-column-is-counted-from-the` line start per node — `crates/nvs-stdlib/src/ast.rs`."
+    "The identity hash reads an array only four levels deep (`crates/nvs-runtime/src/identity.rs:131`), so many deep arrays that differ below that depth fill one chain of an `ObjectSet`, and each add walks it. Decide whether that is a bounded cost or a gap for `nvs-runtime` (not checked how far a request can push it).",
+    "The remaining gaps `bun nv owners --closes goal-closeout` names, each in its module."
   ]
 }
