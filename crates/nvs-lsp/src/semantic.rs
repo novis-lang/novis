@@ -887,6 +887,9 @@ impl Named<'_> {
                     self.expr(&field.value);
                 }
             }
+            // PHP's `(T)expr` is refused (`rule:ide/rejected-syntax-gets-no-colour`),
+            // so nothing inside it is coloured, the operand included.
+            ExprKind::Conversion { legacy: true, .. } => {}
             ExprKind::Unary { expr, .. }
             | ExprKind::PreIncDec { expr, .. }
             | ExprKind::PostIncDec { expr, .. }

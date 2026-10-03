@@ -74,10 +74,17 @@ use super::*;
 /// cannot satisfy, [`reject_impossible_literal_conversion`] refuses outright —
 /// § 6's two diagnostics, and the only pair of conversions the operand's own
 /// type can prove nothing will ever come of.
+///
+/// A `legacy` conversion is PHP's `(T)expr`, which the parser has already
+/// reported (`rule:types/no-legacy-cast`). Its operand is still checked and it
+/// is still typed `T`, but none of the conversion's own refusals run, so the
+/// one mistake gives the one diagnostic.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn infer_conversion(
     expr: &Expr,
     inner: &Expr,
     ty: &Type,
+    legacy: bool,
     live: &mut FxHashSet<String>,
     scope: &LocalScope,
     ctx: &Ctx<'_>,
@@ -92,6 +99,9 @@ pub(crate) fn infer_conversion(
     } else {
         check_expr(inner, None, live, scope, ctx, env)
     };
+    if legacy {
+        return apply_qualifier_conversion_rule(inner_ty, result, env.interner);
+    }
     // The *object* half only: `as string` is the explicit conversion, and
     // `rule:types/conversion`'s table grants it rows — `bytes` among them — that no
     // implicit site gets. `rule:expressions/nullable-conversion-availability` row 1 makes `as ?string` available

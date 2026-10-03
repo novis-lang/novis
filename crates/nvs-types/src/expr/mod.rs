@@ -504,9 +504,11 @@ pub(crate) fn infer(
             narrowed.restore(scope);
             env.interner.make_union([then_ty, else_ty])
         }
-        ExprKind::Conversion { expr: inner, ty } => {
-            infer_conversion(expr, inner, ty, live, scope, ctx, env)
-        }
+        ExprKind::Conversion {
+            expr: inner,
+            ty,
+            legacy,
+        } => infer_conversion(expr, inner, ty, *legacy, live, scope, ctx, env),
         ExprKind::TypeTest {
             expr: inner,
             against,

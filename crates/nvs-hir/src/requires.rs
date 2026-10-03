@@ -1406,7 +1406,7 @@ fn walk_expr(expr: &Expr, src: &SourceFile, out: &mut Harvest) {
             }
             e!(else_);
         }
-        ExprKind::Conversion { expr, ty } => {
+        ExprKind::Conversion { expr, ty, .. } => {
             record_class_literal(expr, ty, src, out);
             e!(expr);
             walk_type(ty, src, out);

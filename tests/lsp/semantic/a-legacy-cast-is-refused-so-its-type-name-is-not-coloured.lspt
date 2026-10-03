@@ -1,5 +1,5 @@
 --TEST--
-`(int)$x` is refused with `E0225`, and neither the parenthesised type name nor the value behind it enters the tree, so a cast colours nothing at all while the bindings around it stay named — `rule:types/no-legacy-cast`, `rule:ide/rejected-syntax-gets-no-colour`
+`(int)$x` is refused with `E0225`, and neither the parenthesised type name nor the value behind it is coloured, so a cast colours nothing at all while the bindings around it stay named — `rule:types/no-legacy-cast`, `rule:ide/rejected-syntax-gets-no-colour`
 --FILE--
 <?nvs
 class Real {}

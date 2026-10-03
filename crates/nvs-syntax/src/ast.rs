@@ -998,6 +998,10 @@ pub enum ExprKind {
         expr: Box<Expr>,
         /// The target type.
         ty: Type,
+        /// `true` when the source wrote PHP's `(T)expr`. The parser has already
+        /// reported it (`rule:types/no-legacy-cast`), so the type checker types
+        /// it as `T` and reports nothing more about the conversion itself.
+        legacy: bool,
     },
     /// `expr is Type` and `expr is $cls` — the one type test
     /// (`rule:php-migration/one-type-test`). Which of the two the right side

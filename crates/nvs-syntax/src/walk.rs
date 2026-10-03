@@ -629,6 +629,9 @@ fn expr(e: &Expr) -> Node {
             kids.push(expr(else_));
             "Ternary"
         }
+        // PHP's `(T)expr` is refused by the parser, so it is the `Error` it
+        // stands for here, and its operand is not part of the tree.
+        ExprKind::Conversion { legacy: true, .. } => "Error",
         ExprKind::Conversion { expr: operand, .. } => {
             kids.push(expr(operand));
             "Conversion"

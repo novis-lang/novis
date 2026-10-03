@@ -550,7 +550,7 @@ impl<'a> Lowering<'a> {
                 *cur = self.new_block();
                 self.emit(*cur, Ty::Int, InstKind::ConstInt(0))
             }
-            ExprKind::Conversion { expr: inner, ty } => {
+            ExprKind::Conversion { expr: inner, ty, .. } => {
                 self.lower_conversion(inner, ty, expr.span, env, cur)
             }
             // `rule:types/arithmetic`'s `± 1` *as a value*. Both spellings run the same

@@ -797,7 +797,7 @@ impl<'src, 'd> Parser<'src, 'd> {
             && let Some(spelling) = self.peek_cast_keyword()
         {
             let start = self.bump().span; // '('
-            self.bump(); // the cast keyword
+            let ty = self.parse_type(); // the cast keyword, alone before the ')'
             self.bump(); // ')'
             let operand = self.parse_unary();
             let span = start.to(operand.span);
@@ -828,9 +828,16 @@ impl<'src, 'd> Parser<'src, 'd> {
                 );
             }
             self.diags.report(reported);
+            // The cast comes back as the `as` its help line names, marked
+            // `legacy`, so the expression around it is typed as written and this
+            // one mistake gives this one diagnostic.
             return Expr {
                 span,
-                kind: ExprKind::Error(span),
+                kind: ExprKind::Conversion {
+                    expr: Box::new(operand),
+                    ty,
+                    legacy: true,
+                },
             };
         }
         macro_rules! prefix {
@@ -1065,6 +1072,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                         kind: ExprKind::Conversion {
                             expr: Box::new(e),
                             ty,
+                            legacy: false,
                         },
                     };
                 }

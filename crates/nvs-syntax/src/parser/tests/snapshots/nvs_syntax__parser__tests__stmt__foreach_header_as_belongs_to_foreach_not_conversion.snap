@@ -29,6 +29,7 @@ Stmt {
                             ),
                             span: 0:22..32,
                         },
+                        legacy: false,
                     },
                     span: 0:16..32,
                 },

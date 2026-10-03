@@ -199,7 +199,23 @@ fn not_nests_inside_a_rejected_cast_and_other_unary_operators() {
     // legacy-cast spelling is rejected (`rule:types/no-legacy-cast`), but it must still
     // consume `!$x` as its operand rather than leaving it dangling.
     let (e, diags) = parse_with_diags("(int) !$x");
-    assert!(matches!(e.kind, ExprKind::Error(_)));
+    let ExprKind::Conversion {
+        expr, legacy: true, ..
+    } = e.kind
+    else {
+        panic!("expected a legacy conversion, got {:?}", e.kind);
+    };
+    assert!(
+        matches!(
+            expr.kind,
+            ExprKind::Unary {
+                op: UnaryOp::Not,
+                ..
+            }
+        ),
+        "got {:?}",
+        expr.kind
+    );
     assert!(
         diags
             .iter()
@@ -507,7 +523,11 @@ fn legacy_cast_is_diagnosed() {
                 .any(|d| d.code == Some(code::E_LEGACY_CAST_UNSUPPORTED)),
             "expected E_LEGACY_CAST_UNSUPPORTED for {src:?}, got {diags:?}"
         );
-        assert!(matches!(e.kind, ExprKind::Error(_)));
+        assert!(
+            matches!(e.kind, ExprKind::Conversion { legacy: true, .. }),
+            "expected a legacy conversion for {src:?}, got {:?}",
+            e.kind
+        );
     }
 }
 
@@ -1209,12 +1229,12 @@ fn an_error_expression_carries_the_span_it_stood_in_for() {
     // A refused construct: the placeholder names the source it replaced, so a
     // consumer holding only the kind can point at it without walking back out
     // to the node that carries it.
-    let (e, diags, map, id) = parse_keeping_source("(int) $x");
+    let (e, diags, map, id) = parse_keeping_source("$a and $b");
     assert!(diags.has_errors());
     let ExprKind::Error(span) = e.kind else {
         panic!("expected a recovery node: {e:?}");
     };
-    assert_eq!(text(&map, id, span), "(int) $x");
+    assert_eq!(text(&map, id, span), "$a and $b");
 
     // An expression that was required and never written: the span is the
     // caret it would have started at. It is empty, which is exactly why the
