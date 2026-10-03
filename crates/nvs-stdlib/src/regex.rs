@@ -2136,6 +2136,10 @@ nvs_runtime::nvs_helper! {
             }
             true
         })?;
+        // A case runs under the corpus's own memory limit, so
+        // no case can reach this in a case's time.
+        // `split_stops_at_the_memory_limit_rather_than_after_the_array`
+        // asserts it under a small limit instead.
         if !afforded {
             return Err(Fault::fatal(
                 "Core\\Regex::split: the pieces are more than the request's memory limit allows",
@@ -3000,6 +3004,41 @@ mod tests {
         // 100 answers of 64 KiB are about 6 MiB, six times the limit.
         let many = "a".repeat(100);
         assert_eq!(replace_with(&many, "a", answers_64_kib, u64::MAX), None);
+    }
+
+    /// Two hundred thousand separators make two hundred thousand and one
+    /// pieces, an array of megabytes. Under a 1 MiB limit `split` stops with
+    /// a fault that names the limit, and the peak it leaves stays near
+    /// the limit, which is what tells a check before each append from one
+    /// made after the whole array was built.
+    // covers: Core\Regex::split
+    #[test]
+    fn split_stops_at_the_memory_limit_rather_than_after_the_array() {
+        // Made before the context, so the subject is not on its balance.
+        let args = [
+            Value::str(NvsStr::new(",".repeat(200_000).as_bytes())),
+            Value::str(NvsStr::new(b",")),
+            Value::int(i64::MAX),
+            Value::bool(true),
+        ];
+        let mut ctx = Ctx::buffered();
+        ctx.set_memory_limit(1 << 20);
+        let answered = nvs_runtime::call(nvs_core_regex_split, &mut ctx, &args);
+        let refusal = ctx.take_pending().map(Cow::into_owned);
+        assert!(answered.is_err(), "split refuses an array past the limit");
+        let refusal = refusal.expect("a refusal leaves its message in the context");
+        assert!(refusal.contains("memory limit"), "{refusal}");
+        assert!(
+            ctx.memory_peak() < 2 << 20,
+            "split stopped at the limit: peak {}",
+            ctx.memory_peak()
+        );
+        drop(ctx);
+        #[expect(unsafe_code, reason = "this frame owns the two strings it built")]
+        unsafe {
+            args[0].release();
+            args[1].release();
+        }
     }
 
     /// `Core\Regex::split` reads `limit` by `Core\Str::split`'s three-sign
