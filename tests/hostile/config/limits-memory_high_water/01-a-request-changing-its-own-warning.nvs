@@ -1,0 +1,70 @@
+<?nvs
+// Attack: a request tries to change `limits.memory_high_water`, so that its
+// high memory use is never logged. Every write should fail.
+// hostile: timeout-ms 30000
+
+// 1. Tries the key and keys that are almost the same. Only the person who
+//    runs the server may set the warning, so every write should fail.
+array<string> $names = [
+    'limits.memory_high_water',
+    'memory_high_water',
+    'limits.MEMORY_HIGH_WATER',
+    'limits.Memory_High_Water',
+    'limits.memory_high_water.',
+    '.limits.memory_high_water',
+    'limits..memory_high_water',
+    'limits.memory.high.water',
+    'limits.memory-high-water',
+    'limits.memory_high_water ',
+    ' limits.memory_high_water',
+    'limits.hard.memory_high_water',
+    'app.limits.memory_high_water',
+    'app.0.limits.memory_high_water',
+    "limits.memory_high_water\u{0000}",
+    "limits.memory\u{0000}limits.memory_high_water",
+    'limits.memory/../memory_high_water',
+    'limits.' . Core\Str::repeat('sub.', 20000) . 'memory_high_water',
+];
+foreach ($names as string $key) {
+    Core\Config::set($key, '1');
+    Core\Config::set($key, '1.0001');
+    Core\Config::set($key, 'false');
+    Core\Config::get($key);
+    Core\Config::restore($key);
+}
+
+// 2. Tries values out of range, invalid values and values that mean "off".
+//    Every write should fail.
+array<string> $values = [
+    '1',
+    '1.5',
+    '-0.5',
+    '-0',
+    'NaN',
+    'inf',
+    '-inf',
+    '1e309',
+    'false',
+    'true',
+    '',
+    ' ',
+    '0x1',
+    '50%',
+    '256M',
+];
+foreach ($values as string $value) {
+    Core\Config::set('limits.memory_high_water', $value);
+}
+Core\Config::restore('limits.memory_high_water');
+
+// 3. Raises `limits.memory` 1,000 times. The program may change its own limit,
+//    and the warning setting should stay unset after every change.
+uint $round = 0;
+while ($round < 1000) {
+    Core\Config::set('limits.memory', '512M');
+    Core\Config::set('limits.memory_high_water', '1');
+    Core\Config::restore('limits.memory');
+    $round = $round + 1;
+}
+
+echo 'warning at: ', Core\Config::get('limits.memory_high_water') ?? '(unset)', "\n";
