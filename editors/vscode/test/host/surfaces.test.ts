@@ -15,7 +15,7 @@ import * as assert from "node:assert/strict";
 import * as vscode from "vscode";
 
 import { Drawn, Surface } from "../../src/surface";
-import { ID, open, until } from "./editor";
+import { fixture, ID, open, until } from "./editor";
 
 /** One of `secrets.nvs`'s two literals, which is how a concealed range is told from its neighbour. */
 const FIRST = "sk-live-7c9f4d2b8a1e";
@@ -225,5 +225,35 @@ describe("the surfaces", () => {
     assert.ok(editor, "nothing is drawn on the editor showing the fixture");
     assert.deepEqual(covered(document, editor.marked), [],
                      "a taint decoration was handed a range at the default setting");
+  });
+
+  it("offers the download from the status item when no nvs is found", async () => {
+    await open("app.nvs");
+    const reading = await surface();
+
+    // All three candidates are taken away: `nvs.path` names a file that is not there, `PATH` is
+    // empty, and the throwaway profile has never installed a copy. The extension runs in this
+    // process and reads `process.env.PATH` at every lookup, so emptying it here is the same as a
+    // machine with no `nvs` on it (`rule:ide/the-extension-guides-an-install-and-never-bundles-one`).
+    const settings = vscode.workspace.getConfiguration();
+    const named = settings.inspect<string>("nvs.path")?.globalValue;
+    const path = process.env.PATH;
+    process.env.PATH = "";
+    try {
+      const missing = vscode.Uri.joinPath(fixture("."), "missing", "nvs").fsPath;
+      await settings.update("nvs.path", missing, vscode.ConfigurationTarget.Global);
+      const status = await until("the status item offering the download", async () =>
+        reading.status?.command === "nvs.downloadBinary" ? reading.status : undefined, () => said(reading));
+      assert.equal(status.severity, vscode.LanguageStatusSeverity.Error, `the status item says ${status.text}`);
+      assert.match(status.detail, /Novis: Download nvs/);
+    } finally {
+      process.env.PATH = path;
+      await settings.update("nvs.path", named, vscode.ConfigurationTarget.Global);
+    }
+
+    // The server comes back once the binary is found again, and a click is a restart again.
+    const back = await until("the status item naming a running server", async () =>
+      reading.status?.text.includes("lsp") === true ? reading.status : undefined, () => said(reading));
+    assert.equal(back.command, "nvs.restartServer");
   });
 });

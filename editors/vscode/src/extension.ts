@@ -198,7 +198,7 @@ function surface(): Surface {
     get status(): Health | undefined {
       return status === undefined
         ? undefined
-        : { text: status.text, detail: status.detail ?? "", severity: status.severity };
+        : { text: status.text, detail: status.detail ?? "", severity: status.severity, command: status.command?.command };
     },
     get ast() {
       return ast.tree();
