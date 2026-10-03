@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-runtime/src/lib.rs",
-  "title": "In a debug build, a `Core` call whose argument is a large `string` costs time in proportion to the string's length, even when the member reads only its length.",
-  "text": "Seen through `tests/hostile/core/Uuid/tryParse/01-huge-broken-and-almost-valid-texts.nvs`, whose step 5 calls `Core\\Uuid::tryParse` one million times on a 50,000,000-byte text. The release `nvs` runs the whole file in about 0.3 s, so the release call does no per-byte work and the request path does not pay this. The debug pipeline `nvs` (`target/covws/<triple>/debug/nvs`) does not finish it in 30 s: 2,000 calls with that argument take about 1.4 s longer than 200 calls, which is about 0.7 ms a call, and `Core\\Str::startsWith($huge, \"x\")` costs the same, so the cost is not in either member. `nvs_runtime::uuid::read` checks the length before it parses, and `Value::as_text` checks only the tag, so neither scans the text. No `debug_assert!` in `nvs-runtime` names UTF-8 or a text's bytes, so the stage that pays the scan is not located yet. What it costs now: the proof sweep's recording run on the debug binary never finishes that attack, so the attack runs on every sweep instead of being remembered green.",
-  "goal": "goal-closeout"
-}

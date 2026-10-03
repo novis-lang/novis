@@ -146,7 +146,11 @@
 //! A debug build re-validates on every call. A producer that ever broke the
 //! invariant therefore fails the test suite rather than reaching an optimized
 //! build, which is what keeps the paragraph above a checked claim rather than
-//! a remembered one.
+//! a remembered one. A payload longer than [`VALIDATED_WHOLE`] is validated at
+//! its head and its tail only ([`reads_as_text`]), so a debug build's read of a
+//! very large text costs the same as a short one's: every read re-validating
+//! the whole of it made a loop of `Core` calls on it time per byte, and a test
+//! suite's texts sit under the bound and are still validated whole.
 
 use std::alloc::{Layout, alloc, dealloc, handle_alloc_error, realloc};
 use std::cell::Cell;
@@ -331,6 +335,33 @@ fn str_layout(cap: usize) -> Layout {
 fn try_str_layout(cap: usize) -> Option<Layout> {
     let size = PAYLOAD_OFFSET.checked_add(cap)?;
     Layout::from_size_align(size, std::mem::align_of::<StrHeader>()).ok()
+}
+
+/// The longest payload a debug build's [`NvsStr::text_of`] validates whole.
+const VALIDATED_WHOLE: usize = 64 * 1024;
+
+/// Whether `bytes` is UTF-8, as far as a debug build checks it on every read.
+///
+/// The whole payload up to [`VALIDATED_WHOLE`], and past it a window of half
+/// that at each end. A window's cut can fall inside a code point: an
+/// unfinished sequence at the end of the head is accepted, and the tail skips
+/// the continuation bytes (at most three) a sequence that began before it left
+/// behind. The module doc's § *Reading the payload as text* says why the
+/// bound exists.
+fn reads_as_text(bytes: &[u8]) -> bool {
+    if bytes.len() <= VALIDATED_WHOLE {
+        return std::str::from_utf8(bytes).is_ok();
+    }
+    let window = VALIDATED_WHOLE / 2;
+    let head =
+        std::str::from_utf8(&bytes[..window]).map_or_else(|e| e.error_len().is_none(), |_| true);
+    let tail = &bytes[bytes.len() - window..];
+    let cut = tail
+        .iter()
+        .take(3)
+        .take_while(|&&byte| byte & 0xC0 == 0x80)
+        .count();
+    head && std::str::from_utf8(&tail[cut..]).is_ok()
 }
 
 /// How much room a string of `len` bytes takes when it has to grow to hold
@@ -844,7 +875,7 @@ impl NvsStr {
         )]
         let bytes = unsafe { Self::bytes_of(ptr) };
         debug_assert!(
-            std::str::from_utf8(bytes).is_ok(),
+            reads_as_text(bytes),
             "a `string` payload is well-formed UTF-8 by `rule:types/bytes`'s construction"
         );
         #[expect(
@@ -1596,6 +1627,25 @@ mod tests {
             nvs_str_retain(ptr);
         }
         ptr
+    }
+
+    #[test]
+    fn the_debug_read_check_validates_a_long_text_at_both_ends_and_across_a_cut() {
+        // `é` is two bytes, so a run of them past the bound puts each window's
+        // cut inside a code point.
+        let long = "é".repeat(VALIDATED_WHOLE);
+        assert!(reads_as_text(long.as_bytes()));
+        assert!(reads_as_text(format!("x{long}").as_bytes()));
+
+        let mut broken_head = long.clone().into_bytes();
+        broken_head[1] = 0xFF;
+        assert!(!reads_as_text(&broken_head));
+        let mut broken_tail = long.into_bytes();
+        let last = broken_tail.len() - 1;
+        broken_tail[last] = 0xFF;
+        assert!(!reads_as_text(&broken_tail));
+
+        assert!(!reads_as_text(b"short \xFF text"));
     }
 
     #[test]
