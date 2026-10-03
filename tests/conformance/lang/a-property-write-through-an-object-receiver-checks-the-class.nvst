@@ -1,0 +1,56 @@
+--TEST--
+A property write through a plain `object` receiver checks an object's class against a field declared as classes, and refuses anything else that is not `null` there — `rule:types/erased-member-access`
+--FILE--
+<?nvs
+// covers: lang:classes/object-the-top-of-every-class-type
+// A slot's tag says only "an object", so a field declared `?Node` also checks
+// which class the written object is. A subclass and an implementing class
+// pass, `null` passes where the type admits it, and an enum-typed field keeps
+// taking its cases.
+interface Shape {}
+class Circle implements Shape { public int $r = 1; }
+class Big extends Circle {}
+class Square implements Shape { public int $s = 2; }
+enum Mode: int { Read = 1, Write = 2 }
+
+class Holder {
+    public ?Shape $shape = null;
+    public Circle $circle;
+    public Circle|Square|null $either = null;
+    public Mode $mode = Mode::Read;
+
+    public function constructor() { $this->circle = new Circle(); }
+
+    public static function write(object $o, string $field, mixed $value): string {
+        try {
+            if ($field == "shape") { $o->shape = $value; }
+            if ($field == "circle") { $o->circle = $value; }
+            if ($field == "either") { $o->either = $value; }
+            if ($field == "mode") { $o->mode = $value; }
+            return "written";
+        } catch (RuntimeError $e) {
+            return $e->message;
+        }
+    }
+}
+
+var $h = new Holder();
+echo Holder::write($h, "shape", new Square()), "\n";
+echo Holder::write($h, "shape", null), "\n";
+echo Holder::write($h, "shape", new Holder()), "\n";
+echo Holder::write($h, "shape", 5), "\n";
+echo Holder::write($h, "circle", new Big()), "\n";
+echo Holder::write($h, "circle", new Square()), "\n";
+echo Holder::write($h, "either", new Square()), "\n";
+echo Holder::write($h, "either", new Holder()), "\n";
+echo Holder::write($h, "mode", Mode::Write), "\n";
+--EXPECT--
+written
+written
+`Holder` declares field `shape` as `?Shape`, so an object of class `Holder` cannot be written to it
+`Holder` declares field `shape` as `?Shape`, so a int cannot be written to it
+written
+`Holder` declares field `circle` as `Circle`, so an object of class `Square` cannot be written to it
+written
+`Holder` declares field `either` as `Circle|Square|null`, so an object of class `Holder` cannot be written to it
+written

@@ -494,13 +494,19 @@ fn codec_fields(
     })
 }
 
+/// Each slot's representation, `secret` bit and admitted classes, in the slot
+/// order `layout` fixed — `crate::ir::Class::field_reprs`,
+/// `crate::ir::Class::secret_fields` and `crate::ir::Class::field_classes`,
+/// read off one join of the layout against the checker's property types.
 fn field_slots(
     label: &str,
     layout: &nvs_types::ClassLayout,
+    layouts: &ClassLayoutTable,
     exprs: &ExprTypeTable,
     checked_types: &TypeInterner,
-) -> (Vec<Ty>, Vec<bool>) {
-    let mut image: Vec<Option<(Ty, bool)>> = vec![None; layout.fields.len()];
+) -> (Vec<Ty>, Vec<bool>, Vec<Option<Vec<String>>>) {
+    type Slot = (Ty, bool, Option<Vec<String>>);
+    let mut image: Vec<Option<Slot>> = vec![None; layout.fields.len()];
     let chain = std::iter::once(label).chain(layout.conforms.iter().map(String::as_str));
     for owner in chain {
         for (property, ty) in exprs.property_types(owner) {
@@ -513,13 +519,55 @@ fn field_slots(
             image[slot] = Some((
                 erase_checked_ty(*ty, checked_types),
                 nvs_types::expr::type_is_secret(*ty, checked_types),
+                admitted_classes(*ty, layouts, checked_types),
             ));
         }
     }
-    image
+    let mut reprs = Vec::with_capacity(image.len());
+    let mut secret = Vec::with_capacity(image.len());
+    let mut classes = Vec::with_capacity(image.len());
+    for (repr, is_secret, admitted) in image
         .into_iter()
-        .map(|slot| slot.unwrap_or((Ty::Tagged, false)))
-        .unzip()
+        .map(|slot| slot.unwrap_or((Ty::Tagged, false, None)))
+    {
+        reprs.push(repr);
+        secret.push(is_secret);
+        classes.push(admitted);
+    }
+    (reprs, secret, classes)
+}
+
+/// The labels of the classes a value of declared type `id` may be an instance
+/// of, when every member of `id` other than `null` names a class or interface
+/// `layouts` holds — `crate::ir::Class::field_classes`' `Some`.
+///
+/// `None` for any other type, so a slot that admits a scalar, an array, an
+/// enum case or `mixed` keeps the tag check alone. A class with no layout of
+/// its own, a `Core` class among them, also answers `None`: its descriptor's
+/// name is not one this table spelled, and a label no descriptor carries would
+/// refuse a write the checker accepted.
+fn admitted_classes(
+    id: TypeId,
+    layouts: &ClassLayoutTable,
+    checked_types: &TypeInterner,
+) -> Option<Vec<String>> {
+    let members = match checked_types.get(id) {
+        CheckedTy::Union(members) => members.as_slice(),
+        _ => std::slice::from_ref(&id),
+    };
+    let mut labels = Vec::new();
+    for &member in members {
+        match checked_types.get(member) {
+            CheckedTy::Null => {}
+            CheckedTy::Class(name, _) => {
+                let label = name.to_string();
+                layouts.get(&label)?;
+                labels.push(label);
+            }
+            _ => return None,
+        }
+    }
+    (!labels.is_empty()).then_some(labels)
 }
 
 /// The name of the **entry** script frame: the top-level statements the
@@ -762,7 +810,8 @@ pub fn lower_program(
     let mut classes: Vec<crate::ir::Class> = layouts
         .iter()
         .map(|(label, layout)| {
-            let (field_reprs, secret_fields) = field_slots(label, layout, exprs, checked_types);
+            let (field_reprs, secret_fields, field_classes) =
+                field_slots(label, layout, layouts, exprs, checked_types);
             crate::ir::Class {
                 label: label.to_owned(),
                 fields: layout.fields.clone(),
@@ -784,6 +833,9 @@ pub fn lower_program(
                 // and copied for the same reason: the spelling lives where the
                 // declaration does.
                 field_types: layout.field_types.clone(),
+                // The classes each slot admits, resolved by the same join as
+                // the representations — see `admitted_classes`.
+                field_classes,
                 // The class's constants, already flattened over its ancestors
                 // and already folded — the front end is the only layer that
                 // still has the declaration's right-hand side to fold.
@@ -846,6 +898,7 @@ pub fn lower_program(
         constants: Vec::new(),
         attributes: Vec::new(),
         field_types: Vec::new(),
+        field_classes: Vec::new(),
         conforms: Vec::new(),
         methods: Vec::new(),
         hooks: Vec::new(),
@@ -876,6 +929,7 @@ pub fn lower_program(
         constants: Vec::new(),
         attributes: Vec::new(),
         field_types: Vec::new(),
+        field_classes: Vec::new(),
         conforms: Vec::new(),
         methods: Vec::new(),
         hooks: Vec::new(),
@@ -2069,6 +2123,7 @@ impl<'a> Lowering<'a> {
             // "nothing told this class": a shape literal declares no type to
             // spell, its slots being typed by what was written into them.
             field_types: Vec::new(),
+            field_classes: Vec::new(),
             // A shape literal has no declaration body, so it declares no
             // constant and carries no attach site — empty here is the fact and
             // not an omission.
@@ -3769,6 +3824,7 @@ fn nested_shapes(
             public_fields: vec![true; field_count],
             protected_fields: vec![false; field_count],
             field_types: Vec::new(),
+            field_classes: Vec::new(),
             constants: Vec::new(),
             attributes: Vec::new(),
             conforms: Vec::new(),

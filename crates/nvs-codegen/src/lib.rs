@@ -1552,6 +1552,13 @@ impl Classes {
         if class.field_types.len() == class.fields.len() && !class.field_types.is_empty() {
             self.table.set_field_types(id, class.field_types.clone());
         }
+        // The classes an object written into each slot must be one of, guarded
+        // the same way: `nvs_runtime::write_erased_property` checks an erased
+        // write against them, which the slot's one tag cannot do.
+        if class.field_classes.len() == class.fields.len() && !class.field_classes.is_empty() {
+            self.table
+                .set_field_classes(id, class.field_classes.clone());
+        }
         // The class's constants, converted into the runtime's own currency
         // because `nvs-runtime` cannot see `nvs_types`. Guarded only on being
         // non-empty, where the three above are guarded on their length: a

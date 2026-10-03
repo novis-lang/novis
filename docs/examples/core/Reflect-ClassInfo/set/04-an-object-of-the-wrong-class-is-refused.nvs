@@ -1,6 +1,5 @@
 <?nvs
 // Shows that `set` checks the class of an object before it writes it into a property.
-// proof: gap nvs-runtime/erased-write-checks-no-class
 
 class Node {
     public string $label = "first";

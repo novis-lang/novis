@@ -312,6 +312,7 @@ pub(crate) fn lower_closure(
             // And for the same reason again: a capture's type was written on
             // the variable it closes over, not on a property declaration.
             field_types: Vec::new(),
+            field_classes: Vec::new(),
             // The marker `rule:types/callable-is-a-closure`'s `$x is callable`
             // walks for — see `super::CLOSURE_MARKER` — and one more per
             // written signature this literal satisfies, which is the same walk
@@ -994,6 +995,7 @@ fn thunk_class(
         constants: Vec::new(),
         attributes: Vec::new(),
         field_types: Vec::new(),
+        field_classes: Vec::new(),
         // A first-class callable is a closure, so it carries the same
         // edges an `fn` literal's class does — the one every closure has
         // and one per written signature it satisfies, read back at the

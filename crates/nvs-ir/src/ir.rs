@@ -265,6 +265,23 @@ pub struct Class {
     /// **Cost:** one `String` per field slot per class, once per compiled
     /// unit, not per request.
     pub field_types: Vec<String>,
+    /// The classes an object written into each field slot must be one of, in
+    /// [`Self::fields`]' own order — or **empty**, on [`Self::field_reprs`]'
+    /// terms exactly: "nothing told this class".
+    ///
+    /// `Some` for a slot whose declared type is one or more declared classes
+    /// or interfaces and, at most, `null`: `Node`, `?Node`, `A|B`. The labels
+    /// are resolved by the checker, so they compare against
+    /// `nvs_runtime::ClassDesc::conforms_to_name` where the declaration's
+    /// spelling in [`Self::field_types`] could not. `None` for every other
+    /// slot, an enum-typed one among them, whose case is an `int` that
+    /// [`Self::field_reprs`]' tag already checks. `nvs-codegen` hands it to
+    /// `nvs_runtime::ClassTable::set_field_classes`, and
+    /// `nvs_runtime::write_erased_property` is what reads it.
+    ///
+    /// **Cost:** one `Option<Vec<String>>` per field slot per class, once per
+    /// compiled unit, not per request.
+    pub field_classes: Vec<Option<Vec<String>>>,
     /// Every *other* class and interface an instance of this one also is,
     /// transitively, as labels. Excludes the class itself.
     pub conforms: Vec<String>,

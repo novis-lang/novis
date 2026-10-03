@@ -171,13 +171,18 @@
 //! **What a tag therefore does not catch**, and these are known gaps rather
 //! than decisions:
 //!
-//! 1. **Class identity.** [`Tag::Object`] answers for every class, so a
-//!    `{pet: Animal}` view of a `{pet: Dog}` value accepts an `Animal`.
+//! 1. **Class identity in a shape.** [`Tag::Object`] answers for every
+//!    class, so a `{pet: Animal}` view of a `{pet: Dog}` value accepts an
+//!    `Animal`. A *declared* class's slot is checked by class as well:
+//!    [`ClassDesc::field_classes`] carries the classes a slot typed `Node`,
+//!    `?Node` or `A|B` admits, and [`write_erased_property`] refuses any
+//!    other object and any other non-`null` value there.
 //! 2. **An array's element type.** [`Tag::Array`] answers for every
 //!    `array<T>`, so an `array<Animal>` reaches an `array<Dog>` slot.
 //! 3. **A field whose declared type admits several tags** — a union, a `?T`,
-//!    a `mixed` — is unchecked entirely, because there is no one tag to
-//!    compare against and the check must not reject a legal write.
+//!    a `mixed` — is unchecked by tag, because there is no one tag to
+//!    compare against and the check must not reject a legal write. Item 1's
+//!    class check covers the ones made only of classes and `null`.
 //! 4. **Two records of one shape that share their field names but not their
 //!    types** fall back to case 3 for the slots they disagree on;
 //!    `nvs_ir::lower::Lowering::record_shape_class` degrades the tag rather
@@ -485,6 +490,23 @@ pub struct ClassDesc {
     /// carries it, and [`ClassTable::set_field_types`] fills it. **Cost:** one
     /// `String` per field per class, once per process, not per instance.
     field_types: Vec<String>,
+    /// The labels of the classes an object written into each field slot must
+    /// conform to, in slot order — `None` for a slot whose declared type is
+    /// not only classes and `null`, and **empty** for a class nothing told,
+    /// on [`Self::field_tags`]' terms exactly.
+    ///
+    /// The class fact [`Self::field_tags`] cannot carry: [`Tag::Object`]
+    /// answers for every class, so without this an erased write could put an
+    /// `Other` into a `?Node` slot and compiled code would then read a `Node`
+    /// field past the end of the smaller allocation. The labels are the
+    /// checker's resolved names, not [`Self::field_types`]' spelling, so they
+    /// compare against [`Self::conforms_to_name`] directly. `nvs_ir::lower`'s
+    /// `admitted_classes` decides them, `nvs_ir::ir::Class::field_classes`
+    /// carries them, [`ClassTable::set_field_classes`] fills them and
+    /// [`write_erased_property`] is their one reader. **Cost:** one
+    /// `Option<Vec<String>>` per field per class, once per process, not per
+    /// instance.
+    field_classes: Vec<Option<Vec<String>>>,
     /// Every class constant a program can name on this class, flattened over
     /// its ancestors where `nvs_types::layout` flattened it — empty for a class
     /// no declaration laid out, on [`Self::public_fields`]' terms exactly.
@@ -1516,6 +1538,15 @@ impl ClassDesc {
             .filter(|ty| !ty.is_empty())
     }
 
+    /// The labels of the classes an object written into slot `index` must
+    /// conform to, or `None` where the slot's declared type is not only
+    /// classes and `null`, or nothing told this class — see
+    /// [`Self::field_classes`].
+    #[must_use]
+    pub fn field_classes(&self, index: usize) -> Option<&[String]> {
+        self.field_classes.get(index)?.as_deref()
+    }
+
     /// Whether an instance of this class is also an instance of `other` —
     /// the whole of `$x is C`, and of a typed `catch`'s dispatch.
     ///
@@ -1967,6 +1998,7 @@ impl ClassTable {
             public_fields: Vec::new(),
             protected_fields: Vec::new(),
             field_types: Vec::new(),
+            field_classes: Vec::new(),
             constants: Vec::new(),
             attributes: Vec::new(),
             render: std::ptr::null(),
@@ -2194,6 +2226,29 @@ impl ClassTable {
             types.len()
         );
         desc.field_types = types;
+    }
+
+    /// Fills in `id`'s per-slot admitted classes — see
+    /// [`ClassDesc::field_classes`].
+    ///
+    /// # Panics
+    ///
+    /// If `id` does not belong to this table, or if `classes` is not one entry
+    /// per slot — a length disagreement would check one field against another
+    /// field's classes, which refuses a legal write and admits an unsafe one.
+    pub fn set_field_classes(&mut self, id: ClassId, classes: Vec<Option<Vec<String>>>) {
+        let desc = self
+            .classes
+            .get_mut(id.0)
+            .expect("a class id always belongs to the table that handed it out");
+        assert!(
+            classes.len() == desc.fields.len(),
+            "`{}` has {} field slots but {} admitted-class entries",
+            desc.name,
+            desc.fields.len(),
+            classes.len()
+        );
+        desc.field_classes = classes;
     }
 
     /// Fills in `id`'s declared property defaults — see [`ClassDesc::defaults`].
@@ -5024,6 +5079,12 @@ pub fn write_erased_property(
             )));
         }
     }
+    // The tag cannot tell one class from another, so a slot declared as
+    // classes also checks the object's own class. Anything else that is not
+    // `null` is refused here too: a `?Node` slot has no single tag to check.
+    if let Some(admitted) = desc.field_classes(slot) {
+        check_admitted_class(desc, slot, name, admitted, value)?;
+    }
     // Read before the store, so nothing borrows the descriptor across the call
     // below. `PropertyObserver` is spelled as a literal because its one home,
     // `nvs_hir::interfaces::PROPERTY_OBSERVER`, is above this crate.
@@ -5064,6 +5125,46 @@ pub fn write_erased_property(
         answered?.release();
     }
     Ok(Value::null())
+}
+
+/// Refuses `value` for field `name`, at `slot` of `desc`, unless it is `null` or an object
+/// whose class conforms to one of `admitted` — [`ClassDesc::field_classes`]'
+/// check, made by [`write_erased_property`] after the tag check.
+///
+/// `null` passes here because a slot that does not admit it has the single
+/// tag [`Tag::Object`], which the tag check has already compared.
+fn check_admitted_class(
+    desc: &ClassDesc,
+    slot: usize,
+    name: &str,
+    admitted: &[String],
+    value: Value,
+) -> Result<(), Fault> {
+    if value.tag() == Some(Tag::Null) {
+        return Ok(());
+    }
+    let written = match value.obj_ptr() {
+        Some(ptr) if !ptr.is_null() => {
+            #[expect(
+                unsafe_code,
+                reason = "the caller owns a reference to this value, so the \
+                          object is live and its descriptor is too"
+            )]
+            let class = unsafe { &*NvsObj::class_of(ptr) };
+            if admitted.iter().any(|label| class.conforms_to_name(label)) {
+                return Ok(());
+            }
+            format!("an object of class `{}`", class.name())
+        }
+        _ => format!("a {}", value.tag().map_or("malformed value", Tag::describe)),
+    };
+    let declared = desc
+        .field_type(slot)
+        .map_or_else(|| admitted.join("|"), str::to_owned);
+    Err(Fault::thrown(format!(
+        "`{}` declares field `{name}` as `{declared}`, so {written} cannot be written to it",
+        desc.name()
+    )))
 }
 
 /// Overwrites field slot `index` on the object at `ptr`, releasing whatever it
