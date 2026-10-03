@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-stdlib/src/server.rs",
-  "title": "`Core\\Server` has no request environment and no `traceId()`, which the spec lists for it.",
-  "text": "Spec § 15 gives `Core\\Server` the request's own environment, which replaces `$_SERVER`, and `traceId(): string` (`docs/spec/01-core-library.md:1159`), and milestone M7 planned a trace id for every request (`docs/plan/m7.md:80`). The module doc names both as a known gap, because a served request's context does not carry that state (`crates/nvs-stdlib/src/server.rs:12`), and until now no gap record listed it. Closing this carries the per-request state into the request's context, adds both members with their proofs, and removes the sentence from the module doc.",
-  "goal": "goal-closeout"
-}

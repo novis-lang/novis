@@ -294,3 +294,24 @@ The check `no question waits for the user` fails while a line `- **Answer:** ope
 - **Recommendation** — 1 now, and 2 as a gap owned by a later goal. Security comes first in the
   priority ordering, and option 1 closes the case where an archive picks the names.
 - **Answer:** open
+
+### Does `Core\Server` need members for the request's environment?
+
+- **Gap** — `core-server-has-no-request-environment`, `crates/nvs-stdlib/src/server.rs:12`
+  and `docs/spec/01-core-library.md:1161`. `traceId()` is built. This question is only the
+  environment half.
+- **What has to be decided** — Spec § 15 gives `Core\Server` "the request's own environment",
+  replacing `$_SERVER`, and names no member. Most of `$_SERVER` already has a home:
+  `Core\Request` has the method, path, query, headers, `host`, `scheme` and `clientIp`, and `Core\Env`
+  has the environment variables. What has no home is the HTTP version, the server's own address
+  and port, and the client's port.
+- **Options** —
+  1. *No new members.* Spec § 15 says `Core\Request` and `Core\Env` replace `$_SERVER`, and the gap
+     closes. No cost in memory or speed, and the class stays small. A program cannot read the HTTP
+     version or the ports.
+  2. *Add the missing facts.* `Core\Request::protocol()` and the two addresses with their ports, carried
+     on the request from the accept loop. About 40 bytes more per request, and one session per
+     member with its proofs.
+- **Recommendation** — 1. Simplicity comes before footprint, and no rule or example needs the
+  missing facts. A later goal can add one member when a program needs it.
+- **Answer:** open

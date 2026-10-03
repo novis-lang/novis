@@ -18517,11 +18517,12 @@ Reports whether the code running here holds `$capability` at this point in the r
 <a id="core-core-server"></a>
 ### `Core\Server`
 
-Keywords: isDraining
+Keywords: isDraining, traceId
 
 | Member | Signature |
 |---|---|
 | [`Core\Server::isDraining`](#core-core-server-isdraining) | `isDraining(): bool` |
+| [`Core\Server::traceId`](#core-core-server-traceid) | `traceId(): string` |
 
 <a id="core-core-server-isdraining"></a>
 #### `Core\Server::isDraining`
@@ -18533,6 +18534,19 @@ Core\Server::isDraining(): bool
 Returns `true` when the server has started to shut down. From then on, the server accepts no new connections and finishes the requests it already has.
 
 **Returns** `bool` — `true` after the server stopped accepting new connections. `false` while it still accepts them. A program that no server runs, such as a command-line program, always gets `false`.
+
+<a id="core-core-server-traceid"></a>
+#### `Core\Server::traceId`
+
+```nvs skip
+Core\Server::traceId(): string
+```
+
+Returns the id of the current request. Every request has one, and the server writes the same id into its log lines.
+
+**Returns** `string` — 32 lower-case hexadecimal characters. If the request came with a `traceparent` header, the id is the one in that header.
+
+**Throws** `LogicError` — The program is not answering a request, such as a command-line program or a test.
 
 <a id="core-core-signal"></a>
 ### `Core\Signal`

@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-stdlib/src/server.rs",
+  "title": "`Core\\Server` has no request environment, which the spec lists for it.",
+  "text": "Spec § 15 gives `Core\\Server` the request's own environment, which replaces `$_SERVER` (`docs/spec/01-core-library.md:1161`), and names no member for it. `traceId()` is built. `Core\\Request` and `Core\\Env` already cover most of `$_SERVER`, so which members are still owed is a question in the goal prose's § *Questions for the user at the goal end*. The module doc names the gap (`crates/nvs-stdlib/src/server.rs:12`). Closing this builds the answer, removes the sentence from the module doc, and deletes this record.",
+  "goal": "goal-closeout"
+}
