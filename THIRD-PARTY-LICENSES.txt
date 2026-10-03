@@ -82,23 +82,23 @@ platform Novis builds for, so one may appear that a given build omits.
   cpubits                                 0.1.1                          MIT                             (MIT OR Apache-2.0)
   cpufeatures                             0.2.17                         MIT                             (MIT OR Apache-2.0)
   cpufeatures                             0.3.0                          MIT                             (MIT OR Apache-2.0)
-  cranelift                               0.135.3                        Apache-2.0 WITH LLVM-exception
-  cranelift-assembler-x64                 0.135.3                        Apache-2.0 WITH LLVM-exception
-  cranelift-assembler-x64-meta            0.135.3                        Apache-2.0 WITH LLVM-exception
-  cranelift-bforest                       0.135.3                        Apache-2.0 WITH LLVM-exception
-  cranelift-bitset                        0.135.3                        Apache-2.0 WITH LLVM-exception
-  cranelift-codegen                       0.135.3                        Apache-2.0 WITH LLVM-exception
-  cranelift-codegen-meta                  0.135.3                        Apache-2.0 WITH LLVM-exception
-  cranelift-codegen-shared                0.135.3                        Apache-2.0 WITH LLVM-exception
-  cranelift-control                       0.135.3                        Apache-2.0 WITH LLVM-exception
-  cranelift-entity                        0.135.3                        Apache-2.0 WITH LLVM-exception
-  cranelift-frontend                      0.135.3                        Apache-2.0 WITH LLVM-exception
-  cranelift-isle                          0.135.3                        Apache-2.0 WITH LLVM-exception
-  cranelift-jit                           0.135.3                        Apache-2.0 WITH LLVM-exception
-  cranelift-module                        0.135.3                        Apache-2.0 WITH LLVM-exception
-  cranelift-native                        0.135.3                        Apache-2.0 WITH LLVM-exception
-  cranelift-object                        0.135.3                        Apache-2.0 WITH LLVM-exception
-  cranelift-srcgen                        0.135.3                        Apache-2.0 WITH LLVM-exception
+  cranelift                               0.135.5                        Apache-2.0 WITH LLVM-exception
+  cranelift-assembler-x64                 0.135.5                        Apache-2.0 WITH LLVM-exception
+  cranelift-assembler-x64-meta            0.135.5                        Apache-2.0 WITH LLVM-exception
+  cranelift-bforest                       0.135.5                        Apache-2.0 WITH LLVM-exception
+  cranelift-bitset                        0.135.5                        Apache-2.0 WITH LLVM-exception
+  cranelift-codegen                       0.135.5                        Apache-2.0 WITH LLVM-exception
+  cranelift-codegen-meta                  0.135.5                        Apache-2.0 WITH LLVM-exception
+  cranelift-codegen-shared                0.135.5                        Apache-2.0 WITH LLVM-exception
+  cranelift-control                       0.135.5                        Apache-2.0 WITH LLVM-exception
+  cranelift-entity                        0.135.5                        Apache-2.0 WITH LLVM-exception
+  cranelift-frontend                      0.135.5                        Apache-2.0 WITH LLVM-exception
+  cranelift-isle                          0.135.5                        Apache-2.0 WITH LLVM-exception
+  cranelift-jit                           0.135.5                        Apache-2.0 WITH LLVM-exception
+  cranelift-module                        0.135.5                        Apache-2.0 WITH LLVM-exception
+  cranelift-native                        0.135.5                        Apache-2.0 WITH LLVM-exception
+  cranelift-object                        0.135.5                        Apache-2.0 WITH LLVM-exception
+  cranelift-srcgen                        0.135.5                        Apache-2.0 WITH LLVM-exception
   crc32c                                  0.6.8                          MIT                             (Apache-2.0/MIT)
   crc32fast                               1.5.0                          MIT                             (MIT OR Apache-2.0)
   crossbeam-channel                       0.5.17                         MIT                             (MIT OR Apache-2.0)
@@ -328,8 +328,8 @@ platform Novis builds for, so one may appear that a given build omits.
   wasm-bindgen-macro                      0.2.127                        MIT                             (MIT OR Apache-2.0)
   wasm-bindgen-macro-support              0.2.127                        MIT                             (MIT OR Apache-2.0)
   wasm-bindgen-shared                     0.2.127                        MIT                             (MIT OR Apache-2.0)
-  wasmtime-internal-core                  48.0.3                         Apache-2.0 WITH LLVM-exception
-  wasmtime-internal-jit-icache-coherence  48.0.3                         Apache-2.0 WITH LLVM-exception
+  wasmtime-internal-core                  48.0.5                         Apache-2.0 WITH LLVM-exception
+  wasmtime-internal-jit-icache-coherence  48.0.5                         Apache-2.0 WITH LLVM-exception
   web_atoms                               0.2.6                          MIT                             (MIT OR Apache-2.0)
   webpki-roots                            1.0.9                          CDLA-Permissive-2.0
   winapi                                  0.3.9                          MIT                             (MIT/Apache-2.0)
@@ -5531,13 +5531,13 @@ SOFTWARE.
 
 Applies to:
   blake3 1.8.7
-  cranelift-assembler-x64 0.135.3
-  cranelift-assembler-x64-meta 0.135.3
-  cranelift-bitset 0.135.3
-  cranelift-isle 0.135.3
-  cranelift-srcgen 0.135.3
-  wasmtime-internal-core 48.0.3
-  wasmtime-internal-jit-icache-coherence 48.0.3
+  cranelift-assembler-x64 0.135.5
+  cranelift-assembler-x64-meta 0.135.5
+  cranelift-bitset 0.135.5
+  cranelift-isle 0.135.5
+  cranelift-srcgen 0.135.5
+  wasmtime-internal-core 48.0.5
+  wasmtime-internal-jit-icache-coherence 48.0.5
 
 ------------------------------------------------------------------------------
 
@@ -5766,18 +5766,18 @@ Software.
 ==============================================================================
 
 Applies to:
-  cranelift 0.135.3
-  cranelift-bforest 0.135.3
-  cranelift-codegen 0.135.3
-  cranelift-codegen-meta 0.135.3
-  cranelift-codegen-shared 0.135.3
-  cranelift-control 0.135.3
-  cranelift-entity 0.135.3
-  cranelift-frontend 0.135.3
-  cranelift-jit 0.135.3
-  cranelift-module 0.135.3
-  cranelift-native 0.135.3
-  cranelift-object 0.135.3
+  cranelift 0.135.5
+  cranelift-bforest 0.135.5
+  cranelift-codegen 0.135.5
+  cranelift-codegen-meta 0.135.5
+  cranelift-codegen-shared 0.135.5
+  cranelift-control 0.135.5
+  cranelift-entity 0.135.5
+  cranelift-frontend 0.135.5
+  cranelift-jit 0.135.5
+  cranelift-module 0.135.5
+  cranelift-native 0.135.5
+  cranelift-object 0.135.5
   regalloc2 0.15.2
   target-lexicon 0.13.5
 
