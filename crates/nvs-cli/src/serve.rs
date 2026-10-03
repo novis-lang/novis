@@ -3519,20 +3519,59 @@ mod tests {
 
     /// One arm: a worker pinned to each of `cpus`, each serving [`PER_CORE`]
     /// requests off the one shared compiler, and how long the fleet took over the
-    /// requests **alone** — every queue is spawned before the barrier and the
+    /// requests **alone**. Every queue is spawned before the barrier and the
     /// clock starts after it, so [`nvs_host::Worker::spawn`] and the front end are
-    /// both outside what is timed.
+    /// outside what is timed, and the clock stops when the last worker's run
+    /// returns, so the thread's exit is outside it too.
     ///
     /// A request here is what [`super::serve_on_worker`]'s handler does per
     /// request either side of `hyper`: the fleet's one `Arc<Compiler>` read for
     /// the unit, and that unit run as `rule:security/isolate-shares-nothing`'s
     /// isolate on this core's own scheduler.
     ///
+    /// **Each worker serves one untimed batch first**, so the arm measures a
+    /// warm core, which is what a server that has been up for a moment is. A
+    /// fresh worker's stack pool is empty, every queued request's isolate is a
+    /// child task that runs only after the whole queue has had its first turn,
+    /// and so a cold arm maps a new stack for every request and unmaps them all
+    /// when the thread exits. On Linux each of those `mmap`, `mprotect` and
+    /// `munmap` calls takes the process's one address-space lock and flushes
+    /// the TLB on every core the process runs on, so a cold arm measures four
+    /// cores queueing on the kernel rather than four cores serving, and scaled
+    /// barely past one. The warm batch leaves twice [`PER_CORE`] stacks in the
+    /// pool, under [`nvs_host::MAX_POOLED_STACKS`], so the timed batch maps none.
+    ///
     /// The ratio does not rest on the pinning, which is a best effort the OS may
     /// refuse ([`nvs_host::Worker::pinned`]): a worker is one thread and so is
     /// worth at most one core's throughput either way, which is what makes the
     /// one-core side of that ratio a floor rather than a hope.
     fn requests_on(cpus: &[nvs_host::CpuId], compiler: &Arc<Compiler>, path: &str) -> Duration {
+        fn queue(
+            sched: &mut nvs_host::Scheduler,
+            compiler: &Arc<Compiler>,
+            path: &str,
+            answered: &Arc<AtomicUsize>,
+        ) {
+            for _ in 0..PER_CORE {
+                let compiler = Arc::clone(compiler);
+                let answered = Arc::clone(answered);
+                let path = path.to_owned();
+                sched.spawn(
+                    Ctx::new(OutputSink::Buffer(Vec::new())),
+                    TaskRoot::Request,
+                    move |ctx| {
+                        let (program, _routes) =
+                            compiler.compiled(&path).expect("the entry compiles");
+                        let done = Isolate::new(program, Value::null(), Output::Capture)
+                            .run(ctx)
+                            .expect("a null argument crosses");
+                        if done.ok {
+                            answered.fetch_add(1, Ordering::Relaxed);
+                        }
+                    },
+                );
+            }
+        }
         let answered = Arc::new(AtomicUsize::new(0));
         let ready = Arc::new(std::sync::Barrier::new(cpus.len() + 1));
         let mut running = Vec::with_capacity(cpus.len());
@@ -3543,40 +3582,26 @@ mod tests {
             let path = path.to_owned();
             running.push(
                 nvs_host::Worker::spawn(*cpu, move |sched| {
-                    for _ in 0..PER_CORE {
-                        let compiler = Arc::clone(&compiler);
-                        let answered = Arc::clone(&answered);
-                        let path = path.clone();
-                        sched.spawn(
-                            Ctx::new(OutputSink::Buffer(Vec::new())),
-                            TaskRoot::Request,
-                            move |ctx| {
-                                let (program, _routes) =
-                                    compiler.compiled(&path).expect("the entry compiles");
-                                let done = Isolate::new(program, Value::null(), Output::Capture)
-                                    .run(ctx)
-                                    .expect("a null argument crosses");
-                                if done.ok {
-                                    answered.fetch_add(1, Ordering::Relaxed);
-                                }
-                            },
-                        );
-                    }
+                    queue(sched, &compiler, &path, &Arc::new(AtomicUsize::new(0)));
+                    sched.run();
+                    queue(sched, &compiler, &path, &answered);
                     // Every worker's whole queue exists before any worker takes a
                     // turn of one, so the fleet serves together rather than one
                     // core finishing while the last is still spawning.
                     ready.wait();
                     sched.run();
+                    Instant::now()
                 })
                 .expect("the platform started a worker"),
             );
         }
         ready.wait();
         let started = Instant::now();
+        let mut finished = started;
         for worker in running {
-            worker.join().expect("a worker ended in a panic");
+            finished = finished.max(worker.join().expect("a worker ended in a panic"));
         }
-        let took = started.elapsed();
+        let took = finished - started;
         // Every request, answered by an isolate that ran to its end — which is
         // both halves of what an arm has to be true of before its duration means
         // anything, since a fleet that skipped its queue is the fastest of all.
