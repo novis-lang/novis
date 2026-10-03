@@ -283,6 +283,22 @@ pub fn serve(connection: &Connection) -> Result<(), ServerError> {
                         &pending,
                     )?;
                 }
+                // The one request that changes what the server holds, so it is
+                // answered here, where the store and the index are mutable,
+                // rather than in `answer`.
+                if request.method == CHECK_WORKSPACE {
+                    let answered = check_workspace(
+                        connection,
+                        &mut documents,
+                        &mut index,
+                        &mut completion_files,
+                        &settings,
+                        encoding,
+                        request.id,
+                    )?;
+                    connection.sender.send(answered.into())?;
+                    continue;
+                }
                 let answered = answer(
                     &documents,
                     &index,
@@ -391,6 +407,43 @@ fn reanalyse(
         encoding,
         changed,
     )
+}
+
+/// The method name `nvs.checkWorkspace` sends: one workspace pass, on demand
+/// (`rule:ide/check-scope-defaults-to-the-workspace`).
+///
+/// Namespaced for [`crate::redactions::METHOD`]'s reason: it is not LSP's.
+const CHECK_WORKSPACE: &str = "nvs/checkWorkspace";
+
+/// `nvs/checkWorkspace` — the survey and the index rebuilt over every `.nvs`
+/// file under the workspace root, whatever `nvs.check.scope` says.
+///
+/// The setting is not changed. Later edits refresh the files they reach, and the
+/// files this pass added stay in the index until the server restarts. The
+/// unused-member dimming stays silent under `"open"`, because one pass is not a
+/// promise that the index stays whole. The answer is how many files the index
+/// holds, so a client can tell the user what the pass did. With no workspace
+/// root the pass indexes the open documents alone, as `SymbolIndex::build` does.
+///
+/// # Errors
+///
+/// As [`publish`].
+fn check_workspace(
+    connection: &Connection,
+    documents: &mut Documents,
+    index: &mut SymbolIndex,
+    completion_files: &mut CompletionFiles,
+    settings: &Settings,
+    encoding: PositionEncoding,
+    id: RequestId,
+) -> Result<Response, ServerError> {
+    let root = settings.root.as_deref();
+    documents.survey(CheckScope::Workspace, root);
+    *index = SymbolIndex::build(documents, CheckScope::Workspace, root);
+    if completion_files.check(index) {
+        publish_completion_files(connection, completion_files, encoding)?;
+    }
+    Ok(Response::new_ok(id, index.len()))
 }
 
 /// The response to one request.

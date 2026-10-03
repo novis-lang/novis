@@ -29126,6 +29126,7 @@ Every one is under the **Novis** category in the command palette.
 | `nvs.revealSecret` | Reveal Secret | uncovers the one concealed range under the cursor, in this window |
 | `nvs.hideSecrets` | Hide Secrets | conceals every range revealed in this window again |
 | `nvs.convertToHtmlLiteral` | Convert to html literal | applies the server's **Convert to html literal** action at the cursor. It is also in the editor's context menu |
+| `nvs.checkWorkspace` | Check Workspace | indexes every `.nvs` file in the workspace once, and says how many files the index holds. `nvs.check.scope` keeps its value |
 | `nvs.run` | Run File | contributed and not yet answered |
 | `nvs.test` | Run Tests | contributed and not yet answered |
 | `nvs.showAst` | Show AST | contributed and not yet answered |

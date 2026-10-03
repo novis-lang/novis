@@ -225,6 +225,11 @@
         "command": "nvs.convertToHtmlLiteral",
         "title": "Convert to html literal",
         "category": "Novis"
+      },
+      {
+        "command": "nvs.checkWorkspace",
+        "title": "Check Workspace",
+        "category": "Novis"
       }
     ],
     "menus": {

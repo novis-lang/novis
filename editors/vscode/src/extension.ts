@@ -25,6 +25,7 @@ import {
   LanguageStatusItem,
   LanguageStatusSeverity,
   OutputChannel,
+  ProgressLocation,
   Uri,
   commands,
   languages,
@@ -126,6 +127,9 @@ export async function activate(context: ExtensionContext): Promise<Surface> {
     commands.registerCommand("nvs.revealSecret", (where?: Parameters<typeof redactions.reveal>[0]) =>
       redactions.reveal(where)),
     commands.registerCommand("nvs.hideSecrets", () => redactions.hide()),
+    // One workspace pass, which the server runs and this only asks for. `nvs.check.scope` is left
+    // as it is (`rule:ide/check-scope-defaults-to-the-workspace`).
+    commands.registerCommand("nvs.checkWorkspace", () => checkWorkspace()),
     // The conversion is the server's code action (`rule:ide/a-string-converts-to-an-html-literal`),
     // so this command only asks the editor to apply it, filtered by its exact kind. A second
     // client gets the same action from the server and needs nothing written here.
@@ -189,6 +193,29 @@ function surface(): Surface {
       return redactions.drawn();
     },
   };
+}
+
+// The server's own request, spelled where `crates/nvs-lsp/src/server.rs` spells it. It takes no
+// params, and its answer is how many files the index holds after the pass.
+const CHECK_WORKSPACE = "nvs/checkWorkspace";
+
+// Ask the answering server for one workspace pass, and say how many files it indexed. With no
+// server answering there is nothing to ask, and the message says so.
+async function checkWorkspace(): Promise<void> {
+  const answering = client;
+  if (answering === undefined) {
+    void window.showWarningMessage("Novis: the language server is not running, so there is nothing to index.");
+    return;
+  }
+  try {
+    const indexed = await window.withProgress(
+      { location: ProgressLocation.Window, title: "Novis: indexing the workspace" },
+      () => answering.sendRequest<number>(CHECK_WORKSPACE),
+    );
+    void window.showInformationMessage(`Novis: the index holds ${indexed} files.`);
+  } catch (error) {
+    void window.showErrorMessage(`Novis: the workspace pass failed: ${reason(error)}`);
+  }
 }
 
 export function deactivate(): Promise<void> {

@@ -303,12 +303,13 @@ pub fn declared_capabilities(encoding: PositionEncodingKind) -> serde_json::Valu
 /// of a string key would be a second answer to what this function just
 /// settled.
 ///
-/// None of `nvs/redactions`, `nvs/regions`, `nvs/imports` and `nvs/importEdits`
-/// appears in it, and that is not an omission: they are Novis's own requests
-/// (`rule:ide/redaction-ranges-come-from-the-server`,
+/// None of `nvs/redactions`, `nvs/regions`, `nvs/imports`, `nvs/importEdits`
+/// and `nvs/checkWorkspace` appears in it, and that is not an omission: they
+/// are Novis's own requests (`rule:ide/redaction-ranges-come-from-the-server`,
 /// `rule:ide/a-template-region-gets-the-editors-services-and-formatter`,
-/// `rule:ide/a-pasted-type-carries-its-use-line`), LSP has no capability field
-/// for any of them, and the client knows all four are available from
+/// `rule:ide/a-pasted-type-carries-its-use-line`,
+/// `rule:ide/check-scope-defaults-to-the-workspace`), LSP has no capability
+/// field for any of them, and the client knows all five are available from
 /// `serverInfo` naming this server at all.
 ///
 /// **No formatting provider appears either, and that absence is a decision.**

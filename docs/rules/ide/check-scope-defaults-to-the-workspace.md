@@ -3,7 +3,10 @@
 alone. The index is what completion offers a type out of, what references and the code lens count, and
 what diagnostics are published for, so the default is the scope at which a developer is offered the classes
 of their own project and not only the ones already on screen. `nvs.checkWorkspace` runs one workspace pass
-on demand without changing the setting, which is what a developer who chose `"open"` reaches for.
+on demand without changing the setting, which is what a developer who chose `"open"` reaches for. The
+command sends `nvs/checkWorkspace`, and the server rebuilds its survey and its index over the whole root.
+What that pass added stays in the index until the server restarts, and the dimming below stays silent
+under `"open"`, because one pass does not keep the index whole.
 
 Workspace scope is the expensive setting. The tree under the root is walked once when the server starts
 and a repository nobody has opened a file in is still read in full; what it holds for the life of the

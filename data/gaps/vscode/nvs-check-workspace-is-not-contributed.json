@@ -1,6 +1,0 @@
-{
-  "module": "editors/vscode/src/extension.ts",
-  "title": "`nvs.checkWorkspace` is promised by two rules and is neither contributed nor handled.",
-  "text": "`rule:ide/check-scope-defaults-to-the-workspace` says `nvs.checkWorkspace` runs one workspace pass on demand without changing `nvs.check.scope`, and `rule:ide/contributions-are-frozen-and-only-ever-added` lists it among the frozen contributions. The command roster at `editors/vscode/package.json:195` does not contain it, `editors/vscode/src/extension.ts:115` registers no handler, and no code under `crates/nvs-lsp/src/` names it. Closing this contributes the command, has the server index the workspace once under `\"open\"`, and adds it to the roster test at `editors/vscode/test/contributions/contributions.test.ts:98`.",
-  "goal": "goal-closeout"
-}

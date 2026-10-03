@@ -271,6 +271,12 @@ once. They are non-standard because LSP has no shape for "what did this text mea
 from" — a paste is the editor's own operation, and the clipboard is the only channel that fact travels
 on. Neither has `.lspt` vocabulary, for the reason the four wire-held requests above have none.
 
+The fifth is `nvs/checkWorkspace` ([`ide/check-scope-defaults-to-the-workspace`](/docs/rules/ide/the-language-server/#check-scope-defaults-to-the-workspace "The symbol index covers every file under the workspace folder by default, and open narrows it to the open documents and their require graph")), and it passes the
+test with nothing new built: it is the workspace-scope survey and index build the server already runs at
+start, run once more on demand. It is the one request that changes what the server holds rather than
+reading it, so it is answered where the store is mutable and never by a `.lspt` case, and its answer is
+the number of files the index holds.
+
 `textDocument/declaration` is refused rather than deferred: Novis has no declaration that is not the
 definition, so it would answer identically to `textDocument/definition`, and the crate names neither
 spelling of it.
@@ -423,7 +429,10 @@ diagnostic the text renderer prints, with the same codes and spans.
 alone. The index is what completion offers a type out of, what references and the code lens count, and
 what diagnostics are published for, so the default is the scope at which a developer is offered the classes
 of their own project and not only the ones already on screen. `nvs.checkWorkspace` runs one workspace pass
-on demand without changing the setting, which is what a developer who chose `"open"` reaches for.
+on demand without changing the setting, which is what a developer who chose `"open"` reaches for. The
+command sends `nvs/checkWorkspace`, and the server rebuilds its survey and its index over the whole root.
+What that pass added stays in the index until the server restarts, and the dimming below stays silent
+under `"open"`, because one pass does not keep the index whole.
 
 Workspace scope is the expensive setting. The tree under the root is walked once when the server starts
 and a repository nobody has opened a file in is still read in full; what it holds for the life of the

@@ -8,8 +8,9 @@
 //! The claims are that the answer crosses a file the client never opened, that
 //! the declaration is sent only when it is asked for, that a highlight is the
 //! same query narrowed to the open document, that a lens counts what the whole
-//! index holds and says nothing at all when `nvs.codeLens.enable` is off, and
-//! that an edit is in the next answer.
+//! index holds and says nothing at all when `nvs.codeLens.enable` is off, that
+//! an edit is in the next answer, and that `nvs/checkWorkspace` reaches under
+//! `"open"` what only `"workspace"` reaches otherwise.
 
 use std::fs;
 use std::path::PathBuf;
@@ -404,6 +405,56 @@ fn the_configured_scope_decides_whether_an_unrequired_file_is_indexed() {
             ],
             "at workspace scope the index holds every `.nvs` file under the \
              root the client named"
+        );
+    });
+}
+
+/// `nvs/checkWorkspace` is one workspace pass under `"open"`, and it leaves the
+/// setting as it was.
+///
+/// The same fixture as the test above. Before the pass `other.nvs` is not in
+/// the reference list. The pass answers how many files the index now holds —
+/// the three under the root — and after it `other.nvs` is in the list, and it
+/// stays there after an edit to the open document.
+#[test]
+fn a_workspace_pass_on_demand_indexes_every_file_under_the_root() {
+    let dir = TempDir::new("check-workspace");
+    dir.write("other.nvs", OTHER);
+    let main = dir.uri("main.nvs");
+
+    let narrowed = InitializeParams {
+        workspace_folders: Some(vec![dir.folder()]),
+        initialization_options: Some(serde_json::json!({
+            "check": { "scope": "open" },
+        })),
+        ..InitializeParams::default()
+    };
+    served_with(narrowed, |client| {
+        open(client, &main, MAIN);
+        assert_eq!(
+            references(client, 2, &main, false),
+            vec![("lib.nvs".to_owned(), 4), ("main.nvs".to_owned(), 4)],
+            "before the pass, open scope does not reach `other.nvs`"
+        );
+
+        let indexed = ask(client, 3, "nvs/checkWorkspace", serde_json::json!(null));
+        assert_eq!(
+            indexed,
+            serde_json::json!(3),
+            "the pass answers how many files the index holds"
+        );
+        let whole = vec![
+            ("lib.nvs".to_owned(), 4),
+            ("main.nvs".to_owned(), 4),
+            ("other.nvs".to_owned(), 3),
+        ];
+        assert_eq!(references(client, 4, &main, false), whole);
+
+        change(client, &main, 2, MAIN);
+        assert_eq!(
+            references(client, 5, &main, false),
+            whole,
+            "an edit refreshes what it reaches and keeps what the pass added"
         );
     });
 }

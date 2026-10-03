@@ -65,6 +65,12 @@ once. They are non-standard because LSP has no shape for "what did this text mea
 from" — a paste is the editor's own operation, and the clipboard is the only channel that fact travels
 on. Neither has `.lspt` vocabulary, for the reason the four wire-held requests above have none.
 
+The fifth is `nvs/checkWorkspace` (`rule:ide/check-scope-defaults-to-the-workspace`), and it passes the
+test with nothing new built: it is the workspace-scope survey and index build the server already runs at
+start, run once more on demand. It is the one request that changes what the server holds rather than
+reading it, so it is answered where the store is mutable and never by a `.lspt` case, and its answer is
+the number of files the index holds.
+
 `textDocument/declaration` is refused rather than deferred: Novis has no declaration that is not the
 definition, so it would answer identically to `textDocument/definition`, and the crate names neither
 spelling of it.
