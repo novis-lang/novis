@@ -1,6 +1,6 @@
 {
   "title": "`ProcessOptions` carries a working directory, a replaced environment and a timeout, and nothing else",
-  "status": "designed",
+  "status": "shipped",
   "because": [
     "0044",
     "0033",
@@ -11,5 +11,9 @@
     "core-classes/process-run",
     "core-classes/secret-reveal"
   ],
-  "guardedBy": []
+  "guardedBy": [
+    "crates/nvs-stdlib/src/process.rs",
+    "crates/nvs-runtime/src/capability.rs",
+    "tests/conformance/core/process-options-reach-the-child-of-run-and-spawn.nvst"
+  ]
 }

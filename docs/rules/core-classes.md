@@ -3,7 +3,7 @@
 
 # The Core classes
 
-*22 of 86 rules below are **designed** rather than shipped, and are marked where they appear.*
+*21 of 86 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="core-classes-cli-arguments"></a>
 
@@ -110,27 +110,32 @@ a file to the same directive out of the same pair of methods, so the two answer 
 
 <a id="core-classes-process-options"></a>
 
-## `ProcessOptions` carries a working directory, a replaced environment and a timeout, and nothing else  *(designed — not yet in the compiler)*
+## `ProcessOptions` carries a working directory, a replaced environment and a timeout, and nothing else
 
 `rule:core-classes/process-options`
 
 `ProcessOptions` carries three fields and no more: a working directory, an environment, and a
-timeout.
+timeout. It is one options bag, `{cwd?: string, env?: array<string>, timeout?: Duration}`, and
+`Core\Process::run` and `::spawn` both take it, because there is no reason for one of them to take a
+working directory the other does not.
+
+`cwd` is a path position: a relative literal is joined to the folder of the file that wrote it, and a
+relative value built at run time is refused, because the server's own working directory names a
+different place depending on how it was started. It needs no capability of its own — the child is the
+program `process.exec` approved, and it can change its own folder the moment it runs.
 
 `env`, when given, **replaces** the child's environment entirely rather than merging with the
 parent's — explicit replacement is simpler to reason about than merge semantics. Every key and value
 is plain `string`, so an API key held as a `secret` needs [`core-classes/secret-reveal`](core-classes.md#core-classes-secret-reveal) first;
-this is a new sink reusing an existing escape hatch, not a new mechanism.
+this is a new sink reusing an existing escape hatch, not a new mechanism. A name that is empty or holds
+`=` or a NUL, and a value that holds a NUL, are refused before anything starts.
 
-`timeout` reuses the existing safepoint-driven cancellation — the same poll that already cancels a
-request — rather than a bespoke process-only timer. On expiry the child is killed and the suspended
-coroutine resumes into a throw naming the timeout.
-
-**Not shipped.** `crates/nvs-stdlib/src/process.rs` registers `run` and `spawn` with a path and an
-argument array and nothing else; there is no options type, so a child inherits the environment, runs
-in the calling process's directory, and is bounded only by the request's own wall-clock deadline. It
-lands on both members at once when it lands, there being no reason for one of them to take a working
-directory the other does not.
+`timeout` counts from the start of the child, and is no timer of its own: it bounds the waits the two
+members already park on. `run`'s wait for the exit and every `Core\Process\Handle` member that parks —
+a read, a write, `wait` — stop waiting when it passes, kill the child, and resume the suspended
+coroutine into a `TimeoutError` naming the member. A handle whose timeout has passed throws the same
+error from every later member but `kill`. A timeout that is not a positive length of time is a
+`RuntimeError` before anything starts, as `Core\Net\Listener::accept`'s bound is.
 
 <sub>See also [`core-classes/process-run`](core-classes.md#core-classes-process-run), [`core-classes/secret-reveal`](core-classes.md#core-classes-secret-reveal). Decided in [0044](../decisions/0044.md), [0033](../decisions/0033.md), [0005](../decisions/0005.md).</sub>
 
@@ -160,8 +165,8 @@ child parses on its own terms, where a path and an argument are a command this p
 and reaped, so memory and processes alike stay O(in-flight) rather than O(children ever started), and
 a handle the program simply stops reading from leaves nothing behind.
 
-The options bag both members will take is [`core-classes/process-options`](core-classes.md#core-classes-process-options), and it is not shipped
-on either of them yet.
+Both members take the same options bag, [`core-classes/process-options`](core-classes.md#core-classes-process-options), and its `timeout` bounds
+every handle member that parks.
 
 <sub>See also [`core-classes/process-run`](core-classes.md#core-classes-process-run), [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only). Decided in [0044](../decisions/0044.md).</sub>
 

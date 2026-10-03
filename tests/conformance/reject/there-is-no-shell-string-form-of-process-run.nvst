@@ -20,7 +20,7 @@ echo "unreachable\n";
 --EXPECT--
 
 --EXPECTF-ERROR--
-error[E0402]: expected 2 argument(s), found 1
+error[E0402]: expected 2 to 3 argument(s), found 1
   --> case.nvs:9:14
 %A
 error[E0401]: expected `array<string>`, found `string`

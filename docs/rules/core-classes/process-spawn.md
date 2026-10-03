@@ -18,5 +18,5 @@ child parses on its own terms, where a path and an argument are a command this p
 and reaped, so memory and processes alike stay O(in-flight) rather than O(children ever started), and
 a handle the program simply stops reading from leaves nothing behind.
 
-The options bag both members will take is `rule:core-classes/process-options`, and it is not shipped
-on either of them yet.
+Both members take the same options bag, `rule:core-classes/process-options`, and its `timeout` bounds
+every handle member that parks.

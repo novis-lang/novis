@@ -1295,6 +1295,44 @@ fn private_builder() -> std::fs::DirBuilder {
 /// executable.
 ///
 pub fn exec(ctx: &Ctx, program: &Path, argv: &[&str], member: &str) -> Result<Child, Fault> {
+    exec_with(ctx, program, argv, &Launch::default(), member)
+}
+
+/// Where a child [`exec_with`] starts runs, and what environment it sees —
+/// `rule:core-classes/process-options`' two fields that reach the operating system. The default
+/// is the parent's folder and the parent's environment.
+#[derive(Debug, Default)]
+pub struct Launch<'a> {
+    /// The folder the child starts in. It must start at a root, for [`relative_refusal`]'s
+    /// reason: a folder resolved against the server's own working directory names a different
+    /// place depending on how the server was started.
+    pub dir: Option<&'a Path>,
+    /// The child's whole environment, name and value. `Some` **replaces** the parent's, so
+    /// `Some(&[])` starts a child with no variables at all.
+    pub env: Option<&'a [(String, String)]>,
+}
+
+/// [`exec`] with a [`Launch`]: the same capability question and the same refused targets, asked
+/// first, and then the folder and the environment checked before anything is started.
+///
+/// A folder grants nothing and needs no capability of its own. The child is the program
+/// [`Cap::ProcessExec`] approved, and it can change its own folder as soon as it runs. With a
+/// folder given, the program path is made absolute against this process's folder first, so the
+/// file the operating system starts is the file the capability was asked about on every
+/// platform.
+///
+/// # Errors
+///
+/// [`exec`]'s, plus a catchable `RuntimeError` for a relative folder, and for a variable whose
+/// name is empty or has a `=` or a NUL in it, or whose value has a NUL in it. The operating
+/// system cannot pass any of those on as written.
+pub fn exec_with(
+    ctx: &Ctx,
+    program: &Path,
+    argv: &[&str],
+    launch: &Launch<'_>,
+    member: &str,
+) -> Result<Child, Fault> {
     require(ctx, Cap::ProcessExec, Scope::Path(program), member)?;
     if let Some(extension) = shell_target(program) {
         return Err(Fault::thrown(format!(
@@ -1304,7 +1342,36 @@ pub fn exec(ctx: &Ctx, program: &Path, argv: &[&str], member: &str) -> Result<Ch
             program.display()
         )));
     }
-    Command::new(&*spawn_target(program))
+    if let Some(dir) = launch.dir {
+        relative_refusal(dir, member)?;
+    }
+    if let Some(env) = launch.env {
+        for (name, value) in env {
+            if name.is_empty() || name.contains(['=', '\0']) || value.contains('\0') {
+                return Err(Fault::thrown(format!(
+                    "{member} cannot pass the environment variable `{}`: a name must not be \
+                     empty or contain `=` or a NUL, and a value must not contain a NUL",
+                    name.escape_debug()
+                )));
+            }
+        }
+    }
+    let target = spawn_target(program);
+    let mut command = match launch.dir {
+        Some(dir) => {
+            let absolute =
+                std::path::absolute(&*target).map_err(|err| io_failure(member, program, &err))?;
+            let mut command = Command::new(absolute);
+            command.current_dir(dir);
+            command
+        }
+        None => Command::new(&*target),
+    };
+    if let Some(env) = launch.env {
+        command.env_clear();
+        command.envs(env.iter().map(|(name, value)| (name, value)));
+    }
+    command
         .args(argv)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())

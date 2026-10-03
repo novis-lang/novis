@@ -144,6 +144,11 @@ pub struct HeldChild {
     /// while neither trace bit was on, and `None` again once a wait has taken
     /// it — so a second wait closes nothing twice.
     pub spawn_event: Option<crate::OpenSpawn>,
+    /// The instant `rule:core-classes/process-options`' `timeout` ends this
+    /// child's time, or `None` for a child started without one. Every handle
+    /// member reads it before it touches the child, and one that parks reads
+    /// it again for as long as it is parked.
+    pub deadline: Option<std::time::Instant>,
 }
 
 impl HeldChild {
@@ -157,6 +162,7 @@ impl HeldChild {
             stderr: child.stderr.take(),
             exited: None,
             spawn_event: None,
+            deadline: None,
             child: Some(child),
         }
     }
@@ -215,6 +221,28 @@ impl HeldChild {
         self.child = None;
         self.exited = Some(status);
         Ok(status)
+    }
+
+    /// [`HeldChild::reap`] without blocking: the status if the child has
+    /// exited, and `None` while it still runs. A wait under a timeout asks
+    /// this in a loop, so it can stop the child when the timeout passes.
+    ///
+    /// # Errors
+    ///
+    /// Whatever the operating system said about the child.
+    pub fn try_reap(&mut self) -> std::io::Result<Option<std::process::ExitStatus>> {
+        if let Some(status) = self.exited {
+            return Ok(Some(status));
+        }
+        let Some(child) = self.child.as_mut() else {
+            return Err(std::io::Error::other("the child was never started"));
+        };
+        let Some(status) = child.try_wait()? else {
+            return Ok(None);
+        };
+        self.child = None;
+        self.exited = Some(status);
+        Ok(Some(status))
     }
 }
 

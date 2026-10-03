@@ -1,8 +1,8 @@
 {
   "totals": {
     "total": 1032,
-    "shipped": 795,
-    "designed": 237,
+    "shipped": 796,
+    "designed": 236,
     "diverging": 597
   },
   "topics": [
@@ -6343,8 +6343,8 @@
       "single": false,
       "counts": {
         "total": 86,
-        "shipped": 64,
-        "designed": 22,
+        "shipped": 65,
+        "designed": 21,
         "diverging": 50
       },
       "sections": [
@@ -6355,8 +6355,8 @@
           "url": "/docs/rules/core-classes/processes-and-files/",
           "counts": {
             "total": 10,
-            "shipped": 9,
-            "designed": 1,
+            "shipped": 10,
+            "designed": 0,
             "diverging": 8
           },
           "rules": [
@@ -6396,7 +6396,7 @@
               "id": "core-classes/process-options",
               "slug": "process-options",
               "title": "`ProcessOptions` carries a working directory, a replaced environment and a timeout, and nothing else",
-              "status": "designed",
+              "status": "shipped",
               "href": "/docs/rules/core-classes/processes-and-files/#process-options",
               "diverges": "a supplied environment replaces the parent's rather than merging with it"
             },

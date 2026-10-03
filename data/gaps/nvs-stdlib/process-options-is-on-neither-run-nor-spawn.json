@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-stdlib/src/process.rs",
-  "title": "`ProcessOptions` is on neither `Core\\Process::run` nor `::spawn`, and no record owned it.",
-  "text": "`rule:core-classes/process-options` decides three fields, a working directory, an environment that replaces the child's and a timeout on the request's safepoint cancellation, and its fragment says it lands on both members at once. `run` at `crates/nvs-stdlib/src/process.rs:136` and `spawn` at `crates/nvs-stdlib/src/process.rs:155` take a path and an argument array and nothing else, so a child inherits the environment and the directory and is bounded only by the request's deadline. Goal `m8-stdlib-depth` promised the bag would land on both together when `spawn` did. Closing this adds the options type to both rows, tests each field from Rust and Novis, and moves the rule to `shipped`.",
-  "goal": "goal-closeout"
-}

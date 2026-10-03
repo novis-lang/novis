@@ -2007,7 +2007,8 @@ mod tests {
         )
         .expect("Core\\Process::run is registered");
         assert_eq!(owner.to_string(), r"Core\Process");
-        assert_eq!(sig.params.len(), 2);
+        // The path, the argv, and the options bag `rule:core-classes/process-options` adds.
+        assert_eq!(sig.params.len(), 3);
 
         assert_eq!(
             sig.qual_at(0),

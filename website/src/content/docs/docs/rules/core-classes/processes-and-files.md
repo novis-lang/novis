@@ -16,9 +16,9 @@ next:
 
 <p class="nv-section-lead">Running another program is argv only — there is no shell string anywhere — and a temporary directory sweeps itself.</p>
 
-<div class="nv-counts"><div class="nv-count" data-kind="total"><span class="nv-count-value">10</span><span class="nv-count-label">rules</span></div><div class="nv-count" data-kind="shipped"><span class="nv-count-value">9</span><span class="nv-count-label">shipped</span></div><div class="nv-count" data-kind="designed"><span class="nv-count-value">1</span><span class="nv-count-label">designed</span></div><div class="nv-count" data-kind="php"><span class="nv-count-value">8</span><span class="nv-count-label">differ from PHP</span></div></div>
+<div class="nv-counts"><div class="nv-count" data-kind="total"><span class="nv-count-value">10</span><span class="nv-count-label">rules</span></div><div class="nv-count" data-kind="shipped"><span class="nv-count-value">10</span><span class="nv-count-label">shipped</span></div><div class="nv-count" data-kind="designed"><span class="nv-count-value">0</span><span class="nv-count-label">designed</span></div><div class="nv-count" data-kind="php"><span class="nv-count-value">8</span><span class="nv-count-label">differ from PHP</span></div></div>
 
-<ol class="nv-rule-list"><li><a href="#cli-arguments"><code>Core\Cli::arguments</code> is how a program reads the words it was started with, at every depth</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#script-args"><code>Core\Script::args</code> is the value the current isolate was spawned with, and <code>null</code> where there was none</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#process-is-argv-only"><code>Core\Process</code> is the one way to run another program, and there is no shell string anywhere in it</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#process-run"><code>run</code> waits by suspending the coroutine, and hands back the exit code with both captures as <code>bytes</code></a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#process-options"><code>ProcessOptions</code> carries a working directory, a replaced environment and a timeout, and nothing else</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#process-spawn"><code>spawn</code> answers a handle whose reads and writes suspend, covering <code>proc_open</code> and <code>passthru</code> in one type</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#process-refuses-a-shell-target">A target only a second command-line parser could run is refused, on every platform</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#io-write-stream"><code>Core\IO::writeStream</code> is where every stream reaches disk, and a failed write removes its partial file</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#temporary-dir-sweep">A temporary directory lives under a Novis-owned root and is deleted when its script ends, and the sweep never throws</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#temporary-dir-orphan-sweep">The orphan sweep is keyed on the owner being alive, never on age, and runs in exactly two places</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li></ol>
+<ol class="nv-rule-list"><li><a href="#cli-arguments"><code>Core\Cli::arguments</code> is how a program reads the words it was started with, at every depth</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#script-args"><code>Core\Script::args</code> is the value the current isolate was spawned with, and <code>null</code> where there was none</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#process-is-argv-only"><code>Core\Process</code> is the one way to run another program, and there is no shell string anywhere in it</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#process-run"><code>run</code> waits by suspending the coroutine, and hands back the exit code with both captures as <code>bytes</code></a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#process-options"><code>ProcessOptions</code> carries a working directory, a replaced environment and a timeout, and nothing else</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#process-spawn"><code>spawn</code> answers a handle whose reads and writes suspend, covering <code>proc_open</code> and <code>passthru</code> in one type</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#process-refuses-a-shell-target">A target only a second command-line parser could run is refused, on every platform</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#io-write-stream"><code>Core\IO::writeStream</code> is where every stream reaches disk, and a failed write removes its partial file</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#temporary-dir-sweep">A temporary directory lives under a Novis-owned root and is deleted when its script ends, and the sweep never throws</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#temporary-dir-orphan-sweep">The orphan sweep is keyed on the owner being alive, never on age, and runs in exactly two places</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li></ol>
 
 <div class="nv-rule" id="cli-arguments">
 
@@ -172,35 +172,40 @@ a file to the same directive out of the same pair of methods, so the two answer 
 ## `ProcessOptions` carries a working directory, a replaced environment and a timeout, and nothing else
 
 <div class="nv-rule-tags">
-<span class="nv-rule-status" data-status="designed">Designed</span>
+<span class="nv-rule-status" data-status="shipped">Shipped</span>
 <span class="nv-rule-flag">Differs from PHP</span>
 <a class="nv-rule-id" href="#process-options"><code>core-classes/process-options</code></a>
 </div>
 
 `ProcessOptions` carries three fields and no more: a working directory, an environment, and a
-timeout.
+timeout. It is one options bag, `{cwd?: string, env?: array<string>, timeout?: Duration}`, and
+`Core\Process::run` and `::spawn` both take it, because there is no reason for one of them to take a
+working directory the other does not.
+
+`cwd` is a path position: a relative literal is joined to the folder of the file that wrote it, and a
+relative value built at run time is refused, because the server's own working directory names a
+different place depending on how it was started. It needs no capability of its own — the child is the
+program `process.exec` approved, and it can change its own folder the moment it runs.
 
 `env`, when given, **replaces** the child's environment entirely rather than merging with the
 parent's — explicit replacement is simpler to reason about than merge semantics. Every key and value
 is plain `string`, so an API key held as a `secret` needs [`core-classes/secret-reveal`](/docs/rules/core-classes/regex-html-and-introspection/#secret-reveal "Core\Secret::reveal is the one named way out of secret, and it carries a written reason") first;
-this is a new sink reusing an existing escape hatch, not a new mechanism.
+this is a new sink reusing an existing escape hatch, not a new mechanism. A name that is empty or holds
+`=` or a NUL, and a value that holds a NUL, are refused before anything starts.
 
-`timeout` reuses the existing safepoint-driven cancellation — the same poll that already cancels a
-request — rather than a bespoke process-only timer. On expiry the child is killed and the suspended
-coroutine resumes into a throw naming the timeout.
-
-**Not shipped.** `crates/nvs-stdlib/src/process.rs` registers `run` and `spawn` with a path and an
-argument array and nothing else; there is no options type, so a child inherits the environment, runs
-in the calling process's directory, and is bounded only by the request's own wall-clock deadline. It
-lands on both members at once when it lands, there being no reason for one of them to take a working
-directory the other does not.
+`timeout` counts from the start of the child, and is no timer of its own: it bounds the waits the two
+members already park on. `run`'s wait for the exit and every `Core\Process\Handle` member that parks —
+a read, a write, `wait` — stop waiting when it passes, kill the child, and resume the suspended
+coroutine into a `TimeoutError` naming the member. A handle whose timeout has passed throws the same
+error from every later member but `kill`. A timeout that is not a positive length of time is a
+`RuntimeError` before anything starts, as `Core\Net\Listener::accept`'s bound is.
 
 <aside class="nv-rule-diverges">
 <p class="nv-rule-diverges-label">Where this differs from PHP</p>
 <p>A supplied environment replaces the parent's rather than merging with it</p>
 </aside>
 
-<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/core-classes/processes-and-files/#process-run" title="run waits by suspending the coroutine, and hands back the exit code with both captures as bytes"><code>core-classes/process-run</code></a> <a href="/docs/rules/core-classes/regex-html-and-introspection/#secret-reveal" title="Core\Secret::reveal is the one named way out of secret, and it carries a written reason"><code>core-classes/secret-reveal</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0044.md">record 0044</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0033.md">record 0033</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0005.md">record 0005</a></dd></div></dl>
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/core-classes/processes-and-files/#process-run" title="run waits by suspending the coroutine, and hands back the exit code with both captures as bytes"><code>core-classes/process-run</code></a> <a href="/docs/rules/core-classes/regex-html-and-introspection/#secret-reveal" title="Core\Secret::reveal is the one named way out of secret, and it carries a written reason"><code>core-classes/secret-reveal</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0044.md">record 0044</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0033.md">record 0033</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0005.md">record 0005</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-stdlib/src/process.rs"><code>crates/nvs-stdlib/src/process.rs</code></a> <a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-runtime/src/capability.rs"><code>crates/nvs-runtime/src/capability.rs</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/process-options-reach-the-child-of-run-and-spawn.nvst"><code>tests/conformance/core/process-options-reach-the-child-of-run-and-spawn.nvst</code></a></dd></div></dl>
 
 </div>
 
@@ -233,8 +238,8 @@ child parses on its own terms, where a path and an argument are a command this p
 and reaped, so memory and processes alike stay O(in-flight) rather than O(children ever started), and
 a handle the program simply stops reading from leaves nothing behind.
 
-The options bag both members will take is [`core-classes/process-options`](/docs/rules/core-classes/processes-and-files/#process-options "ProcessOptions carries a working directory, a replaced environment and a timeout, and nothing else"), and it is not shipped
-on either of them yet.
+Both members take the same options bag, [`core-classes/process-options`](/docs/rules/core-classes/processes-and-files/#process-options "ProcessOptions carries a working directory, a replaced environment and a timeout, and nothing else"), and its `timeout` bounds
+every handle member that parks.
 
 <dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/core-classes/processes-and-files/#process-run" title="run waits by suspending the coroutine, and hands back the exit code with both captures as bytes"><code>core-classes/process-run</code></a> <a href="/docs/rules/core-classes/processes-and-files/#process-is-argv-only" title="Core\Process is the one way to run another program, and there is no shell string anywhere in it"><code>core-classes/process-is-argv-only</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0044.md">record 0044</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-stdlib/src/process.rs"><code>crates/nvs-stdlib/src/process.rs</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/process-spawn-streams-a-childs-output-into-the-program.nvst"><code>tests/conformance/core/process-spawn-streams-a-childs-output-into-the-program.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/benches/abi-probe/tests/perf_guards.rs"><code>benches/abi-probe/tests/perf_guards.rs</code></a></dd></div></dl>
 

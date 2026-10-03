@@ -56,8 +56,9 @@
 //! [`nvs_runtime::Ctx::intake_limit`] is that reading: the same number the
 //! response ceiling is, in bytes-per-call rather than bytes-per-request. Both
 //! pipes are drained through it, so neither stream is ever held unbounded, and a
-//! child that keeps writing past it is killed by whichever reader notices —
-//! [`drain`] owns the mechanism and what the second thread costs. The ceiling is
+//! child that keeps writing past it is killed as soon as either reader fills
+//! its allowance — [`drain`] owns the mechanism and what its two reader threads
+//! cost. The ceiling is
 //! the *pair*: each stream stops one byte past it, and what
 //! [`nvs_runtime::Ctx::intake_breach`] is asked is the two lengths added, so a
 //! child that splits its output evenly between them is refused as well.
@@ -71,8 +72,8 @@
 //! **What it spends:** the child's whole stdout and stderr, once each, as one
 //! `bytes` value per stream held for as long as the program holds the result —
 //! now bounded rather than trusted — plus one object allocation of three slots,
-//! charged to the request that asked, and one OS thread for the child's
-//! lifetime that [`drain`] explains.
+//! charged to the request that asked, and two OS threads for as long as the
+//! child's pipes are open, which [`drain`] explains.
 //!
 //! # Decision: a `spawn` files a trace event and a `run` does not
 //!
@@ -98,13 +99,15 @@
 
 use std::io::{Read, Write};
 use std::path::Path;
-use std::process::{Child, Output};
-use std::sync::Mutex;
+use std::process::{Child, ChildStderr, ChildStdout, ExitStatus, Output};
+use std::sync::mpsc::{RecvTimeoutError, Sender};
+use std::time::{Duration, Instant};
 
-use nvs_runtime::{Ctx, Fault, HeldChild, NvsStr, Tag, Value};
+use nvs_runtime::capability::Launch;
+use nvs_runtime::{Ctx, Fault, HeldChild, NvsStr, Tag, ThrownClass, Value};
 
 use crate::registry::{
-    ClassDoc, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
+    ClassDoc, Const, CoreClass, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
 };
 
 /// This class's fully-qualified name, in one place so the registry row, the
@@ -145,6 +148,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[
                 CoreTy::Path(Qual::Sink),
                 CoreTy::Array(&CoreTy::Text(Qual::Neutral)),
+                CoreTy::Options(OPTIONS),
             ],
             defaults: &[],
             return_ty: CoreTy::Instance(RESULT_NAME),
@@ -162,6 +166,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[
                 CoreTy::Path(Qual::Sink),
                 CoreTy::Array(&CoreTy::Text(Qual::Neutral)),
+                CoreTy::Options(OPTIONS),
             ],
             defaults: &[],
             return_ty: CoreTy::Instance(HANDLE_NAME),
@@ -172,6 +177,69 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     instance: &[],
     slots: &[],
     constants: &[],
+};
+
+/// `{cwd?: string, env?: array<string>, timeout?: Duration}` —
+/// `rule:core-classes/process-options`' bag, one constant for both rows so `run`
+/// and `spawn` cannot take different ones.
+///
+/// Every default is [`Const::Null`], the absence itself: no folder is the
+/// parent's, no environment is the parent's, and no timeout leaves the child
+/// bounded by the request alone. `env` is `array<string>` keyed by name, and a
+/// given one **replaces** the parent's environment, so `{env: []}` is a child
+/// with no variables and is told apart from an omitted `env` by that null.
+/// `cwd` is a path position, so a relative literal is joined to the folder of
+/// the file that wrote it, and a sink, so a `tainted` folder does not compile.
+///
+/// **What it spends:** nothing when it is omitted. With `env`, one owned copy
+/// of every name and value for the length of the call. With `timeout`, one
+/// thread per parked handle read or write, for as long as it is parked, and
+/// nothing extra for a wait, whose two reader threads are already there.
+const OPTIONS: &[CoreOption] = &[
+    CoreOption {
+        name: "cwd",
+        ty: CoreTy::Path(Qual::Sink),
+        default: Const::Null,
+    },
+    CoreOption {
+        name: "env",
+        ty: CoreTy::Array(&CoreTy::Text(Qual::Neutral)),
+        default: Const::Null,
+    },
+    CoreOption {
+        name: "timeout",
+        ty: CoreTy::Instance(crate::time::DURATION_NAME),
+        default: Const::Null,
+    },
+];
+
+/// Where [`OPTIONS`]' first field sits in a call's flattened arguments: after
+/// the path and the argv, on both rows.
+const OPTIONS_AT: usize = 2;
+
+/// [`OPTIONS`]' three reference-card entries, which `run` and `spawn` share.
+const CWD_DOC: ParamDoc = ParamDoc {
+    name: "cwd",
+    desc: "The folder the program starts in, as an absolute path or a string literal relative \
+           to this file. Without it, the program starts in the same folder as this program.",
+    shape: &[],
+};
+
+/// See [`CWD_DOC`].
+const ENV_DOC: ParamDoc = ParamDoc {
+    name: "env",
+    desc: "The environment variables of the program, as name => value. This replaces all of \
+           them, so a variable that is not in the array is not set. Without it, the program \
+           gets the same variables as this program. A `secret` value must be revealed first.",
+    shape: &[],
+};
+
+/// See [`CWD_DOC`].
+const TIMEOUT_DOC: ParamDoc = ParamDoc {
+    name: "timeout",
+    desc: "The longest time the program may run, counted from the start. When it passes, the \
+           program is stopped and a `TimeoutError` is thrown.",
+    shape: &[],
 };
 
 /// `Core\Process`'s class card — `rule:core-api/reference-card`.
@@ -203,6 +271,9 @@ const RUN_DOC: MethodDoc = MethodDoc {
                    a space, a quote or a `;` in it is still one argument, on every platform.",
             shape: &[],
         },
+        CWD_DOC,
+        ENV_DOC,
+        TIMEOUT_DOC,
     ],
     ret: "A `Core\\Process\\Result` with the exit code and everything the program wrote to its \
           output and to its error output. The program cannot write to this program's own \
@@ -214,12 +285,18 @@ const RUN_DOC: MethodDoc = MethodDoc {
                    `.ps1` file. Those are not allowed on any platform, because Windows starts \
                    them through a shell. The error is also thrown when the program writes more \
                    than `[limits] max_output` in total. Then the program is stopped and nothing \
-                   is returned.",
+                   is returned. It is also thrown when `cwd` is a relative path, when an `env` \
+                   name is empty or has a `=` in it, or when `timeout` is zero or shorter.",
+        },
+        ErrorDoc {
+            error: "TimeoutError",
+            desc: "The program was still running when `timeout` passed. The program is stopped \
+                   and nothing is returned.",
         },
         ErrorDoc {
             error: "IOError",
             desc: "The program could not be started or waited for. For example, nothing is at \
-                   the path, or the file is not a program.",
+                   the path, the file is not a program, or the `cwd` folder does not exist.",
         },
     ],
 };
@@ -243,6 +320,9 @@ const SPAWN_DOC: MethodDoc = MethodDoc {
                    in it is still one argument, on every platform.",
             shape: &[],
         },
+        CWD_DOC,
+        ENV_DOC,
+        TIMEOUT_DOC,
     ],
     ret: "A `Core\\Process\\Handle` for the running program. Other requests keep running while this \
           one waits on the handle. The program is stopped when the request that started it ends.",
@@ -251,12 +331,13 @@ const SPAWN_DOC: MethodDoc = MethodDoc {
             error: "RuntimeError",
             desc: "`process.exec` does not allow this program, or it is a `.bat`, `.cmd` or `.ps1` \
                    file. Those are not allowed on any platform, because Windows starts them \
-                   through a shell.",
+                   through a shell. It is also thrown when `cwd` is a relative path, when an \
+                   `env` name is empty or has a `=` in it, or when `timeout` is zero or shorter.",
         },
         ErrorDoc {
             error: "IOError",
-            desc: "The program could not be started. For example, nothing is at the path, or the \
-                   file is not a program.",
+            desc: "The program could not be started. For example, nothing is at the path, the \
+                   file is not a program, or the `cwd` folder does not exist.",
         },
     ],
 };
@@ -380,11 +461,14 @@ const READ_STDOUT_DOC: MethodDoc = MethodDoc {
           it can be less than one line or several lines. At the end of the output the result is \
           `null`, and every later call also returns `null`. Use `as string` to convert a part \
           to text.",
-    errors: &[ErrorDoc {
-        error: "IOError",
-        desc: "The operating system could not read the output. The output is then closed, so \
-               the next call returns `null`.",
-    }],
+    errors: &[
+        TIMED_OUT_DOC,
+        ErrorDoc {
+            error: "IOError",
+            desc: "The operating system could not read the output. The output is then closed, \
+                   so the next call returns `null`.",
+        },
+    ],
 };
 
 /// `Core\Process\Handle::readStderr`'s reference card — `rule:core-api/reference-card`.
@@ -396,11 +480,14 @@ const READ_STDERR_DOC: MethodDoc = MethodDoc {
     ret: "The next part of the error output, as `bytes`, up to 64 KiB. At the end of the error \
           output the result is `null`, and every later call also returns `null`. Use `as string` \
           to convert a part to text.",
-    errors: &[ErrorDoc {
-        error: "IOError",
-        desc: "The operating system could not read the error output. The error output is then \
-               closed, so the next call returns `null`.",
-    }],
+    errors: &[
+        TIMED_OUT_DOC,
+        ErrorDoc {
+            error: "IOError",
+            desc: "The operating system could not read the error output. The error output is \
+                   then closed, so the next call returns `null`.",
+        },
+    ],
 };
 
 /// `Core\Process\Handle::writeStdin`'s reference card — `rule:core-api/reference-card`.
@@ -416,11 +503,22 @@ const WRITE_STDIN_DOC: MethodDoc = MethodDoc {
     }],
     ret: "Nothing. The input stays open, so you can call `writeStdin` again. `wait` closes the \
           input, and then the program sees the end of it.",
-    errors: &[ErrorDoc {
-        error: "IOError",
-        desc: "The operating system could not send the data. This happens most often when the \
-               program has already ended, or after `wait`.",
-    }],
+    errors: &[
+        TIMED_OUT_DOC,
+        ErrorDoc {
+            error: "IOError",
+            desc: "The operating system could not send the data. This happens most often when \
+                   the program has already ended, or after `wait`.",
+        },
+    ],
+};
+
+/// The `TimeoutError` every handle member that waits on the child can throw,
+/// once the `timeout` `spawn` was given has passed.
+const TIMED_OUT_DOC: ErrorDoc = ErrorDoc {
+    error: "TimeoutError",
+    desc: "The `timeout` given to `spawn` has passed. The program is stopped, and every later \
+           call except `kill` throws this error too.",
 };
 
 /// `Core\Process\Handle::wait`'s reference card — `rule:core-api/reference-card`.
@@ -437,6 +535,7 @@ const HANDLE_WAIT_DOC: MethodDoc = MethodDoc {
             desc: "The output that was not read yet is larger than `[limits] max_output`. The \
                    program is then stopped.",
         },
+        TIMED_OUT_DOC,
         ErrorDoc {
             error: "IOError",
             desc: "The operating system could not read the output or get the exit code.",
@@ -645,28 +744,159 @@ fn argv_of(value: &Value) -> Result<Vec<String>, Fault> {
     Ok(argv)
 }
 
-nvs_runtime::nvs_helper! {
-    /// `Core\Process::run(string $path, array<string> $argv): Core\Process\Result`
-    /// — replacing `exec`, `system`, `shell_exec`, `passthru` and the backtick
-    /// operator, each in one call.
+/// [`OPTIONS`] read out of a call's flattened arguments — what the door is
+/// handed and the length of the timeout.
+struct Options {
+    /// `cwd`, or `None` for the parent's folder.
+    dir: Option<String>,
+    /// `env` as name and value, or `None` for the parent's environment.
+    env: Option<Vec<(String, String)>>,
+    /// `timeout`, always longer than zero, or `None` for no timeout.
+    timeout: Option<Duration>,
+}
+
+impl Options {
+    /// The three fields at [`OPTIONS_AT`], each `null` when the call left it out.
     ///
-    /// The door is [`nvs_runtime::capability::exec`], which asks `process.exec`
-    /// first and the target's kind second; everything this body adds is the
-    /// wait and the capture, and the door pipes all three streams precisely so
-    /// that no child inherits this process's own.
+    /// # Errors
+    ///
+    /// A catchable `RuntimeError` for a `timeout` of zero or less, the class
+    /// and the words `Core\Net\Listener::accept` uses for its own bound. A
+    /// `Fault::fatal` for a wrongly-tagged field, on [`text`]'s reading.
+    fn of(args: &[Value], member: &str) -> Result<Self, Fault> {
+        let given = |at: usize| !matches!(args[at].tag(), Some(Tag::Null));
+        let dir = if given(OPTIONS_AT) {
+            Some(text(&args[OPTIONS_AT], "its `cwd`")?.to_owned())
+        } else {
+            None
+        };
+        let env = if given(OPTIONS_AT + 1) {
+            Some(env_of(&args[OPTIONS_AT + 1])?)
+        } else {
+            None
+        };
+        let timeout = if given(OPTIONS_AT + 2) {
+            let nanos = crate::time::nanos_of(args, OPTIONS_AT + 2, member)?;
+            let Ok(nanos) = u64::try_from(nanos) else {
+                return Err(not_positive(member));
+            };
+            if nanos == 0 {
+                return Err(not_positive(member));
+            }
+            Some(Duration::from_nanos(nanos))
+        } else {
+            None
+        };
+        Ok(Self { dir, env, timeout })
+    }
+
+    /// The folder and the environment, as the door takes them.
+    fn launch(&self) -> Launch<'_> {
+        Launch {
+            dir: self.dir.as_deref().map(Path::new),
+            env: self.env.as_deref(),
+        }
+    }
+
+    /// The instant the timeout ends, counted from now — so this is read right
+    /// after the child starts. `None` for no timeout, and for one so long that
+    /// the clock cannot name its end.
+    fn until(&self) -> Option<Instant> {
+        self.timeout
+            .and_then(|timeout| Instant::now().checked_add(timeout))
+    }
+}
+
+/// The `RuntimeError` a `timeout` of zero or less is.
+fn not_positive(member: &str) -> Fault {
+    Fault::thrown(format!(
+        "{member}: a `timeout` must be a positive length of time"
+    ))
+}
+
+/// The `TimeoutError` a child stopped by its `timeout` is.
+fn timed_out(member: &str) -> Fault {
+    Fault::thrown_as(
+        ThrownClass::Timeout,
+        format!(
+            "{member}: the program was still running when its `timeout` passed, so it was stopped"
+        ),
+    )
+}
+
+/// The `env` argument, copied out as name and value pairs in the array's order.
+///
+/// A key is read as text whatever it was, for the reason `Core\Str::replaceAll`'s
+/// cursor gives: an array key is `int|string`, and an `int` key's text is its
+/// digits. The door checks each name, so nothing here judges one.
+///
+/// # Errors
+///
+/// A `Fault::fatal` for a value that is not text, on [`argv_of`]'s reading.
+fn env_of(value: &Value) -> Result<Vec<(String, String)>, Fault> {
+    let array = value.array_ptr().ok_or_else(|| {
+        Fault::fatal(format!(
+            "{RUN_MEMBER} expected {:?} for its `env`, got tag {}",
+            Tag::Array,
+            value.tag_byte()
+        ))
+    })?;
+    let mut env = Vec::new();
+    let mut from = 0usize;
+    loop {
+        #[expect(
+            unsafe_code,
+            reason = "a Tag::Array argument owns a reference to a live allocation, \
+                      so it is live for the length of this call, and `from` only \
+                      ever advances past a slot this same cursor reported"
+        )]
+        let (slot, name, element) = unsafe {
+            let slot = nvs_runtime::nvs_array_next_slot(array, from);
+            let Ok(slot) = usize::try_from(slot) else {
+                break;
+            };
+            let name = NvsStr::from_raw(nvs_runtime::nvs_array_key_at(array, slot));
+            let mut element = Value::null();
+            nvs_runtime::nvs_array_value_at(array, slot, &raw mut element);
+            (slot, name, element)
+        };
+        from = slot + 1;
+        let name = String::from_utf8_lossy(name.as_bytes()).into_owned();
+        env.push((name, text(&element, "an `env` value")?.to_owned()));
+    }
+    Ok(env)
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Process::run(string $path, array<string> $argv, {cwd?, env?,
+    /// timeout?}): Core\Process\Result` — replacing `exec`, `system`,
+    /// `shell_exec`, `passthru` and the backtick operator, each in one call.
+    ///
+    /// The door is [`nvs_runtime::capability::exec_with`], which asks
+    /// `process.exec` first and the target's kind second; everything this body
+    /// adds is the wait and the capture, and the door pipes all three streams
+    /// precisely so that no child inherits this process's own.
     ///
     /// [`wait_off_core`] owns which thread the wait occupies, and this module's
     /// *Decision: `[limits] max_output` bounds the capture* owns the ceiling the
     /// two captures are read through.
-    fn nvs_core_process_run(ctx, args: [2]) {
+    fn nvs_core_process_run(ctx, args: [5]) {
         let program = text(&args[0], "its path")?;
         let argv = argv_of(&args[1])?;
+        let options = Options::of(args, RUN_MEMBER)?;
         let borrowed: Vec<&str> = argv.iter().map(String::as_str).collect();
         let path = Path::new(program);
         let bound = ctx.intake_bound();
-        let child = nvs_runtime::capability::exec(ctx, path, &borrowed, RUN_MEMBER)?;
-        let output = wait_off_core(child, bound)
-            .map_err(|err| nvs_runtime::capability::io_failure(RUN_MEMBER, path, &err))?;
+        let child = nvs_runtime::capability::exec_with(
+            ctx,
+            path,
+            &borrowed,
+            &options.launch(),
+            RUN_MEMBER,
+        )?;
+        let output = wait_off_core(child, bound, options.until())
+            .map_err(|err| nvs_runtime::capability::io_failure(RUN_MEMBER, path, &err))?
+            .ok_or_else(|| timed_out(RUN_MEMBER))?;
         let taken = output.stdout.len() + output.stderr.len();
         if let Some(over) = ctx.intake_breach(RUN_MEMBER, taken) {
             return Err(over);
@@ -699,7 +929,10 @@ nvs_runtime::nvs_helper! {
 ///
 /// `bound` is [`nvs_runtime::Ctx::intake_bound`] — one byte past the ceiling, or
 /// `u64::MAX` for a request under none, which is the whole of what this layer
-/// knows about the directive.
+/// knows about the directive. `until` is the end of the call's `timeout`.
+///
+/// The child's standard input is closed first, so a child that reads its input
+/// to the end sees that end rather than waiting for input `run` never sends.
 ///
 /// **What it spends:** one pool thread for the child's lifetime, out of
 /// [`nvs_host::blocking::bound`]'s per-worker bound — and off a core, where
@@ -709,91 +942,199 @@ nvs_runtime::nvs_helper! {
 ///
 /// Whatever the operating system said about waiting for the child or draining
 /// its pipes. The caller turns it into a `Fault`, since only it knows the path
-/// to name.
-fn wait_off_core(child: Child, bound: u64) -> std::io::Result<Output> {
-    nvs_host::blocking::run(move || drain(child, bound))
+/// to name. `Ok(None)` is a child stopped by its timeout.
+fn wait_off_core(
+    mut child: Child,
+    bound: u64,
+    until: Option<Instant>,
+) -> std::io::Result<Option<Output>> {
+    drop(child.stdin.take());
+    nvs_host::blocking::run(move || {
+        let out = child.stdout.take();
+        let err = child.stderr.take();
+        drain(&mut child, out, err, bound, until)
+    })
 }
 
-/// Both pipes drained concurrently, neither past `bound`, and then the exit
-/// status — what [`Child::wait_with_output`] does, plus the ceiling it has
-/// nowhere to take.
+/// A child [`drain`] can stop and reap: the bare [`Child`] `run` waits on, and
+/// the [`HeldChild`] `Core\Process\Handle::wait` waits on.
+trait Reapable {
+    /// Ends the child. The answer is not actionable: a child that has already
+    /// exited has got what this asked for.
+    fn stop(&mut self);
+    /// The status, if the child has already exited, without blocking.
+    fn poll(&mut self) -> std::io::Result<Option<ExitStatus>>;
+    /// The status, blocking until the child exits.
+    fn finish(&mut self) -> std::io::Result<ExitStatus>;
+}
+
+impl Reapable for Child {
+    fn stop(&mut self) {
+        let _ = self.kill();
+    }
+    fn poll(&mut self) -> std::io::Result<Option<ExitStatus>> {
+        self.try_wait()
+    }
+    fn finish(&mut self) -> std::io::Result<ExitStatus> {
+        self.wait()
+    }
+}
+
+impl Reapable for HeldChild {
+    fn stop(&mut self) {
+        let _ = self.kill();
+    }
+    fn poll(&mut self) -> std::io::Result<Option<ExitStatus>> {
+        self.try_reap()
+    }
+    fn finish(&mut self) -> std::io::Result<ExitStatus> {
+        self.reap()
+    }
+}
+
+/// Which of a child's two output streams a reader's answer is for.
+#[derive(Clone, Copy)]
+enum Stream {
+    Out,
+    Err,
+}
+
+/// One reader's answer: the stream, and what was read from it.
+type Heard = (Stream, std::io::Result<Vec<u8>>);
+
+/// Both pipes drained at once, neither past `bound`, and then the exit status —
+/// what [`Child::wait_with_output`] does, plus the ceiling and the deadline it
+/// has nowhere to take.
 ///
-/// **The second thread is the cost of the ceiling.** `wait_with_output` reads
-/// both pipes at once without one, but it reads them to the end, and there is no
-/// way to hand it a limit or to stop it once a child has decided to write
-/// forever. Draining them here means one reader per pipe, since a single thread
-/// reading one of them blocks while the other's buffer fills and the child stops
-/// making progress — the deadlock the member has always been written around. One
-/// thread spawn against a process spawn is noise, and it lasts exactly as long
-/// as the child does.
+/// **Each pipe gets a reader thread, and that is the cost of the ceiling and
+/// the timeout.** `wait_with_output` reads both pipes at once, but it reads
+/// them to the end, and there is no way to hand it a limit or to stop it once a
+/// child has decided to write forever. One reader per pipe is needed, because a
+/// single thread reading one of them blocks while the other's buffer fills and
+/// the child stops making progress. Two thread spawns against a process spawn
+/// are noise, and they last as long as the child's pipes are open.
 ///
-/// The kill is what makes the bound a bound rather than a truncation: a reader
-/// that fills its whole allowance stops reading, so without it the child would
-/// keep writing into a pipe nobody drains and hang. It is taken through a
-/// [`Mutex`] because either reader may be the one that notices, and the lock is
-/// held for that call alone.
+/// The readers answer over a channel, and this thread is the only one that
+/// touches the child. A reader that fills its whole allowance has stopped
+/// reading, so the child is stopped then: without that it would keep writing
+/// into a pipe nobody drains and hang. Closing the pipe is not enough on its
+/// own, because a child that ignores `SIGPIPE` sees only a failed write.
+///
+/// **The timeout** is the wait for the next answer, ended at `until`. When it
+/// passes, the child is stopped and reaped and `Ok(None)` comes back at once.
+/// The readers are not joined then: a grandchild that inherited a pipe can keep
+/// it open after the child is gone, and a timeout that waited for it would not
+/// be one. Each reader ends when its pipe closes and frees what it read.
 ///
 /// # Errors
 ///
 /// Whatever the operating system said about draining a pipe or reaping the
 /// child.
-fn drain(mut child: Child, bound: u64) -> std::io::Result<Output> {
-    let out_pipe = child.stdout.take();
-    let err_pipe = child.stderr.take();
-    let child = Mutex::new(child);
-    let stop = || {
-        if let Ok(mut child) = child.lock() {
-            let _ = child.kill();
+fn drain<C: Reapable>(
+    child: &mut C,
+    out: Option<ChildStdout>,
+    err: Option<ChildStderr>,
+    bound: u64,
+    until: Option<Instant>,
+) -> std::io::Result<Option<Output>> {
+    let (tell, heard) = std::sync::mpsc::channel::<Heard>();
+    let mut stdout = read_apart(out, Stream::Out, bound, &tell);
+    let mut stderr = read_apart(err, Stream::Err, bound, &tell);
+    drop(tell);
+    while stdout.is_none() || stderr.is_none() {
+        let next = match until {
+            Some(at) => heard.recv_timeout(at.saturating_duration_since(Instant::now())),
+            None => heard.recv().map_err(|_| RecvTimeoutError::Disconnected),
+        };
+        let (stream, read) = match next {
+            Ok(answer) => answer,
+            Err(RecvTimeoutError::Timeout) => {
+                child.stop();
+                child.finish()?;
+                return Ok(None);
+            }
+            Err(RecvTimeoutError::Disconnected) => {
+                child.stop();
+                child.finish()?;
+                return Err(std::io::Error::other(
+                    "a reader of the program's output stopped without an answer",
+                ));
+            }
+        };
+        if read
+            .as_ref()
+            .is_ok_and(|held| u64::try_from(held.len()).unwrap_or(u64::MAX) >= bound)
+        {
+            child.stop();
         }
+        match stream {
+            Stream::Out => stdout = Some(read),
+            Stream::Err => stderr = Some(read),
+        }
+    }
+    let Some(status) = finish_by(child, until)? else {
+        return Ok(None);
     };
-    let (stdout, stderr) = std::thread::scope(|scope| {
-        let stderr = scope.spawn(|| read_bounded(err_pipe, bound, &stop));
-        let stdout = read_bounded(out_pipe, bound, &stop);
-        (stdout, stderr.join())
-    });
-    let stderr = stderr.unwrap_or_else(|panic| std::panic::resume_unwind(panic))?;
-    let status = child
-        .into_inner()
-        .unwrap_or_else(std::sync::PoisonError::into_inner)
-        .wait()?;
-    Ok(Output {
+    Ok(Some(Output {
         status,
-        stdout: stdout?,
-        stderr,
-    })
+        stdout: stdout.unwrap_or_else(|| Ok(Vec::new()))?,
+        stderr: stderr.unwrap_or_else(|| Ok(Vec::new()))?,
+    }))
 }
 
-/// One pipe read to its end or to `bound`, whichever comes first, calling
-/// `stop` at the second.
+/// One pipe read to its end or to `bound` on a thread of its own, which answers
+/// on `tell` — or, for a stream this process never piped, the empty answer at
+/// once. A `None` there is a child started without that pipe, not an error.
+fn read_apart<R: Read + Send + 'static>(
+    pipe: Option<R>,
+    stream: Stream,
+    bound: u64,
+    tell: &Sender<Heard>,
+) -> Option<std::io::Result<Vec<u8>>> {
+    let Some(pipe) = pipe else {
+        return Some(Ok(Vec::new()));
+    };
+    let tell = tell.clone();
+    std::thread::spawn(move || {
+        let mut held = Vec::new();
+        let read = pipe.take(bound).read_to_end(&mut held).map(|_| held);
+        let _ = tell.send((stream, read));
+    });
+    None
+}
+
+/// The child's status once both of its pipes have closed, or `None` when
+/// `until` passes first and the child has been stopped.
 ///
-/// `stop` ends the child, and every caller owes one. A reader that fills its
-/// allowance stops reading, and the child then either blocks on a full pipe or
-/// ignores the broken one and writes forever, so the reap that follows would
-/// never return. Closing the pipe is not enough on its own: a child that
-/// ignores `SIGPIPE` sees only a failed write. [`drain`] and
-/// `Core\Process\Handle::wait` hold their child differently, so each says how.
-///
-/// A stream this process never piped answers empty rather than failing: the
-/// caller took the handle out of the child, and a `None` there is a child
-/// started without that pipe rather than an error to report.
+/// A child can close its pipes and keep running, so the wait after the drain is
+/// bounded too. Without a timeout it simply blocks. With one, it asks without
+/// blocking and sleeps between two asks, starting at a millisecond, because a
+/// child whose pipes have just closed has nearly always exited by then.
 ///
 /// # Errors
 ///
-/// Whatever the operating system said about the read.
-fn read_bounded<R: Read>(
-    pipe: Option<R>,
-    bound: u64,
-    stop: &(dyn Fn() + Sync),
-) -> std::io::Result<Vec<u8>> {
-    let Some(pipe) = pipe else {
-        return Ok(Vec::new());
+/// Whatever the operating system said about reaping the child.
+fn finish_by<C: Reapable>(
+    child: &mut C,
+    until: Option<Instant>,
+) -> std::io::Result<Option<ExitStatus>> {
+    let Some(at) = until else {
+        return child.finish().map(Some);
     };
-    let mut held = Vec::new();
-    let read = pipe.take(bound).read_to_end(&mut held)?;
-    if u64::try_from(read).unwrap_or(u64::MAX) >= bound {
-        stop();
+    let mut pause = Duration::from_millis(1);
+    loop {
+        if let Some(status) = child.poll()? {
+            return Ok(Some(status));
+        }
+        let left = at.saturating_duration_since(Instant::now());
+        if left.is_zero() {
+            child.stop();
+            child.finish()?;
+            return Ok(None);
+        }
+        std::thread::sleep(pause.min(left));
+        pause = (pause * 2).min(Duration::from_millis(50));
     }
-    Ok(held)
 }
 
 nvs_runtime::nvs_helper! {
@@ -843,22 +1184,35 @@ fn captured(receiver: Value, index: usize, member: &str) -> Result<Value, Fault>
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Process::spawn(string $path, array<string> $argv): Core\Process\Handle`
-    /// — replacing `proc_open` and `passthru`.
+    /// `Core\Process::spawn(string $path, array<string> $argv, {cwd?, env?,
+    /// timeout?}): Core\Process\Handle` — replacing `proc_open` and `passthru`.
     ///
-    /// [`nvs_core_process_run`]'s first three lines exactly, and then the
+    /// [`nvs_core_process_run`]'s first lines exactly, and then the
     /// difference: nothing is waited for, and the child's own span is opened
     /// here for [`nvs_core_process_handle_wait`] to close. The door is the same
     /// [`nvs_runtime::capability::exec`], asked the same way and piping the
     /// same three streams, so a target this member starts is one `run` would
     /// have started and a target it refuses is one `run` refuses.
-    fn nvs_core_process_spawn(ctx, args: [2]) {
+    ///
+    /// The options are `run`'s, read by the same [`Options::of`]. A `timeout`
+    /// becomes the [`HeldChild::deadline`] every handle member reads, so it
+    /// bounds the child from this call on, whichever member is parked when it
+    /// passes.
+    fn nvs_core_process_spawn(ctx, args: [5]) {
         let program = text(&args[0], "its path")?;
         let argv = argv_of(&args[1])?;
+        let options = Options::of(args, SPAWN_MEMBER)?;
         let borrowed: Vec<&str> = argv.iter().map(String::as_str).collect();
         let path = Path::new(program);
-        let child = nvs_runtime::capability::exec(ctx, path, &borrowed, SPAWN_MEMBER)?;
+        let child = nvs_runtime::capability::exec_with(
+            ctx,
+            path,
+            &borrowed,
+            &options.launch(),
+            SPAWN_MEMBER,
+        )?;
         let mut held = HeldChild::new(child);
+        held.deadline = options.until();
         held.spawn_event = ctx.open_spawn(nvs_runtime::SpawnForm::Process);
         let key = ctx.hold_spawned_child(held);
         #[expect(
@@ -926,36 +1280,88 @@ fn failed(member: &str, path: &Value, err: &std::io::Error) -> Fault {
     )
 }
 
-/// One chunk off a child's pipe, **off this core** — the pipe is moved to the
-/// blocking pool and handed back, because
-/// `rule:http-server/a-core-is-never-blocked-on-a-syscall` has no readiness to
-/// park a child's pipe on and [`wait_off_core`]'s module doc owns why that
-/// leaves exactly one spelling.
+/// The child this handle names, or the `TimeoutError` its `timeout` is once it
+/// has passed. The child is stopped then, so a handle whose time is up throws
+/// from every member that would touch it, and only `kill` still answers.
 ///
-/// Moved rather than borrowed for the reason
-/// [`nvs_runtime::Ctx::take_spawned_child`] gives about a wait: the closure
-/// outlives this stack frame, so it owns what it reads from and gives it back.
-fn chunk_off_core<R: Read + Send + 'static>(mut pipe: R) -> (R, std::io::Result<Vec<u8>>) {
-    nvs_host::blocking::run(move || {
-        let mut held = vec![0u8; CHUNK];
-        let read = pipe.read(&mut held).map(|read| {
-            held.truncate(read);
-            held
-        });
-        (pipe, read)
-    })
+/// # Errors
+///
+/// [`child_of`]'s, and [`timed_out`]'s.
+fn live_child<'a>(ctx: &'a mut Ctx, key: u64, member: &str) -> Result<&'a mut HeldChild, Fault> {
+    let child = child_of(ctx, key, member)?;
+    if child.deadline.is_some_and(|at| at <= Instant::now()) {
+        let _ = child.kill();
+        return Err(timed_out(&format!("{HANDLE_NAME}::{member}")));
+    }
+    Ok(child)
 }
 
-/// One `bytes` written to a child's pipe, off this core for
-/// [`chunk_off_core`]'s reason.
-fn write_off_core<W: Write + Send + 'static>(
-    mut pipe: W,
-    data: Vec<u8>,
-) -> (W, std::io::Result<()>) {
-    nvs_host::blocking::run(move || {
-        let written = pipe.write_all(&data).and_then(|()| pipe.flush());
-        (pipe, written)
-    })
+/// `job` run **off this core**, and held to the child's `timeout` while it runs.
+///
+/// A pipe is moved to the blocking pool and handed back, because
+/// `rule:http-server/a-core-is-never-blocked-on-a-syscall` has no readiness to
+/// park a child's pipe on and [`wait_off_core`]'s module doc owns why that
+/// leaves exactly one spelling. Moved rather than borrowed for the reason
+/// [`nvs_runtime::Ctx::take_spawned_child`] gives about a wait: the closure
+/// outlives this stack frame, so it owns what it reads from and gives it back.
+///
+/// A child with no timeout is not touched, and `job` is the whole of what
+/// runs. A child with one goes to the pool with `job`, which runs on a thread
+/// of its own while the pool thread waits for it until the deadline. If the
+/// deadline passes first, the child is stopped, which ends the read or the
+/// write `job` is blocked in, and the `TimeoutError` comes back without waiting
+/// for `job`.
+///
+/// # Errors
+///
+/// [`live_child`]'s, and [`timed_out`]'s when the deadline passes while `job`
+/// runs.
+fn off_core<T: Send + 'static>(
+    ctx: &mut Ctx,
+    key: u64,
+    member: &str,
+    job: impl FnOnce() -> T + Send + 'static,
+) -> Result<T, Fault> {
+    let Some(at) = live_child(ctx, key, member)?.deadline else {
+        return Ok(nvs_host::blocking::run(job));
+    };
+    let Some(held) = ctx.take_spawned_child(key) else {
+        return Err(Fault::fatal(format!(
+            "{HANDLE_NAME}::{member} was asked of a child this task does not hold"
+        )));
+    };
+    let (held, done) = nvs_host::blocking::run(move || {
+        let mut held = held;
+        let (tell, heard) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let _ = tell.send(job());
+        });
+        let done = heard
+            .recv_timeout(at.saturating_duration_since(Instant::now()))
+            .ok();
+        if done.is_none() {
+            let _ = held.kill();
+        }
+        (held, done)
+    });
+    ctx.restore_spawned_child(key, held);
+    done.ok_or_else(|| timed_out(&format!("{HANDLE_NAME}::{member}")))
+}
+
+/// One chunk off a child's pipe, read where [`off_core`] runs it.
+fn chunk_of<R: Read>(mut pipe: R) -> (R, std::io::Result<Vec<u8>>) {
+    let mut held = vec![0u8; CHUNK];
+    let read = pipe.read(&mut held).map(|read| {
+        held.truncate(read);
+        held
+    });
+    (pipe, read)
+}
+
+/// One `bytes` written to a child's pipe, where [`off_core`] runs it.
+fn written_to<W: Write>(mut pipe: W, data: &[u8]) -> (W, std::io::Result<()>) {
+    let written = pipe.write_all(data).and_then(|()| pipe.flush());
+    (pipe, written)
 }
 
 nvs_runtime::nvs_helper! {
@@ -963,10 +1369,10 @@ nvs_runtime::nvs_helper! {
     /// `null` at the end of the stream.
     fn nvs_core_process_handle_read_stdout(ctx, args: [1]) {
         let (key, path) = handle_of(args[0], "readStdout")?;
-        let Some(pipe) = child_of(ctx, key, "readStdout")?.stdout.take() else {
+        let Some(pipe) = live_child(ctx, key, "readStdout")?.stdout.take() else {
             return Ok(Value::null());
         };
-        let (pipe, read) = chunk_off_core(pipe);
+        let (pipe, read) = off_core(ctx, key, "readStdout", move || chunk_of(pipe))?;
         let octets = read.map_err(|err| failed("readStdout", &path, &err))?;
         if !octets.is_empty()
             && let Ok(child) = child_of(ctx, key, "readStdout")
@@ -982,10 +1388,10 @@ nvs_runtime::nvs_helper! {
     /// on the other stream.
     fn nvs_core_process_handle_read_stderr(ctx, args: [1]) {
         let (key, path) = handle_of(args[0], "readStderr")?;
-        let Some(pipe) = child_of(ctx, key, "readStderr")?.stderr.take() else {
+        let Some(pipe) = live_child(ctx, key, "readStderr")?.stderr.take() else {
             return Ok(Value::null());
         };
-        let (pipe, read) = chunk_off_core(pipe);
+        let (pipe, read) = off_core(ctx, key, "readStderr", move || chunk_of(pipe))?;
         let octets = read.map_err(|err| failed("readStderr", &path, &err))?;
         if !octets.is_empty()
             && let Ok(child) = child_of(ctx, key, "readStderr")
@@ -1022,14 +1428,14 @@ nvs_runtime::nvs_helper! {
                 ))
             })?
             .to_vec();
-        let Some(pipe) = child_of(ctx, key, "writeStdin")?.stdin.take() else {
+        let Some(pipe) = live_child(ctx, key, "writeStdin")?.stdin.take() else {
             return Err(failed(
                 "writeStdin",
                 &path,
                 &std::io::Error::from(std::io::ErrorKind::BrokenPipe),
             ));
         };
-        let (pipe, written) = write_off_core(pipe, data);
+        let (pipe, written) = off_core(ctx, key, "writeStdin", move || written_to(pipe, &data))?;
         written.map_err(|err| failed("writeStdin", &path, &err))?;
         if let Ok(child) = child_of(ctx, key, "writeStdin") {
             child.stdin = Some(pipe);
@@ -1055,46 +1461,38 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_process_handle_wait(ctx, args: [1]) {
         let (key, path) = handle_of(args[0], "wait")?;
         let bound = ctx.intake_bound();
+        live_child(ctx, key, "wait")?;
         let Some(mut held) = ctx.take_spawned_child(key) else {
             return Err(Fault::fatal(format!(
                 "{HANDLE_NAME}::wait was asked of a child this task does not hold"
             )));
         };
         let open = held.spawn_event.take();
-        let (held, stdout, stderr, status) = nvs_host::blocking::run(move || {
+        let (held, drained) = nvs_host::blocking::run(move || {
             let mut held = held;
             drop(held.stdin.take());
             let out = held.stdout.take();
             let err = held.stderr.take();
-            let held = Mutex::new(held);
-            let stop = || {
-                if let Ok(mut held) = held.lock() {
-                    let _ = held.kill();
-                }
-            };
-            let (stdout, stderr) = std::thread::scope(|scope| {
-                let stderr = scope.spawn(|| read_bounded(err, bound, &stop));
-                (read_bounded(out, bound, &stop), stderr.join())
-            });
-            let stderr = stderr.unwrap_or_else(|panic| std::panic::resume_unwind(panic));
-            let mut held = held
-                .into_inner()
-                .unwrap_or_else(std::sync::PoisonError::into_inner);
-            let status = held.reap();
-            (held, stdout, stderr, status)
+            let until = held.deadline;
+            let drained = drain(&mut held, out, err, bound, until);
+            (held, drained)
         });
         ctx.restore_spawned_child(key, held);
         if let Some(open) = open {
             // A child process reports no wall time of its own, so the join
             // carries the parent-observed wall and no split. It is closed
-            // before the three refusals below, since a wait that throws on
-            // what the child wrote has still joined it.
+            // before the refusals below, since a wait that throws on what the
+            // child wrote, or on its timeout, has still joined it.
             ctx.close_spawn(open, None);
         }
 
-        let status = status.map_err(|err| failed("wait", &path, &err))?;
-        let stdout = stdout.map_err(|err| failed("wait", &path, &err))?;
-        let stderr = stderr.map_err(|err| failed("wait", &path, &err))?;
+        let Output {
+            status,
+            stdout,
+            stderr,
+        } = drained
+            .map_err(|err| failed("wait", &path, &err))?
+            .ok_or_else(|| timed_out(&format!("{HANDLE_NAME}::wait")))?;
         let taken = stdout.len() + stderr.len();
         if let Some(over) = ctx.intake_breach(SPAWN_MEMBER, taken) {
             return Err(over);
@@ -1283,18 +1681,29 @@ mod tests {
     /// `Core\Process::spawn(<this test binary>, <argv>)` on `ctx`, answering the handle it built
     /// and releasing the two arguments it was built from.
     fn spawn_on(ctx: &mut Ctx, argv: &[&str]) -> Value {
+        spawn_with(ctx, argv, [Value::null(), Value::null(), Value::null()])
+            .expect("`exec = true` admits this suite's own binary")
+    }
+
+    /// [`spawn_on`] with the three option arguments `cwd`, `env` and `timeout` as given, answering
+    /// the handle or the message of what the member threw. The options are released with the rest.
+    fn spawn_with(ctx: &mut Ctx, argv: &[&str], options: [Value; 3]) -> Result<Value, String> {
         let me = std::env::current_exe().expect("a test binary knows its own path");
         let program = me.to_str().expect("this suite is built under a UTF-8 path");
         let mut array = NvsArray::new();
         for one in argv {
             array.append(Value::str(NvsStr::new(one.as_bytes())));
         }
+        let [cwd, env, timeout] = options;
         let args = [
             Value::str(NvsStr::new(program.as_bytes())),
             Value::array(array),
+            cwd,
+            env,
+            timeout,
         ];
-        let answered = nvs_runtime::call(super::nvs_core_process_spawn, ctx, &args)
-            .expect("`exec = true` admits this suite's own binary");
+        let answered =
+            nvs_runtime::call(super::nvs_core_process_spawn, ctx, &args).map_err(|_| thrown(ctx));
         for argument in args {
             #[expect(
                 unsafe_code,
@@ -1807,6 +2216,9 @@ mod tests {
         let args = [
             Value::str(NvsStr::new(program.as_bytes())),
             Value::array(argv),
+            Value::null(),
+            Value::null(),
+            Value::null(),
         ];
         let answered = nvs_runtime::call(super::nvs_core_process_run, &mut ctx, &args);
         let refusal = ctx.take_pending().map(std::borrow::Cow::into_owned);
@@ -1842,8 +2254,9 @@ mod tests {
         ctx.set_config(granting("[capabilities.process]\nexec = true\n"));
         let child = nvs_runtime::capability::exec(&ctx, &me, &["--list"], RUN_MEMBER)
             .expect("`exec = true` admits an ordinary executable");
-        let listing = wait_off_core(child, u64::MAX)
+        let listing = wait_off_core(child, u64::MAX, None)
             .expect("the child never ended")
+            .expect("a wait with no timeout is never stopped by one")
             .stdout
             .len();
         assert!(
@@ -1904,7 +2317,9 @@ mod tests {
                 RUN_MEMBER,
             )
             .expect("`exec = true` admits an ordinary executable");
-            let output = wait_off_core(child, u64::MAX).expect("the child never ended");
+            let output = wait_off_core(child, u64::MAX, None)
+                .expect("the child never ended")
+                .expect("a wait with no timeout is never stopped by one");
             assert!(
                 output.status.success(),
                 "a filter matching no case is not a failing run"
@@ -1927,5 +2342,323 @@ mod tests {
             pool_size().0 >= 1,
             "the wait ran on the worker: this thread's blocking pool never started a thread"
         );
+    }
+
+    /// The child [`REPORTER`] starts: it reports whether `process.rs` is in the folder it runs in,
+    /// which is true only of this crate's `src`, the one variable the cases below give it, and
+    /// whether it can see `PATH`. It writes to standard error, because a crate the language server
+    /// links never writes to standard output (`rule:ide/stdout-belongs-to-the-protocol`). Never
+    /// run alone, for [`a_child_that_runs_until_it_is_killed`]'s reason.
+    #[test]
+    #[ignore = "started by name as the child the options cases need, never run alone"]
+    fn a_child_that_reports_its_folder_and_environment() {
+        let here = if Path::new("process.rs").is_file() {
+            "src"
+        } else {
+            "elsewhere"
+        };
+        let probe = std::env::var("NVS_PROBE").unwrap_or_else(|_| "none".to_owned());
+        let path = std::env::vars_os().any(|(name, _)| name.eq_ignore_ascii_case("PATH"));
+        let path = if path { "set" } else { "unset" };
+        let report = format!("folder=[{here}]\nprobe=[{probe}]\npath=[{path}]\n");
+        std::io::Write::write_all(&mut std::io::stderr().lock(), report.as_bytes())
+            .expect("the parent's pipe is writable");
+    }
+
+    /// The argv that starts [`a_child_that_reports_its_folder_and_environment`].
+    const REPORTER: &[&str] = &[
+        "--exact",
+        "process::tests::a_child_that_reports_its_folder_and_environment",
+        "--ignored",
+        "--nocapture",
+    ];
+
+    /// `Core\Process::run(<this test binary>, <argv>, <options>)` under `exec = true`, answering
+    /// the child's standard error as text, or the class and message of what the member threw.
+    fn run_with(argv: &[&str], options: [Value; 3]) -> Result<String, String> {
+        let me = std::env::current_exe().expect("a test binary knows its own path");
+        let program = me.to_str().expect("this suite is built under a UTF-8 path");
+        let mut ctx = Ctx::buffered();
+        ctx.set_config(granting("[capabilities.process]\nexec = true\n"));
+        let mut array = NvsArray::new();
+        for one in argv {
+            array.append(Value::str(NvsStr::new(one.as_bytes())));
+        }
+        let [cwd, env, timeout] = options;
+        let args = [
+            Value::str(NvsStr::new(program.as_bytes())),
+            Value::array(array),
+            cwd,
+            env,
+            timeout,
+        ];
+        let answered = nvs_runtime::call(super::nvs_core_process_run, &mut ctx, &args);
+        let outcome = match answered {
+            Ok(result) => {
+                let object = crate::instance::receiver(result, &RESULT, "stderr")
+                    .expect("a `run` answers a result and nothing else");
+                let stderr = crate::instance::slot(object, STDERR_SLOT);
+                Ok(String::from_utf8_lossy(stderr.as_bytes().unwrap_or_default()).into_owned())
+            }
+            Err(_) => Err(thrown(&mut ctx)),
+        };
+        for argument in args.into_iter().chain(answered) {
+            #[expect(
+                unsafe_code,
+                reason = "the list holds exactly the references it built, and the member \
+                          hands back a reference of its own on the path that succeeds"
+            )]
+            unsafe {
+                argument.release();
+            }
+        }
+        outcome
+    }
+
+    /// What `ctx` holds pending, as `<class>: <message>`.
+    fn thrown(ctx: &mut Ctx) -> String {
+        let class = ctx.pending_class().unwrap_or_default();
+        let message = ctx
+            .take_pending()
+            .map_or_else(String::new, std::borrow::Cow::into_owned);
+        format!("{class}: {message}")
+    }
+
+    /// An `env` argument holding exactly `pairs`.
+    fn env_value(pairs: &[(&str, &str)]) -> Value {
+        let mut array = NvsArray::new();
+        for (name, value) in pairs {
+            array.set(
+                NvsStr::new(name.as_bytes()),
+                Value::str(NvsStr::new(value.as_bytes())),
+            );
+        }
+        Value::array(array)
+    }
+
+    /// `rule:core-classes/process-options`' `cwd` and `env`, each **on both sides**: the same
+    /// child reports this process's folder and environment when the options are left out, and the
+    /// folder and the one variable it was given when they are not. `PATH` is the tell for
+    /// replacement: it is set in every test run, so a child that still sees it got a merge.
+    // covers: Core\Process::run
+    #[test]
+    fn run_starts_its_child_in_cwd_with_only_the_env_it_was_given() {
+        let folder = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+        let folder = folder
+            .to_str()
+            .expect("this suite is built under a UTF-8 path");
+
+        let plain = run_with(REPORTER, [Value::null(), Value::null(), Value::null()])
+            .expect("a child with no options starts");
+        assert!(
+            plain.contains("folder=[elsewhere]"),
+            "the control already runs in the folder the case gives, so it proves nothing: {plain}"
+        );
+        assert!(
+            plain.contains("probe=[none]") && plain.contains("path=[set]"),
+            "a child with no `env` sees this process's environment: {plain}"
+        );
+
+        let given = run_with(
+            REPORTER,
+            [
+                Value::str(NvsStr::new(folder.as_bytes())),
+                env_value(&[("NVS_PROBE", "given")]),
+                Value::null(),
+            ],
+        )
+        .expect("a child with a folder and an environment starts");
+        assert!(
+            given.contains("folder=[src]"),
+            "the child did not start in `cwd`: {given}"
+        );
+        assert!(
+            given.contains("probe=[given]"),
+            "the child did not see the variable it was given: {given}"
+        );
+        assert!(
+            given.contains("path=[unset]"),
+            "`env` was merged with this process's environment instead of replacing it: {given}"
+        );
+    }
+
+    /// The three options a call can get wrong are refused **before anything starts**, each with
+    /// the class every bad argument of this member gets: a relative `cwd`, a variable name the
+    /// operating system cannot carry, and a `timeout` that is not longer than zero are each a
+    /// `RuntimeError` naming the member.
+    // covers: Core\Process::run
+    #[test]
+    fn a_relative_cwd_a_bad_env_name_and_a_zero_timeout_throw() {
+        let relative = run_with(
+            REPORTER,
+            [
+                Value::str(NvsStr::new(b"src")),
+                Value::null(),
+                Value::null(),
+            ],
+        )
+        .expect_err("a relative folder is not resolved against the server's own");
+        assert!(
+            relative.starts_with("RuntimeError") && relative.contains("absolute"),
+            "{relative}"
+        );
+
+        for name in ["", "A=B"] {
+            let refused = run_with(
+                REPORTER,
+                [Value::null(), env_value(&[(name, "x")]), Value::null()],
+            )
+            .expect_err("a name the operating system cannot carry is not passed on");
+            assert!(
+                refused.starts_with("RuntimeError") && refused.contains(RUN_MEMBER),
+                "`{name}`: {refused}"
+            );
+        }
+
+        for nanos in [0, -1] {
+            let refused = run_with(
+                REPORTER,
+                [
+                    Value::null(),
+                    Value::null(),
+                    crate::time::duration_of(nanos),
+                ],
+            )
+            .expect_err("a timeout that is over before it starts is a mistake in the call");
+            assert!(
+                refused.starts_with("RuntimeError") && refused.contains("timeout"),
+                "{nanos}: {refused}"
+            );
+        }
+    }
+
+    /// `rule:core-classes/process-options`' `timeout` on `run`, on both sides: a child that
+    /// outlives it is stopped and a `TimeoutError` comes back long before the child would have
+    /// ended, and a child that ends in time is answered as if no timeout was given.
+    // covers: Core\Process::run
+    #[test]
+    fn run_stops_a_child_that_outlives_its_timeout() {
+        let started = std::time::Instant::now();
+        let stopped = run_with(
+            SLEEPER,
+            [
+                Value::null(),
+                Value::null(),
+                crate::time::duration_of(200_000_000),
+            ],
+        )
+        .expect_err("a child that sleeps for thirty seconds outlives a timeout of 200ms");
+        assert!(
+            stopped.starts_with("TimeoutError") && stopped.contains(RUN_MEMBER),
+            "{stopped}"
+        );
+        assert!(
+            started.elapsed() < std::time::Duration::from_secs(20),
+            "the wait lasted as long as the child, so the timeout stopped nothing"
+        );
+
+        let in_time = run_with(
+            REPORTER,
+            [
+                Value::null(),
+                Value::null(),
+                crate::time::duration_of(60_000_000_000),
+            ],
+        )
+        .expect("a child that ends within its timeout is answered");
+        assert!(in_time.contains("probe=[none]"), "{in_time}");
+    }
+
+    /// `rule:core-classes/process-options` on `spawn`: the folder and the environment reach the
+    /// child exactly as they do for `run`, and the timeout stops a child whose handle is parked
+    /// in a read when it passes. Every later member but `kill` then throws the same
+    /// `TimeoutError`.
+    // covers: Core\Process::spawn
+    // covers: Core\Process\Handle::readStdout
+    // covers: Core\Process\Handle::wait
+    #[test]
+    fn spawn_takes_the_same_options_and_its_timeout_stops_a_parked_read() {
+        let folder = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+        let folder = folder
+            .to_str()
+            .expect("this suite is built under a UTF-8 path");
+        let mut ctx = Ctx::buffered();
+        ctx.set_config(granting("[capabilities.process]\nexec = true\n"));
+
+        let handle = spawn_with(
+            &mut ctx,
+            REPORTER,
+            [
+                Value::str(NvsStr::new(folder.as_bytes())),
+                env_value(&[("NVS_PROBE", "spawned")]),
+                Value::null(),
+            ],
+        )
+        .expect("a child with a folder and an environment starts");
+        let result = nvs_runtime::call(super::nvs_core_process_handle_wait, &mut ctx, &[handle])
+            .expect("the reporter ends by itself");
+        let object = crate::instance::receiver(result, &RESULT, "stderr")
+            .expect("a `wait` answers a result");
+        let stderr = crate::instance::slot(object, STDERR_SLOT);
+        let seen = String::from_utf8_lossy(stderr.as_bytes().unwrap_or_default()).into_owned();
+        assert!(seen.contains("folder=[src]"), "{seen}");
+        assert!(
+            seen.contains("probe=[spawned]") && seen.contains("path=[unset]"),
+            "{seen}"
+        );
+
+        let sleeper = spawn_with(
+            &mut ctx,
+            SLEEPER,
+            [
+                Value::null(),
+                Value::null(),
+                crate::time::duration_of(200_000_000),
+            ],
+        )
+        .expect("a child with a timeout starts");
+        let started = std::time::Instant::now();
+        // The harness prints its header first, so the read that parks is the one after it.
+        let mut parked = Ok(Value::null());
+        for _ in 0..16 {
+            parked = nvs_runtime::call(
+                super::nvs_core_process_handle_read_stdout,
+                &mut ctx,
+                &[sleeper],
+            );
+            if parked.is_err() {
+                break;
+            }
+        }
+        assert!(parked.is_err(), "no read was stopped by the timeout");
+        let stopped = thrown(&mut ctx);
+        assert!(
+            stopped.starts_with("TimeoutError") && stopped.contains("readStdout"),
+            "{stopped}"
+        );
+        assert!(
+            started.elapsed() < std::time::Duration::from_secs(20),
+            "the read lasted as long as the child, so the timeout stopped nothing"
+        );
+
+        let again = nvs_runtime::call(super::nvs_core_process_handle_wait, &mut ctx, &[sleeper]);
+        assert!(
+            again.is_err(),
+            "a handle whose time is up still answered a wait"
+        );
+        let stopped = thrown(&mut ctx);
+        assert!(stopped.starts_with("TimeoutError"), "{stopped}");
+        nvs_runtime::call(super::nvs_core_process_handle_kill, &mut ctx, &[sleeper])
+            .expect("`kill` still answers once the timeout has passed");
+
+        for value in [handle, result, sleeper] {
+            #[expect(
+                unsafe_code,
+                reason = "each is a reference this case was handed and has not released"
+            )]
+            unsafe {
+                value.release();
+            }
+        }
     }
 }
