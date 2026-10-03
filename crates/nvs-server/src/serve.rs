@@ -9306,6 +9306,104 @@ mod tests {
         );
     }
 
+    /// `rule:concurrency/a-drain-closes-a-connection-cleanly`'s bound on work
+    /// in progress, for a whole response still being written: a client that
+    /// reads it slowly but steadily does not keep the accept loop's drain open
+    /// past the drain period.
+    ///
+    /// The body is far larger than the loopback's socket buffers, and the
+    /// client reads a little at a time, so every read restarts the connection's
+    /// idle wait. What is timed is the server's drain and not what the client
+    /// reads, because the kernel still sends what it was given after the
+    /// connection closes. A platform whose socket takes the whole body in one
+    /// write, as Windows does, has nothing left to cut.
+    ///
+    /// This is the outcome, and `crate::io`'s tests are the bound: `hyper`
+    /// reads while the write is parked, which ends the response phase early
+    /// (`crate::io::ConnectionIo::closing`), so this case cannot tell which of
+    /// the two waits the drain ended.
+    #[test]
+    fn a_whole_response_still_being_written_at_the_drain_periods_end_is_cut() {
+        const WHOLE: usize = 32 * 1024 * 1024;
+        let mut listener = NvsListener::bind("127.0.0.1:0".parse().expect("a literal address"))
+            .expect("the OS refused a port");
+        let addr = listener
+            .local_addr()
+            .expect("a bound listener had no address");
+
+        let served = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let client = std::thread::spawn({
+            let served = Arc::clone(&served);
+            move || {
+                let mut socket =
+                    TcpStream::connect(addr).expect("the loopback refused a connection");
+                socket
+                    .set_read_timeout(Some(CLIENT_PATIENCE))
+                    .expect("the socket refused a read timeout");
+                socket
+                    .write_all(b"GET /export HTTP/1.1\r\nHost: localhost\r\n\r\n")
+                    .expect("the write failed");
+                let began = Instant::now();
+                let mut head = Vec::new();
+                let mut buffer = [0_u8; 4096];
+                // Slowly, until the server's drain has ended or the client
+                // runs out of patience. Closing the socket then is what ends a
+                // write the drain did not end.
+                while !served.load(std::sync::atomic::Ordering::Acquire)
+                    && began.elapsed() < CLIENT_PATIENCE
+                {
+                    match socket.read(&mut buffer) {
+                        Ok(0) | Err(_) => break,
+                        Ok(read) => {
+                            if head.len() < 512 {
+                                head.extend_from_slice(&buffer[..read]);
+                            }
+                            std::thread::sleep(Duration::from_millis(10));
+                        }
+                    }
+                }
+                String::from_utf8_lossy(&head).into_owned()
+            }
+        });
+
+        let answers_with_a_large_body = Rc::new(|_request: Request<Incoming>, _origin: Origin| {
+            Reply::Done(Response::new(Answer::new(Bytes::from(vec![b'x'; WHOLE]))))
+        });
+        let waits = Waits {
+            drain: Duration::from_millis(300),
+            ..Waits::default()
+        };
+        let mut sched = nvs_host::Scheduler::new();
+        let _installed =
+            nvs_host::reactor::install(nvs_host::Reactor::new().expect("the OS refused a poll"));
+        sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, move |_ctx| {
+            serve_on_this_core(
+                &mut listener,
+                &answers_with_a_large_body,
+                waits,
+                &wide_open(),
+                &Draining::detached(),
+                |_note| {},
+                || ControlFlow::Break(()),
+            )
+            .expect("the accept loop failed");
+        });
+        let began = Instant::now();
+        run_the_core(&mut sched);
+        let took = began.elapsed();
+        served.store(true, std::sync::atomic::Ordering::Release);
+
+        let head = client.join().expect("the client thread panicked");
+        assert!(
+            head.starts_with("HTTP/1.1 200 OK\r\n"),
+            "the response's head was not written before the cut: {head}"
+        );
+        assert!(
+            took < Duration::from_secs(5),
+            "the drain waited for the response being written: it ended after {took:?}"
+        );
+    }
+
     /// `rule:http-server/the-server-block-is-boot-class`'s valve, and the load-bearing half of it is the **order**:
     /// the handler is never asked, so no mount was selected, no isolate was
     /// allocated and no Novis code ran for a request the ceiling refused. A

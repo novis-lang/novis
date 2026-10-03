@@ -177,19 +177,16 @@ impl Phase {
         }
     }
 
-    /// Whether a connection in this phase is owed no answer, which makes it
-    /// one the drain period may close by ending its wait.
+    /// Whether the drain period's end also ends this phase's wait.
     ///
-    /// A peer still sending its head, or idle between requests, has no request
-    /// to answer. In [`Phase::Body`] the request is running, and
-    /// `crate::serve`'s service cuts it at the period's end and answers `503`.
-    /// A wait cut here would close the connection before that answer is
-    /// written. [`Phase::Write`] is a response already being written. A
-    /// streamed one is cut by its own body at the period's end
-    /// (`crate::serve::DrainCut`), and a buffered one finishes under its own
-    /// wait.
-    fn is_owed_nothing(self) -> bool {
-        matches!(self, Phase::Head | Phase::KeepAlive)
+    /// Every phase but [`Phase::Body`]. There the request is running, and
+    /// `crate::serve`'s service cuts it at the period's end and answers `503`;
+    /// a wait cut here would close the connection before that answer is
+    /// written. A response being written is cut at the period's end whether it
+    /// is buffered or streamed, and a streamed one is also ended by its own
+    /// body at the same instant (`crate::serve::DrainCut`).
+    fn ends_at_the_drain(self) -> bool {
+        !matches!(self, Phase::Body)
     }
 }
 
@@ -219,6 +216,9 @@ pub struct ConnectionIo {
     armed: Option<(Phase, bool)>,
     /// When this connection first saw the drain — [`DrainSeen`].
     drain_seen: DrainSeen,
+    /// The instant the drain ends the response being written, fixed when that
+    /// response is first armed under a drain — [`ConnectionIo::closing`].
+    response_ends: Option<Instant>,
     /// The drain that bounds this connection's waits, or `None` for a
     /// connection nothing drains — [`ConnectionIo::ending_at_drain`].
     draining: Option<Draining>,
@@ -239,19 +239,21 @@ impl ConnectionIo {
             phase: Rc::new(Cell::new(Phase::Head)),
             armed: None,
             drain_seen: DrainSeen::default(),
+            response_ends: None,
             draining: None,
             woken_at_drain: None,
         }
     }
 
-    /// Bounds this connection's head and keep-alive waits by the drain period
-    /// once `draining` begins, and re-polls a connection already parked so the
-    /// drive that owns it reads the drain at once.
+    /// Bounds this connection's head, response and keep-alive waits by the
+    /// drain period once `draining` begins, and re-polls a connection already
+    /// parked so the drive that owns it reads the drain at once.
     ///
     /// `rule:concurrency/a-drain-closes-a-connection-cleanly` has the period
-    /// bound work in progress, so a head still arriving at its end ends in
-    /// `TimedOut` like any other expired wait ([`Phase::is_owed_nothing`] says
-    /// why the other two phases are not cut here). An idle
+    /// bound work in progress, so a head still arriving or a response still
+    /// being written at its end ends in `TimedOut` like any other expired wait
+    /// ([`ConnectionIo::closing`] says which response is given longer, and
+    /// [`Phase::ends_at_the_drain`] why the body wait is not cut here). An idle
     /// connection closes sooner than that: the re-poll is what makes its close
     /// prompt, because `crate::serve`'s drive reads [`Phase::KeepAlive`] and
     /// the drain on every poll and asks `hyper` to shut the connection down,
@@ -306,13 +308,7 @@ impl ConnectionIo {
     /// to see it.
     fn arm(&mut self, progressed: bool) {
         let phase = self.phase.get();
-        // Under a drain the two phases that owe no answer end at the drain
-        // period's end at the latest — already in the past, if the period is
-        // over, which is `TimedOut` on the next park. [`Phase::is_owed_nothing`]
-        // says why the other two are not cut here.
-        let closing = (phase.is_owed_nothing()
-            && self.draining.as_ref().is_some_and(Draining::is_draining))
-        .then(|| self.drain_seen.period_ends(self.waits.drain));
+        let closing = self.closing(phase);
         let armed = (phase, closing.is_some());
         if !progressed && self.armed == Some(armed) {
             return;
@@ -323,6 +319,38 @@ impl ConnectionIo {
             at = at.min(closing);
         }
         self.stream_mut().set_deadline(Some(at));
+    }
+
+    /// The instant the drain ends this phase's wait at the latest, or `None`
+    /// while nothing drains it or the phase is one the drain does not end
+    /// ([`Phase::ends_at_the_drain`]).
+    ///
+    /// That instant is the drain period's end, and once the period is over it
+    /// is in the past, which is `TimedOut` on the next park. A response is the
+    /// exception, because one can begin after the period is over: the `503`
+    /// `crate::serve`'s service answers a request cut at the period's end is
+    /// written at that instant. A response that begins once the period is
+    /// over is given one `write_idle_timeout` from its first arming, in total,
+    /// so a `503` that parks once is still written and a slow reader still
+    /// cannot keep the connection open.
+    fn closing(&mut self, phase: Phase) -> Option<Instant> {
+        if !phase.ends_at_the_drain() || !self.draining.as_ref().is_some_and(Draining::is_draining)
+        {
+            return None;
+        }
+        let period_ends = self.drain_seen.period_ends(self.waits.drain);
+        if phase != Phase::Write {
+            return Some(period_ends);
+        }
+        if self.armed != Some((Phase::Write, true)) {
+            let now = Instant::now();
+            self.response_ends = Some(if period_ends > now {
+                period_ends
+            } else {
+                now + self.waits.write_idle
+            });
+        }
+        self.response_ends
     }
 
     /// The stream underneath, for the caller that has to set a deadline on it.
@@ -364,11 +392,13 @@ impl Read for ConnectionIo {
         _cx: &mut Context<'_>,
         mut cursor: ReadBufCursor<'_>,
     ) -> Poll<io::Result<()>> {
-        // `hyper` reads again only once it is finished writing, so a read
-        // attempted in the response phase *is* the end of that response. The
-        // one shape this reads early is a body `hyper` drains after answering,
-        // and the consequence there is the longer of two waits on a connection
-        // that is demonstrably still moving.
+        // A read attempted in the response phase is taken as the end of that
+        // response, because `hyper` goes back for the next request once it is
+        // finished writing. Two shapes read early: a body `hyper` drains after
+        // answering, and the probe `hyper` makes while a large write is
+        // parked. The consequence is the keep-alive wait in place of the write
+        // wait, which with the defaults is the longer one. Under a drain both
+        // end at the drain period's end ([`ConnectionIo::closing`]).
         if self.phase.get() == Phase::Write {
             self.phase.set(Phase::KeepAlive);
         }
@@ -638,6 +668,97 @@ mod tests {
                 distinct.keepalive
             ],
             "a phase is bounded by a wait that is not its own"
+        );
+    }
+
+    /// An adapter over one end of a loopback connection, under a drain that
+    /// has begun, with the far end returned so that the connection stays open.
+    fn draining_adapter(waits: Waits) -> (ConnectionIo, std::net::TcpStream) {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("the OS refused a port");
+        let near = std::net::TcpStream::connect(
+            listener
+                .local_addr()
+                .expect("a bound listener had no address"),
+        )
+        .expect("the loopback refused a connection");
+        let (far, _) = listener.accept().expect("the accept failed");
+        let stream = nvs_host::NvsTcp::from_std(near).expect("the socket refused non-blocking");
+        let draining = Draining::detached();
+        draining.begin();
+        let io = ConnectionIo::new(NvsConnection::Tcp(stream), waits).ending_at_drain(&draining);
+        (io, far)
+    }
+
+    /// The deadline the adapter last put on its stream.
+    fn deadline(io: &mut ConnectionIo) -> Option<Instant> {
+        match io.stream_mut() {
+            NvsConnection::Tcp(stream) => stream.deadline(),
+            #[cfg(unix)]
+            NvsConnection::Unix(stream) => stream.deadline(),
+        }
+    }
+
+    /// `rule:concurrency/a-drain-closes-a-connection-cleanly`'s bound on a
+    /// response being written: under a drain, the write wait ends at the drain
+    /// period's end, and bytes moving do not push it past that end.
+    ///
+    /// This is asserted on the adapter because `hyper` also reads while a
+    /// write is parked, and that read ends [`Phase::Write`] early. A case over
+    /// a served connection passes through that read whether this bound exists
+    /// or not.
+    #[test]
+    fn a_response_being_written_ends_at_the_drain_periods_end() {
+        let waits = Waits {
+            drain: Duration::from_millis(300),
+            ..Waits::default()
+        };
+        let (mut io, _far) = draining_adapter(waits);
+        io.phase().set(Phase::Write);
+        let before = Instant::now();
+        io.arm(false);
+        let armed = deadline(&mut io).expect("a response under a drain was armed with no deadline");
+        assert!(
+            armed <= Instant::now() + waits.drain && armed >= before + waits.drain,
+            "a response under a drain is bounded by {:?} from now, which is not the drain period",
+            armed.saturating_duration_since(before)
+        );
+        io.arm(true);
+        assert_eq!(
+            deadline(&mut io),
+            Some(armed),
+            "a byte written moved the drain period's end"
+        );
+    }
+
+    /// A response that begins once the drain period is over is given one
+    /// `write_idle_timeout` in total. It is the `503` a request cut by the
+    /// drain is answered with, so it is written even if it parks once, and
+    /// bytes moving do not extend it.
+    #[test]
+    fn a_response_begun_after_the_drain_period_gets_one_write_wait_in_total() {
+        let waits = Waits {
+            drain: Duration::ZERO,
+            ..Waits::default()
+        };
+        let (mut io, _far) = draining_adapter(waits);
+        // The first arming is the moment this connection saw the drain, and a
+        // zero period ends then.
+        io.arm(false);
+        io.phase().set(Phase::Write);
+        let before = Instant::now();
+        io.arm(false);
+        let armed = deadline(&mut io).expect("a response under a drain was armed with no deadline");
+        assert!(
+            armed >= before + waits.write_idle,
+            "a response begun after the drain period was cut before one write wait: {:?}",
+            armed.saturating_duration_since(before)
+        );
+        std::thread::sleep(Duration::from_millis(5));
+        io.arm(true);
+        assert_eq!(
+            deadline(&mut io),
+            Some(armed),
+            "a byte written extended the response's one write wait"
         );
     }
 }

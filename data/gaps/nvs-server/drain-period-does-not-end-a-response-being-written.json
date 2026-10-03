@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-server/src/io.rs",
-  "title": "The drain period does not end a buffered response that is already being written.",
-  "text": "`rule:concurrency/a-drain-closes-a-connection-cleanly` has the drain period bound work in progress, \"a request whose head, body or response is moving\". A request still running is cut and answered `503`, a streamed response ends in `crate::serve::DrainPeriodEnded` at the period's end, and the head and keep-alive waits end there (`crate::io::Phase::is_owed_nothing`). A buffered response being written is not cut: `Phase::Write` finishes under `write_idle`, which a peer that reads slowly but steadily restarts on every byte, so `crate::serve`'s accept loop can park past the period. Closing this means adding `Phase::Write` to the phases whose wait ends at the period's end in `ConnectionIo::arm`, without cutting the `503` the service writes at that same instant: a write wait already past its end is `TimedOut` on the next park, so a `503` that parks once would be cut. A test needs a whole body larger than the loopback's socket buffers and a client that reads it slowly for longer than the period.",
-  "goal": "goal-closeout"
-}
