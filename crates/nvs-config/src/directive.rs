@@ -107,6 +107,9 @@ pub const DIRECTIVES: &[Directive] = &[
     // the direction the rule forbids.
     Directive { key: "limits.max_decompressed", class: Class::System, apply: Apply::Reload },
     Directive { key: "limits.max_decompression_ratio", class: Class::System, apply: Apply::Reload },
+    // `rule:observability/memory-high-water-writes-a-warn`'s threshold, on the reserve's grounds:
+    // a program able to raise the share that warns about it could silence the warning.
+    Directive { key: "limits.memory_high_water", class: Class::System, apply: Apply::Reload },
     // `[mode]` is the other block with that same two-halves shape (`rule:config/three-changeability-classes`, `rule:config/two-modes-and-the-default-is-production`).
     Directive { key: "mode.default", class: Class::Runtime, apply: Apply::Reload },
     Directive { key: "mode.ceiling", class: Class::System, apply: Apply::Reload },

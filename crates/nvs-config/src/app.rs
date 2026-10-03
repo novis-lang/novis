@@ -158,6 +158,47 @@ pub fn bound(config: &Config, origins: &BTreeMap<String, Origin>) -> Result<(), 
     Ok(())
 }
 
+/// `rule:observability/memory-high-water-writes-a-warn`'s boot refusal: a `memory_high_water`
+/// written in `[limits]` or any `[app.limits]` must be a fraction between `0` and `1`.
+///
+/// Through [`Quantity::parse`], the typed-value path that refuses a malformed size, so the refusal
+/// is `E0601` in that parser's own words. `false` is refused here as well. It parses as no ceiling
+/// for every other limit, but this key is not a ceiling, and unwritten is already how it is off.
+///
+/// # Errors
+///
+/// `E0601` naming the key, what was written and where.
+pub fn high_water(config: &Config, origins: &BTreeMap<String, Origin>) -> Result<(), Diagnostic> {
+    let global = config
+        .limits
+        .as_ref()
+        .map(|limits| ("limits".to_owned(), limits));
+    let apps = config.app.iter().enumerate().filter_map(|(index, block)| {
+        block
+            .limits
+            .as_ref()
+            .map(|limits| (format!("app.{index}.limits"), limits))
+    });
+    for (block_path, limits) in global.into_iter().chain(apps) {
+        let Some(written) = limits.memory_high_water.as_ref() else {
+            continue;
+        };
+        let key = format!("{block_path}.memory_high_water");
+        let invalid = match Quantity::parse(&key, crate::value::Unit::Ratio, written) {
+            Ok(Quantity::Ratio(_)) => continue,
+            Ok(_) => crate::value::Invalid {
+                key: key.clone(),
+                written: crate::value::as_written(written),
+                unit: crate::value::Unit::Ratio,
+                reason: "this key is a share of the ceiling, and leaving it out is how it is off",
+            },
+            Err(invalid) => invalid,
+        };
+        return Err(invalid.diagnostic(origins.get(&key)));
+    }
+    Ok(())
+}
+
 /// One key of one block against the host's ceiling for it.
 ///
 /// A key with no unit is left alone rather than compared: [`unit_of`] answers for every limit the

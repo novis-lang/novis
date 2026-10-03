@@ -1,8 +1,8 @@
 {
   "totals": {
     "total": 1032,
-    "shipped": 792,
-    "designed": 240,
+    "shipped": 794,
+    "designed": 238,
     "diverging": 597
   },
   "topics": [
@@ -7157,8 +7157,8 @@
       "single": false,
       "counts": {
         "total": 32,
-        "shipped": 27,
-        "designed": 5,
+        "shipped": 29,
+        "designed": 3,
         "diverging": 23
       },
       "sections": [
@@ -7169,8 +7169,8 @@
           "url": "/docs/rules/observability/metrics/",
           "counts": {
             "total": 10,
-            "shipped": 8,
-            "designed": 2,
+            "shipped": 9,
+            "designed": 1,
             "diverging": 10
           },
           "rules": [
@@ -7210,7 +7210,7 @@
               "id": "observability/default-series",
               "slug": "default-series",
               "title": "Ten series exist the moment an exporter is configured, with no application code written",
-              "status": "designed",
+              "status": "shipped",
               "href": "/docs/rules/observability/metrics/#default-series",
               "diverges": "request rate, latency, query time, GC pause and spawn overhead are on the scrape endpoint before the application emits anything, where PHP needs an APM agent or a hand-written StatsD client for the first three and cannot reach the last two at all"
             },
@@ -7263,8 +7263,8 @@
           "url": "/docs/rules/observability/traces/",
           "counts": {
             "total": 17,
-            "shipped": 14,
-            "designed": 3,
+            "shipped": 15,
+            "designed": 2,
             "diverging": 10
           },
           "rules": [
@@ -7400,7 +7400,7 @@
               "id": "observability/memory-high-water-writes-a-warn",
               "slug": "memory-high-water-writes-a-warn",
               "title": "A `[limits] memory_high_water` fraction writes one `Warn` when a request's memory peak crosses that share of its ceiling, and is off until a block writes one",
-              "status": "designed",
+              "status": "shipped",
               "href": "/docs/rules/observability/traces/#memory-high-water-writes-a-warn",
               "diverges": "PHP has no warning short of the fatal: a request that touched 96% of `memory_limit` and returned successfully is indistinguishable from one that never passed 30%"
             }

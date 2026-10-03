@@ -3,7 +3,7 @@
 
 # Observability
 
-*5 of 32 rules below are **designed** rather than shipped, and are marked where they appear.*
+*3 of 32 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="observability-the-runtime-exports-what-it-already-measures"></a>
 
@@ -107,7 +107,7 @@ except for the export path. A program that never calls it and serves no requests
 
 <a id="observability-default-series"></a>
 
-## Ten series exist the moment an exporter is configured, with no application code written  *(designed — not yet in the compiler)*
+## Ten series exist the moment an exporter is configured, with no application code written
 
 `rule:observability/default-series`
 
@@ -233,7 +233,7 @@ the two designs is that every value is unchanged across the boundary.
 What it spends: O(cores × series), bounded per core, a counter costing its key and eight bytes and
 a histogram its bucket array. Charged to the core, not to a request, exactly as
 [`concurrency/cache-memory-is-charged-to-the-core`](concurrency.md#concurrency-cache-memory-is-charged-to-the-core) charges the cache, and never O(requests
-served). The nine of [`observability/default-series`](observability.md#observability-default-series) are seeded ahead of the bound.
+served). The ten of [`observability/default-series`](observability.md#observability-default-series) are seeded ahead of the bound.
 
 <sub>See also [`observability/a-registry-is-per-core-and-nothing-reads-it`](observability.md#observability-a-registry-is-per-core-and-nothing-reads-it), [`observability/default-series`](observability.md#observability-default-series), [`concurrency/cache-memory-is-charged-to-the-core`](concurrency.md#concurrency-cache-memory-is-charged-to-the-core), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0076](../decisions/0076.md).</sub>
 
@@ -694,7 +694,7 @@ Nothing per process, nothing that grows with requests served, and nothing that o
 
 <a id="observability-memory-high-water-writes-a-warn"></a>
 
-## A `[limits] memory_high_water` fraction writes one `Warn` when a request's memory peak crosses that share of its ceiling, and is off until a block writes one  *(designed — not yet in the compiler)*
+## A `[limits] memory_high_water` fraction writes one `Warn` when a request's memory peak crosses that share of its ceiling, and is off until a block writes one
 
 `rule:observability/memory-high-water-writes-a-warn`
 

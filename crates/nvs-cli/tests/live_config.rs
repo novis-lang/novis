@@ -1739,6 +1739,7 @@ const REQUEST_READ: &[(&str, &str, &str)] = &[
     ("limits.max_script_depth", "64", "32"),
     ("limits.max_decompressed", "\"64M\"", "\"32M\""),
     ("limits.max_decompression_ratio", "1000", "500"),
+    ("limits.memory_high_water", "0.5", "0.9"),
     ("limits.hard.memory", "\"1G\"", "\"2G\""),
     ("log.format", "\"json\"", "\"text\""),
     ("log.handler_reserve_memory", "\"16M\"", "\"8M\""),

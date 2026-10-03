@@ -533,3 +533,39 @@ fn a_limit_that_is_not_a_quantity_is_refused_before_it_is_compared() {
         refused.message,
     );
 }
+
+/// `rule:observability/memory-high-water-writes-a-warn`'s fraction is refused at boot outside
+/// `0..=1`, in `[limits]` and in an `[app.limits]` alike, by the typed-value path that refuses a
+/// malformed size. `false` is refused too: the key is not a ceiling, and unwritten is already off.
+/// Both ends of the range are accepted, because a written `0` is a threshold every request passes.
+#[test]
+fn a_high_water_fraction_outside_zero_to_one_refuses_the_boot() {
+    for accepted in ["0", "1", "0.8"] {
+        let tree = bounded(&format!("[app.limits]\nmemory_high_water = {accepted}\n"));
+        assert_eq!(tree_of(&tree, "nvs.toml").config.app.len(), 1, "{accepted}");
+    }
+    for (refused_value, key) in [
+        ("1.5", "app.0.limits.memory_high_water"),
+        ("-0.1", "app.0.limits.memory_high_water"),
+        ("false", "app.0.limits.memory_high_water"),
+        ("\"most\"", "app.0.limits.memory_high_water"),
+    ] {
+        let tree = bounded(&format!(
+            "[app.limits]\nmemory_high_water = {refused_value}\n"
+        ));
+        let refused = refusal(&tree, "nvs.toml");
+        assert_eq!(refused.code, Some(code::E_BAD_DIRECTIVE), "{refused_value}");
+        assert!(
+            refused.message.contains(key),
+            "the refusal names the key: {}",
+            refused.message,
+        );
+    }
+    let global = Fake::with(&[("nvs.toml", "[limits]\nmemory_high_water = 2\n")]);
+    assert!(
+        refusal(&global, "nvs.toml")
+            .message
+            .contains("limits.memory_high_water"),
+        "the global block is checked as well as an application's",
+    );
+}

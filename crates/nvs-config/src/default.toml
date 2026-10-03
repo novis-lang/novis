@@ -96,6 +96,11 @@
 # spells an unbounded decompression.
 #max_decompressed = "64M"             # default
 #max_decompression_ratio = 1000       # default
+# `System` — a share of `memory`, between 0 and 1. A request whose memory peak reaches it writes one
+# `Warn` to the log when it ends, naming the peak, the ceiling and the route
+# (`rule:observability/memory-high-water-writes-a-warn`). A request with no `memory` cap is never
+# warned about.
+#memory_high_water = 0.8              # default: off
 
 [limits.hard]
 # The ceiling a request may not raise itself past, for the `Runtime` keys that have one. `false`
@@ -915,6 +920,7 @@
 #max_script_depth = 64                # default
 #max_decompressed = "64M"             # default
 #max_decompression_ratio = 1000       # default
+#memory_high_water = 0.8              # default: off
 
 #[app.limits.hard]
 # This application's ceilings; `false` removes one.

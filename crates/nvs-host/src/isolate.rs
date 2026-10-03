@@ -1247,6 +1247,16 @@ fn finish(isolate_ctx: &mut Ctx, answer: Value, receiving: Option<&ErrorClass>) 
     if !cancelled {
         isolate_ctx.end_session();
     }
+    // The request's memory peak, read here because this is the last line its
+    // context is whole and the door that counts the request never holds it
+    // (`Ctx::report_memory_peak`). After the exit hooks and the session
+    // write-back, which allocate on the request's behalf, and on every ending,
+    // because a request that threw or was cancelled still reached its peak.
+    // Only a served request: an isolate with no inbound request has no route
+    // and is not one of the requests the histogram counts.
+    if isolate_ctx.inbound().is_some() {
+        isolate_ctx.report_memory_peak();
+    }
     // `rule:errors/debug-dump`'s `[debug] inline` row, appended here because
     // this is the line where both of its conditions are finally known: the body
     // member has declared what the body is if it was going to, and there is no

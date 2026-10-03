@@ -1,6 +1,6 @@
 {
   "title": "Ten series exist the moment an exporter is configured, with no application code written",
-  "status": "designed",
+  "status": "shipped",
   "because": [
     "0076",
     "0041",
@@ -17,6 +17,7 @@
     "observability/trace-events-carry-a-kind"
   ],
   "guardedBy": [
-    "crates/nvs-server/src/metrics.rs"
+    "crates/nvs-server/src/metrics.rs",
+    "crates/nvs-runtime/src/metrics.rs"
   ]
 }

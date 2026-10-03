@@ -133,6 +133,24 @@ pub const PAUSE_BUCKETS: &[f64] = &[
     0.000_01, 0.000_05, 0.000_1, 0.000_5, 0.001, 0.005, 0.01, 0.05, 0.1,
 ];
 
+/// The boundaries a request's memory peak is bucketed into, in bytes — powers
+/// of four from 64 KiB to 1 GiB, the range between a request that touched
+/// almost nothing and a ceiling an operator would write.
+///
+/// Powers of four rather than of two because the question the histogram is for
+/// is which order of magnitude a route lives in, and eight boundaries answer it
+/// at the per-series cost the module doc counts.
+pub const MEMORY_BUCKETS: &[f64] = &[
+    65_536.0,
+    262_144.0,
+    1_048_576.0,
+    4_194_304.0,
+    16_777_216.0,
+    67_108_864.0,
+    268_435_456.0,
+    1_073_741_824.0,
+];
+
 /// What a series counts, and therefore how it is written and how it is read.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Kind {
@@ -233,6 +251,12 @@ pub const DEFAULT: &[Family] = &[
         kind: Kind::Gauge,
         labels: &["scope"],
         buckets: &[],
+    },
+    Family {
+        name: "nvs_request_memory_peak_bytes",
+        kind: Kind::Histogram,
+        labels: &["route"],
+        buckets: MEMORY_BUCKETS,
     },
     Family {
         name: "nvs_schedule_runs_total",
@@ -658,6 +682,23 @@ impl Registry {
         let _ = self.observe("nvs_request_duration_seconds", took.as_secs_f64(), &labels);
     }
 
+    /// Records one finished request's memory peak, in bytes, under its route.
+    ///
+    /// `nvs_request_memory_peak_bytes` from `rule:observability/default-series`,
+    /// labelled the way [`Registry::request`] labels its two: the declared
+    /// route name, or empty for a request that matched none. Nothing is
+    /// returned, for that method's reason — the family is seeded by
+    /// [`DEFAULT`], so the only refusal left is § 7's counted no-op.
+    pub fn request_peak(&mut self, route: Option<&str>, peak: usize) {
+        #[allow(clippy::cast_precision_loss)]
+        let bytes = peak as f64;
+        let _ = self.observe(
+            "nvs_request_memory_peak_bytes",
+            bytes,
+            &[("route", route.unwrap_or_default())],
+        );
+    }
+
     /// [`Registry::new`] and [`Registry::of`]'s shared body: § 1's roster, then
     /// a zero-valued member of every family that has no labels to distinguish
     /// one member from another.
@@ -844,6 +885,21 @@ pub fn count_request(method: &str, status: u16, route: Option<&str>, took: Durat
     });
 }
 
+/// Records one finished request's memory peak on this core's registry.
+///
+/// [`Registry::request_peak`] where this core has one, and nothing where it has
+/// not, for [`count_request`]'s reason. The caller is the end of the request's
+/// own context, because the peak is that context's reading
+/// ([`crate::Ctx::memory_peak`]) and the door that calls [`count_request`]
+/// never holds it.
+pub fn count_request_peak(route: Option<&str>, peak: usize) {
+    CORE.with_borrow(|core| {
+        if let Some(registry) = core.as_ref() {
+            held(registry).request_peak(route, peak);
+        }
+    });
+}
+
 /// This thread's registry, built at [`DEFAULT_MAX_SERIES`] if it has none.
 ///
 /// The half of [`meter_this_core`] that is not about an exporter.
@@ -993,8 +1049,8 @@ mod tests {
     use nvs_config::{Config, Exporter, Setting};
 
     use super::{
-        Kind, LATENCY_BUCKETS, PAUSE_BUCKETS, Refused, Registry, Value, count_request, every_core,
-        meter_this_core,
+        Kind, LATENCY_BUCKETS, MEMORY_BUCKETS, PAUSE_BUCKETS, Refused, Registry, Value,
+        count_request, every_core, meter_this_core,
     };
 
     /// A merged tree whose `[metrics]` block writes an exporter and a bound.
@@ -1228,6 +1284,33 @@ mod tests {
             "nothing reaches the +Inf slot"
         );
         assert!(PAUSE_BUCKETS[0] < LATENCY_BUCKETS[0]);
+    }
+
+    /// `nvs_request_memory_peak_bytes` is bucketed in bytes and labelled by
+    /// route alone, empty for a request that matched none, as the request
+    /// counter's `route` is.
+    #[test]
+    fn a_request_peak_is_bucketed_in_bytes_under_its_route() {
+        let mut registry = Registry::new(64);
+        registry.request_peak(Some("user.show"), 300_000);
+        registry.request_peak(Some("user.show"), 2_000_000);
+        registry.request_peak(None, 10);
+        let Some(Value::Histogram(histogram)) =
+            registry.read("nvs_request_memory_peak_bytes", &[("route", "user.show")])
+        else {
+            panic!("the seeded histogram, under the route");
+        };
+        assert_eq!(histogram.bounds, MEMORY_BUCKETS);
+        assert_eq!(histogram.count, 2);
+        // 300 000 is past 262 144 and inside 1 MiB, the third boundary; 2 000 000 the fourth.
+        assert_eq!(histogram.counts[2], 1);
+        assert_eq!(histogram.counts[3], 1);
+        assert!(
+            registry
+                .read("nvs_request_memory_peak_bytes", &[("route", "")])
+                .is_some(),
+            "a request that matched no route was not recorded under the empty label"
+        );
     }
 
     /// A gather reaches a core it is not running on, and stops reaching one

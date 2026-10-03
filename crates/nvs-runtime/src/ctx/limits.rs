@@ -122,6 +122,75 @@ impl Ctx {
         usize::try_from(crate::budget::peak_bytes().saturating_sub(self.memory_base)).unwrap_or(0)
     }
 
+    /// Reports a served request's memory peak at its end: one observation of
+    /// `nvs_request_memory_peak_bytes`, and one `Warn` when the peak crossed
+    /// `[limits] memory_high_water`.
+    ///
+    /// The two readings `rule:observability/default-series` and
+    /// `rule:observability/memory-high-water-writes-a-warn` take of the mark
+    /// [`Self::memory_peak`] already holds, so neither adds a probe site. Called
+    /// by the isolate root while this context still exists, because the door
+    /// that counts the request never holds it. Both carry the declared route
+    /// name, `rule:observability/route-label-is-the-declared-name`'s label.
+    ///
+    /// The ceiling a fraction is taken of is the one the operator wrote, which
+    /// is [`Self::memory_limit`] with [`Self::fatal_reserve`] added back. A
+    /// request with no ceiling has no threshold. The record goes to the log
+    /// target, or to the diagnostic stream where none is configured, and never
+    /// into the response; a record that cannot be written is dropped, as
+    /// `Core\Log::write`'s is.
+    ///
+    /// What it spends: one configuration lookup per request with a ceiling,
+    /// and a histogram observation on a core that has a registry.
+    pub fn report_memory_peak(&mut self) {
+        let peak = self.memory_peak();
+        let route = self
+            .inbound()
+            .and_then(crate::Inbound::route)
+            .and_then(crate::routes::Match::name)
+            .map(str::to_owned);
+        crate::metrics::count_request_peak(route.as_deref(), peak);
+        let ceiling = self.memory_limit.saturating_add(self.fatal_reserve);
+        if self.memory_limit == 0 {
+            return;
+        }
+        let Some(fraction) = self.configured_memory_high_water() else {
+            return;
+        };
+        #[allow(clippy::cast_precision_loss)]
+        let share = peak as f64 / ceiling as f64;
+        if share < fraction {
+            return;
+        }
+        let route = route.map_or_else(
+            || "no declared route".to_owned(),
+            |name| format!("route `{name}`"),
+        );
+        let line = format!(
+            "the request's memory peak reached {peak} bytes of its {ceiling}-byte ceiling, \
+             past `[limits] memory_high_water` = {fraction}, on {route}",
+        );
+        let mut record = nvs_render::Record::at(nvs_render::Level::Warn);
+        self.stamp_envelope(&mut record.envelope);
+        record.envelope.message = Some(nvs_render::Rendered::new(&line));
+        let _dropped = self.write_log_record(&record, crate::LogChannel::Diagnostic);
+    }
+
+    /// `[limits] memory_high_water` as a fraction, or `None` where the
+    /// configuration does not state one. The boot path refuses a value that is
+    /// not between `0` and `1`, so anything else read here is treated as unset.
+    fn configured_memory_high_water(&self) -> Option<f64> {
+        let written = self
+            .config
+            .as_ref()
+            .and_then(|config| config.get("memory_high_water"))?;
+        let setting = nvs_config::Setting::Text(written);
+        match nvs_config::Quantity::parse("memory_high_water", nvs_config::Unit::Ratio, &setting) {
+            Ok(nvs_config::Quantity::Ratio(fraction)) => Some(fraction),
+            _ => None,
+        }
+    }
+
     /// The ceiling **ordinary execution** is held to, in bytes, `0` for no cap.
     ///
     /// `[limits] memory` less [`Self::fatal_reserve`], because `rule:errors/on-limit`'s
@@ -793,6 +862,65 @@ impl Ctx {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A context under the configuration `written` would give it, with its
+    /// diagnostic stream buffered so a test can read what was written there.
+    fn high_water_ctx(written: &str) -> Ctx {
+        let table: toml::Table = written.parse().expect("the case writes valid TOML");
+        let mut ctx = Ctx::buffered();
+        ctx.set_diagnostic_sink(crate::OutputSink::Buffer(Vec::new()));
+        ctx.set_config(std::sync::Arc::new(nvs_config::Snapshot {
+            config: table
+                .clone()
+                .try_into()
+                .expect("the case writes a block this tree has"),
+            table,
+            ..nvs_config::Snapshot::default()
+        }));
+        ctx
+    }
+
+    fn diagnosed(ctx: &Ctx) -> String {
+        match &ctx.diagnostic {
+            crate::OutputSink::Buffer(bytes) => String::from_utf8_lossy(bytes).into_owned(),
+            _ => panic!("the case buffered the diagnostic stream"),
+        }
+    }
+
+    /// `rule:observability/memory-high-water-writes-a-warn`: a written `0` is a
+    /// threshold every request passes, so the end of the request writes one
+    /// `Warn` naming the peak and the ceiling. The response gets none of it.
+    #[test]
+    fn a_peak_past_the_high_water_fraction_writes_one_warn() {
+        let mut ctx = high_water_ctx("[limits]\nmemory = \"1G\"\nmemory_high_water = 0\n");
+        ctx.report_memory_peak();
+        let written = diagnosed(&ctx);
+        assert_eq!(
+            written.lines().count(),
+            1,
+            "one request wrote {written:?} rather than one record"
+        );
+        assert!(written.contains("\"warn\""), "{written}");
+        assert!(written.contains("1073741824-byte ceiling"), "{written}");
+        assert!(written.contains("no declared route"), "{written}");
+        assert_eq!(ctx.take_buffered_output().as_deref(), Some(&b""[..]));
+    }
+
+    /// The three ways the same rule writes nothing: no fraction written, a
+    /// peak under the fraction, and a request with no ceiling for a fraction
+    /// to be a share of.
+    #[test]
+    fn an_unwritten_fraction_a_low_peak_and_no_ceiling_write_nothing() {
+        for written in [
+            "[limits]\nmemory = \"1G\"\n",
+            "[limits]\nmemory = \"1G\"\nmemory_high_water = 1.0\n",
+            "[limits]\nmemory = false\nmemory_high_water = 0\n",
+        ] {
+            let mut ctx = high_water_ctx(written);
+            ctx.report_memory_peak();
+            assert_eq!(diagnosed(&ctx), "", "{written}");
+        }
+    }
 
     /// `rule:errors/on-limit`'s first resource limit, as far as this slice goes: the
     /// counter follows what the request holds *now*, so a breach that is

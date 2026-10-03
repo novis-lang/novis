@@ -13,4 +13,4 @@ the two designs is that every value is unchanged across the boundary.
 What it spends: O(cores × series), bounded per core, a counter costing its key and eight bytes and
 a histogram its bucket array. Charged to the core, not to a request, exactly as
 `rule:concurrency/cache-memory-is-charged-to-the-core` charges the cache, and never O(requests
-served). The nine of `rule:observability/default-series` are seeded ahead of the bound.
+served). The ten of `rule:observability/default-series` are seeded ahead of the bound.

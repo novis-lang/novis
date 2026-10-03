@@ -38,23 +38,23 @@ mod tests {
         }
     }
 
-    /// `rule:observability/default-series`: the nine series exist the moment an exporter is configured,
+    /// `rule:observability/default-series`: the ten series exist the moment an exporter is configured,
     /// each fixed to the kind and the labels that section gives it.
     ///
-    /// Asserted by **counting** as well as by name: a roster that grew a tenth
-    /// entry or lost one would otherwise pass every row below.
+    /// Asserted by **counting** as well as by name: a roster that grew an
+    /// eleventh entry or lost one would otherwise pass every row below.
     ///
     /// Here rather than beside the registry because the claim is this crate's:
-    /// what § 1 promises is that a *configured exporter* has these nine to
+    /// what § 1 promises is that a *configured exporter* has these ten to
     /// report, and the exporter is what this crate is.
     #[test]
     fn the_default_metric_series_are_exported() {
         let registry = Registry::of(&configured(Setting::Text("prometheus".to_owned()), None))
             .expect("a written exporter builds a registry");
         assert_eq!(registry.exporter(), Some(Exporter::Prometheus));
-        assert_eq!(DEFAULT.len(), 9);
+        assert_eq!(DEFAULT.len(), 10);
 
-        let expected: [(&str, Kind, &[&str]); 9] = [
+        let expected: [(&str, Kind, &[&str]); 10] = [
             (
                 "nvs_requests_total",
                 Kind::Counter,
@@ -75,6 +75,7 @@ mod tests {
             ("nvs_tasks_in_flight", Kind::Gauge, &[]),
             ("nvs_deferred_trees", Kind::Gauge, &[]),
             ("nvs_memory_bytes", Kind::Gauge, &["scope"]),
+            ("nvs_request_memory_peak_bytes", Kind::Histogram, &["route"]),
             (
                 "nvs_schedule_runs_total",
                 Kind::Counter,

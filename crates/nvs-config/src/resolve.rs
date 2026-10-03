@@ -413,6 +413,9 @@ pub fn resolve(
     // `rule:config/an-app-block-may-widen-bounded-by-the-global-ceiling`'s bound, once the roster is keyed: what a block asks for is compared against the
     // global `[limits.hard]`, which is a property of the merged tree and of nothing smaller.
     crate::app::bound(&resolved.config, &origins)?;
+    // `rule:observability/memory-high-water-writes-a-warn`'s fraction, over the same keyed roster:
+    // a share outside `0..=1` is refused where it was written, not read as off at the first request.
+    crate::app::high_water(&resolved.config, &origins)?;
     // `rule:config/scheduled-work-is-a-config-block`, `rule:config/cron-is-five-fields-and-nothing-more` and `rule:config/a-fleet-entry-fires-at-most-once-under-a-lease`, last because it reads the `[capabilities]` the merge settled: a scheduled
     // script is checked against the `script.spawn` roots, which a later file may have replaced.
     crate::schedule::validate(&resolved.config, &origins, files)?;

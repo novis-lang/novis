@@ -217,6 +217,13 @@ pub struct Limits {
     /// `System` — the other half of the same bound: the most output per octet of input. A bomb is
     /// small on the wire, so a byte ceiling alone is one a small request still reaches.
     pub max_decompression_ratio: Option<Setting>,
+    /// `System` — `rule:observability/memory-high-water-writes-a-warn`'s fraction of the memory
+    /// ceiling past which a request's peak writes one `Warn` at the end of the request. Unwritten
+    /// is off. `System` because the warning is the operator's to ask for, and a program that could
+    /// raise it could silence the one report about itself. A fraction rather than a size, so an
+    /// `[app.limits]` block that narrows `memory` keeps the same meaning; not under
+    /// `[limits.hard]`, because there is no request-set value for a ceiling to bound.
+    pub memory_high_water: Option<Setting>,
     /// `[limits.hard]` — the same keys, `System`-class, and `false` removes a ceiling.
     pub hard: Option<LimitSet>,
 }

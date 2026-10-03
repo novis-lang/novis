@@ -120,6 +120,7 @@ ceiling.
 | `max_script_depth` | count | how deep `spawn script` may nest (default 64); not raisable |
 | `max_decompressed` | size | the most one `Core\Compress` or `Core\Zip` decompression may produce (default 64M); not raisable, and `false` does not remove it |
 | `max_decompression_ratio` | count | the other half of the same bound — output per octet of input (default 1000). A call asks for less through its own arguments and never for more |
+| `memory_high_water` | ratio | a share of `memory`, between `0` and `1`. A request whose memory peak reaches that share writes one `Warn` to the log when it ends, naming the peak, the ceiling and the route. Unset, nothing is written; not raisable |
 
 `[limits.hard]` takes only the keys a request may raise: `memory`, `cpu_time`, `wall_time`,
 `max_tasks`, `max_output` and `max_regex_steps`. Breaching a limit is **not an exception**: nothing

@@ -27418,6 +27418,7 @@ ceiling.
 | `max_script_depth` | count | how deep `spawn script` may nest (default 64); not raisable |
 | `max_decompressed` | size | the most one `Core\Compress` or `Core\Zip` decompression may produce (default 64M); not raisable, and `false` does not remove it |
 | `max_decompression_ratio` | count | the other half of the same bound — output per octet of input (default 1000). A call asks for less through its own arguments and never for more |
+| `memory_high_water` | ratio | a share of `memory`, between `0` and `1`. A request whose memory peak reaches that share writes one `Warn` to the log when it ends, naming the peak, the ceiling and the route. Unset, nothing is written; not raisable |
 
 `[limits.hard]` takes only the keys a request may raise: `memory`, `cpu_time`, `wall_time`,
 `max_tasks`, `max_output` and `max_regex_steps`. Breaching a limit is **not an exception**: nothing
@@ -27851,6 +27852,7 @@ the file by itself, or only at its next start. Only `[server] listen`, `socket_m
 | `limits.max_script_depth` | operator only — a request cannot change it | at reload |
 | `limits.max_decompressed` | operator only — a request cannot change it | at reload |
 | `limits.max_decompression_ratio` | operator only — a request cannot change it | at reload |
+| `limits.memory_high_water` | operator only — a request cannot change it | at reload |
 | `mode.default` | a request may retune it, up to the `[limits.hard]` ceiling | at reload |
 | `mode.ceiling` | operator only — a request cannot change it | at reload |
 | `capabilities` | a request may only narrow it | at reload |

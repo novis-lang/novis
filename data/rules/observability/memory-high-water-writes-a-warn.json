@@ -1,6 +1,6 @@
 {
   "title": "A `[limits] memory_high_water` fraction writes one `Warn` when a request's memory peak crosses that share of its ceiling, and is off until a block writes one",
-  "status": "designed",
+  "status": "shipped",
   "because": [
     "0148"
   ],
@@ -12,5 +12,8 @@
     "config/an-app-block-may-widen-bounded-by-the-global-ceiling",
     "errors/on-limit"
   ],
-  "guardedBy": []
+  "guardedBy": [
+    "crates/nvs-runtime/src/ctx/limits.rs",
+    "crates/nvs-config/tests/app.rs"
+  ]
 }

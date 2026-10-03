@@ -129,6 +129,9 @@ pub fn unit_of(key: &str) -> Option<Unit> {
         "max_tasks" | "max_script_depth" | "max_decompression_ratio" | "max_regex_steps" => {
             Some(Unit::Count)
         }
+        // `rule:observability/memory-high-water-writes-a-warn`'s threshold is a share of the
+        // memory ceiling, which is what a `Ratio` is.
+        "memory_high_water" => Some(Unit::Ratio),
         _ => None,
     }
 }
