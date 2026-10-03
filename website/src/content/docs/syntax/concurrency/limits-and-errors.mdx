@@ -1,0 +1,36 @@
+---
+title: Limits, deadlines and errors in tasks
+covers: ['lang:concurrency/limit-and-deadline', 'lang:concurrency/a-child-s-throw']
+description: How to limit how many tasks run at once, give a group of tasks a deadline, and catch an error one task throws.
+---
+import Snippet from '@components/Snippet.astro'
+
+`Core\Task::all` and `Core\Task::map` take an options object as the last argument. It has two
+optional fields, `limit` and `deadline`.
+
+<Snippet src="syntax/task-limits/01-limit-and-deadline.nvs" />
+
+- `limit` is how many tasks may run at once. The other tasks wait in a queue. Without `limit`,
+  every task starts at once.
+- `limit: 0` throws `LogicError`.
+- `deadline` is a duration for the whole call, not for each task.
+- When the deadline is reached, every task that still runs is stopped. Then the call throws
+  `TimeoutError`.
+- A stopped task runs no more of its own code. Its `catch` blocks do not run.
+
+## When a task throws
+
+When one task throws an error, Novis stops the other tasks. Then the call throws the same error.
+
+<Snippet src="syntax/task-limits/02-a-task-throws.nvs" />
+
+- The error you catch is the one the task threw. It has the same class and message.
+- When your `catch` runs, no task of the group is still running.
+- Only the first error is thrown. The other tasks are stopped before they can throw.
+
+## Do and don't
+
+- Do set `limit` when each task uses something scarce, like a database connection.
+- Do set `deadline` when a slow server must not hold up your program.
+- Do catch `TimeoutError` around a call with a `deadline`.
+- Don't put a `try` inside each task only to stop the others. Novis already stops them.

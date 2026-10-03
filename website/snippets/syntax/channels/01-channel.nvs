@@ -1,0 +1,24 @@
+<?nvs
+// This program sends numbers from one task to another through a channel.
+
+// The channel has room for 2 values. `send` waits while the channel is full.
+var $chan = new Core\Task\Channel<int>(2);
+
+var $result = Core\Task::all({
+    produce: fn(): void => {
+        foreach (Core\Arr::range(1, 6) as int $i) {
+            $chan->send($i);
+        }
+        // `close` tells the other task that no more values come.
+        $chan->close();
+    },
+    consume: fn(): int => {
+        int $sum = 0;
+        // The loop waits for each value. It ends when the channel is empty and closed.
+        foreach ($chan as int $v) {
+            $sum += $v;
+        }
+        return $sum;
+    },
+});
+echo "sum ", $result->consume, "\n";

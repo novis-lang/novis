@@ -1,0 +1,12 @@
+<?nvs
+// This program starts a child that throws an error, and keeps running.
+
+// `args:` copies a value into the child. With -1, check-stock.nvs throws.
+var $failed = await spawn script "check-stock.nvs" with(args: -1, output: "capture");
+
+// The error does not reach the parent as a throw. It is part of the result.
+echo "ok=", $failed->ok ? "true" : "false", "\n";
+echo "class=", $failed->error?->class ?? "none", "\n";
+echo "message=", $failed->error?->message ?? "none", "\n";
+echo "output=", $failed->output;
+echo "parent still running\n";

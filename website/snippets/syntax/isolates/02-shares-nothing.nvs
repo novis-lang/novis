@@ -1,0 +1,12 @@
+<?nvs
+// This program shows that a child program has its own copy of every static property.
+final class Ledger {
+    public static int $entries = 0;
+}
+
+Ledger::$entries = 7;
+
+// The child reads 0, the starting value. Its change to 99 stays in the child.
+var $done = await spawn script "counter.nvs" with(output: "capture");
+echo $done->output;
+echo "parent reads ", Ledger::$entries, "\n";

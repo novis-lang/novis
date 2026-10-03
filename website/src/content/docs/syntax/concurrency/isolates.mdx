@@ -1,0 +1,75 @@
+---
+title: Running a separate program with spawn script
+covers: ['lang:concurrency/isolates-spawn-script-and-await', 'lang:concurrency/a-child-shares-nothing', 'lang:concurrency/a-child-s-failure-is-a-value']
+description: How spawn script runs another file as a separate program, how await reads its result, and what happens when it fails.
+---
+import Snippet from '@components/Snippet.astro'
+
+`spawn script "adder.nvs"` runs another file as a separate program, called a child. The child has
+its own variables, static properties, memory and output. It starts at once. `await` waits for the
+child to end and returns its result.
+
+This is the file `adder.nvs`:
+
+<Snippet src="syntax/isolates/adder.nvs" />
+
+The program below runs it as a child:
+
+<Snippet src="syntax/isolates/01-spawn.nvs" />
+
+The result has four fields:
+
+| Field | Type | Contains |
+|---|---|---|
+| `ok` | `bool` | `true` when the child ended without an error |
+| `value` | `mixed` | the value of the child's `return`, or `null` |
+| `output` | `string` | what the child printed, with `output: "capture"` |
+| `error` | `?{class: string, message: string}` | the error that ended the child, or `null` |
+
+- `with(...)` is optional. `output: "capture"` is the default. `output: "inherit"` prints the
+  child's output directly, mixed with the parent's output.
+- `args:` copies one value into the child. The child reads it with `Core\Script::args()`.
+- `limits:` sets lower limits for the child. `grants:` names the capabilities it may use. A child
+  never gets more than its parent has.
+- `on: "worker"` runs the child on another CPU core.
+- The entry can also be a static method: `spawn script Report::build(...)`. A `fn` literal does
+  not compile.
+- A path in quotes starts at the folder of the file you write it in.
+- You can `await` a handle only once. A second `await` throws `LogicError`.
+- `spawn script` needs the capability `script.spawn`. This program's `nvs.toml` has
+  `spawn = true` under `[capabilities.script]`. Without it, `spawn script` throws `RuntimeError`.
+
+## A child shares nothing
+
+The child starts with the starting value of every static property. What it changes stays in the
+child.
+
+This is the file `counter.nvs`:
+
+<Snippet src="syntax/isolates/counter.nvs" />
+
+<Snippet src="syntax/isolates/02-shares-nothing.nvs" />
+
+## When the child fails
+
+An error the child does not catch ends the child. The parent gets the error as part of the
+result, and keeps running.
+
+This is the file `check-stock.nvs`:
+
+<Snippet src="syntax/isolates/check-stock.nvs" />
+
+<Snippet src="syntax/isolates/03-child-fails.nvs" />
+
+- `ok` is `false`, and `error` has the class and message of the error.
+- `output` has what the child printed before it failed.
+- A mistake in the parent throws in the parent. A missing file, or a file that does not compile,
+  throws `RuntimeError` at `spawn script`.
+
+## Do and don't
+
+- Do use `spawn script` for work that must not share anything with your program.
+- Do check `ok` before you use `value`.
+- Do pass data with `args:` and return data with `return`.
+- Don't use `spawn script` only to run two calls at once. A [task](/syntax/concurrency/tasks/) is
+  cheaper.

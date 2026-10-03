@@ -1,0 +1,8 @@
+<?nvs
+// This is the file adder.nvs. It adds the numbers 1 to 10 and returns the sum.
+int $total = 0;
+foreach (Core\Arr::range(1, 10) as int $n) {
+    $total += $n;
+}
+echo "adding\n";
+return ["sum" => $total, "count" => 10];

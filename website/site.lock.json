@@ -52,6 +52,24 @@
     "Parses": "76732b35d3fe313a",
     "Stringable": "2a07d08fab1b1475"
   },
+  "syntax/concurrency/channels.mdx": {
+    "lang:concurrency/core-task-channel-t-a-bounded-queue-between-tasks": "4a3423d1981915d1"
+  },
+  "syntax/concurrency/isolates.mdx": {
+    "lang:concurrency/a-child-s-failure-is-a-value": "d42d90fb212abbd4",
+    "lang:concurrency/a-child-shares-nothing": "8eb481043653b12f",
+    "lang:concurrency/isolates-spawn-script-and-await": "daf418a1296964bb"
+  },
+  "syntax/concurrency/limits-and-errors.mdx": {
+    "lang:concurrency/a-child-s-throw": "436f3216f2ebdc63",
+    "lang:concurrency/limit-and-deadline": "9d94f1ba5ec99b94"
+  },
+  "syntax/concurrency/tasks.mdx": {
+    "lang:concurrency/core-task-all-a-fixed-set-of-tasks": "c9ef693dc4e2236c",
+    "lang:concurrency/core-task-map-one-task-per-element": "48d8aad260186e13",
+    "lang:concurrency/no-colouring-i-o-just-waits": "44d588895d04b48c",
+    "lang:concurrency/what-does-not-exist": "f8754a7fc9282662"
+  },
   "syntax/control-flow/break-continue-return.mdx": {
     "lang:statements/break-and-continue": "17583e24037ffa62",
     "lang:statements/return": "590137cb9dc139e3"
@@ -160,6 +178,17 @@
   },
   "syntax/operators/string-operators.mdx": {
     "lang:expressions/string-operators": "c8d6801532018731"
+  },
+  "syntax/programs/file-paths-and-exit.mdx": {
+    "lang:programs/ending-a-program": "454e214a8a01660e",
+    "lang:programs/file-paths-a-literal-starts-at-the-folder-of-its-file": "7f26e2a082af7e3b"
+  },
+  "syntax/programs/namespaces.mdx": {
+    "lang:programs/autoload-find-a-class-by-its-namespace": "eeb8a32ea3bcd27f",
+    "lang:programs/namespaces-and-use": "dad7bb553bb0f54f"
+  },
+  "syntax/programs/require.mdx": {
+    "lang:programs/require-run-another-file-in-this-frame": "62a91698a2eeea27"
   },
   "syntax/start-here.mdx": {
     "lang:programs/a-complete-program-annotated": "57bfda16febb6b64",

@@ -1,0 +1,21 @@
+<?nvs
+// This program shows what happens when one task throws an error.
+
+// The task `bad` throws after 10ms. Novis stops the task `slow`,
+// and then `Core\Task::all` throws the same error.
+try {
+    Core\Task::all({
+        slow: fn(): int => {
+            Core\Time::sleep(2s);
+            return 1;
+        },
+        bad: fn(): int => {
+            Core\Time::sleep(10ms);
+            throw new RuntimeError("bad gave up");
+        },
+    });
+    echo "not reached\n";
+} catch (RuntimeError $e) {
+    // This is the error the task threw, with its own class and message.
+    echo "caught: ", $e->message, "\n";
+}

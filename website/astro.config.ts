@@ -208,6 +208,23 @@ export default defineConfig({
                 { label: 'Object literals and shapes', link: '/syntax/classes/object-literals/' },
               ],
             },
+            {
+              label: 'Programs and files',
+              items: [
+                { label: 'Namespaces, use and autoload', link: '/syntax/programs/namespaces/' },
+                { label: 'Running another file with require', link: '/syntax/programs/require/' },
+                { label: 'File paths and ending a program', link: '/syntax/programs/file-paths-and-exit/' },
+              ],
+            },
+            {
+              label: 'Concurrency',
+              items: [
+                { label: 'Running tasks at the same time', link: '/syntax/concurrency/tasks/' },
+                { label: 'Limits, deadlines and errors', link: '/syntax/concurrency/limits-and-errors/' },
+                { label: 'Channels', link: '/syntax/concurrency/channels/' },
+                { label: 'Running a separate program', link: '/syntax/concurrency/isolates/' },
+              ],
+            },
           ],
         },
         {

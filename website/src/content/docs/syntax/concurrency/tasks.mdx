@@ -1,0 +1,50 @@
+---
+title: Running tasks at the same time
+covers: ['lang:concurrency/no-colouring-i-o-just-waits', 'lang:concurrency/core-task-all-a-fixed-set-of-tasks', 'lang:concurrency/core-task-map-one-task-per-element', 'lang:concurrency/what-does-not-exist']
+description: How Core\Task::all and Core\Task::map run several functions at the same time, with no async and no await.
+---
+import Snippet from '@components/Snippet.astro'
+
+A task is a function that runs at the same time as other tasks. While one task waits for a file,
+the network or a timer, the other tasks keep working. You write ordinary code. A call that waits,
+like `Core\Time::sleep`, returns when it is done.
+
+## A fixed set of tasks
+
+`Core\Task::all` takes an object literal. Each field is a function with no parameters.
+
+<Snippet src="syntax/tasks/01-all.nvs" />
+
+- Every function starts at once. `Core\Task::all` returns when all of them are done.
+- The result has the same field names. Each field has the return type of its function, so you
+  need no `as`.
+- A function with no return type gives a field of type `mixed`.
+- The functions can be `fn` literals, variables or first-class callables like `Loader::load(...)`.
+- An array of functions does not compile. Use an object literal with named fields.
+
+## One task for each element
+
+`Core\Task::map` calls a function once for each element of an array. Each call is its own task.
+
+<Snippet src="syntax/tasks/02-map.nvs" />
+
+- The result has the same keys as the array, in the same order. The order the tasks finish in
+  does not matter.
+- The function gets the value, and the key as an optional second parameter.
+
+## What Novis does not have
+
+- There is no `async`, no promise and no `Fiber`. A task is a function you give to `Core\Task`.
+- There are no threads and no `pcntl_fork`. To run code fully apart from your program, use
+  [spawn script](/syntax/concurrency/isolates/).
+- A task never outlives the call that started it. `Core\Task::all` and `Core\Task::map` return
+  only after every task has ended.
+- Nothing is shared between two web requests. Each request has its own variables and static
+  properties.
+
+## Do and don't
+
+- Do use `Core\Task::all` for a few different calls, like loading a user and their orders.
+- Do use `Core\Task::map` for the same call on many values, like fetching many URLs.
+- Do give each function a return type, so each result has a type.
+- Don't write `async` or `await` around a call that waits. The call already waits.

@@ -1,0 +1,15 @@
+<?nvs
+// This program calls a function once for each element of an array, with `Core\Task::map`.
+array<int> $prices = ["apple" => 3, "pear" => 4];
+
+// Each call is its own task. The results keep the keys and the order of `$prices`.
+var $doubled = Core\Task::map($prices, fn(int $p): int => $p * 2);
+foreach ($doubled as string $name => int $cents) {
+    echo $name, "=", $cents, "\n";
+}
+
+// The function can also take the key, as its second parameter.
+var $labels = Core\Task::map($prices, fn(int $p, string $name): string => $name . ":" . $p);
+foreach ($labels as string $label) {
+    echo $label, "\n";
+}
