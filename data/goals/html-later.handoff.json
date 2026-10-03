@@ -20,7 +20,7 @@
       },
       {
         "done": false,
-        "text": "**The bounds and the head rule** — `[limits] later_deadline` and `max_later`, and `LogicError` for a head change inside a `later` closure — `crates/nvs-config/src/default.toml:70`."
+        "text": "**The request's limits and the head rule** — every `later` task charged to the request tree with no limit of its own, a limit breach failing the whole request, and `LogicError` for a head change inside a `later` closure — `crates/nvs-stdlib/src/task.rs:577`."
       }
     ]
   },

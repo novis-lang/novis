@@ -16,8 +16,7 @@
       "crates/nvs-runtime/src/routes.rs",
       "crates/nvs-server/src/serve.rs",
       "crates/nvs-types/src/derive.rs",
-      "crates/nvs-types/src/routes.rs",
-      "crates/nvs-config/src/default.toml"
+      "crates/nvs-types/src/routes.rs"
     ],
     "rules": [
       "concurrency/nothing-is-still-running-when-a-call-returns",
@@ -53,7 +52,8 @@
       "context": {
         "rules": [
           "tooling/echo-always-has-a-sink",
-          "concurrency/cancellation-runs-no-user-code"
+          "concurrency/cancellation-runs-no-user-code",
+          "security/isolate-budget-is-the-trees"
         ],
         "adrs": [],
         "shapes": [
@@ -122,7 +122,8 @@
         "a_placeholder_written_twice_throws",
         "a_later_closure_that_changes_the_response_head_throws",
         "later_outside_an_html_response_runs_in_place",
-        "later_past_max_later_throws",
+        "later_tasks_share_the_requests_limits",
+        "a_limit_breach_fails_the_whole_request_on_a_normal_route",
         "a_visitor_string_that_copies_the_placeholder_fills_nothing",
         "after_response_work_runs_after_the_last_later"
       ]
@@ -161,6 +162,7 @@
         "slotted_from_a_route_attribute_and_from_the_call_are_the_same",
         "slotted_after_the_main_script_ended_throws",
         "a_slotted_route_without_later_is_sent_whole",
+        "a_limit_breach_on_a_slotted_route_fills_every_unfilled_slot_with_its_error_and_ends",
         "a_slotted_response_holds_its_admission_place_until_its_last_fill"
       ]
     },

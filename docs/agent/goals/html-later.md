@@ -128,7 +128,7 @@ puts its output where its placeholder was written.
 
 One file set: `crates/nvs-stdlib/src/html.rs`, `crates/nvs-stdlib/src/task.rs`,
 `crates/nvs-stdlib/src/registry.rs`, `crates/nvs-runtime/src/ctx/output.rs`,
-`crates/nvs-runtime/src/deferred.rs`, `crates/nvs-config/src/default.toml`.
+`crates/nvs-runtime/src/deferred.rs`.
 
 - **The decision record**, written first from § *Standing decisions*, for the whole goal. It
   `modifies` the three rules Stage 0 names and `adds` one rule for `later` under
@@ -138,8 +138,9 @@ One file set: `crates/nvs-stdlib/src/html.rs`, `crates/nvs-stdlib/src/task.rs`,
   The closure's output is what it echoes, followed by the `Markup` it returns, if any. `echo`
   inside it is the request's escaping sink exactly as everywhere else in the request
   (`rule:core-classes/html-auto-escape`), so a `tainted` string is escaped and a `Markup` is
-  written raw. `placeholder` defaults to empty, `error` to a plain fragment the reference names,
-  and `deadline` to `[limits] later_deadline`.
+  written raw. `placeholder` defaults to empty and `error` to a plain fragment the reference
+  names. `deadline` has no default: a `later` without one is bounded by the request's own limits
+  and nothing else.
 - **The task is the request's child.** It starts at the call, runs concurrently with the main
   script and with every other `later` task, and is charged to the request tree like any task:
   memory, CPU, `max_tasks`. The response does not end while one is running. A `later` called inside
@@ -159,9 +160,20 @@ One file set: `crates/nvs-stdlib/src/html.rs`, `crates/nvs-stdlib/src/task.rs`,
 - **A placeholder written nowhere.** A `later` whose placeholder is not in the body when the main
   script ends is cancelled then, and one `Warn` names the call's file and line. A placeholder
   written twice throws `LogicError` at the second write, because one slot has one place.
-- **Errors.** A closure that throws, reaches a limit, or passes its deadline fills its slot with
+- **A slot's own failure.** A closure that throws, or passes its own `deadline`, fills its slot with
   `error`. The error is logged with the request, as an uncaught throw is. The status stays what the
-  main script set. The same happens on a normal route and on a slotted one, so the two look alike.
+  main script set, and the other slots go on. The same happens on a normal route and on a slotted
+  one, so the two look alike.
+- **The request's limits are the only limits.** There is no limit of `later`'s own. Every `later`
+  task shares the request's `wall_time`, `cpu_time` and `memory` with the main script
+  (`rule:security/isolate-budget-is-the-trees`), so a page with `later` is bounded exactly as the
+  same page without it. When one of those limits is reached, the request fails as a whole, as it
+  does today: on a normal route nothing has been sent, and the response is the one a limit breach
+  gives now. On a slotted route the head and the shell have been sent, so every slot that has not
+  been filled gets its `error` fragment, the held-back end of the document is written, and the
+  response ends. `Core\Fatal::onLimit` sees the breach as it sees any other. A slot that never ends
+  is the same case as a page that waits forever on a query: `wall_time` bounds both, and goal
+  `disconnect-completes`'s grace bounds both once the client has gone.
 - **A `later` closure cannot change the response head.** Inside one, `Core\Response::setStatus`,
   `setHeader`, `redirect`, any body method (`html`, `json`, `text`, `stream`, `sendFile`), a cookie
   write and `Core\Session::regenerate` throw `LogicError`, on both kinds of route. Where the
@@ -170,11 +182,6 @@ One file set: `crates/nvs-stdlib/src/html.rs`, `crates/nvs-stdlib/src/task.rs`,
 - **Not an HTML response.** `later` in a request whose body method is not HTML, or outside an HTTP
   request (a CLI program, a job, a test without a request), runs the closure in place and returns
   its output, so a component that uses it still works there.
-- **The bounds.** `[limits] later_deadline` (default `"10s"`) is the deadline of a `later` with none
-  of its own, and `[limits] max_later` (default `100`) is how many `later` calls one request may
-  make; the next throws `LogicError`. Both are finite with nothing written, because a slot that never
-  ends holds a response open (`rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`), and
-  both may be written in `[app.limits]`.
 - **After-response work** runs once the response is complete, after the last `later` task.
 - **Pinned by** the Stage 2 checks and two `.nvst` cases: one prints a page with three `later` slots
   that finish in reverse order, a nested one, an error and a deadline, and shows the assembled body;
@@ -262,8 +269,9 @@ One file set: `crates/nvs-stdlib/src/test.rs`, `crates/nvs-lsp/src/completion.rs
   JSON route; `Core\Response::slotted()` for signed-in users only.
 - **The attack** under `tests/hostile/core/Html/later/`: a visitor's input that copies the
   placeholder syntax with a guessed name is escaped and fills nothing; a `later` closure tries to
-  set a header, a cookie and a redirect, and each throws; a request makes more `later` calls than
-  `max_later`; a `later` that never ends is stopped at its deadline and its slot shows `error`.
+  set a header, a cookie and a redirect, and each throws; a request starts `later` calls in a loop
+  until its `memory` limit stops it; a slotted page whose `later` never ends reaches its
+  `wall_time`, and every unfilled slot shows `error` and the response ends.
 - **The bench** under `benches/members/`: a page with three `later` slots of 50 ms each, on a normal
   route and slotted. It measures the counts of the assembly pass and of the fill writes; the time to
   the first byte and to the last is reported beside them, never as the headline.
@@ -277,11 +285,13 @@ One file set: `crates/nvs-stdlib/src/test.rs`, `crates/nvs-lsp/src/completion.rs
   with `#[Core\Route(…, slotted: true)]`, and `Core\Response::slotted()` covers a runtime decision.
   A failed slot shows its `error` fragment and the page keeps its status, on both kinds of route.
   On a normal route the `later` closures run concurrently. An app mixes slotted and normal routes
-  freely, and the code of a component does not depend on which one includes it.
+  freely, and the code of a component does not depend on which one includes it. **`later` adds no
+  limit of its own**: it shares the request's limits, and a limit breach fails every unfilled slot,
+  as the same page without slotting would fail.
 - **My calls, not yet confirmed by the user:** the option names `placeholder`, `error` and
   `deadline`; the closure returning `void` or `Markup`; the per-request random token in slot names;
   cancelling a `later` whose placeholder is never written; `LogicError` for a placeholder written
-  twice; `[limits] later_deadline = "10s"` and `max_later = 100`; Novis's own polyfill and its CSP
+  twice; the optional per-call `deadline` with no default; Novis's own polyfill and its CSP
   hash; holding back `</body></html>`; nothing sent before the main script ends; after-response
   work running after the last fill. A session that finds one of these impossible writes it under
   the handoff's `## Backlog` for the user rather than choosing again.
