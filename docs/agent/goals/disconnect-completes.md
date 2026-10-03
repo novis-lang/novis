@@ -17,10 +17,15 @@ disconnect_grace = "30s"                  # default
 ```
 
 `cancel_on_disconnect` lists the methods whose requests are cancelled when the client goes away. An
-empty list, the default, cancels none. `disconnect_grace` is how long a request whose client has gone
-may keep running before it is cancelled anyway. It is finite with nothing written and has no
-unbounded spelling. Both keys are `System` keys, so a request cannot change them, and both may be
-written in `[app.limits]` for one application.
+empty list, the default, cancels none.
+
+`disconnect_grace` is the fallback bound for a request that has no `wall_time`. **A request with a
+`wall_time` is bounded by that alone**, whether or not its client is still there. A request with no
+`wall_time`, which is the default, is cancelled once `disconnect_grace` has passed since its client
+left. The grace starts at the disconnect, so a request that ends within it is never affected.
+`disconnect_grace` is finite with nothing written and has no unbounded spelling. Both keys are
+`System` keys, so a request cannot change them, and both may be written in `[app.limits]` for one
+application.
 
 ## Why here
 
@@ -38,7 +43,9 @@ stack and not a worker process (`rule:http-server/an-abandoned-request-is-cancel
 `wall_time` has no cap by default (`crates/nvs-config/src/default.toml:70`), so a request parked on
 a slow dependency after its client left would hold its admission place forever. That is exactly what
 `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect` forbids, and `disconnect_grace` is the
-bound that rule requires.
+bound that rule requires. It applies only where `wall_time` does not, so a deployment that sets
+`wall_time` has one limit to reason about, and a long job whose client left is not cut short by a
+second one.
 
 It sits right after goal `goal-closeout` because it changes request-path behaviour that goal
 `performance-pass` then measures. It carries `position: last` because the goals around it do.
@@ -49,8 +56,8 @@ The sentences on disk this goal makes wrong, each rewritten whole by the session
 behaviour and not before:
 
 - `docs/rules/http-server/an-abandoned-request-is-cancelled-at-the-drop.md` — the rule becomes "a
-  request whose client went away runs to its end under `disconnect_grace`, unless its method is
-  listed in `cancel_on_disconnect`". The decision record renames it or replaces it; the PHP-FPM
+  request whose client went away runs to its end under its `wall_time`, or under `disconnect_grace`
+  when it has none, unless its method is listed in `cancel_on_disconnect`". The decision record renames it or replaces it; the PHP-FPM
   paragraph stays true and stays.
 - `docs/rules/concurrency/cancellation-runs-no-user-code.md:7-8` — "the parent died, which for a
   served request includes the client disconnecting" is true only for a listed method or a request
@@ -100,8 +107,8 @@ One file set: `crates/nvs-config/src/default.toml`, `crates/nvs-config/src/tree.
 
 ## Stage 3 — the server
 
-**Does:** A request whose client disconnects runs to its end unless its method is listed, and is
-cancelled once `disconnect_grace` has passed.
+**Does:** A request whose client disconnects runs to its end unless its method is listed, and one
+with no `wall_time` is cancelled once `disconnect_grace` has passed.
 
 One file set: `crates/nvs-server/src/serve.rs`, `crates/nvs-server/src/admit.rs`,
 `crates/nvs-host/src/worker.rs`, `crates/nvs-runtime/src/host.rs`.
@@ -116,10 +123,13 @@ One file set: `crates/nvs-server/src/serve.rs`, `crates/nvs-server/src/admit.rs`
   gave its place back at the disconnect would be tier C of
   `rule:http-server/a-requests-blast-radius-is-bounded-at-four-tiers` broken: a client could open a
   request, disconnect, and repeat, until the core runs unbounded work.
-- **The grace.** The detached owner starts a timer of `disconnect_grace` at the disconnect. When it
-  fires, the request is cancelled exactly as a listed method is, and the owner waits for it to end.
-  The timer is the request's own deadline machinery, not a second clock, if that machinery can take a
-  later deadline from outside.
+- **The grace, only without a `wall_time`.** At the disconnect, a request whose effective
+  `wall_time` is unset gets a deadline of the disconnect plus `disconnect_grace`. A request with a
+  `wall_time` gets nothing new. `wall_time` is a `Runtime` key, so a request may set or clear it
+  after its client left: the deadline follows it, so that from the disconnect on a request always has
+  exactly one of the two bounds and never neither. When the grace runs out, the request is cancelled
+  exactly as a listed method is, and the owner waits for it to end. The deadline is the request's
+  own deadline machinery, not a second clock, if that machinery can take a deadline from outside.
 - **What the script sees.** A read of the request body after the client left fails as it does today
   (`serve.rs:5662-5665`), and the script handles that through its own code. A write to the
   response, buffered or streamed, succeeds and its bytes are thrown away. Nothing throws because
@@ -135,8 +145,10 @@ One file set: `crates/nvs-server/src/serve.rs`, `crates/nvs-server/src/admit.rs`
   status, or the cancellation at the grace) and that the client had gone. What the log writes for a
   disconnect today is read first and kept where it is still true.
 - **Pinned by** the Stage 3 checks: a request whose client leaves mid-write finishes both writes, a
-  listed method is still cancelled, the grace cancels a request parked on something that never
-  answers, the admission place stays counted until the end, the drain waits for a detached request,
+  listed method is still cancelled, the grace cancels a request with no `wall_time` parked on
+  something that never answers, a request with a `wall_time` runs past the grace up to its
+  `wall_time`, a request that clears its `wall_time` after the disconnect is still cancelled at the
+  grace, the admission place stays counted until the end, the drain waits for a detached request,
   and after-response work runs.
 
 ## Stage 4 — the feature proofs and the reference
@@ -152,8 +164,9 @@ does.
   `GET` and `HEAD`, where a slow search stops; one application in `[app.limits]` that cancels
   everything.
 - **The attack** under `tests/hostile/`: a client opens many requests to a slow endpoint and
-  disconnects from each. Every detached request still counts against `max_in_flight`, and each one
-  is cancelled at `disconnect_grace`.
+  disconnects from each, with no `wall_time` configured. Every detached request still counts against
+  `max_in_flight`, and each one is cancelled at `disconnect_grace`. A second step clears `wall_time`
+  from inside the request after the disconnect, and is still cancelled at the grace.
 - **The bench** under `benches/members/`: a request whose client disconnects, served to its end,
   against the same request with its client still there. Detaching must cost nothing a request with
   a client does not pay.
@@ -167,8 +180,10 @@ does.
 
 - **The user's calls, 2026-10-03.** Completion is the default for every method. Cancellation is
   turned on in `nvs.toml` per request method. Nothing about this is per route or per request.
+  `disconnect_grace` bounds only a request with no `wall_time`, and a request with a `wall_time` has
+  that one limit, connected or not.
 - **My calls, not yet confirmed by the user:** the two key names and their place in `[limits]`;
-  `disconnect_grace` and its `30s` default; the write to a gone client succeeding silently; the
+  the grace's `30s` default; the write to a gone client succeeding silently; the
   graceful drain treating a detached request as an attached one. A session that finds one of these
   impossible writes it under the handoff's `## Backlog` for the user rather than choosing again.
 - **No runtime switch.** There is no `Core` method that changes either key for one request, and no
@@ -178,8 +193,8 @@ does.
   That applies to a listed method and to a request past its grace alike.
 - **One ADR slot**: one new record and no other number, checked right before it is written. It
   states the tradeoffs. Performance: none on a request whose client stays; a detached request uses
-  a core until it ends. Memory: a detached request keeps its heap until it ends or reaches
-  `disconnect_grace`, per request and under its own `memory` cap. Usability: a script's writes
+  a core until it ends. Memory: a detached request keeps its heap until it ends or reaches its
+  `wall_time` or, with none, `disconnect_grace`, per request and under its own `memory` cap. Usability: a script's writes
   finish as a PHP developer expects, and a disconnect no longer leaves half-written data. Simplicity:
   two keys, and the default needs neither.
 - **Every name in a test, an example and the record is neutral** — `Shop`, `Blog`, `example.com`.

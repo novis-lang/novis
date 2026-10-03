@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-lsp/src/index.rs",
-  "title": "An unused `use` import is never dimmed, and the rule names it beside a private member and a constant.",
-  "text": "`rule:ide/five-features-are-one-reference-index` says a private member, constant or `use` with no reference in the index is dimmed with the `Unnecessary` tag. `unused_private` at `crates/nvs-lsp/src/index.rs:377` filters private declarations only, and the index records no import as a declaration. Closing this indexes each `use` with its occurrences, dims one nothing reads, and adds an `.lspt` case.",
-  "goal": "goal-closeout"
-}

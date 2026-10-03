@@ -60,7 +60,7 @@
     {
       "number": 3,
       "title": "the server",
-      "summary": "A request whose client disconnects runs to its end unless its method is listed, and is cancelled once `disconnect_grace` has passed.",
+      "summary": "A request whose client disconnects runs to its end unless its method is listed, and one with no `wall_time` is cancelled once `disconnect_grace` has passed.",
       "context": {
         "rules": [
           "concurrency/after-response-outlives-the-connection",
@@ -110,7 +110,7 @@
       "id": "nvs-server-a-disconnect-completes-the-request-by-default",
       "kind": "cargo-named",
       "stage": 3,
-      "name": "nvs-server (a request whose client left runs to its end, a listed method is cancelled, and the grace and the drain bound the rest)",
+      "name": "nvs-server (a request whose client left runs to its end, a listed method is cancelled, `wall_time` or else the grace bounds it, and the drain bounds the rest)",
       "args": [
         "test",
         "-p",
@@ -119,7 +119,9 @@
       "tests": [
         "a_disconnected_request_finishes_both_of_its_writes",
         "a_disconnected_request_of_a_listed_method_is_cancelled",
-        "a_disconnected_request_is_cancelled_at_its_grace",
+        "a_disconnected_request_with_no_wall_time_is_cancelled_at_its_grace",
+        "a_disconnected_request_with_a_wall_time_runs_past_the_grace",
+        "a_disconnected_request_that_clears_its_wall_time_is_cancelled_at_its_grace",
         "a_disconnected_request_keeps_its_admission_place_until_it_ends",
         "a_disconnected_request_runs_its_after_response_work",
         "the_drain_waits_for_a_disconnected_request",
