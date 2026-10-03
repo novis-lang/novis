@@ -1,22 +1,26 @@
 {
-  "state": "**Goal `goal-closeout`, Stage 4 (finished in place).** The gap `a-template-region-gets-no-emmet-and-no-validation` is closed by narrowing: `rule:ide/a-template-region-gets-the-editors-services-and-formatter` now names completion, hover, the colour picker and tag renaming as what a markup region gets, and says Emmet and validation are not forwarded and why. `editors/vscode/src/regions.ts` module doc agrees, and the install comment no longer claims Emmet and tag closing arrive.\n\nA `decimal` *property* default is still refused (`E0472`), because `nvs_runtime::FieldDefault` has no `decimal` recipe. The module doc of `crates/nvs-types/src/defaults.rs` says so.\n\n`startsWith` and `endsWith` still compare bytes. Whether they join the search family is still open.\n\nThe only `nvs-runtime` gap left is `enum-case-that-reached-a-mixed`. It needs an ADR beyond Stage 5's one slot, so it waits for the user. It goes to `BLOCKED` only once it is the last goal-owned gap in the tree.\n\nThe floor check `the latest CI run on main succeeded for the code HEAD holds` is red only because `main` is ahead of `origin/main`, and the loop never pushes. A person has to push.\n\n`bun nv owners --closes goal-closeout` names the rest: 22 gaps in `nvs-lsp`, `nvs-stdlib`, `nvs-types`, `nvs-runtime` and `website`.",
+  "state": "**Goal `goal-closeout`, Stage 4 (finished in place).** The guided install has its host case: `editors/vscode/test/host/surfaces.test.ts` empties `PATH`, points `nvs.path` at a missing file, and asserts the status item's command is `nvs.downloadBinary`. `Surface`'s `Health` now carries the item's `command` id. The host suite is 14 passing.\n\n**`nv verify` is red on HEAD's own commit, not on this session's.** The user's `build(deps): wasmtime 49 and cranelift 0.136` makes `benches/abi-probe/tests/unwind_unavailable.rs:80` fail every run: a panic now unwinds through a Cranelift JIT frame and is caught. That canary is ADR 0002's trigger to re-evaluate checked returns, and `rule:errors/propagation` (`docs/rules/errors/propagation.md:15`) still says `cranelift-jit` registers no unwind tables. Choosing between keeping checked returns and re-opening the convention needs a decision record, and this goal's one ADR slot is Stage 5's. The status is `BLOCKED` on that decision.\n\n`crates/nvs-cli/tests/footprint.rs:71` failed beside the other test binaries with \"could not open the log NVS_FOOTPRINT_LOG names\" and passed alone. Something else shares or wipes its scratch directory under `CARGO_TARGET_TMPDIR`. Not chased.\n\nA `decimal` *property* default is still refused (`E0472`); `crates/nvs-types/src/defaults.rs` module doc says why. `startsWith`/`endsWith` still compare bytes. The only `nvs-runtime` gap left is `enum-case-that-reached-a-mixed`, which needs an ADR beyond Stage 5's slot.\n\nThe floor check `the latest CI run on main succeeded for the code HEAD holds` is red because `main` is ahead of `origin/main`. A person has to push.\n\n`bun nv owners --closes goal-closeout` names 22 gaps in `nvs-lsp`, `nvs-stdlib`, `nvs-types`, `nvs-runtime` and `website`.",
   "next": {
     "stage": 4,
     "title": "finished in place",
     "files": [
-      "editors/vscode/test/host/surfaces.test.ts",
-      "editors/vscode/src/extension.ts"
+      "crates/nvs-lsp/src/server.rs"
     ],
     "items": [
       {
         "done": false,
-        "text": "**The guided install gets a host case** — `editors/vscode/test/host/surfaces.test.ts:1` reads the status item through `Surface`; a case with `nvs.path` at a missing file and nothing on `PATH` asserts the item's command is `nvs.downloadBinary` (`rule:ide/the-extension-guides-an-install-and-never-bundles-one`, `editors/vscode/src/extension.ts:330`). Only if the host suite can run with an empty `PATH`."
+        "text": "**The server honours `$/cancelRequest`** — gap `a-cancel-request-notification-is-ignored`; the notification arm is `crates/nvs-lsp/src/server.rs:312` and the request dispatch `crates/nvs-lsp/src/server.rs:472`. A cancelled request answers `RequestCancelled` per LSP 3.17, and the gap record is deleted."
+      },
+      {
+        "done": false,
+        "text": "**The code lens names more than a reference count, or the gap is struck as a stated bound** — gap `the-code-lens-shows-only-a-reference-count`; `crates/nvs-lsp/src/server.rs:1058`."
       }
     ]
   },
   "backlog": [
-    "`nvs-lsp` gaps: `a-cancel-request-notification-is-ignored`, `the-code-lens-shows-only-a-reference-count`, `an-unused-use-is-never-dimmed` (`crates/nvs-lsp/src/server.rs`, `index.rs`).",
-    "`website` gaps: the hand-written grammar and the stale rendered `Core` pages (`website/scripts`).",
-    "`enum-case-that-reached-a-mixed` waits for the user (ADR slot)."
+    "The unwind canary at `benches/abi-probe/tests/unwind_unavailable.rs:80` waits for the user's ADR 0002 decision (`rule:errors/propagation`).",
+    "`crates/nvs-cli/tests/footprint.rs:20` scratch directory collides under a parallel run; give it a directory no other test touches (`tools/nv/cmd/verify.ts` module doc).",
+    "`nvtest:tools/nv/test/transcript.test.ts` is a selection miss on the full run (`.loop/log.md`).",
+    "The remaining `nvs-lsp` gaps: `crates/nvs-lsp/src/completion.rs`, `crates/nvs-lsp/src/index.rs` (`bun nv owners --closes goal-closeout`)."
   ]
 }
