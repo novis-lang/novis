@@ -1340,6 +1340,14 @@ impl ClassDesc {
         &self.name
     }
 
+    /// Every other class and interface an instance of this one also is, as the
+    /// addresses [`ClassDesc::conforms_to`] compares against. Reading the slice
+    /// dereferences none of them.
+    #[must_use]
+    pub fn conforms(&self) -> &[*const ClassDesc] {
+        &self.conforms
+    }
+
     /// Whether this class is the one an
     /// `rule:types/object-literal` shape
     /// literal constructs, rather than one a `class` declaration named.

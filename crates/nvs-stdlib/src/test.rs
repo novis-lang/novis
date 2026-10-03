@@ -214,11 +214,12 @@
 //! `Core\Debug::render` read. [`nvs_runtime::ClassTable::define`] takes its
 //! parents as ids of its own table and an interface's is not one, so
 //! [`nvs_runtime::ClassTable::define_conforming`] beside it names a parent by
-//! address instead; the bound it depends on
-//! is that the interface descriptor belongs to the compiled unit under test,
-//! and `rule:testing/tests-never-reach-a-build` deletes `Core\Test` from every
-//! build, so the unit in question is the one `nvs test` compiled and the double
-//! cannot outlive it.
+//! address instead. That address belongs to the compiled unit that made the
+//! double, under `nvs test` and `nvs run` alike, and a unit's descriptors are
+//! freed with it. Two bounds keep the parent live. A double is charged to its
+//! request, and a request never outlives the unit running it. The class is
+//! reused only when its `Key` matches the live interface's address, parents
+//! and name again, so a class defined under a freed unit is never handed out.
 //!
 //! **What it spends:** one leaked descriptor per distinct call site, once per
 //! process; one object per double, `FIELDS_OFFSET` bytes plus 16 per method and
@@ -4271,14 +4272,33 @@ pub(crate) fn descriptor_for(
     let mut ordered: Vec<&Answer> = answers.iter().collect();
     ordered.sort_by(|left, right| left.name.cmp(&right.name));
 
+    let overridden: Vec<String> = ordered
+        .iter()
+        .filter(|answer| !answer.delegated)
+        .map(|answer| answer.name.clone())
+        .collect();
+    let label = match behind {
+        Some(behind) => format!(
+            "{SIGIL}partial{{{name} by {behind}: {}}}",
+            overridden.join(", ")
+        ),
+        None => format!("{SIGIL}double{{{name}}}"),
+    };
+    #[expect(
+        unsafe_code,
+        reason = "the interface's descriptor is live for this call, as the read \
+                  of its name above already relies on"
+    )]
+    let inherited = unsafe { (*interface).conforms() }
+        .iter()
+        .map(|&desc| desc as usize)
+        .collect();
     let key = Key {
         interface: interface as usize,
         real: real.map_or(0, |desc| desc as usize),
-        overridden: ordered
-            .iter()
-            .filter(|answer| !answer.delegated)
-            .map(|answer| answer.name.clone())
-            .collect(),
+        inherited,
+        label,
+        overridden,
     };
     if let Some(id) = doubles.id_of(&key) {
         return Ok(doubles.table.desc(id));
@@ -4308,25 +4328,18 @@ pub(crate) fn descriptor_for(
             native: false,
         });
     }
-    let label = match behind {
-        Some(behind) => format!(
-            "{SIGIL}partial{{{name} by {behind}: {}}}",
-            key.overridden.join(", ")
-        ),
-        None => format!("{SIGIL}double{{{name}}}"),
-    };
     #[expect(
         unsafe_code,
-        reason = "the parent is the interface's own descriptor, which belongs \
-                  to the compiled unit under test — and `Core\\Test` is \
-                  deleted from every build (`rule:testing/tests-never-reach-a-build`), \
-                  so the unit in question is the one `nvs test` compiled and no \
-                  double of it can outlive its descriptor"
+        reason = "the parent is the interface's descriptor, live for this call, \
+                  and the new class's other parents are that interface's own; \
+                  the double is charged to this request, which never outlives \
+                  the unit running it, and a later call reuses the class only \
+                  when its key holds these same live addresses again"
     )]
     let id = unsafe {
         doubles
             .table
-            .define_conforming(label, &fields, &[interface])
+            .define_conforming(key.label.clone(), &fields, &[interface])
     };
     doubles.table.set_methods(id, rows);
     doubles.keys.push((key, id));
@@ -4910,19 +4923,32 @@ impl Doubles {
 }
 
 /// What makes two doubles one class — the triple this module's *one descriptor
-/// per `(interface, real class, overridden names)`* names.
+/// per `(interface, real class, overridden names)`* names, plus what the class
+/// read off the interface when it was defined.
 ///
 /// Each descriptor is held as the **address** it is rather than as a pointer,
 /// which is the same identity and is plain `Send` data, so nothing has to be
 /// said about the table beside it. [`Self::overridden`] is kept in the sorted
 /// order [`descriptor_for`] publishes its rows in, so two call sites writing
 /// one interface's methods in two orders are one class.
+///
+/// [`Self::inherited`] and [`Self::label`] are what make a reused class safe.
+/// A compiled unit's descriptors are freed with it, and another unit can put
+/// a different interface at the same address. A class defined for the first
+/// one is reused only when the live interface has the same parents and the
+/// same name, so every parent address the class carries is live again.
 #[derive(PartialEq, Eq)]
 struct Key {
     /// The interface the double stands in for.
     interface: usize,
     /// The class a `partial` delegates to, or `0` for a plain double.
     real: usize,
+    /// The interface's own parents, in its own order, as the double's class
+    /// copies them.
+    inherited: Vec<usize>,
+    /// The class's rendered name, which carries the interface's and the real
+    /// class's names.
+    label: String,
     /// The names the shape answered itself.
     overridden: Vec<String>,
 }
@@ -5783,6 +5809,74 @@ mod tests {
             Value::int(i64::from(nvs_runtime::CLOSURE_PARAM_TAG_ANY)),
         );
         Value::object(object)
+    }
+
+    /// A double's class is reused only when the live interface has the parents
+    /// the class copied. The stale entry here stands for a class defined under
+    /// a unit that was freed, whose interface address another unit now holds:
+    /// it is passed over, and the class handed out names only live parents.
+    // covers: Core\Test::double
+    #[test]
+    fn a_double_class_is_reused_only_over_the_parents_the_live_interface_has() {
+        let mut unit = nvs_runtime::ClassTable::new();
+        let parent = unit.define("Reachable", &[] as &[&str], &[]);
+        let id = unit.define("Pager", &[] as &[&str], &[parent]);
+        let unit: &'static nvs_runtime::ClassTable = Box::leak(Box::new(unit));
+        let interface = unit.desc(id);
+        let answers = [Answer {
+            name: "page".to_owned(),
+            arity: 1,
+            params: u64::from(nvs_runtime::CLOSURE_PARAM_TAG_ANY),
+            delegated: false,
+        }];
+
+        let stale = {
+            let mut doubles = doubles();
+            let stale = doubles
+                .table
+                .define("a class of a freed unit", &[] as &[&str], &[]);
+            doubles.keys.push((
+                Key {
+                    interface: interface as usize,
+                    real: 0,
+                    inherited: vec![usize::MAX],
+                    label: format!("{SIGIL}double{{Pager}}"),
+                    overridden: vec!["page".to_owned()],
+                },
+                stale,
+            ));
+            doubles.table.desc(stale)
+        };
+
+        let class = descriptor_for("double", interface, None, &answers)
+            .expect("one method is well under the ceiling");
+        assert!(
+            !std::ptr::eq(class, stale),
+            "a key whose parents the live interface does not have is passed over"
+        );
+        #[expect(
+            unsafe_code,
+            reason = "the `DOUBLES` table is a `static` and the unit is leaked \
+                      above, so every descriptor here lives for the rest of the \
+                      process"
+        )]
+        let (is_interface, is_parent) = unsafe {
+            (
+                (*class).conforms_to(interface),
+                (*class).conforms_to(unit.desc(parent)),
+            )
+        };
+        assert!(
+            is_interface && is_parent,
+            "the class names the live parents"
+        );
+        assert!(
+            std::ptr::eq(
+                class,
+                descriptor_for("double", interface, None, &answers).expect("the same method")
+            ),
+            "a key the live interface matches is reused"
+        );
     }
 
     /// `rule:testing/interaction-after-the-fact`'s record, over the trampoline
