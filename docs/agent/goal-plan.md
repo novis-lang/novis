@@ -213,3 +213,11 @@ retired goal's record keeps no checks and no stages, so its prose is where to re
 | 198 | [`ext-image`](goals/ext-image.md) | `Novis\Image` is built into every binary: it decodes, transforms and encodes inside the sandbox, under the pixel cap | ahead, pinned last | M9 | **2** the build · **3** decode, and the cap · **4** the pipeline · **5** the benchmark · **6** the feature proofs |
 | 199 | [`ext-image-analysis`](goals/ext-image-analysis.md) | `Novis\Image` compares, hashes, summarises and draws: comparison, perceptual hashes, placeholders, palette, QR codes and text | ahead, pinned last | M9 | **2** comparison · **3** hashes, placeholders, palette · **4** QR codes · **5** text · **6** the feature proofs |
 | 200 | [`ext-intl`](goals/ext-intl.md) | `Novis\Intl` is built into every binary: ICU4X with every CLDR locale, batch-shaped, over `Core\Time` values | ahead, pinned last | M9 | **2** the record and `wit/intl.wit` · **3** collation, and the component is built in · **4** numbers and plural rules · **5** dates and times, relative time, lists · **6** segmentation and locale negotiation · **7** the growth, and a bundle · **8** the feature proofs |
+
+## Side goals
+
+Each runs in a worktree of its own, started by hand with `bun nv loop --side <slug>`.
+
+| Goal | What it builds | State | Milestone | Stages |
+|---|---|---|---|---|
+| [`website-overhaul`](goals/side/website-overhaul.md) | the website is four areas a newcomer can follow, and cannot go stale | side |  | **2** the structure and the stale guard · **3** Reference, generated and complete · **4** Syntax · **5** Install and Guides · **6** In-Depth, the home page and the last links |
