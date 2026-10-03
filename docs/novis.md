@@ -27456,6 +27456,10 @@ a second, so a request may overrun `cpu_time` by up to that much. Linux, macOS a
 per-thread CPU clock; on a platform without one `cpu_time` is not enforced at all, and the server
 says so when it starts. An unset `cpu_time` is no limit.
 
+An unset `memory` is no limit either, under `nvs run` and `nvs serve`. A program with no ceiling can
+grow until the machine runs out of memory. To stop it at a size, write `[limits] memory`, or set a
+limit from the program itself with `Core\Config::set("memory", "64M")`.
+
 In this build **`nvs run` enforces `memory` and `cpu_time`**. `wall_time`, `max_tasks` and
 `max_output` are accepted, readable and settable, and a program that exceeds them under `nvs run`
 is not stopped.

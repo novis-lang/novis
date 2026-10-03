@@ -1,17 +1,27 @@
 {
-  "state": "**Goal `goal-closeout`, Stage 4 (finished in place).** The gap `a-task-that-never-waits-outlives-its-groups-deadline` is closed by the user's answer B: `rule:concurrency/limit-and-deadline-are-the-only-bounds` now says a group's `deadline` is a reactor timer that fires once the core is handed back, and a child that never waits is bounded by its request's `cpu_time`, as the request is. Its record is deleted, `crates/nvs-host/src/group.rs` § 2 states the bound, the `Core\\Task::all` and `Core\\Task::map` `about.md` files say it, and `tests/hostile/core/Task/all/03-tasks-that-never-wait.nvs` ends on the request's CPU limit.\n\nThe floor check `the latest CI run on main succeeded for the code HEAD holds` is red only because `main` is ahead of `origin/main`, and the loop never pushes (module doc of `tools/nv/cmd/ci-green.ts`). A person has to push.\n\n`bun nv owners --closes goal-closeout` names 52 gaps, in `nvs-lsp`, `nvs-runtime`, `nvs-stdlib`, `nvs-types`, `editors/vscode` and `website`.",
+  "state": "**Goal `goal-closeout`, Stage 4 (finished in place).** Four of `nvs-runtime`'s ten goal-owned gaps are closed. Both \"loop passes the memory limit\" records were really the no-ceiling case: with `[limits] memory` set, a loop that only concatenates or only creates objects stops at its back edge. The four hostile cases that carried those markers now set `Core\\Config::set(\"memory\", \"64M\")` before their last step and end on `FATAL`. `rule:config/no-configuration-file-is-a-complete-configuration` and `docs/reference/tools/20-config.md` now state that an unset `memory` is no ceiling under `nvs run` and `nvs serve`, pinned by `an_unstated_uncapped_or_malformed_memory_is_no_ceiling`. A default ceiling for `nvs run` would be a new decision for the user, and nobody has asked for one.\n\nThe memory `FATAL` after a refusal now names the reading at the refusal and the size asked for (`budget::Refusal`, `Ctx::memory_breach`). Nine conformance cases pin the new tail.\n\nThe floor check `the latest CI run on main succeeded for the code HEAD holds` is red only because `main` is ahead of `origin/main`, and the loop never pushes. A person has to push.\n\n`bun nv owners --closes goal-closeout` names 48 gaps, in `nvs-lsp`, `nvs-runtime` (six), `nvs-stdlib`, `nvs-types`, `editors/vscode` and `website`.",
   "next": {
-    "stage": null,
+    "stage": 4,
+    "title": "finished in place",
     "files": [],
+    "note": "one file set: `nvs-runtime`'s object and closure call paths.",
     "items": [
       {
         "done": false,
-        "text": "**`nvs-runtime`'s ten gaps, built or struck as stated bounds** — most sit in `crates/nvs-runtime/src/lib.rs:1` (six: the loops that pass the memory and CPU limits, the memory `FATAL`'s reading, `nvs run` with no memory ceiling, an enum case in a `mixed`, the per-byte `Core` call), the rest in `crates/nvs-runtime/src/budget.rs:1`, `crates/nvs-runtime/src/metrics.rs:1`, `crates/nvs-runtime/src/closure.rs:1` and `crates/nvs-runtime/src/object.rs:1`. `bun nv owners --closes goal-closeout` names each record."
+        "text": "**`erased-write-checks-no-class`, a memory-safety hole: an erased write stores an object of another class into a typed field** — `crates/nvs-runtime/src/object.rs:4965` (`write_erased_property`) judges by `ClassDesc::field_tag` alone. Either build a per-slot class descriptor laid down by `nvs-codegen`, or refuse any object write whose class name differs from `ClassDesc::field_type` while an enum-typed field keeps its `int` path. `rule:security/reflection-enforces-visibility`; `docs/examples/core/Reflect-ClassInfo/set/04-an-object-of-the-wrong-class-is-refused.nvs` pins it."
+      },
+      {
+        "done": false,
+        "text": "**`a-call-on-a-value-that-is-not-a-closure-is-an-internal-error`** — `crates/nvs-runtime/src/closure.rs:454` and `crates/nvs-runtime/src/closure.rs:724` answer `Fault::fatal` for a non-closure callee behind a `mixed`. Decide the throw (`rule:types/callable-is-a-closure` is silent), then make the case `tests/hostile/tools/agents/a-worked-session/03-values-that-are-not-functions-are-called.nvs` pass."
+      },
+      {
+        "done": false,
+        "text": "**The other four `nvs-runtime` gaps, built or struck as stated bounds** — `enum-case-that-reached-a-mixed` (`crates/nvs-runtime/src/lib.rs:1`, needs an ADR, so strike it as a bound or defer it to a milestone), `a-core-call-with-a-large-string-costs-time-per-byte` (`crates/nvs-runtime/src/lib.rs:1`), `the-peak-update-cost-is-argued-and-never-measured` (`crates/nvs-runtime/src/budget.rs:155`), and `the-peak-histogram-and-the-high-water-warn-are-unbuilt` (`crates/nvs-runtime/src/metrics.rs:188`)."
       }
     ]
   },
   "backlog": [
-    "The other crates' gaps that `bun nv owners --closes goal-closeout` names (`data/gaps/`).",
-    "`[limits] max_tasks` bounds nothing (`crates/nvs-config/src/default.toml:72`). Make it a gap only if a goal decides what happens at the cap."
+    "`nvs-stdlib`'s goal-owned gaps (`bun nv owners --closes goal-closeout`), then `nvs-types`, `nvs-lsp`, `editors/vscode` and `website`.",
+    "`bun nv import --check` fails on a missing `docs/rules/_index.json`. The importer looks stale, and `bun nv records --check` is green."
   ]
 }

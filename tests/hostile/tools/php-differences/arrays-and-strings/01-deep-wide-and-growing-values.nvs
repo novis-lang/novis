@@ -3,7 +3,6 @@
 // Every step below should end with an error or a clean result, and never a crash.
 // hostile: timeout-ms 30000
 // hostile: ends-early 4 FATAL
-// proof: gap nvs-runtime/a-loop-that-only-concatenates-never-stops
 
 // 1. An array nested 200,000 levels deep is printed with `Core\Debug::dump`.
 array<mixed> $deep = [];
@@ -35,6 +34,8 @@ try {
 
 // 4. A heredoc interpolates a very long string into itself again and again.
 echo "step 4\n";
+// `Core\Config::set` sets the memory limit of this program to 64 MB.
+Core\Config::set('memory', '64M');
 string $text = 'ab';
 while (true) {
     $text = <<<EOT

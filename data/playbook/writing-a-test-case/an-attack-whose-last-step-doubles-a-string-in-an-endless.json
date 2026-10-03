@@ -1,11 +1,12 @@
 {
   "lead": "An attack whose last step doubles a string in an endless loop hangs instead of stopping at the memory limit.",
-  "body": "Once the limit refuses the doubling, `concat` returns `\"\"`, and a `while (true)` loop that only joins the string to itself never reports the limit (`data/gaps/nvs-runtime/a-loop-that-only-concatenates-never-stops.json`). A heredoc `{$text}{$text}` hits it too. An `echo` in the loop body hides it, so mark the proof with that gap instead of adding one.",
+  "body": "A proof runs under the repository root's `nvs.toml`, which sets no `[limits] memory`, and an unset `memory` is no ceiling (`rule:config/no-configuration-file-is-a-complete-configuration`), so the loop grows until the machine runs out. Put `Core\\Config::set(\"memory\", \"64M\");` in front of the step that should stop, as `tests/hostile/core/Request-Mount/prefix/01-an-empty-prefix-that-grows.nvs` does; with a ceiling armed, a loop that only concatenates or only creates objects stops at its back edge.",
   "files": [
-    "data/gaps/nvs-runtime/a-loop-that-only-concatenates-never-stops.json"
+    "tools/nv/proofs/run.ts",
+    "tests/hostile/core/Request-Mount/prefix/01-an-empty-prefix-that-grows.nvs"
   ],
   "until": {
     "kind": "gone",
-    "arg": "data/gaps/nvs-runtime/a-loop-that-only-concatenates-never-stops.json:concat_onto"
+    "arg": "tools/nv/proofs/run.ts:every other proof runs under the repository root's"
   }
 }

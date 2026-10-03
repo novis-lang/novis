@@ -3,7 +3,6 @@
 // The program should stop at its memory limit with an error.
 // hostile: timeout-ms 60000
 // hostile: ends-early 1 FATAL
-// proof: gap nvs-runtime/a-loop-that-only-creates-objects-passes-the-memory-limit
 
 final class Line
 {
@@ -13,6 +12,8 @@ final class Line
 
 // 1. Each new object has the object before it as its `$next`, so no object is freed.
 echo "step 1\n";
+// `Core\Config::set` sets the memory limit of this program to 64 MB.
+Core\Config::set('memory', '64M');
 ?Line $cart = null;
 int $i = 0;
 while ($i < 8000000) {

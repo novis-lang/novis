@@ -2,7 +2,6 @@
 // Attack: a program at `/` builds links from its empty prefix and grows one link without end.
 // Every read should return "", and the program should stop at its memory limit.
 // hostile: ends-early 3 FATAL
-// proof: gap nvs-runtime/a-loop-that-only-concatenates-never-stops
 
 // 1. Reads the prefix of a mount at `/`. It is "", so its length is 0.
 string $prefix = Core\Request::mount()->prefix();
@@ -23,6 +22,8 @@ echo 'empty prefix: ', $empty, "\n";
 
 // 3. Doubles a link made from the prefix, without end. This stops at the memory limit.
 echo "step 3\n";
+// `Core\Config::set` sets the memory limit of this program to 64 MB.
+Core\Config::set('memory', '64M');
 string $long = $prefix . '/orders';
 while (true) {
     $long = $long . $long;
