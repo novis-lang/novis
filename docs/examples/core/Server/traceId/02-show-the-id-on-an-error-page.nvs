@@ -1,0 +1,9 @@
+<?nvs
+// Shows an error page that gives the user the id of the request.
+
+// A person who reports the problem can send you this id.
+// You can then find the same id in the server's log lines.
+string $id = Core\Server::traceId();
+
+// This prints "Something went wrong. Please send us this code: 0af7651916cd43dd8448eb211c80319c".
+echo "Something went wrong. Please send us this code: ", $id, "\n";

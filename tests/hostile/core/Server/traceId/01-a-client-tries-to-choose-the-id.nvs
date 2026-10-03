@@ -1,0 +1,31 @@
+<?nvs
+// Attack: a client sends two `traceparent` headers with different ids, and the program keeps every id it reads.
+// The server should ignore both headers and create a new id. The program should stop at its memory limit.
+// hostile: ends-early 3 FATAL
+
+// 1. Reads the id. Two headers do not name one trace, so the id is neither of the two.
+string $id = Core\Server::traceId();
+echo 'length: ', Core\Str::length($id), "\n";
+if ($id == '11111111111111111111111111111111' || $id == '22222222222222222222222222222222') {
+    echo "the client chose the id\n";
+} else {
+    echo "the server chose the id\n";
+}
+
+// 2. Reads the id many times. Every read returns the same id.
+uint $same = 0;
+uint $i = 0;
+while ($i < 100000) {
+    if (Core\Server::traceId() == $id) {
+        $same = $same + 1;
+    }
+    $i = $i + 1;
+}
+echo 'same answer: ', $same, "\n";
+
+// 3. Keeps every id without end. This stops at the memory limit.
+echo "step 3\n";
+array<string> $kept = [];
+while (true) {
+    $kept[] = Core\Server::traceId();
+}

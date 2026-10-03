@@ -1,0 +1,25 @@
+--TEST--
+`Core\Server::traceId` returns a new 32-character id when the request's `traceparent` is malformed, and never the header's text — `rule:observability/a-trace-id-exists-for-every-request`
+--HEADERS--
+traceparent: 00-4BF92F3577B34DA6A3CE929D0E0E4736-00f067aa0ba902b7-01
+--FILE--
+<?nvs
+// Upper-case hex is not a valid `traceparent`, so the request continues no
+// trace. It still has an id: the server draws a new one. Its value is random,
+// so the case checks its length and that it is not the header's id.
+string $id = Core\Server::traceId();
+echo Core\Str::length($id), "\n";
+if (Core\Str::lower($id) == '4bf92f3577b34da6a3ce929d0e0e4736') {
+    echo "the header's id\n";
+} else {
+    echo "a new id\n";
+}
+if (Core\Str::lower($id) == $id) {
+    echo "lower case\n";
+} else {
+    echo "upper case\n";
+}
+--EXPECT--
+32
+a new id
+lower case

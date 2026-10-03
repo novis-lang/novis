@@ -1,0 +1,21 @@
+<?nvs
+// Reads the id of a request, as a program does when it writes a log line or an error report.
+// bench: iterations 200000
+// bench: allocations 1
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        // The request is in the file `traceId.nvsr` beside this one.
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            string $id = Core\Server::traceId();
+            $total = $total + Core\Str::length($id) + $total % 2;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

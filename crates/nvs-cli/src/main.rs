@@ -2566,7 +2566,13 @@ fn inbound_of(text: &str) -> Result<nvs_runtime::Inbound, String> {
     // Already in the shape `nvs_server::mount::carry` leaves a served carrier
     // in, so the program reads the pair a door would have handed it.
     spec.set_mount(&wire.mount_prefix, &wire.mount_captures);
-    Ok(spec.build())
+    let mut inbound = spec.build();
+    // The trace a served door would take off the same lines, at a rate of zero
+    // for `crate::runner`'s reason: nothing here exports a trace, and a
+    // `traceparent` the file wrote is still continued, so `Core\Server::traceId`
+    // reads the id the file named.
+    nvs_server::trace::take(&mut inbound, 0.0);
+    Ok(inbound)
 }
 
 #[expect(

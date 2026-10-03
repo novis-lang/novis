@@ -1,0 +1,20 @@
+--TEST--
+`Core\Server::traceId` throws a `LogicError` in a program that answers no request, while `isDraining` in the same class still answers — `rule:security/request-state-throws-in-an-isolate`
+--FILE--
+<?nvs
+// The runtime draws a trace for every run, so the member could return one here.
+// It throws instead: the id belongs to a request, and a command-line program
+// has none. `isDraining` is a fact about the process and keeps answering.
+try {
+    echo Core\Server::traceId(), "\n";
+} catch (LogicError $e) {
+    echo "LogicError\n";
+}
+if (Core\Server::isDraining()) {
+    echo "draining\n";
+} else {
+    echo "accepting\n";
+}
+--EXPECT--
+LogicError
+accepting

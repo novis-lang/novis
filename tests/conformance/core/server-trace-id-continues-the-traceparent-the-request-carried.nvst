@@ -1,0 +1,24 @@
+--TEST--
+`Core\Server::traceId` returns the trace id of the `traceparent` the request carried, as 32 lower-case hex characters, and every call returns the same id — `rule:observability/an-inbound-traceparent-is-continued`
+--HEADERS--
+traceparent: 00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01
+--FILE--
+<?nvs
+// The header names a trace this request continues, so the id is the header's
+// own and not one the server drew. A request that sent none still has an id
+// (`rule:observability/a-trace-id-exists-for-every-request`); its value is
+// random, so this case pins the continued one.
+string $id = Core\Server::traceId();
+echo $id, "\n";
+echo Core\Str::length($id), "\n";
+
+// One request has one id: a second reading is the same string.
+if (Core\Server::traceId() == $id) {
+    echo "same id\n";
+} else {
+    echo "a second id\n";
+}
+--EXPECT--
+4bf92f3577b34da6a3ce929d0e0e4736
+32
+same id
