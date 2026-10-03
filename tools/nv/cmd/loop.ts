@@ -1231,6 +1231,14 @@ async function serve(f: TurnFlags, state: RunState, fresh: boolean, touched: Tou
   const again = selected({});
   if (again === null) return end("chain-error", "the goal's plan did not read after the session; `bun nv check` and `bun nv chain --check` say why");
   const all = again.goal.checks as Check[];
+  // A goal whose record says `sweep: "done"` is swept only when a session claims it is reached, so a
+  // session that carries on is followed straight by the next one.
+  if (again.goal.sweep === "done" && !line.startsWith("DONE")) {
+    step(`acceptance check: not run -- goal \`${live.slug}\` is swept only after a session that reports DONE`, C.CYAN);
+    TICKER.set({ phase: "between sessions" });
+    CONSOLE.closeSession();
+    return onward();
+  }
   const since = floorSince() + 1;
   let open = since >= FLOOR_GATE_EVERY;
   // Every check but a heavy one: what starts is what this session's change reached, carried or the
@@ -1321,18 +1329,23 @@ async function serve(f: TurnFlags, state: RunState, fresh: boolean, touched: Tou
     step(retried, C.YELLOW);
     ledger(`       ${retried}`);
   }
-  if (line.startsWith("BLOCKED")) return end("blocked", `blocked on a user decision: ${line}`);
-  state.stalls = commits === 0 ? state.stalls + 1 : 0;
-  if (state.stalls >= f.maxStalls) return end("stalled", `${state.stalls} sessions in a row produced no commit`);
-  if (state.served >= f.maxSessions) return end("budget", `hit --max-sessions (${f.maxSessions})`);
-  carry(state, { last_hand: [] });
-  verdict(false, line || "the session wrote no status line, and the loop carries on");
-  // The key's flag lives in this process, so a stop pressed in the turn's last seconds is settled here.
-  await CONTROL.settleStop();
-  const asked = CONTROL.stopReason();
-  if (asked) return end("asked", asked);
-  saveRun(state);
-  return AGAIN;
+  return onward();
+
+  /** What follows a session the run does not end on: a block, a stall, the budget, or the next turn. */
+  async function onward() {
+    if (line.startsWith("BLOCKED")) return end("blocked", `blocked on a user decision: ${line}`);
+    state.stalls = commits === 0 ? state.stalls + 1 : 0;
+    if (state.stalls >= f.maxStalls) return end("stalled", `${state.stalls} sessions in a row produced no commit`);
+    if (state.served >= f.maxSessions) return end("budget", `hit --max-sessions (${f.maxSessions})`);
+    carry(state, { last_hand: [] });
+    verdict(false, line || "the session wrote no status line, and the loop carries on");
+    // The key's flag lives in this process, so a stop pressed in the turn's last seconds is settled here.
+    await CONTROL.settleStop();
+    const asked = CONTROL.stopReason();
+    if (asked) return end("asked", asked);
+    saveRun(state);
+    return AGAIN;
+  }
 }
 
 /**

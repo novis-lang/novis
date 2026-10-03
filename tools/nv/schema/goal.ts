@@ -71,6 +71,8 @@ export const goalShape = s.object({
   milestone: s.nullable(s.ref("milestone")),
   /** `last` pins the goal behind every goal not pinned, whatever the chain's order. */
   position: s.optional(s.enum("last")),
+  /** `done` sweeps the acceptance list only after a session that reports DONE; unset sweeps after every session. */
+  sweep: s.optional(s.enum("done")),
   /** The fixtures its checks run. */
   files: s.array(s.string()),
   context,
