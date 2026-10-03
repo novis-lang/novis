@@ -1,42 +1,39 @@
-# The repository's own `nvs.toml` — ADR 0103 § 1 step 2's `./nvs.toml`, found
-# in the working directory and nowhere else.
+# The repository's own `nvs.toml`: the `./nvs.toml` step of
+# `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`, found in the working
+# directory and nowhere else. It is TOML (`rule:config/the-file-is-nvs-toml-and-it-is-toml`), and
+# `nvs serve` checks who owns it (`rule:config/ownership-is-the-trust-boundary`).
 #
-# Exactly one directive in it is read today: ADR
-# 0102 § 6 makes `Core\Router::urlAbsolute`'s origin *configured* and refuses
-# to derive one from `Host` or `X-Forwarded-Host`, so a program calling that
-# member has no answer it is allowed to give until this key exists.
-# `configured_origin` in `crates/nvs-cli/src/main.rs` is the reader and its doc
-# comment owns why it is one key rather than a config format; M6 lands the real
-# tree, with ADR 0064's syntax and ADR 0103's ownership check, and this file
-# becomes an ordinary root of it.
-#
-# `examples/routes.nvs` is what reads it today, so `nvs run` from this
-# directory prints an absolute link rather than throwing. Changing the value
-# changes that program's expected output, which an exact check in a goal
-# record under `data/goals/` freezes.
+# Most blocks below grant one fixture what it needs, and each says why. Changing a value changes
+# that program's expected output, which an exact check in a goal record under `data/goals/` freezes.
 
-# ADR 0104 § 1: an application is an entry file path, and the block naming it is
-# `[[app]]` — an array of tables. There is no `[app]` table for a global origin
-# to sit in, because TOML refuses `app` as both spellings in one file. `root`
-# resolves against this file's own directory (ADR 0103 § 5), so this block is
-# every `.nvs` in the repository, `examples/routes.nvs` included.
+# An application is its entry file path, and the block naming it is `[[app]]`, an array of tables
+# (`rule:config/an-application-is-its-entry-file-path`). There is no `[app]` table for a global origin
+# to sit in, because TOML refuses `app` as both spellings in one file
+# (`rule:config/origin-is-a-block-key-and-there-is-no-app-table`). `root` resolves against this file's
+# own directory (`rule:config/a-relative-path-resolves-against-the-file-it-is-written-in`), so this
+# block is every `.nvs` in the repository.
+#
+# `origin` is what `Core\Router::urlAbsolute` prepends, because
+# `rule:routing/an-absolute-link-takes-a-configured-origin` never derives one from `Host` or
+# `X-Forwarded-Host`. It is why `examples/routes.nvs` prints an absolute link rather than throwing.
 [[app]]
 root = "."
 origin = "https://example.test"
 
-# ADR 0118 § 2 puts a `script.spawn` check inside the door `spawn script`
-# resolves a target through, and ADR 0118 § 1 denies by default — so
-# `examples/isolate.nvs` needs this grant to spawn anything at all. `true`
+# The `script.spawn` check sits inside the door `spawn script` resolves a target through
+# (`rule:security/capability-check-at-the-door`), and it denies by default
+# (`rule:security/script-spawn-capability`), so `examples/isolate.nvs` needs this grant to spawn
+# anything at all. `true`
 # rather than a list of roots: every example in this repository is one the
 # checkout already trusts, and narrowing it here would only be a second
 # spelling of "the repository".
 [app.capabilities.script]
 spawn = true
 
-# `examples/capability.nvs` is the fixture ADR 0118 exists for, so its block is
-# written to be *narrower* than the one above rather than wider: ADR 0104 § 2
-# layers an exact `entry` over the `root = "."` block, and a block may take a
-# capability away as well as grant one. What it demonstrates is a program
+# `examples/capability.nvs` is the fixture for `rule:security/capability-check-at-the-door`, so its
+# block is written to be *narrower* than the one above rather than wider: an exact `entry` layers over
+# the `root = "."` block (`rule:config/every-matching-app-block-applies-least-specific-first`), and a
+# block may take a capability away as well as grant one. What it demonstrates is a program
 # meeting one grant and two refusals, so `fs.read` is scoped to the one
 # directory holding its data, `fs.write` is never mentioned, and `script.spawn`
 # is switched off again — `false` is `Grant::Nothing` in
@@ -67,11 +64,11 @@ read = true
 write = true
 
 # `examples/tempdir.nvs` is the block above with one line fewer of program: it
-# creates a directory, writes into it and stops, leaving ADR 0131 § 3's sweep to
-# take it away. The grant is the same `true` for the same reason — the path is
-# the host's and no checkout could write it down — and it stays `write = true`
-# rather than being narrowed to the root, because the member asks the check of
-# the *entry* it is about to create (§ 2), not of the root it creates under.
+# creates a directory, writes into it and stops, leaving the sweep of
+# `rule:core-classes/temporary-dir-sweep` to take it away. The grant is the same `true` for the same
+# reason — the path is the host's and no checkout could write it down — and it stays `write = true`
+# rather than being narrowed to the root, because the member asks the check of the *entry* it is
+# about to create, not of the root it creates under.
 [[app]]
 entry = "examples/tempdir.nvs"
 
@@ -81,9 +78,9 @@ write = true
 
 # `examples/upload.nvs` is the same shape for the same reason — it receives a
 # part into a directory `Core\IO::temporaryDir()` chose on the host — so its
-# block is the one above rather than a narrower spelling of it. ADR 0105's rule
-# is that the *destination* is the application's own call, and a grant naming a
-# path this repository invented would be the host picking one after all.
+# block is the one above rather than a narrower spelling of it.
+# `rule:http-server/there-is-no-temp-file` makes the *destination* the application's own call, and a
+# grant naming a path this repository invented would be the host picking one after all.
 [[app]]
 entry = "examples/upload.nvs"
 
@@ -93,8 +90,8 @@ write = true
 
 # `examples/process.nvs` runs this repository's own `nvs` binary and then asks
 # to run a `.bat`, so its `process.exec` grant has to cover **both** targets:
-# ADR 0044 § 4's refusal is by target kind and the door asks the capability
-# first, so a grant that named only the binary would make the second call a
+# `rule:core-classes/process-refuses-a-shell-target` refuses by target kind and the door asks the
+# capability first, so a grant that named only the binary would make the second call a
 # capability denial and the fixture would still print `refused: no shell form`
 # while proving nothing. Scoped to two directories rather than `true` because
 # that is the whole point of the member being path-scoped: `target`, where
@@ -109,10 +106,10 @@ read = ["target", "examples/process"]
 [app.capabilities.process]
 exec = ["target", "examples/process"]
 
-# `examples/http.nvs` talks to an origin on the loopback, which ADR 0058 § 3
-# denies by default — so this block is where that ADR's *other* half is written
-# down: `net.connect` says which names the program may reach, and `net.internal`
-# says which of § 3's denied addresses this deployment reaches anyway. Both
+# `examples/http.nvs` talks to an origin on the loopback, which `rule:security/net-address-policy`
+# denies by default — so this block is where that rule's *other* half is written down: `net.connect`
+# says which names the program may reach, and `net.internal` says which of the denied addresses this
+# deployment reaches anyway. Both
 # names are granted and only one address is excepted, which is what the fixture
 # is for: `169.254.169.254` is granted by name and still refused on its address,
 # so the program's third line proves the policy is asked of the resolved address
@@ -197,11 +194,11 @@ entry = "benches/members/core/Http-Part/file.nvs"
 [app.capabilities.fs]
 read = ["benches/members/core/Http-Part/file.nvs"]
 
-# `examples/net-echo.nvs` binds a port and then dials it, and ADR 0162 § 8 is
-# why that is three keys rather than one. `net.listen` is the bind, matched
-# against the endpoint exactly; `net.connect` is the dial, matched against the
-# host; and `net.internal` is ADR 0058 § 3's exception, because loopback is one
-# of the ranges the address policy denies by default and the program supplies
+# `examples/net-echo.nvs` binds a port and then dials it, and
+# `rule:security/net-listen-is-a-separate-grant-from-net-connect` is why that is three keys rather
+# than one. `net.listen` is the bind, matched against the endpoint exactly; `net.connect` is the dial,
+# matched against the host; and `net.internal` is the exception `rule:security/net-address-policy`
+# allows, because loopback is one of the ranges that policy denies by default and the program supplies
 # that address itself. None of the three widens either of the others, which is
 # the whole of what the fixture demonstrates from the configuration's side.
 #
@@ -219,12 +216,12 @@ internal = ["127.0.0.1"]
 
 # `examples/cache.nvs` reaches the store `[cache.shared] url` names at the foot of
 # this file, and one line grants it: `cache.shared` names the *store* an operator
-# configured, not the address it is at, which is ADR 0142 § 1. That the store is
-# on the loopback costs this block nothing — neither the `net.connect` the block
-# above needs for a name nor the `net.internal` it needs for an address in a
-# range ADR 0058 § 3 denies, because neither question is asked of an endpoint an
-# operator wrote. Nothing here mentions `Core\Cache::local()`, which needs no
-# capability at all (ADR 0059 § 1) — the fixture's first two lines run under this
+# configured, not the address it is at (`rule:config/cache-shared-is-the-grant-over-the-configured-store`).
+# That the store is on the loopback costs this block nothing — neither the `net.connect` the block
+# above needs for a name nor the `net.internal` it needs for an address in a range
+# `rule:security/net-address-policy` denies, because neither question is asked of an endpoint an
+# operator wrote. Nothing here mentions `Core\Cache::local()`, which needs no capability at all
+# (`rule:core-api/two-cache-tiers`) — the fixture's first two lines run under this
 # block having said nothing about them, and its last two are
 # `Core\RateLimit::consume` opening the same store through the same grant.
 [[app]]
@@ -233,11 +230,12 @@ entry = "examples/cache.nvs"
 [app.capabilities.cache]
 shared = true
 
-# ADR 0020 § 3's tier 3, as the operator decision it is: an uncaught throw out of this application
+# Tier 3 of `rule:errors/handler-script`, as the operator decision it is: an uncaught throw out of this application
 # runs `examples/logging/handler.nvs` as a `spawn script` isolate, and only if that handler is
 # missing, refused or fails does the tier-4 floor write the record to `stderr` itself. `script.spawn`
-# is the root block's, above — a handler is resolved through ADR 0118 § 2's spawn door like any other
-# target, and being named here has never been permission to run.
+# is the root block's, above — a handler is resolved through the spawn door of
+# `rule:security/capability-check-at-the-door` like any other target, and being named here has never
+# been permission to run.
 #
 # Keyed on `examples/logging.nvs` and not on the `examples/logging/throws.nvs` that actually throws:
 # the child is an isolate, and an isolate reads the configuration in force where it was *spawned*
@@ -251,12 +249,12 @@ entry = "examples/logging.nvs"
 [app.log]
 handler = "examples/logging/handler.nvs"
 
-# ADR 0067 § 3's `db.connect` is granted by *name* and never by host: the endpoint lives in
-# `[db.main]` at the foot of this file, written by the operator, so what a program asks for
-# is permission to open that block and not permission to reach an address. That is also why
-# neither block below says anything about `net` — an operator-written endpoint is
-# pre-approved against ADR 0058 § 3's denied ranges, which `examples/cache.nvs`'s block
-# above has to ask for explicitly because a program names that store's URL itself.
+# `db.connect` is granted by *name* and never by host (`rule:core-classes/db-capabilities`): the
+# endpoint lives in `[db.main]` at the foot of this file, written by the operator, so what a program
+# asks for is permission to open that block and not permission to reach an address. That is also why
+# neither block below says anything about `net` — an operator-written endpoint is pre-approved against
+# the denied ranges of `rule:security/net-address-policy`, which `examples/cache.nvs`'s block above
+# has to ask for explicitly because a program names that store's URL itself.
 #
 # One entry block per fixture rather than one `root = "examples"`: every other fixture in
 # this repository runs with no database grant at all, and that is what makes these evidence
@@ -273,8 +271,8 @@ entry = "examples/transaction.nvs"
 [app.capabilities.db]
 connect = ["main"]
 
-# The streaming read, on the same block: ADR 0067 § 4's `stream` is a member of the
-# connection `connect("main")` already hands back, so it needs no grant of its own and
+# The streaming read, on the same block: `stream` (`rule:core-classes/db-streaming`) is a member of
+# the connection `connect("main")` already hands back, so it needs no grant of its own and
 # no second block. What it does need is an entry of its own, for the reason the header
 # above gives -- a grant is per application entry, never per directory.
 [[app]]
@@ -283,16 +281,16 @@ entry = "examples/stream.nvs"
 [app.capabilities.db]
 connect = ["main"]
 
-# The database fixture whose grant names a *different* block: ADR 0067 § 13's
-# pool key is the config block, so `[db.tight]` below is its own pool and nothing this program does
-# to that pool's ceiling is reachable from the two fixtures above.
+# The database fixture whose grant names a *different* block: two config blocks are two pools
+# (`rule:security/db-pool-reset-is-a-boundary`), so `[db.tight]` below is its own pool and nothing
+# this program does to that pool's ceiling is reachable from the two fixtures above.
 [[app]]
 entry = "examples/pool.nvs"
 
 [app.capabilities.db]
 connect = ["tight"]
 
-# ADR 0145 § 9's split, written as the two grants it is: `db.connect` is the whole of what
+# The split of `rule:core-classes/schema-apply-capability`, written as the two grants it is: `db.connect` is the whole of what
 # `planAgainst` needs, and `db.schema` is the separate deny-by-default grant that lets this program
 # issue the DDL its plan carries. Both name the `[db.schema]` block below, because both capabilities
 # name blocks rather than hosts.
@@ -359,7 +357,7 @@ entry = "tests/hostile/types/Db-RolledBack/01-a-flood-of-rollbacks-and-a-reason-
 [app.capabilities.db]
 connect = ["schema"]
 
-# The retention entry ADR 0153 § 5 is written around, and the only program in this repository that
+# The retention entry `rule:concurrency/queue-deletion-is-explicit-and-bounded` is written around, and the only program in this repository that
 # removes queue rows at all. `queue.purge` is deny-by-default and covers `Core\Queue`'s `delete` and
 # `purge` together, because the authority the two need is the same one — permission to make a
 # queue's rows stop existing — and one row at a time in a loop is that same answer at a different
@@ -810,8 +808,8 @@ write = true
 [app.capabilities.db]
 open = true
 
-# `Core\Db::connect`'s proof programs, granted by *name* and asked nothing else. ADR 0067 § 3's
-# `db.connect` is permission to open an operator-written block, so none of these asks for an `fs`
+# `Core\Db::connect`'s proof programs, granted by *name* and asked nothing else. `db.connect` is
+# permission to open an operator-written block (`rule:core-classes/db-capabilities`), so none of these asks for an `fs`
 # grant even though `[db.notes]` is a SQLite database: `sqlite_settings` in
 # `crates/nvs-stdlib/src/db/open.rs` — where `fs.read` and `fs.write` are asked about a `path` — is
 # `Core\Db::open`'s reader and is never on this member's path. The hostile case holds that one name
@@ -2027,8 +2025,8 @@ entry = "benches/members/core/Db-Rows/value.nvs"
 connect = ["notes"]
 
 # `Core\Db\Schema`'s programs that reach a database. Reading a schema out of an array and writing one
-# back need nothing granted at all, so that group's other programs are not written here. ADR 0145 § 9's
-# split is what the grants below are: `db.connect` is the whole of what `planAgainst` needs, and the one
+# back need nothing granted at all, so that group's other programs are not written here. The grants below
+# are the split of `rule:core-classes/schema-apply-capability`: `db.connect` is the whole of what `planAgainst` needs, and the one
 # program that also applies what it planned holds `db.schema` for the same name its connection names.
 [[app]]
 entry = "docs/examples/core/Db-Schema/fromArray/03-bring-a-database-up-to-a-schema-you-read-as-json.nvs"
@@ -2474,12 +2472,12 @@ entry = "benches/members/core/Db-Write/lastId.nvs"
 [app.capabilities.db]
 connect = ["notes"]
 
-# The bound `examples/config.nvs` is written around: ADR 0005's `Runtime`
-# directive moves freely up to a ceiling the operator keeps, so `512M` is
-# the last value `Core\Config::set("memory", …)` accepts and `1G` is the
-# first it refuses. Nothing reads these yet — Stage 3's snapshot is what
-# makes them load-bearing — but the fixture's frozen output is derived from
-# them, so they belong here rather than in that program's comments.
+# The bound `examples/config.nvs` is written around: a program may move
+# `memory` freely up to the ceiling `[limits.hard]` keeps below
+# (`rule:config/ceilings-are-their-own-directives`), so `512M` is the last value
+# `Core\Config::set("memory", …)` accepts and `1G` is the first it refuses. The
+# fixture's frozen output is derived from these two values, so they belong here
+# rather than in that program's comments.
 [limits]
 memory = "256M"
 
@@ -2529,7 +2527,7 @@ max_size = "32M"
 max_size = "32M"
 fill_wait = "5s"
 
-# ADR 0059 § 1's coherent tier, as the deployment decision it is: `Core\Cache::shared()`
+# The coherent tier of `rule:core-api/two-cache-tiers`, as the deployment decision it is: `Core\Cache::shared()`
 # and `Core\RateLimit::consume` both open *this* store, and neither takes an argument
 # saying where it is. The port is `tests/db/compose.yaml`'s `redis` service —
 # `127.0.0.1:16379` rather than 6379, so a developer's own Redis is never the one a
@@ -2567,7 +2565,7 @@ socket = false
 [debug]
 keep_temporary = false
 
-# ADR 0067 § 3's root-owned connection, and the block `Core\Db::connect("main")` opens —
+# The connection an operator names (`rule:core-classes/db-connection-is-named`), and the block `Core\Db::connect("main")` opens —
 # `examples/db.nvs`, `examples/transaction.nvs` and `examples/stream.nvs` are the fixtures
 # that read it, and each says in its own header that this file owes it. The server is
 # `tests/db/compose.yaml`'s `postgres` service, whose comments own the credentials and the
@@ -2579,8 +2577,8 @@ keep_temporary = false
 # one it can speak, so the key is what makes the block openable at all — and when the other
 # four land, this block does not change meaning under them.
 #
-# **`tls_ca_file` is why the fixtures can reach it.** § 3's upgrade has no spelling for turning
-# TLS off, and `nvs_host::tls` verifies against anchors compiled into the binary; the compose
+# **`tls_ca_file` is why the fixtures can reach it.** No setting turns TLS off
+# (`rule:core-classes/db-safe-connection-defaults`), and `nvs_host::tls` verifies against anchors compiled into the binary; the compose
 # PostgreSQL presents a certificate its own `certs` service issued, so this block names that
 # service's CA and nothing else vouches for the server. The file is not in git — it belongs to
 # a Docker volume and is remade whenever that volume is — and copying it out is the one
@@ -2594,9 +2592,10 @@ password = "Novis-Test-Pw1"
 database = "novis_test"
 tls_ca_file = "tests/db/ca.crt"
 
-# The same server, under a second name, with ADR 0067 § 13's ceiling wound all the way down —
+# The same server, under a second name, with its pool's ceiling wound all the way down —
 # `examples/pool.nvs` is the only program granted it. A second block rather than a `[db.main.pool]`
-# on the one above, because § 13 keys a pool by the block: a `max` of 1 written on `[db.main]` would
+# on the one above, because two blocks are two pools (`rule:security/db-pool-reset-is-a-boundary`):
+# a `max` of 1 written on `[db.main]` would
 # be a bound the other two fixtures run under as well, and the point of this one is that reaching
 # the ceiling is *this* program's own business.
 #
@@ -2622,9 +2621,10 @@ max = 1
 idle = 1
 acquire = "500ms"
 
-# ADR 0145 § 9's fixture, and the one `[db.<name>]` block in this file that names no server.
-# `examples/schema.nvs` counts the steps of a plan exactly, and § 7 makes that count depend on every
-# other table in the database — so it cannot share `main` with the queue, the transaction fixture and
+# The fixture for `rule:core-classes/schema-apply-capability`, and the one `[db.<name>]` block in this
+# file that names no server. `examples/schema.nvs` counts the steps of a plan exactly, and a plan is the
+# difference from the whole live database (`rule:core-classes/schema-converges`), so that count depends
+# on every other table in it — so it cannot share `main` with the queue, the transaction fixture and
 # whatever an operator left there. SQLite needs no container, and `:memory:` gives each run of the
 # acceptance sweep — Windows, WSL, and again under valgrind — a database in the same state, which is
 # what makes four frozen lines of output a constant rather than a description of one machine.
@@ -2669,21 +2669,23 @@ password = "Novis-Test-Pw1"
 database = "novis_test"
 tls_ca_file = "tests/db/ca.crt"
 
-# ADR 0084 § 2's queue, and `examples/queue.nvs` is the fixture it exists for. `connection = "main"`
-# is the recommended configuration rather than a convenience: § 3's property — an enqueue commits
-# with the write that caused it, or with neither — is only available to a queue whose rows live in
-# the application's *own* database, so this names the block the two fixtures above already write to.
-# A separate queue database is permitted and silently gives that up, which is why the ADR asks the
-# documentation to say so where the option is offered, and this is that place.
+# The queue of `rule:core-classes/queue-storage-is-a-table`, and `examples/queue.nvs` is the fixture it
+# exists for. `connection = "main"` is the recommended configuration rather than a convenience:
+# `rule:concurrency/enqueue-commits-with-your-write` — an enqueue commits with the write that caused
+# it, or with neither — holds only for a queue whose rows live in the application's *own* database,
+# so this names the block the two fixtures above already write to.
+# A separate queue database is permitted and gives that property up
+# (`rule:concurrency/foreign-connection-enqueue-is-counted`). This is where the option is offered,
+# so this is where that is said.
 #
-# `workers = 1` rather than § 2's own example of `4`: the fixture asserts `claimed 1` about a single
-# job, so a second worker is only a second chance to be the one that took it and proves nothing the
-# first does not. `0` would be § 2's enqueue-only deployment, which is a real configuration and the
-# wrong one here — nothing would ever claim, and the fixture's next four lines are about a job that
-# ran.
+# `workers = 1` rather than the `4` of `rule:concurrency/who-runs-a-job-is-configuration`'s example:
+# the fixture asserts `claimed 1` about a single job, so a second worker is only a second chance to be
+# the one that took it and proves nothing the first does not. `0` would be that rule's enqueue-only
+# deployment, which is a real configuration and the wrong one here — nothing would ever claim, and the
+# fixture's next four lines are about a job that ran.
 #
 # `max_attempts` and `visibility` are deliberately unwritten, so both keep `QueueBounds::DEFAULTS` in
-# `nvs_config::queue` — § 2's own numbers. The retry ladder the fixture measures is the one it writes
+# `nvs_config::queue`. The retry ladder the fixture measures is the one it writes
 # per push, as `maxAttempts: 2`, because that is a property of the job and not of the deployment.
 [queue]
 connection = "main"

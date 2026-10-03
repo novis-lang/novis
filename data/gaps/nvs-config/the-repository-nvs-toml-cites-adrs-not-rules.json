@@ -1,6 +1,0 @@
-{
-  "module": "nvs.toml",
-  "title": "The repository's own `nvs.toml` explains itself with ADR sections, not the `rule:` ids that state them.",
-  "text": "The comments from `nvs.toml:1` on cite `ADR 0103 § 1 step 2`, `ADR 0104 § 1`, `ADR 0118 § 2`, `ADR 0131 § 3` and others. A decision record is frozen rationale, and the rule fragment is what is currently true. Closing this rewrites each citation as the `rule:` id that states it, for example `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults` for step 2.",
-  "goal": "goal-closeout"
-}
