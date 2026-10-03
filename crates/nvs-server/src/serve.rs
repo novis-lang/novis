@@ -145,8 +145,64 @@ pub enum Answer {
         /// every ceiling but the connection's, and quiet is the state it is
         /// designed to spend most of its life in.
         alive: Option<crate::bounds::EventStream>,
+        /// The drain period a request-scoped stream ends at, and `None` for an
+        /// event stream, whose `alive` ends it under a drain instead.
+        cut: Option<DrainCut>,
     },
 }
+
+/// The end of a request-scoped stream's drain period
+/// (`rule:concurrency/a-drain-closes-a-connection-cleanly`): the connection's
+/// own period, read off the same cell the adapter's waits and the service's
+/// cut read, so all three end at one instant.
+///
+/// `due` is the connection loop's `cut_due`, filed on every poll so the loop
+/// wakes at the period's end (`crate::bounds::wake_at` owns why the wake is the
+/// loop's). It is emptied when the body is dropped, so a stream that ended
+/// leaves no deadline behind for the next request.
+#[derive(Debug)]
+pub struct DrainCut {
+    draining: Draining,
+    seen: crate::io::DrainSeen,
+    period: Duration,
+    due: Rc<Cell<Option<Instant>>>,
+}
+
+impl DrainCut {
+    /// Whether the period has ended. Files its end for the loop's wake when a
+    /// drain has begun, and nothing when none has.
+    fn reached(&self) -> bool {
+        let at = self
+            .draining
+            .is_draining()
+            .then(|| self.seen.period_ends(self.period));
+        self.due.set(at);
+        at.is_some_and(|at| at <= Instant::now())
+    }
+}
+
+impl Drop for DrainCut {
+    fn drop(&mut self) {
+        self.due.set(None);
+    }
+}
+
+/// The error a request-scoped stream ends in when the drain period ends while
+/// it is still being written.
+///
+/// An error rather than an end, because an end makes `hyper` write the
+/// terminating chunk and a client would read a cut body as a whole one. On an
+/// error `hyper` aborts the connection with no terminating chunk.
+#[derive(Debug)]
+pub struct DrainPeriodEnded;
+
+impl std::fmt::Display for DrainPeriodEnded {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("the drain period ended while the response was being written")
+    }
+}
+
+impl std::error::Error for DrainPeriodEnded {}
 
 impl Answer {
     /// The body a caller already has the bytes of.
@@ -173,7 +229,14 @@ impl Answer {
     #[must_use]
     pub fn stream(bounds: &crate::bounds::Connection) -> (stream::Emit, Self) {
         let (emit, drain) = stream::open(bounds.send, bounds.message);
-        (emit, Self::Streaming { drain, alive: None })
+        (
+            emit,
+            Self::Streaming {
+                drain,
+                alive: None,
+                cut: None,
+            },
+        )
     }
 
     /// The same body, held inside the bounds an event stream has of its own: it
@@ -208,6 +271,7 @@ impl Answer {
                 alive: Some(crate::bounds::EventStream::opened(
                     bounds, draining, write_idle, due_at,
                 )),
+                cut: None,
             },
             whole => whole,
         }
@@ -232,7 +296,7 @@ impl Answer {
 
 impl Body for Answer {
     type Data = Bytes;
-    type Error = Infallible;
+    type Error = DrainPeriodEnded;
 
     /// A whole body's one frame, then the end of the stream — or, for a stream,
     /// whatever chunk the writing isolate has put in the cell, and
@@ -263,13 +327,22 @@ impl Body for Answer {
     /// close frame and needs none: `hyper` writes the terminating chunk, the
     /// peer reads a stream that finished rather than a connection that was
     /// reset, and the hint above is what paces its way back.
+    ///
+    /// **A request-scoped stream ends in [`DrainPeriodEnded`] at the drain
+    /// period's end**, also ahead of the cell. It has no way to say it was
+    /// cut, so the error is what stops `hyper` from writing the terminating
+    /// chunk, and the end of `serve_connection` abandons the program still
+    /// writing it.
     fn poll_frame(
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
     ) -> Poll<Option<Result<Frame<Self::Data>, Self::Error>>> {
         match &mut *self {
             Self::Whole(bytes) => Poll::Ready(bytes.take().map(|bytes| Ok(Frame::data(bytes)))),
-            Self::Streaming { drain, alive } => {
+            Self::Streaming { drain, alive, cut } => {
+                if cut.as_ref().is_some_and(DrainCut::reached) {
+                    return Poll::Ready(Some(Err(DrainPeriodEnded)));
+                }
                 if let Some(alive) = alive {
                     if let Some(opening) = alive.opening() {
                         return Poll::Ready(Some(Ok(Frame::data(Bytes::from(opening)))));
@@ -1129,9 +1202,10 @@ where
     let beat_due: crate::bounds::NextBeat = Rc::new(Cell::new(None));
     let beat_due = &beat_due;
     // When the drain period cuts the request this connection is running, if a
-    // drain has begun and the request is parked. Filed by the loop below for
-    // the same reason as `beat_due`.
-    let cut_due: Cell<Option<Instant>> = Cell::new(None);
+    // drain has begun and the request is parked or streaming its answer.
+    // Filed by the loop below for the same reason as `beat_due`, and shared
+    // because a streamed body ([`DrainCut`]) outlives the service's frame.
+    let cut_due: Rc<Cell<Option<Instant>>> = Rc::new(Cell::new(None));
     let cut_due = &cut_due;
     let drain_period = waits.drain;
     let io = ConnectionIo::new(stream, waits).ending_at_drain(draining);
@@ -1513,7 +1587,15 @@ where
                             // drive loop at the end of this function collects
                             // them once the body they are writing has ended.
                             Some(head) => {
-                                let head = streamed(head);
+                                let head = streamed(
+                                    head,
+                                    DrainCut {
+                                        draining: draining.clone(),
+                                        seen: drain_seen.clone(),
+                                        period: drain_period,
+                                        due: Rc::clone(cut_due),
+                                    },
+                                );
                                 *writing.borrow_mut() = Some(Streamed {
                                     peer,
                                     supply: supply.take(),
@@ -1956,12 +2038,13 @@ fn sent(
 /// owns the reasoning for. No fallback to [`ECHOED`] either — a stream declares
 /// its own type by construction, the member that opens one takes the type as
 /// its argument.
-fn streamed(head: stream::Opened) -> Response<Answer> {
+fn streamed(head: stream::Opened, cut: DrainCut) -> Response<Answer> {
     let content_type =
         HeaderValue::from_str(&head.content_type).unwrap_or(HeaderValue::from_static(UNSPELLABLE));
     let mut response = Response::new(Answer::Streaming {
         drain: head.drain,
         alive: None,
+        cut: Some(cut),
     });
     if let Some(code) = head.status {
         *response.status_mut() = StatusCode::from_u16(code).unwrap_or(StatusCode::OK);
@@ -9111,6 +9194,115 @@ mod tests {
         assert!(
             closed && took < Duration::from_secs(5),
             "the drain waited for the running request: closed after {took:?}"
+        );
+    }
+
+    /// `rule:concurrency/a-drain-closes-a-connection-cleanly`'s bound on work
+    /// in progress, for a response already being streamed: at the drain
+    /// period's end the connection closes with no terminating chunk, so the
+    /// client cannot read the cut body as a whole one.
+    ///
+    /// The program writes one chunk and then sleeps far longer than
+    /// [`CLIENT_PATIENCE`], so a drain that waited for it fails by the clock.
+    #[test]
+    fn a_response_still_streaming_at_the_drain_periods_end_is_cut_without_its_last_chunk() {
+        let mut listener = NvsListener::bind("127.0.0.1:0".parse().expect("a literal address"))
+            .expect("the OS refused a port");
+        let addr = listener
+            .local_addr()
+            .expect("a bound listener had no address");
+
+        let client = std::thread::spawn(move || {
+            let mut socket = TcpStream::connect(addr).expect("the loopback refused a connection");
+            socket
+                .set_read_timeout(Some(CLIENT_PATIENCE))
+                .expect("the socket refused a read timeout");
+            socket
+                .write_all(b"GET /export HTTP/1.1\r\nHost: localhost\r\n\r\n")
+                .expect("the write failed");
+            let began = Instant::now();
+            let mut seen = Vec::new();
+            let mut buffer = [0_u8; 512];
+            // An aborted connection may arrive as a reset rather than an end,
+            // and both are a close. Only the read timeout is not.
+            let closed = loop {
+                match socket.read(&mut buffer) {
+                    Ok(0) => break true,
+                    Ok(read) => seen.extend_from_slice(&buffer[..read]),
+                    Err(error) => {
+                        break !matches!(
+                            error.kind(),
+                            std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut
+                        );
+                    }
+                }
+            };
+            (
+                closed,
+                String::from_utf8_lossy(&seen).into_owned(),
+                began.elapsed(),
+            )
+        });
+
+        let streams_past_the_drain = Rc::new(|request: Request<Incoming>, _origin: Origin| {
+            let inbound =
+                nvs_runtime::Inbound::new(request.method().as_str(), request.uri().path(), "");
+            let program: Program = Box::new(|child: &mut Ctx, _args| {
+                let cell = child
+                    .inbound()
+                    .and_then(nvs_runtime::Inbound::response_stream_slot)
+                    .cloned()
+                    .expect("a served request was offered no response-stream cell");
+                let emit = cell
+                    .open("text/plain", None, Vec::new())
+                    .expect("the first stream on a request opens");
+                child.set_body_stream(emit);
+                child
+                    .body_stream()
+                    .expect("the writing half was just set")
+                    .send(b"opened;".to_vec())
+                    .expect("the first chunk goes into an empty cell");
+                let _ = nvs_host::sleep(Duration::from_secs(600));
+                Value::null()
+            });
+            Reply::Run(
+                Isolate::new(program, Value::null(), Output::Capture).answering(inbound),
+                None,
+            )
+        });
+        let waits = Waits {
+            drain: Duration::from_millis(300),
+            ..Waits::default()
+        };
+        let mut sched = nvs_host::Scheduler::new();
+        let _installed =
+            nvs_host::reactor::install(nvs_host::Reactor::new().expect("the OS refused a poll"));
+        sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, move |_ctx| {
+            serve_on_this_core(
+                &mut listener,
+                &streams_past_the_drain,
+                waits,
+                &wide_open(),
+                &Draining::detached(),
+                |_note| {},
+                || ControlFlow::Break(()),
+            )
+            .expect("the accept loop failed");
+        });
+        nvs_host::run_until_idle(&mut sched).expect("the loop failed");
+
+        let (closed, seen, took) = client.join().expect("the client thread panicked");
+        assert!(
+            seen.starts_with("HTTP/1.1 200 OK\r\n") && seen.contains("opened;"),
+            "the stream's head and first chunk were not written before the cut: {seen}"
+        );
+        assert!(
+            !seen.ends_with("0\r\n\r\n"),
+            "a stream cut by the drain ended with its terminating chunk: {seen}"
+        );
+        assert!(
+            closed && took < Duration::from_secs(5),
+            "the drain waited for the streaming request: closed after {took:?}"
         );
     }
 

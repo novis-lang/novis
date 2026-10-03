@@ -184,8 +184,10 @@ impl Phase {
     /// to answer. In [`Phase::Body`] the request is running, and
     /// `crate::serve`'s service cuts it at the period's end and answers `503`.
     /// A wait cut here would close the connection before that answer is
-    /// written. [`Phase::Write`] is a response already being written, and it
-    /// finishes under its own wait.
+    /// written. [`Phase::Write`] is a response already being written. A
+    /// streamed one is cut by its own body at the period's end
+    /// (`crate::serve::DrainCut`), and a buffered one finishes under its own
+    /// wait.
     fn is_owed_nothing(self) -> bool {
         matches!(self, Phase::Head | Phase::KeepAlive)
     }
