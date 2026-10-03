@@ -459,6 +459,11 @@ const BOOT_CHANGES: &[(&str, &str, &str)] = &[
         "[server]\nworkers = 4\n",
         "[server]\nworkers = 2\n",
     ),
+    (
+        "server.watchdog_margin",
+        "[server]\nwatchdog_margin = \"5s\"\n",
+        "[server]\nwatchdog_margin = \"2s\"\n",
+    ),
 ];
 
 /// The value at a dotted path of a raw tree, or `None` when nothing is written there.
@@ -477,6 +482,7 @@ fn written_at<'a>(table: &'a toml::Table, dotted: &str) -> Option<&'a toml::Valu
 /// `tests/directives.rs` names this case as the restart proof of every `Boot` row, so a `Boot` row
 /// with no line in [`BOOT_CHANGES`] fails here.
 // covers: directive:server.listen, directive:server.socket_mode, directive:server.workers
+// covers: directive:server.watchdog_margin
 #[test]
 fn every_boot_row_a_reload_changes_is_named_and_keeps_its_running_value() {
     use nvs_config::directive::{Apply, DIRECTIVES};
@@ -515,12 +521,13 @@ fn every_boot_row_a_reload_changes_is_named_and_keeps_its_running_value() {
     }
 }
 
-/// `rule:config/reloadability-is-its-own-field`'s `Boot` set is three keys, and no other row is
-/// `Boot`. A port below 1024 needs a privilege the process dropped, `socket_mode` is applied when
-/// that socket is bound, and `workers` sizes what each core holds. A row added as `Boot` beside
-/// them is a key an operator restarts for, so it fails here until the rule names it.
+/// `rule:config/reloadability-is-its-own-field`'s `Boot` set, and no other row is `Boot`. A port
+/// below 1024 needs a privilege the process dropped, `socket_mode` is applied when that socket is
+/// bound, `workers` sizes what each core holds, and `watchdog_margin` is read by the one watchdog
+/// the process builds when it starts. A row added as `Boot` beside them is a key an operator
+/// restarts for, so it fails here until the rule names it.
 #[test]
-fn only_listen_socket_mode_and_workers_need_a_restart() {
+fn only_the_rules_restart_keys_are_boot() {
     use nvs_config::directive::{Apply, DIRECTIVES};
 
     let boot: Vec<&str> = DIRECTIVES
@@ -530,8 +537,13 @@ fn only_listen_socket_mode_and_workers_need_a_restart() {
         .collect();
     assert_eq!(
         boot,
-        ["server.listen", "server.socket_mode", "server.workers"],
-        "only the three restart keys may be `Boot`"
+        [
+            "server.listen",
+            "server.socket_mode",
+            "server.workers",
+            "server.watchdog_margin"
+        ],
+        "only the rule's restart keys may be `Boot`"
     );
 }
 

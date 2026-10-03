@@ -139,7 +139,8 @@ use std::sync::Arc;
 use jiff::Zoned;
 use nvs_config::mount::Mounted;
 use nvs_config::server::{
-    Listen, capacity_for, connection_bounds_for, listen_on, waits_for, workers_for,
+    Listen, capacity_for, connection_bounds_for, listen_on, waits_for, watchdog_margin_for,
+    workers_for,
 };
 use nvs_diagnostics::{Diagnostics, SourceMap};
 use nvs_host::{Isolate, NvsListener, Output};
@@ -246,6 +247,12 @@ pub(crate) fn run(
     // accepting.
     let workers = match workers_for(&snapshot.config, &origins) {
         Ok(workers) => workers,
+        Err(diagnostic) => return report(diagnostic, &sources),
+    };
+    // `[server] watchdog_margin`, read once here because the process builds its one watchdog
+    // once, below; `None` keeps `nvs_host::watchdog::DEFAULT_MARGIN`.
+    let margin = match watchdog_margin_for(&snapshot.config, &origins) {
+        Ok(written) => written.unwrap_or(nvs_host::watchdog::DEFAULT_MARGIN),
         Err(diagnostic) => return report(diagnostic, &sources),
     };
     // `rule:http-server/secure-headers-with-nothing-written`'s header set, resolved once beside the valve: with nothing
@@ -669,7 +676,7 @@ pub(crate) fn run(
     // in this frame so that it outlives every worker and its thread is joined
     // where the fleet is joined, rather than by whichever core happened to end
     // last; its own thread starts with the first registration a core makes.
-    let watchdog = Arc::new(nvs_host::Watchdog::new());
+    let watchdog = Arc::new(nvs_host::Watchdog::reporting_after(margin));
     // What answers the `WatchdogSec=` line `nvs service unit` renders, gated on
     // that same detector so the ping is evidence the fleet is turning rather
     // than evidence this thread is. Held in this frame like the watchdog it

@@ -427,9 +427,9 @@
 
 
 # ----------------------------------------------------------------------------------------------
-# [server] — a running server applies a change to this block itself, except to the three keys
-# whose line ends `restart required`: `listen`, `socket_mode` and `workers`. A change to one of
-# those takes effect at the next start, and a reload names it until then
+# [server] — a running server applies a change to this block itself, except to the four keys
+# whose line ends `restart required`: `listen`, `socket_mode`, `workers` and `watchdog_margin`. A
+# change to one of those takes effect at the next start, and a reload names it until then
 # (`rule:config/reloadability-is-its-own-field`).
 # ----------------------------------------------------------------------------------------------
 
@@ -472,6 +472,10 @@
 # stop, spelled the same way and finite for the same reason. It is not an idle wait and not
 # keep-alive under another name, so lengthening the wait a proxy needs leaves the restart alone.
 #drain_timeout = "30s"                # default
+# How long a worker may stay past the deadline of its oldest request before the server reports
+# that the worker has stopped. A late request is stopped by its own deadline, so this margin is
+# only for a worker that no longer runs at all. Spelled like the waits above.
+#watchdog_margin = "5s"               # default; restart required
 
 [server.connection]
 # What holds a connection that was upgraded out of a request — a WebSocket, or an event stream on

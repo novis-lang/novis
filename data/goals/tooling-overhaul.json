@@ -394,14 +394,14 @@
       "id": "nvs-config-only-listen-socket-mode-and-workers-are-boot",
       "kind": "cargo-named",
       "stage": 1,
-      "name": "nvs-config (only listen, socket_mode and workers are Boot)",
+      "name": "nvs-config (only the rule's restart keys are Boot)",
       "args": [
         "test",
         "-p",
         "nvs-config"
       ],
       "tests": [
-        "only_listen_socket_mode_and_workers_need_a_restart"
+        "only_the_rules_restart_keys_are_boot"
       ]
     },
     {

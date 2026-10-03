@@ -1,0 +1,54 @@
+<?nvs
+// Attack: a request tries to change how long a stopped worker goes unreported. A very
+// long margin hides a stopped worker. Every attempt below should fail.
+// hostile: timeout-ms 20000
+
+// 1. Try very long margins, zero, `false` and values that are not durations.
+array<string> $margins = [
+    '0',
+    '0s',
+    'false',
+    '1ns',
+    '1h',
+    '-5s',
+    '18446744073709551616s',
+    '5 s',
+    "5s\u{0000}",
+    '5x',
+    '',
+    Core\Str::repeat('9', 100000),
+];
+foreach ($margins as string $margin) {
+    Core\Config::set('server.watchdog_margin', $margin);
+    Core\Config::set('app.0.server.watchdog_margin', $margin);
+    Core\Config::restore('server.watchdog_margin');
+}
+
+// 2. Try other ways to write the name of the setting.
+array<string> $keys = [
+    'SERVER.WATCHDOG_MARGIN',
+    'server.watchdog_margin ',
+    'server..watchdog_margin',
+    'limits.watchdog_margin',
+];
+foreach ($keys as string $key) {
+    Core\Config::set($key, '1h');
+    Core\Config::get($key);
+    Core\Config::restore($key);
+}
+
+// 3. Try 200000 times in a loop, and count how often the value read back changes.
+uint $changes = 0;
+string $standing = Core\Config::get('server.watchdog_margin') ?? '(not set)';
+uint $i = 0;
+while ($i < 200000) {
+    Core\Config::set('server.watchdog_margin', '1h');
+    Core\Config::restore('server.watchdog_margin');
+    if ((Core\Config::get('server.watchdog_margin') ?? '(not set)') != $standing) {
+        $changes = $changes + 1;
+    }
+    $i = $i + 1;
+}
+
+echo 'changes: ', $changes, "\n";
+echo 'margin:  ', Core\Config::get('server.watchdog_margin') ?? '(not set)', "\n";

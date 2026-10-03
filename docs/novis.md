@@ -27835,8 +27835,8 @@ restored: 128M
 Every directive has a **class** that says who may change it: `Runtime` (the file states a default
 and a request may move it up to its ceiling), `RuntimeTighten` (a request may only narrow it),
 `System` (the file alone). The `apply` column says whether a running server applies a change to
-the file by itself, or only at its next start. Only `[server] listen`, `socket_mode` and `workers`
-wait for the next start (the server chapter, § *What reaches a running server*).
+the file by itself, or only at its next start. Only `[server] listen`, `socket_mode`, `workers` and
+`watchdog_margin` wait for the next start (the server chapter, § *What reaches a running server*).
 
 | Key | Class | Applies |
 |---|---|---|
@@ -27874,6 +27874,7 @@ wait for the next start (the server chapter, § *What reaches a running server*)
 | `server.listen` | operator only — a request cannot change it | at boot only |
 | `server.socket_mode` | operator only — a request cannot change it | at boot only |
 | `server.workers` | operator only — a request cannot change it | at boot only |
+| `server.watchdog_margin` | operator only — a request cannot change it | at boot only |
 | `opcache` | operator only — a request cannot change it | at reload |
 | `opcache.file_cache_dir` | operator only — a request cannot change it | at reload |
 | `session` | operator only — a request cannot change it | at reload |
@@ -28136,18 +28137,21 @@ saved file is applied the same way `nvs ctl reload` applies it: the whole tree i
 first, and only then does the next request see it. A file that does not check is logged once, with
 its line, and the running configuration stays. `nvs ctl reload` applies a change at once.
 
-**Three keys need a restart**: `[server] listen`, `[server] socket_mode` and `[server] workers`. A
-port below 1024 needs a privilege the server gave up after it opened the socket. `socket_mode` is
-applied only when a socket is opened, and `workers` sets how many cores accept requests. A changed one
-takes effect at the next start. Until then, the reload names it and logs it once with the running
-value and the new one, and `nvs ctl status` lists it. The shipped `nvs.toml` ends each of these
-three lines with `restart required`:
+**Four keys need a restart**: `[server] listen`, `[server] socket_mode`, `[server] workers` and
+`[server] watchdog_margin`. A port below 1024 needs a privilege the server gave up after it opened
+the socket. `socket_mode` is applied only when a socket is opened, and `workers` sets how many cores
+accept requests. `watchdog_margin` is how long a worker may stay past the deadline of its oldest
+request before the server reports that the worker has stopped. A changed one takes effect at the
+next start. Until then, the reload names it and logs it once with the running value and the new one,
+and `nvs ctl status` lists it. The shipped `nvs.toml` ends each of these four lines with
+`restart required`:
 
 ```toml
 [server]
 #listen = ["127.0.0.1:8000"]          # default; restart required
 #socket_mode = "0660"                 # default; restart required
 #workers = 4                          # default: one per core; restart required
+#watchdog_margin = "5s"               # default; restart required
 
 [opcache]
 #revalidate_freq = "2s"               # how often the server checks the files a program loaded

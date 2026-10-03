@@ -50,11 +50,13 @@
 //! served, and it wakes once per [`DEFAULT_INTERVAL`] to read one atomic per
 //! entry.
 //!
-//! [`DEFAULT_MARGIN`] and [`DEFAULT_INTERVAL`] are **compiled-in defaults**.
-//! `docs/agent/goals/concurrency.md` § *Standing decisions* gives the
-//! `[limits]` block that makes them configurable to goal `governance`, and says
-//! to run under compiled-in defaults and to say so at the site — this paragraph
-//! is that.
+//! `[server] watchdog_margin` sets the margin, and [`DEFAULT_MARGIN`] is the
+//! margin with the key left out. `nvs serve` resolves the key at boot through
+//! `nvs_config::server::watchdog_margin_for` and builds the process's one
+//! watchdog with [`Watchdog::reporting_after`], which is why the key is `Boot`:
+//! a reload has no second watchdog to hand a new margin to. [`DEFAULT_INTERVAL`]
+//! has no key, because a sweep costs one wakeup and one relaxed load per core
+//! and a shorter or longer one buys an operator nothing the margin does not.
 //!
 //! # The request a core is running
 //!
@@ -142,7 +144,8 @@ use crate::affinity::CpuId;
 use crate::cpuclock::ThreadClock;
 use crate::timer::DeadlineView;
 
-/// How far past its earliest deadline a core must be before it is reported.
+/// How far past its earliest deadline a core must be before it is reported,
+/// when `[server] watchdog_margin` is not written.
 ///
 /// Generous on purpose. The margin is not a latency target — a request that
 /// overruns its deadline is answered by the deadline, not by this — it is the
@@ -345,7 +348,18 @@ impl Watchdog {
     /// A watchdog reporting to `rule:errors/engine-floor`'s floor, on this module's defaults.
     #[must_use]
     pub fn new() -> Self {
-        Self::with(DEFAULT_MARGIN, DEFAULT_INTERVAL, |stall| {
+        Self::reporting_after(DEFAULT_MARGIN)
+    }
+
+    /// A watchdog reporting to `rule:errors/engine-floor`'s floor a core that is
+    /// `margin` past its earliest deadline, sweeping every [`DEFAULT_INTERVAL`].
+    ///
+    /// This is the constructor `[server] watchdog_margin` reaches, so a
+    /// configured margin and the default one report through the same sink and
+    /// in the same words.
+    #[must_use]
+    pub fn reporting_after(margin: Duration) -> Self {
+        Self::with(margin, DEFAULT_INTERVAL, |stall| {
             // Written through the handle rather than with `eprintln!`, which
             // this workspace's clippy denies and which would panic on a broken
             // pipe — the one thing `rule:errors/engine-floor`'s floor may not do. A failed
@@ -359,6 +373,12 @@ impl Watchdog {
                 stall.overdue_by
             );
         })
+    }
+
+    /// How far past its earliest deadline a core must be before it is reported.
+    #[must_use]
+    pub fn margin(&self) -> Duration {
+        self.shared.margin
     }
 
     /// A watchdog with its own margin, interval and sink.
@@ -790,6 +810,38 @@ mod tests {
             dog.shared.sweep(filed + margin * 2).is_empty(),
             "a still-wedged core was reported twice for one deadline"
         );
+    }
+
+    /// `[server] watchdog_margin`'s half of the module: a margin the file wrote
+    /// is the one a stall is measured against, on the constructor `nvs serve`
+    /// builds the process's watchdog with, and [`DEFAULT_MARGIN`] plays no part.
+    #[test]
+    fn a_configured_margin_is_the_one_a_stall_is_reported_against() {
+        let margin = Duration::from_secs(2);
+        assert!(
+            margin < DEFAULT_MARGIN,
+            "the case needs a margin the default would not report at"
+        );
+        let dog = Watchdog::reporting_after(margin);
+        assert_eq!(dog.margin(), margin);
+        let mut timers = Timers::default();
+        let filed = Instant::now() + Duration::from_secs(1);
+        timers.arm(TaskId::from_raw(1), filed);
+        let _watched = dog.register(a_cpu(), timers.view());
+
+        assert!(
+            dog.shared
+                .sweep(filed + margin - Duration::from_millis(1))
+                .is_empty()
+        );
+        let stalls = dog.shared.sweep(filed + margin);
+        assert_eq!(
+            stalls.len(),
+            1,
+            "a core past the configured margin was not reported"
+        );
+        assert_eq!(stalls[0].overdue_by, margin);
+        assert_eq!(Watchdog::new().margin(), DEFAULT_MARGIN);
     }
 
     /// The other half, and the one a naive heartbeat gets wrong: a core doing

@@ -538,8 +538,8 @@ restored: 128M
 Every directive has a **class** that says who may change it: `Runtime` (the file states a default
 and a request may move it up to its ceiling), `RuntimeTighten` (a request may only narrow it),
 `System` (the file alone). The `apply` column says whether a running server applies a change to
-the file by itself, or only at its next start. Only `[server] listen`, `socket_mode` and `workers`
-wait for the next start (the server chapter, § *What reaches a running server*).
+the file by itself, or only at its next start. Only `[server] listen`, `socket_mode`, `workers` and
+`watchdog_margin` wait for the next start (the server chapter, § *What reaches a running server*).
 
 <!-- generated: directives -->
 

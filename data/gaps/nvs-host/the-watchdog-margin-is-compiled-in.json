@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-host/src/watchdog.rs",
-  "title": "The watchdog's margin and interval are compiled in, and no configuration sets them.",
-  "text": "`rule:http-server/a-wedged-core-is-detected-by-its-deadline` reports a core past its deadline by a configured margin. `DEFAULT_MARGIN` at `crates/nvs-host/src/watchdog.rs:151` and `DEFAULT_INTERVAL` at `:158` are constants, `nvs serve` builds the watchdog with `Watchdog::new()`, and no `nvs.toml` key reaches either. The module doc at `crates/nvs-host/src/watchdog.rs:53` says goal `governance` would add the `[limits]` key, and it walked without one. Closing this adds the key to the configuration schema with today's values as defaults, passes it to `Watchdog::with`, rewrites that paragraph, and tests that a configured margin is the one a stall is reported against.",
-  "goal": "goal-closeout"
-}

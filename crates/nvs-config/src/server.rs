@@ -161,6 +161,7 @@ pub fn validate(config: &Config, origins: &BTreeMap<String, Origin>) -> Result<(
     connection_bounds_for(config, origins)?;
     listen_on(config, origins)?;
     workers_for(config, origins)?;
+    watchdog_margin_for(config, origins)?;
     health_path(config, origins)?;
     crate::mount::check(config, origins)
 }
@@ -227,11 +228,39 @@ pub fn waits_for(config: &Config, origins: &BTreeMap<String, Origin>) -> Result<
     })
 }
 
-/// One written wait, or the default for a key the block left out.
+/// The watchdog margin the tree's `[server]` wrote, or `None` where it wrote none.
 ///
-/// [`mod@crate::value`] is the parser, so `"10s"`, `10` and `"10000ms"` all read the same and a
-/// suffix it does not know is refused in its own words. What this adds is the magnitude question,
-/// and `why` completes the sentence that says what an unbounded one would cost.
+/// `None` keeps `nvs_host::watchdog`'s own default, which is that number's one home, for the
+/// reason [`connection_bounds_for`] carries only what a block overrode. A written margin is read
+/// and refused like the waits above: `false` is a stopped worker nobody is told about, and `0`
+/// reports every request that is merely late.
+///
+/// # Errors
+///
+/// `E0619` for `false` or `0`, and `E0601` from [`mod@crate::value`] for a value that is not a
+/// duration.
+pub fn watchdog_margin_for(
+    config: &Config,
+    origins: &BTreeMap<String, Origin>,
+) -> Result<Option<Duration>, Diagnostic> {
+    let Some(written) = config
+        .server
+        .as_ref()
+        .and_then(|server| server.watchdog_margin.as_ref())
+    else {
+        return Ok(None);
+    };
+    written_wait(
+        "server.watchdog_margin",
+        written,
+        "the watchdog reports a worker this far past its deadline, so `0` reports every request \
+         that is merely late, and no margin at all leaves a stopped worker unreported",
+        origins,
+    )
+    .map(Some)
+}
+
+/// One written wait, or the default for a key the block left out.
 fn wait(
     key: &str,
     written: Option<&Setting>,
@@ -239,9 +268,23 @@ fn wait(
     why: &str,
     origins: &BTreeMap<String, Origin>,
 ) -> Result<Duration, Diagnostic> {
-    let Some(setting) = written else {
-        return Ok(default);
-    };
+    match written {
+        Some(setting) => written_wait(key, setting, why, origins),
+        None => Ok(default),
+    }
+}
+
+/// One wait the block wrote, as a duration.
+///
+/// [`mod@crate::value`] is the parser, so `"10s"`, `10` and `"10000ms"` all read the same and a
+/// suffix it does not know is refused in its own words. What this adds is the magnitude question,
+/// and `why` completes the sentence that says what an unbounded one would cost.
+fn written_wait(
+    key: &str,
+    setting: &Setting,
+    why: &str,
+    origins: &BTreeMap<String, Origin>,
+) -> Result<Duration, Diagnostic> {
     let quantity = Quantity::parse(key, Unit::Duration, setting)
         .map_err(|invalid| invalid.diagnostic(origins.get(key)))?;
     // Zero is only reachable when the block wrote it, so the refusal always has the operator's own
@@ -1090,6 +1133,55 @@ mod tests {
                 Some(code::E_UNBOUNDED_WAIT),
                 "for {written:?}"
             );
+        }
+    }
+
+    /// `[server] watchdog_margin`: unwritten is `None`, which keeps the watchdog's own default,
+    /// and a written margin is read like every wait and refused on the same grounds, by the boot
+    /// pass as well as by its own resolution.
+    // covers: directive:server.watchdog_margin
+    #[test]
+    fn a_watchdog_margin_is_read_like_a_wait_and_unwritten_keeps_the_default() {
+        let none = BTreeMap::new();
+        for unwritten in ["", "[server]\nworkers = 2\n"] {
+            assert_eq!(
+                watchdog_margin_for(&tree(unwritten), &none)
+                    .expect("an unwritten margin was refused"),
+                None,
+                "for {unwritten:?}"
+            );
+        }
+        for (written, margin) in [
+            (
+                "[server]\nwatchdog_margin = \"2s\"\n",
+                Duration::from_secs(2),
+            ),
+            ("[server]\nwatchdog_margin = 2\n", Duration::from_secs(2)),
+            (
+                "[server]\nwatchdog_margin = \"500ms\"\n",
+                Duration::from_millis(500),
+            ),
+        ] {
+            assert_eq!(
+                watchdog_margin_for(&tree(written), &none).expect("a written margin was refused"),
+                Some(margin),
+                "for {written:?}"
+            );
+        }
+        for written in [
+            "[server]\nwatchdog_margin = false\n",
+            "[server]\nwatchdog_margin = 0\n",
+            "[server]\nwatchdog_margin = \"0s\"\n",
+        ] {
+            let refused = watchdog_margin_for(&tree(written), &none)
+                .expect_err("a margin that reports nothing useful was accepted");
+            assert_eq!(
+                refused.code,
+                Some(code::E_UNBOUNDED_WAIT),
+                "for {written:?}"
+            );
+            let boot = validate(&tree(written), &none).expect_err("the boot pass accepted it");
+            assert_eq!(boot.code, Some(code::E_UNBOUNDED_WAIT), "for {written:?}");
         }
     }
 

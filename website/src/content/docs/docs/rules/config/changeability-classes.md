@@ -203,10 +203,11 @@ since such a directive *is* a value read out of the snapshot. A registry that de
 from the other would re-create the conflation this field exists to end, so the census test fails if it
 ever does.
 
-**`Boot` is three keys: `[server] listen`, `[server] socket_mode` and `[server] workers`.** A port
-below 1024 needs a privilege the process dropped after it bound, so `listen` cannot move in general.
-`socket_mode` is applied when a Unix listener is bound, so it moves only with `listen`. `workers`
-sizes the runtime state each core holds. The registry keeps a row per key where a block's keys are
+**`Boot` is four keys: `[server] listen`, `[server] socket_mode`, `[server] workers` and
+`[server] watchdog_margin`.** A port below 1024 needs a privilege the process dropped after it bound,
+so `listen` cannot move in general. `socket_mode` is applied when a Unix listener is bound, so it
+moves only with `listen`. `workers` sizes the runtime state each core holds. `watchdog_margin` is read
+once, by the one watchdog the process builds when it starts. The registry keeps a row per key where a block's keys are
 two apply classes: `[server]` is a `Reload` block row with `Boot` rows for its restart keys.
 
 Everything else reloads, including the `[[extension]]` array and its pins, `opcache.validate` and its

@@ -1,0 +1,12 @@
+<?nvs
+// Shows how to read `[server] watchdog_margin`, the time before the server reports a stopped worker.
+//
+//     [server]
+//     watchdog_margin = "5s"   # when not set: 5 seconds
+
+echo 'watchdog margin: ', Core\Config::get('server.watchdog_margin') ?? '5 seconds (the default)', "\n";
+
+// A program cannot change this setting, so this prints `refused`.
+echo 'use 1 second:    ', Core\Config::set('server.watchdog_margin', '1s') ? 'accepted' : 'refused', "\n";
+
+// The server reads this setting when it starts. A new value takes effect after a restart.

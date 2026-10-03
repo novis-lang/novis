@@ -239,18 +239,21 @@ saved file is applied the same way `nvs ctl reload` applies it: the whole tree i
 first, and only then does the next request see it. A file that does not check is logged once, with
 its line, and the running configuration stays. `nvs ctl reload` applies a change at once.
 
-**Three keys need a restart**: `[server] listen`, `[server] socket_mode` and `[server] workers`. A
-port below 1024 needs a privilege the server gave up after it opened the socket. `socket_mode` is
-applied only when a socket is opened, and `workers` sets how many cores accept requests. A changed one
-takes effect at the next start. Until then, the reload names it and logs it once with the running
-value and the new one, and `nvs ctl status` lists it. The shipped `nvs.toml` ends each of these
-three lines with `restart required`:
+**Four keys need a restart**: `[server] listen`, `[server] socket_mode`, `[server] workers` and
+`[server] watchdog_margin`. A port below 1024 needs a privilege the server gave up after it opened
+the socket. `socket_mode` is applied only when a socket is opened, and `workers` sets how many cores
+accept requests. `watchdog_margin` is how long a worker may stay past the deadline of its oldest
+request before the server reports that the worker has stopped. A changed one takes effect at the
+next start. Until then, the reload names it and logs it once with the running value and the new one,
+and `nvs ctl status` lists it. The shipped `nvs.toml` ends each of these four lines with
+`restart required`:
 
 ```toml
 [server]
 #listen = ["127.0.0.1:8000"]          # default; restart required
 #socket_mode = "0660"                 # default; restart required
 #workers = 4                          # default: one per core; restart required
+#watchdog_margin = "5s"               # default; restart required
 
 [opcache]
 #revalidate_freq = "2s"               # how often the server checks the files a program loaded

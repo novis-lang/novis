@@ -1144,6 +1144,11 @@ pub struct Server {
     /// draining, spelled like the waits above and bounding a stop rather than an idle socket
     /// ([ADR 0186](/docs/decisions/0186.md) § 3).
     pub drain_timeout: Option<Setting>,
+    /// How far past its earliest deadline a worker must be before the watchdog reports it as not
+    /// turning (`rule:http-server/a-wedged-core-is-detected-by-its-deadline`), spelled like the
+    /// waits above. [`crate::server::watchdog_margin_for`] reads it, and it is `Boot` because the
+    /// process builds its one watchdog when it starts.
+    pub watchdog_margin: Option<Setting>,
     /// `[server.connection]` — what holds an upgraded connection, which is a different subject
     /// from the waits above (`rule:concurrency/connection-bounds-are-finite`).
     pub connection: Option<ServerConnection>,

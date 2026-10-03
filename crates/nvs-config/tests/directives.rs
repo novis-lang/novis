@@ -58,7 +58,12 @@ fn reloadability_is_a_field_of_its_own_and_not_the_changeability_class() {
     }
 
     // `rule:config/reloadability-is-its-own-field`'s own lists, key by key. `Boot` first — the narrow set.
-    for key in ["server.listen", "server.socket_mode", "server.workers"] {
+    for key in [
+        "server.listen",
+        "server.socket_mode",
+        "server.workers",
+        "server.watchdog_margin",
+    ] {
         assert_eq!(
             governing(key).apply,
             Apply::Boot,
@@ -294,6 +299,11 @@ const APPLY_PROOFS: &[(&str, &str, &str)] = &[
     ),
     (
         "server.workers",
+        RESTART,
+        "every_boot_row_a_reload_changes_is_named_and_keeps_its_running_value",
+    ),
+    (
+        "server.watchdog_margin",
         RESTART,
         "every_boot_row_a_reload_changes_is_named_and_keeps_its_running_value",
     ),
