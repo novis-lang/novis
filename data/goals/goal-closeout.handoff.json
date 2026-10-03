@@ -1,22 +1,26 @@
 {
-  "state": "**Goal `goal-closeout`, Stage 4 (finished in place).** A buffered database read is held to the memory ceiling while its rows arrive. The three wire arms in `crates/nvs-stdlib/src/db/execute.rs` ask `rows_fit` after every row, which reads `nvs_runtime::budget::over_ceiling`. SQLite's pool job is handed the caller's `budget::headroom` and stops past it, and `SqliteConn::query` records the refusal on the core. `queried_rows` turns any arm fault into `Ctx::memory_breach`'s `FATAL` once the request is over. Gap `buffered-read-is-not-held-to` is deleted. The perf figures for `Core\\Ast` and `Core\\Ast\\Node` are measured again, and `bun nv proofs --gate` owes nothing.\n\nGap `zip-extraction-creates-a-file-by-path-after-resolving-its-folder` needs a design for a door that walks from a folder handle. It is a question in the goal prose's § *Questions for the user at the goal end*. Four questions wait there. Do not build it before the answer.\n\n**No session stops on `BLOCKED` before the goal end.** A question goes in that section, and the session carries on.\n\nThe floor check `the latest CI run on main succeeded for the code HEAD holds` is red because `main` is ahead of `origin/main`. It leaves with goal `ci-green`'s record in Stage 6, and nobody pushes for it.\n\n`bun nv owners --closes goal-closeout` names 13 gaps in `nvs-lsp`, `nvs-stdlib`, `nvs-types` and `website`. Read each gap's record before building it: a gap can already be closed by tested code, and then the record is deleted.",
+  "state": "**Goal `goal-closeout`, Stage 4 (finished in place).** `Core\\Process::run` and `::spawn` take one options bag, `{cwd?, env?, timeout?}` (`OPTIONS` in `crates/nvs-stdlib/src/process.rs`). The door is `nvs_runtime::capability::exec_with` with a `Launch`, which refuses a relative folder and a variable name the OS cannot carry. A timeout kills the child and throws `TimeoutError`; `drain` serves both `run` and `Handle::wait`, and `off_core` bounds a parked handle read or write. `rule:core-classes/process-options` is `shipped`, and gap `process-options-is-on-neither-run-nor-spawn` is deleted. The new case `tests/conformance/core/process-options-reach-the-child-of-run-and-spawn.nvst` passed on Windows only; its Unix branch is first run by the driver's Linux leg.\n\nGap `zip-extraction-creates-a-file-by-path-after-resolving-its-folder` needs a design for a door that walks from a folder handle. It is a question in the goal prose's § *Questions for the user at the goal end*. Four questions wait there. Do not build it before the answer.\n\n**No session stops on `BLOCKED` before the goal end.** A question goes in that section, and the session carries on.\n\nThe floor check `the latest CI run on main succeeded for the code HEAD holds` is red because `main` is ahead of `origin/main`. It leaves with goal `ci-green`'s record in Stage 6, and nobody pushes for it.\n\n`bun nv owners --closes goal-closeout` names 12 gaps in `nvs-lsp`, `nvs-stdlib`, `nvs-types` and `website`. Read each gap's record before building it: a gap can already be closed by tested code, and then the record is deleted.",
   "next": {
     "stage": 4,
     "title": "finished in place",
-    "files": [
-      "crates/nvs-stdlib/src/process.rs"
-    ],
+    "files": [],
+    "note": "one file set: `crates/nvs-stdlib/src/test.rs` and its spec row.",
     "items": [
       {
         "done": false,
-        "text": "**`ProcessOptions` lands on `Core\\Process::run` and `::spawn` together** — gap `process-options-is-on-neither-run-nor-spawn` under `data/gaps/nvs-stdlib/`, `rule:core-classes/process-options`. `run` at `crates/nvs-stdlib/src/process.rs:661` and `spawn` at `crates/nvs-stdlib/src/process.rs:855` take a path and an argument array only. Add the options type (working directory, an environment that replaces the child's, a timeout on the request's cancellation) to both rows, test each field from Rust and Novis, move the rule to `shipped`, then delete the gap record. Read the rule's fragment first: if a field needs a design the fragment does not give, write a question in the goal prose and carry on."
+        "text": "**A test double's `unsafe` reason rests on a bound that holds** — gap `a-test-double-s-unsafe-reason-rests-on-an-unbuilt-rule` under `data/gaps/nvs-stdlib/`, `rule:testing/tests-never-reach-a-build`. The module doc at `crates/nvs-stdlib/src/test.rs:219` and the reason at `crates/nvs-stdlib/src/test.rs:4322` assume `Core\\Test` is in no build, and it is reachable under `nvs run`. Either build the rule with a test, or rewrite both reasons on a bound that holds under `nvs run` and test that. Then delete the gap record."
+      },
+      {
+        "done": false,
+        "text": "**Spec § 13 writes `Core\\Test` member by member and gives `Core\\Test\\Response` its own row** — gap `the-spec-lists-core-test-in-one-table-cell`. Rewrite the row at `docs/spec/01-core-library.md:1017` in § 15's bullet shape, add the `Core\\Test\\Response` row, and leave the § 13 exclusion in `crates/nvs-stdlib/tests/spec_registry_coverage.rs:1` as it is. Then delete the gap record."
       }
     ]
   },
   "backlog": [
-    "Gap `core-db-queryable-is-not-a` — `Core\\Db\\Queryable` as a writable interface a `Core` class satisfies; `crates/nvs-stdlib/src/db/mod.rs`, `rule:core-classes/db-transactions`.",
-    "Gap `core-server-has-no-request-environment-or-trace-id` — `crates/nvs-stdlib/src/server.rs`.",
-    "Gaps `a-callable-has-no-bind-bindto-or-call` and `an-isolate-result-output-is-typed-string` — `crates/nvs-types/src/expr/`.",
-    "The two `nvs-lsp` completion gaps and the two `website` gaps — each record names its module."
+    "`core-server-has-no-request-environment-or-trace-id` — `crates/nvs-stdlib/src/server.rs`, its gap record.",
+    "`core-db-queryable-is-not-a` — `crates/nvs-stdlib/src/db/mod.rs`, its gap record.",
+    "`a-callable-has-no-bind-bindto-or-call` and `an-isolate-result-output-is-typed-string` — `crates/nvs-types/src/expr/`, their gap records.",
+    "`rendered-core-pages-lag-the-tree` and `the-website-grammar-is-hand-written-beside-the-editors` — `website/`, their gap records.",
+    "`route-name-and-directive-completion-are-unbuilt` — `crates/nvs-lsp/src/completion.rs`; it waits on the `nvs.toml` question."
   ]
 }
