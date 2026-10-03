@@ -747,6 +747,20 @@ impl Hashed {
         Some(value)
     }
 
+    /// Gives the entry at `from` the key `to`, at the same position, and
+    /// answers whether it did. `to` must not be present already.
+    fn rename(&mut self, from: &[u8], to: NvsStr) -> bool {
+        let Some(slot) = self.index.remove(from) else {
+            return false;
+        };
+        self.index.insert(to.clone(), slot);
+        let entry = self.entries[slot]
+            .as_mut()
+            .expect("an indexed slot is always live");
+        drop(std::mem::replace(&mut entry.key, to));
+        true
+    }
+
     /// Drops every hole, then reindexes. O(entries), run only when at least
     /// half of them are holes, so removal stays O(1) amortized.
     fn compact(&mut self) {
@@ -1099,6 +1113,22 @@ impl NvsArray {
                 crate::release::release_value(value);
             }
         }
+    }
+
+    /// Gives the entry at `from` the key `to` and keeps its position in the
+    /// order, separating first if this handle is not the only owner. Answers
+    /// `false` and changes nothing where `from` is absent or `to` is present.
+    ///
+    /// A list-shaped array converts to the hash form first, the same as any
+    /// write that cannot keep its keys `0`…`n−1`.
+    pub fn rename(&mut self, from: &[u8], to: NvsStr) -> bool {
+        if !self.has_key(from) || self.has_key(to.as_bytes()) {
+            return false;
+        }
+        self.make_unique();
+        let mut table = self.header().table.borrow_mut();
+        table.note_key(to.as_bytes());
+        table.hashed_mut().rename(from, to)
     }
 
     /// One past the last slot, holes included. Once it passes eight, at least
@@ -2226,6 +2256,41 @@ mod tests {
                 "index {index}, after {step}"
             );
         }
+    }
+
+    /// A renamed entry keeps its place in the order, the old key stops
+    /// answering, and a copy that shared the storage still has the old key.
+    #[test]
+    fn a_renamed_entry_keeps_its_position() {
+        let mut array = NvsArray::new();
+        for (name, value) in [("a", 1), ("b", 2), ("c", 3)] {
+            array.set(key(name), Value::int(value));
+        }
+        let before = array.clone();
+        assert!(array.rename(b"b", key("z")));
+        assert_eq!(
+            readout(&array),
+            vec![
+                ("a".to_owned(), Some(1)),
+                ("z".to_owned(), Some(2)),
+                ("c".to_owned(), Some(3)),
+            ]
+        );
+        assert!(array.get(b"b").is_none());
+        assert_eq!(keys_of(&before), vec!["a", "b", "c"]);
+        assert!(!array.rename(b"missing", key("y")), "an absent key");
+        assert!(!array.rename(b"a", key("c")), "a key that is taken");
+        assert_eq!(keys_of(&array), vec!["a", "z", "c"]);
+    }
+
+    /// A list renamed at one position converts to the hash form and keeps
+    /// every other key, so a later append still goes after the largest one.
+    #[test]
+    fn renaming_inside_a_list_keeps_the_append_counter() {
+        let mut array = list_of(3);
+        assert!(array.rename(b"1", key("7")));
+        array.append(Value::int(99));
+        assert_eq!(keys_of(&array), vec!["0", "7", "2", "8"]);
     }
 
     #[test]

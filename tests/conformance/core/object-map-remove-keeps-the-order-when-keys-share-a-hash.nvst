@@ -1,0 +1,34 @@
+--TEST--
+`Core\ObjectMap::remove` of a key whose identity hash other keys share keeps every survivor in insertion order, and every survivor still findable — docs/spec/01-core-library.md § 9
+--FILE--
+<?nvs
+// covers: Core\ObjectMap::remove, Core\ObjectMap::values
+// The identity hash reads an array only a few levels deep, so these three
+// keys differ only below that depth and share one hash. They are still three
+// distinct keys.
+mixed $a = [[[[[[[["a"]]]]]]]];
+mixed $b = [[[[[[[["b"]]]]]]]];
+mixed $c = [[[[[[[["c"]]]]]]]];
+
+Core\ObjectMap<mixed, string> $map = new Core\ObjectMap<mixed, string>();
+$map->set($a, "a");
+$map->set($b, "b");
+$map->set("plain", "p");
+$map->set($c, "c");
+echo Core\Str::join($map->values(), ","), "\n";
+
+// Removing the middle one of the three must not move `c` in front of `plain`.
+$map->remove($b);
+echo $map->count(), " ", Core\Str::join($map->values(), ","), "\n";
+echo $map->has($a) ? "a" : "-", $map->has($b) ? "b" : "-", $map->has($c) ? "c" : "-", "\n";
+echo $map->get($c) ?? "-", "\n";
+
+// A key added after the removal goes to the end.
+$map->set($b, "b2");
+echo Core\Str::join($map->values(), ","), "\n";
+--EXPECT--
+a,b,p,c
+3 a,p,c
+a-c
+c
+a,p,c,b2

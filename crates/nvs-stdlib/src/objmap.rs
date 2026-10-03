@@ -13,9 +13,9 @@
 //! The two stay aligned because every mutation touches them the same way: an
 //! insert appends to both at the same position, a re-`set` overwrites in
 //! place (an insertion-ordered hash keeps a rewritten key where it was), and a
-//! removal calls [`identity_store::vacate`] on each, which moves the same
-//! chain tail into the same hole because the two stores have identical key
-//! sets. That alignment is what makes `keys()` and `values()` pair up
+//! removal calls [`identity_store::vacate`] on each, which renames the same
+//! chain tail to the same removed key because the two stores have identical
+//! key sets. That alignment is what makes `keys()` and `values()` pair up
 //! positionally, which is the one property a caller can observe about the
 //! order.
 //!
@@ -429,8 +429,8 @@ nvs_runtime::nvs_helper! {
     /// it held, and does nothing where the map holds no such key.
     ///
     /// [`store::vacate`] on each store in turn, and the two agree on which
-    /// entry moves into the hole because their key sets are identical — this
-    /// module's alignment invariant.
+    /// entry takes the removed key because their key sets are identical —
+    /// this module's alignment invariant.
     fn nvs_core_object_map_remove(_ctx, args: [2]) {
         let receiver = map_of(args[0], "remove")?;
         let (chain, present) = at(receiver, args[1], "remove")?;

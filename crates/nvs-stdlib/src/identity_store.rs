@@ -24,8 +24,10 @@
 //!
 //! **The chain is dense** — an ordinal is never skipped — which is what lets
 //! [`locate`] stop at the first absent key. A removal therefore has to restore
-//! that by moving the chain's last entry into the hole rather than leaving a
-//! tombstone; [`vacate`] is the one place that happens.
+//! that by renaming the chain's last entry to the removed key rather than
+//! leaving a tombstone; [`vacate`] is the one place that happens. The rename
+//! keeps the entry where it is in the store's order
+//! ([`NvsArray::rename`]), so a removal never moves another member.
 //!
 //! Flat rather than a bucket array per hash because a nested array would have
 //! to be taken out of its parent, mutated and put back on every write; the
@@ -113,8 +115,10 @@ pub(crate) fn locate(store: &NvsArray, value: Value) -> (ChainKey, bool) {
     }
 }
 
-/// Removes `key` from `store`, moving the chain's last entry into the hole so
-/// the chain stays dense — see this module's docs for why it must.
+/// Removes `key` from `store`, then renames the chain's last entry to the
+/// removed key so the chain stays dense — see this module's docs for why it
+/// must. The renamed entry keeps its own position, so the collection's
+/// insertion order does not change.
 ///
 /// `key` must be one [`locate`] answered `true` for; a key that is not there
 /// leaves the store untouched.
@@ -122,28 +126,18 @@ pub(crate) fn vacate(store: &mut NvsArray, key: &[u8]) {
     let Some((hash, n)) = split_key(key) else {
         return;
     };
+    if !store.has_key(key) {
+        return;
+    }
     let mut last = n;
     while store.get(&chain_key(hash, last + 1)).is_some() {
         last += 1;
     }
-    if last == n {
-        store.unset(key);
-        return;
+    store.unset(key);
+    if last != n {
+        let renamed = store.rename(&chain_key(hash, last), NvsStr::new(key));
+        debug_assert!(renamed, "the chain's last key is live and the hole is free");
     }
-    let tail_key = chain_key(hash, last);
-    let tail = store.get(&tail_key).expect("the chain's last key is live");
-    #[expect(
-        unsafe_code,
-        reason = "the store owns the reference at the chain's tail, and the \
-                  write below takes it over, so the removal that follows must \
-                  not release it a second time — hence the retain here and the \
-                  `unset` after"
-    )]
-    unsafe {
-        tail.retain();
-    }
-    store.set(NvsStr::new(key), tail);
-    store.unset(&tail_key);
 }
 
 /// A chain key back as `(hash, ordinal)`, or `None` if it is not one this
@@ -280,9 +274,10 @@ mod tests {
         assert_eq!(split_key(b"not-a-chain-key"), None);
     }
 
-    /// A removal from the middle of a chain pulls the last entry into the
-    /// hole, so [`locate`]'s stop-at-the-first-gap walk still finds what is
-    /// left — the invariant this module's docs make load-bearing.
+    /// A removal from the middle of a chain gives the last entry the hole's
+    /// key, so [`locate`]'s stop-at-the-first-gap walk still finds what is
+    /// left — the invariant this module's docs make load-bearing — and every
+    /// survivor, the renamed one included, stays in insertion order.
     #[test]
     fn vacating_the_middle_of_a_chain_keeps_it_dense() {
         let mut store = NvsArray::new();
@@ -291,11 +286,19 @@ mod tests {
                 NvsStr::new(&chain_key(7, n)),
                 Value::int(i64::try_from(n).expect("a small index is an `int`")),
             );
+            store.set(NvsStr::new(b"other"), Value::int(9));
         }
+        store.set(NvsStr::new(&chain_key(8, 0)), Value::int(10));
         vacate(&mut store, &chain_key(7, 1));
-        assert_eq!(store.count(), 2);
+        assert_eq!(store.count(), 4);
         assert_eq!(store.get(&chain_key(7, 0)).and_then(Value::as_int), Some(0));
         assert_eq!(store.get(&chain_key(7, 1)).and_then(Value::as_int), Some(2));
         assert!(store.get(&chain_key(7, 2)).is_none());
+        let order: Vec<Option<i64>> = store
+            .keys()
+            .iter()
+            .map(|key| store.get(key).and_then(Value::as_int))
+            .collect();
+        assert_eq!(order, vec![Some(0), Some(9), Some(2), Some(10)]);
     }
 }
