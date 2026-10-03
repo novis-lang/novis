@@ -1,0 +1,23 @@
+<?nvs
+// This class implements `Iterator<string>` with its two methods.
+class Walker implements Iterator<string> {
+    private int $i = -1;
+
+    public function constructor(private array<string> $items) {}
+
+    // `advance()` moves to the next item. It returns `false` when there are no more items.
+    public function advance(): bool {
+        $this->i = $this->i + 1;
+        return $this->i < (Core\Arr::count($this->items) as int);
+    }
+
+    // `current()` returns the item that `advance()` moved to.
+    public function current(): string {
+        return $this->items[$this->i];
+    }
+}
+
+foreach (new Walker(["a", "b", "c"]) as string $s) {
+    echo $s;
+}
+echo "\n";

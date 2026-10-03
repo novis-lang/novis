@@ -1,0 +1,41 @@
+---
+title: break, continue and return
+covers: ['lang:statements/break-and-continue', 'lang:statements/return']
+description: How break and continue leave a loop or start its next pass, and how return leaves a method.
+---
+import Snippet from '@components/Snippet.astro'
+
+`break` ends the loop it is in. `continue` skips the rest of the body and starts the next pass.
+
+<Snippet src="syntax/break-continue-return/01-break-continue.nvs" />
+
+- `break` also ends a `switch`.
+- `break 2` and `continue 2` act on the loop around the current one. The number counts loops and
+  `switch` statements, from the inside out.
+- The number is a literal, such as `2`. It cannot be a variable.
+- `break` outside a loop or `switch` does not compile. Neither does a number larger than the loops
+  around it.
+- Inside a `switch` in a loop, `continue` starts the next pass of the loop.
+
+## return
+
+`return value;` ends a method and returns the value. In a `void` method, write `return;` with no
+value.
+
+<Snippet src="syntax/break-continue-return/02-return.nvs" />
+
+- A `void` method that returns a value does not compile.
+- At the top level of a file, `return` ends that file. In the file the program starts with, it ends
+  the program.
+
+## Use this when you leave two loops
+
+`break 2` leaves an inner loop and the loop around it at once. When the loops are inside a method,
+`return` is often clearer.
+
+## Do and don't
+
+- Do use `continue` at the top of a loop body to skip values you do not need.
+- Do move nested loops into a method when you need `break 3` or more.
+- Don't use `break` to leave an `if`. It ends the loop around the `if`.
+- Don't write code after `return` in the same block. It never runs.

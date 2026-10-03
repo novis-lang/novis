@@ -1,0 +1,23 @@
+<?nvs
+// A `Core\ObjectSet` works in `foreach` like an array. It has no keys.
+var $set = new Core\ObjectSet<int>();
+$set->add(3);
+$set->add(4);
+foreach ($set as int $v) {
+    echo $v;
+}
+echo "\n";
+
+// A `Core\Heap` gives its values in order, from the smallest.
+var $heap = new Core\Heap<int>();
+$heap->push(3);
+$heap->push(1);
+$heap->push(2);
+foreach ($heap as int $h) {
+    echo $h;
+}
+echo "\n";
+
+// `Core\Arr::from` puts all the values into a new array.
+array<int> $all = Core\Arr::from($set);
+echo Core\Json::encode($all), "\n";

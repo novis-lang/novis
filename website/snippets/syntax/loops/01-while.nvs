@@ -1,0 +1,14 @@
+<?nvs
+// `while` checks the condition before each run of the body.
+int $n = 0;
+while ($n < 3) {
+    $n++;
+}
+echo $n, "\n";
+
+// `do ... while` runs the body once before it checks the condition.
+int $m = 5;
+do {
+    echo $m, "\n";
+    $m++;
+} while ($m < 3);

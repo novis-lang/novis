@@ -1,0 +1,14 @@
+<?nvs
+// `switch` runs the code from the first `case` that is equal to the value.
+// Without `break`, the code of the next `case` runs too.
+string $cmd = "stop";
+switch ($cmd) {
+    case "go":
+        echo "going\n";
+        break;
+    case "stop":
+    case "halt":
+        echo "stopping\n";
+    default:
+        echo "(logged)\n";
+}

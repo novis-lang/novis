@@ -162,6 +162,19 @@ export default defineConfig({
                 { label: 'Precedence', link: '/syntax/operators/precedence/' },
               ],
             },
+            {
+              label: 'Control flow',
+              items: [
+                { label: 'if and else', link: '/syntax/control-flow/if/' },
+                { label: 'match', link: '/syntax/control-flow/match/' },
+                { label: 'switch', link: '/syntax/control-flow/switch/' },
+                { label: 'while and for', link: '/syntax/control-flow/loops/' },
+                { label: 'foreach', link: '/syntax/control-flow/foreach/' },
+                { label: 'Iterators and generators', link: '/syntax/control-flow/iterators/' },
+                { label: 'break, continue and return', link: '/syntax/control-flow/break-continue-return/' },
+                { label: 'echo, unset and exit', link: '/syntax/control-flow/other-statements/' },
+              ],
+            },
           ],
         },
         {

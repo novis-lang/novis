@@ -1,0 +1,31 @@
+---
+title: switch
+covers: ['lang:statements/switch']
+description: How switch runs the code of the first case that is equal to a value, and how break ends it.
+---
+import Snippet from '@components/Snippet.astro'
+
+`switch (value)` compares the value with each `case`, in order. It runs the code from the first
+`case` that is equal. `break` ends the `switch`.
+
+<Snippet src="syntax/switch/01-switch.nvs" />
+
+- `switch` compares with `==`. A `case` that can never be equal to the value does not compile.
+- Without `break`, the code of the next `case` runs too. Two `case` lines in a row share one body.
+- `default` runs when no `case` is equal. It is checked last, wherever you write it.
+- No `case` is equal and there is no `default`: nothing runs.
+- `switch (true)` runs the first `case` whose condition is true.
+
+## Use this when each branch runs several statements
+
+For a branch that only gives a value, [`match`](/syntax/control-flow/match/) is shorter, and it
+never runs the next branch by mistake.
+
+## Do and don't
+
+- Do end every `case` body with `break`, unless the next `case` must run too.
+- Do write a comment above a `case` body that has no `break`. It tells the reader that the next
+  `case` must run too.
+- Don't use `switch` to pick a value. Use `match`.
+- Don't write `continue` inside a `switch` to end it. `continue` starts the next pass of the loop
+  around the `switch`.

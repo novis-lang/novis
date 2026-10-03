@@ -1,0 +1,39 @@
+---
+title: while and for
+covers: ['lang:statements/while-and-do-while', 'lang:statements/for']
+description: How while, do while and for run a body again and again while a condition is true.
+---
+import Snippet from '@components/Snippet.astro'
+
+`while (condition)` runs its body again and again while the condition is true. It checks the
+condition first, so the body may not run at all. `do { ... } while (condition);` runs the body once
+before the first check.
+
+<Snippet src="syntax/loops/01-while.nvs" />
+
+## for
+
+`for (start; condition; step)` runs the start once. Then it runs the body while the condition is
+true, and runs the step after each pass.
+
+<Snippet src="syntax/loops/02-for.nvs" />
+
+- The start declares one variable, such as `var $i = 0` or `int $i = 0`. It can also be a list of
+  assignments to variables declared before the loop.
+- The condition and the step can be lists, separated by commas. Any part can be empty.
+- `for (;;)` runs until `break` or `return`.
+- The counter is a normal variable. It still exists after the loop, so a second loop in the same
+  function needs another name.
+- `continue` runs the step, then checks the condition.
+
+## Use this when you walk an array
+
+To visit each element of an array, [`foreach`](/syntax/control-flow/foreach/) is shorter. It needs
+no counter.
+
+## Do and don't
+
+- Do use `while` when you do not know how many passes the loop needs.
+- Do use `for` when you count.
+- Don't declare two variables in the start of a `for`. Declare the second one before the loop.
+- Don't use the same counter name in two `for` loops of one function.

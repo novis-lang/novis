@@ -1,0 +1,19 @@
+<?nvs
+// `match` compares the value with each arm. It returns the result of the first arm that is equal.
+int $n = 2;
+string $size = match ($n) {
+    1, 2 => "low",
+    3 => "three",
+    default => "other",
+};
+echo $size, "\n";
+
+// `match (true)` returns the result of the first arm whose condition is true.
+echo match (true) { $n > 5 => "big", $n > 1 => "mid", default => "small" }, "\n";
+
+// No arm is equal and there is no `default`, so `match` throws a `LogicError`.
+try {
+    echo match ($n) { 1 => "one" }, "\n";
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}

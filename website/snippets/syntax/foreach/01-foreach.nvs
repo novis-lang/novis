@@ -1,0 +1,19 @@
+<?nvs
+// `foreach` runs the body once for each element of the array.
+var $prices = ["apple" => 3, "pear" => 5];
+foreach ($prices as var $p) {
+    echo $p, ";";
+}
+echo "\n";
+
+// Write `$key => $value` to get the key too. The key is always a `string`.
+foreach ($prices as var $name => var $each) {
+    echo $name, "=", $each, ";";
+}
+echo "\n";
+
+// `inout` writes each change back into the array.
+foreach ($prices as inout var $amount) {
+    $amount = $amount * 2;
+}
+echo Core\Json::encode($prices), "\n";

@@ -1,0 +1,46 @@
+---
+title: echo, unset and exit
+covers: ['lang:statements/echo-print-unset-exit-yield', 'lang:statements/statement-forms-that-do-not-parse']
+description: The statements echo, print, unset and exit, and the statements Novis does not have.
+---
+import Snippet from '@components/Snippet.astro'
+
+`echo` writes values to the output. `unset` removes entries from an array. `exit` ends the program.
+
+<Snippet src="syntax/other-statements/01-echo-unset-exit.nvs" />
+
+- `echo a, b;` writes each value in order, with nothing between them. `print` writes one value.
+- Both write a value the same way the `.` operator joins it into a string.
+- `unset` only removes array entries. `unset($x)` on a variable or a property does not compile.
+  Assign `null` to a nullable variable instead.
+- `exit;`, `exit(2);` and `exit("message");` end the program. `exit` is also an expression, so
+  `$value ?? exit(1)` works.
+- `yield` is a statement too. [Iterators and generators](/syntax/control-flow/iterators/) explains
+  it.
+
+## Statements Novis does not have
+
+| Statement | Use instead |
+|---|---|
+| `goto` and labels | a loop, an early `return`, or a `bool` variable |
+| `declare(...)` | nothing. Every file is already strict |
+| `if (...):` with `endif;`, `endwhile;` and the other `end` forms | braces |
+| `global $x;` | a parameter, or a `static` property |
+| `static $n = 0;` inside a method | a `private static` property |
+| `list($a, $b) = ...` | `[int $a, int $b] = ...` |
+| `include`, `require_once` | `require` |
+| `class`, `interface`, `enum`, `namespace` or `use` inside a body | write it at the top level of the file |
+
+Each of these is a syntax error.
+
+## Use this when you stop a script with an error
+
+`exit(1)` ends a command line program with the status `1`. When the cause is an error that code
+around it can handle, throw an error instead.
+
+## Do and don't
+
+- Do put `"\n"` at the end of an `echo` when you want a new line.
+- Do assign `null` to clear a nullable variable.
+- Don't use `unset` on a variable. It does not compile.
+- Don't call `exit` inside a library method. Throw an error, so the caller decides.

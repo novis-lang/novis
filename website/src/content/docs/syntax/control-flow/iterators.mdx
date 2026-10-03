@@ -1,0 +1,58 @@
+---
+title: Iterators and generators
+covers: ['lang:iteration/the-two-interfaces', 'lang:iteration/generators', 'lang:iteration/what-does-not-exist', 'Iterable', 'Iterator']
+description: How a method with yield makes values one at a time, and how a class works in foreach.
+---
+import Snippet from '@components/Snippet.astro'
+
+A method that contains `yield` is a generator. It returns an `Iterator<T>`. Each `yield` gives the
+next value to the loop that reads it.
+
+<Snippet src="syntax/iterators/01-generator.nvs" />
+
+- The return type of a generator is `Iterator<T>`. Each `yield` gives one `T`.
+- Calling the method runs none of its body. The body runs only as far as the loop needs the next
+  value.
+- `return;` ends the values early. A generator cannot return a value.
+- `yield` is a statement. `$x = yield 1;` does not compile.
+- A generator can be used only once. A second loop over the same `Iterator` object gets no values.
+- Each call makes a new generator, with its own position.
+- `current()` throws a `LogicError` before the first `advance()`, or after `advance()` returned
+  `false`.
+
+To pass on the values of another iterator, loop over it and `yield` each value. Novis has no
+`yield from`.
+
+## A class in foreach
+
+A class that implements `Iterable<T>` has one method, `iterate()`, which returns an `Iterator<T>`.
+`foreach` calls `iterate()` once for each loop. So one object works in many loops, even one loop
+inside another.
+
+<Snippet src="syntax/iterators/02-iterable.nvs" />
+
+## Use this when you need full control
+
+`Iterator<T>` has two methods. You can write them yourself, without `yield`.
+
+| Method | What it does |
+|---|---|
+| `advance(): bool` | moves to the next value. It returns `false` when there are no more values |
+| `current(): T` | returns the value that `advance()` moved to |
+
+<Snippet src="syntax/iterators/03-iterator.nvs" />
+
+A class implements `Iterable` or `Iterator` with a real type, such as `Iterable<int>`. You can also
+use both as types of parameters and variables: `Iterator<int> $it`.
+
+`Iterable` and `Iterator` are the only interfaces for loops. `ArrayAccess`, `Countable`,
+`IteratorAggregate`, `Traversable` and `Generator` do not exist. Neither do the functions
+`iterator_to_array`, `count`, `current`, `next` and `reset`. Use `Core\Arr::from` and
+`Core\Arr::count`.
+
+## Do and don't
+
+- Do use a generator to read a large or endless list one value at a time.
+- Do implement `Iterable` when the same object must work in more than one loop.
+- Don't loop twice over one generator. Call the method again to get a new one.
+- Don't write `$obj[0]` on an object. Give the class a method that returns the element.

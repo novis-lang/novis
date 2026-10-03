@@ -1,0 +1,16 @@
+<?nvs
+// `echo` writes each value in order, with nothing between them.
+// `true` prints `1`, and `null` prints nothing.
+echo "a", 1, 2.5, true, null, "\n";
+
+// `print` writes one value.
+print "p\n";
+
+// `unset` removes entries from an array.
+array<int> $a = ["k" => 1, "j" => 2, "m" => 3];
+unset($a["k"], $a["j"]);
+echo Core\Json::encode($a), "\n";
+
+// `exit` ends the program. The next line does not run.
+exit;
+echo "not reached\n";

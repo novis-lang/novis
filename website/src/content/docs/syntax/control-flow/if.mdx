@@ -1,0 +1,42 @@
+---
+title: if and else
+covers: ['lang:statements/if-elseif-else', 'lang:statements/expression-statements-blocks-and-declarations']
+description: How if, elseif and else choose which code runs, and how blocks and variables work inside them.
+---
+import Snippet from '@components/Snippet.astro'
+
+`if (condition)` runs its body when the condition is true. `elseif` tests another condition, and
+`else` runs when no condition before it was true.
+
+<Snippet src="syntax/if/01-if.nvs" />
+
+- The condition can be any value. The rules in [Comparison and logic](/syntax/operators/comparison/)
+  say which values count as true.
+- `elseif` and `else if` are the same.
+- A body is one statement, or a block of statements in `{ }`. Braces are optional around one
+  statement.
+
+## Blocks and variables
+
+A block `{ }` groups statements. It does not start a new scope. A variable declared inside a block
+still exists after it, until the end of the function.
+
+<Snippet src="syntax/if/02-blocks.nvs" />
+
+- You declare each variable once in a function. A second `int $n` in the same function does not
+  compile, even in another block.
+- A declaration inside a loop runs on each pass, and sets the variable again each time.
+- You can only read a variable where every path before it has set it. A variable that only an `if`
+  sets cannot be read after the `if`, unless the `else` sets it too.
+
+## Use this when you choose between values
+
+When each branch only picks a value, [`match`](/syntax/control-flow/match/) is shorter. It returns
+the value, so you assign it once.
+
+## Do and don't
+
+- Do use braces around every body that is longer than one short line.
+- Do declare a variable before the `if` when both branches set it.
+- Don't write `if (...):` with `endif;`. Novis only has the brace syntax.
+- Don't declare the same variable again in a second block. Assign it instead.

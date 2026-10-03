@@ -1,0 +1,26 @@
+<?nvs
+// A class that implements `Iterable<int>` works in `foreach`.
+// Its `iterate()` method returns a new `Iterator` for each loop.
+class Countdown implements Iterable<int> {
+    public function constructor(private int $from) {}
+
+    public function iterate(): Iterator<int> {
+        int $i = $this->from;
+        while ($i > 0) {
+            yield $i;
+            $i = $i - 1;
+        }
+    }
+}
+
+var $three = new Countdown(3);
+foreach ($three as int $a) {
+    echo $a;
+}
+echo "\n";
+
+// The same object works in a second loop, because the loop gets a new `Iterator`.
+foreach ($three as int $b) {
+    echo $b;
+}
+echo "\n";

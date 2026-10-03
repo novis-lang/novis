@@ -1,0 +1,6 @@
+make 1
+use 1
+make 2
+use 2
+make 1
+got 1

@@ -14,6 +14,41 @@
   "syntax/basics/variables.mdx": {
     "lang:types/every-binding-has-a-type": "dd36d2fa193703ff"
   },
+  "syntax/control-flow/break-continue-return.mdx": {
+    "lang:statements/break-and-continue": "17583e24037ffa62",
+    "lang:statements/return": "590137cb9dc139e3"
+  },
+  "syntax/control-flow/foreach.mdx": {
+    "lang:iteration/core-collections-are-iterable": "08f8f188a02fd1a8",
+    "lang:iteration/materialising-a-sequence-core-arr-from": "203059a10ea31651",
+    "lang:iteration/what-foreach-walks": "ca10e817647a6dea",
+    "lang:statements/foreach": "e74fc3bad475650b"
+  },
+  "syntax/control-flow/if.mdx": {
+    "lang:statements/expression-statements-blocks-and-declarations": "71a1c5759975c3b3",
+    "lang:statements/if-elseif-else": "946ee20be0f204c7"
+  },
+  "syntax/control-flow/iterators.mdx": {
+    "Iterable": "53d3557d152aeade",
+    "Iterator": "c3226424f53707ac",
+    "lang:iteration/generators": "1ccd38934acd8957",
+    "lang:iteration/the-two-interfaces": "1885960b8b9f3b50",
+    "lang:iteration/what-does-not-exist": "528280082914c5ee"
+  },
+  "syntax/control-flow/loops.mdx": {
+    "lang:statements/for": "04315f3ad07b44a6",
+    "lang:statements/while-and-do-while": "afb54afd748091c6"
+  },
+  "syntax/control-flow/match.mdx": {
+    "lang:expressions/match": "f59f057c151baecd"
+  },
+  "syntax/control-flow/other-statements.mdx": {
+    "lang:statements/echo-print-unset-exit-yield": "e46e42961c3da58d",
+    "lang:statements/statement-forms-that-do-not-parse": "312d7b63f370c750"
+  },
+  "syntax/control-flow/switch.mdx": {
+    "lang:statements/switch": "7708e52232f83a45"
+  },
   "syntax/operators/arithmetic.mdx": {
     "lang:expressions/arithmetic": "537f01ba95d7cd24",
     "lang:expressions/assignment": "d0b9aae015dcb3c3"
