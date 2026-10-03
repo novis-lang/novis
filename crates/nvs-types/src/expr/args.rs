@@ -1562,6 +1562,17 @@ pub(crate) fn check_generic_args(
             &mut bindings,
         );
     }
+    // A bounded variable that bound outside its bound, or bound nothing, is the
+    // bound itself: the parameter then reads as the bound, so the pass below
+    // reports an argument that does not fit with the ordinary mismatch.
+    for (name, bound) in &sig.type_bounds {
+        let fits = bindings.get(name).is_some_and(|bound_to| {
+            is_assignable(*bound_to, *bound, env.interner, env.graph, env.signatures)
+        });
+        if !fits {
+            bindings.insert(name.clone(), *bound);
+        }
+    }
     let sig = sig.substituted(&bindings, env.interner);
 
     for (index, arg) in list.iter().enumerate() {

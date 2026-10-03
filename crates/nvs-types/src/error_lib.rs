@@ -291,6 +291,7 @@ fn constructor(interner: &mut TypeInterner) -> FxHashMap<String, MethodSig> {
                 )])),
             ],
             type_params: Vec::new(),
+            type_bounds: Vec::new(),
             return_ty: void,
             is_static: false,
             interface_private: false,

@@ -228,6 +228,7 @@ fn bodiless(names: &[&str], params: Vec<TypeId>, return_ty: TypeId) -> MethodSig
         params,
         variadic: false,
         type_params: Vec::new(),
+        type_bounds: Vec::new(),
         return_ty,
         // `rule:iteration/concrete-generic-implements`'s two interfaces answer `T` and `bool`, never the
         // called class — see `MethodSig::returns_static`.

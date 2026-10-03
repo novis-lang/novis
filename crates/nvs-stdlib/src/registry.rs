@@ -562,6 +562,23 @@ pub enum CoreTy {
     /// declare one, which is `rule:attributes/call-site-type-argument`'s rule
     /// that type variables stay compiler-owned.
     Var(&'static str),
+    /// A [`Self::Var`] with an **upper bound** — `T` in
+    /// `Core\Math::abs(T $n): T` where `T` must fit `int|float|decimal`.
+    ///
+    /// Bound from the argument exactly as [`Self::Var`] is, so `abs` of an
+    /// `int` is an `int`. What it adds is the check [`Self::Var`] cannot make:
+    /// an argument whose type does not fit the bound is refused where the call
+    /// is written, with the same mismatch a parameter declared as the bound
+    /// would report, and a variable the call leaves unbound is the bound
+    /// rather than `mixed`. `nvs_types::core_lib` interns it as the plain
+    /// variable and records the bound in `MethodSig::type_bounds`, which
+    /// `nvs_types::expr::args`' `check_generic_args` reads after binding.
+    ///
+    /// Spelled as its name, as [`Self::Var`] is, so a signature reads
+    /// `abs(T $n): T` and the parameter's doc names the accepted types. Only a
+    /// whole parameter writes it ([`CoreMethod::bounded`]); the return type
+    /// writes the same name as a plain [`Self::Var`].
+    Bounded(&'static str, &'static CoreTy),
     /// A type variable bound from the type argument **written at the call
     /// site**, named — `T` in `decodeAs<T>(string $json): T`.
     ///
@@ -1314,9 +1331,10 @@ impl CoreTy {
                 let params: Vec<String> = params.iter().map(Self::spelled).collect();
                 format!("callable({}): {}", params.join(", "), ret.spelled())
             }
-            Self::Var(name) | Self::Written(name) | Self::WrittenReturning(name, _) => {
-                (*name).into()
-            }
+            Self::Var(name)
+            | Self::Bounded(name, _)
+            | Self::Written(name)
+            | Self::WrittenReturning(name, _) => (*name).into(),
             Self::Union(members) => members
                 .iter()
                 .map(Self::spelled)
@@ -1461,6 +1479,20 @@ impl CoreMethod {
         }
         collect_written(&self.return_ty, &mut found);
         found
+    }
+
+    /// Each [`CoreTy::Bounded`] parameter's variable and its bound, in
+    /// parameter order. Only a whole parameter is read: the variant is not
+    /// written nested inside another type.
+    #[must_use]
+    pub fn bounded(&self) -> Vec<(&'static str, &'static CoreTy)> {
+        self.params
+            .iter()
+            .filter_map(|param| match param {
+                CoreTy::Bounded(name, bound) => Some((*name, *bound)),
+                _ => None,
+            })
+            .collect()
     }
 
     /// The positional parameters — [`Self::params`] without a trailing options
@@ -4274,7 +4306,7 @@ mod tests {
     fn a_variable_is_written_or_inferred_but_never_both() {
         fn inferred(ty: &CoreTy, found: &mut Vec<&'static str>) {
             match ty {
-                CoreTy::Var(name) | CoreTy::ShapeOfCallables(name) => {
+                CoreTy::Var(name) | CoreTy::Bounded(name, _) | CoreTy::ShapeOfCallables(name) => {
                     found.push(name);
                 }
                 CoreTy::Array(inner)

@@ -143,6 +143,11 @@ pub struct MethodSig {
     /// type and is deliberately not writable, so the two kinds are separated
     /// at the registry and stay separated here.
     pub type_params: Vec<String>,
+    /// Each bounded inferred variable and the type it must fit — `("T",
+    /// int|float|decimal)` for `Core\Math::abs`, and empty for everything
+    /// else. `nvs_stdlib::registry::CoreTy::Bounded` owns the rule;
+    /// `crate::expr::args`' `check_generic_args` applies it after binding.
+    pub type_bounds: Vec<(String, TypeId)>,
     /// The declared return type (`mixed` if omitted).
     pub return_ty: TypeId,
     /// Whether the declaration writes `static` as its **return type** — ADR
@@ -1126,6 +1131,7 @@ fn collect_members(
                         // `rule:types/declaration`: a user-declared method
                         // has no type parameters to write.
                         type_params: Vec::new(),
+                        type_bounds: Vec::new(),
                         return_ty,
                         returns_static,
                         is_static,

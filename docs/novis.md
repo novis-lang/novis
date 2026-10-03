@@ -9193,7 +9193,7 @@ nan 9223372036854775807
 
 | Member | Signature |
 |---|---|
-| [`Core\Math::abs`](#core-core-math-abs) | `abs(int\|float\|decimal $n): int\|float\|decimal` |
+| [`Core\Math::abs`](#core-core-math-abs) | `abs(T $n): T` |
 | [`Core\Math::sign`](#core-core-math-sign) | `sign(int\|float\|decimal $n): int` |
 | [`Core\Math::min`](#core-core-math-min) | `min(T $a, T $b): T` |
 | [`Core\Math::max`](#core-core-math-max) | `max(T $a, T $b): T` |
@@ -9248,18 +9248,18 @@ nan 9223372036854775807
 #### `Core\Math::abs`
 
 ```nvs skip
-Core\Math::abs(int|float|decimal $n): int|float|decimal
+Core\Math::abs(T $n): T
 ```
 
 Returns `$n` without its sign, as the same kind of number. `-3` gives `3` and `-2.5` gives `2.5`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$n` | `int\|float\|decimal` | The number whose sign is removed: an `int`, a `float` or a `decimal`. |
+| `$n` | `T` | The number whose sign is removed: an `int`, a `float` or a `decimal`. |
 
-**Returns** `int|float|decimal` — `$n` without its sign. An `int` or a `uint` gives an `int`, a `float` gives a `float` and a `decimal` gives a `decimal` with the same decimal places. `-0.0` becomes `0.0`.
+**Returns** `T` — `$n` without its sign, with the same type as `$n`. An `int` gives an `int`, a `uint` is returned unchanged, a `float` gives a `float` and a `decimal` gives a `decimal` with the same decimal places. `-0.0` becomes `0.0`.
 
-**Throws** `ArithmeticError` — When `$n` is `INT_MIN`, whose positive value is one past `INT_MAX`, or a `uint` larger than `INT_MAX`.
+**Throws** `ArithmeticError` — When `$n` is `INT_MIN`, whose positive value is one past `INT_MAX`.
 
 <a id="core-core-math-sign"></a>
 #### `Core\Math::sign`

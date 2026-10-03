@@ -73,9 +73,9 @@ pub const CLASS: CoreClass = CoreClass {
         CoreMethod {
             name: "abs",
             names: &["n"],
-            params: &[CoreTy::Union(NUMBER)],
+            params: &[CoreTy::Bounded("T", &CoreTy::Union(NUMBER))],
             defaults: &[],
-            return_ty: CoreTy::Union(NUMBER),
+            return_ty: CoreTy::Var("T"),
             symbol: "nvs_core_math_abs",
             doc: Some(&ABS_DOC),
         },
@@ -436,12 +436,12 @@ const ABS_DOC: MethodDoc = MethodDoc {
         desc: "The number whose sign is removed: an `int`, a `float` or a `decimal`.",
         shape: &[],
     }],
-    ret: "`$n` without its sign. An `int` or a `uint` gives an `int`, a `float` gives a `float` and \
-          a `decimal` gives a `decimal` with the same decimal places. `-0.0` becomes `0.0`.",
+    ret: "`$n` without its sign, with the same type as `$n`. An `int` gives an `int`, a `uint` is \
+          returned unchanged, a `float` gives a `float` and a `decimal` gives a `decimal` with the \
+          same decimal places. `-0.0` becomes `0.0`.",
     errors: &[ErrorDoc {
         error: "ArithmeticError",
-        desc: "When `$n` is `INT_MIN`, whose positive value is one past `INT_MAX`, or a `uint` \
-               larger than `INT_MAX`.",
+        desc: "When `$n` is `INT_MIN`, whose positive value is one past `INT_MAX`.",
     }],
 };
 
@@ -1683,14 +1683,21 @@ unary_float! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Math::abs(int|float $n): int|float` — the magnitude, replacing
-    /// PHP's `abs`, and the one member here whose result type is the argument's
-    /// own.
+    /// `Core\Math::abs(T $n): T` with `T` bounded by `int|float|decimal` — the
+    /// magnitude, replacing PHP's `abs`, and the one member here whose result
+    /// type is the argument's own.
+    ///
+    /// The checker types the result as the argument, so each arm answers the
+    /// tag it was given. A `uint` has no sign and is returned unchanged; read
+    /// through [`number_at`] it would come back an `int` under a `uint` type.
     ///
     /// `abs(int::MIN)` throws: its magnitude is one past `int`'s largest
     /// value, and PHP's answer — silently becoming a `float` — is exactly the
     /// by-itself type change `rule:types/declaration` forbids.
     fn nvs_core_math_abs(_ctx, args: [1]) {
+        if args[0].as_uint().is_some() {
+            return Ok(args[0]);
+        }
         Ok(match number_at(args, 0, "abs")? {
             Number::Integer(n) => Value::int(n.checked_abs().ok_or_else(|| {
                 Fault::thrown_as(
@@ -2658,8 +2665,9 @@ mod tests {
         let largest = call(nvs_core_math_abs, &mut ctx, &[Value::int(-i64::MAX)])
             .expect("the negated largest int has an answer");
         assert_eq!(largest.as_int(), Some(i64::MAX));
-        let small = call(nvs_core_math_abs, &mut ctx, &[Value::uint(7)]).expect("a small uint");
-        assert_eq!(small.as_int(), Some(7));
+        let widest = call(nvs_core_math_abs, &mut ctx, &[Value::uint(u64::MAX)])
+            .expect("a uint has no sign, so every one has an answer");
+        assert_eq!(widest.as_uint(), Some(u64::MAX));
 
         let zero = float_result(nvs_core_math_abs, &[Value::float(-0.0)]);
         assert!(zero == 0.0 && zero.is_sign_positive(), "-0.0 becomes 0.0");
@@ -2676,12 +2684,10 @@ mod tests {
             .expect("a decimal result");
         assert_eq!(exact.to_string(), "19.90", "the scale is kept");
 
-        for refused in [Value::int(i64::MIN), Value::uint(u64::MAX)] {
-            let mut ctx = Ctx::buffered();
-            assert!(call(nvs_core_math_abs, &mut ctx, &[refused]).is_err());
-            let message = ctx.take_pending().expect("the refusal is pending");
-            assert!(message.contains("Core\\Math::abs"), "{message}");
-        }
+        let mut ctx = Ctx::buffered();
+        assert!(call(nvs_core_math_abs, &mut ctx, &[Value::int(i64::MIN)]).is_err());
+        let message = ctx.take_pending().expect("the refusal is pending");
+        assert!(message.contains("Core\\Math::abs"), "{message}");
     }
 
     /// `acos` answers on the closed range `[-1, 1]`, ends included, and `NaN`

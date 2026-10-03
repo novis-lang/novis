@@ -997,8 +997,18 @@ fn constructor_accepts_everything(
 /// the required prefix would leave that parameter's type unchecked at a
 /// position that does hand it something. The refusal that costs is the safe
 /// direction, and bare `callable` is still the way to write "any callable".
+///
+/// A bounded variable (`MethodSig::type_bounds`) is its bound here: no argument
+/// binds it at a reference, so `Core\Math::abs(...)` is
+/// `callable(int|float|decimal): int|float|decimal`.
 fn first_class_callable_type(sig: &MethodSig, env: &mut Env<'_>) -> TypeId {
-    env.interner.callable_sig(sig.params.clone(), sig.return_ty)
+    if sig.type_bounds.is_empty() {
+        return env.interner.callable_sig(sig.params.clone(), sig.return_ty);
+    }
+    let bindings: crate::generics::Bindings = sig.type_bounds.iter().cloned().collect();
+    let bounded = sig.clone().substituted(&bindings, env.interner);
+    env.interner
+        .callable_sig(bounded.params.clone(), bounded.return_ty)
 }
 
 /// Refuses `new C(...)` — the first-class callable sentinel written on `new`

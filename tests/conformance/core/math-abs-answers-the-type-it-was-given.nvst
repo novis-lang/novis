@@ -1,0 +1,34 @@
+--TEST--
+Core\Math::abs answers the type of its argument, so an `int`, a `float` and a `decimal` each go back into a binding of their own type with no `as`, per spec § 3
+--FILE--
+<?nvs
+// The argument binds `abs`'s bounded variable, so the result is typed as the
+// argument is. Each binding below would be refused if the result were the
+// whole `int|float|decimal` union.
+int $count = Core\Math::abs(-7);
+float $distance = Core\Math::abs(-2.5);
+decimal $balance = -3.20;
+decimal $owed = Core\Math::abs($balance);
+echo $count, "|", $distance, "|", $owed, "\n";
+
+// A `uint` has no sign, so even the largest one comes back unchanged as a `uint`.
+uint $largest = Core\Math::abs(Core\Math::UINT_MAX);
+echo $largest, "\n";
+
+// Arithmetic on the result keeps its type, which is what a running total needs.
+array<int> $steps = [-1, 2, -3];
+int $sum = 0;
+foreach ($steps as int $step) {
+    $sum = $sum + Core\Math::abs($step);
+}
+echo $sum, "\n";
+
+// A union argument answers the same union: `T` binds to `int|float` here.
+int|float $either = -4;
+int|float $magnitude = Core\Math::abs($either);
+echo $magnitude, "\n";
+--EXPECT--
+7|2.5|3.20
+18446744073709551615
+6
+4

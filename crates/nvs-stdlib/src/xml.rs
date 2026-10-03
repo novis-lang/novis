@@ -3841,6 +3841,7 @@ mod tests {
             | CoreTy::EnumCase(name, _)
             | CoreTy::Var(name) => *name == class,
             CoreTy::WrittenReturning(name, returns) => *name == class || mentions(returns, class),
+            CoreTy::Bounded(name, bound) => *name == class || mentions(bound, class),
             CoreTy::Array(inner)
             | CoreTy::Nullable(inner)
             | CoreTy::Iterated(inner)
@@ -3907,7 +3908,8 @@ mod tests {
             CoreTy::Array(inner)
             | CoreTy::Nullable(inner)
             | CoreTy::Iterated(inner)
-            | CoreTy::Variadic(inner) => every_text_position_is_tainted(inner),
+            | CoreTy::Variadic(inner)
+            | CoreTy::Bounded(_, inner) => every_text_position_is_tainted(inner),
             CoreTy::InstanceAt(_, args) => args.iter().all(every_text_position_is_tainted),
             CoreTy::Union(members) => members.iter().all(every_text_position_is_tainted),
             CoreTy::CallableSig(params, ret) => {

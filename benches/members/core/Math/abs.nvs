@@ -11,7 +11,7 @@ class Bench {
         int $i = 0;
         while ($i < $rounds) {
             // Chained: the offset used this round is picked by last round's total.
-            $total = $total + (Core\Math::abs($offsets[$total % 3] - $i) as int);
+            $total = $total + Core\Math::abs($offsets[$total % 3] - $i);
             $i = $i + 1;
         }
         return $total;

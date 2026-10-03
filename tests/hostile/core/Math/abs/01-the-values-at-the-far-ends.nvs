@@ -10,12 +10,9 @@ try {
     echo "refused\n";
 }
 
-// 2. The largest `uint`. It is past the largest `int`, so it cannot be used.
-try {
-    echo Core\Math::abs(Core\Math::UINT_MAX), "\n";
-} catch (ArithmeticError $tooLarge) {
-    echo "refused\n";
-}
+// 2. The largest `uint`. A `uint` has no sign, so the result is the same `uint`.
+uint $largest = Core\Math::abs(Core\Math::UINT_MAX);
+echo $largest, "\n";
 
 // 3. The `float` values that are not ordinary numbers, and the largest one.
 echo Core\Math::abs(-Core\Math::INFINITY), "\n";
@@ -32,7 +29,7 @@ echo Core\Math::abs($widest), "\n";
 int $round = 0;
 int $sum = 0;
 while ($round < 1000000) {
-    $sum = $sum + (Core\Math::abs(-$round % 7) as int);
+    $sum = $sum + Core\Math::abs(-$round % 7);
     $round = $round + 1;
 }
 echo $sum, "\n";

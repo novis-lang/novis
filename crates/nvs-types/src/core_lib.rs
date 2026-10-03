@@ -148,6 +148,11 @@ fn method_sig(
         // The registry's own first-appearance order, never
         // recomputed here — see `CoreMethod::written`.
         type_params: method.written().into_iter().map(str::to_owned).collect(),
+        type_bounds: method
+            .bounded()
+            .into_iter()
+            .map(|(name, bound)| (name.to_owned(), lower(bound, interner)))
+            .collect(),
         return_ty: lower(&method.return_ty, interner),
         // A `Core` member is reachable exactly one way (`rule:core-api/shape-rules`
         // R20): a static one through its class name, an instance
@@ -526,9 +531,10 @@ fn lower(ty: &CoreTy, interner: &mut TypeInterner) -> TypeId {
         // Both variable kinds intern as the same `Ty::TypeVar`: they differ
         // only in where the binding comes from, and `MethodSig::type_params`
         // is where that difference is recorded.
-        CoreTy::Var(name) | CoreTy::Written(name) | CoreTy::WrittenReturning(name, _) => {
-            interner.type_var(*name)
-        }
+        CoreTy::Var(name)
+        | CoreTy::Bounded(name, _)
+        | CoreTy::Written(name)
+        | CoreTy::WrittenReturning(name, _) => interner.type_var(*name),
         CoreTy::Callable => interner.callable(),
         // A `Core`-owned enum is interned exactly as a declared one is —
         // `crate::enums` has already seeded the same name into its own table,

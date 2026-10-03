@@ -1,0 +1,15 @@
+--TEST--
+Core\Math::abs refuses a `string` where the call is written, with the mismatch a parameter declared `int|float|decimal` reports, even though its result follows the argument's type, per spec § 3
+--FILE--
+<?nvs
+// The variable `abs` binds from its argument has a bound. A `string` does not
+// fit it, so the parameter reads as the bound and the call does not compile.
+echo Core\Math::abs("-3"), "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `int|float|decimal`, found `string`
+  --> case.nvs:4:21
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

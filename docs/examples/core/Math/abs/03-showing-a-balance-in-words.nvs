@@ -1,7 +1,6 @@
 <?nvs
 // Shows a customer balance on an invoice page. The sign decides the words,
 // and `Core\Math::abs` gives the amount to show next to them.
-// proof: gap nvs-stdlib/math-abs-result-is-the-whole-union
 
 class Balance {
     // Returns a sentence for a balance. A negative balance means the shop owes the customer.

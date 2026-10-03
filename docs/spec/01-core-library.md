@@ -390,7 +390,7 @@ the same reason. Overflow throws rather than becoming a `float`
 
 | Member | Signature | Replaces | Q |
 |---|---|---|---|
-| `abs` | `abs(int\|float\|decimal $n): int\|float\|decimal` | `abs` | neutral |
+| `abs` | `abs(T $n): T`, with `T` one of `int\|float\|decimal` | `abs` | neutral |
 | `sign` | `sign(int\|float\|decimal $n): int` | `$n <=> 0` | neutral |
 | `min` | `min(T $a, T $b): T` | `min` with scalar arguments | neutral |
 | `max` | `max(T $a, T $b): T` | `max` with scalar arguments | neutral |
