@@ -41,10 +41,13 @@
 use nvs_diagnostics::Span;
 use nvs_syntax::ast::{Block, Expr, ExprKind, Stmt, StmtKind};
 
+use crate::expr_table::ExprTypeTable;
+
 /// Whether every path through `stmts` leaves the frame before reaching the end
-/// of the list.
-pub(crate) fn block_always_exits(stmts: &[Stmt]) -> bool {
-    stmts.iter().any(always_exits)
+/// of the list. `exprs` is read for the one fact the syntax does not carry:
+/// which expression statements the checker typed `never`.
+pub(crate) fn block_always_exits(stmts: &[Stmt], exprs: &ExprTypeTable) -> bool {
+    stmts.iter().any(|s| always_exits(s, exprs))
 }
 
 /// Every `return <expr>;` written in `stmts`, in source order.
@@ -117,16 +120,16 @@ fn visit_return<F: FnMut(Option<&Expr>, Span)>(stmt: &Stmt, f: &mut F) {
 
 /// Whether every path through `stmt` leaves the frame — returns, throws, exits
 /// the process, or loops forever.
-fn always_exits(stmt: &Stmt) -> bool {
+fn always_exits(stmt: &Stmt, exprs: &ExprTypeTable) -> bool {
     match &stmt.kind {
         StmtKind::Return(_) => true,
-        StmtKind::Expr(e) => expr_always_exits(e),
-        StmtKind::Block(b) => block_always_exits(&b.stmts),
+        StmtKind::Expr(e) => expr_always_exits(e, exprs),
+        StmtKind::Block(b) => block_always_exits(&b.stmts, exprs),
         StmtKind::If {
             then,
             else_: Some(else_),
             ..
-        } => always_exits(then) && always_exits(else_),
+        } => always_exits(then, exprs) && always_exits(else_, exprs),
         // A loop is the reason a body exits only when nothing can leave it: an
         // `if` inside a `while (true)` that returns is *not* what makes the
         // enclosing body exit, because the `if` may be false forever.
@@ -137,12 +140,14 @@ fn always_exits(stmt: &Stmt) -> bool {
         // The one loop whose body is guaranteed to run: it exits either because
         // that first iteration always does, or because there is no way out.
         StmtKind::DoWhile { body, cond } => {
-            always_exits(body) || (is_literal_true(cond) && !escapes(body))
+            always_exits(body, exprs) || (is_literal_true(cond) && !escapes(body))
         }
         StmtKind::Switch { cases, .. } => {
             cases.iter().any(|c| c.cond.is_none())
                 && !cases.iter().any(|c| escapes_block(&c.body))
-                && cases.last().is_some_and(|c| block_always_exits(&c.body))
+                && cases
+                    .last()
+                    .is_some_and(|c| block_always_exits(&c.body, exprs))
         }
         StmtKind::Try {
             body,
@@ -151,17 +156,24 @@ fn always_exits(stmt: &Stmt) -> bool {
         } => {
             finally
                 .as_ref()
-                .is_some_and(|f| block_always_exits(&f.stmts))
-                || (block_always_exits(&body.stmts)
-                    && catches.iter().all(|c| block_always_exits(&c.body.stmts)))
+                .is_some_and(|f| block_always_exits(&f.stmts, exprs))
+                || (block_always_exits(&body.stmts, exprs)
+                    && catches
+                        .iter()
+                        .all(|c| block_always_exits(&c.body.stmts, exprs)))
         }
         _ => false,
     }
 }
 
-/// The expression statements that do not come back: `throw` and `exit`.
-fn expr_always_exits(e: &Expr) -> bool {
-    matches!(e.kind, ExprKind::Throw(_) | ExprKind::Exit(_))
+/// The expression statements that do not come back: `throw`, `exit`, and any
+/// statement the checker typed `never` — a call to a `never` method no
+/// subtype overrides, or to a `never` function. That last one is sound only
+/// because a `never` body that reaches its own end is itself refused
+/// (`crate::check::check_body_exits`); `crate::expr::check_expr_stmt` owns
+/// why an overridden one is left out.
+fn expr_always_exits(e: &Expr, exprs: &ExprTypeTable) -> bool {
+    matches!(e.kind, ExprKind::Throw(_) | ExprKind::Exit(_)) || exprs.is_never_stmt(e.span)
 }
 
 fn is_literal_true(e: &Expr) -> bool {

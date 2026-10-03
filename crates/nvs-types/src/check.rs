@@ -912,10 +912,11 @@ fn check_every_path_returns(m: &MethodMember, body: &Block, return_ty: TypeId, e
 /// the message points at.
 ///
 /// Only the `E0739` half is an analysis. Whether a written `return;` is legal
-/// is the declared type alone, which is why `never` refuses one and yet is not
-/// asked about the falling-off path: a body whose every exit is a throw writes
-/// no `return` at all, and [`crate::returns`]'s walk is deliberately one-sided
-/// about the shapes it cannot prove.
+/// is the declared type alone. The falling-off path is asked of `never` too:
+/// a `never` body that reaches its end would come back to a caller that
+/// [`crate::returns`]'s walk already treats as left, since a statement typed
+/// `never` counts as an exit there. So that refusal is what keeps the walk
+/// sound, and the help it gives names the exits a `never` body has.
 pub(crate) fn check_body_exits(
     subject: &str,
     body: &Block,
@@ -943,9 +944,17 @@ pub(crate) fn check_body_exits(
             ),
         );
     }
-    if matches!(env.interner.get(return_ty), Ty::Never) || block_always_exits(&body.stmts) {
+    if block_always_exits(&body.stmts, env.exprs) {
         return;
     }
+    let help = if matches!(env.interner.get(return_ty), Ty::Never) {
+        "throw, call `exit`, or call a `never` function on that path — a `never` body never \
+         comes back to its caller, so no path may reach its end"
+    } else {
+        "return a value on that path, throw, or declare `void` — a body that falls off its \
+         end returns nothing at all, and `rule:types/conversion` has no implicit `null` to stand in for \
+         the declared type"
+    };
     env.diags.report(
         Diagnostic::error(
             code::E_MISSING_RETURN,
@@ -953,11 +962,7 @@ pub(crate) fn check_body_exits(
         )
         .with_primary(closing_brace(body), "reached without returning")
         .with_secondary(declared, "declared here")
-        .with_help(
-            "return a value on that path, throw, or declare `void` — a body that falls off its \
-             end returns nothing at all, and `rule:types/conversion` has no implicit `null` to stand in for \
-             the declared type",
-        ),
+        .with_help(help),
     );
 }
 

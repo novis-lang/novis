@@ -135,9 +135,14 @@ untouched; so is a generator, whose body [`iteration/generators`](iteration.md#i
 produce. The analysis is asymmetric on purpose, and `nvs_types::returns` owns it: a `while (true)`
 with no `break`, a `switch` with a `default`, a `try` every path of which exits, and a body that
 always throws are all exits, and every shape it cannot prove reaches the end is treated as one — so
-the refusal costs no program that ran. Whether a written `return;` is legal asks none of that: the
-declared type is the whole answer, which is why a `never` body is refused one and is still never
-asked about the falling-off path.
+the refusal costs no program that ran. A call to a `never` function, or to a `never` method no
+subclass overrides, is an exit too. An overridden one is not, because an override's return type is
+not yet checked against the method it replaces. Whether a written `return;` is legal asks none of that: the declared
+type is the whole answer.
+
+A `never` body is asked about the falling-off path like any other, and refused (`E0739`) when one
+reaches its end. PHP raises a `TypeError` when such a function returns. That refusal is also what
+makes counting a `never` call as an exit sound.
 
 <sub>See also [`types/declaration`](types.md#types-declaration), [`iteration/generators`](iteration.md#iteration-generators), [`classes/constructor-is-a-method-named-constructor`](classes.md#classes-constructor-is-a-method-named-constructor). Decided in [0007](../decisions/0007.md).</sub>
 

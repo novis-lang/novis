@@ -220,7 +220,11 @@ pub(crate) fn check_condition(
 ///   checked; [`infer`]'s arm refuses the value form (`E0704`).
 ///
 /// Everything else is an ordinary expression and goes straight to
-/// [`check_expr`] with no expectation, exactly as before this split.
+/// [`check_expr`] with no expectation. One whose type is `never` is recorded
+/// ([`crate::expr_table::ExprTypeTable::is_never_stmt`]), because
+/// `crate::returns` counts that statement as an exit. A method call that some
+/// subtype overrides is not recorded: nothing yet checks an override's return
+/// type against the one it replaces, so the code that runs may return.
 pub(crate) fn check_expr_stmt(
     expr: &Expr,
     live: &mut FxHashSet<String>,
@@ -245,7 +249,14 @@ pub(crate) fn check_expr_stmt(
             check_expr(path, None, live, scope, ctx, env);
         }
         _ => {
-            check_expr(expr, None, live, scope, ctx, env);
+            let ty = check_expr(expr, None, live, scope, ctx, env);
+            let dispatched = matches!(
+                env.exprs.lookup(inner.span),
+                Some(ExprInfo::Call(call) | ExprInfo::ClassRefCall(call)) if call.overridden
+            );
+            if matches!(env.interner.get(ty), Ty::Never) && !dispatched {
+                env.exprs.record_never_stmt(expr.span);
+            }
         }
     }
 }

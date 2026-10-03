@@ -4081,14 +4081,12 @@ pub(crate) fn erase_checked_ty(id: TypeId, checked_types: &TypeInterner) -> Ty {
         // that did return would fall through to the caller's next instruction,
         // which is the safe answer rather than the undefined one.
         //
-        // That hole is not hypothetical, which is what settled the choice.
-        // `nvs_types::check::check_every_path_returns` exempts `never`
-        // alongside `void`, so a body declaring `never` that simply falls off
-        // its end compiles today and comes back; and `nvs_types::returns`
-        // walks statements syntactically, so a *call* to a `never` member does
-        // not yet count as leaving the frame the way a `throw` does. Both are
-        // refusals the checker owes and neither is a representation question,
-        // so both are open there rather than worked around here.
+        // The checker is what makes the annotation true: a `never` body that
+        // reaches its own end is refused (`E0739`, in
+        // `nvs_types::check::check_body_exits`), and that refusal is what lets
+        // `nvs_types::returns` count a call to a `never` member as leaving
+        // the frame the way a `throw` does. Both are facts about the source,
+        // not representation questions, so they live there and not here.
         CheckedTy::Never => Ty::Void,
         // A type variable reaches a lowering through exactly one door, and it
         // is not a call: `rule:classes/delegation-by-field`'s synthesized

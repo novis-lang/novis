@@ -20,6 +20,65 @@ fn method(sig: &str, body: &str) -> String {
     format!("<?nvs\nclass T {{\n  function m({sig} {{\n    {body}\n  }}\n}}\n")
 }
 
+/// `class T` with a `never` method `fail` and one method `m` under test, so a
+/// call to a `never` member is one line of the fixture.
+fn with_fail(sig: &str, body: &str) -> String {
+    format!(
+        "<?nvs\nclass T {{\n  function fail(): never {{\n    exit(1);\n  }}\n  \
+         function m({sig} {{\n    {body}\n  }}\n}}\n"
+    )
+}
+
+/// A `never` body that reaches its end would come back to a caller that was
+/// promised it never does, so it owes `E0739` like any other declared type.
+#[test]
+fn a_never_body_that_reaches_its_end_is_refused() {
+    let diags = check_src(&method("): never", "$x = 1;"));
+    assert!(refuses(&diags), "{diags:?}");
+}
+
+/// The exits a `never` body has: a `throw`, and a call to another `never`
+/// member, which the walk counts as leaving the frame.
+#[test]
+fn a_never_body_that_throws_or_calls_a_never_member_is_accepted() {
+    let thrown = check_src(&method("): never", "throw new Core\\Error(\"x\");"));
+    assert!(!refuses(&thrown), "{thrown:?}");
+    let called = check_src(&with_fail("): never", "$this->fail();"));
+    assert!(!called.has_errors(), "{called:?}");
+}
+
+/// A call to a `never` member ends an `int` body's path as a `throw` would,
+/// so the `if` below needs no `return` after its `else` branch.
+#[test]
+fn a_call_to_a_never_member_ends_a_path() {
+    let src = with_fail(
+        "bool $b): int",
+        "if ($b) {\n      return 1;\n    } else {\n      $this->fail();\n    }",
+    );
+    let diags = check_src(&src);
+    assert!(!diags.has_errors(), "{diags:?}");
+}
+
+/// The same call under a branch that may not run is not an exit: the `if`
+/// with no `else` still reaches the end.
+#[test]
+fn a_call_to_a_never_member_under_one_branch_does_not_end_the_body() {
+    let src = with_fail("bool $b): int", "if ($b) {\n      $this->fail();\n    }");
+    assert!(refuses(&check_src(&src)));
+}
+
+/// A subtype may override a `never` member with one that returns, because
+/// nothing yet checks an override's return type. So a call that may reach an
+/// override is not an exit, and the body still owes its `return`.
+#[test]
+fn a_call_to_an_overridden_never_member_does_not_end_the_body() {
+    let src = format!(
+        "{}class Leaf extends T {{\n  function fail(): int {{\n    return 1;\n  }}\n}}\n",
+        with_fail("): int", "$this->fail();")
+    );
+    assert!(refuses(&check_src(&src)));
+}
+
 fn refuses(diags: &Diagnostics) -> bool {
     diags.iter().any(|d| d.code == Some(code::E_MISSING_RETURN))
 }

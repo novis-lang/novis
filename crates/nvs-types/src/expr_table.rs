@@ -1295,6 +1295,7 @@ pub struct ExprTypeTable {
     types: FxHashMap<Span, TypeId>,
     float_widened: FxHashSet<Span>,
     guarded_target_reads: FxHashSet<Span>,
+    never_stmts: FxHashSet<Span>,
     foreach: FxHashMap<Span, ForeachDrive>,
     codecs: FxHashMap<String, crate::derive::DerivedCodec>,
     db_codecs: FxHashMap<String, crate::derive::DerivedCodec>,
@@ -2234,6 +2235,25 @@ impl ExprTypeTable {
     #[must_use]
     pub fn is_guarded_target_read(&self, span: Span) -> bool {
         self.guarded_target_reads.contains(&span)
+    }
+
+    /// Records that the expression statement at `span` is typed `never`.
+    /// See [`Self::is_never_stmt`].
+    pub(crate) fn record_never_stmt(&mut self, span: Span) {
+        self.never_stmts.insert(span);
+    }
+
+    /// Whether the expression statement at `span` is typed `never` — a call
+    /// to a `never` method or function, most often, and never a method call
+    /// [`ResolvedCall::overridden`] dispatches. `crate::returns` counts
+    /// one as leaving the frame the way a `throw` does, which is sound
+    /// because `crate::check::check_body_exits` refuses a `never` body that
+    /// reaches its own end. The span is the statement's expression, outer
+    /// parentheses included. One span per such statement, held for the
+    /// compile.
+    #[must_use]
+    pub(crate) fn is_never_stmt(&self, span: Span) -> bool {
+        self.never_stmts.contains(&span)
     }
 }
 
