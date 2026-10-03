@@ -1,24 +1,23 @@
 {
-  "state": "**Goal `goal-closeout`, Stage 4 (finished in place).** `nvs-types` closed `a-tainted-url-diagnostic-does-not-name-allowurl`. A `tainted` URL at a parameter that admits `Core\\Http\\Target` now carries a help naming `Core\\Http::allowUrl` (`check_url_arg` in `crates/nvs-types/src/expr/args.rs`). The seven request members `get` to `head` and `request` are `Grammar::Uri` rows in `crates/nvs-types/src/intrinsics.rs`, so a malformed literal URL there is `E0769`. The gap `a-literal-url-at-the-http-client-is-not-read-while-checking` is narrowed to `stream`, `openSocket` and `allowUrl`.\n\nThe only `nvs-runtime` gap left is `enum-case-that-reached-a-mixed`. It needs an ADR beyond Stage 5's one slot, so it waits for the user. It goes to `BLOCKED` only once it is the last goal-owned gap in the tree.\n\nThe floor check `the latest CI run on main succeeded for the code HEAD holds` is red only because `main` is ahead of `origin/main`, and the loop never pushes. A person has to push.\n\n`bun nv owners --closes goal-closeout` names the rest, in `nvs-lsp`, `nvs-stdlib`, `nvs-syntax`, `nvs-types`, `editors/vscode` and `website`.",
+  "state": "**Goal `goal-closeout`, Stage 4 (finished in place).** The gap `a-literal-url-at-the-http-client-is-not-read-while-checking` is closed. Every outbound URL member has a `Grammar::Uri` row in `crates/nvs-types/src/intrinsics.rs`: the seven request members, `stream`, `openSocket` and `Core\\Http::allowUrl`. `judged_host` in `crates/nvs-stdlib/src/http.rs` now refuses a port past `65535`, so a call answered from a test's table and `allowUrl` both throw where the connection would.\n\nThe only `nvs-runtime` gap left is `enum-case-that-reached-a-mixed`. It needs an ADR beyond Stage 5's one slot, so it waits for the user. It goes to `BLOCKED` only once it is the last goal-owned gap in the tree.\n\nThe floor check `the latest CI run on main succeeded for the code HEAD holds` is red only because `main` is ahead of `origin/main`, and the loop never pushes. A person has to push.\n\n`bun nv owners --closes goal-closeout` names the rest, in `nvs-lsp`, `nvs-stdlib`, `nvs-syntax`, `nvs-types`, `editors/vscode` and `website`.",
   "next": {
     "stage": 4,
     "title": "finished in place",
     "files": [],
-    "note": "one file set: the outbound URL roster, `crates/nvs-types/src/intrinsics.rs` and the runtime URL readers in `crates/nvs-stdlib/src/http.rs` and `crates/nvs-stdlib/src/http/socket.rs`.",
+    "note": "one file set: `crates/nvs-stdlib/src/http.rs`'s TLS report and its tests.",
     "items": [
       {
         "done": false,
-        "text": "**The last three URL members read a literal while checking** (`rule:expressions/preparation-preserves-behaviour`, gap `a-literal-url-at-the-http-client-is-not-read-while-checking`). The roster ends at `crates/nvs-types/src/intrinsics.rs:256`. Confirm that `stream` (`crates/nvs-stdlib/src/http/stream.rs:942`) and `openSocket` (`crates/nvs-stdlib/src/http/socket.rs:402`) refuse a port past `65535` the way `parts` at `crates/nvs-stdlib/src/http/transport.rs:2528` does. Then add their rows. `allowUrl`'s `judged_host` at `crates/nvs-stdlib/src/http.rs:524` reads no port, so it gets a row only once it refuses one. Add a line each to `tests/conformance/reject/a-malformed-literal-url-at-the-http-client-is-a-compile-error.nvst` and delete the gap."
+        "text": "**`Core\\Http\\TlsInfo::expiry` is a fatal for a far-future `notAfter`** (gap `core-http-tlsinfo-expiry-is-a`, `rule:http-server/a-reply-reports-its-tls-session`). It is `nvs_core_http_tls_info_expiry` at `crates/nvs-stdlib/src/http.rs:4832`. Make the value it reads representable or the refusal a thrown error, add a test from Rust, and delete the gap."
       },
       {
         "done": false,
-        "text": "**`Core\\Http\\TlsInfo::expiry` is a fatal for a far-future `notAfter`** (gap `core-http-tlsinfo-expiry-is-a`). It is `nvs_core_http_tls_info_expiry` at `crates/nvs-stdlib/src/http.rs:4824`, the same file as the item above."
+        "text": "**`Core\\Regex::split` builds its array past the memory limit** (gap `regex-split-builds-its-array-past-the`) — a different file, so a session of its own unless the first is quick. It is `nvs_core_regex_split` at `crates/nvs-stdlib/src/regex.rs:2086`."
       }
     ]
   },
   "backlog": [
-    "`nvs-types` gaps: `a-decimal-constant-has-no-folded-value` (`crates/nvs-types/src/defaults.rs`), `a-callable-has-no-bind-bindto-or-call`, `an-isolate-result-output-is-typed-string`, `a-refused-cast-also-reports-the-mixed-it-leaves`.",
-    "`nvs-stdlib` gaps, one per module, listed by `bun nv owners --closes goal-closeout`.",
-    "`enum-case-that-reached-a-mixed` waits for the user's ADR decision."
+    "`enum-case-that-reached-a-mixed` (`crates/nvs-runtime/src/lib.rs`) waits for an ADR slot from the user.",
+    "The CI floor check needs a person to push `main`."
   ]
 }
