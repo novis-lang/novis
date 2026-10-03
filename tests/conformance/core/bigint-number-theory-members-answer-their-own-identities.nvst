@@ -59,6 +59,11 @@ while ($exponent <= 20) {
 }
 echo "modular ", $modular, " of 21, 4^13 mod 497 = ", Core\BigInt::of(4)->powMod(Core\BigInt::of(13), $modulus)->toInt(), "\n";
 
+// A negative receiver is where the two part: `powMod` gives the least
+// non-negative residue, and `mod` keeps the sign of the number it divides.
+var $negative = Core\BigInt::of(-3);
+echo "residue ", $negative->powMod(Core\BigInt::of(3), Core\BigInt::of(7))->toInt(), " but remainder ", $negative->pow(3)->mod(Core\BigInt::of(7))->toInt(), "\n";
+
 // A shift is a multiplication and a division by a power of two, and the second
 // one rounds toward negative infinity — which is where it parts from `div`.
 var $value = Core\BigInt::of(-9);
@@ -70,6 +75,7 @@ echo "decimal ", Core\BigInt::of(360)->gcd(Core\BigInt::of(48))->toDecimal(), " 
 pairs 49 product 49 divides 49
 bracketed 41 of 41, sqrt(10^20) 10000000000
 modular 21 of 21, 4^13 mod 497 = 445
+residue 1 but remainder -6
 shl -72 = -72
 shr -5 but div -4
 neg 9 format -9 parse 0

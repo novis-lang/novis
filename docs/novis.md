@@ -10371,7 +10371,7 @@ This value raised to `$exponent`, modulo `$modulus`, computed without ever holdi
 | `$exponent` | `Core\BigInt` | The power to raise this value to; it may not be negative. |
 | `$modulus` | `Core\BigInt` | The modulus the answer is reduced by. |
 
-**Returns** `Core\BigInt` — A `BigInt` in `[0, |$modulus|)` for a non-negative receiver.
+**Returns** `Core\BigInt` — A `BigInt` in `[0, |$modulus|)` for every receiver: a negative receiver gives the least non-negative residue, so `-3` to the power `3`, modulo `7`, is `1`.
 
 **Throws** `ArithmeticError` — `$modulus` is zero, or `$exponent` is negative.
 

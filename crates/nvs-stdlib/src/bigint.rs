@@ -525,7 +525,8 @@ const POW_MOD_DOC: MethodDoc = MethodDoc {
             shape: &[],
         },
     ],
-    ret: "A `BigInt` in `[0, |$modulus|)` for a non-negative receiver.",
+    ret: "A `BigInt` in `[0, |$modulus|)` for every receiver: a negative receiver gives the \
+          least non-negative residue, so `-3` to the power `3`, modulo `7`, is `1`.",
     errors: &[ErrorDoc {
         error: "ArithmeticError",
         desc: "`$modulus` is zero, or `$exponent` is negative.",
@@ -1015,6 +1016,12 @@ nvs_runtime::nvs_helper! {
     /// `$n->powMod(BigInt $exponent, BigInt $modulus): BigInt` — `bcpowmod`,
     /// computed by `modpow` so the whole power is never held.
     ///
+    /// The answer is the least non-negative residue modulo `|$modulus|`, for
+    /// every receiver and either sign of modulus: modular exponentiation is not
+    /// `mod`, and the residue is what every use of it wants. So
+    /// `of(-3)->powMod(3, 7)` is `1`, where `pow` then `mod` gives `-6`.
+    /// `modpow` takes the modulus's sign, so the magnitude is handed to it.
+    ///
     /// The two refusals are `modpow`'s own panics, turned into throws ahead of
     /// the call: it panics on a zero modulus, and on a negative exponent where
     /// the receiver has no inverse.
@@ -1030,6 +1037,7 @@ nvs_runtime::nvs_helper! {
                 "Core\\BigInt::powMod(): the exponent is negative".to_owned(),
             ));
         }
+        let modulus = if modulus.sign() == Sign::Minus { -modulus } else { modulus };
         built(&base.modpow(&exponent, &modulus))
     }
 }
@@ -2161,11 +2169,10 @@ mod tests {
     /// the receivers [`POW_MOD_DOC`] claims one for: over a sweep whose powers
     /// are small enough for `pow` to build — which is the only reason the two
     /// routes can be compared at all, since this member exists for the powers
-    /// `pow` refuses — the two agree, counted rather than read off a row. The
-    /// negative receiver is named afterwards because the two routes *disagree*
-    /// there, which is this module's § *Known gaps* 1 and is pinned here as it
-    /// stands. Both refusals close the test: a zero modulus and a negative
-    /// power.
+    /// `pow` refuses — the two agree, counted rather than read off a row. A
+    /// negative receiver is where the two part, and
+    /// `pow_mod_returns_the_least_non_negative_residue` owns it. Both refusals
+    /// close the test: a zero modulus and a negative power.
     // covers: Core\BigInt::powMod
     #[test]
     fn pow_mod_agrees_with_pow_then_mod_over_a_non_negative_receiver() {
@@ -2214,6 +2221,55 @@ mod tests {
         }
         assert_eq!(agreed, SWEEP.len());
 
+        call(nvs_core_bigint_pow_mod, &mut ctx, &[of(4), of(13), of(0)])
+            .expect_err("a zero modulus is refused");
+        call(nvs_core_bigint_pow_mod, &mut ctx, &[of(4), of(-1), of(497)])
+            .expect_err("and so is a negative power");
+    }
+
+    /// `powMod` lands in `[0, |$modulus|)` for every sign of receiver and of
+    /// modulus, which is [`POW_MOD_DOC`]'s `ret`. Every row is checked against
+    /// that range and against the definition — the answer differs from the
+    /// whole power by a multiple of the modulus — so a member that kept the
+    /// dividend's sign, or the modulus's, fails a row. `-3` cubed modulo `7` is
+    /// then named, beside `pow` then `mod`'s `-6`, because that pair is where
+    /// the two routes part.
+    // covers: Core\BigInt::powMod
+    #[test]
+    fn pow_mod_returns_the_least_non_negative_residue() {
+        const SWEEP: [(i64, i64, i64); 8] = [
+            (-3, 3, 7),
+            (-3, 3, -7),
+            (3, 3, -7),
+            (-2, 10, 1_000),
+            (-5, 0, 13),
+            (-1, 63, 2),
+            (-9, 2, 81),
+            (i64::MIN, 3, 65_537),
+        ];
+
+        let mut ctx = Ctx::buffered();
+        let mut residues = 0usize;
+        for (base, exponent, modulus) in SWEEP {
+            let answer = read(
+                call(
+                    nvs_core_bigint_pow_mod,
+                    &mut ctx,
+                    &[of(base), of(exponent), of(modulus)],
+                )
+                .expect("no row here has a zero modulus or a negative power"),
+            );
+            let width = BigInt::from(modulus.unsigned_abs());
+            let whole = BigInt::from(base).pow(u32::try_from(exponent).expect("small powers"));
+            if answer.sign() != Sign::Minus
+                && answer < width
+                && (whole - &answer).mod_floor(&width) == BigInt::from(0)
+            {
+                residues += 1;
+            }
+        }
+        assert_eq!(residues, SWEEP.len());
+
         let residue = read(
             call(nvs_core_bigint_pow_mod, &mut ctx, &[of(-3), of(3), of(7)])
                 .expect("a negative receiver answers"),
@@ -2224,11 +2280,6 @@ mod tests {
             call(nvs_core_bigint_mod, &mut ctx, &[raised, of(7)]).expect("down to the remainder"),
         );
         assert_eq!((residue, remainder), (BigInt::from(1), BigInt::from(-6)));
-
-        call(nvs_core_bigint_pow_mod, &mut ctx, &[of(4), of(13), of(0)])
-            .expect_err("a zero modulus is refused");
-        call(nvs_core_bigint_pow_mod, &mut ctx, &[of(4), of(-1), of(497)])
-            .expect_err("and so is a negative power");
     }
 
     /// `shl` is multiplication by a power of two rather than a rewrite of the
