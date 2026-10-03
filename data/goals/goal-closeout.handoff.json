@@ -1,20 +1,20 @@
 {
-  "state": "**Goal `goal-closeout`, Stage 4 (finished in place).** The gap `the-topic-table-has-no-ceiling-of-its-own` is closed. One connection joins at most `TOPIC_CAP` (1024) topics, and a topic name has at most 256 bytes. Past either limit, the member throws a `LogicError`. An insert that finds the table at twice its last swept size sweeps the rows of ended connections. The module doc's ceiling decision in `crates/nvs-stdlib/src/topic.rs` and `rule:core-classes/topic` own this. `Core\\Topic`'s perf is re-measured.\n\n`startsWith` and `endsWith` still compare bytes, so `startsWith(\"e\\u{301}\", \"e\")` is `true`. The goal prose lists the search family without them, and whether they join it is still open.\n\nThe only `nvs-runtime` gap left is `enum-case-that-reached-a-mixed`. It needs an ADR beyond Stage 5's one slot, so it waits for the user. It goes to `BLOCKED` only once it is the last goal-owned gap in the tree.\n\nThe floor check `the latest CI run on main succeeded for the code HEAD holds` is red only because `main` is ahead of `origin/main`, and the loop never pushes. A person has to push.\n\nA change to a `Core` implementation file stales the perf figure of every feature it implements. Re-measure each with `bun nv proofs --record-perf --group 'Core\\<Class>'` (the group is the full class name).\n\n`bun nv owners --closes goal-closeout` names the rest: 31 gaps in `nvs-lsp`, `nvs-stdlib`, `nvs-syntax`, `nvs-types`, `editors/vscode` and `website`.",
+  "state": "**Goal `goal-closeout`, Stage 4 (finished in place).** The gap `csv-parse-refuses-a-tainted-document` is closed. `Core\\Csv::parse`'s text is `Contagious`, so a tainted upload parses and every cell is `tainted string`. The module doc in `crates/nvs-stdlib/src/csv.rs` owns this, and `tests/conformance/core/csv-parse-takes-a-tainted-document-and-taints-every-cell.nvst` pins it. `Core\\Csv`'s perf is re-measured.\n\n`startsWith` and `endsWith` still compare bytes, so `startsWith(\"e\\u{301}\", \"e\")` is `true`. The goal prose lists the search family without them, and whether they join it is still open.\n\nThe only `nvs-runtime` gap left is `enum-case-that-reached-a-mixed`. It needs an ADR beyond Stage 5's one slot, so it waits for the user. It goes to `BLOCKED` only once it is the last goal-owned gap in the tree.\n\nThe floor check `the latest CI run on main succeeded for the code HEAD holds` is red only because `main` is ahead of `origin/main`, and the loop never pushes. A person has to push.\n\nA change to a `Core` implementation file stales the perf figure of every feature it implements. Re-measure each with `bun nv proofs --record-perf --group 'Core\\<Class>'` (the group is the full class name).\n\n`bun nv owners --closes goal-closeout` names the rest: 30 gaps in `nvs-lsp`, `nvs-stdlib`, `nvs-syntax`, `nvs-types`, `editors/vscode` and `website`.",
   "next": {
     "stage": 4,
     "title": "finished in place",
     "files": [],
-    "note": "one file set: `crates/nvs-stdlib/src/csv.rs` and the `Core\\Csv::parse` conformance cases.",
+    "note": "one file set: `crates/nvs-stdlib/src/math.rs` and the `Core\\Math::abs` conformance cases.",
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Csv::parse` takes a tainted document** (`data/gaps/nvs-stdlib/csv-parse-refuses-a-tainted-document.json`). Classify the `text` parameter at `crates/nvs-stdlib/src/csv.rs:222` as `Contagious`, the way `Core\\Json::decode` does at `crates/nvs-stdlib/src/json.rs:290`, so every cell carries the mark. Add a conformance case that parses a tainted document, delete the gap, and re-measure `Core\\Csv`. The helper is `nvs_core_csv_parse` at `crates/nvs-stdlib/src/csv.rs:676`."
+        "text": "**`Core\\Math::abs` answers the type it was given** (`data/gaps/nvs-stdlib/math-abs-result-is-the-whole-union.json`). The row is at `crates/nvs-stdlib/src/math.rs:74` and the helper at `crates/nvs-stdlib/src/math.rs:1694`. Read the gap for the shape it owes, add a conformance case, delete the gap, and re-measure `Core\\Math`."
       }
     ]
   },
   "backlog": [
-    "`zip-extraction-creates-a-file-by-path-after-resolving-its-folder` (`crates/nvs-stdlib/src/zip.rs:1085`): needs a design for a capability check on a handle-relative walk before it is built.",
-    "Whether `startsWith`/`endsWith` join the grapheme-boundary search family (the `Core\\Str` rule).",
-    "The other gaps `bun nv owners --closes goal-closeout` names."
+    "`startsWith`/`endsWith` byte comparison against the grapheme search family (`docs/agent/goals/goal-closeout.md`).",
+    "`enum-case-that-reached-a-mixed` waits for the user's ADR decision (`crates/nvs-runtime/src/lib.rs`).",
+    "The remaining goal-owned gaps: `bun nv owners --closes goal-closeout`."
   ]
 }

@@ -1,0 +1,11 @@
+{
+  "lead": "A `bun nv verify` re-run after a red one can report the conformance tree green without running the case you just added.",
+  "body": "The red run records the tree, and the re-run selects only from the paths changed since then, so a new `.nvst` stays unrun under the old count. Run a new case yourself with `target/covws/<host triple>/debug/nvs.exe test <case>`, never `target/debug/nvs.exe`, which can be hours stale. The selection is `tools/nv/cmd/verify.ts`'s `since the recorded tree` line.",
+  "files": [
+    "tools/nv/cmd/verify.ts"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "tools/nv/cmd/verify.ts:recorded"
+  }
+}
