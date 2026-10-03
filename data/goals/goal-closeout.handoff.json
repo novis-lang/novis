@@ -1,22 +1,22 @@
 {
-  "state": "**Goal `goal-closeout`, Stage 4 (finished in place).** A test double's class now rests on a bound that holds under `nvs run`. The cache key in `crates/nvs-stdlib/src/test.rs` (`Key`) carries the interface's address, its flattened parents and the class label. A class defined under a freed unit is reused only when the live interface matches all three. `nvs_runtime::ClassDesc::conforms` is the new read-only accessor it uses. Gap `a-test-double-s-unsafe-reason-rests-on-an-unbuilt-rule` is deleted. `rule:testing/tests-never-reach-a-build` stays `designed`: `nvs run` still lowers tests, and nothing now depends on it.\n\nGap `zip-extraction-creates-a-file-by-path-after-resolving-its-folder` needs a design for a door that walks from a folder handle. It is a question in the goal prose's § *Questions for the user at the goal end*. Four questions wait there. Do not build it before the answer.\n\n**No session stops on `BLOCKED` before the goal end.** A question goes in that section, and the session carries on.\n\nThe floor check `the latest CI run on main succeeded for the code HEAD holds` is red because `main` is ahead of `origin/main`. It leaves with goal `ci-green`'s record in Stage 6, and nobody pushes for it.\n\n`bun nv owners --closes goal-closeout` names 11 gaps in `nvs-lsp`, `nvs-stdlib`, `nvs-types` and `website`. Read each gap's record before building it: a gap can already be closed by tested code, and then the record is deleted.",
+  "state": "**Goal `goal-closeout`, Stage 4 (finished in place).** Every `Core\\Test`, `Core\\Test\\Response` and `Core\\Test\\SentRequest` perf figure is measured again after the double's cache-key change to `crates/nvs-stdlib/src/test.rs`, so `bun nv proofs --owed` names nothing. Spec § 13 now writes `Core\\Test` member by member, each as its signature, and gives `Core\\Test\\Response` and `Core\\Test\\SentRequest` rows of their own. The § 13 walk in `crates/nvs-stdlib/tests/spec_registry_coverage.rs` reads all three rows. Gap `the-spec-lists-core-test-in-one-table-cell` is deleted.\n\nGap `zip-extraction-creates-a-file-by-path-after-resolving-its-folder` needs a design for a door that walks from a folder handle. It is a question in the goal prose's § *Questions for the user at the goal end*. Four questions wait there. Do not build it before the answer.\n\n**No session stops on `BLOCKED` before the goal end.** A question goes in that section, and the session carries on.\n\nThe floor check `the latest CI run on main succeeded for the code HEAD holds` is red because `main` is ahead of `origin/main`. It leaves with goal `ci-green`'s record in Stage 6, and nobody pushes for it.\n\n`bun nv owners --closes goal-closeout` names 10 gaps in `nvs-lsp`, `nvs-stdlib`, `nvs-types` and `website`. Read each gap's record before building it: a gap can already be closed by tested code, and then the record is deleted. A change to a file a perf figure is keyed to stales that figure: run `bun nv proofs --owed` after any such change, and `bun nv proofs --record-perf --group '<class>'` for what it names.",
   "next": {
     "stage": 4,
     "title": "finished in place",
     "files": [],
-    "note": "one file set: `docs/spec/01-core-library.md` and its registry coverage test.",
+    "note": "one file set: `crates/nvs-stdlib/src/server.rs` and the served request's context.",
     "items": [
       {
         "done": false,
-        "text": "**Spec § 13 writes `Core\\Test` member by member and gives `Core\\Test\\Response` its own row** — gap `the-spec-lists-core-test-in-one-table-cell`. Rewrite the row at `docs/spec/01-core-library.md:1017` in § 15's bullet shape, add the `Core\\Test\\Response` row, and leave the § 13 exclusion in `crates/nvs-stdlib/tests/spec_registry_coverage.rs:1` as it is. Then delete the gap record."
+        "text": "**`Core\\Server` gets `traceId(): string` and the request's own environment** — gap `core-server-has-no-request-environment-or-trace-id`, spec § 15 at `docs/spec/01-core-library.md:1161`. The module doc's known-gap sentence is at `crates/nvs-stdlib/src/server.rs:12`, and the class row at `crates/nvs-stdlib/src/server.rs:41`. Carry the per-request state into the request's context, add both members with their proofs (`bun nv proofs --id 'Core\\Server::traceId'`), remove the sentence, delete the gap record. Name the tradeoff first: a trace id is per-request memory."
       }
     ]
   },
   "backlog": [
-    "`core-server-has-no-request-environment-or-trace-id` — `crates/nvs-stdlib/src/server.rs`, its gap record.",
-    "`core-db-queryable-is-not-a` — `crates/nvs-stdlib/src/db/mod.rs`, its gap record.",
-    "`a-callable-has-no-bind-bindto-or-call` and `an-isolate-result-output-is-typed-string` — `crates/nvs-types/src/expr/`, their gap records.",
-    "`rendered-core-pages-lag-the-tree` and `the-website-grammar-is-hand-written-beside-the-editors` — `website/`, their gap records.",
-    "`route-name-and-directive-completion-are-unbuilt` — `crates/nvs-lsp/src/completion.rs`; it waits on the `nvs.toml` question."
+    "Gap `core-db-queryable-is-not-a` — `crates/nvs-stdlib/src/db/mod.rs`; needs a checker that accepts a `Core` class where a `Core` interface is written.",
+    "Gap `a-callable-has-no-bind-bindto-or-call` — `crates/nvs-types/src/expr/calls.rs`.",
+    "Gap `an-isolate-result-output-is-typed-string` — `crates/nvs-types/src/expr/isolate.rs`.",
+    "Gaps `the-website-grammar-is-hand-written-beside-the-editors` and `rendered-core-pages-lag-the-tree` — `website/`.",
+    "Gaps waiting on a question at the goal end: zip folder handle, completion images, `nvs.toml` completion, reference-card voice."
   ]
 }
