@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-stdlib/src/str.rs",
-  "title": "Case conversion builds its result outside the memory limit before it asks for it.",
-  "text": "[`nvs_core_str_lower`], `upper`, `lowerFirst`, `upperFirst` and `fold` build a Rust `String` through `str::to_lowercase` and its siblings, which asks no budget, and only then copy it into an `NvsStr`, whose allocation is the first ask. So a request holding a text near its ceiling briefly holds the text, the `String` and the copy's ask, up to three times the subject past the ceiling, before the refusal. `tests/hostile/core/Str/lower/01-a-text-that-grows.nvs` reaches it with 120 MB of `İ` under a 256 MiB ceiling. Closing it is writing the mapping straight into the `NvsStr` through a writer that asks as it grows, keeping `str::to_lowercase`'s final-sigma rule, which a per-character mapping does not apply.",
-  "goal": "goal-closeout"
-}
