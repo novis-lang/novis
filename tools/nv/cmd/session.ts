@@ -36,6 +36,7 @@ import { DOC_EXTS, fileFindings, findingsIn, deadMentions, isGenerated, MENTION_
 import { ANCHOR_RE, type BookSection, type Bullet, type GoalValue, manifestFindings, normalize as leadNorm, playbookBook, sliceBullets } from "./orient.ts";
 import { bodyOf, type Entry, FIELDS, fieldLimits, H1, milestones, planFields, verifyParagraph } from "./plan.ts";
 import { CITATION, Rulebook } from "./rules.ts";
+import { wrapGate } from "./site.ts";
 import { NUMBER_CITE, OWN_HEADER } from "./chain.ts";
 import { GOAL_PLAN, writeGoalPlan } from "../renderers/goal-plan.ts";
 import { anchors, bulletValue } from "../import/playbook.ts";
@@ -536,6 +537,24 @@ async function treeGate(tree: string, gates: Gate[]): Promise<string[]> {
     out.push(`\`bun nv ${args.join(" ")}\` fails, and this session edited \`${tree}/\`: ${why}\n      ${detail.slice(0, 12).join("\n      ")}${more}`);
   }
   return out;
+}
+
+/** Every path this session changed since it opened: committed since its base, staged, unstaged or new. */
+async function changedPaths(): Promise<string[]> {
+  const diff = await git("diff", "--name-only", await sessionBase());
+  const added = await git("ls-files", "--others", "--exclude-standard");
+  return [...diff.stdout.split("\n"), ...added.stdout.split("\n")].map((p) => p.trim()).filter(Boolean);
+}
+
+/** The website's stale guard, `site.ts`'s `wrapGate`, over the paths this session changed. */
+async function siteGate(): Promise<string[]> {
+  const problems = await wrapGate(await changedPaths());
+  if (problems.length === 0) return [];
+  return [
+    "`bun nv site --stale` names a broken id, or a page this session made stale. Fix a broken id on the page " +
+      "that covers it. Reread a stale page against the feature it covers, fix it, then `bun nv site --stamp <page>`." +
+      `\n      ${problems.slice(0, 12).join("\n      ")}${problems.length > 12 ? `\n      ... and ${problems.length - 12} more` : ""}`,
+  ];
 }
 
 async function touched(tree: string): Promise<boolean> {
@@ -1043,6 +1062,7 @@ export async function validate(sections: Section[]): Promise<string[]> {
     ...(await treeGate("docs/rules", RULEBOOK_GATES)),
     ...(await treeGate("docs/decisions", RECORD_GATES)),
     ...(await treeGate("docs/spec", MIGRATION_GATES)),
+    ...(await siteGate()),
     ...manifestProblems(manifestCopies()),
   );
   return errors;
@@ -1117,6 +1137,12 @@ async function check(): Promise<number> {
     if (problems.length === 0) say((await touched(tree)) ? `  ${clean}` : "  clean -- this wrap is not gated on it");
     for (const p of problems) say(`  YOURS  ${p}`);
   }
+
+  say();
+  say("== SITE  (bun nv site --stale -- broken ids, and the pages this session made stale)");
+  const site = await siteGate();
+  if (site.length === 0) say("  clean -- no broken id, and no page this session made stale");
+  for (const p of site) say(`  YOURS  ${p}`);
 
   say();
   say("== TREE");
