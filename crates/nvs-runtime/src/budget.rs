@@ -160,8 +160,10 @@
 //! allocation path it is a thread-local read-modify-write of the live balance
 //! per `dealloc`, and of each memory counter per `alloc` — the high-water mark
 //! a compare that stores only when it moves. Each is a register-relative load, an add
-//! and a store against a `const`-initialized cell, a few instructions in front
-//! of an allocation that costs far more than they do even out of the pool. It
+//! and a store against a `const`-initialized cell. Together they are a part of
+//! a pooled round trip and a small fraction of a platform heap one, and
+//! `the_memory_mark_stays_small_beside_the_allocation_it_fronts` in
+//! `benches/abi-probe/tests/perf_guards.rs` holds the second against a bound. It
 //! is bought deliberately: AGENTS.md's priority ordering puts request
 //! isolation above latency, and a cap nothing counts against is not a cap.
 //!

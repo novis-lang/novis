@@ -2827,3 +2827,53 @@ fn an_allocation_round_trip_stays_in_the_pooled_cost_class() {
         },
     );
 }
+
+/// One allocation's and one release's worth of `nvs_runtime::budget`'s balance
+/// update, with no allocation behind it: the live balance, the high-water mark
+/// and the ceiling check, exactly as the registered allocator runs them.
+fn balance_round_trip(bytes: isize) {
+    nvs_runtime::budget::carry(black_box(bytes));
+    nvs_runtime::budget::carry(black_box(-bytes));
+}
+
+#[test]
+#[cfg_attr(debug_assertions, ignore = "baselines are release-mode figures")]
+fn the_memory_mark_stays_small_beside_the_allocation_it_fronts() {
+    let _quiet = serialised();
+
+    // `nvs_runtime::budget`'s module doc argues that keeping the high-water mark
+    // on every allocation is a few instructions in front of an allocation that
+    // costs far more. This measures the whole balance update the mark is part
+    // of — the live balance, the mark's compare and the ceiling check, on the
+    // allocation and on the release — against a round trip to the platform
+    // heap, which is an allocation with no counting in front of it. The mark is
+    // inside the measured figure, so a bound on the whole is a bound on the
+    // mark. The soft bound is a quarter: the update is meant to be a small part
+    // of what it fronts. The hard bound is the heap's own cost, because an
+    // update as dear as the allocation is no longer "a few instructions" on any
+    // platform, and the argument in that module doc is reopened.
+    const UPDATE_PER_PLATFORM: Bound = Bound::ratio_under(0.25, 1.0);
+
+    let layout = Layout::from_size_align(32, 8).expect("a valid layout");
+    let bytes = isize::try_from(layout.size()).expect("a 32-byte layout fits an isize");
+
+    judge(
+        "memory balance and high-water mark update, against a platform heap round trip",
+        UPDATE_PER_PLATFORM,
+        "Keeping the memory mark and balance now costs as much as the allocation it fronts. \
+         `nvs_runtime::budget`'s § What it spends argues it is a few instructions, and that \
+         argument is reopened.",
+        |yard| {
+            let update = ns_per_op(500_000, 5, || balance_round_trip(bytes));
+            let platform = ns_per_op(500_000, 5, || platform_round_trip(layout));
+            Reading {
+                value: update / platform,
+                detail: format!(
+                    " ({} update vs {} platform)",
+                    yard.time(update),
+                    yard.time(platform)
+                ),
+            }
+        },
+    );
+}
