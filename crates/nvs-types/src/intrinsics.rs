@@ -252,6 +252,66 @@ const INTRINSICS: &[Intrinsic] = &[
         restriction: None,
         grammar: Grammar::Uri,
     },
+    // `rule:security/outbound-url-is-a-sink`'s literal URL. These seven reach
+    // `nvs_stdlib::http::transport`'s `parts`, which refuses both of what
+    // `Grammar::Uri` refuses — a text that is not a URI reference and a port
+    // past `65535` — so a refusal here is one the request would have thrown.
+    Intrinsic {
+        owner: r"Core\Http\Client",
+        member: "get",
+        at: 0,
+        field: None,
+        restriction: None,
+        grammar: Grammar::Uri,
+    },
+    Intrinsic {
+        owner: r"Core\Http\Client",
+        member: "post",
+        at: 0,
+        field: None,
+        restriction: None,
+        grammar: Grammar::Uri,
+    },
+    Intrinsic {
+        owner: r"Core\Http\Client",
+        member: "put",
+        at: 0,
+        field: None,
+        restriction: None,
+        grammar: Grammar::Uri,
+    },
+    Intrinsic {
+        owner: r"Core\Http\Client",
+        member: "patch",
+        at: 0,
+        field: None,
+        restriction: None,
+        grammar: Grammar::Uri,
+    },
+    Intrinsic {
+        owner: r"Core\Http\Client",
+        member: "delete",
+        at: 0,
+        field: None,
+        restriction: None,
+        grammar: Grammar::Uri,
+    },
+    Intrinsic {
+        owner: r"Core\Http\Client",
+        member: "head",
+        at: 0,
+        field: None,
+        restriction: None,
+        grammar: Grammar::Uri,
+    },
+    Intrinsic {
+        owner: r"Core\Http\Client",
+        member: "request",
+        at: 1,
+        field: None,
+        restriction: None,
+        grammar: Grammar::Uri,
+    },
     Intrinsic {
         owner: r"Core\Time\DateTime",
         member: "format",

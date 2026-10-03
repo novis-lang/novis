@@ -1,0 +1,49 @@
+--TEST--
+a malformed literal URL at a `Core\Http\Client` request member is refused while checking, and the same text behind a variable is not (`rule:security/outbound-url-is-a-sink` and `rule:expressions/intrinsic-literals`)
+--FILE--
+<?nvs
+// The URL grammar is `Core\Uri::parse`'s, so the refusal is its sentence. Each
+// member is asked at the parameter its URL fills: `request` at argument 1,
+// behind the method. The variable-borne twin adds no diagnostic, and the count
+// in the final line is what asserts it.
+var $badUrl = "https://exa mple.test/x";
+var $a = Core\Http\Client::get("https://exa mple.test/x");
+var $b = Core\Http\Client::post("https://exa mple.test/x");
+var $c = Core\Http\Client::put("https://exa mple.test/x");
+var $d = Core\Http\Client::patch("https://exa mple.test/x");
+var $e = Core\Http\Client::delete("https://exa mple.test/x");
+var $f = Core\Http\Client::head("https://exa mple.test/x");
+var $g = Core\Http\Client::request(Core\Http\Method::Get, "https://exa mple.test/x");
+var $h = Core\Http\Client::get("http://example.test:99999/x");
+var $runtime = Core\Http\Client::get($badUrl);
+
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0769]: this literal is not one this member can read: %s
+  --> case.nvs:7:32
+%A
+error[E0769]: this literal is not one this member can read: %s
+  --> case.nvs:8:33
+%A
+error[E0769]: this literal is not one this member can read: %s
+  --> case.nvs:9:32
+%A
+error[E0769]: this literal is not one this member can read: %s
+   --> case.nvs:10:34
+%A
+error[E0769]: this literal is not one this member can read: %s
+   --> case.nvs:11:35
+%A
+error[E0769]: this literal is not one this member can read: %s
+   --> case.nvs:12:33
+%A
+error[E0769]: this literal is not one this member can read: %s
+   --> case.nvs:13:59
+%A
+error[E0769]: this literal is not one this member can read: the authority's port is not a TCP port number. %s
+   --> case.nvs:14:32
+%A
+error: aborting due to 8 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.
