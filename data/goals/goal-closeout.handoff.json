@@ -1,20 +1,20 @@
 {
-  "state": "**Goal `goal-closeout`, Stage 4 (finished in place).** The gap `csv-parse-refuses-a-tainted-document` is closed. `Core\\Csv::parse`'s text is `Contagious`, so a tainted upload parses and every cell is `tainted string`. The module doc in `crates/nvs-stdlib/src/csv.rs` owns this, and `tests/conformance/core/csv-parse-takes-a-tainted-document-and-taints-every-cell.nvst` pins it. `Core\\Csv`'s perf is re-measured.\n\n`startsWith` and `endsWith` still compare bytes, so `startsWith(\"e\\u{301}\", \"e\")` is `true`. The goal prose lists the search family without them, and whether they join it is still open.\n\nThe only `nvs-runtime` gap left is `enum-case-that-reached-a-mixed`. It needs an ADR beyond Stage 5's one slot, so it waits for the user. It goes to `BLOCKED` only once it is the last goal-owned gap in the tree.\n\nThe floor check `the latest CI run on main succeeded for the code HEAD holds` is red only because `main` is ahead of `origin/main`, and the loop never pushes. A person has to push.\n\nA change to a `Core` implementation file stales the perf figure of every feature it implements. Re-measure each with `bun nv proofs --record-perf --group 'Core\\<Class>'` (the group is the full class name).\n\n`bun nv owners --closes goal-closeout` names the rest: 30 gaps in `nvs-lsp`, `nvs-stdlib`, `nvs-syntax`, `nvs-types`, `editors/vscode` and `website`.",
+  "state": "**Goal `goal-closeout`, Stage 4 (finished in place).** The gap `math-abs-result-is-the-whole-union` is closed. `Core\\Math::abs` takes a bounded type variable, `CoreTy::Bounded(\"T\", int|float|decimal)`, so its result is the argument's own type, and a `string` argument is still refused at compile time. `CoreTy::Bounded` in `crates/nvs-stdlib/src/registry.rs` owns the rule; `MethodSig::type_bounds` carries it and `check_generic_args` in `crates/nvs-types/src/expr/args.rs` applies it. A `uint` argument is now returned unchanged, so `abs(UINT_MAX)` no longer throws. `tests/conformance/core/math-abs-answers-the-type-it-was-given.nvst` and `math-abs-refuses-an-argument-outside-its-number-types.nvst` pin both halves. `Core\\Math`'s perf is re-measured.\n\n`CoreTy::Bounded` is spelled by its name, so the reference prints `abs(T $n): T` as it prints `min`, and the spec row says what `T` may be. A first-class `Core\\Math::abs(...)` is typed with each bound in place of its variable.\n\n`startsWith` and `endsWith` still compare bytes, so `startsWith(\"e\\u{301}\", \"e\")` is `true`. The goal prose lists the search family without them, and whether they join it is still open.\n\nThe only `nvs-runtime` gap left is `enum-case-that-reached-a-mixed`. It needs an ADR beyond Stage 5's one slot, so it waits for the user. It goes to `BLOCKED` only once it is the last goal-owned gap in the tree.\n\nThe floor check `the latest CI run on main succeeded for the code HEAD holds` is red only because `main` is ahead of `origin/main`, and the loop never pushes. A person has to push.\n\nA change to a `Core` implementation file stales the perf figure of every feature it implements. Re-measure each with `bun nv proofs --record-perf --group 'Core\\<Class>'` (the group is the full class name).\n\n`bun nv owners --closes goal-closeout` names the rest: 29 gaps in `nvs-lsp`, `nvs-stdlib`, `nvs-syntax`, `nvs-types`, `editors/vscode` and `website`.",
   "next": {
     "stage": 4,
     "title": "finished in place",
     "files": [],
-    "note": "one file set: `crates/nvs-stdlib/src/math.rs` and the `Core\\Math::abs` conformance cases.",
+    "note": "one file set: `crates/nvs-types/src/defaults.rs`, `crates/nvs-types/src/consts.rs` and `nvs-ir`'s constant lowering.",
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Math::abs` answers the type it was given** (`data/gaps/nvs-stdlib/math-abs-result-is-the-whole-union.json`). The row is at `crates/nvs-stdlib/src/math.rs:74` and the helper at `crates/nvs-stdlib/src/math.rs:1694`. Read the gap for the shape it owes, add a conformance case, delete the gap, and re-measure `Core\\Math`."
+        "text": "**A `decimal` constant has a folded value** (`data/gaps/nvs-types/a-decimal-constant-has-no-folded-value.json`). `ConstArg` is at `crates/nvs-types/src/defaults.rs:102` and its module doc's refusal at `crates/nvs-types/src/defaults.rs:79`; the literal reading to copy is `lower_float_literal` at `crates/nvs-ir/src/lower/expr.rs:2659`. Add a `ConstArg` variant for `InstKind::ConstDecimal`, fold a `decimal` class constant, add a conformance case for each, and delete the gap."
       }
     ]
   },
   "backlog": [
-    "`startsWith`/`endsWith` byte comparison against the grapheme search family (`docs/agent/goals/goal-closeout.md`).",
-    "`enum-case-that-reached-a-mixed` waits for the user's ADR decision (`crates/nvs-runtime/src/lib.rs`).",
-    "The remaining goal-owned gaps: `bun nv owners --closes goal-closeout`."
+    "`a-refused-cast-also-reports-the-mixed-it-leaves` in `crates/nvs-types/src/lib.rs` — the same crate, a diagnostic slice.",
+    "`Core\\Math::min`, `max` and `clamp` use an unbounded `CoreTy::Var`, so `min(\"a\", 1)`-style calls are typed by first binding. `CoreTy::Bounded` now exists if a bound is wanted there.",
+    "`startsWith`/`endsWith` and the grapheme search family — goal prose, `docs/agent/goals/goal-closeout.md`."
   ]
 }
