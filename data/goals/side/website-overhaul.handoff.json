@@ -18,7 +18,7 @@
     "items": [
       {
         "done": false,
-        "text": "**Nav, sidebars, removals and redirects** — `website/src/components/Header.astro:28`, `website/astro.config.ts:128`, `website/src/components/Footer.astro:50`"
+        "text": "**Nav, sidebars and removals, with no redirects** — `website/src/components/Header.astro:28`, `website/astro.config.ts:128`, `website/src/components/Footer.astro:50`"
       },
       {
         "done": false,
