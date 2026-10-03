@@ -1,19 +1,23 @@
 {
-  "state": "**Goal `goal-closeout`, Stage 4 (finished in place).** Six of `nvs-runtime`'s ten goal-owned gaps are closed. The newest is `a-call-on-a-value-that-is-not-a-closure-is-an-internal-error`. A compiled `$f(...)` whose callee is not a closure now throws a catchable `LogicError` naming what it is (`require_closure` in the closure call path), and `rule:types/callable-is-a-closure` states it. The hostile attack `03-values-that-are-not-functions-are-called.nvs` passes without its marker, and a conformance case pins every message.\n\nThe floor check `the latest CI run on main succeeded for the code HEAD holds` is red only because `main` is ahead of `origin/main`, and the loop never pushes. A person has to push.\n\n`bun nv owners --closes goal-closeout` names 46 gaps, in `nvs-lsp`, `nvs-runtime` (four), `nvs-stdlib`, `nvs-types`, `editors/vscode` and `website`.",
+  "state": "**Goal `goal-closeout`, Stage 4 (finished in place).** Eight of `nvs-runtime`'s ten goal-owned gaps are closed. The two newest:\n\n- `the-peak-update-cost-is-argued-and-never-measured`: `the_memory_mark_stays_small_beside_the_allocation_it_fronts` in `benches/abi-probe/tests/perf_guards.rs` times the real `budget::carry` pair against a platform heap round trip, and `budget.rs` § *What it spends* cites it.\n- `a-core-call-with-a-large-string-costs-time-per-byte`: the cost was `NvsStr::text_of`'s debug `from_utf8` over the whole payload. It now validates whole up to `VALIDATED_WHOLE` and at head and tail past it (`reads_as_text` in `crates/nvs-runtime/src/string.rs`).\n\nThe floor check `the latest CI run on main succeeded for the code HEAD holds` is red only because `main` is ahead of `origin/main`, and the loop never pushes. A person has to push.\n\n`bun nv owners --closes goal-closeout` names the rest, in `nvs-lsp`, `nvs-runtime` (two), `nvs-stdlib`, `nvs-types`, `editors/vscode` and `website`.",
   "next": {
     "stage": 4,
     "title": "finished in place",
     "files": [],
-    "note": "one file set: `nvs-runtime`'s remaining gap records and the modules they name.",
+    "note": "one file set: the peak's end-of-request reading in `nvs-runtime` and the server door.",
     "items": [
       {
         "done": false,
-        "text": "**The other four `nvs-runtime` gaps, built or struck as stated bounds** — `enum-case-that-reached-a-mixed` (`crates/nvs-runtime/src/lib.rs:1`, needs an ADR, so strike it as a bound or defer it to a milestone), `a-core-call-with-a-large-string-costs-time-per-byte` (`crates/nvs-runtime/src/lib.rs:1`), `the-peak-update-cost-is-argued-and-never-measured` (`crates/nvs-runtime/src/budget.rs:155`), and `the-peak-histogram-and-the-high-water-warn-are-unbuilt` (`crates/nvs-runtime/src/metrics.rs:188`)."
+        "text": "**Build `nvs_request_memory_peak_bytes` and `[limits] memory_high_water`** (`rule:observability/default-series`, `rule:observability/memory-high-water-writes-a-warn`, gap `the-peak-histogram-and-the-high-water-warn-are-unbuilt`). Add the `route`-labelled histogram family to `DEFAULT` at `crates/nvs-runtime/src/metrics.rs:188` with byte buckets, and record it beside `Registry::request` at `crates/nvs-runtime/src/metrics.rs:649`. The peak is per `Ctx` (`crates/nvs-runtime/src/ctx/limits.rs:121`), so it must be read before the request's context ends. The door counts the request at `crates/nvs-server/src/serve.rs:1316` after that context is gone, and takes the route label at `crates/nvs-server/src/serve.rs:1510`. The warn is one `Warn` record written like `slow_query_record` at `crates/nvs-stdlib/src/db/span.rs:117`. The key needs a boot refusal outside `0.0..=1.0` in `nvs-config`. Both rules move to `shipped`. This slice is large: start it in a fresh session."
+      },
+      {
+        "done": false,
+        "text": "**Decide `enum-case-that-reached-a-mixed`** (`crates/nvs-runtime/src/lib.rs:1`). Closing it spends the reserved tag and overturns `rule:enums/representation`, which needs an ADR beyond Stage 5's one slot. Per Stage 4 that is `BLOCKED` for the user, once it is the last `nvs-runtime` gap, unless a milestone's plan file genuinely covers enum representation."
       }
     ]
   },
   "backlog": [
-    "`nvs-stdlib`'s goal-owned gaps (`bun nv owners --closes goal-closeout`), then `nvs-types`, `nvs-lsp`, `editors/vscode` and `website`.",
-    "`bun nv import --check` fails on the legacy rulebook index file that `tools/nv/import/rules.ts` still reads. The importer looks stale, and `bun nv records --check` is green."
+    "The other crates' goal-owned gaps, one crate per group — `bun nv owners --closes goal-closeout`.",
+    "Stage 5's decision record and the switch that deletes the goal it leaves — `docs/agent/goals/goal-closeout.md` § Stage 5."
   ]
 }
