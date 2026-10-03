@@ -271,3 +271,26 @@ The check `no question waits for the user` fails while a line `- **Answer:** ope
 - **Recommendation** — 2. The rule is right for every card a reader sees. Rewriting all of them is
   wording work that would delay `performance-pass` without changing any behaviour.
 - **Answer:** open
+
+### May file writes walk from a folder handle instead of a path?
+
+- **Gap** — `zip-extraction-creates-a-file-by-path-after-resolving-its-folder`, `place` at
+  `crates/nvs-stdlib/src/zip.rs:839` and `capability::create` at
+  `crates/nvs-runtime/src/capability.rs:643`.
+- **What has to be decided** — `Core\Zip::extract` resolves each folder and then creates the file by
+  its path. A folder swapped for a link between the two steps is followed. `capability::create`
+  checks the grant on a path and then opens that path again, so every write door has the same
+  window. Closing it needs a new kind of door, and a decision record no ADR slot of this goal covers.
+- **Options** —
+  1. *Handle-relative walk for `Core\Zip::extract` only.* The grant is checked once on the
+     destination. Each level is opened from the handle above it and never follows a link: `openat`
+     and `mkdirat` with `O_NOFOLLOW` on Unix, `NtCreateFile` with a root handle on Windows. Cost:
+     two platform paths in `nvs-runtime`, one decision record. It is faster than today, because no
+     level is resolved twice.
+  2. *The same walk under every write door.* Option 1, and `Core\IO`'s writes use it too. It closes
+     the window everywhere. Cost: a larger change to `capability.rs` and its tests, several sessions.
+  3. *Keep the window and state it.* The module doc names it as a bound: an attacker needs write
+     access inside the destination while the call runs. No work.
+- **Recommendation** — 1 now, and 2 as a gap owned by a later goal. Security comes first in the
+  priority ordering, and option 1 closes the case where an archive picks the names.
+- **Answer:** open
