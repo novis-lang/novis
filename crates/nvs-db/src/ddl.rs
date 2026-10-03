@@ -17,7 +17,7 @@
 //!
 //! # Four emitters, not five
 //!
-//! Keyed on [`Dialect`] and never on [`Driver`](crate::Driver). MariaDB and
+//! Keyed on [`Dialect`] and never on [`Driver`]. MariaDB and
 //! MySQL share their SQL text exactly and are two drivers for authentication
 //! plugins and error tables, neither of which reaches DDL —
 //! `the_emitters_follow_dialect_rather_than_driver` asserts that as an
