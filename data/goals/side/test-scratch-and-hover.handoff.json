@@ -1,0 +1,30 @@
+{
+  "state": "**Side goal `test-scratch-and-hover` is written and nothing of it is built yet.** Test code in 12 crates writes into the system temp directory at 97 sites, and hover never asks go-to-definition's `type_name_at` or `import_at`. The goal's prose has the user's calls from 2026-10-04 and the measured starting point.",
+  "next": {
+    "stage": 2,
+    "title": "test scratch under `target/`",
+    "files": [
+      "crates/nvs-repo/src/lib.rs",
+      "crates/nvs-repo/tests/scratch.rs",
+      "crates/nvs-cli/src/script.rs",
+      "crates/nvs-cli/src/cache.rs",
+      "crates/nvs-cli/src/config.rs",
+      "crates/nvs-cli/tests/init.rs"
+    ],
+    "items": [
+      {
+        "done": false,
+        "text": "**`nvs_repo::scratch` and its two tests**, recording no read — `crates/nvs-repo/src/lib.rs:1`, `tools/nv/keys/escape.ts:1`"
+      },
+      {
+        "done": false,
+        "text": "**The guard test** `no_test_code_writes_into_the_system_temp_dir`, with its list of tests whose subject is the system temp directory — `crates/nvs-repo/tests/scratch.rs`"
+      },
+      {
+        "done": false,
+        "text": "**Move the 97 sites**, `nvs-cli` first (30) — `crates/nvs-cli/src/script.rs:1962`, `crates/nvs-cli/src/cache.rs:1816`, `crates/nvs-cli/src/config.rs:744`, `crates/nvs-cli/tests/init.rs:23`"
+      }
+    ]
+  },
+  "backlog": []
+}
