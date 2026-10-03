@@ -1,24 +1,22 @@
 {
-  "state": "**Goal `goal-closeout`, Stage 4 (finished in place).** `Core\\Ast::parse` gets every node's position from one ordered sweep. `SourceFile::line_cols_in` in `nvs-diagnostics` answers a batch of offsets, `Located::positions` in `nvs-syntax` returns them in the post-order `instance_of` builds in, and the long-line attack is no longer marked. The gap record `nodes-column-is-counted-from-the` is deleted, and so is `decoder-still-recurses-on-the-native`: the JSON decoder already parses deep text on the spare stack, and `a_document_at_the_ceiling_decodes_whatever_stack_the_caller_has` proves it from a 64 KiB caller stack.\n\nGap `zip-extraction-creates-a-file-by-path-after-resolving-its-folder` needs a design for a door that walks from a folder handle. It is a question in the goal prose's § *Questions for the user at the goal end*. Four questions wait there. Do not build it before the answer.\n\n**No session stops on `BLOCKED` before the goal end.** A question goes in that section, and the session carries on.\n\nThe floor check `the latest CI run on main succeeded for the code HEAD holds` is red because `main` is ahead of `origin/main`. It leaves with goal `ci-green`'s record in Stage 6, and nobody pushes for it.\n\n`bun nv owners --closes goal-closeout` names 13 gaps in `nvs-lsp`, `nvs-stdlib`, `nvs-types` and `website`. Read each gap's record before building it: a gap can already be closed by tested code, and then the record is deleted.",
+  "state": "**Goal `goal-closeout`, Stage 4 (finished in place).** A buffered database read is held to the memory ceiling while its rows arrive. The three wire arms in `crates/nvs-stdlib/src/db/execute.rs` ask `rows_fit` after every row, which reads `nvs_runtime::budget::over_ceiling`. SQLite's pool job is handed the caller's `budget::headroom` and stops past it, and `SqliteConn::query` records the refusal on the core. `queried_rows` turns any arm fault into `Ctx::memory_breach`'s `FATAL` once the request is over. Gap `buffered-read-is-not-held-to` is deleted. The perf figures for `Core\\Ast` and `Core\\Ast\\Node` are measured again, and `bun nv proofs --gate` owes nothing.\n\nGap `zip-extraction-creates-a-file-by-path-after-resolving-its-folder` needs a design for a door that walks from a folder handle. It is a question in the goal prose's § *Questions for the user at the goal end*. Four questions wait there. Do not build it before the answer.\n\n**No session stops on `BLOCKED` before the goal end.** A question goes in that section, and the session carries on.\n\nThe floor check `the latest CI run on main succeeded for the code HEAD holds` is red because `main` is ahead of `origin/main`. It leaves with goal `ci-green`'s record in Stage 6, and nobody pushes for it.\n\n`bun nv owners --closes goal-closeout` names 13 gaps in `nvs-lsp`, `nvs-stdlib`, `nvs-types` and `website`. Read each gap's record before building it: a gap can already be closed by tested code, and then the record is deleted.",
   "next": {
     "stage": 4,
     "title": "finished in place",
     "files": [
-      "crates/nvs-stdlib/src/db/execute.rs",
-      "crates/nvs-stdlib/src/db/span.rs"
+      "crates/nvs-stdlib/src/process.rs"
     ],
     "items": [
       {
         "done": false,
-        "text": "**A buffered read is held to the memory ceiling while its rows arrive** — gap `buffered-read-is-not-held-to` under `data/gaps/nvs-stdlib/`, `rule:programs/memory-priority`. `queried_rows` at `crates/nvs-stdlib/src/db/execute.rs:308` collects the whole result before the ceiling is checked, and `sqlite_rows` at `crates/nvs-stdlib/src/db/execute.rs:922` runs its loop on a pool thread with no ceiling. The `*_rows` arms take a `QueryWatch` (`crates/nvs-stdlib/src/db/span.rs:31`), not a `Ctx`. Decide per row or per batch, hand the job the caller's headroom, then delete the gap record. If the seam choice is a large tradeoff, write it as a question in the goal prose and carry on."
+        "text": "**`ProcessOptions` lands on `Core\\Process::run` and `::spawn` together** — gap `process-options-is-on-neither-run-nor-spawn` under `data/gaps/nvs-stdlib/`, `rule:core-classes/process-options`. `run` at `crates/nvs-stdlib/src/process.rs:661` and `spawn` at `crates/nvs-stdlib/src/process.rs:855` take a path and an argument array only. Add the options type (working directory, an environment that replaces the child's, a timeout on the request's cancellation) to both rows, test each field from Rust and Novis, move the rule to `shipped`, then delete the gap record. Read the rule's fragment first: if a field needs a design the fragment does not give, write a question in the goal prose and carry on."
       }
     ]
   },
   "backlog": [
-    "`core-db-queryable-is-not-a` — `Core\\Db\\Queryable` is not a type a program can write (`crates/nvs-stdlib/src/db/mod.rs`).",
-    "`process-options-is-on-neither-run-nor-spawn` — `crates/nvs-stdlib/src/process.rs`.",
-    "`core-server-has-no-request-environment-or-trace-id` — `crates/nvs-stdlib/src/server.rs`.",
-    "`a-callable-has-no-bind-bindto-or-call` and `an-isolate-result-output-is-typed-string` — `crates/nvs-types/src/expr/`.",
-    "Two `Core\\Test` gaps in `crates/nvs-stdlib/src/test.rs`, and two `website/` gaps."
+    "Gap `core-db-queryable-is-not-a` — `Core\\Db\\Queryable` as a writable interface a `Core` class satisfies; `crates/nvs-stdlib/src/db/mod.rs`, `rule:core-classes/db-transactions`.",
+    "Gap `core-server-has-no-request-environment-or-trace-id` — `crates/nvs-stdlib/src/server.rs`.",
+    "Gaps `a-callable-has-no-bind-bindto-or-call` and `an-isolate-result-output-is-typed-string` — `crates/nvs-types/src/expr/`.",
+    "The two `nvs-lsp` completion gaps and the two `website` gaps — each record names its module."
   ]
 }
