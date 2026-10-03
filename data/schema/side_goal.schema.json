@@ -24,6 +24,11 @@
         "last"
       ]
     },
+    "sweep": {
+      "enum": [
+        "done"
+      ]
+    },
     "files": {
       "type": "array",
       "items": {
