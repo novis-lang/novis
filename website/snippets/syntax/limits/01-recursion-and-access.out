@@ -1,0 +1,3 @@
+stopped: the call stack is too deep
+denied: Core\IO::write needs the capability `fs.write`
+still running

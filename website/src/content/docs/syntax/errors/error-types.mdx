@@ -1,0 +1,65 @@
+---
+title: Error types
+covers: ['lang:errors/the-throwable-tree', 'lang:errors/properties-not-accessors', 'lang:errors/constructing-and-subclassing', 'Throwable', 'LogicError', 'RuntimeError', 'IOError', 'ParseError', 'TimeoutError', 'RecursionError', 'ArithmeticError', 'Core\Cli\NotInteractive', 'Core\Db\DbError', 'Core\Db\RolledBack', 'Core\Script\Finished']
+description: The classes an error can have, the properties every error has, and how to write your own error class.
+---
+import Snippet from '@components/Snippet.astro'
+
+Every error is an object of a class under `Throwable`. The list of classes is short and fixed.
+Each built-in failure throws one of them.
+
+<Snippet src="syntax/error-types/01-built-in-errors.nvs" />
+
+| Class | Extends | Thrown for |
+|---|---|---|
+| `Throwable` | | the top class. `catch (Throwable $e)` catches every error |
+| `LogicError` | `Throwable` | a bug in the program: a `match` with no arm, a wrong argument |
+| `RuntimeError` | `Throwable` | a problem outside the program: a missing key, a value that cannot be converted, a missing permission |
+| `IOError` | `RuntimeError` | a file, network or process failure |
+| `ParseError` | `RuntimeError` | input that does not have the expected format, such as bad JSON |
+| `TimeoutError` | `RuntimeError` | a time limit that passed |
+| `RecursionError` | `RuntimeError` | a call stack that is too deep |
+| `ArithmeticError` | `Throwable` | division by zero, a number too large for `int`, a `float` with a fraction converted to `int` |
+| `Core\Cli\NotInteractive` | `RuntimeError` | a prompt with no terminal to read from and no default |
+| `Core\Db\DbError` | `RuntimeError` | a database that does not accept a query, a connection or a commit |
+| `Core\Db\RolledBack` | `RuntimeError` | a transaction that your own code rolled back |
+
+The page of every `Core` method lists the classes it throws. So a `catch` can name exactly the
+class it expects.
+
+## Properties
+
+Every error has four properties, and no methods to read them:
+
+| Property | Type | Value |
+|---|---|---|
+| `message` | `string` | the text given to the constructor |
+| `previous` | `?Throwable` | the error that caused this one, or `null` |
+| `backtrace` | `array<string>` | one `Class::method() at file:line` per function the error left, innermost first |
+| `location` | `string` | the `file:line` of the `throw` |
+
+`ParseError` also has `issues`, a list of the problems found. `Core\Db\DbError` has `kind`, and
+`Core\Db\RolledBack` has `reason`. There are no error numbers. The class is the kind of failure.
+
+## Your own error class
+
+The constructor of every error class is `constructor(string $message, {previous?: Throwable})`.
+The message is required. Your class can extend any class in the list. If it has its own
+constructor, it calls `parent::constructor($message)` and can add properties.
+
+<Snippet src="syntax/error-types/02-your-own-error.nvs" />
+
+## Ending the program is not an error
+
+`Core\Script::finish()` throws `Core\Script\Finished`. This class is not under `Throwable`, so no
+`catch` catches it. Every `finally` block still runs.
+
+<Snippet src="syntax/error-types/03-finish.nvs" />
+
+## Do and don't
+
+- Do read `$e->message`. `getMessage()` and the other `get...()` methods do not exist.
+- Do pass the caught error as `{previous: $e}` when you throw a new one.
+- Do extend `RuntimeError` for a problem outside the program, and `LogicError` for a bug.
+- Don't write `Exception` or `Error`. They do not exist.
+- Don't catch `Throwable` when you expect one kind of failure. Name that class.

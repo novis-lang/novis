@@ -1,0 +1,45 @@
+---
+title: throw, try and catch
+covers: ['lang:statements/throw', 'lang:statements/try-catch-finally', 'lang:errors/throw', 'lang:errors/try-catch-finally']
+description: How throw stops a function with an error, and how try, catch and finally handle it.
+---
+import Snippet from '@components/Snippet.astro'
+
+`throw new IOError("...")` stops the current function and throws an error. `try { ... }` runs a
+block, and a `catch (IOError $e) { ... }` after it runs when that block throws an `IOError`.
+`finally { ... }` runs last, whatever happened.
+
+<Snippet src="syntax/throw-and-catch/01-throw-and-catch.nvs" />
+
+- `throw` needs an object of a class under `Throwable`. See [Error types](/syntax/errors/error-types/).
+- `throw` is also an expression. You can write it after `??`, in a `match` arm or in a ternary.
+- A `catch` names one class. It also matches every subclass of that class.
+- The clauses are tested from top to bottom. The first one that matches runs, and no other.
+- The variable is optional: `catch (LogicError) { ... }` is allowed.
+- `catch (LogicError | IOError $e)` does not compile. Write two clauses.
+- Two clauses in one function need two different variable names, such as `$io` and `$logic`.
+- A `throw` inside a `catch` goes to the next `try` outside. The other clauses of the same `try` do not see it.
+
+## finally
+
+`finally` runs when the `try` ends normally, after a `catch`, and when a `return`, `break`,
+`continue` or uncaught error leaves the `try`. Nested `finally` blocks run from the inside out.
+
+<Snippet src="syntax/throw-and-catch/02-finally-in-loops.nvs" />
+
+A `return` inside `finally` does not compile. It would hide an error that is still being thrown.
+The same is true for a `break` or `continue` that leaves the `finally` block. A loop that is
+completely inside the block can use both.
+
+## Use this when you only need a value
+
+A `try` block is the long form. When you only want a fallback value, write `catch` as an
+expression: [catch as an expression](/syntax/errors/catch-expression/).
+
+## Do and don't
+
+- Do put the narrow classes first. A `catch (Throwable $e)` first catches everything.
+- Do catch the class you expect, such as `IOError`. Then a bug still shows as an error.
+- Do use `finally` to close or clean up something, whatever happens in the `try`.
+- Don't use `return` in `finally`. It does not compile.
+- Don't write `Exception`. It does not exist. Use `RuntimeError`, `LogicError` or `Throwable`.

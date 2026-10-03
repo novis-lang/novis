@@ -1,0 +1,18 @@
+<?nvs
+// `finally` also runs when `continue` or `break` leaves the `try`.
+int $i = 0;
+while ($i < 3) {
+    try {
+        $i = $i + 1;
+        if ($i == 2) {
+            continue;
+        }
+        if ($i == 3) {
+            break;
+        }
+        echo "body ", $i, "\n";
+    } finally {
+        echo "finally ", $i, "\n";
+    }
+}
+echo "done\n";

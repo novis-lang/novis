@@ -1,0 +1,25 @@
+<?nvs
+// `NotFound` extends `RuntimeError` and adds two properties of its own.
+class NotFound extends RuntimeError {
+    public function constructor(public int $status, string $message, public string $path, ?Throwable $cause) {
+        parent::constructor($message, {previous: $cause});
+    }
+}
+
+class Store {
+    public static function open(string $path): string {
+        try {
+            throw new IOError("disk gone");
+        } catch (IOError $io) {
+            // The new error keeps the `IOError` in its `previous` property.
+            throw new NotFound(404, "cannot open " . $path, $path, $io);
+        }
+    }
+}
+
+try {
+    echo Store::open("/srv/app.ini");
+} catch (NotFound $e) {
+    echo $e->status, " ", $e->message, "\n";
+    echo "caused by: ", $e->previous?->message ?? "nothing", "\n";
+}

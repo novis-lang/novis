@@ -49,6 +49,46 @@
   "syntax/control-flow/switch.mdx": {
     "lang:statements/switch": "7708e52232f83a45"
   },
+  "syntax/errors/assert-and-dump.mdx": {
+    "Core\\Test\\Failure": "ad8300273588bcbf",
+    "lang:errors/assertion-failures": "88db8374fafda2b9",
+    "lang:errors/inspecting-a-value": "aed577d1aafee13c"
+  },
+  "syntax/errors/catch-expression.mdx": {
+    "lang:statements/catch-as-an-expression": "afbf4d44ec9c0788"
+  },
+  "syntax/errors/error-types.mdx": {
+    "ArithmeticError": "00307a366b7e0370",
+    "Core\\Cli\\NotInteractive": "0a53529b7f05636f",
+    "Core\\Db\\DbError": "563bb55ceeee5be9",
+    "Core\\Db\\RolledBack": "dbe30b7f4ccd6573",
+    "Core\\Script\\Finished": "d67e0a8d12713160",
+    "IOError": "dcea56a0ab16c5c1",
+    "lang:errors/constructing-and-subclassing": "728544e799ad3a70",
+    "lang:errors/properties-not-accessors": "62cd42bca2285c3c",
+    "lang:errors/the-throwable-tree": "6d219b3203bfa153",
+    "LogicError": "cd5f4e4f9909071d",
+    "ParseError": "745c7b0b84cecbaf",
+    "RecursionError": "3cb3c356b0494e81",
+    "RuntimeError": "1791596ea867a73b",
+    "Throwable": "7077ca7901eb238c",
+    "TimeoutError": "4c638020de9e7f10"
+  },
+  "syntax/errors/limits.mdx": {
+    "lang:errors/capability-denials-are-catchable": "ab28d1ff5f226a7f",
+    "lang:errors/fatal-errors-limits-no-catch-sees": "dadbc9da103530b2",
+    "lang:errors/recursion-depth": "1f5f5b10c2cd3562"
+  },
+  "syntax/errors/rethrowing.mdx": {
+    "lang:errors/an-uncaught-throw": "843e543ffa40aeb0",
+    "lang:errors/rethrowing": "34f63fcfb5a41045"
+  },
+  "syntax/errors/throw-and-catch.mdx": {
+    "lang:errors/throw": "65bc00d73f9f647c",
+    "lang:errors/try-catch-finally": "2d609e464bdf57d2",
+    "lang:statements/throw": "d98da1aaaa686567",
+    "lang:statements/try-catch-finally": "bcfe6b5f24665829"
+  },
   "syntax/operators/arithmetic.mdx": {
     "lang:expressions/arithmetic": "537f01ba95d7cd24",
     "lang:expressions/assignment": "d0b9aae015dcb3c3"
@@ -76,6 +116,7 @@
     "lang:types/what-does-not-exist": "4b29ab1c109b9cca"
   },
   "syntax/values/arrays.mdx": {
+    "lang:expressions/arrays-in-expressions": "373a31917fdc3025",
     "lang:types/array-t": "f1a68a3d63f2eddb"
   },
   "syntax/values/as.mdx": {

@@ -1,0 +1,31 @@
+---
+title: catch as an expression
+covers: ['lang:statements/catch-as-an-expression']
+description: How to write catch after an expression, to give a fallback value when it throws.
+---
+import Snippet from '@components/Snippet.astro'
+
+`Repo::get($id) catch (IOError $e) => 0` returns the result of `Repo::get($id)`. If that call
+throws an `IOError`, the result is `0`. It is the short form of a `try` block that only needs a value.
+
+<Snippet src="syntax/catch-expression/01-catch-expression.nvs" />
+
+- You can add more arms: `f() catch (LogicError $a) => x catch (IOError $b) => y`. They are tested in order.
+- All arms check what the first expression threw. `x` is not checked by the `IOError` arm.
+- An arm is one expression. `return`, `break` and `continue` do not compile there. `throw` is allowed.
+- The type is all possible results together. If `get` returns `int` and the arm gives `null`, the result is `?int`.
+- An error that no arm matches is thrown on, to the next `try` outside.
+- There is no `finally` in this form. Use a `try` block for that.
+- `catch` includes everything to its left up to an assignment. In `$x = $a / $b catch (ArithmeticError) => 0`, it covers the whole division.
+
+## Use this when you need statements
+
+Write a `try` block when the error needs more than one value: a log line, a cleanup step, or a
+`return`. See [throw, try and catch](/syntax/errors/throw-and-catch/).
+
+## Do and don't
+
+- Do name the class you expect: `catch (IOError $e) => 0`.
+- Do use this form for a default value, such as `0` or `null`.
+- Don't write `catch (Throwable) => value`. It hides every error, also the bugs. The compiler warns about it.
+- Don't put a `return` in an arm. Use the `try` block.

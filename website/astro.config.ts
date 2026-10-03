@@ -175,6 +175,17 @@ export default defineConfig({
                 { label: 'echo, unset and exit', link: '/syntax/control-flow/other-statements/' },
               ],
             },
+            {
+              label: 'Errors',
+              items: [
+                { label: 'throw, try and catch', link: '/syntax/errors/throw-and-catch/' },
+                { label: 'catch as an expression', link: '/syntax/errors/catch-expression/' },
+                { label: 'Error types', link: '/syntax/errors/error-types/' },
+                { label: 'Rethrowing and uncaught errors', link: '/syntax/errors/rethrowing/' },
+                { label: 'Limits and permissions', link: '/syntax/errors/limits/' },
+                { label: 'Assertions and dumping values', link: '/syntax/errors/assert-and-dump/' },
+              ],
+            },
           ],
         },
         {

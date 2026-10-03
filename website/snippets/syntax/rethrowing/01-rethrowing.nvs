@@ -1,0 +1,28 @@
+<?nvs
+// `throw $e;` inside a `catch` throws the same error again, to the next `try` outside.
+class Relay {
+    public static function go(): void {
+        try {
+            throw new IOError("first");
+        } catch (IOError $io) {
+            echo "logged: ", $io->message, "\n";
+            throw $io;
+        }
+    }
+}
+
+try {
+    Relay::go();
+} catch (IOError $e) {
+    // The class and the message are the same as before.
+    echo "caught again: ", $e->message, "\n";
+}
+
+// An error that no `catch` handles ends the program with exit status 1.
+// This one is caught, so the program goes on.
+try {
+    throw new RuntimeError("no row 7");
+} catch (RuntimeError $noRow) {
+    echo "handled: ", $noRow->message, "\n";
+}
+echo "still running\n";

@@ -1,0 +1,5 @@
+ArithmeticError: Division by zero
+ArithmeticError: cannot convert `float` 2.5 to `int`
+RuntimeError: cannot convert this value to `int`
+RuntimeError: undefined array key `b`
+LogicError: no `match` arm matched the subject
