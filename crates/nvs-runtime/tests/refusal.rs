@@ -18,10 +18,10 @@
 //! built from.
 
 use nvs_runtime::{
-    ArrayHeader, Ctx, FATAL, IMMORTAL_REFCOUNT, NvsArray, NvsStr, OutputSink, SafepointFlags,
-    Value, affordable, budget, nvs_array_append, nvs_array_next_slot, nvs_array_release,
-    nvs_array_set, nvs_array_set_index, nvs_array_value_at, nvs_str_append, nvs_str_concat,
-    nvs_str_concat_n, nvs_str_release, nvs_str_retain, prime_empty_array,
+    ArrayHeader, Ctx, FATAL, Fault, IMMORTAL_REFCOUNT, NvsArray, NvsStr, OutputSink,
+    SafepointFlags, Value, affordable, budget, nvs_array_append, nvs_array_next_slot,
+    nvs_array_release, nvs_array_set, nvs_array_set_index, nvs_array_value_at, nvs_str_append,
+    nvs_str_concat, nvs_str_concat_n, nvs_str_release, nvs_str_retain, prime_empty_array,
 };
 
 /// A request under `bytes` of ceiling, holding nothing of its own yet.
@@ -614,5 +614,46 @@ fn a_refused_write_leaves_a_live_foreach_cursor_on_its_own_snapshot() {
     assert!(
         ctx.safepoint_flags().contains(SafepointFlags::MEMORY_LIMIT),
         "the writes were served rather than refused, so nothing above is about a refusal",
+    );
+}
+
+/// The breach a refusal is reported as names what the request held when it was
+/// refused, and what it asked for — not the reading at the poll.
+///
+/// The block held across the refusal is released before the breach is read,
+/// which is what a refused concatenation does to the text it was growing: a
+/// message built from the reading at the poll would name the bytes left after
+/// that release, and they are no help to an operator choosing a ceiling.
+#[test]
+fn a_refusal_is_reported_with_the_reading_it_was_refused_at_and_its_ask() {
+    let ctx = ctx_under(16 << 20);
+    let held = vec![0u8; 4 << 20];
+    let reading = ctx.memory_used();
+    assert!(
+        reading >= 4 << 20,
+        "the held block is not on the request's reading"
+    );
+
+    let ask = 64 << 20;
+    assert!(
+        !budget::affords(ask),
+        "an ask past the ceiling was afforded"
+    );
+    drop(held);
+    assert!(
+        ctx.memory_used() < 4 << 20,
+        "releasing the held block left it on the reading, so the case cannot tell the two readings apart",
+    );
+
+    let Some(Fault::Fatal(message)) = ctx.memory_breach() else {
+        panic!("a refused request reported no breach");
+    };
+    assert!(
+        message.contains(&format!("— {reading} bytes held against a ceiling of ")),
+        "the breach does not name the reading the refusal was made at: {message}",
+    );
+    assert!(
+        message.ends_with(&format!(", when an allocation of {ask} bytes was refused")),
+        "the breach does not name what the refused allocation asked for: {message}",
     );
 }

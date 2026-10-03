@@ -48,4 +48,4 @@ memory = "16M"
 --EXPECT--
 start
 --EXPECTF-ERROR--
-FATAL: the request exceeded its memory limit — %d bytes held against a ceiling of 16777216, of which 1048576 is reserved for the limit handler
+FATAL: the request exceeded its memory limit — %d bytes held against a ceiling of 16777216, of which 1048576 is reserved for the limit handler, when an allocation of %d bytes was refused

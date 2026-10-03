@@ -237,14 +237,14 @@ thread_local! {
     /// beside the threshold: the ordinary path loads [`CEILING`] alone.
     static POLLED: Cell<*const std::sync::atomic::AtomicU64> =
         const { Cell::new(std::ptr::null()) };
-    /// Whether an allocation this thread's running request asked for was
-    /// refused — [`refuse`]'s verdict, which no counter can be read for.
+    /// The first allocation this thread's running request was refused, or
+    /// `None` — [`refuse`]'s verdict, which no counter can be read for.
     ///
     /// Per thread because the allocators that hit a refusal hold no
     /// [`Ctx`](crate::Ctx) to record it on, and confined to one request because
     /// the context that is refused displaces this cell exactly as it displaces
     /// [`CEILING`].
-    static REFUSED: Cell<bool> = const { Cell::new(false) };
+    static REFUSED: Cell<Option<Refusal>> = const { Cell::new(None) };
     /// Whether this thread is inside `rule:errors/on-limit`'s reserve, where
     /// [`affords`] answers without asking the balance — see [`Reporting`].
     static REPORTING: Cell<bool> = const { Cell::new(false) };
@@ -502,10 +502,31 @@ fn publish() {
 /// [`Ctx::over_memory_limit`](crate::Ctx::over_memory_limit) reads it.
 ///
 /// Private, so that a refusal cannot be recorded without the arithmetic in
-/// [`affords`] that justifies it.
-fn refuse() {
-    REFUSED.with(|refused| refused.set(true));
+/// [`affords`] that justifies it. Only the first refusal is kept: it is the
+/// breach, and anything the request asks for after it is a consequence.
+fn refuse(asked: isize, live: isize) {
+    REFUSED.with(|refused| {
+        if refused.get().is_none() {
+            refused.set(Some(Refusal { asked, live }));
+        }
+    });
     publish();
+}
+
+/// An allocation [`affords`] refused: what was asked for, and the thread's
+/// [`live_bytes`] balance at that moment.
+///
+/// Kept because the poll that reports the breach comes after the refusal, and
+/// by then the reading has moved — an operation refused half way, such as a
+/// concatenation, has already given back the operand it was growing. The
+/// `FATAL` names these two numbers instead, which is what tells an operator
+/// how close the program was to fitting.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct Refusal {
+    /// The bytes the refused allocation asked for, saturated at `isize::MAX`.
+    pub(crate) asked: isize,
+    /// The thread's absolute balance when it asked.
+    pub(crate) live: isize,
 }
 
 /// Whether the running request has been refused an allocation.
@@ -515,6 +536,12 @@ fn refuse() {
 /// [`take_refusal`] is the only way back, and its two callers are the context
 /// that ends and the handler that is lent a slice to report with.
 pub(crate) fn refused() -> bool {
+    REFUSED.with(Cell::get).is_some()
+}
+
+/// The first allocation the running request was refused, or `None` while it
+/// has been refused nothing.
+pub(crate) fn refusal() -> Option<Refusal> {
     REFUSED.with(Cell::get)
 }
 
@@ -527,12 +554,12 @@ pub(crate) fn refused() -> bool {
 /// so `rule:errors/on-limit`'s handler can allocate the report it exists to
 /// write.
 #[must_use]
-pub(crate) fn take_refusal() -> bool {
-    REFUSED.with(|cell| cell.replace(false))
+pub(crate) fn take_refusal() -> Option<Refusal> {
+    REFUSED.with(|cell| cell.replace(None))
 }
 
 /// Puts back what [`take_refusal`] handed out.
-pub(crate) fn restore_refusal(refused: bool) {
+pub(crate) fn restore_refusal(refused: Option<Refusal>) {
     REFUSED.with(|cell| cell.set(refused));
 }
 
@@ -706,10 +733,11 @@ pub fn affords(bytes: usize) -> bool {
     // the balance's own type is one no request can afford, so it must not wrap
     // into a number that fits.
     let ask = isize::try_from(bytes).unwrap_or(isize::MAX);
-    if LIVE.with(Cell::get).saturating_add(ask) <= ceiling {
+    let live = LIVE.with(Cell::get);
+    if live.saturating_add(ask) <= ceiling {
         return true;
     }
-    refuse();
+    refuse(ask, live);
     false
 }
 

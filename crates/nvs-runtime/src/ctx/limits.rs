@@ -33,7 +33,13 @@ impl Ctx {
     /// beneath it there — [`Self::on_root_core`]'s field doc owns the division.
     #[must_use]
     pub fn memory_used(&self) -> usize {
-        let own = crate::budget::live_bytes().saturating_sub(self.memory_base);
+        self.memory_share(crate::budget::live_bytes())
+    }
+
+    /// This request's share of the thread's absolute balance `live`, read the
+    /// way [`Self::memory_used`] reads the balance now.
+    fn memory_share(&self, live: isize) -> usize {
+        let own = live.saturating_sub(self.memory_base);
         let tree = if self.on_root_core {
             self.tree.off_core.memory()
         } else {
@@ -333,7 +339,10 @@ impl Ctx {
     /// fixture that wraps the loop in one has found the rule rather than a bug.
     /// The message names the ceiling as well as the reading, because the two
     /// together are what tells an operator whether to raise the limit or to fix
-    /// the program.
+    /// the program. After a refusal the reading is the one taken when the
+    /// allocation was refused, followed by what it asked for
+    /// ([`crate::budget::Refusal`] owns why): by the poll, a refused
+    /// concatenation has already given back the text it was growing.
     #[must_use]
     pub fn memory_breach(&self) -> Option<crate::Fault> {
         // A member off its tree's root core publishes here and nowhere else —
@@ -352,11 +361,18 @@ impl Ctx {
             0 => String::new(),
             bytes => format!(", of which {bytes} is reserved for the limit handler"),
         };
-        Some(crate::Fault::fatal(format!(
-            "the request exceeded its memory limit — {} bytes held against a ceiling of {}{reserved}",
-            self.memory_used(),
-            self.memory_limit.saturating_add(self.fatal_reserve),
-        )))
+        let ceiling = self.memory_limit.saturating_add(self.fatal_reserve);
+        Some(crate::Fault::fatal(match crate::budget::refusal() {
+            Some(refusal) => format!(
+                "the request exceeded its memory limit — {} bytes held against a ceiling of {ceiling}{reserved}, when an allocation of {} bytes was refused",
+                self.memory_share(refusal.live),
+                refusal.asked,
+            ),
+            None => format!(
+                "the request exceeded its memory limit — {} bytes held against a ceiling of {ceiling}{reserved}",
+                self.memory_used(),
+            ),
+        }))
     }
 
     /// The [`crate::Fault`] a request past its response ceiling owes, or `None`

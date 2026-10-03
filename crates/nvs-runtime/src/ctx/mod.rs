@@ -433,8 +433,8 @@ pub struct Ctx {
     /// this field discharges. Cold, and beside its twin for that field's own
     /// reason.
     memory_ceiling_saved: crate::budget::Armed,
-    /// Whether the thread was already carrying a refused allocation when this
-    /// context took the arming, handed back as it drops.
+    /// The refused allocation the thread was already carrying when this
+    /// context took the arming, if any, handed back as it drops.
     ///
     /// [`Self::memory_ceiling_saved`]'s arrangement applied to the verdict that
     /// travels with the threshold. A refusal is recorded per thread because the
@@ -442,7 +442,7 @@ pub struct Ctx {
     /// what confines it to the request it belongs to: a request born on a
     /// worker whose last request was refused starts clear, and an isolate gives
     /// its parent's answer back rather than the one it was stopped by.
-    memory_refused_saved: bool,
+    memory_refused_saved: Option<crate::budget::Refusal>,
     /// The thread's output-byte count when this context was made — the zero
     /// point [`Self::output_used`] measures this request's own writing from.
     /// [`Self::memory_base`]'s twin in every respect, the reason it sits below
