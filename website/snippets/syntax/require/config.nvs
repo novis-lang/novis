@@ -1,0 +1,3 @@
+<?nvs
+// This is the file config.nvs. Its `return` gives the value of the `require` that runs it.
+return ["host" => "example.test", "port" => "8080"];

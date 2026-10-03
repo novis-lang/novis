@@ -1,0 +1,50 @@
+---
+title: File paths and ending a program
+covers: ['lang:programs/file-paths-a-literal-starts-at-the-folder-of-its-file', 'lang:programs/ending-a-program']
+description: Where a relative file path starts, how to build a path while the program runs, and how exit ends a program.
+---
+import Snippet from '@components/Snippet.astro'
+
+## File paths
+
+A relative path in quotes starts at the folder of the file you write it in. It does not start at
+the folder you run the program from. So a program reads the same file from a terminal and from a
+server.
+
+<Snippet src="syntax/file-paths/01-file-paths.nvs" />
+
+- This works for every `Core` parameter that is a file path. Examples are the path methods of
+  `Core\IO` and `Core\Process::run`.
+- `#[Core\Path]` on a `string` or `?string` parameter of your own method makes it a file path
+  too. On any other parameter, it does not compile.
+- Only a path written in quotes as the argument itself is joined to the folder. A variable, a
+  class constant or a joined string is not.
+- A relative path built while the program runs throws `RuntimeError` when you use it for a file.
+  Build a full path with `Core\Path::join` and `Core\Path::thisDir()`.
+- `Core\Path::fromCwd` joins a path to the folder the program was started from. Use it for a path
+  typed on the command line. It throws an error while the program answers a web request.
+- A full path, like `/srv/data/rates.json`, is used as written.
+- A program may read a file only if its `nvs.toml` allows it. This program has
+  `read = ["data"]` under `[capabilities.fs]`.
+
+## Ending a program
+
+A program ends after its last line runs. Its exit status is then 0. `exit` ends it earlier.
+
+<Snippet src="syntax/ending/01-exit.nvs" />
+
+- `exit;` ends the program with status 0.
+- `exit(3);` ends it with status 3. The status is one byte, so `exit(300)` gives 44 and
+  `exit(-1)` gives 255.
+- `exit("text");` prints the text and ends the program with status 0.
+- An error that nothing catches ends the program with status 1. It prints the error and where it
+  happened to standard error.
+- `die` does not exist. Write `exit`.
+
+## Do and don't
+
+- Do write a file path in quotes, relative to the file that uses it.
+- Do use `Core\Path::join` with `Core\Path::thisDir()` for a path you build from parts.
+- Do use `exit(1)` or another status that is not 0 when a command-line program fails.
+- Don't use `Core\Path::fromCwd` in code that answers web requests.
+- Don't write `die`. It does not compile.

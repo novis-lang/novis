@@ -1,0 +1,36 @@
+---
+title: Running another file with require
+covers: ['lang:programs/require-run-another-file-in-this-frame']
+description: How require runs another file and gives you the value that file returns.
+---
+import Snippet from '@components/Snippet.astro'
+
+`require 'config.nvs'` runs another file at the place where you write it. The value of `require`
+is the value that the file returns with `return`.
+
+This is the file `config.nvs`:
+
+<Snippet src="syntax/require/config.nvs" />
+
+The program below runs it and uses the value:
+
+<Snippet src="syntax/require/01-require.nvs" />
+
+- The path is relative to the folder of the file that has the `require`.
+- With a path in quotes, a missing file is a compile error. With a path built while the program
+  runs, a missing file throws an error.
+- The value of `require` has the type `mixed`. Convert it with `as` to the type the file returns.
+- Classes, interfaces, enums and `type` aliases are shared. Each file can use the ones the other
+  declares.
+- Variables are not shared. A `$config` in `config.nvs` is a different variable from the
+  `$config` in the program. Use `return` to give a value back.
+- `require` runs the file every time the program reaches it.
+- `include`, `include_once` and `require_once` do not exist. Use `require` to run a file, and
+  `autoload` to load a class.
+
+## Do and don't
+
+- Do use `require` for a file that returns a value, such as settings.
+- Do convert the result with `as` right away.
+- Don't use `require` for a file that only declares classes. Use `autoload`, which reads it once.
+- Don't expect a variable from the other file. Return the value instead.

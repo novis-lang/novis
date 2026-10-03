@@ -1,0 +1,20 @@
+<?nvs
+// This program reads a file that sits in the folder `data`, next to this program.
+
+// A relative path in a literal starts at the folder of this file.
+// It does not depend on the folder you start the program from.
+echo Core\IO::read('data/greeting.txt');
+
+class Files {
+    // `#[Core\Path]` makes this parameter a file path, like the one of `Core\IO::read`.
+    public static function load(#[Core\Path] string $path): string {
+        return Core\IO::read($path);
+    }
+}
+
+echo Files::load('data/greeting.txt');
+
+// A path you build while the program runs must be a full path.
+// `Core\Path::thisDir()` returns the full path of this file's folder.
+string $name = "greeting.txt";
+echo Core\IO::read(Core\Path::join(Core\Path::thisDir(), "data", $name));
