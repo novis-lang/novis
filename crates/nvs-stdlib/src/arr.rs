@@ -5,6 +5,20 @@
 //! than consuming it — see [`crate`]'s own docs for why that falls out of
 //! being a helper rather than being a rule this module states.
 //!
+//! # A member that calls back holds what it walks
+//!
+//! A borrowed subject has no reference of its own, so when it was reached
+//! through a property, the property's is the only one. A callback that writes
+//! to that property then writes into the array under the cursor: an append is
+//! walked in turn, and the walk never ends. So every member that calls back
+//! into Novis code takes its array arguments through [`Held`], which retains
+//! each for the length of the walk. The callback's write then copies first,
+//! exactly as it does inside the language's own `foreach`, and the walk reads
+//! the array as it was at the call — PHP's `array_filter` and friends behave
+//! the same. **What it spends:** one retain and one release per array argument
+//! per call, and no allocation. A member that never runs Novis code borrows
+//! for free through [`borrowed`].
+//!
 //! # `array<T|U>` is written literally, not flattened to `array<mixed>`
 //!
 //! `rule:types/array-combination` writes all four combination members as `array<T|U>`, and the registry
@@ -2361,7 +2375,7 @@ nvs_runtime::nvs_helper! {
     /// that: `NvsArray` and `NvsStr` both release on drop, so the partial
     /// result and the entry's own key are freed by the early return itself.
     fn nvs_core_arr_filter(ctx, args: [2]) {
-        let base = subject(args, "filter")?;
+        let base = held_subject(args, "filter")?;
         // Read once for the whole walk rather than per entry: a predicate
         // declaring one parameter is never handed a key, so none is rendered
         // for it — `docs/perf/userland-gap.md` § D.
@@ -2453,7 +2467,7 @@ nvs_runtime::nvs_helper! {
     /// That is the difference from `filter`, which stores a value belonging to
     /// the subject array and therefore has to retain one first.
     fn nvs_core_arr_map(ctx, args: [2]) {
-        let base = subject(args, "map")?;
+        let base = held_subject(args, "map")?;
         // Read once for the whole walk — [`nvs_core_arr_filter`]'s comment.
         let wants_key = nvs_runtime::closure_arity(args[1])? >= 2;
 
@@ -2537,7 +2551,7 @@ nvs_runtime::nvs_helper! {
     /// `map`'s, because the callback's own answer is a *key* here and is
     /// released as soon as its bytes are read.
     fn nvs_core_arr_map_keys(ctx, args: [2]) {
-        let base = subject(args, "mapKeys")?;
+        let base = held_subject(args, "mapKeys")?;
         let mut out = NvsArray::new();
         let mut from = 0usize;
         while let Some(slot) = base.next_slot(from) {
@@ -2624,7 +2638,7 @@ nvs_runtime::nvs_helper! {
     /// `Drop` is what frees a partial answer when a callback throws part-way
     /// through — the reason [`Extracted`] exists one member down.
     fn nvs_core_arr_group_by(ctx, args: [2]) {
-        let base = subject(args, "groupBy")?;
+        let base = held_subject(args, "groupBy")?;
         let mut buckets: Vec<(Vec<u8>, NvsArray)> = Vec::new();
         let mut index_of: std::collections::HashMap<Vec<u8>, usize> =
             std::collections::HashMap::new();
@@ -2765,6 +2779,56 @@ pub(crate) fn borrowed(array: *mut nvs_runtime::ArrayHeader) -> std::mem::Manual
                   never dropped"
     )]
     std::mem::ManuallyDrop::new(unsafe { NvsArray::from_raw(array) })
+}
+
+/// An array argument this frame holds one reference to until it is dropped —
+/// the handle every member that calls back into Novis code walks, per this
+/// module's § *A member that calls back holds what it walks*.
+struct Held {
+    value: Value,
+    array: std::mem::ManuallyDrop<NvsArray>,
+}
+
+impl Held {
+    /// Retains `value`, whose array `array` is a [`borrowed`] handle over.
+    fn new(value: Value, array: std::mem::ManuallyDrop<NvsArray>) -> Self {
+        #[expect(
+            unsafe_code,
+            reason = "a Tag::Array argument owns a reference to a live \
+                      allocation, so taking a second one is sound, and `drop` \
+                      gives it back"
+        )]
+        unsafe {
+            value.retain();
+        }
+        Self { value, array }
+    }
+}
+
+impl std::ops::Deref for Held {
+    type Target = NvsArray;
+
+    fn deref(&self) -> &NvsArray {
+        &self.array
+    }
+}
+
+impl Drop for Held {
+    fn drop(&mut self) {
+        #[expect(
+            unsafe_code,
+            reason = "exactly the reference `Held::new` took, released once"
+        )]
+        unsafe {
+            self.value.release();
+        }
+    }
+}
+
+/// [`subject`], held for the length of a walk that calls back — see [`Held`].
+fn held_subject(args: &[Value], member: &str) -> Result<Held, Fault> {
+    let array = subject(args, member)?;
+    Ok(Held::new(args[0], array))
 }
 
 /// Stores `value` under the key a subject entry already had, taking over its
@@ -4152,7 +4216,7 @@ nvs_runtime::nvs_helper! {
             ))
         })?;
         let by = optional_callback(&args[1], "countBy", "by")?;
-        let subject = borrowed(array);
+        let subject = Held::new(args[0], borrowed(array));
 
         let mut out = NvsArray::new();
         let mut from = 0usize;
@@ -4235,7 +4299,7 @@ nvs_runtime::nvs_helper! {
     /// and the reason this member has no "empty" case to throw on the way
     /// [`nvs_core_arr_sum`] must reason about one.
     fn nvs_core_arr_reduce(ctx, args: [3]) {
-        let base = subject(args, "reduce")?;
+        let base = held_subject(args, "reduce")?;
 
         // The carry is the one value this frame owns across the whole walk.
         // `$initial` belongs to the caller, so it takes a reference of its own
@@ -4401,7 +4465,7 @@ nvs_runtime::nvs_helper! {
     /// Objects are never the key sort's row, so they always take
     /// [`merge_sort`], whose comparison is the fallible one they need.
     fn nvs_core_arr_sort(ctx, args: [5]) {
-        let base = subject(args, "sort")?;
+        let base = held_subject(args, "sort")?;
         let by = optional_callback(&args[1], "sort", "by")?;
         let descending = match args[2].as_int() {
             Some(0) => false,
@@ -4587,7 +4651,7 @@ nvs_runtime::nvs_helper! {
     /// keep their insertion order under either — the same rule, and the same
     /// stability, as the value sort.
     fn nvs_core_arr_sort_by_key(ctx, args: [3]) {
-        let base = subject(args, "sortByKey")?;
+        let base = held_subject(args, "sortByKey")?;
         let descending = match args[1].as_int() {
             Some(0) => false,
             Some(1) => true,
@@ -5003,7 +5067,7 @@ nvs_runtime::nvs_helper! {
     /// this different from `filter` plus `first`, and the reason both members
     /// exist.
     fn nvs_core_arr_find(ctx, args: [2]) {
-        let subject = subject(args, "find")?;
+        let subject = held_subject(args, "find")?;
         Ok(match find_slot(ctx, &subject, args[1], false)? {
             Some(slot) => owned_value_at(&subject, slot),
             None => Value::null(),
@@ -5019,7 +5083,7 @@ nvs_runtime::nvs_helper! {
     /// [`nvs_core_arr_find`] owns the walk; [`nvs_core_arr_first_key`] owns
     /// why the answer is a `string`.
     fn nvs_core_arr_find_key(ctx, args: [2]) {
-        let subject = subject(args, "findKey")?;
+        let subject = held_subject(args, "findKey")?;
         Ok(match find_slot(ctx, &subject, args[1], false)? {
             Some(slot) => owned_key_at(&subject, slot),
             None => Value::null(),
@@ -5033,7 +5097,7 @@ nvs_runtime::nvs_helper! {
     ///
     /// Short-circuits at the first match, and is `false` over an empty array.
     fn nvs_core_arr_any(ctx, args: [2]) {
-        let subject = subject(args, "any")?;
+        let subject = held_subject(args, "any")?;
         let found = find_slot(ctx, &subject, args[1], false)?;
         Ok(Value::bool(found.is_some()))
     }
@@ -5048,7 +5112,7 @@ nvs_runtime::nvs_helper! {
     /// first failure. `true` over an empty array, which is the vacuous answer
     /// PHP's own `array_all` gives.
     fn nvs_core_arr_all(ctx, args: [2]) {
-        let subject = subject(args, "all")?;
+        let subject = held_subject(args, "all")?;
         let failed = find_slot(ctx, &subject, args[1], true)?;
         Ok(Value::bool(failed.is_none()))
     }
@@ -5128,7 +5192,7 @@ nvs_runtime::nvs_helper! {
     /// request-shaped input is a denial of service rather than a slow path.
     /// The cost is one `HashSet` entry per *distinct* value.
     fn nvs_core_arr_unique(ctx, args: [2]) {
-        let subject = subject(args, "unique")?;
+        let subject = held_subject(args, "unique")?;
         let by = optional_callback(&args[1], "unique", "by")?;
 
         // Freed on every exit path, including a throw out of the extractor —
@@ -5597,7 +5661,7 @@ fn set_member(
     member: &str,
     keep_when_present: bool,
 ) -> Result<Value, Fault> {
-    let subject = subject(args, member)?;
+    let subject = held_subject(args, member)?;
     let other = args[1].array_ptr().ok_or_else(|| {
         Fault::fatal(format!(
             "Core\\Arr::{member} expected {:?} for the second array, got tag {}",
@@ -5605,7 +5669,7 @@ fn set_member(
             args[1].tag_byte()
         ))
     })?;
-    let other = borrowed(other);
+    let other = Held::new(args[1], borrowed(other));
     let on = on_of(&args[2], member)?;
     let by = optional_callback(&args[3], member, "by")?;
     let comparator = optional_callback(&args[4], member, "comparator")?;
@@ -5759,7 +5823,7 @@ nvs_runtime::nvs_helper! {
     /// and a ternary are for (`rule:core-api/shape-rules` R17), and the array form is the one
     /// that cannot be written in the language.
     fn nvs_core_arr_min(ctx, args: [1]) {
-        let subject = subject(args, "min")?;
+        let subject = held_subject(args, "min")?;
         extremum(ctx, &subject, std::cmp::Ordering::Less, r"Core\Arr::min")
     }
 }
@@ -5771,7 +5835,7 @@ nvs_runtime::nvs_helper! {
     /// [`nvs_core_arr_min`] owns the ordering, the empty case and the
     /// divergence from PHP's loose comparison.
     fn nvs_core_arr_max(ctx, args: [1]) {
-        let subject = subject(args, "max")?;
+        let subject = held_subject(args, "max")?;
         extremum(ctx, &subject, std::cmp::Ordering::Greater, r"Core\Arr::max")
     }
 }
@@ -8973,6 +9037,72 @@ mod tests {
             Value::int(i64::from_ne_bytes(tags.to_ne_bytes())),
         );
         Value::object(object)
+    }
+
+    std::thread_local! {
+        /// The one reference to the subject [`appends_to_rows`] writes to —
+        /// what a static property is to a program.
+        static ROWS: std::cell::Cell<Value> = const { std::cell::Cell::new(Value::null()) };
+    }
+
+    /// A one-parameter callback that appends its entry to [`ROWS`] and answers
+    /// `true`, the way compiled code writes `Rows::$rows[] = $n`.
+    ///
+    /// It stops appending once [`ROWS`] has 100 entries, so a walk that reads
+    /// its own appends still ends, and the test then fails on the count
+    /// rather than hanging.
+    #[expect(
+        unsafe_code,
+        reason = "the callback ABI hands raw pointers; their ownership is not \
+                  expressible in the signature compiled code calls through"
+    )]
+    unsafe extern "C" fn appends_to_rows(
+        _ctx: *mut Ctx,
+        args: *const Value,
+        out: *mut Value,
+    ) -> i32 {
+        let entry = unsafe { *args.add(1) };
+        ROWS.with(|rows| {
+            let array = rows.get().array_ptr().expect("the test set an array");
+            let mut handle = unsafe { NvsArray::from_raw(array) };
+            if handle.count() < 100 {
+                handle.append(entry);
+            } else {
+                dropped(entry);
+            }
+            rows.set(Value::array(handle));
+        });
+        dropped(unsafe { *args.add(0) });
+        unsafe {
+            *out = Value::bool(true);
+        }
+        nvs_runtime::OK
+    }
+
+    /// A callback that appends to the array it is walking appends to a copy,
+    /// and the walk reads the three entries it started with.
+    ///
+    /// The subject's only other reference is [`ROWS`], as a property's is, so
+    /// a member that only borrowed it would let the append write into the
+    /// array under its cursor and walk each new entry in turn.
+    // covers: Core\Arr::filter
+    #[test]
+    fn a_callback_that_writes_to_the_subject_walks_what_it_started_with() {
+        let mut ctx = Ctx::buffered();
+        ROWS.with(|rows| rows.set(list_of(&[1, 2, 3])));
+        let callback = closure_of(1, appends_to_rows);
+        let subject = ROWS.with(std::cell::Cell::get);
+        let answer = call(super::nvs_core_arr_filter, &mut ctx, &[subject, callback])
+            .expect("the member answered");
+        let rows = ROWS.with(|rows| rows.replace(Value::null()));
+        let kept = answer
+            .array_ptr()
+            .map(|array| super::borrowed(array).count());
+        let written = rows.array_ptr().map(|array| super::borrowed(array).count());
+        dropped(answer);
+        dropped(rows);
+        dropped(callback);
+        assert_eq!((kept, written), (Some(3), Some(6)));
     }
 
     /// What `member` answered over `entries` against [`below_ten`], and how

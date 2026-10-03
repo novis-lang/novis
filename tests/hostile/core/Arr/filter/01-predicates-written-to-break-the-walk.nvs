@@ -1,10 +1,8 @@
 <?nvs
 // Attack: `Core\Arr::filter` runs a function the program wrote, once per entry.
 // Each step below gives it a function written to break the walk. Every step
-// should finish, and the last one should stop the program at its memory limit.
-// The runtime must not crash.
+// should finish, and the runtime must not crash.
 // hostile: timeout-ms 60000
-// hostile: ends-early 4 FATAL
 
 class Attack
 {
@@ -47,12 +45,11 @@ while ($i < 400000) {
 }
 echo 'step 3: ', Core\Arr::count(Core\Arr::filter($wide, fn(int $n) => true)), "\n";
 
-// 4. The function adds an entry to the array being filtered. The walk reaches
-// those entries too, so the program should stop at its memory limit.
-echo "step 4\n";
+// 4. The function adds an entry to the array being filtered. The walk reads the
+// array as it was at the call, so the result has 3 entries and the array has 6.
 Attack::$rows = [1, 2, 3];
-array<int> $endless = Core\Arr::filter(Attack::$rows, fn(int $n): bool => {
+array<int> $kept = Core\Arr::filter(Attack::$rows, fn(int $n): bool => {
     Attack::$rows[] = $n;
     return true;
 });
-echo 'step 4: ', Core\Arr::count($endless), "\n";
+echo 'step 4: ', Core\Arr::count($kept), ' of ', Core\Arr::count(Attack::$rows), "\n";

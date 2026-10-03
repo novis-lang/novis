@@ -1,20 +1,20 @@
 {
-  "state": "**Goal `goal-closeout`, Stage 4 (finished in place).** The gap `case-conversion-builds-its-result-outside-the` is closed. `Core\\Str::lower`, `upper` and `fold` write through `case_mapped` in `crates/nvs-stdlib/src/str.rs`, so the memory limit sees every byte. `lower` keeps the final-sigma rule through `word_final_sigma`, which classifies neighbours with `std`'s own tables by probing `str::to_lowercase`. `lowerFirst` and `upperFirst` already built one exact allocation and owed nothing.\n\n`Core\\Regex\\Match`'s and `Core\\Str`'s perf figures are re-measured.\n\nThe only `nvs-runtime` gap left is `enum-case-that-reached-a-mixed`. It needs an ADR beyond Stage 5's one slot, so it waits for the user. It goes to `BLOCKED` only once it is the last goal-owned gap in the tree.\n\nThe floor check `the latest CI run on main succeeded for the code HEAD holds` is red only because `main` is ahead of `origin/main`, and the loop never pushes. A person has to push.\n\nA change to a `Core` implementation file stales the perf figure of every feature it implements, including sibling groups such as `Core\\Regex\\Match` beside `Core\\Regex`. Re-measure each with `bun nv proofs --record-perf --group <class>`.\n\n`bun nv owners --closes goal-closeout` names the rest, in `nvs-lsp`, `nvs-stdlib`, `nvs-syntax`, `nvs-types`, `editors/vscode` and `website`.",
+  "state": "**Goal `goal-closeout`, Stage 4 (finished in place).** The gap `callback-that-reshapes-the-subject-reshapes` is closed. Every `Core\\Arr` member that calls back into Novis code takes its array arguments through `Held` in `crates/nvs-stdlib/src/arr.rs`, which retains each for the walk, so a callback's write to the subject copies first. The module doc's § *A member that calls back holds what it walks* is the rule and its cost. The Rust test `a_callback_that_writes_to_the_subject_walks_what_it_started_with` is the one `php-oracle-retired`'s `nvs-stdlib-the-m11-decisions-hold` check names, and the hostile case `tests/hostile/core/Arr/filter/01-predicates-written-to-break-the-walk.nvs` step 4 now runs to its end.\n\nThat same check still names two tests that do not exist: `pow_mod_returns_the_least_non_negative_residue` and `a_search_never_matches_inside_a_grapheme`. Both designs are settled in `docs/agent/goals/php-oracle-retired.md` § the three bullets at line 234.\n\nThe only `nvs-runtime` gap left is `enum-case-that-reached-a-mixed`. It needs an ADR beyond Stage 5's one slot, so it waits for the user. It goes to `BLOCKED` only once it is the last goal-owned gap in the tree.\n\nThe floor check `the latest CI run on main succeeded for the code HEAD holds` is red only because `main` is ahead of `origin/main`, and the loop never pushes. A person has to push.\n\nA change to a `Core` implementation file stales the perf figure of every feature it implements. Re-measure each with `bun nv proofs --record-perf --group <class>`.\n\n`bun nv owners --closes goal-closeout` names the rest, in `nvs-lsp`, `nvs-stdlib`, `nvs-syntax`, `nvs-types`, `editors/vscode` and `website`.",
   "next": {
     "stage": 4,
     "title": "finished in place",
     "files": [],
-    "note": "one file set: the next `nvs-stdlib` gap that `bun nv owners --closes goal-closeout` names.",
+    "note": "one file set: `crates/nvs-stdlib/src/bigint.rs` and its conformance cases.",
     "items": [
       {
         "done": false,
-        "text": "**The next `nvs-stdlib` gap** (`rule:errors/on-limit` where it is a memory gap). Run `bun nv owners --closes goal-closeout`, take the first `nvs-stdlib` gap, fix it in its module, delete its record under `data/gaps/nvs-stdlib/`, and re-measure every perf group whose file changed. Start from `crates/nvs-stdlib/src/str.rs:1796` if it is another `Core\\Str` member that builds a `String` before `produced`."
+        "text": "**`powMod` returns the least non-negative residue** (`docs/agent/goals/php-oracle-retired.md` § *`powMod` returns the least non-negative residue*). Fix `crates/nvs-stdlib/src/bigint.rs:1021`, state the negative-receiver result in `POW_MOD_DOC`'s `ret` at `crates/nvs-stdlib/src/bigint.rs:513`, add the Rust test `pow_mod_returns_the_least_non_negative_residue`, a conformance case pinning `Core\\BigInt::of(-3)->powMod(3, 7)` as `1`, delete `data/gaps/nvs-stdlib/powmod-and-pow-followed-by-mod.json`, and re-measure `Core\\BigInt`'s perf."
       }
     ]
   },
   "backlog": [
-    "`regex-matches-allocates-on-every-call` — `Core\\Regex::matches`'s known-gap `allocations 0` line (`data/gaps/`).",
-    "`enum-case-that-reached-a-mixed` — waits for the user (ADR slot).",
-    "The rest of `bun nv owners --closes goal-closeout`, in `nvs-lsp`, `nvs-syntax`, `nvs-types`, `editors/vscode` and `website`."
+    "`a-match-inside-a-character-reports-the-wrong-position` in `crates/nvs-stdlib/src/str.rs`, with the test `a_search_never_matches_inside_a_grapheme` (`php-oracle-retired.md` line 234).",
+    "The rest of `bun nv owners --closes goal-closeout`, one module at a time.",
+    "`enum-case-that-reached-a-mixed` waits for the user's ADR decision."
   ]
 }
