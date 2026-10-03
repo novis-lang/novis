@@ -1,23 +1,17 @@
 {
-  "state": "**Goal `goal-closeout`, Stage 4 (finished in place) is BLOCKED on one gap.** Stage 3 is done.\n\nThe gap `a-task-that-never-waits-outlives-its-groups-deadline` (`data/gaps/nvs-host/`) is Stage 4's \"too large\". Its record names the two answers. **A**, as the rule reads: a per-group stop word that a poll reads, raised by `nvs_host::watchdog`. That thread sweeps every 500 ms and writes nothing on a request path for its benefit, so A needs a design record beyond Stage 5's one slot. **B**, a rule change: `wall_time` only expires the word a member polls inside a long call, so a request that never waits is bounded by `cpu_time` alone. The rule would bound a never-waiting child the same way. Both `cpu_time` and `wall_time` default to no cap (`crates/nvs-config/src/default.toml:69`). The session recommends B: it costs nothing on the request path, and A gives a child a bound its own request does not have.\n\n`[limits] max_tasks` needs no gap: `crates/nvs-config/src/default.toml:72` already states that nothing reads it. Enforcing it needs a decision about what happens at the cap, and a request-wide cap can deadlock nested groups.\n\nThe floor check `the latest CI run on main succeeded for the code HEAD holds` is red only because `main` is ahead of `origin/main`, and the loop never pushes (module doc of `tools/nv/cmd/ci-green.ts`). A person has to push.\n\n`bun nv owners --closes goal-closeout` still names 53 gaps: `nvs-host` (1, this one), `nvs-lsp`, `nvs-runtime` and `nvs-stdlib` the largest, plus `nvs-types`, `editors/vscode` and `website`.",
+  "state": "**Goal `goal-closeout`, Stage 4 (finished in place).** The gap `a-task-that-never-waits-outlives-its-groups-deadline` is closed by the user's answer B: `rule:concurrency/limit-and-deadline-are-the-only-bounds` now says a group's `deadline` is a reactor timer that fires once the core is handed back, and a child that never waits is bounded by its request's `cpu_time`, as the request is. Its record is deleted, `crates/nvs-host/src/group.rs` § 2 states the bound, the `Core\\Task::all` and `Core\\Task::map` `about.md` files say it, and `tests/hostile/core/Task/all/03-tasks-that-never-wait.nvs` ends on the request's CPU limit.\n\nThe floor check `the latest CI run on main succeeded for the code HEAD holds` is red only because `main` is ahead of `origin/main`, and the loop never pushes (module doc of `tools/nv/cmd/ci-green.ts`). A person has to push.\n\n`bun nv owners --closes goal-closeout` names 52 gaps, in `nvs-lsp`, `nvs-runtime`, `nvs-stdlib`, `nvs-types`, `editors/vscode` and `website`.",
   "next": {
-    "stage": 4,
-    "title": "finished in place",
+    "stage": null,
     "files": [],
-    "note": "one file set: the group runner in `nvs-host`, the rule fragment it cites, and the attack that carries the gap's marker. Take the item the user chose and strike the other.",
     "items": [
       {
         "done": false,
-        "text": "**B: a child that never waits is bounded by `cpu_time`, as its request is** — `rule:concurrency/limit-and-deadline-are-the-only-bounds` says so, and its \"`wall_time`, which is finite\" sentence is fixed to match `crates/nvs-config/src/default.toml:70`. The module doc's § 2 at `crates/nvs-host/src/group.rs:60` states the bound, the gap record is deleted, and `tests/hostile/core/Task/all/03-tasks-that-never-wait.nvs` ends on the request's CPU limit."
-      },
-      {
-        "done": false,
-        "text": "**A: a group's deadline stops a child that never waits** — a stop word per group, carried down by `share_safepoint_with` at `crates/nvs-runtime/src/ctx/safepoint.rs:59` and read by `nvs_safepoint`'s cancel branch at `crates/nvs-runtime/src/ctx/safepoint.rs:624`. The watchdog raises it from `Shared::sweep` at `crates/nvs-host/src/watchdog.rs:661`, and `run_as_children` registers it at `crates/nvs-host/src/group.rs:529`. Opens a design record first."
+        "text": "**`nvs-runtime`'s ten gaps, built or struck as stated bounds** — most sit in `crates/nvs-runtime/src/lib.rs:1` (six: the loops that pass the memory and CPU limits, the memory `FATAL`'s reading, `nvs run` with no memory ceiling, an enum case in a `mixed`, the per-byte `Core` call), the rest in `crates/nvs-runtime/src/budget.rs:1`, `crates/nvs-runtime/src/metrics.rs:1`, `crates/nvs-runtime/src/closure.rs:1` and `crates/nvs-runtime/src/object.rs:1`. `bun nv owners --closes goal-closeout` names each record."
       }
     ]
   },
   "backlog": [
-    "The other 52 gaps `bun nv owners --closes goal-closeout` names, one crate per group (`data/gaps/`).",
+    "The other crates' gaps that `bun nv owners --closes goal-closeout` names (`data/gaps/`).",
     "`[limits] max_tasks` bounds nothing (`crates/nvs-config/src/default.toml:72`). Make it a gap only if a goal decides what happens at the cap."
   ]
 }

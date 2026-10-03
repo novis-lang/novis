@@ -47,17 +47,15 @@
 > `rule:testing/feature-proofs` is `bun nv proofs --owed`, and what a crate still owes is a gap
 > record under `data/gaps/` naming its owner.
 >
-> **Blocking:** The run waits on the user for the gap
-> `a-task-that-never-waits-outlives-its-groups-deadline`, whose record names the two answers. Every
-> `spec-*-outstanding.txt` ratchet under `crates/nvs-stdlib/tests/` holds zero keys, and what a
-> shipped feature still owes is a gap record under `data/gaps/` naming its owner. The driver's owner
-> gate refuses to reach a goal while a gap still names it, so no goal walks with its gaps open.
-> Every design call a goal reaches is pre-authorized in its own § *Standing decisions*, and each
-> goal names the numbered ADRs it may open and no others. One standing precondition, and not a
-> block: the goals whose floor carries container-backed checks need a reachable Docker daemon, and
-> the goals directory preflights it per entry rather than letting a session discover it mid-run.
-> Picking every dependency but the two the user named is pre-authorized under
-> `rule:packaging/a-c-dependency-answers-two-questions`.
+> **Blocking:** Every `spec-*-outstanding.txt` ratchet under `crates/nvs-stdlib/tests/` holds zero
+> keys, and what a shipped feature still owes is a gap record under `data/gaps/` naming its owner.
+> The driver's owner gate refuses to reach a goal while a gap still names it, so no goal walks with
+> its gaps open. Every design call a goal reaches is pre-authorized in its own § *Standing
+> decisions*, and each goal names the numbered ADRs it may open and no others. One standing
+> precondition, and not a block: the goals whose floor carries container-backed checks need a
+> reachable Docker daemon, and the goals directory preflights it per entry rather than letting a
+> session discover it mid-run. Picking every dependency but the two the user named is pre-authorized
+> under `rule:packaging/a-c-dependency-answers-two-questions`.
 
 **How the plan relates to the ADRs.** The plan is the record of *what* gets built, in what order, and how
 each milestone is verified. It states decisions but does not argue them. The reasoning lives in
