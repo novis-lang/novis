@@ -256,14 +256,32 @@ One file set: `crates/nvs-server/src/serve.rs`, `crates/nvs-runtime/src/stream.r
   only to a policy that limits scripts; the polyfill and the per-slot overhead stay inside their
   size limits; a
   `later` that sets a header still throws; `Core\Response::slotted()` after the main script throws.
-- **The polyfill's own test** runs it against a DOM: a page where the fills are still templates
-  gets every slot filled once and both markers removed; a page where the browser already applied
-  the fills (no template, or no marker, left) is not changed at all; a fill whose template arrives
-  before the polyfill and one that arrives after it are both filled; calling `_nvs()` twice changes
-  nothing the second time. The repository has no DOM library and no browser test today, so the
-  session adds `happy-dom` as a dev dependency in the root `package.json` for this test alone, and
-  writes it as
-  `tools/nv/test/html-later-polyfill.test.ts` reading the constant from the Rust source.
+- **The polyfill's own test runs in a real browser, through Playwright, kept as small as it can
+  be.** The repository has no browser test today. The session adds `playwright-core` as a dev
+  dependency in the root `package.json` (the library alone, not the `@playwright/test` runner) and
+  installs one browser, Chromium's headless shell (`playwright install chromium --only-shell`).
+  No other browser is downloaded. The test is `tools/nv/test/html-later-polyfill.test.ts`, run by
+  `bun test`; if Playwright does not launch under Bun, the session runs the same file under Node
+  and says so in the module doc.
+  - **Two browsers from one download.** The same Chromium is launched twice: with
+    `--enable-experimental-web-platform-features`, where `<template for>` is native (Chrome 148
+    and later), and without it, where it is not.
+  - **Each run proves which browser it is first.** A page with a placeholder and a fill but no
+    polyfill must be filled in the native run and left alone in the other. If either is not true
+    — a Playwright update brought a Chromium older than 148, or one where the feature is on by
+    default — the test fails and names the reason, and never passes in a way that tests nothing.
+    When the feature ships enabled in Chromium, the second browser becomes Chromium with the
+    feature turned off by its own flag, or Firefox, and that is the user's call.
+  - **What it asserts, in both browsers:** every slot is filled once and its markers are gone; a
+    fill whose template arrives before the polyfill and one that arrives after it are both filled;
+    calling `_nvs()` again changes nothing; in the native run, the polyfill changes nothing the
+    browser already did.
+  - **The page is streamed for real.** The test serves the shell and the fills from `Bun.serve` as
+    separate chunks with a pause between them, using the polyfill and trigger constants read from
+    the Rust source, so arriving late is tested and not simulated.
+  - **The browser is downloaded only when it is needed.** The check is selected by `bun nv
+    affected` only when the polyfill constant or this test changes, and the download lands in
+    Playwright's own cache, never in the tree.
 
 ## Stage 4 — tests, the editor and the help
 
@@ -319,9 +337,10 @@ One file set: `crates/nvs-stdlib/src/test.rs`, `crates/nvs-lsp/src/completion.rs
   with a fill, acts only where the browser did not, uses the identical `_nvs()` trigger after each
   fill and no MutationObserver, and stays within two size limits a test enforces: 1 KB for the
   polyfill, 120 bytes of overhead per slot. Slot names carry a 96-bit token in 16 characters.
+  **The polyfill is tested in a real browser** through Playwright, as small as possible: one
+  Chromium download, launched once with native `<template for>` and once without.
 - **My calls, not yet confirmed by the user:** the option names `placeholder`, `error` and
-  `deadline`; the closure returning `void` or `Markup`; `happy-dom` as a dev dependency for the
-  polyfill's test;
+  `deadline`; the closure returning `void` or `Markup`;
   cancelling a `later` whose placeholder is never written; `LogicError` for a placeholder written
   twice; the optional per-call `deadline` with no default; Novis's own polyfill and its CSP
   hashes; holding back `</body></html>`; nothing sent before the main script ends; after-response

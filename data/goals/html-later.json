@@ -174,7 +174,7 @@
       "id": "the-polyfill-acts-only-where-the-browser-did-not",
       "kind": "command",
       "stage": 3,
-      "name": "the polyfill fills each slot once, changes nothing the browser already applied, and changes nothing on a second call",
+      "name": "in Chromium with and without native `<template for>`, the polyfill fills each slot once, changes nothing the browser already applied, and changes nothing on a second call",
       "argv": [
         "bun",
         "test",
