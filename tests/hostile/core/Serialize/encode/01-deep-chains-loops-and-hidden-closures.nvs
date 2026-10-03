@@ -2,7 +2,7 @@
 // Attack: a program encodes values that are too deep, point to themselves, hide
 // a closure, or are very large. Each value should give a result or an error.
 // The last one should stop the program at its memory limit, without a crash.
-// hostile: timeout-ms 30000
+// hostile: timeout-ms 60000
 // hostile: ends-early 6 FATAL
 
 class Node

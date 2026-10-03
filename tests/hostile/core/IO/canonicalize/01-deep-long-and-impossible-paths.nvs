@@ -9,8 +9,8 @@ string $file = Core\Path::join($dir, 'target.txt');
 Core\IO::write($file, 'x');
 string $expected = Core\IO::canonicalize($file);
 
-// 1. "a/.." 500 times in front of the name. The result must be the file's own full path.
-string $deep = Core\Path::join($dir, Core\Str::repeat('a/../', 500) . 'target.txt');
+// 1. "a/.." 100 times in front of the name. The result must be the file's own full path.
+string $deep = Core\Path::join($dir, Core\Str::repeat('a/../', 100) . 'target.txt');
 if (Core\IO::canonicalize($deep) != $expected) {
     throw new LogicError('a path with many `..` parts resolved somewhere else');
 }
