@@ -1,0 +1,32 @@
+{
+  "state": "**Goal `disconnect-completes` — a request whose client went away runs to its end, and a method can be set to cancel instead — has not started; nothing of it has landed yet.** No floor is carried: goal `goal-closeout` made a finished goal deleted, and the suites and `nv verify` are the floor.\n\nThe design is the user's (completion by default for every method, cancellation per method in `nvs.toml`) plus calls of mine the goal file lists as unconfirmed. Today `Peer::drop` abandons every request whose connection drops; that path stays for a listed method.",
+  "next": {
+    "stage": 2,
+    "title": "the two keys",
+    "files": [
+      "crates/nvs-config/src/default.toml",
+      "crates/nvs-config/src/tree.rs",
+      "crates/nvs-config/src/value.rs",
+      "crates/nvs-config/src/app.rs"
+    ],
+    "items": [
+      {
+        "done": false,
+        "text": "**The decision record**, from the goal's § *Standing decisions*, rewriting `rule:http-server/an-abandoned-request-is-cancelled-at-the-drop` and `rule:concurrency/cancellation-runs-no-user-code` — `docs/rules/http-server/an-abandoned-request-is-cancelled-at-the-drop.md:3`, `docs/rules/concurrency/cancellation-runs-no-user-code.md:7`."
+      },
+      {
+        "done": false,
+        "text": "**`cancel_on_disconnect` and `disconnect_grace`** in `[limits]` and `[app.limits]`, read where `max_regex_steps` is read — `crates/nvs-config/src/default.toml:70`, `crates/nvs-config/src/tree.rs`, `crates/nvs-config/src/value.rs`, `crates/nvs-config/src/app.rs`."
+      },
+      {
+        "done": false,
+        "text": "**The Stage 2 tests** — the seven names in the goal record's `nvs-config-the-disconnect-keys-are-read-and-refused` check, in `crates/nvs-config/src/tree.rs`."
+      }
+    ]
+  },
+  "backlog": [
+    "**Stage 3: the server** — `Peer::drop` detaches, the admission place goes with it, the grace and the drain bound it; `crates/nvs-server/src/serve.rs:964`.",
+    "**Stage 4: the proofs** — a new `# When the client goes away` section in `docs/reference/tools/25-server.md` and its feature proofs.",
+    "When this goal's last check goes green the driver deletes it and takes goal `performance-pass`."
+  ]
+}
