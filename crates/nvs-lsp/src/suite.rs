@@ -265,7 +265,9 @@ pub(crate) fn answer(case: &Case) -> Result<Answered, String> {
     let analysed = analyse(&documents, &entry)
         .ok_or_else(|| "the case's document could not be analysed".to_owned())?;
     let response = match case.request {
-        Request::Diagnostics => diagnostics(&analysed, case.args.phase_all),
+        Request::Diagnostics => {
+            diagnostics(&analysed, &documents, &files, &entry, case.args.phase_all)
+        }
         Request::Hover => hover(&analysed, at(case)),
         Request::Definition => definition(&analysed, &files, at(case)),
         Request::Completion => completion(&analysed, &documents, &files, case, at(case)),
@@ -443,18 +445,32 @@ fn open(documents: &mut Documents, path: &Path, text: &str) -> Result<Uri, Strin
 /// read with the filter switched off, which is what pins
 /// `rule:ide/diagnostics-are-phase-gated` from the side that would otherwise be
 /// invisible: what the gate holds back.
-fn diagnostics(analysed: &Analysed, phase_all: bool) -> Response {
+///
+/// The dimming the server publishes beside them is appended the same way
+/// ([`crate::server::dimming_of_case`]), so an unused import or private member
+/// is frozen in the case that writes one.
+fn diagnostics(
+    analysed: &Analysed,
+    documents: &Documents,
+    files: &Materialised,
+    entry: &Uri,
+    phase_all: bool,
+) -> Response {
     let phases = if phase_all {
         Phases::All
     } else {
         Phases::Gated
     };
-    Response::Diagnostics(for_document(
+    let mut published = for_document(
         analysed,
         &crate::completion_files::CompletionFiles::default(),
         phases,
         COLUMNS,
-    ))
+    );
+    published.extend(crate::server::dimming_of_case(
+        documents, analysed, &files.dir, entry, COLUMNS,
+    ));
+    Response::Diagnostics(published)
 }
 
 /// `textDocument/documentSymbol` — the entry document's outline.

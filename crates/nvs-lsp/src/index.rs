@@ -72,12 +72,12 @@
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
-use nvs_diagnostics::{BytePos, SourceFile, Span, canonical_key};
+use nvs_diagnostics::{BytePos, Diagnostics, SourceFile, Span, canonical_key};
 use nvs_hir::{Loaded, QName, SymbolKind};
 use nvs_syntax::ast::{
-    ClassMember, ClassMemberKind, Modifier, Stmt, StmtKind, Type, TypeAtom, TypeKind,
+    ClassMember, ClassMemberKind, Modifier, NamespaceDecl, Stmt, StmtKind, Type, TypeAtom, TypeKind,
 };
-use nvs_syntax::walk;
+use nvs_syntax::{Token, TokenKind, tokenize, walk};
 use nvs_types::ExprInfo;
 
 use crate::definition::{
@@ -268,6 +268,26 @@ pub struct Occurrence {
     pub site: Site,
 }
 
+/// One `use` import, and whether any name in its file reads it.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct Import {
+    /// The name it imports, fully qualified.
+    pub symbol: String,
+    /// Where its path was written.
+    pub site: Site,
+    /// Whether a short name written in the same namespace scope spells the
+    /// name this import binds.
+    ///
+    /// Read off the file's tokens rather than off [`Occurrence`]s, because an
+    /// occurrence is recorded for an expression or a clause and a type
+    /// annotation is neither: an import only a parameter type names has no
+    /// occurrence and is still read. The token reading errs one way only. A
+    /// method or a property spelled like the import counts as a read, so an
+    /// import can stay undimmed while unused, and an import a name needs is
+    /// never dimmed.
+    pub read: bool,
+}
+
 /// One file, as the analysis that reached it read it.
 #[derive(Debug)]
 struct Indexed {
@@ -275,6 +295,8 @@ struct Indexed {
     decls: Vec<Declaration>,
     /// Every resolved use written here, in source order.
     occurrences: Vec<Occurrence>,
+    /// Every `use` import written here, in source order.
+    imports: Vec<Import>,
     /// Every file that analysis read, this one included — the edge
     /// [`SymbolIndex::invalidate`] follows.
     reads: Vec<PathBuf>,
@@ -379,6 +401,21 @@ impl SymbolIndex {
             .iter()
             .filter(|declared| declared.visibility == Visibility::Private)
             .filter(|declared| self.occurrences(&declared.symbol).is_empty())
+            .collect()
+    }
+
+    /// The `use` imports in `path` that no name in their scope reads.
+    ///
+    /// A file's own question, unlike [`Self::unused_private`]'s: an import
+    /// binds a short name for the namespace scope it is written in, and
+    /// nothing outside that file can read it.
+    #[must_use]
+    pub fn unused_imports(&self, path: &Path) -> Vec<&Import> {
+        self.files
+            .get(&canonical_key(path))
+            .map_or(&[][..], |indexed| indexed.imports.as_slice())
+            .iter()
+            .filter(|import| !import.read)
             .collect()
     }
 
@@ -586,6 +623,7 @@ impl SymbolIndex {
             let indexed = Indexed {
                 decls: declarations(&analysed, loaded, &key),
                 occurrences: occurrences(&analysed, loaded, &key),
+                imports: imports(&analysed, loaded, &key),
                 reads: reads.clone(),
                 entry: canonical_key(entry),
             };
@@ -1069,6 +1107,99 @@ fn named(node: &walk::Node) -> Span {
     }
     .unwrap_or(node);
     written.name.unwrap_or(written.span)
+}
+
+/// Every `use` import one file of an analysis writes, each with whether a name
+/// in its scope reads it.
+///
+/// A name reads an import when it is an identifier spelled as the import's last
+/// segment, in the same namespace scope, outside every `use` statement. An
+/// identifier beside a `\` is part of a qualified name, and
+/// `rule:statements/a-qualified-name-is-absolute` makes that one consult no
+/// import at all. [`Import::read`] says which way this reading errs.
+fn imports(analysed: &Analysed, loaded: &Loaded, path: &Path) -> Vec<Import> {
+    let file = analysed.map.file(loaded.id);
+    // The file parsed already, so lexing it again reports nothing new.
+    let tokens = tokenize(file, &mut Diagnostics::new());
+    let end = BytePos::try_from(file.text().len()).unwrap_or(BytePos::MAX);
+    let scopes = namespace_scopes(&loaded.stmts, end);
+    let mut statements = Vec::new();
+    use_statements(&loaded.stmts, &mut statements);
+
+    analysed
+        .module
+        .imports
+        .iter()
+        .filter(|import| import.span.file == loaded.id)
+        .map(|import| {
+            let scope = scope_of(&scopes, import.span.start);
+            let read = tokens.iter().enumerate().any(|(at, token)| {
+                token.kind == TokenKind::Ident
+                    && text_of(file, token.span) == import.short_name
+                    && scope_of(&scopes, token.span.start) == scope
+                    && !statements
+                        .iter()
+                        .any(|used| covers(*used, token.span.start))
+                    && !beside_a_backslash(&tokens, at)
+            });
+            Import {
+                symbol: import.target.to_string(),
+                site: site(path, import.span),
+                read,
+            }
+        })
+        .collect()
+}
+
+/// The byte ranges a `use` binds its short name over: one per bracketed
+/// `namespace { … }` block, and one per run of statements a `namespace Name;`
+/// statement starts, with the run before the first one included.
+fn namespace_scopes(stmts: &[Stmt], end: BytePos) -> Vec<(BytePos, BytePos)> {
+    let mut scopes = Vec::new();
+    let mut start = 0;
+    for stmt in stmts {
+        if let StmtKind::NamespaceDecl(NamespaceDecl { body, .. }) = &stmt.kind {
+            if body.is_some() {
+                scopes.push((stmt.span.start, stmt.span.end));
+            } else {
+                scopes.push((start, stmt.span.start));
+                start = stmt.span.start;
+            }
+        }
+    }
+    scopes.push((start, end));
+    scopes
+}
+
+/// The narrowest scope that holds `at`, so a bracketed block wins over the run
+/// of statements around it.
+fn scope_of(scopes: &[(BytePos, BytePos)], at: BytePos) -> Option<(BytePos, BytePos)> {
+    scopes
+        .iter()
+        .copied()
+        .filter(|&(start, end)| start <= at && at < end)
+        .min_by_key(|&(start, end)| end - start)
+}
+
+/// Every `use` statement in `stmts` and in the bracketed namespaces among them.
+fn use_statements(stmts: &[Stmt], found: &mut Vec<Span>) {
+    for stmt in stmts {
+        match &stmt.kind {
+            StmtKind::UseDecl(_) => found.push(stmt.span),
+            StmtKind::NamespaceDecl(NamespaceDecl {
+                body: Some(block), ..
+            }) => use_statements(&block.stmts, found),
+            _ => {}
+        }
+    }
+}
+
+/// Whether the token at `at` has a `\` on either side, which makes it one
+/// segment of a qualified name.
+fn beside_a_backslash(tokens: &[Token], at: usize) -> bool {
+    let backslash = |token: Option<&Token>| token.is_some_and(|it| it.kind == TokenKind::Backslash);
+    backslash(at.checked_sub(1).and_then(|before| tokens.get(before)))
+        || backslash(tokens.get(at + 1))
 }
 
 /// A span of one file, as a site the index can keep.

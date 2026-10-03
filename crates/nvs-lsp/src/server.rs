@@ -1280,6 +1280,30 @@ pub(crate) fn lenses_of_case(
     code_lens(documents, &index, &settings, encoding, uri)
 }
 
+/// [`dimming`] for one `.lspt` case, over an index built for that case alone
+/// and for [`lenses_of_case`]'s reason, so a `diagnostics` case publishes what
+/// [`publish`] would.
+pub(crate) fn dimming_of_case(
+    documents: &Documents,
+    analysed: &Analysed,
+    root: &Path,
+    uri: &Uri,
+    encoding: PositionEncoding,
+) -> Vec<lsp_types::Diagnostic> {
+    let Some(path) = path_of(uri) else {
+        return Vec::new();
+    };
+    let settings = case_settings(root);
+    let index = SymbolIndex::build(documents, settings.scope, settings.root.as_deref());
+    dimming(
+        &index.unused_private(&path),
+        &index.unused_imports(&path),
+        settings.scope,
+        analysed,
+        encoding,
+    )
+}
+
 /// [`completion`] for one `.lspt` case, over an index built for that case
 /// alone and for [`lenses_of_case`]'s reason. No completion file is read for a
 /// case: a case's folder holds none.
@@ -2055,6 +2079,7 @@ fn publish(
         if let Some(path) = path_of(&uri).filter(|_| !stub) {
             diagnostics.extend(dimming(
                 &index.unused_private(&path),
+                &index.unused_imports(&path),
                 scope,
                 &analysed,
                 encoding,

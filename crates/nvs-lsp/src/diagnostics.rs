@@ -60,7 +60,7 @@ use nvs_syntax::string_lit::cook_string_literal;
 use crate::arguments;
 use crate::completion_files::{CompletionFiles, Value};
 use crate::document::Analysed;
-use crate::index::{CheckScope, Declaration};
+use crate::index::{CheckScope, Declaration, Import};
 use crate::position::position_at;
 
 /// The bands whose error means this file's tree is broken, so what the phases
@@ -287,7 +287,8 @@ fn deprecated_value(
 }
 
 /// The dimming an editor is sent for one document: one `Unnecessary` tag per
-/// private declaration in it that nothing in the index refers to.
+/// private declaration in it that nothing in the index refers to, and one per
+/// `use` import that no name in its scope reads.
 ///
 /// **Silent at open scope**, and that is the rule rather than a shortcut.
 /// `rule:ide/check-scope-defaults-to-the-workspace`'s `"open"` indexes the open
@@ -296,8 +297,9 @@ fn deprecated_value(
 /// index does not span the workspace the honest answer is nothing at all,
 /// rather than a guess a client renders in grey.
 ///
-/// `unused` is the answer to *which* declarations, which is
-/// [`crate::SymbolIndex::unused_private`]'s, and this is the crossing to the
+/// `unused` and `imports` are the answer to *which* names, which is
+/// [`crate::SymbolIndex::unused_private`]'s and
+/// [`crate::SymbolIndex::unused_imports`]'s, and this is the crossing to the
 /// wire — the same split [`for_document`] makes between the gate and
 /// [`to_wire`].
 ///
@@ -307,6 +309,7 @@ fn deprecated_value(
 #[must_use]
 pub fn dimming(
     unused: &[&Declaration],
+    imports: &[&Import],
     scope: CheckScope,
     analysed: &Analysed,
     encoding: PositionEncoding,
@@ -315,27 +318,40 @@ pub fn dimming(
         return Vec::new();
     }
     let file = analysed.map.file(analysed.entry);
-    unused
-        .iter()
-        .map(|declared| lsp_types::Diagnostic {
-            range: Range::new(
-                position_at(file, declared.site.start, encoding),
-                position_at(file, declared.site.end, encoding),
-            ),
-            // A hint, so an editor fades the name rather than listing it
-            // beside the errors: nothing here is wrong, and a private member
-            // written before its first caller is an ordinary minute of work.
-            severity: Some(DiagnosticSeverity::HINT),
-            tags: Some(vec![DiagnosticTag::UNNECESSARY]),
-            source: Some(SOURCE.to_owned()),
-            message: format!(
+    let faded = |site: &crate::Site, message: String| lsp_types::Diagnostic {
+        range: Range::new(
+            position_at(file, site.start, encoding),
+            position_at(file, site.end, encoding),
+        ),
+        // A hint, so an editor fades the name rather than listing it beside
+        // the errors: nothing here is wrong, and a private member written
+        // before its first caller is an ordinary minute of work.
+        severity: Some(DiagnosticSeverity::HINT),
+        tags: Some(vec![DiagnosticTag::UNNECESSARY]),
+        source: Some(SOURCE.to_owned()),
+        message,
+        ..lsp_types::Diagnostic::default()
+    };
+    let members = unused.iter().map(|declared| {
+        faded(
+            &declared.site,
+            format!(
                 "{} `{}` is private and nothing in this workspace uses it",
                 declared.kind.describe(),
                 declared.symbol
             ),
-            ..lsp_types::Diagnostic::default()
-        })
-        .collect()
+        )
+    });
+    let imported = imports.iter().map(|import| {
+        faded(
+            &import.site,
+            format!(
+                "`{}` is imported and nothing in this file uses it",
+                import.symbol
+            ),
+        )
+    });
+    members.chain(imported).collect()
 }
 
 /// What a diagnostic's `source` field says produced it.

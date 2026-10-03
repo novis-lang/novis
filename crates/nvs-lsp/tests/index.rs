@@ -229,12 +229,24 @@ fn all_five_readers_query_the_one_index() {
     let readers: [(&str, &[&str]); 5] = [
         ("textDocument/references", &["occurrences", "declaration"]),
         ("textDocument/documentHighlight", &["occurrences_in"]),
-        ("textDocument/codeLens", &["declarations_in", "occurrences"]),
+        (
+            "textDocument/codeLens",
+            &[
+                "declarations_in",
+                "occurrences",
+                "subtypes",
+                "overridden",
+                "overriders",
+            ],
+        ),
         (
             "textDocument/prepareTypeHierarchy",
             &["supertypes", "subtypes"],
         ),
-        ("unused-member dimming", &["unused_private"]),
+        (
+            "unused-member dimming",
+            &["unused_private", "unused_imports"],
+        ),
     ];
 
     let mut queried: BTreeSet<&str> = BTreeSet::new();
