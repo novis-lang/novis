@@ -1,24 +1,22 @@
 {
-  "state": "**Goal `goal-closeout`, Stage 4 (finished in place).** An unused `use` import is now dimmed. `SymbolIndex` records every import a file writes as an `Import` with a `read` flag, and `SymbolIndex::unused_imports` is the query beside `unused_private`. `read` comes from the file's tokens: an identifier spelled as the import's short name, in the same namespace scope, outside every `use` statement and not beside a `\\`. That covers type annotations, which no occurrence records, and it errs only towards keeping an import. `dimming` in `crates/nvs-lsp/src/diagnostics.rs` writes a second message for an import. A `.lspt` `diagnostics` case now appends the same dimming the server publishes (`server::dimming_of_case`), and `tests/lsp/diagnostics/an-import-nothing-reads-is-dimmed.lspt` freezes one import kept by a parameter type beside one dimmed. Gap `an-unused-use-is-never-dimmed` is deleted.\n\n**No session stops on `BLOCKED` before the goal end.** A question for the user goes in the goal prose's § *Questions for the user at the goal end*, and the session carries on. Three questions are there.\n\n`crates/nvs-cli/tests/footprint.rs:71` failed once beside the other test binaries and passed alone. Not chased.\n\nThe floor check `the latest CI run on main succeeded for the code HEAD holds` is red because `main` is ahead of `origin/main`. That is expected: it leaves with goal `ci-green`'s record in Stage 6, and nobody pushes for it.\n\n`bun nv owners --closes goal-closeout` names 19 gaps in `nvs-lsp`, `nvs-stdlib`, `nvs-types`, `nvs-runtime` and `website`.",
+  "state": "**Goal `goal-closeout`, Stage 4 (finished in place).** An enum case in a tagged value now carries an enum tag of its own: `Tag::EnumInt` (8) and `Tag::EnumUint` (9) in `crates/nvs-runtime/src/value.rs`, decided by ADR 0261 and stated in `rule:enums/representation`. `Value::tag` still reads a case as its backing integer for every payload reader. `Value::exact_tag` is what a condition, a closure parameter's check, a declared slot's write check and the `array<T>` element walk read. `nvs_codegen::ty::tag_of` and `nvs_ir::lower::param_tag_nibble` answer the enum tags, so the compiled `is` test tells a case from an `int`. Gap `enum-case-that-reached-a-mixed` is deleted.\n\n**No session stops on `BLOCKED` before the goal end.** A question for the user goes in the goal prose's § *Questions for the user at the goal end*, and the session carries on. Three questions are there.\n\n`crates/nvs-cli/tests/footprint.rs:71` failed once beside the other test binaries and passed alone. Not chased.\n\nThe floor check `the latest CI run on main succeeded for the code HEAD holds` is red because `main` is ahead of `origin/main`. That is expected: it leaves with goal `ci-green`'s record in Stage 6, and nobody pushes for it.\n\n`bun nv owners --closes goal-closeout` names 18 gaps in `nvs-lsp`, `nvs-stdlib`, `nvs-types` and `website`.",
   "next": {
     "stage": 4,
     "title": "finished in place",
     "files": [
-      "crates/nvs-runtime/src/helpers.rs",
-      "crates/nvs-runtime/src/value.rs",
-      "docs/rules/enums/"
+      "crates/nvs-stdlib/src/script.rs",
+      "docs/rules/observability/script-on-exit.md",
+      "tests/conformance/core/"
     ],
     "items": [
       {
         "done": false,
-        "text": "**An enum case in a `mixed` carries its own runtime tag** — gap `enum-case-that-reached-a-mixed`, decided in the goal's § *Standing decisions* (the enum tag). Write the one decision record (next free ADR number, re-read before claiming), rewrite `rule:enums/representation` whole, and spend the reserved tag in `crates/nvs-runtime/src/value.rs:199`. `value_truthy` at `crates/nvs-runtime/src/helpers.rs:2983` then judges a tagged case truthy (`rule:enums/truthiness`). Add a `.nvst` case where a case backed by `0` passes through an `array<mixed>` and is truthy, then delete the gap record."
+        "text": "**`Script\\ExitReport` gains `memoryPeak()`** — gap `an-exit-report-has-no-memory-peak`, specified by `rule:observability/script-on-exit` (its signature block at `docs/rules/observability/script-on-exit.md:15`). The class is at `crates/nvs-stdlib/src/script.rs:282`. Read the peak mark `Core\\Budget::memoryPeak` reads (`rule:observability/a-memory-peak-is-recorded-not-asked-for`) when the exit queue drains, add a conformance case under `tests/conformance/core/`, then delete the gap record."
       }
     ]
   },
   "backlog": [
-    "`a-callable-has-no-bind-bindto-or-call` — `crates/nvs-types/src/expr/calls.rs`, gap record under `data/gaps/nvs-types/`.",
-    "`an-isolate-result-output-is-typed-string` — `crates/nvs-types/src/expr/isolate.rs`.",
-    "`route-name-and-directive-completion-are-unbuilt` — `crates/nvs-lsp/src/completion.rs`; the `nvs.toml` half waits on a question in the goal prose.",
-    "The remaining `nvs-stdlib` and `website` gaps — `bun nv owners --closes goal-closeout`."
+    "The 17 other gaps `bun nv owners --closes goal-closeout` names; each record says what closes it.",
+    "`Core\\Reflect`'s type kind reports a case in a `mixed` as `int` or `uint` (`crates/nvs-stdlib/src/reflect.rs`, `kind_of`). No rule asks for an `enum` kind yet."
   ]
 }
