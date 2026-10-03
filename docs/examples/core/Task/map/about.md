@@ -8,7 +8,9 @@ kind, such as checking many web addresses or loading many files.
 
 If one call throws an error, the other calls are stopped, and `map` throws that error. The option
 `limit` sets how many calls run at the same time. The option `deadline` is a time limit for the
-whole call. When it runs out, the call throws a `TimeoutError`.
+whole call. When it runs out, the call throws a `TimeoutError`. The deadline is checked while the
+calls wait. A call that never waits, such as an endless loop, is stopped by the request's `cpu_time`
+limit instead.
 
 **The examples below** show that the order stays the same, a function that uses the key, and many
 links checked with a limit and a time limit.

@@ -1,28 +1,29 @@
 <?nvs
-// Attack: two tasks count in a loop that never ends and never waits. The call has
-// a time limit of 50 milliseconds, so it should stop both tasks and throw a
-// `TimeoutError`.
+// Attack: two tasks count in a loop that never ends and never waits. The deadline
+// of the call does not stop them, because it is checked only while tasks wait.
+// The CPU limit of the request should stop them, and the program should end there.
 // hostile: timeout-ms 5000
-// proof: gap nvs-host/a-task-that-never-waits-outlives-its-groups-deadline
+// hostile: ends-early 2 FATAL
 
-try {
-    var $busy = Core\Task::all({
-        a: fn (): uint => {
-            uint $n = 0;
-            while (true) {
-                $n = $n + 1;
-            }
-            return $n;
-        },
-        b: fn (): uint => {
-            uint $n = 0;
-            while (true) {
-                $n = $n + 1;
-            }
-            return $n;
-        },
-    }, { deadline: 50ms });
-    echo 'never: ', $busy->a, "\n";
-} catch (TimeoutError $stopped) {
-    echo "stopped at the time limit\n";
-}
+// 1. Lowers the CPU limit of this request to 200 milliseconds.
+echo 'CPU limit: ', Core\Config::set('limits.cpu_time', '200ms') ? 'lowered' : 'not changed', "\n";
+
+// 2. Starts the two tasks with a deadline of 50 milliseconds.
+echo "step 2\n";
+var $busy = Core\Task::all({
+    a: fn (): uint => {
+        uint $n = 0;
+        while (true) {
+            $n = $n + 1;
+        }
+        return $n;
+    },
+    b: fn (): uint => {
+        uint $n = 0;
+        while (true) {
+            $n = $n + 1;
+        }
+        return $n;
+    },
+}, { deadline: 50ms });
+echo 'never: ', $busy->a, "\n";

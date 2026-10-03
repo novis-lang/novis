@@ -7,7 +7,9 @@ waits is then the time of the slowest one, not the total of all of them.
 
 If one closure throws an error, the other closures are stopped, and the call throws that error.
 The option `limit` sets how many closures run at the same time. The option `deadline` is a time
-limit for the whole call. When it runs out, the call throws a `TimeoutError`.
+limit for the whole call. When it runs out, the call throws a `TimeoutError`. The deadline is checked
+while the closures wait. A closure that never waits, such as an endless loop, is stopped by the
+request's `cpu_time` limit instead.
 
 **The examples below** show two results used together, an error from one of the tasks, and a
 dashboard loaded with a time limit.
