@@ -9,6 +9,8 @@
       "crates/nvs-server/src/admit.rs",
       "crates/nvs-host/src/worker.rs",
       "crates/nvs-runtime/src/host.rs",
+      "crates/nvs-runtime/src/stream.rs",
+      "crates/nvs-stdlib/src/response.rs",
       "crates/nvs-config/src/default.toml",
       "crates/nvs-config/src/tree.rs",
       "crates/nvs-config/src/value.rs",
@@ -127,6 +129,21 @@
         "the_drain_waits_for_a_disconnected_request",
         "a_client_disconnect_leaves_no_isolate_behind",
         "a_disconnected_clients_isolates_are_left_behind_on_no_core"
+      ]
+    },
+    {
+      "id": "nvs-stdlib-a-stream-write-to-a-gone-client-returns",
+      "kind": "cargo-named",
+      "stage": 3,
+      "name": "nvs-stdlib (`Core\\Response\\Stream::write` returns without throwing once the client has gone, after a close and after a send timeout)",
+      "args": [
+        "test",
+        "-p",
+        "nvs-stdlib"
+      ],
+      "tests": [
+        "a_stream_write_after_the_client_left_returns_without_throwing",
+        "a_stream_write_after_the_send_timeout_returns_without_throwing"
       ]
     },
     {

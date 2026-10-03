@@ -70,6 +70,10 @@ behaviour and not before:
 - `crates/nvs-config/src/default.toml` — the two new keys under `[limits]` and `[app.limits]`.
 - `docs/reference/tools/25-server.md` and `docs/reference/tools/30-php-differences.md`, neither of
   which says anything about a disconnect today.
+- `crates/nvs-stdlib/src/response.rs:596-611` — `STREAM_WRITE_DOC`'s `RuntimeError` row and its
+  `ret` line ("the part has been given to the connection"), and
+  `docs/examples/core/Response-Stream/write/about.md:6-7` ("`write` throws a `RuntimeError`"). The
+  generated `docs/novis.md` follows from the card.
 
 The stage closes with the same search it opens with:
 `grep -rn "disconnect\|abandon\|goes away\|client.*gone" docs/rules docs/reference crates/nvs-server crates/nvs-host crates/nvs-runtime`,
@@ -111,7 +115,8 @@ One file set: `crates/nvs-config/src/default.toml`, `crates/nvs-config/src/tree.
 with no `wall_time` is cancelled once `disconnect_grace` has passed.
 
 One file set: `crates/nvs-server/src/serve.rs`, `crates/nvs-server/src/admit.rs`,
-`crates/nvs-host/src/worker.rs`, `crates/nvs-runtime/src/host.rs`.
+`crates/nvs-host/src/worker.rs`, `crates/nvs-runtime/src/host.rs`, `crates/nvs-runtime/src/stream.rs`,
+`crates/nvs-stdlib/src/response.rs`.
 
 - **The drop detaches instead of abandoning.** `Peer::drop` (`serve.rs:964`) and the end of
   `serve_connection` for a `Streamed` request read the request's method against
@@ -135,6 +140,17 @@ One file set: `crates/nvs-server/src/serve.rs`, `crates/nvs-server/src/admit.rs`
   response, buffered or streamed, succeeds and its bytes are thrown away. Nothing throws because
   the client left. `Core\Sse` and a WebSocket are upgraded connections and not requests: they keep
   their behaviour and are not under these keys.
+- **`Core\Response\Stream::write` stops throwing when the client has gone.** Today it throws
+  `RuntimeError` when the client closed the connection or did not read a part before the send
+  timeout (`crates/nvs-stdlib/src/response.rs:607-611`, and the test
+  `a_write_whose_reader_has_gone_is_refused_rather_than_parked` at `response.rs:2327`). From this
+  goal on, both cases are the client having gone: the server closes the connection at the send
+  timeout, and from then on every `write` returns at once and its part is thrown away. It does not
+  park, so a script that streams after its client left spends no time waiting on a socket. The
+  `RuntimeError` row leaves the reference card, the test is rewritten to assert that the write
+  returns and nothing is kept, and a script that streams without end is stopped by its `wall_time`,
+  the grace, or `cancel_on_disconnect` — never by the throw. A listed method is cancelled at the
+  disconnect as today, so the question of what its next `write` does never arises.
 - **After-response work.** The request's frame returns, so `Core\Task::afterResponse` work runs,
   as `rule:concurrency/after-response-outlives-the-connection` already says. Today a disconnect
   before that return cancels it, and now it does not.
@@ -149,7 +165,8 @@ One file set: `crates/nvs-server/src/serve.rs`, `crates/nvs-server/src/admit.rs`
   something that never answers, a request with a `wall_time` runs past the grace up to its
   `wall_time`, a request that clears its `wall_time` after the disconnect is still cancelled at the
   grace, the admission place stays counted until the end, the drain waits for a detached request,
-  and after-response work runs.
+  after-response work runs, and a `Core\Response\Stream::write` after the client left returns at
+  once without throwing, for a closed connection and for a send timeout alike.
 
 ## Stage 4 — the feature proofs and the reference
 
@@ -181,10 +198,11 @@ does.
 - **The user's calls, 2026-10-03.** Completion is the default for every method. Cancellation is
   turned on in `nvs.toml` per request method. Nothing about this is per route or per request.
   `disconnect_grace` bounds only a request with no `wall_time`, and a request with a `wall_time` has
-  that one limit, connected or not.
+  that one limit, connected or not. `Core\Response\Stream::write` stops throwing when the client
+  has gone.
 - **My calls, not yet confirmed by the user:** the two key names and their place in `[limits]`;
-  the grace's `30s` default; the write to a gone client succeeding silently; the
-  graceful drain treating a detached request as an attached one. A session that finds one of these
+  the grace's `30s` default; a buffered write to a gone client succeeding silently; a send
+  timeout counting as the client having gone; the graceful drain treating a detached request as an attached one. A session that finds one of these
   impossible writes it under the handoff's `## Backlog` for the user rather than choosing again.
 - **No runtime switch.** There is no `Core` method that changes either key for one request, and no
   method that tells a script its client has gone. Both are possible later goals and are not in
