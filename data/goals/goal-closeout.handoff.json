@@ -1,25 +1,24 @@
 {
-  "state": "**Goal `goal-closeout`, Stage 4 (finished in place) is under way.** Stage 3 is done: `docs/agent/goal-decisions.md` names every goal in front of `goal-closeout`.\n\nA reload now drains the connections the old tree accepted, the way a stop does (`rule:concurrency/a-drain-closes-a-connection-cleanly`). `nvs_server::Generations` on `Serving` holds one drain per published tree; `Process::published` in `crates/nvs-cli/src/control.rs` retires the older trees after the publish, and an accept loop that sees a newer tree first does the same. A connection reads `nvs_runtime::Drain::any_of` over the server's drain and its tree's drain. The health probe and `Core\\Server::isDraining()` still read the process drain only. Gap `a-reload-closes-no-connection` is deleted.\n\nThe `nvs-diagnostics`, `benches`, `nvs-test`, `nvs-db`, `nvs-ir`, `nvs-config` and `nvs-server` gap directories are closed for this goal. One `nvs-syntax` gap is left, `the-pipeline-bench-has-no-nested-twin`, which is a bench member in a different file set.\n\nIn `nvs-cli`, three gaps name this goal, and the other subcommands' `--help` text has not been swept and is still in the dense voice.\n\nThe floor check `the latest CI run on main succeeded for the code HEAD holds` is red only because `main` is many commits ahead of `origin/main`, and the loop never pushes (module doc of `tools/nv/cmd/ci-green.ts`). A person has to push, so no session can close it.\n\n`bun nv owners --closes goal-closeout` names the rest of the gaps across many crates: `nvs-host` (4), `nvs-lsp` (5), `nvs-runtime` and `nvs-stdlib` the largest. Stage 4 stops on `BLOCKED` only for \"too large\", as the goal's § *Stage 4* defines it. `bun nv import` is broken because the rule index it reads was deleted. Goal `ci-green`'s floor check stays red until Stage 6, as expected.",
+  "state": "**Goal `goal-closeout`, Stage 4 (finished in place) is under way.** Stage 3 is done: `docs/agent/goal-decisions.md` names every goal in front of `goal-closeout`.\n\n`Core\\Program::id()` now returns under `nvs serve` and in a spawned script. `Compiler::compile` in `crates/nvs-cli/src/script.rs` computes the id once per compiled unit and keeps it on `Compiled`, and `program_over` writes it onto every context it arms (`rule:programs/program-id`). `Ctx`'s id is an `Option<Arc<str>>`, so a request shares the unit's id and does not allocate one. A reload that moves the environment drops the units, so the next compile carries the new id. Gap `serve-and-a-spawned-script-have-no-program-id` is deleted.\n\nThe `nvs-diagnostics`, `benches`, `nvs-test`, `nvs-db`, `nvs-ir`, `nvs-config` and `nvs-server` gap directories are closed for this goal. One `nvs-syntax` gap is left, `the-pipeline-bench-has-no-nested-twin`, a bench member in a different file set.\n\nIn `nvs-cli`, two gaps name this goal, and the other subcommands' `--help` text has not been swept and is still in the dense voice.\n\nThe floor check `the latest CI run on main succeeded for the code HEAD holds` is red only because `main` is many commits ahead of `origin/main`, and the loop never pushes (module doc of `tools/nv/cmd/ci-green.ts`). A person has to push, so no session can close it.\n\n`bun nv owners --closes goal-closeout` names the rest of the gaps across many crates: `nvs-host` (4), `nvs-lsp` (5), `nvs-runtime` and `nvs-stdlib` the largest. Stage 4 stops on `BLOCKED` only for \"too large\", as the goal's § *Stage 4* defines it. `bun nv import` is broken because the rule index it reads was deleted. Goal `ci-green`'s floor check stays red until Stage 6, as expected.",
   "next": {
     "stage": 4,
     "title": "finished in place",
     "files": [
       "crates/nvs-cli/src/serve.rs",
-      "crates/nvs-cli/src/main.rs"
+      "benches/serve-proxied.json"
     ],
     "items": [
       {
         "done": false,
-        "text": "**A served request and a spawned script carry the program id** — gap `serve-and-a-spawned-script-have-no-program-id` (`rule:programs/program-id`). The only `Ctx::set_program_id` call is the `nvs run` path at `crates/nvs-cli/src/main.rs:2877`; the request context under `nvs serve` is built in `crates/nvs-cli/src/serve.rs`, and the gap record names the hot-reload pointer swap as the second place the id is computed."
+        "text": "**`serve-proxied` on four cores** — gap `serve-proxied-was-never-recorded-on-four-cores`: workers start at `crates/nvs-cli/src/serve.rs:715` and the scaling test is at `crates/nvs-cli/src/serve.rs:3784`. Decide whether a recording is a session's to make or a stated bound in the bench's prose."
       },
       {
         "done": false,
-        "text": "**`serve-proxied` on four cores** — gap `serve-proxied-was-never-recorded-on-four-cores`: workers start at `crates/nvs-cli/src/serve.rs:715` and the scaling test is at `crates/nvs-cli/src/serve.rs:3784`. Decide whether a recording is a session's to make or a stated bound in the bench's prose."
+        "text": "**The warm-start margin in a CI step** — gap `the-warm-start-margin-runs-in-no-ci-step`: the guard is at `crates/nvs-cli/src/cache.rs:3015`, and the step would go in `.github/workflows/ci.yml`."
       }
     ]
   },
   "backlog": [
-    "`the-warm-start-margin-runs-in-no-ci-step` — `crates/nvs-cli/src/cache.rs:3015` and `.github/workflows/ci.yml`.",
     "`nvs-cli` `--help` sweep of the remaining subcommands into the plain voice.",
     "`nvs-host` gaps (4): `group.rs`, `stack.rs`, `watchdog.rs` twice.",
     "`nvs-syntax` gap `the-pipeline-bench-has-no-nested-twin`, a bench member.",
