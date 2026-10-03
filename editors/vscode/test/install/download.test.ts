@@ -8,7 +8,9 @@
 
 import * as assert from "node:assert/strict";
 
-import { assetUrl, archiveName, downloadVerified, expectedHash, SUMS } from "../../src/install";
+import {
+  assetUrl, archiveName, downloadVerified, expectedHash, RELEASE_LIST, releaseFor, SUMS,
+} from "../../src/install";
 import { serving, sums, target } from "./fixtures";
 
 const VERSION = "0.4.2";
@@ -89,6 +91,21 @@ describe("a verified download", () => {
     const why = await refused(downloadVerified(VERSION, LINUX, release.transport));
     assert.match(why, /nvs-0\.4\.2-linux-x86_64\.tar\.gz could not be downloaded from https:/);
     assert.match(why, /the server answered 404\./);
+  });
+
+  it("takes the newest release in the client's own series from the release list", async () => {
+    const list = JSON.stringify([
+      { tag_name: "v0.5.0" }, { tag_name: "v0.4.2" }, { tag_name: "v0.4.10" }, { name: "no tag" },
+    ]);
+    const release = serving({ releases: list });
+    assert.equal(await releaseFor("0.4.0", release.transport), "0.4.10");
+    assert.deepEqual(release.asked, [RELEASE_LIST]);
+  });
+
+  it("says so when the release list has nothing in the client's series", async () => {
+    const release = serving({ releases: JSON.stringify([{ tag_name: "v0.5.0" }]) });
+    const why = await refused(releaseFor("0.4.0", release.transport));
+    assert.match(why, /^No release of nvs is in the 0\.4 series/);
   });
 
   it("says which file was being fetched when the network fails outright", async () => {

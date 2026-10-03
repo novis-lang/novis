@@ -201,6 +201,38 @@ const RELEASES = "https://github.com/novis-lang/novis/releases";
 /** The file the release workflow's `sha256sum nvs-* > SHA256SUMS` step publishes beside them. */
 export const SUMS = "SHA256SUMS";
 
+/** The page `nvs.openReleases` opens, for a user who would rather check the bytes themselves. */
+export const RELEASE_PAGE = RELEASES;
+
+/** The same releases as GitHub's API lists them, newest first, one object per release. */
+export const RELEASE_LIST = "https://api.github.com/repos/novis-lang/novis/releases";
+
+/**
+ * The release `nvs.downloadBinary` installs for a client of version `client`: the newest one in its
+ * own series, or a throw that says why there is none.
+ *
+ * One request, and it reads only each release's `tag_name`. Which of them is newest is
+ * `newestInSeries`'s to decide, so the list may arrive in any order.
+ */
+export async function releaseFor(client: string, transport: Transport): Promise<string> {
+  const text = new TextDecoder().decode(await body(transport, RELEASE_LIST, "The release list"));
+  let listed: unknown;
+  try {
+    listed = JSON.parse(text);
+  } catch {
+    throw new Error(`The release list at ${RELEASE_LIST} is not JSON.`);
+  }
+  const tags = Array.isArray(listed)
+    ? listed.flatMap((release: { tag_name?: unknown }) =>
+      typeof release?.tag_name === "string" ? [release.tag_name] : [])
+    : [];
+  const newest = newestInSeries(client, tags);
+  if (newest === undefined) {
+    throw new Error(`No release of nvs is in the ${series(client) ?? client} series this extension speaks to.`);
+  }
+  return newest;
+}
+
 /**
  * Where `file` sits in the release of `version`, which carries the `v` its archives do not.
  *

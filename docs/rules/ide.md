@@ -3,7 +3,7 @@
 
 # The editor
 
-*60 of 81 rules below are **designed** rather than shipped, and are marked where they appear.*
+*59 of 81 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="ide-one-grammar-one-tree"></a>
 
@@ -1832,7 +1832,7 @@ and why a copy the extension installed is tried after the user's own toolchain r
 
 <a id="ide-the-extension-guides-an-install-and-never-bundles-one"></a>
 
-## The extension ships no `nvs` binary: a missing one is a guided install the user starts, verified against the release's own `SHA256SUMS`  *(designed — not yet in the compiler)*
+## The extension ships no `nvs` binary: a missing one is a guided install the user starts, verified against the release's own `SHA256SUMS`
 
 `rule:ide/the-extension-guides-an-install-and-never-bundles-one`
 

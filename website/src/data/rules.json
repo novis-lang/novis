@@ -1,8 +1,8 @@
 {
   "totals": {
     "total": 1032,
-    "shipped": 794,
-    "designed": 238,
+    "shipped": 795,
+    "designed": 237,
     "diverging": 597
   },
   "topics": [
@@ -2933,8 +2933,8 @@
       "single": false,
       "counts": {
         "total": 81,
-        "shipped": 21,
-        "designed": 60,
+        "shipped": 22,
+        "designed": 59,
         "diverging": 26
       },
       "sections": [
@@ -3509,8 +3509,8 @@
           "url": "/docs/rules/ide/the-vs-code-extension/",
           "counts": {
             "total": 8,
-            "shipped": 3,
-            "designed": 5,
+            "shipped": 4,
+            "designed": 4,
             "diverging": 1
           },
           "rules": [
@@ -3542,7 +3542,7 @@
               "id": "ide/the-extension-guides-an-install-and-never-bundles-one",
               "slug": "the-extension-guides-an-install-and-never-bundles-one",
               "title": "The extension ships no `nvs` binary: a missing one is a guided install the user starts, verified against the release's own `SHA256SUMS`",
-              "status": "designed",
+              "status": "shipped",
               "href": "/docs/rules/ide/the-vs-code-extension/#the-extension-guides-an-install-and-never-bundles-one",
               "diverges": null
             },

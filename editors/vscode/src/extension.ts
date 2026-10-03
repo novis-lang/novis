@@ -18,8 +18,13 @@
 // the ranges each editor was last decorated with, for the suite that runs inside the extension host.
 // It is what this extension exports to every other one in the window, so nothing on it acts —
 // `surface.ts` is where that is argued.
+//
+// When no candidate answers, the status item says so and offers `nvs.downloadBinary` and
+// `nvs.openReleases` (`rule:ide/the-extension-guides-an-install-and-never-bundles-one`). Both are
+// a user's to invoke: nothing here reaches the network on activation or on a failed start.
 
 import {
+  Command,
   ConfigurationChangeEvent,
   ExtensionContext,
   LanguageStatusItem,
@@ -28,6 +33,7 @@ import {
   ProgressLocation,
   Uri,
   commands,
+  env,
   languages,
   window,
   workspace,
@@ -43,13 +49,14 @@ import {
 } from "vscode-languageclient/node";
 
 import * as ast from "./ast";
-import { binary, install as installCopies, runnable } from "./binary";
+import { Origin, Runnable, install as installCopies, installDirectory, installed, runnable } from "./binary";
 import * as format from "./format";
 import * as imports from "./imports";
+import { RELEASE_PAGE, currentTarget, downloadVerified, installBinary, overHttps, releaseFor } from "./install";
 import { revealing } from "./links";
 import * as redactions from "./redactions";
 import * as regions from "./regions";
-import { Stamp, Watch, stamp } from "./shadow";
+import { Shadow, Stamp, Watch, stamp } from "./shadow";
 import { stubsDirectory, withStubs } from "./stubs";
 import { Health, Surface } from "./surface";
 import * as tasks from "./tasks";
@@ -104,12 +111,15 @@ let status: LanguageStatusItem | undefined;
 let channel: OutputChannel | undefined;
 let watching: Watch | undefined;
 let turn: Promise<void> = Promise.resolve();
+// Whether the install offer has been shown since a server last answered. A failed start is retried
+// on every changed setting and every rebuilt binary, and the offer is shown once for all of them.
+let offered = false;
 
 export async function activate(context: ExtensionContext): Promise<Surface> {
   channel = window.createOutputChannel("Novis");
   status = languages.createLanguageStatusItem("nvs.server", SELECTOR);
   status.name = "Novis";
-  status.command = { command: "nvs.restartServer", title: "Restart" };
+  status.command = RESTART;
   context.subscriptions.push(
     channel,
     status,
@@ -130,6 +140,10 @@ export async function activate(context: ExtensionContext): Promise<Surface> {
     // One workspace pass, which the server runs and this only asks for. `nvs.check.scope` is left
     // as it is (`rule:ide/check-scope-defaults-to-the-workspace`).
     commands.registerCommand("nvs.checkWorkspace", () => checkWorkspace()),
+    // The guided install (`rule:ide/the-extension-guides-an-install-and-never-bundles-one`): the
+    // download is `install.ts` from end to end, and this only says what happened and restarts.
+    commands.registerCommand("nvs.downloadBinary", () => downloadBinary(context)),
+    commands.registerCommand("nvs.openReleases", () => env.openExternal(Uri.parse(RELEASE_PAGE))),
     // The conversion is the server's code action (`rule:ide/a-string-converts-to-an-html-literal`),
     // so this command only asks the editor to apply it, filtered by its exact kind. A second
     // client gets the same action from the server and needs nothing written here.
@@ -218,6 +232,35 @@ async function checkWorkspace(): Promise<void> {
   }
 }
 
+// Install the newest `nvs` in this extension's own series as the third candidate, and restart onto
+// it. Every step that can fail throws a message that names the file or the release, and nothing is
+// kept from a download that did not verify.
+async function downloadBinary(context: ExtensionContext): Promise<void> {
+  const target = currentTarget();
+  const dir = installDirectory();
+  if (target === undefined || dir === undefined) {
+    void window.showErrorMessage(
+      `Novis: no release of nvs is built for ${process.platform} ${process.arch}. Open Releases lists the machines that have one.`,
+    );
+    return;
+  }
+  try {
+    const path = await window.withProgress(
+      { location: ProgressLocation.Notification, title: "Novis: downloading nvs" },
+      async (progress) => {
+        const release = await releaseFor(version(context), overHttps);
+        progress.report({ message: `v${release}` });
+        const archive = await downloadVerified(release, target, overHttps);
+        return installBinary(archive, target, dir);
+      },
+    );
+    void window.showInformationMessage(`Novis: nvs is installed at ${path}.`);
+    await restart(context);
+  } catch (error) {
+    void window.showErrorMessage(`Novis: the download failed. ${reason(error)}`);
+  }
+}
+
 export function deactivate(): Promise<void> {
   return stop();
 }
@@ -258,57 +301,115 @@ async function start(context: ExtensionContext): Promise<void> {
   }
 
   // Which file this is, is `binary.ts`'s to answer — every other spawn asks it the same question.
-  const found = await runnable();
-  const { shown, source } = found;
-  let copied = found.copy;
-  let held = found.held ?? "";
-  if (source !== undefined) {
-    watching = new Watch(source, copied?.stamp ?? (await stamp(source)), () => void restart(context));
+  let chosen = await runnable();
+  if (chosen.source !== undefined) {
+    const { source } = chosen;
+    watching = new Watch(source, chosen.copy?.stamp ?? (await stamp(source)), () => void restart(context));
   }
 
   if (previous === undefined) {
-    report("starting", `${shown} lsp`, LanguageStatusSeverity.Information);
+    report("starting", `${chosen.shown} lsp`, LanguageStatusSeverity.Information);
   }
-  let starting: LanguageClient;
-  try {
-    starting = await launch(context, found.command);
-  } catch (failure) {
-    if (copied === undefined) {
-      await retire(previous);
-      report("not running", `${shown} lsp did not start: ${reason(failure)}`, LanguageStatusSeverity.Error);
-      return;
-    }
-    held = `its copy did not start (${reason(failure)})`;
-    copied = undefined;
-    try {
-      starting = await launch(context, binary());
-    } catch (again) {
-      await retire(previous);
-      report("not running", `${shown} lsp did not start: ${reason(again)}`, LanguageStatusSeverity.Error);
-      return;
+  let outcome = await attempt(context, chosen);
+  // "The first candidate that answers" includes the version check, so a refused or broken first
+  // candidate still leaves the installed copy to try. It is not watched: a new install restarts.
+  if (outcome.client === undefined && chosen.origin !== "installed") {
+    const fallback = await installed();
+    const second = fallback === undefined ? undefined : await attempt(context, fallback);
+    if (fallback !== undefined && second?.client !== undefined) {
+      chosen = fallback;
+      outcome = second;
     }
   }
 
-  const reported = starting.initializeResult?.serverInfo;
-  const refused = refusal(version(context), reported?.version);
-  if (refused !== undefined) {
-    await starting.stop();
+  if (outcome.client === undefined) {
     await retire(previous);
-    report("wrong version", refused, LanguageStatusSeverity.Error);
+    const detail = chosen.source === undefined
+      ? `No nvs was found through nvs.path, on PATH, or installed by this extension. Novis: Download nvs installs one.`
+      : outcome.detail;
+    report(outcome.text, detail, LanguageStatusSeverity.Error, DOWNLOAD);
+    offer(detail);
     return;
   }
 
-  client = starting;
+  client = outcome.client;
+  offered = false;
   redactions.serve(client);
   regions.serve(client);
   imports.serve(client);
   await retire(previous);
-  const detail = copied !== undefined
-    ? `${shown} lsp is answering from a copy of the build of ${built(copied.stamp)}. The file may be replaced, and the new build takes over when it is.`
+  const { shown, source, origin } = chosen;
+  const answering = outcome.copied !== undefined
+    ? `${shown} lsp is answering from a copy of the build of ${built(outcome.copied.stamp)}. The file may be replaced, and the new build takes over when it is.`
     : source !== undefined
-      ? `${shown} lsp is answering from the file itself, which cannot be replaced while it runs: ${held}.`
+      ? `${shown} lsp is answering from the file itself, which cannot be replaced while it runs: ${outcome.held}.`
       : `${shown} lsp is answering.`;
-  report(`nvs lsp ${reported?.version}`, detail, LanguageStatusSeverity.Information);
+  const detail = origin === undefined ? answering : `${answering} ${FOUND[origin]}`;
+  report(`nvs lsp ${outcome.version}`, detail, LanguageStatusSeverity.Information);
+}
+
+// What the status item says about the candidate that answered.
+const FOUND: Record<Origin, string> = {
+  "nvs.path": "It was found through nvs.path.",
+  PATH: "It was found on PATH.",
+  installed: "It is the copy Novis: Download nvs installed.",
+};
+
+// What one candidate came to: a client that answered and passed the version check, or what the
+// status item says instead.
+type Outcome =
+  | {
+    readonly client: LanguageClient;
+    readonly version: string | undefined;
+    readonly copied: Shadow | undefined;
+    readonly held: string;
+  }
+  | { readonly client: undefined; readonly text: string; readonly detail: string };
+
+// Start `found` and check its version. The file itself is the fallback when its copy will not
+// start, which is what storage mounted `noexec` looks like, and `held` then says why.
+async function attempt(context: ExtensionContext, found: Runnable): Promise<Outcome> {
+  const { shown, source } = found;
+  let copied = found.copy;
+  let held = found.held ?? "";
+  let starting: LanguageClient;
+  try {
+    starting = await launch(context, found.command);
+  } catch (failure) {
+    if (copied === undefined || source === undefined) {
+      return { client: undefined, text: "not running", detail: `${shown} lsp did not start: ${reason(failure)}` };
+    }
+    held = `its copy did not start (${reason(failure)})`;
+    copied = undefined;
+    try {
+      starting = await launch(context, source);
+    } catch (again) {
+      return { client: undefined, text: "not running", detail: `${shown} lsp did not start: ${reason(again)}` };
+    }
+  }
+
+  const reported = starting.initializeResult?.serverInfo?.version;
+  const refused = refusal(version(context), reported);
+  if (refused !== undefined) {
+    await starting.stop();
+    return { client: undefined, text: "wrong version", detail: refused };
+  }
+  return { client: starting, version: reported, copied, held };
+}
+
+// Show the two ways out once, as buttons on one message. Nothing is fetched until one is pressed.
+function offer(detail: string): void {
+  if (offered) {
+    return;
+  }
+  offered = true;
+  void window.showWarningMessage(`Novis: ${detail}`, "Download nvs", "Open Releases").then((choice) => {
+    if (choice === "Download nvs") {
+      void commands.executeCommand("nvs.downloadBinary");
+    } else if (choice === "Open Releases") {
+      void commands.executeCommand("nvs.openReleases");
+    }
+  });
 }
 
 // One client over `command`, started. It throws what `LanguageClient.start` throws, which is how a
@@ -427,14 +528,21 @@ function version(context: ExtensionContext): string {
 // one-glyph font rather than an image because `text` takes only `$(name)` — and being a glyph is
 // what lets the editor tint it, so the mark turns red with the item on an `Error` severity without
 // a second asset. Prefixed here so no call site can forget it.
-function report(text: string, detail: string, severity: LanguageStatusSeverity): void {
+//
+// `command` is what clicking the item does: a restart while a server answers or starts, and the
+// download when none does.
+function report(text: string, detail: string, severity: LanguageStatusSeverity, command: Command = RESTART): void {
   if (status === undefined) {
     return;
   }
   status.text = `$(novis-mark) ${text}`;
   status.detail = detail;
   status.severity = severity;
+  status.command = command;
 }
+
+const RESTART: Command = { command: "nvs.restartServer", title: "Restart" };
+const DOWNLOAD: Command = { command: "nvs.downloadBinary", title: "Download nvs" };
 
 function reason(failure: unknown): string {
   return failure instanceof Error ? failure.message : String(failure);

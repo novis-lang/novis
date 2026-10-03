@@ -1,6 +1,0 @@
-{
-  "module": "editors/vscode/src/extension.ts",
-  "title": "The extension's guided install is built and reached by nothing: `nvs.downloadBinary` and `nvs.openReleases` do not exist, and a managed copy is never a candidate.",
-  "text": "`rule:ide/the-extension-guides-an-install-and-never-bundles-one` is `designed`. `editors/vscode/src/install.ts` has the platform table, the verified download and the unpack, with its suite, but no file under `editors/vscode/src/` imports it. The command roster at `editors/vscode/package.json:195` and the registrations at `editors/vscode/src/extension.ts:115` name neither command. The resolution chain at `editors/vscode/src/binary.ts:32` is `nvs.path` and then `PATH`, with no third candidate for the copy in global storage. The status item at `editors/vscode/src/extension.ts:407` does not say which candidate answered, and the series-mismatch message at `editors/vscode/src/version.ts:75` offers no install. `docs/reference/tools/40-editor.md:297` has no install section. Closing this registers both commands, adds the managed copy as the last candidate, says which candidate answered and offers the install on a mismatch, documents it in the reference, and moves the rule to `shipped`.",
-  "goal": "goal-closeout"
-}

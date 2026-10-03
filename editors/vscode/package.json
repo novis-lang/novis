@@ -96,7 +96,7 @@
           "type": "string",
           "default": "",
           "scope": "machine-overridable",
-          "description": "Absolute path to the nvs binary. Empty means look it up on PATH."
+          "description": "Absolute path to the nvs binary. Empty, or a path with no file, means look it up on PATH, then use the copy Novis: Download nvs installed."
         },
         "nvs.lsp.enable": {
           "type": "boolean",
@@ -229,6 +229,16 @@
       {
         "command": "nvs.checkWorkspace",
         "title": "Check Workspace",
+        "category": "Novis"
+      },
+      {
+        "command": "nvs.downloadBinary",
+        "title": "Download nvs",
+        "category": "Novis"
+      },
+      {
+        "command": "nvs.openReleases",
+        "title": "Open Releases",
         "category": "Novis"
       }
     ],

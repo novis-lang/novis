@@ -104,6 +104,8 @@ const COMMANDS = [
   "nvs.hideSecrets",
   "nvs.convertToHtmlLiteral",
   "nvs.checkWorkspace",
+  "nvs.downloadBinary",
+  "nvs.openReleases",
 ];
 
 // `rule:ide/dependencies-are-allowlisted` is over runtime dependencies: a test library ships to

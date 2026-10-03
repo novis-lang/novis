@@ -72,7 +72,7 @@ export function refusal(client: string, server: string | undefined): string | un
     return `The server reported the version ${server}, which is not a release number. This extension speaks to ${wanted}.x.`;
   }
   if (found !== wanted) {
-    return `The server is nvs ${server} and this extension speaks to ${wanted}.x. Point nvs.path at a matching binary, or install the extension that matches this one.`;
+    return `The server is nvs ${server} and this extension speaks to ${wanted}.x. Point nvs.path at a matching binary, run Novis: Download nvs, or install the extension that matches this one.`;
   }
   return undefined;
 }
