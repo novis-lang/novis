@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-stdlib/src/topic.rs",
-  "title": "`Core\\Topic::subscribe` to a topic the connection has already joined allocates three times.",
-  "text": "`docs/perf/members.ndjson`'s `Core\\Topic::subscribe` row counts three allocations per call for a bench that subscribes to the same name again, and that call changes nothing. `topic_of` copies the name into a `String` before the table lookup, so even a lookup that finds the row pays for a copy. Closing this looks the name up as a borrowed `&str` and copies it only when a row is inserted, then records the bench again with `bun nv proofs --record-perf`.",
-  "goal": "goal-closeout"
-}
