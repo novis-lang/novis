@@ -1,0 +1,25 @@
+---
+title: "Core\\Str"
+description: "The Core\\Str class of the Novis Core library — every string member, with signatures and status."
+sidebar:
+  label: "Str"
+  order: 0
+novis:
+  kind: class
+  id: "Str"
+---
+
+import ClassOverview from '@components/ClassOverview.astro'
+
+{/* HUMAN-OWNED PAGE. `npm run sync:render` created this stub once and will never
+    overwrite it. The prose here is yours; the member table below renders from
+    the generated data and stays current on its own. */}
+
+:::note[Strings are text, bytes are bytes]
+A Novis `string` is real UTF-8 **text**, not just bytes: it is guaranteed valid,
+indexed by the characters a reader sees, and no member here takes an encoding
+argument. For binary data, use the [`bytes` type and `Core\Bytes`](/reference/core/bytes/) —
+and cross between the two explicitly with [`Core\Encoding`](/reference/core/encoding/).
+:::
+
+<ClassOverview id="Str" />

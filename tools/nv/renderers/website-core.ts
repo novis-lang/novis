@@ -1,5 +1,5 @@
 // The website's Core reference: `website/src/data/core.json`, and a stub page per published class and
-// member under `website/src/content/docs/docs/core/`.
+// member under `website/src/content/docs/reference/core/`.
 //
 // Three sources, each read once. The member tables are the `spec_core_members` record, which
 // `nv import` reads out of `docs/spec/01-core-library.md`. The prose the record does not carry — each
@@ -29,7 +29,7 @@ import { load } from "../lib/store.ts";
 import { specCoreMembers } from "../schema/spec.ts";
 
 export const SPEC = "docs/spec/01-core-library.md";
-export const PAGES_DIR = "website/src/content/docs/docs/core";
+export const PAGES_DIR = "website/src/content/docs/reference/core";
 export const DATA_FILE = "website/src/data/core.json";
 
 /** The handwritten landing page of the Core reference. */
@@ -803,12 +803,12 @@ export async function renderWebsiteCore(root: string): Promise<Output[]> {
   const published = classes.filter((c) => c.members.length > 0);
   for (const cls of published) {
     cls.slug = cls.id.toLowerCase().replace(/\./g, "-");
-    cls.url = `/docs/core/${cls.slug}/`;
+    cls.url = `/reference/core/${cls.slug}/`;
     cls.summaryHtml = cls.summary ? blocksHtml(site, cls.summary) : "";
     cls.surfaceHtml = cls.surface ? inlineHtml(site, cls.surface) : "";
     for (const m of cls.members) {
       m.slug = m.name.toLowerCase();
-      m.url = `/docs/core/${cls.slug}/${m.slug}/`;
+      m.url = `/reference/core/${cls.slug}/${m.slug}/`;
     }
   }
 

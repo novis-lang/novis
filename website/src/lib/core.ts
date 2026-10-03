@@ -145,7 +145,7 @@ export function findMember(id: string): { cls: CoreClass; member: CoreMember } |
  * Change the two constants below when the real pages land — this is the one
  * home for the mapping.
  */
-export const TYPES_PAGE = withBase('/docs/language/types/')
+export const TYPES_PAGE = withBase('/syntax/')
 export const ENUMS_ANCHOR = '#enums'
 
 const BUILTIN_TYPES = new Set([

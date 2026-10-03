@@ -1,0 +1,72 @@
+---
+title: "Core\\Regex::match"
+description: "Runs a pattern against a subject and returns the first match as a Match object, or null — replacing preg_match, its $matches out-parameter and PREG_OFFSET_CAPTURE."
+sidebar:
+  label: "match"
+novis:
+  kind: method
+  id: "Regex.match"
+---
+
+import MethodSignature from '@components/MethodSignature.astro'
+import MethodChangelog from '@components/MethodChangelog.astro'
+import MethodExamples from '@components/MethodExamples.astro'
+import SeeAlso from '@components/SeeAlso.astro'
+
+Finds the first match of a pattern in a subject and returns it as a
+[`Match`](/reference/core/regex-match/) object — or `null` when nothing matches.
+
+<MethodSignature id="Regex.match" />
+
+## Description
+
+Where `preg_match` returned `0|1|false` and smuggled the real result out through a
+`&$matches` parameter, `match` simply returns the match — an object whose
+[`group`](/reference/core/regex-match/group/), [`groups`](/reference/core/regex-match/groups/),
+[`offset`](/reference/core/regex-match/offset/) and [`text`](/reference/core/regex-match/text/)
+members answer the questions the positional array made you count brackets for. No
+match is `null`; only asking *whether* something matches is
+[`Regex::matches`](/reference/core/regex/matches/).
+
+Patterns are written **without delimiters and without modifier letters** — flags like
+case-insensitivity are options on [`Regex::compile`](/reference/core/regex/compile/). A
+pattern used repeatedly is worth compiling once; a one-off can be passed as a plain
+string.
+
+One deliberate divergence from `preg_match`: a group the pattern declares that did not
+participate in this particular match is **present and `null`**, not absent — which is
+what lets `group` distinguish "matched empty text" from "did not participate" from
+"no such group" (the last one throws).
+
+### Parameters
+
+- **`$subject`** (`string`) — the text searched. Subjects may be tainted — searching
+  attacker input is the normal case, and the engine's design (no exponential
+  backtracking, a step budget) is what makes that safe.
+- **`$pattern`** (`Pattern|string`) — the pattern, compiled or as source text. **This
+  parameter is a taint sink**: a pattern is an instruction, and one that arrived from
+  outside the process is refused. Embedding user text *inside* a pattern goes through
+  [`Regex::quote`](/reference/core/regex/quote/).
+
+### Options
+
+- **`from`** (`int`) — start matching at this position (negative counts from the
+  end). The match is still made against the whole subject, so a look-behind can see
+  what precedes `from`.
+
+## Return value
+
+Returns `?Match`: the first match at or after `from`, or `null`. The offset reported
+by the match is in grapheme clusters, consistent with every `Core\Str` position.
+
+## Errors
+
+A malformed pattern throws `ParseError` (at compile time when the pattern is a
+literal). Exceeding the engine's step budget throws — there is no `preg_last_error`
+to remember to check.
+
+<MethodChangelog id="Regex.match" />
+
+<MethodExamples id="Regex.match" />
+
+<SeeAlso ids={['Regex.matches', 'Regex.matchAll', 'Regex.compile', 'Regex.quote', 'Regex.replace']} />

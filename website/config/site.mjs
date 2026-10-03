@@ -27,6 +27,22 @@ export const SITE_DESCRIPTION =
   "Novis — a programming language for the web. Secure by design, not by discipline: untrusted data is tracked and blocked from anywhere dangerous, secrets can't leak, and downloaded code does only what you allow. Fast, like you would expect."
 
 /**
+ * The four areas of the site, in the order a reader learns them. The header
+ * shows each label with its subtitle on a second line, and each area has its
+ * own sidebar: the top-level group in astro.config.ts whose label is the
+ * area's label. `bun nv site --check structure` reads this list.
+ */
+export const AREAS = [
+  { label: 'Guides', subtitle: 'Examples, how to use', href: '/guides/' },
+  { label: 'Syntax', subtitle: 'How to write Novis', href: '/syntax/' },
+  { label: 'Reference', subtitle: 'Classes and functions', href: '/reference/' },
+  { label: 'In-Depth', subtitle: 'Decisions, ideas', href: '/in-depth/' },
+]
+
+/** The install pages: a button in the header, after the four areas, with a sidebar of its own. */
+export const INSTALL = { label: 'Install', href: '/install/' }
+
+/**
  * Deep link into the repository tree (for e.g. `docs/rules/security/tainted-sources.md`).
  * @param {string} repoRelativePath
  * @returns {string}

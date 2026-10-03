@@ -6,7 +6,7 @@
  */
 import type { APIRoute } from 'astro'
 import { getCollection } from 'astro:content'
-import { SITE_URL, SITE_DESCRIPTION } from '../../config/site.mjs'
+import { SITE_URL, SITE_DESCRIPTION, AREAS, INSTALL } from '../../config/site.mjs'
 import { withBase } from '~/lib/base'
 
 export const GET: APIRoute = async () => {
@@ -25,14 +25,17 @@ export const GET: APIRoute = async () => {
 
   const body =
     `# Novis\n\n> ${SITE_DESCRIPTION}\n\n` +
-    `This file lists every page of the Novis website. The rulebook states every rule the\n` +
-    `language holds itself to, chapter by chapter, each marked shipped or designed; the\n` +
-    `Core reference documents the standard library, one page per member, generated from\n` +
-    `the language's own specification.\n` +
+    `This file lists every page of the Novis website. Install shows how to get Novis.\n` +
+    `Guides has examples and shows how to use Novis. Syntax shows how to write it.\n` +
+    `Reference has a page for every class and function. In-Depth explains the decisions\n` +
+    `and ideas behind the language.\n` +
     section('Start here', (id) => !id.includes('/')) +
-    section('Getting started', (id) => id === 'docs' || id.startsWith('docs/getting-started') || id.startsWith('docs/release-notes')) +
-    section('The rulebook', (id) => id.startsWith('docs/rules')) +
-    section('Core reference', (id) => id.startsWith('docs/core'))
+    [INSTALL, ...AREAS]
+      .map(({ label, href }) => {
+        const prefix = href.replace(/^\/|\/$/g, '')
+        return section(label, (id) => id === prefix || id.startsWith(`${prefix}/`))
+      })
+      .join('')
 
   return new Response(body, { headers: { 'Content-Type': 'text/plain; charset=utf-8' } })
 }

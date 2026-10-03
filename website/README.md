@@ -1,13 +1,13 @@
 # The Novis website
 
-Astro + Starlight. Everything the site needs — tooling, rules, content — lives inside
+Astro + Starlight. Everything the site needs — tooling, configuration, content — lives inside
 this folder. The repository's unattended loop does not write here; what it writes is the
 example tree at `../docs/examples/`, which `sync:examples` mirrors into `examples/` like
 any other generated input. Updating the site from the repository is **one command, fired
 by a human (or an agent that was asked to)**:
 
 ```sh
-npm run sync     # pull the rulebook + the Core reference from the repository
+npm run sync     # pull the Core reference and the examples from the repository
 npm run build    # build the static site into dist/ 
 npx astro build --base /novis/ # build with a custom base
 ```
@@ -19,9 +19,8 @@ npx astro build --base /novis/ # build with a custom base
 | `npm run dev` | dev server with live reload |
 | `npm run build` | production build into `dist/` |
 | `npm run preview` | serve the built site locally |
-| `npm run sync` | the render and the two sync scripts, in order |
-| `npm run sync:render` | `bun nv render --website`: publish `../data/rules/` and `../docs/rules/` → `src/content/docs/docs/rules/**` + `src/data/rules.json`, and the spec + registry → `src/data/core.json` + the Core member pages |
-| `npm run sync:decisions` | `bun nv decisions --render`: the `summary` of every record under `../data/decisions/` → `src/data/decisions.json` (the plain-language summary) and `../docs/decisions.md` |
+| `npm run sync` | the render and the examples mirror, in order |
+| `npm run sync:render` | `bun nv render --website`: publish the spec + registry → `src/data/core.json` + the Core member pages |
 | `npm run sync:examples` | mirror `../docs/examples/` → `examples/` |
 | `npm run examples:check` | run every example in `examples/` through the real `nvs` binary and diff against its `.out` file |
 
@@ -38,16 +37,13 @@ wherever it kept a component.
 
 | Path | Owner | Notes |
 | --- | --- | --- |
-| `src/content/docs/docs/rules/**` | tool | regenerated on every `sync:render`, except the handwritten hub at `index.mdx` — a rule's prose lives in `../docs/rules/`, where the rule is |
-| `config/rule-sections.mjs` | human | where each chapter is cut into pages — the one thing about the rulebook the repository does not own |
-| `src/data/core.json`, `src/data/rules.json` | tool | regenerated on every sync |
+| `src/data/core.json` | tool | regenerated on every sync |
 | `config/novis.tmLanguage.json` | tool | rendered from the editors' grammar on every sync — edit `../editors/vscode/syntaxes/nvs.tmLanguage.json` |
 | `src/data/core-changelog.json` | human | per-member changelog entries |
-| `src/content/docs/docs/core/**.mdx` | **per page** | tool-owned (regenerated every `sync:render`) while `novis.draft: true`; remove the flag to take ownership — then yours: lead text, description, parameter docs, errors, tips, `<SeeAlso ids={…}>` |
-| `src/content/claims/*.md` | human | one file per "Why Novis?" claim; add a file, the page updates |
-| `examples/**` | tool | a mirror of `../docs/examples/`, emptied and rewritten on every `sync:examples` — edit the repository's copy, which is where the sweep that writes them lives ([ADR 0134](../docs/decisions/0134.md)). **Gitignored**, unlike the rulebook pages: those are transformed on the way in, this is the same bytes twice. `examples:check` runs it, so a stale mirror fails here rather than shipping |
+| `src/content/docs/reference/core/**.mdx` | **per page** | tool-owned (regenerated every `sync:render`) while `novis.draft: true`; remove the flag to take ownership — then yours: lead text, description, parameter docs, errors, tips, `<SeeAlso ids={…}>` |
+| `examples/**` | tool | a mirror of `../docs/examples/`, emptied and rewritten on every `sync:examples` — edit the repository's copy, which is where the sweep that writes them lives ([ADR 0134](../docs/decisions/0134.md)). **Gitignored**: it is the same bytes twice. `examples:check` runs it, so a stale mirror fails here rather than shipping |
 | `config/spec-overrides.mjs` | human | corrections for spec table rows the renderer cannot read — every fix goes here, never into the renderer |
-| `config/site.mjs` | human | **all placeholder URLs live here** — swap them once to go live |
+| `config/site.mjs` | human | **all placeholder URLs live here** — swap them once to go live. It also holds `AREAS`, the four areas the header, the footer, the sidebars and `llms.txt` are built from |
 | `config/external-links.mjs` | human | the rule that a link off the site opens in a new tab with `rel="noopener noreferrer nofollow"` — except the project's own repository and Discord links, which open in a new tab with no `rel`: an integration decorates content links at build time, and a component spreads `externalLinkAttrs(href)` onto any anchor it writes itself |
 
 A page whose member leaves the published set is deleted while it is still tool-owned. A
@@ -83,37 +79,21 @@ grammar at `../editors/vscode/syntaxes/nvs.tmLanguage.json`
 (`../tools/nv/renderers/website-grammar.ts`). The one difference is the top level: a fence is a
 snippet with no `<?nvs`, so it starts in code mode where a file starts in text mode.
 
-## How the rulebook works
+## How the site is laid out
 
-The repository owns the rules: `../data/rules/<topic>.json` names a chapter and holds
-its rules in reading order, `../data/rules/<topic>/<slug>.json` is one rule's record, and
-`../docs/rules/<topic>/<slug>.md` is the prose. `sync:render` publishes all of it as three
-levels — a hub, 22 chapter pages, and one page per **section**.
-
-A section is a contiguous run of a chapter's rules, and it is the one thing about the
-rulebook the repository does not own, because a chapter there is one document a person
-scrolls and a chapter here cannot be: Security alone is 89 rules. The cut lives in
-`config/rule-sections.mjs`, named by first-rule slug rather than by index, so a rule
-added mid-chapter joins the section it was written into and a stale cut fails the sync
-loudly. A chapter cut into one section has no section pages at all — its rules render on
-the chapter page, so a short chapter costs one click rather than two.
-
-Pages are plain `.md`, never `.mdx`: rule prose is full of `#[Attribute(…)]`, `{field: T}`
-and `<T>`, all of which MDX would read as JSX. The per-rule chrome is raw HTML around the
-prose, which Markdown parses normally either side of a blank line. Every rule gets an
-anchor of its own slug, and every `rule:<topic>/<slug>` citation in the prose is rewritten
-to point at it — so a cross-reference survives any later edit to a heading.
-
-The site publishes what is **true now**. The frozen rationale behind a rule stays in the
-repository at `../docs/decisions/NNNN.md`, and a rule's "Decided in" row links out to it
-(`config/site.mjs` § `decisionRecord`). `/docs/decisions/` is the plain-language summary of
-that same set, rendered from `src/data/decisions.json`.
+Four areas, in the order a reader learns them: Guides (`/guides/`), Syntax (`/syntax/`),
+Reference (`/reference/`) and In-Depth (`/in-depth/`), plus Install (`/install/`). Each
+has its own sidebar: `astro.config.ts` holds one top-level sidebar group per area, and
+`src/routeData.ts` shows a page only its own area's group. A page outside every area has
+no sidebar. There are no previous and next links. The site does not publish the rulebook
+or the decision records; a page that wants the reasoning links to the record on GitHub
+(`config/site.mjs` § `decisionRecord`). A removed page simply stops existing, with no
+redirect.
 
 ## Machine-facing surface
 
 - `/sitemap-index.xml` — generated by Starlight on every build (needs `SITE_URL`).
 - `/llms.txt` — every page with its description, for agents (`src/pages/llms.txt.ts`).
-- `/site-index/` — the same inventory as a human-readable page.
 - `public/robots.txt` — allows everything, names the sitemap.
 
 ## Theming
@@ -175,7 +155,7 @@ and white is the ground the mark's own disc already carries under its lower half
 1. Replace `SITE_URL` in `config/site.mjs` — GitHub and Discord already point at the real ones.
 2. Replace the sitemap URL in `public/robots.txt`.
 3. Replace the demo data in `src/content/docs/impressum.md` and `datenschutz.md`.
-4. Review pages still carrying `draft: true` / draft-flagged claims.
+4. Review pages still carrying `draft: true`.
 5. Set the Pages source to **GitHub Actions** and the custom domain to `SITE_URL`'s host. No
    `CNAME` file: GitHub writes one only when publishing from a branch, and ignores any that exists
    when a workflow publishes — one in `public/` would ship as a dead file at `/CNAME`.
@@ -190,7 +170,7 @@ GitHub Pages as an artifact. Nothing built is ever committed: `dist/` is gitigno
 The workflow runs `npm ci && npm run build` — **not** `npm run sync`. Sync rewrites tracked files
 and reads the built `nvs` binary for registry docs, so a deploy that ran it would publish less than
 your local sync does and would decide page ownership with nobody looking. The site therefore
-follows the repository only as far as the last committed sync: after landing rules, spec or
+follows the repository only as far as the last committed sync: after landing spec or
 registry changes, run `npm run sync` and commit what it wrote.
 
 The same workflow builds on pull requests without deploying, so a build that no longer compiles

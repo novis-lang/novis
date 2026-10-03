@@ -94,7 +94,7 @@
             "returnHtml": "The number of entries; <code>0</code> for the empty array."
           },
           "slug": "count",
-          "url": "/docs/core/arr/count/"
+          "url": "/reference/core/arr/count/"
         },
         {
           "id": "Arr.isEmpty",
@@ -132,7 +132,7 @@
             "returnHtml": "<code>true</code> for the empty array, <code>false</code> otherwise."
           },
           "slug": "isempty",
-          "url": "/docs/core/arr/isempty/"
+          "url": "/reference/core/arr/isempty/"
         },
         {
           "id": "Arr.isList",
@@ -170,7 +170,7 @@
             "returnHtml": "<code>true</code> for a list and for the empty array; <code>false</code> once any key is out of sequence or is not its index's exact decimal spelling."
           },
           "slug": "islist",
-          "url": "/docs/core/arr/islist/"
+          "url": "/reference/core/arr/islist/"
         },
         {
           "id": "Arr.hasKey",
@@ -220,7 +220,7 @@
             "returnHtml": "<code>true</code> when the key is present, whatever value it holds."
           },
           "slug": "haskey",
-          "url": "/docs/core/arr/haskey/"
+          "url": "/reference/core/arr/haskey/"
         },
         {
           "id": "Arr.contains",
@@ -270,7 +270,7 @@
             "returnHtml": "<code>true</code> at the first identical entry; <code>false</code> over the empty array."
           },
           "slug": "contains",
-          "url": "/docs/core/arr/contains/"
+          "url": "/reference/core/arr/contains/"
         },
         {
           "id": "Arr.keyOf",
@@ -320,7 +320,7 @@
             "returnHtml": "The key as a <code>string</code>, or <code>null</code> when no entry is identical — never <code>false</code>."
           },
           "slug": "keyof",
-          "url": "/docs/core/arr/keyof/"
+          "url": "/reference/core/arr/keyof/"
         },
         {
           "id": "Arr.keys",
@@ -358,7 +358,7 @@
             "returnHtml": "A list of the keys as <code>string</code>s — <code>&quot;10&quot;</code> stays <code>&quot;10&quot;</code>, never an <code>int</code>; the empty array for an empty subject."
           },
           "slug": "keys",
-          "url": "/docs/core/arr/keys/"
+          "url": "/reference/core/arr/keys/"
         },
         {
           "id": "Arr.values",
@@ -396,7 +396,7 @@
             "returnHtml": "A list renumbered from <code>&quot;0&quot;</code>."
           },
           "slug": "values",
-          "url": "/docs/core/arr/values/"
+          "url": "/reference/core/arr/values/"
         },
         {
           "id": "Arr.first",
@@ -434,7 +434,7 @@
             "returnHtml": "The value, or <code>null</code> for the empty array — which a stored <code>null</code> in an <code>array&lt;?T&gt;</code> cannot be told from."
           },
           "slug": "first",
-          "url": "/docs/core/arr/first/"
+          "url": "/reference/core/arr/first/"
         },
         {
           "id": "Arr.last",
@@ -472,7 +472,7 @@
             "returnHtml": "The value, or <code>null</code> for the empty array — which a stored <code>null</code> in an <code>array&lt;?T&gt;</code> cannot be told from."
           },
           "slug": "last",
-          "url": "/docs/core/arr/last/"
+          "url": "/reference/core/arr/last/"
         },
         {
           "id": "Arr.firstKey",
@@ -510,7 +510,7 @@
             "returnHtml": "The key as a <code>string</code>, or <code>null</code> for the empty array."
           },
           "slug": "firstkey",
-          "url": "/docs/core/arr/firstkey/"
+          "url": "/reference/core/arr/firstkey/"
         },
         {
           "id": "Arr.lastKey",
@@ -548,7 +548,7 @@
             "returnHtml": "The key as a <code>string</code>, or <code>null</code> for the empty array."
           },
           "slug": "lastkey",
-          "url": "/docs/core/arr/lastkey/"
+          "url": "/reference/core/arr/lastkey/"
         },
         {
           "id": "Arr.slice",
@@ -619,7 +619,7 @@
             "returnHtml": "The window's entries; the empty array when the window closes before it opens."
           },
           "slug": "slice",
-          "url": "/docs/core/arr/slice/"
+          "url": "/reference/core/arr/slice/"
         },
         {
           "id": "Arr.replaceRange",
@@ -693,7 +693,7 @@
             "returnHtml": "A list renumbered from <code>&quot;0&quot;</code>, kept entries and replacement alike."
           },
           "slug": "replacerange",
-          "url": "/docs/core/arr/replacerange/"
+          "url": "/reference/core/arr/replacerange/"
         },
         {
           "id": "Arr.chunk",
@@ -758,7 +758,7 @@
             ]
           },
           "slug": "chunk",
-          "url": "/docs/core/arr/chunk/"
+          "url": "/reference/core/arr/chunk/"
         },
         {
           "id": "Arr.append",
@@ -808,7 +808,7 @@
             "returnHtml": "The subject's entries under their own keys, then each value under the next free integer key — one past the largest present; the subject itself when no values are given."
           },
           "slug": "append",
-          "url": "/docs/core/arr/append/"
+          "url": "/reference/core/arr/append/"
         },
         {
           "id": "Arr.prepend",
@@ -858,7 +858,7 @@
             "returnHtml": "A list renumbered from <code>&quot;0&quot;</code> — every key is discarded, since a value put in front has no key of its own to take."
           },
           "slug": "prepend",
-          "url": "/docs/core/arr/prepend/"
+          "url": "/reference/core/arr/prepend/"
         },
         {
           "id": "Arr.withoutFirst",
@@ -896,7 +896,7 @@
             "returnHtml": "The remaining entries under their own keys, never renumbered; the empty array for a subject of one entry or none."
           },
           "slug": "withoutfirst",
-          "url": "/docs/core/arr/withoutfirst/"
+          "url": "/reference/core/arr/withoutfirst/"
         },
         {
           "id": "Arr.withoutLast",
@@ -934,7 +934,7 @@
             "returnHtml": "The remaining entries under their own keys, never renumbered; the empty array for a subject of one entry or none."
           },
           "slug": "withoutlast",
-          "url": "/docs/core/arr/withoutlast/"
+          "url": "/reference/core/arr/withoutlast/"
         },
         {
           "id": "Arr.padStart",
@@ -1002,7 +1002,7 @@
             ]
           },
           "slug": "padstart",
-          "url": "/docs/core/arr/padstart/"
+          "url": "/reference/core/arr/padstart/"
         },
         {
           "id": "Arr.padEnd",
@@ -1070,7 +1070,7 @@
             ]
           },
           "slug": "padend",
-          "url": "/docs/core/arr/padend/"
+          "url": "/reference/core/arr/padend/"
         },
         {
           "id": "Arr.reverse",
@@ -1117,7 +1117,7 @@
             "returnHtml": "The same entries, last first."
           },
           "slug": "reverse",
-          "url": "/docs/core/arr/reverse/"
+          "url": "/reference/core/arr/reverse/"
         },
         {
           "id": "Arr.flip",
@@ -1155,7 +1155,7 @@
             "returnHtml": "The old keys as <code>string</code> values under the old values as keys, in first-occurrence order; a repeated value keeps its first position and takes its last key."
           },
           "slug": "flip",
-          "url": "/docs/core/arr/flip/"
+          "url": "/reference/core/arr/flip/"
         },
         {
           "id": "Arr.flatten",
@@ -1193,7 +1193,7 @@
             "returnHtml": "A list renumbered from <code>&quot;0&quot;</code>; the inner keys are discarded, since two inner arrays can share one."
           },
           "slug": "flatten",
-          "url": "/docs/core/arr/flatten/"
+          "url": "/reference/core/arr/flatten/"
         },
         {
           "id": "Arr.flattenDeep",
@@ -1231,7 +1231,7 @@
             "returnHtml": "A list of every non-array leaf in walk order, renumbered from <code>&quot;0&quot;</code>; <code>mixed</code> because the depth is the caller's data, not the type's."
           },
           "slug": "flattendeep",
-          "url": "/docs/core/arr/flattendeep/"
+          "url": "/reference/core/arr/flattendeep/"
         },
         {
           "id": "Arr.fill",
@@ -1287,7 +1287,7 @@
             ]
           },
           "slug": "fill",
-          "url": "/docs/core/arr/fill/"
+          "url": "/reference/core/arr/fill/"
         },
         {
           "id": "Arr.fillKeys",
@@ -1337,7 +1337,7 @@
             "returnHtml": "One entry per distinct key, in first-occurrence order; <code>1</code> and <code>&quot;1&quot;</code> are one key."
           },
           "slug": "fillkeys",
-          "url": "/docs/core/arr/fillkeys/"
+          "url": "/reference/core/arr/fillkeys/"
         },
         {
           "id": "Arr.range",
@@ -1402,7 +1402,7 @@
             ]
           },
           "slug": "range",
-          "url": "/docs/core/arr/range/"
+          "url": "/reference/core/arr/range/"
         },
         {
           "id": "Arr.fromKeysAndValues",
@@ -1458,7 +1458,7 @@
             ]
           },
           "slug": "fromkeysandvalues",
-          "url": "/docs/core/arr/fromkeysandvalues/"
+          "url": "/reference/core/arr/fromkeysandvalues/"
         },
         {
           "id": "Arr.from",
@@ -1505,7 +1505,7 @@
             "returnHtml": "A list renumbered from <code>&quot;0&quot;</code> — a cursor has no keys, and an array's are discarded."
           },
           "slug": "from",
-          "url": "/docs/core/arr/from/"
+          "url": "/reference/core/arr/from/"
         },
         {
           "id": "Arr.column",
@@ -1564,7 +1564,7 @@
             "returnHtml": "The cells in row order: a row without the column is skipped, a row without the <code>indexBy</code> cell lands under the next free integer key, and two rows with one <code>indexBy</code> value collapse to the last."
           },
           "slug": "column",
-          "url": "/docs/core/arr/column/"
+          "url": "/reference/core/arr/column/"
         },
         {
           "id": "Arr.overlay",
@@ -1614,7 +1614,7 @@
             "returnHtml": "Every key of every argument: an existing key keeps its position and takes the last value written under it, a new one is appended."
           },
           "slug": "overlay",
-          "url": "/docs/core/arr/overlay/"
+          "url": "/reference/core/arr/overlay/"
         },
         {
           "id": "Arr.overlayDeep",
@@ -1664,7 +1664,7 @@
             "returnHtml": "Every key of every argument, as <code>overlay</code> answers it, with two maps under one key combined the same way rather than the right one winning."
           },
           "slug": "overlaydeep",
-          "url": "/docs/core/arr/overlaydeep/"
+          "url": "/reference/core/arr/overlaydeep/"
         },
         {
           "id": "Arr.underlay",
@@ -1714,7 +1714,7 @@
             "returnHtml": "<code>$base</code>'s entries in their own positions, then each layer's keys not yet present, appended in order."
           },
           "slug": "underlay",
-          "url": "/docs/core/arr/underlay/"
+          "url": "/reference/core/arr/underlay/"
         },
         {
           "id": "Arr.appendAll",
@@ -1764,7 +1764,7 @@
             "returnHtml": "A list renumbered from <code>&quot;0&quot;</code>; every key is discarded."
           },
           "slug": "appendall",
-          "url": "/docs/core/arr/appendall/"
+          "url": "/reference/core/arr/appendall/"
         },
         {
           "id": "Arr.diff",
@@ -1845,7 +1845,7 @@
             ]
           },
           "slug": "diff",
-          "url": "/docs/core/arr/diff/"
+          "url": "/reference/core/arr/diff/"
         },
         {
           "id": "Arr.intersect",
@@ -1926,7 +1926,7 @@
             ]
           },
           "slug": "intersect",
-          "url": "/docs/core/arr/intersect/"
+          "url": "/reference/core/arr/intersect/"
         },
         {
           "id": "Arr.unique",
@@ -1973,7 +1973,7 @@
             "returnHtml": "The first occurrence of each value, under its own key and in its own position."
           },
           "slug": "unique",
-          "url": "/docs/core/arr/unique/"
+          "url": "/reference/core/arr/unique/"
         },
         {
           "id": "Arr.countBy",
@@ -2020,7 +2020,7 @@
             "returnHtml": "One <code>uint</code> per distinct bucket, keyed by it in first-occurrence order; <code>1</code> and <code>&quot;1&quot;</code> are one bucket."
           },
           "slug": "countby",
-          "url": "/docs/core/arr/countby/"
+          "url": "/reference/core/arr/countby/"
         },
         {
           "id": "Arr.map",
@@ -2070,7 +2070,7 @@
             "returnHtml": "One entry per entry of <code>$a</code>, under the same key, holding the callback's answer."
           },
           "slug": "map",
-          "url": "/docs/core/arr/map/"
+          "url": "/reference/core/arr/map/"
         },
         {
           "id": "Arr.mapKeys",
@@ -2120,7 +2120,7 @@
             "returnHtml": "The values under their new keys, in first-occurrence order; two entries given one key collapse to the last, and <code>1</code> and <code>&quot;1&quot;</code> are one key."
           },
           "slug": "mapkeys",
-          "url": "/docs/core/arr/mapkeys/"
+          "url": "/reference/core/arr/mapkeys/"
         },
         {
           "id": "Arr.filter",
@@ -2170,7 +2170,7 @@
             "returnHtml": "The kept entries under their own keys, never renumbered; an empty array when nothing passes."
           },
           "slug": "filter",
-          "url": "/docs/core/arr/filter/"
+          "url": "/reference/core/arr/filter/"
         },
         {
           "id": "Arr.reduce",
@@ -2232,7 +2232,7 @@
             "returnHtml": "The last carry; <code>$initial</code> itself over an empty array, with no call made."
           },
           "slug": "reduce",
-          "url": "/docs/core/arr/reduce/"
+          "url": "/reference/core/arr/reduce/"
         },
         {
           "id": "Arr.find",
@@ -2282,7 +2282,7 @@
             "returnHtml": "The matching value, or <code>null</code> when nothing matches — which a stored <code>null</code> in an <code>array&lt;?T&gt;</code> cannot be told from."
           },
           "slug": "find",
-          "url": "/docs/core/arr/find/"
+          "url": "/reference/core/arr/find/"
         },
         {
           "id": "Arr.findKey",
@@ -2332,7 +2332,7 @@
             "returnHtml": "The key as a <code>string</code>, whatever it was written as; <code>null</code> when nothing matches."
           },
           "slug": "findkey",
-          "url": "/docs/core/arr/findkey/"
+          "url": "/reference/core/arr/findkey/"
         },
         {
           "id": "Arr.any",
@@ -2382,7 +2382,7 @@
             "returnHtml": "<code>true</code> at the first truthy answer; <code>false</code> over the empty array."
           },
           "slug": "any",
-          "url": "/docs/core/arr/any/"
+          "url": "/reference/core/arr/any/"
         },
         {
           "id": "Arr.all",
@@ -2432,7 +2432,7 @@
             "returnHtml": "<code>false</code> at the first falsy answer; <code>true</code> over the empty array."
           },
           "slug": "all",
-          "url": "/docs/core/arr/all/"
+          "url": "/reference/core/arr/all/"
         },
         {
           "id": "Arr.groupBy",
@@ -2482,7 +2482,7 @@
             "returnHtml": "One inner array per distinct answer, in first-occurrence order, each keeping its entries under their own keys; <code>1</code> and <code>&quot;1&quot;</code> name one bucket."
           },
           "slug": "groupby",
-          "url": "/docs/core/arr/groupby/"
+          "url": "/reference/core/arr/groupby/"
         },
         {
           "id": "Arr.sum",
@@ -2526,7 +2526,7 @@
             ]
           },
           "slug": "sum",
-          "url": "/docs/core/arr/sum/"
+          "url": "/reference/core/arr/sum/"
         },
         {
           "id": "Arr.product",
@@ -2570,7 +2570,7 @@
             ]
           },
           "slug": "product",
-          "url": "/docs/core/arr/product/"
+          "url": "/reference/core/arr/product/"
         },
         {
           "id": "Arr.average",
@@ -2614,7 +2614,7 @@
             ]
           },
           "slug": "average",
-          "url": "/docs/core/arr/average/"
+          "url": "/reference/core/arr/average/"
         },
         {
           "id": "Arr.min",
@@ -2658,7 +2658,7 @@
             ]
           },
           "slug": "min",
-          "url": "/docs/core/arr/min/"
+          "url": "/reference/core/arr/min/"
         },
         {
           "id": "Arr.max",
@@ -2702,7 +2702,7 @@
             ]
           },
           "slug": "max",
-          "url": "/docs/core/arr/max/"
+          "url": "/reference/core/arr/max/"
         },
         {
           "id": "Arr.sort",
@@ -2779,7 +2779,7 @@
             ]
           },
           "slug": "sort",
-          "url": "/docs/core/arr/sort/"
+          "url": "/reference/core/arr/sort/"
         },
         {
           "id": "Arr.sortByKey",
@@ -2840,13 +2840,13 @@
             ]
           },
           "slug": "sortbykey",
-          "url": "/docs/core/arr/sortbykey/"
+          "url": "/reference/core/arr/sortbykey/"
         }
       ],
       "unparsed": [],
       "implemented": true,
       "slug": "arr",
-      "url": "/docs/core/arr/",
+      "url": "/reference/core/arr/",
       "summaryHtml": "<p><code>array&lt;T&gt;</code> is an insertion-ordered hash with copy-on-write value semantics (<a href=\"https://github.com/novis-lang/novis/blob/main/docs/decisions/0007.md\">ADR 0007 § 5</a>). Every member is pure (R3); an implementation mutates in place whenever the argument's refcount is 1, so purity costs nothing. <code>T</code> is a type variable — the stdlib is parametric where user code is not.</p>\n<p>Every key is a <code>string</code>, so every key-valued <strong>return</strong> below is typed <code>string</code>; a key <strong>parameter</strong> is <code>int|string</code>, matching the subscript normalisation of that same section. How arrays combine, and why no member is named <code>merge</code>, is <code>rule:types/array-combination</code>.</p>",
       "surfaceHtml": ""
     },
@@ -2897,7 +2897,7 @@
             "returnHtml": "The byte count; <code>0</code> for the empty buffer."
           },
           "slug": "length",
-          "url": "/docs/core/bytes/length/"
+          "url": "/reference/core/bytes/length/"
         },
         {
           "id": "Bytes.at",
@@ -2954,7 +2954,7 @@
             ]
           },
           "slug": "at",
-          "url": "/docs/core/bytes/at/"
+          "url": "/reference/core/bytes/at/"
         },
         {
           "id": "Bytes.slice",
@@ -3017,7 +3017,7 @@
             "returnHtml": "The window as a new buffer; the empty buffer for an offset past the end or a window that closes before it opens."
           },
           "slug": "slice",
-          "url": "/docs/core/bytes/slice/"
+          "url": "/reference/core/bytes/slice/"
         },
         {
           "id": "Bytes.indexOf",
@@ -3077,7 +3077,7 @@
             "returnHtml": "The byte offset of the first occurrence at or after <code>from</code>, or <code>null</code> when there is none — never <code>false</code>."
           },
           "slug": "indexof",
-          "url": "/docs/core/bytes/indexof/"
+          "url": "/reference/core/bytes/indexof/"
         },
         {
           "id": "Bytes.compare",
@@ -3128,7 +3128,7 @@
             "returnHtml": "<code>-1</code>, <code>0</code> or <code>1</code> — exactly those three, as PHP 8's <code>strcmp</code> answers."
           },
           "slug": "compare",
-          "url": "/docs/core/bytes/compare/"
+          "url": "/reference/core/bytes/compare/"
         },
         {
           "id": "Bytes.contains",
@@ -3179,7 +3179,7 @@
             "returnHtml": "<code>true</code> when it occurs; an empty needle is contained in every buffer, the empty one included."
           },
           "slug": "contains",
-          "url": "/docs/core/bytes/contains/"
+          "url": "/reference/core/bytes/contains/"
         },
         {
           "id": "Bytes.startsWith",
@@ -3230,7 +3230,7 @@
             "returnHtml": "<code>true</code> when it does; an empty prefix begins every buffer."
           },
           "slug": "startswith",
-          "url": "/docs/core/bytes/startswith/"
+          "url": "/reference/core/bytes/startswith/"
         },
         {
           "id": "Bytes.endsWith",
@@ -3281,7 +3281,7 @@
             "returnHtml": "<code>true</code> when it does; an empty suffix ends every buffer."
           },
           "slug": "endswith",
-          "url": "/docs/core/bytes/endswith/"
+          "url": "/reference/core/bytes/endswith/"
         },
         {
           "id": "Bytes.join",
@@ -3338,7 +3338,7 @@
             ]
           },
           "slug": "join",
-          "url": "/docs/core/bytes/join/"
+          "url": "/reference/core/bytes/join/"
         },
         {
           "id": "Bytes.fill",
@@ -3395,7 +3395,7 @@
             ]
           },
           "slug": "fill",
-          "url": "/docs/core/bytes/fill/"
+          "url": "/reference/core/bytes/fill/"
         },
         {
           "id": "Bytes.repeat",
@@ -3452,7 +3452,7 @@
             ]
           },
           "slug": "repeat",
-          "url": "/docs/core/bytes/repeat/"
+          "url": "/reference/core/bytes/repeat/"
         },
         {
           "id": "Bytes.pack",
@@ -3509,7 +3509,7 @@
             ]
           },
           "slug": "pack",
-          "url": "/docs/core/bytes/pack/"
+          "url": "/reference/core/bytes/pack/"
         },
         {
           "id": "Bytes.unpack",
@@ -3566,13 +3566,13 @@
             ]
           },
           "slug": "unpack",
-          "url": "/docs/core/bytes/unpack/"
+          "url": "/reference/core/bytes/unpack/"
         }
       ],
       "unparsed": [],
       "implemented": true,
       "slug": "bytes",
-      "url": "/docs/core/bytes/",
+      "url": "/reference/core/bytes/",
       "summaryHtml": "",
       "surfaceHtml": ""
     },
@@ -3661,7 +3661,7 @@
             ]
           },
           "slug": "parse",
-          "url": "/docs/core/csv/parse/"
+          "url": "/reference/core/csv/parse/"
         },
         {
           "id": "Csv.format",
@@ -3730,7 +3730,7 @@
             ]
           },
           "slug": "format",
-          "url": "/docs/core/csv/format/"
+          "url": "/reference/core/csv/format/"
         },
         {
           "id": "Csv.rows",
@@ -3811,13 +3811,13 @@
             ]
           },
           "slug": "rows",
-          "url": "/docs/core/csv/rows/"
+          "url": "/reference/core/csv/rows/"
         }
       ],
       "unparsed": [],
       "implemented": true,
       "slug": "csv",
-      "url": "/docs/core/csv/",
+      "url": "/reference/core/csv/",
       "summaryHtml": "",
       "surfaceHtml": ""
     },
@@ -3896,7 +3896,7 @@
             ]
           },
           "slug": "connect",
-          "url": "/docs/core/db/connect/"
+          "url": "/reference/core/db/connect/"
         },
         {
           "id": "Db.open",
@@ -4010,7 +4010,7 @@
             ]
           },
           "slug": "open",
-          "url": "/docs/core/db/open/"
+          "url": "/reference/core/db/open/"
         },
         {
           "id": "Db.inList",
@@ -4054,7 +4054,7 @@
             ]
           },
           "slug": "inlist",
-          "url": "/docs/core/db/inlist/"
+          "url": "/reference/core/db/inlist/"
         },
         {
           "id": "Db.quoteIdentifier",
@@ -4098,13 +4098,13 @@
             ]
           },
           "slug": "quoteidentifier",
-          "url": "/docs/core/db/quoteidentifier/"
+          "url": "/reference/core/db/quoteidentifier/"
         }
       ],
       "unparsed": [],
       "implemented": true,
       "slug": "db",
-      "url": "/docs/core/db/",
+      "url": "/reference/core/db/",
       "summaryHtml": "<p>Semantics are <code>rule:core-classes/db-one-api</code> — connection naming and memoization, the capability split, why there is no <code>prepare</code>, the transaction shape, the coercion rule and the full SQL type map. This section owns the signatures only. Every member needs <code>db.connect</code> or <code>db.open</code>, and a connection's credentials live in a root-owned <code>[db.&lt;name&gt;]</code> block (<code>rule:config/the-file-is-nvs-toml-and-it-is-toml</code>).</p>",
       "surfaceHtml": "the full surface is § 18 below — the one subsystem in Part II too large for a row. Replaces <code>PDO</code> <strong>and</strong> the procedural <code>mysqli</code>/<code>pgsql</code>/<code>sqlite3</code> APIs"
     },
@@ -4172,7 +4172,7 @@
             ]
           },
           "slug": "decodetext",
-          "url": "/docs/core/encoding/decodetext/"
+          "url": "/reference/core/encoding/decodetext/"
         },
         {
           "id": "Encoding.encodeText",
@@ -4228,7 +4228,7 @@
             ]
           },
           "slug": "encodetext",
-          "url": "/docs/core/encoding/encodetext/"
+          "url": "/reference/core/encoding/encodetext/"
         },
         {
           "id": "Encoding.isValidText",
@@ -4278,7 +4278,7 @@
             "returnHtml": "<code>true</code> when <code>decodeText</code> would succeed; always <code>true</code> under <code>Charset::Latin1</code>, which gives all 256 octets a meaning."
           },
           "slug": "isvalidtext",
-          "url": "/docs/core/encoding/isvalidtext/"
+          "url": "/reference/core/encoding/isvalidtext/"
         },
         {
           "id": "Encoding.toBase64",
@@ -4316,7 +4316,7 @@
             "returnHtml": "The base64 text; the empty string for the empty buffer."
           },
           "slug": "tobase64",
-          "url": "/docs/core/encoding/tobase64/"
+          "url": "/reference/core/encoding/tobase64/"
         },
         {
           "id": "Encoding.fromBase64",
@@ -4360,7 +4360,7 @@
             ]
           },
           "slug": "frombase64",
-          "url": "/docs/core/encoding/frombase64/"
+          "url": "/reference/core/encoding/frombase64/"
         },
         {
           "id": "Encoding.toBase64Url",
@@ -4398,7 +4398,7 @@
             "returnHtml": "The URL-safe base64 text; the empty string for the empty buffer."
           },
           "slug": "tobase64url",
-          "url": "/docs/core/encoding/tobase64url/"
+          "url": "/reference/core/encoding/tobase64url/"
         },
         {
           "id": "Encoding.fromBase64Url",
@@ -4442,7 +4442,7 @@
             ]
           },
           "slug": "frombase64url",
-          "url": "/docs/core/encoding/frombase64url/"
+          "url": "/reference/core/encoding/frombase64url/"
         },
         {
           "id": "Encoding.toHex",
@@ -4480,7 +4480,7 @@
             "returnHtml": "The hex text, twice <code>$b</code>'s length; the empty string for the empty buffer."
           },
           "slug": "tohex",
-          "url": "/docs/core/encoding/tohex/"
+          "url": "/reference/core/encoding/tohex/"
         },
         {
           "id": "Encoding.fromHex",
@@ -4524,7 +4524,7 @@
             ]
           },
           "slug": "fromhex",
-          "url": "/docs/core/encoding/fromhex/"
+          "url": "/reference/core/encoding/fromhex/"
         },
         {
           "id": "Encoding.toBase32",
@@ -4562,7 +4562,7 @@
             "returnHtml": "The base32 text; the empty string for the empty buffer."
           },
           "slug": "tobase32",
-          "url": "/docs/core/encoding/tobase32/"
+          "url": "/reference/core/encoding/tobase32/"
         },
         {
           "id": "Encoding.fromBase32",
@@ -4606,13 +4606,13 @@
             ]
           },
           "slug": "frombase32",
-          "url": "/docs/core/encoding/frombase32/"
+          "url": "/reference/core/encoding/frombase32/"
         }
       ],
       "unparsed": [],
       "implemented": true,
       "slug": "encoding",
-      "url": "/docs/core/encoding/",
+      "url": "/reference/core/encoding/",
       "summaryHtml": "<p><code>Core\\Encoding</code> sits exactly at the <code>bytes</code>↔<code>string</code> boundary, which is the one place a conversion can honestly fail (<code>rule:types/bytes</code>).</p>",
       "surfaceHtml": ""
     },
@@ -4674,7 +4674,7 @@
             "returnHtml": "The digest as <code>bytes</code>, as many octets as the case's width; every case accepts every input, the empty one included."
           },
           "slug": "of",
-          "url": "/docs/core/hash/of/"
+          "url": "/reference/core/hash/of/"
         },
         {
           "id": "Hash.hmac",
@@ -4736,7 +4736,7 @@
             "returnHtml": "The MAC as <code>bytes</code>, as many octets as the case's width."
           },
           "slug": "hmac",
-          "url": "/docs/core/hash/hmac/"
+          "url": "/reference/core/hash/hmac/"
         },
         {
           "id": "Hash.equals",
@@ -4786,7 +4786,7 @@
             "returnHtml": "<code>true</code> when the two hold the same octets; <code>false</code> at once for two lengths that differ, since a digest's length is the algorithm's and never a secret."
           },
           "slug": "equals",
-          "url": "/docs/core/hash/equals/"
+          "url": "/reference/core/hash/equals/"
         },
         {
           "id": "Hash.stream",
@@ -4824,13 +4824,13 @@
             "returnHtml": "A fresh, open stream that has been fed nothing yet."
           },
           "slug": "stream",
-          "url": "/docs/core/hash/stream/"
+          "url": "/reference/core/hash/stream/"
         }
       ],
       "unparsed": [],
       "implemented": true,
       "slug": "hash",
-      "url": "/docs/core/hash/",
+      "url": "/reference/core/hash/",
       "summaryHtml": "",
       "surfaceHtml": ""
     },
@@ -4886,7 +4886,7 @@
             ]
           },
           "slug": "update",
-          "url": "/docs/core/hash-stream/update/"
+          "url": "/reference/core/hash-stream/update/"
         },
         {
           "id": "Hash.Stream.finish",
@@ -4915,13 +4915,13 @@
             ]
           },
           "slug": "finish",
-          "url": "/docs/core/hash-stream/finish/"
+          "url": "/reference/core/hash-stream/finish/"
         }
       ],
       "unparsed": [],
       "implemented": true,
       "slug": "hash-stream",
-      "url": "/docs/core/hash-stream/",
+      "url": "/reference/core/hash-stream/",
       "summaryHtml": "",
       "surfaceHtml": ""
     },
@@ -4994,7 +4994,7 @@
             ]
           },
           "slug": "encode",
-          "url": "/docs/core/json/encode/"
+          "url": "/reference/core/json/encode/"
         },
         {
           "id": "Json.decode",
@@ -5051,7 +5051,7 @@
             ]
           },
           "slug": "decode",
-          "url": "/docs/core/json/decode/"
+          "url": "/reference/core/json/decode/"
         },
         {
           "id": "Json.decodeAs",
@@ -5112,7 +5112,7 @@
             ]
           },
           "slug": "decodeas",
-          "url": "/docs/core/json/decodeas/"
+          "url": "/reference/core/json/decodeas/"
         },
         {
           "id": "Json.isValid",
@@ -5150,13 +5150,13 @@
             "returnHtml": "<code>true</code> when <code>$json</code> parses; <code>false</code> for malformed text, nesting past <code>512</code>, or an integer literal too large for <code>int</code>."
           },
           "slug": "isvalid",
-          "url": "/docs/core/json/isvalid/"
+          "url": "/reference/core/json/isvalid/"
         }
       ],
       "unparsed": [],
       "implemented": true,
       "slug": "json",
-      "url": "/docs/core/json/",
+      "url": "/reference/core/json/",
       "summaryHtml": "",
       "surfaceHtml": ""
     },
@@ -5299,7 +5299,7 @@
             ]
           },
           "slug": "abs",
-          "url": "/docs/core/math/abs/"
+          "url": "/reference/core/math/abs/"
         },
         {
           "id": "Math.sign",
@@ -5347,7 +5347,7 @@
             ]
           },
           "slug": "sign",
-          "url": "/docs/core/math/sign/"
+          "url": "/reference/core/math/sign/"
         },
         {
           "id": "Math.min",
@@ -5403,7 +5403,7 @@
             ]
           },
           "slug": "min",
-          "url": "/docs/core/math/min/"
+          "url": "/reference/core/math/min/"
         },
         {
           "id": "Math.max",
@@ -5459,7 +5459,7 @@
             ]
           },
           "slug": "max",
-          "url": "/docs/core/math/max/"
+          "url": "/reference/core/math/max/"
         },
         {
           "id": "Math.clamp",
@@ -5527,7 +5527,7 @@
             ]
           },
           "slug": "clamp",
-          "url": "/docs/core/math/clamp/"
+          "url": "/reference/core/math/clamp/"
         },
         {
           "id": "Math.ceil",
@@ -5565,7 +5565,7 @@
             "returnHtml": "A whole number, as a <code>float</code>. A <code>$n</code> between <code>-1.0</code> and <code>0.0</code> gives <code>-0.0</code>. <code>NaN</code> and the infinities stay the same."
           },
           "slug": "ceil",
-          "url": "/docs/core/math/ceil/"
+          "url": "/reference/core/math/ceil/"
         },
         {
           "id": "Math.floor",
@@ -5603,7 +5603,7 @@
             "returnHtml": "A whole number, as a <code>float</code>. A <code>$n</code> between <code>-1.0</code> and <code>0.0</code> gives <code>-1.0</code>. <code>NaN</code> and the infinities stay the same."
           },
           "slug": "floor",
-          "url": "/docs/core/math/floor/"
+          "url": "/reference/core/math/floor/"
         },
         {
           "id": "Math.truncate",
@@ -5641,7 +5641,7 @@
             "returnHtml": "A whole number, as a <code>float</code>. A <code>$n</code> between <code>-1.0</code> and <code>0.0</code> gives <code>-0.0</code>. <code>NaN</code> and the infinities stay the same."
           },
           "slug": "truncate",
-          "url": "/docs/core/math/truncate/"
+          "url": "/reference/core/math/truncate/"
         },
         {
           "id": "Math.round",
@@ -5696,7 +5696,7 @@
             "returnHtml": "The rounded <code>float</code>. <code>NaN</code> and the infinities are returned unchanged. <code>$n</code> is also returned unchanged when <code>precision</code> is above <code>22</code> or below <code>-22</code>, or when <code>$n * 10 <strong> precision</code> is <code>2 </strong> 53</code> or more."
           },
           "slug": "round",
-          "url": "/docs/core/math/round/"
+          "url": "/reference/core/math/round/"
         },
         {
           "id": "Math.intDiv",
@@ -5752,7 +5752,7 @@
             ]
           },
           "slug": "intdiv",
-          "url": "/docs/core/math/intdiv/"
+          "url": "/reference/core/math/intdiv/"
         },
         {
           "id": "Math.mod",
@@ -5808,7 +5808,7 @@
             ]
           },
           "slug": "mod",
-          "url": "/docs/core/math/mod/"
+          "url": "/reference/core/math/mod/"
         },
         {
           "id": "Math.fdiv",
@@ -5858,7 +5858,7 @@
             "returnHtml": "<code>$a / $b</code>. When <code>$b</code> is zero, the result is <code>INFINITY</code> or <code>-INFINITY</code>. Its sign comes from the signs of both numbers together. When both numbers are zero, the result is <code>NaN</code>."
           },
           "slug": "fdiv",
-          "url": "/docs/core/math/fdiv/"
+          "url": "/reference/core/math/fdiv/"
         },
         {
           "id": "Math.gcd",
@@ -5914,7 +5914,7 @@
             ]
           },
           "slug": "gcd",
-          "url": "/docs/core/math/gcd/"
+          "url": "/reference/core/math/gcd/"
         },
         {
           "id": "Math.lcm",
@@ -5970,7 +5970,7 @@
             ]
           },
           "slug": "lcm",
-          "url": "/docs/core/math/lcm/"
+          "url": "/reference/core/math/lcm/"
         },
         {
           "id": "Math.sqrt",
@@ -6008,7 +6008,7 @@
             "returnHtml": "A <code>float</code> that is zero or more. A negative <code>$n</code> gives <code>NaN</code>. <code>-0.0</code> gives <code>-0.0</code>, and <code>Core\\Math::INFINITY</code> gives <code>Core\\Math::INFINITY</code>."
           },
           "slug": "sqrt",
-          "url": "/docs/core/math/sqrt/"
+          "url": "/reference/core/math/sqrt/"
         },
         {
           "id": "Math.cbrt",
@@ -6046,7 +6046,7 @@
             "returnHtml": "The cube root, with the same sign as <code>$n</code>: <code>Core\\Math::cbrt(-8.0)</code> is <code>-2.0</code>. An infinity gives the same infinity, and <code>NaN</code> gives <code>NaN</code>."
           },
           "slug": "cbrt",
-          "url": "/docs/core/math/cbrt/"
+          "url": "/reference/core/math/cbrt/"
         },
         {
           "id": "Math.hypot",
@@ -6096,7 +6096,7 @@
             "returnHtml": "The length. It is never negative. When <code>$a</code> or <code>$b</code> is <code>INFINITY</code> or <code>-INFINITY</code>, the result is <code>INFINITY</code>, even when the other one is <code>NaN</code>."
           },
           "slug": "hypot",
-          "url": "/docs/core/math/hypot/"
+          "url": "/reference/core/math/hypot/"
         },
         {
           "id": "Math.exp",
@@ -6134,7 +6134,7 @@
             "returnHtml": "<code>E ** $n</code>, which is never negative. Above about <code>709.78</code> the result is <code>INFINITY</code>. Far enough below zero, the result is <code>0.0</code>. <code>NaN</code> gives <code>NaN</code>."
           },
           "slug": "exp",
-          "url": "/docs/core/math/exp/"
+          "url": "/reference/core/math/exp/"
         },
         {
           "id": "Math.log",
@@ -6187,7 +6187,7 @@
             ]
           },
           "slug": "log",
-          "url": "/docs/core/math/log/"
+          "url": "/reference/core/math/log/"
         },
         {
           "id": "Math.sin",
@@ -6225,7 +6225,7 @@
             "returnHtml": "A number from <code>-1.0</code> to <code>1.0</code>. An infinity or <code>NaN</code> gives <code>NaN</code>."
           },
           "slug": "sin",
-          "url": "/docs/core/math/sin/"
+          "url": "/reference/core/math/sin/"
         },
         {
           "id": "Math.cos",
@@ -6263,7 +6263,7 @@
             "returnHtml": "A number from <code>-1.0</code> to <code>1.0</code>. An infinity or <code>NaN</code> gives <code>NaN</code>."
           },
           "slug": "cos",
-          "url": "/docs/core/math/cos/"
+          "url": "/reference/core/math/cos/"
         },
         {
           "id": "Math.tan",
@@ -6301,7 +6301,7 @@
             "returnHtml": "Any number. It is very large when the angle is close to 90 degrees. An infinity or <code>NaN</code> gives <code>NaN</code>."
           },
           "slug": "tan",
-          "url": "/docs/core/math/tan/"
+          "url": "/reference/core/math/tan/"
         },
         {
           "id": "Math.asin",
@@ -6339,7 +6339,7 @@
             "returnHtml": "An angle from <code>-PI / 2</code> to <code>PI / 2</code>, in radians. A <code>$n</code> outside <code>-1.0</code> to <code>1.0</code> gives <code>NaN</code>."
           },
           "slug": "asin",
-          "url": "/docs/core/math/asin/"
+          "url": "/reference/core/math/asin/"
         },
         {
           "id": "Math.acos",
@@ -6377,7 +6377,7 @@
             "returnHtml": "An angle from <code>0.0</code> to <code>PI</code>, in radians. A <code>$n</code> outside <code>-1.0</code> to <code>1.0</code> gives <code>NaN</code>."
           },
           "slug": "acos",
-          "url": "/docs/core/math/acos/"
+          "url": "/reference/core/math/acos/"
         },
         {
           "id": "Math.atan",
@@ -6415,7 +6415,7 @@
             "returnHtml": "An angle between <code>-PI / 2</code> and <code>PI / 2</code>, in radians. An infinite <code>$n</code> gives exactly <code>PI / 2</code> or <code>-PI / 2</code>."
           },
           "slug": "atan",
-          "url": "/docs/core/math/atan/"
+          "url": "/reference/core/math/atan/"
         },
         {
           "id": "Math.atan2",
@@ -6465,7 +6465,7 @@
             "returnHtml": "An angle from <code>-PI</code> to <code>PI</code>, in radians. A point above the x-axis gives a positive angle, and a point below it gives a negative one. The point (0, 0) gives <code>0.0</code>."
           },
           "slug": "atan2",
-          "url": "/docs/core/math/atan2/"
+          "url": "/reference/core/math/atan2/"
         },
         {
           "id": "Math.toRadians",
@@ -6503,7 +6503,7 @@
             "returnHtml": "The same angle in radians. <code>Core\\Math::toRadians(180.0)</code> is <code>PI</code>. An infinity gives an infinity, and <code>NaN</code> gives <code>NaN</code>."
           },
           "slug": "toradians",
-          "url": "/docs/core/math/toradians/"
+          "url": "/reference/core/math/toradians/"
         },
         {
           "id": "Math.toDegrees",
@@ -6541,7 +6541,7 @@
             "returnHtml": "The same angle in degrees. <code>Core\\Math::toDegrees(Core\\Math::PI)</code> is <code>180.0</code>. A result too big for a <code>float</code> is an infinity, and <code>NaN</code> gives <code>NaN</code>."
           },
           "slug": "todegrees",
-          "url": "/docs/core/math/todegrees/"
+          "url": "/reference/core/math/todegrees/"
         },
         {
           "id": "Math.isNan",
@@ -6579,7 +6579,7 @@
             "returnHtml": "<code>true</code> when <code>$n</code> is <code>NaN</code>. <code>false</code> for every other <code>float</code>, <code>INFINITY</code> and <code>-INFINITY</code> included."
           },
           "slug": "isnan",
-          "url": "/docs/core/math/isnan/"
+          "url": "/reference/core/math/isnan/"
         },
         {
           "id": "Math.isFinite",
@@ -6617,7 +6617,7 @@
             "returnHtml": "<code>true</code> for every ordinary <code>float</code>, zero included. <code>false</code> for <code>INFINITY</code>, <code>-INFINITY</code> and <code>NaN</code>."
           },
           "slug": "isfinite",
-          "url": "/docs/core/math/isfinite/"
+          "url": "/reference/core/math/isfinite/"
         },
         {
           "id": "Math.toBase",
@@ -6673,7 +6673,7 @@
             ]
           },
           "slug": "tobase",
-          "url": "/docs/core/math/tobase/"
+          "url": "/reference/core/math/tobase/"
         },
         {
           "id": "Math.fromBase",
@@ -6733,7 +6733,7 @@
             ]
           },
           "slug": "frombase",
-          "url": "/docs/core/math/frombase/"
+          "url": "/reference/core/math/frombase/"
         },
         {
           "id": "Math.format",
@@ -6806,7 +6806,7 @@
             ]
           },
           "slug": "format",
-          "url": "/docs/core/math/format/"
+          "url": "/reference/core/math/format/"
         },
         {
           "id": "Math.sinh",
@@ -6845,7 +6845,7 @@
             "returnHtml": "A number with the same sign as <code>$n</code>. It is <code>INFINITY</code> when <code>$n</code> is above about <code>710</code>, and <code>-INFINITY</code> when <code>$n</code> is below about <code>-710</code>. <code>NaN</code> gives <code>NaN</code>."
           },
           "slug": "sinh",
-          "url": "/docs/core/math/sinh/"
+          "url": "/reference/core/math/sinh/"
         },
         {
           "id": "Math.cosh",
@@ -6884,7 +6884,7 @@
             "returnHtml": "A number of at least <code>1.0</code>. It is <code>INFINITY</code> when <code>$n</code> is above about <code>710</code> or below about <code>-710</code>. <code>NaN</code> gives <code>NaN</code>."
           },
           "slug": "cosh",
-          "url": "/docs/core/math/cosh/"
+          "url": "/reference/core/math/cosh/"
         },
         {
           "id": "Math.tanh",
@@ -6923,7 +6923,7 @@
             "returnHtml": "A number from <code>-1.0</code> to <code>1.0</code>, with the same sign as <code>$n</code>. <code>INFINITY</code> gives <code>1.0</code>, <code>-INFINITY</code> gives <code>-1.0</code> and <code>NaN</code> gives <code>NaN</code>."
           },
           "slug": "tanh",
-          "url": "/docs/core/math/tanh/"
+          "url": "/reference/core/math/tanh/"
         },
         {
           "id": "Math.asinh",
@@ -6962,7 +6962,7 @@
             "returnHtml": "The number whose hyperbolic sine is <code>$n</code>. It has the same sign as <code>$n</code>. <code>NaN</code> gives <code>NaN</code>."
           },
           "slug": "asinh",
-          "url": "/docs/core/math/asinh/"
+          "url": "/reference/core/math/asinh/"
         },
         {
           "id": "Math.acosh",
@@ -7001,7 +7001,7 @@
             "returnHtml": "A number that is <code>0.0</code> or more. A <code>$n</code> below <code>1.0</code> gives <code>NaN</code>."
           },
           "slug": "acosh",
-          "url": "/docs/core/math/acosh/"
+          "url": "/reference/core/math/acosh/"
         },
         {
           "id": "Math.atanh",
@@ -7040,13 +7040,13 @@
             "returnHtml": "A number with the same sign as <code>$n</code>. <code>1.0</code> gives <code>INF</code> and <code>-1.0</code> gives <code>-INF</code>. A <code>$n</code> outside <code>-1.0</code> to <code>1.0</code> gives <code>NaN</code>."
           },
           "slug": "atanh",
-          "url": "/docs/core/math/atanh/"
+          "url": "/reference/core/math/atanh/"
         }
       ],
       "unparsed": [],
       "implemented": true,
       "slug": "math",
-      "url": "/docs/core/math/",
+      "url": "/reference/core/math/",
       "summaryHtml": "<p><code>*<em></code> is exponentiation and <code>%</code> is integer modulo, so neither has a member (R17). Division by zero throws <code>ArithmeticError</code> (R4) — in <code>intDiv</code>, in <code>mod</code>, and in the <code>/</code> operator whatever the operand types, which is exactly why <code>fdiv</code> </em>is* a member here: it is the one spelling left for IEEE's <code>INF</code>, and PHP has it for the same reason. Overflow throws rather than becoming a <code>float</code> (<code>rule:types/arithmetic</code>).</p>",
       "surfaceHtml": ""
     },
@@ -7111,13 +7111,13 @@
             ]
           },
           "slug": "capture",
-          "url": "/docs/core/out/capture/"
+          "url": "/reference/core/out/capture/"
         }
       ],
       "unparsed": [],
       "implemented": true,
       "slug": "out",
-      "url": "/docs/core/out/",
+      "url": "/reference/core/out/",
       "summaryHtml": "",
       "surfaceHtml": ""
     },
@@ -7181,7 +7181,7 @@
             "returnHtml": "The name. For a path that is only a root, such as <code>/</code> or <code>C:\\</code>, the result is the empty string."
           },
           "slug": "basename",
-          "url": "/docs/core/path/basename/"
+          "url": "/reference/core/path/basename/"
         },
         {
           "id": "Path.dirname",
@@ -7228,7 +7228,7 @@
             "returnHtml": "The folder, written with <code>Path::SEPARATOR</code>. When nothing is left, the result is the root for an absolute path and <code>.</code> for a relative one. <code>dirname('')</code> is <code>.</code>, and PHP returns <code>''</code>."
           },
           "slug": "dirname",
-          "url": "/docs/core/path/dirname/"
+          "url": "/reference/core/path/dirname/"
         },
         {
           "id": "Path.extension",
@@ -7266,7 +7266,7 @@
             "returnHtml": "The extension, or <code>null</code> when there is none. A name that starts with a dot, such as <code>.gitignore</code>, has none. A name that ends with a dot, such as <code>report.</code>, has none too. PHP returns <code>gitignore</code> and <code>''</code> for these two."
           },
           "slug": "extension",
-          "url": "/docs/core/path/extension/"
+          "url": "/reference/core/path/extension/"
         },
         {
           "id": "Path.withExtension",
@@ -7322,7 +7322,7 @@
             ]
           },
           "slug": "withextension",
-          "url": "/docs/core/path/withextension/"
+          "url": "/reference/core/path/withextension/"
         },
         {
           "id": "Path.join",
@@ -7372,7 +7372,7 @@
             "returnHtml": "The joined path, written with <code>Core\\Path::SEPARATOR</code>. With no segments, the result is <code>$base</code> with its extra separators removed. A <code>..</code> segment stays in the result and still means the parent folder."
           },
           "slug": "join",
-          "url": "/docs/core/path/join/"
+          "url": "/reference/core/path/join/"
         },
         {
           "id": "Path.split",
@@ -7410,7 +7410,7 @@
             "returnHtml": "The parts in order. When the path starts at a root, the root is the first part: <code>/</code>, a drive such as <code>C:\\</code>, or a share such as <code>\\\\server\\share\\</code>. The root is written with <code>Core\\Path::SEPARATOR</code>. No part is empty, because a repeated separator or one at the end adds nothing. The empty path gives an empty array."
           },
           "slug": "split",
-          "url": "/docs/core/path/split/"
+          "url": "/reference/core/path/split/"
         },
         {
           "id": "Path.normalize",
@@ -7448,7 +7448,7 @@
             "returnHtml": "The same path without <code>.</code> parts, and with each <code>..</code> removing the folder before it. A <code>..</code> at the start of a relative path stays. A <code>..</code> that would go above a root is removed, because a root has no parent. A repeated separator or one at the end is removed. The empty path gives <code>.</code>."
           },
           "slug": "normalize",
-          "url": "/docs/core/path/normalize/"
+          "url": "/reference/core/path/normalize/"
         },
         {
           "id": "Path.isAbsolute",
@@ -7486,7 +7486,7 @@
             "returnHtml": "<code>true</code> for <code>/tmp</code>, <code>\\tmp</code>, <code>C:/log</code> and <code>\\\\server\\share</code>. <code>false</code> for a relative path such as <code>logs/app.log</code>, for <code>C:log</code>, and for the empty string."
           },
           "slug": "isabsolute",
-          "url": "/docs/core/path/isabsolute/"
+          "url": "/reference/core/path/isabsolute/"
         },
         {
           "id": "Path.relativeTo",
@@ -7536,7 +7536,7 @@
             "returnHtml": "A relative path, written with <code>Core\\Path::SEPARATOR</code>. It is <code>.</code> when both paths name the same place. It is <code>null</code> when no relative path exists: one path is absolute and the other is not, the paths start at different roots, or <code>$base</code> starts with more <code>..</code> parts than <code>$path</code> does. Folder names are compared byte for byte. A drive letter and a server name ignore upper and lower case."
           },
           "slug": "relativeto",
-          "url": "/docs/core/path/relativeto/"
+          "url": "/reference/core/path/relativeto/"
         },
         {
           "id": "Path.fromCwd",
@@ -7580,13 +7580,13 @@
             ]
           },
           "slug": "fromcwd",
-          "url": "/docs/core/path/fromcwd/"
+          "url": "/reference/core/path/fromcwd/"
         }
       ],
       "unparsed": [],
       "implemented": true,
       "slug": "path",
-      "url": "/docs/core/path/",
+      "url": "/reference/core/path/",
       "summaryHtml": "<p>Pure string algebra over paths. <strong>No member touches the disk</strong>, so none needs a capability, and every member but <code>fromCwd</code> is constant-foldable. Everything that reads or writes is <code>Core\\IO</code> (§ 14) — that split is the point. <code>fromCwd</code> reads the process's working directory, and throws while a request is being answered (<code>rule:programs/path-literals-resolve-from-their-file</code>).</p>",
       "surfaceHtml": ""
     },
@@ -7654,7 +7654,7 @@
             ]
           },
           "slug": "int",
-          "url": "/docs/core/random/int/"
+          "url": "/reference/core/random/int/"
         },
         {
           "id": "Random.float",
@@ -7677,7 +7677,7 @@
             "returnHtml": "A <code>float</code> with 53 random bits; <code>0.0</code> is drawable and <code>1.0</code> is not."
           },
           "slug": "float",
-          "url": "/docs/core/random/float/"
+          "url": "/reference/core/random/float/"
         },
         {
           "id": "Random.bytes",
@@ -7721,7 +7721,7 @@
             ]
           },
           "slug": "bytes",
-          "url": "/docs/core/random/bytes/"
+          "url": "/reference/core/random/bytes/"
         },
         {
           "id": "Random.token",
@@ -7765,7 +7765,7 @@
             ]
           },
           "slug": "token",
-          "url": "/docs/core/random/token/"
+          "url": "/reference/core/random/token/"
         },
         {
           "id": "Random.pick",
@@ -7803,7 +7803,7 @@
             "returnHtml": "One entry's value; <code>null</code> when <code>$a</code> is empty, which over an <code>array&lt;?T&gt;</code> is indistinguishable from drawing a <code>null</code> entry."
           },
           "slug": "pick",
-          "url": "/docs/core/random/pick/"
+          "url": "/reference/core/random/pick/"
         },
         {
           "id": "Random.sample",
@@ -7859,7 +7859,7 @@
             ]
           },
           "slug": "sample",
-          "url": "/docs/core/random/sample/"
+          "url": "/reference/core/random/sample/"
         },
         {
           "id": "Random.shuffle",
@@ -7897,13 +7897,13 @@
             "returnHtml": "A fresh list of all the values under <code>0, 1, …</code> keys — the subject's keys are discarded, as <code>shuffle</code> renumbers — and <code>$a</code> is unchanged."
           },
           "slug": "shuffle",
-          "url": "/docs/core/random/shuffle/"
+          "url": "/reference/core/random/shuffle/"
         }
       ],
       "unparsed": [],
       "implemented": true,
       "slug": "random",
-      "url": "/docs/core/random/",
+      "url": "/reference/core/random/",
       "summaryHtml": "<p><code>Core\\Random</code> is a CSPRNG, always — PHP's <code>rand</code>/<code>mt_rand</code>/<code>shuffle</code>/<code>str_shuffle</code>/<code>array_rand</code> and its newer <code>Random\\Randomizer</code> OOP twin all collapse into it, and none of the insecure generators survives under any name.</p>",
       "surfaceHtml": ""
     },
@@ -7992,7 +7992,7 @@
             ]
           },
           "slug": "compile",
-          "url": "/docs/core/regex/compile/"
+          "url": "/reference/core/regex/compile/"
         },
         {
           "id": "Regex.matches",
@@ -8048,7 +8048,7 @@
             ]
           },
           "slug": "matches",
-          "url": "/docs/core/regex/matches/"
+          "url": "/reference/core/regex/matches/"
         },
         {
           "id": "Regex.match",
@@ -8113,7 +8113,7 @@
             ]
           },
           "slug": "match",
-          "url": "/docs/core/regex/match/"
+          "url": "/reference/core/regex/match/"
         },
         {
           "id": "Regex.matchAll",
@@ -8169,7 +8169,7 @@
             ]
           },
           "slug": "matchall",
-          "url": "/docs/core/regex/matchall/"
+          "url": "/reference/core/regex/matchall/"
         },
         {
           "id": "Regex.replace",
@@ -8246,7 +8246,7 @@
             ]
           },
           "slug": "replace",
-          "url": "/docs/core/regex/replace/"
+          "url": "/reference/core/regex/replace/"
         },
         {
           "id": "Regex.replaceWith",
@@ -8323,7 +8323,7 @@
             ]
           },
           "slug": "replacewith",
-          "url": "/docs/core/regex/replacewith/"
+          "url": "/reference/core/regex/replacewith/"
         },
         {
           "id": "Regex.split",
@@ -8396,7 +8396,7 @@
             ]
           },
           "slug": "split",
-          "url": "/docs/core/regex/split/"
+          "url": "/reference/core/regex/split/"
         },
         {
           "id": "Regex.quote",
@@ -8434,13 +8434,13 @@
             "returnHtml": "The escaped pattern. A text with no special characters is returned unchanged. The escaped characters are not the same as PHP's <code>preg_quote</code>: <code>&amp;</code> and <code>~</code> are escaped here, and <code>!</code>, <code>:</code>, <code>&lt;</code>, <code>=</code>, <code>&gt;</code> and <code>/</code> are not."
           },
           "slug": "quote",
-          "url": "/docs/core/regex/quote/"
+          "url": "/reference/core/regex/quote/"
         }
       ],
       "unparsed": [],
       "implemented": true,
       "slug": "regex",
-      "url": "/docs/core/regex/",
+      "url": "/reference/core/regex/",
       "summaryHtml": "<p>Semantics — the two-tier engine, the step budget, why the <em>pattern</em> is a sink while the subject is not — are <code>rule:core-classes/regex-two-tiers</code>. <code>preg_match</code>'s <code>$matches</code> out-parameter is a returned <code>?Match</code> (R3), and there are no <code>PREG_*</code> flag constants (R11).</p>",
       "surfaceHtml": ""
     },
@@ -8496,7 +8496,7 @@
             ]
           },
           "slug": "group",
-          "url": "/docs/core/regex-match/group/"
+          "url": "/reference/core/regex-match/group/"
         },
         {
           "id": "Regex.Match.groups",
@@ -8519,7 +8519,7 @@
             "returnHtml": "An array with group <code>0</code> first. A group that this match did not use is in the array, and its value is <code>null</code>."
           },
           "slug": "groups",
-          "url": "/docs/core/regex-match/groups/"
+          "url": "/reference/core/regex-match/groups/"
         },
         {
           "id": "Regex.Match.offset",
@@ -8542,7 +8542,7 @@
             "returnHtml": "The position of the first character of the match. A match at the start of the text is at <code>0</code>."
           },
           "slug": "offset",
-          "url": "/docs/core/regex-match/offset/"
+          "url": "/reference/core/regex-match/offset/"
         },
         {
           "id": "Regex.Match.text",
@@ -8565,13 +8565,13 @@
             "returnHtml": "The matched text. It is never <code>null</code>, but it can be an empty string."
           },
           "slug": "text",
-          "url": "/docs/core/regex-match/text/"
+          "url": "/reference/core/regex-match/text/"
         }
       ],
       "unparsed": [],
       "implemented": true,
       "slug": "regex-match",
-      "url": "/docs/core/regex-match/",
+      "url": "/reference/core/regex-match/",
       "summaryHtml": "",
       "surfaceHtml": ""
     },
@@ -8653,7 +8653,7 @@
             "returnHtml": "The grapheme count; <code>0</code> for the empty string."
           },
           "slug": "length",
-          "url": "/docs/core/str/length/"
+          "url": "/reference/core/str/length/"
         },
         {
           "id": "Str.isEmpty",
@@ -8691,7 +8691,7 @@
             "returnHtml": "<code>true</code> when <code>$s</code> has no characters, otherwise <code>false</code>."
           },
           "slug": "isempty",
-          "url": "/docs/core/str/isempty/"
+          "url": "/reference/core/str/isempty/"
         },
         {
           "id": "Str.at",
@@ -8747,7 +8747,7 @@
             ]
           },
           "slug": "at",
-          "url": "/docs/core/str/at/"
+          "url": "/reference/core/str/at/"
         },
         {
           "id": "Str.contains",
@@ -8797,7 +8797,7 @@
             "returnHtml": "<code>true</code> when <code>$needle</code> is in <code>$haystack</code>, otherwise <code>false</code>. An empty <code>$needle</code> is in every string, so the result is <code>true</code>."
           },
           "slug": "contains",
-          "url": "/docs/core/str/contains/"
+          "url": "/reference/core/str/contains/"
         },
         {
           "id": "Str.startsWith",
@@ -8847,7 +8847,7 @@
             "returnHtml": "<code>true</code> when <code>$s</code> starts with <code>$prefix</code>, otherwise <code>false</code>. An empty <code>$prefix</code> is at the start of every string, so the result is <code>true</code>."
           },
           "slug": "startswith",
-          "url": "/docs/core/str/startswith/"
+          "url": "/reference/core/str/startswith/"
         },
         {
           "id": "Str.endsWith",
@@ -8897,7 +8897,7 @@
             "returnHtml": "<code>true</code> when <code>$s</code> ends with <code>$suffix</code>, otherwise <code>false</code>. An empty <code>$suffix</code> is at the end of every string, so the result is <code>true</code>."
           },
           "slug": "endswith",
-          "url": "/docs/core/str/endswith/"
+          "url": "/reference/core/str/endswith/"
         },
         {
           "id": "Str.indexOf",
@@ -8964,7 +8964,7 @@
             "returnHtml": "The position of the first match at or after <code>from</code>, counted in characters as <code>Core\\Str::length</code> counts them. You can pass it to <code>Core\\Str::slice</code>. The result is <code>null</code> when there is no match."
           },
           "slug": "indexof",
-          "url": "/docs/core/str/indexof/"
+          "url": "/reference/core/str/indexof/"
         },
         {
           "id": "Str.lastIndexOf",
@@ -9031,7 +9031,7 @@
             "returnHtml": "The position of the last match, or <code>null</code> when there is none. Matches may overlap, so <code>lastIndexOf(&quot;aaa&quot;, &quot;aa&quot;)</code> returns <code>1</code>."
           },
           "slug": "lastindexof",
-          "url": "/docs/core/str/lastindexof/"
+          "url": "/reference/core/str/lastindexof/"
         },
         {
           "id": "Str.countOf",
@@ -9087,7 +9087,7 @@
             ]
           },
           "slug": "countof",
-          "url": "/docs/core/str/countof/"
+          "url": "/reference/core/str/countof/"
         },
         {
           "id": "Str.compare",
@@ -9154,7 +9154,7 @@
             "returnHtml": "<code>-1</code> when <code>$a</code> comes first, <code>0</code> when the two are equal, and <code>1</code> when <code>$b</code> comes first."
           },
           "slug": "compare",
-          "url": "/docs/core/str/compare/"
+          "url": "/reference/core/str/compare/"
         },
         {
           "id": "Str.slice",
@@ -9216,7 +9216,7 @@
             "returnHtml": "The part as a new string. It is <code>&quot;&quot;</code> when the part is empty or the offset is past the end. <code>$s</code> does not change."
           },
           "slug": "slice",
-          "url": "/docs/core/str/slice/"
+          "url": "/reference/core/str/slice/"
         },
         {
           "id": "Str.before",
@@ -9275,7 +9275,7 @@
             "returnHtml": "The text before the needle. If the needle is not in <code>$s</code>, the result is <code>null</code>. If the needle is at the start, the result is an empty string."
           },
           "slug": "before",
-          "url": "/docs/core/str/before/"
+          "url": "/reference/core/str/before/"
         },
         {
           "id": "Str.after",
@@ -9334,7 +9334,7 @@
             "returnHtml": "The text after the needle. If the needle is not in <code>$s</code>, the result is <code>null</code>. If the needle is at the end, the result is an empty string."
           },
           "slug": "after",
-          "url": "/docs/core/str/after/"
+          "url": "/reference/core/str/after/"
         },
         {
           "id": "Str.split",
@@ -9399,7 +9399,7 @@
             ]
           },
           "slug": "split",
-          "url": "/docs/core/str/split/"
+          "url": "/reference/core/str/split/"
         },
         {
           "id": "Str.chunk",
@@ -9455,7 +9455,7 @@
             ]
           },
           "slug": "chunk",
-          "url": "/docs/core/str/chunk/"
+          "url": "/reference/core/str/chunk/"
         },
         {
           "id": "Str.lines",
@@ -9493,7 +9493,7 @@
             "returnHtml": "One string for each line, without its line break. A line break at the very end does not add an empty line. An empty line in the middle is kept as <code>&quot;&quot;</code>. An empty string gives <code>[]</code>."
           },
           "slug": "lines",
-          "url": "/docs/core/str/lines/"
+          "url": "/reference/core/str/lines/"
         },
         {
           "id": "Str.graphemes",
@@ -9531,7 +9531,7 @@
             "returnHtml": "One string for each character, in order. An empty string gives <code>[]</code>."
           },
           "slug": "graphemes",
-          "url": "/docs/core/str/graphemes/"
+          "url": "/reference/core/str/graphemes/"
         },
         {
           "id": "Str.codePoints",
@@ -9569,7 +9569,7 @@
             "returnHtml": "One <code>uint</code> for each code point, in order. Each number is between <code>0</code> and <code>0x10FFFF</code> and is never a surrogate. The result is <code>[]</code> for the empty string."
           },
           "slug": "codepoints",
-          "url": "/docs/core/str/codepoints/"
+          "url": "/reference/core/str/codepoints/"
         },
         {
           "id": "Str.join",
@@ -9619,7 +9619,7 @@
             "returnHtml": "The joined string. An empty array gives <code>&quot;&quot;</code>."
           },
           "slug": "join",
-          "url": "/docs/core/str/join/"
+          "url": "/reference/core/str/join/"
         },
         {
           "id": "Str.replace",
@@ -9698,7 +9698,7 @@
             "returnHtml": "The changed string. If nothing matched, the result is <code>$s</code> unchanged."
           },
           "slug": "replace",
-          "url": "/docs/core/str/replace/"
+          "url": "/reference/core/str/replace/"
         },
         {
           "id": "Str.replaceAll",
@@ -9757,7 +9757,7 @@
             "returnHtml": "The changed string. If <code>$pairs</code> is empty or nothing matched, the result is <code>$s</code> unchanged."
           },
           "slug": "replaceall",
-          "url": "/docs/core/str/replaceall/"
+          "url": "/reference/core/str/replaceall/"
         },
         {
           "id": "Str.replaceRange",
@@ -9831,7 +9831,7 @@
             "returnHtml": "The changed string. If the part is empty, for example with a <code>$length</code> of <code>0</code>, <code>$replacement</code> is inserted at <code>$offset</code>."
           },
           "slug": "replacerange",
-          "url": "/docs/core/str/replacerange/"
+          "url": "/reference/core/str/replacerange/"
         },
         {
           "id": "Str.trim",
@@ -9878,7 +9878,7 @@
             "returnHtml": "<code>$s</code> without those characters at its start and its end. The middle of <code>$s</code> is not changed."
           },
           "slug": "trim",
-          "url": "/docs/core/str/trim/"
+          "url": "/reference/core/str/trim/"
         },
         {
           "id": "Str.trimStart",
@@ -9925,7 +9925,7 @@
             "returnHtml": "<code>$s</code> without those characters at its start. The rest of <code>$s</code> is not changed."
           },
           "slug": "trimstart",
-          "url": "/docs/core/str/trimstart/"
+          "url": "/reference/core/str/trimstart/"
         },
         {
           "id": "Str.trimEnd",
@@ -9972,7 +9972,7 @@
             "returnHtml": "<code>$s</code> without those characters at its end. The rest of <code>$s</code> is not changed."
           },
           "slug": "trimend",
-          "url": "/docs/core/str/trimend/"
+          "url": "/reference/core/str/trimend/"
         },
         {
           "id": "Str.padStart",
@@ -10040,7 +10040,7 @@
             ]
           },
           "slug": "padstart",
-          "url": "/docs/core/str/padstart/"
+          "url": "/reference/core/str/padstart/"
         },
         {
           "id": "Str.padEnd",
@@ -10108,7 +10108,7 @@
             ]
           },
           "slug": "padend",
-          "url": "/docs/core/str/padend/"
+          "url": "/reference/core/str/padend/"
         },
         {
           "id": "Str.repeat",
@@ -10164,7 +10164,7 @@
             ]
           },
           "slug": "repeat",
-          "url": "/docs/core/str/repeat/"
+          "url": "/reference/core/str/repeat/"
         },
         {
           "id": "Str.reverse",
@@ -10202,7 +10202,7 @@
             "returnHtml": "The reversed string. It has the same length as <code>$s</code>. The empty string gives <code>&quot;&quot;</code>."
           },
           "slug": "reverse",
-          "url": "/docs/core/str/reverse/"
+          "url": "/reference/core/str/reverse/"
         },
         {
           "id": "Str.wrap",
@@ -10275,7 +10275,7 @@
             ]
           },
           "slug": "wrap",
-          "url": "/docs/core/str/wrap/"
+          "url": "/reference/core/str/wrap/"
         },
         {
           "id": "Str.lower",
@@ -10313,7 +10313,7 @@
             "returnHtml": "The string in lower case. Characters that are not letters do not change. The result can have a different length from <code>$s</code>."
           },
           "slug": "lower",
-          "url": "/docs/core/str/lower/"
+          "url": "/reference/core/str/lower/"
         },
         {
           "id": "Str.upper",
@@ -10351,7 +10351,7 @@
             "returnHtml": "The string in upper case. Characters that are not letters do not change. The result can be longer than <code>$s</code>."
           },
           "slug": "upper",
-          "url": "/docs/core/str/upper/"
+          "url": "/reference/core/str/upper/"
         },
         {
           "id": "Str.upperFirst",
@@ -10389,7 +10389,7 @@
             "returnHtml": "The string with its first character in upper case. An empty string gives <code>&quot;&quot;</code>."
           },
           "slug": "upperfirst",
-          "url": "/docs/core/str/upperfirst/"
+          "url": "/reference/core/str/upperfirst/"
         },
         {
           "id": "Str.lowerFirst",
@@ -10427,7 +10427,7 @@
             "returnHtml": "The string with its first character in lower case. An empty string gives <code>&quot;&quot;</code>."
           },
           "slug": "lowerfirst",
-          "url": "/docs/core/str/lowerfirst/"
+          "url": "/reference/core/str/lowerfirst/"
         },
         {
           "id": "Str.fold",
@@ -10465,7 +10465,7 @@
             "returnHtml": "The folded string. It is a key for comparing, not text to show: <code>ß</code> becomes <code>ss</code> and <code>ﬁ</code> becomes <code>fi</code>. <code>fold(&quot;STRASSE&quot;) == fold(&quot;straße&quot;)</code> is <code>true</code>."
           },
           "slug": "fold",
-          "url": "/docs/core/str/fold/"
+          "url": "/reference/core/str/fold/"
         },
         {
           "id": "Str.normalize",
@@ -10515,7 +10515,7 @@
             "returnHtml": "The normalized string. <code>Nfc</code> is the form to store and compare text in. A string of ASCII characters is returned unchanged."
           },
           "slug": "normalize",
-          "url": "/docs/core/str/normalize/"
+          "url": "/reference/core/str/normalize/"
         },
         {
           "id": "Str.fromCodePoint",
@@ -10559,7 +10559,7 @@
             ]
           },
           "slug": "fromcodepoint",
-          "url": "/docs/core/str/fromcodepoint/"
+          "url": "/reference/core/str/fromcodepoint/"
         },
         {
           "id": "Str.fromCodePoints",
@@ -10603,7 +10603,7 @@
             ]
           },
           "slug": "fromcodepoints",
-          "url": "/docs/core/str/fromcodepoints/"
+          "url": "/reference/core/str/fromcodepoints/"
         },
         {
           "id": "Str.format",
@@ -10663,13 +10663,13 @@
             ]
           },
           "slug": "format",
-          "url": "/docs/core/str/format/"
+          "url": "/reference/core/str/format/"
         }
       ],
       "unparsed": [],
       "implemented": true,
       "slug": "str",
-      "url": "/docs/core/str/",
+      "url": "/reference/core/str/",
       "summaryHtml": "<p><code>string</code> is guaranteed-valid UTF-8 (<code>rule:types/bytes</code>), so <strong>no member takes an encoding argument</strong> (R13) and there is no <code>mb_</code> twin of anything. Indexing granularity — what <code>length</code>, <code>at</code> and <code>slice</code> count in — is <code>rule:types/string-is-utf8</code>'s, not this file's: <strong>extended grapheme clusters</strong>. Every signature below is written granularity-agnostically, so nothing here changes if that ADR's own <em>Revisiting</em> ever re-opens it.</p>",
       "surfaceHtml": ""
     },
@@ -10748,7 +10748,7 @@
             ]
           },
           "slug": "all",
-          "url": "/docs/core/task/all/"
+          "url": "/reference/core/task/all/"
         },
         {
           "id": "Task.map",
@@ -10825,7 +10825,7 @@
             ]
           },
           "slug": "map",
-          "url": "/docs/core/task/map/"
+          "url": "/reference/core/task/map/"
         },
         {
           "id": "Task.afterResponse",
@@ -10878,13 +10878,13 @@
             ]
           },
           "slug": "afterresponse",
-          "url": "/docs/core/task/afterresponse/"
+          "url": "/reference/core/task/afterresponse/"
         }
       ],
       "unparsed": [],
       "implemented": true,
       "slug": "task",
-      "url": "/docs/core/task/",
+      "url": "/reference/core/task/",
       "summaryHtml": "<p>Semantics are <code>rule:concurrency/one-scheduler</code> — what cancellation does and does not run, why control never leaves a call with work still running, and the <code>[deferred]</code> bound. This section owns the signatures only. Nothing here needs a capability; it needs the M5 scheduler, which is why it sits in Part II and lands at <strong>M5</strong> rather than M8.</p>",
       "surfaceHtml": "§ 19 below — <code>all</code>, <code>map</code>, <code>afterResponse</code>"
     },
@@ -11009,7 +11009,7 @@
             "returnHtml": "The current <code>Instant</code>, to the nanosecond."
           },
           "slug": "now",
-          "url": "/docs/core/time/now/"
+          "url": "/reference/core/time/now/"
         },
         {
           "id": "Time.monotonic",
@@ -11032,7 +11032,7 @@
             "returnHtml": "A <code>Duration</code> since a fixed starting point. A later reading is never smaller than an earlier one."
           },
           "slug": "monotonic",
-          "url": "/docs/core/time/monotonic/"
+          "url": "/reference/core/time/monotonic/"
         },
         {
           "id": "Time.sleep",
@@ -11070,7 +11070,7 @@
             "returnHtml": "Nothing."
           },
           "slug": "sleep",
-          "url": "/docs/core/time/sleep/"
+          "url": "/reference/core/time/sleep/"
         },
         {
           "id": "Time.fromEpoch",
@@ -11123,7 +11123,7 @@
             ]
           },
           "slug": "fromepoch",
-          "url": "/docs/core/time/fromepoch/"
+          "url": "/reference/core/time/fromepoch/"
         },
         {
           "id": "Time.fromIso",
@@ -11167,7 +11167,7 @@
             ]
           },
           "slug": "fromiso",
-          "url": "/docs/core/time/fromiso/"
+          "url": "/reference/core/time/fromiso/"
         },
         {
           "id": "Time.parse",
@@ -11239,7 +11239,7 @@
             ]
           },
           "slug": "parse",
-          "url": "/docs/core/time/parse/"
+          "url": "/reference/core/time/parse/"
         },
         {
           "id": "Time.at",
@@ -11352,13 +11352,13 @@
             ]
           },
           "slug": "at",
-          "url": "/docs/core/time/at/"
+          "url": "/reference/core/time/at/"
         }
       ],
       "unparsed": [],
       "implemented": true,
       "slug": "time",
-      "url": "/docs/core/time/",
+      "url": "/reference/core/time/",
       "summaryHtml": "<p>PHP has ~40 <code>date_<em></code> procedural functions that are aliases of <code>DateTime</code> methods, </em>and* a <code>DateTime</code>/<code>DateTimeImmutable</code> mutable/immutable pair. Both duplications are gone (R17, R20): there are objects only, and every one is immutable. There is <strong>no ambient timezone</strong> — no process default, no per-request default — so a <code>Zone</code> is an explicit argument at every instant↔calendar conversion.</p>\n<p><strong>Two arithmetics, and the type says which one you get.</strong> An <code>Instant</code> moves by a <code>Duration</code>, which is an exact count of nanoseconds; a <code>DateTime</code> moves by a count of a <code>Unit</code>, which is a calendar step that a DST boundary or a short month can make longer or shorter than its nominal length. <code>Time::now()-&gt;plus(72h)</code> and <code>Time::now()-&gt;in($zone)-&gt;plus(3, Unit::Day)</code> are different operations, and PHP's <code>&quot;+3 days&quot;</code> is ambiguous between them. There is no relative-expression string anywhere in this class: everything <code>strtotime</code> spells is a typed call, and <code>rule:types/duration-literal</code>'s <code>72h</code>/<code>30d</code> literal is what keeps them short.</p>",
       "surfaceHtml": ""
     },
@@ -11439,13 +11439,13 @@
             ]
           },
           "slug": "at",
-          "url": "/docs/core/time-date/at/"
+          "url": "/reference/core/time-date/at/"
         }
       ],
       "unparsed": [],
       "implemented": true,
       "slug": "time-date",
-      "url": "/docs/core/time-date/",
+      "url": "/reference/core/time-date/",
       "summaryHtml": "",
       "surfaceHtml": ""
     },
@@ -11501,7 +11501,7 @@
             ]
           },
           "slug": "format",
-          "url": "/docs/core/time-datetime/format/"
+          "url": "/reference/core/time-datetime/format/"
         },
         {
           "id": "Time.DateTime.plus",
@@ -11557,7 +11557,7 @@
             ]
           },
           "slug": "plus",
-          "url": "/docs/core/time-datetime/plus/"
+          "url": "/reference/core/time-datetime/plus/"
         },
         {
           "id": "Time.DateTime.minus",
@@ -11613,7 +11613,7 @@
             ]
           },
           "slug": "minus",
-          "url": "/docs/core/time-datetime/minus/"
+          "url": "/reference/core/time-datetime/minus/"
         },
         {
           "id": "Time.DateTime.next",
@@ -11657,7 +11657,7 @@
             ]
           },
           "slug": "next",
-          "url": "/docs/core/time-datetime/next/"
+          "url": "/reference/core/time-datetime/next/"
         },
         {
           "id": "Time.DateTime.previous",
@@ -11701,7 +11701,7 @@
             ]
           },
           "slug": "previous",
-          "url": "/docs/core/time-datetime/previous/"
+          "url": "/reference/core/time-datetime/previous/"
         },
         {
           "id": "Time.DateTime.with",
@@ -11789,7 +11789,7 @@
             ]
           },
           "slug": "with",
-          "url": "/docs/core/time-datetime/with/"
+          "url": "/reference/core/time-datetime/with/"
         },
         {
           "id": "Time.DateTime.withTime",
@@ -11833,7 +11833,7 @@
             ]
           },
           "slug": "withtime",
-          "url": "/docs/core/time-datetime/withtime/"
+          "url": "/reference/core/time-datetime/withtime/"
         },
         {
           "id": "Time.DateTime.startOf",
@@ -11877,7 +11877,7 @@
             ]
           },
           "slug": "startof",
-          "url": "/docs/core/time-datetime/startof/"
+          "url": "/reference/core/time-datetime/startof/"
         },
         {
           "id": "Time.DateTime.endOf",
@@ -11921,7 +11921,7 @@
             ]
           },
           "slug": "endof",
-          "url": "/docs/core/time-datetime/endof/"
+          "url": "/reference/core/time-datetime/endof/"
         },
         {
           "id": "Time.DateTime.difference",
@@ -11977,7 +11977,7 @@
             ]
           },
           "slug": "difference",
-          "url": "/docs/core/time-datetime/difference/"
+          "url": "/reference/core/time-datetime/difference/"
         },
         {
           "id": "Time.DateTime.toInstant",
@@ -12000,7 +12000,7 @@
             "returnHtml": "The <code>Instant</code>, with the zone dropped."
           },
           "slug": "toinstant",
-          "url": "/docs/core/time-datetime/toinstant/"
+          "url": "/reference/core/time-datetime/toinstant/"
         },
         {
           "id": "Time.DateTime.date",
@@ -12023,7 +12023,7 @@
             "returnHtml": "The <code>Date</code> component."
           },
           "slug": "date",
-          "url": "/docs/core/time-datetime/date/"
+          "url": "/reference/core/time-datetime/date/"
         },
         {
           "id": "Time.DateTime.weekday",
@@ -12046,7 +12046,7 @@
             "returnHtml": "The <code>Weekday</code> case, <code>Weekday::Monday</code> through <code>Weekday::Sunday</code>."
           },
           "slug": "weekday",
-          "url": "/docs/core/time-datetime/weekday/"
+          "url": "/reference/core/time-datetime/weekday/"
         },
         {
           "id": "Time.DateTime.dayOfYear",
@@ -12069,7 +12069,7 @@
             "returnHtml": "<code>1</code> for 1 January through <code>365</code> or <code>366</code> — one-based where <code>date(&quot;z&quot;)</code> is zero-based, as every other day count here is."
           },
           "slug": "dayofyear",
-          "url": "/docs/core/time-datetime/dayofyear/"
+          "url": "/reference/core/time-datetime/dayofyear/"
         },
         {
           "id": "Time.DateTime.isLeapYear",
@@ -12092,7 +12092,7 @@
             "returnHtml": "<code>true</code> in a leap year of the proleptic Gregorian calendar."
           },
           "slug": "isleapyear",
-          "url": "/docs/core/time-datetime/isleapyear/"
+          "url": "/reference/core/time-datetime/isleapyear/"
         },
         {
           "id": "Time.DateTime.timeOfDay",
@@ -12116,7 +12116,7 @@
             "returnHtml": "The <code>TimeOfDay</code> component, hour through nanosecond."
           },
           "slug": "timeofday",
-          "url": "/docs/core/time-datetime/timeofday/"
+          "url": "/reference/core/time-datetime/timeofday/"
         },
         {
           "id": "Time.DateTime.zone",
@@ -12140,13 +12140,13 @@
             "returnHtml": "The <code>Zone</code> component."
           },
           "slug": "zone",
-          "url": "/docs/core/time-datetime/zone/"
+          "url": "/reference/core/time-datetime/zone/"
         }
       ],
       "unparsed": [],
       "implemented": true,
       "slug": "time-datetime",
-      "url": "/docs/core/time-datetime/",
+      "url": "/reference/core/time-datetime/",
       "summaryHtml": "",
       "surfaceHtml": ""
     },
@@ -12202,7 +12202,7 @@
             ]
           },
           "slug": "seconds",
-          "url": "/docs/core/time-duration/seconds/"
+          "url": "/reference/core/time-duration/seconds/"
         },
         {
           "id": "Time.Duration.parse",
@@ -12246,7 +12246,7 @@
             ]
           },
           "slug": "parse",
-          "url": "/docs/core/time-duration/parse/"
+          "url": "/reference/core/time-duration/parse/"
         },
         {
           "id": "Time.Duration.toSeconds",
@@ -12269,7 +12269,7 @@
             "returnHtml": "The nanosecond count divided by 1 000 000 000, truncated toward zero — <code>0</code> for anything shorter than a second."
           },
           "slug": "toseconds",
-          "url": "/docs/core/time-duration/toseconds/"
+          "url": "/reference/core/time-duration/toseconds/"
         },
         {
           "id": "Time.Duration.plus",
@@ -12313,7 +12313,7 @@
             ]
           },
           "slug": "plus",
-          "url": "/docs/core/time-duration/plus/"
+          "url": "/reference/core/time-duration/plus/"
         },
         {
           "id": "Time.Duration.minus",
@@ -12357,7 +12357,7 @@
             ]
           },
           "slug": "minus",
-          "url": "/docs/core/time-duration/minus/"
+          "url": "/reference/core/time-duration/minus/"
         },
         {
           "id": "Time.Duration.multipliedBy",
@@ -12401,7 +12401,7 @@
             ]
           },
           "slug": "multipliedby",
-          "url": "/docs/core/time-duration/multipliedby/"
+          "url": "/reference/core/time-duration/multipliedby/"
         },
         {
           "id": "Time.Duration.negated",
@@ -12430,7 +12430,7 @@
             ]
           },
           "slug": "negated",
-          "url": "/docs/core/time-duration/negated/"
+          "url": "/reference/core/time-duration/negated/"
         },
         {
           "id": "Time.Duration.nanoseconds",
@@ -12469,7 +12469,7 @@
             "returnHtml": "A <code>Duration</code> of <code>$n</code> nanoseconds."
           },
           "slug": "nanoseconds",
-          "url": "/docs/core/time-duration/nanoseconds/"
+          "url": "/reference/core/time-duration/nanoseconds/"
         },
         {
           "id": "Time.Duration.microseconds",
@@ -12514,7 +12514,7 @@
             ]
           },
           "slug": "microseconds",
-          "url": "/docs/core/time-duration/microseconds/"
+          "url": "/reference/core/time-duration/microseconds/"
         },
         {
           "id": "Time.Duration.milliseconds",
@@ -12559,7 +12559,7 @@
             ]
           },
           "slug": "milliseconds",
-          "url": "/docs/core/time-duration/milliseconds/"
+          "url": "/reference/core/time-duration/milliseconds/"
         },
         {
           "id": "Time.Duration.minutes",
@@ -12604,7 +12604,7 @@
             ]
           },
           "slug": "minutes",
-          "url": "/docs/core/time-duration/minutes/"
+          "url": "/reference/core/time-duration/minutes/"
         },
         {
           "id": "Time.Duration.hours",
@@ -12649,7 +12649,7 @@
             ]
           },
           "slug": "hours",
-          "url": "/docs/core/time-duration/hours/"
+          "url": "/reference/core/time-duration/hours/"
         },
         {
           "id": "Time.Duration.days",
@@ -12694,7 +12694,7 @@
             ]
           },
           "slug": "days",
-          "url": "/docs/core/time-duration/days/"
+          "url": "/reference/core/time-duration/days/"
         },
         {
           "id": "Time.Duration.weeks",
@@ -12739,7 +12739,7 @@
             ]
           },
           "slug": "weeks",
-          "url": "/docs/core/time-duration/weeks/"
+          "url": "/reference/core/time-duration/weeks/"
         },
         {
           "id": "Time.Duration.toMilliseconds",
@@ -12763,7 +12763,7 @@
             "returnHtml": "The nanosecond count divided by 1 000 000, truncated toward zero."
           },
           "slug": "tomilliseconds",
-          "url": "/docs/core/time-duration/tomilliseconds/"
+          "url": "/reference/core/time-duration/tomilliseconds/"
         },
         {
           "id": "Time.Duration.toMicroseconds",
@@ -12787,7 +12787,7 @@
             "returnHtml": "The nanosecond count divided by 1000, truncated toward zero."
           },
           "slug": "tomicroseconds",
-          "url": "/docs/core/time-duration/tomicroseconds/"
+          "url": "/reference/core/time-duration/tomicroseconds/"
         },
         {
           "id": "Time.Duration.toNanoseconds",
@@ -12811,13 +12811,13 @@
             "returnHtml": "The whole count of nanoseconds; negative for a duration that runs backwards."
           },
           "slug": "tonanoseconds",
-          "url": "/docs/core/time-duration/tonanoseconds/"
+          "url": "/reference/core/time-duration/tonanoseconds/"
         }
       ],
       "unparsed": [],
       "implemented": true,
       "slug": "time-duration",
-      "url": "/docs/core/time-duration/",
+      "url": "/reference/core/time-duration/",
       "summaryHtml": "",
       "surfaceHtml": ""
     },
@@ -12867,7 +12867,7 @@
             "returnHtml": "A <code>DateTime</code> at the same instant, in <code>$zone</code>. The instant does not change."
           },
           "slug": "in",
-          "url": "/docs/core/time-instant/in/"
+          "url": "/reference/core/time-instant/in/"
         },
         {
           "id": "Time.Instant.toEpochSeconds",
@@ -12890,7 +12890,7 @@
             "returnHtml": "An <code>int</code>, negative before 1970. The part of a second is dropped, toward zero."
           },
           "slug": "toepochseconds",
-          "url": "/docs/core/time-instant/toepochseconds/"
+          "url": "/reference/core/time-instant/toepochseconds/"
         },
         {
           "id": "Time.Instant.toEpochMillis",
@@ -12913,7 +12913,7 @@
             "returnHtml": "An <code>int</code>, negative before 1970. The part of a millisecond is dropped, toward zero. Every instant fits."
           },
           "slug": "toepochmillis",
-          "url": "/docs/core/time-instant/toepochmillis/"
+          "url": "/reference/core/time-instant/toepochmillis/"
         },
         {
           "id": "Time.Instant.plus",
@@ -12957,7 +12957,7 @@
             ]
           },
           "slug": "plus",
-          "url": "/docs/core/time-instant/plus/"
+          "url": "/reference/core/time-instant/plus/"
         },
         {
           "id": "Time.Instant.minus",
@@ -13001,7 +13001,7 @@
             ]
           },
           "slug": "minus",
-          "url": "/docs/core/time-instant/minus/"
+          "url": "/reference/core/time-instant/minus/"
         },
         {
           "id": "Time.Instant.since",
@@ -13045,7 +13045,7 @@
             ]
           },
           "slug": "since",
-          "url": "/docs/core/time-instant/since/"
+          "url": "/reference/core/time-instant/since/"
         },
         {
           "id": "Time.Instant.compareTo",
@@ -13083,7 +13083,7 @@
             "returnHtml": "<code>-1</code> when the receiver is earlier than <code>$other</code>, <code>0</code> when they are the same instant, <code>1</code> when it is later."
           },
           "slug": "compareto",
-          "url": "/docs/core/time-instant/compareto/"
+          "url": "/reference/core/time-instant/compareto/"
         },
         {
           "id": "Time.Instant.toIso",
@@ -13106,7 +13106,7 @@
             "returnHtml": "A <code>string</code> such as <code>2024-03-01T12:00:00Z</code>. It has a fraction of a second only when the fraction is not zero."
           },
           "slug": "toiso",
-          "url": "/docs/core/time-instant/toiso/"
+          "url": "/reference/core/time-instant/toiso/"
         },
         {
           "id": "Time.Instant.toEpochMicros",
@@ -13130,13 +13130,13 @@
             "returnHtml": "An <code>int</code>, negative before 1970. The part of a microsecond is dropped, toward zero. Every instant fits."
           },
           "slug": "toepochmicros",
-          "url": "/docs/core/time-instant/toepochmicros/"
+          "url": "/reference/core/time-instant/toepochmicros/"
         }
       ],
       "unparsed": [],
       "implemented": true,
       "slug": "time-instant",
-      "url": "/docs/core/time-instant/",
+      "url": "/reference/core/time-instant/",
       "summaryHtml": "",
       "surfaceHtml": ""
     },
@@ -13222,13 +13222,13 @@
             ]
           },
           "slug": "at",
-          "url": "/docs/core/time-timeofday/at/"
+          "url": "/reference/core/time-timeofday/at/"
         }
       ],
       "unparsed": [],
       "implemented": true,
       "slug": "time-timeofday",
-      "url": "/docs/core/time-timeofday/",
+      "url": "/reference/core/time-timeofday/",
       "summaryHtml": "",
       "surfaceHtml": ""
     },
@@ -13289,7 +13289,7 @@
             ]
           },
           "slug": "of",
-          "url": "/docs/core/time-zone/of/"
+          "url": "/reference/core/time-zone/of/"
         },
         {
           "id": "Time.Zone.fixed",
@@ -13333,7 +13333,7 @@
             ]
           },
           "slug": "fixed",
-          "url": "/docs/core/time-zone/fixed/"
+          "url": "/reference/core/time-zone/fixed/"
         },
         {
           "id": "Time.Zone.system",
@@ -13356,7 +13356,7 @@
             "returnHtml": "The computer's <code>Zone</code> with its IANA name, such as <code>Europe/Berlin</code>. When the computer has no zone name, the result is a fixed zone at its current offset, such as <code>+02:00</code>."
           },
           "slug": "system",
-          "url": "/docs/core/time-zone/system/"
+          "url": "/reference/core/time-zone/system/"
         },
         {
           "id": "Time.Zone.offsetAt",
@@ -13394,13 +13394,13 @@
             "returnHtml": "The offset as a <code>Duration</code> of whole seconds. It is positive east of UTC, negative west of UTC, and zero for UTC."
           },
           "slug": "offsetat",
-          "url": "/docs/core/time-zone/offsetat/"
+          "url": "/reference/core/time-zone/offsetat/"
         }
       ],
       "unparsed": [],
       "implemented": true,
       "slug": "time-zone",
-      "url": "/docs/core/time-zone/",
+      "url": "/reference/core/time-zone/",
       "summaryHtml": "",
       "surfaceHtml": ""
     },
@@ -13456,7 +13456,7 @@
             ]
           },
           "slug": "parse",
-          "url": "/docs/core/uri/parse/"
+          "url": "/reference/core/uri/parse/"
         },
         {
           "id": "Uri.tryParse",
@@ -13494,7 +13494,7 @@
             "returnHtml": "A <code>Uri</code>. The result is <code>null</code> for every text that <code>Core\\Uri::parse</code> throws an error for. To check if an address is absolute, use <code>tryParse($text)?-&gt;scheme() != null</code>."
           },
           "slug": "tryparse",
-          "url": "/docs/core/uri/tryparse/"
+          "url": "/reference/core/uri/tryparse/"
         },
         {
           "id": "Uri.encodeComponent",
@@ -13532,7 +13532,7 @@
             "returnHtml": "The escaped text, with upper-case hex digits. A <code>tainted</code> argument (text from outside the program, such as a request) gives a plain result. No byte of the result can change the structure of the URI."
           },
           "slug": "encodecomponent",
-          "url": "/docs/core/uri/encodecomponent/"
+          "url": "/reference/core/uri/encodecomponent/"
         },
         {
           "id": "Uri.decodeComponent",
@@ -13570,7 +13570,7 @@
             "returnHtml": "The decoded bytes, as <code>bytes</code>, because an escape can give any byte. <code>as string</code> converts them to text and throws an error when they are not valid UTF-8. A <code>%</code> that is not followed by two hex digits is kept, so <code>100%</code> returns <code>100%</code>."
           },
           "slug": "decodecomponent",
-          "url": "/docs/core/uri/decodecomponent/"
+          "url": "/reference/core/uri/decodecomponent/"
         },
         {
           "id": "Uri.encodeFormValue",
@@ -13608,7 +13608,7 @@
             "returnHtml": "The escaped text, with upper-case hex digits. A <code>tainted</code> argument (text from outside the program, such as a request) gives a plain result. No byte of the result can start a new pair of the form."
           },
           "slug": "encodeformvalue",
-          "url": "/docs/core/uri/encodeformvalue/"
+          "url": "/reference/core/uri/encodeformvalue/"
         },
         {
           "id": "Uri.decodeFormValue",
@@ -13646,7 +13646,7 @@
             "returnHtml": "The decoded bytes, as <code>bytes</code>, because an escape can give any byte. <code>as string</code> converts them to text and throws an error when they are not valid UTF-8. A <code>%</code> that is not followed by two hex digits is kept, so <code>100%</code> returns <code>100%</code>."
           },
           "slug": "decodeformvalue",
-          "url": "/docs/core/uri/decodeformvalue/"
+          "url": "/reference/core/uri/decodeformvalue/"
         },
         {
           "id": "Uri.parseQuery",
@@ -13690,7 +13690,7 @@
             ]
           },
           "slug": "parsequery",
-          "url": "/docs/core/uri/parsequery/"
+          "url": "/reference/core/uri/parsequery/"
         },
         {
           "id": "Uri.buildQuery",
@@ -13734,7 +13734,7 @@
             ]
           },
           "slug": "buildquery",
-          "url": "/docs/core/uri/buildquery/"
+          "url": "/reference/core/uri/buildquery/"
         },
         {
           "id": "Uri.with",
@@ -13814,7 +13814,7 @@
             ]
           },
           "slug": "with",
-          "url": "/docs/core/uri/with/"
+          "url": "/reference/core/uri/with/"
         },
         {
           "id": "Uri.queryParameter",
@@ -13858,7 +13858,7 @@
             ]
           },
           "slug": "queryparameter",
-          "url": "/docs/core/uri/queryparameter/"
+          "url": "/reference/core/uri/queryparameter/"
         },
         {
           "id": "Uri.withQueryParameter",
@@ -13914,7 +13914,7 @@
             ]
           },
           "slug": "withqueryparameter",
-          "url": "/docs/core/uri/withqueryparameter/"
+          "url": "/reference/core/uri/withqueryparameter/"
         },
         {
           "id": "Uri.resolve",
@@ -13958,7 +13958,7 @@
             ]
           },
           "slug": "resolve",
-          "url": "/docs/core/uri/resolve/"
+          "url": "/reference/core/uri/resolve/"
         },
         {
           "id": "Uri.compareTo",
@@ -13996,7 +13996,7 @@
             "returnHtml": "<code>0</code> when both are the same address, <code>-1</code> when this address comes first, and <code>1</code> when <code>$other</code> comes first. The parts are compared in this order: <code>scheme</code>, <code>userInfo</code>, <code>host</code>, <code>port</code>, <code>path</code>, <code>query</code>, <code>fragment</code>. A missing part comes before a part that is there. <code>http://example.com:80/</code> and <code>http://example.com/</code> are different, because the default port of a scheme is not known."
           },
           "slug": "compareto",
-          "url": "/docs/core/uri/compareto/"
+          "url": "/reference/core/uri/compareto/"
         },
         {
           "id": "Uri.sign",
@@ -14052,7 +14052,7 @@
             ]
           },
           "slug": "sign",
-          "url": "/docs/core/uri/sign/"
+          "url": "/reference/core/uri/sign/"
         },
         {
           "id": "Uri.verifySignature",
@@ -14100,7 +14100,7 @@
             ]
           },
           "slug": "verifysignature",
-          "url": "/docs/core/uri/verifysignature/"
+          "url": "/reference/core/uri/verifysignature/"
         },
         {
           "id": "Uri.scheme",
@@ -14124,7 +14124,7 @@
             "returnHtml": "The scheme, without the <code>:</code>. The result is <code>null</code> when the address has no scheme, such as <code>/about</code> or <code>//example.com/</code>."
           },
           "slug": "scheme",
-          "url": "/docs/core/uri/scheme/"
+          "url": "/reference/core/uri/scheme/"
         },
         {
           "id": "Uri.userInfo",
@@ -14148,7 +14148,7 @@
             "returnHtml": "The user part, without the <code>@</code>. The result is <code>null</code> when the address has no <code>@</code> before its host. It is <code>&quot;&quot;</code> when nothing is written before the <code>@</code>."
           },
           "slug": "userinfo",
-          "url": "/docs/core/uri/userinfo/"
+          "url": "/reference/core/uri/userinfo/"
         },
         {
           "id": "Uri.host",
@@ -14172,7 +14172,7 @@
             "returnHtml": "The host. The result is <code>null</code> when the address has no <code>//</code> part. It is <code>&quot;&quot;</code> when the <code>//</code> part is empty, as in <code>file:///tmp</code>."
           },
           "slug": "host",
-          "url": "/docs/core/uri/host/"
+          "url": "/reference/core/uri/host/"
         },
         {
           "id": "Uri.port",
@@ -14196,7 +14196,7 @@
             "returnHtml": "The port, from <code>0</code> to <code>65535</code>. The result is <code>null</code> when the address has no port. It is also <code>null</code> when the <code>:</code> has no digits after it, as in <code>http://example.com:/</code>. A default port, such as <code>443</code> for <code>https</code>, is never filled in."
           },
           "slug": "port",
-          "url": "/docs/core/uri/port/"
+          "url": "/reference/core/uri/port/"
         },
         {
           "id": "Uri.path",
@@ -14220,7 +14220,7 @@
             "returnHtml": "The path. It is never <code>null</code>. An address with no path, such as <code>https://example.com</code>, returns <code>&quot;&quot;</code>."
           },
           "slug": "path",
-          "url": "/docs/core/uri/path/"
+          "url": "/reference/core/uri/path/"
         },
         {
           "id": "Uri.query",
@@ -14244,7 +14244,7 @@
             "returnHtml": "The query, without the <code>?</code>. The result is <code>null</code> when the address has no <code>?</code>. It is <code>&quot;&quot;</code> when nothing is written after the <code>?</code>."
           },
           "slug": "query",
-          "url": "/docs/core/uri/query/"
+          "url": "/reference/core/uri/query/"
         },
         {
           "id": "Uri.fragment",
@@ -14268,7 +14268,7 @@
             "returnHtml": "The fragment, without the <code>#</code>. The result is <code>null</code> when the address has no <code>#</code>. It is <code>&quot;&quot;</code> when nothing is written after the <code>#</code>."
           },
           "slug": "fragment",
-          "url": "/docs/core/uri/fragment/"
+          "url": "/reference/core/uri/fragment/"
         },
         {
           "id": "Uri.toString",
@@ -14292,13 +14292,13 @@
             "returnHtml": "The address as a <code>string</code>. For <code>HTTP://Example.COM/a%2fb</code> the result is <code>HTTP://Example.COM/a%2fb</code>."
           },
           "slug": "tostring",
-          "url": "/docs/core/uri/tostring/"
+          "url": "/reference/core/uri/tostring/"
         }
       ],
       "unparsed": [],
       "implemented": true,
       "slug": "uri",
-      "url": "/docs/core/uri/",
+      "url": "/reference/core/uri/",
       "summaryHtml": "",
       "surfaceHtml": ""
     },
@@ -14333,7 +14333,7 @@
             "returnHtml": "A new <code>Uuid</code>. Nobody can guess it, and it contains no date or time, so it is safe to show to other people."
           },
           "slug": "v4",
-          "url": "/docs/core/uuid/v4/"
+          "url": "/reference/core/uuid/v4/"
         },
         {
           "id": "Uuid.v7",
@@ -14356,7 +14356,7 @@
             "returnHtml": "A new <code>Uuid</code>. It sorts after every UUID created in an earlier millisecond. Two UUIDs created in the same millisecond sort in a random order. Anybody who has the UUID can read the time it was created, so use <code>Core\\Uuid::v4</code> for an ID that other people see. If the computer's clock is before 1970, the time part is zero."
           },
           "slug": "v7",
-          "url": "/docs/core/uuid/v7/"
+          "url": "/reference/core/uuid/v7/"
         },
         {
           "id": "Uuid.parse",
@@ -14400,7 +14400,7 @@
             ]
           },
           "slug": "parse",
-          "url": "/docs/core/uuid/parse/"
+          "url": "/reference/core/uuid/parse/"
         },
         {
           "id": "Uuid.tryParse",
@@ -14438,7 +14438,7 @@
             "returnHtml": "The <code>Uuid</code> that the text gives, or <code>null</code> when the text is in any other form. The 32 digits without hyphens, a UUID in <code>{}</code> braces and a UUID after <code>urn:uuid:</code> all give <code>null</code>."
           },
           "slug": "tryparse",
-          "url": "/docs/core/uuid/tryparse/"
+          "url": "/reference/core/uuid/tryparse/"
         },
         {
           "id": "Uuid.fromBytes",
@@ -14482,7 +14482,7 @@
             ]
           },
           "slug": "frombytes",
-          "url": "/docs/core/uuid/frombytes/"
+          "url": "/reference/core/uuid/frombytes/"
         },
         {
           "id": "Uuid.toString",
@@ -14505,7 +14505,7 @@
             "returnHtml": "A string of 36 characters. The letters are always lower case, even when <code>parse</code> read them in upper case."
           },
           "slug": "tostring",
-          "url": "/docs/core/uuid/tostring/"
+          "url": "/reference/core/uuid/tostring/"
         },
         {
           "id": "Uuid.toBytes",
@@ -14528,13 +14528,13 @@
             "returnHtml": "Sixteen bytes, in the same order as the digits of the UUID's text. <code>Core\\Uuid::fromBytes</code> reads them back as the same UUID."
           },
           "slug": "tobytes",
-          "url": "/docs/core/uuid/tobytes/"
+          "url": "/reference/core/uuid/tobytes/"
         }
       ],
       "unparsed": [],
       "implemented": true,
       "slug": "uuid",
-      "url": "/docs/core/uuid/",
+      "url": "/reference/core/uuid/",
       "summaryHtml": "",
       "surfaceHtml": ""
     },
@@ -14585,7 +14585,7 @@
             "returnHtml": "<code>true</code> for an email address. <code>false</code> for anything else, for example a space, two dots in a row, quotes, an address such as <code>a@[192.0.2.1]</code>, a domain without a dot such as <code>a@localhost</code>, or a character that is not ASCII. The method does not check whether the address exists."
           },
           "slug": "isemail",
-          "url": "/docs/core/validate/isemail/"
+          "url": "/reference/core/validate/isemail/"
         },
         {
           "id": "Validate.isIp",
@@ -14633,7 +14633,7 @@
             "returnHtml": "<code>true</code> for an IP address of the chosen version. <code>false</code> for anything else. A number with a leading zero, such as <code>192.0.2.01</code>, gives <code>false</code>. An IPv6 address with a zone at the end, such as <code>fe80::1%eth0</code>, also gives <code>false</code>."
           },
           "slug": "isip",
-          "url": "/docs/core/validate/isip/"
+          "url": "/reference/core/validate/isip/"
         },
         {
           "id": "Validate.isMac",
@@ -14672,7 +14672,7 @@
             "returnHtml": "<code>true</code> for one of the three ways to write it, in upper or lower case. <code>false</code> otherwise. A text that mixes two separators, such as <code>00:1a-2b:3c:4d:5e</code>, gives <code>false</code>."
           },
           "slug": "ismac",
-          "url": "/docs/core/validate/ismac/"
+          "url": "/reference/core/validate/ismac/"
         },
         {
           "id": "Validate.isDomain",
@@ -14711,7 +14711,7 @@
             "returnHtml": "<code>true</code> for a domain name. <code>localhost</code> and a name of digits such as <code>1.2.3.4</code> are <code>true</code> too. <code>false</code> for an empty part, a dot at the end, a part that starts or ends with <code>-</code>, or a character that is not ASCII. The method does not check whether the name exists."
           },
           "slug": "isdomain",
-          "url": "/docs/core/validate/isdomain/"
+          "url": "/reference/core/validate/isdomain/"
         },
         {
           "id": "Validate.isAscii",
@@ -14750,7 +14750,7 @@
             "returnHtml": "<code>true</code> when every character is ASCII, and <code>true</code> for the empty string. <code>false</code> when the text contains any other character, such as <code>é</code> or <code>日</code>."
           },
           "slug": "isascii",
-          "url": "/docs/core/validate/isascii/"
+          "url": "/reference/core/validate/isascii/"
         },
         {
           "id": "Validate.isPrintable",
@@ -14789,13 +14789,13 @@
             "returnHtml": "<code>true</code> when the text has no control character, and <code>true</code> for the empty string. <code>false</code> for a tab, a new line, a carriage return, <code>DEL</code> or any other control character. Some invisible characters are not control characters, such as the zero-width joiner. They give <code>true</code>, so this method does not find text that hides what it really says."
           },
           "slug": "isprintable",
-          "url": "/docs/core/validate/isprintable/"
+          "url": "/reference/core/validate/isprintable/"
         }
       ],
       "unparsed": [],
       "implemented": true,
       "slug": "validate",
-      "url": "/docs/core/validate/",
+      "url": "/reference/core/validate/",
       "summaryHtml": "",
       "surfaceHtml": ""
     }

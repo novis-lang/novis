@@ -6,13 +6,13 @@
  * whole of the mobile menu (see PageFrame.astro).
  */
 import Default from '@astrojs/starlight/components/MobileMenuFooter.astro'
+import { AREAS, INSTALL } from '@config/site.mjs'
 import { withBase } from '~/lib/base'
 ---
 
 <nav class="nv-mobile-nav" aria-label="Site">
-  <a href={withBase('/')}>Novis</a>
-  <a href={withBase('/docs/')}>Docs</a>
-  <a href={withBase('/why-novis/')}>Why Novis?</a>
+  {AREAS.map((area) => <a href={withBase(area.href)}>{area.label}</a>)}
+  <a href={withBase(INSTALL.href)}>{INSTALL.label}</a>
   <a href={withBase('/sponsoring/')}>Sponsoring</a>
 </nav>
 <Default><slot /></Default>
@@ -20,7 +20,8 @@ import { withBase } from '~/lib/base'
 <style>
   .nv-mobile-nav {
     display: flex;
-    gap: 1.25rem;
+    flex-wrap: wrap;
+    gap: 0.75rem 1.25rem;
     padding: 0.75rem var(--sl-sidebar-pad-x, 1rem);
     border-top: 1px solid var(--sl-color-hairline);
   }

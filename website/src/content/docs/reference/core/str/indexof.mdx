@@ -1,0 +1,70 @@
+---
+title: "Core\\Str::indexOf"
+description: "Finds the first occurrence of a needle in a string and returns its position, or null — replacing PHP's strpos, stripos, mb_strpos and mb_stripos."
+sidebar:
+  label: "indexOf"
+novis:
+  kind: method
+  id: "Str.indexOf"
+---
+
+import MethodSignature from '@components/MethodSignature.astro'
+import MethodChangelog from '@components/MethodChangelog.astro'
+import MethodExamples from '@components/MethodExamples.astro'
+import SeeAlso from '@components/SeeAlso.astro'
+
+Finds the first occurrence of `$needle` in `$haystack` and returns its position — or
+`null` when the needle does not occur.
+
+<MethodSignature id="Str.indexOf" />
+
+## Description
+
+Four PHP functions (`strpos`, `stripos`, `mb_strpos`, `mb_stripos`) collapse into this
+one member: case-insensitivity is an option instead of a letter in the name, and there
+is no encoding argument because a `string` is always UTF-8.
+
+The returned position is in grapheme clusters — the same unit
+[`slice`](/reference/core/str/slice/) takes, so
+`Str::slice($s, Str::indexOf($s, $sep))` composes without conversion.
+
+A needle that does not occur yields **`null`, not `false`**. This removes PHP's classic
+`if (strpos(…))` bug, where a match at position `0` was falsy: in Novis the result is
+`?uint`, position `0` is a perfectly truthy *value*, and absence has its own spelling
+you compare with `!= null` or default away with `??`.
+
+### Parameters
+
+- **`$haystack`** (`string`) — the string searched in.
+- **`$needle`** (`string`) — the string searched for. The empty needle matches at
+  position `0`.
+
+### Options
+
+- **`from`** (`int`) — start the search at this position; a negative value counts from
+  the end, following the same range convention every Core member uses.
+- **`caseInsensitive`** (`bool`) — match without regard to case. Defaults to `false`.
+
+## Return value
+
+Returns `?uint`: the grapheme position of the first occurrence at or after `from`, or
+`null` when `$needle` does not occur there.
+
+## Errors
+
+None at run time for ordinary input; searching is total. (As everywhere in `Core`, an
+option bag with a misspelled key is a compile error, not a silent ignore.)
+
+<MethodChangelog id="Str.indexOf" />
+
+## Tips
+
+- Only asking *whether* the needle occurs? [`Str::contains`](/reference/core/str/contains/)
+  says so directly and reads better than `!= null`.
+- Need the text before/after a separator rather than its position?
+  [`Str::before`](/reference/core/str/before/) and [`Str::after`](/reference/core/str/after/) skip
+  the index arithmetic entirely.
+
+<MethodExamples id="Str.indexOf" />
+
+<SeeAlso ids={['Str.contains', 'Str.lastIndexOf', 'Str.countOf', 'Str.before', 'Str.after']} />

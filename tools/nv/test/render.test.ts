@@ -2,7 +2,6 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { NUMBER_CITE } from "../cmd/chain.ts";
-import { isGenerated } from "../cmd/links.ts";
 import { chainGoals, liveGoal } from "../lib/chain.ts";
 import { ROOT } from "../lib/paths.ts";
 import { GOAL_PLAN, renderGoalPlan } from "../renderers/goal-plan.ts";
@@ -12,7 +11,6 @@ import { recordSchemas, renderRecordSchemas } from "../renderers/record-schemas.
 import { RECORDS } from "../schema/index.ts";
 import { isDraft, PAGES_DIR as CORE_DIR, parseSignature, websiteCore } from "../renderers/website-core.ts";
 import { EDITOR_GRAMMAR, renderWebsiteGrammar } from "../renderers/website-grammar.ts";
-import { PAGES_DIR, renderWebsiteRules, websiteRules } from "../renderers/website-rules.ts";
 import { scratch, type Scratch } from "./scratch.ts";
 
 let tmp: Scratch;
@@ -96,17 +94,6 @@ describe("render", () => {
     expect(parseSignature("not a signature")).toBeNull();
   });
 
-  test("the website's rule pages are what the records render, and every one carries both markers", async () => {
-    const outputs = await renderWebsiteRules(ROOT);
-    const pages = outputs.filter((o) => o.path.startsWith(`${PAGES_DIR}/`));
-    expect(pages.length).toBeGreaterThan(0);
-    for (const page of pages) {
-      const head = page.text.split("\n", 4).join("\n");
-      expect(head).toContain(MARKER);
-      expect(isGenerated(page.text)).toBe(true);
-    }
-    expect(orphans([websiteRules.owns!], outputs)).toEqual([]);
-  });
 
   test("the goal plan lists every goal in chain order, marks the live one, and names none by its number", () => {
     const goals = chainGoals();

@@ -1,19 +1,20 @@
 ---
 /**
  * Header override: the default Starlight header (the mark, search, social
- * icons, theme switch) plus the site navigation — Novis / Docs / Why Novis? /
- * Sponsoring.
+ * icons, theme switch) plus the site navigation: the four areas from AREAS in
+ * config/site.mjs, each with its subtitle on a second, smaller line, then
+ * Install as a button, then Sponsoring.
  *
  * The mark comes from Starlight's `logo` option (see astro.config.ts) through
- * `<SiteTitle />`, and stands in for the wordmark, which the nav's first link
- * repeats anyway; its size is set below, because the default suits a wide
- * logo rather than a square one.
+ * `<SiteTitle />`, replaces the wordmark and links to the home page. Its size
+ * is set below, because the default suits a wide logo and not a square one.
  *
  * Layout follows the default component so the search stays centered over the
  * content column; the nav sits between the title and the search.
  */
 import config from 'virtual:starlight/user-config'
 
+import { AREAS, INSTALL } from '@config/site.mjs'
 import { withBase } from '~/lib/base'
 
 import LanguageSelect from 'virtual:starlight/components/LanguageSelect'
@@ -25,17 +26,12 @@ import ThemeSelect from 'virtual:starlight/components/ThemeSelect'
 const shouldRenderSearch =
   config.pagefind || config.components.Search !== '@astrojs/starlight/components/Search.astro'
 
-const nav = [
-  { label: 'Novis', href: withBase('/') },
-  { label: 'Docs', href: withBase('/docs/') },
-  { label: 'Why Novis?', href: withBase('/why-novis/') },
-  { label: 'Sponsoring', href: withBase('/sponsoring/') },
-]
+const areas = AREAS.map((area) => ({ ...area, href: withBase(area.href) }))
+const install = { ...INSTALL, href: withBase(INSTALL.href) }
+const sponsoring = { label: 'Sponsoring', href: withBase('/sponsoring/') }
 
 const { pathname } = Astro.url
-const home = withBase('/')
-const isCurrent = (href: string) =>
-  href === home ? pathname === home : pathname === href || pathname.startsWith(href)
+const current = (href: string) => (pathname.startsWith(href) ? 'page' : undefined)
 ---
 
 <div class="header">
@@ -45,12 +41,19 @@ const isCurrent = (href: string) =>
     </div>
     <nav class="site-nav sl-hidden md:sl-flex print:hidden" aria-label="Site">
       {
-        nav.map((item) => (
-          <a href={item.href} aria-current={isCurrent(item.href) ? 'page' : undefined}>
-            {item.label}
+        areas.map((area) => (
+          <a href={area.href} aria-current={current(area.href)} class="area">
+            <span class="area-label">{area.label}</span>
+            <span class="area-subtitle">{area.subtitle}</span>
           </a>
         ))
       }
+      <a href={install.href} aria-current={current(install.href)} class="install">
+        {install.label}
+      </a>
+      <a href={sponsoring.href} aria-current={current(sponsoring.href)}>
+        {sponsoring.label}
+      </a>
     </nav>
   </div>
   <div class="sl-flex print:hidden search-wrapper">
@@ -137,6 +140,28 @@ const isCurrent = (href: string) =>
   .site-nav a[aria-current='page'] {
     color: var(--sl-color-text-accent);
     border-bottom-color: var(--sl-color-text-accent);
+  }
+  .site-nav a.area {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.2;
+  }
+  .site-nav .area-subtitle {
+    font-size: var(--sl-text-xs);
+    font-weight: 400;
+    color: var(--sl-color-gray-3);
+  }
+  .site-nav a.install {
+    padding: 0.35rem 0.9rem;
+    border: none;
+    border-radius: 999px;
+    background: var(--sl-color-accent);
+    color: var(--sl-color-black);
+  }
+  .site-nav a.install:hover,
+  .site-nav a.install[aria-current='page'] {
+    background: var(--sl-color-accent-high);
+    color: var(--sl-color-black);
   }
 
   .search-wrapper {

@@ -1,0 +1,69 @@
+---
+title: "Core\\Math::round"
+description: "Rounds a number to a precision, with the rounding mode as an enum — replacing PHP's round and its four PHP_ROUND_* constants."
+sidebar:
+  label: "round"
+novis:
+  kind: method
+  id: "Math.round"
+---
+
+import MethodSignature from '@components/MethodSignature.astro'
+import MethodChangelog from '@components/MethodChangelog.astro'
+import MethodExamples from '@components/MethodExamples.astro'
+import SeeAlso from '@components/SeeAlso.astro'
+
+Rounds a number to a given precision, in a rounding mode you can name.
+
+<MethodSignature id="Math.round" />
+
+## Description
+
+The default matches PHP and everyday arithmetic: **half away from zero** (`HalfUp`) —
+`2.5` becomes `3`, `-2.5` becomes `-3`. When that is the wrong tool, the mode is an
+enum case instead of a global constant to look up:
+
+| Mode | `2.5` | `3.5` | Use it for |
+| --- | --- | --- | --- |
+| `HalfUp` *(default)* | `3` | `4` | what people expect from "rounding" |
+| `HalfDown` | `2` | `3` | the mirror image |
+| `HalfEven` | `2` | `4` | banker's rounding — statistically unbiased over many values |
+| `HalfOdd` | `3` | `3` | the rarely-needed complement |
+| `Up` | `3` | `4` | always away from zero, regardless of the fraction |
+| `Down` | `2` | `3` | always toward zero (truncation at the precision) |
+
+`{precision: n}` rounds to `n` decimal places; a negative precision rounds to tens,
+hundreds, and so on — `round(1234.0, {precision: -2})` is `1200.0`.
+
+The function accepts and returns `float` or `decimal`; over `decimal` the result is
+exact at the requested precision, which is what money code wants.
+
+### Parameters
+
+- **`$n`** (`float|decimal`) — the number to round.
+
+### Options
+
+- **`precision`** (`int`) — decimal places to keep; negative rounds left of the
+  decimal point. Defaults to `0`.
+- **`mode`** (`RoundMode`) — one of the six modes above. Defaults to
+  `RoundMode::HalfUp`.
+
+## Return value
+
+Returns `float|decimal`, matching the argument's type: the nearest representable value
+at the requested precision under the chosen mode. Note that with `float`, a value like
+`3.14` is still the nearest *binary* float — rounding cannot conjure exact decimal
+fractions out of a binary type. When exactness matters, use `decimal` end to end.
+
+## Errors
+
+None for finite input. `NaN` and infinities pass through unchanged, as in every IEEE
+754 operation; test with [`Math::isNan`](/reference/core/math/isnan/) /
+[`Math::isFinite`](/reference/core/math/isfinite/) where it matters.
+
+<MethodChangelog id="Math.round" />
+
+<MethodExamples id="Math.round" />
+
+<SeeAlso ids={['Math.ceil', 'Math.floor', 'Math.truncate', 'Math.format']} />

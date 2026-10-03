@@ -3,7 +3,7 @@
  * include the site's `base` path (set via the ASTRO_BASE env var or the
  * `--base` CLI flag; see astro.config.ts).
  *
- * The content files link with root-absolute URLs (`/docs/...`). Astro only
+ * The content files link with root-absolute URLs (`/reference/...`). Astro only
  * prefixes `base` onto URLs it generates itself, so without this pass a
  * subfolder deploy breaks every content link. Rewriting at build time keeps
  * the sources deploy-agnostic. An integration rather than config-level

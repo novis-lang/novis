@@ -1,0 +1,58 @@
+---
+title: Installation
+description: How to install the Novis toolchain — currently by building from source with Cargo; prebuilt binaries will come with the first release.
+---
+
+import { Steps } from '@astrojs/starlight/components'
+
+:::caution
+Novis has not shipped a release yet, so there are **no prebuilt binaries and no package
+manager installs** for now. The only way to get the toolchain today is building it from
+source. That said, the build is a single Cargo invocation.
+:::
+
+## Build from source
+
+You need [Rust](https://rustup.rs/) via `rustup`. The repository pins its exact toolchain
+in `rust-toolchain.toml`, and `rustup` installs that version automatically the first time
+you build — you do not need to match it by hand.
+
+<Steps>
+
+1. Clone the repository:
+
+   ```sh
+   git clone https://github.com/novis-lang/novis.git novis
+   cd novis
+   ```
+
+2. Build the CLI:
+
+   ```sh
+   cargo build --release -p nvs-cli
+   ```
+
+3. Verify the binary:
+
+   ```sh
+   ./target/release/nvs --help
+   ```
+
+   On Windows the binary is `.\target\release\nvs.exe`.
+
+</Steps>
+
+Put `target/release` on your `PATH`, or copy the `nvs` binary somewhere that already is.
+
+## What you get
+
+The `nvs` binary is the whole toolchain — checker, compiler, runner and test runner in one:
+
+| Command | What it does |
+| --- | --- |
+| `nvs check file.nvs` | type-check a program without running it |
+| `nvs run file.nvs` | compile and run a program |
+| `nvs test` | run the tests in a project |
+| `nvs build` | produce a build artifact |
+
+Next: [write your first program](/install/hello-world/).

@@ -1,12 +1,12 @@
 ---
 /**
- * Footer override: keeps Starlight's per-page meta (edit link, prev/next) and
- * adds the site-wide three-column footer below it. There is no "last updated"
+ * Footer override: keeps Starlight's edit link and adds the site-wide
+ * three-column footer below it. There are no previous and next links: a page
+ * links to what comes next in its own text. There is no "last updated"
  * stamp -- see `lastUpdated` in astro.config.ts for why.
  */
 import EditLink from 'virtual:starlight/components/EditLink'
-import Pagination from 'virtual:starlight/components/Pagination'
-import { GITHUB_URL, DISCORD_URL } from '@config/site.mjs'
+import { GITHUB_URL, DISCORD_URL, AREAS, INSTALL } from '@config/site.mjs'
 import { externalLinkAttrs } from '@config/external-links.mjs'
 import { withBase } from '~/lib/base'
 
@@ -14,22 +14,16 @@ const year = new Date().getFullYear()
 
 const columns = [
   {
-    title: 'Documentation',
-    links: [
-      { label: 'Getting started', href: withBase('/docs/') },
-      { label: 'Core reference', href: withBase('/docs/core/') },
-      { label: 'The rulebook', href: withBase('/docs/rules/') },
-      { label: 'Release notes', href: withBase('/docs/release-notes/') },
-    ],
+    title: 'Learn',
+    links: [INSTALL, ...AREAS].map(({ label, href }) => ({ label, href: withBase(href) })),
   },
   {
     title: 'Project',
     links: [
-      { label: 'Why Novis?', href: withBase('/why-novis/') },
+      { label: 'Release notes', href: withBase('/in-depth/what-changed/') },
       { label: 'Sponsoring', href: withBase('/sponsoring/') },
       { label: 'GitHub', href: GITHUB_URL },
       { label: 'Discord', href: DISCORD_URL },
-      { label: 'Site index', href: withBase('/site-index/') },
     ],
   },
   {
@@ -47,7 +41,6 @@ const columns = [
   <div class="meta sl-flex">
     <EditLink />
   </div>
-  <Pagination />
 
   <div class="site-footer">
     <div class="site-footer-grid">

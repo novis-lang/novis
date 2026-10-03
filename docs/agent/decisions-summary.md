@@ -20,9 +20,9 @@ The summary is the other half. Its reader is a developer sizing up the language,
 here and no patience for ours. They get one paragraph per decision, grouped by what it is about, and
 they should be able to stop reading at any point without having been left mid-thought.
 
-**They are reading it on the website**, where it is the page that answers "what is this language,
-actually." The repository copy is the same text; the fact that a decision record exists behind each
-entry is the renderer's business, not the prose's.
+**They are reading `docs/decisions.md`**, the page that answers "what is this language, actually."
+The website does not publish it. The fact that a decision record exists behind each entry is the
+renderer's business, not the prose's.
 
 ## The loop
 
@@ -94,8 +94,8 @@ whether the paragraph is worth a stranger's time.
 
 ## Two things never to do
 
-**Never edit `docs/decisions.md` or `website/src/data/decisions.json`.** Both are generated; the next
-`--render` silently discards whatever you put there. The records' `summary` fields are the only home.
+**Never edit `docs/decisions.md`.** It is generated; the next `--render` silently discards whatever
+you put there. The records' `summary` fields are the only home.
 
 **Never reword an entry whose decision has not moved.** Nothing decided has changed, so a rewrite is
 churn in the one file that is supposed to be stable — and it costs the budget that the decisions

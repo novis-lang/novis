@@ -5,22 +5,22 @@
 //     bun nv decisions --gate       only the findings that are always wrong; the CI shape
 //     bun nv decisions --work       the work order for a pass: only the decisions not summarized yet
 //     bun nv decisions --apply FILE merge written entries, transactionally
-//     bun nv decisions --render     rewrite the two derived artifacts from the source
-//     bun nv decisions --json       the website feed, on stdout
+//     bun nv decisions --render     rewrite `docs/decisions.md` from the source
+//     bun nv decisions --json       the summary as JSON, on stdout
 //     bun nv decisions --groups     the closed group list, with what belongs in each
 //
 // The records under `docs/decisions/` are every settled decision at full length. The summary is one
 // plain-language paragraph per decision, grouped by topic, in the order the decisions were taken, with
 // no cross-reference in the prose. Each entry is the `summary` field of the decision's record,
-// `data/decisions/NNNN.json`, and every one is prose a person wrote. `docs/decisions.md` and
-// `website/src/data/decisions.json` are generated from those fields: `--render` writes both, and
-// `--check` reports either one being stale.
+// `data/decisions/NNNN.json`, and every one is prose a person wrote. `docs/decisions.md` is generated
+// from those fields: `--render` writes it, and `--check` reports it being stale. The website does not
+// publish the summary.
 //
 // A pass does only the accepted decisions that have no summary yet. `--work` prints them as `[[entry]]`
 // blocks to fill in, and `--apply` checks the filled file and writes each entry into its record.
 //
 // `--check` holds the prose to three mechanical rules. `refs`: no `ADR`, no `§`, no bare decision
-// number, no markdown link, because the renderer puts the one link per entry on the website. `size`: a
+// number, no markdown link, because the renderer puts the one link per entry. `size`: a
 // headline is one line, and a body is two to four sentences. `jargon`: a short blocklist of words this
 // repository uses and a reader does not know.
 //
@@ -41,7 +41,6 @@ import { parse as parseRecord, type Prose } from "./records.ts";
 export const summary = "the plain-language decision summary: nv decisions [--check|--gate|--work|--apply FILE|--render|--json|--groups]";
 
 const RENDER_MD = join(ROOT, "docs", "decisions.md");
-const RENDER_JSON = join(ROOT, "website", "src", "data", "decisions.json");
 const RECORDS = join(ROOT, "docs", "decisions");
 
 /** Where a decision record is read on the web. `website/config/site.mjs` holds the site's own copy. */
@@ -300,10 +299,8 @@ function check(entries: Map<string, Entry>, adrs: Map<string, Record>): Found {
     if (pinned.length > 1) add("pin", `${gid}: ${pinned.join(", ")} are all pinned — a group is framed once`);
   }
   if (entries.size > 0) {
-    for (const [path, text] of [[RENDER_MD, renderMd(entries)], [RENDER_JSON, renderJson(entries)]] as const) {
-      const onDisk = existsSync(path) ? readFileSync(path, "utf8").replace(/\r\n?/g, "\n") : null;
-      if (onDisk !== text) add("render", `${rel(path)} is not what the source renders to -- run --render`);
-    }
+    const onDisk = existsSync(RENDER_MD) ? readFileSync(RENDER_MD, "utf8").replace(/\r\n?/g, "\n") : null;
+    if (onDisk !== renderMd(entries)) add("render", `${rel(RENDER_MD)} is not what the source renders to -- run --render`);
   }
   return found;
 }
@@ -346,7 +343,7 @@ function renderMd(entries: Map<string, Entry>): string {
   return out.join("\n").trimEnd() + "\n";
 }
 
-/** The website feed. No timestamp, so a render that changes nothing writes the same bytes. */
+/** The summary as JSON. No timestamp, so a render that changes nothing writes the same bytes. */
 function renderJson(entries: Map<string, Entry>): string {
   const data = {
     groups: grouped(entries).map(([[id, title, blurb], rows]) => ({
@@ -443,7 +440,7 @@ function apply(path: string, entries: Map<string, Entry>, adrs: Map<string, Reco
   if (dryRun) {
     out.push(
       `would write ${touched.length} ${touched.length === 1 ? "entry" : "entries"}: ${touched.join(", ")}`,
-      `would render ${rel(RENDER_MD)} and ${rel(RENDER_JSON)}`,
+      `would render ${rel(RENDER_MD)}`,
     );
     return 0;
   }
@@ -455,7 +452,6 @@ function apply(path: string, entries: Map<string, Entry>, adrs: Map<string, Reco
     writeRecord(decision, num, { ...records.get(num)!, summary });
   }
   write(RENDER_MD, renderMd(merged));
-  write(RENDER_JSON, renderJson(merged));
   const still = [...adrs.keys()].filter((n) => !merged.has(n)).length;
   out.push(`applied ${touched.length}: ${touched.join(", ")}`, `${merged.size} of ${adrs.size} decisions summarized; ${still} still owed`);
   return 0;
@@ -519,8 +515,7 @@ export async function run(args: string[]): Promise<number> {
   if (flags.has("--render")) {
     if (entries.size === 0) return fail("no record under data/decisions/ has a summary — nothing to render");
     write(RENDER_MD, renderMd(entries));
-    write(RENDER_JSON, renderJson(entries));
-    console.log(`rendered ${entries.size} entries to ${rel(RENDER_MD)} and ${rel(RENDER_JSON)}`);
+    console.log(`rendered ${entries.size} entries to ${rel(RENDER_MD)}`);
     return 0;
   }
 
