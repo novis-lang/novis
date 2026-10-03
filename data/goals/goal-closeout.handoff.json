@@ -1,22 +1,25 @@
 {
-  "state": "**Goal `goal-closeout`, Stage 4 (finished in place).** An enum case in a tagged value now carries an enum tag of its own: `Tag::EnumInt` (8) and `Tag::EnumUint` (9) in `crates/nvs-runtime/src/value.rs`, decided by ADR 0261 and stated in `rule:enums/representation`. `Value::tag` still reads a case as its backing integer for every payload reader. `Value::exact_tag` is what a condition, a closure parameter's check, a declared slot's write check and the `array<T>` element walk read. `nvs_codegen::ty::tag_of` and `nvs_ir::lower::param_tag_nibble` answer the enum tags, so the compiled `is` test tells a case from an `int`. Gap `enum-case-that-reached-a-mixed` is deleted.\n\n**No session stops on `BLOCKED` before the goal end.** A question for the user goes in the goal prose's § *Questions for the user at the goal end*, and the session carries on. Three questions are there.\n\n`crates/nvs-cli/tests/footprint.rs:71` failed once beside the other test binaries and passed alone. Not chased.\n\nThe floor check `the latest CI run on main succeeded for the code HEAD holds` is red because `main` is ahead of `origin/main`. That is expected: it leaves with goal `ci-green`'s record in Stage 6, and nobody pushes for it.\n\n`bun nv owners --closes goal-closeout` names 18 gaps in `nvs-lsp`, `nvs-stdlib`, `nvs-types` and `website`.",
+  "state": "**Goal `goal-closeout`, Stage 4 (finished in place).** `Core\\Script\\ExitReport` has `memoryPeak(): int`, as `rule:observability/script-on-exit` declares. `run_exit_hooks` in `crates/nvs-stdlib/src/script.rs` reads `Ctx::memory_peak` once at the ending, so a hook's own allocations do not move it. Gap `an-exit-report-has-no-memory-peak` is deleted. The conformance case is `tests/conformance/core/script-exit-report-memory-peak-is-the-mark-at-the-ending.nvst`.\n\n`bun nv decisions --gate` is green: `docs/decisions.md` and `website/src/data/decisions.json` were behind their source and are re-rendered.\n\n**No session stops on `BLOCKED` before the goal end.** A question for the user goes in the goal prose's § *Questions for the user at the goal end*, and the session carries on. Three questions are there.\n\nThe floor check `the latest CI run on main succeeded for the code HEAD holds` is red because `main` is ahead of `origin/main`. That is expected: it leaves with goal `ci-green`'s record in Stage 6, and nobody pushes for it.\n\n`bun nv owners --closes goal-closeout` names 17 gaps in `nvs-lsp`, `nvs-stdlib`, `nvs-types` and `website`. The working tree also carries uncommitted edits this loop did not write (CI workflow, `nvs-cli/src/serve.rs`, `nvs-db/src/ddl.rs`, several `Process` examples and hostile cases); they are left alone.",
   "next": {
     "stage": 4,
     "title": "finished in place",
     "files": [
-      "crates/nvs-stdlib/src/script.rs",
-      "docs/rules/observability/script-on-exit.md",
+      "crates/nvs-stdlib/src/zip.rs",
+      "tests/hostile/core/Zip/",
       "tests/conformance/core/"
     ],
     "items": [
       {
         "done": false,
-        "text": "**`Script\\ExitReport` gains `memoryPeak()`** — gap `an-exit-report-has-no-memory-peak`, specified by `rule:observability/script-on-exit` (its signature block at `docs/rules/observability/script-on-exit.md:15`). The class is at `crates/nvs-stdlib/src/script.rs:282`. Read the peak mark `Core\\Budget::memoryPeak` reads (`rule:observability/a-memory-peak-is-recorded-not-asked-for`) when the exit queue drains, add a conformance case under `tests/conformance/core/`, then delete the gap record."
+        "text": "**`Core\\Zip::extract` creates each file relative to the folder handle it resolved** — gap `zip-extraction-creates-a-file-by-path-after-resolving-its-folder` (a check-then-use window, so priority 1). The extract helper is at `crates/nvs-stdlib/src/zip.rs:1085`. Read the gap record under `data/gaps/nvs-stdlib/`, open the file through the resolved directory handle (or refuse a link at the leaf) instead of by path, add an attack case under `tests/hostile/core/Zip/`, then delete the gap record."
       }
     ]
   },
   "backlog": [
-    "The 17 other gaps `bun nv owners --closes goal-closeout` names; each record says what closes it.",
-    "`Core\\Reflect`'s type kind reports a case in a `mixed` as `int` or `uint` (`crates/nvs-stdlib/src/reflect.rs`, `kind_of`). No rule asks for an `enum` kind yet."
+    "`Core\\Server` has no request environment and no `traceId()` — gap `core-server-has-no-request-environment-or-trace-id`, `crates/nvs-stdlib/src/server.rs`.",
+    "`ProcessOptions` is on neither `Core\\Process::run` nor `::spawn` — gap `process-options-is-on-neither-run-nor-spawn`, `crates/nvs-stdlib/src/process.rs`.",
+    "The JSON decoder recurses on the native stack — gap `decoder-still-recurses-on-the-native`, `crates/nvs-stdlib/src/json.rs`.",
+    "A buffered DB read meets the memory ceiling only after its last row — gap `buffered-read-is-not-held-to`, `crates/nvs-stdlib/src/db/mod.rs`.",
+    "`crates/nvs-cli/tests/footprint.rs:71` failed once beside the other test binaries and passed alone. Not chased."
   ]
 }

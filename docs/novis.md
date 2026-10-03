@@ -17596,13 +17596,14 @@ Ends this script at once. Every `finally` block between the call and the top of 
 <a id="core-core-script-exitreport"></a>
 ### `Core\Script\ExitReport`
 
-Keywords: reason, status, error
+Keywords: reason, status, error, memoryPeak
 
 | Member | Signature |
 |---|---|
 | [`Core\Script\ExitReport->reason`](#core-core-script-exitreport-reason) | `reason(): Core\Script\ExitReason` |
 | [`Core\Script\ExitReport->status`](#core-core-script-exitreport-status) | `status(): int` |
 | [`Core\Script\ExitReport->error`](#core-core-script-exitreport-error) | `error(): ?Throwable` |
+| [`Core\Script\ExitReport->memoryPeak`](#core-core-script-exitreport-memorypeak) | `memoryPeak(): int` |
 
 <a id="core-core-script-exitreport-reason"></a>
 #### `Core\Script\ExitReport->reason`
@@ -17636,6 +17637,17 @@ $exitReport->error(): ?Throwable
 Returns the exception that ended the script, if there was one.
 
 **Returns** `?Throwable` — When the reason is `UncaughtThrow`, the `Throwable` that nothing caught, with its own class, message and backtrace. For every other ending, `null`.
+
+<a id="core-core-script-exitreport-memorypeak"></a>
+#### `Core\Script\ExitReport->memoryPeak`
+
+```nvs skip
+$exitReport->memoryPeak(): int
+```
+
+Returns the most memory the script used while it ran, in bytes. This is the same number `Core\Budget::memoryPeak()` returns.
+
+**Returns** `int` — The highest number of bytes the script held at one time, read when the script ended. It is read before the first function runs, so memory a function uses does not change it.
 
 <a id="core-core-program"></a>
 ### `Core\Program`
