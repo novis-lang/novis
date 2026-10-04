@@ -5,7 +5,7 @@ position: last
 # Loop goal 186 — a request whose client went away runs to its end, and a method can be set to cancel instead
 
 Today a client that disconnects cancels its request at the next safepoint
-(`rule:http-server/an-abandoned-request-is-cancelled-at-the-drop`). This goal reverses the default:
+(the rule now `rule:http-server/a-request-outlives-a-client-that-goes-away`). This goal reverses the default:
 **a request runs to its end whether or not its client is still there**, under every limit it already
 has, and its response is thrown away. A deployment that wants the old behaviour turns it on per
 request method:
@@ -38,7 +38,7 @@ work. The user expects broken data in production from the current default and wa
 every method, with cancellation opt-in per method.
 
 The reason for cancelling is also weaker here than under PHP-FPM. A waiting request costs a pooled
-stack and not a worker process (`rule:http-server/an-abandoned-request-is-cancelled-at-the-drop`
+stack and not a worker process (`rule:http-server/a-request-outlives-a-client-that-goes-away`
 § 2), and the CPU, memory and output limits still bound it. What is new is the one unbounded case:
 `wall_time` has no cap by default (`crates/nvs-config/src/default.toml:70`), so a request parked on
 a slow dependency after its client left would hold its admission place forever. That is exactly what
@@ -55,7 +55,7 @@ It sits right after goal `goal-closeout` because it changes request-path behavio
 The sentences on disk this goal makes wrong, each rewritten whole by the session that lands the
 behaviour and not before:
 
-- `docs/rules/http-server/an-abandoned-request-is-cancelled-at-the-drop.md` — the rule becomes "a
+- `docs/rules/http-server/a-request-outlives-a-client-that-goes-away.md` — the rule becomes "a
   request whose client went away runs to its end under its `wall_time`, or under `disconnect_grace`
   when it has none, unless its method is listed in `cancel_on_disconnect`". The decision record renames it or replaces it; the PHP-FPM
   paragraph stays true and stays.
@@ -97,7 +97,7 @@ One file set: `crates/nvs-config/src/default.toml`, `crates/nvs-config/src/tree.
 `max_regex_steps`, which is a `[limits]` key the same way.
 
 - **The decision record**, written first from § *Standing decisions*, for the whole goal. It
-  `modifies` `http-server/an-abandoned-request-is-cancelled-at-the-drop` and
+  `modifies` `http-server/a-request-outlives-a-client-that-goes-away` and
   `concurrency/cancellation-runs-no-user-code`, and the fragments are written with it.
 - **`cancel_on_disconnect`** is an array of method names, default `[]`. A method is matched exactly
   and case-sensitively, as HTTP matches it. A name that is not a valid HTTP token is refused at

@@ -3,13 +3,15 @@
   "status": "shipped",
   "because": [
     "0072",
-    "0106"
+    "0106",
+    "0265"
   ],
   "divergesFromPhp": "the `finally`-shaped cleanup a PHP developer would reach for does not run, and there is nothing to catch",
   "seeAlso": [
     "errors/throwable-hierarchy",
     "errors/escalation-ladder",
-    "security/isolate-teardown-is-a-drain-then-a-sweep"
+    "security/isolate-teardown-is-a-drain-then-a-sweep",
+    "http-server/a-request-outlives-a-client-that-goes-away"
   ],
   "guardedBy": [
     "tests/conformance/task/a-cancelled-task-runs-no-user-code.nvst",

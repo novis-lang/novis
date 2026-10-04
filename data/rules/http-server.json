@@ -78,7 +78,7 @@
     "http-server/a-core-is-never-blocked-on-a-syscall",
     "http-server/a-wedged-core-is-detected-by-its-deadline",
     "http-server/a-wedged-core-is-shed-never-killed",
-    "http-server/an-abandoned-request-is-cancelled-at-the-drop",
+    "http-server/a-request-outlives-a-client-that-goes-away",
     "http-server/every-deadline-is-monotonic",
     "http-server/the-floor-cannot-fill-the-disk",
     "http-server/a-jit-page-is-never-writable-and-executable-at-once",

@@ -1,0 +1,11 @@
+{
+  "title": "A request whose client goes away runs to its end, and cancellation at the drop is turned on per method",
+  "status": "accepted",
+  "scope": "what a served request does when its connection drops before its response is on the wire: the default,\nthe two `[limits]` keys that change it, the bound that replaces the one cancellation gave, and what a write\nto the gone client returns. Upgraded connections (`Core\\Sse`, a WebSocket) are not requests and are not\ndecided here, and neither is a runtime switch or a way for a script to learn its client has gone.",
+  "dependsOn": [
+    "0106",
+    "0072",
+    "0074"
+  ],
+  "validatedBy": "the disconnect tests in `crates/nvs-server/src/serve.rs` and the key tests in `crates/nvs-config/src/tree.rs`."
+}

@@ -17,7 +17,7 @@
       "crates/nvs-config/src/app.rs"
     ],
     "rules": [
-      "http-server/an-abandoned-request-is-cancelled-at-the-drop",
+      "http-server/a-request-outlives-a-client-that-goes-away",
       "concurrency/cancellation-runs-no-user-code",
       "http-server/an-unsafe-or-unbounded-default-is-a-defect",
       "http-server/a-requests-blast-radius-is-bounded-at-four-tiers"
