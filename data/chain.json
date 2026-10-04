@@ -1,7 +1,6 @@
 {
-  "live": "html-later",
+  "live": "performance-pass",
   "goals": [
-    "html-later",
     "performance-pass",
     "growth-proof",
     "coverage-depth",
