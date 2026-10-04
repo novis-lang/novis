@@ -129,17 +129,20 @@ class Browser {
     if (process.platform === "linux") args.splice(1, 0, "--no-sandbox");
     const proc = Bun.spawn(args, { stdout: "ignore", stderr: "pipe" });
     const dec = new TextDecoder();
+    const reader = (proc.stderr as ReadableStream<Uint8Array>).getReader();
     let seen = "";
     let url = "";
-    for await (const c of proc.stderr as ReadableStream<Uint8Array>) {
-      seen += dec.decode(c);
-      const m = /DevTools listening on (ws:\/\/\S+)/.exec(seen);
-      if (m) {
-        url = m[1]!;
-        break;
-      }
+    while (!url) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      seen += dec.decode(value);
+      url = /DevTools listening on (ws:\/\/\S+)/.exec(seen)?.[1] ?? "";
     }
     if (!url) throw new Error(`Chromium did not start:\n${seen}`);
+    // The rest of stderr is read and thrown away, so a full pipe never stalls Chromium's logging.
+    void (async () => {
+      while (!(await reader.read()).done);
+    })().catch(() => {});
     const ws = new WebSocket(url);
     await new Promise((ok, fail) => {
       ws.onopen = ok;
@@ -170,9 +173,9 @@ class Browser {
   async probe(path: string): Promise<Probe> {
     const { targetId } = await this.send("Target.createTarget", { url: `${server!.url}${path.slice(1)}` });
     const { sessionId } = await this.send("Target.attachToTarget", { targetId, flatten: true });
-    for (let i = 0; i < 200; i++) {
-      // A new tab starts on a complete `about:blank`, so the URL is checked with the state.
-      if (await this.eval(`location.protocol == "http:" && document.readyState == "complete"`, sessionId)) break;
+    // A new tab starts on a complete `about:blank`, so the URL is checked with the state. The wait is
+    // bounded by the test's own timeout, so a loaded machine is slow here rather than probing a half page.
+    while (!(await this.eval(`location.protocol == "http:" && document.readyState == "complete"`, sessionId))) {
       await Bun.sleep(25);
     }
     const out = await this.eval(PROBE, sessionId);
