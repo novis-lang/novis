@@ -417,7 +417,7 @@ through this literal, and the terminal output type gets no such literal at all.
 
 ## Language features
 
-What the language gives you to build with: classes and their members, interfaces, closures, iteration, concurrency, attributes, testing.
+What the language gives you to build with: classes and their members, interfaces, anonymous functions, iteration, concurrency, attributes, testing.
 
 **An enum is a named set of numbers, not a set of objects**
 

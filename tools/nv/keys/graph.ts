@@ -85,7 +85,7 @@ export async function metadata(manifest?: string): Promise<Graph | null> {
  * every kind, then theirs without the dev ones, which cargo builds for the package under test alone.
  * With `dev` false, `pkg`'s own dev-dependencies are left out too: that is what its shipped build
  * is compiled against. */
-export function closure(graph: Graph, pkg: string, dev = true): Set<string> {
+export function dependencySet(graph: Graph, pkg: string, dev = true): Set<string> {
   const seen = new Set<string>();
   const todo: [string, boolean][] = [[pkg, dev]];
   while (todo.length > 0) {

@@ -1,7 +1,7 @@
 // The selection: from what changed since a recorded tree to the atoms that have to run, and why.
 //
 //     changed = diff(recorded tree, working tree incl. untracked)
-//            -> each .rs file: item diff -> reference-graph closure -> fn:, class:, card: keys
+//            -> each .rs file: item diff -> reference-graph walk -> fn:, class:, card: keys
 //            -> each build script whose inputs moved: the items that include what it generated
 //            -> every path: file:, config:, tree:, named:, ext:, and exists:/dir: for a path that came or went
 //            -> the repository's nvs.toml: config: and app: for the parts that changed (`config.ts`)
@@ -18,7 +18,7 @@
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { type FileItems, type Item, scanItems } from "../keys/scan.ts";
-import { landsIn, metadata, type Graph, closure as pkgClosure, testBinaries } from "../keys/graph.ts";
+import { landsIn, metadata, type Graph, dependencySet, testBinaries } from "../keys/graph.ts";
 import { COVWS_TARGET, hostTriple } from "../lib/covws.ts";
 import { abs, NOT_INPUTS, ROOT } from "../lib/paths.ts";
 import { caseFiles, caseId, currentDef, nvTestFiles, nvTestId, proofFiles, proofId, stillThere } from "./atoms.ts";
@@ -28,7 +28,7 @@ import { ANCHOR_ANY, CALLS_ANY, COVERS_ANY, markerKeys, scannedFor } from "../pr
 import { LEDGER, LEDGER_WHOLE, ledgerMoved, ledgerSigns, PERF_ANY } from "../proofs/ledger.ts";
 import { anchorScan, isAnchorFile } from "../proofs/roster.ts";
 import { blobAt, type Change, changedBetween, changedPaths, commitOf, diskDigest, namedChanges, sinceOverlay, snapshot } from "./change.ts";
-import { closure, diffFile, type ExtraDefines, type ItemChange, type Moved, type Origin, type Scope, Universe } from "./items.ts";
+import { diffFile, referenceWalk, type ExtraDefines, type ItemChange, type Moved, type Origin, type Scope, Universe } from "./items.ts";
 import { elsewhereOnly, gitTexts, platformOf, profileReader } from "./profile.ts";
 import { ALL_CARDS, ALL_CLASSES, configKey, fileWild, kindOf, pathKeys, pkgTestsKey, PROFILE_ONLY, ROOT_CONFIG, testsKey, WILD } from "./keys.ts";
 import { blockPaths, configKeys } from "./config.ts";
@@ -74,7 +74,7 @@ export interface ChangeSet {
   full?: boolean;
 }
 
-/** The workspace graph as the closure's scope: a file's package is the one whose directory holds it, a
+/** The workspace graph as the reference walk's scope: a file's package is the one whose directory holds it, a
  * package's crate name is its library target's, and a file under its package's `tests/`, `benches/` or
  * `examples/`, or the root of a target of those kinds, is built only into that dev target. */
 export function graphScope(graph: Graph | null): Scope {
@@ -113,7 +113,7 @@ export function graphScope(graph: Graph | null): Scope {
       const key = `${dev ? "dev" : "ship"}\0${user}`;
       let seen = deps.get(key);
       if (!seen) {
-        seen = pkgClosure(graph, user, dev);
+        seen = dependencySet(graph, user, dev);
         deps.set(key, seen);
       }
       return seen.has(owner);
@@ -273,7 +273,7 @@ export async function computeChange(store: SelectStore, opts: ChangeOptions = {}
     itemChanges.push(...d.changes);
   }
 
-  // The tree as the closure reads it: the stored scan, with every changed file as it is now. A change
+  // The tree as the reference walk reads it: the stored scan, with every changed file as it is now. A change
   // to the scanner leaves every stored scan in its old shape, so the whole tree is scanned again and
   // the store keeps that scan once the run is recorded.
   const rescan = !until && global !== null && global.startsWith("tools/nv-scan/");
@@ -318,7 +318,7 @@ export async function computeChange(store: SelectStore, opts: ChangeOptions = {}
   const texts = gitTexts(since, until, root);
   const profile = profileReader(texts, view);
   const platform = profileReader(texts, view, elsewhereOnly(platformOf(process.platform)));
-  for (const [k, o] of closure(itemChanges, universe, wideFiles, extra, profile, platform)) emit(k, o);
+  for (const [k, o] of referenceWalk(itemChanges, universe, wideFiles, extra, profile, platform)) emit(k, o);
   // Code of a file no item held was recorded as the whole file.
   for (const c of itemChanges) emit(fileWild(c.file), { path: c.file, item: c.id, how: c.how });
   // A test that did not exist is in no footprint: every test binary it is compiled into runs.

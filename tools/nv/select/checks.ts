@@ -45,7 +45,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { sqliteLeg } from "../cmd/db-matrix.ts";
 import { type Check, heavyRole, isHeavy, PROGRAM_KINDS, proofGroups, subsetRun } from "../driver/accept.ts";
-import { allTestBinaries, closure, type Graph, testBinaries } from "../keys/graph.ts";
+import { allTestBinaries, dependencySet, type Graph, testBinaries } from "../keys/graph.ts";
 import { digest } from "../keys/scan.ts";
 import { abs, ROOT } from "../lib/paths.ts";
 import { caseFiles, caseId, nvTestFiles, nvTestId, proofFiles, proofId } from "./atoms.ts";
@@ -478,7 +478,7 @@ export function heavyCrates(c: Check | null, graph: Graph, root: string = ROOT):
   else own = [...graph.keys()];
   if (own.length === 0 || own.some((p) => !graph.has(p))) own = [...graph.keys()];
   const all = new Set(own);
-  for (const p of own) for (const d of closure(graph, p, dev)) all.add(d);
+  for (const p of own) for (const d of dependencySet(graph, p, dev)) all.add(d);
   return { crates: [...all].sort(), extra };
 }
 

@@ -5,7 +5,7 @@
 // and none is false without it, or when its `impl` is, or when its file is a module whose `mod`
 // declaration is. `test` is unset for both, since the proof binary is no test build. A predicate that
 // names anything else (a feature, a platform) counts as possibly true, so such an item counts as
-// profile-only whenever a debug build leaves it out. The closure (`items.ts`) takes a changed
+// profile-only whenever a debug build leaves it out. The reference walk (`items.ts`) takes a changed
 // profile-only item as a change to its twin, the item of the same file whose id differs only by the `#2`
 // ordinal nv-scan gives a repeated id and that a debug build compiles; one with no twin moves
 // `PROFILE_ONLY`, which selects every proof program.
@@ -26,7 +26,7 @@ export type Side = "head" | "base";
 /** Whether an item of a file, on one side, is compiled only by an optimized build. */
 export type ProfileOnly = (file: string, item: Item, side: Side) => boolean;
 
-/** Nothing is profile-only: the closure's default, for a caller with no file text. */
+/** Nothing is profile-only: the reference walk's default, for a caller with no file text. */
 export const NO_PROFILE: ProfileOnly = () => false;
 
 /** A target as `cfg` sees it: `unix` or `windows`, and its `target_os`. */

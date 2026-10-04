@@ -18,7 +18,7 @@
 // Every tier but `raw` is read off the syntax tree by `tools/nv-scan`, a Rust program that parses the
 // file with `syn`, which this module builds on first use and runs once for a batch of files. A file
 // `syn` cannot parse is its text in every tier. No tier sees a line number. `includes` lists every
-// `include_str!`/`include_bytes!` site with a literal path, and whether the site is in code a build
+// `include_str!`/`include_bytes!` site with a string-literal path, and whether the site is in code a build
 // without `cfg(test)` leaves out.
 //
 // `scanItems` runs the scanner's other mode, `--items`: every item of each file, with a stable id,
@@ -41,7 +41,7 @@ export type Tier = "raw" | "docs" | "code" | "shipped" | "card";
 export const TIERS: readonly Tier[] = ["raw", "docs", "code", "shipped", "card"];
 
 export interface IncludeSite {
-  /** The literal path, as written. */
+  /** The path in the string literal, as written. */
   path: string;
   /** Is the site in code a build without `cfg(test)` leaves out? */
   inTest: boolean;

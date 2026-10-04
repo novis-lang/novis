@@ -73,7 +73,7 @@ const GROUPS: [string, string, string][] = [
     "language",
     "Language features",
     "What the language gives you to build with: classes and their members, interfaces, " +
-      "closures, iteration, concurrency, attributes, testing.",
+      "anonymous functions, iteration, concurrency, attributes, testing.",
   ],
   [
     "security",

@@ -24,7 +24,7 @@
 import { appendFileSync, existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { parse as parseToml } from "smol-toml";
-import { closure, type DepKind, type Graph } from "../keys/graph.ts";
+import { dependencySet, type DepKind, type Graph } from "../keys/graph.ts";
 import { ROOT } from "../lib/paths.ts";
 import { run as runProc } from "../lib/proc.ts";
 import { ArgError, parseArgs } from "../lib/py.ts";
@@ -160,7 +160,7 @@ function dbLane(base: string[]): string[] {
   const names = graph ? namedIn(graph, DB_HARNESS) : [];
   if (!graph || names.length === 0) return [...base, "crates/", "benches/"];
   const built = new Set(names);
-  for (const n of names) for (const d of closure(graph, n)) built.add(d);
+  for (const n of names) for (const d of dependencySet(graph, n)) built.add(d);
   return [...base, ...[...built].map((n) => `${graph.get(n)!.dir}/`).sort()];
 }
 

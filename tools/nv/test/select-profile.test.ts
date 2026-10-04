@@ -2,7 +2,7 @@ import { afterAll, describe, expect, test } from "bun:test";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { type FileItems, scanItems } from "../keys/scan.ts";
-import { closure, diffFile, Universe } from "../select/items.ts";
+import { diffFile, referenceWalk, Universe } from "../select/items.ts";
 import { PLATFORM_ONLY, PROFILE_ONLY } from "../select/keys.ts";
 import { cfgValue, elsewhereOnly, LINUX, leadingAttrs, optimizedOnly, type Platform, platformOf, profileReader, type Side } from "../select/profile.ts";
 import { scratch } from "./scratch.ts";
@@ -59,7 +59,7 @@ function movedBy(file: string, before: string, after: string, here?: Platform): 
   };
   const d = diffFile(base.get(file)!, head.get(file)!);
   const platform = here ? profileReader(read, head, elsewhereOnly(here)) : undefined;
-  return [...closure(d.changes, new Universe(head), [], new Map(), profileReader(read, head), platform).keys()].sort();
+  return [...referenceWalk(d.changes, new Universe(head), [], new Map(), profileReader(read, head), platform).keys()].sort();
 }
 
 const WINDOWS = platformOf("win32");

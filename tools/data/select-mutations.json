@@ -96,7 +96,7 @@
         "file": "crates/nvs-runtime/src/value.rs",
         "find": "    Bytes = 11,",
         "replace": "    Bytes = 9,",
-        "note": "an enum discriminant in a runtime type: `Tag::Bytes` moves into a hole, so it no longer agrees with the parameter nibble compiled code checks (nvs-codegen tag nibble test, closures over `bytes`)"
+        "note": "an enum discriminant in a runtime type: `Tag::Bytes` moves into a hole, so it no longer agrees with the parameter nibble compiled code checks (nvs-codegen tag nibble test, callables over `bytes`)"
       }
     ]
   ]

@@ -42,7 +42,7 @@ const OUTPUT_NAME = "THIRD-PARTY-LICENSES.txt";
 const OUTPUT = join(ROOT, OUTPUT_NAME);
 const DENY = join(ROOT, "deny.toml");
 
-// The package whose dependency closure is distributed. Everything else in the workspace is a library
+// The package whose dependency set is distributed. Everything else in the workspace is a library
 // it links, or a bench or fuzz target that ships to nobody.
 const ROOT_PACKAGE = "nvs-cli";
 const BINARY = "nvs";

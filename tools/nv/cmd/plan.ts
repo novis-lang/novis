@@ -251,7 +251,7 @@ function past(): number {
     console.log(wrap(`${row.id.padEnd(4)} ${(row.complete ? "complete" : "open").padEnd(8)} ` +
       `carried by ${carried || "no goal on the chain"}, ${row.tagged} item(s) still tagged to it`, 98, "  ", " ".repeat(16)));
   }
-  console.log("\nA count above zero names work no closure goal has taken yet: `bun nv owners --check` lists the " +
+  console.log("\nA count above zero names work no closing goal has taken yet: `bun nv owners --check` lists the " +
     "items behind it, each to be closed or re-owned.");
   console.log(`${rows.filter((r) => r.complete).length} of ${rows.length} past milestone(s) complete`);
   return 0;

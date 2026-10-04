@@ -4,7 +4,7 @@ import { join } from "node:path";
 import type { Graph } from "../keys/graph.ts";
 import { type FileItems, scanItems } from "../keys/scan.ts";
 import { buildScripts, generatedIncludes, isInput, parseOutput } from "../select/build.ts";
-import { closure, diffFile, rowClasses, type Scope, Universe } from "../select/items.ts";
+import { diffFile, referenceWalk, rowClasses, type Scope, Universe } from "../select/items.ts";
 import { pathKeys } from "../select/keys.ts";
 import { graphScope } from "../select/select.ts";
 import { scratch } from "./scratch.ts";
@@ -92,10 +92,10 @@ function movedBy(file: string, before: string, after: string, others: string[] =
   const head = scanned([file, ...others]);
   const d = diffFile(base.get(file)!, head.get(file)!);
   expect(d.wide).toBe(false);
-  return [...closure(d.changes, new Universe(head)).keys()].sort();
+  return [...referenceWalk(d.changes, new Universe(head)).keys()].sort();
 }
 
-describe("the item diff and the reference-graph closure", () => {
+describe("the item diff and the reference-graph walk", () => {
   tree.put("crates/demo/src/banner.txt", "hello\n");
 
   test("a fn body edit moves that fn and nothing else", () => {
@@ -130,7 +130,7 @@ describe("the item diff and the reference-graph closure", () => {
     tree.put("crates/demo/src/banner.txt", "goodbye\n");
     const head = scanned(["crates/demo/src/lib.rs"]);
     const d = diffFile(base.get("crates/demo/src/lib.rs")!, head.get("crates/demo/src/lib.rs")!);
-    expect([...closure(d.changes, new Universe(head)).keys()].sort()).toEqual(["fn:crates/demo/src/lib.rs#BANNER", "fn:crates/demo/src/lib.rs#banner"]);
+    expect([...referenceWalk(d.changes, new Universe(head)).keys()].sort()).toEqual(["fn:crates/demo/src/lib.rs#BANNER", "fn:crates/demo/src/lib.rs#banner"]);
   });
 
   test("a card edit moves the card's class under card: and no class or program key", () => {
@@ -201,9 +201,9 @@ describe("the item diff and the reference-graph closure", () => {
     const head = scanned([a, b]);
     const d = diffFile(base.get(a)!, head.get(a)!);
     const apart: Scope = { pkgOf: (f) => f.split("/")[1]!, sees: (user, owner) => user === owner, modDir: () => null };
-    expect([...closure(d.changes, new Universe(head, apart)).keys()]).toEqual(["fn:crates/a/src/lib.rs#SHARED"]);
+    expect([...referenceWalk(d.changes, new Universe(head, apart)).keys()]).toEqual(["fn:crates/a/src/lib.rs#SHARED"]);
     const depends: Scope = { pkgOf: (f) => f.split("/")[1]!, sees: () => true, modDir: () => null };
-    expect([...closure(d.changes, new Universe(head, depends)).keys()]).toContain("fn:crates/b/src/lib.rs#reads");
+    expect([...referenceWalk(d.changes, new Universe(head, depends)).keys()]).toContain("fn:crates/b/src/lib.rs#reads");
   });
 
   test("a private item is reached from its own module's files, a pub(crate) one from its package, and vendored code from neither", () => {
@@ -225,7 +225,7 @@ describe("the item diff and the reference-graph closure", () => {
     const d = diffFile(base.get(regex)!, head.get(regex)!);
     const pkg = (f: string) => (f.startsWith("vendor/") ? null : f.split("/")[1]!);
     const scope: Scope = { pkgOf: pkg, sees: () => true, modDir: (f) => `${f.replace(/\.rs$/, "")}/` };
-    const moved = [...closure(d.changes, new Universe(head, scope)).keys()];
+    const moved = [...referenceWalk(d.changes, new Universe(head, scope)).keys()];
     expect(moved).toContain(`fn:${child}#piece`);
     expect(moved).toContain(`fn:${sibling}#tier`);
     expect(moved).not.toContain(`fn:${sibling}#own`);
@@ -246,7 +246,7 @@ describe("the item diff and the reference-graph closure", () => {
     tree.put(owner, after);
     const head = scanned(all);
     const d = diffFile(base.get(owner)!, head.get(owner)!);
-    return [...closure(d.changes, new Universe(head, graphScope(graph))).keys()];
+    return [...referenceWalk(d.changes, new Universe(head, graphScope(graph))).keys()];
   }
 
   test("shipped code does not see a dev-dependency, and its tests and integration tests do", () => {
@@ -322,13 +322,13 @@ describe("the item diff and the reference-graph closure", () => {
     tree.put(file, table('"Core\\\\Str"'));
     const head = scanned([file]);
     const d = diffFile(base.get(file)!, head.get(file)!);
-    const moved = [...closure(d.changes, new Universe(head)).keys()];
+    const moved = [...referenceWalk(d.changes, new Universe(head)).keys()];
     expect(moved.filter((k) => k.startsWith("class:"))).toEqual([]);
     expect(moved).toContain("fn:crates/demo/src/t.rs#tests::owing");
     tree.put(file, "pub fn f( {\n");
     const broken = scanned([file]);
     expect(diffFile(base.get(file)!, broken.get(file)!).wide).toBe(true);
-    const keys = [...closure([], new Universe(broken), [file]).keys()];
+    const keys = [...referenceWalk([], new Universe(broken), [file]).keys()];
     expect(keys).toEqual(["fn:crates/demo/src/t.rs#", "class:*", "card:*"]);
   });
 

@@ -1,4 +1,4 @@
-// From changed Rust files to changed keys: the item diff and the reference-graph closure.
+// From changed Rust files to changed keys: the item diff and the reference-graph walk.
 //
 // A file is compared item by item (`nv-scan --items`): an item whose id is new was added, one whose id
 // is gone was removed, and one whose digest moved was changed. Doc comments are outside the digest, so
@@ -160,7 +160,7 @@ interface Placed {
   item: Item;
 }
 
-/** The items of the tree as the closure reads them, indexed by the names they spell and by parent. */
+/** The items of the tree as the reference walk reads them, indexed by the names they spell and by parent. */
 export class Universe {
   private byName = new Map<string, Placed[]>();
   private byParent = new Map<string, Placed[]>();
@@ -327,9 +327,9 @@ export type ExtraDefines = Map<string, string[]>;
 /**
  * The keys `changes` move, closed over the reference graph. `wideFiles` are files taken whole,
  * `profile` says which items only an optimized build compiles, and `platform` which items only a Linux
- * build does: each one the closure reaches, test code included, moves `PLATFORM_ONLY`.
+ * build does: each one the walk reaches, test code included, moves `PLATFORM_ONLY`.
  */
-export function closure(
+export function referenceWalk(
   changes: ItemChange[],
   universe: Universe,
   wideFiles: string[] = [],
