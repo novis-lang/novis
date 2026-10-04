@@ -28,15 +28,16 @@
 //
 // The parts of `--check`: `structure` (the nav is the four areas from `website/config/site.mjs`, then
 // Install and Sponsoring, each area is one sidebar group, no retired page or generator is on disk, the
-// footer has no prev/next and the Astro config has no redirect), `snippets` (no handwritten page has an
+// footer has no prev/next, the Astro config has no redirect, and no page or sidebar entry links to a URL
+// `builtUrls` does not list), `snippets` (no handwritten page has an
 // inline Novis fence, every `<Snippet src="..."/>` names a file under `website/snippets/`, every snippet
 // is used, keeps the comment bounds of `bun nv proofs --comments`, and prints exactly its `.out` with
 // exit 0), `stale` (no page lacks `covers:`, no id is broken and no page is stale), `reference` (see
-// `referenceProblems`), `syntax` (see `syntaxProblems`), `guides` (see `guidesProblems`), `apps` (see
-// `appsProblems`) and `prose` (the countable bounds of AGENTS.md § *Text an end user reads* over every
-// handwritten page's prose: no sentence over 25 words, no dash joining two sentences, and no paragraph
-// over six sentences). The legal pages are kept out of `prose`, since their wording is the law's.
-// `in-depth` belongs to the last stage of goal `website-overhaul` and fails until that stage writes it.
+// `referenceProblems`), `syntax` (see `syntaxProblems`), `guides` (see `guidesProblems`), `in-depth`
+// (see `inDepthProblems`), `apps` (see `appsProblems`) and `prose` (the countable bounds of AGENTS.md
+// § *Text an end user reads* over every handwritten page's prose: no sentence over 25 words, no dash
+// joining two sentences, and no paragraph over six sentences). The legal pages are kept out of `prose`,
+// since their wording is the law's.
 
 import { createHash } from "node:crypto";
 import { existsSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
@@ -63,8 +64,6 @@ const LEGAL = ["impressum.md", "datenschutz.md"];
 
 export const PARTS = ["structure", "snippets", "stale", "reference", "syntax", "guides", "in-depth", "apps", "prose"] as const;
 type Part = (typeof PARTS)[number];
-/** The stage of goal `website-overhaul` that writes each part not written yet. */
-const LATER: Partial<Record<Part, number>> = { "in-depth": 6 };
 /** Where `--build` writes the site, which `reference` reads. */
 const DIST = "website/dist";
 
@@ -357,6 +356,99 @@ export function structureProblems(root: string = ROOT): string[] {
   if (JSON.stringify(groups) !== JSON.stringify(want)) problems.push(`website/astro.config.ts: the sidebar groups are ${groups.join(", ")}, and the goal names ${want.join(", ")}`);
 
   for (const path of RETIRED) if (existsSync(join(root, path))) problems.push(`${path}: retired, and still on disk`);
+
+  const built = builtUrls(root);
+  const target = (href: string) => href.replace(/[#?].*$/, "").replace(/\/?$/, "/");
+  const asset = (href: string) => /\.[a-z0-9]+$/i.test(href.replace(/[#?].*$/, ""));
+  for (const page of pages(root)) {
+    for (const m of page.body.matchAll(LINK_RE)) {
+      const href = m[1] ?? m[2]!;
+      if (!asset(href) && !built.has(target(href))) problems.push(`${DOCS}/${page.key}: links to ${href}, which the site does not build`);
+    }
+  }
+  for (const m of sidebar.matchAll(/link: '(\/[^']*)'/g)) {
+    if (!built.has(target(m[1]!))) problems.push(`website/astro.config.ts: the sidebar links to ${m[1]}, which the site does not build`);
+  }
+  return problems;
+}
+
+/** A site-relative link in a page: a markdown link's target, or an `href` attribute's value. */
+const LINK_RE = /\]\((\/(?!\/)[^)\s]*)\)|href=["'](\/(?!\/)[^"']*)["']/g;
+
+/**
+ * Every URL the site builds, each ending in `/`: one per handwritten page, the Core reference's class and
+ * method pages, and the Configuration and CLI reference's landing and entry pages.
+ */
+export function builtUrls(root: string = ROOT): Set<string> {
+  const urls = new Set<string>(["/"]);
+  for (const path of filesUnder(root, DOCS).filter((p) => /\.mdx?$/.test(p))) {
+    const key = path.slice(DOCS.length + 1).replace(/\.mdx?$/, "");
+    urls.add(`/${key.replace(/(^|\/)index$/, "")}/`.replace(/\/+/g, "/"));
+  }
+  const core = JSON.parse(readAt(root, DATA_FILE) || '{"classes":[]}') as { classes: { members: { url: string }[] }[] };
+  for (const cls of core.classes) {
+    for (const m of cls.members) {
+      urls.add(m.url);
+      urls.add(m.url.replace(/[^/]+\/$/, ""));
+    }
+  }
+  const refPages = (JSON.parse(readAt(root, REFERENCE_FILE) || '{"pages":[]}') as { pages: RefPage[] }).pages;
+  for (const area of ["config", "cli"]) urls.add(`/reference/${area}/`);
+  for (const p of refPages) urls.add(p.url);
+  return urls;
+}
+
+/**
+ * The sections of In-Depth, in sidebar order: the page or directory under `in-depth/`, and the fewest
+ * pages a directory section has beside its `index.mdx`. A section with `0` is one page, `<slug>.mdx`.
+ */
+export const IN_DEPTH_SECTIONS: [slug: string, least: number][] = [
+  ["what-for", 0],
+  ["never", 0],
+  ["how-we-decide", 0],
+  ["design-principles", 0],
+  ["concepts", 5],
+  ["falls-behind", 0],
+  ["roadmap", 0],
+  ["what-changed", 0],
+];
+
+/**
+ * The `in-depth` part: each of `IN_DEPTH_SECTIONS` has its page, or its directory with at least its count
+ * of pages beside the landing page, and the In-Depth sidebar group links the sections in that order.
+ */
+export function inDepthProblems(root: string = ROOT): string[] {
+  const problems: string[] = [];
+  const keys = new Set(pages(root).map((p) => p.key));
+  for (const [slug, least] of IN_DEPTH_SECTIONS) {
+    const prefix = `in-depth/${slug}/`;
+    if (least === 0) {
+      if (!keys.has(`in-depth/${slug}.mdx`) && !keys.has(`in-depth/${slug}.md`)) problems.push(`${DOCS}/in-depth/${slug}.mdx: no page`);
+      continue;
+    }
+    const steps = [...keys].filter((k) => k.startsWith(prefix) && !/\/index\.mdx?$/.test(k));
+    if (!keys.has(`${prefix}index.mdx`)) problems.push(`${DOCS}/${prefix}index.mdx: no landing page`);
+    if (steps.length < least) problems.push(`${DOCS}/${prefix}: ${steps.length} page(s) beside its index, and the goal names ${least} at least`);
+  }
+  problems.push(...sidebarOrder(root, "In-Depth", "in-depth", IN_DEPTH_SECTIONS.map(([slug]) => slug)));
+  return problems;
+}
+
+/** The problems with one sidebar group's links into `/<area>/<section>/`, which must all exist and be in order. */
+function sidebarOrder(root: string, label: string, area: string, sections: string[]): string[] {
+  const problems: string[] = [];
+  const astro = readAt(root, "website/astro.config.ts");
+  const from = astro.indexOf(`label: '${label}'`);
+  const rest = from < 0 ? "" : astro.slice(from + 1);
+  const next = rest.search(/^ {10}label: /m);
+  const group = next < 0 ? rest : rest.slice(0, next);
+  let last = -1;
+  for (const section of sections) {
+    const at = group.indexOf(`link: '/${area}/${section}/`);
+    if (at < 0) problems.push(`website/astro.config.ts: the ${label} sidebar has no link into /${area}/${section}/`);
+    else if (at < last) problems.push(`website/astro.config.ts: the ${label} sidebar lists /${area}/${section}/ out of the goal's order`);
+    else last = at;
+  }
   return problems;
 }
 
@@ -588,18 +680,7 @@ export function guidesProblems(root: string = ROOT): string[] {
     else if (steps.length < least) problems.push(`${DOCS}/${prefix}: ${steps.length} page(s) beside its index, and the goal names ${least} at least`);
     if (snippets) for (const p of steps) if (!/<Snippet\s+src=/.test(p.body)) problems.push(`${DOCS}/${p.key}: shows no <Snippet>`);
   }
-  const astro = readAt(root, "website/astro.config.ts");
-  const from = astro.indexOf("label: 'Guides'");
-  const rest = from < 0 ? "" : astro.slice(from + 1);
-  const next = rest.search(/^ {10}label: /m);
-  const group = next < 0 ? rest : rest.slice(0, next);
-  let last = -1;
-  for (const [dir] of GUIDE_SECTIONS) {
-    const at = group.indexOf(`link: '/guides/${dir}/`);
-    if (at < 0) problems.push(`website/astro.config.ts: the Guides sidebar has no link into /guides/${dir}/`);
-    else if (at < last) problems.push(`website/astro.config.ts: the Guides sidebar lists /guides/${dir}/ out of the goal's order`);
-    else last = at;
-  }
+  problems.push(...sidebarOrder(root, "Guides", "guides", GUIDE_SECTIONS.map(([dir]) => dir)));
   return problems;
 }
 
@@ -686,9 +767,9 @@ async function check(parts: Part[], nvs: string | null): Promise<number> {
   let w: World | null = null;
   for (const part of parts) {
     let problems: string[];
-    if (LATER[part] !== undefined) problems = [`not written yet: stage ${LATER[part]} of goal \`website-overhaul\` writes it`];
-    else if (part === "structure") problems = structureProblems();
+    if (part === "structure") problems = structureProblems();
     else if (part === "guides") problems = guidesProblems();
+    else if (part === "in-depth") problems = inDepthProblems();
     else if (part === "prose") {
       problems = pages()
         .filter((p) => !LEGAL.includes(p.key))

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { DOCS, GUIDE_SECTIONS, guidesProblems, paragraphs, proseProblems, snippetShape, stamp, staleness, syntaxProblems, wrapProblems, type World } from "../cmd/site.ts";
+import { builtUrls, DOCS, GUIDE_SECTIONS, guidesProblems, IN_DEPTH_SECTIONS, inDepthProblems, paragraphs, proseProblems, snippetShape, stamp, staleness, syntaxProblems, wrapProblems, type World } from "../cmd/site.ts";
 import type { Entry } from "../proofs/roster.ts";
 import { scratch, type Scratch } from "./scratch.ts";
 
@@ -157,6 +157,52 @@ describe("nv site --check guides", () => {
       "website/astro.config.ts: the Guides sidebar lists /guides/tour/ out of the goal's order",
       "website/astro.config.ts: the Guides sidebar has no link into /guides/testing/",
     ]);
+  });
+});
+
+describe("nv site --check in-depth", () => {
+  const page = `---\ntitle: A page\ncovers: []\n---\n\nText.\n`;
+  const sidebar = (slugs: string[]) =>
+    ["sidebar: [", "        {", "          label: 'In-Depth',", "          items: [", ...slugs.map((d) => `            { label: '${d}', link: '/in-depth/${d}/' },`), "          ],", "        },"].join("\n");
+
+  /** Every section with its page or its directory at its count, but the pages `leave` names. */
+  function inDepth(leave: string[] = []): Scratch {
+    s = site();
+    const put = (key: string) => leave.some((l) => key.startsWith(l)) || s.put(`${DOCS}/${key}`, page);
+    for (const [slug, least] of IN_DEPTH_SECTIONS) {
+      if (least === 0) put(`in-depth/${slug}.mdx`);
+      else {
+        put(`in-depth/${slug}/index.mdx`);
+        for (let i = 1; i <= least; i++) put(`in-depth/${slug}/${i}.mdx`);
+      }
+    }
+    s.put("website/astro.config.ts", sidebar(IN_DEPTH_SECTIONS.map(([d]) => d)));
+    return s;
+  }
+
+  test("the eight sections with their pages and sidebar order pass", () => {
+    expect(inDepthProblems(inDepth().root)).toEqual([]);
+  });
+
+  test("a missing page, a short directory and a sidebar out of order are named", () => {
+    const root = inDepth(["in-depth/roadmap.mdx", "in-depth/concepts/5.mdx"]).root;
+    s.put("website/astro.config.ts", sidebar(["never", "what-for", "how-we-decide", "design-principles", "concepts", "falls-behind", "what-changed"]));
+    expect(inDepthProblems(root)).toEqual([
+      `${DOCS}/in-depth/concepts/: 4 page(s) beside its index, and the goal names 5 at least`,
+      `${DOCS}/in-depth/roadmap.mdx: no page`,
+      "website/astro.config.ts: the In-Depth sidebar lists /in-depth/never/ out of the goal's order",
+      "website/astro.config.ts: the In-Depth sidebar has no link into /in-depth/roadmap/",
+    ]);
+  });
+
+  test("the built URLs are each page, the Core pages and the Configuration and CLI pages", () => {
+    s = scratch();
+    const root = s.root;
+    s.put(`${DOCS}/in-depth/index.mdx`, page);
+    s.put(`${DOCS}/in-depth/roadmap.mdx`, page);
+    s.put("website/src/data/core.json", JSON.stringify({ classes: [{ members: [{ url: "/reference/core/str/length/" }] }] }));
+    s.put("website/src/data/reference.json", JSON.stringify({ pages: [{ url: "/reference/config/app/" }] }));
+    expect([...builtUrls(root)].sort()).toEqual(["/", "/in-depth/", "/in-depth/roadmap/", "/reference/cli/", "/reference/config/", "/reference/config/app/", "/reference/core/str/", "/reference/core/str/length/"]);
   });
 });
 
