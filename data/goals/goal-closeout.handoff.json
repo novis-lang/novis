@@ -1,27 +1,33 @@
 {
-  "state": "**Goal `goal-closeout`, Stage 5 (deletion becomes the rule) is under way.** The goal switch deletes the goal it leaves (`leaveGoal` in `tools/nv/lib/chain.ts`), and no floor is carried: a goal's plan is its own record. The carried-check machinery is gone: `isFloor`, `isCarried`, `owedChecks`, `bun nv loop --owed` and `--settle`, the `carried` field and `owed` count in `bun nv affected`, and the `pre-push` hook, which only asked `--owed`. The sweep's fixture tiers are `catch-up fixtures` (stage 0) and `goal fixtures`. The floor *gate* (`FLOOR_GATE_EVERY`, the heavy-check cadence) stays.\n\n`walkedGoals` stays, narrowed to \"in front of the live goal\", because `tools/nv/cmd/audit.ts` and `tools/nv/cmd/plan.ts` read it. It goes once Stage 6 deletes the goals in front of `goal-closeout`.\n\n`bun nv owners --closes goal-closeout` names 7 gaps, and each one waits on a question in the goal prose's § *Questions for the user at the goal end*. Do not build the closure rebind, the environment, the zip walk, the captured-output type, directive completion, card voice or completion images before the answers. **No session stops on `BLOCKED` while Stages 5 and 6 are open.**",
+  "state": "**Goal `goal-closeout`, Stage 5 (deletion becomes the rule) is done; Stage 6 (the one-time deletion) is next.** The goal switch deletes the goal it leaves (`leaveGoal` in `tools/nv/lib/chain.ts`), and no floor is carried, so the status row's percentage counts every check of the goal's record. `bun nv chain --check` fails on a Markdown file naming a goal that is neither on the chain nor a side goal (`goneCitations` in `tools/nv/cmd/chain.ts`); goal prose under `docs/agent/goals/` and the records under `docs/decisions/` are exempt. `docs/agent/session-prompt.md` and `docs/agent/coordinator.md` name the duty to move a goal-prose decision home before `DONE`.\n\n`walkedGoals` stays until Stage 6, because `tools/nv/cmd/audit.ts` and `tools/nv/cmd/plan.ts` read it.\n\n`bun nv owners --closes goal-closeout` names 7 gaps, and each one waits on a question in the goal prose's § *Questions for the user at the goal end*. Do not build the closure rebind, the environment, the zip walk, the captured-output type, directive completion, card voice or completion images before the answers. **No session stops on `BLOCKED` while Stage 6 is open.**",
   "next": {
-    "stage": 5,
-    "title": "deletion becomes the rule",
-    "files": [],
-    "note": "one file set: `tools/nv/driver/status.ts`, `tools/nv/cmd/chain.ts`, `docs/agent/session-prompt.md`, `docs/agent/coordinator.md` and their tests.",
+    "stage": 6,
+    "title": "the old goals are deleted",
+    "files": [
+      "data/chain.json",
+      "docs/agent/goals/",
+      "data/goals/",
+      "tools/nv/lib/chain.ts",
+      "tools/nv/cmd/audit.ts",
+      "tools/nv/cmd/plan.ts"
+    ],
     "items": [
       {
         "done": false,
-        "text": "**The floor stage title goes** — `FLOOR` at `tools/nv/driver/status.ts:24` and `own` at `tools/nv/driver/status.ts:69` leave a stage titled `floor` out of the percentage; no record has one now, so `percent` counts every check, and the `floor` fixtures in `tools/nv/test/status.test.ts` become an ordinary stage. Rewrite the two stale comments with it: `tools/nv/cmd/orient.ts:1706` (\"one the floor carried in\") and `files` at `tools/nv/schema/goal.ts:74` (\"carried into the next goal's floor\"). `rule:tooling/the-chain-names-its-live-goal`."
+        "text": "**Delete the 184 goals in front of `goal-closeout`** — their prose, records and handoff records, and their slugs from `data/chain.json`, in one commit; `bun nv chain --move/--remove` refuse a goal in front of the live one, so the deletion edits the chain record directly. Move any decision only that prose holds to its home first (`docs/agent/goal-decisions.md`). `rule:tooling/the-chain-names-its-live-goal`, anchored at `tools/nv/lib/chain.ts:101`."
       },
       {
         "done": false,
-        "text": "**The citation check** — `bun nv chain --check` fails on prose outside a goal's own files naming a goal not on the chain, beside `numberCitations` at `tools/nv/cmd/chain.ts:73`. `rule:tooling/the-chain-names-its-live-goal`."
+        "text": "**Fix the citations the deletion leaves** — `bun nv chain --check` then names about 70 places that cite a deleted goal by slug: `docs/implementation-plan.md`, `docs/plan/m*.md`, `docs/reference/findings.md`, `docs/agent/loop-authoring.md` and a few playbook bullets. Each sentence names the rule or module doc instead. `rule:tooling/the-chain-names-its-live-goal`, anchored at `tools/nv/cmd/chain.ts:76`."
       },
       {
         "done": false,
-        "text": "**The goal-end duty** — `docs/agent/session-prompt.md` and `docs/agent/coordinator.md` say once, where each owns the goal end, that a decision only a goal's prose holds moves to its home before the goal is reached. `rule:tooling/the-chain-names-its-live-goal`, anchored at `docs/agent/session-prompt.md:1`."
+        "text": "**`walkedGoals` goes** — `tools/nv/lib/chain.ts:115` and its header at `tools/nv/lib/chain.ts:6`, its readers at `tools/nv/cmd/audit.ts:282`, `tools/nv/cmd/plan.ts:222` and `tools/nv/cmd/plan.ts:325`, and its test at `tools/nv/test/chain.test.ts:76`. `rule:tooling/the-chain-names-its-live-goal`."
       }
     ]
   },
   "backlog": [
-    "Stage 6: delete the 184 goals in front of `goal-closeout` once, then remove `walkedGoals` (`tools/nv/lib/chain.ts`) with its readers in `audit.ts` and `plan.ts`; `bun nv chain --move/--remove` refuse a goal in front of the live one, so the deletion edits `data/chain.json` directly or that guard goes with it.",
-    "Stage 4's red check waits on the user's answers to the 7 questions in `docs/agent/goals/goal-closeout.md`."
+    "Stage 4's red checks wait on the user's answers to the 7 questions in `docs/agent/goals/goal-closeout.md`; the session that finds them the only red ones writes `BLOCKED` and names that section.",
+    "`tools/nv/test/records.test.ts:25` and `tools/nv/test/import.test.ts:210` still use a stage titled `floor` as fixture data; it is harmless, and renaming it is optional."
   ]
 }

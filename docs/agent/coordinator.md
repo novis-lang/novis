@@ -90,15 +90,16 @@ harness settings and nothing else.
                                               without sweeping the tree
     if the CLI exited non-zero             -> exponential backoff, retry; `cli-failed` after --max-retries
     read .loop/status.txt, diff HEAD, append one ledger line
-    run the acceptance sweep over the live goal's plan: its record, data/goals/<slug>.json, with the
-      floor carried in; every check a change reached runs, and the heavy ones, the WSL leg and the
-      valgrind sweep wait for the floor gate, open one sweep in FLOOR_GATE_EVERY
+    run the acceptance sweep over the live goal's plan, its record data/goals/<slug>.json alone;
+      every check a change reached runs, and the heavy ones, the WSL leg and the valgrind sweep wait
+      for the floor gate, open one sweep in FLOOR_GATE_EVERY
     run `bun nv disk --clean`'s sweep, in-process
       -> green with the floor gate open: the goal-end gates, `bun nv verify --doc`, and
          `bun nv owners --closes <slug>`
                                               either red -> the goal stays open, the run carries on
-      -> both green, the chain has a next goal -> move `live` in data/chain.json to it, commit that file,
-                                              preflight and bring up its env.docker services, carry on
+      -> both green, the chain has a next goal -> the goal switch, one commit: delete the goal, move
+                                              `live` to the next, preflight and bring up its
+                                              env.docker services, carry on
       -> both green, the goal is the chain's last -> stop, CHAIN COMPLETE
     if status is DONE but the sweep refuses -> a retry session handed the red check, at most 3 per goal;
                                               `done-claim` when a retry's DONE fails on that same check
@@ -110,7 +111,9 @@ The acceptance check running *before* the `DONE` check is deliberate: the machin
 
 **The goal switch is the driver's, and it is one commit.** `live` is tracked in git, so every clone and
 CI see the same live goal. The switch deletes the goal it leaves and moves `live` to the next one, as
-`rule:tooling/the-chain-names-its-live-goal` says, and carries none of its checks.
+`rule:tooling/the-chain-names-its-live-goal` says, and carries none of its checks. So the session that
+writes `DONE` owes one more thing: a decision that only the goal's prose holds is moved to its home
+first, and `bun nv chain --check` fails on a document that still names the deleted goal.
 `bun nv chain --new`, `--move` and `--remove` edit `goals` and never `live`.
 
 The driver does not run an optimization pass, never picks a side goal on its own, and does not copy a

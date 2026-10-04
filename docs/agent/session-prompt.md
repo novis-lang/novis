@@ -34,7 +34,9 @@ changes about them, and step 6.
    - `DONE <what goal was reached>` — the live goal, `docs/agent/goals/<slug>.md`, is met. Run `bun nv
      verify --doc` first and fix every broken doc link it names, then `bun nv owners --closes
      <slug>` and close or re-owner every gap it names: those are the gates a goal meets only at its
-     end, and the driver does not reach the goal while one is red. A tag is not a build. A `DONE` the driver's sweep
+     end, and the driver does not reach the goal while one is red. Move every decision that only the
+     goal's prose holds to its home, a rule or a module doc, because the goal switch deletes the prose
+     (`rule:tooling/the-chain-names-its-live-goal`). A tag is not a build. A `DONE` the driver's sweep
      refuses gets a retry session, and the retry is handed the check that failed.
    - `BLOCKED <the decision only the user can make>` — a tradeoff expensive to reverse. Prefer the safe
      option and a note in the handoff; the driver **holds** the run on this, waiting for the person who
