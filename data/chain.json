@@ -1,7 +1,6 @@
 {
-  "live": "disconnect-completes",
+  "live": "html-later",
   "goals": [
-    "disconnect-completes",
     "html-later",
     "performance-pass",
     "growth-proof",
