@@ -1,0 +1,4 @@
+grace: 10s
+set to 1h: refused
+set to 1s: refused
+set to false: refused

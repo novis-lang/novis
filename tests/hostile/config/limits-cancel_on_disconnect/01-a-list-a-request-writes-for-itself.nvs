@@ -1,0 +1,30 @@
+<?nvs
+// Attack: a request tries to empty `limits.cancel_on_disconnect`, so that it runs on
+// after its client went away. Every write below should fail.
+
+// 1. Write lists of many shapes: empty, very long, and not a list at all.
+array<string> $lists = [
+    '[]',
+    '["get"]',
+    '"GET"',
+    'false',
+    '0',
+    '[' . Core\Str::repeat('"GET", ', 100000) . '"GET"]',
+    Core\Str::repeat('[', 100000),
+];
+uint $accepted = 0;
+foreach ($lists as string $list) {
+    if (Core\Config::set('limits.cancel_on_disconnect', $list)) {
+        $accepted = $accepted + 1;
+    }
+}
+echo 'accepted writes: ', $accepted, "\n";
+
+// 2. Write it under names that are almost the same.
+array<string> $names = ['cancel_on_disconnect', 'limits.CANCEL_ON_DISCONNECT', 'app.limits.cancel_on_disconnect', 'limits.hard.cancel_on_disconnect'];
+foreach ($names as string $name) {
+    if (Core\Config::set($name, '[]')) {
+        $accepted = $accepted + 1;
+    }
+}
+echo 'accepted writes: ', $accepted, "\n";

@@ -1,0 +1,28 @@
+<?nvs
+// Attack: a request tries to change `limits.disconnect_grace` with keys that are
+// almost the same: other letter case, other prefixes, null bytes or `..`.
+// Every write should fail.
+
+// 1. Write a grace of 100000 hours under each name.
+array<string> $names = [
+    'limits.disconnect_grace',
+    'disconnect_grace',
+    'limits.DISCONNECT_GRACE',
+    'limits.disconnect_grace.',
+    '.limits.disconnect_grace',
+    'limits..disconnect_grace',
+    'limits.disconnect-grace',
+    'limits.hard.disconnect_grace',
+    'app.limits.disconnect_grace',
+    "limits.disconnect_grace\0",
+];
+uint $accepted = 0;
+foreach ($names as string $name) {
+    if (Core\Config::set($name, '100000h')) {
+        $accepted = $accepted + 1;
+    }
+}
+echo 'accepted writes: ', $accepted, "\n";
+
+// 2. Read the grace. No write was accepted, so it is still not set.
+echo 'grace: ', Core\Config::get('limits.disconnect_grace') ?? 'not set', "\n";

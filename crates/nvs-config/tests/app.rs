@@ -597,6 +597,7 @@ fn cancel_on_disconnect_defaults_to_no_method() {
     }
 }
 
+// covers: directive:limits.cancel_on_disconnect
 #[test]
 fn cancel_on_disconnect_reads_a_list_of_methods() {
     let read = disconnect_of(
@@ -654,6 +655,7 @@ fn cancel_on_disconnect_refuses_a_repeated_method() {
     );
 }
 
+// covers: directive:limits.disconnect_grace
 #[test]
 fn disconnect_grace_defaults_to_thirty_seconds() {
     assert_eq!(DISCONNECT_GRACE, Duration::from_secs(30));
