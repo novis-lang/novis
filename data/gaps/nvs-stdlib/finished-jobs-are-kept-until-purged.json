@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-stdlib/src/queue.rs",
+  "title": "Finished jobs stay in `nvs_jobs` until a program purges them, and `purge` and `stats` scan all of them each call.",
+  "text": "From the Stage 4 review, not re-run: succeeded and cancelled rows (states 2 and 4, schema at `crates/nvs-stdlib/src/queue.rs:318`) are only removed by an explicit `purge`, so the table grows with every job ever pushed. `purge` (`queue.rs:1469`, `:1508`, `:1544`, `:1561`) orders `by id limit N`, which no index serves, so each batch sorts every finished row and the documented `while (purge(...) > 0)` loop is O(finished²/N). `stats` (`:1616`, `:1639`, `:1673`) aggregates every row, history included. Not checked: whether `nvs-cli` runs a purge on a schedule. An index on `(queue, state, id)` fixes the purge; the retention question is the module doc's to answer. Ladder: `queue/history.nvs`, finished rows grown while due work stays at zero; idle poll and `stats` time flat.",
+  "goal": "performance-pass"
+}

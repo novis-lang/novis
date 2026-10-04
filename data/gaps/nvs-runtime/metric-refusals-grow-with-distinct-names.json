@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-runtime/src/metrics.rs",
+  "title": "Once `max_series` is reached, every refused metric name adds a key to a per-core map that is never trimmed.",
+  "text": "From the Stage 4 review, not re-run: `refusals: BTreeMap<String, u64>` (`crates/nvs-runtime/src/metrics.rs:780`) counts refusals by name with no bound. The series themselves are capped. A program that builds a metric name from request data grows the map with every distinct name it ever sends, which is growth with total traffic. A capped map with one overflow bucket keeps the count and bounds the memory. Ladder: `traffic/metric-names.nvs` under `serve`, a new name per request after the cap; peak memory flat.",
+  "goal": "performance-pass"
+}

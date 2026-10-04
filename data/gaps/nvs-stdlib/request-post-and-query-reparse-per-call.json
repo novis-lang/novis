@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-stdlib/src/request.rs",
+  "title": "`Core\\Request::post($name)` and `query($name)` parse the whole body or query string again on every call.",
+  "text": "`post` runs `form_of` (`crates/nvs-stdlib/src/request.rs:2315`), which parses the held body into a full array and drops it after one lookup; `query` (`:2167`) and `queryAs` (`:2242`) do the same with `parse_query`. A handler that reads each of P fields costs O(P²). The review found `Core\\Uri::queryParameter` (`crates/nvs-stdlib/src/uri.rs:2696`) has the same shape, and `cookie_lines` (`request.rs:1931`) and `grouped_fields` (`:1885`) rescan every line per read, bounded by the 100-header limit. Parsing once per request and keeping the array on the request, which is per-request memory of the body's size, makes each read O(1). Ladder: `request/fields.nvs` under `serve`, a form of P fields each read once, P from 10 to 10k.",
+  "goal": "performance-pass"
+}

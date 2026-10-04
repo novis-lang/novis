@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-stdlib/src/json.rs",
+  "title": "`Core\\Json::decodeAs` formats a path for every list element and collects an issue for every bad one.",
+  "text": "From the Stage 4 review, not re-run: `decode_positions` (`crates/nvs-stdlib/src/json.rs:3265-3331`) runs `format!(\"{path}.{at}\")` for every element of a list field, also on success, and appends an issue for each bad element, recursing into nested lists. `decode_each` (`json.rs:2368-2373`) states the policy of stopping at the first bad element, so the two paths disagree, and the message built at `:2493` is O(N · path). Building the path only on failure and stopping at the first issue makes it linear with one issue. Ladder: `json/decode-as.nvs`, a class with an `array<int>` field given N string elements; issues stay at one.",
+  "goal": "performance-pass"
+}

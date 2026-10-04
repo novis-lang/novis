@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-stdlib/src/granularity.rs",
+  "title": "`Core\\Str::at`, `slice`, `indexOf` and `Core\\Regex::match` with `from` walk the subject from its start on every call.",
+  "text": "`Granularity::at` (`crates/nvs-stdlib/src/granularity.rs:153-163`) takes `self.pieces(subject).nth(offset)`, and a negative index adds an uncounted `length` scan. The review found `pieces` runs `one_byte_per_cluster` over the whole subject first (`granularity.rs:131-142`), so `at` is O(n) even on ASCII, and `byte_of_index` (`:248-265`) walks with `nth` for `slice`/`replaceRange` (`str.rs:2849`), the `from` of `indexOf` (`str.rs:2992`) and `Core\\Regex::match` (`regex.rs:1696`). `position` (`granularity.rs:185`) counts every unit before a match. A loop over every index, or a find-next loop over k matches, is O(n²) or O(n·k). The ASCII case has an O(1) answer, and the cached grapheme count can say when a string is all one-byte clusters. Ladder: `strings/at.nvs`, `at($s, $i)` over every index of an n-character string, `run` kind; statements per character flat.",
+  "goal": "performance-pass"
+}

@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-runtime/src/identity.rs",
+  "title": "The identity hash stops at depth 4, so `Core\\Arr::unique`, `diff` and `intersect` over values that differ deeper degrade to quadratic compares.",
+  "text": "From the Stage 4 review, not re-run: `HASH_DEPTH = 4` (`crates/nvs-runtime/src/identity.rs:131`, used at `:295`) gives every array that differs only below level 4 the same hash, so the `HashSet` behind `Core\\Arr::unique` (`crates/nvs-stdlib/src/arr.rs:6103`) checks `value_identical` against every earlier entry, O(n²) deep compares. The depth bound is there to keep one hash bounded; a hash that folds in the size of what it stops at, or a per-value hash cached on the array, keeps it bounded without the collisions. Ladder: `arrays/unique-deep.nvs`, n distinct values nested 5 deep, `run` kind; calls per element flat.",
+  "goal": "performance-pass"
+}

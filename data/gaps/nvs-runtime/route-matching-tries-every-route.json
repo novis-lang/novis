@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-runtime/src/routes.rs",
+  "title": "A request is matched against every route in the program, one by one, with a capture list allocated for each that fits.",
+  "text": "From the Stage 4 review, not re-run: `match_request` (`crates/nvs-runtime/src/routes.rs:682`) runs `fill` against every row of the table on each request. The table is built once (`crates/nvs-server/src/route.rs:98`), so the cost is dispatch, O(routes) per request. The `app` ladders serve one route and cannot show it. A trie keyed by literal segments, or a first-segment index, makes it O(path length). Ladder: `request/routes.nvs` under `serve`, N page classes each with a route, the last one requested; latency per request flat.",
+  "goal": "performance-pass"
+}

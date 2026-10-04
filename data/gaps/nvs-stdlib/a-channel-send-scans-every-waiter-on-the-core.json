@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-stdlib/src/channel.rs",
+  "title": "A channel send scans every waiter parked on the core, for every channel, and removes matches by shifting the list.",
+  "text": "`notify` (`crates/nvs-stdlib/src/channel.rs:285-295`) walks the core's thread-local `WAITERS` Vec, which holds the waiters of every channel on that core, and takes each match out with `Vec::remove(at)`; `deregister` (`channel.rs:271-276`) is a `position` plus a `remove`. A send costs O(waiters on the core), and n waiters cost O(n²). A map from channel to its waiters, and a ticket-keyed slab, make both constant. Ladder: `scheduler/waiters.nvs`, N receivers parked on N channels while one other channel ping-pongs; time per send should be flat.",
+  "goal": "performance-pass"
+}

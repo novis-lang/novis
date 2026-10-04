@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-types/src/locals.rs",
+  "title": "The checker clones a function's whole live-locals set for every branch, so one long function checks in quadratic time.",
+  "text": "From the Stage 4 review, not re-run: `crates/nvs-types/src/locals.rs:1124` (and 1129, 1145, 1187, 1215, 1265, 1290, 1324, 1330, 1375) clones `live` for every `if`, loop, `case`, `catch` and `finally` arm. The cost is O(branches × live locals) per function, about quadratic in the statements of one function. `crates/nvs-types/src/ctor_init.rs:275-528` does the same with `state`. A persistent set, or an undo log per branch, keeps it linear. Ladder: `compiler/branches.nvs`, one function with N pairs of `$xi = ...; if (c) {}`, `compile` kind.",
+  "goal": "performance-pass"
+}

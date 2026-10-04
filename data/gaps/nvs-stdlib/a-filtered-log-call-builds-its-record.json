@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-stdlib/src/log.rs",
+  "title": "A `Core\\Log` call below the configured level still builds its record, reads the clock and takes a coalescing slot.",
+  "text": "From the Stage 4 review, not re-run: `Core\\Log::write` (`crates/nvs-stdlib/src/log.rs:231`, `:240`) converts the fields, hashes the coalescing key, reads `Instant::now()` and takes a slot in `floor::LOG_WINDOWS` (`crates/nvs-runtime/src/floor.rs:558`) before `write_log_record` (`crates/nvs-runtime/src/ctx/output.rs:368`) drops a record below `[log] level`. A filtered call costs O(fields), and filtered records can push real ones out of the 16 slots, which is a correctness defect as well. Checking the level first makes a filtered call constant. The review also found that each request's first log write reads the `[log]` keys and opens the log file again (`output.rs:363-366`, `crates/nvs-runtime/src/logfile.rs:104`); not checked against `nvs serve`. Ladder: `traffic/debug-log.nvs` under `serve` with `level = \"error\"`, n debug calls per request; allocations per call zero.",
+  "goal": "performance-pass"
+}

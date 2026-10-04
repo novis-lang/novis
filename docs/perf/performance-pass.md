@@ -42,7 +42,13 @@ Nothing yet: no fix has landed.
 
 ## Decisions for you
 
-None yet.
+**Should a request head get a total deadline as well as its idle one?** `header_timeout` is an idle
+wait: every byte that arrives restarts it (`crates/nvs-server/src/io.rs:309-321`), as
+`rule:http-server/four-idle-waits-all-finite` decides. A client that sends its head one byte at a
+time, just inside the wait, holds a connection for as long as it likes, and the HTTP layer parses its
+buffer again on each read up to its own buffer limit. A total deadline for the head alone closes
+that. It changes a rule and the behaviour a slow client sees, so it is yours to decide. Not
+measured yet.
 
 ## Benches to look at
 

@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-lsp/src/index.rs",
+  "title": "The workspace index copies an entry's whole read list into every file that entry loads.",
+  "text": "`crates/nvs-lsp/src/index.rs:627` sets `reads: reads.clone()` for each loaded file of an analysed entry, so an entry that loads n files stores n copies of an n-path list: O(n²) in time and memory, paid again by `build` (`index.rs:329`) and `refresh` (`index.rs:344`) on every edit. It is a candidate cause of `benches/scaling/lsp/classes.nvs`'s clock slope near 2; the other is the occurrence scan in `unused-private-scans-every-occurrence`. Sharing the list (`Rc<[PathBuf]>`) or keeping it once per entry makes it linear. Ladder: `lsp/classes.nvs` already shows the growth over one document; a second over n files required by one entry would separate this cause.",
+  "goal": "performance-pass"
+}

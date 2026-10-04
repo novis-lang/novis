@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-stdlib/src/cache.rs",
+  "title": "Forgetting a cache key leaves its eviction slot behind, so a put, forget and put cycle grows the tier's order queue without bound.",
+  "text": "`Entries::forget` (`crates/nvs-stdlib/src/cache.rs:976-980`) removes the entry and leaves its slot in `order` on purpose. A later `put` of the same key misses `entries` and pushes a second slot (`cache.rs:953-956`). Slots are not charged to `held`, and `forget_oldest` only drains them under cap pressure, so with `max_size` off nothing ever does. A put with an elapsed lifetime (`:935`) takes the same path. The order queue grows O(forget cycles), process-wide in the process tier and per core in the local tier: growth with total traffic, which `AGENTS.md` names a leak. The review also found that an expired entry is never removed on `get` (`:985-1001`), so with the cap off, keys written once with a lifetime stay forever. Ladder: `cache/forget.nvs` under `serve`, one key put, forgotten and put again per request; peak memory flat.",
+  "goal": "performance-pass"
+}

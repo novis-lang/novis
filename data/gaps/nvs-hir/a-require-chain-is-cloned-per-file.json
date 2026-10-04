@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-hir/src/requires.rs",
+  "title": "Each file a `require` loads copies its parent's whole require chain and searches it linearly.",
+  "text": "From the Stage 4 review, not re-run: `crates/nvs-hir/src/requires.rs:425` runs `chain.contains` for every require target, and the push about 40 lines below clones the parent's `chain: Vec<PathBuf>` for every newly loaded file. A linear chain of N files, each requiring the next, costs O(N²) in time and in allocation. A set beside the chain, or a shared parent pointer, makes it O(N). Ladder: `compiler/requires.nvs`, N files each requiring the next, `compile` kind; it should be linear.",
+  "goal": "performance-pass"
+}

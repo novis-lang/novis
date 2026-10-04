@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-fmt/src/indent.rs",
+  "title": "The formatter finds a line's indent by recursing once per enclosing body, with a full index scan at each level.",
+  "text": "From the Stage 4 review, not re-run: `opening_of` (`crates/nvs-fmt/src/indent.rs:192-197`) calls `of_line` on the opener's line, which calls `opening_of` again for each enclosing body, with nothing cached. Each level does another O(nodes) `index.at` and an `rfind('\\n')`, so a line costs O(depth × nodes) and the stack grows with nesting depth. `brace.rs:109-110` and `space.rs:231` call it once per body as well. Caching each body's indent as the printer descends makes it O(1) per line. Ladder: `fmt/depth.nvs`, nesting depth doubled, `fmt` kind; it should be linear and should not overflow.",
+  "goal": "performance-pass"
+}

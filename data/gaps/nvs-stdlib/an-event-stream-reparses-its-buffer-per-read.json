@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-stdlib/src/http/stream.rs",
+  "title": "The HTTP client's event-stream reader parses the held buffer from its start after every read that does not finish an event.",
+  "text": "From the Stage 4 review, not re-run: `step` (`crates/nvs-stdlib/src/http/stream.rs:612-641`) calls `event_at` (`:824`) and `line_at` (`:723`) from offset 0 on each `pull()` that does not complete an element, and `event_at` rebuilds its `data` Vec each time. One event of size n that arrives in small reads costs O(n²/read size), up to `EVENT_CEILING` (1 MiB) or `LINE_CEILING` (64 KiB) for lines. Remembering where the last scan stopped makes it linear. Ladder: `http-client/event-size.nvs` against an `nvs serve` that sends one event in small writes, event size doubled.",
+  "goal": "performance-pass"
+}

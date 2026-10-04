@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-lsp/src/index.rs",
+  "title": "Dimming unused private members scans every occurrence in the workspace once per private declaration.",
+  "text": "From the Stage 4 review, not re-run: `unused_private` (`crates/nvs-lsp/src/index.rs:403`) calls `occurrences(symbol)` (`index.rs:552`) once per private declaration, and each call walks every occurrence of every indexed file, O(private declarations × occurrences) on every publish. `declaration` (`index.rs:543`) and `subtypes` (`index.rs:450`) also scan every declaration per lookup, so a hierarchy walk through `supertypes` is O(edges × declarations). One map from symbol to its occurrences, and one from name to declaration, built with the index, make each lookup constant. Ladder: `lsp/classes.nvs` with a private member per class, and an n-deep class chain timed through a type-hierarchy request.",
+  "goal": "performance-pass"
+}

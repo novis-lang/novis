@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-runtime/src/ctx/error.rs",
+  "title": "An exception copies its whole message once for every frame it unwinds through.",
+  "text": "From the Stage 4 review, not re-run: `Ctx::push_frame` (`crates/nvs-runtime/src/ctx/error.rs:825`) calls `pending.message().into_owned()` per frame, and for a thrown object `Thrown::message()` (`throwable.rs:677`) builds a new owned copy. The copy is only read when promotion fails, which it cannot for an object that already exists. Cost is O(depth × message length) per throw. Reading the message only on the path that uses it makes it O(depth). Ladder: `values/throw-depth.nvs`, a 64 KB message thrown through depth N and caught at the top; allocated bytes per frame should be flat.",
+  "goal": "performance-pass"
+}

@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-stdlib/src/queue.rs",
+  "title": "A queue claim sorts every due and every expired claimed row, and an idle worker poll reads the whole jobs table.",
+  "text": "`CLAIM_POSTGRES` (`crates/nvs-stdlib/src/queue.rs:557-562`) filters `(state = 0 and run_at <= ?) or (state = 1 and claimed_at <= ?)` and orders `by run_at, id limit 1`. The only index is `nvs_jobs_due(queue, state, run_at)` (`queue.rs:346`): it cannot return that order across both arms, and `claimed_at` is not in it. A claim gathers and sorts the due backlog, O(backlog) per claim and O(n²) to drain n jobs. The review found the same shape in the other dialects (`:840`, `:872`, `:905`) and an idle poll, `select distinct queue` (`:592`, `:990`, `:1001`), with no `queue =` prefix, which reads every row ever kept. Two claims (one per arm, each `limit 1` on its own index) and an index on `(state, claimed_at)` make a claim O(log n). Ladder: `queue/backlog.nvs`, pending jobs 1k to 100k, claim latency flat.",
+  "goal": "performance-pass"
+}
