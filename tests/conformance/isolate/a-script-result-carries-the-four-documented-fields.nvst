@@ -48,7 +48,7 @@ echo "error=", $done->error?->class ?? "none", "\n";
 // next line this program prints, and the `output` field is left empty.
 var $quiet = spawn script "quiet.nvs" with(output: "inherit");
 var $ran = await $quiet;
-echo "inherited output is ", Core\Str::length($ran->output), " characters\n";
+echo "inherited output is ", Core\Str::length($ran->output as string), " characters\n";
 
 // A child with no `return` answers `null` rather than `require`'s `1`, which is
 // ADR 0006 § *Decision*'s own sentence on the row above this one.

@@ -1,7 +1,7 @@
 //! `Core\Out` — docs/spec/01-core-library.md § 12's one member, and the whole
 //! of PHP's `ob_*` family in it.
 //!
-//! `capture(callable $fn, {through?: callable}): Core\Cli\Text` runs `$fn` with
+//! `capture(callable $fn, {through?: callable}): Core\Html\Markup|Core\Cli\Text` runs `$fn` with
 //! this request's sink redirected into a buffer, and answers what it wrote.
 //! Three properties of that sentence are the design, and each is
 //! `rule:security/capture-answers-the-carrier`
@@ -20,14 +20,16 @@
 //!   transforms the captured value rather than deciding whether it escapes.
 //! * **It answers the carrier, not a `string`.** `rule:security/capture-answers-the-carrier`: those bytes have
 //!   already been through the sink, so handing them back as text would let the
-//!   next `echo` escape them twice. [`crate::cli`] is the carrier and owns what
-//!   one is — `Core\Cli\Text::text` included, which is how a `{through:}` reads
-//!   what it was handed and why that read is this sink's alone.
+//!   next `echo` escape them twice. The carrier is the sink's: a
+//!   `Core\Html\Markup` under a request and a `Core\Cli\Text` everywhere else,
+//!   built by [`carried`]. The checker cannot know which sink will be in force,
+//!   so the declared type is the union of the two, and a program that wants a
+//!   `string` narrows with `is` and calls the carrier's `text()`.
 //!
 //! # What it spends
 //!
 //! One buffer per open capture, holding what that level has captured so far,
-//! plus the one `Core\Cli\Text` instance the member answers with — both charged
+//! plus the one carrier instance the member answers with — both charged
 //! to the request and both freed with it. A request that never captures pays
 //! one not-taken branch per `echo`, which `nvs_runtime::Ctx`'s own
 //! `captures` field states.
@@ -66,7 +68,10 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             CoreTy::Options(CAPTURE_OPTIONS),
         ],
         defaults: &[],
-        return_ty: CoreTy::Instance(crate::cli::NAME),
+        return_ty: CoreTy::Union(&[
+            CoreTy::Instance(crate::html::MARKUP_NAME),
+            CoreTy::Instance(crate::cli::NAME),
+        ]),
         symbol: "nvs_core_out_capture",
         doc: Some(&CAPTURE_DOC),
     }],
@@ -96,18 +101,20 @@ const CAPTURE_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "through",
-            desc: "A function that takes the collected `Core\\Cli\\Text` and returns a new \
-                   `Core\\Cli\\Text`. `capture` returns that new text. Without it, `capture` \
-                   returns the text as it was printed.",
+            desc: "A function that takes the collected output and returns new output of the \
+                   same class. `capture` returns that new value. Without it, `capture` \
+                   returns the output as it was printed.",
             shape: &[],
         },
     ],
-    ret: "What `$fn` printed, as a `Core\\Cli\\Text`. It is empty when `$fn` printed nothing. \
-          Use `echo` to print it, or its `text` method to get a `string`. Output from \
-          `Core\\Debug::dump` is not collected.",
+    ret: "What `$fn` printed. In a web request it is a `Core\\Html\\Markup`. In every other \
+          program it is a `Core\\Cli\\Text`. It is empty when `$fn` printed nothing. Use \
+          `echo` to print it again without escaping it twice. Use `is` to check the class, \
+          then its `text` method to get a `string`. Output from `Core\\Debug::dump` is not \
+          collected.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "The `through` function returned something that is not a `Core\\Cli\\Text`.",
+        desc: "The `through` function returned a value of a different class than it was given.",
     }],
 };
 
@@ -121,7 +128,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Out::capture(callable $fn, {through?: callable}): Core\Cli\Text`
+    /// `Core\Out::capture(callable $fn, {through?: callable}): Core\Html\Markup|Core\Cli\Text`
     /// — see the module docs.
     ///
     /// The capture level is opened before `$fn` runs and closed on **both**
@@ -148,7 +155,7 @@ nvs_runtime::nvs_helper! {
             }
             Err(fault) => return Err(fault),
         }
-        let text = crate::cli::built(Value::str(NvsStr::new(&captured)));
+        let text = carried(ctx, &captured);
         // `rule:security/capture-answers-the-carrier`'s `{through:}` — the transform takes and answers the
         // same carrier, so the reference in `text` is transferred into the
         // call and whatever comes back is what this member answers.
@@ -165,7 +172,8 @@ nvs_runtime::nvs_helper! {
             text.release();
         }
         let transformed = transformed?;
-        if let Some(answered) = not_the_carrier(transformed) {
+        let carrier = ctx.carrier();
+        if let Some(answered) = not_the_carrier(transformed, carrier) {
             #[expect(
                 unsafe_code,
                 reason = "the closure's result is this frame's to drop before it \
@@ -175,27 +183,46 @@ nvs_runtime::nvs_helper! {
                 transformed.release();
             }
             return Err(Fault::thrown(format!(
-                "`Core\\Out::capture`'s `through` must answer a `{}`, and this one answered \
-                 {answered}",
-                crate::cli::NAME
+                "`Core\\Out::capture`'s `through` must answer a `{carrier}`, and this one \
+                 answered {answered}"
             )));
         }
         Ok(transformed)
     }
 }
 
+/// `captured` — bytes that have already been through this request's sink — as
+/// that sink's carrier: a `Core\Html\Markup` under the HTML sink and a
+/// `Core\Cli\Text` under every other (`Ctx::carrier`).
+///
+/// `rule:security/capture-answers-the-carrier`, for both of its members:
+/// `Core\Out::capture` here and a `spawn script` result's `output`
+/// (`crate::script`'s `result_of`), whose child writes into a sink of its
+/// parent's carrier. Both are typed `Core\Html\Markup|Core\Cli\Text`, because
+/// which sink is in force is not known when the program is checked; whichever
+/// one this builds is the one `echo` writes unchanged. Like
+/// [`crate::cli::built`] this transfers bytes and neutralizes nothing, which is
+/// sound only because the sink neutralized them on their way in.
+pub(crate) fn carried(ctx: &nvs_runtime::Ctx, captured: &[u8]) -> Value {
+    let text = Value::str(NvsStr::new(captured));
+    if ctx.carrier() == crate::html::MARKUP_NAME {
+        crate::instance::build(&crate::html::MARKUP, [text])
+    } else {
+        crate::cli::built(text)
+    }
+}
+
 /// How to name what a `through` closure answered, or `None` where it answered
-/// the carrier this member is declared to hand back.
+/// `carrier`, the class [`carried`] built for this sink.
 ///
 /// A `callable` is opaque as to signature (`rule:types/closure-literal`),
 /// so nothing static stands between `{through:}` and this check — which is why
-/// it asks about the **class** and not merely about objecthood. Answering a
-/// foreign object used to be accepted here, and the member's registered
-/// `Core\Cli\Text` return type was then a claim about the value that was not
-/// true; the failure surfaced much later, wherever the carrier was next read.
-/// The comparison is by rendered class name, which is what a descriptor
-/// carries and what [`crate::cli::built`] is the one producer of.
-fn not_the_carrier(value: Value) -> Option<String> {
+/// it asks about the **class** and not merely about objecthood. A foreign
+/// object, or the other sink's carrier, would make the member's registered
+/// return type a claim about the value that is not true, and `echo` would
+/// escape the other carrier a second time. The comparison is by rendered class
+/// name, which is what a descriptor carries.
+fn not_the_carrier(value: Value, carrier: &str) -> Option<String> {
     let Some(ptr) = value.obj_ptr() else {
         return Some(value.tag().map_or_else(
             || format!("a value carrying tag {}", value.tag_byte()),
@@ -209,7 +236,7 @@ fn not_the_carrier(value: Value) -> Option<String> {
                   is not released twice"
     )]
     let object = std::mem::ManuallyDrop::new(unsafe { NvsObj::from_raw(ptr) });
-    (object.class_name() != crate::cli::NAME).then(|| {
+    (object.class_name() != carrier).then(|| {
         let name = object.class_name();
         format!("an instance of `{name}`")
     })
@@ -314,7 +341,7 @@ mod tests {
         let captured = call(nvs_core_out_capture, &mut ctx, &[body, Value::null()])
             .expect("a body that returns is captured");
         assert!(
-            not_the_carrier(captured).is_none(),
+            not_the_carrier(captured, crate::cli::NAME).is_none(),
             "the carrier, not a string"
         );
         let ptr = captured.obj_ptr().expect("an object");
@@ -366,7 +393,38 @@ mod tests {
         assert!(matches!(capture.params[1], CoreTy::Options(options) if options.len() == 1));
         assert!(matches!(
             capture.return_ty,
-            CoreTy::Instance(name) if name == crate::cli::NAME
+            CoreTy::Union([CoreTy::Instance(markup), CoreTy::Instance(text)])
+                if *markup == crate::html::MARKUP_NAME && *text == crate::cli::NAME
         ));
+    }
+
+    /// Under the HTML sink the same capture answers a `Core\Html\Markup`, the
+    /// one class that sink writes unchanged, so re-echoing a captured page does
+    /// not escape it a second time.
+    // covers: Core\Out::capture
+    #[test]
+    fn capture_under_the_html_sink_answers_markup() {
+        let mut ctx = Ctx::new(nvs_runtime::OutputSink::Body(Vec::new()));
+        let body = closure_of(echoes);
+        let captured = call(nvs_core_out_capture, &mut ctx, &[body, Value::null()])
+            .expect("a body that returns is captured");
+        assert!(
+            not_the_carrier(captured, crate::html::MARKUP_NAME).is_none(),
+            "the HTML sink's carrier"
+        );
+        let ptr = captured.obj_ptr().expect("an object");
+        assert_eq!(
+            crate::instance::slot(ptr, CARRIER_TEXT_SLOT).as_text(),
+            Some("inside")
+        );
+        #[expect(
+            unsafe_code,
+            reason = "each value is one this test built or was handed, and owns \
+                      exactly one reference to"
+        )]
+        unsafe {
+            captured.release();
+            body.release();
+        }
     }
 }

@@ -59,7 +59,7 @@
 //! ## What the shape is
 //!
 //! ```text
-//! {ok: bool, value: mixed, output: string, error: ?{class: string, message: string}}
+//! {ok: bool, value: mixed, output: Core\Html\Markup|Core\Cli\Text, error: ?{class: string, message: string}}
 //! ```
 //!
 //! One field per member of `nvs_host::Completion`, which is the native half
@@ -78,12 +78,15 @@
 //! the success path, which is the state PHP's `errno`/`error_get_last` pair
 //! already proves is read wrong.
 //!
-//! `output` is typed `string` here, and that is the one field whose type is not
-//! settled: `rule:tooling/echo-always-has-a-sink` and `rule:security/capture-answers-the-carrier` make captured output carry the *parent sink's*
-//! carrier type — `Core\Html\Markup` under a request, `Cli\Text` everywhere
-//! else — which is a property of the running process rather than of the
-//! compilation. Item 24 owns `output: capture|inherit` and owns that question
-//! with it.
+//! `output` is `Core\Html\Markup|Core\Cli\Text`. `rule:security/isolate-output-is-captured`
+//! and `rule:security/capture-answers-the-carrier` make captured output the
+//! *parent sink's* carrier — `Markup` under a request, `Cli\Text` everywhere
+//! else — and which sink is in force is a property of the running process, not
+//! of the compilation, so the static type is the union of the two and the
+//! value is the one `Ctx::carrier` names when the result is built
+//! (`nvs_stdlib::script`'s `result_of`). `echo $result->output` writes either
+//! one unchanged, because a child's sink always has its parent's carrier; a
+//! program that wants a `string` narrows with `is` and calls `text()`.
 //!
 //! ## What it costs
 //!
@@ -587,10 +590,15 @@ pub(crate) fn script_result(env: &mut Env<'_>) -> TypeId {
     ]);
     let null = env.interner.null();
     let maybe_failure = env.interner.make_union([failure, null]);
+    let markup = env
+        .interner
+        .class(QName::parse(nvs_stdlib::html::MARKUP_NAME));
+    let text = env.interner.class(QName::parse(nvs_stdlib::cli::NAME));
+    let output = env.interner.make_union([markup, text]);
     env.interner.shape(vec![
         ShapeField::required("ok".to_owned(), bool_ty),
         ShapeField::required("value".to_owned(), mixed),
-        ShapeField::required("output".to_owned(), string),
+        ShapeField::required("output".to_owned(), output),
         ShapeField::required("error".to_owned(), maybe_failure),
     ])
 }

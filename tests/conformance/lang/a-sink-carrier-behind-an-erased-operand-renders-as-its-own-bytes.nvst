@@ -40,7 +40,7 @@ Core\Cli\Text $t = Core\Out::capture(fn (): void => {
     echo "a<b&c";
     echo "\n";
     echo "d";
-});
+}) as Core\Cli\Text;
 mixed $m = $t;
 
 echo Carried::agrees($m, $t), "\n";

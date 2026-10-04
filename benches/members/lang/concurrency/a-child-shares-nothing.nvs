@@ -26,7 +26,7 @@ class Bench {
             var $result = await $handle;
             // Every round reads the same number back, because each script starts
             // with a fresh copy of `Counter::$seen`.
-            $total = $total + ($result->value as uint) + Core\Str::length($result->output);
+            $total = $total + ($result->value as uint) + Core\Str::length($result->output as string);
             $i = $i + 1;
         }
         return $total;

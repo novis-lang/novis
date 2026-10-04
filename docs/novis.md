@@ -16419,9 +16419,10 @@ Checks whether `$s` contains no control characters. A control character has no v
 
 Keywords: ob_start, ob_get_clean, ob_get_contents, ob_end_clean, output buffering, capture, echo, capture
 
-`Core\Out::capture` runs a closure and answers everything it `echo`ed as a `Core\Cli\Text` — the
-carrier of the sink in force, `Core\Html\Markup` under an HTTP request — never a plain `string`, so
-re-emitting it is one more `echo` and it is not escaped a second time. Nothing the closure wrote
+`Core\Out::capture` runs a closure and answers everything it `echo`ed as the carrier of the sink in
+force — a `Core\Cli\Text`, or a `Core\Html\Markup` under an HTTP request, typed
+`Core\Html\Markup|Core\Cli\Text` — never a plain `string`, so re-emitting it is one more `echo` and it
+is not escaped a second time. `as string` reads the text out. Nothing the closure wrote
 reaches the output below; a capture nests by call nesting, and there is no global buffer stack, no
 `ob_get_contents` and no implicit flush. `{through: $fn}` transforms the carrier before it is
 answered, and the closure's own return value is discarded. `Core\Debug::dump` is never captured —
@@ -16461,13 +16462,13 @@ threw: stop
 
 | Member | Signature |
 |---|---|
-| [`Core\Out::capture`](#core-core-out-capture) | `capture(callable(): mixed $fn, {through?: callable}): Core\Cli\Text` |
+| [`Core\Out::capture`](#core-core-out-capture) | `capture(callable(): mixed $fn, {through?: callable}): Core\Html\Markup\|Core\Cli\Text` |
 
 <a id="core-core-out-capture"></a>
 #### `Core\Out::capture`
 
 ```nvs skip
-Core\Out::capture(callable(): mixed $fn, {through?: callable}): Core\Cli\Text
+Core\Out::capture(callable(): mixed $fn, {through?: callable}): Core\Html\Markup|Core\Cli\Text
 ```
 
 Runs `$fn` and returns everything it printed with `echo`. This replaces PHP's `ob_start` and `ob_get_clean`. The printed text does not reach the output. You can call `capture` inside another `capture`, and each call collects only what its own function printed.
@@ -16475,11 +16476,11 @@ Runs `$fn` and returns everything it printed with `echo`. This replaces PHP's `o
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$fn` | `callable(): mixed` | The function to run. Its return value is not used. |
-| `{through: …}` | `callable` (default `null`) | A function that takes the collected `Core\Cli\Text` and returns a new `Core\Cli\Text`. `capture` returns that new text. Without it, `capture` returns the text as it was printed. |
+| `{through: …}` | `callable` (default `null`) | A function that takes the collected output and returns new output of the same class. `capture` returns that new value. Without it, `capture` returns the output as it was printed. |
 
-**Returns** `Core\Cli\Text` — What `$fn` printed, as a `Core\Cli\Text`. It is empty when `$fn` printed nothing. Use `echo` to print it, or its `text` method to get a `string`. Output from `Core\Debug::dump` is not collected.
+**Returns** `Core\Html\Markup|Core\Cli\Text` — What `$fn` printed. In a web request it is a `Core\Html\Markup`. In every other program it is a `Core\Cli\Text`. It is empty when `$fn` printed nothing. Use `echo` to print it again without escaping it twice. Use `is` to check the class, then its `text` method to get a `string`. Output from `Core\Debug::dump` is not collected.
 
-**Throws** `RuntimeError` — The `through` function returned something that is not a `Core\Cli\Text`.
+**Throws** `RuntimeError` — The `through` function returned a value of a different class than it was given.
 
 <a id="core-core-debug"></a>
 ### `Core\Debug`

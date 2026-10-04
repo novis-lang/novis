@@ -3,9 +3,10 @@ summary: output buffering scoped to a closure — what it echoes is captured as 
 keywords: ob_start, ob_get_clean, ob_get_contents, ob_end_clean, output buffering, capture, echo
 ---
 
-`Core\Out::capture` runs a closure and answers everything it `echo`ed as a `Core\Cli\Text` — the
-carrier of the sink in force, `Core\Html\Markup` under an HTTP request — never a plain `string`, so
-re-emitting it is one more `echo` and it is not escaped a second time. Nothing the closure wrote
+`Core\Out::capture` runs a closure and answers everything it `echo`ed as the carrier of the sink in
+force — a `Core\Cli\Text`, or a `Core\Html\Markup` under an HTTP request, typed
+`Core\Html\Markup|Core\Cli\Text` — never a plain `string`, so re-emitting it is one more `echo` and it
+is not escaped a second time. `as string` reads the text out. Nothing the closure wrote
 reaches the output below; a capture nests by call nesting, and there is no global buffer stack, no
 `ob_get_contents` and no implicit flush. `{through: $fn}` transforms the carrier before it is
 answered, and the closure's own return value is discarded. `Core\Debug::dump` is never captured —

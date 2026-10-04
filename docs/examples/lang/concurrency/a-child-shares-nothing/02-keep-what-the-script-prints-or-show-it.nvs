@@ -18,4 +18,5 @@ var $second = spawn script "scripts/say-what-it-did.nvs" with(output: "inherit")
 var $shown = await $second;
 
 // `output` is empty this time, because the text went to the screen.
-echo "kept text: ", Core\Str::length($shown->output), " characters\n";
+// `as string` converts it to a `string`, so `Core\Str::length` can count it.
+echo "kept text: ", Core\Str::length($shown->output as string), " characters\n";

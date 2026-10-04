@@ -259,38 +259,6 @@ The check `no question waits for the user` fails while a line `- **Answer:** ope
 - **Answer:** 2. The handle-relative walk goes under every write door in this goal: `Core\Zip::extract`
   and every `Core\IO` write. The user allows the one decision record it needs.
 
-### What type is captured output under a request?
-
-- **Gap** — `an-isolate-result-output-is-typed-string`, the result shape at
-  `crates/nvs-types/src/expr/isolate.rs:593` and the builder at `crates/nvs-stdlib/src/script.rs:1326`.
-  `Core\Out::capture` has the same problem at `crates/nvs-stdlib/src/out.rs:151`.
-- **What has to be decided** — A child spawned while a request is answered writes into an HTML sink, so
-  its captured bytes are already escaped. `output` is a `string` today, so `echo $result->output`
-  escapes the page a second time. `Core\Cli\Text` does not fix it: `echo` escapes a `Cli\Text` under a
-  request on purpose (`writes_raw` at `crates/nvs-runtime/src/helpers.rs:2776`). Only a `Core\Html\Markup` is written
-  unchanged there. The checker cannot know which sink will be in force, so a fix needs a static type
-  that covers both carriers. `Core\Out::capture` answers `Cli\Text` under every sink, so it escapes a
-  page twice the same way. That follows from those two lines, and no test checks it.
-- **Options** —
-  1. *The sink's carrier at run time, and a union statically.* The result builder and
-     `Core\Out::capture` build the carrier of the sink in force (`Ctx::carrier`). Both are typed
-     `Core\Html\Markup|Core\Cli\Text`. `echo` writes the value unchanged under either sink. A program
-     that wants a `string` narrows with `is` first. Cost: one carrier object per captured result,
-     freed with the request, and about eight programs in the tree that read `output` as a `string`
-     change. `nvs_stdlib::debug`'s module doc argues against such a union for `render`. Here the value
-     really does depend on the sink. One or two sessions.
-  2. *`Core\Cli\Text` under every sink, the same as `Core\Out::capture`.* A child's terminal styles
-     reach a CLI parent's screen. Under a request the page is still escaped twice. The same programs
-     change, to `->text()`. One session.
-  3. *Keep `string` and state the bound.* The module doc says that re-echoing captured output in a
-     request escapes it again. No work. The page is wrong but safe, because escaping twice cannot
-     inject markup.
-- **Recommendation** — 1. It is the only option that gives a correct page (priority 2), it keeps the
-  escaping guarantee, and its memory cost is small and freed with the request. It settles
-  `Core\Out::capture` in the same sessions.
-- **Answer:** 1. The sink's carrier at run time and the union statically, for the isolate result and
-  `Core\Out::capture` both.
-
 ### What may `bindTo`, `bind` and `call` rebind a closure to?
 
 - **Gap** — `a-callable-has-no-bind-bindto-or-call`, the method-call arm at

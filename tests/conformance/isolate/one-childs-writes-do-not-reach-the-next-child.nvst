@@ -40,7 +40,7 @@ while ($i < 5) {
     var $handle = spawn script "child.nvs" with(output: "capture");
     var $done = await $handle;
     $total = $total + ($done->value as uint);
-    if ($done->output == "0") {
+    if (($done->output as string) == "0") {
         $fresh = $fresh + 1;
     }
     $i = $i + 1;

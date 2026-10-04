@@ -154,16 +154,29 @@ fn await_refuses_an_operand_no_spawn_produced() {
     );
 }
 
-/// `ok` is a `bool` and `output` is a `string`, which is what
-/// `examples/isolate.nvs` reads off the result. Binding each to its own type
-/// reports nothing beyond the two refusals themselves.
+/// `ok` is a `bool` and `output` is the union of the two sink carriers,
+/// `rule:security/isolate-output-is-captured`'s type. Binding each to its own
+/// type reports nothing beyond the two refusals themselves.
 #[test]
 fn an_awaited_result_is_a_shape_carrying_ok_and_output() {
     let diags = check_in_method(
-        "var $h = spawn script \"c.nvs\";\nvar $r = await $h;\nbool $ok = $r->ok;\nstring $out = $r->output;",
+        "var $h = spawn script \"c.nvs\";\nvar $r = await $h;\nbool $ok = $r->ok;\nCore\\Html\\Markup|Core\\Cli\\Text $out = $r->output;",
     );
     assert!(
         !diags.iter().any(|d| d.code == Some(code::E_TYPE_MISMATCH)),
+        "{diags:?}"
+    );
+}
+
+/// The other half: `output` is a carrier and not a `string`, so binding it to
+/// one is a mismatch. Re-echoing a `string` would escape the bytes twice.
+#[test]
+fn an_awaited_result_s_output_is_not_assignable_to_a_string() {
+    let diags = check_in_method(
+        "var $h = spawn script \"c.nvs\";\nvar $r = await $h;\nstring $out = $r->output;",
+    );
+    assert!(
+        diags.iter().any(|d| d.code == Some(code::E_TYPE_MISMATCH)),
         "{diags:?}"
     );
 }

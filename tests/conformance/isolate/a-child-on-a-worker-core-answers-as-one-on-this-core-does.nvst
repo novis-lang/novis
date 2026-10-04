@@ -56,7 +56,7 @@ echo "ok agrees: ", ($answered->ok == $local->ok) ? "yes" : "no", "\n";
 echo "and both are ", $answered->ok ? "true" : "false", "\n";
 echo "value agrees: ", (($answered->value as string) == ($local->value as string)) ? "yes" : "no", "\n";
 echo "value is ", $local->value as string, "\n";
-echo "output agrees: ", ($answered->output == $local->output) ? "yes" : "no", "\n";
+echo "output agrees: ", (($answered->output as string) == ($local->output as string)) ? "yes" : "no", "\n";
 echo "output is ", $local->output;
 echo "error agrees: ", (($answered->error == null) == ($local->error == null)) ? "yes" : "no", "\n";
 

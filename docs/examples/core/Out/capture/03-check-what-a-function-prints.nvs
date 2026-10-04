@@ -10,10 +10,10 @@ final class Receipt {
     }
 }
 
-// `text()` returns the collected output as a `string`, so you can compare it.
+// `as string` converts the collected output to a `string`, so you can compare it.
 string $printed = Core\Out::capture(fn (): void => {
     Receipt::print(["Coffee", "Bread"]);
-})->text();
+}) as string;
 
 // The receipt is what the test expects. This prints `pass`.
 string $expected = "- Coffee\n- Bread\nItems: 2\n";

@@ -53,7 +53,7 @@ uint $j = 0;
 while ($j < 20) {
     var $printer = spawn script $loud with(output: 'capture');
     var $printed = await $printer;
-    $characters = $characters + Core\Str::length($printed->output);
+    $characters = $characters + Core\Str::length($printed->output as string);
     $j = $j + 1;
 }
 echo 'step 3: read ', $characters, " characters back\n";

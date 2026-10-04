@@ -74,7 +74,7 @@ array<string> $texts = ["plain", "<b>&amp;</b>", "  spaces  ", "abc", "tail\n"];
 int $j = 0;
 int $agreed = 0;
 while ($j < 5) {
-    Core\Cli\Text $t = Core\Out::capture($runs[$j as string]);
+    var $t = Core\Out::capture($runs[$j as string]);
     if (Core\Str::compare($t as string, $texts[$j as string]) == 0) {
         $agreed = $agreed + 1;
     }

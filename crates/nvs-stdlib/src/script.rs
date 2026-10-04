@@ -1140,7 +1140,8 @@ nvs_runtime::nvs_helper! {
                 "`await` was given a handle a previous `await` already collected".to_owned(),
             ));
         };
-        Ok(result_of(running.join(ctx)))
+        let completion = running.join(ctx);
+        Ok(result_of(ctx, completion))
     }
 }
 
@@ -1269,8 +1270,10 @@ nvs_runtime::nvs_helper! {
     }
 }
 
-/// One [`Completion`] as the shape the language surface reads.
-fn result_of(completion: Completion) -> Value {
+/// One [`Completion`] as the shape the language surface reads, its `output`
+/// built as the carrier of `ctx`'s sink — the parent's, whose carrier the
+/// child's sink shares (`crate::out::carried`).
+fn result_of(ctx: &nvs_runtime::Ctx, completion: Completion) -> Value {
     let Completion {
         ok,
         value,
@@ -1323,7 +1326,7 @@ fn result_of(completion: Completion) -> Value {
         [
             error,
             Value::bool(ok),
-            Value::str(NvsStr::new(&output)),
+            crate::out::carried(ctx, &output),
             value,
         ],
     )
