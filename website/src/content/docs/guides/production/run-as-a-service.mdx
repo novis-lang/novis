@@ -1,0 +1,69 @@
+---
+title: Run as a service
+covers: []
+description: Install nvs serve as a service on Linux or Windows, so it starts at boot and restarts after a failure.
+---
+
+`nvs service` installs a server as a service of the operating system. The service starts at every
+boot, and it starts again after a failure. On Linux the service manager is systemd. On Windows it
+is the Service Control Manager.
+
+## Install the service
+
+Give the service a name. Everything after `--` is the command that the service runs:
+
+```sh
+nvs service install shop -- serve /srv/shop/public/index.nvs --config /srv/shop/nvs.toml
+```
+
+Run this as root on Linux. On Windows, run it in a terminal that you started as administrator.
+
+The installer checks the command before it changes anything:
+
+- Every path must be a full path. A service does not start in the folder of your terminal.
+- The command must be `serve` or `run`.
+- The command must not contain a password. Other users of the machine can read a command line.
+
+A service has no terminal. Set `[log] target` in `nvs.toml` to a file, so you can read what the
+server writes:
+
+```toml
+[log]
+target = "file:/var/log/shop/nvs.log"
+```
+
+## See what it installs
+
+`nvs service unit` prints what `install` would write, and changes nothing. On Linux it prints a
+systemd unit. On Windows it prints a `New-Service` command. You can read it, or install it with
+your own tools.
+
+## Start, stop and check
+
+```sh
+nvs service start shop
+nvs service status shop
+nvs service stop shop
+```
+
+A stop finishes the requests that are running, and then the server exits. `status` prints the state
+of the service and the number of requests that are running. `nvs service run shop` runs the same
+command in your terminal, so you can read the error when the service does not start.
+
+## Useful options
+
+| Option | What it sets |
+|---|---|
+| `--account <account>` | the account that runs the service |
+| `--start automatic`, `delayed` or `manual` | when the service starts after a boot |
+| `--depends-on <service>` | a service that must start first, such as a database |
+| `--dry-run` | prints every step and changes nothing |
+
+## Do and don't
+
+- Do run the service as an account of its own, with `--account`.
+- Do set `[log] target` to a file before you install the service.
+- Do try `nvs service run` when the service does not start.
+- Don't put a password on the command line. Use `password_file` in `nvs.toml`.
+
+Read every option in [Reference: nvs service](/reference/cli/nvs-service/).

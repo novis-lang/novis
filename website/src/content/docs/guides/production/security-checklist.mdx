@@ -1,0 +1,46 @@
+---
+title: Security checklist
+covers: []
+description: What to check before a Novis server answers its first request.
+---
+
+Check each item before the server answers its first request. Each line links to the page that
+explains it.
+
+## The configuration
+
+- `[mode] default` is `"production"`. Development mode serves static files and every `.nvs` file by
+  its path. [Configuration](/guides/how-to-use/configuration/)
+- `nvs config check` reports no error. [Configuration](/guides/how-to-use/configuration/)
+- Each capability lists only the folders, hosts and databases the program uses.
+  [Reference: capabilities](/reference/config/capabilities/)
+- No password is in `nvs.toml`. Each one is read with `password_file`.
+  [Reference: secrets from files](/reference/config/secrets-from-files/)
+- `[limits]` sets `memory` and `wall_time`, and `[limits.hard]` sets a ceiling.
+  [Limits and logs](/guides/production/limits-and-logs/)
+
+## The files
+
+- Only an administrator can change the configuration files. The server does not start when another
+  account can write to them. [Install on a server](/install/server/)
+- The account that runs the server cannot change your code.
+- `[log] target` is a file or `syslog`, and somebody reads it.
+  [Limits and logs](/guides/production/limits-and-logs/)
+
+## The network
+
+- `nvs serve` listens on `127.0.0.1` or a Unix socket. A reverse proxy handles TLS.
+  [Behind a reverse proxy](/guides/production/reverse-proxy/)
+- `trusted_proxies` has the address of your proxy, and nothing more.
+  [Behind a reverse proxy](/guides/production/reverse-proxy/)
+- The service runs as its own account, not as root or the system account.
+  [Run as a service](/guides/production/run-as-a-service/)
+
+## The code
+
+- Text from a request stays `tainted` until a check removes it.
+  [Tainted input](/guides/how-to-use/tainted-input/)
+- HTML is built with `html` literals, so every value is escaped.
+- An error response does not show the message of an unexpected error.
+  [Errors](/guides/how-to-use/errors/)
+- `nvs test` passes in your build before each deploy. [Testing your app](/guides/testing/)

@@ -1,0 +1,73 @@
+---
+title: Limits and logs
+covers: []
+description: The limits and log settings a production server needs, and how to change them while it runs.
+---
+
+A production server needs limits for each request and a log you can read. Both are set in
+`nvs.toml`.
+
+## Limits for each request
+
+Set a starting value and a ceiling for memory and time. Without them, one request can use the
+whole machine:
+
+```toml
+[limits]
+memory = "128M"
+cpu_time = "10s"
+wall_time = "30s"
+memory_high_water = 0.8      # write a warning when a request uses 80% of its memory
+
+[limits.hard]
+memory = "512M"
+cpu_time = "60s"
+```
+
+A request that goes over a limit stops, and the other requests keep running.
+[Limits](/guides/how-to-use/limits/) explains each key.
+
+## Limits for the server
+
+The `[server]` block limits the whole server:
+
+```toml
+[server]
+max_in_flight = 10000        # more requests than this get the status 503
+header_timeout = "10s"       # the longest wait for the headers of a request
+body_idle_timeout = "30s"    # the longest pause while a client sends the body
+```
+
+Every wait has a value, even when you write none. A slow client cannot keep a connection open
+forever.
+
+## The log
+
+`[log] target` is where the server writes a failure, such as a request that went over a limit. It
+can be `stderr`, a file or `syslog`. When nothing is set, it is `stderr`:
+
+```toml
+[log]
+target = "file:/var/log/shop/nvs.log"
+level = "info"
+format = "json"
+```
+
+`level` is the lowest level that is written. `format` is `json` when nothing is set. Only the person
+who runs the server can change `target`. A program can change `level` and `format` for one request,
+for example to write more detail.
+
+## Change a setting while the server runs
+
+The server reads `nvs.toml` again when you save it. It checks the whole file first. A file with an
+error is written to the log, and the server keeps the settings it has.
+
+- `nvs ctl reload` applies the file at once and prints each key it changed.
+- `nvs ctl status` prints how many requests are running.
+- `nvs ctl config` prints every key the server uses now, and the file that set it.
+
+`nvs ctl` needs a `[control] socket` in `nvs.toml`. Four keys need a restart: `[server] listen`,
+`socket_mode`, `workers` and `watchdog_margin`.
+
+Read more in [Reference: nvs ctl](/reference/cli/nvs-ctl/) and
+[Reference: log](/reference/config/log/).

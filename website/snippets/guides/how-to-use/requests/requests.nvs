@@ -1,0 +1,20 @@
+<?nvs
+// This program finds the route for a request and reads a value from its path.
+class Shop {
+    // `#[Core\Route]` connects the path `/products/{id}` to this method.
+    #[Core\Route(path: "/products/{id}", method: Core\Http\Method::Get, name: "Shop::product")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function product(uint $id): string {
+        return "product";
+    }
+}
+
+// `Core\Request::route()` returns the route that matches, or `null`.
+?Core\Router\Match $matched = Core\Request::route();
+if ($matched == null) {
+    Core\Response::setStatus(404);
+    echo "not found\n";
+} else {
+    // The request is `GET /products/7`, so this prints `product 7`.
+    echo "product ", $matched->param("id") as string, "\n";
+}

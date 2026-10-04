@@ -1,0 +1,55 @@
+---
+title: Project layout
+covers: []
+description: Where the entry file, your classes, the tests and nvs.toml go in a Novis project.
+---
+
+A Novis web application is one folder. This is a layout that works well for most projects:
+
+```txt
+shop/
+  nvs.toml               the configuration
+  public/
+    index.nvs            the entry file: every request starts here
+  src/
+    Orders/Order.nvs     the class App\Orders\Order
+    Orders/Store.nvs     the class App\Orders\Store
+  tests/
+    bootstrap.nvs        requires public/index.nvs, so the tests find every class
+    OrderTest.nvs
+```
+
+## The entry file
+
+`nvs serve public/index.nvs` runs the entry file once for each request. In production mode the
+server sends every request to this one file. The file finds the route and calls your classes.
+
+Run the command from the `shop` folder. Novis reads `nvs.toml` from the folder you run `nvs` in.
+It does not look in the folder of the program.
+
+## Classes are found by their namespace
+
+The entry file has one `autoload` line, for example `autoload 'App' from '../src';`. With this
+line, the class `App\Orders\Order` is read from `src/Orders/Order.nvs`. You never write a file
+name to load a class.
+
+Each file under `src/` has exactly one class, interface, enum or type. Its name must match the
+path. A class that cannot be found is a compile error, and the error names the folders Novis
+searched.
+
+## Tests
+
+`nvs test tests/` runs every test in the `tests` folder. Novis reads the whole folder as one
+program. One file in it requires the entry file, so the tests can use the same `autoload` line.
+Read [Running tests](/guides/testing/run-tests/) for more.
+
+## Do and don't
+
+- Do keep one entry file for each application, and send every request to it.
+- Do put each class in its own file under `src/`, with a path that matches its namespace.
+- Do run `nvs` from the folder that has `nvs.toml`, or pass `--config`.
+- Don't put files that clients must not read under `public/`.
+- Don't load classes with `require`. Use `autoload`, so the compiler can find every class.
+
+Read more in [Syntax: namespaces](/syntax/programs/namespaces/) and
+[Syntax: require](/syntax/programs/require/).

@@ -1,0 +1,57 @@
+---
+title: Docker
+covers: []
+description: Run a Novis application in a container, with nvs serve listening on every address.
+---
+
+A Novis application needs only the `nvs` binary and your files. A container for it is small.
+
+Novis has no published image yet. Build `nvs` for Linux as [Install](/install/) shows. Then copy
+the binary into the image with your application:
+
+```dockerfile
+FROM debian:bookworm-slim
+
+COPY --chmod=0755 nvs /usr/local/bin/nvs
+COPY . /app
+WORKDIR /app
+
+# A fixed account that is not root.
+RUN useradd --uid 65532 --no-create-home --shell /usr/sbin/nologin app
+USER app
+
+EXPOSE 8000
+ENTRYPOINT ["nvs"]
+CMD ["serve", "/app/public/index.nvs", "--listen", "0.0.0.0:8000"]
+```
+
+## Listen on every address
+
+`nvs serve` listens on `127.0.0.1:8000` when nothing else is set. Inside a container, that address
+can only be reached from inside the same container. So the command above passes
+`--listen 0.0.0.0:8000`. Without it, the container runs, but every connection fails.
+
+## The configuration
+
+`WORKDIR /app` makes `/app` the working folder. `nvs` reads `/app/nvs.toml` from there, so the
+configuration in your project is found without `--config`.
+
+Keep secrets out of the image. Docker Compose can mount a secret as a file, and `nvs.toml` reads it
+with `password_file`:
+
+```toml
+[db.main]
+driver = "postgres"
+host = "db"
+password_file = "/run/secrets/db-password"
+```
+
+## Run it
+
+```sh
+docker build -t shop .
+docker run -p 8000:8000 shop
+```
+
+Put a reverse proxy in front of the container for TLS. Read
+[Behind a reverse proxy](/guides/production/reverse-proxy/).

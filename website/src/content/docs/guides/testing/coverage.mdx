@@ -1,0 +1,46 @@
+---
+title: Coverage reports
+covers: []
+description: See which lines of your code the tests run, and send the report to your build server.
+---
+
+A coverage report lists each line of your code and how many times the tests ran it. A line with
+the count `0` is a line that no test reached.
+
+## Write a report
+
+`--coverage-lcov` writes the report in the lcov format. `--coverage-clover` writes it as Clover
+XML. Most build servers and editors read one of the two. You can write both in one run:
+
+```sh
+nvs test tests/ --coverage-lcov coverage.lcov --coverage-clover coverage.xml
+```
+
+The output of `nvs test` then has one more line at the end:
+
+```txt
+  0 failed, 2 passed, 1 skipped, 0 flaky in 1 ms
+  3 of 5 lines run (60.0%)
+```
+
+This is the start of the lcov file for the program on [Running tests](/guides/testing/run-tests/).
+Each `DA` line is a line number and how many times it ran:
+
+```txt
+SF:prices.nvs
+DA:8,2
+DA:15,1
+DA:20,1
+DA:26,0
+DA:31,0
+```
+
+Line 26 is in the skipped test, so its count is `0`. Line 31 is outside every class. `nvs test` does
+not run the lines outside a class, so they always have the count `0`.
+
+## Run it from the root of your project
+
+A file in the report is named relative to the folder you run `nvs test` in. Run it from the root of
+your repository, so your build server finds the files.
+
+Read more in [Reference: nvs test](/reference/cli/nvs-test/).

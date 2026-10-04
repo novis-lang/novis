@@ -1,0 +1,27 @@
+<?nvs
+// This program tests a class with a test double in place of a real mail server.
+interface Mailer {
+    public function send(string $to, string $text): bool;
+}
+
+class Signup {
+    public static function welcome(Mailer $mailer, string $email): string {
+        if (!$mailer->send($email, "Welcome!")) {
+            return "mail failed";
+        }
+        return "mail sent";
+    }
+}
+
+// `Core\Test::double` builds a `Mailer`. Each method is a closure.
+Mailer $mailer = Core\Test::double<Mailer>({
+    send: fn(string $to, string $text): bool => $to != "bad@example.com",
+});
+
+// This prints `mail sent` and then `mail failed`.
+echo Signup::welcome($mailer, "ada@example.com"), "\n";
+echo Signup::welcome($mailer, "bad@example.com"), "\n";
+
+// `assertCalled` checks how the code used the double.
+Core\Test::assertCalled($mailer, Mailer::send, {times: 1, with: ["ada@example.com", "Welcome!"]});
+echo "the welcome mail was sent once to ada\n";

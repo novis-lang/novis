@@ -1,0 +1,34 @@
+<?nvs
+// This program tests two pages of a shop without starting a server.
+use Core\Http\Method;
+use Core\Test;
+
+class Shop {
+    #[Core\Route(path: "/products/{id}", method: Core\Http\Method::Get, name: "Shop::product")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function product(uint $id): string {
+        return "product";
+    }
+}
+
+try {
+    // This part answers a request. A path with no route gets the status 404.
+    ?Core\Router\Match $matched = Core\Request::route();
+    if ($matched == null) {
+        Core\Response::setStatus(404);
+        echo "not found";
+    } else {
+        echo "product ", $matched->param("id") as string;
+    }
+} catch (LogicError $noRequest) {
+    // Outside a request, `Core\Request::route()` throws a `LogicError`.
+    // So this part runs. It sends two requests and checks each response.
+    var $found = Test::request(Method::Get, "/products/7");
+    Test::assertEquals($found->status(), 200);
+    Test::assertSame($found->body(), "product 7");
+
+    var $missing = Test::request(Method::Get, "/basket");
+    Test::assertEquals($missing->status(), 404);
+
+    echo "both pages return the right status\n";
+}

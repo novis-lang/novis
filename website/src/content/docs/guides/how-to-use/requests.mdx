@@ -1,0 +1,53 @@
+---
+title: Handling requests
+covers: []
+description: How a Novis program finds the route for a request, reads the request and sets the response.
+---
+
+import Snippet from '@components/Snippet.astro'
+
+`nvs serve` runs your entry file once for each request. Each request runs on its own. It has its
+own copy of every variable and every static property, so one request cannot change a value that
+another request reads.
+
+## Find the route
+
+A `#[Core\Route]` attribute on a method connects a path to that method.
+`Core\Request::route()` returns the route that matches the request:
+
+<Snippet src="guides/how-to-use/requests/requests.nvs" />
+
+The output above is for the request `GET /products/7`. A path that matches no route gives `null`,
+and the program sets the status `404`.
+
+## Read the request
+
+`Core\Request` has a method for each part of the request:
+
+- `Core\Request::query("page")` reads a parameter from the address.
+- `Core\Request::postAs<Contact>()` reads a form into an instance of your class.
+- `Core\Request::jsonAs<Order>()` reads a JSON body into an instance of your class.
+- `Core\Request::header("accept")` reads one header.
+
+Every text value from the request is `tainted`. Read
+[Tainted input](/guides/how-to-use/tainted-input/) to learn what that means.
+
+## Write the response
+
+`echo` writes the body. `Core\Response::setStatus` sets the status code, and
+`Core\Response::setHeader` sets a header. The status is `200` when you do not set one.
+`Core\Response::json` and `Core\Response::redirect` write a whole response in one call.
+
+To build a link to another page, use `Core\Router::url` with the name of the route. It adds the
+right prefix when the application is mounted under a path such as `/shop`.
+
+## Do and don't
+
+- Do give every route a `name`, and build links from the name with `Core\Router::url`.
+- Do read a form or a JSON body into a class with `postAs` or `jsonAs`. Each field is then checked.
+- Do set a status for every error response, such as `404` or `422`.
+- Don't keep data for the next request in a static property. Each request starts with fresh values.
+- Don't build a link by joining strings. The prefix of a mounted application is then missing.
+
+Read more in [Syntax: routes](/syntax/attributes/routes/) and
+[Reference: Core\Request](/reference/core/request/).

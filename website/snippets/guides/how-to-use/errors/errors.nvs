@@ -1,0 +1,28 @@
+<?nvs
+// This program throws its own error class and handles it in one place.
+class NotFound extends RuntimeError {
+    public function constructor(string $message) {
+        parent::constructor($message);
+    }
+}
+
+class Products {
+    public static function name(int $id): string {
+        if ($id != 7) {
+            throw new NotFound("no product " . $id);
+        }
+        return "green tea";
+    }
+}
+
+// One `try` block handles the error for the whole request.
+try {
+    echo Products::name(7), "\n";
+    echo Products::name(8), "\n";
+} catch (NotFound $error) {
+    echo "404: ", $error->message, "\n";
+}
+
+// A `catch` expression gives a default value in one line.
+string $name = Products::name(9) catch (NotFound $e) => "unknown";
+echo $name, "\n";

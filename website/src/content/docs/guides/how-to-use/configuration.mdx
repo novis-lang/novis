@@ -1,0 +1,79 @@
+---
+title: Configuration
+covers: []
+description: What nvs.toml controls, how to start one, and how to check it before you deploy.
+---
+
+All configuration is in one TOML file, `nvs.toml`. There are no environment variables and no
+command-line switches that change a setting. What the file says is what is in force.
+
+## Start with nvs init
+
+`nvs init` writes an `nvs.toml` with every key, each one commented out. Each line ends with a
+short note. `# default` means Novis uses the value shown when the key is not set. Remove the `#`
+from a line to set that key.
+
+## What the file controls
+
+A setting is always inside a block. These are the blocks you need first:
+
+```toml
+[mode]
+default = "production"        # or "development"
+
+[limits]
+memory = "128M"               # what each request starts with
+wall_time = "30s"
+
+[limits.hard]
+memory = "256M"               # the most a request may raise itself to
+
+[capabilities.fs]
+read = ["data"]               # folders the program may read, relative to this file
+write = ["data/uploads"]
+
+[server]
+listen = ["127.0.0.1:8000"]
+```
+
+A program can do nothing outside its own memory until the file allows it. Reading a file, opening a
+network connection and connecting to a database each need a grant under `[capabilities]`. Without
+a grant, the call throws a `RuntimeError` that names the missing capability.
+
+A relative path in the file is relative to the folder of the file. It is not relative to the
+folder you run `nvs` in.
+
+## One file, several applications
+
+An `[[app]]` block sets values for one folder or one file. A later, more specific block replaces
+a value from an earlier one. So one application can have a lower limit, or lose a grant that the
+rest have.
+
+```toml
+[[app]]
+entry = "jobs/nightly.nvs"
+
+[app.limits]
+memory = "512M"
+```
+
+## Check it before you deploy
+
+A key that Novis does not know stops the program before it starts, with the error `E0601`. A typo
+never means "nothing is allowed" without telling you.
+
+- `nvs config check` reads the file and reports every error.
+- `nvs config dump --origin` prints every key that is set, and the file that set it.
+
+A program can read a setting with `Core\Config::get`. It can change some settings for one request
+with `Core\Config::set`. Read [Limits](/guides/how-to-use/limits/) for an example.
+
+## Do and don't
+
+- Do commit `nvs.toml` with your code, so every server runs the same settings.
+- Do give each capability only the folders and hosts the program really uses.
+- Do run `nvs config check` in your build, before each deploy.
+- Don't write a password in `nvs.toml`. Use `password_file` to read it from a separate file.
+- Don't grant `true` for a capability when a list of folders or hosts is enough.
+
+Read every key in [Reference: configuration](/reference/config/the-blocks-the-binary-accepts/).

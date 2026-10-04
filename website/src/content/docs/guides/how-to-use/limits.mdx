@@ -1,0 +1,62 @@
+---
+title: Limits
+covers: []
+description: Limit the memory and time of each request, and raise a limit for one request that needs more.
+---
+
+import Snippet from '@components/Snippet.astro'
+
+Each request runs under limits that you write in `nvs.toml`. A request that goes over a limit stops,
+and the other requests keep running.
+
+## A starting value and a ceiling
+
+`[limits]` is what each request starts with. `[limits.hard]` is the ceiling: the most a request may
+raise itself to. This is the `nvs.toml` for the program below:
+
+```toml
+[limits]
+memory = "64M"
+cpu_time = "5s"
+
+[limits.hard]
+memory = "256M"
+cpu_time = "30s"
+```
+
+Most requests are small, so keep the starting value low. A request that builds a large report
+raises its own limit:
+
+<Snippet src="guides/how-to-use/limits/limits.nvs" />
+
+`Core\Config::set` returns `false` for a value above the ceiling, and the limit stays the same.
+
+## The limits
+
+| Key | What it limits |
+|---|---|
+| `memory` | the memory one request may use |
+| `cpu_time` | the processor time one request may use; waiting for a database costs none of it |
+| `wall_time` | the time from the start of the request to the end, waiting included |
+| `max_output` | the size of the response |
+| `max_tasks` | how many tasks one request may run at the same time |
+
+`wall_time` limits how long a client waits. `cpu_time` stops a loop that never ends, but not a
+request that waits for a slow query. When a key is not set, there is no limit.
+
+## When a request goes over
+
+The request stops at once. This is not an exception, so no `catch` block runs. The server writes
+`FATAL:` and the reason to its log. What the request already sent stays sent.
+
+## Do and don't
+
+- Do set `memory` and `wall_time` for every server. Without them, one request can use the whole
+  machine.
+- Do set a ceiling in `[limits.hard]`, so a request can raise its limit only that far.
+- Do raise a limit in the one request that needs it, with `Core\Config::set`.
+- Don't raise the starting value for every request because one page needs more.
+- Don't catch a limit as an error. Make the work smaller, or raise the limit before you start it.
+
+Read more in [Syntax: limits](/syntax/errors/limits/) and
+[Reference: limits](/reference/config/limits/).

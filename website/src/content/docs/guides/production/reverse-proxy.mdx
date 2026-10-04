@@ -1,0 +1,83 @@
+---
+title: Behind a reverse proxy
+covers: []
+description: Put nginx or another proxy in front of nvs serve for TLS, and tell Novis which proxy to trust.
+---
+
+`nvs serve` does not handle TLS, compression or rate limits. A reverse proxy in front of it does.
+The proxy takes the HTTPS connection from the client and sends the request on to Novis.
+
+## Listen where only the proxy can connect
+
+Let the server listen on the loopback address, so only programs on the same machine can reach it:
+
+```toml
+[server]
+listen = ["127.0.0.1:8000"]
+```
+
+On Linux, a Unix socket is better. The operating system then checks who may connect:
+
+```toml
+[server]
+listen = ["/run/shop/nvs.sock"]
+socket_mode = "0660"
+```
+
+## Configure the proxy
+
+This is a minimal nginx server block. It handles TLS and sends every request to Novis:
+
+```nginx
+server {
+    listen 443 ssl;
+    server_name shop.example.com;
+    ssl_certificate     /etc/ssl/shop.example.com.pem;
+    ssl_certificate_key /etc/ssl/shop.example.com.key;
+
+    location / {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+## Tell Novis which proxy to trust
+
+By default, Novis reads no forwarding header. `Core\Request::clientIp()` then returns the address of
+the proxy, and `Core\Request::scheme()` returns `http`.
+
+List the address of your proxy in `trusted_proxies`. You can write one address or a block of
+addresses:
+
+```toml
+[server]
+listen = ["127.0.0.1:8000"]
+trusted_proxies = ["127.0.0.1"]
+```
+
+Now `clientIp()` returns the address of the client from `X-Forwarded-For`. `scheme()` returns
+`https` when the proxy sent `X-Forwarded-Proto: https`. A client cannot send a false address,
+because Novis reads only the address that your proxy added.
+
+## A health check for the proxy
+
+A load balancer can check whether the server is running. Set `health_path`:
+
+```toml
+[server]
+health_path = "/healthz"
+```
+
+The path returns `200` while the server accepts requests. It returns `503` while the server stops,
+so the load balancer sends new requests to another server. It does not run your program.
+
+## Do and don't
+
+- Do let `nvs serve` listen on `127.0.0.1` or a Unix socket, never on a public address.
+- Do set `trusted_proxies` to the exact address of your proxy.
+- Don't list a whole network in `trusted_proxies` when one address is enough.
+
+Read more in [Reference: the server block](/reference/config/server/).

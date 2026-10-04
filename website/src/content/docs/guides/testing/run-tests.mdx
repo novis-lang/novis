@@ -1,0 +1,53 @@
+---
+title: Running tests
+covers: []
+description: Write a test with #[Test] and run it with nvs test.
+---
+
+import Snippet from '@components/Snippet.astro'
+
+A test is a method with the `#[Test]` attribute. It must be `public`, return `void` and belong to a
+class. A test that checks nothing fails, so every test needs at least one assertion.
+
+<Snippet src="guides/testing/run-tests/prices.nvs" />
+
+`nvs run prices.nvs` runs the program and skips the tests, so the output above is `1200`.
+`nvs test prices.nvs` runs only the tests:
+
+```txt
+  PriceTest
+    ✓ addsTwentyPercent                0.2 ms
+    ✓ zeroStaysZero                    0.0 ms
+    - roundsHalfCents                  0.0 ms
+      skipped: rounding is not decided yet
+
+  0 failed, 2 passed, 1 skipped, 0 flaky in 1 ms
+```
+
+## When a test fails
+
+A failed assertion prints the value it got and the value it expected:
+
+```txt
+  PriceTest
+    ✗ addsTwentyPercent                0.2 ms
+      Core\Test::assertSame failed: `$actual` is 1200, `$expected` is 1300
+```
+
+When a test fails, `nvs test` exits with the status `1`. Your build stops there. A skipped test is
+not a failure.
+
+## Run a whole folder
+
+`nvs test tests/` reads every `.nvs` file in the folder, and in the folders under it. Novis reads
+them as one program and runs every test in it. One file in the folder requires your entry file,
+so the tests can use your classes.
+
+## Useful options
+
+- `--filter PriceTest::` runs only the tests whose name has this text.
+- `--list` prints every test with its file and line, and runs none of them.
+- `--format junit` writes the result as JUnit XML for your build server. `--format json` writes
+  one JSON document.
+
+Read every option in [Reference: nvs test](/reference/cli/nvs-test/).

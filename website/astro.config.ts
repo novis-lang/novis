@@ -168,6 +168,18 @@ export default defineConfig({
               ],
             },
             {
+              label: 'How to use Novis',
+              items: [
+                { label: 'Overview', link: '/guides/how-to-use/' },
+                { label: 'Project layout', link: '/guides/how-to-use/project-layout/' },
+                { label: 'Configuration', link: '/guides/how-to-use/configuration/' },
+                { label: 'Handling requests', link: '/guides/how-to-use/requests/' },
+                { label: 'Errors', link: '/guides/how-to-use/errors/' },
+                { label: 'Tainted input', link: '/guides/how-to-use/tainted-input/' },
+                { label: 'Limits', link: '/guides/how-to-use/limits/' },
+              ],
+            },
+            {
               label: 'Cookbook',
               items: [
                 { label: 'Overview', link: '/guides/cookbook/' },
@@ -181,6 +193,27 @@ export default defineConfig({
                 { label: 'Keep a value in a cookie', link: '/guides/cookbook/signed-cookie/' },
                 { label: 'Cache a slow result', link: '/guides/cookbook/cache-value/' },
                 { label: 'Schedule a job', link: '/guides/cookbook/schedule-job/' },
+              ],
+            },
+            {
+              label: 'Testing your app',
+              items: [
+                { label: 'Overview', link: '/guides/testing/' },
+                { label: 'Running tests', link: '/guides/testing/run-tests/' },
+                { label: 'Test doubles', link: '/guides/testing/test-doubles/' },
+                { label: 'Testing a page', link: '/guides/testing/test-a-route/' },
+                { label: 'Coverage reports', link: '/guides/testing/coverage/' },
+              ],
+            },
+            {
+              label: 'Going to production',
+              items: [
+                { label: 'Overview', link: '/guides/production/' },
+                { label: 'Run as a service', link: '/guides/production/run-as-a-service/' },
+                { label: 'Docker', link: '/guides/production/docker/' },
+                { label: 'Behind a reverse proxy', link: '/guides/production/reverse-proxy/' },
+                { label: 'Limits and logs', link: '/guides/production/limits-and-logs/' },
+                { label: 'Security checklist', link: '/guides/production/security-checklist/' },
               ],
             },
           ],

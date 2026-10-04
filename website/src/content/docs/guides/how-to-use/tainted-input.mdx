@@ -1,0 +1,44 @@
+---
+title: Tainted input
+covers: []
+description: How Novis tracks values from a request, and the safe ways to use them.
+---
+
+import Snippet from '@components/Snippet.astro'
+
+A value that comes from outside the program is `tainted`. This includes the address, a form field,
+a header, a cookie and a JSON body. The type of such a value is `tainted string`, not `string`.
+
+The compiler checks every place a tainted value goes. You cannot pass it where a plain `string` is
+needed, so it cannot reach SQL, a file name or HTML without a check.
+
+## The safe ways to use it
+
+<Snippet src="guides/how-to-use/tainted-input/tainted-input.nvs" />
+
+The output above is for the address `/search?q=<b>tea</b>&page=2`. The program uses two of the
+safe ways:
+
+- `as ?int` checks the text. The result is a plain `int`, or `null` when the text is not a whole
+  number.
+- A hole in an `html` literal escapes the text. The `<b>` is shown on the page and is not run.
+
+There are more safe ways. A value in a database query goes in as a parameter, and the database
+never reads it as SQL. `Core\Validate` checks a value against a rule, such as an email address.
+`postAs` and `jsonAs` read a form or a JSON body into a class, and each field is checked.
+
+## When the check fails
+
+Passing a `tainted string` where a `string` is needed does not compile. The error is `E0401`, and it
+points at the value. You fix it by choosing one of the safe ways above.
+
+## Do and don't
+
+- Do read input into a class with `postAs` or `jsonAs`. Declare text fields as `tainted string`.
+- Do convert a number from the request with `as ?int` and handle the `null`.
+- Do build HTML with `html` literals, so every value is escaped.
+- Don't remove the `tainted` from a type to make an error go away. Check the value instead.
+- Don't use a tainted value as a file name. Choose the file name in your code.
+
+Read more in [Syntax: tainted and secret strings](/syntax/values/tainted-and-secret/) and
+[Syntax: as](/syntax/values/as/).

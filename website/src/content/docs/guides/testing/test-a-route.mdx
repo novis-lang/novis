@@ -1,0 +1,33 @@
+---
+title: Testing a page
+covers: []
+description: Send a request through your routes and check the response, without starting a server.
+---
+
+import Snippet from '@components/Snippet.astro'
+
+`Core\Test::request` sends one request to your program. It uses your routes and your code, but no
+network and no server. It returns a `Core\Test\Response` that you can check.
+
+<Snippet src="guides/testing/test-a-route/test-a-route.nvs" />
+
+This program has both parts in one file, so you can run it as it is. In your own project, the page
+code is in your entry file. The test is a `#[Test]` method in your `tests/` folder.
+
+## What you can check
+
+`Core\Test\Response` has a method for each part of the response:
+
+- `status()` returns the status code, such as `200` or `404`.
+- `body()` returns the body as a string.
+- `header("content-type")` returns one header.
+- `cookies()` returns the cookies the page set.
+- `jsonAs<Order>()` reads a JSON body into an instance of your class.
+
+## A real server
+
+Some tests need a real server, for example a test of a WebSocket. A test with
+`#[Test(server: true)]` starts a local server for that test. `Core\Test::serverUrl` returns its
+address.
+
+Read more in [Reference: Core\Test\Response](/reference/core/test-response/).

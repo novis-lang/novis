@@ -1,0 +1,43 @@
+---
+title: Errors
+covers: []
+description: Throw your own error classes, handle them in one place, and know which failures cannot be caught.
+---
+
+import Snippet from '@components/Snippet.astro'
+
+Novis uses exceptions for errors. A method throws an error, and the code that knows what to do
+catches it. Throwing an error is fast, so you can use errors on a busy server too.
+
+## Your own errors
+
+Give each kind of failure in your application its own class. Extend `RuntimeError` for a failure
+that can happen in a correct program, such as a missing record:
+
+<Snippet src="guides/how-to-use/errors/errors.nvs" />
+
+The first `try` block catches the error from `Products::name(8)`. The `catch` expression after
+`Products::name(9)` gives the default value `"unknown"` in one line.
+
+## Two kinds of error
+
+`RuntimeError` is for a problem the program cannot prevent: a missing file, a network failure or
+bad input. `LogicError` is for a mistake in the code, such as a method called at the wrong time.
+Catch a `RuntimeError` and handle it. A `LogicError` is a bug, so fix the code.
+
+## Failures you cannot catch
+
+A request that goes over a [limit](/guides/how-to-use/limits/) stops at once. This is not an
+exception, so no `catch` block runs. The server writes the failure to its log, and the other
+requests keep running. `Core\Fatal::onLimit` registers a handler that runs when this happens.
+
+## Do and don't
+
+- Do create one error class for each kind of failure that a caller handles in its own way.
+- Do catch errors in one place for each request, and set the status there.
+- Do pass the original error as `previous` when you throw a new error from a `catch` block.
+- Don't catch an error only to ignore it. Use a `catch` expression with a clear default value.
+- Don't show the message of an unexpected error to the client. Write it to the log.
+
+Read more in [Syntax: error types](/syntax/errors/error-types/) and
+[Syntax: the catch expression](/syntax/errors/catch-expression/).

@@ -1,0 +1,39 @@
+---
+title: Test doubles
+covers: []
+description: Replace a mail server, an HTTP API or the clock in a test, and check how your code used it.
+---
+
+import Snippet from '@components/Snippet.astro'
+
+A test double replaces a real object in a test. Your code calls the double, and the double returns
+the values you chose. The test then runs without a mail server, a network or a database.
+
+## A double for an interface
+
+`Core\Test::double` builds an object for an interface. You give a closure for each method:
+
+<Snippet src="guides/testing/test-doubles/test-doubles.nvs" />
+
+`Core\Test::assertCalled` checks that a method was called, how many times, and with which
+arguments. `Core\Test::assertNeverCalled` checks that a method was not called at all.
+
+Your class must take the interface as a parameter for this to work. A class that creates its own
+mailer inside a method cannot get a double.
+
+## Other doubles
+
+- `Core\Test::partial` wraps a real object and replaces only some of its methods.
+- `Core\Test::answerHttp` gives a fixed response for a URL. `Core\Http\Client` then gets this
+  response and sends nothing over the network. `Core\Test::sentHttp` lists the requests your code
+  sent.
+- A test with `#[Test(at: "2026-03-01T09:00:00Z")]` runs with the clock fixed at that time.
+  `Core\Test::advance` moves the clock forward.
+
+## Do and don't
+
+- Do give a class its services as parameters, so a test can pass a double.
+- Do check the calls that matter, such as the address a mail was sent to.
+- Don't replace the class you are testing. Replace only what it talks to.
+
+Read every method in [Reference: Core\Test](/reference/core/test/).
