@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { join } from "node:path";
 import {
-  agrees, AREAS, type Batch, batchSizes, boundsOf, CEILING, compileCounts, COUNT_BOUND, countsAgree, increments, judgeCounts, type Judged, ladderOf, ladderSizes, missingAreas,
+  agrees, AREAS, type Batch, batchSizes, boundsOf, CEILING, compileCounts, COUNT_BOUND, countsAgree, increments, judgeCounts, type Judged, ladderOf, ladderSizes, LSP_URI, lspFrame, lspScript, missingAreas,
   proposed, rebased, slopeOf, START, withBatch,
 } from "../cmd/scaling.ts";
 import { ROOT } from "../lib/paths.ts";
@@ -103,6 +103,19 @@ test("the compile line's counts are read by name, and stderr without one gives n
   expect(compileCounts("compile: tokens=7 nodes=2 names=0 exprs=0 ir=80\r\ncount: statements=1 calls=0 allocations=13 bytes=7081\r\n")!.ir).toBe(80);
   expect(compileCounts("count: statements=1 calls=0 allocations=13 bytes=7081\n")).toBeNull();
   expect(ladderOf("// scaling: kind compile\n// scaling: start 50\n// scaling: max 1600\n// scaling: expect linear\n")).toMatchObject({ kind: "compile" });
+});
+
+test("an lsp session opens the document without its cursor, edits it, and asks at the cursor", () => {
+  expect(lspScript("<?nvs\necho 1;\n")).toBeNull();
+  const script = lspScript("<?nvs\nécho Base::pr<|>ice(1);\n") as { id?: number; method: string; params: any }[];
+  expect(script.map((m) => m.method)).toEqual([
+    "initialize", "initialized", "textDocument/didOpen", "textDocument/didChange", "textDocument/completion", "textDocument/hover", "textDocument/references", "shutdown", "exit",
+  ]);
+  expect(script.filter((m) => m.id !== undefined).map((m) => m.id)).toEqual([1, 2, 3, 4, 5]);
+  expect(script[2]!.params.textDocument).toMatchObject({ uri: LSP_URI, version: 1, text: "<?nvs\nécho Base::price(1);\n" });
+  expect(script[3]!.params.contentChanges[0].text).toBe("<?nvs\nécho Base::price(1);\n// edited\n");
+  expect(script[4]!.params.position).toEqual({ line: 1, character: 13 });
+  expect(lspFrame({ id: 1, method: "é" })).toBe('Content-Length: 38\r\n\r\n{"jsonrpc":"2.0","id":1,"method":"é"}');
 });
 
 test("an increment is the cost beyond the batch before, per added operation, so set-up cancels", () => {

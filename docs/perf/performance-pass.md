@@ -9,6 +9,12 @@ bounds; [`benches/scaling/README.md`](../../benches/scaling/README.md) says what
 `bun nv scaling --iterations` over the whole bench tree: no bench's counts rise per operation as
 its batch grows. Every bench it could judge is flat on all four counts.
 
+**`nvs lsp` grows close to quadratically with the size of the open document**
+([`benches/scaling/lsp/classes.nvs`](../../benches/scaling/lsp/classes.nvs): clock slope 1.91, and
+1.98 on a second run). The open, the edit, completion, hover and references each grow faster than
+linear, and `nvs check` on the same document is linear, so the extra cost is in the server's own
+analysis. Not fixed yet.
+
 ## What got better
 
 Nothing yet: no fix has landed.

@@ -58,14 +58,17 @@
 // is judged as `total` beside them, and the clock is `nvs check`'s. Callgrind runs `nvs check` on the
 // printed program. `fmt` prints a file the same way and has no counts: every size runs, the clock of
 // `nvs fmt --check` decides under the second-run bound, and a clock slope left unread goes to callgrind.
-// A ladder of a kind not measured yet is reported invalid, so it cannot pass unmeasured.
+// `lsp` prints a document that marks one `<|>` cursor and is judged as `fmt` is, on the clock of one
+// `nvs lsp` session over stdio (`lspScript`): open, an edit, then completion, hover and references at
+// the cursor, timed from the open to the last answer so the server's start-up is outside it. Callgrind
+// runs the same session with its messages piped in from a file. A ladder of a kind not measured yet is reported invalid, so it cannot pass unmeasured.
 //
 // The counts are the same on every machine, so a bench gets the same verdict everywhere. The clock is
 // taken on the release binary unless `--nvs` names another, as `--record-perf` takes it.
 
 import { cpSync, existsSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
-import { abs, rel, ROOT } from "../lib/paths.ts";
+import { abs, DISCARD_PROFILE, rel, ROOT } from "../lib/paths.ts";
 import { progress } from "../lib/progress.ts";
 import { fixed } from "../lib/py.ts";
 import { countProgram, COUNTS, PerfError } from "../proofs/perf.ts";
@@ -240,7 +243,7 @@ export const EXPECT: Record<string, number> = { constant: 0.15, linear: COUNT_BO
 
 /** The kinds a ladder may declare, and the ones the tool measures so far. */
 export const KINDS = ["run", "compile", "lsp", "fmt", "serve"] as const;
-const MEASURED_KINDS: readonly string[] = ["run", "compile", "fmt"];
+const MEASURED_KINDS: readonly string[] = ["run", "compile", "lsp", "fmt"];
 
 /** The areas Stage 3 of `performance-pass` covers, each a folder under `benches/scaling/`. */
 export const AREAS = [
@@ -424,7 +427,152 @@ const FMT: Measure = {
   callgrind: async (copy, bench, opts) => instructions(opts, "fmt", await generate(copy, bench, opts), bench),
 };
 
-const MEASURES: Record<string, Measure> = { run: RUN, compile: COMPILE, fmt: FMT };
+/** The URI the `lsp` ladder's document is opened at. No file is behind it and no root is named, so the
+ * server indexes the open document alone and the session is the same under WSL as on Windows. */
+export const LSP_URI = "file:///scaling/ladder.nvs";
+/** The cursor a printed document marks, as an `.lspt` case marks it. */
+const CURSOR = "<|>";
+
+/** One message, framed the way `nvs lsp` reads it from stdin. */
+export const lspFrame = (message: object): string => {
+  const body = JSON.stringify({ jsonrpc: "2.0", ...message });
+  return `Content-Length: ${Buffer.byteLength(body, "utf8")}\r\n\r\n${body}`;
+};
+
+/**
+ * The session an `lsp` ladder runs on the document it printed, in the order it is sent: the
+ * handshake, open, one edit that appends a comment line, then completion, hover and references at the
+ * `<|>` the document marks, then shutdown and exit. Requests carry ids 1 to 5 in that order. Returns
+ * null when the document marks no cursor.
+ */
+export function lspScript(printed: string): object[] | null {
+  const at = printed.indexOf(CURSOR);
+  if (at < 0) return null;
+  const text = printed.slice(0, at) + printed.slice(at + CURSOR.length);
+  const before = text.slice(0, at).split("\n");
+  const position = { line: before.length - 1, character: before.at(-1)!.length };
+  const doc = { textDocument: { uri: LSP_URI }, position };
+  return [
+    { id: 1, method: "initialize", params: { processId: null, rootUri: null, capabilities: {} } },
+    { method: "initialized", params: {} },
+    { method: "textDocument/didOpen", params: { textDocument: { uri: LSP_URI, languageId: "nvs", version: 1, text } } },
+    { method: "textDocument/didChange", params: { textDocument: { uri: LSP_URI, version: 2 }, contentChanges: [{ text: `${text}// edited\n` }] } },
+    { id: 2, method: "textDocument/completion", params: doc },
+    { id: 3, method: "textDocument/hover", params: doc },
+    { id: 4, method: "textDocument/references", params: { ...doc, context: { includeDeclaration: true } } },
+    { id: 5, method: "shutdown", params: null },
+    { method: "exit", params: null },
+  ];
+}
+
+/** The messages `nvs lsp` has written so far, as they arrive on its stdout. */
+class LspReader {
+  private buffer = Buffer.alloc(0);
+  private readonly got: Record<string, unknown>[] = [];
+  private wake: (() => void) | null = null;
+  private ended = false;
+
+  constructor(stdout: ReadableStream<Uint8Array>) {
+    void (async () => {
+      for await (const chunk of stdout) {
+        this.buffer = Buffer.concat([this.buffer, chunk]);
+        for (;;) {
+          const end = this.buffer.indexOf("\r\n\r\n");
+          if (end < 0) break;
+          const length = Number(/Content-Length:\s*(\d+)/i.exec(this.buffer.subarray(0, end).toString())?.[1]);
+          if (this.buffer.length < end + 4 + length) break;
+          this.got.push(JSON.parse(this.buffer.subarray(end + 4, end + 4 + length).toString("utf8")));
+          this.buffer = this.buffer.subarray(end + 4 + length);
+        }
+        this.wake?.();
+      }
+      this.ended = true;
+      this.wake?.();
+    })();
+  }
+
+  /** The first message `match` accepts, removed from what has arrived. */
+  async next(match: (m: Record<string, unknown>) => boolean, what: string): Promise<Record<string, unknown>> {
+    for (;;) {
+      const at = this.got.findIndex(match);
+      if (at >= 0) return this.got.splice(at, 1)[0]!;
+      if (this.ended) throw new PerfError(`\`nvs lsp\` exited before it sent ${what}`);
+      await new Promise<void>((wake) => (this.wake = wake));
+    }
+  }
+}
+
+/** One `nvs lsp` session over the script, timed from the open to the answer to references, in
+ * nanoseconds. Each step waits for what it causes: the open for its diagnostics, a request for its
+ * response. The edit's analysis runs when the completion request arrives, so it is inside the clock. */
+async function lspSession(nvs: string, script: object[], bench: string): Promise<number> {
+  const child = Bun.spawn([nvs, "lsp"], { cwd: ROOT, stdin: "pipe", stdout: "pipe", stderr: "ignore", env: { LLVM_PROFILE_FILE: DISCARD_PROFILE, ...process.env } });
+  const reader = new LspReader(child.stdout);
+  const timer = setTimeout(() => child.kill(), TIMEOUT_MS);
+  const send = (m: object) => {
+    child.stdin.write(lspFrame(m));
+    child.stdin.flush();
+  };
+  const answer = async (m: object) => {
+    const id = (m as { id: number }).id;
+    send(m);
+    const got = await reader.next((r) => r.id === id && !("method" in r), `an answer to ${(m as { method: string }).method}`);
+    if (got.error) throw new PerfError(`\`nvs lsp\` answered ${(m as { method: string }).method} on the document ${bench} printed with an error: ${JSON.stringify(got.error)}`);
+  };
+  try {
+    const [init, initialized, open, edit, ...rest] = script;
+    const [completion, hover, references, shutdown, exit] = rest;
+    await answer(init!);
+    send(initialized!);
+    const started = performance.now();
+    send(open!);
+    await reader.next((m) => m.method === "textDocument/publishDiagnostics" && (m.params as { uri: string }).uri === LSP_URI, "diagnostics for the opened document");
+    send(edit!);
+    for (const request of [completion!, hover!, references!]) await answer(request);
+    const ns = (performance.now() - started) * 1e6;
+    await answer(shutdown!);
+    send(exit!);
+    child.stdin.end();
+    await child.exited;
+    return ns;
+  } finally {
+    clearTimeout(timer);
+    child.kill();
+  }
+}
+
+/** The fastest of `reps` sessions on the document the ladder prints. */
+async function timeLsp(nvs: string, printed: string, bench: string, reps: number): Promise<number> {
+  const script = lspScript(readFileSync(abs(printed), "utf8"));
+  if (script === null) throw new PerfError(`the document ${bench} printed marks no \`${CURSOR}\` cursor`);
+  let best = Infinity;
+  for (let i = 0; i < reps; i++) best = Math.min(best, await lspSession(nvs, script, bench));
+  return best;
+}
+
+/** Callgrind's instruction total for the whole session, its messages piped in from a file beside the copy. */
+async function lspInstructions(opts: Options, printed: string, bench: string): Promise<number> {
+  const script = lspScript(readFileSync(abs(printed), "utf8"));
+  if (script === null) throw new PerfError(`the document ${bench} printed marks no \`${CURSOR}\` cursor`);
+  const feed = printed.replace(/\.nvs$/, ".lspin");
+  writeFileSync(abs(feed), script.map(lspFrame).join(""));
+  const nvs = process.platform === "win32" ? opts.wslNvs : opts.nvs;
+  const shell = ["sh", "-c", `valgrind --tool=callgrind --callgrind-out-file=/dev/null '${nvs}' lsp < '${feed}'`];
+  const out = await spawnProof(process.platform === "win32" ? ["wsl.exe", "--", ...shell] : shell, printed, TIMEOUT_MS * 4, { unlogged: true });
+  const m = COLLECTED_RE.exec(out.stderr);
+  if (!m) throw new PerfError(`callgrind printed no instruction total for ${bench}: ${out.stderr.trim().split(/\r?\n/).at(-1) ?? ""}`);
+  return Number(m[1]);
+}
+
+/** A document the ladder prints, opened, edited and asked about in `nvs lsp`: the clock alone, as `fmt`. */
+const LSP: Measure = {
+  keys: [],
+  take: async (copy, bench, opts) => ({ counts: {}, ns: await timeLsp(opts.nvs, await generate(copy, bench, opts), bench, opts.reps) }),
+  clock: async (copy, bench, opts) => timeLsp(opts.nvs, await generate(copy, bench, opts), bench, opts.reps),
+  callgrind: async (copy, bench, opts) => lspInstructions(opts, await generate(copy, bench, opts), bench),
+};
+
+const MEASURES: Record<string, Measure> = { run: RUN, compile: COMPILE, lsp: LSP, fmt: FMT };
 
 /** One bench, ramped and judged. */
 async function rampOne(bench: string, opts: Options): Promise<Judged> {

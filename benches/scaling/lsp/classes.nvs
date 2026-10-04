@@ -1,0 +1,25 @@
+<?nvs
+// Prints a file of n small classes that all call one method, as an editor opens a large project file.
+// scaling: kind lsp
+// scaling: start 50
+// scaling: max 1600
+// scaling: expect linear
+
+class Bench {
+    public static function run(uint $size): string {
+        array<string> $lines = ["<?nvs", "class Base {", "    public static function price(int \$x): int {", "        return \$x * 2;", "    }", "}"];
+        uint $i = 0;
+        while ($i < $size) {
+            $lines[] = "class Item{$i} {";
+            $lines[] = "    public static function total(int \$x): int {";
+            $lines[] = "        return Base::price(\$x) + {$i};";
+            $lines[] = "    }";
+            $lines[] = "}";
+            $i = $i + 1;
+        }
+        $lines[] = "echo Base::pr<|>ice(1), \"\\n\";";
+        return Core\Str::join($lines, "\n") . "\n";
+    }
+}
+
+echo Bench::run(50);
