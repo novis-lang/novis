@@ -1,37 +1,30 @@
 {
-  "state": "**Goal `performance-pass` — one performance pass over everything, and no work that grows faster than linear — has just started; nothing of it has landed yet.** No floor is carried: goal `goal-closeout` made a finished goal deleted, and the suites and `nv verify` are the floor.\n\nThe design is settled and is the user's: linear growth is correct and a little steeper is fine, quadratic and steeper is a defect; no micro-optimizations; an API change is ordinary work; a large tradeoff is written under *Decisions for you* in `docs/perf/performance-pass.md` and not built. The goal file's § *Standing decisions* answers every call a session meets.\n\nThe existing size check is `// bench: complexity` with a `.scale.nvs` sibling, read by `tools/nv/proofs/perf.ts`; only a few benches use it. Nothing measures growth over iterations or over input size across the tree yet.",
+  "state": "**Goal `performance-pass`, Stage 2 (the growth tool).** `bun nv scaling --iterations` is on disk: `tools/nv/cmd/scaling.ts`, with the ramp, the agreement test, the ceiling and the bounds in its module doc, and its tests in `tools/nv/test/scaling.test.ts`. It copies each bench's folder under `.agent-tmp/scaling-<pid>/`, rebases the `nvs.toml` beside the copy, and rewrites the closing `echo Bench::run(N)` literal. `perf.ts` exports `countProgram`, `COUNTS` and `PerfError` for it.\n\n**The first full run, on the release binary: 954 benches judged flat on every count, 0 grow, 48 skipped** (35 whose closing line does not pass `iterations` as one literal, 11 with too few iterations, 2 `requires: unix`). So the first run makes no gap. At batches 16 to 128 the clock is mostly unread, because its increments are noise. Once, `core/Test/tlsSession` showed a clock slope above 1.5 on two runs in a row, and it did not repeat on a third run.\n\n**Blocked on the user:** `tools/nv/test/allow.test.ts` fails until `.claude/settings.json` has `\"Bash(bun nv scaling:*)\"` and `\"PowerShell(bun nv scaling:*)\"` in its allow list. Auto mode refused the session's edit to that file.\n\n`benches/scaling/README.md` and the ladder runner do not exist yet. `docs/perf/performance-pass.md` does not exist yet.",
   "next": {
     "stage": 2,
     "title": "the growth tool",
     "files": [
       "tools/nv/cmd/scaling.ts",
-      "tools/nv/proofs/perf.ts",
+      "tools/nv/test/scaling.test.ts",
       "benches/scaling/README.md"
     ],
     "items": [
       {
         "done": false,
-        "text": "**`bun nv scaling --iterations`** — `tools/nv/cmd/scaling.ts`, reusing the counting run in `tools/nv/proofs/perf.ts`: every bench under `benches/members/` from a copy under `.agent-tmp/`, never at its own `iterations N`: start with a small batch and double it until the last three batches agree on the growth, judged on the counts alone, never the clock, or a fixed ceiling is reached; only a bench that reaches the ceiling with no clear pattern runs the same batches again under callgrind in WSL; per-operation counts compared; the start, the agreement test, the cap and the bounds in the module doc."
+        "text": "**The ladder runner** — `// scaling: start`, `max`, `expect` and the kinds, in `tools/nv/cmd/scaling.ts:253` (`rampOne` is the ramp to reuse; `slopeOf` and `judgeCounts` at `tools/nv/cmd/scaling.ts:148` already fit a slope from increments), plus `nvs check --count` per the goal's Stage 2; `benches/scaling/README.md` says what a ladder is."
       },
       {
         "done": false,
-        "text": "**The ladder runner** — `// scaling: start`, `max` and `expect`, the same doubling ramp as `--iterations`, the five kinds (`run`, `compile`, `lsp`, `fmt`, `serve`), the slope fit over counts and clock, `--check`, `--areas` and `--areas --reviewed`, and `benches/scaling/README.md`."
+        "text": "**The ladder tests** — `tools/nv/test/scaling.test.ts:1`: a made-up linear ladder passes, a made-up quadratic one fails, a `proposal` ladder is reported. The `--iterations` pure parts are already tested there."
       },
       {
         "done": false,
-        "text": "**The tool's tests** — `tools/nv/test/scaling.test.ts`: a made-up linear ladder passes, a made-up quadratic one fails, a `proposal` ladder is reported and does not fail."
-      },
-      {
-        "done": false,
-        "text": "**The first run of `--iterations`** — every bench whose per-operation counts rise becomes a gap owned by `performance-pass`."
+        "text": "**Record the 46 benches `--iterations` cannot judge** under *Benches to look at* in a new `docs/perf/performance-pass.md`; the skip reasons are at `tools/nv/cmd/scaling.ts:262`. `bun nv scaling --iterations --all` lists them as `skipped`, mostly `Core\\Response`, `Core\\Request-Part`, `Core\\Test-Response` and `lang/` programs whose closing line is not `echo Bench::run(N)`."
       }
     ]
   },
   "backlog": [
-    "**Stage 3: the ladders** — one area per group, subagents may write and run ladders in parallel; `app` last, because it reuses what the others found.",
-    "**Stage 4: the review** — one read-only subagent per area; the session writes the gaps and `docs/perf/performance-review.md`.",
-    "**Stage 5: the fixes** — grouped by crate; perf figures recorded again in the slice that made them stale.",
-    "**Stage 6: the summary** — `docs/perf/performance-pass.md`, plain and short, for the user.",
-    "When this goal's last check goes green the driver deletes it and takes goal `growth-proof`."
+    "The clock at the `--iterations` batch sizes is mostly unread, and one clock-only \"grows\" did not repeat. Decide whether a clock-only verdict should go to callgrind before it fails (`tools/nv/cmd/scaling.ts` module doc owns the bounds).",
+    "Callgrind's leg is untested: no bench reached the ceiling unclear. Its default Linux binary is `/var/tmp/nvs-target-wsl/debug/nvs`."
   ]
 }
