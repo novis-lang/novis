@@ -1,32 +1,33 @@
 {
-  "state": "**Goal `performance-pass`, Stage 4 (the review) has its check green:** `bun nv scaling --areas --reviewed` prints `every area has a ladder and a review section`. `docs/perf/performance-review.md` has one section per area of `AREAS` (`tools/nv/cmd/scaling.ts:278`): what was read, the findings with their gap records, and what is bounded or fine. It has no `## floor` section yet, and old refusals have not been priced again.\n\n**27 gap records owned by `performance-pass`** came out of the review (`bun nv owners --check` counts them as `live-goal-owned`). Only `nvs-syntax/an-elseif-chain-is-not-depth-guarded` was confirmed with a probe: 300 `elseif` arms overflow the debug compiler's stack, and `else if` is refused with `E0108` at 90. The rest say *from the Stage 4 review, not re-run* unless the session read the site. No ladder exists yet for any review finding.\n\n**Still red:** `scaling --check` (the growing ladders `fmt/classes.nvs`, `lsp/classes.nvs`, `numbers/bigint-mul.nvs`, Stage 5). The review names the likely causes: `nvs-syntax/a-syntax-index-lookup-scans-every-node` for fmt, `nvs-lsp/the-index-copies-an-entrys-reads-into-every-file` and `nvs-lsp/unused-private-scans-every-occurrence` for lsp. `docs/perf/performance-pass.md` *Decisions for you* has one entry: a total deadline for the request head.",
+  "state": "**Goal `performance-pass`, Stage 4 (the review) is written whole:** `bun nv scaling --areas --reviewed` prints `every area has a ladder and a review section`, and `docs/perf/performance-review.md` now ends with a `## floor` section: the counts and clocks of an empty run, an empty `nvs check`, one empty request and an empty file in `nvs lsp`, and what each is spent on. Old refusals have not been priced again yet.\n\n**29 gap records owned by `performance-pass`.** The floor added two, both measured with callgrind: `nvs-types/core-signatures-are-built-again-for-every-check` (the `Core` signature table is rebuilt per check: 54% of an empty `nvs check`, 63% of an empty-file editor session) and `nvs-lsp/an-edit-analyses-the-document-twice` (`index.refresh` and `publish` each analyse the same version). `nvs-syntax/an-elseif-chain-is-not-depth-guarded` now has its ladder, `benches/scaling/compiler/elseif.nvs`, which is **invalid** today: the release `nvs check` overflows its stack between 700 and 1024 arms.\n\n**Still red:** `scaling --check` (`fmt/classes.nvs`, `lsp/classes.nvs`, `numbers/bigint-mul.nvs` grow, `compiler/elseif.nvs` crashes) and `owners --closes performance-pass` (the 29 gaps). Stage 5 is fixing them. `docs/perf/performance-pass.md` *Decisions for you* has one entry: a total deadline for the request head.",
   "next": {
-    "stage": 4,
-    "title": "the review, its floor and its first ladders",
+    "stage": 5,
+    "title": "the fixes, the editor's per-edit floor",
     "files": [
-      "docs/perf/performance-review.md",
-      "benches/scaling/compiler/",
-      "crates/nvs-syntax/src/parser/stmt.rs"
+      "crates/nvs-lsp/src/server.rs",
+      "crates/nvs-lsp/src/index.rs",
+      "crates/nvs-lsp/src/document.rs"
     ],
     "items": [
       {
         "done": false,
-        "text": "**Write the `## floor` section of `docs/perf/performance-review.md`**: measure with counts an empty program run, an empty program compiled, one empty request served and an empty file opened in `nvs lsp`, and say what the counts are spent on, as the goal's Stage 4 *The fixed floor* says. `bun nv scaling` kinds and their bounds are documented at `tools/nv/cmd/scaling.ts:1`. Rule: `rule:testing/bench-counters`."
+        "text": "**Analyse an edited document once per version**: `reanalyse` (`crates/nvs-lsp/src/server.rs:485`) calls `index.refresh` (`crates/nvs-lsp/src/server.rs:497`), whose `absorb` (`crates/nvs-lsp/src/index.rs:609`) analyses the document, and `publish` (`crates/nvs-lsp/src/server.rs:2070`) analyses the same version again. Hand `absorb`'s analysis to `publish` when the versions agree, and close `data/gaps/nvs-lsp/an-edit-analyses-the-document-twice.json`. Rule: `rule:ide/the-server-is-synchronous`, `rule:ide/five-features-are-one-reference-index`."
       },
       {
         "done": false,
-        "text": "**Write `benches/scaling/compiler/elseif.nvs`**, n `elseif` arms, `compile` kind, so the ladder shows the crash recorded in `data/gaps/nvs-syntax/an-elseif-chain-is-not-depth-guarded.json`; the cause is `crates/nvs-syntax/src/parser/stmt.rs:403`. The ladder fails until Stage 5 fixes it, which is what `scaling --check` is for. Rule: `rule:testing/bench-counters`."
+        "text": "**Fix `unused_private`'s scan of every occurrence**, then re-run `bun nv scaling lsp/classes` and close `data/gaps/nvs-lsp/unused-private-scans-every-occurrence.json` if the ladder settles. Anchors are in the gap record; `crates/nvs-lsp/src/index.rs:344` is the refresh it feeds."
       },
       {
         "done": false,
-        "text": "**Price old refusals again**: find decision records and perf notes under `docs/decisions/` and `docs/perf/` that declined a performance change on a figure from a smaller tree, measure each again, and give each a line in its area's section of `docs/perf/performance-review.md`, or a gap if the verdict changes; the review file's opening is at `docs/perf/performance-review.md:1`. Rule: `rule:testing/member-perf-ledger`."
+        "text": "**Stop copying an entry's read list into every file it loads** (`crates/nvs-lsp/src/index.rs:613`), closing `data/gaps/nvs-lsp/the-index-copies-an-entrys-reads-into-every-file.json`."
       }
     ]
   },
   "backlog": [
-    "Ladders for the other review findings, one per gap record that names a ladder (`data/gaps/*/*.json` with `\"goal\": \"performance-pass\"`).",
-    "Find where `nvs serve` decides to close on an unread POST body, from `crates/nvs-cli/src/serve.rs:1` (`docs/perf/performance-pass.md` *What we found*).",
-    "The 1.05 MB per `Core\\Task`: check whether the request is charged the reserved stack (`data/gaps/nvs-host/a-task-is-charged-a-whole-stack.json`).",
-    "`lspInstructions` has not run, and `--iterations --check` has had no full sweep (`tools/nv/cmd/scaling.ts` module doc)."
+    "Build `Core` signatures once per process: `data/gaps/nvs-types/core-signatures-are-built-again-for-every-check.json` (`crates/nvs-types/src/core_lib.rs:45`). It reaches every check and every editor analysis, so it is worth a session of its own.",
+    "Flatten the `elseif` chain so neither spelling nests: `data/gaps/nvs-syntax/an-elseif-chain-is-not-depth-guarded.json`. An AST change across parser, checker, lowering and fmt, and the ladder `benches/scaling/compiler/elseif.nvs` checks it.",
+    "Price old refusals again (goal Stage 4 *Old refusals are priced again*): decision records and perf notes under `docs/decisions/` and `docs/perf/` that declined a change on a figure from a smaller tree.",
+    "The `fmt` growth: `data/gaps/nvs-syntax/a-syntax-index-lookup-scans-every-node.json` and `data/gaps/nvs-fmt/opening-of-recurses-per-enclosing-body.json`.",
+    "`numbers/bigint-mul.nvs` grows: judged against schoolbook multiplication, it may be a *Benches to look at* entry, not a defect."
   ]
 }
