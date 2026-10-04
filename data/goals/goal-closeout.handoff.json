@@ -1,25 +1,23 @@
 {
-  "state": "**Goal `goal-closeout`, Stage 4 (finished in place).** Nothing in code changed this session. Gap `an-isolate-result-output-is-typed-string` needs a design answer: `Core\\Cli\\Text` does not fix a page captured under a request, because `echo` escapes a `Cli\\Text` there on purpose, and the checker cannot know which sink will be in force. `Core\\Out::capture` has the same fault. The gap record names both, and the question *What type is captured output under a request?* is in the goal prose's § *Questions for the user at the goal end*. Six questions wait there. Do not build the environment, the zip walk or the captured-output type before the answers.\n\n**No session stops on `BLOCKED` before the goal end.** A question goes in that section, and the session carries on.\n\nThe floor check `the latest CI run on main succeeded for the code HEAD holds` is red because `main` is ahead of `origin/main`. It leaves with goal `ci-green`'s record in Stage 6, and nobody pushes for it.\n\n`bun nv owners --closes goal-closeout` names 10 gaps. Read each gap's record before building it: a gap can already be closed by tested code, and then the record is deleted. A change to a file a perf figure is keyed to stales that figure: run `bun nv proofs --owed` after any such change, and `bun nv proofs --record-perf --group '<class>'` for what it names.",
+  "state": "**Goal `goal-closeout`, Stage 4 (finished in place).** `Core\\Db\\Queryable` is now a type a program can write. It is a row of the new `nvs_stdlib::registry::CoreInterface` roster: the members are `Connection`'s rows minus `BEYOND_QUERYABLE`, under the symbols both classes share. The checker seeds it with an `implements` edge from each implementor. `is` lowers to one class test per implementor. `as` and `implements` naming it stay refused. Gap `core-db-queryable-is-not-a` is deleted.\n\nGap `an-isolate-result-output-is-typed-string` still waits on the question *What type is captured output under a request?*, and six questions wait in the goal prose's § *Questions for the user at the goal end*. Do not build the environment, the zip walk or the captured-output type before the answers. **No session stops on `BLOCKED` before the goal end.**\n\nThe floor check `the latest CI run on main succeeded for the code HEAD holds` is red because `main` is ahead of `origin/main`. It leaves with goal `ci-green`'s record in Stage 6, and nobody pushes for it.\n\n`bun nv owners --closes goal-closeout` names 9 gaps. Read each gap's record before building it. A change to a file a perf figure is keyed to stales that figure: run `bun nv proofs --owed`, then `bun nv proofs --record-perf --group '<class>'` per class it names. Re-run a group whose calibration fails, because the machine is shared.",
   "next": {
     "stage": 4,
     "title": "finished in place",
     "files": [],
-    "note": "one file set: `crates/nvs-stdlib/src/db/mod.rs` and the checker's interface acceptance.",
+    "note": "one file set: `crates/nvs-types/src/expr/calls.rs` and the callable members.",
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Db\\Queryable` becomes a type a program can write** — gap `core-db-queryable-is-not-a`, `rule:core-classes/db-transactions`. The module is `crates/nvs-stdlib/src/db/mod.rs:1`. Read the record first: it needs a checker change that accepts a `Core` class where a `Core` interface is written. Name the tradeoff before building it, and write a question in the goal prose if it is large."
+        "text": "**A callable gets `bind`, `bindTo` and `call`, or the gap is struck as a bound** — gap `a-callable-has-no-bind-bindto-or-call`, at `crates/nvs-types/src/expr/calls.rs:55`. Read the record first (`bun nv gaps --module crates/nvs-types/src/expr/calls.rs`). Name the tradeoff before building it. If it is large, write a question in the goal prose and carry on."
       },
       {
         "done": false,
-        "text": "**A callable gets `bind`, `bindTo` and `call`, or the gap is struck as a bound** — gap `a-callable-has-no-bind-bindto-or-call`, at `crates/nvs-types/src/expr/calls.rs:1`. Read the record first."
+        "text": "**`implements Core\\Db\\Queryable` says the interface exists but is closed** — `E0303` says \"is not a class the `Core` namespace declares\" for it, which is wrong. The link pass is `crates/nvs-hir/src/hierarchy.rs:76` (`CoreRoster`), fed by `nvs_stdlib::registry::link_targets`. The case `tests/conformance/core/db-queryable-is-not-implemented-by-a-program-class-nor-converted-to.nvst` pins only the code, so its `%a` can then become the new message."
       }
     ]
   },
   "backlog": [
-    "The questions in `docs/agent/goals/goal-closeout.md` § *Questions for the user at the goal end* wait for the user at the goal end.",
-    "Gap `reference-cards-are-not-held-to-the-plain-voice` (`crates/nvs-stdlib/src/registry.rs`) is open.",
-    "Gaps `rendered-core-pages-lag-the-tree` and `the-website-grammar-is-hand-written-beside-the-editors` are open in `website/`.",
-    "Stages 5 and 6 of the goal come after the gaps."
+    "`nvs meta --json` lists no `Core` interface: `crates/nvs-cli/src/meta.rs:176` reads `nvs_hir::interfaces::RESERVED` only, and `registry::INTERFACES` is the second roster it could read.",
+    "`docs/examples/core/Db-Connection/transaction/03-keep-the-import-when-one-row-is-bad.nvs` nests on a `Transaction` parameter. It is still right, and a fourth example could show a `Queryable` parameter."
   ]
 }
