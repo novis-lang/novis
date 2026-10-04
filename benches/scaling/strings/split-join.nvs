@@ -1,0 +1,16 @@
+<?nvs
+// Splits a list of n tags at its commas and joins them again with spaces, as a program does when it shows tags.
+// scaling: start 1000
+// scaling: max 64000
+// scaling: expect linear
+
+class Bench {
+    public static function run(uint $size): uint {
+        string $list = Core\Str::repeat("tag,", $size);
+        array<string> $tags = Core\Str::split($list, ",");
+        string $shown = Core\Str::join($tags, " ");
+        return Core\Str::length($shown) + Core\Arr::count($tags);
+    }
+}
+
+echo Bench::run(1000), "\n";

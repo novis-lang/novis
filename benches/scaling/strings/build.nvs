@@ -1,0 +1,19 @@
+<?nvs
+// Builds one string from n short pieces in a loop, as a program does when it writes a report line by line.
+// scaling: start 1000
+// scaling: max 64000
+// scaling: expect linear
+
+class Bench {
+    public static function run(uint $size): uint {
+        string $text = "";
+        uint $i = 0;
+        while ($i < $size) {
+            $text .= "row ";
+            $i = $i + 1;
+        }
+        return Core\Str::length($text);
+    }
+}
+
+echo Bench::run(1000), "\n";

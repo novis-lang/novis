@@ -1,0 +1,21 @@
+<?nvs
+// Encodes a list of n orders as JSON and decodes it again, as an API server and its client do with one response.
+// scaling: start 1000
+// scaling: max 64000
+// scaling: expect linear
+
+class Bench {
+    public static function run(uint $size): uint {
+        array<mixed> $orders = [];
+        uint $i = 0;
+        while ($i < $size) {
+            $orders[] = {id: $i, name: "Ada", paid: $i % 2 == 0, items: [$i % 7, $i % 11]};
+            $i = $i + 1;
+        }
+        string $text = Core\Json::encode($orders);
+        var $decoded = Core\Json::decode($text) as array<mixed>;
+        return Core\Str::length($text) + Core\Arr::count($decoded);
+    }
+}
+
+echo Bench::run(1000), "\n";

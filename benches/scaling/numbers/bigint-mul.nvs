@@ -1,0 +1,15 @@
+<?nvs
+// Multiplies a number of n binary digits by itself, as a program does when it works with very large keys.
+// scaling: start 64000
+// scaling: max 512000
+// scaling: expect karatsuba
+
+class Bench {
+    public static function run(uint $size): uint {
+        var $one = Core\BigInt::of(1);
+        var $wide = $one->shl($size)->sub($one);
+        return $wide->mul($wide)->sign() as uint;
+    }
+}
+
+echo Bench::run(64000), "\n";

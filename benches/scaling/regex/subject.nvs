@@ -1,0 +1,16 @@
+<?nvs
+// Changes the order of the parts of every date in a text of n dates, as a program does before it shows a report.
+// scaling: start 1000
+// scaling: max 64000
+// scaling: expect linear
+
+class Bench {
+    public static function run(uint $size): uint {
+        string $text = Core\Str::repeat("Due 2027-01-05, ", $size);
+        Core\Regex\Pattern $date = Core\Regex::compile('(\d{4})-(\d{2})-(\d{2})');
+        string $shown = Core\Regex::replace($text, $date, '$3/$2/$1');
+        return Core\Str::length($shown);
+    }
+}
+
+echo Bench::run(1000), "\n";
