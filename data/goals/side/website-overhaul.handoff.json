@@ -1,24 +1,19 @@
 {
-  "state": "**Side goal `website-overhaul`: stage 6 (In-Depth, the home page and the last links) has one item left: the plain-English read of the whole site, then closing the goal.**\n\nIn-Depth has its eight sections: `what-for`, `never`, `how-we-decide`, `design-principles`, `concepts/` (an index and five pages), `falls-behind`, `roadmap` and `what-changed`, each in the In-Depth sidebar in that order. Each essay links decision records through `decisionRecord` from `@config/site.mjs`, as `<a href={decisionRecord('NNNN')}>`, and never prints a record number.\n\nThe home page (`website/src/content/docs/index.mdx`) has a short hero, one `<Snippet src=\"home/greetings.nvs\">`, six standout features linking to their Why-Novis pages, and four `LinkCard`s built from `AREAS`. The six are a proposal: the user reviews them when the goal lands. `sponsoring.mdx` keeps the user's own voice, and only its dashes and two long sentences were split.\n\n`bun nv site --check in-depth` is `inDepthProblems` in `tools/nv/cmd/site.ts`, driven by `IN_DEPTH_SECTIONS`. `structure` now also fails on any page link or sidebar link that `builtUrls` does not list (each handwritten page, the Core class and method pages, the Configuration and CLI pages). No `LATER` stub is left.\n\nGreen in this session: `site structure`, `in-depth`, `prose`, `snippets`, `stale`, `--build`, `bun test tools/nv/test/site.test.ts` (18 pass) and `bun nv verify`. `reference`, `syntax`, `guides` and `apps` were not rerun. This session did not touch them.",
+  "state": "**Side goal `website-overhaul` is reached: all six stages are on disk and every check in its record passes locally, except the CI floor on `main`.**\n\nThe whole site was read once against `AGENTS.md` § *Text an end user reads* by five reviewers that did not write it. Every flagged passage was rewritten from its meaning: Guides, Syntax, Install, the Core reference index, In-Depth and the home page. Four sidebar labels changed with their page titles in `website/astro.config.ts`: \"HTML is escaped for you\", \"Null is checked when you compile\", \"One request cannot change another\" and \"Where Novis is weaker\". The URLs did not change.\n\nGreen in this session: every `bun nv site --check` part, `bun nv site --build`, `bun test tools/nv/test/site.test.ts` (18 pass), `bun nv verify` and `bun nv verify --doc`. `bun nv owners --closes website-overhaul` names no gap.\n\nFor the user's review before the branch lands: the six standout features on the home page (`website/src/content/docs/index.mdx`) are a proposal, and so are the four renamed titles above. `sponsoring.mdx`, `impressum.md` and `datenschutz.md` were not reviewed, because they are in the user's own voice.",
   "next": {
     "stage": 6,
     "title": "In-Depth, the home page and the last links",
-    "files": [],
-    "note": ": one file set: `website/src/content/docs/**`, `website/snippets/**`, `tools/nv/cmd/site.ts`.",
+    "files": [
+      "website/src/content/docs/**"
+    ],
     "items": [
       {
         "done": false,
-        "text": "**The plain-English read of the whole site**: one `Explore` subagent that did not write the pages reads every handwritten page under `website/src/content/docs/` against `AGENTS.md` § *Text an end user reads*, and returns `file:line` plus the rule it breaks. Rewrite each flagged passage from what it means to say. Never trim it until `--check prose` passes. Specified by `docs/agent/goals/side/website-overhaul.md` § Stage 6, last bullet. Anchors: `website/src/content/docs/in-depth/index.mdx:1`, `website/src/content/docs/index.mdx:1`"
-      },
-      {
-        "done": false,
-        "text": "**Close the goal**: `bun nv verify --doc` and fix every broken link it names, then `bun nv owners --closes website-overhaul`. Run every `bun nv site --check` part, `--build` and `bun test tools/nv/test/site.test.ts`. Then write `DONE`. The record's `sweep: \"done\"` means the driver sweeps only after that. Anchors: `tools/nv/cmd/site.ts:64`"
+        "text": "**The user reviews the site and merges `side/website-overhaul` into `main`**, then removes the worktree. Specified by `docs/agent/goals/side/website-overhaul.md` § Standing decisions, \"No review stop\". Anchors: `website/src/content/docs/index.mdx:1`"
       }
     ]
   },
   "backlog": [
-    "The six standout features on the home page and the 11 Why-Novis pages wait for the user's review when the goal lands (`docs/agent/goals/side/website-overhaul.md` § Standing decisions).",
-    "`in-depth/what-changed.mdx` is a sample release, marked as one. The first numbered release replaces it.",
-    "`in-depth/roadmap.mdx` lists what is built and what comes next from `docs/plan/m9.md` to `docs/plan/m17.md`. A session that closes one of those plan files rewrites that list."
+    "The CI floor check (`bun nv ci-green`) reads CI on `main`, so it turns green only after the merge."
   ]
 }
