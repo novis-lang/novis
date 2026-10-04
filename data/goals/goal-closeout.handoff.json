@@ -1,32 +1,28 @@
 {
-  "state": "**Goal `goal-closeout`, Stage 4 (finished in place) is done; Stage 5 is next.** `bun nv import --check` runs again: the `rules` importer carries `data/rules/` through as it stands, and `--check` compares the staged records with `data/` instead of rendering. It still reports many differences, because most legacy homes are older than their records (backlog). `data/spec/core-members.json` matches the spec tables. The rendered `Core` pages are current, and CI's `reference` job now runs `bun nv render --website --check` against the binary it builds. Gap `rendered-core-pages-lag-the-tree` is deleted.\n\n`bun nv owners --closes goal-closeout` names 7 gaps, and each one waits on a question in the goal prose's § *Questions for the user at the goal end*. Do not build the closure rebind, the environment, the zip walk, the captured-output type, directive completion, card voice or completion images before the answers. **No session stops on `BLOCKED` while Stages 5 and 6 are open.**\n\nThe floor check `the latest CI run on main succeeded for the code HEAD holds` is red because `main` is ahead of `origin/main`. It leaves with goal `ci-green`'s record in Stage 6, and nobody pushes for it.",
+  "state": "**Goal `goal-closeout`, Stage 5 (deletion becomes the rule) is under way.** ADR 0262 is written and rewrites `rule:tooling/the-chain-names-its-live-goal` whole, together with `docs/agent/goals/README.md` § *The chain contract* (rules 1 and 4). The rule's status is `designed`, because the floor machinery is still in the tree. Item 3 sets it back to `shipped` once `goalPlan` carries no floor. The goal switch deletes the goal it leaves: `leaveGoal` in `tools/nv/lib/chain.ts`, called by `advance` in `tools/nv/cmd/loop.ts`, tested by `tools/nv/test/switch.test.ts`. That is the Stage 5 acceptance check.\n\n`bun nv owners --closes goal-closeout` names 7 gaps, and each one waits on a question in the goal prose's § *Questions for the user at the goal end*. Do not build the closure rebind, the environment, the zip walk, the captured-output type, directive completion, card voice or completion images before the answers. **No session stops on `BLOCKED` while Stages 5 and 6 are open.**\n\nThe floor check `the latest CI run on main succeeded for the code HEAD holds` is red because `main` is ahead of `origin/main`. It leaves with goal `ci-green`'s record in Stage 6, and nobody pushes for it.",
   "next": {
     "stage": 5,
     "title": "deletion becomes the rule",
     "files": [],
-    "note": "one file set: the goal switch in `tools/nv/cmd/loop.ts`, the chain library `tools/nv/lib/chain.ts`, `tools/nv/cmd/chain.ts` and a new `tools/nv/test/switch.test.ts`.",
+    "note": "one file set: the chain library `tools/nv/lib/chain.ts`, `tools/nv/cmd/chain.ts`, `tools/nv/cmd/owners.ts`, `tools/nv/driver/accept.ts` and their tests.",
     "items": [
       {
         "done": false,
-        "text": "**The decision record, written first** — modifies `rule:tooling/the-chain-names-its-live-goal`: a walked goal is deleted at the switch and nothing is carried as a floor. Rewrite the fragment whole, and `docs/agent/goals/README.md` § *The chain contract*. Read the next free ADR number right before creating it. Goal prose § *Stage 5*, `docs/agent/goals/goal-closeout.md:111`."
+        "text": "**The floor machinery goes** — `tools/nv/lib/chain.ts:229` (`goalPlan`) and `sidePlan` carry no floor; `withFloor`, `walkedGoals` at `tools/nv/lib/chain.ts:133`, `graduatesTo`, `ChainGoal.retired` and its use in `advance` at `tools/nv/cmd/loop.ts:1397`, the graduation and retired checks in `tools/nv/cmd/chain.ts`, `retired` in `tools/nv/cmd/owners.ts`, the floor stage in `tools/nv/driver/accept.ts`, with their tests in `tools/nv/test/chain.test.ts`. Rewrite the module doc of `tools/nv/lib/chain.ts` whole, and set the rule's `status` back to `shipped` in `data/rules/tooling/the-chain-names-its-live-goal.json`, then `bun nv rules --render`. `rule:tooling/the-chain-names-its-live-goal`."
       },
       {
         "done": false,
-        "text": "**The switch deletes the goal it leaves** — `tools/nv/cmd/loop.ts:1390` (`advance`) deletes the walked goal's prose, record and handoff record, removes its slug from `data/chain.json`, renders the goal plan and commits it as the switch commit. The check runs `bun test tools/nv/test/switch.test.ts` and wants a test named `the goal switch deletes the goal it leaves`; the file does not exist yet."
+        "text": "**The citation check** — `bun nv chain --check` fails on prose naming a goal not on the chain, beside `numberCitations` at `tools/nv/cmd/chain.ts:100`. Exempt: `docs/decisions/`, `data/decisions/`, `docs/agent/goal-decisions.md`, a goal's own prose and handoff. Goal prose § *Stage 5*, `docs/agent/goals/goal-closeout.md:132`."
       },
       {
         "done": false,
-        "text": "**The floor machinery goes** — `tools/nv/lib/chain.ts:208` (`goalPlan`) carries no floor; `walkedGoals` at `tools/nv/lib/chain.ts:114`, the graduation in `tools/nv/cmd/chain.ts`, `retired` in `tools/nv/cmd/owners.ts` and the floor stage in `tools/nv/driver/accept.ts` are deleted where nothing else reads them, with their tests."
-      },
-      {
-        "done": false,
-        "text": "**The citation check** — `bun nv chain --check` fails on prose naming a goal not on the chain, beside `numberCitations` at `tools/nv/cmd/chain.ts:100`, with the exemptions the Stage 5 prose lists."
+        "text": "**The goal-end duty** — `docs/agent/session-prompt.md` and `docs/agent/coordinator.md` say once, where each owns the goal end, that a decision only a goal's prose holds moves to its home before `DONE`. Goal prose `docs/agent/goals/goal-closeout.md:129`."
       }
     ]
   },
   "backlog": [
-    "`bun nv import` reads legacy homes most record types have outgrown: `--check` finds many record files that differ and four types it cannot import. Retire the command and `tools/nv/import/known.json`, and keep only the modules `orient`, `session` and `playbook` import (`tools/nv/import/playbook.ts`, `goals.ts`, `plan.ts`, `lib.ts`). Owner: `rule:tooling/the-chain-names-its-live-goal` is not it; `bun nv brief --where import` names the home.",
-    "Stage 6: delete the goals in front of `goal-closeout` on the chain (goal prose § *Stage 6*).",
-    "The seven questions in `docs/agent/goals/goal-closeout.md` § *Questions for the user at the goal end*: when they are the only red check, write `BLOCKED` naming that section."
+    "Stage 6: delete every goal in front of `goal-closeout` and every citation of them (goal prose § *Stage 6*).",
+    "`bun nv import --check` reports many differences, because most legacy homes are older than their records.",
+    "The CLI start-work bench (`bench --warm-start --max-work-ms 6`) is red; not looked at this session."
   ]
 }
