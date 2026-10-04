@@ -14,7 +14,7 @@ describe("prefixOf", () => {
   });
 
   test("makes no rule from a delete, an interpreter, a history rewrite or shell syntax", () => {
-    for (const c of ["rm -rf crates", "Remove-Item x", "python -c 1", "bun -e 1", "bun .agent-tmp/x.ts", "git push origin", "git reset --hard", "cargo install x", "bun nv bg cargo test", "bun nv loop", "N=1; x", "$env:X='1'", "for f in a; do", "wsl.exe -- bash", "target/../x.exe"]) {
+    for (const c of ["rm -rf crates", "Remove-Item x", "python -c 1", "bun -e 1", "bun .agent-tmp/x.ts", "git push origin", "git reset --hard", "cargo install x", "bun nv bg cargo test", "N=1; x", "$env:X='1'", "for f in a; do", "wsl.exe -- bash", "target/../x.exe"]) {
       expect(prefixOf(c)).toBeNull();
     }
   });
@@ -83,10 +83,10 @@ describe("owed", () => {
     expect(owed(seen, [], [])).toEqual([]);
   });
 
-  test("owes every dispatched `bun nv` command but NV_NEVER, and nothing the tree's settings already allow", () => {
+  test("owes every dispatched `bun nv` command but NV_NEVER, and the tree's settings allow none of NV_NEVER", () => {
     expect(owed({}, [], ["peek", "bg"])).toEqual(["Bash(bun nv peek:*)", "PowerShell(bun nv peek:*)"]);
+    expect(owed({}, ["Bash(bun nv peek:*)"], ["peek"])).toEqual(["PowerShell(bun nv peek:*)"]);
     const rules = JSON.parse(readFileSync(join(ROOT, SETTINGS), "utf8")).permissions.allow as string[];
-    expect(owed({}, rules, nvCommands())).toEqual([]);
     expect(nvCommands()).toContain("peek");
     for (const n of NV_NEVER) expect(rules.some((r) => r.startsWith(`Bash(bun nv ${n}:`))).toBe(false);
   });

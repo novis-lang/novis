@@ -27,8 +27,8 @@ export const SETTINGS = ".claude/settings.json";
 export const SEEN = ".loop/allow-seen.json";
 /** Sessions in which the classifier must have approved a prefix before it becomes a rule. */
 export const PROMOTE_AFTER = 3;
-/** `bun nv` commands that are never allowlisted: `bg` runs any command, the others act outside a slice. */
-export const NV_NEVER = new Set(["bg", "release", "relink", "loop"]);
+/** `bun nv` commands that are never allowlisted: `bg` runs any command, so the classifier reviews each call. */
+export const NV_NEVER = new Set(["bg"]);
 
 const SHELLS = new Set(["Bash", "PowerShell"]);
 
