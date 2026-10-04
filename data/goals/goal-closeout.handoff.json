@@ -1,22 +1,23 @@
 {
-  "state": "**Goal `goal-closeout`: Stage 4, building the user's answers.** Stage 2 is green again: `bun nv proofs --gate` owes nothing, and `owners --check` and `owners --deferrals` pass. The `Core\\Out::capture` bench had stopped compiling when `capture` started returning `Core\\Html\\Markup|Core\\Cli\\Text`. It now uses `as string`, and the seven stale perf rows for `out.rs` and `script.rs` are re-measured in `docs/perf/members.ndjson`.\n\n`bun nv owners --closes goal-closeout` names 2 gaps: the closure rebind (`crates/nvs-types/src/expr/calls.rs`) and the handle-relative writes (`crates/nvs-stdlib/src/zip.rs`). Each is a whole session. When `no question waits for the user` and the owners check are the only red checks and every gap is closed, the goal is `DONE`.",
+  "state": "**Goal `goal-closeout`: Stage 4, building the user's answers.** Answer 1 is built: `bind`, `bindTo` and `call` work on a `callable` receiver, and `rule:types/callable-absorbs-closure` states the decision (same class or a subclass, tested at run time, no scope argument). Its gap and its question are deleted. The runtime half is `bind_closure` in `crates/nvs-runtime/src/closure.rs`, which reads the class from the `this` slot's `field_classes` entry that `lower_closure` writes.\n\n`bun nv owners --closes goal-closeout` names 1 gap: the handle-relative writes (`crates/nvs-stdlib/src/zip.rs`). It is a whole session or more. When it is closed and `no question waits for the user` and the owners check are the only red checks, the goal is `DONE`.",
   "next": {
     "stage": 4,
     "title": "finished in place, the answers built",
-    "files": [],
-    "note": "The closure rebind fills a session alone. The handle-relative writes are a separate file set for the session after.",
+    "files": [
+      "crates/nvs-runtime/src/capability.rs",
+      "crates/nvs-stdlib/src/zip.rs",
+      "crates/nvs-stdlib/src/io.rs",
+      "crates/nvs-stdlib/src/storage.rs"
+    ],
     "items": [
       {
         "done": false,
-        "text": "**Closure rebind** (answer 1 in the goal's § *Questions for the user at the goal end*: same class or a subclass, checked at run time, no scope argument; `rule:types/callable-absorbs-closure`, `rule:statements/a-closure-binds-this-only-where-it-uses-it`). Checker: the arm at `crates/nvs-types/src/expr/calls.rs:111` reports `E0477` through `report_method_on_erased_receiver` (`crates/nvs-types/src/expr/calls.rs:1589`). It needs a `callable`-receiver case for `bind`/`bindTo`(one `?object` argument, same callable type back) and `call`. Layout: a closure is an object whose fields are `[fn#arity, fn#tags, captures...]` (`crates/nvs-ir/src/lower/closure.rs:296`). A captured `$this` is the field named `this` at no fixed slot (`crates/nvs-ir/src/lower/closure.rs:214`). The literal is built in `lower_closure_literal` (`crates/nvs-ir/src/lower/expr.rs:2871`). The runtime can find a field by name through `ClassDesc::field_slot`, and can test conformance by name next to `conforms_to` (`crates/nvs-runtime/src/object.rs:1571`). Still open: where the closure class records the class its body was checked against. One option is a `conforms` marker the way `CLOSURE_MARKER` is one (`crates/nvs-ir/src/lower/mod.rs:4183`). The runtime helper goes beside `nvs_call_closure` (`crates/nvs-runtime/src/closure.rs:283`), and `call` lowers through `lower_closure_call` (`crates/nvs-ir/src/lower/call.rs:844`). Delete gap `a-callable-has-no-bind-bindto-or-call` and its question."
-      },
-      {
-        "done": false,
-        "text": "**Handle-relative writes under every write door** (answer 2: `Core\\Zip::extract` and every `Core\\IO` write, with one decision record). The gap is `zip-extraction-creates-a-file-by-path-after-resolving-its-folder` in `crates/nvs-stdlib/src/zip.rs:1`."
+        "text": "**Handle-relative writes under every write door** (answer 2 in the goal's § *Questions for the user at the goal end*: `Core\\Zip::extract` and every `Core\\IO` write, with one decision record; read the next free ADR number right before writing it). The grant is checked once on the destination, and each level is opened from the handle above it without following a link: `openat`/`mkdirat` with `O_NOFOLLOW` on Unix, `NtCreateFile` with a root handle on Windows. Doors: `capability::create` at `crates/nvs-runtime/src/capability.rs:643`, `capability::write` at `crates/nvs-runtime/src/capability.rs:669`, `capability::create_dir` at `crates/nvs-runtime/src/capability.rs:785`. Callers: `place` at `crates/nvs-stdlib/src/zip.rs:839` and the extract loop at `crates/nvs-stdlib/src/zip.rs:1107`, `crates/nvs-stdlib/src/io.rs:3053`, `crates/nvs-stdlib/src/storage.rs:500`. Delete gap `zip-extraction-creates-a-file-by-path-after-resolving-its-folder` and its question when it lands."
       }
     ]
   },
   "backlog": [
-    "Nothing outside the two gaps above. The goal-end gates are `bun nv verify --doc` and `bun nv owners --closes goal-closeout`."
+    "Close the goal once that gap is gone: `bun nv verify --doc`, `bun nv owners --closes goal-closeout`, then `DONE` (the session prompt's step 6).",
+    "`call` on a `callable(...)` signature gives `mixed`, not the signature's return type; a typed `call` would need the checker to record the return type for `lower_closure_rebind` (`crates/nvs-ir/src/lower/call.rs`). Nothing owes it."
   ]
 }
