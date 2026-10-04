@@ -1,81 +1,83 @@
 ---
 title: Novis
 covers: []
-description: "Novis — a programming language for the web. Secure by design, not by discipline: untrusted data is tracked and blocked from anywhere dangerous, secrets can't leak, and downloaded code does only what you allow. Fast, like you would expect."
+description: Novis is a programming language for web servers and the command line. It is safe by default and compiled to machine code.
 template: splash
 editUrl: false
 hero:
-  title: Web code that is safe by construction
-  tagline: "Novis — a programming language for the web. Secure by design, not by discipline. Untrusted data: tracked, and blocked from anywhere dangerous. Secrets: can't leak into logs or screens, not even by accident. Downloaded code: does only what you allow. Fast, like you would expect. Easy to write, easy to scale. For web servers and the command line. Familiar syntax (Hello PHP)."
+  title: Web code that is safe by default
+  tagline: Novis is a programming language for web servers and the command line. The compiler checks input from outside, every request runs on its own and your code runs as machine code.
   actions:
     - text: Install
       link: /install/
       icon: right-arrow
       variant: primary
-    - text: Guides
+    - text: Start with Guides
       link: /guides/
       variant: minimal
 ---
 
+import { CardGrid, LinkCard } from '@astrojs/starlight/components'
+import Snippet from '@components/Snippet.astro'
+import { AREAS } from '@config/site.mjs'
+import { withBase } from '~/lib/base'
+
 <div class="nv-hero-code">
 
-```novis
-<?nvs
-var $names = ["Ada", "Grace", "Linus"];
-
-var $greetings = Core\Arr::map($names, fn(string $n): string =>
-    Core\Str::format("Hello, %s!", $n));
-
-foreach ($greetings as var $line) {
-    echo $line, "\n";
-}
-```
+<Snippet src="home/greetings.nvs" />
 
 </div>
-
-{/* The six feature bullets are proposals — rename or replace freely. */}
 
 <div class="nv-features">
-  <div class="nv-feature">
-    <h3><span class="nv-feature-icon" aria-hidden="true">🛡</span> Memory-safe, request-isolated</h3>
-    <p>
-      Every request runs in its own isolate with its own memory budget. A crash, a leak or a runaway
-      loop kills exactly one request — never the process, never a neighbour.
-    </p>
-  </div>
-  <div class="nv-feature">
-    <h3><span class="nv-feature-icon" aria-hidden="true">⚡</span> JIT-compiled to native code</h3>
-    <p>
-      No interpreter tier: every function compiles to machine code. Throwing an exception costs no
-      more than returning a value — measured, and guarded by tests.
-    </p>
-  </div>
-  <div class="nv-feature">
-    <h3><span class="nv-feature-icon" aria-hidden="true">🔒</span> Security is structural</h3>
-    <p>
-      Tainted input cannot reach an SQL, HTML or shell sink without going through the one function
-      that makes it safe. The compiler enforces it — not a code-review checklist.
-    </p>
-  </div>
-  <div class="nv-feature">
-    <h3><span class="nv-feature-icon" aria-hidden="true">🧭</span> One way to do things</h3>
-    <p>
-      ~450 Core members replace PHP's ~1,900 global functions. Eleven sort functions become one.
-      Every API follows the same shape rules, so what you learn once applies everywhere.
-    </p>
-  </div>
-  <div class="nv-feature">
-    <h3><span class="nv-feature-icon" aria-hidden="true">🐘</span> PHP developers feel at home</h3>
-    <p>
-      Familiar syntax and observable behaviour, with the legacy removed. Every dropped PHP function
-      has a named, mechanical replacement.
-    </p>
-  </div>
-  <div class="nv-feature">
-    <h3><span class="nv-feature-icon" aria-hidden="true">📖</span> Every decision is written down</h3>
-    <p>
-      More than a hundred architecture decision records document what Novis does, what it refuses to
-      do, and the measurements behind both.
-    </p>
-  </div>
+<div class="nv-feature">
+
+### [Input from outside is tainted](/guides/why-novis/tainted-input/)
+
+Text from a request cannot reach SQL, HTML or a shell command until you check it. The compiler
+finds the mistake before the program runs.
+
 </div>
+<div class="nv-feature">
+
+### [One failure stops one program](/guides/why-novis/one-failure/)
+
+Each request runs on its own, with its own memory and limits. A request that crashes stops alone,
+and the server keeps running.
+
+</div>
+<div class="nv-feature">
+
+### [Secrets are never printed](/guides/why-novis/secret-values/)
+
+A password or key is a `secret string`. Code that prints it or writes it to a log does not compile.
+
+</div>
+<div class="nv-feature">
+
+### [HTML that escapes itself](/guides/why-novis/html-escapes/)
+
+An `html` literal escapes every value you put into it. A comment from a user is shown as text, and
+it never runs as a script.
+
+</div>
+<div class="nv-feature">
+
+### [Every conversion is checked](/guides/why-novis/checked-conversions/)
+
+`"12abc" as int` throws an error. `as ?int` gives `null`, so your code decides what happens next.
+
+</div>
+<div class="nv-feature">
+
+### [Tests are part of the language](/guides/why-novis/tests-in-code/)
+
+You write a test as a method with `#[Test]`. `nvs test` runs every test, each one on its own.
+
+</div>
+</div>
+
+## Find your way
+
+<CardGrid>
+  {AREAS.map((area) => <LinkCard title={area.label} description={area.subtitle} href={withBase(area.href)} />)}
+</CardGrid>
