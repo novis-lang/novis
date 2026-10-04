@@ -306,6 +306,14 @@ enum Command {
         /// Off by default, in every project.
         #[arg(long)]
         strict_docs: bool,
+        /// Print one line on stderr with how much work the compiler did:
+        /// tokens, syntax nodes, names, typed expressions.
+        ///
+        /// The numbers are the same on every machine for the same program.
+        /// Compare them for a small and a large program to see how compile
+        /// time grows.
+        #[arg(long)]
+        count: bool,
     },
     /// Check a Novis file, then compile and run it.
     Run {
@@ -328,6 +336,8 @@ enum Command {
         fault_inject: Option<FaultSiteArg>,
         /// Count what the program did — statements executed, calls made,
         /// allocations, bytes — and print the four totals on stderr at exit.
+        /// Before the program starts, it also prints the line that
+        /// `nvs check --count` prints, with the IR instructions added.
         ///
         /// The counts are the same on every machine for the same program and
         /// binary, which is what `bun nv proofs --record-perf` keeps them
@@ -1547,7 +1557,16 @@ fn main() -> ExitCode {
             json,
             autoload_map,
             strict_docs,
-        } => run_check(&cli.config, &file, json, autoload_map, strict_docs, init),
+            count,
+        } => run_check(
+            &cli.config,
+            &file,
+            json,
+            autoload_map,
+            strict_docs,
+            count,
+            init,
+        ),
         Command::Run {
             file,
             dump_ir,
@@ -1818,9 +1837,51 @@ struct Checked {
     /// (`rule:packaging/autoload-probes-fold-into-the-cache-key`,
     /// `crate::script::Compiler`).
     autoload: nvs_hir::AutoloadMap,
+    /// How many names resolution settled: every declared class, interface,
+    /// enum and `type` alias, and every `use` import. `--count`'s `names`,
+    /// read here because the [`nvs_hir::Module`] it is read from is not kept.
+    names: usize,
 }
 
 impl Checked {
+    /// `--count`'s compile line: what each phase produced, each read as the
+    /// length of that phase's finished output, so nothing is counted inside a
+    /// phase and nothing at all without the flag (`rule:testing/bench-counters`).
+    ///
+    /// `tokens` is the one figure no phase keeps, so each loaded file is
+    /// lexed a second time for it. `nodes` is [`nvs_syntax::walk`]'s tree,
+    /// the one `Core\Ast` reads. `ir` is the instructions and terminators of
+    /// every function, and is present only for a command that lowers.
+    fn count_line(&self, program: Option<&nvs_ir::Program>) -> String {
+        fn nodes(node: &nvs_syntax::walk::Node) -> usize {
+            1 + node.children.iter().map(nodes).sum::<usize>()
+        }
+        let mut tokens = 0;
+        let mut syntax = 0;
+        for file in &self.files {
+            tokens += nvs_syntax::tokenize(self.map.file(file.id), &mut Diagnostics::new()).len();
+            syntax += nvs_syntax::walk::of_stmts(&file.stmts)
+                .iter()
+                .map(nodes)
+                .sum::<usize>();
+        }
+        let mut line = format!(
+            "compile: tokens={tokens} nodes={syntax} names={} exprs={}",
+            self.names,
+            self.exprs.len()
+        );
+        if let Some(program) = program {
+            let ir: usize = program
+                .functions
+                .iter()
+                .flat_map(|function| &function.blocks)
+                .map(|block| block.insts.len() + 1)
+                .sum();
+            line.push_str(&format!(" ir={ir}"));
+        }
+        line
+    }
+
     /// The program as `nvs-types` and `nvs-ir` both consume it: one entry per
     /// loaded file, **the entry point first**.
     ///
@@ -2117,6 +2178,7 @@ fn front_end_in(
         enums,
         layouts,
         autoload,
+        names: module.symbols.len() + module.imports.len(),
     })
 }
 
@@ -2199,12 +2261,16 @@ fn run_check(
     json: bool,
     autoload_map: bool,
     strict_docs: bool,
+    count: bool,
     init: config::Init,
 ) -> ExitCode {
     let sink = if json { Sink::Json } else { Sink::Text };
     let survey = survey_root(config);
     match front_end_granted(path, Some(config), strict_docs, sink, init, Some(&survey)) {
         Ok(checked) => {
+            if count {
+                eprintln!("{}", checked.count_line(None));
+            }
             if autoload_map {
                 let base = match path.parent() {
                     Some(dir) if !dir.as_os_str().is_empty() => dir,
@@ -2615,6 +2681,11 @@ fn run_run(
         &checked.enums,
         &checked.layouts,
     );
+    // The compile's own line, before the program runs, so it is printed
+    // whatever the program then does.
+    if count {
+        eprintln!("{}", checked.count_line(Some(&program)));
+    }
     if dump_ir {
         for function in &program.functions {
             print!("{}", nvs_ir::print::print_function(function, src));

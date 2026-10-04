@@ -118,3 +118,71 @@ fn a_source_file_that_is_not_utf_8_is_e0006_at_its_first_bad_byte() {
     assert!(stderr.contains("could not read"), "{stderr}");
     assert!(!stderr.contains("E0006"), "{stderr}");
 }
+
+/// The numbers on a `compile:` line, by name, in the order printed.
+fn compile_counts(stderr: &str) -> Vec<(String, u64)> {
+    let line = stderr
+        .lines()
+        .find_map(|line| line.strip_prefix("compile: "))
+        .unwrap_or_else(|| panic!("a `compile:` line on stderr: {stderr}"));
+    line.split(' ')
+        .map(|pair| {
+            let (name, value) = pair.split_once('=').expect("`name=value`");
+            (name.to_owned(), value.parse().expect("a whole number"))
+        })
+        .collect()
+}
+
+/// `nvs check --count` prints one `compile:` line on stderr, stdout stays
+/// `no errors`, and a program with more in it has more of every count.
+/// `nvs run --count` prints the same line with the IR instructions added.
+#[test]
+fn check_count_prints_what_each_phase_produced() {
+    let dir = scratch("count");
+    fs::write(dir.join("small.nvs"), format!("{ORDER}$o->add(7);\n")).unwrap();
+    let more = "$o->add(1);\necho $o->total + 2, \"\\n\";\n".repeat(20);
+    fs::write(
+        dir.join("large.nvs"),
+        format!("{ORDER}{more}class Extra {{}}\n"),
+    )
+    .unwrap();
+
+    let small = check_in(&dir, &["--count", "small.nvs"]);
+    let stderr = String::from_utf8_lossy(&small.stderr);
+    assert_eq!(small.status.code(), Some(0), "{stderr}");
+    assert_eq!(String::from_utf8_lossy(&small.stdout), "no errors\n");
+    let small = compile_counts(&stderr);
+    let names: Vec<&str> = small.iter().map(|(name, _)| name.as_str()).collect();
+    assert_eq!(names, ["tokens", "nodes", "names", "exprs"], "{stderr}");
+
+    let large = check_in(&dir, &["--count", "large.nvs"]);
+    let stderr = String::from_utf8_lossy(&large.stderr);
+    assert_eq!(large.status.code(), Some(0), "{stderr}");
+    let large = compile_counts(&stderr);
+    for ((name, before), (_, after)) in small.iter().zip(&large) {
+        assert!(after > before, "{name}: {before} then {after}");
+    }
+
+    let without = check_in(&dir, &["small.nvs"]);
+    assert!(
+        !String::from_utf8_lossy(&without.stderr).contains("compile:"),
+        "nothing is printed without the flag"
+    );
+
+    let run = Command::new(env!("CARGO_BIN_EXE_nvs"))
+        .args(["run", "--count", "small.nvs"])
+        .current_dir(&dir)
+        .output()
+        .expect("the `nvs` binary this test was built beside runs");
+    let stderr = String::from_utf8_lossy(&run.stderr);
+    assert_eq!(run.status.code(), Some(0), "{stderr}");
+    let counts = compile_counts(&stderr);
+    assert_eq!(
+        counts[..4],
+        small[..],
+        "the same front end, the same counts"
+    );
+    assert_eq!(counts[4].0, "ir", "{stderr}");
+    assert!(counts[4].1 > 0, "{stderr}");
+    assert!(stderr.contains("count: statements="), "{stderr}");
+}

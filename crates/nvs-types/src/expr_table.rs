@@ -1411,6 +1411,19 @@ impl ExprTypeTable {
         Self::default()
     }
 
+    /// How many expressions the checker typed — one per [`Self::record`],
+    /// which is what `nvs check --count` reports as `exprs`.
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.entries.len()
+    }
+
+    /// Whether the checker typed no expression at all.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.entries.is_empty()
+    }
+
     /// Records `info` for the expression at `span`, returning its freshly
     /// assigned [`ExprId`]. [`crate::expr`] calls this at the same point it
     /// already resolved `info` for its own type-checking purposes — see the
