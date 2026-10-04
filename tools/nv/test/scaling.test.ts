@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { join } from "node:path";
 import {
   agrees, AREAS, type Batch, batchSizes, boundsOf, CEILING, compileCounts, COUNT_BOUND, countsAgree, increments, judgeCounts, type Judged, ladderOf, ladderSizes, LSP_URI, lspFrame, lspScript, missingAreas,
-  PEAK_SLACK, peakGrows, proposed, rebased, slopeOf, START, withBatch,
+  HEADER_VALUE, PEAK_SLACK, PER_CONNECTION, peakGrows, proposed, rebased, serveShape, slopeOf, START, withBatch,
 } from "../cmd/scaling.ts";
 import { ROOT } from "../lib/paths.ts";
 
@@ -66,7 +66,7 @@ test("a copied config names the copy for a path in the copied folder, the origin
 
 test("a ladder declares its start, max and expect, defaults to kind run, and never expects quadratic", () => {
   const src = "<?nvs\n// scaling: start 100\n// scaling: max 100_000\n// scaling: expect nlogn\necho Bench::run(100), \"\\n\";\n";
-  expect(ladderOf(src)).toEqual({ kind: "run", start: 100, max: 100000, expect: "nlogn", proposal: false });
+  expect(ladderOf(src)).toEqual({ kind: "run", start: 100, max: 100000, expect: "nlogn", proposal: false, size: "" });
   expect(ladderOf(src.replace("nlogn", "linear\n// scaling: proposal"))).toMatchObject({ expect: "linear", proposal: true });
   expect(ladderOf(src.replace("nlogn", "quadratic"))).toContain("never accepted");
   expect(ladderOf(src.replace("// scaling: max 100_000\n", ""))).toContain("needs");
@@ -85,7 +85,7 @@ test("a made-up linear ladder passes its bound, a quadratic one fails, and an n 
 
 test("a ladder marked proposal that grows waits for the user, and one that does not grow keeps its verdict", () => {
   const grows: Judged = { bench: "benches/scaling/arrays/sort.nvs", verdict: "grows", sizes: [16, 32, 64, 128], slopes: {}, clock: null, notes: ["bytes grows"] };
-  const ladder = { kind: "run", start: 16, max: 128, expect: "linear", proposal: true };
+  const ladder = { kind: "run", start: 16, max: 128, expect: "linear", proposal: true, size: "" };
   expect(proposed(grows, ladder).verdict).toBe("proposal");
   expect(proposed(grows, { ...ladder, proposal: false }).verdict).toBe("grows");
   expect(proposed({ ...grows, verdict: "flat" }, ladder).verdict).toBe("flat");
@@ -96,6 +96,20 @@ test("a server's peak memory may wander under the slack, and one that rises with
   expect(peakGrows(served([20_900, 19_100, 19_700, 19_800]))).toBeNull();
   expect(peakGrows(served([20_000, 20_000, 20_000, 20_000 * (1 + PEAK_SLACK)]))).toBeNull();
   expect(peakGrows(served([20_000, 22_000, 26_000, 34_000]))).toBe("peak memory grows with requests served: 70% above its lowest at 512 requests");
+});
+
+test("a serve ladder's size defaults to requests, belongs to serve alone, and shapes each load", () => {
+  const src = "// scaling: kind serve\n// scaling: start 16\n// scaling: max 128\n// scaling: expect linear\n";
+  expect(ladderOf(src)).toMatchObject({ kind: "serve", size: "requests" });
+  expect(ladderOf(`${src}// scaling: size headers\n`)).toMatchObject({ size: "headers" });
+  expect(ladderOf(`${src}// scaling: size cookies\n`)).toContain("not one of");
+  expect(ladderOf(src.replace("kind serve", "kind run") + "// scaling: size headers\n")).toContain("`serve` ladder alone");
+  expect(serveShape("requests", 64)).toEqual({ path: "/", shape: {}, requests: 64, concurrency: 1 });
+  expect(serveShape("headers", 3).shape.headers).toEqual([["x-field-0", HEADER_VALUE], ["x-field-1", HEADER_VALUE], ["x-field-2", HEADER_VALUE]]);
+  expect(serveShape("header-bytes", 5).shape.headers).toEqual([["x-field", "aaaaa"]]);
+  expect(serveShape("body-bytes", 7).shape.body!.length).toBe(7);
+  expect(serveShape("query", 3).path).toBe("/?p0=value&p1=value&q=1");
+  expect(serveShape("connections", 8)).toMatchObject({ requests: 8 * PER_CONNECTION, concurrency: 8 });
 });
 
 test("an area needs a ladder in its folder, and with a review, a section headed with its name", () => {

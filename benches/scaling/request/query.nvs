@@ -1,0 +1,10 @@
+<?nvs
+// Reads the last parameter of a long address, as a search page with many filters does.
+// scaling: kind serve
+// scaling: size query
+// scaling: start 8
+// scaling: max 512
+// scaling: expect linear
+
+string $q = Core\Request::query("q") as string;
+echo "q: ", $q, "\n";

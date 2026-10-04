@@ -22,6 +22,16 @@ so it passes. But `Core\Task::map` over 300 labels stops the request at the defa
 can run about 250 tasks at once. The ladder stays at 128 tasks or fewer. Where the megabyte goes is
 not checked yet.
 
+**A POST body the program does not read can lose the response.** With a program that never calls
+`Core\Request::body`, a keep-alive POST of 16 KB or more ended with the server closing the
+connection, and the client read no response. A program that reads the body answers every size up to
+1 MB. Whether the server sent a response that the close then discarded is not checked yet.
+
+**A request with more than about 100 headers is not answered on a kept-alive connection.** At 128
+headers each request cost as much as a new connection, and at 1024 headers the server closed the
+connection with no response. The `request/headers` ladder stays at 96 headers or fewer. The limit and
+its status code are not checked yet.
+
 ## What got better
 
 Nothing yet: no fix has landed.
@@ -79,4 +89,5 @@ included, at batches from 16 to at most 4096.
 The ladders `bun nv scaling` judged flat: `arrays/sort`, `compiler/functions`, `traffic/requests`,
 `values/copy`, `strings/build`, `strings/split-join`, `regex/subject`, `json/roundtrip`,
 `time/days`, `markup/xml-parse`, `formats/csv`, `formats/query`, `templates/rows`,
-`database/rows`, `cache/keys`, `queue/jobs` and `scheduler/tasks`.
+`database/rows`, `cache/keys`, `queue/jobs`, `scheduler/tasks`, `request/headers`,
+`request/header-bytes`, `request/body`, `request/query` and `connections/open`.

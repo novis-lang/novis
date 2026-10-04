@@ -64,14 +64,20 @@
 // runs the same session with its messages piped in from a file.
 //
 // `serve` is the one kind whose copy is not rewritten: the ladder is the program every request runs,
-// and the size is the number of requests served. At each size the tool boots `nvs serve` on the copy,
-// on a free port, sends that many GETs over one keep-alive connection with `bun nv bench`'s client,
-// and stops the server. The clock is the load's, from the first request to the last answer, and the
-// fastest of `--reps` boots. The server prints no counts, so the clock decides as it does for `fmt`,
-// and a clock slope left unread is reported invalid, because a server is not run under callgrind. Its
-// peak memory, the most the OS saw the server process hold, is the lowest of the boots, and it must
-// not grow with the requests served: a peak at the largest size more than `PEAK_SLACK` above the
-// lowest peak of the ramp fails the ladder, because memory is O(in-flight) and never O(requests served).
+// and `// scaling: size` names what the size counts (`SERVE_SIZES`, `serveShape`). At each size the
+// tool boots `nvs serve` on the copy, on a free port, sends the load with `bun nv bench`'s client, and
+// stops the server. `requests`, the default, is that many GETs over one keep-alive connection. `headers`,
+// `header-bytes` and `query` send `SHAPED_REQUESTS` GETs that each carry that many extra headers, one
+// header of that many bytes, or that many query parameters, the last of them `q`; `body-bytes` sends as
+// many POSTs whose body is that many bytes. `connections` opens that many keep-alive connections before
+// the clock starts and sends `PER_CONNECTION` requests over each, all at once. The clock is the load's,
+// from the first request to the last answer, and the fastest of `--reps` boots. The server prints no
+// counts, so the clock decides as it does for `fmt`, and a clock slope left unread is reported invalid,
+// because a server is not run under callgrind. Its peak memory, the most the OS saw the server process
+// hold, is the lowest of the boots. Under `size requests` it must not grow: a peak at the largest size
+// more than `PEAK_SLACK` above the lowest peak of the ramp fails the ladder, because memory is
+// O(in-flight) and never O(requests served). Every other size grows what is in flight, so its peak may
+// grow with it and is not judged.
 //
 // The counts are the same on every machine, so a bench gets the same verdict everywhere. The clock is
 // taken on the release binary unless `--nvs` names another, as `--record-perf` takes it.
@@ -84,7 +90,7 @@ import { fixed } from "../lib/py.ts";
 import { countProgram, COUNTS, PerfError } from "../proofs/perf.ts";
 import { read } from "../proofs/roster.ts";
 import { releaseBinary, skipReason, spawnProof } from "../proofs/run.ts";
-import { freePort, hammer, HttpConn, Server } from "./bench.ts";
+import { freePort, hammer, HttpConn, type HttpShape, Server } from "./bench.ts";
 
 export const summary = "how fast a program's cost grows with its size: nv scaling [--iterations] [--check] [path-filter...] | --areas [--reviewed]";
 
@@ -264,28 +270,44 @@ export const AREAS = [
   "database", "queue", "cache", "scheduler", "request", "connections", "traffic", "http-client", "lsp", "fmt", "app",
 ] as const;
 
-/** A ladder's `// scaling:` lines. */
+/** What a `serve` ladder's size counts; the first is the default. */
+export const SERVE_SIZES = ["requests", "headers", "header-bytes", "body-bytes", "query", "connections"] as const;
+
+/** How many requests one load sends when the size shapes each request rather than counting them. */
+export const SHAPED_REQUESTS = 1024;
+
+/** The value of every header a `size headers` request adds. */
+export const HEADER_VALUE = "a".repeat(32);
+
+/** How many requests each open connection sends in a `size connections` load. */
+export const PER_CONNECTION = 32;
+
+/** A ladder's `// scaling:` lines. `size` is a `serve` ladder's alone, and empty for every other kind. */
 export interface Ladder {
   kind: string;
   start: number;
   max: number;
   expect: string;
   proposal: boolean;
+  size: string;
 }
 
 /** The ladder `source` declares, or what is wrong with its `// scaling:` lines. */
 export function ladderOf(source: string): Ladder | string {
   const seen: Record<string, string> = {};
   for (const m of source.matchAll(/^\/\/\s*scaling:\s*([a-z]+)(?:[ \t]+([^\s]+))?[ \t]*\r?$/gm)) seen[m[1]!] = m[2] ?? "";
-  const unknown = Object.keys(seen).find((k) => !["kind", "start", "max", "expect", "proposal"].includes(k));
+  const unknown = Object.keys(seen).find((k) => !["kind", "start", "max", "expect", "proposal", "size"].includes(k));
   if (unknown) return `\`// scaling: ${unknown}\` is not a ladder line`;
   const kind = seen.kind || "run";
   if (!(KINDS as readonly string[]).includes(kind)) return `\`// scaling: kind ${kind}\` is not one of ${KINDS.join(", ")}`;
+  if ("size" in seen && kind !== "serve") return "`// scaling: size` belongs to a `serve` ladder alone";
+  const size = kind === "serve" ? seen.size || SERVE_SIZES[0] : "";
+  if (kind === "serve" && !(SERVE_SIZES as readonly string[]).includes(size)) return `\`// scaling: size ${size}\` is not one of ${SERVE_SIZES.join(", ")}`;
   if (!/^[0-9][0-9_]*$/.test(seen.start ?? "") || !/^[0-9][0-9_]*$/.test(seen.max ?? "")) return "it needs `// scaling: start N` and `// scaling: max N`";
   const expect = seen.expect ?? "";
   if (expect === "quadratic") return "`// scaling: expect quadratic` is never accepted";
   if (!(expect in EXPECT)) return `\`// scaling: expect\` must be one of ${Object.keys(EXPECT).join(", ")}`;
-  return { kind, start: number(seen.start!), max: number(seen.max!), expect, proposal: "proposal" in seen };
+  return { kind, start: number(seen.start!), max: number(seen.max!), expect, proposal: "proposal" in seen, size };
 }
 
 /** The sizes a ladder runs: `start`, doubling, up to `max`. */
@@ -594,10 +616,33 @@ const LSP: Measure = {
   callgrind: async (copy, bench, opts) => lspInstructions(opts, await generate(copy, bench, opts), bench),
 };
 
-/** `size` GETs over one keep-alive connection to an `nvs serve` of the copy, booted for this size alone
- * and stopped after it: the fastest of `reps` loads in nanoseconds, and the lowest peak memory the
+/** The load a `serve` ladder whose size counts `what` sends at size `n`: the path and shape of every
+ * request, how many requests, and over how many keep-alive connections. */
+export function serveShape(what: string, n: number): { path: string; shape: HttpShape; requests: number; concurrency: number } {
+  const one = { path: "/", shape: {}, requests: SHAPED_REQUESTS, concurrency: 1 };
+  switch (what) {
+    case "requests":
+      return { ...one, requests: n };
+    case "headers":
+      return { ...one, shape: { headers: Array.from({ length: n }, (_, i): [string, string] => [`x-field-${i}`, HEADER_VALUE]) } };
+    case "header-bytes":
+      return { ...one, shape: { headers: [["x-field", "a".repeat(n)]] } };
+    case "body-bytes":
+      return { ...one, shape: { body: Buffer.alloc(n, "a") } };
+    case "query":
+      return { ...one, path: `/?${Array.from({ length: n - 1 }, (_, i) => `p${i}=value&`).join("")}q=1` };
+    case "connections":
+      return { ...one, requests: n * PER_CONNECTION, concurrency: n };
+    default:
+      throw new PerfError(`\`size ${what}\` has no load`);
+  }
+}
+
+/** The load `serveShape` gives for this size, sent to an `nvs serve` of the copy booted for this size
+ * alone and stopped after it: the fastest of `reps` loads in nanoseconds, and the lowest peak memory the
  * server process reached across them, in the unit the OS reports. */
-async function serveLoad(copy: string, bench: string, opts: Options, size: number): Promise<{ ns: number; peak: number }> {
+async function serveLoad(copy: string, bench: string, opts: Options, what: string, size: number): Promise<{ ns: number; peak: number }> {
+  const load = serveShape(what, size);
   let ns = Infinity;
   let peak = Infinity;
   const why = (e: unknown) => (e instanceof Error ? e.message : String(e)).trim().split(/\r?\n/)[0] ?? "";
@@ -608,9 +653,9 @@ async function serveLoad(copy: string, bench: string, opts: Options, size: numbe
       throw new PerfError(`\`nvs serve\` did not start on ${bench}: ${why(e)}`);
     });
     try {
-      ns = Math.min(ns, (await hammer(() => HttpConn.open(port), size, 1)).elapsed * 1e9);
+      ns = Math.min(ns, (await hammer(() => HttpConn.open(port, load.path, load.shape), load.requests, load.concurrency)).elapsed * 1e9);
     } catch (e) {
-      throw new PerfError(`\`nvs serve\` failed a request at ${size} requests of ${bench}: ${why(e)}`);
+      throw new PerfError(`\`nvs serve\` failed a request at size ${size} (${what}) of ${bench}: ${why(e)}`);
     } finally {
       await server.stop();
     }
@@ -630,21 +675,21 @@ export function peakGrows(batches: Batch[]): string | null {
   return `peak memory grows with requests served: ${fixed((last / low - 1) * 100, 0)}% above its lowest at ${batches.at(-1)!.size} requests`;
 }
 
-/** The program every request runs, served `size` times: the clock of the whole load, and the server's
- * peak memory, which `peakGrows` holds flat. */
-const SERVE: Measure = {
+/** The program every request runs, under the load its size `what` shapes: the clock of the whole load,
+ * and the server's peak memory, which `peakGrows` holds flat when the size counts requests served. */
+const serve = (what: string): Measure => ({
   keys: [],
   rewrites: false,
   take: async (copy, bench, opts, size) => {
-    const { ns, peak } = await serveLoad(copy, bench, opts, size);
+    const { ns, peak } = await serveLoad(copy, bench, opts, what, size);
     return { counts: { peak }, ns };
   },
-  clock: async (copy, bench, opts, size) => (await serveLoad(copy, bench, opts, size)).ns,
+  clock: async (copy, bench, opts, size) => (await serveLoad(copy, bench, opts, what, size)).ns,
   callgrind: (_copy, bench) => Promise.reject(new PerfError(`the clock's slope of ${bench} could not be read, and a \`serve\` ladder is not run under callgrind`)),
-  judge: peakGrows,
-};
+  ...(what === "requests" ? { judge: peakGrows } : {}),
+});
 
-const MEASURES: Record<string, Measure> = { run: RUN, compile: COMPILE, lsp: LSP, fmt: FMT, serve: SERVE };
+const MEASURES: Record<string, Measure> = { run: RUN, compile: COMPILE, lsp: LSP, fmt: FMT };
 
 /** One bench, ramped and judged. */
 async function rampOne(bench: string, opts: Options): Promise<Judged> {
@@ -669,7 +714,7 @@ async function ladderOne(bench: string, opts: Options): Promise<Judged> {
   if (typeof ladder === "string") return { ...judged, notes: [ladder] };
   const skip = skipReason(source);
   if (skip) return { ...judged, verdict: "skipped", notes: [skip] };
-  const measure = MEASURES[ladder.kind]!;
+  const measure = ladder.kind === "serve" ? serve(ladder.size) : MEASURES[ladder.kind]!;
   const sizes = ladderSizes(ladder.start, ladder.max);
   if (sizes.length < MIN_BATCHES) return { ...judged, notes: [`\`start ${ladder.start}\` to \`max ${ladder.max}\` is fewer than ${MIN_BATCHES} doublings`] };
   if (measure.rewrites && withBatch(source, ladder.start, ladder.start) === null) return { ...judged, notes: ["its closing `echo Bench::run(...)` does not pass `start` as one literal"] };

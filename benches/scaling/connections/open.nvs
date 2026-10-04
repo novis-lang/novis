@@ -1,0 +1,9 @@
+<?nvs
+// Answers each request on many open connections, as a server with many clients at once does.
+// scaling: kind serve
+// scaling: size connections
+// scaling: start 16
+// scaling: max 512
+// scaling: expect linear
+
+echo "ok\n";

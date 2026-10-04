@@ -1,0 +1,9 @@
+<?nvs
+// Reads one long header, as a page that checks a long token a client sends does.
+// scaling: kind serve
+// scaling: size header-bytes
+// scaling: start 2048
+// scaling: max 65536
+// scaling: expect linear
+
+echo Core\Str::length(Core\Request::header("x-field") ?? ""), "\n";

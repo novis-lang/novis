@@ -1,0 +1,13 @@
+<?nvs
+// Lists every header of a request, as a page that logs what a client sent does.
+// scaling: kind serve
+// scaling: size headers
+// scaling: start 12
+// scaling: max 96
+// scaling: expect linear
+
+uint $seen = 0;
+foreach (Core\Request::headers() as string $name => array<tainted string> $values) {
+    $seen = $seen + 1;
+}
+echo $seen > 0 ? "ok" : "none", "\n";

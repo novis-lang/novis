@@ -837,22 +837,33 @@ interface Conn {
   close(): void;
 }
 
+/** What `HttpConn` sends beyond a bare GET: extra header lines, and a body sent with `POST`. */
+export interface HttpShape {
+  headers?: [string, string][];
+  body?: Buffer;
+}
+
 /**
- * One keep-alive HTTP/1.1 connection, issuing one GET at a time. It reopens when the peer answers
- * `Connection: close`, which `php -S` does on every response, and `reconnects` counts it: a peer paying
- * a handshake per request and one that is not are two different measurements.
+ * One keep-alive HTTP/1.1 connection, issuing one request at a time: a GET, or a POST when the shape
+ * carries a body. It reopens when the peer answers `Connection: close`, which `php -S` does on every
+ * response, and `reconnects` counts it: a peer paying a handshake per request and one that is not are
+ * two different measurements.
  */
 export class HttpConn implements Conn {
   reconnects = 0;
   private wire!: Wire;
   private readonly wireRequest: Buffer;
 
-  private constructor(private port: number, path: string) {
-    this.wireRequest = Buffer.from(`GET ${path} HTTP/1.1\r\nHost: 127.0.0.1\r\nAccept: */*\r\n\r\n`);
+  private constructor(private port: number, path: string, shape: HttpShape) {
+    const extra = (shape.headers ?? []).map(([k, v]) => `${k}: ${v}\r\n`).join("");
+    const head = shape.body
+      ? `POST ${path} HTTP/1.1\r\nHost: 127.0.0.1\r\nAccept: */*\r\n${extra}Content-Type: text/plain\r\nContent-Length: ${shape.body.length}\r\n\r\n`
+      : `GET ${path} HTTP/1.1\r\nHost: 127.0.0.1\r\nAccept: */*\r\n${extra}\r\n`;
+    this.wireRequest = shape.body ? Buffer.concat([Buffer.from(head, "latin1"), shape.body]) : Buffer.from(head, "latin1");
   }
 
-  static async open(port: number, path = "/"): Promise<HttpConn> {
-    const c = new HttpConn(port, path);
+  static async open(port: number, path = "/", shape: HttpShape = {}): Promise<HttpConn> {
+    const c = new HttpConn(port, path, shape);
     c.wire = await Wire.open(port, CONNECT_TIMEOUT_MS);
     return c;
   }

@@ -1,0 +1,10 @@
+<?nvs
+// Reads the whole body of a request, as a page that accepts a form or an upload does.
+// scaling: kind serve
+// scaling: size body-bytes
+// scaling: start 16384
+// scaling: max 1048576
+// scaling: expect linear
+
+tainted string $body = Core\Request::body();
+echo Core\Str::length($body) > 0 ? "ok" : "empty", "\n";
