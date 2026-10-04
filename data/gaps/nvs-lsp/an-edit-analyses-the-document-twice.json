@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-lsp/src/server.rs",
+  "title": "One edit runs the front end twice over the edited document, and a hover on an unchanged document runs it again.",
+  "text": "Read and measured with callgrind on the debug Linux binary, an empty file: `reanalyse` (`crates/nvs-lsp/src/server.rs:485`) calls `index.refresh` (`server.rs:497`), whose `absorb` (`crates/nvs-lsp/src/index.rs:609`) analyses the document, and then `publish` analyses the same version again for its diagnostics (`server.rs:2070`). The hover that follows analysed it a third time. An open, one edit and one hover ran five analyses over two versions of the document. Handing the analysis `absorb` made to `publish` when the versions agree halves the front-end work of every edit, whatever the file's size; keeping the last analysis of the current version for requests removes the third. Not checked: whether completion and references also analyse again. Ladder: none, the factor is constant; `lsp/classes.nvs`'s clock should fall when it is fixed.",
+  "goal": "performance-pass"
+}

@@ -334,3 +334,35 @@ No cost multiplies only where features meet. There is no middleware chain in the
 standard library to rebuild per request, and validation parses no rules per request.
 
 Not checked: the outbound response header path, `csrf.rs`, and how far reflection runs per request.
+
+## floor
+
+What the smallest input costs before a program's own work starts: the file `<?nvs` and nothing
+else, under a configuration of one `[[app]]` block. Counts are `--count`'s; instruction shares are
+callgrind on the debug Linux binary; clocks are the best of 30 runs of the release binary on
+Windows, beside `nvs --version` at 5.7 ms, which is the process start alone.
+
+**Run:** `compile: tokens=2 nodes=1 names=0 exprs=0 ir=75` and `count: statements=1 calls=0
+allocations=12 bytes=3617`. Most of the 75 IR instructions are the constructors of the four `Core`
+throwables every program lowers (`nvs run --dump-ir`). The clock is 10.6 ms, 4.9 ms above the process start. A cold run
+spends 44% of its instructions in the front end, 23% in the JIT and 11% in the object build the
+artifact cache publishes, which `crates/nvs-cli/src/cache.rs:1552` pays on a cold key only and
+on purpose. 11% is the table of helper addresses (`nvs_stdlib::symbols`).
+
+**Compile:** `nvs check` is 8.3 ms, 2.6 ms above the process start. 54% of its instructions build
+the `Core` signature table from the registry and another 8% drop it again
+([`core-signatures-are-built-again-for-every-check`](../../data/gaps/nvs-types/core-signatures-are-built-again-for-every-check.json)).
+The configuration is read once per process and grows linearly with its `[[app]]` blocks, about
+35 µs each (800 blocks: 34.7 ms); this repository's own `nvs.toml` adds 15 ms, and a deployed
+program's configuration of a few blocks adds about one.
+
+**One request:** an empty request over a keep-alive connection is 47 µs, measured from a Bun
+client that answers its own empty server in 43 µs. The client and the loopback are most of it, and
+`nvs serve` prints no counts to divide it further.
+
+**Editor:** an `nvs lsp` session that opens an empty file, edits it once and hovers is 13.1 ms,
+7.4 ms above the process start. It runs the front end five times over two versions of the
+document, and the `Core` signature table is 63% of its instructions
+([`an-edit-analyses-the-document-twice`](../../data/gaps/nvs-lsp/an-edit-analyses-the-document-twice.json)).
+
+Not checked: the share of the signature table in a check of a large program.
