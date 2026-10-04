@@ -1,6 +1,6 @@
 {
   "lead": "A path deleted with `git rm` and then named in a wrap's `## commit:` stops the wrap at that commit, after the earlier ones are made.",
-  "body": "`tools/nv/cmd/session.ts` stages each slice with `git add -- <paths>`, which refuses a path already gone from both the tree and the index, and that failure comes after its validation pass. Delete a file with a plain `rm` and name it in the `## commit:`, or leave it out of every `## commit:` line if `git rm` already staged it.",
+  "body": "`tools/nv/cmd/session.ts` stages each slice with `git add -- <paths>`, which refuses a path already gone from both the tree and the index, and that failure comes after its validation pass. Delete a file with a plain `rm` and name it in the `## commit:`. A deletion `git rm` already staged is not taken by any `## commit:` that leaves it out, so unstage it with `git reset -q -- <path>` before the wrap.",
   "files": [
     "tools/nv/cmd/session.ts"
   ],
