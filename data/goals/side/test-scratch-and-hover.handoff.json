@@ -1,30 +1,28 @@
 {
-  "state": "**Side goal `test-scratch-and-hover` is written and nothing of it is built yet.** Test code in 12 crates writes into the system temp directory at 97 sites, and hover never asks go-to-definition's `type_name_at` or `import_at`. The goal's prose has the user's calls from 2026-10-04 and the measured starting point.",
+  "state": "**Side goal `test-scratch-and-hover`, stage 2.** `nvs_repo::scratch(name) -> Scratch` is on disk (`crates/nvs-repo/src/lib.rs`): a fresh directory `target/test-scratch/<name>-<pid>-<n>`, deleted when the guard drops (also on panic), recording nothing. `Scratch` derefs to `Path`, so a site's `dir.join(..)` and `&dir` keep compiling. Its tests are `a_scratch_dir_is_under_the_target_dir`, `a_scratch_dir_is_removed_when_its_guard_drops` and `scratch_refuses_a_path`, and `tools/nv/test/verify.test.ts` pins that `escape.ts` does not treat the call as a way out.\n\nThe guard `no_test_code_writes_into_the_system_temp_dir` is on disk in `crates/nvs-repo/tests/scratch.rs`. It reads `crates/` as text and classifies test code itself: files under `tests/`, files a `#[cfg(test)] mod x;` declares, and the item after a `#[cfg(..test..)]`. It skips exactly the three product uses the goal names. It holds two lists: `SUBJECT` (empty, for tests whose subject is the temp directory, with a reason) and `NOT_YET_MOVED`, a ratchet of 95 calls in 63 files that fails if a file's count goes up *or* down. So moving a site means lowering or deleting its row in the same commit.\n\nStage 3 (hover) is not started.",
   "next": {
     "stage": 2,
     "title": "test scratch under `target/`",
-    "files": [
-      "crates/nvs-repo/src/lib.rs",
-      "crates/nvs-repo/tests/scratch.rs",
-      "crates/nvs-cli/src/script.rs",
-      "crates/nvs-cli/src/cache.rs",
-      "crates/nvs-cli/src/config.rs",
-      "crates/nvs-cli/tests/init.rs"
-    ],
+    "files": [],
+    "note": "one file set: `crates/nvs-repo/tests/scratch.rs` and the `nvs-cli` test modules.",
     "items": [
       {
         "done": false,
-        "text": "**`nvs_repo::scratch` and its two tests**, recording no read — `crates/nvs-repo/src/lib.rs:1`, `tools/nv/keys/escape.ts:1`"
+        "text": "**Move the `nvs-cli` sites (25 calls)** to `nvs_repo::scratch`, deleting their `NOT_YET_MOVED` rows; a test that kept its directory across two steps keeps the guard alive for both — `crates/nvs-cli/src/script.rs:1962`, `crates/nvs-cli/src/cache.rs:1816`, `crates/nvs-cli/src/config.rs:744`, `crates/nvs-cli/tests/init.rs:23`, `crates/nvs-repo/tests/scratch.rs:18`"
       },
       {
         "done": false,
-        "text": "**The guard test** `no_test_code_writes_into_the_system_temp_dir`, with its list of tests whose subject is the system temp directory — `crates/nvs-repo/tests/scratch.rs`"
+        "text": "**Move the `nvs-lsp` sites (26 calls)**, the same way. A site whose subject is the system temp directory goes to `SUBJECT` with its reason — `crates/nvs-lsp/tests/completion_edits.rs:1`, `crates/nvs-repo/tests/scratch.rs:18`"
       },
       {
         "done": false,
-        "text": "**Move the 97 sites**, `nvs-cli` first (30) — `crates/nvs-cli/src/script.rs:1962`, `crates/nvs-cli/src/cache.rs:1816`, `crates/nvs-cli/src/config.rs:744`, `crates/nvs-cli/tests/init.rs:23`"
+        "text": "**Move the rest** (`nvs-stdlib`, `nvs-runtime`, `nvs-test`, `nvs-host`, `nvs-db`, `nvs-server`, `nvs-config`, `nvs-types`, `nvs-hir`, `nvs-footprint`), adding `nvs-repo` as a dev-dependency where a crate lacks it, until `NOT_YET_MOVED` is empty and its constant deleted — `crates/nvs-repo/tests/scratch.rs:18`"
       }
     ]
   },
-  "backlog": []
+  "backlog": [
+    "Stage 3: hover asks `definition::type_name_at` and `import_at`; references list `use` lines and the lens does not count them — `docs/agent/goals/side/test-scratch-and-hover.md` § Stage 3.",
+    "This worktree has no `editors/vscode/node_modules`, so `verify`'s `extension` step fails on missing `@types/node` and `vscode` types; nothing this goal changed touches it. Install the extension's dependencies in the worktree (`docs/setup.md`).",
+    "The pack's `[context] rules` is empty; stage 3 wants `ide/the-index-answers-the-cursor`."
+  ]
 }
