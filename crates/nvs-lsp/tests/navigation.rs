@@ -57,8 +57,8 @@ fn document(tail: &str) -> String {
 /// nothing here `require`s anything, so no directory is needed
 /// (`nvs_diagnostics::SourceMap::load`).
 fn analysed(source: &str) -> Analysed {
-    let uri = uri_of(&std::env::temp_dir().join("nvs-navigation-case.nvs"))
-        .expect("a temp path is UTF-8");
+    let dir = nvs_repo::scratch("lsp-navigation");
+    let uri = uri_of(&dir.join("case.nvs")).expect("a scratch path is UTF-8");
     let mut documents = Documents::new();
     documents.open(uri.clone(), 1, source.to_owned());
     analyse(&documents, &uri).expect("an open document analyses")
@@ -226,9 +226,9 @@ fn a_path_argument_hovers_as_the_path_it_names_and_whether_it_exists() {
         Some(format!("```text\n{joined}\n```\n\nNothing exists at this path.").as_str())
     );
 
-    // An absolute literal names itself. The temporary directory exists.
-    let temp = std::env::temp_dir();
-    let written = temp.to_string_lossy().replace('\\', "/");
+    // An absolute literal names itself, and a scratch directory exists.
+    let dir = nvs_repo::scratch("lsp-hover-absolute");
+    let written = dir.to_string_lossy().replace('\\', "/");
     let (_, value) = hovered(&format!(
         "<?nvs\nvar $names = Core\\IO::list('{written}<|>');"
     ));
@@ -336,14 +336,12 @@ const ON_SHAPE: (u32, u32) = (1, 11);
 /// the filesystem before any source map is consulted — `tests/references.rs`
 /// and `tests/index.rs` both need the same thing for the same reason.
 struct TempDir {
-    path: PathBuf,
+    path: nvs_repo::Scratch,
 }
 
 impl TempDir {
     fn new(name: &str) -> Self {
-        let path = std::env::temp_dir().join(format!("nvs-nav-{}-{name}", std::process::id()));
-        let _ = fs::remove_dir_all(&path);
-        fs::create_dir_all(&path).expect("a scratch directory");
+        let path = nvs_repo::scratch(&format!("lsp-nav-{name}"));
         fs::write(path.join("lib.nvs"), LIB).expect("a fixture file");
         fs::write(path.join("main.nvs"), MAIN).expect("a fixture file");
         Self { path }
@@ -358,12 +356,6 @@ impl TempDir {
             uri: uri_of(&self.path).expect("a temp path is UTF-8"),
             name: "workspace".to_owned(),
         }
-    }
-}
-
-impl Drop for TempDir {
-    fn drop(&mut self) {
-        let _ = fs::remove_dir_all(&self.path);
     }
 }
 

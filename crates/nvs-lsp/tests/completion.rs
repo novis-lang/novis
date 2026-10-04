@@ -71,10 +71,8 @@ fn completion_after_a_defaulting_assignment_operator_offers_an_expression() {
 }
 
 fn analysed(source: &str) -> (Documents, Analysed) {
-    analysed_at(
-        &std::env::temp_dir().join("nvs-completion-case.nvs"),
-        source,
-    )
+    let dir = nvs_repo::scratch("lsp-completion");
+    analysed_at(&dir.join("case.nvs"), source)
 }
 
 /// [`analysed`], with the buffer opened under `path`. Nothing is written

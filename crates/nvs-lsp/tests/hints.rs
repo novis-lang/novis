@@ -25,8 +25,8 @@ use nvs_lsp::{Documents, analyse, hints, uri_of};
 /// `rule:ide/positions-have-one-home`'s business and has nothing to say about
 /// which hints are answered.
 fn hints(source: &str) -> Vec<(u32, u32, String, InlayHintKind)> {
-    let uri =
-        uri_of(&std::env::temp_dir().join("nvs-hints-case.nvs")).expect("a temp path is UTF-8");
+    let dir = nvs_repo::scratch("lsp-hints");
+    let uri = uri_of(&dir.join("case.nvs")).expect("a scratch path is UTF-8");
     let mut documents = Documents::new();
     documents.open(uri.clone(), 1, source.to_owned());
     let analysed = analyse(&documents, &uri).expect("an open document analyses");

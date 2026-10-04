@@ -409,21 +409,21 @@ fn the_workspace_root_is_the_folder_the_client_named() {
     // Without this the `Workspace` scope above has no tree to walk and quietly
     // degrades to the open documents, which reads as a setting that does
     // nothing rather than as a client that named no folder.
-    let dir = std::env::temp_dir().join("nvs-handshake-root");
+    let dir = nvs_repo::scratch("lsp-handshake-root");
     assert_eq!(
         Settings::from_initialize(&rooted_at(&dir)).root.as_deref(),
-        Some(dir.as_path())
+        Some(dir.path())
     );
 
     // A client too old for `workspaceFolders` names the same directory in the
     // deprecated field, and gets a workspace pass rather than silence.
     #[allow(deprecated)]
     let old = InitializeParams {
-        root_uri: Some(nvs_lsp::uri_of(&dir).expect("a temp path is UTF-8")),
+        root_uri: Some(nvs_lsp::uri_of(&dir).expect("a scratch path is UTF-8")),
         ..InitializeParams::default()
     };
     assert_eq!(
         Settings::from_initialize(&old).root.as_deref(),
-        Some(dir.as_path())
+        Some(dir.path())
     );
 }

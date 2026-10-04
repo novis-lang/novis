@@ -38,8 +38,8 @@ fn rendered(source: &str) -> String {
 /// client sends rather than a struct assembled in Rust: a renamed field would
 /// fail here exactly as it would fail on the wire.
 fn asked(buffer: &str, text: Option<&str>) -> String {
-    let uri = uri_of(&std::env::temp_dir().join("nvs-regions-request.nvs"))
-        .expect("a temp path is UTF-8");
+    let dir = nvs_repo::scratch("lsp-regions");
+    let uri = uri_of(&dir.join("request.nvs")).expect("a scratch path is UTF-8");
     let mut documents = Documents::new();
     documents.open(uri.clone(), 1, buffer.to_owned());
 

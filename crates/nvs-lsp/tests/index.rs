@@ -23,15 +23,14 @@ use nvs_lsp::{CheckScope, DeclKind, Documents, SymbolIndex, Visibility, path_of,
 
 /// A scratch directory that cleans up after itself.
 struct TempDir {
-    path: PathBuf,
+    path: nvs_repo::Scratch,
 }
 
 impl TempDir {
     fn new(name: &str) -> Self {
-        let path = std::env::temp_dir().join(format!("nvs-index-{}-{name}", std::process::id()));
-        let _ = fs::remove_dir_all(&path);
-        fs::create_dir_all(&path).expect("a scratch directory");
-        Self { path }
+        Self {
+            path: nvs_repo::scratch(&format!("lsp-index-{name}")),
+        }
     }
 
     fn write(&self, name: &str, text: &str) {
@@ -46,12 +45,6 @@ impl TempDir {
     fn open(&self, documents: &mut Documents, name: &str, text: &str) {
         let uri = uri_of(&self.at(name)).expect("a temp path is UTF-8");
         documents.open(uri, 1, text.to_owned());
-    }
-}
-
-impl Drop for TempDir {
-    fn drop(&mut self) {
-        let _ = fs::remove_dir_all(&self.path);
     }
 }
 
@@ -506,8 +499,8 @@ fn check_scope_selects_the_tree_and_never_the_construction_site() {
     dir.open(&mut documents, "main.nvs", MAIN);
 
     // The same root either way, so the only difference is the setting.
-    let open = SymbolIndex::build(&documents, CheckScope::Open, Some(&dir.path));
-    let workspace = SymbolIndex::build(&documents, CheckScope::Workspace, Some(&dir.path));
+    let open = SymbolIndex::build(&documents, CheckScope::Open, Some(dir.path.path()));
+    let workspace = SymbolIndex::build(&documents, CheckScope::Workspace, Some(dir.path.path()));
 
     assert!(
         !open.holds(&dir.at("lone.nvs")),

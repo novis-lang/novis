@@ -48,11 +48,8 @@ const CURSOR: &str = "<|>";
 /// What `client` is offered at the [`CURSOR`] in `source`, or at its end
 /// where it writes none.
 fn offered_to(client: Client, source: &str) -> Vec<CompletionItem> {
-    offered_in(
-        &std::env::temp_dir().join("nvs-completion-edit.nvs"),
-        client,
-        source,
-    )
+    let dir = nvs_repo::scratch("lsp-completion-edit");
+    offered_in(&dir.join("case.nvs"), client, source)
 }
 
 /// [`offered_to`], with the buffer opened under `path`. Nothing is written
@@ -88,8 +85,8 @@ fn accepting(items: &[CompletionItem], label: &str) -> (String, Option<String>) 
 
 /// Whether a trigger character typed at the end of `source` is answered.
 fn triggered(source: &str) -> bool {
-    let uri = uri_of(&std::env::temp_dir().join("nvs-completion-trigger.nvs"))
-        .expect("a temp path is UTF-8");
+    let dir = nvs_repo::scratch("lsp-completion-trigger");
+    let uri = uri_of(&dir.join("case.nvs")).expect("a scratch path is UTF-8");
     let mut documents = Documents::new();
     documents.open(uri.clone(), 1, source.to_owned());
     let analysis = analyse(&documents, &uri).expect("an open document analyses");
@@ -164,8 +161,8 @@ fn routed(link: &str) -> String {
 fn offered_with_routes(source: &str) -> (Vec<CompletionItem>, Vec<String>) {
     let cursor = source.find(CURSOR).expect("the document marks its cursor");
     let source = source.replacen(CURSOR, "", 1);
-    let uri = uri_of(&std::env::temp_dir().join("nvs-completion-route.nvs"))
-        .expect("a temp path is UTF-8");
+    let dir = nvs_repo::scratch("lsp-completion-route");
+    let uri = uri_of(&dir.join("case.nvs")).expect("a scratch path is UTF-8");
     let mut documents = Documents::new();
     documents.open(uri.clone(), 1, source);
     let analysis = analyse(&documents, &uri).expect("an open document analyses");
@@ -292,11 +289,7 @@ fn completion_offers_the_options_of_later() {
 /// `Shop\Rock` is not an `Animal`, so it is not offered.
 #[test]
 fn completion_in_a_written_class_name_offers_every_class_autoload_can_load() {
-    let root = std::env::temp_dir().join(format!(
-        "nvs-completion-written-class-name-{}",
-        std::process::id()
-    ));
-    let _ = std::fs::remove_dir_all(&root);
+    let root = nvs_repo::scratch("lsp-completion-written-class-name");
     let fixtures = [
         (
             "src/Animal.nvs",
@@ -326,7 +319,6 @@ fn completion_in_a_written_class_name_offers_every_class_autoload_can_load() {
     }
     let source = "<?nvs\nautoload 'Shop' from 'src';\n$c = 'Sh<|>' as class<Shop\\Animal>;";
     let items = offered_in(&root.join("main.nvs"), EDITOR, source);
-    let _ = std::fs::remove_dir_all(&root);
 
     for (label, kind) in [
         ("Shop\\Animal", CompletionItemKind::INTERFACE),
@@ -392,7 +384,8 @@ fn a_path_item_replaces_the_segment_being_written() {
 #[test]
 fn a_path_argument_offers_every_file_and_an_absolute_one_completes_from_itself() {
     let crate_dir = env!("CARGO_MANIFEST_DIR").replace('\\', "/");
-    let elsewhere = std::env::temp_dir().join("nvs-path-argument-case.nvs");
+    let dir = nvs_repo::scratch("lsp-path-argument");
+    let elsewhere = dir.join("case.nvs");
     let source = format!("<?nvs\necho Core\\IO::read('{crate_dir}/<|>');");
     let items = offered_in(&elsewhere, EDITOR, &source);
     let labels: Vec<&str> = items.iter().map(|item| item.label.as_str()).collect();
@@ -425,8 +418,8 @@ fn a_quote_or_slash_at_a_marked_parameter_is_answered() {
     ] {
         let cursor = source.find(CURSOR).expect("a cursor is written");
         let text = source.replacen(CURSOR, "", 1);
-        let uri = uri_of(&std::env::temp_dir().join("nvs-completion-trigger-argument.nvs"))
-            .expect("a temp path is UTF-8");
+        let dir = nvs_repo::scratch("lsp-completion-trigger-argument");
+        let uri = uri_of(&dir.join("case.nvs")).expect("a scratch path is UTF-8");
         let mut documents = Documents::new();
         documents.open(uri.clone(), 1, text);
         let analysis = analyse(&documents, &uri).expect("an open document analyses");
@@ -922,8 +915,8 @@ fn a_row_writes_the_signature_after_the_name_and_the_type_at_the_right() {
 fn card_of(source: &str, label: &str) -> Option<String> {
     let cursor = source.find(CURSOR).unwrap_or(source.len());
     let source = source.replacen(CURSOR, "", 1);
-    let uri = uri_of(&std::env::temp_dir().join("nvs-completion-card.nvs"))
-        .expect("a temp path is UTF-8");
+    let dir = nvs_repo::scratch("lsp-completion-card");
+    let uri = uri_of(&dir.join("case.nvs")).expect("a scratch path is UTF-8");
     let mut documents = Documents::new();
     documents.open(uri.clone(), 1, source);
     let analysis = analyse(&documents, &uri).expect("an open document analyses");

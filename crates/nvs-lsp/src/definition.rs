@@ -1599,8 +1599,8 @@ mod tests {
     /// `line:character` — the declared name's own range, which is the caret an
     /// editor puts there — and `none` where it jumps nowhere.
     fn jump(source: &str, written: &str) -> String {
-        let uri = uri_of(&std::env::temp_dir().join("nvs-definition-case.nvs"))
-            .expect("a temp path is UTF-8");
+        let dir = nvs_repo::scratch("lsp-definition");
+        let uri = uri_of(&dir.join("case.nvs")).expect("a scratch path is UTF-8");
         let mut documents = Documents::new();
         documents.open(uri.clone(), 1, source.to_owned());
         let analysed = analyse(&documents, &uri).expect("an open document analyses");

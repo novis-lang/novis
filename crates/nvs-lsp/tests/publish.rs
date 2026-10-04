@@ -11,7 +11,6 @@
 //! `rule:ide/diagnostics-are-phase-gated`'s, pinned in `document.rs`.
 
 use std::fs;
-use std::path::PathBuf;
 use std::time::Duration;
 
 use lsp_server::{Connection, Message, Notification, Request, RequestId};
@@ -43,15 +42,14 @@ const HOARD: &str = "<?nvs\nclass Hoard {\n    private int $kept = 0;\n    \
 /// resolves against the requiring file's directory: an open buffer overlays the
 /// file under it, and there has to be a file under it for the graph to name.
 struct TempDir {
-    path: PathBuf,
+    path: nvs_repo::Scratch,
 }
 
 impl TempDir {
     fn new(name: &str) -> Self {
-        let path = std::env::temp_dir().join(format!("nvs-publish-{}-{name}", std::process::id()));
-        let _ = fs::remove_dir_all(&path);
-        fs::create_dir_all(&path).expect("a scratch directory");
-        Self { path }
+        Self {
+            path: nvs_repo::scratch(&format!("lsp-publish-{name}")),
+        }
     }
 
     fn write(&self, name: &str, text: &str) {
@@ -60,12 +58,6 @@ impl TempDir {
 
     fn uri(&self, name: &str) -> Uri {
         nvs_lsp::uri_of(&self.path.join(name)).expect("a temp path is UTF-8")
-    }
-}
-
-impl Drop for TempDir {
-    fn drop(&mut self) {
-        let _ = fs::remove_dir_all(&self.path);
     }
 }
 

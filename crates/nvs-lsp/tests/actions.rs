@@ -22,8 +22,8 @@ use nvs_lsp::{Analysed, Documents, Response, actions, analyse, uri_of};
 /// nothing here `require`s anything, so no directory is needed
 /// (`nvs_diagnostics::SourceMap::load`).
 fn analysed(source: &str) -> Analysed {
-    let uri =
-        uri_of(&std::env::temp_dir().join("nvs-actions-case.nvs")).expect("a temp path is UTF-8");
+    let dir = nvs_repo::scratch("lsp-actions");
+    let uri = uri_of(&dir.join("case.nvs")).expect("a scratch path is UTF-8");
     let mut documents = Documents::new();
     documents.open(uri.clone(), 1, source.to_owned());
     analyse(&documents, &uri).expect("an open document analyses")

@@ -13,7 +13,6 @@
 //! `"open"` what only `"workspace"` reaches otherwise.
 
 use std::fs;
-use std::path::PathBuf;
 use std::time::Duration;
 
 use lsp_server::{Connection, Message, Notification, Request, RequestId};
@@ -68,14 +67,12 @@ const CURSOR: (u32, u32) = (4, 11);
 /// file's own directory before any source map is consulted — `publish.rs` and
 /// `index.rs` both need the same thing for the same reason.
 struct TempDir {
-    path: PathBuf,
+    path: nvs_repo::Scratch,
 }
 
 impl TempDir {
     fn new(name: &str) -> Self {
-        let path = std::env::temp_dir().join(format!("nvs-refs-{}-{name}", std::process::id()));
-        let _ = fs::remove_dir_all(&path);
-        fs::create_dir_all(&path).expect("a scratch directory");
+        let path = nvs_repo::scratch(&format!("lsp-refs-{name}"));
         fs::write(path.join("lib.nvs"), LIB).expect("a fixture file");
         fs::write(path.join("main.nvs"), MAIN).expect("a fixture file");
         Self { path }
@@ -97,12 +94,6 @@ impl TempDir {
             uri: nvs_lsp::uri_of(&self.path).expect("a temp path is UTF-8"),
             name: "workspace".to_owned(),
         }
-    }
-}
-
-impl Drop for TempDir {
-    fn drop(&mut self) {
-        let _ = fs::remove_dir_all(&self.path);
     }
 }
 

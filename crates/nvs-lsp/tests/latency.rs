@@ -313,8 +313,8 @@ fn a_full_reanalysis_of_a_thousand_lines_stays_under_the_bound() {
     // No file on disk: `Documents::open` registers the buffer as an overlay and
     // the analysis reads it from there. The path is named only because a `file:`
     // URI is what `analyse` resolves a graph against.
-    let uri =
-        uri_of(&std::env::temp_dir().join("nvs-latency/main.nvs")).expect("a temp path is UTF-8");
+    let dir = nvs_repo::scratch("lsp-latency");
+    let uri = uri_of(&dir.join("main.nvs")).expect("a scratch path is UTF-8");
     let mut documents = Documents::new();
     documents.open(uri.clone(), 1, text);
 
@@ -355,8 +355,8 @@ fn a_full_reanalysis_of_a_thousand_lines_stays_under_the_bound() {
 #[test]
 fn a_warm_index_answers_within_the_reanalysis_bound() {
     let text = document(CLASSES);
-    let uri = uri_of(&std::env::temp_dir().join("nvs-latency-index/main.nvs"))
-        .expect("a temp path is UTF-8");
+    let dir = nvs_repo::scratch("lsp-latency-index");
+    let uri = uri_of(&dir.join("main.nvs")).expect("a scratch path is UTF-8");
     let path = path_of(&uri).expect("a file URI names a file");
     let mut documents = Documents::new();
     documents.open(uri, 1, text);

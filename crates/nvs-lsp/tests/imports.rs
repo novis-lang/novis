@@ -19,7 +19,8 @@ const SOURCE: &str = "<?nvs\nnamespace Shop;\n\nuse Core\\Str;\n\nclass Cart {\n
 
 /// `source`, analysed as an open buffer at `name`.
 fn open(documents: &mut Documents, name: &str, source: &str) -> nvs_lsp::Analysed {
-    let uri = uri_of(&std::env::temp_dir().join(name)).expect("a temp path is UTF-8");
+    let dir = nvs_repo::scratch("lsp-imports");
+    let uri = uri_of(&dir.join(name)).expect("a scratch path is UTF-8");
     documents.open(uri.clone(), 1, source.to_owned());
     analyse(documents, &uri).expect("an open document analyses")
 }

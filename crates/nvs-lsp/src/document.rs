@@ -797,16 +797,14 @@ mod tests {
     /// A directory of fixtures, because a `require` graph is resolved against
     /// the filesystem and there is nowhere else to put one.
     struct TempDir {
-        path: PathBuf,
+        path: nvs_repo::Scratch,
     }
 
     impl TempDir {
         fn new(name: &str) -> Self {
-            let mut path = std::env::temp_dir();
-            path.push(format!("nvs-lsp-document-{name}-{}", std::process::id()));
-            let _ = fs::remove_dir_all(&path);
-            fs::create_dir_all(&path).expect("create temp dir");
-            Self { path }
+            Self {
+                path: nvs_repo::scratch(&format!("lsp-document-{name}")),
+            }
         }
 
         fn write(&self, name: &str, contents: &str) {
@@ -821,12 +819,6 @@ mod tests {
         /// store knows it by.
         fn uri(&self, name: &str) -> Uri {
             uri_of(&self.path.join(name)).expect("a temp path is UTF-8")
-        }
-    }
-
-    impl Drop for TempDir {
-        fn drop(&mut self) {
-            let _ = fs::remove_dir_all(&self.path);
         }
     }
 

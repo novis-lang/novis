@@ -24,16 +24,14 @@ use nvs_lsp::{Analysed, CheckScope, Documents, analyse, uri_of};
 
 /// A scratch directory that cleans up after itself.
 struct TempDir {
-    path: PathBuf,
+    path: nvs_repo::Scratch,
 }
 
 impl TempDir {
     fn new(name: &str) -> Self {
-        let path =
-            std::env::temp_dir().join(format!("nvs-lsp-autoload-{}-{name}", std::process::id()));
-        let _ = fs::remove_dir_all(&path);
-        fs::create_dir_all(&path).expect("a scratch directory");
-        Self { path }
+        Self {
+            path: nvs_repo::scratch(&format!("lsp-autoload-{name}")),
+        }
     }
 
     fn write(&self, name: &str, text: &str) {
@@ -54,12 +52,6 @@ impl TempDir {
     /// Opens `name` as a buffer holding `text`.
     fn open(&self, documents: &mut Documents, name: &str, text: &str) {
         documents.open(self.uri(name), 1, text.to_owned());
-    }
-}
-
-impl Drop for TempDir {
-    fn drop(&mut self) {
-        let _ = fs::remove_dir_all(&self.path);
     }
 }
 

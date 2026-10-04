@@ -21,8 +21,8 @@ use nvs_lsp::{Documents, Response, analyse, redactions, uri_of};
 /// negotiation is `rule:ide/positions-have-one-home`'s business and has nothing
 /// to say about which ranges are answered.
 fn concealed(source: &str) -> String {
-    let uri = uri_of(&std::env::temp_dir().join("nvs-redactions-case.nvs"))
-        .expect("a temp path is UTF-8");
+    let dir = nvs_repo::scratch("lsp-redactions");
+    let uri = uri_of(&dir.join("case.nvs")).expect("a scratch path is UTF-8");
     let mut documents = Documents::new();
     documents.open(uri.clone(), 1, source.to_owned());
     let analysed = analyse(&documents, &uri).expect("an open document analyses");

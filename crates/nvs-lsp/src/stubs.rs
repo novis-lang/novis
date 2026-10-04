@@ -771,10 +771,8 @@ enum Method: int\n\
     /// and writes nothing, and a missing file brings the whole tree back.
     #[test]
     fn a_tree_is_written_once_and_rewritten_when_a_file_is_missing() {
-        let dir = std::env::temp_dir().join(format!("nvs-stubs-test-{}", std::process::id()));
-        unlock(&dir);
-        let _ = fs::remove_dir_all(&dir);
-        let stubs = Stubs::at(dir.clone());
+        let dir = nvs_repo::scratch("lsp-stubs");
+        let stubs = Stubs::at(dir.to_path_buf());
         let (path, line) = stubs
             .locate(r"Core\Http\Method", Some("Post"))
             .expect("a case has a line");
@@ -805,7 +803,7 @@ enum Method: int\n\
                 .permissions()
                 .readonly()
         );
+        // A read-only file stops the delete on Windows.
         unlock(&dir);
-        let _ = fs::remove_dir_all(&dir);
     }
 }

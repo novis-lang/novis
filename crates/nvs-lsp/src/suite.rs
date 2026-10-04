@@ -740,10 +740,10 @@ fn document_highlight(
 mod tests {
     use super::*;
 
-    /// A directory of this run's own, removed by the test that made it.
-    fn scratch(name: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("nvs-lspt-{}-{name}", std::process::id()));
-        let _ = fs::remove_dir_all(&dir);
+    /// A directory of this run's own with `nested/` in it, deleted when the
+    /// guard drops.
+    fn scratch(name: &str) -> nvs_repo::Scratch {
+        let dir = nvs_repo::scratch(&format!("lspt-{name}"));
         fs::create_dir_all(dir.join("nested")).expect("a scratch directory");
         dir
     }
@@ -832,8 +832,8 @@ mod tests {
         write(&dir.join("README.md"), "what this tree is for\n");
 
         let mut report = Vec::new();
-        let outcome = run(std::slice::from_ref(&dir), &mut report, Report::Summary)
-            .expect("the tree is readable");
+        let outcome =
+            run(&[dir.to_path_buf()], &mut report, Report::Summary).expect("the tree is readable");
         let report = String::from_utf8(report).expect("the report is text");
 
         assert_eq!(
@@ -862,7 +862,5 @@ mod tests {
         let error = run(&[missing], &mut Vec::new(), Report::Summary)
             .expect_err("a mistyped path is an error");
         assert_eq!(error.kind(), io::ErrorKind::NotFound);
-
-        let _ = fs::remove_dir_all(&dir);
     }
 }
