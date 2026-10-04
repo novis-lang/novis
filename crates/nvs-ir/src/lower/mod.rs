@@ -20,7 +20,7 @@
 //! | [`exception`] | `throw`, `try`/`catch`, the landing blocks, the synthesized `Throwable` constructor |
 //! | [`generator`] | `rule:iteration/generators`'s state machine — the frame, the spills, the synthesized methods |
 //! | [`call`] | argument ownership, options-bag flattening, an `inout $x` argument staged and written back |
-//! | [`closure`] | `rule:types/anonymous-function` closure literals and their captured-environment class |
+//! | [`anon_fn`] | `rule:types/anonymous-function`'s anonymous functions, method references and their captured-environment class |
 //!
 //! # Control flow (`if`/`while`)
 //!
@@ -819,7 +819,7 @@ pub fn lower_program(
                 label: label.to_owned(),
                 fields: layout.fields.clone(),
                 // `rule:types/erased-member-access`'s erased write reaches *any* class, not just a
-                // shape literal's synthesized one, so every layout carries its
+                // anonymous object's synthesized one, so every layout carries its
                 // slots' representations — see `field_slots`, which answers the
                 // `secret` bit off the same join.
                 field_reprs,
@@ -885,7 +885,7 @@ pub fn lower_program(
     // class and its methods, so it is the one thing here that adds to the
     // table rather than copying it.
     classes.extend(synthesized);
-    // The label every closure's environment class conforms to, emitted
+    // The label every callable's environment class conforms to, emitted
     // unconditionally for `synthesized_exception_constructors`' reason: a unit
     // that left it out would be one where `$x is callable` names a descriptor
     // the unit does not declare instead of answering `false`. It declares no
@@ -909,7 +909,7 @@ pub fn lower_program(
         db_codec: Vec::new(),
         ctor_arity: 0,
         defaults: Vec::new(),
-        // The marker every closure conforms to is not itself a closure:
+        // The marker every callable conforms to is not itself a callable:
         // nothing is ever an instance of it.
         is_callable: false,
     });
@@ -917,7 +917,7 @@ pub fn lower_program(
     // this program tested, each carrying no field and no method for
     // `CALLABLE_MARKER`'s reason: the whole of what one holds is its own
     // identity, which is what the descriptor walk behind
-    // `$x is callable(int): string` compares. Which closures conform is in
+    // `$x is callable(int): string` compares. Which callables conform is in
     // `nvs_types::callables`, because the relation is `is_assignable` itself
     // and needs a `ClassGraph`, a `SignatureTable` and a mutable interner —
     // none of which lowering holds; this reads the answer back off the table
@@ -964,10 +964,10 @@ pub fn lower_program(
     // unchanged file, the same stability `crate::ids` already guarantees for a
     // statement id.
     classes.sort_by(|a, b| a.label.cmp(&b.label));
-    // A shape literal's synthesized class is keyed on the shape, not the site
+    // An anonymous object's synthesized class is keyed on the shape, not the site
     // — see `shape_class_label` — so two bodies both writing `{x: 1, y: 2}`
     // each record one. Nothing else here can repeat a label: `layouts` is a
-    // map, and a closure's and a generator's class are named for the site.
+    // map, and an anonymous function's and a generator's class are named for the site.
     //
     // Collapsing the repeats **merges** their slot representations on
     // `Lowering::record_shape_class`'s terms, rather than keeping whichever
@@ -1259,9 +1259,9 @@ pub fn lower_method(
     }
 
     let pending = std::mem::take(&mut low.anon_fns);
-    // Beside the closures, and out the same channel: see `Lowering::callables`.
+    // Beside the anonymous functions, and out the same channel: see `Lowering::callables`.
     let callables = std::mem::take(&mut low.callables);
-    // Beside the closures, and out the same channel: see `Lowering::shapes`.
+    // Beside the anonymous functions, and out the same channel: see `Lowering::shapes`.
     let shapes = std::mem::take(&mut low.shapes);
     let (blocks, stmt_spans, edge_spans) = low.finish();
     let (anon_fns, mut classes) =
@@ -1445,9 +1445,9 @@ pub fn lower_property_hook(
     }
 
     let pending = std::mem::take(&mut low.anon_fns);
-    // Beside the closures, and out the same channel: see `Lowering::callables`.
+    // Beside the anonymous functions, and out the same channel: see `Lowering::callables`.
     let callables = std::mem::take(&mut low.callables);
-    // Beside the closures, and out the same channel: see `Lowering::shapes`.
+    // Beside the anonymous functions, and out the same channel: see `Lowering::shapes`.
     let shapes = std::mem::take(&mut low.shapes);
     let (blocks, stmt_spans, edge_spans) = low.finish();
     let (anon_fns, mut classes) =
@@ -1559,9 +1559,9 @@ pub fn lower_script(
     }
 
     let pending = std::mem::take(&mut low.anon_fns);
-    // Beside the closures, and out the same channel: see `Lowering::callables`.
+    // Beside the anonymous functions, and out the same channel: see `Lowering::callables`.
     let callables = std::mem::take(&mut low.callables);
-    // Beside the closures, and out the same channel: see `Lowering::shapes`.
+    // Beside the anonymous functions, and out the same channel: see `Lowering::shapes`.
     let shapes = std::mem::take(&mut low.shapes);
     let (blocks, stmt_spans, edge_spans) = low.finish();
     let (anon_fns, mut classes) =
@@ -1707,10 +1707,10 @@ pub(crate) struct Lowering<'a> {
     /// thing that sets it after [`lower_method`] seeds a `static` method's
     /// parameter 0 here.
     lsb: Option<ValueId>,
-    /// This frame's `$this`, for an *instance* method and for a closure that
+    /// This frame's `$this`, for an *instance* method and for an anonymous function that
     /// captured one — the value [`Self::lsb`] loads the late-static-binding
     /// class out of. `None` for a static method, for the script frame and for
-    /// a closure with no `$this`.
+    /// an anonymous function with no `$this`.
     this: Option<ValueId>,
     /// The block [`Self::lsb`] appends its one load to. Always the function's
     /// entry block, so the value dominates every use no matter which block
@@ -1805,25 +1805,25 @@ pub(crate) struct Lowering<'a> {
     /// `advance()` — `None` for every other function there is. See
     /// [`lower_generator`], which owns the whole transform.
     generator: Option<GenFrame>,
-    /// Every `rule:types/anonymous-function` `fn` literal met in this body so far, in source order,
+    /// Every `rule:types/anonymous-function` anonymous function met in this body so far, in source order,
     /// each awaiting a function of its own — see [`lower_anon_fn`]. Drained
     /// by whichever entry point built this frame, since a
     /// [`crate::ir::Function`] has nowhere to carry a second one.
     anon_fns: Vec<PendingAnonFn>,
-    /// Every `rule:types/callable-values` first-class callable met in this body so far, in
+    /// Every `rule:types/callable-values` method reference met in this body so far, in
     /// source order, each awaiting the forwarding thunk that gives it the one
-    /// closure representation there is — see [`lower_callable`]. Travels out
-    /// beside [`Self::closures`], for that field's reason.
+    /// callable representation there is — see [`lower_callable`]. Travels out
+    /// beside [`Self::anon_fns`], for that field's reason.
     ///
     /// Not deduplicated: two sites naming the same member get two labels,
     /// because a `Function` is keyed on its label across the whole compiled
     /// unit and two files may each write `Foo::bar(...)`.
     callables: Vec<PendingCallable>,
-    /// One synthesized class per distinct `rule:types/anonymous-object` shape literal this
+    /// One synthesized class per distinct `rule:types/anonymous-object` anonymous object this
     /// body writes — see [`Lowering::lower_anon_object`], which builds
     /// them, and [`shape_class_label`], which names them.
     ///
-    /// Travels out beside `closures` for the same reason: a class is
+    /// Travels out beside `anon_fns` for the same reason: a class is
     /// something only [`lower_file`] can hold, and an expression met in the
     /// middle of a body has nowhere else to put one. Deduplicated by label as
     /// it is filled, so a body writing `{x: 1}` in a loop records one entry.
@@ -2076,7 +2076,7 @@ impl<'a> Lowering<'a> {
             shapes: Vec::new(),
         }
     }
-    /// Records the synthesized class a shape literal named — see
+    /// Records the synthesized class an anonymous object named — see
     /// [`Self::shapes`].
     ///
     /// `reprs` is what each field stores — the declared field type where the
@@ -2109,13 +2109,13 @@ impl<'a> Lowering<'a> {
             label,
             fields,
             field_reprs: reprs,
-            // A shape literal's field type is *inferred* from its initializer
+            // An anonymous object's field type is *inferred* from its initializer
             // rather than declared, and `rule:security/secret-qualifier` puts the qualifier on a
             // declaration — so no slot here is `secret`, and a `{token:
             // $secret}` literal is `nvs_stdlib::debug`'s own known gap rather
             // than a bit this could set.
             secret_fields: vec![false; field_count],
-            // `rule:types/anonymous-object` gives a shape literal no visibility keyword to write
+            // `rule:types/anonymous-object` gives an anonymous object no visibility keyword to write
             // and no class to be private to: every slot was written by the
             // literal that built it and every one is readable, which is the one
             // answer `Core\Reflect`'s walk can give a shape — and none is
@@ -2123,16 +2123,16 @@ impl<'a> Lowering<'a> {
             public_fields: vec![true; field_count],
             protected_fields: vec![false; field_count],
             // Empty rather than one entry per slot, which is `ir::Class`'s
-            // "nothing told this class": a shape literal declares no type to
+            // "nothing told this class": an anonymous object declares no type to
             // spell, its slots being typed by what was written into them.
             field_types: Vec::new(),
             field_classes: Vec::new(),
-            // A shape literal has no declaration body, so it declares no
+            // An anonymous object has no declaration body, so it declares no
             // constant and carries no attach site — empty here is the fact and
             // not an omission.
             constants: Vec::new(),
             attributes: Vec::new(),
-            // `rule:types/anonymous-object`: a shape literal's class has no methods, no
+            // `rule:types/anonymous-object`: an anonymous object's class has no methods, no
             // supertypes and no `implements`, it carries no attribute, and
             // every one of its slots is written by the literal that built it
             // — so there is nothing for a codec, a constructor arity or a
@@ -2154,7 +2154,7 @@ impl<'a> Lowering<'a> {
     /// this exists. Its result carries the argument literal's own descriptor,
     /// because a shape class is named for its field names alone
     /// ([`shape_class_label`]) and both sides spell the same ones — but the
-    /// literal's slots each hold a *closure*, so a class recorded from it
+    /// literal's slots each hold a *callable*, so a class recorded from it
     /// alone promises [`Ty::Object`] on every slot and refuses the awaited
     /// `int` the field is declared to answer with. Recording the result's own
     /// representations against that same label **merges**
@@ -2208,11 +2208,11 @@ impl<'a> Lowering<'a> {
     ///
     /// # Panics
     ///
-    /// Panics for a frame with neither — the script frame, or a closure that
-    /// captured no `$this`. `nvs_types` refuses `static::`/`new static()`
-    /// outside a class (`E_UNDEFINED_CLASS`) and inside a closure (`E0834`),
-    /// and records the called class of every `self::`/`parent::` call in a
-    /// closure, so lowering never reaches this on one.
+    /// Panics for a frame with neither — the script frame, or an anonymous
+    /// function that captured no `$this`. `nvs_types` refuses `static::`/`new static()`
+    /// outside a class (`E_UNDEFINED_CLASS`) and inside an anonymous function (`E0834`),
+    /// and records the called class of every `self::`/`parent::` call in an
+    /// anonymous function, so lowering never reaches this on one.
     pub(crate) fn lsb(&mut self) -> ValueId {
         if let Some(v) = self.lsb {
             return v;
@@ -2265,7 +2265,7 @@ impl<'a> Lowering<'a> {
     /// refcounted, so none is retained or released.
     ///
     /// A shape also **registers its class here**, because a unit that hydrates
-    /// a `{n: int}` it never spells has no shape literal to synthesize one and
+    /// a `{n: int}` it never spells has no anonymous object to synthesize one and
     /// the descriptor constant above would resolve to nothing. Every slot it
     /// claims is [`Ty::Tagged`]: what fills them is a native decoder rather
     /// than a lowered write, so this registration has no tag to promise, and
@@ -3509,7 +3509,7 @@ pub(crate) fn lower_decl_type(
         // takes whenever the checker visited it, for what the argument costs
         // and where the set it erases went.
         TypeKind::Atom(TypeAtom::PropertyKey(_)) => Ty::Str,
-        // `rule:types/callable-is-the-only-function-type`'s one closure type. Its *representation* is an object
+        // `rule:types/callable-is-the-only-function-type`'s one function type. Its *representation* is an object
         // — see the `ExprKind::Fn` arm of `Lowering::lower_expr`, which
         // synthesizes one class per literal to hold the captured environment
         // — so it erases here exactly the way a class name does.
@@ -3626,7 +3626,7 @@ fn shape_fills(
     }
 }
 
-/// The label the class synthesized for an `rule:types/anonymous-object` shape literal carries
+/// The label the class synthesized for an `rule:types/anonymous-object` anonymous object carries
 /// — `$shape{x,y}` for `{x: 1, y: 2}`, from the field names **already
 /// sorted**.
 ///
@@ -3634,7 +3634,7 @@ fn shape_fills(
 /// table and nowhere else, and it is never a symbol, since a shape class has
 /// no methods to emit one for. `$` cannot start an Novis identifier, so no
 /// declaration can collide with it — the same guarantee the `Owner$fn0` a
-/// closure's environment class carries relies on.
+/// callable's environment class carries relies on.
 ///
 /// Keyed on the sorted field names alone, so two literals with the same
 /// fields share one class whatever their field *types* are: a class carries
@@ -3907,7 +3907,7 @@ pub(crate) fn erase_checked_ty(id: TypeId, checked_types: &TypeInterner) -> Ty {
         CheckedTy::Bytes => Ty::Bytes,
         // `rule:security/tainted-qualifier` and `rule:security/secret-qualifier`: `tainted` and `secret` are two
         // independent bits on the *checker's* type and add **zero** runtime
-        // representation, exactly as `rule:types/single-value-types`'s literal types do above. So
+        // representation, exactly as `rule:types/single-value-types`'s single-value types do above. So
         // every qualified atom erases to the base it shares a tag and an
         // allocation with, and everything below this boundary sees a plain
         // `string` or `bytes`.
@@ -3940,7 +3940,7 @@ pub(crate) fn erase_checked_ty(id: TypeId, checked_types: &TypeInterner) -> Ty {
         // A `callable` carrying a written signature erases here too, and to the
         // same pointer: `rule:types/callable-signature` moves the *check* to
         // where the call is written, so what is left below this boundary is the
-        // closure object the bare type already lowered to, with nothing about
+        // callable object the bare type already lowered to, with nothing about
         // its parameters left to represent.
         // `Core\Task::all`'s own parameter joins them, and for the same
         // reason: `rule:concurrency/all-answers-a-typed-shape` accepts a shape
@@ -3974,7 +3974,7 @@ pub(crate) fn erase_checked_ty(id: TypeId, checked_types: &TypeInterner) -> Ty {
         // "record it where the type still existed" the erased member access one
         // arm above already relies on.
         CheckedTy::PropertyKey(_) => Ty::Str,
-        // `rule:types/single-value-types`: a literal type and an enum-case type add **zero**
+        // `rule:types/single-value-types`: a single-value type and an enum-case type add **zero**
         // runtime representation. Each erases to the base it shares a tag and
         // payload with, so the singleton-ness stops at this boundary and
         // nothing below it learns a new type -- which is the whole of what
@@ -4160,10 +4160,10 @@ pub(crate) fn is_aliasing_read(kind: &ExprKind) -> bool {
 }
 
 /// The one method an `rule:types/anonymous-function`
-/// closure's environment class answers, as the method table spells it.
+/// callable's environment class answers, as the method table spells it.
 pub(crate) const FN_INVOKE: &str = "invoke";
 
-/// The label every closure's environment class conforms to, and that no class a
+/// The label every callable's environment class conforms to, and that no class a
 /// program declares does: `rule:types/callable-values` makes `callable` a
 /// question about one shape of value, and a `conforms` edge is the one thing a
 /// descriptor already carries that answers it — so `$x is callable` is the
@@ -4175,31 +4175,32 @@ pub(crate) const FN_INVOKE: &str = "invoke";
 /// name this class to implement it by hand.
 ///
 /// The descriptor is emitted into every program whether or not the file writes a
-/// closure ([`lower_program`]), for the exception tree's reason: a walk needs
+/// callable ([`lower_program`]), for the exception tree's reason: a walk needs
 /// something to compare against before it can answer `false`.
 ///
 /// **Cost:** one field-less, method-less descriptor per compiled unit — once per
 /// unit, never per request or per task.
 pub(crate) const CALLABLE_MARKER: &str = "$callable";
 
-/// The reserved **first** field of every closure's environment class: how many
+/// The reserved **first** field of every callable's environment class: how many
 /// parameters [`FN_INVOKE`] declares, not counting the receiver.
 ///
 /// [docs/spec/01-core-library.md](/docs/spec/01-core-library.md)
 /// § 2 hands every `Core\Arr` callback `($value, $key)` and lets it "declare
-/// fewer parameters" — so a native caller has to know how many the closure
+/// fewer parameters" — so a native caller has to know how many the callable
 /// actually wants before it can pass, and retain, the right number. A
-/// descriptor carries no arity, so the closure object carries it, in a slot
+/// descriptor carries no arity, so the callable object carries it, in a slot
 /// whose index `nvs_runtime::CALLABLE_ARITY_SLOT` restates and
 /// `nvs-codegen`'s `a_callable_object_carries_its_own_arity_in_slot_zero`
 /// holds the two together.
 ///
-/// One 16-byte slot per closure, per evaluation of the literal — bought
-/// against a second class-descriptor field that every non-closure class would
+/// One 16-byte slot per callable, per evaluation of the anonymous function or
+/// method reference — bought
+/// against a second class-descriptor field that every non-callable class would
 /// carry too.
 pub(crate) const FN_ARITY: &str = "fn#arity";
 
-/// The reserved **second** field of every closure's environment class: which
+/// The reserved **second** field of every callable's environment class: which
 /// runtime tag each parameter of [`FN_INVOKE`] requires, packed one nibble
 /// per parameter into the slot's `int` payload, parameter 0 in the least
 /// significant nibble.
@@ -4225,13 +4226,13 @@ pub(crate) const FN_ARITY: &str = "fn#arity";
 ///
 /// # The bound, and what happens past it
 ///
-/// Sixteen parameters fit ([`FN_PARAM_TAGS_CAPACITY`]). A closure declaring
+/// Sixteen parameters fit ([`FN_PARAM_TAGS_CAPACITY`]). A callable declaring
 /// more gets no nibble for its seventeenth onward, and `nvs_runtime` refuses
 /// the *call* rather than passing a parameter it cannot check — fail-closed,
 /// under this repository's priority ordering, and unreachable from a callback
 /// the spec describes, which is handed two arguments.
 ///
-/// One further 16-byte slot per closure, per evaluation of the literal, beside
+/// One further 16-byte slot per callable, per evaluation of it, beside
 /// [`FN_ARITY`]'s — priority 5 spent on priority 1, and bought against a
 /// per-parameter slot, which would cost the same at two parameters and more at
 /// every count above.
@@ -4241,9 +4242,9 @@ pub(crate) const FN_PARAM_TAGS: &str = "fn#params";
 /// 64 bits of a slot's `int` payload.
 pub(crate) const FN_PARAM_TAGS_CAPACITY: usize = 16;
 
-/// The reserved **third** field of a *first-class callable*'s class: what the
+/// The reserved **third** field of a *method reference*'s class: what the
 /// target declares its parameters to be **called**, comma-separated in
-/// declaration order — and absent from a `fn` literal's class, which is the
+/// declaration order — and absent from an anonymous function's class, which is the
 /// whole of how a native reader tells the two apart.
 ///
 /// # Why the object carries it
@@ -4259,23 +4260,23 @@ pub(crate) const FN_PARAM_TAGS_CAPACITY: usize = 16;
 /// precedent and the reason is theirs: this lowering is the last party that
 /// can see a declaration, and the party that needs the fact runs much later.
 ///
-/// # Why only a first-class callable's class
+/// # Why only a method reference's class
 ///
 /// `nvs_types::expr::isolate` admits exactly a path or a `Class::method(...)`
-/// where an entry is expected and refuses an `fn` literal with `E0802`, so a
-/// literal's names could never be read — and paying a slot per closure
+/// where an entry is expected and refuses an anonymous function with `E0802`, so an
+/// anonymous function's names could never be read — and paying a slot per callable
 /// evaluation for a field nothing reads is the wrong trade under this
 /// repository's priority ordering. The absence is *load-bearing* rather than
 /// an omission: `nvs_runtime::callable_param_names` asks the descriptor for a
-/// field of this name, so a `fn` literal's closure answers `None` instead of
+/// field of this name, so an anonymous function's callable answers `None` instead of
 /// having its first capture read as a name list.
 ///
-/// Placed third, ahead of [`FCC_RECV`](closure::FCC_RECV), so
+/// Placed third, ahead of [`FCC_RECV`](anon_fn::FCC_RECV), so
 /// the index `nvs_runtime::CALLABLE_PARAM_NAMES_SLOT` restates is a *hint* that
 /// hits on the first probe for every callable that has one.
 ///
 /// One 16-byte slot per written `(...)`, per evaluation of it, holding an
-/// interned constant — and nothing at all on the `fn` literals every
+/// interned constant — and nothing at all on the anonymous functions every
 /// `Core\Arr` callback is.
 pub(crate) const FN_PARAM_NAMES: &str = "fn#names";
 
@@ -4299,7 +4300,7 @@ pub const FN_PARAM_TAG_ANY: u8 = 15;
 /// `nvs_runtime::CALLABLE_ARITY_SLOT` already stand in.
 ///
 /// Exhaustive on purpose: a new [`Ty`] variant is a decision about what a
-/// closure parameter of that representation admits, and this is where it gets
+/// callable parameter of that representation admits, and this is where it gets
 /// taken rather than defaulted.
 ///
 /// Because the key is a representation and not a declared type, a `?T`
@@ -4315,10 +4316,10 @@ pub const FN_PARAM_TAG_ANY: u8 = 15;
 ///
 /// [`Ty::Object`]'s nibble is the one row where the representation is not the
 /// whole answer. Every class name erases onto it, so this word admits a
-/// closure declaring the wrong class — and a named-class binding, unlike ADR
+/// callable declaring the wrong class — and a named-class binding, unlike ADR
 /// 0036 § 4's erased receiver, is read and written at a *fixed offset* against
 /// its label, so admitting one is a type confusion rather than a wrong answer.
-/// The label four bits have no room for is checked at the closure's **entry**
+/// The label four bits have no room for is checked at the callable's **entry**
 /// instead, one class test per class-declared parameter
 /// (`lower::anon_fn::check_param_class`); `docs/adr/README.md` § *Decisions
 /// taken at project start* owns why that boundary pays rather than every
@@ -4360,7 +4361,7 @@ pub fn param_tag_nibble(ty: Ty) -> u8 {
 ///
 /// The one implementation of that packing. Its two callers pack the same word
 /// for two readers that must agree — `lower::anon_fn`'s
-/// `param_tags_word` writes it into a closure object for
+/// `param_tags_word` writes it into a callable object for
 /// `nvs_runtime::call_callable`, and `nvs-codegen` writes it into a
 /// `nvs_runtime::MethodRow` for the erased call `rule:types/erased-member-access` defers — and both
 /// readers are one `check_param_tags`, so two packings would be two chances
@@ -4394,7 +4395,7 @@ pub const ARRAY_ELEMENT_TAG_LEVELS: usize = u64::BITS as usize / 4;
 /// the walk a formality.
 ///
 /// **The row's check is a tag per element and nothing wider**, which is the
-/// same four bits a closure parameter's entry check compares
+/// same four bits a callable parameter's entry check compares
 /// ([`param_tag_nibble`]'s own doc comment) and the reason the two share this
 /// encoding rather than inventing a second one. A helper argument is stored as
 /// an `nvs_runtime::Value`, so an integer is what can travel; a class
@@ -4406,7 +4407,7 @@ pub const ARRAY_ELEMENT_TAG_LEVELS: usize = u64::BITS as usize / 4;
 /// level below it, and a leaf writes nothing after itself.
 ///
 /// `None` where the target is not an array at all, where a level's type is one
-/// no tag decides — a class, a shape, a `callable`, an enum, a literal type, a
+/// no tag decides — a class, a shape, a `callable`, an enum, a single-value type, a
 /// union — or where it nests past [`ARRAY_ELEMENT_TAG_LEVELS`]. The roster is
 /// `nvs_types::expr::operators`' `reject_uncheckable_element_type`, which owns
 /// the rule and refuses each of those where it is written (`E0711`), so the
@@ -4465,10 +4466,10 @@ fn array_element_tags(id: TypeId, checked_types: &TypeInterner) -> Option<u64> {
     None
 }
 
-/// One lowered body, plus everything the `rule:types/anonymous-function` closures inside it
+/// One lowered body, plus everything the `rule:types/anonymous-function` anonymous functions inside it
 /// synthesized.
 ///
-/// A closure literal is an *expression*, so it is met in the middle of
+/// An anonymous function is an *expression*, so it is met in the middle of
 /// lowering some other function's body — but what it produces is a whole
 /// second function and a class, neither of which that body can hold. This is
 /// how they travel back out to [`lower_file`], which is the only thing that
@@ -4477,8 +4478,8 @@ fn array_element_tags(id: TypeId, checked_types: &TypeInterner) -> Option<u64> {
 pub struct Lowered {
     /// The body that was asked for.
     pub function: Function,
-    /// One `invoke` per `fn` literal in it, transitively — a closure written
-    /// inside another closure's body is in here too.
+    /// One `invoke` per anonymous function in it, transitively — an anonymous
+    /// function written inside another one's body is in here too.
     pub anon_fns: Vec<Function>,
     /// The captured-environment class each of those is a method of.
     pub classes: Vec<crate::ir::Class>,

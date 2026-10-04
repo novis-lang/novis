@@ -229,8 +229,8 @@ pub struct Class {
     /// `nvs_runtime::ConstantDesc` on the class's descriptor, and
     /// `Core\Reflect\ClassInfo::constants` is what reads it back.
     ///
-    /// Empty for every class this crate synthesizes — a closure environment, a
-    /// generator's state machine, a shape literal's carrier — on
+    /// Empty for every class this crate synthesizes — an anonymous function's
+    /// environment, a generator's state machine, an anonymous object's carrier — on
     /// [`Self::public_fields`]' terms exactly: nothing declared one, rather
     /// than a class that declares none.
     ///
@@ -245,7 +245,7 @@ pub struct Class {
     /// reads it back.
     ///
     /// Empty for every class this crate synthesizes, on [`Self::constants`]'
-    /// terms exactly: nothing wrote a `#[...]` on a closure environment, rather
+    /// terms exactly: nothing wrote a `#[...]` on a callable's environment, rather
     /// than a declaration that carries none.
     ///
     /// **Cost:** one row per attach site per class, plus one folded value per
@@ -356,9 +356,9 @@ pub struct Class {
     /// which owns why it is carried beside the field list rather than derived
     /// from it. Zero for a class with no codec.
     pub ctor_arity: usize,
-    /// Whether this class is a closure literal's environment class — the one
-    /// `crate::lower::anon_fn` mints for a `fn (...) { ... }` or a `(...)`
-    /// first-class callable, carrying that literal's captures as its fields
+    /// Whether this class is a callable's environment class — the one
+    /// `crate::lower::anon_fn` mints for a `fn (...) { ... }` anonymous function
+    /// or a `(...)` method reference, carrying its captures as its fields
     /// and its compiled body as the `invoke` method.
     ///
     /// `nvs-codegen` hands it to `nvs_runtime::ClassTable::set_callable`, and
@@ -368,7 +368,7 @@ pub struct Class {
     /// [`Self::conforms`], reaching the runtime by the one route a descriptor
     /// walk cannot: a class test compares descriptor *addresses*, so the
     /// marker answers `$x is callable` inside the unit that emitted it, while
-    /// native code holding a closure from any unit at all asks this bit.
+    /// native code holding a callable from any unit at all asks this bit.
     ///
     /// **Cost:** one `bool` per class per compiled unit, once per unit, not
     /// per request.
@@ -1967,10 +1967,11 @@ pub enum TestedClass {
 /// the runtime that decodes them.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Prepared {
-    /// A literal pattern the linear engine expresses —
+    /// A pattern given as a string literal that the linear engine expresses —
     /// `rule:core-classes/regex-two-tiers`'s first tier.
     RegexLinear,
-    /// A literal pattern only the backtracking engine expresses. The word that
+    /// A pattern given as a string literal that only the backtracking engine
+    /// expresses. The word that
     /// saves a call: the linear engine's parser has already refused this text
     /// once, while checking.
     RegexBacktracking,
@@ -2338,7 +2339,7 @@ pub enum Helper {
     ///
     /// **The one string conversion that can fail**, so unlike the static
     /// ones it is emitted through `crate::lower::Lowering::emit_fallible` and
-    /// carries `rule:errors/propagation`'s error edge: an array, a closure, a resource and an
+    /// carries `rule:errors/propagation`'s error edge: an array, a callable, a resource and an
     /// object whose class declares no `toString` have no row, and
     /// `nvs_runtime::value_to_string` owns what each throws and why.
     TaggedToString,
@@ -2451,7 +2452,7 @@ pub enum Helper {
     /// [`Self::EchoStr`] is; the operand stays the caller's, and a non-aliasing
     /// one is released by the same `owned_temporaries` sweep.
     EchoValue,
-    /// One piece of a markup literal written at `echo` — a segment's bytes or
+    /// One piece of an html template written at `echo` — a segment's bytes or
     /// a hole's escaped ones, already [`crate::ty::Ty::Str`].
     ///
     /// The pieces are the bytes of a `Core\Html\Markup` that is never built
@@ -2798,18 +2799,18 @@ pub enum Helper {
     SecretEq,
     /// `$fn(...)` —
     /// `rule:types/anonymous-function`'s
-    /// closure, called through the variable holding it. `args[0]` is the
-    /// closure object and `args[1..]` its arguments in written order.
+    /// callable, called through the variable holding it. `args[0]` is the
+    /// callable object and `args[1..]` its arguments in written order.
     ///
     /// **The one variadic [`Helper`]**, and the reason the row exists at all
     /// rather than this being an [`InstKind::Call`]: there is no resolved
     /// target to name. `callable` carries no parameter list
     /// (`rule:types/anonymous-function`), so the checker types the call `mixed` and cannot say which
-    /// function a variable holds; what answers both questions is the closure
+    /// function a variable holds; what answers both questions is the callable
     /// object itself, whose class declares the one `invoke`
     /// `nvs_runtime::call_callable` reaches through. That helper is the same
     /// one every `Core` member taking a `callable` already calls, so a
-    /// closure invoked from Novis and one invoked from a native member take the
+    /// callable invoked from Novis and one invoked from a native member take the
     /// identical path.
     ///
     /// Being variadic, it is the one helper whose argument count is not baked
@@ -2827,14 +2828,14 @@ pub enum Helper {
     ///
     /// Fallible, so it is emitted through
     /// `crate::lower::Lowering::emit_fallible` and carries `rule:errors/propagation`'s error
-    /// edge: the closure's own throw or fault travels back as
+    /// edge: the callable's own throw or fault travels back as
     /// `Fault::Pending`, unchanged.
     CallCallable,
     /// `$fn(...)` where `$fn`'s type carries `rule:types/callable-signature`'s
     /// written signature — [`CallCallable`](Self::CallCallable) with the
     /// per-argument tag check left out.
     ///
-    /// Everything about the emitted call is that row's: the closure at
+    /// Everything about the emitted call is that row's: the callable at
     /// `args[0]`, the arguments after it in written order, the count beside the
     /// slot, borrowed arguments, a fresh [`crate::ty::Ty::Tagged`] result and
     /// `rule:errors/propagation`'s error edge. What differs is what the runtime
@@ -2844,7 +2845,8 @@ pub enum Helper {
     /// into that parameter's own representation, which is the conversion the
     /// check would otherwise have performed.
     ///
-    /// The closure object still carries both metadata slots. A literal does not
+    /// The callable object still carries both metadata slots. An anonymous
+    /// function does not
     /// know which kind of site will call it, and bare `callable` — the top of
     /// the lattice, and every callback a `Core` member reaches — still needs
     /// them.
@@ -2853,7 +2855,7 @@ pub enum Helper {
     /// that wrote a `...` argument, where how many arguments there are is the
     /// spread subject's own run-time length.
     ///
-    /// `args[0]` is the closure and `args[1]` one array holding every argument
+    /// `args[0]` is the callable and `args[1]` one array holding every argument
     /// in call order — the array `crate::lower::Lowering::lower_args_as_array`
     /// already builds for a variadic parameter's tail, each `...` flattened
     /// into it by `nvs_runtime::nvs_array_spread`. It is a second row rather
@@ -2871,7 +2873,7 @@ pub enum Helper {
     CallCallableArray,
     /// `$m->method(...)` on a **`mixed`** receiver — `rule:types/erased-member-access`'s deferral
     /// applied to a call, dispatched on the value the way
-    /// [`CallCallable`](Self::CallCallable) dispatches on a closure object.
+    /// [`CallCallable`](Self::CallCallable) dispatches on a callable object.
     ///
     /// `args[0]` is the receiver, still tagged — nothing proved it holds an
     /// object at all, so a tag that is not one is a catchable throw down
@@ -2911,8 +2913,8 @@ pub enum Helper {
     /// `$fn->call($obj, ...)`, whose second half is
     /// [`CallCallable`](Self::CallCallable) on what this returns.
     ///
-    /// `args[0]` is the closure and `args[1]` the new `$this`, both borrowed.
-    /// The result is a fresh closure reference: the same object for a closure
+    /// `args[0]` is the callable and `args[1]` the new `$this`, both borrowed.
+    /// The result is a fresh callable reference: the same object for a callable
     /// that does not use `$this`, a copy holding the new `$this` for one that
     /// does. `nvs_runtime::callable::bind_callable` owns the class test, and its
     /// `LogicError` for an object the body was not checked against is this

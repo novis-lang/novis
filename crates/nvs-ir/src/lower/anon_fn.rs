@@ -1,4 +1,4 @@
-//! `rule:types/anonymous-function`'s closure literals, lowered to an object of a synthesized class with one field per capture.
+//! `rule:types/anonymous-function`'s anonymous functions, lowered to an object of a synthesized class with one field per capture.
 //!
 //! Part of [`super`]'s one `impl Lowering`, split across this directory so a
 //! session editing one area does not carry the rest in context. The methods
@@ -12,20 +12,20 @@ use super::*;
 /// ([`Lowering::release_all_locals`]) and every landing block release it
 /// without a special case; excluded from spilling, since a field of the state
 /// object pointing at the state object is a cycle with nothing to say.
-/// The reserved `Env` name a closure's `invoke` binds its own captured-
+/// The reserved `Env` name a callable's `invoke` binds its own captured-
 /// environment object under — the receiver, so that
 /// [`Lowering::release_all_locals`] releases it at every exit with no
-/// closure-specific cleanup path. `#` cannot appear in an Novis identifier, so
+/// callable-specific cleanup path. `#` cannot appear in an Novis identifier, so
 /// it can never collide with a capture or a parameter.
 pub(crate) const FN_SELF: &str = "fn#self";
 
-/// One `fn` literal met while lowering a body, waiting for its own function
+/// One anonymous function met while lowering a body, waiting for its own function
 /// to be built — see [`lower_anon_fn`].
 ///
 /// Owns its [`FnExpr`] rather than borrowing it. A borrow would have to live
 /// as long as [`Lowering`]'s own lifetime parameter, which is the *source
 /// file's*; threading a second one through every `lower_expr` call site to
-/// buy back one clone of a small AST subtree, once per closure literal, at
+/// buy back one clone of a small AST subtree, once per anonymous function, at
 /// compile time only, is the wrong trade under this repository's priority
 /// ordering.
 pub(crate) struct PendingAnonFn {
@@ -40,12 +40,12 @@ pub(crate) struct PendingAnonFn {
     /// What the body produces.
     pub(crate) ret: Ty,
     /// The label of the class the body's `$this` was checked against, or
-    /// `None` for a closure that does not use `$this`. It becomes the `this`
+    /// `None` for an anonymous function that does not use `$this`. It becomes the `this`
     /// slot's [`crate::ir::Class::field_classes`] entry, which is what
     /// `nvs_runtime::callable::bind_callable` tests a new `$this` against.
     pub(crate) this_class: Option<String>,
     /// Where the literal was written. The key `nvs_types::ExprTypeTable`
-    /// recorded this closure's `callable(...)` conformance under, and the only
+    /// recorded this anonymous function's `callable(...)` conformance under, and the only
     /// one both sides hold: the class label above is this crate's own name for
     /// the site and never reaches the checker.
     pub(crate) span: Span,
@@ -81,12 +81,13 @@ pub(crate) fn param_tags_word(
     i64::from_ne_bytes(word.to_ne_bytes())
 }
 
-/// Lowers every pending closure, and every closure *those* bodies contain, to
-/// exhaustion — then every [`PendingCallable`] met along the way.
+/// Lowers every pending anonymous function, and every anonymous function
+/// *those* bodies contain, to exhaustion — then every [`PendingCallable`] met
+/// along the way.
 ///
-/// The two travel together because a closure body may write a first-class
-/// callable and a thunk body may not write anything at all: draining the
-/// closures first is what makes `callables` complete by the time the second
+/// The two travel together because an anonymous function's body may write a
+/// method reference and a thunk body may not write anything at all: draining the
+/// anonymous functions first is what makes `callables` complete by the time the second
 /// loop starts, so neither list needs a second pass.
 pub(crate) fn drain_anon_fns(
     mut pending: Vec<PendingAnonFn>,
@@ -114,34 +115,34 @@ pub(crate) fn drain_anon_fns(
     (functions, classes)
 }
 
-/// Lowers one `fn` literal's body to the `invoke` method of its own
+/// Lowers one anonymous function's body to the `invoke` method of its own
 /// captured-environment class — `rule:types/anonymous-function`/§ 2.
 ///
 /// # The representation
 ///
-/// A closure **is an object**, of a class with no source declaration: one
+/// A callable **is an object**, of a class with no source declaration: one
 /// field per captured binding, one method, no supertypes. That is the whole
 /// design, and it is a reuse decision rather than a new mechanism —
 /// refcounting, field slots, class descriptors and the indirect call through
 /// [`nvs_runtime::nvs_class_method`] all already exist for ordinary objects,
-/// and a closure needs exactly those and nothing else. The alternative, a
+/// and a callable needs exactly those and nothing else. The alternative, a
 /// dedicated code-pointer-plus-environment header, would be a second
 /// refcounted heap shape for the runtime to know about, a second thing
 /// `nvs_runtime::object::dismantle` has to sweep, and a second call path in
 /// `nvs-codegen` — for no capability the object shape does not already have.
 ///
 /// The cost is stated rather than hidden: one heap allocation per evaluation
-/// of a `fn` literal, plus one 16-byte slot per captured binding, plus a
-/// method-table lookup per call through it. A closure that captures nothing
+/// of an anonymous function, plus one 16-byte slot per captured binding, plus a
+/// method-table lookup per call through it. An anonymous function that captures nothing
 /// still allocates; folding that case to a shared singleton is a real
 /// optimisation, and deliberately not taken here, because the allocation is
-/// what makes every closure value uniform for the caller.
+/// what makes every callable value uniform for the caller.
 ///
 /// The receiver is parameter 0, exactly as it is for a declared method, so
-/// the closure's own environment reaches its body through the same
+/// the callable's own environment reaches its body through the same
 /// [`InstKind::Param`] any method's `$this` does — and calling one is an
 /// ordinary Novis method call at the ABI level, which is what lets a native
-/// `Core` member invoke a closure with no closure-specific entry point.
+/// `Core` member invoke a callable with no callable-specific entry point.
 ///
 /// # Ownership
 ///
@@ -151,11 +152,11 @@ pub(crate) fn drain_anon_fns(
 /// [`Lowering::release_all_locals`] pays that back at every exit. The
 /// receiver is bound in `Env` under [`FN_SELF`] for exactly that reason: a
 /// callee owns its parameters, and putting it in `Env` is what makes the
-/// existing sweep release it rather than needing a closure-specific one.
+/// existing sweep release it rather than needing a callable-specific one.
 ///
 /// # Panics
 ///
-/// Panics naming the shape for a `fn` literal the checker recorded no
+/// Panics naming the shape for an anonymous function the checker recorded no
 /// [`ExprInfo::AnonFn`] for, and for a parameter with no declared type.
 ///
 /// The assert on an `inout $x` parameter is an internal-consistency check rather
@@ -165,7 +166,7 @@ pub(crate) fn drain_anon_fns(
 ///
 /// # Returns
 ///
-/// The environment class first, then one per `rule:types/anonymous-object` shape literal the
+/// The environment class first, then one per `rule:types/anonymous-object` anonymous object the
 /// body wrote — [`Lowering::shapes`], which has nowhere else to travel.
 pub(crate) fn lower_anon_fn(
     pending: &PendingAnonFn,
@@ -216,7 +217,7 @@ pub(crate) fn lower_anon_fn(
         }
         // A captured `$this` is this frame's receiver: a `self::m()` call to
         // an instance method with no body dispatches on its class, through
-        // `Lowering::lsb`, as it does in the method that made the closure.
+        // `Lowering::lsb`, as it does in the method that made the anonymous function.
         if name == "this" {
             low.this = Some(v);
         }
@@ -231,7 +232,7 @@ pub(crate) fn lower_anon_fn(
     for (i, p) in fn_expr.params.iter().enumerate() {
         assert!(
             !p.inout,
-            "a closure with an `inout $x` parameter reached lowering: a closure's type is \
+            "an anonymous function with an `inout $x` parameter reached lowering: its type is \
              `callable` and carries no parameter list, so there is no call site that could \
              know to stage the cell — `nvs_types::expr::calls` refuses this where it is \
              written, as `E0493`"
@@ -276,10 +277,10 @@ pub(crate) fn lower_anon_fn(
     }
 
     let more = std::mem::take(&mut low.anon_fns);
-    // `rule:types/callable-values`'s `(...)` written inside a closure body has the same nowhere
+    // `rule:types/callable-values`'s `(...)` written inside an anonymous function's body has the same nowhere
     // else to go — see `Lowering::callables`.
     let more_callables = std::mem::take(&mut low.callables);
-    // A shape literal written *inside* a closure body synthesizes its class
+    // An anonymous object written *inside* an anonymous function's body synthesizes its class
     // here rather than in the enclosing function, so it rides out beside the
     // environment class — see `Lowering::shapes`.
     let shapes = std::mem::take(&mut low.shapes);
@@ -303,7 +304,7 @@ pub(crate) fn lower_anon_fn(
                 .into_iter()
                 .chain(captures.iter().map(|(n, _)| n.clone()))
                 .collect(),
-            // A closure's environment is never a `SlotSet` receiver: it has no
+            // A callable's environment is never a `SlotSet` receiver: it has no
             // shape type and no erased view reaches it. See `ir::Class`.
             field_reprs: Vec::new(),
             secret_fields: Vec::new(),
@@ -320,7 +321,7 @@ pub(crate) fn lower_anon_fn(
             field_types: Vec::new(),
             // Only the `this` slot names a class: the one a rebind's new
             // `$this` must be an instance of, because the body reads it at
-            // that class's layout. Every other slot is `None`, and a closure
+            // that class's layout. Every other slot is `None`, and an anonymous function
             // that does not use `$this` leaves the list empty.
             field_classes: match this_class {
                 Some(label) => [None, None]
@@ -341,7 +342,7 @@ pub(crate) fn lower_anon_fn(
             conforms: std::iter::once(super::CALLABLE_MARKER.to_owned())
                 .chain(exprs.callable_markers_at(*span).iter().cloned())
                 .collect(),
-            // Public: a closure's environment class is unspellable, so nothing
+            // Public: a callable's environment class is unspellable, so nothing
             // can name this member at all except the runtime's own call path.
             // Neither parameter roster is filled either: the body is the
             // literal's, and the row is synthesized —
@@ -356,7 +357,7 @@ pub(crate) fn lower_anon_fn(
             )],
             // Nor a property to hook: every slot is a capture.
             hooks: Vec::new(),
-            // A closure is not a declaration and carries no attribute, and
+            // An anonymous function is not a declaration and carries no attribute, and
             // every one of its slots is written by the factory that builds it.
             codec: Vec::new(),
             db_codec: Vec::new(),
@@ -376,7 +377,7 @@ pub(crate) fn lower_anon_fn(
 }
 
 /// The class an annotation names and a run-time test can compare against, or
-/// `None` where nothing can check it. The same question is asked by a closure
+/// `None` where nothing can check it. The same question is asked by a callable
 /// parameter's entry check below and by
 /// [`Lowering::lower_checked_downcast`](super::Lowering::lower_checked_downcast),
 /// `rule:types/unions-and-mixed`'s checked way out of `mixed`. `nvs_types` refuses the `None`
@@ -401,8 +402,8 @@ pub(crate) fn lower_anon_fn(
 /// checker has already refused at the conversion.
 ///
 /// `Core\Html\Markup` is on the roster and reaches this function, and the lift
-/// is unaffected: `rule:core-classes/html-auto-escape` admits a source-literal `string`
-/// and nothing computed, so a lift's operand is a [`Ty::Str`] and only a
+/// is unaffected: `rule:core-classes/html-auto-escape` admits a `string` given as a
+/// string literal and nothing computed, so a lift's operand is a [`Ty::Str`] and only a
 /// [`Ty::Tagged`] one takes the downcast arm.
 pub(crate) fn declared_class(
     ty: &Type,
@@ -423,7 +424,7 @@ pub(crate) fn declared_class(
     }
 }
 
-/// The class check one class-declared closure parameter runs at the body's
+/// The class check one class-declared callable parameter runs at the body's
 /// first block, returning the block the body continues in.
 ///
 /// `nvs_runtime::callable::check_param_tags` compares representations, and a
@@ -431,7 +432,7 @@ pub(crate) fn declared_class(
 /// as the same "an object" — a lie a named-class binding then reads and writes
 /// at a *fixed offset*, which is a type confusion rather than a wrong answer.
 /// `docs/adr/README.md` § *Decisions taken at project start* owns why the
-/// closure's entry is the boundary that pays: one
+/// callable's entry is the boundary that pays: one
 /// `nvs_runtime::object::NvsObj::is_instance_of` per class-declared parameter
 /// per call, in the one position nothing else looked, rather than a name-keyed
 /// fetch at every named-class property access in every program.
@@ -451,8 +452,8 @@ fn check_param_class(
     span: Span,
     env: &mut Env,
 ) -> BlockId {
-    // A closure literal's body has no enclosing statement of its own, so the
-    // parameter's annotation is what `Lowering::source` reads — the closure's
+    // An anonymous function's body has no enclosing statement of its own, so the
+    // parameter's annotation is what `Lowering::source` reads — the anonymous function's
     // own line, rather than the file's first — for the carrier a throw here
     // hands the raise and for `Lowering::frame_label` alike.
     low.cur_stmt_span = span;
@@ -515,7 +516,7 @@ fn check_param_class(
     body
 }
 
-/// The reserved field an **instance** first-class callable's object holds its
+/// The reserved field an **instance** method reference's object holds its
 /// target's receiver under — `$obj->method(...)` and the `self::method(...)`
 /// spelling of a non-`static` member alike
 /// (`rule:types/callable-values`).
@@ -551,7 +552,7 @@ pub(crate) struct PendingCallable {
     pub(crate) params: Vec<Ty>,
     /// Where the `(...)` was written, for the frame label and for the class
     /// check of a class-declared parameter. A thunk has no statement of its
-    /// own, exactly as a closure literal's body has none.
+    /// own, exactly as an anonymous function's body has none.
     pub(crate) span: Span,
 }
 
@@ -582,20 +583,20 @@ pub(crate) enum ThunkTarget {
     },
 }
 
-/// Lowers one first-class callable to the `invoke` method of a class
+/// Lowers one method reference to the `invoke` method of a class
 /// synthesized for that one site — `rule:types/callable-values`, on top of
 /// [`lower_anon_fn`]'s representation and adding nothing to it.
 ///
 /// # Why a thunk rather than another call shape
 ///
-/// `rule:types/anonymous-function` makes `callable` the only closure type, so the *value* a
-/// `(...)` produces has to be the same object every `fn` literal produces:
+/// `rule:types/anonymous-function` makes `callable` the one type of every callable value, so the *value* a
+/// `(...)` produces has to be the same object every anonymous function produces:
 /// [`FN_ARITY`], [`FN_PARAM_TAGS`], and one `invoke` the runtime reaches
 /// through the method table. Given that, the cheapest correct body for that
 /// `invoke` is the forwarding call this builds — every argument passed
 /// straight through, the receiver read back out of [`FCC_RECV`] — and the
 /// alternative, teaching `nvs_runtime::call_callable` to dispatch on a second
-/// closure shape carrying a method row instead of a code pointer, is a second
+/// callable shape carrying a method row instead of a code pointer, is a second
 /// callable representation for every native caller to know about. The cost is
 /// stated rather than hidden: one extra compiled function per written
 /// `(...)`, and one extra call frame per invocation through one.
@@ -623,7 +624,7 @@ pub(crate) enum ThunkTarget {
 /// arguments and releases them itself, and a `Core` helper borrows, so the
 /// thunk keeps them as owned temporaries and releases them after the call.
 /// The receiver is a borrowed read out of a field, so it is retained before
-/// it is passed. The closure object itself is bound under [`FN_SELF`], which
+/// it is passed. The callable object itself is bound under [`FN_SELF`], which
 /// is what makes [`Lowering::release_all_locals`] release it at every exit.
 ///
 /// # A thunk that builds
@@ -729,7 +730,7 @@ pub(crate) fn lower_callable(
         args.push(v);
         param_tys.push(*ty);
     }
-    // The same guarantee a closure literal's own parameters get, and for the
+    // The same guarantee an anonymous function's own parameters get, and for the
     // same reason: `FN_PARAM_TAGS` has four bits per parameter and no room
     // for a class label, so a named-class parameter is checked here or not at
     // all. See `check_param_class`.
@@ -995,8 +996,8 @@ fn thunk_class(
     crate::ir::Class {
         label: class.to_owned(),
         // `FN_ARITY` first and `FN_PARAM_TAGS` second, as for every
-        // closure — a native caller reads both by index — then
-        // `FN_PARAM_NAMES`, which only this kind of closure has, and
+        // callable — a native caller reads both by index — then
+        // `FN_PARAM_NAMES`, which only a method reference has, and
         // `FCC_RECV` last. Nothing reads the receiver by index, so where
         // it lands is a comment's problem and not a reader's; see those
         // constants.
@@ -1016,8 +1017,8 @@ fn thunk_class(
         attributes: Vec::new(),
         field_types: Vec::new(),
         field_classes: Vec::new(),
-        // A first-class callable is a closure, so it carries the same
-        // edges an `fn` literal's class does — the one every closure has
+        // A method reference is a callable, so it carries the same
+        // edges an anonymous function's class does — the one every callable has
         // and one per written signature it satisfies, read back at the
         // span the `(...)` was written at.
         conforms: std::iter::once(super::CALLABLE_MARKER.to_owned())
@@ -1037,13 +1038,13 @@ fn thunk_class(
         db_codec: Vec::new(),
         ctor_arity: 0,
         defaults: Vec::new(),
-        // A first-class callable is a closure over its target, so it
-        // carries the bit a written literal's class carries.
+        // A method reference is a callable over its target, so it
+        // carries the bit an anonymous function's class carries.
         is_callable: true,
     }
 }
 
-/// One closure parameter's lowered type, the class it must be checked against
+/// One anonymous function parameter's lowered type, the class it must be checked against
 /// where it names one, and the span a failure points at.
 ///
 /// A parameter that wrote its type is read off that annotation, exactly as a
@@ -1067,7 +1068,7 @@ fn callable_param_ty(
         None => {
             let id = exprs.declared_ty(p.name).unwrap_or_else(|| {
                 panic!(
-                    "`rule:types/anonymous-function-parameter-inference`: an unannotated closure parameter \
+                    "`rule:types/anonymous-function-parameter-inference`: an unannotated anonymous function parameter \
                      carries the type the checker inferred for it, recorded under its name"
                 )
             });

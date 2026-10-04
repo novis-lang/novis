@@ -947,7 +947,7 @@ pub struct Descriptors {
     /// payload, which is once per class *per referring section*.
     ///
     /// [`core_desc_symbols`]'s rows sit in here beside the unit's own, because
-    /// a payload that folded a markup literal left that name undefined too and
+    /// a payload that folded an html template left that name undefined too and
     /// a loader resolves every undefined symbol out of one table.
     by_symbol: FxHashMap<String, *const u8>,
 }
@@ -1166,12 +1166,12 @@ struct UnitBuilder<M> {
     /// relocates against — [`class_desc_symbol`]'s spelling, and the third
     /// symbol table [`UnitBuilder::new`] gives the module.
     ///
-    /// Shared with the closure that reads it, because the two happen at
+    /// Shared with the Rust closure that reads it, because the two happen at
     /// opposite ends of a compile: `JITBuilder::symbol` takes an address
     /// *now* and the descriptors do not exist until [`UnitBuilder::compile_all`]
     /// builds them, while a `symbol_lookup_fn` is not called until
     /// `finalize_definitions` relocates. The `Mutex` is what makes that
-    /// closure `Send`, which `cranelift-jit` requires; it is uncontended.
+    /// Rust closure `Send`, which `cranelift-jit` requires; it is uncontended.
     desc_symbols: Arc<Mutex<FxHashMap<String, usize>>>,
     /// One entry per emitted `ConstStr`, so data-object names stay unique.
     literals: usize,
@@ -1205,7 +1205,7 @@ struct UnitBuilder<M> {
 /// **Nothing on the hot path pays for it.** `is_pic` is off (see [`UnitBuilder::new`]), so
 /// a symbol value lowers to the same absolute `movabs` an `iconst` would, with
 /// an `Abs8` relocation attached; under [`JITModule`] that relocation resolves
-/// through the lookup closure [`UnitBuilder::new`] installs, to the very address this
+/// through the Rust lookup closure [`UnitBuilder::new`] installs, to the very address this
 /// table holds. The descriptor stays an opaque token — `nvs_runtime::ClassDesc`
 /// needs no `#[repr(C)]` and no layout compiled code agrees on — and all the
 /// relocation adds is a *record* of where the address came from.
@@ -1509,8 +1509,8 @@ impl Classes {
         // — becomes `None`, which `nvs_runtime::nvs_object_slot_set` reads as
         // "unchecked". Every class with a layout carries one entry per slot,
         // because § 4's erased receiver reaches any class at all; the guard
-        // below is for the synthesized ones that carry none (a closure's
-        // environment, a generator's state).
+        // below is for the synthesized ones that carry none (an anonymous
+        // function's environment, a generator's state).
         if class.field_reprs.len() == class.fields.len() && !class.field_reprs.is_empty() {
             let tags = class
                 .field_reprs
@@ -1976,7 +1976,7 @@ impl UnitBuilder<JITModule> {
         // The last table, and the one that cannot be filled here: a class *this
         // unit declares* gets its descriptor from `compile_all`, long after
         // this builder is consumed, so its address is published through a
-        // lookup closure the module calls at relocation time instead. See
+        // Rust lookup closure the module calls at relocation time instead. See
         // `Classes`' own docs for why the address is a relocation at all.
         let desc_symbols: Arc<Mutex<FxHashMap<String, usize>>> = Arc::default();
         let published = Arc::clone(&desc_symbols);

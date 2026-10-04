@@ -48,7 +48,7 @@ impl<'a> Lowering<'a> {
     /// `E0439`, which `nvs_types::expr::args::check_inout_arg` raises at the
     /// call site.
     ///
-    /// The first-class callable sentinel panics too, and its roster is closed:
+    /// The method-reference sentinel panics too, and its roster is closed:
     /// `rule:types/callable-values`'s member spellings record
     /// `nvs_types::expr_table::ExprInfo::CallableRef` rather than `Call`, so
     /// [`super::expr`]'s call arms never dispatch here for one, and the shapes
@@ -464,7 +464,7 @@ impl<'a> Lowering<'a> {
     ///
     /// * A **borrowed** argument some other binding already owns (`aliasing`)
     ///   is that binding's to release, not this call site's.
-    /// * A **borrowed** argument this expression built — a `fn` literal, a
+    /// * A **borrowed** argument this expression built — an anonymous function, a
     ///   nested call's result, a concatenation, a materialized default — has
     ///   exactly one owner, and it is this frame.
     /// * A **transferred** argument is released by the callee's own exit sweep
@@ -509,7 +509,7 @@ impl<'a> Lowering<'a> {
     /// where the call site gave one, the option's own default where it did
     /// not.
     ///
-    /// `written` is the object literal the call site passed, or `None` for a
+    /// `written` is the anonymous object the call site passed, or `None` for a
     /// bag omitted entirely. This is why an options argument has to be a
     /// literal at the call site (`nvs_types` reports `E_OPTIONS_NOT_AN_ANON_OBJECT`
     /// for anything else): the flattening is per-option and static, so there
@@ -520,7 +520,7 @@ impl<'a> Lowering<'a> {
     ///
     /// # Panics
     ///
-    /// Panics if `written` is not an object literal, or if an option has
+    /// Panics if `written` is not an anonymous object, or if an option has
     /// neither a written field nor a default: both are shapes
     /// `nvs_types::check_program` and `nvs_types::core_lib` are trusted to
     /// have made impossible.
@@ -691,7 +691,7 @@ impl<'a> Lowering<'a> {
             nvs_types::ConstArg::Str(s) => (Ty::Str, InstKind::ConstStr(s.clone())),
             nvs_types::ConstArg::Bytes(b) => (Ty::Bytes, InstKind::ConstBytes(b.clone())),
             // The same instruction a written `[]` lowers to — an empty
-            // `ArrayNew` is already the fixed-shape literal's own zero case
+            // `ArrayNew` is already the fixed-shape array literal's own zero case
             // (`InstKind::ArrayNew`'s doc comment), so an omitted `array<T>`
             // argument and a written one produce the identical value with the
             // identical single natural owner.
@@ -793,19 +793,19 @@ impl<'a> Lowering<'a> {
     }
     /// `$fn(...)` —
     /// `rule:types/anonymous-function`'s
-    /// closure, called through the variable holding it.
+    /// callable, called through the variable holding it.
     ///
-    /// One [`Helper::CallCallable`], with the closure at `args[0]` and its
+    /// One [`Helper::CallCallable`], with the callable at `args[0]` and its
     /// arguments after it in written order — which is
     /// `nvs_runtime::call_callable`, the same entry point every `Core` member
-    /// taking a `callable` already reaches, so a closure invoked from Novis
+    /// taking a `callable` already reaches, so a callable invoked from Novis
     /// takes no second path into a compiled body. It is deliberately **not**
     /// an [`InstKind::Call`]: § 1 gives `callable` no parameter list, so
     /// there is no resolved target to name, no per-argument expected type to
-    /// lower against and no arity to check, and the closure object's own
+    /// lower against and no arity to check, and the callable object's own
     /// `invoke` answers all three at run time.
     ///
-    /// Ownership is [`Self::account_for_arg`]'s borrowed column, the closure
+    /// Ownership is [`Self::account_for_arg`]'s borrowed column, the callable
     /// itself included: `call_callable` retains everything it passes and the
     /// callee's exit sweep releases that, so this frame keeps owning exactly
     /// what it lowered. Whatever the expression built is released after the
@@ -825,10 +825,10 @@ impl<'a> Lowering<'a> {
     ///
     /// # `$f(...)`
     ///
-    /// The first-class-callable sentinel makes no call at all.
+    /// The method-reference sentinel makes no call at all.
     /// `rule:types/callable-values` gives `callable` exactly one
-    /// inhabitant, a closure, so `$f(...)` already names the value a reference
-    /// to `$f` would have to produce and the answer is that closure itself —
+    /// inhabitant, a callable object, so `$f(...)` already names the value a reference
+    /// to `$f` would have to produce and the answer is that callable itself —
     /// which is also PHP's, pinned by
     /// `tests/differential/lang/a-first-class-callable-of-a-closure-matches-phps.nvst`.
     /// It is handed on as a fresh owner: one retain where the callee borrowed a
@@ -869,7 +869,7 @@ impl<'a> Lowering<'a> {
             Some(ExprInfo::CallThroughSignature { params, ret }) => Some((params.clone(), *ret)),
             _ => None,
         };
-        // Before the closure, not before the argument list: a freshly built
+        // Before the callable, not before the argument list: a freshly built
         // one — `(fn (): int => 7)()` — is this frame's temporary too, and an
         // argument that throws while it is in flight has to drop it.
         let mark = self.temporaries_mark();
@@ -989,10 +989,10 @@ impl<'a> Lowering<'a> {
     ///
     /// Panics naming any shape `nvs_types` is trusted to have settled first: a
     /// `name:` argument (`E0712`) and an `inout` one (`E0714`), neither of
-    /// which the deferral can express, and the first-class-callable sentinel,
-    /// which is `rule:types/callable-values`'s `$m->method(...)` and names a closure *value*
+    /// which the deferral can express, and the method-reference sentinel,
+    /// which is `rule:types/callable-values`'s `$m->method(...)` and names a callable *value*
     /// rather than making a call — refused where it is written (`E0732`),
-    /// because a closure carries its callee and the deferral has none to
+    /// because a callable carries its callee and the deferral has none to
     /// carry. No program constructs any of the three, so each is an engine
     /// invariant rather than a shape the language still refuses.
     pub(crate) fn lower_erased_method_call(
@@ -1057,18 +1057,18 @@ impl<'a> Lowering<'a> {
     /// `$fn->bindTo($obj)`, `$fn->bind($obj)` and `$fn->call($obj, ...)` —
     /// `nvs_types`' `ExprInfo::CallableRebind`.
     ///
-    /// All three emit [`Helper::BindCallable`] on the closure and the first
+    /// All three emit [`Helper::BindCallable`] on the callable and the first
     /// argument, and `bind`/`bindTo` give its result. `call` then calls that
     /// result with the rest of the arguments, exactly as
-    /// [`Self::lower_callable_call`]'s dynamic path calls a closure, and the
+    /// [`Self::lower_callable_call`]'s dynamic path calls a callable, and the
     /// bound copy is a temporary this frame frees after the call.
     ///
     /// The receiver stays tagged ([`ReceiverProof::Erased`]): the helper tests
-    /// that it is a closure, so a `?->` needs only the `null` test.
+    /// that it is a callable, so a `?->` needs only the `null` test.
     ///
     /// # Panics
     ///
-    /// Panics for the first-class-callable sentinel, for which `nvs_types`
+    /// Panics for the method-reference sentinel, for which `nvs_types`
     /// records nothing, and for an empty list, which it refuses as `E0402`.
     pub(crate) fn lower_callable_rebind(
         &mut self,
@@ -1081,14 +1081,14 @@ impl<'a> Lowering<'a> {
     ) -> (ValueId, Ty) {
         let CallArgs::List(list) = args else {
             panic!(
-                "nvs-ir: a closure rebind reached lowering with {args:?} where a written \
+                "nvs-ir: a callable rebind reached lowering with {args:?} where a written \
                  argument list belongs — nvs_types records `ExprInfo::CallableRebind` only \
                  for a list"
             );
         };
         let (this_arg, rest) = list.split_first().unwrap_or_else(|| {
             panic!(
-                "nvs-ir: a closure rebind reached lowering with no argument — nvs_types \
+                "nvs-ir: a callable rebind reached lowering with no argument — nvs_types \
                  refuses that as E0402"
             )
         });

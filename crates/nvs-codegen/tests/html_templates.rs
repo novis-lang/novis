@@ -1,4 +1,4 @@
-//! ``html`…` `` end to end — what a markup literal builds, and what its bytes are.
+//! ``html`…` `` end to end — what an html template builds, and what its bytes are.
 //!
 //! See `tests/common/mod.rs` for the shared fixtures and for why these go
 //! through the real pipeline.

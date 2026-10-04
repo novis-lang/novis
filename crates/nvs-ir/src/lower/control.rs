@@ -2212,7 +2212,7 @@ impl<'a> Lowering<'a> {
     /// pre-loop value on every iteration — silently, since nothing downstream
     /// can tell a missing phi from a local the body never touched.
     ///
-    /// **A closure body is deliberately not walked.** `rule:types/implicit-capture` captures by
+    /// **An anonymous function's body is deliberately not walked.** `rule:types/implicit-capture` captures by
     /// value, so `fn () => $x++` re-points the environment object's own copy
     /// and the enclosing local is untouched; a header phi for it would
     /// describe a write that never happens. The same goes for an anonymous
@@ -2242,7 +2242,7 @@ impl<'a> Lowering<'a> {
             | ExprKind::ParentExpr
             | ExprKind::Fn(_)
             | ExprKind::Error(_) => {}
-            // A markup literal's holes are walked beside an interpolation's
+            // An html template's holes are walked beside an interpolation's
             // for the same reason: `html`{$i++}`` re-points `$i` exactly as
             // `"{$i++}"` does, whatever the two literals then denote.
             ExprKind::Interpolated(parts) | ExprKind::HtmlTemplate(parts) => {

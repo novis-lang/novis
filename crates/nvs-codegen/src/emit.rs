@@ -275,7 +275,7 @@ fn leading_phis(block: &BasicBlock) -> Result<usize, CodegenError> {
 /// Read as "does it transfer control anywhere that could recurse": a `Call`,
 /// a virtual or dynamic one, a constructor, a runtime helper or a `Core`
 /// member. A runtime helper and a `Core` member cannot recurse into Novis by
-/// themselves, but a `Core` member taking a closure does, and telling those
+/// themselves, but a `Core` member taking a callable does, and telling those
 /// apart would mean a table this pass has no reason to own — so the predicate
 /// is deliberately the conservative one, and a function is a leaf only if it
 /// calls *nothing*.
@@ -614,7 +614,7 @@ impl Emitter<'_, '_> {
             }
             InstKind::HelperCall { helper, args } => {
                 let symbol = helper_symbol(*helper)?;
-                // Two rows of the table are variadic — the closure call and
+                // Two rows of the table are variadic — the callable call and
                 // the proven one beside it, whose arity is the call site's and
                 // not the helper's — so they are the ones that pass a count.
                 // See `nvs_ir::Helper::CallCallable`.
@@ -1225,7 +1225,7 @@ impl Emitter<'_, '_> {
         self.define_literal_data(&desc)
     }
 
-    /// A hole-free markup literal: the whole `Core\Html\Markup` in the unit's
+    /// A hole-free html template: the whole `Core\Html\Markup` in the unit's
     /// data section, at the cost of the two relocations that make it one.
     ///
     /// `rule:core-classes/html-template` promises this shape allocates nothing

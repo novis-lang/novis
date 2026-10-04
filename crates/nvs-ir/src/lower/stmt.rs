@@ -406,7 +406,7 @@ impl<'a> Lowering<'a> {
                     // handed back, or § 3's `1` where it never returned at
                     // all, and the statement form reads neither — but the
                     // value is still this frame's to release, exactly as a
-                    // discarded object literal's is.
+                    // discarded anonymous object's is.
                     let (v, ty) = self.emit_fallible(
                         *cur,
                         Ty::Tagged,

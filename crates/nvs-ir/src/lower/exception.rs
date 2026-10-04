@@ -122,8 +122,8 @@ impl<'a> Lowering<'a> {
     /// reads in PHP. The class carrying it is [`LOGIC_ERROR`] — spec § 10's
     /// "a bug in the program", the entry [`Lowering::lower_match`]'s unmatched
     /// subject already raises — because the closed tree has no `Error` of
-    /// PHP's own. A closure takes the second message rather than the first:
-    /// [`InstKind::TagIs`] compares one tag byte, and a closure carries the
+    /// PHP's own. A callable takes the second message rather than the first:
+    /// [`InstKind::TagIs`] compares one tag byte, and a callable carries the
     /// object tag every other instance does
     /// (`rule:types/callable-values`), so what refuses it is the
     /// `Throwable` test below.

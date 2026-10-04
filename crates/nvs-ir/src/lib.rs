@@ -30,7 +30,7 @@
 //!   interpolation, `new`, static/instance/`Core` calls, property and
 //!   array-element read and write, array literals including an explicit
 //!   `key =>` and `$a[] =` append, `&&`/`||`/`!` and the ternary/elvis
-//!   operator, `rule:expressions/truthy-positions`'s truthy conversion, `rule:types/anonymous-function` closure literals,
+//!   operator, `rule:expressions/truthy-positions`'s truthy conversion, `rule:types/anonymous-function`'s anonymous functions,
 //!   `is`, `??`, the literal `null`, `rule:types/conversion`'s scalar conversion
 //!   rows — free, total and checked alike — and `rule:expressions/nullable-conversion`'s non-throwing
 //!   `as ?T` over the checked numeric targets and over its § 3 parse roster.
@@ -254,7 +254,7 @@
 //!    a conversion that cannot fail (`$i as ?string`) is
 //!    `nvs_diagnostics::code::E_NULLABLE_CONVERSION_CANNOT_FAIL` and one that
 //!    does not exist at all (`$arr as ?int`) is `E_NO_CONVERSION`, that
-//!    table's closure asked of the `T` inside the sugar. The other direction —
+//!    table's completeness check applied to the `T` inside the sugar. The other direction —
 //!    a row § 3 calls **available** — has its `?` helper: `$m as ?array<U>` is
 //!    [`ir::Helper::ToArrayOfOrNull`], the same element walk the checked
 //!    spelling runs, answering `null` where that one throws. The text
@@ -334,11 +334,11 @@
 //!    11), which is the *read* side's answer to the same question this
 //!    vivifying descent asks; [`ir::InstKind::ArraySet`] models no absent key
 //!    at all, because a write is what makes one present.
-//! 6. **A closure literal lowers, and so does `$f(...)`, and what an argument
-//!    is checked against travels on the closure object.** The call is one [`ir::Helper::CallCallable`]
+//! 6. **An anonymous function lowers, and so does `$f(...)`, and what an argument
+//!    is checked against travels on the callable object.** The call is one [`ir::Helper::CallCallable`]
 //!    — `nvs_runtime::call_callable`, the same entry point native `Core` code
 //!    reaches a callback through, so there is one body and not a second
-//!    convention beside it ([`lower::Lowering::lower_callable_call`]). `rule:types/anonymous-function-self-name`'s self-name lowers too, and lowers to nothing: the closure it names
+//!    convention beside it ([`lower::Lowering::lower_callable_call`]). `rule:types/anonymous-function-self-name`'s self-name lowers too, and lowers to nothing: the callable it names
 //!    is the invoke's own receiver, already bound under
 //!    [`lower::anon_fn::FN_SELF`], so the recursive call is the same
 //!    `CallCallable` with that binding as its callee and the environment class
@@ -349,14 +349,14 @@
 //!    into one array, because `CallCallable`'s own argument count is a literal
 //!    in the emitted call and a spread's is not — and a `name:` one is refused
 //!    where it is written (`E0712`), § 1 leaving no parameter for a name to
-//!    fill at either end. The first-class-callable sentinel is the one
+//!    fill at either end. The method-reference sentinel is the one
 //!    `$f(...)` that makes no call: `rule:types/callable-values` gives
-//!    `callable` a single inhabitant, so the site answers the closure `$f`
+//!    `callable` a single inhabitant, so the site answers the callable `$f`
 //!    already holds — PHP's own answer, retained once so the value leaves as a
 //!    fresh owner. A `callable` carries
 //!    no parameter list (§ 1), so no checker can compare a call site against
 //!    the body it will reach: this crate packs the declared representations
-//!    into the closure object's own `FN_PARAM_TAGS` word at the literal
+//!    into the callable object's own `FN_PARAM_TAGS` word where the anonymous function is written
 //!    ([`lower::anon_fn::param_tags_word`]), and
 //!    `nvs_runtime::callable`'s `check_param_tags` compares one per argument
 //!    inside `call_callable` — the one path a `Core` member's callback and
@@ -364,11 +364,11 @@
 //!    callee carries `rule:types/callable-signature`'s written signature was
 //!    proven where it was written and pays nothing per argument, which is the
 //!    only difference between the two. Neither half of `inout $x` is
-//!    a gap: a closure *capturing* an enclosing `inout $x` parameter takes
-//!    § 2's by-value snapshot of the cell — one [`ir::InstKind::RefLoad`] at
-//!    the literal, at the pointee type, retained like any other captured
-//!    value, which is what lets the closure outlive the call that staged the
-//!    cell — and an `inout $x` parameter on the closure *itself* is `E0493`,
+//!    a gap: an anonymous function *capturing* an enclosing `inout $x` parameter takes
+//!    § 2's by-value snapshot of the cell — one [`ir::InstKind::RefLoad`] where
+//!    it is written, at the pointee type, retained like any other captured
+//!    value, which is what lets the callable outlive the call that staged the
+//!    cell — and an `inout $x` parameter on the anonymous function *itself* is `E0493`,
 //!    `callable` carrying no parameter list for a call site to stage a cell
 //!    against.
 //! 7. **`decimal` lowers, and so does `<=>`.** `rule:types/decimal`'s scalar
@@ -523,7 +523,7 @@
 //!     `rule:core-classes/html-auto-escape`'s
 //!     `string as Core\Html\Markup` is
 //!     `lower::Lowering::lower_markup_lift`. That one is a *rule* rather than
-//!     a test: the operand is a source literal or it is `E0417`, so what the
+//!     a test: the operand is a string literal in the source or it is `E0417`, so what the
 //!     lowering does is **build** the carrier rather than check anything, and
 //!     it is one `ir::InstKind::CoreCall` on a symbol `nvs-stdlib` owns
 //!     because a `Helper` is a symbol `nvs-runtime` exports and that crate
@@ -534,14 +534,14 @@
 //!     [`ty::Ty::Array`] has erased, so `lower::Lowering::lower_array_restamp`
 //!     reads it off the annotation and hands
 //!     `lower::array_element_tags`' word — one tag nibble per level of `U`,
-//!     the same four bits a closure parameter's entry check compares — to
+//!     the same four bits a callable parameter's entry check compares — to
 //!     [`ir::Helper::ToArrayOf`], which walks the elements against it.
 //!     [`ir::Helper::ToArrayOfOrNull`] is `rule:expressions/nullable-conversion`'s spelling of the same
 //!     walk, out of one implementation. The buffer is not copied: an Novis
 //!     array is copy-on-write, so the result is the operand's own allocation
 //!     under one more reference and `rule:types/arrays`'s invariance is bought with
 //!     tag tests rather than with bytes moved. An element type a tag cannot
-//!     decide — a class, an enum, a literal type, a union — is `E0711` where
+//!     decide — a class, an enum, a single-value type, a union — is `E0711` where
 //!     it is written (`reject_uncheckable_element_type`), which is the one
 //!     home of that roster.
 //!

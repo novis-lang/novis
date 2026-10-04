@@ -1614,7 +1614,7 @@ fn writing_a_bytes_local_to_a_property_retains_it_before_releasing_the_old_value
 
 // `array<T>`: `Ty::Array` is a bare, opaque representation exactly like
 // `Ty::Object` (see that variant's own doc comment), and
-// `InstKind::ArrayNew` is the fixed-shape literal instruction it needs.
+// `InstKind::ArrayNew` is the fixed-shape array literal instruction it needs.
 // The fixtures immediately below are all *positional* literals — no
 // explicit `key =>` — which keep the single-`ArrayNew` shape; the
 // explicit-`key =>` fixtures further down cover the `ArrayNew` (empty) +
@@ -1657,7 +1657,7 @@ fn a_literal_with_an_aliasing_element_retains_it() {
 
 /// `["k" => 1]` — a literal with an explicit `key =>` element lowers to
 /// an empty `ArrayNew` plus one `ArraySet`: `"k"` is a fresh `ConstStr`
-/// (a source-literal string is never an aliasing read), so it needs no
+/// (a string literal is never an aliasing read), so it needs no
 /// retain of its own, mirroring the value `1`.
 #[test]
 fn a_string_literal_keyed_array_element_lowers_to_array_new_then_array_set() {
@@ -2708,7 +2708,7 @@ class G {
     assert_snapshot!(print_program(&p, map.file(file)));
 }
 
-/// `rule:types/anonymous-function`'s `fn` literal, lowered: the literal site allocates the
+/// `rule:types/anonymous-function`'s anonymous function, lowered: the site that writes it allocates the
 /// captured-environment object and stores a *retained* snapshot of each
 /// capture into it, and the body becomes that class's one `invoke`, which
 /// reads every capture back out of parameter 0. See `lower_anon_fn`,
@@ -2726,14 +2726,14 @@ echo $bump;
     assert_snapshot!(print_program(&p, map.file(file)));
 }
 
-/// A closure capturing an enclosing `inout $x` parameter, which is the one
+/// An anonymous function capturing an enclosing `inout $x` parameter, which is the one
 /// capture whose `Env` entry is an address rather than a value: `rule:types/implicit-capture` captures by value, so the field takes a `ref.load` snapshot of the
 /// cell at the literal, at the declared pointee type, and then the same
 /// retain every refcounted capture already takes. Both halves are visible
 /// here on purpose — the load alone would leave the environment object
 /// sharing the caller's one reference, and the field's `str` type is what
 /// says `invoke` reads a value rather than the caller's address, which is
-/// what makes the closure safe to outlive the call that staged the cell.
+/// what makes the callable safe to outlive the call that staged the cell.
 #[test]
 fn an_anon_fn_capturing_a_by_reference_parameter_snapshots_the_cell() {
     let (p, map, file) = lower_program(
@@ -2959,7 +2959,7 @@ fn a_spread_argument_through_a_callable_becomes_one_array() {
     assert_snapshot!(print_function(&f, map.file(file)));
 }
 
-/// The whole path in one fixture: an `rule:types/anonymous-function` `fn` literal bound to a
+/// The whole path in one fixture: a `rule:types/anonymous-function` anonymous function bound to a
 /// local, then *called* through the variable holding it — which is what
 /// `examples/callable.nvs`'s `direct` line runs.
 ///
@@ -2968,7 +2968,7 @@ fn a_spread_argument_through_a_callable_becomes_one_array() {
 /// because a `callable` names no compiled function; the environment object
 /// the literal built is the receiver. The neighbouring fixture asks the
 /// same question of a `callable` *parameter*, where there is no literal in
-/// the frame at all — the pair is what separates "the closure lowers" from
+/// the frame at all — the pair is what separates "the anonymous function lowers" from
 /// "the variable holding one is callable".
 #[test]
 fn a_callable_is_called_through_the_variable_holding_it() {
@@ -3244,7 +3244,7 @@ fn an_uncatchable_status_leaves_a_try_through_a_block_that_releases_the_locals()
 /// source declares — `nvs_hir::errors`' exception tree, with the
 /// synthesized constructor of every class in it that declares state of its
 /// own, `nvs_hir::interfaces`' global interfaces, and
-/// `rule:types/callable-values`'s closure marker — the `hello.nvs`
+/// `rule:types/callable-values`'s callable marker — the `hello.nvs`
 /// shape. Nothing in the file references any of them and they are emitted
 /// anyway: a descriptor has to exist before `$x is Stringable` or
 /// `$x is callable` has anything to test against, and a class implementing
@@ -3261,8 +3261,8 @@ fn a_file_with_no_class_still_carries_every_compiler_declared_class() {
     assert_eq!(
         labels,
         [
-            // The closure marker, ahead of every declared label because `$`
-            // cannot start one, and here in a file with no closure for the
+            // The callable marker, ahead of every declared label because `$`
+            // cannot start one, and here in a file with no callable for the
             // reason `crate::lower::CALLABLE_MARKER` gives.
             "$callable",
             "ArithmeticError",
@@ -4343,7 +4343,7 @@ fn a_spawn_lowers_to_a_task_on_the_current_core() {
     let landing = &f.blocks[spawn.on_error.expect("asserted above").index() as usize];
     assert!(
         released_in(normal, path),
-        "the borrowed path literal is this frame's to release: {}",
+        "the borrowed path string literal is this frame's to release: {}",
         print_function(&f, map.file(file))
     );
     assert!(

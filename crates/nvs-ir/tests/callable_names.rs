@@ -1,6 +1,6 @@
 //! ADR 0006 § *Decision*'s `args:`-by-name, from the one end that can still
 //! see a declaration: what a written `Class::method(...)` records on the object
-//! it produces, and what an `fn` literal deliberately does not.
+//! it produces, and what an anonymous function deliberately does not.
 //!
 //! `rule:concurrency/an-upgrade-is-spawn-shaped` makes
 //! `Core\Socket::upgrade(Chat::run(...), args: {…})` an isolate entry, and ADR
@@ -46,7 +46,7 @@ fn compile(src: &str) -> Program {
     nvs_ir::lower::lower_program("<script>", &files, &exprs, &interner, &enums, &layouts)
 }
 
-/// The reserved field names of every synthesized closure class in `program`,
+/// The reserved field names of every synthesized callable class in `program`,
 /// keyed by the class's own label.
 ///
 /// Selected on the reserved first field every environment class carries, which
@@ -83,7 +83,7 @@ fn const_strings(program: &Program) -> Vec<String> {
 }
 
 #[test]
-fn a_first_class_callable_records_its_targets_parameter_names() {
+fn a_method_reference_records_its_targets_parameter_names() {
     // The names are the *target's declared* ones, not the call site's — there
     // is no call site, which is the whole of why they have to be recorded.
     // Third in the field list, which is the index
@@ -107,7 +107,7 @@ var $entry = Chat::run(...);
     assert_eq!(
         classes[0].1,
         vec!["fn#arity", "fn#params", "fn#names"],
-        "a first-class callable's reserved fields, in slot order"
+        "a method reference's reserved fields, in slot order"
     );
     assert!(
         const_strings(&program).contains(&"room,userId".to_owned()),
@@ -120,7 +120,7 @@ var $entry = Chat::run(...);
 fn a_static_target_declaring_no_parameters_records_an_empty_name_list() {
     // The boundary the reader's `filter(|name| !name.is_empty())` exists for:
     // an entry with nothing to bind still records a field, so the answer is an
-    // empty list rather than the `None` that means "this closure records no
+    // empty list rather than the `None` that means "this callable records no
     // names at all".
     let program = compile(
         "<?nvs
@@ -163,6 +163,6 @@ var $f = fn(int $userId): string => $room;
     assert_eq!(
         classes[0].1,
         vec!["fn#arity", "fn#params", "room"],
-        "an `fn` literal's third field is its first capture"
+        "an anonymous function's third field is its first capture"
     );
 }

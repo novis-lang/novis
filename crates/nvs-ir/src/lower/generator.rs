@@ -586,7 +586,7 @@ pub(crate) fn lower_generator(
         db_codec: Vec::new(),
         ctor_arity: 0,
         defaults: Vec::new(),
-        // Synthesized, but not a closure: a generator's state is resumed
+        // Synthesized, but not a callable: a generator's state is resumed
         // through `GENERATOR_UNWIND_METHOD` and its own advance entry point,
         // never called as a `callable`.
         is_callable: false,
@@ -846,7 +846,7 @@ pub(crate) fn lower_generator_advance(
     );
 
     let pending = std::mem::take(&mut low.anon_fns);
-    // Beside the closures, and out the same channel: see `Lowering::callables`.
+    // Beside the anonymous functions, and out the same channel: see `Lowering::callables`.
     let callables = std::mem::take(&mut low.callables);
     let (blocks, stmt_spans, edge_spans) = low.finish();
     let (anon_fns, classes) = drain_anon_fns(pending, callables, src, exprs, checked_types, enums);

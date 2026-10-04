@@ -308,7 +308,7 @@ impl<'a> Lowering<'a> {
                 }
                 // `Core\Path::thisFile` and `thisDir`, which the checker
                 // replaced with the path of the file that wrote them, under
-                // the call's span in the table a path literal uses
+                // the call's span in the table a path given as a string literal uses
                 // (`rule:programs/relative-paths-resolve-from-their-file`).
                 if let Some(path) = self.exprs.written_path(expr.span) {
                     return self.emit(*cur, Ty::Str, InstKind::ConstStr(path.to_owned()));
@@ -325,7 +325,7 @@ impl<'a> Lowering<'a> {
                     let (ctors, payloads) = (ctors.clone(), payloads.clone());
                     return self.lower_program_instances_with(&classes, &ctors, &payloads, env, cur);
                 }
-                // `rule:programs/constructors`' rows, each with a closure that
+                // `rule:programs/constructors`' rows, each with a callable that
                 // builds its class when it is called.
                 if let Some(ExprInfo::ProgramConstructors {
                     classes,
@@ -606,10 +606,10 @@ impl<'a> Lowering<'a> {
             // unreachable by construction; it exists because this dispatch is
             // total in `(ValueId, Ty)`.
             ExprKind::Exit(arg) => self.lower_exit(arg.as_deref(), env, cur),
-            // `$fn(...)` — a closure called through the variable holding it,
+            // `$fn(...)` — a callable called through the variable holding it,
             // which is one `Helper::CallCallable` and not a lowered `Call`:
             // there is no resolved target to name, whether or not the callee's
-            // type named its parameters. Which of the two closure-call helpers
+            // type named its parameters. Which of the two callable-call helpers
             // it is — and so whether the runtime still checks a tag per
             // argument — is the checker's record on this expression's own span,
             // read in `Self::lower_callable_call`.
@@ -617,8 +617,8 @@ impl<'a> Lowering<'a> {
                 self.lower_callable_call(expr, callee, args, env, cur)
             }
             // `rule:types/anonymous-function-self-name`'s self-name — `fact` inside
-            // `fn fact(int $n): int => … fact($n - 1)`. The closure it names is
-            // the frame's own receiver, which `closure::lower_anon_fn` bound
+            // `fn fact(int $n): int => … fact($n - 1)`. The callable it names is
+            // the frame's own receiver, which `anon_fn::lower_anon_fn` bound
             // under `FN_SELF` at entry, so this is a lookup and never a load:
             // § 3's name is not a slot and the environment class holds no field
             // for it. Every *other* bare name is `E0319` — see the roster
@@ -629,7 +629,7 @@ impl<'a> Lowering<'a> {
             {
                 *env.get(anon_fn::FN_SELF).unwrap_or_else(|| {
                     panic!(
-                        "nvs-ir: `ExprInfo::AnonFnSelf` outside a closure body — \
+                        "nvs-ir: `ExprInfo::AnonFnSelf` outside an anonymous function's body — \
                          nvs_types::expr::calls::check_anon_fn binds `rule:types/anonymous-function-self-name`'s \
                          self-name for one body, whose invoke binds `FN_SELF` at entry"
                     )
@@ -734,7 +734,7 @@ impl<'a> Lowering<'a> {
     /// a loop's back edge).
     pub(crate) fn lower_echo(&mut self, operands: &[Expr], cur: &mut BlockId, env: &mut Env) {
         for operand in operands {
-            // A markup literal written straight at a sink is the one operand
+            // An html template written straight at a sink is the one operand
             // that never becomes a value at all — see
             // [`Self::echo_html_template_parts`].
             if let ExprKind::HtmlTemplate(parts) = &operand.kind {
@@ -2405,7 +2405,7 @@ impl<'a> Lowering<'a> {
         self.release_temporaries_since(mark, *cur);
         carrier
     }
-    /// Lowers one of a markup literal's holes to the bytes it contributes.
+    /// Lowers one of an html template's holes to the bytes it contributes.
     ///
     /// **A hole already holding a `Core\Html\Markup` is spliced raw and every
     /// other hole is escaped** (`rule:core-classes/html-template`), which is the
@@ -2707,7 +2707,7 @@ impl<'a> Lowering<'a> {
         let text = span_text(self.src, span);
         let nanos = nvs_syntax::duration::parse(text).unwrap_or_else(|err| {
             panic!(
-                "nvs-ir: duration literal `{text}` does not parse ({}) — the lexer \
+                "nvs-ir: the duration `{text}` does not parse ({}) — the lexer \
                  produces this token for text that does, and for a mis-cased \
                  unit no compile path continues past the error it reports",
                 err.message()
@@ -2859,10 +2859,10 @@ impl<'a> Lowering<'a> {
     /// itself: `target` may be `self`/`static`/`parent`, which this
     /// crate has no enclosing-class context to resolve on its own
     /// (see `lower_decl_type`'s doc comment).
-    /// `rule:types/anonymous-function`'s `fn` literal. Evaluating one allocates its
+    /// `rule:types/anonymous-function`'s anonymous function. Evaluating one allocates its
     /// captured-environment object and stores a snapshot of every
-    /// captured binding into it — "by value at the point the closure
-    /// literal is evaluated" (§ 2), which is exactly what a field
+    /// captured binding into it — "by value at the point the anonymous
+    /// function is evaluated" (§ 2), which is exactly what a field
     /// store at this program point is. The body itself becomes that
     /// class's one method, lowered later; see `lower_anon_fn`, which
     /// owns the whole representation.
@@ -2880,7 +2880,7 @@ impl<'a> Lowering<'a> {
         }) = self.exprs.lookup(expr.span)
         else {
             panic!(
-                "nvs-ir: the `fn` literal at {:?} has no resolved closure recorded in \
+                "nvs-ir: the anonymous function at {:?} has no resolved callable recorded in \
                  the typed-expression table — did this program pass \
                  nvs_types::check_program with the same table?",
                 expr.span
@@ -2922,7 +2922,7 @@ impl<'a> Lowering<'a> {
         for name in names {
             let &(v, ty) = env.get(&name).unwrap_or_else(|| {
                 panic!(
-                    "nvs-ir: the closure at {:?} captures `${name}`, which is not bound \
+                    "nvs-ir: the anonymous function at {:?} captures `${name}`, which is not bound \
                      in the enclosing frame — nvs_types records a capture only for a \
                      name its own scope resolved",
                     expr.span
@@ -2932,7 +2932,7 @@ impl<'a> Lowering<'a> {
             // captures by value — so the field takes a snapshot of the cell's
             // value here, which is the same `RefLoad` at the declared (pointee)
             // type that reading `$x` anywhere else lowers to. That is also what
-            // makes the closure safe to outlive the call that staged the cell:
+            // makes the callable safe to outlive the call that staged the cell:
             // it holds a copy, and the retain below gives the copy its own
             // reference exactly as it does for any other captured value.
             let (v, ty) = if ty == Ty::Ref {
@@ -2959,14 +2959,14 @@ impl<'a> Lowering<'a> {
     }
 
     /// `rule:types/callable-values`'s `Class::method(...)` / `$obj->method(...)`, which *names* the
-    /// resolved member rather than calling it and whose value is a closure
+    /// resolved member rather than calling it and whose value is a callable
     /// over it.
     ///
-    /// The object this builds is byte-for-byte the one a `fn` literal builds
+    /// The object this builds is byte-for-byte the one an anonymous function builds
     /// — [`FN_ARITY`], [`FN_PARAM_TAGS`], and an `invoke` in the method table
-    /// — because `rule:types/anonymous-function` makes `callable` the only closure type, so a
+    /// — because `rule:types/anonymous-function` makes `callable` the one type of every callable value, so a
     /// native `Core` member handed one of these cannot tell it apart from a
-    /// written closure and has nothing new to learn. The body behind that
+    /// written anonymous function and has nothing new to learn. The body behind that
     /// `invoke` is the forwarding thunk `lower_callable` builds, which owns
     /// the representation and the one divergence it carries.
     ///
@@ -2989,7 +2989,7 @@ impl<'a> Lowering<'a> {
     /// Panics naming the shape for a non-`static` target reached from a frame
     /// with no `$this` — which the checker refuses where it is written, as it
     /// does for the call spelling.
-    fn lower_callable_ref(
+    fn lower_method_ref(
         &mut self,
         call: &ResolvedCall,
         receiver: Option<&Expr>,
@@ -3009,8 +3009,8 @@ impl<'a> Lowering<'a> {
         let obj = self.emit_thunk_object(&class, &params, call.param_names.join(","), env, cur);
         let takes_receiver = !call.is_static;
         if takes_receiver {
-            // `rule:types/implicit-capture`'s "by value at the point the closure literal is
-            // evaluated", which for a first-class callable is the receiver —
+            // `rule:types/implicit-capture`'s "by value at the point the anonymous function is
+            // evaluated", which for a method reference is the receiver —
             // and the answer PHP's own `(...)` gives.
             let (recv, ty, aliasing) = match receiver {
                 Some(object) => {
@@ -3052,7 +3052,7 @@ impl<'a> Lowering<'a> {
 
     /// The object every [`PendingCallable`] is: a new instance of `class` with
     /// [`FN_ARITY`], [`FN_PARAM_TAGS`] and [`FN_PARAM_NAMES`] written, which is
-    /// what a native caller reads off any closure.
+    /// what a native caller reads off any callable.
     fn emit_thunk_object(
         &mut self,
         class: &str,
@@ -3075,8 +3075,8 @@ impl<'a> Lowering<'a> {
         let (arity_v, _) = self.emit(*cur, Ty::Int, InstKind::ConstInt(arity));
         self.emit_field_set(*cur, obj, class.to_owned(), FN_ARITY.to_owned(), arity_v);
         // The declared parameter types are readable here and nowhere below
-        // this crate, exactly as they are at a `fn` literal — the target's,
-        // this time, rather than the literal's own. See `FN_PARAM_TAGS`.
+        // this crate, exactly as they are at an anonymous function — the target's,
+        // this time, rather than the anonymous function's own. See `FN_PARAM_TAGS`.
         let tags = pack_param_tags(params.iter().copied());
         let (tags_v, _) = self.emit(
             *cur,
@@ -3094,7 +3094,7 @@ impl<'a> Lowering<'a> {
         // only this crate is still holding — ADR 0006 § *Decision* binds an
         // isolate's `args:` by them, and `Core\Socket::upgrade(Chat::run(...))`
         // is such an entry with no constant beside it to carry them. See
-        // `FN_PARAM_NAMES` for why the sibling `fn` literal gets no such field.
+        // `FN_PARAM_NAMES` for why the sibling anonymous function gets no such field.
         let (names_v, _) = self.emit(*cur, Ty::Str, InstKind::ConstStr(names));
         self.emit_field_set(
             *cur,
@@ -3479,7 +3479,7 @@ impl<'a> Lowering<'a> {
     /// expansion: one `{class, make}` shape row per class, in the
     /// enumeration's order, gathered into one array.
     ///
-    /// Each `make` is the object [`Self::lower_callable_ref`] builds for a
+    /// Each `make` is the object [`Self::lower_method_ref`] builds for a
     /// `(...)`, over a [`ThunkTarget::Build`] thunk whose `invoke` writes the
     /// `new`, so nothing is constructed here. The row is the synthesized class
     /// a written `{class: …, make: …}` literal gets. Every fresh value is
@@ -3487,7 +3487,7 @@ impl<'a> Lowering<'a> {
     /// [`Self::lower_program_instances_with`], so a later allocation that
     /// fails releases what was built before it.
     ///
-    /// It spends one closure object per listed class per call, charged to the
+    /// It spends one callable object per listed class per call, charged to the
     /// request and freed with the array.
     fn lower_program_constructors(
         &mut self,
@@ -3621,7 +3621,7 @@ impl<'a> Lowering<'a> {
         // naming a method of the unit this frame is already running.
         let method = self.spawn_method_entry(path);
         let (path_v, path_ty) = match &method {
-            // A constant, not the operand: a first-class-callable reference
+            // A constant, not the operand: a method reference
             // lowered as an expression would build a `callable` value, which is
             // the one thing `rule:security/isolate-shares-nothing` refuses to let cross a boundary. The label
             // is `nvs_runtime::call_static`'s own spelling.
@@ -3777,7 +3777,7 @@ impl<'a> Lowering<'a> {
     }
 
     /// `Class::method` and the entry's parameter names, for a `spawn script`
-    /// operand written as a first-class callable reference — and `None` for
+    /// operand written as a method reference — and `None` for
     /// every other operand.
     ///
     /// The label is the *declaring* class and the method's own name — the
@@ -3827,7 +3827,7 @@ impl<'a> Lowering<'a> {
     ///
     /// The answer is an `rule:types/object-top` shape value, which is an ordinary object with
     /// slots, so `$result->ok` on the next line lowers to the `SlotGet` a
-    /// written shape literal's read already lowers to — `nvs-ir` learns
+    /// written anonymous object's read already lowers to — `nvs-ir` learns
     /// nothing here about where the shape came from.
     fn lower_await(&mut self, operand: &Expr, env: &mut Env, cur: &mut BlockId) -> (ValueId, Ty) {
         let mark = self.temporaries_mark();
@@ -3926,7 +3926,7 @@ impl<'a> Lowering<'a> {
     ///
     /// # Panics
     ///
-    /// Panics for an argument that is not an object literal, or one missing
+    /// Panics for an argument that is not an anonymous object, or one missing
     /// either field: `nvs_types::check_program` reports `E_OPTIONS_NOT_AN_ANON_OBJECT`
     /// for the first and a shape mismatch for the second, exactly as
     /// [`Self::lower_options_arg`] trusts it to.
@@ -3940,7 +3940,7 @@ impl<'a> Lowering<'a> {
         let ExprKind::AnonObject(fields) = &written.kind else {
             panic!(
                 "nvs-ir: `Core\\Router::urlSigned`'s settings lowered from something that is not \
-                 an object literal — nvs_types::check_program is trusted to have reported \
+                 an anonymous object — nvs_types::check_program is trusted to have reported \
                  E_OPTIONS_NOT_AN_ANON_OBJECT"
             )
         };
@@ -3996,7 +3996,7 @@ impl<'a> Lowering<'a> {
         // same `ResolvedCall`.
         if let Some(ExprInfo::CallableRef(call)) = self.exprs.lookup(expr.span) {
             let call = call.clone();
-            return self.lower_callable_ref(&call, Some(object), expr, env, cur);
+            return self.lower_method_ref(&call, Some(object), expr, env, cur);
         }
         let Some(ExprInfo::Call(call)) = self.exprs.lookup(expr.span) else {
             panic!(
@@ -4011,7 +4011,7 @@ impl<'a> Lowering<'a> {
                  (`nvs_types::core_lib`). `rule:types/callable-values`'s \
                  `$obj->method(...)` records `ExprInfo::CallableRef` instead, because \
                  it names the member rather than calling it, and is answered by \
-                 `Lowering::lower_callable_ref` above",
+                 `Lowering::lower_method_ref` above",
                 expr.span
             );
         };
@@ -4035,7 +4035,7 @@ impl<'a> Lowering<'a> {
             // handed what its call site wrote as a type argument — and that
             // block of three goes *ahead of the receiver*, which is the order
             // that roster's docs state and the one
-            // `Lowering::lower_callable_ref` already emits.
+            // `Lowering::lower_method_ref` already emits.
             // `Lowering::written_type_constants` owns the block, including why
             // it is emitted before the receiver is opened.
             let written_class =
@@ -4238,7 +4238,7 @@ impl<'a> Lowering<'a> {
         // variant is what selects this and the resolved facts are the same.
         if let Some(ExprInfo::CallableRef(call)) = self.exprs.lookup(expr.span) {
             let call = call.clone();
-            return self.lower_callable_ref(&call, None, expr, env, cur);
+            return self.lower_method_ref(&call, None, expr, env, cur);
         }
         // `rule:types/class-reference-sites`'s `$cls::f(...)`, which is the same resolved call
         // reached through a value rather than a name — see
@@ -4253,7 +4253,7 @@ impl<'a> Lowering<'a> {
                  nvs_types::check_program with the same table? `rule:types/callable-values`'s \
                  `Class::method(...)` records `ExprInfo::CallableRef` rather than \
                  `Call` — it names the member rather than calling it, and is answered \
-                 by `Lowering::lower_callable_ref` above",
+                 by `Lowering::lower_method_ref` above",
                 expr.span
             );
         };
@@ -4333,7 +4333,7 @@ impl<'a> Lowering<'a> {
                 env,
             );
             // A `Core` member borrows, so a freshly built argument —
-            // an `fn` literal, a nested `Core` call's own result — has
+            // an anonymous function, a nested `Core` call's own result — has
             // no other owner and would leak without this.
             self.release_temporaries_since(mark, *cur);
             return result;
@@ -4910,7 +4910,7 @@ impl<'a> Lowering<'a> {
         *cur = written;
     }
 
-    /// `{x: 1, y: 2}` — `rule:types/anonymous-object`'s anonymous object literal, which is an ordinary instance of a
+    /// `{x: 1, y: 2}` — `rule:types/anonymous-object`'s anonymous object, which is an ordinary instance of a
     /// class this function invents: one [`InstKind::New`] with no constructor,
     /// then one [`InstKind::FieldSet`] per field.
     ///
@@ -4966,7 +4966,7 @@ impl<'a> Lowering<'a> {
         sorted.dedup();
         assert!(
             sorted.len() == names.len(),
-            "an object literal writing one field name twice reached lowering: a shape's \
+            "an anonymous object writing one field name twice reached lowering: a shape's \
              fields are a set, so `nvs_types::expr::literals::check_anon_object` refuses \
              the repeat where it is written, as `E0494` — the interned shape reads the \
              first of the pair while this class carries one slot per name, and there is no \
@@ -5748,7 +5748,7 @@ impl<'a> Lowering<'a> {
                 },
             ),
             TestShape::Tag(repr) => self.emit(*cur, Ty::Bool, InstKind::ConstBool(subject == repr)),
-            // A literal type is two comparisons rather than one: the tag says
+            // A single-value type is two comparisons rather than one: the tag says
             // the payload word may be read at this representation, and the
             // payload says whether it holds the one value the type is. They
             // are `&&`-shaped and not folded together because the second must
@@ -6218,7 +6218,7 @@ impl<'a> Lowering<'a> {
 
     /// The payload half of `rule:types/type-test`'s literal row: a value
     /// already at the representation its tag names, against the one constant
-    /// the literal type is.
+    /// the single-value type is.
     ///
     /// [`Self::lower_single_value_membership`]'s arm without the chain — one atom
     /// rather than a set, and an answer rather than a branch to a throw —
@@ -6495,7 +6495,7 @@ enum TestShape {
     /// that answers `false`. `$x is Countable&Traversable` is therefore two
     /// descriptor walks at worst and one whenever the first declines.
     All(Vec<TestShape>),
-    /// One tag comparison, and a payload compare behind it. A literal type
+    /// One tag comparison, and a payload compare behind it. A single-value type
     /// names a single value, so the tag only says the payload word is
     /// readable at this representation and the compare says whether it is
     /// that value — `rule:types/single-value-types`' two halves, over the atom
@@ -6527,7 +6527,7 @@ enum TestShape {
 /// — is one tag comparison with a payload compare behind it. A union, an
 /// intersection and `iterable` are their members' rows chained, so none of the
 /// three is a cost of its own. `callable` is the class row against the one
-/// label every closure's environment class conforms to
+/// label every callable's environment class conforms to
 /// ([`CALLABLE_MARKER`](super::CALLABLE_MARKER)), and
 /// `rule:types/callable-signature`'s written signature is that same row one
 /// step more specific, against the marker class `nvs_types::callables`
@@ -6555,7 +6555,7 @@ enum TestShape {
 /// function recurses into: a union member, an intersection member, an array
 /// element, a shape field. The `None` keeps it that way rather than a fallback
 /// to [`CALLABLE_MARKER`](super::CALLABLE_MARKER), which would answer `true` for
-/// a closure of any signature at all.
+/// a callable of any signature at all.
 fn test_shape(
     tested: TypeId,
     exprs: &ExprTypeTable,
@@ -6624,7 +6624,7 @@ fn test_shape(
                 TestShape::Class("Iterator".to_owned()),
             ]));
         }
-        // `rule:types/callable-values`: a closure satisfies `callable`
+        // `rule:types/callable-values`: a callable object satisfies `callable`
         // and no other value does, so the question is whether the subject is an
         // object of one of the environment classes `super::anon_fn`
         // synthesizes — which is what the marker edge on each of them says.
@@ -6633,8 +6633,8 @@ fn test_shape(
         CheckedTy::Callable => {
             return Some(TestShape::Class(super::CALLABLE_MARKER.to_owned()));
         }
-        // A written signature asks what a closure's parameters and return type
-        // are, and a closure carries neither at run time — the object holds a
+        // A written signature asks what a callable's parameters and return type
+        // are, and a callable carries neither at run time — the object holds a
         // parameter count and one tag nibble each, for the dynamic call path.
         // What names a signature exactly is the class synthesized per literal,
         // so the answer is the row above one step more specific: a marker
@@ -6723,7 +6723,7 @@ fn test_shape(
         }
         _ => {}
     }
-    // A literal type carries its own value, so its atom is built here — all
+    // A single-value type carries its own value, so its atom is built here — all
     // but the enum case's, which `rule:types/enum-case-type` deliberately
     // keeps out of the type (§ 3) and which the run's own enum table holds
     // instead.

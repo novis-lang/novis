@@ -733,7 +733,7 @@ impl<'a> Lowering<'a> {
                 // the same set and the same chain the checked form below gets,
                 // with the miss answering `null` where that one throws. Ahead
                 // of the atom walk, which cannot answer it — `property<T>` is
-                // one atom and not a closed set of literal types, so
+                // one atom and not a closed set of single-value types, so
                 // `Self::closed_set_of_atoms` reports no set and the operand
                 // would fall through to the free `Ty::Str` → `Ty::Str` row with
                 // nothing checked at all.
@@ -1183,7 +1183,7 @@ impl<'a> Lowering<'a> {
     /// carried it: helper arguments are stored as `nvs_runtime::Value`s, and a
     /// class descriptor is not one.
     ///
-    /// The throw is a `RuntimeError` and not the `LogicError` a closure
+    /// The throw is a `RuntimeError` and not the `LogicError` a callable
     /// parameter's identical check raises
     /// ([`super::anon_fn`]'s `check_param_class`): this is the `as` operator,
     /// whose string and non-numeric rows throw that class through
@@ -1386,7 +1386,7 @@ impl<'a> Lowering<'a> {
     /// `nvs-runtime` may not depend on, since the dependency runs the other
     /// way. `nvs-stdlib` owns the layout, so `nvs-stdlib` owns the symbol, and
     /// this crate names it through `nvs_types` exactly as `spawn script` and a
-    /// duration literal name theirs.
+    /// duration written like `1h30m` name theirs.
     ///
     /// **Ownership is the string rows' in [`Self::convert`]**: a `CoreCall`
     /// borrows its arguments, the callee takes its own reference for the slot,
@@ -1543,7 +1543,7 @@ impl<'a> Lowering<'a> {
 
     /// The set of names a checked `as property<T>` accepts —
     /// `rule:types/property-key`'s two run-time rows, as the same [`AcceptedSet`] `rule:types/enum-case-type`'s
-    /// literal union already tests against.
+    /// set of allowed values already tests against.
     ///
     /// Read off [`ExprInfo::PropertyKey`] rather than off the checked type,
     /// because the type does not carry it: `property<T>`'s values are `T`'s
@@ -1763,7 +1763,7 @@ impl<'a> Lowering<'a> {
     }
 
     /// `rule:expressions/nullable-conversion-availability`
-    /// row 2 — `expr as ?T` where `T` is a literal type, an enum-case subset
+    /// row 2 — `expr as ?T` where `T` is a single-value type, an enum-case subset
     /// or a whole enum: "that conversion is already checked and throwing;
     /// this is its non-throwing twin."
     ///
@@ -2057,7 +2057,7 @@ pub(crate) struct AcceptedSet {
     /// declaration's cases into, since a hash map states no order at all.
     members: Vec<SingleValueAtom>,
     /// Those same values rendered for the throw's message — built here rather
-    /// than at run time because a literal type does not survive erasure, so
+    /// than at run time because a single-value type does not survive erasure, so
     /// this is the last point at which the set can be named at all.
     rendered: String,
 }

@@ -1,4 +1,4 @@
-//! `rule:types/anonymous-function`'s closures as compiled objects: the method table, captured values, arity, and a throw out of one.
+//! `rule:types/anonymous-function`'s callables as compiled objects: the method table, captured values, arity, and a throw out of one.
 //!
 //! See `tests/common/mod.rs` for the shared fixtures and for why these go
 //! through the real pipeline.
@@ -10,7 +10,7 @@ use common::*;
 #[test]
 fn a_callable_is_reachable_through_the_method_table() {
     // `rule:types/anonymous-function` end to end: `Core\Arr::filter` is native Rust and reaches the
-    // closure through `nvs_runtime::call_callable`, which resolves
+    // callable through `nvs_runtime::call_callable`, which resolves
     // `nvs_runtime::CALLABLE_INVOKE` against the receiver's descriptor — so
     // this fails the moment `nvs-ir`'s label for that method and the
     // runtime's stop agreeing.
@@ -41,7 +41,7 @@ echo Core\\Arr::count($byKey), \"|\", Core\\Arr::count($byValue);
 #[test]
 fn an_anon_fn_captures_an_outer_local_by_value() {
     // `rule:types/implicit-capture`: the snapshot is taken when the literal is evaluated, so
-    // reassigning the captured local afterwards does not reach the closure.
+    // reassigning the captured local afterwards does not reach the callable.
     let source = "<?nvs
 int $floor = 3;
 array<int> $nums = [1, 2, 3, 4, 5, 6];
@@ -54,7 +54,7 @@ echo Core\\Arr::count(Core\\Arr::filter($nums, $f));
 
 #[test]
 fn an_anon_fn_capturing_a_string_in_a_loop_leaks_nothing() {
-    // Ten thousand closure objects, each holding one retained capture. A
+    // Ten thousand callable objects, each holding one retained capture. A
     // missing release in `lower_anon_fn`'s exit sweep leaks a buffer per
     // iteration; a doubled one crashes here.
     let source = "<?nvs
@@ -74,7 +74,7 @@ echo $seen;
 
 #[test]
 fn a_callable_that_throws_propagates_out_of_the_core_member_that_called_it() {
-    // `nvs_runtime::Fault::Pending` is what keeps the exception the closure
+    // `nvs_runtime::Fault::Pending` is what keeps the exception the callable
     // raised intact: a `Fault::Thrown` built inside `call_callable` would
     // replace it with a bare message from the helper.
     let source = "<?nvs
@@ -105,7 +105,7 @@ try {
 /// its callback's signature (`rule:types/callable-signature`): the position
 /// hands a `mixed`, which is what the forwarder declares, and the argument
 /// that gets refused is the one it passes on. Declared once and outside every
-/// loop below, so the leak guard is still measuring one closure's walk.
+/// loop below, so the leak guard is still measuring one callable's walk.
 const MISMATCH: &str = "<?nvs
 callable $wantsString = fn (string $s): bool => $s != \"zzz\";
 callable(mixed, string): bool $forward = fn (mixed $m): bool => $wantsString($m) as bool;
@@ -115,7 +115,7 @@ array<mixed> $mixed = [\"a\", \"b\", 3];
 #[test]
 fn a_mismatched_argument_throws_a_logic_error_out_of_the_core_member_that_called_it() {
     // `rule:types/anonymous-function`: a `callable` carries no parameter list, so nothing above
-    // the call site saw what this closure requires and
+    // the call site saw what this callable requires and
     // `nvs_runtime::call_callable` is the only thing that can refuse the
     // argument. Caught as `LogicError` specifically, which is the half
     // `tests/conformance/lang/a-closure-argument-is-checked-against-its-parameter-type.nvst`
@@ -152,7 +152,7 @@ fn a_mismatched_argument_throws_a_logic_error_out_of_the_core_member_that_called
 fn an_int_argument_widens_into_a_float_parameter_and_is_refused_past_two_to_the_53() {
     // `rule:types/conversion`'s one implicit conversion, reached from the caller no
     // written `as float` ever passes through: `Core\Arr::map` hands a native
-    // `int` to a closure whose parameter is declared `float`, and
+    // `int` to a callable whose parameter is declared `float`, and
     // `nvs_runtime::call_callable` converts it in place because no checker saw
     // this call site to insert it — a `callable` carries no parameter list
     // (`rule:types/anonymous-function`).
@@ -279,7 +279,7 @@ echo $caught;
 
 /// Every runtime helper the whole lowered program calls, in no order.
 ///
-/// The two tests below are about which of the two closure-call helpers a site
+/// The two tests below are about which of the two callable-call helpers a site
 /// emits, and that is a property of the call site rather than of what the
 /// program printed — so this reads the IR the rest of this file runs, and each
 /// test asserts on the output *as well*, so a program that stopped working
@@ -324,7 +324,7 @@ echo $f(2, \"x\");
 #[test]
 fn a_callable_object_still_carries_both_metadata_slots() {
     // What a proven site removes is the work, not the metadata: a literal does
-    // not know which kind of site will call it, and the *same* closure object
+    // not know which kind of site will call it, and the *same* callable object
     // reaches both here. `nvs_runtime::CALLABLE_ARITY_SLOT` is what trims the
     // third argument at the dynamic site and `CALLABLE_PARAM_TAGS_SLOT` is what
     // refuses the `string` in the first position — so dropping either write
@@ -349,7 +349,7 @@ try {
 
 #[test]
 fn a_bare_callable_call_site_still_emits_the_param_tag_check() {
-    // The other half, and the reason the metadata stays on every closure
+    // The other half, and the reason the metadata stays on every callable
     // object: bare `callable` is the top of the lattice and names no
     // parameter, so nothing was proven and the tag check is the only thing
     // standing between a mismatched argument and the callee reading the
