@@ -78,6 +78,30 @@ impl Ctx {
         }
     }
 
+    /// Writes the request's `[limits] wall_time` into the state its tree
+    /// shares, and wakes whoever watches it when the number moved.
+    ///
+    /// Written by the tree's root, which states the configuration the request
+    /// starts with, and by the context answering the request, whose
+    /// `Core\Config::set` moves it from there. A `spawn script` child is
+    /// neither: its own `wall_time` is a narrowing of the child, never of the
+    /// request.
+    pub(super) fn publish_wall_time(&self) {
+        if !self.tree_root && self.inbound.is_none() {
+            return;
+        }
+        let nanos = self.configured_wall_time();
+        let before = self
+            .tree
+            .wall_time
+            .swap(nanos, std::sync::atomic::Ordering::Relaxed);
+        if before != nanos
+            && let Some(wake) = self.tree.wall_time_watch.take()
+        {
+            wake();
+        }
+    }
+
     /// Makes this context — a child of `parent`, already in its tree — the one
     /// that states the tree's CPU ceiling from here on, starting from the
     /// ceiling `parent` stated.
@@ -164,7 +188,9 @@ impl Ctx {
         }
         // The tree this context was the root of carried its CPU ceiling beside
         // the flags, and the fresh one carries none until it is written here.
+        // The `wall_time` beside it for the same reason.
         self.publish_cpu_limit();
+        self.publish_wall_time();
     }
 
     /// Joins `tree` as a member running on a core **other** than the one that
@@ -462,6 +488,27 @@ impl SafepointView {
             .cpu_limit
             .load(std::sync::atomic::Ordering::Relaxed)
     }
+
+    /// The request's `[limits] wall_time` in nanoseconds as it stands now, or
+    /// `0` for a request with none — [`TreeState::wall_time`].
+    #[must_use]
+    pub fn wall_time(&self) -> u64 {
+        self.tree
+            .wall_time
+            .load(std::sync::atomic::Ordering::Relaxed)
+    }
+
+    /// Files `wake` to be called once, the next time the request's
+    /// `wall_time` moves, in place of any wake filed before it.
+    pub fn watch_wall_time(&self, wake: Box<dyn FnOnce() + Send>) {
+        self.tree.wall_time_watch.put(wake);
+    }
+
+    /// Takes back the wake [`Self::watch_wall_time`] filed, or `None` once it
+    /// has been called.
+    pub fn unwatch_wall_time(&self) -> Option<Box<dyn FnOnce() + Send>> {
+        self.tree.wall_time_watch.take()
+    }
 }
 
 /// The state a request **tree** shares: the word every context in it is stopped
@@ -478,9 +525,11 @@ impl SafepointView {
 /// (`rule:concurrency/on-worker-runs-the-child-on-another-core`).
 ///
 /// **What it spends:** one allocation per request tree — which is what the
-/// safepoint word alone already cost — and three words more inside it: the CPU
-/// ceiling, written when the root's moves, and the two off-core counters, which
-/// stay zero and unwritten for a tree that places nothing off its core.
+/// safepoint word alone already cost — and a few words more inside it: the CPU
+/// ceiling and the `wall_time`, written when the request's move; the two
+/// off-core counters, which stay zero and unwritten for a tree that places
+/// nothing off its core; and the `wall_time`'s watch, an empty lock for a
+/// request whose client stays.
 #[derive(Debug, Default)]
 pub struct TreeState {
     /// The safepoint word itself, named by [`Ctx::safepoint`] and polled by
@@ -499,6 +548,51 @@ pub struct TreeState {
     /// What this tree holds, and has written, on cores other than its root's —
     /// [`crate::budget::OffCore`] owns what the pair means and what it costs.
     pub(super) off_core: crate::budget::OffCore,
+    /// `[limits] wall_time` of the request this tree answers in nanoseconds,
+    /// or `0` for one with none — written by [`Ctx::publish_wall_time`] each
+    /// time that number moves.
+    ///
+    /// Here for `rule:http-server/a-request-outlives-a-client-that-goes-away`:
+    /// a request whose client left runs under its `wall_time`, or under
+    /// `disconnect_grace` while it has none, and the connection that decides
+    /// which owns none of the request. `wall_time` is a `Runtime` key, so the
+    /// answer is read again each time the connection wakes.
+    pub(super) wall_time: std::sync::atomic::AtomicU64,
+    /// Who is told when [`Self::wall_time`] moves: the connection waiting on a
+    /// request whose client left, which files a wake before each wait and
+    /// takes it back after. Empty for every request whose client stays, so
+    /// nothing locks it on the request path.
+    pub(super) wall_time_watch: WallTimeWatch,
+}
+
+/// The one wake [`TreeState::wall_time_watch`] holds, fired at most once.
+///
+/// A lock rather than an atomic because the wake is a closure, and both sides
+/// take it rarely: the connection once per wait of a detached request, and the
+/// request once per `Core\Config::set` that moves its `wall_time`.
+#[derive(Default)]
+pub(super) struct WallTimeWatch(std::sync::Mutex<Option<Box<dyn FnOnce() + Send>>>);
+
+impl WallTimeWatch {
+    fn put(&self, wake: Box<dyn FnOnce() + Send>) {
+        *self
+            .0
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(wake);
+    }
+
+    fn take(&self) -> Option<Box<dyn FnOnce() + Send>> {
+        self.0
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .take()
+    }
+}
+
+impl std::fmt::Debug for WallTimeWatch {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("WallTimeWatch")
+    }
 }
 
 /// What a context off its tree's root core has already published into

@@ -531,6 +531,9 @@ impl Ctx {
         // own state, so the one `Core\Config::set` just narrowed is the one its
         // next sweep compares with.
         self.publish_cpu_limit();
+        // The `wall_time` the connection reads once the request's client has
+        // gone, published from the same pass for the same reason.
+        self.publish_wall_time();
         // Read in the same pass and for the same reason, though there is nothing
         // to carve out of it: a request's ceilings are one reading of one
         // configuration.
@@ -565,6 +568,24 @@ impl Ctx {
         };
         let setting = nvs_config::Setting::Text(written);
         match nvs_config::Quantity::parse("cpu_time", nvs_config::Unit::Duration, &setting) {
+            Ok(nvs_config::Quantity::Nanos(nanos)) => nanos,
+            _ => 0,
+        }
+    }
+
+    /// `[limits] wall_time` in nanoseconds, or `0` for a request with none,
+    /// read as [`Self::configured_cpu_time`] reads its key: a malformed value
+    /// and `false` both answer `0`.
+    pub(super) fn configured_wall_time(&self) -> u64 {
+        let Some(written) = self
+            .config
+            .as_ref()
+            .and_then(|config| config.get("wall_time"))
+        else {
+            return 0;
+        };
+        let setting = nvs_config::Setting::Text(written);
+        match nvs_config::Quantity::parse("wall_time", nvs_config::Unit::Duration, &setting) {
             Ok(nvs_config::Quantity::Nanos(nanos)) => nanos,
             _ => 0,
         }

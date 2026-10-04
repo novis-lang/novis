@@ -942,8 +942,11 @@ struct Policy {
 ///
 /// The drop **abandons** instead — cancel, then wait, which
 /// [`nvs_host::Running::abandon`] owns with the one case that may not wait —
-/// for a method `[limits] cancel_on_disconnect` lists, once the drain period
-/// has ended, and when this task is itself cancelled or torn down.
+/// for a method `[limits] cancel_on_disconnect` lists, once `disconnect_grace`
+/// has passed for a request that has no `wall_time` at that moment, once the
+/// drain period has ended, and when this task is itself cancelled or torn down.
+/// A request with a `wall_time` is not cut by the grace, and clearing that
+/// `wall_time` later wakes this wait, so the grace bounds it from then on.
 struct Peer {
     running: Option<Box<dyn Running>>,
     /// The connection's half of the request's *own* body, pumped by whoever
@@ -955,6 +958,12 @@ struct Peer {
     /// Whether the request's method is listed in `cancel_on_disconnect`, read
     /// once at its start from the snapshot it runs under.
     cancels: bool,
+    /// `[limits] disconnect_grace`, read beside `cancels`: how long the
+    /// request runs on after its client left while it has no `wall_time`.
+    grace: Duration,
+    /// The request's tree, for the `wall_time` it has now and a wake when that
+    /// moves — what decides whether the grace bounds the request at all.
+    tree: nvs_runtime::SafepointView,
     /// The drain this connection is under, and when it saw it: what ends a
     /// wait for a request whose client is gone at the drain period's end.
     draining: Draining,
@@ -1013,18 +1022,35 @@ impl Drop for Peer {
             running.abandon();
             return;
         }
+        let grace_ends = Instant::now() + self.grace;
         // The request's own end wakes this task, as it does the wait in the
-        // service future; the drain's cut is the one other wake filed here.
+        // service future. The other wakes filed here are the drain's cut, the
+        // grace's end, and the request's `wall_time` moving, which decides
+        // whether the grace bounds it at all.
         while !running.finished() {
+            let now = Instant::now();
             let cut_at = self.cut_at();
-            if cut_at.is_some_and(|at| at <= Instant::now()) || nvs_runtime::Teardown::in_progress()
+            let grace_at = (self.tree.wall_time() == 0).then_some(grace_ends);
+            if cut_at.is_some_and(|at| at <= now)
+                || grace_at.is_some_and(|at| at <= now)
+                || nvs_runtime::Teardown::in_progress()
             {
                 break;
             }
-            if let Some(at) = cut_at {
+            // One timer per task, so the earlier of the two.
+            if let Some(at) = cut_at.into_iter().chain(grace_at).min() {
                 crate::bounds::wake_at(at);
             }
+            if let Some(wake) = nvs_host::current_task()
+                .and_then(|me| nvs_host::reactor::with_current(|reactor| reactor.remote_wake(me)))
+            {
+                self.tree.watch_wall_time(Box::new(move || {
+                    let _ = wake.wake();
+                }));
+            }
             let resumed = suspend_current(Waiting::Parked);
+            // Taken back by this task, which settles it without a wake.
+            drop(self.tree.unwatch_wall_time());
             if !resumed.suspended() || resumed.cancelled() {
                 break;
             }
@@ -1641,13 +1667,20 @@ where
                     Ok(running) => {
                         // An unreadable list is one the boot refused, so the
                         // `false` here is never reached by a request.
-                        let cancels =
+                        let disconnect =
                             nvs_config::app::disconnect_for(&snapshot.config, &snapshot.origins)
-                                .is_ok_and(|disconnect| disconnect.cancels(verb.as_str()));
+                                .ok();
                         let mut peer = Peer {
                             running: Some(running),
                             supply,
-                            cancels,
+                            cancels: disconnect
+                                .as_ref()
+                                .is_some_and(|disconnect| disconnect.cancels(verb.as_str())),
+                            grace: disconnect
+                                .map_or(nvs_config::app::DISCONNECT_GRACE, |disconnect| {
+                                    disconnect.grace
+                                }),
+                            tree: ctx.borrow().safepoint_view(),
                             draining: draining.clone(),
                             seen: drain_seen.clone(),
                             period: drain_period,
@@ -5620,6 +5653,8 @@ mod tests {
                 })),
                 supply: None,
                 cancels: false,
+                grace: nvs_config::app::DISCONNECT_GRACE,
+                tree: Ctx::buffered().safepoint_view(),
                 draining: Draining::detached(),
                 seen: crate::io::DrainSeen::default(),
                 period: Duration::ZERO,
@@ -6128,12 +6163,12 @@ mod tests {
     /// ordering against the connection's end and not only a final state.
     fn after_a_disconnect(
         written: &str,
-        then: impl FnOnce(&Notes, &Admission) + 'static,
+        then: impl FnOnce(&mut Ctx, &Notes, &Admission) + 'static,
     ) -> Vec<String> {
         let serving = booted_on(written);
         let admission = Arc::clone(&serving.admission);
         let notes: Notes = Arc::new(std::sync::Mutex::new(Vec::new()));
-        type Then = Box<dyn FnOnce(&Notes, &Admission)>;
+        type Then = Box<dyn FnOnce(&mut Ctx, &Notes, &Admission)>;
         let then: RefCell<Option<Then>> = RefCell::new(Some(Box::new(then)));
         let handler = {
             let notes = Arc::clone(&notes);
@@ -6164,9 +6199,9 @@ mod tests {
                     }
                 }
                 let stopped = Stopped(Arc::clone(&notes));
-                let program: Program = Box::new(move |_child: &mut Ctx, _args| {
+                let program: Program = Box::new(move |child: &mut Ctx, _args| {
                     let _stopped = &stopped;
-                    then(&notes, &admission);
+                    then(child, &notes, &admission);
                     Value::null()
                 });
                 Reply::Run(
@@ -6216,7 +6251,7 @@ mod tests {
 
     /// Two writes with a wait between them, the shape of a script that saves
     /// an order and then its items. A cancelled task stops at the wait.
-    fn two_writes(notes: &Notes, _admission: &Admission) {
+    fn two_writes(_ctx: &mut Ctx, notes: &Notes, _admission: &Admission) {
         noted(notes, "the first write");
         if matches!(
             nvs_host::sleep(Duration::from_millis(100)),
@@ -6267,13 +6302,102 @@ mod tests {
     /// connects and leaves again cannot start unbounded work.
     #[test]
     fn a_disconnected_request_keeps_its_admission_place_until_it_ends() {
-        let notes = after_a_disconnect("", |notes, admission| {
+        let notes = after_a_disconnect("", |_ctx, notes, admission| {
             let _ = nvs_host::sleep(Duration::from_millis(100));
             noted(notes, format!("in flight: {}", admission.in_flight()));
         });
         assert!(
             notes.iter().any(|note| note == "in flight: 1"),
             "a request whose client left gave its place back before it ended: {notes:?}"
+        );
+    }
+
+    /// A grace far shorter than the waits below, so a case reads which side of
+    /// it the request ended on.
+    const SHORT_GRACE: &str = "[limits]\ndisconnect_grace = \"50ms\"\n";
+
+    /// Waits `for_how_long`, and answers whether the wait ran to its end. A
+    /// cancelled request is torn down where it parks, so it never sees `false`.
+    fn waited(for_how_long: Duration) -> bool {
+        !matches!(nvs_host::sleep(for_how_long), Woken::Cancelled)
+    }
+
+    /// Moves the request's own `wall_time`, as `Core\Config::set` and
+    /// `::restore` do: `None` restores it to what the file says.
+    fn wall_time(ctx: &mut Ctx, to: Option<&str>) {
+        let config = ctx
+            .config_mut()
+            .expect("a served request has a configuration");
+        match to {
+            Some(value) => assert!(config.set("wall_time", value), "`wall_time` was refused"),
+            None => config.restore("wall_time"),
+        }
+        ctx.refresh_limits();
+    }
+
+    /// A request with no `wall_time` runs on after its client left for
+    /// `disconnect_grace` and no longer, and is then cancelled.
+    #[test]
+    fn a_disconnected_request_with_no_wall_time_is_cancelled_at_its_grace() {
+        let notes = after_a_disconnect(SHORT_GRACE, |_ctx, notes, _admission| {
+            if waited(Duration::from_secs(5)) {
+                noted(notes, "ran past its grace");
+            }
+        });
+        assert!(
+            !notes.iter().any(|note| note == "ran past its grace"),
+            "a request with no `wall_time` outlived its grace: {notes:?}"
+        );
+        let at = |what: &str| notes.iter().position(|note| note == what);
+        let stopped = at("the request stopped").expect("the request never stopped");
+        let returned = at("the accept loop returned").expect("the accept loop never returned");
+        assert!(
+            stopped < returned,
+            "the grace did not cancel the request before the connection ended: {notes:?}"
+        );
+    }
+
+    /// A request with a `wall_time` has that one limit, so the grace does not
+    /// cut it.
+    #[test]
+    fn a_disconnected_request_with_a_wall_time_runs_past_the_grace() {
+        let written = format!("{SHORT_GRACE}wall_time = \"10s\"\n");
+        let notes = after_a_disconnect(&written, |_ctx, notes, _admission| {
+            if waited(Duration::from_millis(300)) {
+                noted(notes, "ran past its grace");
+            }
+        });
+        assert!(
+            notes.iter().any(|note| note == "ran past its grace"),
+            "the grace cut a request that has a `wall_time`: {notes:?}"
+        );
+    }
+
+    /// `wall_time` is a `Runtime` key: a request that clears its own after the
+    /// grace has passed is bounded by the grace from then on.
+    #[test]
+    fn a_disconnected_request_that_clears_its_wall_time_is_cancelled_at_its_grace() {
+        let notes = after_a_disconnect(SHORT_GRACE, |ctx, notes, _admission| {
+            wall_time(ctx, Some("10s"));
+            if !waited(Duration::from_millis(300)) {
+                return;
+            }
+            noted(notes, "ran past its grace");
+            wall_time(ctx, None);
+            if waited(Duration::from_secs(5)) {
+                noted(notes, "ran on with no bound");
+            }
+        });
+        assert!(
+            notes.iter().any(|note| note == "ran past its grace"),
+            "the grace cut the request while it had a `wall_time`: {notes:?}"
+        );
+        let at = |what: &str| notes.iter().position(|note| note == what);
+        let stopped = at("the request stopped").expect("the request never stopped");
+        let returned = at("the accept loop returned").expect("the accept loop never returned");
+        assert!(
+            !notes.iter().any(|note| note == "ran on with no bound") && stopped < returned,
+            "a request that cleared its `wall_time` was not cancelled: {notes:?}"
         );
     }
 
