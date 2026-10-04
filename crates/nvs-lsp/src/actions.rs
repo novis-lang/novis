@@ -13,8 +13,8 @@
 //! so there is nothing here for it to be translated *from*, and it is offered
 //! by nothing rather than refused by a list.
 //!
-//! The one action that is not a fix is [`crate::html_literal`]'s refactor, a
-//! string rewritten as an html literal. It is appended to the quick fixes under
+//! The one action that is not a fix is [`crate::html_template`]'s refactor, a
+//! string rewritten as an html template. It is appended to the quick fixes under
 //! its own kind and never to a fix-all, since applying it changes what the
 //! line prints.
 //!
@@ -120,7 +120,7 @@ impl Kind {
 
 /// Every fix offered over `[start, end)` of the entry document of `analysed`,
 /// under `kind`, positioned in `encoding` — and, beside the quick fixes, the
-/// html-literal refactor when the range is on a string ([`crate::html_literal`]).
+/// html-template refactor when the range is on a string ([`crate::html_template`]).
 ///
 /// The diagnostics read are the compiler's, phase-gated, and the ones `files`
 /// gives the entry document, which is where a deprecated value's replacement
@@ -160,7 +160,7 @@ pub fn at(
         })
         .collect();
     if kind == Kind::QuickFix {
-        offered.extend(crate::html_literal::at(analysed, start, end, encoding));
+        offered.extend(crate::html_template::at(analysed, start, end, encoding));
     }
     offered.sort_by(|left, right| order(left).cmp(&order(right)));
     offered

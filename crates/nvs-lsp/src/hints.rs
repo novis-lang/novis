@@ -14,7 +14,7 @@
 //!
 //! There is no third, and a candidate is a decision rather than an addition:
 //! everything else an editor could annotate — a `foreach` binding with its
-//! type written, a chained call's intermediate type, a closure's return — is
+//! type written, a chained call's intermediate type, an anonymous function's return — is
 //! either written in the source already or is a claim about an idiom M5–M9 is
 //! still moving.
 //!
@@ -312,7 +312,7 @@ impl Hinting<'_> {
                     self.expr(&item.value);
                 }
             }
-            ExprKind::ObjectLiteral(fields) => {
+            ExprKind::AnonObject(fields) => {
                 for field in fields {
                     self.expr(&field.value);
                 }
@@ -383,7 +383,7 @@ impl Hinting<'_> {
             | ExprKind::Paren(inner) => self.expr(inner),
             ExprKind::Isset(exprs) => self.exprs(exprs),
             ExprKind::Exit(status) => self.opt_expr(status.as_deref()),
-            ExprKind::Fn(closure) => self.closure(closure),
+            ExprKind::Fn(anon_fn) => self.anon_fn(anon_fn),
             ExprKind::SpawnScript { path, options } => {
                 self.expr(path);
                 for option in options {
@@ -395,10 +395,10 @@ impl Hinting<'_> {
         }
     }
 
-    /// A closure's parameters and body.
-    fn closure(&mut self, closure: &FnExpr) {
-        self.params(&closure.params);
-        match &closure.body {
+    /// An anonymous function's parameters and body.
+    fn anon_fn(&mut self, anon_fn: &FnExpr) {
+        self.params(&anon_fn.params);
+        match &anon_fn.body {
             FnBody::Expr(expr) => self.expr(expr),
             FnBody::Block(block) => self.block(block),
         }

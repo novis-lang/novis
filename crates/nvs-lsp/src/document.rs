@@ -482,7 +482,7 @@ impl Analysed {
     /// Every body whose span covers `offset` in the entry document, innermost
     /// first.
     ///
-    /// A closure's body is inside the body that wrote it and shares none of its
+    /// An anonymous function's body is inside the body that wrote it and shares none of its
     /// bindings, and a method's is inside the file's own script frame on the
     /// same terms — so which of them a reader takes is its own question, and
     /// this orders them rather than answering it.
@@ -491,7 +491,7 @@ impl Analysed {
     /// half-open, so the cursor at the last byte of a file with no trailing
     /// newline is outside the frame that covers the whole file — and that is
     /// where a developer types in a file they have just started. Nothing else
-    /// can be there: a method or a closure ends at a `}` that the frame still
+    /// can be there: a method or an anonymous function ends at a `}` that the frame still
     /// covers. So where no body covers `offset`, the widest body that starts
     /// before it answers, which is that frame.
     pub(crate) fn bodies_at(&self, offset: BytePos) -> Vec<&[LocalBinding]> {
@@ -512,10 +512,10 @@ impl Analysed {
     /// The type the binding named at `span` was declared with, `offset` being
     /// the position whose bodies are in scope.
     ///
-    /// Innermost body first, and the first one that declares the name wins: a
-    /// closure's body is inside the body that wrote it and shares none of its
-    /// bindings, so the enclosing body's entry is the right answer for a name
-    /// the closure captured and the wrong one for a name it declared itself.
+    /// Innermost body first, and the first one that declares the name wins: an
+    /// anonymous function's body is inside the body that wrote it and shares none
+    /// of its bindings, so the enclosing body's entry is the right answer for a
+    /// name the function captured and the wrong one for a name it declared itself.
     ///
     /// It lives here rather than beside either caller because two features now
     /// ask it: [`crate::completion`] resolves the members off `$u->`, and

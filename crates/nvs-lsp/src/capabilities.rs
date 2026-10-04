@@ -79,12 +79,12 @@ pub const TOKEN_MODIFIERS: &[SemanticTokenModifier] = &[
 /// `editor.codeActionsOnSave` run the fixes beside format-on-save, per
 /// `rule:tooling/fmt-is-never-a-diagnostic` — `nvs fmt` stays layout-only, so
 /// a fix that changes meaning has to arrive through this channel instead.
-/// The third kind is the html-literal refactor's ([`crate::html_literal::KIND`]),
+/// The third kind is the html-template refactor's ([`crate::html_template::KIND`]),
 /// narrow enough that a client asking for it by kind gets that action alone.
 pub const CODE_ACTION_KINDS: &[CodeActionKind] = &[
     CodeActionKind::QUICKFIX,
     CodeActionKind::new("source.fixAll.nvs"),
-    CodeActionKind::new(crate::html_literal::KIND),
+    CodeActionKind::new(crate::html_template::KIND),
 ];
 
 /// The version this server reports in `serverInfo`.

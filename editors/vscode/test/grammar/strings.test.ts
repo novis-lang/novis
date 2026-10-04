@@ -95,37 +95,37 @@ describe("a double-quoted string, which interpolates both spellings", () => {
   });
 });
 
-describe("a markup literal, which interpolates a string's two spellings and one more", () => {
-  const MARKUP = "string.quoted.other.markup.nvs";
+describe("an html template, which interpolates a string's two spellings and one more", () => {
+  const TEMPLATE = "string.quoted.other.html-template.nvs";
 
   it("opens on the prefix and the backtick together, and closes on a backtick", () => {
     const openers = spans.filter((s) => s.text === "html`");
-    assert.equal(openers.length, 2, "the fixture holds two literals");
+    assert.equal(openers.length, 2, "the fixture holds two templates");
     for (const opener of openers) {
       assert.ok(opener.scopes.includes("punctuation.definition.string.begin.nvs"));
-      assert.ok(opener.scopes.includes(MARKUP));
+      assert.ok(opener.scopes.includes(TEMPLATE));
     }
-    assert.ok(span(spans, "<p>hello ").scopes.includes(MARKUP), "the body is outside the literal");
+    assert.ok(span(spans, "<p>hello ").scopes.includes(TEMPLATE), "the body is outside the template");
   });
 
   it("reads a bare $name and a {$ slot as a double-quoted string does", () => {
     assert.ok(span(spans, "$visitor").scopes.includes(VARIABLE));
     const body = span(spans, "$cart");
     assert.ok(body.scopes.includes(SLOT), "the complex slot holds no embedded code");
-    assert.ok(body.scopes.includes(MARKUP), "the slot escaped the literal it is in");
+    assert.ok(body.scopes.includes(TEMPLATE), "the slot escaped the template it is in");
   });
 
   it("opens a slot on <?= and closes it on ?>, holding code that need not begin with $", () => {
     const open = span(spans, "<?=");
     assert.ok(open.scopes.includes("punctuation.section.embedded.begin.nvs"));
-    assert.ok(open.scopes.includes(MARKUP), "the tag slot escaped the literal it is in");
+    assert.ok(open.scopes.includes(TEMPLATE), "the tag slot escaped the template it is in");
     // Code mode reads `App::VERSION` as it reads it anywhere: the name, then the accessor.
     const name = spans.find((s) => s.text.trim() === "App" && s.scopes.includes(SLOT));
     assert.ok(name, "the class name inside the tag slot is code");
-    assert.ok(name.scopes.includes(MARKUP), "the tag slot escaped the literal it is in");
+    assert.ok(name.scopes.includes(TEMPLATE), "the tag slot escaped the template it is in");
     const accessor = spans.find((s) => s.text === "::" && s.scopes.includes(SLOT));
     assert.ok(accessor?.scopes.includes("punctuation.accessor.nvs"), "`::` in the slot is code");
-    // The file's own `?>` closes code mode; the slot's is the one inside the literal.
+    // The file's own `?>` closes code mode; the slot's is the one inside the template.
     const close = spans.find((s) => s.text === "?>" && s.scopes.includes(SLOT));
     assert.ok(close?.scopes.includes("punctuation.section.embedded.end.nvs"), "`?>` ends the slot");
   });
@@ -137,7 +137,7 @@ describe("a markup literal, which interpolates a string's two spellings and one 
   it("reads a brace before anything but $, and a ?> outside a slot, as one run of text", () => {
     verbatim(
       "<style>.a {color: red}</style>{App::NAME} stays text and so does a ?> outside a slot",
-      MARKUP,
+      TEMPLATE,
     );
   });
 });

@@ -127,7 +127,7 @@
 //! is *directly* inside belongs to.
 //!
 //! The variables offered are the innermost body's own and only its own. An
-//! enclosing body's are not in scope: a closure captures by value
+//! enclosing body's are not in scope: an anonymous function captures by value
 //! (`rule:types/anonymous-function`) and a file-scope local is unreachable from a
 //! function, so a name taken from the body outside would be one the checker
 //! refuses where it was offered.
@@ -265,7 +265,7 @@
 //! none and `nvs_stdlib::registry::CoreTy::Instance` owns why — so `$m->groups`
 //! is an unknown member and `$m->groups()` is the member.
 //!
-//! # What a path literal offers
+//! # What a written path offers
 //!
 //! Inside the literal of a `require`, of an `autoload` root or `discover`
 //! glob, or of an argument at a path parameter, the cursor is writing a path,
@@ -318,10 +318,11 @@
 //! checker resolved the call to, and `CompletionFiles::values_at` keeps the
 //! attachments whose `when` the call's other arguments meet. A parameter with
 //! no value that applies is ordinary text, so the quote opens no list there.
-//! A parameter whose declared type is made only of string literal types, with
-//! or without `null` (`rule:types/single-value-types`), is offered each literal as an item of kind
-//! `value`, after the values the files give it ([`named_values`]). A literal a
-//! file also lists is offered once, as the file's value, which may carry a
+//! A parameter whose declared type is made only of single-value string types,
+//! with or without `null` (`rule:types/single-value-types`), is offered each of
+//! those strings as an item of kind `value`, after the values the files give it
+//! ([`named_values`]). A string a file also lists is offered once, as the
+//! file's value, which may carry a
 //! label and documentation the type does not.
 //! Each item's one edit replaces the literal's text ([`file_values`]), and
 //! carries no command, no other edit and no snippet. An item with no
@@ -357,8 +358,8 @@ use serde_json::{Value, json};
 
 use crate::completion_files::{self, CompletionFiles};
 use crate::definition::{
-    ClassBound, class_literal, declared_type, imports_of, namespace_at, resolved_name,
-    supertype_names, text_of,
+    ClassBound, declared_type, imports_of, namespace_at, resolved_name, supertype_names, text_of,
+    written_class_name,
 };
 use crate::document::Analysed;
 use crate::index::{DeclKind, Declaration, SymbolIndex};
@@ -599,7 +600,7 @@ fn members_of(cursor: &Cursor<'_>, class: &QName, reach: Reach) -> Vec<Completio
 enum Literal {
     /// A `require` path, an `autoload` root or `discover` glob, or an argument
     /// at a path parameter.
-    Path(PathLiteral),
+    Path(WrittenPath),
     /// An `autoload` prefix, starting at this byte after its opening quote.
     Prefix(BytePos),
     /// The operand of `as class<T>` or an argument at a class-name parameter,
@@ -617,15 +618,15 @@ enum Literal {
     RouteKey(BytePos, String),
 }
 
-/// A path literal the cursor is inside.
-struct PathLiteral {
+/// A written path the cursor is inside.
+struct WrittenPath {
     /// The first byte of the literal's text, after its opening quote.
     text_start: BytePos,
     /// Which files are offered beside the directories.
     files: Files,
 }
 
-/// Which files a path literal is offered beside the directories.
+/// Which files a written path is offered beside the directories.
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Files {
     /// None: an `autoload` root or glob names a directory.
@@ -644,7 +645,7 @@ enum Files {
 /// of their own, so they are read off the declaration the walk parsed, which
 /// is the parse the index was built from. The operand of `as class<T>` and an
 /// argument at a class-name parameter are
-/// [`crate::definition::class_literal`]'s, and an argument at a path
+/// [`crate::definition::written_class_name`]'s, and an argument at a path
 /// parameter is [`crate::arguments::at`]'s. In every case the cursor has to be
 /// between the quotes.
 fn literal_at(
@@ -659,13 +660,13 @@ fn literal_at(
         && parent.kind == "Require"
     {
         return inside(string.span).map(|text_start| {
-            Literal::Path(PathLiteral {
+            Literal::Path(WrittenPath {
                 text_start,
                 files: Files::Source,
             })
         });
     }
-    if let Some(literal) = class_literal(analysed, offset) {
+    if let Some(literal) = written_class_name(analysed, offset) {
         return Some(Literal::Class(literal.span.start + 1, literal.bound));
     }
     if let Some(literal) = crate::arguments::route_name_at(analysed, offset) {
@@ -677,7 +678,7 @@ fn literal_at(
     if let Some(argument) = crate::arguments::at(analysed, offset)
         && argument.text == ParamText::Path
     {
-        return Some(Literal::Path(PathLiteral {
+        return Some(Literal::Path(WrittenPath {
             text_start: argument.span.start + 1,
             files: Files::All,
         }));
@@ -706,7 +707,7 @@ fn literal_at(
         return Some(Literal::Prefix(text_start));
     }
     literals.into_iter().find_map(inside).map(|text_start| {
-        Literal::Path(PathLiteral {
+        Literal::Path(WrittenPath {
             text_start,
             files: Files::None,
         })
@@ -715,7 +716,7 @@ fn literal_at(
 
 /// The string argument the cursor at `offset` is inside, quotes included, and
 /// the values offered at it: those of the completion-file attachments that
-/// apply at its call, then each member of the parameter's string literal union
+/// apply at its call, then each string in the parameter's set of allowed values
 /// that no file lists. `None` where no value applies.
 fn named_values(
     analysed: &Analysed,
@@ -1096,7 +1097,7 @@ fn option_key_at(
     let [bag, call, ..] = path.nodes() else {
         return None;
     };
-    if bag.kind != "ObjectLiteral" || !matches!(call.kind, "StaticCall" | "MethodCall") {
+    if bag.kind != "AnonObject" || !matches!(call.kind, "StaticCall" | "MethodCall") {
         return None;
     }
     let text = analysed.map.file(analysed.entry).text();
@@ -1150,7 +1151,7 @@ fn option_keys(cursor: &Cursor<'_>, written: usize, options: &[CoreOption]) -> V
         .collect()
 }
 
-/// What the directory a path literal's text reaches holds, for the segment
+/// What the directory a written path's text reaches holds, for the segment
 /// the cursor is writing.
 ///
 /// The text before the cursor is split at its last separator. What comes
@@ -1170,7 +1171,7 @@ fn option_keys(cursor: &Cursor<'_>, written: usize, options: &[CoreOption]) -> V
 /// compiler resolves a glob with, so each is spelled the way the disk spells
 /// it (`rule:programs/path-case`). A name starting with `.` is hidden. One
 /// directory is listed per request, and nothing is kept between requests.
-fn paths(cursor: &Cursor<'_>, literal: &PathLiteral) -> Vec<CompletionItem> {
+fn paths(cursor: &Cursor<'_>, literal: &WrittenPath) -> Vec<CompletionItem> {
     let file = cursor.analysed.map.file(cursor.analysed.entry);
     let Some(written) = file
         .text()
@@ -1626,7 +1627,7 @@ enum Within {
     LoopOrSwitch,
     /// A class, an interface or an enum.
     Class,
-    /// A method's, a function's or a closure's body.
+    /// A method's, a function's or an anonymous function's body.
     Body,
     /// No such body: a declaration is written at the top of a file or of a
     /// namespace.
@@ -1943,7 +1944,8 @@ fn before_the_type(before: &[TokenKind]) -> &[TokenKind] {
 }
 
 /// Whether a `(` written straight after `before` opens a list of declared
-/// types: a function's, a method's or a closure's parameters, or a `catch`.
+/// types: a function's, a method's or an anonymous function's parameters, or a
+/// `catch`.
 ///
 /// A method's name may be any word, so what is matched is the `function` in
 /// front of it. A type parameter list between the name and the `(` is read

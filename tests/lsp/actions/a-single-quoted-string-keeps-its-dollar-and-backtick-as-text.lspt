@@ -1,9 +1,9 @@
 --TEST--
-a single-quoted string has no interpolation, so its html literal writes the `$` that would start a hole as `\$` and a backtick as `` \` ``, `rule:ide/a-string-converts-to-an-html-template`
+a single-quoted string has no interpolation, so its html template writes the `$` that would start a hole as `\$` and a backtick as `` \` ``, `rule:ide/a-string-converts-to-an-html-template`
 --FILE--
 <?nvs
 echo '<code>$name</code> is written with `ticks`<|>';
 --REQUEST--
 codeAction
 --EXPECT--
-2:6-2:50 refactor.rewrite.htmlLiteral Convert to html literal -> "html`<code>\$name</code> is written with \`ticks\``"
+2:6-2:50 refactor.rewrite.htmlTemplate Convert to html template -> "html`<code>\$name</code> is written with \`ticks\``"

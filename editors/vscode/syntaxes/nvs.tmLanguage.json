@@ -205,7 +205,7 @@
       "patterns": [{ "include": "#type" }]
     },
     "types": {
-      "comment": "The annotations rule:types/declaration makes mandatory, in the positions where the token beside a name is what says the name is a type. Each pattern consumes the name alone and looks at its neighbour rather than taking it, so nothing it reads past loses the colour it already had. Two slots are not here. The return type needs the whole signature to be told from a ternary's colon, and lives in `#signature`. The inline shape is recognised only inside a type region, because `{n: int}` and the object literal `{n: $n * 10}` are one spelling as far as a regex reaches, and colouring the second as the first would confirm a shape where there is a value.",
+      "comment": "The annotations rule:types/declaration makes mandatory, in the positions where the token beside a name is what says the name is a type. Each pattern consumes the name alone and looks at its neighbour rather than taking it, so nothing it reads past loses the colour it already had. Two slots are not here. The return type needs the whole signature to be told from a ternary's colon, and lives in `#signature`. The inline shape is recognised only inside a type region, because `{n: int}` and the anonymous object `{n: $n * 10}` are one spelling as far as a regex reaches, and colouring the second as the first would confirm a shape where there is a value.",
       "patterns": [
         {
           "comment": "Every slot that binds a `$` name is one shape — parameter, property, typed local, `foreach` binding, `catch` clause, promoted constructor parameter: the type, then the variable. A `...` between them is a variadic and belongs to the shape; an `&` is not, because rule:statements/ampersand-is-not-a-by-reference-marker retires that marker, so `Row &$r` is left uncoloured rather than confirming a spelling the parser reports.",
@@ -304,12 +304,12 @@
         { "include": "#heredoc" },
         { "include": "#single-quoted" },
         { "include": "#double-quoted" },
-        { "include": "#markup-literal" }
+        { "include": "#html-template" }
       ]
     },
-    "markup-literal": {
-      "comment": "``html`…` `` (rule:core-classes/html-template), lexed by crates/nvs-syntax/src/lexer.rs as a double-quoted string's body with the delimiter swapped, so its body carries the same escapes and the same `{$…}` and `$name` slots — plus the one slot a string does not have, `<?= … ?>`, which holds any expression. The prefix and the backtick are one token there, so the pattern requires them together; a backtick in the body is `\\``. The body is coloured as a string rather than handed to the HTML grammar: the literal is not yet a region the server answers (crates/nvs-lsp/src/regions.rs, known gap `nvs-lsp/markup-literals-body-is-not-a`), and when it becomes one the HTML services follow that answer rather than this pattern.",
-      "name": "string.quoted.other.markup.nvs",
+    "html-template": {
+      "comment": "``html`…` `` (rule:core-classes/html-template), lexed by crates/nvs-syntax/src/lexer.rs as a double-quoted string's body with the delimiter swapped, so its body carries the same escapes and the same `{$…}` and `$name` slots — plus the one slot a string does not have, `<?= … ?>`, which holds any expression. The prefix and the backtick are one token there, so the pattern requires them together; a backtick in the body is `\\``. The body is coloured as a string rather than handed to the HTML grammar: the template is not yet a region the server answers (crates/nvs-lsp/src/regions.rs, known gap `nvs-lsp/html-templates-body-is-not-a`), and when it becomes one the HTML services follow that answer rather than this pattern.",
+      "name": "string.quoted.other.html-template.nvs",
       "begin": "(html`)",
       "beginCaptures": { "1": { "name": "punctuation.definition.string.begin.nvs" } },
       "end": "(`)",
@@ -317,12 +317,12 @@
       "patterns": [
         { "name": "constant.character.escape.nvs", "match": "\\\\[`{]" },
         { "include": "#escape" },
-        { "include": "#markup-echo-hole" },
+        { "include": "#html-template-echo-hole" },
         { "include": "#interpolation" }
       ]
     },
-    "markup-echo-hole": {
-      "comment": "`<?= … ?>` inside a markup literal holds an expression that may begin with anything, where `{$…}` must begin with `$`: crates/nvs-syntax/src/lexer.rs opens it in the markup body alone, never in a double-quoted string, so it is offered from #markup-literal and from nowhere else. Its body is `#code` for the same reason a `{$…}` slot's is, and the scope is the slot's own, since to a theme the two are the one thing: Novis inside text.",
+    "html-template-echo-hole": {
+      "comment": "`<?= … ?>` inside an html template holds an expression that may begin with anything, where `{$…}` must begin with `$`: crates/nvs-syntax/src/lexer.rs opens it in the html template body alone, never in a double-quoted string, so it is offered from #html-template and from nowhere else. Its body is `#code` for the same reason a `{$…}` slot's is, and the scope is the slot's own, since to a theme the two are the one thing: Novis inside text.",
       "name": "meta.embedded.line.nvs",
       "begin": "(<\\?=)",
       "beginCaptures": { "1": { "name": "punctuation.section.embedded.begin.nvs" } },

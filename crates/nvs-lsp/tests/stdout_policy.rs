@@ -11,7 +11,7 @@
 //! allowance from it, but a lint covers the crate it is written in and
 //! `nvs-cli` legitimately allows it — so the moment `nvs-lsp` depends on a
 //! crate that also serves a terminal program, the lint stops being the answer.
-//! This walks the dependency closure instead.
+//! This walks the whole dependency tree instead.
 //!
 //! **Scope, named rather than implied.** What is checked is this repository's
 //! own crates, read off their manifests. The third-party half is covered
@@ -107,7 +107,7 @@ fn sources(dir: &Path) -> Vec<PathBuf> {
 /// `stdout()` rather than `io::stdout()`, so an imported spelling counts too.
 const WRITERS: &[&str] = &["println!(", "print!(", "stdout()"];
 
-/// The one crate in the closure that names `stdout()` legitimately.
+/// The one crate in the dependency tree that names `stdout()` legitimately.
 ///
 /// `nvs-lsp` links the type checker, which links `nvs-stdlib` for the `Core`
 /// signature registry, which links the runtime — so `nvs_runtime::Ctx`'s

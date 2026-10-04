@@ -917,7 +917,7 @@ fn takes_a_string(ty: &Type) -> bool {
                 | TypeAtom::Never
                 | TypeAtom::True
                 | TypeAtom::False
-                | TypeAtom::IntLiteral(_)
+                | TypeAtom::SingleValueInt(_)
         ),
         _ => true,
     }

@@ -47,7 +47,7 @@
 //!
 //! `every_request_answers_every_construct` reads this matrix, and the whole
 //! cross product is not what it can ask for: a `documentLink` answer names a
-//! `require`'s path literal and nothing else, so the cell where that request
+//! `require`'s written path and nothing else, so the cell where that request
 //! meets `ClassDecl` is empty in every corpus that could ever exist. A gate
 //! demanding it would be red forever, and a gate with a hand-written list of
 //! exemptions is the list `rule:ide/lspt-coverage-is-inferred` exists to

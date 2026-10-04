@@ -223,8 +223,8 @@
         "category": "Novis"
       },
       {
-        "command": "nvs.convertToHtmlLiteral",
-        "title": "Convert to html literal",
+        "command": "nvs.convertToHtmlTemplate",
+        "title": "Convert to html template",
         "category": "Novis"
       },
       {
@@ -246,13 +246,13 @@
     "menus": {
       "commandPalette": [
         {
-          "command": "nvs.convertToHtmlLiteral",
+          "command": "nvs.convertToHtmlTemplate",
           "when": "editorLangId == nvs"
         }
       ],
       "editor/context": [
         {
-          "command": "nvs.convertToHtmlLiteral",
+          "command": "nvs.convertToHtmlTemplate",
           "when": "editorLangId == nvs",
           "group": "1_modification"
         }

@@ -9,7 +9,7 @@
 //
 // Two of the slots are deliberately narrower than the grammar, and both are pinned below. A ternary's
 // colon and a return type's are one spelling, so the return type is read only inside a signature; an
-// object literal and an inline shape (`rule:types/object-top`) are one spelling too, so a shape is
+// anonymous object and an inline shape (`rule:types/object-top`) are one spelling too, so a shape is
 // read only where a region has already established a type. Colouring either of them by the colon alone
 // would confirm a construct that is not there, which is `rule:ide/rejected-syntax-gets-no-colour`'s
 // claim applied to a position rather than to a spelling.
@@ -65,7 +65,7 @@ describe("the name a type slot holds", () => {
     // In file order: a class constant's type, a property's, a nullable property's, a type argument,
     // two parameters and a return, a typed local, a `foreach` binding, a union member, a shape field,
     // a generic return and its argument, the name an alias introduces and the type it stands for, and
-    // a closure's parameter and return.
+    // an anonymous function's parameter and return.
     assert.deepEqual(carrying(TYPE_NAME), [
       "Currency", "Token", "Customer", "Line",
       "Money", "Card", "Receipt",
@@ -107,7 +107,7 @@ describe("the name a type slot holds", () => {
     coloured("gross", PROPERTY);
   });
 
-  it("colours the name a signature declares, and none where a closure declares none", () => {
+  it("colours the name a signature declares, and none where an anonymous function declares none", () => {
     assert.deepEqual(carrying(FUNCTION_NAME), ["charge", "rate", "shape", "rows", "map"]);
     coloured("$line", VARIABLE);
   });
@@ -127,7 +127,7 @@ describe("the two slots a regex cannot have", () => {
     uncoloured("first", "rest");
   });
 
-  it("reads an object literal's fields as the values they are", () => {
+  it("reads an anonymous object's fields as the values they are", () => {
     // `{sum: $this->net, cut: 0}` is written exactly as the shape type two lines above it, so the
     // shape is recognised only inside a region that has already established a type stands there.
     uncoloured("sum", "cut");

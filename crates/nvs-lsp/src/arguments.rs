@@ -30,16 +30,16 @@
 //! class, the method and the parameter that a completion file's attachment is
 //! keyed by (`rule:ide/completion-files-offer-values-at-named-parameters`),
 //! and the text of every other argument that is one string literal, which a
-//! `when` compares, and the string literal types the parameter's declared type
-//! lists, read off `nvs_types::ResolvedCall::param_tys` so a literal union is
-//! offered with no file at all (`rule:types/single-value-types`).
+//! `when` compares, and the single-value string types the parameter's declared
+//! type lists, read off `nvs_types::ResolvedCall::param_tys` so a set of allowed
+//! values is offered with no file at all (`rule:types/single-value-types`).
 //! [`named_in_document`] names every such literal the
 //! document writes, which the diagnostics read a completion file's `strict`
 //! against.
 //!
-//! **Where a path literal leads is the checker's join.** A relative literal at
+//! **Where a written path leads is the checker's join.** A written relative path at
 //! a path parameter was resolved while checking, and
-//! `nvs_types::ExprTypeTable::path_literal` keeps the absolute path under the
+//! `nvs_types::ExprTypeTable::written_path` keeps the absolute path under the
 //! literal's span ([`target`]). Joining the text here again would be a second
 //! implementation of the rule, and `crate::links`' module doc says why a
 //! second one is refused. An absolute literal names itself.
@@ -97,7 +97,7 @@ pub(crate) struct Named {
     /// parameter's name: the text of a lone string literal, and `None` for any
     /// other expression. A parameter the call leaves out is not here.
     pub others: Vec<(String, Option<String>)>,
-    /// The string literal types in the parameter's declared type, each as its
+    /// The single-value string types in the parameter's declared type, each as its
     /// text: `["a", "b"]` for `"a"|"b"` and for `"a"|"b"|null`, and nothing for
     /// `string` or for a union with any other member.
     pub members: Vec<String>,
@@ -280,9 +280,10 @@ fn name(analysed: &Analysed, literal: Span, holders: &[Holder]) -> Option<Named>
     })
 }
 
-/// The text of each string literal type in `ty`, in the order the union lists
-/// them, where `ty` is made only of string literal types and `null`. Any other
-/// member, an `int` literal or `string` included, makes it empty.
+/// The text of each single-value string type in `ty`, in the order the union
+/// lists them, where `ty` is made only of single-value string types and `null`.
+/// Any other member, a single-value `int` type or `string` included, makes it
+/// empty.
 fn string_members(analysed: &Analysed, ty: TypeId) -> Vec<String> {
     let interner = &analysed.interner;
     let members = match interner.get(ty) {
@@ -292,7 +293,7 @@ fn string_members(analysed: &Analysed, ty: TypeId) -> Vec<String> {
     let mut found = Vec::new();
     for member in members {
         match interner.get(member) {
-            Ty::StringLiteral(text) => found.push(text.clone()),
+            Ty::SingleValueString(text) => found.push(text.clone()),
             Ty::Null => {}
             _ => return Vec::new(),
         }
@@ -393,7 +394,7 @@ fn classify(analysed: &Analysed, literal: Span, holders: &[Holder]) -> Option<Ar
         let call = call_at(analysed, parent.span)?;
         let index = parameter(analysed, call, parent, literal)?;
         (call, call.text_at(index))
-    } else if parent.kind == "ObjectLiteral" {
+    } else if parent.kind == "AnonObject" {
         let holder = holders
             .get(1)
             .filter(|holder| CALLS.contains(&holder.kind))?;
@@ -516,11 +517,11 @@ fn shape_field(analysed: &Analysed, ty: TypeId, key: &str) -> Option<ParamText> 
 }
 
 /// The absolute path a path argument names: the checker's join for a
-/// relative literal, and the literal itself for an absolute one. `None` for a
-/// relative literal the checker left alone, which names no file it could find
+/// written relative path, and the literal itself for an absolute one. `None` for a
+/// written relative path the checker left alone, which names no file it could find
 /// (`nvs_types::paths::resolved`).
 pub(crate) fn target(analysed: &Analysed, argument: &Argument) -> Option<PathBuf> {
-    if let Some(joined) = analysed.exprs.path_literal(argument.span) {
+    if let Some(joined) = analysed.exprs.written_path(argument.span) {
         return Some(PathBuf::from(joined));
     }
     let text = nvs_syntax::string_lit::cook_string_literal(

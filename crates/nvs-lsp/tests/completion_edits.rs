@@ -116,7 +116,7 @@ fn at(line: u32, character: u32) -> Range {
     }
 }
 
-/// A class-reference literal's item is a class's whole name, and it replaces
+/// The item for a written class name is a class's whole name, and it replaces
 /// all the text between the opening quote and the cursor, separators included.
 #[test]
 fn a_class_name_item_replaces_all_the_text_written() {
@@ -291,7 +291,7 @@ fn completion_offers_the_options_of_later() {
 /// loaded either, and `Shop\Wild\Wolf` names `Animal` through a `use` line.
 /// `Shop\Rock` is not an `Animal`, so it is not offered.
 #[test]
-fn completion_in_a_class_literal_offers_every_class_autoload_can_load() {
+fn completion_in_a_written_class_name_offers_every_class_autoload_can_load() {
     let root = std::env::temp_dir().join(format!(
         "nvs-completion-class-literal-{}",
         std::process::id()
@@ -343,7 +343,7 @@ fn completion_in_a_class_literal_offers_every_class_autoload_can_load() {
     );
 }
 
-/// A directory in a path literal replaces only the segment being written,
+/// A directory in a written path replaces only the segment being written,
 /// writes a `/` after its name, and opens the list again for the next segment.
 #[test]
 fn a_path_item_replaces_the_segment_being_written() {

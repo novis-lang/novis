@@ -1632,7 +1632,7 @@ fn at_or_after(position: Position, limit: Position) -> bool {
     (position.line, position.character) >= (limit.line, limit.character)
 }
 
-/// `textDocument/documentLink` — every path literal [`links::for_document`]
+/// `textDocument/documentLink` — every written path [`links::for_document`]
 /// resolved, a file as its `file:` URI and a directory as one ending in `/`.
 fn document_link(
     documents: &Documents,
@@ -1663,7 +1663,7 @@ fn document_link(
 /// `textDocument/codeAction` — the fixes offered over the range asked about.
 ///
 /// Every fix is a `Suggestion` a diagnostic already carried, and the one
-/// refactor is the html-literal rewrite, both answered by [`actions::at`],
+/// refactor is the html-template rewrite, both answered by [`actions::at`],
 /// which the `.lspt` suite calls too — so a light bulb and a frozen case offer
 /// the same edit
 /// (`rule:ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`). Each

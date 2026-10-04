@@ -162,7 +162,7 @@ fn a_fix_all_applies_the_grouping_that_keeps_the_meaning_and_never_the_alternati
 /// prints, so it is offered beside the quick fixes under its own kind and never
 /// in a fix-all, which a save would run.
 #[test]
-fn the_html_literal_refactor_has_its_own_kind_and_is_never_in_a_fix_all() {
+fn the_html_template_refactor_has_its_own_kind_and_is_never_in_a_fix_all() {
     let source = "<?nvs\nvar $name = \"world\";\necho \"<b>\" . $name . \"</b>\";\n";
     let at = cursor(source, "$name . ");
     let offered = |kind| -> Vec<(String, String)> {
@@ -181,7 +181,7 @@ fn the_html_literal_refactor_has_its_own_kind_and_is_never_in_a_fix_all() {
     assert_eq!(
         offered(actions::Kind::QuickFix),
         [(
-            nvs_lsp::html_literal::KIND.to_owned(),
+            nvs_lsp::html_template::KIND.to_owned(),
             "html`<b>{$name}</b>`".to_owned()
         )]
     );
@@ -196,7 +196,7 @@ fn the_html_literal_refactor_has_its_own_kind_and_is_never_in_a_fix_all() {
 /// it, so this module has nothing to translate. A type error is the other
 /// shape: it is published, the cursor is on it, and it names no replacement
 /// because choosing one would be the checker computing a fix. The string under
-/// the cursor is still offered the html-literal refactor, which is no fix and
+/// the cursor is still offered the html-template refactor, which is no fix and
 /// is left out of what this test counts.
 #[test]
 fn a_fix_the_checker_would_have_to_compute_is_offered_by_nothing() {
@@ -225,7 +225,7 @@ fn a_fix_the_checker_would_have_to_compute_is_offered_by_nothing() {
         PositionEncoding::Utf8,
     )
     .into_iter()
-    .filter(|action| action.kind != nvs_lsp::html_literal::KIND)
+    .filter(|action| action.kind != nvs_lsp::html_template::KIND)
     .map(|action| action.title)
     .collect();
     assert_eq!(fixes, Vec::<String>::new());

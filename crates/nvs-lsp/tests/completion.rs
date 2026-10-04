@@ -586,10 +586,10 @@ fn every_trigger_character_reaches_an_arm_that_is_not_the_position_list() {
     }
 }
 
-/// A path character outside a path literal raises no list: `/` divides, and a
+/// A path character outside a written path raises no list: `/` divides, and a
 /// quote opens every other string.
 #[test]
-fn a_path_character_outside_a_path_literal_is_not_answered() {
+fn a_path_character_outside_a_written_path_is_not_answered() {
     for (construct, tail) in [
         ("var $half = 4 /", " 2;"),
         ("echo '", "';"),
@@ -604,7 +604,7 @@ fn a_path_character_outside_a_path_literal_is_not_answered() {
                 &CompletionFiles::default(),
                 after(&source, construct)
             ),
-            "`{construct}` is no path literal and its last character raised a list"
+            "`{construct}` is no written path and its last character raised a list"
         );
     }
 }
@@ -701,8 +701,8 @@ fn sources() -> Vec<Source> {
 /// The completion-file arm reads the values `CompletionFiles::values_at`
 /// hands it, the table the completion files were loaded into, and reads no
 /// file itself. At a path or class-name parameter it adds those values to the
-/// arm the mark chose, through the same function. A string literal union's
-/// members reach that arm as values too, and add no producer of their own:
+/// arm the mark chose, through the same function. The strings in a set of
+/// allowed values reach that arm as values too, and add no producer of their own:
 /// `crate::arguments` reads them off `ResolvedCall::param_tys` and the
 /// checker's type interner, the types the checker recorded on the call it
 /// resolved.

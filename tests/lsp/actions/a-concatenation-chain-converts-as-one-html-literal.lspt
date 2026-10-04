@@ -8,4 +8,4 @@ echo "<b>" . $na<|>me . "</b> is " . ($n + 1) . ' years';
 --REQUEST--
 codeAction
 --EXPECT--
-4:6-4:54 refactor.rewrite.htmlLiteral Convert to html literal -> "html`<b>{$name}</b> is <?= ($n + 1) ?> years`"
+4:6-4:54 refactor.rewrite.htmlTemplate Convert to html template -> "html`<b>{$name}</b> is <?= ($n + 1) ?> years`"

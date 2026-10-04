@@ -48,10 +48,10 @@
 //! type, a method's parameter and return types, a property hook's parameter,
 //! a `foreach` binding's and a `catch` clause's, and a typed local's wherever
 //! a statement sequence holds one — and an expression's: an `as` conversion's
-//! target, the right side of an `is` test, a closure literal's signature, the
+//! target, the right side of an `is` test, an anonymous function's signature, the
 //! class a `catch` arm names, and the `<Type>` arguments a call or a `new`
-//! writes. An expression is reached through the statement holding it and a
-//! closure's body through the closure, so a type written anywhere in the entry
+//! writes. An expression is reached through the statement holding it and an
+//! anonymous function's body through the function, so a type written anywhere in the entry
 //! document is on the walk.
 //!
 //! **A written type is asked before the index is.** To the index a cursor in
@@ -75,7 +75,7 @@
 //! **A string can name a class too**, in two places: the operand of `as
 //! class<T>` (`rule:types/class-reference`), and an argument at a parameter
 //! the registry marks as a class name, such as `Core\Reflect::forClass`'s
-//! (`crate::arguments`). [`class_literal_at`] answers the class whose whole
+//! (`crate::arguments`). [`written_class_name_at`] answers the class whose whole
 //! name the literal's text is, compared the way the run-time conversion
 //! compares it, so `'App\User' as class<Model>` jumps to `class User`. No
 //! other string is read as a name.
@@ -611,9 +611,9 @@ pub(crate) fn text_of(file: &SourceFile, span: Span) -> &str {
 /// it in `Hover::range` so the editor underlines the expression rather than the
 /// word it would otherwise guess at.
 ///
-/// A call and a first-class callable reference are the same answer here: both
-/// carry the `nvs_types::ResolvedCall` the checker made, and which of the two
-/// the site wrote decides what happens to the closure, not where the method is.
+/// A call and a method reference are the same answer here: both carry the
+/// `nvs_types::ResolvedCall` the checker made, and which of the two the site
+/// wrote decides what happens to the callable, not where the method is.
 ///
 /// **The enum written in front of a case is answered from the node inside.**
 /// `Status::Draft` is recorded once, on the whole production, and the case is
@@ -633,7 +633,7 @@ pub(crate) fn text_of(file: &SourceFile, span: Span) -> &str {
 ///
 /// **A class-name literal is asked next**, for the same reason: the literal
 /// records no name, so the walk over the nodes would step out to whatever
-/// holds it. [`class_literal_at`] answers the class the literal's text names.
+/// holds it. [`written_class_name_at`] answers the class the literal's text names.
 ///
 /// A name no recorded expression covers is answered last, by the places a
 /// name is written outside an expression and outside a type: an `extends` or
@@ -649,7 +649,7 @@ pub(crate) fn named_at(analysed: &Analysed, offset: BytePos) -> Option<(Target<'
         .collect();
     type_member_at(analysed, offset)
         .or_else(|| type_name_at(analysed, offset))
-        .or_else(|| class_literal_at(analysed, offset))
+        .or_else(|| written_class_name_at(analysed, offset))
         .or_else(|| resolved_in(analysed, &nodes))
         .or_else(|| resolved_in(analysed, &payload_path(analysed, offset)))
         .or_else(|| clause_at(analysed, offset))
@@ -999,14 +999,14 @@ pub(crate) fn type_member_at(analysed: &Analysed, offset: BytePos) -> Option<(Ta
 
 /// A string literal whose text the compiler or a `Core` member reads as a
 /// class's whole name, which the cursor is inside.
-pub(crate) struct ClassLiteral {
+pub(crate) struct WrittenClassName {
     /// The literal, quotes included.
     pub span: Span,
     /// Which classes the name may be.
     pub bound: ClassBound,
 }
 
-/// Which classes a [`ClassLiteral`] may name.
+/// Which classes a [`WrittenClassName`] may name.
 pub(crate) enum ClassBound {
     /// The operand of `as class<T>`: a `T`, as the checker resolved it.
     Type(QName),
@@ -1026,7 +1026,7 @@ pub(crate) enum ClassBound {
 /// checker recorded for it. The second is an argument at a class-name
 /// parameter, `Core\Reflect::forClass('App\User')`, which
 /// [`crate::arguments`] finds. The cursor has to be between the quotes.
-pub(crate) fn class_literal(analysed: &Analysed, offset: BytePos) -> Option<ClassLiteral> {
+pub(crate) fn written_class_name(analysed: &Analysed, offset: BytePos) -> Option<WrittenClassName> {
     let path = analysed.index.at(offset);
     let [string, conversion, ..] = path.nodes() else {
         return None;
@@ -1037,7 +1037,7 @@ pub(crate) fn class_literal(analysed: &Analysed, offset: BytePos) -> Option<Clas
     if conversion.kind != "Conversion" {
         let argument = crate::arguments::at(analysed, offset)
             .filter(|argument| argument.text == nvs_stdlib::registry::ParamText::ClassName)?;
-        return Some(ClassLiteral {
+        return Some(WrittenClassName {
             span: argument.span,
             bound: if argument.thrown {
                 ClassBound::Thrown
@@ -1055,7 +1055,7 @@ pub(crate) fn class_literal(analysed: &Analysed, offset: BytePos) -> Option<Clas
         .into_iter()
         .find(|ty| ty.span.end == end && ty.span.start >= string.span.end)?;
     let base = class_ref_base(&analysed.interner, analysed.exprs.declared_ty(ty.span)?)?;
-    Some(ClassLiteral {
+    Some(WrittenClassName {
         span: string.span,
         bound: ClassBound::Type(base.clone()),
     })
@@ -1082,7 +1082,7 @@ fn class_ref_base(interner: &TypeInterner, ty: TypeId) -> Option<&QName> {
     }
 }
 
-/// The class a class-reference literal at `offset` names, and the literal's
+/// The class a written class name at `offset` names, and the string's
 /// span.
 ///
 /// The text is compared with each class's whole name, exactly: the run-time
@@ -1091,8 +1091,11 @@ fn class_ref_base(interner: &TypeInterner, ty: TypeId) -> Option<&QName> {
 /// App\User;` and `'\App\User'` name no class there and none here. A literal
 /// naming a class outside `T` still names that class, so the jump reaches it
 /// and the reader sees why the conversion fails.
-pub(crate) fn class_literal_at(analysed: &Analysed, offset: BytePos) -> Option<(Target<'_>, Span)> {
-    let literal = class_literal(analysed, offset)?;
+pub(crate) fn written_class_name_at(
+    analysed: &Analysed,
+    offset: BytePos,
+) -> Option<(Target<'_>, Span)> {
+    let literal = written_class_name(analysed, offset)?;
     let file = analysed.map.file(analysed.entry);
     let raw = text_of(file, literal.span);
     if !(raw.starts_with('\'') || raw.starts_with('"')) {
@@ -1229,7 +1232,7 @@ pub(crate) fn written_type_at(analysed: &Analysed, offset: BytePos) -> Option<&T
 /// Every type written in `stmts` whose span meets `[start, end]`, in source
 /// order — each as the whole type written at that position: a parameter's, a
 /// local's, a property's, a `catch`'s, a return's, an alias's, an `as`
-/// conversion's, an `is` test's, a closure signature's, a `catch` arm's and a
+/// conversion's, an `is` test's, an anonymous function's signature, a `catch` arm's and a
 /// call's `<Type>` argument.
 ///
 /// The span test on each statement and each expression is what makes this
@@ -1375,10 +1378,10 @@ fn exprs_types<'a>(exprs: &'a [Expr], start: BytePos, end: BytePos, found: &mut 
 /// an expression the range does not meet.
 ///
 /// The five places an expression writes a type — an `as` conversion's target,
-/// an `is` test's, a closure literal's signature, a `catch` arm's class and
+/// an `is` test's, an anonymous function's signature, a `catch` arm's class and
 /// the `<Type>` arguments of a call or a `new` — and then every expression
 /// this one evaluates (`nvs_syntax::visit::each_child_expr`). That walk stops
-/// at a closure's body and at an anonymous class's members on purpose, so both
+/// at an anonymous function's body and at an anonymous class's members on purpose, so both
 /// are stepped into here: the body is a statement sequence or an expression,
 /// and the members are a class body like any other.
 fn expr_types<'a>(expr: &'a Expr, start: BytePos, end: BytePos, found: &mut Vec<&'a Type>) {
@@ -1672,8 +1675,8 @@ mod tests {
 
     /// One interface, written at every type position a program has: a
     /// parameter, a return, a typed local's element, a call's `<Type>`
-    /// argument, a `foreach` binding, an `as` conversion and a closure
-    /// signature.
+    /// argument, a `foreach` binding, an `as` conversion and an anonymous
+    /// function's signature.
     const WRITTEN: &str = "<?nvs\ninterface Shape { public function area(): int; }\n\
                            class Square implements Shape { public function area(): int { return \
                            1; } }\nclass Box {\n  public function of(Shape $s): Shape { return \

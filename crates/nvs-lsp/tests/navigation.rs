@@ -217,7 +217,7 @@ fn a_path_argument_hovers_as_the_path_it_names_and_whether_it_exists() {
     let (analysed, value) = hovered("<?nvs\necho Core\\IO::read('data/no<|>ne.json');");
     let (_, joined) = analysed
         .exprs
-        .path_literals()
+        .written_paths()
         .next()
         .expect("the checker resolved the literal");
     assert!(Path::new(joined).is_absolute() && joined.ends_with("none.json"));

@@ -575,7 +575,7 @@ fn folding_range(analysed: &Analysed) -> Response {
     Response::FoldingRange(folding::for_document(analysed, COLUMNS))
 }
 
-/// `textDocument/documentLink` — every `require` and `autoload` path literal
+/// `textDocument/documentLink` — every `require` and `autoload` written path
 /// the entry document writes that names something on disk.
 ///
 /// The target is named the way the case wrote it, which is the resolution half

@@ -654,7 +654,7 @@ fn the_replacement_quick_fix_rewrites_only_the_string_and_escapes_for_its_quote(
             PositionEncoding::Utf8,
         )
         .into_iter()
-        .filter(|action| action.kind != nvs_lsp::html_literal::KIND)
+        .filter(|action| action.kind != nvs_lsp::html_template::KIND)
         .map(|action| (action.title, action.replacement, action.range))
         .collect();
         let want: Vec<(String, String, Range)> = want
@@ -665,7 +665,7 @@ fn the_replacement_quick_fix_rewrites_only_the_string_and_escapes_for_its_quote(
     }
 
     // Without the file, no fix is offered. The string is still offered the
-    // html-literal conversion, which is no fix and is not counted here.
+    // html-template conversion, which is no fix and is not counted here.
     let (_, analysis, at) = opened(&workspace, "Icon::render('arrow-<|>left', 16);");
     let offered: Vec<_> = actions::at(
         &analysis,
@@ -676,7 +676,7 @@ fn the_replacement_quick_fix_rewrites_only_the_string_and_escapes_for_its_quote(
         PositionEncoding::Utf8,
     )
     .into_iter()
-    .filter(|action| action.kind != nvs_lsp::html_literal::KIND)
+    .filter(|action| action.kind != nvs_lsp::html_template::KIND)
     .collect();
     assert!(offered.is_empty(), "{offered:?}");
 }
@@ -904,7 +904,7 @@ fn moded(name: &str, call: &str) -> (Vec<CompletionItem>, bool) {
 }
 
 #[test]
-fn a_string_argument_at_a_literal_union_parameter_offers_its_members() {
+fn a_string_argument_at_an_allowed_values_parameter_offers_its_members() {
     let (items, _) = moded("union", "Mode::set('<|>');");
     assert_eq!(labels(&items), ["dark", "it's", "light"]);
     for item in &items {
@@ -920,13 +920,13 @@ fn a_string_argument_at_a_literal_union_parameter_offers_its_members() {
 }
 
 #[test]
-fn a_nullable_literal_union_offers_its_string_members() {
+fn a_nullable_set_of_allowed_values_offers_its_string_members() {
     let (items, _) = moded("nullable", "Mode::size('<|>');");
     assert_eq!(labels(&items), ["large", "small"]);
 }
 
 #[test]
-fn a_quote_opens_the_list_at_a_literal_union_parameter() {
+fn a_quote_opens_the_list_at_an_allowed_values_parameter() {
     for quoted in ["Mode::set('<|>');", "Mode::set(\"<|>\");"] {
         let (_, triggered) = moded("union-quote", quoted);
         assert!(triggered, "{quoted}");
@@ -936,7 +936,7 @@ fn a_quote_opens_the_list_at_a_literal_union_parameter() {
 }
 
 #[test]
-fn a_literal_union_parameter_with_a_completion_file_offers_both_lists_merged() {
+fn an_allowed_values_parameter_with_a_completion_file_offers_both_lists_merged() {
     let workspace = Workspace::new("union-merged");
     workspace.write(
         ".novis/completion/modes.json",
@@ -958,7 +958,7 @@ fn a_literal_union_parameter_with_a_completion_file_offers_both_lists_merged() {
 }
 
 #[test]
-fn a_parameter_typed_string_offers_no_literal_members() {
+fn a_parameter_typed_string_offers_no_allowed_values() {
     // A plain `string`, and a union with an `int` literal among its strings.
     for (name, call) in [
         ("plain", "Mode::plain('<|>');"),

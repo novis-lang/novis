@@ -1,24 +1,24 @@
 //! The one refactor this server computes: a string, or a `.` chain of
-//! strings and values, rewritten as the ``html`…` `` literal that prints the
+//! strings and values, rewritten as the ``html`…` `` template that prints the
 //! same bytes (`rule:ide/a-string-converts-to-an-html-template`).
 //!
 //! Every other code action is a diagnostic's own suggestion
 //! (`rule:ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`).
 //! This one has no diagnostic behind it, because nothing about the string is
 //! wrong: converting it changes what is printed — a plain string echoed is
-//! escaped as text, and an html literal's segments are markup — so it is a
+//! escaped as text, and an html template's segments are markup — so it is a
 //! rewrite the developer asks for and reviews in the preview, filed under
 //! [`KIND`] and never under `source.fixAll.nvs` or `quickfix`.
 //!
 //! # Decision: the conversion is checked by parsing what it wrote
 //!
-//! The literal is built by re-escaping each source character for the backtick
+//! The template is built by re-escaping each source character for the backtick
 //! form ([`render`]), and before it is offered it is parsed back
 //! ([`Meaning`]): its segments, cooked, must equal the original's text, and its
 //! holes must be the original's expressions, in order. A case the escaper
 //! gets wrong is therefore never offered rather than offered wrong, and the
 //! comparison uses the lexer's and the cooker's own code, so a later change to
-//! the literal's grammar is checked here without this file learning it.
+//! the template's grammar is checked here without this file learning it.
 //!
 //! # What is converted and what is not
 //!
@@ -29,7 +29,7 @@
 //! that would start one is written `\$`. In both, a backtick is `` \` ``, a
 //! `{` that would open a hole or draw `W1012` is `\{`, and a `<` that would
 //! open `<?=`, `<?nvs` or `<?php` is `\x3C`. A heredoc or nowdoc is not
-//! offered: its body is dedented by its closing label, and an html literal
+//! offered: its body is dedented by its closing label, and an html template
 //! has no such rule.
 //!
 //! In a chain, a variable, or a property or offset read on one, becomes a
@@ -41,12 +41,14 @@
 //!
 //! Nothing at runtime, since it only edits source. Per request: one parse of
 //! the string or chain under the cursor for each `.` above it, one of the
-//! literal written, and one per enclosing array or `match` checked for a key
+//! template written, and one per enclosing array or `match` checked for a key
 //! position — each the size of the expression, dropped with the answer.
 
 use nvs_diagnostics::{BytePos, Diagnostics, PositionEncoding, SourceFile, SourceMap, Span};
 use nvs_syntax::ast::{BinaryOp, Expr, ExprKind, StringPart};
-use nvs_syntax::string_lit::{cook_double_quoted_text, cook_markup_text, cook_string_literal};
+use nvs_syntax::string_lit::{
+    cook_double_quoted_text, cook_html_template_text, cook_string_literal,
+};
 use nvs_syntax::{IndexNode, parse_expression};
 
 use crate::document::Analysed;
@@ -55,10 +57,10 @@ use crate::render::Action;
 
 /// The kind the action is filed under: a sub-kind of `refactor.rewrite`, so a
 /// client asking for exactly this action by kind gets it and nothing else.
-pub const KIND: &str = "refactor.rewrite.htmlLiteral";
+pub const KIND: &str = "refactor.rewrite.htmlTemplate";
 
 /// What the client shows for it.
-pub const TITLE: &str = "Convert to html literal";
+pub const TITLE: &str = "Convert to html template";
 
 /// The conversion offered over `[start, end)` of the entry document, if any.
 ///
@@ -124,13 +126,13 @@ pub fn at(
 }
 
 /// Whether a node is a literal a person wrote with quotes: `Some(true)` for a
-/// string this module may convert, `Some(false)` for an html literal, which is
+/// string this module may convert, `Some(false)` for an html template, which is
 /// converted already, and `None` for anything else — including the bareword
 /// offset of `"$row[key]"`, which the parser also records as a string.
 fn written_string(kind: &str, text: Option<&str>) -> Option<bool> {
     let text = text?;
     match kind {
-        "Markup" => Some(false),
+        "HtmlTemplate" => Some(false),
         "Str" | "Interpolated" if text.starts_with(['"', '\'']) || text.starts_with("<<<") => {
             Some(true)
         }
@@ -207,7 +209,7 @@ impl Snippet {
     /// leaves anything unparsed.
     fn parse(text: &str) -> Option<Self> {
         let mut map = SourceMap::new();
-        let id = map.add("html-literal.nvs", format!("{}{text}", Self::LEAD));
+        let id = map.add("html-template.nvs", format!("{}{text}", Self::LEAD));
         let mut diags = Diagnostics::new();
         let expr = parse_expression(map.file(id), &mut diags);
         let whole = u32::try_from(text.len()).ok()? + Self::LEAD_LEN;
@@ -224,9 +226,9 @@ impl Snippet {
     }
 }
 
-/// The html literal that prints what `text` — a string or a `.` chain —
+/// The html template that prints what `text` — a string or a `.` chain —
 /// prints, or `None` when one of its parts cannot be converted or the
-/// literal written does not parse back to the same text and holes.
+/// template written does not parse back to the same text and holes.
 #[must_use]
 pub fn convert(text: &str) -> Option<String> {
     let snippet = Snippet::parse(text)?;
@@ -254,13 +256,15 @@ pub fn convert(text: &str) -> Option<String> {
 
     let written = format!("html`{}`", render(&pieces));
     let back = Snippet::parse(&written)?;
-    let ExprKind::Markup(segments) = &back.expr.kind else {
+    let ExprKind::HtmlTemplate(segments) = &back.expr.kind else {
         return None;
     };
     let mut found = Vec::new();
     for segment in segments {
         match segment {
-            StringPart::Text(span) => push_text(&mut found, cook_markup_text(back.file(), *span).0),
+            StringPart::Text(span) => {
+                push_text(&mut found, cook_html_template_text(back.file(), *span).0)
+            }
             StringPart::Expr(hole) => found.push(Meaning::Hole(back.text(hole.span).to_owned())),
         }
     }
@@ -283,7 +287,7 @@ fn flatten<'a>(expr: &'a Expr, out: &mut Vec<&'a Expr>) {
     }
 }
 
-/// What a literal prints, as the parser sees it: runs of cooked text and the
+/// What a string or an html template prints, as the parser sees it: runs of cooked text and the
 /// source of each hole's expression.
 #[derive(Debug, PartialEq, Eq)]
 enum Meaning {
@@ -302,9 +306,9 @@ fn push_text(out: &mut Vec<Meaning>, text: String) {
     }
 }
 
-/// One unit of the literal being written.
+/// One unit of the template being written.
 enum Piece {
-    /// A character the literal must print as itself.
+    /// A character the template must print as itself.
     Char(char),
     /// An escape both grammars read the same way, copied as written.
     Escape(String),
@@ -436,7 +440,7 @@ fn push_double_quoted(raw: &str, pieces: &mut Vec<Piece>) -> Option<()> {
         match (c, next) {
             ('\\', Some('"')) => pieces.push(Piece::Char('"')),
             // Not an escape in a double-quoted string, so both characters
-            // print; the html literal reads each pair as one character.
+            // print; the html template reads each pair as one character.
             ('\\', Some(pair @ ('`' | '{'))) => {
                 pieces.push(Piece::Char('\\'));
                 pieces.push(Piece::Char(pair));
@@ -466,7 +470,7 @@ fn push_double_quoted(raw: &str, pieces: &mut Vec<Piece>) -> Option<()> {
     Some(())
 }
 
-/// The body of the literal: each piece written so the html literal's lexer
+/// The body of the template: each piece written so the html template's lexer
 /// and cooker read back exactly the character or hole it stands for.
 fn render(pieces: &[Piece]) -> String {
     let mut out = String::new();
@@ -518,7 +522,7 @@ fn ahead(pieces: &[Piece]) -> String {
     text
 }
 
-/// Whether a `{` before `rest` is the `{Page::TITLE}` shape the html literal
+/// Whether a `{` before `rest` is the `{Page::TITLE}` shape the html template
 /// warns about with `W1012`: a name, then `::`.
 fn before_class_path(rest: &str) -> bool {
     let name = rest
@@ -530,7 +534,7 @@ fn before_class_path(rest: &str) -> bool {
         && rest[name..].starts_with("::")
 }
 
-/// Whether a `<` before `rest` would open a tag inside an html literal.
+/// Whether a `<` before `rest` would open a tag inside an html template.
 fn opens_a_tag(rest: &str) -> bool {
     rest.starts_with("?=")
         || rest

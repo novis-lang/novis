@@ -867,10 +867,10 @@ impl Named<'_> {
     fn expr(&mut self, expr: &Expr) {
         match &expr.kind {
             ExprKind::Variable(span) => self.push(*span, Kind::Variable),
-            // A markup literal's holes are a string's, whichever of its two
+            // An html template's holes are a string's, whichever of its two
             // spellings opened them (`rule:core-classes/html-template`), so the
             // same walk colours a `<?= App::VERSION ?>` as it does a `{$name}`.
-            ExprKind::Interpolated(parts) | ExprKind::Markup(parts) => {
+            ExprKind::Interpolated(parts) | ExprKind::HtmlTemplate(parts) => {
                 for part in parts {
                     if let StringPart::Expr(expr) = part {
                         self.expr(expr);
@@ -883,7 +883,7 @@ impl Named<'_> {
                     self.expr(&item.value);
                 }
             }
-            ExprKind::ObjectLiteral(fields) => {
+            ExprKind::AnonObject(fields) => {
                 for field in fields {
                     self.push(field.name, Kind::Property);
                     self.expr(&field.value);
@@ -1013,7 +1013,7 @@ impl Named<'_> {
             | ExprKind::Paren(inner) => self.expr(inner),
             ExprKind::Isset(exprs) => self.exprs(exprs),
             ExprKind::Exit(status) => self.opt_expr(status.as_deref()),
-            ExprKind::Fn(closure) => self.closure(closure),
+            ExprKind::Fn(anon_fn) => self.anon_fn(anon_fn),
             ExprKind::SpawnScript { path, options } => {
                 self.expr(path);
                 for option in options {
@@ -1090,10 +1090,10 @@ impl Named<'_> {
         }
     }
 
-    /// A closure's parameters and body.
-    fn closure(&mut self, closure: &FnExpr) {
-        self.params(&closure.params);
-        match &closure.body {
+    /// An anonymous function's parameters and body.
+    fn anon_fn(&mut self, anon_fn: &FnExpr) {
+        self.params(&anon_fn.params);
+        match &anon_fn.body {
             FnBody::Expr(expr) => self.expr(expr),
             FnBody::Block(block) => self.block(block),
         }

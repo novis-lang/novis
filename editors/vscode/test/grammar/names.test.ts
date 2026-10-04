@@ -88,12 +88,12 @@ describe("the name a declaration introduces", () => {
     assert.deepEqual(carrying(FUNCTION_NAME), ["total", "checkout"]);
   });
 
-  it("colours no name where a closure introduces none", () => {
+  it("colours no name where an anonymous function introduces none", () => {
     // `function (` and `fn(` declare nothing, so the reserved table colours the keyword alone and
     // what follows it is a parameter rather than the name of anything.
     coloured("fn", FUNCTION_KEYWORD);
     coloured("$amount", VARIABLE);
-    assert.equal(carrying(FUNCTION_NAME).length, 2, "a closure was read as a declaration");
+    assert.equal(carrying(FUNCTION_NAME).length, 2, "an anonymous function was read as a declaration");
   });
 });
 
@@ -119,7 +119,7 @@ describe("the variables", () => {
   it("colours the receiver as the language's own and every other as a local", () => {
     coloured("$this", LANGUAGE);
     assert.equal(all("$this")[0].scopes.includes(VARIABLE), false, "$this is an ordinary local");
-    for (const name of ["$label", "$sum", "$rate", "$order", "$closure", "$x"]) {
+    for (const name of ["$label", "$sum", "$rate", "$order", "$anon", "$x"]) {
       coloured(name, VARIABLE);
     }
   });

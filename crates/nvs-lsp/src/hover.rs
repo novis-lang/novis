@@ -13,7 +13,7 @@
 //! prefix's literal answers the namespace it maps and the directories a name
 //! under it is looked for in ([`autoload_prefix`]). The operand of `as
 //! class<T>`, and an argument at a class-name parameter, answer the class
-//! their text names, the way that class's name does ([`class_literal`]). An
+//! their text names, the way that class's name does ([`written_class_name`]). An
 //! argument at a path parameter answers the absolute path it names and
 //! whether anything is there ([`path_argument`]). Each is asked before the
 //! walk over the nodes, because a literal records no name and the walk would
@@ -108,7 +108,9 @@ use nvs_types::{ExprInfo, ResolvedCall, TypeInterner};
 
 use crate::card::{core_member_hover, core_type_hover, namespace_card};
 use crate::completion_files::CompletionFiles;
-use crate::definition::{Target, attribute_at, class_literal_at, payload_path, site, target_of};
+use crate::definition::{
+    Target, attribute_at, payload_path, site, target_of, written_class_name_at,
+};
 use crate::document::Analysed;
 use crate::position::range_at;
 
@@ -132,7 +134,7 @@ pub fn at(
         .map(|node| node.span)
         .collect();
     let (value, node) = autoload_prefix(analysed, offset)
-        .or_else(|| class_literal(analysed, offset))
+        .or_else(|| written_class_name(analysed, offset))
         .or_else(|| path_argument(analysed, offset))
         .or_else(|| file_value(analysed, files, offset))
         .or_else(|| answer_in(analysed, &nodes, offset))
@@ -380,14 +382,14 @@ fn is_name_byte(byte: u8) -> bool {
     byte.is_ascii_alphanumeric() || byte == b'_' || byte == b'\\'
 }
 
-/// What the class a class-reference literal names documents, on the terms of
+/// What the class a written class name names documents, on the terms of
 /// a cursor on the class's name, and the literal's span.
 ///
-/// The class is [`crate::definition::class_literal_at`]'s, and the answer is
+/// The class is [`crate::definition::written_class_name_at`]'s, and the answer is
 /// the one hovering the name gives: a `///` run, and nothing for a class with
 /// none.
-fn class_literal(analysed: &Analysed, offset: BytePos) -> Option<(String, Span)> {
-    let (target, span) = class_literal_at(analysed, offset)?;
+fn written_class_name(analysed: &Analysed, offset: BytePos) -> Option<(String, Span)> {
+    let (target, span) = written_class_name_at(analysed, offset)?;
     Some((run(analysed, &target)?, span))
 }
 
@@ -396,7 +398,7 @@ fn class_literal(analysed: &Analysed, offset: BytePos) -> Option<(String, Span)>
 /// literal's span.
 ///
 /// The path is [`crate::arguments::target`]'s: the checker's join for a
-/// relative literal, and the text itself for an absolute one. A relative
+/// written relative path, and the text itself for an absolute one. A relative
 /// literal the checker did not resolve answers nothing here, and the walk
 /// over the nodes answers instead.
 fn path_argument(analysed: &Analysed, offset: BytePos) -> Option<(String, Span)> {

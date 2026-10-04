@@ -149,9 +149,9 @@ export async function activate(context: ExtensionContext): Promise<Surface> {
     // The conversion is the server's code action (`rule:ide/a-string-converts-to-an-html-template`),
     // so this command only asks the editor to apply it, filtered by its exact kind. A second
     // client gets the same action from the server and needs nothing written here.
-    commands.registerCommand("nvs.convertToHtmlLiteral", () =>
+    commands.registerCommand("nvs.convertToHtmlTemplate", () =>
       commands.executeCommand("editor.action.codeAction", {
-        kind: "refactor.rewrite.htmlLiteral",
+        kind: "refactor.rewrite.htmlTemplate",
         preferred: false,
         apply: "ifSingle",
       })),

@@ -11,7 +11,7 @@
 //!
 //! `nvs-test` is a dependency for that one module. It links nothing and writes
 //! nothing to standard output, so `tests/stdout_policy.rs`'s walk over the
-//! server's closure stays green — `nvs lsp-test`'s own `N passed, M failed` is
+//! server's dependency tree stays green — `nvs lsp-test`'s own `N passed, M failed` is
 //! a line `nvs-cli` prints, where a terminal program's allowance already is.
 //!
 //! Nothing here answers a request or renders one. A case is data: the document

@@ -103,7 +103,7 @@ const COMMANDS = [
   "nvs.restartServer",
   "nvs.revealSecret",
   "nvs.hideSecrets",
-  "nvs.convertToHtmlLiteral",
+  "nvs.convertToHtmlTemplate",
   "nvs.checkWorkspace",
   "nvs.downloadBinary",
   "nvs.openReleases",

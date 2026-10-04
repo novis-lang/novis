@@ -1,5 +1,5 @@
 --TEST--
-a double-quoted string offers the html literal that prints the same text, keeping its `$name` hole and writing `\"` as `"`, under its own refactor kind, `rule:ide/a-string-converts-to-an-html-template`
+a double-quoted string offers the html template that prints the same text, keeping its `$name` hole and writing `\"` as `"`, under its own refactor kind, `rule:ide/a-string-converts-to-an-html-template`
 --FILE--
 <?nvs
 var $name = "world";
@@ -7,4 +7,4 @@ echo "<p class=\"greeting\">Hello, <|>$name</p>";
 --REQUEST--
 codeAction
 --EXPECT--
-3:6-3:46 refactor.rewrite.htmlLiteral Convert to html literal -> "html`<p class="greeting">Hello, $name</p>`"
+3:6-3:46 refactor.rewrite.htmlTemplate Convert to html template -> "html`<p class="greeting">Hello, $name</p>`"

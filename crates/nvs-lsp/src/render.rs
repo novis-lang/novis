@@ -73,7 +73,7 @@ pub struct Place {
     pub position: Position,
 }
 
-/// One clickable path literal, with its target named as the case wrote it.
+/// One clickable written path, with its target named as the case wrote it.
 ///
 /// The target is a resolved path for the same reason [`Place`]'s is.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -122,7 +122,7 @@ pub struct Region {
 /// (`rule:ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`), and
 /// a suggestion is one span and the text to put there. A fix wanting two edits
 /// is one the checker would have to compute, which is the far side of the
-/// boundary that rule draws. The html-literal refactor replaces one span too.
+/// boundary that rule draws. The html-template refactor replaces one span too.
 ///
 /// The kind is a string for [`Redaction`]'s reason turned around: LSP's own
 /// kinds are an open hierarchy ([`crate::CODE_ACTION_KINDS`]). A fix's kind is

@@ -1,11 +1,11 @@
-//! Every path literal in one document that names something on disk, and what
+//! Every written path in one document that names something on disk, and what
 //! it names.
 //!
 //! `textDocument/documentLink` is one of the projections with nothing behind it
 //! (`rule:ide/the-request-set-is-closed`): each edge it reports was already
 //! resolved by the walk that loaded the program, and this module reads it.
 //!
-//! - **A `require`'s path literal links to the file it loaded.**
+//! - **A `require`'s written path links to the file it loaded.**
 //!   `nvs_hir::requires::Loaded::requires` is that edge, a span paired with a
 //!   `SourceId`, and its own doc says why nothing downstream re-derives it from
 //!   the literal's text.
@@ -21,8 +21,8 @@
 //!   ctrl-click, and a hover lists every root (`crate::hover`).
 //! - **An argument at a path parameter links to the file or directory it
 //!   names** (`rule:programs/relative-paths-resolve-from-their-file`). The
-//!   checker joined a relative literal to the folder of its file and kept the
-//!   result (`nvs_types::ExprTypeTable::path_literal`), and an absolute
+//!   checker joined a written relative path to the folder of its file and kept the
+//!   result (`nvs_types::ExprTypeTable::written_path`), and an absolute
 //!   literal names itself; [`crate::arguments::target`] reads the two. Unlike
 //!   a `require`, nothing was loaded through this edge, so whether the target
 //!   exists, and which kind it is, is asked of the disk when the link is made.
@@ -58,7 +58,7 @@ use nvs_diagnostics::PositionEncoding;
 use crate::document::Analysed;
 use crate::position::range_at;
 
-/// One path literal, and the file or directory the walk resolved it to.
+/// One written path, and the file or directory the walk resolved it to.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PathLink {
     /// The literal's own range, quotes included — the span the walk recorded

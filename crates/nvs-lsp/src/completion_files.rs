@@ -225,7 +225,7 @@ pub struct Value {
 }
 
 impl Value {
-    /// A value no completion file declares: one member of a parameter's string literal union,
+    /// A value no completion file declares: one string in a parameter's set of allowed values,
     /// offered as `value` with its text as its label and no other field.
     #[must_use]
     pub fn member(value: String) -> Self {

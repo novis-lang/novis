@@ -43,8 +43,8 @@
 //!   touches rather than standing apart: `/* … */` above `// …` is one thing
 //!   on screen and folds as one.
 //!
-//! **A body written inside an expression is not reached.** A closure's
-//! `=> { ... }` and an anonymous class body are both foldable and both sit in
+//! **A body written inside an expression is not reached.** An anonymous
+//! function's `=> { ... }` and an anonymous class body are both foldable and both sit in
 //! an `Expr`, which this walk does not descend into. Adding one here would be
 //! a second expression walk beside the offset index
 //! `rule:ide/the-index-answers-the-cursor` builds per analysis, so it waits for

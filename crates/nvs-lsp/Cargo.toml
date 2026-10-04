@@ -29,13 +29,12 @@ lsp-types.workspace = true
 # the type check. The last one is what makes `E03xx` and `E04xx` reachable at
 # all, which is the band `rule:ide/diagnostics-are-phase-gated` gates — a
 # server that stopped at the walk would publish a fraction of what `nvs check`
-# reports and call it agreement. It also puts `nvs-stdlib` and the runtime
-# beneath it into the server's link closure, which `tests/stdout_policy.rs`
-# names.
+# reports and call it agreement. It also links `nvs-stdlib` and the runtime
+# beneath it into the server, which `tests/stdout_policy.rs` names.
 nvs-diagnostics.workspace = true
 # The default `nvs.toml` the binary ships, which is the table `nvs/directives`
-# completes from (`crate::directives`). Already in the link closure beneath
-# `nvs-types`; named here because this crate reads it directly.
+# completes from (`crate::directives`). Already linked through `nvs-types`;
+# named here because this crate reads it directly.
 nvs-config.workspace = true
 nvs-hir.workspace = true
 nvs-syntax.workspace = true
@@ -46,13 +45,13 @@ nvs-footprint.workspace = true
 # The `Core` registry, for the one answer that has no Novis declaration behind
 # it: a `Core` member documents itself in its registry row
 # (`rule:core-api/reference-card`), so `hover` reads the row rather than looking
-# for a `///` run that is not written anywhere. Already in the link closure
-# beneath `nvs-types`; named here because this crate reads it directly.
+# for a `///` run that is not written anywhere. Already linked through
+# `nvs-types`; named here because this crate reads it directly.
 nvs-stdlib.workspace = true
 # The section lexer, and nothing else: `.lspt` and `.nvst` are two suites that
 # share one parser for the `--NAME--` shape (`rule:ide/an-lsp-answer-is-frozen-as-an-lspt-case`).
-# This crate is std-only and writes nothing to standard output, so the closure
-# `tests/stdout_policy.rs` walks stays clean.
+# This crate is std-only and writes nothing to standard output, so the
+# dependency tree `tests/stdout_policy.rs` walks stays clean.
 nvs-test.workspace = true
 # The map `nvs_hir::resolve_ref` takes its imports in. `completion` resolves the
 # class name written before a `::` through that one shared lookup rather than

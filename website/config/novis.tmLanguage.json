@@ -469,12 +469,12 @@
           "include": "#double-quoted"
         },
         {
-          "include": "#markup-literal"
+          "include": "#html-template"
         }
       ]
     },
-    "markup-literal": {
-      "name": "string.quoted.other.markup.nvs",
+    "html-template": {
+      "name": "string.quoted.other.html-template.nvs",
       "begin": "(html`)",
       "beginCaptures": {
         "1": {
@@ -496,14 +496,14 @@
           "include": "#escape"
         },
         {
-          "include": "#markup-echo-hole"
+          "include": "#html-template-echo-hole"
         },
         {
           "include": "#interpolation"
         }
       ]
     },
-    "markup-echo-hole": {
+    "html-template-echo-hole": {
       "name": "meta.embedded.line.nvs",
       "begin": "(<\\?=)",
       "beginCaptures": {

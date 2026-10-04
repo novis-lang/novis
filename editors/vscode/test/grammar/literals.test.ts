@@ -34,7 +34,7 @@ function unread(text: string): void {
                `${text} tokenized as one span, so something colours it whole`);
 }
 
-describe("a duration literal, which is one token", () => {
+describe("a duration, which is one token", () => {
   it("reads a single unit and a run of them as one span each", () => {
     literal("30s");
     literal("1h30m");

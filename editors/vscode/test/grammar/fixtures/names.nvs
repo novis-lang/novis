@@ -19,6 +19,6 @@ function checkout($order) {
     echo "{$order->label} pays";
 }
 
-$closure = function ($amount) { return $amount; };
+$anon = function ($amount) { return $amount; };
 $short = fn($x) => $x;
 ?>
