@@ -6,7 +6,8 @@ members = ["crates/*", "benches/*"]
 # `benches/*` glob above would otherwise look for a `Cargo.toml` that will
 # never exist and fail the whole workspace before a single crate is read.
 # `benches/members/` is the same shape for the per-feature figures its own
-# README describes, and `benches/serve/` for the twin pair `bun nv bench
+# README describes, `benches/scaling/` for the ladders `bun nv scaling` runs,
+# and `benches/serve/` for the twin pair `bun nv bench
 # --serve-vs-fpm` runs under two servers and the `echo.nvs` case
 # `bun nv bench-load` verifies against. `benches/serve-probe/` next to it is a
 # crate and is not excluded: it is that leg's generator. `benches/proxied/` is compose files,
@@ -24,7 +25,7 @@ members = ["crates/*", "benches/*"]
 # the workspace directory would otherwise become a member, and this repository's
 # lints, formatter and tests would run over somebody else's code.
 exclude = ["benches/userland", "benches/members", "benches/serve", "benches/proxied",
-           "benches/results", "vendor"]
+           "benches/results", "benches/scaling", "vendor"]
 
 # ---------------------------------------------------------------------------
 # Shared package metadata. Every crate inherits these with `x.workspace = true`.

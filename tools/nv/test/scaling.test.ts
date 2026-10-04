@@ -1,6 +1,9 @@
 import { expect, test } from "bun:test";
 import { join } from "node:path";
-import { agrees, type Batch, batchSizes, CEILING, countsAgree, increments, judgeCounts, rebased, slopeOf, START, withBatch } from "../cmd/scaling.ts";
+import {
+  agrees, AREAS, type Batch, batchSizes, boundsOf, CEILING, COUNT_BOUND, countsAgree, increments, judgeCounts, type Judged, ladderOf, ladderSizes, missingAreas,
+  proposed, rebased, slopeOf, START, withBatch,
+} from "../cmd/scaling.ts";
 import { ROOT } from "../lib/paths.ts";
 
 /** A ramp whose every count costs `cost(n)` at batch `n`, over `fixed` set-up. */
@@ -59,6 +62,40 @@ test("a copied config names the copy for a path in the copied folder, the origin
   expect(rebased(text, ROOT, copyDir, copied, root)).toBe(
     'entry = "connect.nvs"\nca = "../../../../../../tests"\nallow = ["fs.read"]\nurl = "redis://127.0.0.1:16379"\n',
   );
+});
+
+test("a ladder declares its start, max and expect, defaults to kind run, and never expects quadratic", () => {
+  const src = "<?nvs\n// scaling: start 100\n// scaling: max 100_000\n// scaling: expect nlogn\necho Bench::run(100), \"\\n\";\n";
+  expect(ladderOf(src)).toEqual({ kind: "run", start: 100, max: 100000, expect: "nlogn", proposal: false });
+  expect(ladderOf(src.replace("nlogn", "linear\n// scaling: proposal"))).toMatchObject({ expect: "linear", proposal: true });
+  expect(ladderOf(src.replace("nlogn", "quadratic"))).toContain("never accepted");
+  expect(ladderOf(src.replace("// scaling: max 100_000\n", ""))).toContain("needs");
+  expect(ladderOf(src.replace("expect nlogn", "kind gpu"))).toContain("not one of");
+  expect(ladderSizes(100, 1000)).toEqual([100, 200, 400, 800]);
+});
+
+test("a made-up linear ladder passes its bound, a quadratic one fails, and an n log n one passes `nlogn` alone", () => {
+  expect(judgeCounts(ramp((n) => 9 * n), undefined, boundsOf("linear").count).over).toEqual([]);
+  expect(judgeCounts(ramp((n) => n * n), undefined, boundsOf("nlogn").count).over).toHaveLength(4);
+  const nlogn = ramp((n) => 50 * n * Math.log2(n));
+  expect(judgeCounts(nlogn, undefined, boundsOf("nlogn").count).over).toEqual([]);
+  expect(judgeCounts(nlogn, undefined, boundsOf("constant").count).over).toHaveLength(4);
+  expect(boundsOf("linear")).toEqual({ count: COUNT_BOUND, clock: 1.5 });
+});
+
+test("a ladder marked proposal that grows waits for the user, and one that does not grow keeps its verdict", () => {
+  const grows: Judged = { bench: "benches/scaling/arrays/sort.nvs", verdict: "grows", sizes: [16, 32, 64, 128], slopes: {}, clock: null, notes: ["bytes grows"] };
+  const ladder = { kind: "run", start: 16, max: 128, expect: "linear", proposal: true };
+  expect(proposed(grows, ladder).verdict).toBe("proposal");
+  expect(proposed(grows, { ...ladder, proposal: false }).verdict).toBe("grows");
+  expect(proposed({ ...grows, verdict: "flat" }, ladder).verdict).toBe("flat");
+});
+
+test("an area needs a ladder in its folder, and with a review, a section headed with its name", () => {
+  const ladders = AREAS.filter((a) => a !== "json").map((a) => `benches/scaling/${a}/one.nvs`);
+  expect(missingAreas(ladders, null)).toEqual({ noLadder: ["json"], noReview: [] });
+  const review = AREAS.filter((a) => a !== "lsp").map((a) => `## \`${a}\`\n\nFine.\n`).join("\n");
+  expect(missingAreas(ladders, review).noReview).toEqual(["lsp"]);
 });
 
 test("an increment is the cost beyond the batch before, per added operation, so set-up cancels", () => {
