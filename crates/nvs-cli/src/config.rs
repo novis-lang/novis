@@ -724,28 +724,17 @@ fn plural(count: usize) -> &'static str {
 mod tests {
     use std::fs;
     use std::path::PathBuf;
-    use std::sync::atomic::{AtomicU32, Ordering};
 
     use nvs_diagnostics::SourceMap;
 
     use super::{Declined, Init, boot_in, policy_of, relaxed_grants, write_default_file};
     use crate::testing::{open_to_the_world, refuse_new_files};
 
-    /// A directory of this test's own, under a per-process root.
-    ///
-    /// Nested rather than placed directly in the temp directory for
-    /// `rule:config/ownership-is-the-trust-boundary`'s reason, which
-    /// [`super::write_default_file`] asks about the directory it writes into: a Unix `/tmp` is mode
-    /// `1777` and fails that check outright, while a root this process created carries the umask's
-    /// ordinary bits and is the parent the check is meant to see.
-    fn scratch(name: &str) -> PathBuf {
-        static NEXT: AtomicU32 = AtomicU32::new(0);
-        let unique = NEXT.fetch_add(1, Ordering::Relaxed);
-        let root = std::env::temp_dir().join(format!("nvs-init-{}", std::process::id()));
-        let dir = root.join(format!("{unique}-{name}"));
-        drop(fs::remove_dir_all(&dir));
-        fs::create_dir_all(&dir).expect("a scratch directory under the temp dir is creatable");
-        dir
+    /// A directory of this test's own, locked to this account, because
+    /// [`super::write_default_file`] runs `rule:config/ownership-is-the-trust-boundary`'s check on
+    /// the directory it writes into and on its parent.
+    fn scratch(name: &str) -> nvs_repo::Scratch {
+        nvs_repo::scratch_private(name)
     }
 
     /// A program for the snapshot to be folded for: `Snapshot::build` examines its entry, so a

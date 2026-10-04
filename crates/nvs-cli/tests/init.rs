@@ -8,23 +8,13 @@
 
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
-use std::sync::atomic::{AtomicU32, Ordering};
 
-/// A directory of this test's own, two levels below the temp dir.
-///
-/// Nested rather than placed directly in it because `rule:config/ownership-is-the-trust-boundary`
-/// is asked about the directory before anything is created there, and a Unix `/tmp` is mode `1777`:
-/// a case placed directly in it would be answered by that refusal rather than by the write it is
-/// about. The root this nests under is created by this process and carries the umask's ordinary
-/// bits.
-fn scratch(name: &str) -> PathBuf {
-    static NEXT: AtomicU32 = AtomicU32::new(0);
-    let unique = NEXT.fetch_add(1, Ordering::Relaxed);
-    let root = std::env::temp_dir().join(format!("nvs-init-cmd-{}", std::process::id()));
-    let dir = root.join(format!("{unique}-{name}"));
-    drop(std::fs::remove_dir_all(&dir));
-    std::fs::create_dir_all(&dir).expect("a scratch directory under the temp dir is creatable");
-    dir
+/// A directory of this test's own, locked to this account, because
+/// `rule:config/ownership-is-the-trust-boundary` is asked about the directory and its parent
+/// before anything is created there. A case in a directory others can write would be answered by
+/// that refusal, not by the write it is about.
+fn scratch(name: &str) -> nvs_repo::Scratch {
+    nvs_repo::scratch_private(name)
 }
 
 /// `nvs init`, run *in* `dir`.
@@ -371,7 +361,7 @@ fn nvs_init_and_the_cache_are_checked_one_folder_up_and_nvs_run_does_not_check_t
         format!("`{}` ", canonical.display())
     };
 
-    for failing in [&outer, &inner] {
+    for failing in [outer.path(), &inner] {
         writable_by_others(failing, true);
         let refused = nvs()
             .arg("init")

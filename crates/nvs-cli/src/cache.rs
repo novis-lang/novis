@@ -1794,7 +1794,6 @@ mod tests {
     //! output and the wrong one for a module with no command in front of it yet.
 
     use std::collections::BTreeSet;
-    use std::sync::atomic::{AtomicU32, Ordering};
     use std::time::{Duration, SystemTime};
 
     use nvs_config::Config;
@@ -1803,21 +1802,12 @@ mod tests {
     use super::*;
     use crate::testing::open_to_the_world;
 
-    /// A private directory for one test, removed first so a crashed run does not poison the next.
-    ///
-    /// **Two levels below the temp dir, not one**, and that is what makes these tests runnable at
-    /// all: `rule:packaging/the-checksum-proves-integrity-and-ownership-proves-trust`'s check reads the directory *and its parent*, and a Unix `/tmp` is mode
-    /// `1777`, so a cache placed directly in it is refused before any test's own subject is
-    /// reached. The per-process root this nests under is created by this process and carries the
-    /// umask's ordinary bits, so it is the parent the check is meant to see.
-    fn scratch(name: &str) -> PathBuf {
-        static NEXT: AtomicU32 = AtomicU32::new(0);
-        let unique = NEXT.fetch_add(1, Ordering::Relaxed);
-        let root = std::env::temp_dir().join(format!("nvs-cache-{}", std::process::id()));
-        let dir = root.join(format!("{unique}-{name}"));
-        drop(fs::remove_dir_all(&dir));
-        fs::create_dir_all(&dir).expect("a scratch directory under the temp dir is creatable");
-        dir
+    /// A directory of this test's own, locked to this account, because
+    /// `rule:packaging/the-checksum-proves-integrity-and-ownership-proves-trust`'s check reads the
+    /// cache directory *and its parent*, and a cache in a directory others can write is refused
+    /// before any test's own subject is reached.
+    fn scratch(name: &str) -> nvs_repo::Scratch {
+        nvs_repo::scratch_private(name)
     }
 
     /// The environment this test process compiles for, with no extensions configured.
@@ -1890,7 +1880,7 @@ mod tests {
         // Entries of a kilobyte each under a cache that never walks, oldest first. The directory
         // ends well over its cap, which is what makes the assertions below measurements of the
         // roll rather than of the writes.
-        let cold = Cache::new(&dir, env())
+        let cold = Cache::new(dir.path(), env())
             .expect("a scratch directory of this test's own")
             .with_eviction(never);
         let mut keys = Vec::new();
@@ -1908,7 +1898,7 @@ mod tests {
 
         // A hit is not a miss. § 6 hangs the roll off `store` alone, so this cannot evict however
         // the roll would have gone — and this cache's roll always fires.
-        let hot = Cache::new(&dir, env())
+        let hot = Cache::new(dir.path(), env())
             .expect("a scratch directory of this test's own")
             .with_eviction(always);
         let over = total_size(&dir);
@@ -2086,10 +2076,10 @@ mod tests {
     #[test]
     fn the_cache_is_a_fan_out_of_immutable_content_addressed_files() {
         let dir = scratch("fanout");
-        let cache = Cache::new(&dir, env()).expect("a scratch directory of this test's own");
+        let cache = Cache::new(dir.path(), env()).expect("a scratch directory of this test's own");
         assert_eq!(
             cache.dir(),
-            dir,
+            dir.path(),
             "the root is `opcache.file_cache_dir` and nothing under it"
         );
 
@@ -2166,7 +2156,7 @@ mod tests {
     #[test]
     fn a_concurrent_write_resolves_by_rename_with_no_lock_file() {
         let dir = scratch("concurrent");
-        let cache = Cache::new(&dir, env()).expect("a scratch directory of this test's own");
+        let cache = Cache::new(dir.path(), env()).expect("a scratch directory of this test's own");
         let payload = b"; the unit eight threads all compiled at once".as_slice();
         let key = artifact_key(content_hash(payload), cache.env());
 
@@ -2225,7 +2215,7 @@ mod tests {
     #[test]
     fn an_artifact_is_verified_whole_before_any_page_is_executable() {
         let dir = scratch("verify");
-        let cache = Cache::new(&dir, env()).expect("a scratch directory of this test's own");
+        let cache = Cache::new(dir.path(), env()).expect("a scratch directory of this test's own");
         let payload = b"; a compiled unit's payload, long enough to have a middle".as_slice();
         let key = artifact_key(content_hash(payload), cache.env());
 
@@ -2284,7 +2274,7 @@ mod tests {
     #[test]
     fn a_tampered_artifact_is_rejected() {
         let dir = scratch("tampered");
-        let cache = Cache::new(&dir, env()).expect("a scratch directory of this test's own");
+        let cache = Cache::new(dir.path(), env()).expect("a scratch directory of this test's own");
         let payload = b"; the unit an attacker would like to replace".as_slice();
         let key = artifact_key(content_hash(payload), cache.env());
         cache.store(key, payload).expect("writable");
