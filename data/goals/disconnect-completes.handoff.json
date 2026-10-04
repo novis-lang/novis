@@ -1,26 +1,25 @@
 {
-  "state": "**Goal `disconnect-completes`, Stage 3 in progress: a dropped request runs to its end under its `wall_time`, or under `disconnect_grace` while it has none, and a listed method is cancelled.** `Peer` in `crates/nvs-server/src/serve.rs` carries `cancels`, the `grace` and the request tree's `SafepointView`, all read at the request's start. Its drop hangs the body supply up, then abandons (a listed method, the grace passed with no `wall_time` standing, the drain period's end, this task cancelled or torn down) or parks until the request ends.\n\nThe tree publishes the request's `wall_time` (`TreeState::wall_time`, written by `Ctx::publish_wall_time` from `refresh_limits` on the tree root and on the context answering the request). The waiting `Peer` files a one-shot `RemoteWake` in `TreeState::wall_time_watch`, so a `Core\\Config::set` or `::restore` that moves `wall_time` wakes it at once.\n\nGreen now: every test of `nvs-server-a-disconnect-completes-the-request-by-default` except `the_drain_waits_for_a_disconnected_request` and `a_disconnected_request_runs_its_after_response_work`, which are not written. The rule stays `designed` until the stream write lands.",
+  "state": "**Goal `disconnect-completes`, Stage 3 in progress: a dropped request runs to its end under its `wall_time`, or under `disconnect_grace` while it has none, and a listed method is cancelled.** `Peer` in `crates/nvs-server/src/serve.rs` carries `cancels`, the `grace` and the request tree's `SafepointView`, all read at the request's start. Its drop hangs the body supply up, then abandons (a listed method, the grace passed with no `wall_time` standing, the drain period's end, this task cancelled or torn down) or parks until the request ends. While it parks before a drain, it holds a `nvs_host::wake_at_drain` registration, so a drain that begins then wakes it.\n\nThe tree publishes the request's `wall_time` (`TreeState::wall_time`). The waiting `Peer` files a one-shot `RemoteWake` in `TreeState::wall_time_watch`, so a `Core\\Config::set` or `::restore` that moves `wall_time` wakes it at once.\n\n`nvs_runtime::native_closure::<B: NativeBody>()` builds a no-parameter closure whose body is Rust, for a crate that forbids `unsafe` and needs a `callable` (`Ctx::defer` in the server's tests).\n\nGreen now: every test of `nvs-server-a-disconnect-completes-the-request-by-default`. `the_drain_waits_for_a_disconnected_request` also passes with the new drain registration taken out: some other wake already reaches the parked drop, probably the connection adapter's own registration (`crates/nvs-server/src/io.rs:275`). That cause is *not checked*. The rule stays `designed` until the stream write lands.",
   "next": {
     "stage": 3,
     "title": "the server",
     "files": [
-      "crates/nvs-server/src/serve.rs",
-      "crates/nvs-server/src/body.rs"
+      "crates/nvs-runtime/src/stream.rs",
+      "crates/nvs-stdlib/src/response.rs"
     ],
     "items": [
       {
         "done": false,
-        "text": "**`the_drain_waits_for_a_disconnected_request` and `a_disconnected_request_runs_its_after_response_work`** (`rule:http-server/a-request-outlives-a-client-that-goes-away`): the drop's wait already cuts at the drain period's end; check that a drain which begins while the task is parked in the drop wakes it, and write both tests through `after_a_disconnect` — `crates/nvs-server/src/serve.rs:1013`, `crates/nvs-server/src/serve.rs:6164`."
+        "text": "**`Core\\Response\\Stream::write` returns without throwing once the client has gone** (`rule:http-server/a-request-outlives-a-client-that-goes-away`: a streamed write to a gone client succeeds at once and its bytes are discarded, and a send timeout counts as the client having gone). Today `Emit::send` answers `Err` on a closed wire and on the send timeout, and the member throws it. Write `a_stream_write_after_the_client_left_returns_without_throwing` and `a_stream_write_after_the_send_timeout_returns_without_throwing` in `nvs-stdlib` — `crates/nvs-runtime/src/stream.rs:179`, `crates/nvs-stdlib/src/response.rs:1932`."
       },
       {
         "done": false,
-        "text": "**A listed method whose body failed part-way is cancelled** (`rule:http-server/a-request-outlives-a-client-that-goes-away`): `hyper` keeps that request in flight, so no drop happens. `Supply::pump` sees the `Incoming` error; record whether it `is_incomplete()` and let the service wait cancel a listed method on it — `crates/nvs-server/src/body.rs:181`, `crates/nvs-server/src/serve.rs:1730`."
+        "text": "**Flip the rule to `shipped`** once the write lands: `data/rules/http-server/a-request-outlives-a-client-that-goes-away.json` — `crates/nvs-stdlib/src/response.rs:1888`."
       }
     ]
   },
   "backlog": [
-    "`nvs-stdlib-a-stream-write-to-a-gone-client-returns`: `Core\\Response\\Stream::write` after a close and after a send timeout (`crates/nvs-runtime/src/stream.rs`, `crates/nvs-stdlib/src/response.rs`). It is the stage's other red check.",
-    "Flip `data/rules/http-server/a-request-outlives-a-client-that-goes-away.json` to `shipped` once the stream write and the group above land.",
+    "**A listed method whose body failed part-way is cancelled** (`rule:http-server/a-request-outlives-a-client-that-goes-away`): `hyper` keeps that request in flight, so no drop happens. `Supply::pump` sees the `Incoming` error; record whether it `is_incomplete()` and let the service wait cancel a listed method on it (`crates/nvs-server/src/body.rs:181`, `crates/nvs-server/src/serve.rs:1730`).",
     "`wall_time` is published to the tree but nothing enforces it on a served request, attached or detached: a detached request with a `wall_time` is bounded only by the drain. For the user: enforcing it belongs to `rule:http-server/time-is-bounded-inside-a-helper`'s owner, not this goal.",
     "`cancel_on_disconnect`'s `APPLY_PROOFS` row in `crates/nvs-config/tests/directives.rs` names a test that does not read it yet; `a_disconnected_request_of_a_listed_method_is_cancelled` reads it now and can be named there."
   ]

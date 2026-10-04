@@ -1024,9 +1024,9 @@ impl Drop for Peer {
         }
         let grace_ends = Instant::now() + self.grace;
         // The request's own end wakes this task, as it does the wait in the
-        // service future. The other wakes filed here are the drain's cut, the
-        // grace's end, and the request's `wall_time` moving, which decides
-        // whether the grace bounds it at all.
+        // service future. The other wakes filed here are a drain beginning, the
+        // drain's cut once it has, the grace's end, and the request's
+        // `wall_time` moving, which decides whether the grace bounds it at all.
         while !running.finished() {
             let now = Instant::now();
             let cut_at = self.cut_at();
@@ -1041,6 +1041,12 @@ impl Drop for Peer {
             if let Some(at) = cut_at.into_iter().chain(grace_at).min() {
                 crate::bounds::wake_at(at);
             }
+            // Only before a drain: one that has begun fires a wake at once,
+            // and its cut is the timer above.
+            let _woken_at_drain = cut_at
+                .is_none()
+                .then(|| nvs_host::wake_at_drain(self.draining.bit()))
+                .flatten();
             if let Some(wake) = nvs_host::current_task()
                 .and_then(|me| nvs_host::reactor::with_current(|reactor| reactor.remote_wake(me)))
             {
@@ -6165,6 +6171,18 @@ mod tests {
         written: &str,
         then: impl FnOnce(&mut Ctx, &Notes, &Admission) + 'static,
     ) -> Vec<String> {
+        after_a_disconnect_under(written, Waits::default(), &Draining::detached(), then)
+    }
+
+    /// [`after_a_disconnect`] under `waits` and `draining`, for a case that
+    /// begins a drain or reads its period.
+    fn after_a_disconnect_under(
+        written: &str,
+        waits: Waits,
+        draining: &Draining,
+        then: impl FnOnce(&mut Ctx, &Notes, &Admission) + 'static,
+    ) -> Vec<String> {
+        let draining = draining.clone();
         let serving = booted_on(written);
         let admission = Arc::clone(&serving.admission);
         let notes: Notes = Arc::new(std::sync::Mutex::new(Vec::new()));
@@ -6235,9 +6253,9 @@ mod tests {
             serve_on_this_core(
                 &mut listener,
                 &handler,
-                Waits::default(),
+                waits,
                 &serving,
-                &Draining::detached(),
+                &draining,
                 |_note| {},
                 || ControlFlow::Break(()),
             )
@@ -6398,6 +6416,90 @@ mod tests {
         assert!(
             !notes.iter().any(|note| note == "ran on with no bound") && stopped < returned,
             "a request that cleared its `wall_time` was not cancelled: {notes:?}"
+        );
+    }
+
+    /// A drain that begins while a request runs on without its client waits
+    /// for it as for an attached one: a request that ends inside the drain
+    /// period runs to its end, and one that does not is cut at the period's
+    /// end. The second run is the one a drain nobody woke the connection for
+    /// would leave running for its whole wait.
+    #[test]
+    fn the_drain_waits_for_a_disconnected_request() {
+        let under_a_drain = |for_how_long: Duration| {
+            let draining = Draining::detached();
+            let begun = draining.clone();
+            let waits = Waits {
+                drain: Duration::from_millis(300),
+                ..Waits::default()
+            };
+            after_a_disconnect_under("", waits, &draining, move |_ctx, notes, _admission| {
+                if !waited(Duration::from_millis(100)) {
+                    return;
+                }
+                begun.begin();
+                if waited(for_how_long) {
+                    noted(notes, "ran to its end under the drain");
+                }
+            })
+        };
+
+        let notes = under_a_drain(Duration::from_millis(50));
+        let at = |what: &str| notes.iter().position(|note| note == what);
+        let ended = at("ran to its end under the drain")
+            .unwrap_or_else(|| panic!("the drain cut a request inside its period: {notes:?}"));
+        let returned = at("the accept loop returned").expect("the accept loop never returned");
+        assert!(
+            ended < returned,
+            "the connection ended before the request the drain waited for: {notes:?}"
+        );
+
+        let notes = under_a_drain(Duration::from_secs(5));
+        let at = |what: &str| notes.iter().position(|note| note == what);
+        assert!(
+            at("ran to its end under the drain").is_none(),
+            "a request whose client left outlived the drain period: {notes:?}"
+        );
+        let stopped = at("the request stopped").expect("the request never stopped");
+        let returned = at("the accept loop returned").expect("the accept loop never returned");
+        assert!(
+            stopped < returned,
+            "the drain did not cut the request before the connection ended: {notes:?}"
+        );
+    }
+
+    /// `rule:concurrency/after-response-outlives-the-connection`'s work runs
+    /// for a request whose client left, as for one whose client stayed, and
+    /// the end of the connection does not cancel it while it waits.
+    #[test]
+    fn a_disconnected_request_runs_its_after_response_work() {
+        static RAN: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+        struct WaitsAndRecords;
+        impl nvs_runtime::NativeBody for WaitsAndRecords {
+            fn run(_ctx: &mut Ctx) {
+                if waited(Duration::from_millis(50)) {
+                    RAN.store(true, std::sync::atomic::Ordering::Relaxed);
+                }
+            }
+        }
+
+        let notes = after_a_disconnect("", |ctx, notes, _admission| {
+            assert_eq!(
+                ctx.defer(nvs_runtime::native_closure::<WaitsAndRecords>(), 0),
+                Ok(()),
+                "the request's queue refused a registration"
+            );
+            if waited(Duration::from_millis(100)) {
+                noted(notes, "the request ended");
+            }
+        });
+        assert!(
+            notes.iter().any(|note| note == "the request ended"),
+            "the request did not run to its end: {notes:?}"
+        );
+        assert!(
+            RAN.load(std::sync::atomic::Ordering::Relaxed),
+            "a request whose client left did not run its after-response work: {notes:?}"
         );
     }
 
