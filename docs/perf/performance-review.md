@@ -299,11 +299,11 @@ up to `max_redirects`.
 
 **Read:** the workspace index, the server's edit and publish path, document overlays and positions.
 
-**Found:** the index copies an entry's read list into every file it loads
-([`the-index-copies-an-entrys-reads-into-every-file`](../../data/gaps/nvs-lsp/the-index-copies-an-entrys-reads-into-every-file.json)),
-and dimming unused private members scans every occurrence once per declaration
-([`unused-private-scans-every-occurrence`](../../data/gaps/nvs-lsp/unused-private-scans-every-occurrence.json)).
-Both are candidate causes of `lsp/classes.nvs`'s slope near 2.
+**Found:** the index copied an entry's read list into every file it loads, and dimming unused
+private members scanned every occurrence once per declaration. Both are fixed: the index keeps one
+read list per entry point, dimming makes one pass over the occurrences, and `lsp/classes.nvs` is
+flat. A declaration or subtype lookup still scans every declaration
+([`a-hierarchy-lookup-scans-every-declaration`](../../data/gaps/nvs-lsp/a-hierarchy-lookup-scans-every-declaration.json)).
 
 **Bounded:** each edit analyses again every entry whose graph read the changed file
 (`crates/nvs-lsp/src/index.rs:344`, `server.rs:497`), linear per edit. `overlay` copies the text of
@@ -361,8 +361,9 @@ client that answers its own empty server in 43 µs. The client and the loopback 
 `nvs serve` prints no counts to divide it further.
 
 **Editor:** an `nvs lsp` session that opens an empty file, edits it once and hovers is 13.1 ms,
-7.4 ms above the process start. It runs the front end five times over two versions of the
-document, and the `Core` signature table is 63% of its instructions
-([`an-edit-analyses-the-document-twice`](../../data/gaps/nvs-lsp/an-edit-analyses-the-document-twice.json)).
+7.4 ms above the process start. It ran the front end five times over two versions of the
+document, and the `Core` signature table is 63% of its instructions. An edit now analyses the
+edited document once, and the hover still analyses it again
+([`a-request-analyses-an-unchanged-document-again`](../../data/gaps/nvs-lsp/a-request-analyses-an-unchanged-document-again.json)).
 
 Not checked: the share of the signature table in a check of a large program.

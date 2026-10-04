@@ -34,9 +34,10 @@
 //!
 //! # Decision: invalidation follows the read edge, not the `require` edge
 //!
-//! An entry records **every file the analysis that produced it read**, which is
+//! An entry point records **every file its analysis read**, which is
 //! `nvs_lsp::Analysed::files` — the same set [`crate::Documents::record_graph`]
-//! keeps for republishing. A `didChange` therefore drops the file that changed
+//! keeps for republishing — once, and each file it indexed names that entry
+//! point. A `didChange` therefore drops the file that changed
 //! and every file whose entry was produced by an analysis that read it, and
 //! nothing else, which is what [`SymbolIndex::invalidate`] is and what
 //! `tests/index.rs` pins. Following the `require` edge instead would need a
@@ -69,9 +70,10 @@
 //! keeps a reference list a list of sites that resolved to the symbol asked
 //! about rather than a text search for its name.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use std::path::{Path, PathBuf};
 
+use lsp_types::Uri;
 use nvs_diagnostics::{BytePos, Diagnostics, SourceFile, Span, canonical_key};
 use nvs_hir::{Loaded, QName, SymbolKind};
 use nvs_syntax::ast::{
@@ -297,12 +299,20 @@ struct Indexed {
     occurrences: Vec<Occurrence>,
     /// Every `use` import written here, in source order.
     imports: Vec<Import>,
-    /// Every file that analysis read, this one included — the edge
-    /// [`SymbolIndex::invalidate`] follows.
-    reads: Vec<PathBuf>,
     /// The entry point that analysis started from, which is what re-indexing
-    /// this file costs.
+    /// this file costs, and whose reads in [`SymbolIndex::reads`] are the edge
+    /// [`SymbolIndex::invalidate`] follows.
     entry: PathBuf,
+}
+
+/// What one [`SymbolIndex::refresh`] did.
+#[derive(Debug)]
+pub struct Refreshed {
+    /// The files whose entries were dropped, in path order.
+    pub dropped: Vec<PathBuf>,
+    /// The analysis of each open document the refresh re-analysed as an entry
+    /// point, with the document's URI.
+    pub analysed: Vec<(Uri, Analysed)>,
 }
 
 /// Every name the workspace declares and every place one is used.
@@ -315,6 +325,12 @@ pub struct SymbolIndex {
     /// One entry per file, keyed by `nvs_diagnostics::canonical_key`, ordered
     /// so every answer this index gives is in a stable order.
     files: BTreeMap<PathBuf, Indexed>,
+    /// Every file each entry point's analysis read, that entry included, kept
+    /// once per entry point that owns at least one file in `files`. Once per
+    /// entry and not once per file, because every file one analysis loads
+    /// shares the same list, and a copy in each of them grows with the square
+    /// of the graph.
+    reads: BTreeMap<PathBuf, Vec<PathBuf>>,
 }
 
 impl SymbolIndex {
@@ -335,35 +351,49 @@ impl SymbolIndex {
     }
 
     /// Re-indexes `changed` and every file whose analysis read it, and nothing
-    /// else, returning the files that were dropped.
+    /// else, returning the files that were dropped and the analyses of the
+    /// open documents among the entries it re-analysed.
     ///
     /// The dropped set is the answer the test asks for and the one a caller
     /// wants anyway: it is exactly the files whose declarations and
     /// occurrences have just been replaced, so a reader holding an answer
     /// about one of them knows it is stale.
-    pub fn refresh(&mut self, documents: &Documents, changed: &Path) -> Vec<PathBuf> {
+    ///
+    /// An open entry is analysed under its document's own path and version,
+    /// which is exactly the analysis [`crate::analyse`] makes of that document,
+    /// so the server publishes from it instead of running the front end over
+    /// the same version a second time. Every other entry's analysis is dropped
+    /// as soon as it is indexed: only an open document is published for, and
+    /// keeping one analysis per open entry for the length of one edit is the
+    /// memory this spends.
+    pub fn refresh(&mut self, documents: &Documents, changed: &Path) -> Refreshed {
         let key = canonical_key(changed);
-        let mut entries: Vec<PathBuf> = self
-            .files
-            .values()
-            .filter(|indexed| indexed.reads.contains(&key))
-            .map(|indexed| indexed.entry.clone())
-            .collect();
+        let mut entries = self.readers_of(&key);
         // A file the index has never seen — one just opened, or one created
         // under a workspace root — is an entry point in its own right, and
         // nothing above found it because nothing had read it yet.
-        if !entries.contains(&key) && documents_version(documents, &key).is_some() {
+        if !entries.contains(&key) && open_document(documents, &key).is_some() {
             entries.push(key.clone());
         }
         entries.sort();
         entries.dedup();
 
         let dropped = self.invalidate(changed);
+        let mut analysed = Vec::new();
         for entry in entries {
-            let version = documents_version(documents, &entry).unwrap_or(NO_BUFFER);
-            self.absorb(documents, &entry, version);
+            let open = open_document(documents, &entry);
+            match open.and_then(|document| Some((document, document.path()?))) {
+                Some((document, path)) => {
+                    if let Some(analysis) = self.absorb(documents, path, document.version()) {
+                        analysed.push((document.uri().clone(), analysis));
+                    }
+                }
+                None => {
+                    self.absorb(documents, &entry, NO_BUFFER);
+                }
+            }
         }
-        dropped
+        Refreshed { dropped, analysed }
     }
 
     /// Drops `changed` and every file whose analysis read it, returning them
@@ -373,17 +403,29 @@ impl SymbolIndex {
     /// separately true: what goes stale is a fact about the read edge, and
     /// what is rebuilt is a fact about the tree.
     pub fn invalidate(&mut self, changed: &Path) -> Vec<PathBuf> {
-        let key = canonical_key(changed);
+        let readers = self.readers_of(&canonical_key(changed));
         let stale: Vec<PathBuf> = self
             .files
             .iter()
-            .filter(|(_, indexed)| indexed.reads.contains(&key))
+            .filter(|(_, indexed)| readers.contains(&indexed.entry))
             .map(|(path, _)| path.clone())
             .collect();
         for path in &stale {
             self.files.remove(path);
         }
+        for entry in &readers {
+            self.reads.remove(entry);
+        }
         stale
+    }
+
+    /// The entry points whose analysis read `key`, in path order.
+    fn readers_of(&self, key: &Path) -> Vec<PathBuf> {
+        self.reads
+            .iter()
+            .filter(|(_, reads)| reads.iter().any(|read| read == key))
+            .map(|(entry, _)| entry.clone())
+            .collect()
     }
 
     /// The private declarations in `path` that nothing anywhere in the index
@@ -396,11 +438,32 @@ impl SymbolIndex {
     /// when this is asked is `rule:ide/check-scope-defaults-to-the-workspace`'s
     /// answer, and the caller is what holds the setting.
     #[must_use]
+    ///
+    /// One pass over every occurrence in the index, however many private
+    /// declarations `path` has.
     pub fn unused_private(&self, path: &Path) -> Vec<&Declaration> {
-        self.declarations_in(path)
+        let private: Vec<&Declaration> = self
+            .declarations_in(path)
             .iter()
             .filter(|declared| declared.visibility == Visibility::Private)
-            .filter(|declared| self.occurrences(&declared.symbol).is_empty())
+            .collect();
+        if private.is_empty() {
+            return private;
+        }
+        let asked: HashSet<&str> = private
+            .iter()
+            .map(|declared| declared.symbol.as_str())
+            .collect();
+        let used: HashSet<&str> = self
+            .files
+            .values()
+            .flat_map(|indexed| &indexed.occurrences)
+            .map(|occurrence| occurrence.symbol.as_str())
+            .filter(|symbol| asked.contains(symbol))
+            .collect();
+        private
+            .into_iter()
+            .filter(|declared| !used.contains(declared.symbol.as_str()))
             .collect()
     }
 
@@ -606,11 +669,13 @@ impl SymbolIndex {
     /// its own is the thing `rule:ide/five-features-are-one-reference-index`
     /// refuses. A file another entry already indexed is skipped rather than
     /// re-indexed, per the module doc's second decision.
-    fn absorb(&mut self, documents: &Documents, entry: &Path, version: i32) {
-        let Some(analysed) = analyse_file(documents, entry, version) else {
-            return;
-        };
-        let reads: Vec<PathBuf> = analysed.files().map(|file| canonical_key(&file)).collect();
+    ///
+    /// Returns the analysis it indexed, for [`refresh`](Self::refresh) to hand
+    /// on.
+    fn absorb(&mut self, documents: &Documents, entry: &Path, version: i32) -> Option<Analysed> {
+        let analysed = analyse_file(documents, entry, version)?;
+        let entry = canonical_key(entry);
+        let mut owns_a_file = false;
 
         for loaded in &analysed.loaded {
             let Some(path) = analysed.map.file(loaded.id).path() else {
@@ -624,11 +689,18 @@ impl SymbolIndex {
                 decls: declarations(&analysed, loaded, &key),
                 occurrences: occurrences(&analysed, loaded, &key),
                 imports: imports(&analysed, loaded, &key),
-                reads: reads.clone(),
-                entry: canonical_key(entry),
+                entry: entry.clone(),
             };
             self.files.insert(key, indexed);
+            owns_a_file = true;
         }
+        // An entry that indexed no file has nothing an edit could make stale,
+        // so its reads are not kept.
+        if owns_a_file {
+            let reads = analysed.files().map(|file| canonical_key(&file)).collect();
+            self.reads.insert(entry, reads);
+        }
+        Some(analysed)
     }
 }
 
@@ -722,12 +794,11 @@ pub(crate) fn tree(
     selected.into_iter().collect()
 }
 
-/// The version of the open buffer for `key`, if a client has one.
-fn documents_version(documents: &Documents, key: &Path) -> Option<i32> {
+/// The open buffer for `key`, if a client has one.
+fn open_document<'a>(documents: &'a Documents, key: &Path) -> Option<&'a crate::Document> {
     documents
         .iter()
         .find(|document| document.path().map(canonical_key).as_deref() == Some(key))
-        .map(crate::Document::version)
 }
 
 /// Every name one file of an analysis declares, in source order.

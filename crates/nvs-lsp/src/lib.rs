@@ -137,8 +137,8 @@ pub use document::{
     Analysed, Document, Documents, analyse, analyse_current, analyse_file, path_of, uri_of,
 };
 pub use index::{
-    CheckScope, Construction, DeclKind, Declaration, Import, Occurrence, Parameter, Site,
-    SymbolIndex, Visibility, symbol_at,
+    CheckScope, Construction, DeclKind, Declaration, Import, Occurrence, Parameter, Refreshed,
+    Site, SymbolIndex, Visibility, symbol_at,
 };
 pub use position::{encoding_of, offset_at, position_at, range_at, range_of};
 pub use render::{Action, Link, Place, Redaction, Region, Response};

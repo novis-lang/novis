@@ -19,7 +19,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use lsp_types::PositionEncodingKind;
-use nvs_lsp::{CheckScope, DeclKind, Documents, SymbolIndex, Visibility, uri_of};
+use nvs_lsp::{CheckScope, DeclKind, Documents, SymbolIndex, Visibility, path_of, uri_of};
 
 /// A scratch directory that cleans up after itself.
 struct TempDir {
@@ -439,7 +439,8 @@ fn a_change_invalidates_the_file_and_its_readers_and_nothing_else() {
     assert!(!untouched.is_empty(), "the third file declares something");
 
     // The edited file is required by main.nvs and by nothing else.
-    let dropped = index.refresh(&documents, &dir.at("lib.nvs"));
+    let refreshed = index.refresh(&documents, &dir.at("lib.nvs"));
+    let dropped = refreshed.dropped;
     assert_eq!(
         names(&dropped),
         vec!["lib.nvs".to_owned(), "main.nvs".to_owned()],
@@ -451,10 +452,38 @@ fn a_change_invalidates_the_file_and_its_readers_and_nothing_else() {
         "a file that neither changed nor read what did was re-indexed anyway"
     );
     assert_eq!(index.len(), 3, "everything dropped was built again");
+    // Both entries it re-analysed are open, so both analyses come back, each
+    // at the version its document is at: the server publishes from them.
+    let analysed: Vec<(PathBuf, i32)> = refreshed
+        .analysed
+        .iter()
+        .map(|(uri, analysed)| (path_of(uri).expect("a file URI"), analysed.version))
+        .collect();
+    let opened: Vec<(PathBuf, i32)> = analysed
+        .iter()
+        .map(|(path, _)| {
+            let uri = uri_of(path).expect("a UTF-8 path");
+            (path.clone(), documents.get(&uri).expect("open").version())
+        })
+        .collect();
+    assert_eq!(
+        names(
+            &analysed
+                .iter()
+                .map(|(path, _)| path.clone())
+                .collect::<Vec<_>>()
+        ),
+        vec!["lib.nvs".to_owned(), "main.nvs".to_owned()],
+        "the refresh did not hand back the analyses of the open entries it re-analysed"
+    );
+    assert_eq!(
+        analysed, opened,
+        "an analysis was handed back at a stale version"
+    );
 
     // The other direction is not symmetric, and that is the point: lib.nvs
     // does not read main.nvs, so editing main.nvs leaves it alone.
-    let dropped = index.refresh(&documents, &dir.at("main.nvs"));
+    let dropped = index.refresh(&documents, &dir.at("main.nvs")).dropped;
     assert_eq!(
         names(&dropped),
         vec!["main.nvs".to_owned()],

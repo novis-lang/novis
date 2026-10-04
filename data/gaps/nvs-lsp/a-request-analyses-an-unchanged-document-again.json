@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-lsp/src/server.rs",
+  "title": "A request such as a hover analyses its document again, even when nothing changed since the last analysis of that version.",
+  "text": "Read and measured with callgrind on the debug Linux binary, an empty file: an open, one edit and one hover ran five analyses over two versions of the document, and the hover's was the same version the edit had just analysed. An edit now analyses the edited document once (`SymbolIndex::refresh` hands its analyses to `publish`, `crates/nvs-lsp/src/server.rs:2045`), so that session runs four. Keeping the last analysis of each open document's current version for the requests that follow removes the request's own walk; it spends one analysis per open document, freed when the document changes or closes. Not checked: whether completion and references also analyse again, and how a kept analysis would be shared with the request handlers that take `&Analysed`. Ladder: none, the factor is constant; `lsp/classes.nvs`'s clock should fall when it is fixed.",
+  "goal": "performance-pass"
+}

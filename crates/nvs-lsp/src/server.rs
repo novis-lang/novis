@@ -475,7 +475,9 @@ fn shut_down(
 /// list has to be right about, which is where the index stops being the document
 /// server `rule:ide/an-open-document-is-its-own-entry-point` describes. Before
 /// the publish because that one takes the store mutably, and on this thread
-/// nothing reads the index in between. The completion files are checked
+/// nothing reads the index in between. The refresh's analyses of open
+/// documents go to the publish, which sends from them instead of analysing the
+/// same versions again. The completion files are checked
 /// against the refreshed index, and published only when that check found
 /// something different.
 ///
@@ -491,10 +493,11 @@ fn reanalyse(
     encoding: PositionEncoding,
     changed: &Changed,
 ) -> Result<(), ServerError> {
+    let mut analysed = Vec::new();
     if let Some(path) = &changed.path {
         // First, because both analyses below borrow what it finds.
         documents.resurvey(path);
-        index.refresh(documents, path);
+        analysed = index.refresh(documents, path).analysed;
         if completion_files.check(index) {
             publish_completion_files(connection, completion_files, encoding)?;
         }
@@ -507,6 +510,7 @@ fn reanalyse(
         scope,
         encoding,
         changed,
+        analysed,
     )
 }
 
@@ -2038,10 +2042,15 @@ fn apply(documents: &mut Documents, notification: Notification) -> Option<Change
 /// `CheckScope::Workspace`, so the default publishes exactly what it published
 /// before the setting existed.
 ///
+/// `refreshed` is what [`SymbolIndex::refresh`] has already analysed of the
+/// open documents. A document on the list whose version one of those read is
+/// published from it, and every other one is analysed here.
+///
 /// # Errors
 ///
 /// Fails when the writer thread is gone, which is terminal for the same reason
 /// a framing error is.
+#[allow(clippy::too_many_arguments)]
 fn publish(
     connection: &Connection,
     documents: &mut Documents,
@@ -2050,6 +2059,7 @@ fn publish(
     scope: CheckScope,
     encoding: PositionEncoding,
     changed: &Changed,
+    mut refreshed: Vec<(Uri, Analysed)>,
 ) -> Result<(), ServerError> {
     if let Some(closed) = &changed.closed {
         // A closed document is published for one last time, with nothing in
@@ -2067,7 +2077,14 @@ fn publish(
     let stale: Vec<Uri> = documents.to_republish(path).into_iter().cloned().collect();
 
     for uri in stale {
-        let Some(analysed) = analyse(documents, &uri) else {
+        let held = refreshed
+            .iter()
+            .position(|(of, held)| *of == uri && documents.is_current(&uri, held.version));
+        let fresh = match held {
+            Some(at) => Some(refreshed.swap_remove(at).1),
+            None => analyse(documents, &uri),
+        };
+        let Some(analysed) = fresh else {
             continue;
         };
         // Rebuilt from the walk that has just run, which is what makes the

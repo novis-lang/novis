@@ -374,7 +374,7 @@ fn a_warm_index_answers_within_the_reanalysis_bound() {
         "`rule:ide/a-full-reanalysis-stays-under-a-bound` names the bound; an index that costs \
          more than the analysis under it is one that rebuilds more than what changed.",
         || {
-            let dropped = index.refresh(&documents, &path);
+            let dropped = index.refresh(&documents, &path).dropped;
             assert_eq!(dropped.len(), 1, "one file changed and nothing reads it");
         },
     );
