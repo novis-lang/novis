@@ -1,31 +1,37 @@
 {
-  "state": "**Side goal `website-overhaul`: stage 5 (Install and Guides) is in progress. Install and seven of the eight Guides sections are done. Example apps is the last one.**\n\nInstall has four pages under `install/`, snippets under `website/snippets/install/`. Novis has no release yet, so the install page builds from source, and the Docker page copies a binary the reader built.\n\nGuides: Why people pick Novis (11 candidate pages; the user curates the list when the goal lands), the Tour (ten steps), Simple programs (six), How to use Novis (six pages, each with `## Do and don't`), Cookbook (ten), Testing your app (four) and Going to production (five). Each program has its own folder under `website/snippets/guides/<section>/<name>/`, with its `nvs.toml` and `.nvsr` beside it. `nvs test` output and compile errors are `txt` blocks copied from a real run.\n\nNovis has no free functions (`E0215`, `E0320`), so every snippet uses a class and `Core\\Math::intDiv` and so on. `Core\\Request::query` returns `mixed`: write `as tainted string` or `as ?int`. A route is tested in one file with the `catch (LogicError)` pattern in `website/snippets/guides/testing/test-a-route/test-a-route.nvs`.\n\n`--check guides` fails now only on `example-apps`. `site structure`, `stale`, `reference`, `syntax` and `--build` pass. `snippets` and `prose` fail only on `index.mdx`, `sponsoring.mdx` and `in-depth/what-changed.mdx`, which stage 6 rewrites. `apps` and `in-depth` are stubs (`LATER` in `site.ts`).\n\nA page whose `covers:` names a feature id needs `bun nv site --stamp <page>` before `--check stale` passes.",
+  "state": "**Side goal `website-overhaul`: stage 5 (Install and Guides) is done. Stage 6 (In-Depth, the home page and the last links) is next.**\n\nInstall has four pages and Guides has all eight sections. Why people pick Novis has 11 candidate pages, and the user curates that list when the goal lands. Example apps has `index.mdx` and `notes.mdx`.\n\nThe Notes app is in `apps/notes/`: `nvs.toml` with two SQLite databases (`notes`, a file, and `scratch`, in memory, used only by `tests/StoreTest.nvs`), `public/index.nvs`, five classes under `src/` in namespace `Notes`, and 11 tests under `tests/`. `nvs test tests/` and `nvs serve public/index.nvs` run from the app's folder. Routes are dispatched by name in `Notes\\App::handle` (`apps/notes/src/App.nvs`). The app has no login and no CSRF token, and its page says so.\n\n`bun nv site --check apps` (`appsProblems` in `tools/nv/cmd/site.ts`) runs `nvs test tests/` in each app under `apps/`, then boots `nvs serve` on a free port until `GET /` returns 200, and deletes every file the run created (the `notes.sqlite`).\n\nGreen now: `site structure`, `stale`, `reference`, `syntax`, `guides`, `apps` and `--build`. `snippets` and `prose` fail only on `index.mdx`, `sponsoring.mdx` and `in-depth/what-changed.mdx`. `in-depth` is the last `LATER` stub.\n\nA page whose `covers:` names a feature id needs `bun nv site --stamp <page>` before `--check stale` passes. MDX reads `{...}` outside a code span as an expression, so keep route paths like `/notes/{id}` in backticks.",
   "next": {
-    "stage": 5,
-    "title": "Install and Guides",
+    "stage": 6,
+    "title": "In-Depth, the home page and the last links",
     "files": [
-      "apps/notes/",
-      "website/src/content/docs/guides/example-apps/",
+      "website/src/content/docs/in-depth/",
+      "website/src/content/docs/index.mdx",
       "website/astro.config.ts",
+      "website/src/components/Footer.astro",
       "tools/nv/cmd/site.ts"
     ],
     "items": [
       {
         "done": false,
-        "text": "**The Notes app**: `apps/notes/` with SQLite, server-rendered HTML with html literals, a small JSON API, form validation and tests, run with `nvs serve` and `nvs test`. Specified by `docs/agent/goals/side/website-overhaul.md` § Stage 5, item 8. Its database snippets follow `website/snippets/guides/cookbook/page-db-rows/` (`Core\\Db::connect`, `[db.<name>]`, `[capabilities.db] connect`). Anchors: `website/astro.config.ts:209`"
+        "text": "**In-Depth's eight sections**: What Novis is for, What Novis will never be, How we decide, Design principles, Concepts (five pages), Where Novis falls behind, Roadmap, What changed. Each is a short essay that links to decision records through `decisionRecord` in `website/config/site.mjs`. Specified by `docs/agent/goals/side/website-overhaul.md` § Stage 6. Anchors: `website/astro.config.ts:368`, `website/src/content/docs/in-depth/index.mdx:1`"
       },
       {
         "done": false,
-        "text": "**`--check apps`**: replace the `apps` entry of `LATER` with a part that runs `nvs test` over every app under `apps/` and boots each with `nvs serve` until `/` returns `200`. Specified by the same section. Anchors: `tools/nv/cmd/site.ts:66`"
+        "text": "**`--check in-depth`**: replace the last `LATER` entry with a part that checks the eight sections exist and each has a page, and make `structure` fail on a link to a URL the site does not build. Anchors: `tools/nv/cmd/site.ts:67`, `tools/nv/cmd/site.ts:689`"
       },
       {
         "done": false,
-        "text": "**The Example apps page**: `guides/example-apps/index.mdx` and `guides/example-apps/notes.mdx` (sparse `git clone` of `apps/notes`, `cd`, `nvs serve`, `nvs test`, what each file does, how to start a new app from it), and a Guides sidebar group after Going to production. Anchors: `website/astro.config.ts:209`, `tools/nv/cmd/site.ts:563`"
+        "text": "**The home page and the last prose**: rewrite `index.mdx` (hero, one `<Snippet>`, 4–6 standout features linking to their Why-Novis pages, four area cards, Install button), and bring `sponsoring.mdx` and `in-depth/what-changed.mdx` inside `snippets` and `prose`. Anchors: `website/src/content/docs/index.mdx:1`, `website/src/components/Footer.astro:23`"
+      },
+      {
+        "done": false,
+        "text": "**Close the goal**: `bun nv verify --doc`, `bun nv owners --closes website-overhaul`, every `site --check` part green, then `DONE`. Anchors: `tools/nv/cmd/site.ts:63`"
       }
     ]
   },
   "backlog": [
-    "Stage 6: In-Depth's eight sections, the home page rewrite, `sponsoring.mdx` and `in-depth/what-changed.mdx` prose, and `--check in-depth` — `docs/agent/goals/side/website-overhaul.md` § Stage 6.",
-    "The Docker page says Novis has no published image. When a release lands, it should use the image from `docker/Dockerfile` — `website/src/content/docs/guides/production/docker.mdx`."
+    "CI: check that the workflow that runs `site --check` builds `nvs` first, so `apps` has a binary (`.github/workflows/`, not checked).",
+    "Notes app: a login and CSRF tokens are the obvious next example (`Core\\Csrf`, `Core\\Session`). The goal names one app for now (`docs/agent/goals/side/website-overhaul.md` § Stage 5).",
+    "The user curates the Why-Novis list when the goal lands (goal § Standing decisions)."
   ]
 }
