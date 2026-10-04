@@ -61,7 +61,17 @@
 // `lsp` prints a document that marks one `<|>` cursor and is judged as `fmt` is, on the clock of one
 // `nvs lsp` session over stdio (`lspScript`): open, an edit, then completion, hover and references at
 // the cursor, timed from the open to the last answer so the server's start-up is outside it. Callgrind
-// runs the same session with its messages piped in from a file. A ladder of a kind not measured yet is reported invalid, so it cannot pass unmeasured.
+// runs the same session with its messages piped in from a file.
+//
+// `serve` is the one kind whose copy is not rewritten: the ladder is the program every request runs,
+// and the size is the number of requests served. At each size the tool boots `nvs serve` on the copy,
+// on a free port, sends that many GETs over one keep-alive connection with `bun nv bench`'s client,
+// and stops the server. The clock is the load's, from the first request to the last answer, and the
+// fastest of `--reps` boots. The server prints no counts, so the clock decides as it does for `fmt`,
+// and a clock slope left unread is reported invalid, because a server is not run under callgrind. Its
+// peak memory, the most the OS saw the server process hold, is the lowest of the boots, and it must
+// not grow with the requests served: a peak at the largest size more than `PEAK_SLACK` above the
+// lowest peak of the ramp fails the ladder, because memory is O(in-flight) and never O(requests served).
 //
 // The counts are the same on every machine, so a bench gets the same verdict everywhere. The clock is
 // taken on the release binary unless `--nvs` names another, as `--record-perf` takes it.
@@ -74,6 +84,7 @@ import { fixed } from "../lib/py.ts";
 import { countProgram, COUNTS, PerfError } from "../proofs/perf.ts";
 import { read } from "../proofs/roster.ts";
 import { releaseBinary, skipReason, spawnProof } from "../proofs/run.ts";
+import { freePort, hammer, HttpConn, Server } from "./bench.ts";
 
 export const summary = "how fast a program's cost grows with its size: nv scaling [--iterations] [--check] [path-filter...] | --areas [--reviewed]";
 
@@ -241,9 +252,11 @@ const BENCH_BOUNDS: Bounds = { count: COUNT_BOUND, clock: CLOCK_BOUND };
  * that `CLOCK_BOUND` has above `COUNT_BOUND`. */
 export const EXPECT: Record<string, number> = { constant: 0.15, linear: COUNT_BOUND, nlogn: 1.35, karatsuba: 1.7 };
 
-/** The kinds a ladder may declare, and the ones the tool measures so far. */
+/** The kinds a ladder may declare. */
 export const KINDS = ["run", "compile", "lsp", "fmt", "serve"] as const;
-const MEASURED_KINDS: readonly string[] = ["run", "compile", "lsp", "fmt"];
+
+/** How far a `serve` ramp's peak memory may rise above the lowest peak it reached, as a fraction of that peak. */
+export const PEAK_SLACK = 0.25;
 
 /** The areas Stage 3 of `performance-pass` covers, each a folder under `benches/scaling/`. */
 export const AREAS = [
@@ -350,16 +363,22 @@ async function instructions(opts: Options, command: string, file: string, bench:
 interface Measure {
   /** The counts the agreement test and the bounds judge. */
   keys: readonly string[];
-  take(copy: string, bench: string, opts: Options): Promise<{ counts: Record<string, number>; ns: number }>;
+  /** Whether the copy's closing literal is rewritten to the size. A kind that is not rewritten is
+   * handed the size instead. */
+  rewrites: boolean;
+  take(copy: string, bench: string, opts: Options, size: number): Promise<{ counts: Record<string, number>; ns: number }>;
   /** The fastest of `--reps` timings alone, for the clock's second run. */
-  clock(copy: string, bench: string, opts: Options): Promise<number>;
+  clock(copy: string, bench: string, opts: Options, size: number): Promise<number>;
   /** Callgrind's instructions for the same work. */
-  callgrind(copy: string, bench: string, opts: Options): Promise<number>;
+  callgrind(copy: string, bench: string, opts: Options, size: number): Promise<number>;
+  /** A failure the kind judges on its own over the whole ramp, beside the counts and the clock. */
+  judge?(batches: Batch[]): string | null;
 }
 
 /** A program that runs: `nvs run --count` and the clock of `nvs run`. */
 const RUN: Measure = {
   keys: COUNTS,
+  rewrites: true,
   take: async (copy, bench, opts) => ({ counts: await countProgram(opts.nvs, copy), ns: await timeRun(opts.nvs, copy, bench, opts.reps) }),
   clock: (copy, bench, opts) => timeRun(opts.nvs, copy, bench, opts.reps),
   callgrind: (copy, bench, opts) => instructions(opts, "run", copy, bench),
@@ -389,6 +408,7 @@ async function timeCheck(nvs: string, program: string, bench: string, reps: numb
  * --count`, and the clock of `nvs check`. */
 const COMPILE: Measure = {
   keys: [...COMPILE_COUNTS, "total"],
+  rewrites: true,
   take: async (copy, bench, opts) => {
     const program = await generate(copy, bench, opts);
     const counts: Record<string, number> = {};
@@ -422,6 +442,7 @@ async function timeFmt(nvs: string, program: string, bench: string, reps: number
 /** A file the ladder prints, formatted: the clock of `nvs fmt --check`, and no counts. */
 const FMT: Measure = {
   keys: [],
+  rewrites: true,
   take: async (copy, bench, opts) => ({ counts: {}, ns: await timeFmt(opts.nvs, await generate(copy, bench, opts), bench, opts.reps) }),
   clock: async (copy, bench, opts) => timeFmt(opts.nvs, await generate(copy, bench, opts), bench, opts.reps),
   callgrind: async (copy, bench, opts) => instructions(opts, "fmt", await generate(copy, bench, opts), bench),
@@ -567,12 +588,63 @@ async function lspInstructions(opts: Options, printed: string, bench: string): P
 /** A document the ladder prints, opened, edited and asked about in `nvs lsp`: the clock alone, as `fmt`. */
 const LSP: Measure = {
   keys: [],
+  rewrites: true,
   take: async (copy, bench, opts) => ({ counts: {}, ns: await timeLsp(opts.nvs, await generate(copy, bench, opts), bench, opts.reps) }),
   clock: async (copy, bench, opts) => timeLsp(opts.nvs, await generate(copy, bench, opts), bench, opts.reps),
   callgrind: async (copy, bench, opts) => lspInstructions(opts, await generate(copy, bench, opts), bench),
 };
 
-const MEASURES: Record<string, Measure> = { run: RUN, compile: COMPILE, lsp: LSP, fmt: FMT };
+/** `size` GETs over one keep-alive connection to an `nvs serve` of the copy, booted for this size alone
+ * and stopped after it: the fastest of `reps` loads in nanoseconds, and the lowest peak memory the
+ * server process reached across them, in the unit the OS reports. */
+async function serveLoad(copy: string, bench: string, opts: Options, size: number): Promise<{ ns: number; peak: number }> {
+  let ns = Infinity;
+  let peak = Infinity;
+  const why = (e: unknown) => (e instanceof Error ? e.message : String(e)).trim().split(/\r?\n/)[0] ?? "";
+  for (let i = 0; i < opts.reps; i++) {
+    const port = await freePort();
+    const argv = [opts.nvs, "serve", abs(copy), "--listen", `127.0.0.1:${port}`];
+    const server = await Server.start(argv, port, dirname(abs(copy)), { LLVM_PROFILE_FILE: DISCARD_PROFILE }).catch((e: unknown) => {
+      throw new PerfError(`\`nvs serve\` did not start on ${bench}: ${why(e)}`);
+    });
+    try {
+      ns = Math.min(ns, (await hammer(() => HttpConn.open(port), size, 1)).elapsed * 1e9);
+    } catch (e) {
+      throw new PerfError(`\`nvs serve\` failed a request at ${size} requests of ${bench}: ${why(e)}`);
+    } finally {
+      await server.stop();
+    }
+    const p = server.peakMemory();
+    if (p === null) throw new PerfError(`the OS reported no peak memory for the server ${bench} ran`);
+    peak = Math.min(peak, p);
+  }
+  return { ns, peak };
+}
+
+/** Why a `serve` ramp's peak memory grew past `PEAK_SLACK`, or null when it stayed flat. */
+export function peakGrows(batches: Batch[]): string | null {
+  const peaks = batches.map((b) => b.counts.peak!);
+  const low = Math.min(...peaks);
+  const last = peaks.at(-1)!;
+  if (last <= low * (1 + PEAK_SLACK)) return null;
+  return `peak memory grows with requests served: ${fixed((last / low - 1) * 100, 0)}% above its lowest at ${batches.at(-1)!.size} requests`;
+}
+
+/** The program every request runs, served `size` times: the clock of the whole load, and the server's
+ * peak memory, which `peakGrows` holds flat. */
+const SERVE: Measure = {
+  keys: [],
+  rewrites: false,
+  take: async (copy, bench, opts, size) => {
+    const { ns, peak } = await serveLoad(copy, bench, opts, size);
+    return { counts: { peak }, ns };
+  },
+  clock: async (copy, bench, opts, size) => (await serveLoad(copy, bench, opts, size)).ns,
+  callgrind: (_copy, bench) => Promise.reject(new PerfError(`the clock's slope of ${bench} could not be read, and a \`serve\` ladder is not run under callgrind`)),
+  judge: peakGrows,
+};
+
+const MEASURES: Record<string, Measure> = { run: RUN, compile: COMPILE, lsp: LSP, fmt: FMT, serve: SERVE };
 
 /** One bench, ramped and judged. */
 async function rampOne(bench: string, opts: Options): Promise<Judged> {
@@ -597,11 +669,11 @@ async function ladderOne(bench: string, opts: Options): Promise<Judged> {
   if (typeof ladder === "string") return { ...judged, notes: [ladder] };
   const skip = skipReason(source);
   if (skip) return { ...judged, verdict: "skipped", notes: [skip] };
-  if (!MEASURED_KINDS.includes(ladder.kind)) return { ...judged, notes: [`the tool does not measure a \`${ladder.kind}\` ladder yet`] };
+  const measure = MEASURES[ladder.kind]!;
   const sizes = ladderSizes(ladder.start, ladder.max);
   if (sizes.length < MIN_BATCHES) return { ...judged, notes: [`\`start ${ladder.start}\` to \`max ${ladder.max}\` is fewer than ${MIN_BATCHES} doublings`] };
-  if (withBatch(source, ladder.start, ladder.start) === null) return { ...judged, notes: ["its closing `echo Bench::run(...)` does not pass `start` as one literal"] };
-  return proposed(await rampAt(judged, source, ladder.start, sizes, boundsOf(ladder.expect), MEASURES[ladder.kind]!, opts), ladder);
+  if (measure.rewrites && withBatch(source, ladder.start, ladder.start) === null) return { ...judged, notes: ["its closing `echo Bench::run(...)` does not pass `start` as one literal"] };
+  return proposed(await rampAt(judged, source, ladder.start, sizes, boundsOf(ladder.expect), measure, opts), ladder);
 }
 
 /** A ladder marked `proposal` that grows waits for the user's decision, and does not fail. */
@@ -616,15 +688,17 @@ async function rampAt(judged: Judged, source: string, literal: number, sizes: nu
   const bench = judged.bench;
   const copy = copyBench(bench, join(opts.scratch, bench.replace(/[\\/]/g, "~")));
   const batches: Batch[] = [];
-  const write = (size: number) => writeFileSync(abs(copy), withBatch(source, literal, size)!);
+  const write = (size: number) => writeFileSync(abs(copy), measure.rewrites ? withBatch(source, literal, size)! : source);
   for (const size of sizes) {
     progress(`scaling: ${bench} at ${size}`);
     write(size);
-    batches.push({ size, ...(await measure.take(copy, bench, opts)) });
+    batches.push({ size, ...(await measure.take(copy, bench, opts, size)) });
     if (measure.keys.length && countsAgree(batches, measure.keys)) break;
   }
   judged.sizes = batches.map((b) => b.size);
   const { slopes, over } = judgeCounts(batches, measure.keys, bounds.count);
+  const own = measure.judge?.(batches);
+  if (own) over.push(own);
   judged.slopes = slopes;
   judged.clock = clockSlope(batches);
   let clockGrows: string | null = null;
@@ -633,7 +707,7 @@ async function rampAt(judged: Judged, source: string, literal: number, sizes: nu
     const again: Batch[] = [];
     for (const b of batches) {
       write(b.size);
-      again.push({ ...b, ns: await measure.clock(copy, bench, opts) });
+      again.push({ ...b, ns: await measure.clock(copy, bench, opts, b.size) });
     }
     const second = clockSlope(again);
     if (second !== null && second > bounds.clock) clockGrows = `the clock grows with slope ${fixed(judged.clock, 2)}, and ${fixed(second, 2)} on a second run`;
@@ -652,7 +726,7 @@ async function rampAt(judged: Judged, source: string, literal: number, sizes: nu
   for (const b of batches) {
     progress(`scaling: ${bench} at ${b.size} under callgrind`);
     write(b.size);
-    ir.push({ ...b, counts: { instructions: await measure.callgrind(copy, bench, opts) } });
+    ir.push({ ...b, counts: { instructions: await measure.callgrind(copy, bench, opts, b.size) } });
   }
   const cg = judgeCounts(ir, ["instructions"], bounds.count);
   judged.slopes.instructions = cg.slopes.instructions ?? null;

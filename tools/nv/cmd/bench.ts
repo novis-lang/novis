@@ -97,7 +97,8 @@
 // The load leg (`tools/nv/cmd/bench-load.ts`) imports the binary lookup, the stale-build warning, the
 // free port, the server subprocess, the version probe and the record writer from here, and the proxied
 // leg (`tools/nv/cmd/bench-proxied.ts`) imports the FastCGI client and the closed-loop generator as
-// well, so each of them has one copy to keep correct.
+// well. `bun nv scaling`'s `serve` ladders import the free port, the server subprocess with its peak
+// memory, the HTTP client and the generator. Each of them has one copy to keep correct.
 
 import { createServer, connect, type AddressInfo, type Socket } from "node:net";
 import { cpus, machine, release } from "node:os";
@@ -841,7 +842,7 @@ interface Conn {
  * `Connection: close`, which `php -S` does on every response, and `reconnects` counts it: a peer paying
  * a handshake per request and one that is not are two different measurements.
  */
-class HttpConn implements Conn {
+export class HttpConn implements Conn {
   reconnects = 0;
   private wire!: Wire;
   private readonly wireRequest: Buffer;
@@ -1097,6 +1098,11 @@ export class Server {
     this.tree.kill();
     await this.proc.exited;
     this.tree.close();
+  }
+
+  /** The most memory the server process held at once, in bytes, read after `stop`; null where the OS does not say. */
+  peakMemory(): number | null {
+    return this.proc.resourceUsage()?.maxRSS ?? null;
   }
 }
 

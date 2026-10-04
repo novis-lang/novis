@@ -38,7 +38,9 @@ is skipped. A `compile` ladder's `run` returns the source of a program of that s
 closing line prints it; the tool checks and runs the program it printed. An `fmt` ladder prints a
 file the same way for `nvs fmt`, and an `lsp` ladder prints a document that marks one cursor with
 `<|>`, as an `.lspt` case does: the tool opens it in `nvs lsp`, edits it, and asks for completion,
-hover and references at the cursor. A ladder that needs Unix
+hover and references at the cursor. A `serve` ladder is the program every request runs, with no
+`Bench::run` and no closing literal: its `start` and `max` count requests served, and the tool
+serves the file with `nvs serve` and sends them. A ladder that needs Unix
 sockets declares `// requires: unix`, as a bench does. A folder's
 `nvs.toml` applies to every ladder in it, as in the bench tree.
 

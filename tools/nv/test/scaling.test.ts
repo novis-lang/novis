@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { join } from "node:path";
 import {
   agrees, AREAS, type Batch, batchSizes, boundsOf, CEILING, compileCounts, COUNT_BOUND, countsAgree, increments, judgeCounts, type Judged, ladderOf, ladderSizes, LSP_URI, lspFrame, lspScript, missingAreas,
-  proposed, rebased, slopeOf, START, withBatch,
+  PEAK_SLACK, peakGrows, proposed, rebased, slopeOf, START, withBatch,
 } from "../cmd/scaling.ts";
 import { ROOT } from "../lib/paths.ts";
 
@@ -89,6 +89,13 @@ test("a ladder marked proposal that grows waits for the user, and one that does 
   expect(proposed(grows, ladder).verdict).toBe("proposal");
   expect(proposed(grows, { ...ladder, proposal: false }).verdict).toBe("grows");
   expect(proposed({ ...grows, verdict: "flat" }, ladder).verdict).toBe("flat");
+});
+
+test("a server's peak memory may wander under the slack, and one that rises with the requests served fails", () => {
+  const served = (peaks: number[]): Batch[] => peaks.map((peak, i) => ({ size: 64 << i, counts: { peak }, ns: 0 }));
+  expect(peakGrows(served([20_900, 19_100, 19_700, 19_800]))).toBeNull();
+  expect(peakGrows(served([20_000, 20_000, 20_000, 20_000 * (1 + PEAK_SLACK)]))).toBeNull();
+  expect(peakGrows(served([20_000, 22_000, 26_000, 34_000]))).toBe("peak memory grows with requests served: 70% above its lowest at 512 requests");
 });
 
 test("an area needs a ladder in its folder, and with a review, a section headed with its name", () => {
