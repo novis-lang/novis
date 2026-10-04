@@ -44,6 +44,8 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
+use crate::array::NvsArray;
+
 use super::*;
 
 impl Ctx {
@@ -294,10 +296,9 @@ pub struct Inbound {
     ///
     /// The bytes rather than the parsed array, so that what every reader
     /// shares is the one thing all of them agree on: a parse is one member's
-    /// reading of these octets and not a second copy of them, which is why
-    /// `Core\Request::query` re-parses per call over the query string too.
-    /// [`Self::decoded`] is the single hold that is a value of the program's,
-    /// and it is a memo one member keeps over these bytes rather than
+    /// reading of these octets and not a second copy of them. [`Self::decoded`]
+    /// and [`Self::form`] are the holds that are values of the program's, and
+    /// each is a memo one member pair keeps over these bytes rather than
     /// something any other reader answers out of.
     ///
     /// **What it spends:** the body's own bytes, resident until the request
@@ -336,6 +337,27 @@ pub struct Inbound {
     /// multiple of the octets [`Self::held`] already charges against
     /// `[limits] request_body`, and O(in-flight).
     decoded: Option<HeldValue>,
+    /// The fields `Core\Request::post` and `::postAs` parsed out of the body —
+    /// `None` until one of them has answered once.
+    ///
+    /// Held for [`Self::decoded`]'s reason: the parse builds arrays and strings
+    /// alone, an array is copy-on-write, and so each later read is one lookup
+    /// and a refcount bump, where a parse per call would make a handler that
+    /// reads each of P fields cost O(P²). Nothing invalidates it: every reader that may
+    /// follow `post()` answers out of the same hold, and a multipart parse is
+    /// drained to its end before this is filled.
+    ///
+    /// **What it spends:** one parsed form, resident until the request ends,
+    /// only for a request whose program read one — a bounded multiple of the
+    /// field text `[limits] request_body` caps, and O(in-flight).
+    form: Option<NvsArray>,
+    /// The parameters `Core\Request::query` and `::queryAs` parsed out of
+    /// [`Self::query`] — `None` until one of them has answered once.
+    ///
+    /// [`Self::form`]'s reasoning over a query string, which never changes
+    /// after the door wrote it. **What it spends:** one parsed array, a
+    /// bounded multiple of the target's length, for the rest of the request.
+    query_fields: Option<NvsArray>,
     /// Which member has read the body, once one has — the name it spells
     /// itself, so a refusal can say what already took it.
     ///
@@ -462,6 +484,8 @@ impl std::fmt::Debug for Inbound {
             .field("body", &self.body.is_some())
             .field("parts", &self.parts.is_some())
             .field("decoded", &self.decoded.is_some())
+            .field("form", &self.form.is_some())
+            .field("query_fields", &self.query_fields.is_some())
             .field("upgrade", &self.upgrade.is_some())
             .field("sse", &self.sse.is_some())
             .field("stream", &self.stream.is_some())
@@ -589,6 +613,8 @@ impl Inbound {
             parts: None,
             held: None,
             decoded: None,
+            form: None,
+            query_fields: None,
             claimed_by: None,
             // Nothing has matched yet, which is what every carrier says until
             // the door that has a table says otherwise.
@@ -946,6 +972,33 @@ impl Inbound {
     /// already reached what it points at.
     pub fn take_decoded_body(&mut self) -> Option<HeldValue> {
         self.decoded.take()
+    }
+    /// Gives this carrier the fields `Core\Request::post` parsed, for every
+    /// later form read to answer out of — [`Self::form`] owns why.
+    pub fn hold_form(&mut self, form: NvsArray) {
+        self.form = Some(form);
+    }
+    /// The fields [`Self::hold_form`] was given, or `None` where no member
+    /// has parsed the form yet.
+    #[must_use]
+    pub fn form(&self) -> Option<&NvsArray> {
+        self.form.as_ref()
+    }
+    /// Gives this carrier the parameters `Core\Request::query` parsed, for
+    /// every later query read to answer out of.
+    pub fn hold_query_fields(&mut self, fields: NvsArray) {
+        self.query_fields = Some(fields);
+    }
+    /// The parameters [`Self::hold_query_fields`] was given, or `None` where
+    /// no member has parsed the query string yet.
+    #[must_use]
+    pub fn query_fields(&self) -> Option<&NvsArray> {
+        self.query_fields.as_ref()
+    }
+    /// Takes both parsed arrays back out, for [`Ctx`]'s `Drop`, for
+    /// [`Self::take_decoded_body`]'s reason.
+    pub fn take_parsed(&mut self) -> (Option<NvsArray>, Option<NvsArray>) {
+        (self.form.take(), self.query_fields.take())
     }
 
     /// Offers `rule:concurrency/a-connection-is-a-root-isolate`'s upgrade to this request: the slot

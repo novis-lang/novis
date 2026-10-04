@@ -126,8 +126,9 @@ pieces once.
 **Read:** form, multipart, query and cookie parsing on the request, `Core\Uri`, multipart reading,
 and CSV.
 
-**Found:** `post`, `query` and `Core\Uri::queryParameter` parse the whole input on every call
-([`request-post-and-query-reparse-per-call`](../../data/gaps/nvs-stdlib/request-post-and-query-reparse-per-call.json)).
+**Found:** `post`, `query` and `Core\Uri::queryParameter` parse the whole input on every call.
+`post` and `query` are fixed and parse once per request; `queryParameter` is still open
+([`uri-query-parameter-reparse-per-call`](../../data/gaps/nvs-stdlib/uri-query-parameter-reparse-per-call.json)).
 
 **Bounded:** the multipart reader looks for a part's header end from the same start after every chunk
 (`crates/nvs-stdlib/src/multipart.rs:439-450`), quadratic in a header block of at most 16 KiB.

@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-stdlib/src/uri.rs",
+  "title": "`$uri->queryParameter($name)` parses the whole query string again on every call.",
+  "text": "`nvs_core_uri_query_parameter` (`crates/nvs-stdlib/src/uri.rs:2679`) runs `parse_query` over the receiver's query slot and drops the array after one lookup, so a program that reads each of P parameters off one `Core\\Uri` costs O(P²). `Core\\Request::query` holds its parse on the request; a `Uri` is an immutable instance of eight slots with nowhere to keep one. The two answers: a memo slot on the instance, which is per-instance memory of the query's size, or a stated bound whose card sends a program reading many names to `parseQuery()` once. Ladder: a `run` ladder that builds one `Uri` with P parameters and reads each once.",
+  "goal": "performance-pass"
+}

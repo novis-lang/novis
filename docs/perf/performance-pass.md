@@ -38,7 +38,13 @@ is a limit with a correct status, not a lost response. No limit is set under `cr
 
 ## What got better
 
-Nothing yet: no fix has landed.
+**`Core\Request::post` and `::query` parse once per request.** Each call parsed the whole body or
+query string again, so a handler that read each of P fields cost O(P²). The first call now holds
+the parsed array on the request, and every later call is one lookup. The ladders
+[`request/fields`](../../benches/scaling/request/fields.nvs) and
+[`request/query-fields`](../../benches/scaling/request/query-fields.nvs) read every field of 64 to
+4096 and are linear (clock slopes 1.01 and 1.13). The cost is one parsed array per request that
+reads a form or a query, freed with the request. The before figure was not measured.
 
 ## Decisions for you
 
@@ -102,3 +108,6 @@ The ladders `bun nv scaling` judged flat: `arrays/sort`, `compiler/functions`, `
 `time/days`, `markup/xml-parse`, `formats/csv`, `formats/query`, `templates/rows`,
 `database/rows`, `cache/keys`, `queue/jobs`, `scheduler/tasks`, `request/headers`,
 `request/header-bytes`, `request/body`, `request/query` and `connections/open`.
+
+`Core\Request::cookie` and `::headers` walk every header line on each call. The server answers
+`431` from 100 header lines, so each walk is bounded by a constant and is not a growth defect.

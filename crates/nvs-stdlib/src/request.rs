@@ -134,7 +134,8 @@
 //! answer; `headers` allocates one array per distinct name plus one string per
 //! line, and groups by scanning the names it has already seen, which is
 //! quadratic in the number of *distinct* names and bounded by the door's own
-//! header-count cap. Neither memoizes, for the reason `query` does not.
+//! header-count cap. Neither memoizes: that cap bounds every walk of the
+//! field lines by a constant, which is what `query` and `post` lack.
 //!
 //! # A cookie is the `Cookie` field, read
 //!
@@ -142,8 +143,8 @@
 //! members above read, and the carrier holds **no second field for cookies** —
 //! so nothing here can hold a set of cookies that disagrees with the headers the
 //! request arrived with, which is the state a parsed-once cache would introduce.
-//! The parse costs one walk of the `Cookie` lines per call, as `query`'s does
-//! and for the same reason.
+//! The parse costs one walk of the `Cookie` lines per call, which the
+//! header-count cap bounds.
 //!
 //! The name is matched **byte for byte**
 //! (`rule:errors/cookie-name-bytes`): no dot, space or bracket is substituted in either direction. That
@@ -161,7 +162,7 @@
 //!
 //! # What `query` costs, and what it does not carry
 //!
-//! `query` parses the raw query string on **every call**, through
+//! `query` parses the raw query string **once per request**, through
 //! [`crate::uri::parse_query`] — the same code `Core\Uri::parseQuery` runs,
 //! which is what spec § 9 promises when it says reproducing PHP's bracket
 //! convention there is what lets this member answer the same shape. The *shape*
@@ -169,12 +170,11 @@
 //! § 12 member and answers a value's decoded octets as `bytes`, while a served
 //! request's parameters are read as text at the door, so this member passes
 //! `crate::uri::Values::Text` and keeps the refusal for octets no `string`
-//! holds. That enum is the whole of the difference. Two lookups
-//! parse twice. That is O(query) per read rather than per request, and it is
-//! deliberate for now: a memoized parse is state on the context, and the
-//! context does not hold a *parsed* request yet — only the bytes one arrived
-//! as. A request with two dozen reads is what would make it worth having, and
-//! the inbound carrier is where it will live.
+//! holds. That enum is the whole of the difference. The first read holds the
+//! parsed array on [`nvs_runtime::Inbound`] and every later one is a lookup in
+//! it, so a handler that reads P parameters costs O(P). `post` holds its form
+//! the same way. The array is copy-on-write, so handing a reader a reference
+//! to part of it is safe — `json()`'s own argument for its document.
 //!
 //! **The `tainted` qualifier does not survive `mixed`.** `path` is a
 //! `tainted string` and the checker holds it to
@@ -1623,12 +1623,16 @@ fn claim_body(ctx: &mut Ctx, member: &'static str, need: BodyNeed) -> Result<(),
     })
 }
 
-/// The whole form this request submitted, parsed afresh on every call.
+/// The whole form this request submitted, parsed by the first call and held
+/// on the request for every later one.
 ///
 /// `Core\Request::post()`'s reading and `postAs()`'s, split out so each member
-/// reads as the one question it answers. What it costs per call is
-/// [`nvs_core_request_post`]'s own doc, and it is `Core\Request::query`'s cost
-/// over a body instead of a query string.
+/// reads as the one question it answers. What the hold costs is
+/// [`nvs_runtime::Inbound`]'s `form` field's doc. The answer is a further
+/// reference to the held array, which the caller releases.
+///
+/// The claim is taken on every call, so a call that would be refused is
+/// refused whether or not the form is already held.
 ///
 /// `member` is the caller's own name, and every refusal below carries it: two
 /// members read one form, and a program that called `postAs` must not be sent
@@ -1648,10 +1652,44 @@ fn form_of(
     // something a buffering reader ahead of it may already have left — which is
     // why this is the one reading whose need is two things.
     claim_body(ctx, member, BodyNeed::OctetsOrParse)?;
-    match declared.filter(|value| crate::multipart::is_multipart(value)) {
+    if let Some(form) = inbound_of(ctx, member)?.form() {
+        return Ok(form.clone());
+    }
+    let form = match declared.filter(|value| crate::multipart::is_multipart(value)) {
         Some(declared) => multipart_form(ctx, &declared, member),
         None => urlencoded_form(ctx, member),
+    }?;
+    ctx.inbound_mut()
+        .expect("the caller reads the request before it reads the form")
+        .hold_form(form.clone());
+    Ok(form)
+}
+
+/// The parameters of this request's query string, parsed by the first call and
+/// held on the request for every later one.
+///
+/// `Core\Request::query()`'s reading and `queryAs()`'s. The answer is a further
+/// reference to the held array, which the caller releases.
+///
+/// # Errors
+///
+/// No request, and a parameter whose escapes decode to octets that are not
+/// UTF-8 — [`crate::uri::parse_query`]'s refusal, which holds nothing.
+fn query_fields_of(ctx: &mut Ctx, member: &'static str) -> Result<NvsArray, Fault> {
+    let inbound = inbound_of(ctx, member)?;
+    if let Some(fields) = inbound.query_fields() {
+        return Ok(fields.clone());
     }
+    let fields = crate::uri::parse_query(
+        inbound.query(),
+        "Core\\Request",
+        member,
+        crate::uri::Values::Text,
+    )?;
+    ctx.inbound_mut()
+        .expect("the request was read above")
+        .hold_query_fields(fields.clone());
+    Ok(fields)
 }
 
 /// `rule:http-server/a-part-is-a-file-iff-it-carries-a-filename`'s buffered fields, with the walk driven to the closing
@@ -1732,7 +1770,8 @@ fn multipart_form(ctx: &mut Ctx, declared: &[u8], member: &'static str) -> Resul
     Ok(out)
 }
 
-/// A `application/x-www-form-urlencoded` body, read once and parsed per call.
+/// A `application/x-www-form-urlencoded` body, read once and parsed by
+/// [`form_of`]'s first call.
 ///
 /// The bytes are held on [`nvs_runtime::Inbound`] rather than the array,
 /// because this crate hands a fresh value to each call and the carrier below it
@@ -2164,17 +2203,10 @@ nvs_runtime::nvs_helper! {
                 args[0].tag_byte()
             ))
         })?;
-        let parsed = crate::uri::parse_query(
-            inbound_of(ctx, "query")?.query(),
-            "Core\\Request",
-            "query",
-            crate::uri::Values::Text,
-        )?;
+        let parsed = query_fields_of(ctx, "query")?;
         let answer = parsed.get(name.as_bytes()).unwrap_or_else(Value::null);
-        // `get` borrows rather than retains, and `parsed` releases every value
-        // it holds when it drops at the end of this block — so the one being
-        // handed back needs a reference of its own first, and the caller owns
-        // exactly that one.
+        // `get` borrows rather than retains, so the value being handed back
+        // needs a reference of its own, and the caller owns exactly that one.
         #[expect(
             unsafe_code,
             reason = "the payload is live: `parsed` still holds its own reference \
@@ -2204,9 +2236,9 @@ nvs_runtime::nvs_helper! {
     /// two members, and it opens no public `query(): array<mixed>` — the whole
     /// set is reachable only through a declared shape.
     ///
-    /// **What it spends:** [`nvs_core_request_query`]'s parse, plus the
-    /// instances this call hands back and nothing kept between calls. Both are
-    /// O(in-flight).
+    /// **What it spends:** [`nvs_core_request_query`]'s parse, held on the
+    /// request and shared with that member, plus the instances this call hands
+    /// back. Both are O(in-flight).
     fn nvs_core_request_query_as(ctx, args: [4]) {
         // In `jsonAs`'s order: the request first, so "no request arrived" stays
         // a different fact from what the query string says.
@@ -2239,12 +2271,7 @@ nvs_runtime::nvs_helper! {
         unsafe {
             crate::json::check_codec(class, shape, "Core\\Request::queryAs")?;
         }
-        let parsed = crate::uri::parse_query(
-            inbound_of(ctx, "queryAs")?.query(),
-            "Core\\Request",
-            "queryAs",
-            crate::uri::Values::Text,
-        )?;
+        let parsed = query_fields_of(ctx, "queryAs")?;
         let subject = shaped_subject(parsed, &args[3]);
         #[expect(
             unsafe_code,
@@ -2289,16 +2316,13 @@ nvs_runtime::nvs_helper! {
     /// it** — [`claim_form`] owns why, and it is the only place that rule
     /// lives.
     ///
-    /// **The parse is per call.** A urlencoded body is pulled whole and held on
-    /// the carrier, a multipart one has its fields buffered by the parse
-    /// already, and each call builds its array afresh over those bytes.
-    /// `query`'s judgement exactly, and its module doc argues it: an array
-    /// cached here would be a value of the program's held by the carrier
-    /// underneath it.
+    /// **The parse is per request.** The first call parses the form and
+    /// [`form_of`] holds the array on the request, so every later call is one
+    /// lookup. A handler that reads P fields costs O(P).
     ///
-    /// **What it spends:** for a urlencoded body, the body's own bytes resident
-    /// until the request ends; for either kind, one array per call, dropped
-    /// before the call returns. Both are bounded by [`REQUEST_BODY`] — `rule:http-server/a-part-is-a-file-iff-it-carries-a-filename`
+    /// **What it spends:** for a urlencoded body, the body's own bytes; for
+    /// either kind, the parsed form. Both stay resident until the request ends,
+    /// both are bounded by [`REQUEST_BODY`] — `rule:http-server/a-part-is-a-file-iff-it-carries-a-filename`
     /// 's cap on form field text — and both are O(in-flight).
     fn nvs_core_request_post(ctx, args: [1]) {
         // Unreachable from source: the row's parameter is `CoreTy::Text`, so
@@ -2314,10 +2338,9 @@ nvs_runtime::nvs_helper! {
         let declared = joined_field(inbound_of(ctx, "post")?, b"content-type");
         let parsed = form_of(ctx, declared, "post")?;
         let answer = parsed.get(name.as_bytes()).unwrap_or_else(Value::null);
-        // `query`'s reason, and its wording: `get` borrows rather than retains
-        // and `parsed` releases everything it holds when it drops at the end of
-        // this block, so the value being handed back needs a reference of its
-        // own and the caller owns exactly that one.
+        // `query`'s reason, and its wording: `get` borrows rather than retains,
+        // so the value being handed back needs a reference of its own and the
+        // caller owns exactly that one.
         #[expect(
             unsafe_code,
             reason = "the payload is live: `parsed` still holds its own reference \

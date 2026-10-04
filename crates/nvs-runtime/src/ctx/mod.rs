@@ -1643,6 +1643,9 @@ impl Drop for Ctx {
                 .as_deref_mut()
                 .and_then(Inbound::take_decoded_body),
         );
+        // The parsed form and query string, `Core\Request::post`'s and
+        // `::query`'s, for the same reason.
+        drop(self.inbound.as_deref_mut().map(Inbound::take_parsed));
         // Last, and only once every root above is gone: what is still on the
         // live list is then exactly the cyclic garbage the refcounts could not
         // free. `rule:security/isolate-teardown-is-a-drain-then-a-sweep` is the decision and `crate::object::sweep` the
