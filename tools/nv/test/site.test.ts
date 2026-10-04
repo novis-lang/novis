@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { DOCS, paragraphs, proseProblems, snippetShape, stamp, staleness, syntaxProblems, wrapProblems, type World } from "../cmd/site.ts";
+import { DOCS, GUIDE_SECTIONS, guidesProblems, paragraphs, proseProblems, snippetShape, stamp, staleness, syntaxProblems, wrapProblems, type World } from "../cmd/site.ts";
 import type { Entry } from "../proofs/roster.ts";
 import { scratch, type Scratch } from "./scratch.ts";
 
@@ -122,6 +122,41 @@ describe("nv site --check syntax", () => {
     const root = site().root;
     s.put(`${DOCS}/syntax/match.mdx`, "---\ntitle: match\ncovers: ['lang:statements/match', 'lang:statements/while']\n---\n\n<Snippet src=\"syntax/match/01-basic.nvs\" />\n\n## Do and don't\n\n- Do this.\n");
     expect(syntaxProblems(world(), root)).toEqual([]);
+  });
+});
+
+describe("nv site --check guides", () => {
+  const page = (snippet: string) => `---\ntitle: A page\ncovers: []\n---\n\n${snippet}\n`;
+  const sidebar = (dirs: string[]) =>
+    ["sidebar: [", "        {", "          label: 'Guides',", "          items: [", ...dirs.map((d) => `            { label: '${d}', link: '/guides/${d}/' },`), "          ],", "        },", "        {", "          label: INSTALL.label,", "          items: [{ label: 'x', link: '/guides/tour/' }],", "        },"].join("\n");
+
+  /** Every section at its count, but the pages `leave` names. */
+  function guides(leave: string[] = []): Scratch {
+    s = site();
+    const put = (key: string, text: string) => leave.some((l) => key.startsWith(l)) || s.put(`${DOCS}/${key}`, text);
+    for (const [dir, least, snippets] of GUIDE_SECTIONS) {
+      put(`guides/${dir}/index.mdx`, page(""));
+      for (let i = 1; i <= least; i++) put(`guides/${dir}/${String(i).padStart(2, "0")}.mdx`, page(snippets ? `<Snippet src="guides/${dir}/${i}.nvs" />` : ""));
+    }
+    s.put("website/astro.config.ts", sidebar(GUIDE_SECTIONS.map(([d]) => d)));
+    return s;
+  }
+
+  test("the eight sections with their counts, snippets and sidebar order pass", () => {
+    expect(guidesProblems(guides().root)).toEqual([]);
+  });
+
+  test("a missing section, a short count, a page with no snippet and a sidebar out of order are named", () => {
+    const root = guides(["guides/testing/", "guides/simple-programs/06.mdx"]).root;
+    s.put(`${DOCS}/guides/cookbook/01.mdx`, page("No snippet."));
+    s.put("website/astro.config.ts", sidebar(["tour", "why-novis", "simple-programs", "how-to-use", "cookbook", "production", "example-apps"]));
+    expect(guidesProblems(root)).toEqual([
+      `${DOCS}/guides/simple-programs/: 5 page(s) beside its index, and the goal names 6 at least`,
+      `${DOCS}/guides/cookbook/01.mdx: shows no <Snippet>`,
+      `${DOCS}/guides/testing/: no page`,
+      "website/astro.config.ts: the Guides sidebar lists /guides/tour/ out of the goal's order",
+      "website/astro.config.ts: the Guides sidebar has no link into /guides/testing/",
+    ]);
   });
 });
 

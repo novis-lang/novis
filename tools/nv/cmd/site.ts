@@ -32,11 +32,11 @@
 // inline Novis fence, every `<Snippet src="..."/>` names a file under `website/snippets/`, every snippet
 // is used, keeps the comment bounds of `bun nv proofs --comments`, and prints exactly its `.out` with
 // exit 0), `stale` (no page lacks `covers:`, no id is broken and no page is stale), `reference` (see
-// `referenceProblems`), `syntax` (see `syntaxProblems`) and `prose` (the countable bounds of AGENTS.md
-// § *Text an end user reads* over every handwritten page's prose: no sentence over 25 words, no dash
-// joining two sentences, and no paragraph over six sentences). The legal pages are kept out of `prose`,
-// since their wording is the law's. `guides`, `in-depth` and `apps` belong to the later stages of goal
-// `website-overhaul` and fail until those stages write them.
+// `referenceProblems`), `syntax` (see `syntaxProblems`), `guides` (see `guidesProblems`) and `prose`
+// (the countable bounds of AGENTS.md § *Text an end user reads* over every handwritten page's prose: no
+// sentence over 25 words, no dash joining two sentences, and no paragraph over six sentences). The legal
+// pages are kept out of `prose`, since their wording is the law's. `in-depth` and `apps` belong to the
+// later stages of goal `website-overhaul` and fail until those stages write them.
 
 import { createHash } from "node:crypto";
 import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
@@ -63,7 +63,7 @@ const LEGAL = ["impressum.md", "datenschutz.md"];
 export const PARTS = ["structure", "snippets", "stale", "reference", "syntax", "guides", "in-depth", "apps", "prose"] as const;
 type Part = (typeof PARTS)[number];
 /** The stage of goal `website-overhaul` that writes each part not written yet. */
-const LATER: Partial<Record<Part, number>> = { guides: 5, apps: 5, "in-depth": 6 };
+const LATER: Partial<Record<Part, number>> = { apps: 5, "in-depth": 6 };
 /** Where `--build` writes the site, which `reference` reads. */
 const DIST = "website/dist";
 
@@ -389,7 +389,9 @@ async function snippetProblems(nvs: string): Promise<string[]> {
     for (const c of commentProblems(p)) problems.push(`${p}:${c}`);
     // An `nvs.toml` beside a snippet is its configuration, as it is beside a feature proof.
     const config = join(p.slice(0, p.lastIndexOf("/")), "nvs.toml");
-    const argv = existsSync(join(ROOT, config)) ? [nvs, "run", "--config", config, p] : [nvs, "run", p];
+    // A `.nvsr` beside a snippet is the request it answers, as it is beside an example.
+    const request = p.replace(/\.nvs$/, ".nvsr");
+    const argv = [nvs, "run", ...(existsSync(join(ROOT, config)) ? ["--config", config] : []), ...(existsSync(join(ROOT, request)) ? ["--request", request] : []), p];
     const out = await runProc(argv, { cwd: ROOT, timeoutMs: 60_000 });
     const want = readAt(ROOT, p.replace(/\.nvs$/, ".out"));
     const norm = (s: string) => s.replace(/\r\n?/g, "\n").trimEnd();
@@ -554,6 +556,52 @@ export function syntaxProblems(world: World, root: string = ROOT): string[] {
   return problems;
 }
 
+/**
+ * The sections of Guides, in sidebar order: the directory under `guides/`, the fewest pages it has beside
+ * its `index.mdx`, and whether every one of those pages shows a `<Snippet>`.
+ */
+export const GUIDE_SECTIONS: [dir: string, least: number, snippets: boolean][] = [
+  ["why-novis", 1, false],
+  ["tour", 1, false],
+  ["simple-programs", 6, true],
+  ["how-to-use", 1, false],
+  ["cookbook", 10, true],
+  ["testing", 1, false],
+  ["production", 1, false],
+  ["example-apps", 1, false],
+];
+
+/**
+ * The `guides` part: each of `GUIDE_SECTIONS` is a directory under `guides/` with at least its count of
+ * pages beside its landing page, every such page of a snippet section shows a `<Snippet>`, and the
+ * Guides sidebar group links the sections in that order.
+ */
+export function guidesProblems(root: string = ROOT): string[] {
+  const problems: string[] = [];
+  const all = pages(root);
+  for (const [dir, least, snippets] of GUIDE_SECTIONS) {
+    const prefix = `guides/${dir}/`;
+    const inside = all.filter((p) => p.key.startsWith(prefix));
+    const steps = inside.filter((p) => p.key !== `${prefix}index.mdx` && p.key !== `${prefix}index.md`);
+    if (inside.length === 0) problems.push(`${DOCS}/${prefix}: no page`);
+    else if (steps.length < least) problems.push(`${DOCS}/${prefix}: ${steps.length} page(s) beside its index, and the goal names ${least} at least`);
+    if (snippets) for (const p of steps) if (!/<Snippet\s+src=/.test(p.body)) problems.push(`${DOCS}/${p.key}: shows no <Snippet>`);
+  }
+  const astro = readAt(root, "website/astro.config.ts");
+  const from = astro.indexOf("label: 'Guides'");
+  const rest = from < 0 ? "" : astro.slice(from + 1);
+  const next = rest.search(/^ {10}label: /m);
+  const group = next < 0 ? rest : rest.slice(0, next);
+  let last = -1;
+  for (const [dir] of GUIDE_SECTIONS) {
+    const at = group.indexOf(`link: '/guides/${dir}/`);
+    if (at < 0) problems.push(`website/astro.config.ts: the Guides sidebar has no link into /guides/${dir}/`);
+    else if (at < last) problems.push(`website/astro.config.ts: the Guides sidebar lists /guides/${dir}/ out of the goal's order`);
+    else last = at;
+  }
+  return problems;
+}
+
 async function world(nvs: string): Promise<World> {
   const meta = await metaJson(nvs);
   return { entries: await roster(nvs, meta), meta };
@@ -572,6 +620,7 @@ async function check(parts: Part[], nvs: string | null): Promise<number> {
     let problems: string[];
     if (LATER[part] !== undefined) problems = [`not written yet: stage ${LATER[part]} of goal \`website-overhaul\` writes it`];
     else if (part === "structure") problems = structureProblems();
+    else if (part === "guides") problems = guidesProblems();
     else if (part === "prose") {
       problems = pages()
         .filter((p) => !LEGAL.includes(p.key))
