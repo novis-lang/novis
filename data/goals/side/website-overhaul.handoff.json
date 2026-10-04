@@ -1,5 +1,5 @@
 {
-  "state": "**Side goal `website-overhaul` is reached: all six stages are on disk and every check in its record passes locally, except the CI floor on `main`.**\n\nThe whole site was read once against `AGENTS.md` § *Text an end user reads* by five reviewers that did not write it. Every flagged passage was rewritten from its meaning: Guides, Syntax, Install, the Core reference index, In-Depth and the home page. Four sidebar labels changed with their page titles in `website/astro.config.ts`: \"HTML is escaped for you\", \"Null is checked when you compile\", \"One request cannot change another\" and \"Where Novis is weaker\". The URLs did not change.\n\nGreen in this session: every `bun nv site --check` part, `bun nv site --build`, `bun test tools/nv/test/site.test.ts` (18 pass), `bun nv verify` and `bun nv verify --doc`. `bun nv owners --closes website-overhaul` names no gap.\n\nFor the user's review before the branch lands: the six standout features on the home page (`website/src/content/docs/index.mdx`) are a proposal, and so are the four renamed titles above. `sponsoring.mdx`, `impressum.md` and `datenschutz.md` were not reviewed, because they are in the user's own voice.",
+  "state": "**Side goal `website-overhaul` is reached: all six stages are on disk and every check in its record passes locally, except the CI floor on `main`.**\n\nThe whole site was read once against `AGENTS.md` § *Text an end user reads* by five reviewers that did not write it. Every flagged passage was rewritten from its meaning: Guides, Syntax, Install, the Core reference index, In-Depth and the home page. Four sidebar labels changed with their page titles in `website/astro.config.ts`: \"HTML is escaped for you\", \"Null is checked when you compile\", \"One request cannot change another\" and \"Where Novis is weaker\". The URLs did not change.\n\nThe driver's last sweep failed only on two `about.md` pages at 201 words, `Core\\Str::format` and `Core\\Str::indexOf`. Both are trimmed, and `bun nv proofs --gate` now owes nothing across the whole roster. The CI floor (\"the latest CI run on main succeeded\") is not something this branch can close: it turns green when `main`'s own CI is green.\n\nFor the user's review before the branch lands: the six standout features on the home page (`website/src/content/docs/index.mdx`) are a proposal, and so are the four renamed titles above. `sponsoring.mdx`, `impressum.md` and `datenschutz.md` were not reviewed, because they are in the user's own voice.",
   "next": {
     "stage": 6,
     "title": "In-Depth, the home page and the last links",
@@ -14,6 +14,6 @@
     ]
   },
   "backlog": [
-    "The CI floor check (`bun nv ci-green`) reads CI on `main`, so it turns green only after the merge."
+    "None owned by this goal."
   ]
 }
