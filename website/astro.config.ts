@@ -225,6 +225,22 @@ export default defineConfig({
                 { label: 'Running a separate program', link: '/syntax/concurrency/isolates/' },
               ],
             },
+            {
+              label: 'Attributes',
+              items: [
+                { label: 'Writing and reading attributes', link: '/syntax/attributes/writing-and-reading/' },
+                { label: 'Objects as JSON', link: '/syntax/attributes/json/' },
+                { label: 'Routes and access', link: '/syntax/attributes/routes/' },
+                { label: 'Commands and finding classes', link: '/syntax/attributes/commands-and-discovery/' },
+              ],
+            },
+            {
+              label: 'Testing',
+              items: [
+                { label: 'Writing and running tests', link: '/syntax/testing/writing-tests/' },
+                { label: 'Fixtures, data rows and assertions', link: '/syntax/testing/fixtures-and-assertions/' },
+              ],
+            },
           ],
         },
         {

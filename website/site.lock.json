@@ -1,4 +1,21 @@
 {
+  "syntax/attributes/commands-and-discovery.mdx": {
+    "lang:attributes/core-command-and-core-option-the-command-table": "abeb8b99e09ea7ce",
+    "lang:attributes/core-program-implementing-i-every-class-that-is-an-i": "475d2cb7b303b63f",
+    "lang:attributes/core-program-implementingwith-i-t-member-every-implementor-with-one-attribute": "6754f5782543b883"
+  },
+  "syntax/attributes/json.mdx": {
+    "lang:attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec": "5a35edb0eed8ccc7"
+  },
+  "syntax/attributes/routes.mdx": {
+    "lang:attributes/core-api-and-the-openapi-document": "1fe35d01f0e7708f",
+    "lang:attributes/core-route-and-core-access-the-route-table": "e6cd67de3b84b3f9"
+  },
+  "syntax/attributes/writing-and-reading.mdx": {
+    "lang:attributes/an-attribute-is-a-shape-literal-attached-to-a-declaration": "77c4c5d2b7eb5ba6",
+    "lang:attributes/reading-attributes-back-core-attributes-get-and-all": "f7a0e7232cac5cb6",
+    "lang:attributes/the-names-the-compiler-acts-on": "655b2f6d62b9effb"
+  },
   "syntax/basics/comments.mdx": {
     "lang:programs/comments": "9acb13a1eb668099",
     "lang:programs/doc-comments": "9d3846bee8114157"
@@ -193,6 +210,17 @@
   "syntax/start-here.mdx": {
     "lang:programs/a-complete-program-annotated": "57bfda16febb6b64",
     "lang:types/what-does-not-exist": "4b29ab1c109b9cca"
+  },
+  "syntax/testing/fixtures-and-assertions.mdx": {
+    "lang:testing/assertions": "1f3c6e61bf2a20c8",
+    "lang:testing/core-test-fixture-built-once-injected-by-type": "d322149122dd6d89",
+    "lang:testing/core-test-testwith-data-rows": "a7d475ceddbb1bf9"
+  },
+  "syntax/testing/writing-tests.mdx": {
+    "lang:testing/a-test-is-a-method-marked-test": "dc33aa0b38837e06",
+    "lang:testing/every-test-is-its-own-isolate-and-the-constructor-is-setup": "8d5f1f25ec00685c",
+    "lang:testing/running-tests-nvs-test": "c334138267bdd282",
+    "lang:testing/test-options": "1205a1b0a3e41c84"
   },
   "syntax/values/arrays.mdx": {
     "lang:expressions/arrays-in-expressions": "373a31917fdc3025",

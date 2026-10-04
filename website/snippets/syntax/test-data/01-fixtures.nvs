@@ -1,0 +1,37 @@
+<?nvs
+// This file gives tests their objects through fixtures.
+
+use Core\Test;
+use Core\Test\Fixture;
+
+final class Schema {
+    public function constructor(public string $name) {}
+}
+
+final class Repo {
+    public function constructor(public string $tag) {}
+}
+
+final class RepoTest {
+    // A fixture returns a `Schema`. Every test with a `Schema` parameter gets it.
+    #[Fixture]
+    public static function schema(): Schema {
+        return new Schema("users");
+    }
+
+    // A fixture can use another fixture.
+    #[Fixture]
+    public static function repo(Schema $schema): Repo {
+        return new Repo("repo of " . $schema->name);
+    }
+
+    #[Test]
+    public function itGetsTheSchema(Schema $schema): void {
+        Test::assertSame($schema->name, "users");
+    }
+
+    #[Test]
+    public function itGetsTheRepo(Repo $repo): void {
+        Test::assertSame($repo->tag, "repo of users");
+    }
+}

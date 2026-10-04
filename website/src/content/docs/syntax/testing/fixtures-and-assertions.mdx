@@ -1,0 +1,80 @@
+---
+title: Fixtures, data rows and assertions
+covers: ['lang:testing/core-test-fixture-built-once-injected-by-type', 'lang:testing/core-test-testwith-data-rows', 'lang:testing/assertions']
+description: How a test gets objects from a fixture, runs once per row of data with TestWith, and checks values with the Core\Test assertions.
+---
+import Snippet from '@components/Snippet.astro'
+
+A fixture is a method that builds something a test needs. You mark it with `#[Fixture]`. A test
+that has a parameter of the fixture's return type gets the value.
+
+<Snippet src="syntax/test-data/01-fixtures.nvs" />
+
+- A fixture is a `public static` method of the test class. Its return type says what it builds.
+- The parameter name does not matter. Only the type does.
+- Each fixture runs once for the class. Each test gets its own copy, so one test cannot change the
+  value another test sees.
+- A fixture runs only when a test needs it. A skipped test does not run its fixtures.
+- Only the fixtures of the test's own class are used. One class has at most one fixture per type.
+- A parameter that no fixture fills does not compile. Two fixtures that need each other do not
+  compile either.
+
+## Data rows
+
+`#[TestWith(...)]` gives a test one row of arguments. Write it once for each row. The test runs
+once for each row.
+
+<Snippet src="syntax/test-data/02-test-with.nvs" />
+
+`nvs test` reports each row as its own test:
+
+```txt
+  SlugTest
+    ✓ itSlugs#0                        0.3 ms
+    ✓ itSlugs#1                        0.0 ms
+    ✗ itSlugs#2                        0.1 ms
+      Core\Test::assertSame failed: `$actual` is "mixed-case", `$expected` is "mixed case"
+
+  1 failed, 2 passed, 0 skipped, 0 flaky in 3 ms
+```
+
+- The rows are numbered from `#0`, in the order they are written.
+- A field fills the parameter with the same name. Its value is an `int`, `uint`, `float`, `bool`
+  or `string` literal of the parameter's type.
+- A field with no parameter, or a value of the wrong type, does not compile.
+- A parameter that no row names is filled by a fixture.
+- `#[TestWith]` needs `#[Test]` on the same method. `skip:` skips every row.
+
+## Assertions
+
+An assertion is a static method of `Core\Test`. The value you check comes first, then the value
+you expect. When the check fails, the assertion throws `Core\Test\Failure`.
+
+| Method | Passes when |
+|---|---|
+| `assertSame($actual, $expected)` | The values are the same. Two objects must be the same object. |
+| `assertEquals($actual, $expected)` | Like `assertSame`, but two objects are compared with `compareTo`. |
+| `assertEqualsDeep($actual, $expected)` | Arrays and objects are equal in every entry. The failure names the first difference. |
+| `assertTrue($value)` | The `bool` is `true`. |
+| `assertNull($value)` | The value is `null`. |
+| `assertCount($array, $n)` | The array has exactly `$n` entries. |
+| `assertThrows($body, C::class)` | The function throws `C`, or a class that extends `C`. |
+| `assertDoesNotThrow($body)` | The function returns. |
+| `expectFailure($body)` | An assertion inside the function failed. |
+
+<Snippet src="syntax/assertions/01-assertions.nvs" />
+
+- Both values of `assertSame` have the same type. `assertSame(1, "1")` does not compile.
+- `{message: "..."}` as the last argument puts your text in front of the failure report.
+- Catching a `Failure` does not make the test pass. The test still fails, and the report lists
+  every failed assertion.
+- `Core\Test\Failure` is an ordinary error class. You can catch it and throw your own, as
+  `assertEven` does above.
+- Assertions also work under `nvs run`. They throw the same `Failure` there.
+
+## Do and don't
+
+- Do put slow setup, like building a schema, in a fixture. It then runs once per class.
+- Do use `#[TestWith]` when the same check runs on many inputs.
+- Do write the value you check first: `assertSame($actual, $expected)`.
+- Don't catch `Failure` to hide it. The test fails anyway.

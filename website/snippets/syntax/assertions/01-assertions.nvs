@@ -1,0 +1,35 @@
+<?nvs
+// This program uses assertions outside a test, and builds an assertion of its own.
+
+use Core\Test;
+
+final class Checks {
+    // A failed assertion throws `Core\Test\Failure`. This method adds its own message.
+    public static function assertEven(int $n): void {
+        try {
+            Test::assertSame($n % 2, 0);
+        } catch (Core\Test\Failure $inner) {
+            throw new Core\Test\Failure($n . " is odd: " . $inner->message);
+        }
+    }
+}
+
+Checks::assertEven(4);
+echo "4 passed", "\n";
+
+try {
+    Checks::assertEven(3);
+} catch (Core\Test\Failure $f) {
+    echo $f->message, "\n";
+}
+
+// The last argument may add a message in front of the report.
+try {
+    Test::assertEquals(1, 2, {message: "a fresh counter is one"});
+} catch (Core\Test\Failure $f) {
+    echo $f->message, "\n";
+}
+
+// `assertThrows` passes because a `ParseError` is a `RuntimeError`.
+Test::assertThrows(fn (): void => { throw new ParseError("bad input"); }, RuntimeError::class);
+echo "a ParseError is a RuntimeError", "\n";

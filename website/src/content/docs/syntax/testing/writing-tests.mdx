@@ -1,0 +1,102 @@
+---
+title: Writing and running tests
+covers: ['lang:testing/a-test-is-a-method-marked-test', 'lang:testing/every-test-is-its-own-isolate-and-the-constructor-is-setup', 'lang:testing/test-options', 'lang:testing/running-tests-nvs-test']
+description: How to write a test as a method with #[Test], what each test starts with, the test options, and how nvs test runs the tests.
+---
+import Snippet from '@components/Snippet.astro'
+
+A test is a method with the attribute `#[Test]`. You can write it in any class. You do not extend
+a base class. `nvs test file.nvs` runs every test in the program.
+
+<Snippet src="syntax/testing/01-first-test.nvs" />
+
+`nvs test` prints this report:
+
+```txt
+  ArithmeticTest
+    ✓ additionCommutes                 0.3 ms
+    - divisionRounds                   0.0 ms
+      skipped: division is not written yet
+    ✗ thisOneFails                     0.1 ms
+      Core\Test::assertSame failed: `$actual` is 4, `$expected` is 5
+
+  1 failed, 1 passed, 1 skipped, 0 flaky in 2 ms
+```
+
+- `✓` is a test that passed, `✗` one that failed, `-` one that was skipped and `!` one that is
+  flaky. A flaky test failed first and passed later.
+- `nvs test` exits with `1` when a test failed, and with `0` otherwise. A skipped test is not a
+  failure.
+- `use Core\Test;` lets you write `#[Test]` and `Test::assertSame`. Without it, write
+  `#[Core\Test]`.
+- A test method is `public`, not `static`, and returns `void`. Anything else does not compile.
+- Classes run in name order. The tests of one class run in the order they are written.
+- A test that checks nothing fails. Use `Core\Test::assertDoesNotThrow` when the test only checks
+  that a call returns.
+- Under `nvs test`, the top-level code of the file does not run. The classes are still compiled.
+
+## Each test starts fresh
+
+Each test runs in its own isolate (a separate copy of the program's memory). It gets a new object of
+its class. A static property starts at its first value again.
+
+<Snippet src="syntax/testing/02-setup.nvs" />
+
+- The constructor of the class runs before each test. Use it to prepare what every test needs.
+- The constructor takes no arguments. A constructor with parameters makes the test fail.
+- A test fails when it returns while a `spawn script` it started is still running.
+
+## Test options
+
+`#[Test(...)]` takes these options. Every option is optional. An unknown option does not compile.
+
+| Option | Type | What it does |
+|---|---|---|
+| `skip:` | `string` | Skips the test, with this reason. `skip: true` does not compile. |
+| `at:` | `string` | Sets the time `Core\Time::now()` returns, such as `"2026-01-01T00:00:00Z"`. |
+| `seed:` | `int` | Makes `Core\Random` and `Core\Uuid::v7` return the same values on every run. |
+| `retries:` | `int` | Runs a failed test again, up to this many times. Needs `because:`. |
+| `because:` | `string` | The reason for `retries:`. |
+
+<Snippet src="syntax/testing/03-options.nvs" />
+
+The report for this file:
+
+```txt
+  OptionsTest
+    ✓ theClockIsFixed                  0.4 ms
+    ✓ aSeedIsRepeatable                0.1 ms
+    ! itPassesOnTheSecondAttempt       0.1 ms
+      flaky: it passed on attempt 2, having failed with:
+      Core\Test::assertSame failed: `$actual` is 1, `$expected` is 2
+
+  0 failed, 2 passed, 0 skipped, 1 flaky in 2 ms
+```
+
+- `Core\Test::advance(90m)` moves the fixed clock forward. In a test without `at:`, it throws a
+  `LogicError`.
+- A test that fails and then passes is reported as flaky, not as passed.
+- A test that fails every attempt is a failure. The report shows the message of the last attempt.
+
+## Running tests
+
+- `nvs test main.nvs` runs the tests in `main.nvs` and in every file it loads with `require` or
+  `autoload`.
+- `nvs test tests/` runs every `.nvs` file in the folder `tests` and its subfolders as one program.
+  One of these files uses `require` to load your app. Then every test file can use its classes.
+- `--filter Text` runs only the tests whose name contains `Text`. A test name is `Class::method`,
+  so `--filter OrderTest::` runs one class.
+- `--list` prints every test and where it is written, without running them.
+- `--format json` prints one JSON document. `--format junit` prints JUnit XML for a CI server. The
+  output of `echo` then goes to standard error.
+- A `.nvst` file is a different kind of test. It runs a whole program and compares what it prints
+  with an expected text. A folder cannot contain both `.nvs` and `.nvst` files.
+
+## Do and don't
+
+- Do write `#[Test]` methods to test your own code. Use a `.nvst` file only to check the exact
+  text a whole program prints.
+- Do use `at:` and `seed:` in a test that reads the time or random numbers.
+- Do give every `skip:` a reason that says when the test comes back.
+- Don't use `retries:` to hide a bug. A flaky test is always shown in the report.
+- Don't share state between tests through a static property. Each test starts fresh.

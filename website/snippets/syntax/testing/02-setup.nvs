@@ -1,0 +1,32 @@
+<?nvs
+// This file shows that each test starts with a new object and fresh static properties.
+
+use Core\Test;
+
+final class Counter {
+    public static int $hits = 0;
+}
+
+final class IsolationTest {
+    private array<string> $log;
+
+    // The constructor runs before each test. It takes no arguments.
+    public function constructor() {
+        $this->log = ["constructed"];
+    }
+
+    #[Test]
+    public function firstWrites(): void {
+        Counter::$hits = Counter::$hits + 1;
+        $this->log[] = "first";
+        Test::assertSame(Counter::$hits, 1);
+        Test::assertCount($this->log, 2);
+    }
+
+    // The change from the test above is gone here.
+    #[Test]
+    public function secondStartsFresh(): void {
+        Test::assertSame(Counter::$hits, 0);
+        Test::assertCount($this->log, 1);
+    }
+}
