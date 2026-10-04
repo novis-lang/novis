@@ -1,20 +1,23 @@
 {
-  "state": "**Goal `goal-closeout`, Stage 4 (finished in place).** `implements Core\\Db\\Queryable` is now `E0328` (\"is implemented only by `Core` classes\"), not the `E0303` \"no such class\". `nvs_hir::CoreRoster::Names` carries `links` and `closed`, and `nvs_stdlib::registry::closed_interfaces` builds `closed` from the `CoreInterface` roster.\n\nGap `a-callable-has-no-bind-bindto-or-call` now waits on the question *What may `bindTo`, `bind` and `call` rebind a closure to?*. A closure's `$this` is a captured field typed against the enclosing class, and a `callable` type does not say whether it uses `$this`, so what a rebind may target is a user decision. Seven questions wait in the goal prose's § *Questions for the user at the goal end*. Do not build the closure rebind, the environment, the zip walk or the captured-output type before the answers. **No session stops on `BLOCKED` before the goal end.**\n\nThe floor check `the latest CI run on main succeeded for the code HEAD holds` is red because `main` is ahead of `origin/main`. It leaves with goal `ci-green`'s record in Stage 6, and nobody pushes for it.\n\n`bun nv owners --closes goal-closeout` names 9 gaps. Six wait on questions. The three without one are the route-name half of `route-name-and-directive-completion-are-unbuilt`, `the-website-grammar-is-hand-written-beside-the-editors` and `rendered-core-pages-lag-the-tree`. Read each gap's record before building it. A change to a file a perf figure is keyed to stales that figure: run `bun nv proofs --owed`, then `bun nv proofs --record-perf --group '<class>'` per class it names.",
+  "state": "**Goal `goal-closeout`, Stage 4 (finished in place).** Route-name completion is built. Inside a `Core\\Router` link's name argument (`url`, `urlAbsolute`, `urlSigned`), `crates/nvs-lsp/src/completion.rs` offers the names the compiled route table holds. Inside a key of the link's `$params`, it offers that route's captures and `#[Query]` parameters. Both read `ExprTypeTable::routes`, and `nvs_types::is_link` is now public so the server asks the compiler which members are links. `crates/nvs-lsp/tests/completion_edits.rs` asserts both lists against the analysis's own table.\n\nGap `route-name-and-directive-completion-are-unbuilt` keeps its slug and now names only the `nvs.toml` directive half, which waits on the question *May the extension offer completion inside `nvs.toml`?*.\n\nSeven questions wait in the goal prose's § *Questions for the user at the goal end*. Do not build the closure rebind, the environment, the zip walk, the captured-output type or directive completion before the answers. **No session stops on `BLOCKED` before the goal end.**\n\nThe floor check `the latest CI run on main succeeded for the code HEAD holds` is red because `main` is ahead of `origin/main`. It leaves with goal `ci-green`'s record in Stage 6, and nobody pushes for it.\n\n`bun nv owners --closes goal-closeout` names 9 gaps. Seven wait on questions. The two without one are `the-website-grammar-is-hand-written-beside-the-editors` and `rendered-core-pages-lag-the-tree`. Read each gap's record before building it. A change to a file a perf figure is keyed to stales that figure: run `bun nv proofs --owed`, then `bun nv proofs --record-perf --group '<class>'` per class it names.",
   "next": {
     "stage": 4,
     "title": "finished in place",
     "files": [],
-    "note": "one file set: `crates/nvs-lsp/src/completion.rs` and its tests.",
+    "note": "one file set: `website/config/novis.tmLanguage.json` and the editor grammar it should be generated from.",
     "items": [
       {
         "done": false,
-        "text": "**Route-name completion is built, and the gap keeps only the directive half** — gap `route-name-and-directive-completion-are-unbuilt`, at `crates/nvs-lsp/src/completion.rs:1`. Read the record first (`bun nv gaps --module crates/nvs-lsp/src/completion.rs`) and `docs/plan/m10.md:208`. The directive half waits on the question *May the extension offer completion inside `nvs.toml`?*, so rewrite the gap to name only that half."
+        "text": "**The website grammar is generated from the editors' grammar, or the gap is struck as a stated bound** — gap `the-website-grammar-is-hand-written-beside-the-editors`, beside `editors/vscode/syntaxes/nvs.tmLanguage.json:1`, the editors' grammar. The site loads its own copy at `website/astro.config.ts` line 27. Read the record first (`bun nv gaps --module website/config/novis.tmLanguage.json`)."
+      },
+      {
+        "done": false,
+        "text": "**Rendered `Core` pages are regenerated from the tree, and a check keeps them current** — gap `rendered-core-pages-lag-the-tree`, whose pages lag the descriptions in `crates/nvs-stdlib/src/registry.rs:1`. The site's copy scripts are under `website/scripts/`. Read the record first (`bun nv gaps --module website/scripts`)."
       }
     ]
   },
   "backlog": [
-    "`the-website-grammar-is-hand-written-beside-the-editors` — `website/config/novis.tmLanguage.json`; read the gap record for the build or the bound.",
-    "`rendered-core-pages-lag-the-tree` — `website/scripts`; read the gap record.",
-    "Seven gaps wait on the questions in `docs/agent/goals/goal-closeout.md` § *Questions for the user at the goal end*."
+    "Directive completion in `nvs.toml` — gap `route-name-and-directive-completion-are-unbuilt`, waits on its question.",
+    "Once every non-question gap is gone, the session that finds `no question waits for the user` the only red goal-end check writes `BLOCKED` naming the section (goal prose § *Standing decisions*)."
   ]
 }
