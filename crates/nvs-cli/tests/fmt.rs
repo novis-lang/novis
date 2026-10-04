@@ -61,10 +61,8 @@ const UNFORMATTED: &str = "\
 /// One directory per test rather than one shared: these run concurrently under
 /// `cargo test`, and a file one of them is rewriting is not something another
 /// should ever be able to observe.
-fn fixture(name: &str, files: &[(&str, &str)]) -> (PathBuf, Vec<PathBuf>) {
-    let dir = std::env::temp_dir().join(format!("nvs-fmt-cmd-{name}"));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).expect("a private directory under the temp dir");
+fn fixture(name: &str, files: &[(&str, &str)]) -> (nvs_repo::Scratch, Vec<PathBuf>) {
+    let dir = nvs_repo::scratch(&format!("fmt-cmd-{name}"));
     let paths = files
         .iter()
         .map(|(file, source)| {

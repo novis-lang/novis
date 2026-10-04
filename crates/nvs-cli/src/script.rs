@@ -1948,22 +1948,56 @@ mod tests {
             .expect("a null argument crosses")
     }
 
-    /// A `.nvs` file this test owns, whose whole body echoes `said`. Called
-    /// again with the same `name`, it is the edit.
-    fn a_file_saying(name: &str, said: &str) -> std::path::PathBuf {
-        a_file_running(name, &format!("echo \"{said}\", \"\\n\";"))
+    /// A `.nvs` file this test owns, in a scratch directory of its own that is
+    /// deleted when the case drops. It derefs to the file's path, and
+    /// [`Case::say`] and [`Case::run`] are the edit.
+    struct Case {
+        _dir: nvs_repo::Scratch,
+        path: std::path::PathBuf,
+    }
+
+    impl Case {
+        /// The edit: the same file, its whole body now echoing `said`.
+        fn say(&self, said: &str) {
+            self.run(&echoing(said));
+        }
+
+        /// The edit, with a body of its own.
+        fn run(&self, body: &str) {
+            std::fs::write(&self.path, format!("<?nvs\n{body}\n")).expect("the case is writable");
+        }
+    }
+
+    impl std::ops::Deref for Case {
+        type Target = std::path::PathBuf;
+
+        fn deref(&self) -> &std::path::PathBuf {
+            &self.path
+        }
+    }
+
+    /// The body of a file that echoes `said` and a newline.
+    fn echoing(said: &str) -> String {
+        format!("echo \"{said}\", \"\\n\";")
+    }
+
+    /// A [`Case`] whose whole body echoes `said`.
+    fn a_file_saying(name: &str, said: &str) -> Case {
+        a_file_running(name, &echoing(said))
     }
 
     /// The same file with a body of its own, for a case whose statement is not
     /// an `echo`. The path is handed back with forward slashes available from
-    /// [`written`], because a Windows temp path inside a string literal in the source is a
+    /// [`written`], because a Windows path inside a string literal in the source is a
     /// run of escapes rather than a path.
-    fn a_file_running(name: &str, body: &str) -> std::path::PathBuf {
-        let dir = std::env::temp_dir().join(format!("nvs-swap-{}-{name}", std::process::id()));
-        std::fs::create_dir_all(&dir).expect("a directory to write the case in");
-        let path = dir.join("entry.nvs");
-        std::fs::write(&path, format!("<?nvs\n{body}\n")).expect("the case is writable");
-        path
+    fn a_file_running(name: &str, body: &str) -> Case {
+        let dir = nvs_repo::scratch(&format!("swap-{name}"));
+        let case = Case {
+            path: dir.join("entry.nvs"),
+            _dir: dir,
+        };
+        case.run(body);
+        case
     }
 
     /// One of those paths in a form a string literal in the source can carry.
@@ -2046,11 +2080,11 @@ mod tests {
     /// declared under the *second* root, so the trace it records is a miss
     /// under `./src` and a hit under `./vendor` — which is
     /// `rule:packaging/autoload-probes-fold-into-the-cache-key`'s own example.
-    /// The directory is rebuilt from nothing, because a `src/Core.nvs` left by
-    /// an earlier run is the very thing the cases below create themselves.
-    fn an_autoloading_program(name: &str) -> (std::path::PathBuf, String) {
-        let dir = std::env::temp_dir().join(format!("nvs-probe-{}-{name}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&dir);
+    /// The directory is a fresh scratch one, deleted when the guard drops,
+    /// because a `src/Core.nvs` left by an earlier run is the very thing the
+    /// cases below create themselves.
+    fn an_autoloading_program(name: &str) -> (nvs_repo::Scratch, String) {
+        let dir = nvs_repo::scratch(&format!("probe-{name}"));
         std::fs::create_dir_all(dir.join("src")).expect("the root the probe misses");
         std::fs::create_dir_all(dir.join("vendor")).expect("the root it hits");
         std::fs::write(
@@ -2168,9 +2202,7 @@ mod tests {
         // answer that moves was noticed through the trace of the files the
         // compile read — and the restore is noticed through the path the
         // failed compile looked for and did not find.
-        let dir = std::env::temp_dir().join(format!("nvs-required-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&dir);
-        std::fs::create_dir_all(&dir).expect("the program's directory");
+        let dir = nvs_repo::scratch("required");
         let lib = dir.join("lib.nvs");
         std::fs::write(&lib, "<?nvs\necho \"one\\n\";\n").expect("the required file");
         std::fs::write(dir.join("entry.nvs"), "<?nvs\nrequire './lib.nvs';\n")
@@ -2215,9 +2247,7 @@ mod tests {
         // reverted edit, where the entry file's digest never moves: both
         // programs have a trace under the same entry content, and the check
         // finds the older one describing the disk again.
-        let dir = std::env::temp_dir().join(format!("nvs-reverted-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&dir);
-        std::fs::create_dir_all(&dir).expect("the program's directory");
+        let dir = nvs_repo::scratch("reverted");
         let lib = dir.join("lib.nvs");
         std::fs::write(&lib, "<?nvs\necho \"one\\n\";\n").expect("the required file");
         std::fs::write(dir.join("entry.nvs"), "<?nvs\nrequire './lib.nvs';\n")
@@ -2505,13 +2535,13 @@ mod tests {
             });
 
             resolved.wait();
-            let _ = a_file_saying("outlives", "two");
+            path.say("two");
             compiler.revalidate();
             let (between, _routes) = compiler
                 .compiled(&written)
                 .expect("the edited entry compiles");
             drop(between);
-            let _ = a_file_saying("outlives", "three");
+            path.say("three");
             compiler.revalidate();
             let (after, _routes) = compiler
                 .compiled(&written)
@@ -2554,9 +2584,7 @@ mod tests {
         // The artifact cache is off, so the run leaves no file behind it.
         use nvs_config::tree::{Config, Opcache, Setting};
         const EDITS: u64 = 200;
-        let dir = std::env::temp_dir().join(format!("nvs-bounded-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&dir);
-        std::fs::create_dir_all(&dir).expect("the program's directory");
+        let dir = nvs_repo::scratch("bounded");
         let lib = dir.join("lib.nvs");
         std::fs::write(&lib, "<?nvs\necho \"0\";\n").expect("the required file");
         std::fs::write(dir.join("entry.nvs"), "<?nvs\nrequire './lib.nvs';\n")
@@ -2647,7 +2675,7 @@ mod tests {
             .compiled(&swapping)
             .expect("the swapped entry compiles");
         drop(warm_swap);
-        let before = shared(&compiler.paths)[&swap].unit.content;
+        let before = shared(&compiler.paths)[&*swap].unit.content;
 
         let started = std::sync::Barrier::new(READERS + 1);
         let published = std::sync::atomic::AtomicBool::new(false);
@@ -2671,7 +2699,7 @@ mod tests {
 
             // The edit, published while every reader is already looping.
             started.wait();
-            let _ = a_file_saying("winner-swap", "two");
+            swap.say("two");
             compiler.revalidate();
             let (after, _routes) = compiler
                 .compiled(&swapping)
@@ -2691,7 +2719,7 @@ mod tests {
         });
 
         assert_ne!(
-            shared(&compiler.paths)[&swap].unit.content,
+            shared(&compiler.paths)[&*swap].unit.content,
             before,
             "the revalidation won the compare and did not publish"
         );
@@ -2734,16 +2762,16 @@ mod tests {
         let compiler = revalidating();
         let (first, _routes) = compiler.compiled(&written).expect("the entry compiles");
         drop(first);
-        let stale_unit = shared(&compiler.paths)[&path].unit;
+        let stale_unit = shared(&compiler.paths)[&*path].unit;
         let stale = stale_unit.content;
 
-        let _ = a_file_saying("stale", "two");
+        path.say("two");
         compiler.revalidate();
         let (second, _routes) = compiler
             .compiled(&written)
             .expect("the edited entry compiles");
         drop(second);
-        let fresher = shared(&compiler.paths)[&path].unit.content;
+        let fresher = shared(&compiler.paths)[&*path].unit.content;
         assert_ne!(stale, fresher, "the edit never reached the pointer");
 
         // The slower revalidation, landing after the one that overtook it. It
@@ -2759,7 +2787,7 @@ mod tests {
             "a revalidation that observed the file first won step 4 by finishing last"
         );
         assert_eq!(
-            shared(&compiler.paths)[&path].unit.content,
+            shared(&compiler.paths)[&*path].unit.content,
             fresher,
             "the published content was rolled back to what a slower resolve saw"
         );
@@ -2788,12 +2816,12 @@ mod tests {
         let compiler = revalidating();
 
         let (running, _routes) = compiler.compiled(&written).expect("the entry compiles");
-        let good = shared(&compiler.paths)[&path].unit.content;
+        let good = shared(&compiler.paths)[&*path].unit.content;
 
         // The edit that does not parse, and the resolve that reaches it. What
         // comes back is a message rather than a panic or a stale unit, which
         // is the rule's "fail loudly".
-        let _ = a_file_running("broken-edit", "echo \"one\" \"two\";");
+        path.run("echo \"one\" \"two\";");
         compiler.revalidate();
         let Err(refusal) = compiler.compiled(&written) else {
             panic!("a file that does not parse was handed back as a program");
@@ -2812,7 +2840,7 @@ mod tests {
         // compiled — and [`Compiler::record`]'s `keep` is why that unit is
         // still in the table beside the failure rather than swept by it.
         assert_eq!(
-            shared(&compiler.paths)[&path].unit.content,
+            shared(&compiler.paths)[&*path].unit.content,
             good,
             "a broken edit moved the pointer"
         );
@@ -2828,14 +2856,14 @@ mod tests {
 
         // And a repair reaches the next resolve on the same terms the break
         // did, nothing about the failure being sticky past its own content key.
-        let _ = a_file_saying("broken-edit", "two");
+        path.say("two");
         compiler.revalidate();
         let (repaired, _routes) = compiler
             .compiled(&written)
             .expect("the repaired entry compiles");
         assert_eq!(said(repaired), "two\n");
         assert_ne!(
-            shared(&compiler.paths)[&path].unit.content,
+            shared(&compiler.paths)[&*path].unit.content,
             good,
             "the repair never reached the pointer"
         );
@@ -2859,9 +2887,9 @@ mod tests {
         // Warmed first, so what the storm meets is a break in a file this
         // cache already serves rather than a cold path that never compiled.
         let (warm, _routes) = compiler.compiled(&path).expect("the entry compiles");
-        let good = shared(&compiler.paths)[&entry].unit.content;
+        let good = shared(&compiler.paths)[&*entry].unit.content;
         drop(warm);
-        let _ = a_file_running("broken-storm", "echo \"one\" \"two\";");
+        entry.run("echo \"one\" \"two\";");
         compiler.revalidate();
 
         let refused = Arc::new(std::sync::atomic::AtomicUsize::new(0));
@@ -2912,7 +2940,7 @@ mod tests {
             "the storm put the same break through the front end more than once"
         );
         assert_eq!(
-            shared(&compiler.paths)[&entry].unit.content,
+            shared(&compiler.paths)[&*entry].unit.content,
             good,
             "the storm moved the pointer off the content that compiled"
         );
@@ -2958,7 +2986,7 @@ mod tests {
         // A second content is a second compile: the number moves with what was
         // put through the front end, and it stays where it is however many
         // cores then read the result.
-        let _ = a_file_saying("counted", "two");
+        path.say("two");
         compiler.revalidate();
         let (edited, _routes) = compiler
             .compiled(&written)
@@ -3075,7 +3103,7 @@ mod tests {
 
         // The edit, and a resolve after it — a new connection's, which is what
         // makes this a test of the swap rather than of a cache nobody touched.
-        let _ = a_file_saying("keeps", "two");
+        path.say("two");
         compiler.revalidate();
         let (_swapped, _) = compiler
             .compiled(&path.to_string_lossy())
@@ -3101,13 +3129,13 @@ mod tests {
             .compiled(&path.to_string_lossy())
             .expect("the entry compiles");
 
-        let _ = a_file_saying("swaps", "two");
+        path.say("two");
         compiler.revalidate();
         let (between, _) = compiler
             .compiled(&path.to_string_lossy())
             .expect("the edited entry compiles");
         drop(between);
-        let _ = a_file_saying("swaps", "three");
+        path.say("three");
         compiler.revalidate();
         let (after, _) = compiler
             .compiled(&path.to_string_lossy())
@@ -3132,12 +3160,12 @@ mod tests {
         let (holding, _) = compiler
             .compiled(&child.to_string_lossy())
             .expect("the child compiles");
-        let before = shared(&compiler.paths)[&child].unit.content;
+        let before = shared(&compiler.paths)[&*child].unit.content;
 
         // The edit, the check that swaps it in, and the request after it: this
         // parent resolves the edited path mid-run, through the seam `spawn
         // script` lowers to.
-        let _ = a_file_saying("in-flight", "two");
+        child.say("two");
         compiler.revalidate();
         let parent = a_file_running(
             "serving",
@@ -3158,7 +3186,7 @@ mod tests {
         assert!(completion.ok, "error: {:?}", completion.error);
         assert_eq!(String::from_utf8_lossy(&completion.output), "served\n");
         assert_ne!(
-            shared(&compiler.paths)[&child].unit.content,
+            shared(&compiler.paths)[&*child].unit.content,
             before,
             "the swap did not publish"
         );
@@ -3181,7 +3209,7 @@ mod tests {
         let (before, _) = compiler
             .compiled(&path.to_string_lossy())
             .expect("the entry compiles");
-        let _ = a_file_saying("lazy", "two");
+        path.say("two");
         let (unlooked, _) = compiler
             .compiled(&path.to_string_lossy())
             .expect("the entry resolves again");
@@ -3220,7 +3248,7 @@ mod tests {
         let (_, _) = compiler
             .compiled(&path.to_string_lossy())
             .expect("the entry compiles");
-        let _ = a_file_saying("settling", "two");
+        path.say("two");
         let wait = compiler.revalidate().expect("the edit is held back");
         assert!(wait <= std::time::Duration::from_millis(300), "{wait:?}");
         assert_eq!(compiler.compiles.load(Ordering::Relaxed), 1);
@@ -3307,11 +3335,9 @@ mod tests {
     /// script on this host still needs.
     #[test]
     fn a_finished_scripts_temporary_dir_is_gone_from_the_owned_root() {
-        let root = std::env::temp_dir().join(format!("nvs-cli-swept-{}", std::process::id()));
-        // A pid outlives one `cargo test`, so a case that panicked in an earlier
-        // run under this number would otherwise leave an entry behind and fail
-        // this one for it.
-        let _ = std::fs::remove_dir_all(&root);
+        // A root that does not exist yet, so the run is what creates it.
+        let scratch = nvs_repo::scratch("swept");
+        let root = scratch.join("root");
         let entry = a_file_running(
             "temporary-dir",
             r#"string $dir = Core\IO::temporaryDir();
@@ -3345,7 +3371,5 @@ echo $dir, "\n";"#,
                     .is_ok_and(|mut entries| entries.next().is_none()),
             "leaving the owned root itself standing and empty"
         );
-
-        std::fs::remove_dir_all(&root).expect("the case removes what it made");
     }
 }

@@ -12,7 +12,7 @@
 //! Each test owns a private directory for that reason: the tests run
 //! concurrently and the fixture is the child's `cwd`.
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::{Command, Output};
 
 /// A program whose one statement is § 18's `Core\Db::open` with a **literal**
@@ -29,10 +29,8 @@ var $far = Core\Db::open({
 
 /// A fresh directory holding `case.nvs`, plus `nvs.toml` when `config` names
 /// one. The name is the test's, so two tests never share a working directory.
-fn fixture(name: &str, config: Option<&str>) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("nvs-check-grants-{name}"));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).expect("a private directory under the temp dir");
+fn fixture(name: &str, config: Option<&str>) -> nvs_repo::Scratch {
+    let dir = nvs_repo::scratch(&format!("check-grants-{name}"));
     std::fs::write(dir.join("case.nvs"), OPENS_A_LITERAL_HOST).expect("the program is written");
     if let Some(config) = config {
         std::fs::write(dir.join("nvs.toml"), config).expect("the configuration is written");

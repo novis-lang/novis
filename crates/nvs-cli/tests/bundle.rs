@@ -28,22 +28,21 @@ const AUTOLOAD_APP: &str = concat!(
 /// § 4's footer: `b"NVSB"`, a `u16` and two `u64`s.
 const FOOTER_LEN: usize = 22;
 
-/// Builds the fixture into a private directory and hands back the executable.
+/// Builds the fixture into a private scratch directory and hands back its guard
+/// and the executable.
 ///
 /// One directory per test rather than one shared: the tests here run
 /// concurrently under `cargo test`, and a bundle half-written by one is not
 /// something the other should ever be able to observe.
-fn bundle(name: &str) -> PathBuf {
+fn bundle(name: &str) -> (nvs_repo::Scratch, PathBuf) {
     bundle_of(APP, name)
 }
 
 /// [`bundle`] for any entry point, which is what the `autoload` half needs: the
 /// claim there is about a *different program's* file set, not about a different
 /// way of building the same one.
-fn bundle_of(entry: &str, name: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("nvs-bundle-{name}"));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).expect("a private directory under the temp dir");
+fn bundle_of(entry: &str, name: &str) -> (nvs_repo::Scratch, PathBuf) {
+    let dir = nvs_repo::scratch(&format!("bundle-{name}"));
     let exe = dir.join(if cfg!(windows) { "app.exe" } else { "app" });
 
     let out = Command::new(env!("CARGO_BIN_EXE_nvs"))
@@ -56,7 +55,7 @@ fn bundle_of(entry: &str, name: &str) -> PathBuf {
         "the fixture compiles, so the bundle is written: {}",
         String::from_utf8_lossy(&out.stderr)
     );
-    exe
+    (dir, exe)
 }
 
 /// A length off the wire, as an index into bytes this host actually holds.
@@ -127,7 +126,8 @@ fn payload(exe: &Path) -> Vec<(String, String)> {
 // covers: tools:cli/nvs-build-compile
 #[test]
 fn a_bundle_carries_the_statically_resolved_require_graph_as_source() {
-    let files = payload(&bundle("graph"));
+    let (_dir, exe) = bundle("graph");
+    let files = payload(&exe);
 
     assert_eq!(
         files.len(),
@@ -172,7 +172,8 @@ fn a_bundle_carries_the_statically_resolved_require_graph_as_source() {
 /// `Widget` and drops it, and every other line of this program still passes.
 #[test]
 fn a_bundle_carries_every_file_the_autoload_roots_declare() {
-    let files = payload(&bundle_of(AUTOLOAD_APP, "autoload"));
+    let (_dir, exe) = bundle_of(AUTOLOAD_APP, "autoload");
+    let files = payload(&exe);
 
     assert_eq!(files[0].0, "app.nvs", "the entry point is entry zero");
     let mut names: Vec<&str> = files.iter().map(|(name, _)| name.as_str()).collect();
@@ -199,7 +200,7 @@ fn a_bundle_carries_every_file_the_autoload_roots_declare() {
 /// status together.
 #[test]
 fn a_bundled_class_is_reached_and_enumerated_through_an_autoload_root() {
-    let exe = bundle_of(AUTOLOAD_APP, "autoload-run");
+    let (_dir, exe) = bundle_of(AUTOLOAD_APP, "autoload-run");
 
     // The bundle carries its program inside itself, so running it opens nothing in the repository.
     let bundled = nvs_repo::spawn(&exe, &[])
@@ -247,7 +248,7 @@ fn a_bundled_class_is_reached_and_enumerated_through_an_autoload_root() {
 // covers: tools:cli/nvs-build-compile
 #[test]
 fn a_bundled_executable_runs_identically_to_nvs_run() {
-    let exe = bundle("identical");
+    let (_dir, exe) = bundle("identical");
 
     // The bundle carries its program inside itself, so running it opens nothing in the repository.
     let bundled = nvs_repo::spawn(&exe, &[])
@@ -292,17 +293,16 @@ fn a_bundle_hands_every_word_of_its_command_line_to_the_program() {
         .join("cli")
         .join("nvs-build-compile")
         .join("01-a-tool-whose-commands-are-named-like-nvs.nvs");
-    let exe = bundle_of(
+    // `dir` is the directory `bundle_of` wrote the executable into.
+    let (dir, exe) = bundle_of(
         program.to_str().expect("the repository path is UTF-8"),
         "argv",
     );
-    // The directory `bundle_of` wrote the executable into.
-    let dir = &std::env::temp_dir().join("nvs-bundle-argv");
     let started = |words: &[&str]| {
         // Run from the bundle's own directory, which has no `nvs.toml` to read.
         let out = nvs_repo::spawn(&exe, &[])
             .args(words)
-            .current_dir(dir)
+            .current_dir(&dir)
             .output()
             .expect("the bundle is an executable this host can run");
         String::from_utf8_lossy(&out.stdout).into_owned()
@@ -332,6 +332,4 @@ fn a_bundle_hands_every_word_of_its_command_line_to_the_program() {
         help.contains("status 2"),
         "`--help` is a word the program has no command for, so it prints its usage: {help:?}"
     );
-
-    let _ = std::fs::remove_dir_all(dir);
 }

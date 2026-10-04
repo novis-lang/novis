@@ -2979,12 +2979,7 @@ mod tests {
     /// rewritten file, passes.
     #[test]
     fn an_inline_snapshot_updates_its_own_source_when_asked_and_never_otherwise() {
-        let dir = std::env::temp_dir().join(format!(
-            "nvs-inline-snapshot-{}-{:?}",
-            std::process::id(),
-            std::thread::current().id()
-        ));
-        std::fs::create_dir_all(&dir).expect("a directory of this test's own");
+        let dir = nvs_repo::scratch("inline-snapshot");
         let program = dir.join("inline-snapshot.nvs");
         let template = std::fs::read_to_string(fixture("inline-snapshot.nvs"))
             .expect("the fixture is on disk");
@@ -3056,6 +3051,5 @@ mod tests {
             ],
             "the rewritten snapshots are what the run produces: {verdicts:?}"
         );
-        std::fs::remove_dir_all(&dir).ok();
     }
 }

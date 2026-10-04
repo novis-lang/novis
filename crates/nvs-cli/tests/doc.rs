@@ -8,7 +8,7 @@
 //!
 //! Each test owns a private directory, because the tests run concurrently.
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::Output;
 
 /// Two documented classes, one of them naming a member of the other. Both get a
@@ -115,15 +115,13 @@ echo Post::blank()->render(), "\n";
 
 /// A fresh directory holding `case.nvs`, and the `pages` directory `nvs doc`
 /// will be pointed at.
-fn fixture(name: &str) -> PathBuf {
+fn fixture(name: &str) -> nvs_repo::Scratch {
     fixture_of(name, TWO_CLASSES)
 }
 
 /// The same, over a program the caller chose.
-fn fixture_of(name: &str, program: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("nvs-doc-{name}"));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).expect("a private directory under the temp dir");
+fn fixture_of(name: &str, program: &str) -> nvs_repo::Scratch {
+    let dir = nvs_repo::scratch(&format!("doc-{name}"));
     std::fs::write(dir.join("case.nvs"), program).expect("the program is written");
     dir
 }

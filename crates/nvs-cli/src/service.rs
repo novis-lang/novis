@@ -3866,8 +3866,7 @@ mod tests {
         // Printed, and written only on install: the printing delivery has no
         // destination at all, so a directory it was pointed at is still empty
         // afterwards, while the installing one names the unit file.
-        let root = std::env::temp_dir().join(format!("nvs-service-{}", std::process::id()));
-        std::fs::create_dir_all(&root).expect("a scratch directory");
+        let root = nvs_repo::scratch("service");
         assert_eq!(destination(Delivery::Print, "web", &root), None);
         deliver(&text, destination(Delivery::Print, "web", &root).as_deref())
             .expect("the printing delivery");
@@ -3955,10 +3954,8 @@ mod tests {
 
     /// A scratch unit directory this case owns, so what an install would write
     /// is asserted against a directory nothing else is looking at.
-    fn unit_root(case: &str) -> PathBuf {
-        let root = std::env::temp_dir().join(format!("nvs-service-{case}-{}", std::process::id()));
-        std::fs::create_dir_all(&root).expect("a scratch directory");
-        root
+    fn unit_root(case: &str) -> nvs_repo::Scratch {
+        nvs_repo::scratch(&format!("service-{case}"))
     }
 
     /// An installer's options with both grantable directories named, so § 4's

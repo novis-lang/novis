@@ -11,7 +11,7 @@
 //! Each test owns a private directory, because the tests run concurrently and
 //! the fixture is the child's `cwd`.
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::{Command, Output};
 
 /// A class whose one public method carries no `///`. Everything else in it is
@@ -95,10 +95,8 @@ class Post extends Item {
 
 /// A fresh directory holding `case.nvs`. The name is the test's, so two tests
 /// never share a working directory.
-fn fixture(name: &str, program: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("nvs-strict-docs-{name}"));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).expect("a private directory under the temp dir");
+fn fixture(name: &str, program: &str) -> nvs_repo::Scratch {
+    let dir = nvs_repo::scratch(&format!("strict-docs-{name}"));
     std::fs::write(dir.join("case.nvs"), program).expect("the program is written");
     dir
 }

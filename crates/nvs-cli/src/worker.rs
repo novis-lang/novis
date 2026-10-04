@@ -2348,14 +2348,10 @@ mod tests {
     /// relative one against.
     #[test]
     fn a_sqlite_block_opens_a_queue_worker() {
-        let path = std::env::temp_dir().join(format!(
-            "nvs-worker-{}-a-sqlite-block-opens-a-queue-worker.db",
-            std::process::id()
-        ));
-        let _ = std::fs::remove_file(&path);
+        let dir = nvs_repo::scratch("worker-a-sqlite-block-opens-a-queue-worker");
         let block = nvs_config::tree::Database {
             driver: Some("sqlite".to_owned()),
-            path: Some(path.display().to_string()),
+            path: Some(dir.join("queue.db").display().to_string()),
             ..Default::default()
         };
         let mut wire = super::open("jobs", &block).expect("a SQLite block opens a worker");
@@ -2366,7 +2362,7 @@ mod tests {
         // The connection holds the file until it is dropped, and on Windows an open file is one
         // nothing can remove.
         drop(wire);
-        let _ = std::fs::remove_file(&path);
+        drop(dir);
     }
 
     /// A `[queue] connection` naming a SQL Server block starts a worker, and the statements that
@@ -2621,19 +2617,17 @@ mod tests {
     /// to say which database that is by handing it the same block a `nvs.toml` would. Absolute for
     /// the reason [`a_sqlite_block_opens_a_queue_worker`] is —
     /// `rule:config/a-relative-path-resolves-against-the-file-it-is-written-in` has no file to
-    /// resolve against here. The name carries the process id as well as the case, because two
-    /// runs of this test binary can overlap, and two runs sharing one file delete and claim each
-    /// other's jobs.
-    fn a_queue_file(case: &str) -> (nvs_config::tree::Database, std::path::PathBuf) {
-        let path =
-            std::env::temp_dir().join(format!("nvs-worker-{}-{case}.db", std::process::id()));
-        let _ = std::fs::remove_file(&path);
+    /// resolve against here. The file sits in a scratch directory of its own, because two runs of
+    /// this test binary can overlap, and two runs sharing one file delete and claim each other's
+    /// jobs. The case drops the guard once every connection to the file is closed.
+    fn a_queue_file(case: &str) -> (nvs_config::tree::Database, nvs_repo::Scratch) {
+        let dir = nvs_repo::scratch(&format!("worker-{case}"));
         let block = nvs_config::tree::Database {
             driver: Some("sqlite".to_owned()),
-            path: Some(path.display().to_string()),
+            path: Some(dir.join("queue.db").display().to_string()),
             ..Default::default()
         };
-        (block, path)
+        (block, dir)
     }
 
     /// A second connection to `block`'s database, which is what a case seeds and reads through.
@@ -2826,7 +2820,7 @@ mod tests {
     /// one that throws — so the outcome under test is the whole path's and not a failure's.
     #[test]
     fn a_job_pushed_to_a_server_with_one_worker_reaches_succeeded() {
-        let (block, path) = a_queue_file("a-job-reaches-succeeded");
+        let (block, dir) = a_queue_file("a-job-reaches-succeeded");
         let seeded = converged(&block);
         let id = pushed(&seeded, &from_root("examples/isolate/hello.nvs"));
 
@@ -2856,7 +2850,7 @@ mod tests {
              queue this process serves is not draining"
         );
         drop(seeded);
-        let _ = std::fs::remove_file(&path);
+        drop(dir);
     }
 
     /// A served instance holding workers ends within a bound once the drain begins, and the bound
@@ -2890,7 +2884,7 @@ mod tests {
         // Every value below is built inside this thread: a scheduler, a reactor and a connection
         // are one thread's, and what crosses back is the one duration this case is about.
         std::thread::spawn(move || {
-            let (block, path) = a_queue_file("workers-exit-on-the-drain");
+            let (block, dir) = a_queue_file("workers-exit-on-the-drain");
             let seeded = converged(&block);
             let id = pushed(&seeded, &from_root("examples/isolate/hello.nvs"));
 
@@ -2913,7 +2907,7 @@ mod tests {
                 .elapsed();
             let landed = state(&seeded, id);
             drop(seeded);
-            let _ = std::fs::remove_file(&path);
+            drop(dir);
             let _ = reached.send((tail, landed));
         });
 
@@ -3043,7 +3037,7 @@ mod tests {
         const WINDOW: Duration = Duration::from_millis(300);
 
         let (turns, watched) = run_to_its_end(|| {
-            let (block, path) = a_queue_file("an-idle-worker-asks-once");
+            let (block, dir) = a_queue_file("an-idle-worker-asks-once");
             let seeded = converged(&block);
             let (workers, _bell) = switch(None, super::IDLE_WAIT);
             let asked = Rc::new(Asked::default());
@@ -3066,7 +3060,7 @@ mod tests {
             }
             served(&mut sched);
             drop(seeded);
-            let _ = std::fs::remove_file(&path);
+            drop(dir);
             (asked.turns.get(), watched.get())
         });
 
@@ -3091,7 +3085,7 @@ mod tests {
     /// `nvs run`'s script throws on its way out.
     fn turns_when_stopped_mid_wait(served_instance: bool) -> u32 {
         run_to_its_end(move || {
-            let (block, path) = a_queue_file(if served_instance {
+            let (block, dir) = a_queue_file(if served_instance {
                 "a-drain-wakes-an-idle-worker"
             } else {
                 "a-stop-wakes-an-idle-worker"
@@ -3118,7 +3112,7 @@ mod tests {
             }
             served(&mut sched);
             drop(seeded);
-            let _ = std::fs::remove_file(&path);
+            drop(dir);
             asked.turns.get()
         })
     }
@@ -3158,7 +3152,7 @@ mod tests {
         ring: bool,
     ) -> (Option<i64>, Option<u32>) {
         run_to_its_end(move || {
-            let (block, path) = a_queue_file(case);
+            let (block, dir) = a_queue_file(case);
             let seeded = converged(&block);
             let drain = nvs_server::Draining::detached();
             let (workers, bell) = switch(Some(drain.clone()), idle);
@@ -3188,7 +3182,7 @@ mod tests {
             nvs_runtime::script::scoped(&compiler, || served(&mut sched));
             let landed = job.get().and_then(|id| state(&seeded, id));
             drop(seeded);
-            let _ = std::fs::remove_file(&path);
+            drop(dir);
             (landed, asked.claimed_on.get())
         })
     }

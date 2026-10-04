@@ -132,12 +132,9 @@ fn clean_root(root: &Path, dry_run: bool, out: &mut impl Write) -> ExitCode {
 mod tests {
     use super::{Path, PathBuf, clean_root};
 
-    /// A root this process alone is using, named for the case that made it.
-    fn root_of(case: &str) -> PathBuf {
-        let root =
-            std::env::temp_dir().join(format!("nvs-tmp-clean-{case}-{}", std::process::id()));
-        std::fs::create_dir_all(&root).expect("the platform root is writable");
-        root
+    /// A scratch root this case alone is using, deleted when the guard drops.
+    fn root_of(case: &str) -> nvs_repo::Scratch {
+        nvs_repo::scratch(&format!("tmp-clean-{case}"))
     }
 
     /// An entry in `root` owned by `pid`, spelled exactly as

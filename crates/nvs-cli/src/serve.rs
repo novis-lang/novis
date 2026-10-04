@@ -2728,8 +2728,8 @@ mod tests {
     /// `nvs queue migrate` leaves behind. The boot does open it: arming asks what
     /// the storage holds before it starts a worker, and a file holding nothing is
     /// [`queue_over_bare_sqlite`] and a refusal.
-    fn queue_over_sqlite(workers: u32, name: &str) -> String {
-        let written = queue_over_bare_sqlite(workers, name);
+    fn queue_over_sqlite(workers: u32, name: &str) -> (nvs_repo::Scratch, String) {
+        let (dir, written) = queue_over_bare_sqlite(workers, name);
         let config = config_of(&written);
         let block = config.db.get("jobs").expect("the block this case writes");
         let mut conn = crate::schema::open("jobs", block, nvs_db::Driver::Sqlite)
@@ -2745,24 +2745,25 @@ mod tests {
                 nvs_db::direct::run(&mut conn, sql).expect("the queue's own DDL on an empty file");
             }
         }
-        written
+        (dir, written)
     }
 
     /// The same tree over a file nothing has migrated: a SQLite path holding no
     /// table at all, which is the deployment a boot refuses to serve.
     ///
-    /// The file is removed rather than reused, so what the boot introspects is
-    /// what this case wrote and never what an earlier run of it left behind. A
-    /// TOML literal string, because a Windows path is backslashes and a basic
-    /// string would read them as escapes.
-    fn queue_over_bare_sqlite(workers: u32, name: &str) -> String {
-        let path = std::env::temp_dir().join(format!("nvs-serve-{name}.db"));
-        let _ = std::fs::remove_file(&path);
-        format!(
+    /// The file sits in a fresh scratch directory, so what the boot introspects
+    /// is what this case wrote and never what an earlier run of it left behind.
+    /// The case keeps the guard for as long as it reads the file. A TOML
+    /// literal string, because a Windows path is backslashes and a basic string
+    /// would read them as escapes.
+    fn queue_over_bare_sqlite(workers: u32, name: &str) -> (nvs_repo::Scratch, String) {
+        let dir = nvs_repo::scratch(&format!("serve-{name}"));
+        let written = format!(
             "[db.jobs]\ndriver = 'sqlite'\npath = '{}'\n\n[queue]\nconnection = 'jobs'\nworkers = \
              {workers}\n",
-            path.display()
-        )
+            dir.join("queue.db").display()
+        );
+        (dir, written)
     }
 
     /// The typed tree one written block deserializes into — the boot reads a
@@ -2894,22 +2895,20 @@ mod tests {
         Arc::new(nvs_config::Current::new(Arc::new(tree_of(written))))
     }
 
-    /// A directory of this case's own, with one script in it for an entry to
-    /// name.
+    /// A scratch directory of this case's own, with one script in it for an
+    /// entry to name. The case keeps the guard for as long as it fires.
     ///
-    /// The directory is returned canonical. A resolve canonicalizes every
+    /// The directory is also returned canonical. A resolve canonicalizes every
     /// `script.spawn` root it reads, and [`nvs_config::tree::Capabilities::allows`]
     /// compares the canonical script path against those roots. [`tree_of`] runs
     /// no resolve, so the case writes the root in the form a resolve would have
-    /// left it. The platform temporary root is often not canonical: an 8.3 alias
-    /// on Windows, a path under the `/var` symlink on macOS.
-    fn scheduled_script(case: &str) -> (PathBuf, PathBuf) {
-        let root = std::env::temp_dir().join(format!("nvs-serve-{case}-{}", std::process::id()));
-        std::fs::create_dir_all(&root).expect("the platform temporary root is writable");
-        let root = nvs_config::trust::canonical(&root).expect("the case's directory is there");
+    /// left it.
+    fn scheduled_script(case: &str) -> (nvs_repo::Scratch, PathBuf, PathBuf) {
+        let dir = nvs_repo::scratch(&format!("serve-{case}"));
+        let root = nvs_config::trust::canonical(&dir).expect("the case's directory is there");
         let script = root.join("nightly.nvs");
         std::fs::write(&script, b"<?php\n").expect("the case writes its own script");
-        (root, script)
+        (dir, root, script)
     }
 
     /// `rule:config/a-scheduled-run-is-a-root-isolate`'s two halves, which the
@@ -2924,7 +2923,7 @@ mod tests {
     /// the second one, which is what this closes.
     #[test]
     fn a_scheduled_fire_runs_under_the_deployments_configuration() {
-        let (root, script) = scheduled_script("fire-configured");
+        let (_dir, root, script) = scheduled_script("fire-configured");
         let granted = firing(&script, Some(&root));
         let armed = nvs_server::arm(
             &config_of(&granted).schedule,
@@ -2993,7 +2992,7 @@ mod tests {
     /// is where a reload that changes the roster is proved.
     #[test]
     fn a_fire_reads_the_published_tree_and_not_the_one_its_ticker_was_armed_on() {
-        let (root, script) = scheduled_script("fire-reloaded");
+        let (_dir, root, script) = scheduled_script("fire-reloaded");
         let booted = firing(&script, None);
         let armed = nvs_server::arm(
             &config_of(&booted).schedule,
@@ -3042,14 +3041,14 @@ mod tests {
     /// touch a name it did not write.
     #[test]
     fn serve_boot_removes_a_dead_owners_entry_and_skips_a_live_one() {
-        let root = std::env::temp_dir().join(format!("nvs-serve-sweep-{}", std::process::id()));
+        let root = nvs_repo::scratch("serve-sweep");
         // Above every platform's pid ceiling, so no process can be holding it
         // and the answer is not a race with anything this machine is running.
         let dead = root.join(format!("nvs-{}-0123456789abcdef", i32::MAX - 1));
         let live = root.join(format!("nvs-{}-0123456789abcdef", std::process::id()));
         let theirs = root.join("notes");
-        for path in [&root, &dead, &live, &theirs] {
-            std::fs::create_dir_all(path).expect("the platform root is writable");
+        for path in [&dead, &live, &theirs] {
+            std::fs::create_dir_all(path).expect("the scratch root is writable");
         }
         let held = live.join("still-in-use");
         std::fs::write(&held, b"a live owner's file").expect("the case writes into its own entry");
@@ -3074,8 +3073,6 @@ mod tests {
             "a name this runtime never wrote is not the sweep's to delete: {}",
             theirs.display()
         );
-
-        std::fs::remove_dir_all(&root).expect("the case removes what it made");
     }
 
     /// `rule:http-server/the-server-block-is-boot-class`'s own sentence, in
@@ -3500,10 +3497,9 @@ mod tests {
     /// for the kernel to serialise the fleet on and nothing echoed for a sink to
     /// order. The loop's length is what puts one request far enough above the cost
     /// of spawning its task that an arm measures serving rather than scheduling.
-    fn an_entry_that_costs_a_request() -> PathBuf {
+    fn an_entry_that_costs_a_request() -> (nvs_repo::Scratch, PathBuf) {
         const SPINS: usize = 20_000;
-        let dir = std::env::temp_dir().join(format!("nvs-serve-scale-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).expect("a directory to write the entry in");
+        let dir = nvs_repo::scratch("serve-scale");
         let path = dir.join("entry.nvs");
         std::fs::write(
             &path,
@@ -3514,7 +3510,7 @@ mod tests {
             ),
         )
         .expect("the entry is writable");
-        path
+        (dir, path)
     }
 
     /// One arm: a worker pinned to each of `cpus`, each serving [`PER_CORE`]
@@ -3633,7 +3629,8 @@ mod tests {
     /// no reactor and no request to have happened first.
     #[test]
     fn serve_arms_queue_workers_from_the_boot_snapshot_before_the_accept_loop_is_spawned() {
-        let current = current_of(&queue_over_sqlite(2, "arms-from-the-snapshot"));
+        let (_db, written) = queue_over_sqlite(2, "arms-from-the-snapshot");
+        let current = current_of(&written);
         let mut sched = nvs_host::Scheduler::new();
         let armed = super::arm_queue_workers(
             &mut sched,
@@ -3665,7 +3662,8 @@ mod tests {
     /// sized for four (`rule:concurrency/who-runs-a-job-is-configuration`).
     #[test]
     fn workers_is_armed_once_per_instance_and_never_once_per_core() {
-        let config = config_of(&queue_over_sqlite(4, "once-per-instance"));
+        let (_db, written) = queue_over_sqlite(4, "once-per-instance");
+        let config = config_of(&written);
         let (bounds, _) = super::queue_on_this_core(&config, true)
             .expect("a queue converged to its own schema is served")
             .expect("the core that ticks arms the queue");
@@ -3693,7 +3691,8 @@ mod tests {
     /// races.
     #[test]
     fn a_queue_behind_its_schema_is_refused_before_a_worker_is_armed() {
-        let current = current_of(&queue_over_bare_sqlite(2, "behind-at-boot"));
+        let (_db, written) = queue_over_bare_sqlite(2, "behind-at-boot");
+        let current = current_of(&written);
         let draining = nvs_server::Draining::detached();
         let mut sched = nvs_host::Scheduler::new();
         let armed = super::arm_queue_workers(&mut sched, &current, true, &draining);
@@ -3757,7 +3756,8 @@ mod tests {
     /// here where the same tree with `workers = 2` is refused.
     #[test]
     fn workers_zero_arms_no_worker_and_is_not_an_error() {
-        let config = config_of(&queue_over_bare_sqlite(0, "enqueue-only"));
+        let (_db, written) = queue_over_bare_sqlite(0, "enqueue-only");
+        let config = config_of(&written);
         let resolved = nvs_config::queue::queue_for(&config, &BTreeMap::new())
             .expect("`workers = 0` is a deployment and not a refusal");
         assert_eq!(
@@ -3832,7 +3832,7 @@ mod tests {
             // failure, and `run` itself cycles the cores it was given.
             return;
         }
-        let entry = an_entry_that_costs_a_request();
+        let (_dir, entry) = an_entry_that_costs_a_request();
         let path = entry.to_string_lossy().into_owned();
         // The `[opcache]` defaults on purpose, which is the warm server this is
         // about: a compiler written to re-hash the file on every resolve would put
@@ -4384,19 +4384,16 @@ mod tests {
     /// scratch directory of `case`'s own so that [`one_mount`] resolves a row
     /// off a real file rather than a struct literal pointing at nothing.
     ///
-    /// The directory is named for the case as well as the member because the
-    /// cases run in parallel: two sharing one path write the file while the
-    /// other compiles it, and the compile reads it half-written.
+    /// Every call gets a directory of its own because the cases run in
+    /// parallel: two sharing one path write the file while the other compiles
+    /// it, and the compile reads it half-written. The case keeps the guard for
+    /// as long as it reads the entry.
     ///
     /// The link is a *route's*, because that is the only kind there is: a name
     /// is resolved against the unit's own table while it compiles, so the entry
     /// has to declare the route it links to.
-    fn an_entry_linking_with(case: &str, member: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!(
-            "nvs-serve-origin-{}-{case}-{member}",
-            std::process::id()
-        ));
-        std::fs::create_dir_all(&dir).expect("a directory to write the entry in");
+    fn an_entry_linking_with(case: &str, member: &str) -> (nvs_repo::Scratch, PathBuf) {
+        let dir = nvs_repo::scratch(&format!("serve-origin-{case}-{member}"));
         let path = dir.join("app.nvs");
         std::fs::write(
             &path,
@@ -4413,7 +4410,7 @@ echo Core\Router::{member}("Docs::here", []);
             ),
         )
         .expect("the entry is writable");
-        path
+        (dir, path)
     }
 
     /// What the entry above writes when the door hands its isolate the row
@@ -4451,8 +4448,7 @@ echo Core\Router::{member}("Docs::here", []);
     /// `program_over` seam, so this one path covers both.
     #[test]
     fn a_served_request_reads_its_programs_id() {
-        let dir = std::env::temp_dir().join(format!("nvs-serve-program-id-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).expect("a directory to write the entry in");
+        let dir = nvs_repo::scratch("serve-program-id");
         let path = dir.join("app.nvs");
         let source = "<?nvs\necho Core\\Program::id();\n";
         std::fs::write(&path, source).expect("the entry is writable");
@@ -4466,7 +4462,7 @@ echo Core\Router::{member}("Docs::here", []);
             .answering(Inbound::new("GET", "/", ""))
             .run(&mut ctx)
             .expect("a null argument crosses into an isolate");
-        std::fs::remove_dir_all(&dir).expect("the case removes what it wrote");
+        drop(dir);
         let expected = nvs_config::cache::program_id(
             &[nvs_config::cache::content_hash(source.as_bytes())],
             nvs_config::cache::env_hash(&config),
@@ -4497,7 +4493,7 @@ echo Core\Router::{member}("Docs::here", []);
     /// somebody guessed, and nothing is written at all.
     #[test]
     fn a_served_request_receives_its_mounts_resolved_origin() {
-        let entry = an_entry_linking_with("served", "urlAbsolute");
+        let (_dir, entry) = an_entry_linking_with("served", "urlAbsolute");
         let compiler = Compiler::default();
         let mut mount =
             one_mount(&entry).expect("the entry this case wrote is a file in a directory");
@@ -4542,7 +4538,7 @@ echo Core\Router::{member}("Docs::here", []);
     #[test]
     fn a_mount_whose_unit_calls_url_absolute_and_resolves_no_origin_refuses_the_boot() {
         let compiler = Compiler::default();
-        let absolute = an_entry_linking_with("boot", "urlAbsolute");
+        let (_absolute_dir, absolute) = an_entry_linking_with("boot", "urlAbsolute");
         let mut mount =
             one_mount(&absolute).expect("the entry this case wrote is a file in a directory");
         mount.prefix = "/tenant".to_string();
@@ -4561,7 +4557,7 @@ echo Core\Router::{member}("Docs::here", []);
             "the mount resolved an origin, so there is nothing left for the check to refuse"
         );
 
-        let relative = an_entry_linking_with("boot", "url");
+        let (_relative_dir, relative) = an_entry_linking_with("boot", "url");
         let mut linking_relatively =
             one_mount(&relative).expect("the entry this case wrote is a file in a directory");
         linking_relatively.prefix = "/tenant".to_string();
@@ -4582,7 +4578,7 @@ echo Core\Router::{member}("Docs::here", []);
     /// stop.
     #[test]
     fn an_app_origin_is_the_fallback_for_a_mount_that_wrote_none() {
-        let entry = an_entry_linking_with("fallback", "urlAbsolute");
+        let (_dir, entry) = an_entry_linking_with("fallback", "urlAbsolute");
         let compiler = Compiler::default();
         let mut mounts = vec![
             one_mount(&entry).expect("the entry this case wrote is a file in a directory"),
@@ -4859,15 +4855,17 @@ echo Core\Router::{member}("Docs::here", []);
     /// below resolves a path per request exactly as the door does — what
     /// separates the two requests is the entry the path selected, and nothing
     /// else about how either one is run.
-    fn a_runaway_beside_an_answer(case: &str, runaway: &str) -> (PathBuf, PathBuf) {
-        let dir = std::env::temp_dir().join(format!("nvs-serve-{case}-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).expect("a directory to write the two entries in");
+    fn a_runaway_beside_an_answer(
+        case: &str,
+        runaway: &str,
+    ) -> (nvs_repo::Scratch, PathBuf, PathBuf) {
+        let dir = nvs_repo::scratch(&format!("serve-{case}"));
         let spins = dir.join("runaway.nvs");
         std::fs::write(&spins, runaway).expect("the runaway entry is writable");
         let answers = dir.join("answers.nvs");
         std::fs::write(&answers, "<?nvs\necho \"answered\";\n")
             .expect("the answering entry is writable");
-        (spins, answers)
+        (dir, spins, answers)
     }
 
     /// Begins the drain the accept loop below ends on, when the client is done
@@ -4919,7 +4917,7 @@ echo Core\Router::{member}("Docs::here", []);
         runaway: &str,
         capped: &str,
     ) -> (String, String, String) {
-        let (spins, answers) = a_runaway_beside_an_answer(case, runaway);
+        let (_dir, spins, answers) = a_runaway_beside_an_answer(case, runaway);
         let mut listener =
             nvs_host::NvsListener::bind(a_free_address()).expect("the loopback refused a listener");
         let addr = listener
