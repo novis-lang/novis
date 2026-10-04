@@ -138,7 +138,12 @@ struct CaseArg {
 /// Whether `owner::member` is one of § 4's link builders — the same nominal
 /// test [`crate::retrieval::is_retrieval`] makes, against a resolved [`QName`]
 /// rather than against what the call site spelled.
-pub(crate) fn is_link(owner: &QName, member: &str) -> bool {
+///
+/// Public because `nvs-lsp` offers the table's route names at the name
+/// argument of exactly these calls, and asks this rather than keeping a second
+/// list of them.
+#[must_use]
+pub fn is_link(owner: &QName, member: &str) -> bool {
     owner.to_string() == OWNER && matches!(member, "url" | ABSOLUTE | SIGNED)
 }
 

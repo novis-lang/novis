@@ -214,6 +214,7 @@ pub use expr_table::{
 pub use layout::{
     ClassAttribute, ClassConstant, ClassLayout, ClassLayoutTable, MethodEntry, build_class_layouts,
 };
+pub use links::is_link;
 /// The class `Core\Script::finish()` raises, for `nvs-ir` to build an instance
 /// of — that crate reaches the compiler's exception tree through this crate,
 /// exactly as it reaches every `Core` symbol below.

@@ -12,8 +12,10 @@
 //! or a name, the entries of a directory in a `require` or `autoload` path or
 //! at a path parameter, the namespaces the workspace declares in an
 //! `autoload` prefix, the classes that are a `T` in the operand of `as
-//! class<T>`, loaded or loadable, and the classes the program loads at a
-//! class-name parameter.
+//! class<T>`, loaded or loadable, the classes the program loads at a
+//! class-name parameter, and the names the route table holds at the name
+//! argument of a `Core\Router` link and that route's parameters at a key of
+//! its `$params`.
 //!
 //! **`->` and `::` are one walk and two lookups.** Both are an access whose
 //! first child is its receiver, so which of the two the cursor is in decides
@@ -345,7 +347,7 @@ use nvs_syntax::ast::{
     StmtKind,
 };
 use nvs_syntax::{IndexNode, Keyword, NodePath, OPEN_TAGS, Token, TokenKind, tokenize};
-use nvs_types::{ExprInfo, Ty, TypeId};
+use nvs_types::{ExprInfo, ParamIn, Ty, TypeId};
 use rustc_hash::{FxHashMap, FxHashSet};
 use serde_json::{Value, json};
 
@@ -429,6 +431,10 @@ pub fn at(
             items
         }
         Asked::Literal(Literal::Values(literal, values)) => file_values(&cursor, literal, &values),
+        Asked::Literal(Literal::Route(text_start)) => route_names(&cursor, text_start),
+        Asked::Literal(Literal::RouteKey(text_start, name)) => {
+            route_keys(&cursor, text_start, &name)
+        }
         Asked::Position => position(&cursor, php),
         Asked::Nothing => return Vec::new(),
     };
@@ -594,6 +600,12 @@ enum Literal {
     /// An argument at a parameter a completion file names: the literal,
     /// quotes included, and the values that apply at its call.
     Values(Span, Vec<Arc<completion_files::Value>>),
+    /// The route name of a `Core\Router` link, starting at this byte after
+    /// its opening quote.
+    Route(BytePos),
+    /// A key of a `Core\Router` link's `$params`, starting at this byte after
+    /// its opening quote, and the route name the link writes.
+    RouteKey(BytePos, String),
 }
 
 /// A path literal the cursor is inside.
@@ -646,6 +658,12 @@ fn literal_at(
     }
     if let Some(literal) = class_literal(analysed, offset) {
         return Some(Literal::Class(literal.span.start + 1, literal.bound));
+    }
+    if let Some(literal) = crate::arguments::route_name_at(analysed, offset) {
+        return Some(Literal::Route(literal.start + 1));
+    }
+    if let Some((literal, name)) = crate::arguments::route_key_at(analysed, offset) {
+        return Some(Literal::RouteKey(literal.start + 1, name));
     }
     if let Some(argument) = crate::arguments::at(analysed, offset)
         && argument.text == ParamText::Path
@@ -971,6 +989,83 @@ fn class_names(
             label: name,
             kind: Some(kind),
             ..CompletionItem::default()
+        })
+        .collect()
+}
+
+/// The route names a `Core\Router` link may name, read off the route table the
+/// checker resolves the same link against
+/// (`rule:routing/link-name-and-params-are-checked`).
+///
+/// Each named row is offered once, since two rows share a name only where they
+/// share a path, and a row with no name is not offered: no link reaches it.
+/// The detail is the row's method and path. Each item replaces all the text
+/// written between the opening quote and the cursor, escaped for that quote.
+fn route_names(cursor: &Cursor<'_>, text_start: BytePos) -> Vec<CompletionItem> {
+    let file = cursor.analysed.map.file(cursor.analysed.entry);
+    let Some(written) = file.text().get(text_start as usize..cursor.offset as usize) else {
+        return Vec::new();
+    };
+    let quote = file.text()[..text_start as usize]
+        .chars()
+        .next_back()
+        .unwrap_or('\'');
+    let mut items: Vec<CompletionItem> = Vec::new();
+    for row in cursor.analysed.exprs.routes().rows() {
+        let Some((name, _)) = &row.name else {
+            continue;
+        };
+        if items.iter().any(|item| item.label == *name) {
+            continue;
+        }
+        items.push(CompletionItem {
+            text_edit: Some(cursor.replacing(written.len(), escaped(name, quote))),
+            ..item(
+                name.clone(),
+                CompletionItemKind::VALUE,
+                format!("{} {}", row.verb, row.path),
+            )
+        });
+    }
+    items
+}
+
+/// The keys the `$params` of a link to the route called `name` may write:
+/// each of the route's path captures and `#[Query]` parameters, read off the
+/// row the checker checks the same keys against. Nothing where no row has
+/// that name.
+///
+/// The detail says where the value goes, its type where the route declares
+/// one, and whether the link may leave it out. Each item replaces the text
+/// written since the opening quote, escaped for that quote.
+fn route_keys(cursor: &Cursor<'_>, text_start: BytePos, name: &str) -> Vec<CompletionItem> {
+    let file = cursor.analysed.map.file(cursor.analysed.entry);
+    let Some(written) = file.text().get(text_start as usize..cursor.offset as usize) else {
+        return Vec::new();
+    };
+    let Some(row) = cursor.analysed.exprs.routes().named(name) else {
+        return Vec::new();
+    };
+    let quote = file.text()[..text_start as usize]
+        .chars()
+        .next_back()
+        .unwrap_or('\'');
+    row.params
+        .iter()
+        .map(|param| {
+            let source = match param.source {
+                ParamIn::Path => "path",
+                ParamIn::Query => "query",
+            };
+            let optional = if param.required { "" } else { ", optional" };
+            let detail = match &param.ty {
+                Some(ty) => format!("{ty} ({source}{optional})"),
+                None => format!("({source}{optional})"),
+            };
+            CompletionItem {
+                text_edit: Some(cursor.replacing(written.len(), escaped(&param.name, quote))),
+                ..item(param.name.clone(), CompletionItemKind::FIELD, detail)
+            }
         })
         .collect()
 }

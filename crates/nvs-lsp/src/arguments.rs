@@ -128,6 +128,102 @@ pub(crate) fn named_at(analysed: &Analysed, offset: BytePos) -> Option<Named> {
     name(analysed, literal, &holders)
 }
 
+/// The string literal the cursor at `offset` is inside where it is the route
+/// name of a `Core\Router` link, quotes included.
+///
+/// A link whose name the table holds is recorded as
+/// `nvs_types::ExprInfo::RouteLink` over the call, in place of the call the
+/// checker resolved, and its one string literal argument is that name: the
+/// `$params` keys are inside an array. Every other link is still the resolved
+/// call, and its name is the argument at the parameter called `name` of a
+/// member `nvs_types::is_link` admits.
+pub(crate) fn route_name_at(analysed: &Analysed, offset: BytePos) -> Option<Span> {
+    let (literal, holders) = holders_at(analysed, offset)?;
+    let raw = text_of(analysed.map.file(analysed.entry), literal);
+    if !(raw.starts_with('\'') || raw.starts_with('"')) {
+        return None;
+    }
+    let parent = holders
+        .first()
+        .filter(|parent| CALLS.contains(&parent.kind))?;
+    if let Some(ExprInfo::RouteLink { .. }) = analysed.exprs.lookup(parent.span) {
+        return Some(literal);
+    }
+    let call = call_at(analysed, parent.span)?;
+    let index = parameter(analysed, call, parent, literal)?;
+    (nvs_types::is_link(&call.class, &call.method)
+        && call
+            .param_names
+            .get(index)
+            .is_some_and(|name| name == "name"))
+    .then_some(literal)
+}
+
+/// The string literal the cursor at `offset` is inside where it is a key of
+/// the `$params` array literal of a `Core\Router` link, quotes included, and
+/// the route name the same link writes as a string literal.
+///
+/// A key is a string literal directly inside the array literal and not written
+/// after a `=>`, so an entry with no `=>` yet is a key being written. The
+/// link is found the way [`route_name_at`] finds one: a link that resolved
+/// writes one string literal argument, its name, and any other is a resolved
+/// call whose array fills the parameter called `params`.
+pub(crate) fn route_key_at(analysed: &Analysed, offset: BytePos) -> Option<(Span, String)> {
+    let (literal, holders) = holders_at(analysed, offset)?;
+    let file = analysed.map.file(analysed.entry);
+    let raw = text_of(file, literal);
+    if !(raw.starts_with('\'') || raw.starts_with('"')) {
+        return None;
+    }
+    let [array, call] = holders.as_slice() else {
+        return None;
+    };
+    if array.kind != "ArrayLiteral" || !CALLS.contains(&call.kind) {
+        return None;
+    }
+    let before = file.text().get(..literal.start as usize)?;
+    if before.trim_end().ends_with("=>") {
+        return None;
+    }
+    let open = opens_at(analysed, call.span, &call.children)?;
+    let written: Vec<(Span, &str)> = call
+        .children
+        .iter()
+        .zip(&call.child_kinds)
+        .filter(|(child, _)| child.start >= open)
+        .map(|(child, kind)| (*child, *kind))
+        .collect();
+    let name = if let Some(ExprInfo::RouteLink { .. }) = analysed.exprs.lookup(call.span) {
+        written
+            .iter()
+            .find(|(_, kind)| *kind == "Str")
+            .map(|(span, _)| *span)?
+    } else {
+        let resolved = call_at(analysed, call.span)?;
+        if !nvs_types::is_link(&resolved.class, &resolved.method) {
+            return None;
+        }
+        let slot_of = |span: Span| {
+            let at = written.iter().position(|(child, _)| *child == span)?;
+            match resolved.arg_slots.get(at)? {
+                ArgSlot::Param(index) => resolved.param_names.get(*index).map(String::as_str),
+                ArgSlot::Spread(_) | ArgSlot::Unresolved => None,
+            }
+        };
+        if slot_of(array.span) != Some("params") {
+            return None;
+        }
+        written
+            .iter()
+            .find(|(span, kind)| *kind == "Str" && slot_of(*span) == Some("name"))
+            .map(|(span, _)| *span)?
+    };
+    Some((
+        literal,
+        nvs_syntax::string_lit::cook_string_literal(file, name),
+    ))
+}
+
 /// Every string literal argument the entry document writes, named by its
 /// parameter as [`named_at`] names one, in the order they were written.
 pub(crate) fn named_in_document(analysed: &Analysed) -> Vec<Named> {

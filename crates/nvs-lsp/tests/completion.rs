@@ -691,6 +691,10 @@ fn sources() -> Vec<Source> {
 /// files the map lists for `Core\Program::implementing<T>()`, so the arm itself
 /// reads no file.
 ///
+/// The two route arms read `ExprTypeTable::routes`, the table the checker
+/// resolves a `Core\Router` link's name and checks its `$params` keys against,
+/// so every name and key they offer is one that link compiles with.
+///
 /// The completion-file arm reads the values `CompletionFiles::values_at`
 /// hands it, the table the completion files were loaded into, and reads no
 /// file itself. At a path or class-name parameter it adds those values to the
@@ -699,7 +703,7 @@ fn sources() -> Vec<Source> {
 /// `crate::arguments` reads them off `ResolvedCall::param_tys` and the
 /// checker's type interner, the types the checker recorded on the call it
 /// resolved.
-const SOURCED: [(&str, &str); 35] = [
+const SOURCED: [(&str, &str); 37] = [
     ("named_type", "..item("),
     ("type_row", "..named_type("),
     ("method_row", "..item("),
@@ -713,6 +717,8 @@ const SOURCED: [(&str, &str); 35] = [
     ("paths", "autoload::entries_of("),
     ("prefixes", "declarations_in("),
     ("class_names", "hierarchy::implements_interface("),
+    ("route_names", "exprs.routes()"),
+    ("route_keys", "exprs.routes()"),
     ("file_values", "completion_files::Value"),
     ("value_item", "completion_files::Value"),
     ("values_beside", "file_values(cursor"),
