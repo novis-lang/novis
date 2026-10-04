@@ -82,14 +82,15 @@ They run on the WSL leg.
 instructions with 1.01, but the increments did not agree by the ceiling of 4096, so the tool does
 not judge it.
 
-**A ladder whose allocation count grows faster than its work**:
-[`benches/scaling/numbers/bigint-mul.nvs`](../../benches/scaling/numbers/bigint-mul.nvs) squares a
-number of 64,000 to 512,000 bits. `num-bigint` uses Toom-3 at these sizes, which grows as n^1.47.
-The tool reports allocations with slope 1.85 and bytes with 1.69, so it fails the ladder. The clock
-follows the algorithm: a probe timing four multiplications, best of five runs, grew 60 times from
-32,000 to 512,000 bits, which is slope 1.47. The allocations are the library's temporaries at each
-level of the recursion, and the tool has no way to judge a count against the algorithm rather than
-the size. The size cannot go higher: one `Core\BigInt` result is at most 1,048,576 bits.
+**A ladder unclear because its algorithm grows in steps**:
+[`benches/scaling/numbers/bigint-mul.nvs`](../../benches/scaling/numbers/bigint-mul.nvs). `num-bigint`
+picks schoolbook, Karatsuba or Toom-3 by length and recurses a whole level deeper past each threshold,
+so one size's allocation count is not monotonic: squaring 384,000 bits allocated 2,999 times and
+256,000 bits 3,095 times. Squaring one size per step, the ladder read allocations at slope 1.85 and
+failed. It now squares sixteen sizes from n/2 to 31n/32 per step, which reads allocations 1.31,
+bytes 1.40 and callgrind's instructions 1.29, all under `karatsuba`'s 1.7 and Toom-3's own 1.47. The
+local slopes still differ by more than the agreement test allows, so the tool reports it unclear and
+does not judge it. The size cannot go higher: one `Core\BigInt` result is at most 1,048,576 bits.
 
 ## What we checked and found fine
 

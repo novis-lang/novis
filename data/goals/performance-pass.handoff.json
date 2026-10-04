@@ -1,19 +1,23 @@
 {
-  "state": "**Goal `performance-pass`, Stage 5 (the fixes).** Stage 4's review is whole (`docs/perf/performance-review.md`, ending in `## floor`). Old refusals have not been priced again yet.\n\n**An `if` chain is one statement with a list of arms.** `StmtKind::If { arms: Vec<IfArm>, else_ }` (`crates/nvs-syntax/src/ast.rs`): `elseif` and `else if` both add an arm in `finish_if`'s loop, so neither spelling costs parser depth. Every walk over it is a loop; the dataflow walks (`locals`, `lateinit`, `ctor_init`) and `lower_if` walk the arms forward and join them back to front, which gives the same IR block for block and one statement marker per later arm, as the nested shape did. `Core\\Ast`'s `If` node now lists `cond, then` per arm and then the `else`. `bun nv scaling compiler/elseif` is flat over 256..4096 on the release binary.\n\n**25 gap records owned by `performance-pass`.** Still red: `scaling --check` (`numbers/bigint-mul.nvs`, allocations grow with slope 1.85 under Toom-3) and `owners --closes performance-pass`. `docs/perf/performance-pass.md` *Decisions for you* has one entry: a total deadline for the request head.",
+  "state": "**Goal `performance-pass`, Stage 5 (the fixes).** Stage 4's review is whole (`docs/perf/performance-review.md`, ending in `## floor`). Old refusals have not been priced again yet.\n\n**`bun nv scaling --check` is green.** `numbers/bigint-mul.nvs` squares sixteen sizes from n/2 to 31n/32 per step, because `num-bigint` recurses in steps by length and one size's allocation count is not monotonic. It reads allocations 1.31, bytes 1.40 and callgrind 1.29, and the tool reports it unclear, which `--check` passes. `docs/perf/performance-pass.md` *Benches to look at* records why.\n\n**25 gap records owned by `performance-pass`** keep `owners --closes performance-pass` red, and they are the rest of Stage 5: each is fixed and its record deleted, or struck as a stated bound. `docs/perf/performance-pass.md` *Decisions for you* has one entry: a total deadline for the request head.",
   "next": {
     "stage": 5,
-    "title": "the fixes, the bigint ladder",
+    "title": "the fixes, request field reads",
     "files": [],
-    "note": "one file set: `benches/scaling/numbers/bigint-mul.nvs`, `benches/scaling/README.md` and the growth tool's judgement.",
+    "note": "one file set: `crates/nvs-stdlib/src/request.rs` and a new `benches/scaling/request/fields.nvs` ladder.",
     "items": [
       {
         "done": false,
-        "text": "**Judge `numbers/bigint-mul.nvs` against Toom-3, not against linear** (`benches/scaling/numbers/bigint-mul.nvs:1`), so `bun nv scaling --check` goes green. The goal's base rule says an algorithm whose best form is steeper is judged against that algorithm; `docs/perf/performance-pass.md:85` has the measured slopes (clock 1.47, allocations 1.85, bytes 1.69). First read which `// scaling: expect` values the README allows; if none states a power, the tool needs one, and the allocations' 1.85 must still be explained or recorded under *Benches to look at*. Rule: the goal's base rule."
+        "text": "**`Core\\Request::post($name)` parses the body once per request, not once per call** (`crates/nvs-stdlib/src/request.rs:2315`, `form_of`), so a handler reading P fields is O(P). The gap record `data/gaps/nvs-stdlib/request-post-and-query-reparse-per-call.json` names the shape and the ladder; the fix says the per-request memory it spends. Rule: the goal's base rule."
+      },
+      {
+        "done": false,
+        "text": "**`query($name)` and `queryAs` use the same parsed array** (`crates/nvs-stdlib/src/request.rs:2167`, `crates/nvs-stdlib/src/request.rs:2242`), then delete the gap record. Rule: the goal's base rule."
       }
     ]
   },
   "backlog": [
-    "25 gap records `bun nv owners --closes performance-pass` lists: each is built, struck as a stated bound, or deferred (`data/gaps/`).",
-    "`crates/nvs-types/src/locals.rs` `the-live-set-is-cloned-per-branch`: the `If` arm still clones `live` once per arm, which the flat chain did not change."
+    "`data/gaps/nvs-runtime/route-matching-tries-every-route.json` — O(routes) dispatch per request, `crates/nvs-runtime/src/routes.rs`.",
+    "The other 22 gaps: `bun nv owners --closes performance-pass` lists them with their modules."
   ]
 }
