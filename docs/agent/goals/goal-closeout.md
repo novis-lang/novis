@@ -254,27 +254,6 @@ The check `no question waits for the user` fails while a line `- **Answer:** ope
 - **Answer:** 1. One completion provider for files named `nvs.toml` only, and the rule is rewritten to
   say so.
 
-### Are `Core` reference cards held to the plain voice?
-
-- **Gap** — `reference-cards-are-not-held-to-the-plain-voice`, for example
-  `crates/nvs-stdlib/src/objset.rs:157` and `crates/nvs-stdlib/src/math.rs:623`.
-- **What has to be decided** — A card is what `nvs help`, a hover and the website print for a member,
-  so an end user reads it. `AGENTS.md` § *Text an end user reads* does not cover cards today, and
-  many cards use words that section forbids ("holds", "drops").
-- **Options** —
-  1. *Hold cards to it, and rewrite them here.* `rule:core-api/reference-card` points to that
-     section, and sessions rewrite every card by file set. The number of cards to rewrite is not
-     counted. It may be many sessions.
-  2. *Hold cards to it, and rewrite them later.* The rule changes now. The rewrite becomes a gap
-     owned by a milestone at M9 or later, and the cards are fixed when their classes are next
-     touched.
-  3. *Do not hold cards to it.* The rule says cards are exempt. No work, but help, hover and website
-     text read in two voices.
-- **Recommendation** — 2. The rule is right for every card a reader sees. Rewriting all of them is
-  wording work that would delay `performance-pass` without changing any behaviour.
-- **Answer:** 2. The rule changes now. The rewrite is a gap owned by a milestone at M9 or later, and a
-  card is fixed when its class is next touched. No sweep over every card.
-
 ### May file writes walk from a folder handle instead of a path?
 
 - **Gap** — `zip-extraction-creates-a-file-by-path-after-resolving-its-folder`, `place` at
@@ -298,27 +277,6 @@ The check `no question waits for the user` fails while a line `- **Answer:** ope
   priority ordering, and option 1 closes the case where an archive picks the names.
 - **Answer:** 2. The handle-relative walk goes under every write door in this goal: `Core\Zip::extract`
   and every `Core\IO` write. The user allows the one decision record it needs.
-
-### Does `Core\Server` need members for the request's environment?
-
-- **Gap** — `core-server-has-no-request-environment`, `crates/nvs-stdlib/src/server.rs:12`
-  and `docs/spec/01-core-library.md:1161`. `traceId()` is built. This question is only the
-  environment half.
-- **What has to be decided** — Spec § 15 gives `Core\Server` "the request's own environment",
-  replacing `$_SERVER`, and names no member. Most of `$_SERVER` already has a home:
-  `Core\Request` has the method, path, query, headers, `host`, `scheme` and `clientIp`, and `Core\Env`
-  has the environment variables. What has no home is the HTTP version, the server's own address
-  and port, and the client's port.
-- **Options** —
-  1. *No new members.* Spec § 15 says `Core\Request` and `Core\Env` replace `$_SERVER`, and the gap
-     closes. No cost in memory or speed, and the class stays small. A program cannot read the HTTP
-     version or the ports.
-  2. *Add the missing facts.* `Core\Request::protocol()` and the two addresses with their ports, carried
-     on the request from the accept loop. About 40 bytes more per request, and one session per
-     member with its proofs.
-- **Recommendation** — 1. Simplicity comes before footprint, and no rule or example needs the
-  missing facts. A later goal can add one member when a program needs it.
-- **Answer:** 1. No new members. Spec § 15 says `Core\Request` and `Core\Env` replace `$_SERVER`.
 
 ### What type is captured output under a request?
 

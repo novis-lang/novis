@@ -1,23 +1,30 @@
 {
-  "state": "**Goal `goal-closeout`: Stage 6 (the one-time deletion) is done, and the run is held for the user.** The 184 goals that were in front of `goal-closeout` are deleted, and `data/chain.json`'s `goals` starts at `goal-closeout`. `walkedGoals` is gone from `tools/nv/lib/chain.ts`, with every reader: `bun nv audit`, `bun nv plan --past` (a milestone is complete when no chain goal carries it and no register tags it) and `bun nv chain --check`. `bun nv plan --stale` is deleted, because `bun nv chain --check` already fails on prose naming a goal off the chain. The `ci-green` tool and its test are deleted.\n\nThe only red checks are Stage 4's two, and both wait on the user. `bun nv owners --closes goal-closeout` names 7 gaps, and each waits on a question in the goal prose's § *Questions for the user at the goal end*. Per the standing decision *One stop, at the end*, this session wrote `BLOCKED`. Do not build the closure rebind, the environment, the zip walk, the captured-output type, directive completion, card voice or completion images before the answers.",
+  "state": "**Goal `goal-closeout`: Stage 4, building the user's answers.** The user answered all seven questions in the goal prose's § *Questions for the user at the goal end* (`docs/agent/goals/goal-closeout.md:205`). Two are built and their questions deleted. `Core\\Server` gets no request environment: spec § 15 and the `server.rs` module doc say `Core\\Request` and `Core\\Env` cover `$_SERVER`, and that gap is deleted. Reference cards are held to the plain voice by `rule:core-api/reference-card` and `AGENTS.md` § *Text an end user reads*, and the card rewrite is gap `reference-cards-are-not-held-to-the-plain-voice`, now owned by M10.\n\n`bun nv owners --closes goal-closeout` names 5 gaps. One of them, `completion-file-images-are-not-checked-in-an-editor`, waits on the user's report from VS Code (\"image shows\" or \"text only\"). Its question stays open until that report is written under it. No session can build it. When it is the only gap left, write `BLOCKED` and name that question.",
   "next": {
     "stage": 4,
     "title": "finished in place, the answers built",
     "files": [],
-    "note": "one file set: the goal prose's questions section and the gaps it names.",
+    "note": "one file set: the extension's completion and the `nvs.toml` registry.",
     "items": [
       {
         "done": false,
-        "text": "**Read the user's answers** under each `### ` question in `docs/agent/goals/goal-closeout.md:205`, and build the first answered one. Close its gap under `data/gaps/` or re-owner it to a goal on the chain. `rule:tooling/the-chain-names-its-live-goal`."
+        "text": "**Directive completion in `nvs.toml`** (answer 1: one completion provider for files named `nvs.toml`, and the rule is rewritten). Rewrite `rule:ide/the-extension-claims-nvs-only` (`docs/rules/ide/the-extension-claims-nvs-only.md:1`). The LSP selector is `editors/vscode/src/extension.ts:103`, and the registry is `crates/nvs-config/src/directive.rs:87`. That registry has block rows such as `limits`, and the full key list is only in the serde tree at `crates/nvs-config/src/tree.rs:75`, so decide first where the complete key table comes from. `bun nv verify`'s `directives` and `template` steps already count 269 leaf keys and check that the default file contains each one, so start from whatever those steps read. M10 asks for completion \"asserted against the producing table\" (`docs/plan/m10.md:208`). Update the activation tests at `editors/vscode/test/host/colour.test.ts:90` and `editors/vscode/test/contributions/contributions.test.ts:320`. Delete gap `route-name-and-directive-completion-are-unbuilt` and its question."
       },
       {
         "done": false,
-        "text": "**Then the next answered question**, from `docs/agent/goals/goal-closeout.md:220` down, one slice each, until `bun nv owners --closes goal-closeout` is clean."
+        "text": "**The captured-output carrier** (answer 1: the sink's carrier at run time, `Core\\Html\\Markup|Core\\Cli\\Text` statically, for the isolate result and `Core\\Out::capture`). It is at `crates/nvs-types/src/expr/isolate.rs:593`, `crates/nvs-stdlib/src/script.rs:1326` and `crates/nvs-stdlib/src/out.rs:151`."
+      },
+      {
+        "done": false,
+        "text": "**Closure rebind** (answer 1: same class or a subclass, checked at run time, no scope argument). It is at `crates/nvs-types/src/expr/calls.rs:111` and `crates/nvs-ir/src/lower/closure.rs:214`."
+      },
+      {
+        "done": false,
+        "text": "**Handle-relative writes under every write door** (answer 2: `Core\\Zip::extract` and every `Core\\IO` write, with one decision record). It is at `crates/nvs-stdlib/src/zip.rs:839` and `crates/nvs-runtime/src/capability.rs:643`. The user allowed the record, so take the next free ADR number right before writing it."
       }
     ]
   },
   "backlog": [
-    "`.claude/settings.json` still allows `bun nv ci-green`, a command that no longer exists. It is a harness file, so a person removes the two lines.",
-    "`tools/nv/renderers/goal-plan.ts` still has a `walked` state, which no goal can reach now. Harmless; it goes when the renderer is next touched."
+    "The completion-image question waits on the user's VS Code report (`data/gaps/nvs-lsp/completion-file-images-are-not-checked-in-an-editor.json`)."
   ]
 }
