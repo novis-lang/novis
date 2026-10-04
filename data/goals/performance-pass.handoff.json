@@ -1,27 +1,19 @@
 {
-  "state": "**Goal `performance-pass`, Stage 5 (the fixes).** Stage 4's review is whole (`docs/perf/performance-review.md`, ending in `## floor`). Old refusals have not been priced again yet.\n\n**The syntax index is logarithmic.** `SyntaxIndex::at` binary-searches the last entry starting at or before the offset and climbs its parents; `children_of` finds its node by binary search and walks siblings by each entry's subtree end. A tree whose starts decrease falls back to the scan. `bun nv scaling fmt/classes` is flat.\n\n**27 gap records owned by `performance-pass`.** Still red: `scaling --check` (`numbers/bigint-mul.nvs` grows, `compiler/elseif.nvs` overflows the release stack between 700 and 1024 arms) and `owners --closes performance-pass`. `docs/perf/performance-pass.md` *Decisions for you* has one entry: a total deadline for the request head.",
+  "state": "**Goal `performance-pass`, Stage 5 (the fixes).** Stage 4's review is whole (`docs/perf/performance-review.md`, ending in `## floor`). Old refusals have not been priced again yet.\n\n**The formatter's indent recursion is bounded.** `Indent::opening_of` still recurses once per enclosing body, but the parser stops nesting at 96 levels (`E0108`), so the depth is a constant. `bun nv scaling fmt/depth` (n methods, each 40 `if` levels deep) is flat at exponent 0.66 over 10..320. The module doc of `crates/nvs-fmt/src/indent.rs` says so; no cache was built.\n\n**26 gap records owned by `performance-pass`.** Still red: `scaling --check` (`numbers/bigint-mul.nvs` grows, `compiler/elseif.nvs` overflows the release stack between 700 and 1024 arms) and `owners --closes performance-pass`. `docs/perf/performance-pass.md` *Decisions for you* has one entry: a total deadline for the request head.",
   "next": {
     "stage": 5,
-    "title": "the fixes, the formatter's indent recursion",
-    "files": [
-      "crates/nvs-fmt/src/indent.rs",
-      "crates/nvs-fmt/src/print.rs",
-      "crates/nvs-fmt/src/brace.rs",
-      "crates/nvs-fmt/src/space.rs"
-    ],
+    "title": "the fixes, the `elseif` chain",
+    "files": [],
+    "note": "one file set: `crates/nvs-syntax/src/parser/stmt.rs`, the `If` node in the AST, and every walk over its `else_`.",
     "items": [
       {
         "done": false,
-        "text": "**Cache each body's indent as the printer descends** instead of `opening_of` recursing per enclosing body (`crates/nvs-fmt/src/indent.rs:192`, callers `crates/nvs-fmt/src/brace.rs:109` and `crates/nvs-fmt/src/space.rs:231`), add the `fmt/depth.nvs` ladder the gap names, and close `data/gaps/nvs-fmt/opening-of-recurses-per-enclosing-body.json`. Each level is now a logarithmic lookup, so what is left is O(depth) per line and a stack that grows with nesting. Run the ladder first: if it is flat and does not overflow, close the gap with that figure instead of the cache. Rule: the goal's base rule."
+        "text": "**Parse an `if`/`elseif` chain without recursion** (`crates/nvs-syntax/src/parser/stmt.rs:403`, `finish_if` calls itself once per `elseif`), so `benches/scaling/compiler/elseif.nvs` is flat and never overflows, and close `data/gaps/nvs-syntax/an-elseif-chain-is-not-depth-guarded.json`. The gap prefers one statement with a list of arms; first count the walks over `If::else_` that would change, and if every later walk recurses on `else_` too, the list is the root fix. The `else if` spelling is refused by `E0108` at 90 arms; the gap names it a defect too. Rule: the goal's base rule."
       }
     ]
   },
   "backlog": [
-    "`compiler/elseif.nvs` overflows the release stack: `data/gaps/nvs-syntax/an-elseif-chain-is-not-depth-guarded.json`.",
-    "The `Core` signature table is rebuilt per check, 54% of an empty `nvs check`: `data/gaps/nvs-types/core-signatures-are-built-again-for-every-check.json`.",
-    "A request re-analyses an unchanged document: `data/gaps/nvs-lsp/a-request-analyses-an-unchanged-document-again.json`.",
-    "Hierarchy and CodeLens lookups scan every declaration: `data/gaps/nvs-lsp/a-hierarchy-lookup-scans-every-declaration.json`.",
-    "`numbers/bigint-mul.nvs` grows: a ladder with no gap record yet, owned by this goal (`docs/perf/performance-review.md`).",
-    "Old refusals not yet priced again (`docs/agent/goals/performance-pass.md`)."
+    "`numbers/bigint-mul.nvs` grows — the other red ladder in `scaling --check` (`docs/perf/performance-review.md`).",
+    "25 more gap records owned by `performance-pass`; `bun nv owners --closes performance-pass` lists them."
   ]
 }
