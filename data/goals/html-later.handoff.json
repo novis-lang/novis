@@ -1,32 +1,33 @@
 {
-  "state": "**Goal `html-later` — Stage 2 has begun: the decision record is on disk, no behaviour yet.** ADR 0266 (`docs/decisions/0266.md`) decides the whole goal: `later`, the placeholder and token, normal-route assembly, slotted delivery, the polyfill, failure and limits, the closed head, and the after-response trigger. It creates `rule:core-classes/html-later` (status `designed`, empty `guardedBy`) and modifies `rule:concurrency/nothing-is-still-running-when-a-call-returns`, `rule:concurrency/after-response-outlives-the-connection` and `rule:core-classes/html-auto-escape`; each modified text stays true today, since a request with no `later` behaves as before. The module doc of `crates/nvs-runtime/src/deferred.rs` states the new trigger.\n\nThe second ADR slot (the polyfill and its CSP hash) is unused and only for Stage 3. `docs/reference/lang/80-concurrency.md:10-13` and `docs/spec/02-php-migration.md:862` are still to be rewritten by the session that lands the behaviour (goal § Stage 0).",
+  "state": "**Goal `html-later` — Stage 2 is under way: `Core\\Html::later` runs on a normal route.** ADR 0266 decides the goal and `rule:core-classes/html-later` is still `designed`. `crates/nvs-runtime/src/later.rs` holds the slots (`Ctx::register_later`, the per-request 96-bit token, the placeholder bytes) and `run_later`, the one assembly pass, which `nvs_host::isolate` calls on both completion paths right after the program returns. `crates/nvs-stdlib/src/html.rs` has the `later` row and member: a registration under the HTML sink, the closure run in place anywhere else. `crates/nvs-stdlib/tests/html_later.rs` holds 10 of the stage check's 13 tests, all green.\n\n**Known gap, recorded in `later.rs`'s module doc:** slots run when the frame returns, concurrently with each other but not with the main script, because the host seam has no \"start a child and return\" call. The goal's \"starts `fn` at once\" needs one; see Backlog. A `later` called inside a `Core\\Task::all` child registers on the child's context, and nothing assembles it.\n\nStill owed for the stage: the head rule, the limit tests, the two `.nvst` cases, the rule flip. `docs/reference/lang/80-concurrency.md:10-13` and `docs/spec/02-php-migration.md:862` still need rewriting (goal § Stage 0).",
   "next": {
     "stage": 2,
     "title": "`later` on a normal route",
     "files": [
-      "crates/nvs-stdlib/src/html.rs",
-      "crates/nvs-stdlib/src/task.rs",
-      "crates/nvs-runtime/src/ctx/output.rs",
-      "crates/nvs-runtime/src/deferred.rs"
+      "crates/nvs-runtime/src/later.rs",
+      "crates/nvs-stdlib/src/response.rs",
+      "crates/nvs-stdlib/tests/html_later.rs",
+      "crates/nvs-runtime/src/ctx/isolate.rs"
     ],
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Html::later`**: the registry row beside `join`, its task a child of the request started the way `afterResponse` registers (`rule:core-classes/html-later`), the per-request 96-bit token and the placeholder bytes, and the one assembly pass when the frame and every task have ended — `crates/nvs-stdlib/src/html.rs:186`, `crates/nvs-stdlib/src/task.rs:164`, `crates/nvs-runtime/src/ctx/output.rs:51`."
+        "text": "**The head rule and the limits**: a `later` slot's context is marked (set it where `later.rs`'s `fill` starts the inner group), and a status, header, redirect, body method, cookie or session regeneration on it throws `LogicError` (`rule:core-classes/html-later`); tests `a_later_closure_that_changes_the_response_head_throws`, `later_tasks_share_the_requests_limits` and `a_limit_breach_fails_the_whole_request_on_a_normal_route` in the test file — `crates/nvs-runtime/src/later.rs:274`, `crates/nvs-stdlib/src/response.rs:1`, `crates/nvs-runtime/src/ctx/isolate.rs:296`."
       },
       {
         "done": false,
-        "text": "**The request's limits and the head rule**: every `later` task charged to the request tree with no limit of its own, a limit breach failing the whole request, a throw or own `deadline` filling `error`, and `LogicError` for a head change inside a closure — `crates/nvs-stdlib/src/task.rs:73`, `crates/nvs-runtime/src/deferred.rs:1`."
+        "text": "**The two `.nvst` cases** of check `later-assembles-a-page-and-refuses-a-head-change`: the page case needs a request-mode runner (find how `tests/conformance/` runs a case under the HTML sink), and the reject case needs a checker diagnostic for a head-changing call inside a `later` closure — `crates/nvs-stdlib/src/html.rs:186`."
       },
       {
         "done": false,
-        "text": "**After-response work waits for the last `later` task** (ADR 0266 § 10), and `rule:core-classes/html-later` flips to `shipped` with its `guardedBy` filled once the two `.nvst` cases land — `crates/nvs-runtime/src/deferred.rs:1`."
+        "text": "**Flip `rule:core-classes/html-later` to `shipped`** with `guardedBy` naming `crates/nvs-stdlib/tests/html_later.rs` and the two cases, and rewrite the two docs Stage 0 names — `docs/reference/lang/80-concurrency.md:10`."
       }
     ]
   },
   "backlog": [
-    "Stage 3, slotted delivery and the Playwright browser test — goal `html-later` § Stage 3.",
-    "Stage 0's two remaining sentences, `docs/reference/lang/80-concurrency.md:10-13` and `docs/spec/02-php-migration.md:862`, with the behaviour — goal § Stage 0.",
-    "The calls ADR 0266 § Consequences lists as open to the user's review."
+    "A host call that starts a closure task and returns, so a slot overlaps the main script, as the rule says (`crates/nvs-runtime/src/host.rs:613`, the `Host` trait). Without it a slot starts when the frame returns.",
+    "A `later` inside a `Core\\Task::all` child: its slot should move to the request's slots when the child ends (`crates/nvs-runtime/src/later.rs`).",
+    "Stage 3, slotted delivery: `#[Core\\Route(slotted: true)]`, `Core\\Response::slotted()`, the polyfill, the browser lane.",
+    "Stage 4: LSP completion and hover for `later`'s options."
   ]
 }

@@ -21672,7 +21672,7 @@ Checks that `$token` was made by `Core\Signature::sign` with a key in `$keys`, a
 <a id="core-core-html"></a>
 ### `Core\Html`
 
-Keywords: html, markup, template, template literal, page, view, render, escape, escaping, xss, htmlspecialchars, htmlentities, html_entity_decode, strip_tags, DOMDocument, loadHTML, sanitize, parse, escape, join, toSource, parse, sanitize
+Keywords: html, markup, template, template literal, page, view, render, escape, escaping, xss, htmlspecialchars, htmlentities, html_entity_decode, strip_tags, DOMDocument, loadHTML, sanitize, parse, escape, join, later, toSource, parse, sanitize
 
 `Core\Html\Markup` is the one type an HTTP request writes raw; every `string` written into a
 page is escaped. A `Markup` is made in three ways: an ``html`…` `` literal, whose text is trusted
@@ -21704,6 +21704,7 @@ echo Core\Html::toSource($badge, "logging the fragment"), "\n";
 |---|---|
 | [`Core\Html::escape`](#core-core-html-escape) | `escape(string $text): Core\Html\Markup` |
 | [`Core\Html::join`](#core-core-html-join) | `join(array<Core\Html\Markup> $parts, Core\Html\Markup $separator): Core\Html\Markup` |
+| [`Core\Html::later`](#core-core-html-later) | `later(callable(): mixed $fn, {placeholder?: Core\Html\Markup, error?: Core\Html\Markup, deadline?: Core\Time\Duration}): Core\Html\Markup` |
 | [`Core\Html::toSource`](#core-core-html-tosource) | `toSource(Core\Html\Markup $markup, string $reason): string` |
 | [`Core\Html::parse`](#core-core-html-parse) | `parse(string $document): Core\Xml\Node` |
 | [`Core\Html::sanitize`](#core-core-html-sanitize) | `sanitize(string $document): Core\Html\Markup` |
@@ -21738,6 +21739,26 @@ Concatenates a list of `Core\Html\Markup` fragments in order, writing `$separato
 | `$separator` | `Core\Html\Markup` | The markup written between each pair of parts — never before the first or after the last. An empty markup joins the parts with nothing between them. |
 
 **Returns** `Core\Html\Markup` — A `Core\Html\Markup` carrying every part's bytes in order, and empty markup for an empty list. Nothing is escaped on the way: each part and the separator are already carriers, so re-escaping one would corrupt the markup it was built for.
+
+<a id="core-core-html-later"></a>
+#### `Core\Html::later`
+
+```nvs skip
+Core\Html::later(callable(): mixed $fn, {placeholder?: Core\Html\Markup, error?: Core\Html\Markup, deadline?: Core\Time\Duration}): Core\Html\Markup
+```
+
+Runs `$fn` as a separate task and returns a placeholder. Write the placeholder where the output belongs. When the page is finished, the output of `$fn` replaces the placeholder. Several `later` calls run at the same time.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$fn` | `callable(): mixed` | The closure to run. It takes no arguments. Its output is what it echoes, followed by the `Core\Html\Markup` it returns, if any. |
+| `{placeholder: …}` | `Core\Html\Markup` (default `null`) | The markup the page shows until the output is ready. The default is empty. |
+| `{error: …}` | `Core\Html\Markup` (default `null`) | The markup shown instead of the output when `$fn` throws an error or runs past its `deadline`. The default is empty. |
+| `{deadline: …}` | `Core\Time\Duration` (default `null`) | The longest time `$fn` may run. Without it, only the request's own limits apply. |
+
+**Returns** `Core\Html\Markup` — A `Core\Html\Markup` placeholder. Outside an HTML response, `$fn` runs at once and the result is its output.
+
+**Throws** `LogicError` — When the page writes the same placeholder twice. A placeholder that the page never writes is not an error: its closure does not run, and a warning is logged.
 
 <a id="core-core-html-tosource"></a>
 #### `Core\Html::toSource`
