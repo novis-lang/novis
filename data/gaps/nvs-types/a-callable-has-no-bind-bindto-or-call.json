@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-types/src/expr/calls.rs",
-  "title": "A `callable` has no `bind`, `bindTo` or `call`.",
-  "text": "`rule:types/callable-absorbs-closure` keeps `bind`, `bindTo` and `call` as builtin operations on a `callable` value, called with method-call syntax. The method-call arm reads a `callable` receiver as one that names no class, so `$fn->bindTo($obj)` is `E0477`. M4's acceptance needs the case that depends on them: `bindTo()` on a closure that does not use `$this` returns an equivalent closure and rebinds nothing (`rule:statements/a-closure-binds-this-only-where-it-uses-it`). Closing it is the three operations typed on a `callable` receiver and lowered, and a conformance case for that divergence.",
-  "goal": "goal-closeout"
-}
