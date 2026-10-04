@@ -1,5 +1,5 @@
 {
-  "state": "**Side goal `website-overhaul` is reached: all six stages are on disk and every check in its record passes locally, except the CI floor on `main`.**\n\nThe whole site was read once against `AGENTS.md` § *Text an end user reads* by five reviewers that did not write it. Every flagged passage was rewritten from its meaning: Guides, Syntax, Install, the Core reference index, In-Depth and the home page. Four sidebar labels changed with their page titles in `website/astro.config.ts`: \"HTML is escaped for you\", \"Null is checked when you compile\", \"One request cannot change another\" and \"Where Novis is weaker\". The URLs did not change.\n\nThe driver's last sweep failed only on two `about.md` pages at 201 words, `Core\\Str::format` and `Core\\Str::indexOf`. Both are trimmed, and `bun nv proofs --gate` now owes nothing across the whole roster. The CI floor (\"the latest CI run on main succeeded\") is not something this branch can close: it turns green when `main`'s own CI is green.\n\nFor the user's review before the branch lands: the six standout features on the home page (`website/src/content/docs/index.mdx`) are a proposal, and so are the four renamed titles above. `sponsoring.mdx`, `impressum.md` and `datenschutz.md` were not reviewed, because they are in the user's own voice.",
+  "state": "**Side goal `website-overhaul` is reached: all six stages are on disk and every check in its record passes locally, except the CI floor.**\n\nThe CI floor (`bun nv ci-green`) needs a green CI run for the code HEAD holds. The branch has no upstream, and `.github/workflows/ci.yml` runs on a push to `main` or on a pull request only. So the floor closes only after the user pushes the branch as a pull request or merges it into `main`. Both are outward-facing, and the goal's standing decisions leave the review and the merge to the user. This run is `BLOCKED` on that call, and no session can close it.\n\nThe whole site was read once against `AGENTS.md` § *Text an end user reads* by five reviewers that did not write it, and every flagged passage was rewritten. `bun nv proofs --gate` owes nothing across the whole roster.\n\nFor the user's review before the branch lands: the six standout features on the home page (`website/src/content/docs/index.mdx`) are a proposal, and so are four renamed sidebar titles in `website/astro.config.ts`: \"HTML is escaped for you\", \"Null is checked when you compile\", \"One request cannot change another\" and \"Where Novis is weaker\". `sponsoring.mdx`, `impressum.md` and `datenschutz.md` were not reviewed, because they are in the user's own voice.",
   "next": {
     "stage": 6,
     "title": "In-Depth, the home page and the last links",
@@ -9,11 +9,11 @@
     "items": [
       {
         "done": false,
-        "text": "**The user reviews the site and merges `side/website-overhaul` into `main`**, then removes the worktree. Specified by `docs/agent/goals/side/website-overhaul.md` § Standing decisions, \"No review stop\". Anchors: `website/src/content/docs/index.mdx:1`"
+        "text": "**The user reviews the site, opens a pull request or merges `side/website-overhaul` into `main`, and waits for CI**, then removes the worktree. Specified by `docs/agent/goals/side/website-overhaul.md` § Standing decisions, \"No review stop\". Anchors: `website/src/content/docs/index.mdx:1`"
       }
     ]
   },
   "backlog": [
-    "None owned by this goal."
+    "Nothing open in this goal beyond the user's review and the CI run."
   ]
 }
