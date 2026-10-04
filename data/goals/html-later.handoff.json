@@ -1,27 +1,33 @@
 {
-  "state": "**Goal `html-later` — Stage 3 is closed. Stage 4 (the editor) and Stage 5 (the proofs gate) are open.** ADR 0266 decides the goal. `crates/nvs-runtime/src/later.rs` holds the slots and both deliveries. Its module doc § *A slotted response* says how the slotted one works and what it costs.\n\n**On disk:** `rule:core-classes/html-later` is `shipped`. Its guards now include `crates/nvs-server/src/slotted/tests.rs` and `tools/nv/test/html-later-polyfill.test.ts`. That test streams a slotted page to Playwright's Chromium headless shell, launched once with `DocumentPatching` and once with both it and `HTMLProcessingInstruction` off. One extra page turns the markers into processing instructions, so both kinds of marker are covered. The test skips when no browser is downloaded, and fails instead under `NV_BROWSER`. CI's `browser` job sets that. `LANES.browser` in `tools/nv/cmd/ci-changes.ts` turns the job on. The polyfill now trims a marker's text (`<?end>` as a PI has empty data, so it read `\"?end \"` before) and removes both markers with the old content. `POLYFILL_HASH` matches the file.\n\n**Known gaps, in `later.rs`'s module doc:** slots run when the frame returns, concurrently with each other but not with the main script. A `later` inside a `Core\\Task::all` child is never assembled. A slot whose task is cancelled while it writes ends the stream, and the fills after it are not sent.",
+  "state": "**Goal `html-later` — Stages 3 and 4 are closed. Stage 5 (the proofs gate) is open.** ADR 0266 decides the goal. `crates/nvs-runtime/src/later.rs` holds the slots and both deliveries, and its module doc § *A slotted response* says how the slotted one works and what it costs.\n\n**On disk:** `rule:core-classes/html-later` is `shipped`. The editor answers for `later`. Completion offers a `Core` member's options inside its trailing `{…}` bag (`option_key_at` and `option_keys` in `crates/nvs-lsp/src/completion.rs`), for every member with an options bag, not only `later`. Hover already showed `later`'s card. `completion_offers_the_options_of_later` (`crates/nvs-lsp/tests/completion_edits.rs`) and `hover_on_later_shows_its_card` (`crates/nvs-lsp/tests/navigation.rs`) pin both. The stale perf figures for `Core\\Response`, `Core\\Response\\Stream`, `Core\\Session` and `Core\\Html` were re-measured into `docs/perf/members.ndjson`.\n\n**`bun nv proofs --gate` now owes exactly two features**, `Core\\Html::later` and `Core\\Response::slotted`. Each owes everything: `about.md`, 3 examples, 1 attack, 1 bench and a Rust test carrying its `// covers:` marker.\n\n**Known gaps, in `later.rs`'s module doc:** slots run when the frame returns, concurrently with each other but not with the main script. A `later` inside a `Core\\Task::all` child is never assembled. A slot whose task is cancelled while it writes ends the stream, and the fills after it are not sent.",
   "next": {
-    "stage": 4,
-    "title": "tests, the editor and the help",
-    "files": [],
-    "note": "one file set: `crates/nvs-lsp/src/completion.rs`, `crates/nvs-lsp/src/hover.rs`, `crates/nvs-lsp/src/card.rs` and a test under `crates/nvs-lsp/tests/`.",
+    "stage": 5,
+    "title": "the proofs gate",
+    "files": [
+      "docs/examples/core/Html/later/",
+      "docs/examples/core/Response/slotted/",
+      "tests/hostile/core/Html/later/",
+      "tests/hostile/core/Response/slotted/",
+      "benches/members/core/Html/later.nvs",
+      "benches/members/core/Response/slotted.nvs"
+    ],
     "items": [
       {
         "done": false,
-        "text": "**Completion offers `later`'s options**: inside the `{…}` bag of a `Core\\Html::later(…)` call, completion offers `placeholder`, `error` and `deadline`. Nothing in the LSP completes an options bag's keys yet. The nearest code is `route_keys` at `crates/nvs-lsp/src/completion.rs:1041` (keys for `Core\\Router::url`'s params), and `core_parts` at `crates/nvs-lsp/src/completion.rs:2953` already spells the bag in a detail. The check wants the test `completion_offers_the_options_of_later`. `crates/nvs-lsp/tests/completion_edits.rs:234` is the nearest test to copy the shape of (`rule:core-classes/html-later`)."
+        "text": "**`Core\\Html::later`'s proofs**: `about.md`, three examples with `.out` (`bun nv proofs --bless`), one attack, one bench, and a `// covers: Core\\Html::later` line above a Rust test (`crates/nvs-server/src/slotted/tests.rs:74` is the nearest; `crates/nvs-cli/tests/request.rs:101` shows the marker's shape). The card to describe is `LATER_DOC` at `crates/nvs-stdlib/src/html.rs:403`. `bun nv proofs --id 'Core\\Html::later'` lists each path (`rule:testing/feature-proofs`)."
       },
       {
         "done": false,
-        "text": "**Hover shows `later`'s card**: hover over `later` shows its `Core` card. `core` at `crates/nvs-lsp/src/hover.rs:589` builds a `Core` hover, and `core_member_hover` at `crates/nvs-lsp/src/card.rs:165` reads the card. Check that `later` has a card (`rule:core-api/reference-card`), then add the hover test the stage check names (`bun nv loop --list --stage 4`)."
+        "text": "**`Core\\Response::slotted`'s proofs**: the same six, for the row at `crates/nvs-stdlib/src/response.rs:406` (`rule:testing/feature-proofs`). Every comment follows `AGENTS.md` § *Text an end user reads*; run `bun nv proofs --comments` over the new files before the wrap."
       },
       {
         "done": false,
-        "text": "**Stage 5, the proofs gate**: `bun nv proofs --gate` must owe nothing with `later` and slotted routes in it. `bun nv proofs --id '<feature>'` lists what is still owed (`rule:testing/feature-proofs`), at `tools/nv/cmd/proofs.ts:1`."
+        "text": "**The gate is green**: `bun nv proofs --gate` owes nothing; re-measure with `bun nv proofs --record-perf --group G` any group a later edit to `crates/nvs-stdlib/src/html.rs:403` or `crates/nvs-stdlib/src/response.rs:406` makes stale (`rule:testing/feature-proofs`)."
       }
     ]
   },
   "backlog": [
-    "The ADR's second slot (the polyfill and its CSP hash) is not used. Stage 3 closed without needing it.",
-    "Known gaps above stay in `crates/nvs-runtime/src/later.rs`'s module doc until a goal takes them."
+    "Completion offers every option even when the bag already writes it. Skipping the written ones is a small follow-up in `crates/nvs-lsp/src/completion.rs` (`option_keys`).",
+    "The three known gaps above, owned by `crates/nvs-runtime/src/later.rs`'s module doc."
   ]
 }
