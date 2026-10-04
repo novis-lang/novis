@@ -141,8 +141,8 @@ and `remove_dot_segments` are linear.
 **Read:** HTML and text escaping, value dumps, markup literal lowering, `echo`, and `Markup`
 composition.
 
-**Found:** `Markup + Markup` copies both sides, so a page built row by row is quadratic
-([`markup-concat-copies-the-whole-left-side`](../../data/gaps/nvs-stdlib/markup-concat-copies-the-whole-left-side.json)).
+**Found:** `Markup + Markup` copies both sides, so a page built row by row is quadratic. The fix
+is new `unsafe` code, so it is recorded in [performance-pass.md](performance-pass.md) *Decisions for you*.
 
 **Fine:** a markup literal is lowered once at compile time into one concat and one escape per hole.
 Escaping reads its input at most three times. Dump recursion is bounded by the model's depth cap.

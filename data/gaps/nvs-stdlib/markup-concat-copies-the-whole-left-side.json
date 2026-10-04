@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-stdlib/src/html.rs",
-  "title": "`Markup + Markup` copies both sides into a new string, so a page built row by row with `+` costs quadratic bytes.",
-  "text": "`nvs_core_html_markup_concat` (`crates/nvs-stdlib/src/html.rs:817-830`) allocates `left.len() + right.len()` and copies both; its doc says a chain of n fragments is n - 1 of these. `$page = $page + html`<tr>...</tr>`` over n rows copies the page so far on every row, O(n²) bytes, while a string `.` in the same loop grows in place. `Core\\Html::join` (`html.rs:850`) is the linear form, but the loop is the natural way to write it. Reusing the left buffer when its `Markup` has one reference, as string concat does, makes it amortized linear. Ladder: `templates/markup-loop.nvs`, n rows appended with `+`, `run` kind; bytes per row flat.",
-  "goal": "performance-pass"
-}
