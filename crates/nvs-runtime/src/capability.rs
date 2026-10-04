@@ -662,7 +662,41 @@ pub fn create(ctx: &Ctx, path: &Path, overwrite: bool, member: &str) -> Result<F
 /// `IOError` when it does, because then there is nothing to open.
 fn resolve_write(ctx: &Ctx, path: &Path, member: &str) -> Result<PathBuf, Fault> {
     relative_refusal(path, member)?;
-    let Some(at) = nvs_config::capability::resolved(path, &nvs_config::resolve::Disk) else {
+    let at = nvs_config::capability::resolved(path, &nvs_config::resolve::Disk);
+    allow_write(ctx, path, at, member)
+}
+
+/// [`resolve_write`] for a door that changes the name itself rather than the file it names: the
+/// parent of `path` resolved, and its last name kept as written.
+///
+/// [`rename`] moves the entry, so a link at either end is the entry to move or replace. Resolving
+/// it would put the link's target in its place, and a rename onto a link would then replace the
+/// file the link points at.
+///
+/// # Errors
+///
+/// [`resolve_write`]'s.
+fn resolve_name(ctx: &Ctx, path: &Path, member: &str) -> Result<PathBuf, Fault> {
+    relative_refusal(path, member)?;
+    let at = match (path.parent(), path.file_name()) {
+        (Some(parent), Some(name)) => {
+            nvs_config::capability::resolved(parent, &nvs_config::resolve::Disk)
+                .map(|parent| parent.join(name))
+        }
+        _ => None,
+    };
+    allow_write(ctx, path, at, member)
+}
+
+/// The grant check [`resolve_write`] and [`resolve_name`] share, on `at`, the resolved spelling of
+/// `path`, or `None` when it did not resolve.
+fn allow_write(
+    ctx: &Ctx,
+    path: &Path,
+    at: Option<PathBuf>,
+    member: &str,
+) -> Result<PathBuf, Fault> {
+    let Some(at) = at else {
         require(ctx, Cap::FsWrite, Scope::Path(path), member)?;
         let err = std::io::Error::new(
             std::io::ErrorKind::NotFound,
@@ -721,55 +755,40 @@ pub fn write(ctx: &Ctx, path: &Path, bytes: &[u8], member: &str) -> Result<(), F
 /// usually a name a client supplied, and this one is a name the program wrote beside a source it
 /// already holds.
 ///
-/// The byte count `std::fs::copy` answers with is dropped here rather than returned, because
-/// `Core\IO::copy` has nothing to say about it and a door that answered one would be inviting a
-/// second member to report it.
+/// The destination is opened as [`write()`] opens one (`rule:security/writes-open-beneath-a-handle`),
+/// and the source's permissions are copied onto it after its bytes. The byte count is not returned,
+/// because `Core\IO::copy` has nothing to say about it.
 ///
 /// **A destination that is the source itself is refused**, under any spelling and through a hard
-/// link. `std::fs::copy` on Unix truncates the destination before it reads the source, so a copy
-/// of a file onto itself would succeed and leave it empty; Windows refuses the same call with a
-/// sharing violation, so the check here is what makes both platforms throw.
+/// link. The destination is opened without emptying it, the two handles are compared, and only a
+/// destination that is another file is emptied. Emptying first would copy an empty file onto itself.
 ///
 /// # Errors
 ///
 /// [`require`]'s catchable `RuntimeError` when the configuration does not grant `fs.read` for
-/// `from` or `fs.write` for `to`, or [`io_failure`]'s `IOError` when the two paths name one file or
-/// the copy itself fails. The message names [`pair`]'s both-ends spelling, because either end can
-/// be the one at fault.
+/// `from` or `fs.write` for `to`, or [`io_failure`]'s `IOError` when the source is not a file, the
+/// two paths name one file, or the copy itself fails. The message names [`pair`]'s both-ends
+/// spelling, because either end can be the one at fault.
 pub fn copy(ctx: &Ctx, from: &Path, to: &Path, member: &str) -> Result<(), Fault> {
     require(ctx, Cap::FsRead, Scope::Path(from), member)?;
-    require(ctx, Cap::FsWrite, Scope::Path(to), member)?;
-    if same_file(from, to) {
-        return Err(io_failure(
-            member,
-            &pair(from, to),
-            &std::io::Error::new(
-                std::io::ErrorKind::InvalidInput,
-                "the source and the destination are the same file",
-            ),
-        ));
+    let at = resolve_write(ctx, to, member)?;
+    let fail = |err: &std::io::Error| io_failure(member, &pair(from, to), err);
+    let refuse = |why: &str| fail(&std::io::Error::new(std::io::ErrorKind::InvalidInput, why));
+    let mut source = File::open(from).map_err(|err| fail(&err))?;
+    let permissions = source.metadata().map_err(|err| fail(&err))?;
+    if !permissions.is_file() {
+        return Err(refuse("the source is not a file"));
     }
-    std::fs::copy(from, to)
-        .map(|_| ())
-        .map_err(|err| io_failure(member, &pair(from, to), &err))
-}
-
-/// Whether `a` and `b` both exist and are one file: the same device and inode, so a second
-/// spelling and a hard link both count. Windows answers the question itself by refusing to open a
-/// file for writing that a copy already holds open for reading, so this is `false` there.
-#[cfg(unix)]
-fn same_file(a: &Path, b: &Path) -> bool {
-    use std::os::unix::fs::MetadataExt;
-    match (std::fs::metadata(a), std::fs::metadata(b)) {
-        (Ok(a), Ok(b)) => a.dev() == b.dev() && a.ino() == b.ino(),
-        _ => false,
+    let mut destination =
+        crate::beneath::open_file(&at, crate::beneath::Mode::Write).map_err(|err| fail(&err))?;
+    if crate::beneath::same_file(&source, &destination).map_err(|err| fail(&err))? {
+        return Err(refuse("the source and the destination are the same file"));
     }
-}
-
-/// See the Unix twin: the operating system refuses the copy here.
-#[cfg(not(unix))]
-fn same_file(_a: &Path, _b: &Path) -> bool {
-    false
+    destination
+        .set_len(0)
+        .and_then(|()| std::io::copy(&mut source, &mut destination))
+        .and_then(|_| destination.set_permissions(permissions.permissions()))
+        .map_err(|err| fail(&err))
 }
 
 /// § 2's rename door: the name `from` becomes the name `to`, once [`Cap::FsWrite`] has been shown to
@@ -785,15 +804,20 @@ fn same_file(_a: &Path, _b: &Path) -> bool {
 /// the fallback spells it with [`copy`] and [`remove_file`], which is two capability checks in the
 /// order it chose.
 ///
+/// Both ends are checked by [`resolve_name`] and renamed by [`crate::beneath::rename`]
+/// (`rule:security/writes-open-beneath-a-handle`): a link at either end is the name that moves or is
+/// replaced, and a link planted above either end after the check fails the rename.
+///
 /// # Errors
 ///
-/// [`require`]'s catchable `RuntimeError` when the configuration does not grant `fs.write` for
+/// [`resolve_name`]'s catchable `RuntimeError` when the configuration does not grant `fs.write` for
 /// either path, or [`io_failure`]'s `IOError` when the rename itself fails — nothing at the source,
 /// a destination directory that is not there, or the two paths on different filesystems.
 pub fn rename(ctx: &Ctx, from: &Path, to: &Path, member: &str) -> Result<(), Fault> {
-    require(ctx, Cap::FsWrite, Scope::Path(from), member)?;
-    require(ctx, Cap::FsWrite, Scope::Path(to), member)?;
-    std::fs::rename(from, to).map_err(|err| io_failure(member, &pair(from, to), &err))
+    let source = resolve_name(ctx, from, member)?;
+    let destination = resolve_name(ctx, to, member)?;
+    crate::beneath::rename(&source, &destination)
+        .map_err(|err| io_failure(member, &pair(from, to), &err))
 }
 
 /// § 2's mkdir door: a directory exists at `path` when this returns, once [`Cap::FsWrite`] has been
