@@ -231,7 +231,8 @@ The check `no question waits for the user` fails while a line `- **Answer:** ope
   2. *Strike it unchecked.* The module doc says the image was never checked in an editor, and the
      text fallback is the bound. No work, but the docs then promise nothing about images.
 - **Recommendation** — 1. It is the only way to know, and it costs a few minutes.
-- **Answer:** open
+- **Answer:** 1. The user checks it in VS Code by hand. The result is written here as "image shows"
+  or "text only" when the user reports it, and a session builds from that.
 
 ### May the extension offer completion inside `nvs.toml`?
 
@@ -250,7 +251,8 @@ The check `no question waits for the user` fails while a line `- **Answer:** ope
      but a user writes `nvs.toml` with no help from the editor.
 - **Recommendation** — 1. `nvs.toml` is where most users make their first mistakes, and the
   provider is small.
-- **Answer:** open
+- **Answer:** 1. One completion provider for files named `nvs.toml` only, and the rule is rewritten to
+  say so.
 
 ### Are `Core` reference cards held to the plain voice?
 
@@ -270,7 +272,8 @@ The check `no question waits for the user` fails while a line `- **Answer:** ope
      text read in two voices.
 - **Recommendation** — 2. The rule is right for every card a reader sees. Rewriting all of them is
   wording work that would delay `performance-pass` without changing any behaviour.
-- **Answer:** open
+- **Answer:** 2. The rule changes now. The rewrite is a gap owned by a milestone at M9 or later, and a
+  card is fixed when its class is next touched. No sweep over every card.
 
 ### May file writes walk from a folder handle instead of a path?
 
@@ -293,7 +296,8 @@ The check `no question waits for the user` fails while a line `- **Answer:** ope
      access inside the destination while the call runs. No work.
 - **Recommendation** — 1 now, and 2 as a gap owned by a later goal. Security comes first in the
   priority ordering, and option 1 closes the case where an archive picks the names.
-- **Answer:** open
+- **Answer:** 2. The handle-relative walk goes under every write door in this goal: `Core\Zip::extract`
+  and every `Core\IO` write. The user allows the one decision record it needs.
 
 ### Does `Core\Server` need members for the request's environment?
 
@@ -314,7 +318,7 @@ The check `no question waits for the user` fails while a line `- **Answer:** ope
      member with its proofs.
 - **Recommendation** — 1. Simplicity comes before footprint, and no rule or example needs the
   missing facts. A later goal can add one member when a program needs it.
-- **Answer:** open
+- **Answer:** 1. No new members. Spec § 15 says `Core\Request` and `Core\Env` replace `$_SERVER`.
 
 ### What type is captured output under a request?
 
@@ -345,7 +349,8 @@ The check `no question waits for the user` fails while a line `- **Answer:** ope
 - **Recommendation** — 1. It is the only option that gives a correct page (priority 2), it keeps the
   escaping guarantee, and its memory cost is small and freed with the request. It settles
   `Core\Out::capture` in the same sessions.
-- **Answer:** open
+- **Answer:** 1. The sink's carrier at run time and the union statically, for the isolate result and
+  `Core\Out::capture` both.
 
 ### What may `bindTo`, `bind` and `call` rebind a closure to?
 
@@ -377,4 +382,4 @@ The check `no question waits for the user` fails while a line `- **Answer:** ope
 - **Recommendation** — 1. It keeps every rebind memory-safe (priority 1). It runs every PHP rebind
   that stays inside the class the body was written for (priority 2). The scope argument is refused
   because it is a way around `private`, which `rule:types/callable-absorbs-closure` does not promise.
-- **Answer:** open
+- **Answer:** 1. Same class or a subclass, checked at run time, and no scope argument.
