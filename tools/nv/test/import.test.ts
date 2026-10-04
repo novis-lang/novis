@@ -11,6 +11,8 @@ import { rules } from "../import/rules.ts";
 import { spec } from "../import/spec.ts";
 import { write } from "../lib/store.ts";
 import { playbookSection } from "../schema/playbook.ts";
+import { rule } from "../schema/rule.ts";
+import { topic } from "../schema/topic.ts";
 import { scratch, type Scratch } from "./scratch.ts";
 
 let tmp: Scratch;
@@ -18,42 +20,30 @@ afterEach(() => tmp?.cleanup());
 
 const values = (r: { records: { id: string; value: unknown }[] }) => Object.fromEntries(r.records.map((x) => [x.id, x.value]));
 
+const RULE_A = { title: "A", status: "shipped" as const, because: ["0001", "0002"], seeAlso: [], guardedBy: [], divergesFromPhp: "d" };
+const RULE_B = { title: "B", status: "designed" as const, because: ["0002"], seeAlso: ["types/a"], guardedBy: ["x.rs"] };
+
 /** A rulebook of one topic and two rules, the first created by 0001 and amended by 0002. */
-function rulebook(t: Scratch, indexTitle = "Types"): void {
-  t.put("docs/rules/_index.json", JSON.stringify({ topics: [{ topic: "types", title: indexTitle, order: 20 }] }));
-  t.put(
-    "docs/rules/types.json",
-    JSON.stringify({
-      topic: "types",
-      title: "Types",
-      order: 20,
-      rules: [
-        { id: "types/a", title: "A", status: "shipped", because: ["0001", "0002"], divergesFromPhp: "d" },
-        { id: "types/b", title: "B", status: "designed", because: ["0002"], seeAlso: ["types/a"], guardedBy: ["x.rs"] },
-      ],
-    }),
-  );
-  t.put("docs/rules/types/a.md", "A.\n");
-  t.put("docs/rules/types/b.md", "B.\n");
+function rulebook(t: Scratch, fragments = ["a", "b"]): void {
+  write(topic, "types", { title: "Types", order: 20, rules: ["types/a", "types/b"] }, t.root);
+  write(rule, "types/a", RULE_A, t.root);
+  write(rule, "types/b", RULE_B, t.root);
+  for (const f of fragments) t.put(`docs/rules/types/${f}.md`, `${f.toUpperCase()}.\n`);
 }
 
 describe("import", () => {
-  test("a topic lists its rules by id, and a rule's missing lists are empty", () => {
+  test("the rule and topic records are carried through as they stand", () => {
     tmp = scratch();
     rulebook(tmp);
     const got = rules.read(tmp.root);
     expect(got.unread).toEqual([]);
-    expect(values(got)).toEqual({
-      types: { title: "Types", order: 20, rules: ["types/a", "types/b"] },
-      "types/a": { title: "A", status: "shipped", because: ["0001", "0002"], seeAlso: [], guardedBy: [], divergesFromPhp: "d" },
-      "types/b": { title: "B", status: "designed", because: ["0002"], seeAlso: ["types/a"], guardedBy: ["x.rs"] },
-    });
+    expect(values(got)).toEqual({ types: { title: "Types", order: 20, rules: ["types/a", "types/b"] }, "types/a": RULE_A, "types/b": RULE_B });
   });
 
-  test("a topic file that disagrees with the index is reported", () => {
+  test("a rule with no fragment is reported", () => {
     tmp = scratch();
-    rulebook(tmp, "Kinds");
-    expect(rules.read(tmp.root).unread.map((u) => u.reason)).toEqual(['its title "Types" is not the index\'s "Kinds"']);
+    rulebook(tmp, ["a"]);
+    expect(rules.read(tmp.root).unread.map((u) => u.reason)).toEqual(["rule types/b has no fragment docs/rules/types/b.md"]);
   });
 
   test("a decision's fields come from its H1, its bullets and its summary entry", () => {

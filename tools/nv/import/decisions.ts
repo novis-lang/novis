@@ -7,7 +7,9 @@
 // check that the two agree, so a record whose block says otherwise is reported rather than lost.
 
 import { parse as parseToml } from "smol-toml";
+import { load } from "../lib/store.ts";
 import { decision } from "../schema/decision.ts";
+import { rule } from "../schema/rule.ts";
 import { exists, extraKeys, list, text, type Importer, type ImportResult, type Unread } from "./lib.ts";
 
 const DIR = "docs/decisions";
@@ -132,21 +134,13 @@ export const decisions: Importer = {
   },
 };
 
-/**
- * Every record whose `changes:` block is not what the rules' `because` lists derive. The rules are
- * read from their legacy topic files, so this holds whether or not the rules importer ran first.
- */
+/** Every record whose `changes:` block is not what the rule records' `because` lists derive. */
 function changesAgree(root: string, declared: Map<string, Changes>): Unread[] {
   const derived = new Map<string, Changes>();
   const of = (id: string) => derived.get(id) ?? derived.set(id, { creates: [], modifies: [] }).get(id)!;
-  const index = JSON.parse(text(root, "docs/rules/_index.json")) as { topics: { topic: string }[] };
-  for (const { topic } of index.topics) {
-    const path = `docs/rules/${topic}.json`;
-    if (!exists(root, path)) continue;
-    const t = JSON.parse(text(root, path)) as { rules?: { id: string; because?: string[] }[] };
-    for (const r of t.rules ?? []) {
-      (r.because ?? []).forEach((adr, i) => of(adr)[i === 0 ? "creates" : "modifies"].push(r.id));
-    }
+  for (const r of load(rule, root)) {
+    const because = (r.value as { because?: string[] } | undefined)?.because ?? [];
+    because.forEach((adr, i) => of(adr)[i === 0 ? "creates" : "modifies"].push(r.id));
   }
   const out: Unread[] = [];
   const same = (a: string[], b: string[]) => a.length === b.length && [...a].sort().join() === [...b].sort().join();

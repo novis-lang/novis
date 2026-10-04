@@ -1,11 +1,13 @@
 // `bun nv import --check`: reads every legacy home into records and writes nothing into the tree. The
 // records are staged under `.cache/nv-import/`, where `nv check`'s own schema, foreign-key and
-// invariant checks run over them, and the renderers render from them to compare with every rendered
-// file on disk. Each line it prints is led by the legacy file it is about. It exits 1 when there is
-// any, and while a record type has no importer, since the legacy homes are then not all read.
+// invariant checks run over them, and each staged record file is compared with its copy under `data/`.
+// The rendered files are not compared here: the renderers also read prose and site files the stage
+// does not have, and `nv render --check` compares them with what `data/` renders. Each line it prints
+// is led by the legacy file it is about. It exits 1 when there is any, and while a record type has no
+// importer, since the legacy homes are then not all read.
 //
 // `bun nv import --write` builds and checks the same records, and refuses, writing nothing, on
-// anything `--check` would fail on except a stale rendered file. Otherwise it writes every record
+// anything `--check` would fail on except a record that differs from `data/`. Otherwise it writes every record
 // into `data/`, deletes a record file of a known type that the import no longer builds, and runs the
 // renderers over the tree, which is what rewrites the generated files and the prose files' front
 // matter.
@@ -113,10 +115,15 @@ async function build(): Promise<Build> {
     } finally {
       index.close();
     }
-    const outputs: Output[] = [];
-    for (const r of RENDERERS) outputs.push(...(await r.render(stage)));
-    rendered = outputs.length;
-    stale = apply(outputs, { check: true, root: ROOT }).stale;
+    const staged = new Set(recordFiles(stage));
+    const onDisk = recordFiles(ROOT);
+    rendered = new Set([...staged, ...onDisk]).size;
+    for (const path of staged) {
+      if (!existsSync(join(ROOT, path)) || readFileSync(join(ROOT, path), "utf8") !== readFileSync(join(stage, path), "utf8")) {
+        stale.push(path);
+      }
+    }
+    for (const path of onDisk) if (!staged.has(path) && RECORDS.some((t) => idAt(t, path) !== null)) stale.push(path);
   } finally {
     rmSync(stage, { recursive: true, force: true });
   }
@@ -150,8 +157,8 @@ export async function run(args: string[]): Promise<number> {
 
   if (mode === "--check") {
     report(b, mode);
-    for (const path of b.stale) console.log(`${path}: is not what the imported records render`);
-    console.log(`nv import --check: ${b.stale.length} of ${b.rendered} rendered file(s) stale`);
+    for (const path of b.stale) console.log(`${path}: is not the record the import builds`);
+    console.log(`nv import --check: ${b.stale.length} of ${b.rendered} record file(s) differ from the import`);
     return refused || b.stale.length > 0 ? 1 : 0;
   }
 
