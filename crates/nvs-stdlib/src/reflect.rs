@@ -118,7 +118,7 @@
 //! cases that partition [`nvs_runtime::Tag`]'s value-carrying half answer the
 //! whole family in one call and a `match` with no `default` is exhaustive.
 //! That is also why the cases stop where the *representations* do. `Callable`
-//! is not one, because `rule:types/anonymous-function` makes a closure an ordinary object and a case
+//! is not one, because `rule:types/anonymous-function` makes a callable an ordinary object and a case
 //! for it would be a second case one value satisfies; `Numeric` is not one,
 //! because `is_numeric` asks about a `string`'s **contents** and that is
 //! `Core\Validate`'s question, not this member's; and `Iterable` and
@@ -167,7 +167,7 @@
 //! invented one.
 //!
 //! **This is not `Core\Attributes`, and the two never meet.** That retrieval is
-//! *structural*: it matches an attached literal against a shape type and is
+//! *structural*: it matches an attached payload object against a shape type and is
 //! replaced by its answer at compile time, so a running program holds no table
 //! for it at all (`nvs_types::retrieval`). This is the reflective question
 //! instead — *what is attached to this class, which the checker never saw* —
@@ -505,8 +505,8 @@ const TYPE_KIND_DOC: EnumDoc = EnumDoc {
         },
         CaseDoc {
             name: "Object",
-            desc: "A class instance, a closure included — a closure is an ordinary object here, \
-                   so there is no `Callable` case to disagree with it.",
+            desc: "A class instance. A callable is also an object here, so there is no \
+                   `Callable` case.",
         },
     ],
 };
@@ -577,7 +577,7 @@ pub(crate) const CLASS_INFO: CoreClass = CoreClass {
             params: &[CoreTy::Text(Qual::Neutral)],
             defaults: &[],
             // `mixed`, on `get`'s terms one member down: which of the four
-            // literal types a constant folded to is not known where the call
+            // literal kinds a constant folded to is not known where the call
             // is written, the class being named at run time.
             return_ty: CoreTy::Mixed,
             symbol: "nvs_core_reflect_class_info_constant",
@@ -707,10 +707,11 @@ const CONSTANT_DOC: MethodDoc = MethodDoc {
         },
         ErrorDoc {
             error: "LogicError",
-            desc: "The class declares and inherits no constant of that name; or the declaration's \
-                   value is not one of the four literals Novis folds, which `hasValue` reports \
-                   ahead of the call. Both are mistakes in the program rather than privilege \
-                   questions, which is what separates them from the refusals above.",
+            desc: "The class declares and inherits no constant of that name. Or the constant's \
+                   value is not a `string`, `int`, `bool` or `float` written directly in the \
+                   code: `hasValue` checks this before the call. Both are mistakes in the \
+                   program, not permission problems, and that is how they differ from the \
+                   errors above.",
         },
     ],
 };
@@ -1514,11 +1515,11 @@ const CONSTANT_HAS_VALUE_DOC: MethodDoc = MethodDoc {
     short: "Whether the constant's declared value is one Novis folds at compile time, and so one \
             `Core\\Reflect\\ClassInfo::constant` can hand back.",
     params: &[],
-    ret: "`true` for a `string`, `int`, `bool` or `float` literal — `false` for an `array` or \
-          object constant, and for an integer no `int` holds. Novis folds a constant that *is* a \
-          literal and runs no second constant-expression evaluator, so this reports a stated \
-          bound rather than an unknown, and it is `false` for exactly the constants the checker \
-          also refuses in type position.",
+    ret: "`true` for a `string`, `int`, `bool` or `float` written directly in the code. `false` \
+          for an `array` or object constant, and for an integer too large for `int`. Novis \
+          reads a constant only when its value is written directly in the code, and it does not \
+          evaluate other expressions. So this is `false` for exactly the constants that are \
+          also not allowed in type position.",
     errors: &[],
 };
 
@@ -1584,7 +1585,7 @@ pub(crate) const ATTRIBUTE_INFO: CoreClass = CoreClass {
             params: &[CoreTy::Text(Qual::Neutral)],
             defaults: &[],
             // `mixed`, on `ClassInfo::constant`'s terms: which of the four
-            // literal types a payload field folded to is not known where the
+            // literal kinds a payload field folded to is not known where the
             // call is written, the class being named at run time.
             return_ty: CoreTy::Mixed,
             symbol: "nvs_core_reflect_attribute_info_field",
@@ -1627,10 +1628,9 @@ const ATTRIBUTE_CARD: ClassDoc = ClassDoc {
 const ATTRIBUTE_NAME_DOC: MethodDoc = MethodDoc {
     short: "The `type` alias the named form gave the attribute, as it is written.",
     params: &[],
-    ret: "The written name, or the **empty string** for the bare `#[{...}]` form. Unresolved on \
-          purpose: the name checks the literal where it is written and is never how a caller \
-          asks for one, so a resolved name here would report the checker's answer to a question \
-          nobody asked.",
+    ret: "The written name, or the **empty string** for the bare `#[{...}]` form. The name is \
+          not resolved. It is used to check the payload object where it is written, and a \
+          caller never uses it to find an attribute.",
     errors: &[],
 };
 
@@ -1672,16 +1672,16 @@ const ATTRIBUTE_FIELD_DOC: MethodDoc = MethodDoc {
         desc: "The field's own name, as `fields` answers it.",
         shape: &[],
     }],
-    ret: "The value as a `string`, `int`, `bool` or `float` — the four a payload's literal folds \
-          to.",
+    ret: "The value as a `string`, `int`, `bool` or `float`. These are the four types a \
+          payload field can have here.",
     errors: &[ErrorDoc {
         error: "LogicError",
         desc: "The attribute's payload has no field of that name, so the ask is a mistake rather \
                than an absence to report — `fields` is the list that cannot be wrong. Or the \
                field's value is one Novis does not fold into a description: a class constant, an \
                enum case or `Foo::class`, each of which resolves through the namespace the \
-               attribute was *written* in, plus the literals `Core\\Reflect\\ConstantInfo` \
-               reports the same way. `Core\\Attributes::get` reads all of those, at compile time \
+               attribute was *written* in, plus the values that `Core\\Reflect\\ConstantInfo` \
+               also cannot read. `Core\\Attributes::get` reads all of those, at compile time \
                and by shape.",
     }],
 };
@@ -3979,7 +3979,7 @@ mod tests {
         let roster_of = |ctx: &mut Ctx, id| {
             #[expect(
                 unsafe_code,
-                reason = "`classes` outlives this closure's every call, and the table never \
+                reason = "`classes` outlives this Rust closure's every call, and the table never \
                           moves a descriptor it handed out"
             )]
             let info = super::describe(unsafe { &*classes.desc(id) });

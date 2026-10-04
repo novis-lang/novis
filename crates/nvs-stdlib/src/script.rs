@@ -858,8 +858,9 @@ nvs_runtime::nvs_helper! {
             ))
         })?;
         // `rule:programs/relative-paths-resolve-from-their-file`: a relative
-        // literal arrives joined to its file's folder, so a relative path here
-        // was built while the program ran, and nothing resolves it from the
+        // path given as a string literal arrives joined to its file's folder,
+        // so a relative path here was built while the program ran, and
+        // nothing resolves it from the
         // working directory.
         if let Some(message) =
             nvs_runtime::capability::relative(std::path::Path::new(path), "`spawn script`")
@@ -873,7 +874,7 @@ nvs_runtime::nvs_helper! {
         // and the lowering emitted no release for it.
         let crossing = args[1];
         // The **path**, not a program: `nvs_runtime::host::Entry`'s doc owns why
-        // the name crosses the seam and the closure cannot, and the resolve —
+        // the name crosses the seam and the Rust closure cannot, and the resolve —
         // with `rule:security/capability-check-at-the-door`'s `script.spawn`
         // door inside it — happens on the core that is going to run the child.
         let started = nvs_runtime::host::with_current(|host| {
@@ -1186,7 +1187,7 @@ nvs_runtime::nvs_helper! {
         // putting a value on the queue that the drain would then try to call.
         if args[0].tag() == Some(nvs_runtime::Tag::Null) {
             return Err(Fault::fatal(
-                "Core\\Script::onExit expected a closure for its hook, got null".to_string(),
+                "Core\\Script::onExit expected a callable for its hook, got null".to_string(),
             ));
         }
         #[expect(
@@ -1345,7 +1346,7 @@ mod tests {
 
     thread_local! {
         /// What each hook saw, appended in the order the hooks ran — the only
-        /// channel a plain `extern "C"` callback has, since a closure with no
+        /// channel a plain `extern "C"` callback has, since a callback with no
         /// captured state has nowhere else to put it.
         static SEEN: RefCell<Vec<Saw>> = const { RefCell::new(Vec::new()) };
     }
@@ -1731,7 +1732,7 @@ mod tests {
         let mut child = unsafe { ctx.child() };
         assert_eq!(
             // The seal is read before the queue is touched, so a null stands
-            // in for the closure a registration would have carried.
+            // in for the callable a registration would have carried.
             child.defer(Value::null(), 0),
             Err(nvs_runtime::deferred::DeferError::Sealed),
             "a child may not register after-response work, which is the work a \
@@ -1846,7 +1847,7 @@ mod tests {
                   crate laid out"
     )]
     unsafe fn record(who: &'static str, args: *const Value, out: *mut Value) -> i32 {
-        // Slot 0 is the closure itself and slot 1 its one parameter, which is
+        // Slot 0 is the callable itself and slot 1 its one parameter, which is
         // the report — `nvs_runtime::call_callable` builds the frame that way
         // for a compiled callee and for this one alike.
         let report = unsafe { *args.add(1) };
@@ -1907,9 +1908,9 @@ mod tests {
         nvs_runtime::THROWN
     }
 
-    /// A closure value whose `invoke` is a plain Rust function —
+    /// A callable value whose `invoke` is a plain Rust function —
     /// `crates/nvs-stdlib/tests/allocation_policy.rs`'s `callable_of`, whose doc
-    /// comment is the home of why this is a whole closure. The table is leaked
+    /// comment is the home of why this is a whole callable. The table is leaked
     /// because a descriptor's *address* is its identity.
     fn callable_of(arity: usize, invoke: NvsFn) -> Value {
         let mut table = ClassTable::new();

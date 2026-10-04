@@ -66,6 +66,6 @@ try {
 --EXPECT--
 copy=written
 again=written
-Core\Cache\Store::put(): a closure captures a heap and a scope, so it has no meaning on the other side of a copy boundary
+Core\Cache\Store::put(): a callable captures variables from the code that created it, so it has no meaning on the other side of a copy boundary
 Core\Cache\Store::put(): a generator is a suspended frame, so it has no meaning on the other side of a copy boundary
 shared refused before there was anything to copy

@@ -3599,7 +3599,7 @@ mod tests {
         }
     }
 
-    /// What a reference may resolve to is a closed vocabulary, and the closure
+    /// What a reference may resolve to is a closed vocabulary, and that closed set
     /// is the whole mitigation.
     ///
     /// `rule:core-classes/xml-refuses-by-construction`: the five predefined
@@ -4007,7 +4007,7 @@ mod tests {
     ///    produces a value of another class.
     /// 3. **The values are ordinary data at run time too**, over a real parse:
     ///    every slot is an integer, text or an array of those, and there is no
-    ///    closure, callable or resource anywhere in it.
+    ///    callable or resource anywhere in it.
     #[test]
     fn a_parsed_tree_has_no_path_back_into_execution() {
         for class in CLASSES {

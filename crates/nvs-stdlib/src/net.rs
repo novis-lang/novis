@@ -100,7 +100,7 @@
 //! carrying no address policy. Neither widens the other, and a member here asks
 //! exactly one of them.
 //!
-//! `Core\Net::listen` takes a **literal** address and resolves no name, which
+//! `Core\Net::listen` takes an **IP address** and resolves no name, which
 //! is what `Scope::Endpoint` being a `SocketAddr` already requires: the grant is
 //! matched exactly against an endpoint, and a name that resolved to two
 //! addresses would be a bind the operator could not have named.
@@ -289,7 +289,7 @@ const CONNECT_DOC: MethodDoc = MethodDoc {
     params: &[
         ParamDoc {
             name: "host",
-            desc: "A hostname or an address literal. It is checked against the grant before it is \
+            desc: "A hostname or an IP address. It is checked against the grant before it is \
                    resolved, and the one address it resolves to is what the connection is made to.",
             shape: &[],
         },
@@ -334,7 +334,7 @@ const LISTEN_DOC: MethodDoc = MethodDoc {
     params: &[
         ParamDoc {
             name: "address",
-            desc: "An address literal — `127.0.0.1`, `::1`, `0.0.0.0`. Not a hostname: the grant \
+            desc: "An IP address, such as `127.0.0.1`, `::1` or `0.0.0.0`. Not a hostname: the grant \
                    is matched against one endpoint, and a name resolving to two could not be the \
                    one an operator named.",
             shape: &[],
@@ -352,7 +352,7 @@ const LISTEN_DOC: MethodDoc = MethodDoc {
         ErrorDoc {
             error: "RuntimeError",
             desc: "The configuration does not grant `net.listen` for this endpoint, `$address` is \
-                   not an address literal, or `$port` is not a port.",
+                   not an IP address, or `$port` is not a port.",
         },
         ErrorDoc {
             error: "IOError",
@@ -370,7 +370,7 @@ const BIND_DATAGRAM_DOC: MethodDoc = MethodDoc {
     params: &[
         ParamDoc {
             name: "address",
-            desc: "An address literal — `127.0.0.1`, `::1`, `0.0.0.0`. Not a hostname, for \
+            desc: "An IP address, such as `127.0.0.1`, `::1` or `0.0.0.0`. Not a hostname, for \
                    `Core\\Net::listen`'s reason: a grant names one endpoint.",
             shape: &[],
         },
@@ -387,7 +387,7 @@ const BIND_DATAGRAM_DOC: MethodDoc = MethodDoc {
         ErrorDoc {
             error: "RuntimeError",
             desc: "The configuration does not grant `net.listen` for this endpoint, `$address` is \
-                   not an address literal, or `$port` is not a port.",
+                   not an IP address, or `$port` is not a port.",
         },
         ErrorDoc {
             error: "IOError",
@@ -781,7 +781,7 @@ const DATAGRAM_SEND_DOC: MethodDoc = MethodDoc {
     params: &[
         ParamDoc {
             name: "host",
-            desc: "A hostname or an address literal. It is checked against the grant before it is \
+            desc: "A hostname or an IP address. It is checked against the grant before it is \
                    resolved, and the datagram goes to the one address it resolved to.",
             shape: &[],
         },
@@ -961,7 +961,7 @@ const MESSAGE_HOST_DOC: MethodDoc = MethodDoc {
             `string`, so it can be handed straight back to `send`, which asks the grant and the \
             address policy about it exactly as it would about any other address.",
     params: &[],
-    ret: "An address literal, never a hostname: nothing here is resolved backwards.",
+    ret: "An IP address, never a hostname: nothing here is resolved backwards.",
     errors: &[],
 };
 
@@ -1400,7 +1400,7 @@ nvs_runtime::nvs_helper! {
         let port = port_of(args, 1, MEMBER, true)?;
         let address: IpAddr = written.parse().map_err(|_| {
             Fault::thrown(format!(
-                "{MEMBER}: `{written}` is not an address literal — a bind names an endpoint, and \
+                "{MEMBER}: `{written}` is not an IP address. A bind needs an endpoint, and \
                  a hostname is not one"
             ))
         })?;
@@ -1737,7 +1737,7 @@ nvs_runtime::nvs_helper! {
         let port = port_of(args, 1, MEMBER, true)?;
         let address: IpAddr = written.parse().map_err(|_| {
             Fault::thrown(format!(
-                "{MEMBER}: `{written}` is not an address literal — a bind names an endpoint, and \
+                "{MEMBER}: `{written}` is not an IP address. A bind needs an endpoint, and \
                  a hostname is not one"
             ))
         })?;
@@ -2377,7 +2377,7 @@ mod tests {
             let refused = ctx.pending().expect("a message").into_owned();
             released(args);
             assert!(
-                refused.contains("is not an address literal") && refused.contains(PATH),
+                refused.contains("is not an IP address") && refused.contains(PATH),
                 "a bind names an endpoint, and says so of what it was handed: {refused}"
             );
         }
@@ -2507,7 +2507,7 @@ mod tests {
                 let refused = ctx.pending().expect("a message").into_owned();
                 released(args);
                 assert!(
-                    refused.contains("is not an address literal") && refused.contains(written),
+                    refused.contains("is not an IP address") && refused.contains(written),
                     "a bind reads its argument as one address and nothing else: {refused}"
                 );
             }

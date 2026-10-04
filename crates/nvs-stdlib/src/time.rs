@@ -1,8 +1,7 @@
 //! [docs/spec/01-core-library.md](/docs/spec/01-core-library.md)
 //! § 4 — `Core\Time` and the types it answers with, one module because they
-//! are one domain: `Duration` (the type
-//! `rule:types/duration`'s `30s`/`1h30m`
-//! literal is), `Instant`, `Zone` and `DateTime`. The pattern grammar
+//! are one domain: `Duration` (the type of a duration such as `30s` or
+//! `1h30m`, `rule:types/duration`), `Instant`, `Zone` and `DateTime`. The pattern grammar
 //! `DateTime::format` and `Time::parse` share is [`crate::cldr`], which is a
 //! grammar of its own and so a module of its own.
 //!
@@ -36,7 +35,7 @@
 //! # One grammar for a duration, and it is not here
 //!
 //! The grammar `Duration::parse` accepts and `toString` emits is
-//! [`nvs_syntax::duration`], which the lexer calls for the source literal and
+//! [`nvs_syntax::duration`], which the lexer calls for a duration in the source and
 //! `nvs.toml` will call for a duration-valued directive. `rule:types/duration` requires
 //! the three to share one implementation, and that module's own docs own why
 //! it sits in the syntax crate rather than this one.
@@ -50,7 +49,7 @@
 //! full ±9999-year range rather than the ~1677-2262 one a single `i64` of
 //! nanoseconds would; a `DateTime` holds three, an `Instant`'s two plus a
 //! `Zone`'s one, and [`DATETIME`] owns why that rather than seven civil
-//! fields. A duration *literal* spends an allocation too: `rule:types/duration`'s constant-pool folding wants an *immortal* value with no allocation at
+//! fields. A duration written in the source spends an allocation too: `rule:types/duration`'s constant-pool folding wants an *immortal* value with no allocation at
 //! all, which is the same thing `nvs_runtime`'s own gap 3 owes a string
 //! literal, so both close together rather than one growing a mechanism the
 //! other does not use. Until then `30s` is one
@@ -164,16 +163,17 @@ use crate::registry::{
 /// [`crate::registry::CLASSES`], so the two cannot drift apart.
 ///
 /// `nvs_types::expr` reads this same constant for the type of an
-/// [`nvs_syntax::ast::ExprKind::Duration`] literal, which is what makes ADR
+/// [`nvs_syntax::ast::ExprKind::Duration`] expression, which is what makes ADR
 /// 0070 § 2's "the suffix *is* the type" one fact rather than two spellings.
 pub const DURATION_NAME: &str = r"Core\Time\Duration";
 
 /// The symbol behind `Core\Time\Duration::nanoseconds`, which is also how a
-/// duration **literal** reaches a value — `nvs_ir::lower` emits one
-/// `InstKind::CoreCall` to it with the folded nanosecond count.
+/// duration written in the source, such as `30s`, reaches a value —
+/// `nvs_ir::lower` emits one `InstKind::CoreCall` to it with the folded
+/// nanosecond count.
 ///
 /// Named here rather than spelled in `nvs-ir` so that the registry row and the
-/// literal cannot come to mean different things.
+/// written duration cannot come to mean different things.
 pub const FROM_NANOS_SYMBOL: &str = "nvs_core_time_duration_nanoseconds";
 
 /// Spec § 4's `Core\Time\Duration` — an exact count of nanoseconds, and the
@@ -181,8 +181,8 @@ pub const FROM_NANOS_SYMBOL: &str = "nvs_core_time_duration_nanoseconds";
 /// length of.
 ///
 /// The eight `Duration::seconds`-shaped constructors are for a **computed**
-/// count; a constant one is `rule:types/duration`'s literal, and the two produce the same
-/// value through this class's one slot.
+/// count; a constant one is a duration written in the source (`rule:types/duration`), and
+/// the two produce the same value through this class's one slot.
 pub const DURATION: CoreClass = CoreClass {
     name: DURATION_NAME,
     doc: Some(&DURATION_CARD),
@@ -367,9 +367,8 @@ pub const DURATION: CoreClass = CoreClass {
 
 /// `Core\Time\Duration::nanoseconds`'s reference card — `rule:core-api/reference-card`.
 const DURATION_NANOSECONDS_DOC: MethodDoc = MethodDoc {
-    short: "Builds a `Duration` of exactly `$n` nanoseconds — the computed-count form of the \
-            duration literal, and the member a literal such as `30s` itself reaches a value \
-            through.",
+    short: "Builds a `Duration` of exactly `$n` nanoseconds, for a count computed at run time. \
+            A duration written directly in the code, such as `30s`, also uses this method.",
     params: &[ParamDoc {
         name: "n",
         desc: "The count of nanoseconds; negative for a duration that runs backwards.",
@@ -381,8 +380,8 @@ const DURATION_NANOSECONDS_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Time\Duration::microseconds`'s reference card — `rule:core-api/reference-card`.
 const DURATION_MICROSECONDS_DOC: MethodDoc = MethodDoc {
-    short: "Builds a `Duration` of `$n` microseconds, for a count computed at run time; a \
-            constant one is a duration literal.",
+    short: "Builds a `Duration` of `$n` microseconds, for a count computed at run time. For a \
+            fixed count, write the duration directly, such as `500us`.",
     params: &[ParamDoc {
         name: "n",
         desc: "The count of microseconds; negative for a duration that runs backwards.",
@@ -397,8 +396,8 @@ const DURATION_MICROSECONDS_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Time\Duration::milliseconds`'s reference card — `rule:core-api/reference-card`.
 const DURATION_MILLISECONDS_DOC: MethodDoc = MethodDoc {
-    short: "Builds a `Duration` of `$n` milliseconds, for a count computed at run time; a \
-            constant one is a duration literal such as `250ms`.",
+    short: "Builds a `Duration` of `$n` milliseconds, for a count computed at run time. For a \
+            fixed count, write the duration directly, such as `250ms`.",
     params: &[ParamDoc {
         name: "n",
         desc: "The count of milliseconds; negative for a duration that runs backwards.",
@@ -413,8 +412,8 @@ const DURATION_MILLISECONDS_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Time\Duration::seconds`'s reference card — `rule:core-api/reference-card`.
 const DURATION_SECONDS_DOC: MethodDoc = MethodDoc {
-    short: "Builds a `Duration` of `$n` seconds, for a count computed at run time; a constant \
-            one is written as the literal `30s`.",
+    short: "Builds a `Duration` of `$n` seconds, for a count computed at run time. For a fixed \
+            count, write the duration directly, such as `30s`.",
     params: &[ParamDoc {
         name: "n",
         desc: "The count of seconds; negative for a duration that runs backwards.",
@@ -430,8 +429,8 @@ const DURATION_SECONDS_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Time\Duration::minutes`'s reference card — `rule:core-api/reference-card`.
 const DURATION_MINUTES_DOC: MethodDoc = MethodDoc {
-    short: "Builds a `Duration` of `$n` minutes, for a count computed at run time; a constant \
-            one is a duration literal such as `1h30m`.",
+    short: "Builds a `Duration` of `$n` minutes, for a count computed at run time. For a fixed \
+            count, write the duration directly, such as `1h30m`.",
     params: &[ParamDoc {
         name: "n",
         desc: "The count of minutes; negative for a duration that runs backwards.",
@@ -447,8 +446,8 @@ const DURATION_MINUTES_DOC: MethodDoc = MethodDoc {
 /// `Core\Time\Duration::hours`'s reference card — `rule:core-api/reference-card`.
 const DURATION_HOURS_DOC: MethodDoc = MethodDoc {
     short: "Builds a `Duration` of `$n` hours — exact hours of 3600 seconds, which is how \
-            `Time::now()->plus(72h)` differs from a calendar step of three days. A constant \
-            count is the literal `72h`.",
+            `Time::now()->plus(72h)` differs from a calendar step of three days. For a fixed \
+            count, write the duration directly, such as `72h`.",
     params: &[ParamDoc {
         name: "n",
         desc: "The count of hours; negative for a duration that runs backwards.",
@@ -464,7 +463,8 @@ const DURATION_HOURS_DOC: MethodDoc = MethodDoc {
 /// `Core\Time\Duration::days`'s reference card — `rule:core-api/reference-card`.
 const DURATION_DAYS_DOC: MethodDoc = MethodDoc {
     short: "Builds a `Duration` of `$n` days of exactly 24 hours each — never a calendar day, \
-            which `DateTime::plus($n, Unit::Day)` is. A constant count is the literal `30d`.",
+            which `DateTime::plus($n, Unit::Day)` is. For a fixed count, write the duration \
+            directly, such as `30d`.",
     params: &[ParamDoc {
         name: "n",
         desc: "The count of 24-hour days; negative for a duration that runs backwards.",
@@ -495,22 +495,22 @@ const DURATION_WEEKS_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Time\Duration::parse`'s reference card — `rule:core-api/reference-card`.
 const DURATION_PARSE_DOC: MethodDoc = MethodDoc {
-    short: "Reads the duration literal grammar — `30s`, `1h30m`, `7d` — at run time, \
-            through the one implementation the lexer uses for the source literal: the typed \
-            form of `strtotime` for an exact offset arriving in a config value or a flag. It \
-            accepts nothing else, so a `tainted` value comes out laundered.",
+    short: "Reads a duration such as `30s`, `1h30m` or `7d` from text at run time. It uses the \
+            same syntax as a duration written in the code. Use it for an exact offset that \
+            comes from a config value or a flag. It accepts nothing else, so a `tainted` value \
+            comes out laundered.",
     params: &[ParamDoc {
         name: "text",
-        desc: "The text to read, in the duration literal grammar.",
+        desc: "The text to read, written the same way as a duration in the code.",
         shape: &[],
     }],
-    ret: "The `Duration` the text spells.",
+    ret: "The `Duration` the text describes.",
     errors: &[ErrorDoc {
         error: "ParseError",
-        desc: "`$text` is not a duration literal — an unknown or repeated unit, a missing \
-               count, trailing text — or spells more than a `Duration` can hold. A `$text` \
-               written as a literal is read by this same grammar while checking and refused \
-               there as `E0769`, so only a computed one reaches this throw.",
+        desc: "`$text` is not a valid duration. It has an unknown or repeated unit, a missing \
+               count or extra text, or it is longer than a `Duration` can hold. A `$text` \
+               written directly in the code is checked when the program compiles, and an \
+               error there is `E0769`. Only a computed `$text` reaches this throw.",
     }],
 };
 
@@ -610,7 +610,7 @@ const DURATION_NEGATED_DOC: MethodDoc = MethodDoc {
 /// `Core\Time\Duration`'s class card — `rule:core-api/reference-card`.
 const DURATION_CARD: ClassDoc = ClassDoc {
     short: "A length of time, such as 30 seconds or an hour and a half. You write a fixed one \
-            as a literal, like `30s` or `1h30m`, and build a computed one with `seconds`, \
+            directly in the code, like `30s` or `1h30m`, and build a computed one with `seconds`, \
             `minutes` or another constructor. It is an exact count of nanoseconds and can be \
             negative. `plus`, `minus` and `compareTo` work on two of them.",
 };
@@ -634,10 +634,11 @@ const DURATION_COMPARE_TO_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Time\Duration::toString`'s reference card — `rule:core-api/reference-card`.
 const DURATION_TO_STRING_DOC: MethodDoc = MethodDoc {
-    short: "Renders the receiver in the duration literal grammar — `1h30m`, `250ms` — as \
-            `Stringable` requires, so the text round-trips through `Duration::parse`.",
+    short: "Writes the receiver as text in the same syntax as a duration in the code, such as \
+            `1h30m` or `250ms`. `Stringable` requires this method, and `Duration::parse` reads \
+            the text back to the same value.",
     params: &[],
-    ret: "The literal spelling of the receiver.",
+    ret: "The receiver written as a duration, such as `1h30m`.",
     errors: &[],
 };
 
@@ -759,7 +760,7 @@ pub(crate) fn nanos_of(args: &[Value], at: usize, member: &str) -> Result<i64, F
 
 /// `rule:core-api/shape-rules` R4: a `Duration` past `i64` nanoseconds throws rather than wraps,
 /// which is [`duration::DurationError::Overflow`]'s message at run time and
-/// the same sentence the lexer prints for a literal.
+/// the same sentence the lexer prints for a duration written in the source.
 fn overflowed(member: &str) -> Fault {
     Fault::thrown(format!(
         "Core\\Time\\Duration::{member}(): {}",
@@ -782,10 +783,10 @@ fn scaled(args: &[Value], member: &str, length: i64) -> Result<Value, Fault> {
 nvs_runtime::nvs_helper! {
     /// `Core\Time\Duration::nanoseconds(int $n): Duration`.
     ///
-    /// Also where a **literal** lands: `rule:types/duration` folds `1h30m` to its
-    /// nanosecond count while compiling, and `nvs-ir` emits one call to this
-    /// with that constant — so the literal and the constructor cannot produce
-    /// different values.
+    /// Also where a duration written in the source lands: `rule:types/duration`
+    /// folds `1h30m` to its nanosecond count while compiling, and `nvs-ir` emits
+    /// one call to this with that constant — so the written duration and the
+    /// constructor cannot produce different values.
     fn nvs_core_time_duration_nanoseconds(_ctx, args: [1]) {
         Ok(built(count(args, 0, "nanoseconds")?))
     }
@@ -847,7 +848,7 @@ nvs_runtime::nvs_helper! {
 nvs_runtime::nvs_helper! {
     /// `Core\Time\Duration::parse(string $text): Duration` — `rule:types/duration`'s
     /// run-time entry point into the *same* grammar the lexer reads, so
-    /// `Duration::parse("1h30m")` and the literal `1h30m` are one value.
+    /// `Duration::parse("1h30m")` and the written duration `1h30m` are one value.
     ///
     /// Throws on anything it does not accept, which is what makes it an
     /// `rule:security/tainted-qualifier`
@@ -1798,10 +1799,11 @@ const DATETIME_FORMAT_DOC: MethodDoc = MethodDoc {
     errors: &[ErrorDoc {
         error: "LogicError",
         desc: "`$pattern` does not compile — a field letter outside the implemented subset, or \
-               an unterminated quote. A `$pattern` written as a literal is read while checking \
-               and refused there as `E0769`, so only a computed one reaches this throw; \
-               `Date::format` and `TimeOfDay::format` read the same patterns and are not \
-               checked that way, so a bad literal throws there.",
+               an unterminated quote. A `$pattern` written directly in the code is checked \
+               when the program compiles, and an error there is `E0769`. So only a computed \
+               `$pattern` reaches this throw. `Date::format` and `TimeOfDay::format` read the \
+               same patterns but are not checked when the program compiles. There, a bad \
+               pattern written in the code also throws.",
     }],
 };
 
@@ -2341,9 +2343,9 @@ const TIME_FROM_ISO_DOC: MethodDoc = MethodDoc {
 /// `Core\Time::parse`'s reference card — `rule:core-api/reference-card`.
 const TIME_PARSE_DOC: MethodDoc = MethodDoc {
     short: "Reads a civil date and time through a CLDR pattern and places it in `$zone`, \
-            replacing `DateTime::createFromFormat` and `strptime`; a `$format` written as a \
-            literal is read while checking, so a malformed one is `E0769` rather than a \
-            throw. A field the pattern does not name is left at the start of its range.",
+            replacing `DateTime::createFromFormat` and `strptime`. A `$format` written \
+            directly in the code is checked when the program compiles, and a malformed one is \
+            error `E0769`. A field the pattern does not name is left at the start of its range.",
     params: &[
         ParamDoc {
             name: "text",
@@ -2370,13 +2372,14 @@ const TIME_PARSE_DOC: MethodDoc = MethodDoc {
             error: "LogicError",
             desc: "`$format` does not compile — a field letter outside the implemented subset, \
                    an unterminated quote — or names a zone or offset field, which `$zone` \
-                   already answers. Only the first half is `E0769` for a written literal: a \
+                   already answers. For a `$format` written directly in the code, only the \
+                   first half is `E0769`: a \
                    zonal field is a pattern the grammar reads perfectly well and a rule of \
                    this member's own, so it throws however `$format` arrived.",
         },
         ErrorDoc {
             error: "ParseError",
-            desc: "`$text` does not match `$format`: a literal that differs, a field with no \
+            desc: "`$text` does not match `$format`: fixed text that differs, a field with no \
                    digits, trailing text, or fields that together are not a real civil time. It is \
                      also thrown for a time outside \
                      `-9999-01-02T01:59:59Z..=9999-12-30T22:00:00Z`.",
@@ -3641,7 +3644,7 @@ nvs_runtime::nvs_helper! {
         let seconds = count(args, 0, "fromEpoch")?;
         // Unreachable from source: `nanos` is a `CoreTy::Uint` option in
         // `CLASS` above, so anything else is `E0401: expected uint, found
-        // mixed` — reported inside the `{nanos: …}` shape literal at the call,
+        // mixed` — reported inside the `{nanos: …}` anonymous object at the call,
         // which is where an option is written and where it was probed.
         let nanos = args[1].as_uint().ok_or_else(|| {
             Fault::fatal(format!(
@@ -6541,12 +6544,12 @@ mod tests {
         }
     }
 
-    /// `parse` reads the literal grammar into the nanosecond count the lexer
+    /// `parse` reads the duration grammar into the nanosecond count the lexer
     /// gives the same text, up to `int`'s last value, and throws naming the
     /// member for a text the grammar refuses or a count one past that value.
     // covers: Core\Time\Duration::parse
     #[test]
-    fn duration_parse_reads_the_literal_grammar_up_to_the_last_nanosecond() {
+    fn duration_parse_reads_the_duration_syntax_up_to_the_last_nanosecond() {
         let parsed = |text: &str| {
             let mut ctx = Ctx::buffered();
             let args = [Value::str(NvsStr::new(text.as_bytes()))];
@@ -6665,13 +6668,13 @@ mod tests {
         }
     }
 
-    /// `toString` writes the literal grammar coarsest unit first, `0s` for
+    /// `toString` writes the duration grammar coarsest unit first, `0s` for
     /// zero and a leading `-` for a negative value, and every non-negative
     /// rendering parses back to the count it came from, both ends of `int`
     /// included.
     // covers: Core\Time\Duration::toString
     #[test]
-    fn duration_to_string_writes_the_literal_grammar_and_a_sign() {
+    fn duration_to_string_writes_the_duration_syntax_and_a_sign() {
         let rendered = |nanos: i64| {
             let mut ctx = Ctx::buffered();
             let held = [duration_of(nanos)];

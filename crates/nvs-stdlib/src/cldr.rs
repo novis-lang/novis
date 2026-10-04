@@ -2998,7 +2998,7 @@ mod tests {
     /// A pattern written as a literal is compiled once per core; one the
     /// program assembled is compiled at the call and left out of the cache.
     #[test]
-    fn a_literal_cldr_pattern_is_prepared_at_compile_time_and_not_per_call() {
+    fn a_cldr_pattern_written_in_the_code_is_prepared_at_compile_time_and_not_per_call() {
         // The compile-time half: the checker reaches this module through
         // `validate`, and one word is all it hands the call afterwards.
         validate("yyyy-MM-dd HH:mm:ss").expect("a pattern");
@@ -3988,7 +3988,7 @@ mod tests {
     ///
     /// The groups below are CLDR's own ordinal locale lists, over the cardinal
     /// roster this table is closed against — the module doc's ordinal section
-    /// owns that closure, and a language CLDR marks that [`RULES`] does not
+    /// owns that completeness, and a language CLDR marks that [`RULES`] does not
     /// carry is a row in *that* table first, refused by both members until it
     /// is one.
     #[test]

@@ -74,11 +74,11 @@
 //! [`MARKUP`] is registered *and* reachable: every way
 //! `rule:core-classes/html-auto-escape` and `rule:core-classes/html-template`
 //! give a program to obtain one is here — [`MARKUP_SYMBOL`] for `as Markup` on
-//! a source literal, [`MARKUP_CONCAT_SYMBOL`] for `Markup + Markup`,
+//! a string literal, [`MARKUP_CONCAT_SYMBOL`] for `Markup + Markup`,
 //! [`nvs_core_html_join`] for a list of fragments and one separator, the escape
 //! itself, which `rule:security/launderer-answers-a-carrier` turned from the
-//! first two's poor relation into the ordinary one, and the pair a markup
-//! literal's own lowering reaches, [`ESCAPE_TEXT_SYMBOL`] and
+//! first two's poor relation into the ordinary one, and the pair an html
+//! template's own lowering reaches, [`ESCAPE_TEXT_SYMBOL`] and
 //! [`MARKUP_TEXT_SYMBOL`], which answer a hole's bytes rather than a carrier
 //! per hole.
 //!
@@ -163,8 +163,8 @@ const CARD: ClassDoc = ClassDoc {
 
 /// `Core\Html\Markup`'s class card — `rule:core-api/reference-card`.
 const MARKUP_CARD: ClassDoc = ClassDoc {
-    short: "HTML that is safe to put into a page. You get it from an ``html`…` `` literal or \
-            from `Core\\Html::escape`, never from a plain string.",
+    short: "HTML that is safe to put into a page. You get it from an html template, \
+            ``html`…` ``, or from `Core\\Html::escape`, never from a plain string.",
 };
 
 /// `rule:security/launderers-are-sink-named`'s launderer for the HTML sink, and `rule:core-classes/html-to-source`'s one way back
@@ -257,9 +257,9 @@ pub const MARKUP_NAME: &str = nvs_runtime::CARRIER_HTML_MARKUP;
 ///
 /// **Memberless, and that is the design rather than an unfinished roster.**
 /// Every way of obtaining one either writes the trust in the source or is a
-/// member of [`CLASS`] that takes trusted operands: a markup literal, whose
-/// segments are what the author typed; `as Markup` on a *source literal*,
-/// which is the trust level that literal already carried; `Markup + Markup`
+/// member of [`CLASS`] that takes trusted operands: an html template, whose
+/// segments are what the author typed; `as Markup` on a *string literal*,
+/// which is the trust level that string already carried; `Markup + Markup`
 /// and `Core\Html::join`, which compose fragments already trusted; the
 /// launderer, which earns the carrier by escaping; and the sink's own
 /// escape-and-lift of everything else. A constructor member *here* would be
@@ -285,8 +285,8 @@ pub(crate) const MARKUP: CoreClass = CoreClass {
     constants: &[],
 };
 
-/// The symbol `<literal> as Core\Html\Markup` lowers to — `rule:core-classes/html-auto-escape`'s lift
-/// of a trusted source literal into [`MARKUP`].
+/// The symbol `<string literal> as Core\Html\Markup` lowers to —
+/// `rule:core-classes/html-auto-escape`'s lift of a trusted string literal into [`MARKUP`].
 ///
 /// No [`CoreMethod`] row, for the same reason [`MARKUP`] has no members at
 /// all: a member taking a `string` is precisely the runtime-computed bypass
@@ -311,22 +311,22 @@ pub const MARKUP_SYMBOL: &str = "nvs_core_html_markup";
 /// that took its operands from anywhere.
 pub const MARKUP_CONCAT_SYMBOL: &str = "nvs_core_html_markup_concat";
 
-/// The symbol a markup literal's hole lowers to — `rule:core-classes/html-template`'s
+/// The symbol an html template's hole lowers to — `rule:core-classes/html-template`'s
 /// escape, answering the escaped **bytes** where [`nvs_core_html_escape`]
 /// answers a carrier.
 ///
 /// One transformation, two answer shapes, and the position is what picks: a
-/// hole is one piece of a literal that becomes a single `Markup` holding the
+/// hole is one piece of a template that becomes a single `Markup` holding the
 /// joined bytes, so a carrier per hole would be a carrier the join unwraps
 /// again. What that rule's *What it costs to run* promises is one object
-/// allocation for the whole literal, however many holes it has.
+/// allocation for the whole template, however many holes it has.
 ///
 /// Row-less for [`MARKUP_SYMBOL`]'s reason: `escape` is the written spelling
-/// and this is a lowering's, so the literal's own lowering is the only thing
+/// and this is a lowering's, so the template's own lowering is the only thing
 /// allowed to reach it.
 pub const ESCAPE_TEXT_SYMBOL: &str = "nvs_core_html_escape_text";
 
-/// The symbol a markup literal's `Markup`-holding hole lowers to — the raw
+/// The symbol an html template's `Markup`-holding hole lowers to — the raw
 /// splice `rule:core-classes/html-template` grants it, answering the carrier's
 /// own bytes.
 ///
@@ -408,7 +408,7 @@ const LATER_DOC: MethodDoc = MethodDoc {
     params: &[
         ParamDoc {
             name: "fn",
-            desc: "The closure to run. It takes no arguments. Its output is what it echoes, \
+            desc: "The function to run. It takes no arguments. Its output is what it echoes, \
                    followed by the `Core\\Html\\Markup` it returns, if any.",
             shape: &[],
         },
@@ -435,7 +435,7 @@ const LATER_DOC: MethodDoc = MethodDoc {
     errors: &[ErrorDoc {
         error: "LogicError",
         desc: "When the page writes the same placeholder twice. A placeholder that the page never \
-               writes is not an error: its closure does not run, and a warning is logged.",
+               writes is not an error: its `$fn` does not run, and a warning is logged.",
     }],
 };
 
@@ -611,17 +611,17 @@ nvs_runtime::nvs_helper! {
     /// `Core\Html::later(callable $fn, {placeholder?, error?, deadline?}): Markup`
     /// — `rule:core-classes/html-later`.
     ///
-    /// In an HTML response the body is a registration: the closure and its two
+    /// In an HTML response the body is a registration: the callable and its two
     /// fragments go to the request's slots and the answer is the placeholder.
     /// `nvs_runtime::later` owns when a slot runs and how its output reaches
-    /// the page. Anywhere else there is no page to assemble, so the closure
+    /// the page. Anywhere else there is no page to assemble, so the callable
     /// runs here and its output is the answer.
     fn nvs_core_html_later(ctx, args: [4]) {
         // Unreachable from source: the parameter is a callable, so `null` is
         // refused at the call.
         if args[0].tag() == Some(Tag::Null) {
             return Err(Fault::fatal(
-                "Core\\Html::later expected a closure, got null".to_string(),
+                "Core\\Html::later expected a callable, got null".to_string(),
             ));
         }
         let placeholder = option_bytes(args[1], "`Core\\Html::later`'s `placeholder`")?;
@@ -654,7 +654,7 @@ nvs_runtime::nvs_helper! {
         let mut bytes = ctx.end_capture().unwrap_or_default();
         let answer = answer?;
         if answer.obj_ptr().is_some() {
-            let slot = markup_slot(answer, "the `Markup` `Core\\Html::later`'s closure returned");
+            let slot = markup_slot(answer, "the `Markup` `Core\\Html::later`'s callable returned");
             if let Ok(slot) = slot {
                 bytes.extend_from_slice(slot.as_str_bytes().unwrap_or_default());
             }
@@ -704,7 +704,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// A markup literal's hole, escaped — `rule:core-classes/html-template`'s
+    /// An html template's hole, escaped — `rule:core-classes/html-template`'s
     /// hole rule, and the whole of what [`ESCAPE_TEXT_SYMBOL`] does.
     ///
     /// The same transform `Core\Html::escape` runs, answering the bytes it
@@ -714,12 +714,12 @@ nvs_runtime::nvs_helper! {
     /// **What it spends:** nothing beyond the escape itself — no object, and no
     /// string where the hole's text had nothing to escape.
     fn nvs_core_html_escape_text(_ctx, args: [1]) {
-        escaped_text(args[0], "a markup literal's hole")
+        escaped_text(args[0], "an html template's hole")
     }
 }
 
 nvs_runtime::nvs_helper! {
-    /// A markup literal's `Markup`-holding hole, spliced raw — the whole of
+    /// An html template's `Markup`-holding hole, spliced raw — the whole of
     /// what [`MARKUP_TEXT_SYMBOL`] does.
     ///
     /// **Nothing is escaped**, which is `rule:core-classes/html-template`'s rule
@@ -729,10 +729,10 @@ nvs_runtime::nvs_helper! {
     /// markup it was built for.
     ///
     /// **What it spends:** nothing. The slot's bytes travel under one more
-    /// reference into the carrier the literal is building, so a spliced
+    /// reference into the carrier the template is building, so a spliced
     /// fragment is not copied.
     fn nvs_core_html_markup_text(_ctx, args: [1]) {
-        let slot = markup_slot(args[0], "a markup literal's spliced hole")?;
+        let slot = markup_slot(args[0], "an html template's spliced hole")?;
         #[expect(
             unsafe_code,
             reason = "the slot holds a live reference for the length of the call, \
@@ -751,7 +751,7 @@ nvs_runtime::nvs_helper! {
     ///
     /// The *trust* decision is not here and cannot be: `nvs_types::expr::quals`
     /// has already refused a `tainted` operand, a `secret` one and anything
-    /// computed (`E0417`), so by the time this runs the argument is a source
+    /// computed (`E0417`), so by the time this runs the argument is a string
     /// literal the author wrote and the only thing left is to put it in the
     /// carrier's one slot. A body that re-asked the question would be asking
     /// it of a value that no longer remembers where it came from, which is
@@ -2315,7 +2315,7 @@ mod tests {
         assert_eq!(
             MARKUP.members().count(),
             0,
-            "a `Markup` is obtained from a markup literal, from `as` on a source literal, \
+            "a `Markup` is obtained from an html template, from `as` on a string literal, \
              from `+` or `Core\\Html::join` over fragments already trusted, from the \
              launderer, or from the sink's own escape-and-lift — never from a member on \
              the carrier itself"

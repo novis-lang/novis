@@ -47,7 +47,7 @@
 //! Nothing else about the member changed when the wait moved — its signature,
 //! its door and its result are what § 1 already specified, and what a caller
 //! can observe is unchanged. Off a core, which is every CLI program, the
-//! closure is simply called on this thread, so the cheap case stays free.
+//! Rust closure is simply called on this thread, so the cheap case stays free.
 //!
 //! # Decision: `[limits] max_output` bounds the capture, read once per call
 //!
@@ -188,8 +188,9 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 /// bounded by the request alone. `env` is `array<string>` keyed by name, and a
 /// given one **replaces** the parent's environment, so `{env: []}` is a child
 /// with no variables and is told apart from an omitted `env` by that null.
-/// `cwd` is a path position, so a relative literal is joined to the folder of
-/// the file that wrote it, and a sink, so a `tainted` folder does not compile.
+/// `cwd` is a path position, so a relative path given as a string literal is
+/// joined to the folder of the file that wrote it, and a sink, so a `tainted`
+/// folder does not compile.
 ///
 /// **What it spends:** nothing when it is omitted. With `env`, one owned copy
 /// of every name and value for the length of the call. With `timeout`, one
@@ -220,8 +221,9 @@ const OPTIONS_AT: usize = 2;
 /// [`OPTIONS`]' three reference-card entries, which `run` and `spawn` share.
 const CWD_DOC: ParamDoc = ParamDoc {
     name: "cwd",
-    desc: "The folder the program starts in, as an absolute path or a string literal relative \
-           to this file. Without it, the program starts in the same folder as this program.",
+    desc: "The folder the program starts in, as an absolute path. A relative path must be \
+           written directly in the code, and is joined to the folder of this file. Without \
+           it, the program starts in the same folder as this program.",
     shape: &[],
 };
 
@@ -261,7 +263,8 @@ const RUN_DOC: MethodDoc = MethodDoc {
         ParamDoc {
             name: "path",
             desc: "The program to start, as an absolute path. A relative path must be a string \
-                   literal, and is joined to the folder of the file that contains it. `PATH` is \
+                   written directly in the code. It is joined to the folder of the file that \
+                   contains it. `PATH` is \
                    not searched, so `ls` means a file named `ls` in that folder.",
             shape: &[],
         },
@@ -936,7 +939,7 @@ nvs_runtime::nvs_helper! {
 ///
 /// **What it spends:** one pool thread for the child's lifetime, out of
 /// [`nvs_host::blocking::bound`]'s per-worker bound — and off a core, where
-/// `run` calls the closure on this thread, nothing at all.
+/// `run` calls the Rust closure on this thread, nothing at all.
 ///
 /// # Errors
 ///
@@ -1302,7 +1305,7 @@ fn live_child<'a>(ctx: &'a mut Ctx, key: u64, member: &str) -> Result<&'a mut He
 /// `rule:http-server/a-core-is-never-blocked-on-a-syscall` has no readiness to
 /// park a child's pipe on and [`wait_off_core`]'s module doc owns why that
 /// leaves exactly one spelling. Moved rather than borrowed for the reason
-/// [`nvs_runtime::Ctx::take_spawned_child`] gives about a wait: the closure
+/// [`nvs_runtime::Ctx::take_spawned_child`] gives about a wait: the Rust closure
 /// outlives this stack frame, so it owns what it reads from and gives it back.
 ///
 /// A child with no timeout is not touched, and `job` is the whole of what

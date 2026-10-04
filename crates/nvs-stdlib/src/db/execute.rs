@@ -94,7 +94,7 @@ pub(super) fn bound_connection<'a>(
 /// The drivers spell a transaction differently — `nvs_db::mysql`'s `begin`
 /// owns the differences, from `START TRANSACTION` down to the release a nested
 /// rollback does not owe — but they answer the same four questions, and
-/// `transaction` asks them at five points around a closure it does not control.
+/// `transaction` asks them at five points around a callable it does not control.
 /// An enum here rather than a trait in `nvs-db`: which commands a backend sends
 /// is exactly what this goal's ADR slot refuses to flatten, and what this needs
 /// is the *call sites* flattened rather than the drivers.

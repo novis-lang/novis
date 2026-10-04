@@ -218,7 +218,7 @@
 //! which is the audited deployment's requirement and the one thing a per-block
 //! key could never state. **The limit is that a key no block describes takes
 //! `PoolBounds::DEFAULT`, and is told nothing about it**: an `open` naming an
-//! endpoint an operator wrote no block for, and a literal differing from its
+//! endpoint an operator wrote no block for, and a settings object differing from its
 //! block in any hashed field — a written `port` where the block left the
 //! server's default implicit — are each a second key and so a second pool at
 //! the defaults. A deployment that wants bounds for one writes the block, and
@@ -230,7 +230,7 @@
 //! the checker's rule — `nvs_types::expr::args`' `select_arm` — so a `host`
 //! written beside `Driver::Sqlite` is the compile error § 18 says it is, and a
 //! key only one arm requires is required of the call that selected that arm.
-//! What reaches [`settings_driver`] is therefore a literal one arm has already
+//! What reaches [`settings_driver`] is therefore a settings object one arm has already
 //! accepted, which is why it reads the discriminant before it reads anything
 //! else and why every slot it then reads is filled.
 //!

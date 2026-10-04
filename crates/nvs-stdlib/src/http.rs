@@ -60,7 +60,7 @@
 //!
 //! **§ 7's refusal is a diagnostic, and so it is not in this module.** A `post` that asks for
 //! retries needs [`RETRY_KEY_OPTION`], and both halves of that question are written at the call
-//! site — the verb is the member's own name, the bag is an `rule:core-api/shape-rules` R2 literal — so
+//! site — the verb is the member's own name, the bag is an `rule:core-api/shape-rules` R2 anonymous object — so
 //! `nvs_types::expr::args`' `reject_keyless_retry` reports it while compiling and the body has
 //! nothing left to judge. What this module owns is the two option names the rule is written over,
 //! handed to the checker by [`crate::registry::idempotent_retry_rule`] rather than copied into it.
@@ -93,7 +93,7 @@
 //!
 //! [`transport`] composes the request, writes it, reads the reply and decides what is worth trying
 //! again; what stays here is every decision about *whether* a request may happen at all. The seam
-//! is [`transport::send`]'s `repin` closure: a redirect hop is re-checked by calling back into
+//! is [`transport::send`]'s `repin` Rust closure: a redirect hop is re-checked by calling back into
 //! [`pin`], so `rule:http-server/redirects-are-off-and-every-hop-is-re-pinned`'s rule is enforced by the same questions the first URL passed and
 //! there is no second copy of the policy under the socket. What that module's own doc owns is the
 //! rest — one connection per attempt, how `https` reaches `nvs-host`'s TLS client and which host
@@ -1267,8 +1267,8 @@ const PART_FILE_DOC: MethodDoc = MethodDoc {
     params: &[
         ParamDoc {
             name: "path",
-            desc: "The file to send. A relative path must be a string literal, and is joined to \
-                   the folder of the file that contains it.",
+            desc: "The file to send. A relative path must be a string written directly in the \
+                   code. It is joined to the folder of the file that contains it.",
             shape: &[],
         },
         ParamDoc {
@@ -3142,10 +3142,10 @@ pub(crate) fn headers_of(
 /// option therefore chooses among addresses the deployment already allows and
 /// widens nothing.
 ///
-/// **An IP literal, and a name refused rather than resolved.** A lookup here
+/// **An IP address, and a name refused rather than resolved.** A lookup here
 /// would be a second resolution reached through the option instead of through
 /// the URL, which is exactly what pinning an address exists to remove
-/// (`rule:http-server/allow-url-pins-the-address`). A literal reaches no
+/// (`rule:http-server/allow-url-pins-the-address`). An IP address reaches no
 /// resolver, so the answer is the set of one
 /// `rule:http-server/an-outbound-call-tries-every-approved-address` says a
 /// named address is.
@@ -3154,7 +3154,7 @@ pub(crate) fn headers_of(
 ///
 /// [`judged_host`]'s three, a thrown `RuntimeError` naming whichever grant this
 /// deployment did not write, a thrown `LogicError` for a value that is not an
-/// IP literal, and `pinned_addresses`' refusal for an address the policy denies.
+/// IP address, and `pinned_addresses`' refusal for an address the policy denies.
 fn named_address(ctx: &Ctx, url: &str, named: &str, member: &str) -> Result<Vec<IpAddr>, Fault> {
     let host = judged_host(url, member, Roster::Request)?;
     nvs_runtime::capability::require(ctx, Cap::NetConnect, Scope::Host(&host), member)?;

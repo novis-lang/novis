@@ -90,12 +90,12 @@ const ROW: CoreTy = CoreTy::Shape(&[&[
 ]]);
 
 /// `C` — `constructors`' written `callable(...): T` type, the type every
-/// row's `make` closure has. [`CoreTy::WrittenReturning`] is what makes `T`
+/// row's `make` callable has. [`CoreTy::WrittenReturning`] is what makes `T`
 /// the first type argument, though the row mentions it nowhere else.
 const C: CoreTy = CoreTy::WrittenReturning("C", &T);
 
 /// One row of `constructors<T, C>`'s answer: the class's fully-qualified name
-/// and the closure that builds it.
+/// and the callable that builds it.
 ///
 /// [`ROW`]'s exemption, for [`ROW`]'s reason: `nvs_types::program` builds
 /// every row itself, and the shape is spelled here for the card.

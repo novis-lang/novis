@@ -1366,7 +1366,7 @@ mod tests {
     ///    `Core\Ast` handle a later member could take.
     /// 3. **The values are ordinary data at run time too**, over a real
     ///    parse: every slot is a `Tag::Str`, a `Tag::Int` or a `Tag::Array` of
-    ///    objects, and no closure, callable or resource is anywhere in it.
+    ///    objects, and no callable or resource is anywhere in it.
     #[test]
     fn a_parsed_ast_is_inert_data_with_no_path_back_into_execution() {
         for class in CLASSES {

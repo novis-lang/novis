@@ -362,7 +362,7 @@ const SET_DOC: MethodDoc = MethodDoc {
         },
         ErrorDoc {
             error: "LogicError",
-            desc: "`$value` cannot be saved: it is a closure or a resource, or it contains one.",
+            desc: "`$value` cannot be saved: it is a callable or a resource, or it contains one.",
         },
         ErrorDoc {
             error: "ParseError",

@@ -91,7 +91,7 @@ fn no_member_writes_its_own_allocation_guard() {
 #[test]
 fn no_member_revalidates_a_string_argument() {
     /// How many lines after an `as_str_bytes` still count as the same chain.
-    /// Wide enough to span a `ok_or_else` closure formatting a message, which
+    /// Wide enough to span an `ok_or_else` Rust closure formatting a message, which
     /// is what every one of the nine put between the two halves.
     const WINDOW: usize = 12;
 
@@ -308,11 +308,11 @@ fn list_of(count: usize) -> nvs_runtime::Value {
     nvs_runtime::Value::array(list)
 }
 
-/// A closure value whose `invoke` is a plain Rust function.
+/// A callable value whose `invoke` is a plain Rust function.
 ///
-/// `nvs_runtime::call_callable` reads exactly four things off a closure — its
+/// `nvs_runtime::call_callable` reads exactly four things off a callable — its
 /// class's `ClassTable::set_callable` bit, which is what makes the value a
-/// closure at all, slot `CALLABLE_ARITY_SLOT`, slot `CALLABLE_PARAM_TAGS_SLOT`,
+/// callable at all, slot `CALLABLE_ARITY_SLOT`, slot `CALLABLE_PARAM_TAGS_SLOT`,
 /// and the `CALLABLE_INVOKE` method's address in its class — so a test in this
 /// crate can hand a `Core` member a `callable` without a compiler in front of
 /// it.
@@ -337,7 +337,7 @@ fn callable_of(arity: usize, invoke: nvs_runtime::NvsFn) -> nvs_runtime::Value {
         vec![nvs_runtime::MethodRow {
             name: nvs_runtime::CALLABLE_INVOKE.to_owned(),
             code: invoke as *const u8,
-            // A closure is called through `call_callable`, which reads the
+            // A callable is called through `call_callable`, which reads the
             // arity and the tags off the *object*'s own two slots below rather
             // than off this row — see `nvs_runtime::MethodRow`.
             arity: 0,
@@ -517,12 +517,12 @@ fn a_one_parameter_callback_synthesizes_no_key() {
 /// `false` over sixty-four entries, not sixty-four: `NvsArray::slot_key`
 /// answers a `SlotKey::Index` while the array is packed and renders nothing,
 /// so what those five bought was the `Vec` holding them. The one place a sort
-/// *renders* a key is `keys[index].to_str()`, reached only when a `by` closure
+/// *renders* a key is `keys[index].to_str()`, reached only when a `by` callable
 /// declared somewhere to put it — which is why the gap this test asserts is
 /// between two arities of `by` rather than between the two `preserveKeys`.
 ///
 /// The no-`by` run is asserted absolutely, which the callback cases above
-/// could not be: it makes no closure call at all, so there is no per-entry
+/// could not be: it makes no callable call at all, so there is no per-entry
 /// allocation left for anything but a key. What it may spend is the handful of
 /// `Vec`s the permutation and the merge scratch need, and those grow with the
 /// logarithm of the entry count rather than with the count.

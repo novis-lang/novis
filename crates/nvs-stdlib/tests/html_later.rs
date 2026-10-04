@@ -1,6 +1,6 @@
 //! `rule:core-classes/html-later` on a normal route: `Core\Html::later` called
 //! from a request running as an isolate under a real scheduler, with the
-//! closures written by hand as compiled code would call them.
+//! callables written by hand as compiled code would call them.
 //!
 //! Each case builds a page the way a template does — text, a placeholder,
 //! more text — and reads the body the connection took.
@@ -13,9 +13,9 @@ use nvs_runtime::{Ctx, NvsStr, OutputSink, TaskRoot, Value};
 use nvs_stdlib::html::{nvs_core_html_escape, nvs_core_html_later};
 
 thread_local! {
-    /// How many slot closures have run on this test's thread.
+    /// How many slot callables have run on this test's thread.
     static RAN: Cell<usize> = const { Cell::new(0) };
-    /// The closure a nesting slot registers a `later` for.
+    /// The callable a nesting slot registers a `later` for.
     static INNER: Cell<Value> = const { Cell::new(Value::null()) };
     /// What happened, in order, for the after-response case.
     static ORDER: RefCell<Vec<&'static str>> = const { RefCell::new(Vec::new()) };
@@ -53,7 +53,7 @@ fn callable_of(invoke: nvs_runtime::NvsFn) -> Value {
     Value::object(object)
 }
 
-/// The body every hand-written closure shares: release the receiver, run
+/// The body every hand-written callable shares: release the receiver, run
 /// `body` on the context, and answer what it returns.
 #[expect(
     unsafe_code,
@@ -85,7 +85,7 @@ macro_rules! slot_fn {
     ($name:ident, |$ctx:ident| $body:expr) => {
         #[expect(
             unsafe_code,
-            reason = "a closure's entry point, as compiled code has one"
+            reason = "a callable's entry point, as compiled code has one"
         )]
         unsafe extern "C" fn $name(ctx: *mut Ctx, args: *const Value, out: *mut Value) -> i32 {
             unsafe { invoke(ctx, args, out, |$ctx: &mut Ctx| $body) }
@@ -422,7 +422,7 @@ fn a_later_whose_placeholder_is_never_written_is_cancelled_and_warned() {
     assert_eq!(
         RAN.with(Cell::get),
         0,
-        "the closure ran although nothing showed its output"
+        "the callable ran although nothing showed its output"
     );
 }
 

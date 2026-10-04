@@ -311,7 +311,7 @@ const PUT_OPTIONS: &[CoreOption] = &[CoreOption {
 /// The fill answers an object rather than the value alone, because the fetch is
 /// the only party that knows how long what it fetched stays good —
 /// [`SECRET_ENTRY`] is where that is argued. Its signature is written out
-/// rather than left a bare `callable`, so a closure of the wrong shape is
+/// rather than left a bare `callable`, so a callable of the wrong shape is
 /// refused where the call is written (`rule:types/callable-signature`).
 ///
 /// `wait` is a `Core\Time\Duration` for [`PUT_OPTIONS`]' R12 reason, and there
@@ -529,8 +529,8 @@ const PUT_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "value",
-            desc: "The value to copy in. A closure and a `secret` may not cross, exactly as at the \
-                   isolate boundary.",
+            desc: "The value to copy in. It cannot be a callable or a `secret`, the same as for a \
+                   value sent to an isolate.",
             shape: &[],
         },
         ParamDoc {
@@ -546,7 +546,7 @@ const PUT_DOC: MethodDoc = MethodDoc {
     errors: &[
         ErrorDoc {
             error: "LogicError",
-            desc: "The value cannot cross: it is or holds a closure, or an object with a `secret` \
+            desc: "The value cannot cross: it is or contains a callable, or an object with a `secret` \
                    property that was not revealed.",
         },
         ErrorDoc {
@@ -1869,7 +1869,7 @@ fn filled(
 /// # Errors
 ///
 /// [`seal_and_store`]'s, and a [`Fault::fatal`] for an entry whose value slot is
-/// not text — the row declares the closure answers a
+/// not text — the row declares the callable returns a
 /// `Core\Cache\SecretEntry`, so that is compiled code's bug rather than
 /// anything a program can write.
 fn supplied(ctx: &mut Ctx, at: &Sealing<'_>, entry: Value) -> Result<Value, Fault> {
@@ -2157,7 +2157,7 @@ fn endpoint(url: &str, member: &str) -> Result<Target, Fault> {
              {READS}"
         )));
     }
-    // An IPv6 literal is written `[::1]` and carries colons of its own, so the
+    // An IPv6 address is written `[::1]` and carries colons of its own, so the
     // last one is a port separator only when nothing after it belongs to the
     // address. `resolve_host` takes the brackets off itself.
     let (host, port) = match authority.rsplit_once(':') {
@@ -2181,7 +2181,7 @@ fn endpoint(url: &str, member: &str) -> Result<Target, Fault> {
     if !tls {
         return Ok(Target::Tcp(address));
     }
-    // An IPv6 literal's brackets belong to the URL's grammar rather than to the
+    // An IPv6 address's brackets belong to the URL's grammar rather than to the
     // name a certificate is checked against, and `resolve_host` takes them off
     // for the same reason.
     let name = host
@@ -2260,7 +2260,7 @@ pub(crate) enum Target {
     Tls {
         /// Where the socket goes, which is [`Target::Tcp`]'s whole value.
         address: SocketAddr,
-        /// The host an operator wrote, with an IPv6 literal's brackets off,
+        /// The host an operator wrote, with an IPv6 address's brackets off,
         /// handed to `rule:security/one-tls-client`'s session as the name to
         /// verify the peer's certificate against and to send as SNI.
         name: String,
@@ -4469,9 +4469,9 @@ mod tests {
     /// checked against kept beside the address — which is the only thing the TLS
     /// arm holds that the plaintext one does not.
     ///
-    /// The bracketed literal is here because the brackets belong to the URL's
+    /// The bracketed address is here because the brackets belong to the URL's
     /// grammar: a name handed to the session with them still on is neither a DNS
-    /// name nor an IP literal, and `NvsTls::over` refuses it with an
+    /// name nor an IP address, and `NvsTls::over` refuses it with an
     /// `InvalidInput` that reads like a bug in this client.
     #[test]
     fn a_rediss_url_carries_the_name_its_certificate_is_checked_against() {
@@ -4484,7 +4484,7 @@ mod tests {
             "a URL with no port takes the store's own, exactly as the plaintext arm does"
         );
         assert_eq!(
-            endpoint("rediss://[::1]:6380", MEMBER).expect("an IPv6 literal is a host"),
+            endpoint("rediss://[::1]:6380", MEMBER).expect("an IPv6 address is a host"),
             super::Target::Tls {
                 address: "[::1]:6380".parse().expect("a literal"),
                 name: "::1".to_owned(),

@@ -339,7 +339,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             // plain, unqualified type.
             //
             // Only `$base` is a path parameter. `$path` is relative to
-            // `$base` by design, so a literal written there is not joined to
+            // `$base` by design, so a string literal written there is not joined to
             // the calling file's folder
             // (`rule:programs/relative-paths-resolve-from-their-file`): it is
             // text, and the body joins it to `$base`.
@@ -463,7 +463,7 @@ const READ_DOC: MethodDoc = MethodDoc {
             symlink or a `..` that leaves the granted roots is refused.",
     params: &[ParamDoc {
         name: "path",
-        desc: "The file to read. A relative path must be a string literal, and is joined to the folder of the file that contains it.",
+        desc: "The file to read. A relative path must be a string written directly in the code. It is joined to the folder of the file that contains it.",
         shape: &[],
     }],
     ret: "The file's content as a `string`, with nothing stripped. The content must be UTF-8 text; \
@@ -493,7 +493,7 @@ const WRITE_DOC: MethodDoc = MethodDoc {
     params: &[
         ParamDoc {
             name: "path",
-            desc: "The file to write. A relative path must be a string literal, and is joined to the folder of the file that contains it.",
+            desc: "The file to write. A relative path must be a string written directly in the code. It is joined to the folder of the file that contains it.",
             shape: &[],
         },
         ParamDoc {
@@ -527,7 +527,7 @@ const APPEND_DOC: MethodDoc = MethodDoc {
     params: &[
         ParamDoc {
             name: "path",
-            desc: "The file to add to. A relative path must be a string literal, and is joined to the folder of the file that contains it.",
+            desc: "The file to add to. A relative path must be a string written directly in the code. It is joined to the folder of the file that contains it.",
             shape: &[],
         },
         ParamDoc {
@@ -608,7 +608,7 @@ const EXISTS_DOC: MethodDoc = MethodDoc {
             touched, so an ungranted path throws rather than answering `false`.",
     params: &[ParamDoc {
         name: "path",
-        desc: "The name to look for. A relative path must be a string literal, and is joined to the folder of the file that contains it.",
+        desc: "The name to look for. A relative path must be a string written directly in the code. It is joined to the folder of the file that contains it.",
         shape: &[],
     }],
     ret: "`true` if the name resolves to something, `false` if it resolves to nothing. Absence is \
@@ -635,7 +635,7 @@ const IS_FILE_DOC: MethodDoc = MethodDoc {
             before the path is touched.",
     params: &[ParamDoc {
         name: "path",
-        desc: "The name to ask about. A relative path must be a string literal, and is joined to the folder of the file that contains it.",
+        desc: "The name to ask about. A relative path must be a string written directly in the code. It is joined to the folder of the file that contains it.",
         shape: &[],
     }],
     ret: "`true` for a regular file, `false` for a directory, for anything else the operating \
@@ -662,7 +662,7 @@ const IS_DIR_DOC: MethodDoc = MethodDoc {
             a link to a directory answers `true`. Needs the `fs.read` capability.",
     params: &[ParamDoc {
         name: "path",
-        desc: "The name to ask about. A relative path must be a string literal, and is joined to the folder of the file that contains it.",
+        desc: "The name to ask about. A relative path must be a string written directly in the code. It is joined to the folder of the file that contains it.",
         shape: &[],
     }],
     ret: "`true` for a directory, `false` for a file, for anything else, and for a name that is \
@@ -688,7 +688,7 @@ const IS_READABLE_DOC: MethodDoc = MethodDoc {
             grant is refused rather than reported as unreadable.",
     params: &[ParamDoc {
         name: "path",
-        desc: "The file or directory to ask about. A relative path must be a string literal, and is joined to the folder of the file that contains it.",
+        desc: "The file or directory to ask about. A relative path must be a string written directly in the code. It is joined to the folder of the file that contains it.",
         shape: &[],
     }],
     ret: "`true` if the operating system would allow a read, `false` if it would not — including \
@@ -707,7 +707,7 @@ const IS_WRITABLE_DOC: MethodDoc = MethodDoc {
             granted only reads cannot ask where it could write.",
     params: &[ParamDoc {
         name: "path",
-        desc: "The file or directory to ask about. A relative path must be a string literal, and is joined to the folder of the file that contains it.",
+        desc: "The file or directory to ask about. A relative path must be a string written directly in the code. It is joined to the folder of the file that contains it.",
         shape: &[],
     }],
     ret: "`true` if the operating system would allow a write, `false` if it would not — including \
@@ -724,7 +724,7 @@ const SIZE_DOC: MethodDoc = MethodDoc {
             `filesize`. Needs the `fs.read` capability: measuring a file is reading it.",
     params: &[ParamDoc {
         name: "path",
-        desc: "The file to measure. A relative path must be a string literal, and is joined to the folder of the file that contains it.",
+        desc: "The file to measure. A relative path must be a string written directly in the code. It is joined to the folder of the file that contains it.",
         shape: &[],
     }],
     ret: "The byte count as a `uint`. For a text file this is bytes and not characters — a \
@@ -750,7 +750,7 @@ const MODIFIED_AT_DOC: MethodDoc = MethodDoc {
             capability: asking when a file changed is reading it.",
     params: &[ParamDoc {
         name: "path",
-        desc: "The file or directory to ask about. A relative path must be a string literal, and is joined to the folder of the file that contains it.",
+        desc: "The file or directory to ask about. A relative path must be a string written directly in the code. It is joined to the folder of the file that contains it.",
         shape: &[],
     }],
     ret: "The modification time as an absolute point on the timeline, with no zone of its own — \
@@ -777,7 +777,7 @@ const STAT_DOC: MethodDoc = MethodDoc {
             `fs.read` capability.",
     params: &[ParamDoc {
         name: "path",
-        desc: "The file or directory to measure. A relative path must be a string literal, and is joined to the folder of the file that contains it.",
+        desc: "The file or directory to measure. A relative path must be a string written directly in the code. It is joined to the folder of the file that contains it.",
         shape: &[],
     }],
     ret: "A `Core\\IO\\Metadata` — a snapshot, not a live view: it answers about the moment the \
@@ -1053,7 +1053,7 @@ const CANONICALIZE_DOC: MethodDoc = MethodDoc {
             containment, and it is the one an untrusted path has to pass through.",
     params: &[ParamDoc {
         name: "path",
-        desc: "The name to resolve. A relative path must be a string literal, and is joined to the folder of the file that contains it. Every \
+        desc: "The name to resolve. A relative path must be a string written directly in the code. It is joined to the folder of the file that contains it. Every \
                component must exist, including the last one.",
         shape: &[],
     }],
@@ -1094,9 +1094,9 @@ const WITHIN_DOC: MethodDoc = MethodDoc {
             name: "path",
             desc: "The name to resolve against `$base` — the untrusted half, which is the whole \
                    point of the member. A relative `$path` is joined to `$base`, also when it is \
-                   written as a literal: it is not joined to the folder of the file that calls \
-                   `within`. An absolute path is no escape hatch: it is resolved and then fails \
-                   the same containment check.",
+                   written directly in the code. It is not joined to the folder of the file \
+                   that calls `within`. An absolute path is no escape hatch: it is resolved \
+                   and then fails the same containment check.",
             shape: &[],
         },
     ],
@@ -1128,7 +1128,7 @@ const READ_TEXT_DOC: MethodDoc = MethodDoc {
     params: &[
         ParamDoc {
             name: "path",
-            desc: "The file to read. A relative path must be a string literal, and is joined to the folder of the file that contains it.",
+            desc: "The file to read. A relative path must be a string written directly in the code. It is joined to the folder of the file that contains it.",
             shape: &[],
         },
         ParamDoc {
@@ -1163,7 +1163,7 @@ const LINES_DOC: MethodDoc = MethodDoc {
             the `fs.read` capability for the path, exactly as `read` does.",
     params: &[ParamDoc {
         name: "path",
-        desc: "The file to read. A relative path must be a string literal, and is joined to the folder of the file that contains it.",
+        desc: "The file to read. A relative path must be a string written directly in the code. It is joined to the folder of the file that contains it.",
         shape: &[],
     }],
     ret: "An `Iterable<string>` a `foreach` walks in file order, and walks again as often as it \
@@ -1190,7 +1190,7 @@ const OPEN_DOC: MethodDoc = MethodDoc {
     params: &[
         ParamDoc {
             name: "path",
-            desc: "The file to open. A relative path must be a string literal, and is joined to the folder of the file that contains it.",
+            desc: "The file to open. A relative path must be a string written directly in the code. It is joined to the folder of the file that contains it.",
             shape: &[],
         },
         ParamDoc {
@@ -2988,7 +2988,7 @@ nvs_runtime::nvs_helper! {
 }
 
 /// `Core\IO::writeStream`'s member name, in one place: five refusals name it
-/// and one of them is raised from a closure two frames down.
+/// and one of them is raised from a Rust closure two frames down.
 ///
 /// It is *handed* to [`stream_to_disk`] rather than read there, because
 /// `Core\Request\Part::saveTo` drives the same function under `rule:core-classes/io-write-stream`'s

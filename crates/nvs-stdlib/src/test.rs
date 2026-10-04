@@ -81,7 +81,7 @@
 //!
 //! Each member's own doc comment carries the argument in full.
 //!
-//! # The one row whose expectation is a source literal
+//! # The one row whose expectation is a string literal in the test
 //!
 //! § 14's `assertMatchesInline` compares `Core\Debug::render`'s text against a
 //! literal in the test body rather than against a `.snap` file beside it. Its
@@ -178,16 +178,16 @@
 //! **The helper has everything the rows need.** The interface's descriptor is
 //! what the double conforms to; the shape argument is an object whose own
 //! descriptor is a `$shape{…}` class ([`nvs_runtime::ClassDesc::is_shape`])
-//! whose field names are the method names and whose slots hold the closures;
+//! whose field names are the method names and whose slots hold the callables;
 //! and for `partial`, `$real`'s descriptor names the methods the shape does not
-//! override. Each closure carries its declared arity and parameter tags in its
-//! own slots, which `nvs_runtime`'s closure module owns, so every
+//! override. Each callable carries its declared arity and parameter tags in its
+//! own slots, which `nvs_runtime`'s callable module owns, so every
 //! [`nvs_runtime::MethodRow`] a
-//! double publishes is **the closure's** declared shape rather than a guess:
+//! double publishes is **the callable's** declared shape rather than a guess:
 //! a call that arrives through an erased view is checked against the body that
 //! will answer it, by the one implementation `check_param_tags` already is.
 //!
-//! **The closure is also the only source for it.** An interface's descriptor
+//! **The callable is also the only source for it.** An interface's descriptor
 //! carries a [`nvs_runtime::MethodRow`] for a *default* body and for nothing
 //! else — `nvs_types::layout::ClassLayout::methods` keeps only bodied methods,
 //! because a bodiless declaration names no code — so the interface cannot be
@@ -236,7 +236,7 @@
 //! runs to find it.
 //!
 //! The double's fields are its state: slot 0 the call record, slot 1 `$real`
-//! (or `null`), and slot `2 + i` the closure answering method *i*, the methods
+//! (or `null`), and slot `2 + i` the callable answering method *i*, the methods
 //! in the order [`nvs_runtime::ClassTable::set_methods`] sorts their rows.
 //! Every field name carries a `$`, which no property name can, so an erased
 //! `$double->now` (`rule:types/erased-member-access`) finds nothing and the
@@ -281,9 +281,9 @@
 //! undefined constant it reads as. The checker folds the reference to the
 //! method's own name there and then, so what a helper below is handed is a
 //! `Tag::Str` and nothing about the ABI knows a reference exists. The
-//! first-class-callable spelling the goal held in reserve is not used: a
+//! method-reference syntax the goal held in reserve is not used: a
 //! `Mailer::send(...)` names an *instance* method with no receiver, which is a
-//! frame `nvs-ir` cannot lower, and a closure carries no name for the record to
+//! frame `nvs-ir` cannot lower, and a callable carries no name for the record to
 //! be keyed by.
 
 use nvs_runtime::{Ctx, Fault, Tag, ThrownClass, Value, identity};
@@ -1531,13 +1531,14 @@ const SENT_SOCKET_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Test::double`'s reference card — `rule:core-api/reference-card`.
 const DOUBLE_DOC: MethodDoc = MethodDoc {
-    short: "A stand-in for `T` built from a shape of closures, one per method, which **is** a `T` \
-            and may be passed wherever one is taken.",
+    short: "A stand-in for `T` built from an object of functions, one per method. It **is** a \
+            `T` and may be passed wherever one is taken.",
     params: &[ParamDoc {
         name: "answers",
-        desc: "One field per method of `T`, named as the method is and holding the closure that \
-               answers it. A field `T` declares no method for, and a method of `T` the shape \
-               leaves out, are each refused where the call is written.",
+        desc: "One field per method of `T`, with the same name as the method. Each field has the \
+               function that answers that method. A field for a method that `T` does not \
+               declare does not compile. A method of `T` that has no field does not compile \
+               either.",
         shape: &[],
     }],
     ret: "The double, typed as `T`. It records every call made to it, which \
@@ -1569,8 +1570,8 @@ const PARTIAL_DOC: MethodDoc = MethodDoc {
             shape: &[],
         },
     ],
-    ret: "The partial, typed as `T`. Every call is recorded whether the closure or `$real` \
-          answered it.",
+    ret: "The partial, typed as `T`. Every call is recorded, whether the function in \
+          `$answers` or `$real` answered it.",
     errors: &[ErrorDoc {
         error: "LogicError",
         desc: "`double`'s ceiling, for the same reason and with the same two counts.",
@@ -1676,8 +1677,8 @@ const ASSERT_COMPLETES_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "settings",
-            desc: "The budget, written as a literal because there is no duration this member \
-                   could pick for a caller.",
+            desc: "The time budget. You must always give it, because no default duration fits \
+                   every caller.",
             shape: &[ShapeKeyDoc {
                 key: "within",
                 ty: "Core\\Time\\Duration",
@@ -1983,8 +1984,8 @@ const ASSERT_CONTAINS_DOC: MethodDoc = MethodDoc {
 /// `Core\Test::assertMatchesInline`'s reference card — `rule:core-api/reference-card`.
 const ASSERT_MATCHES_INLINE_DOC: MethodDoc = MethodDoc {
     short: "Asserts that `$actual`, rendered as `Core\\Debug::render` renders it, is exactly \
-            `$expected` — an inline snapshot, whose expectation is a literal in the test's own \
-            source rather than a file beside it.",
+            `$expected`. This is an inline snapshot: the expected text is a string written in \
+            the test itself, not a file beside it.",
     params: &[
         ParamDoc {
             name: "actual",
@@ -1995,7 +1996,7 @@ const ASSERT_MATCHES_INLINE_DOC: MethodDoc = MethodDoc {
         ParamDoc {
             name: "expected",
             desc: "The rendering this value is expected to have, written inline; `nvs test \
-                   --update` writes it here for you, replacing this literal and nothing else in \
+                   --update` writes it here for you. It replaces this string and nothing else in \
                    the file.",
             shape: &[],
         },
@@ -2022,7 +2023,7 @@ const ASSERT_THROWS_DOC: MethodDoc = MethodDoc {
     params: &[
         ParamDoc {
             name: "body",
-            desc: "The closure to run; a value it returns is released.",
+            desc: "The function to run; a value it returns is released.",
             shape: &[],
         },
         ParamDoc {
@@ -2057,7 +2058,7 @@ const ASSERT_DOES_NOT_THROW_DOC: MethodDoc = MethodDoc {
     params: &[
         ParamDoc {
             name: "body",
-            desc: "The closure to run; a value it returns is released.",
+            desc: "The function to run; a value it returns is released.",
             shape: &[],
         },
         ParamDoc {
@@ -3433,7 +3434,7 @@ nvs_runtime::nvs_helper! {
     /// the one position that admits every type, and a `?T` parameter would
     /// refuse the `string` half of the very question this member asks about a
     /// union. What it costs is that a subject whose declared type cannot hold
-    /// `null` at all still compiles — a mistake `rule:types/single-value-types`'s literal types
+    /// `null` at all still compiles — a mistake `rule:types/single-value-types`'s single-value types
     /// would have to be extended to `null` to catch, which is not this
     /// member's to decide.
     fn nvs_core_test_assert_null(ctx, args: [2]) {
@@ -4178,7 +4179,7 @@ pub(crate) const RECORD_SLOT: usize = 0;
 /// double that delegates to nothing.
 pub(crate) const REAL_SLOT: usize = 1;
 
-/// Slot `FIRST_METHOD_SLOT + i`: the closure answering method *i* of the
+/// Slot `FIRST_METHOD_SLOT + i`: the callable answering method *i* of the
 /// receiver's own method table, in the name order
 /// [`nvs_runtime::ClassTable::set_methods`] sorts that table into.
 pub(crate) const FIRST_METHOD_SLOT: usize = 2;
@@ -4199,7 +4200,7 @@ const REAL_FIELD: &str = "$real";
 
 /// One method a double answers, as [`descriptor_for`] needs it.
 ///
-/// [`Self::arity`] and [`Self::params`] are the **closure's** own declared
+/// [`Self::arity`] and [`Self::params`] are the **callable's** own declared
 /// shape, read off its slots by the caller — this module's *a double's
 /// descriptor is built here* says why a row's shape is the body's rather than
 /// the interface's, and an interface's descriptor could not answer it anyway:
@@ -4268,7 +4269,7 @@ pub(crate) fn descriptor_for(
 
     // The field order **is** the row order: `set_methods` sorts its rows by
     // name, and slot `FIRST_METHOD_SLOT + i` has to hold method `i` of that
-    // sorted table for a trampoline to find its own closure by its own slot.
+    // sorted table for a trampoline to find its own callable by its own slot.
     let mut ordered: Vec<&Answer> = answers.iter().collect();
     ordered.sort_by(|left, right| left.name.cmp(&right.name));
 
@@ -4347,16 +4348,16 @@ pub(crate) fn descriptor_for(
 }
 
 /// A fresh double of `class`, as the [`Value`] a helper answers with: its
-/// ledger empty, `$real` holding `real`, and each named closure in the field
+/// ledger empty, `$real` holding `real`, and each named callable in the field
 /// [`descriptor_for`] laid out for it.
 ///
 /// Placed **by name** rather than in the order they were read, so the sort
 /// that decides a double's layout lives in [`descriptor_for`] alone and a
 /// caller that reads a shape's fields in source order owes nothing. A method a
-/// `partial` delegates is named by no closure here and keeps the `null` its
+/// `partial` delegates is named by no callable here and keeps the `null` its
 /// slot was born with, which is what [`answered`] reads to delegate it.
 ///
-/// Takes over `real`'s reference and each closure's, exactly as
+/// Takes over `real`'s reference and each callable's, exactly as
 /// [`crate::instance::build`] does — this is that same object, built against a
 /// descriptor from the table above rather than from a
 /// [`crate::registry::CoreClass`].
@@ -4390,7 +4391,7 @@ pub(crate) fn double_of(
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Test::double<T>(object $answers): T` — a shape of closures that
+    /// `Core\Test::double<T>(object $answers): T` — a shape of callables that
     /// **is** a `T` (`rule:testing/doubles`).
     ///
     /// **Arguments 0 to 2 are what the call site wrote as its type argument**,
@@ -4744,7 +4745,7 @@ fn object_of(
 }
 
 /// One field of a `{name: fn …}` argument: the method it answers, and the
-/// closure answering it **borrowed** from the shape that holds it.
+/// callable answering it **borrowed** from the shape that holds it.
 type Given = (String, Value);
 
 /// Every field of the shape in `value`, in the order the shape lays them out.
@@ -4762,7 +4763,7 @@ fn answers_of(value: Value, member: &str) -> Result<Vec<Given>, Fault> {
         .collect())
 }
 
-/// One [`Answer`] per field the shape gave, each carrying its own closure's
+/// One [`Answer`] per field the shape gave, each carrying its own callable's
 /// declared shape.
 fn rows_of(given: &[Given]) -> Vec<Answer> {
     given
@@ -4800,9 +4801,9 @@ fn delegated_rows(real: &nvs_runtime::ClassDesc, overridden: &[Given]) -> Vec<An
         .collect()
 }
 
-/// What `closure` declares, as a [`nvs_runtime::MethodRow`] carries it.
+/// What `callable` declares, as a [`nvs_runtime::MethodRow`] carries it.
 ///
-/// `(0, 0)` for a value that is not a closure at all, which until the
+/// `(0, 0)` for a value that is not a callable at all, which until the
 /// checker's refusals land is a shape field it still admits: the row published
 /// for one answers through `nvs_runtime::call_callable`, whose own refusal names
 /// the value, rather than being read here as a shape it does not have.
@@ -4814,7 +4815,7 @@ fn callable_shape(callable: Value) -> (u32, u64) {
         unsafe_code,
         reason = "this frame borrows the shape holding this slot, so the \
                   allocation and its descriptor are live — and the two slots \
-                  below are read only once the class says it is a closure's, \
+                  below are read only once the class says it is a callable's, \
                   which is what puts them in range"
     )]
     let callable_class = unsafe { nvs_runtime::NvsObj::class_of(object).as_ref() }
@@ -4836,7 +4837,7 @@ fn callable_shape(callable: Value) -> (u32, u64) {
     )
 }
 
-/// `given`, with a reference taken on each closure for [`double_of`] to hand
+/// `given`, with a reference taken on each callable for [`double_of`] to hand
 /// over to the double's own slot.
 fn retained(given: Vec<Given>) -> Vec<Given> {
     #[expect(
@@ -5049,7 +5050,7 @@ fn answered_arity(receiver: Value, slot: usize) -> usize {
     row.map_or(0, |row| usize::try_from(row.arity).unwrap_or(0))
 }
 
-/// A double's method at `slot`, answered: the call recorded, then the closure
+/// A double's method at `slot`, answered: the call recorded, then the callable
 /// standing in for it run — or `$real`'s own method where a `partial` left
 /// this one to it.
 fn answer(slot: usize, ctx: &mut Ctx, args: &[Value]) -> nvs_runtime::HelperResult {
@@ -5079,7 +5080,7 @@ fn answer(slot: usize, ctx: &mut Ctx, args: &[Value]) -> nvs_runtime::HelperResu
 ///
 /// A [`Fault::fatal`] for a receiver that is not a double of this module's own
 /// making, and the callee's own failure — propagated as [`Fault::Pending`] —
-/// for a closure or a delegate that threw.
+/// for a callable or a delegate that threw.
 fn answered(slot: usize, ctx: &mut Ctx, args: &[Value]) -> nvs_runtime::HelperResult {
     // Unreachable from source: the address of this row was read off the
     // receiver's own descriptor, so `nvs_ir::ir::InstKind::CallVirtual` put an
@@ -5115,7 +5116,7 @@ fn answered(slot: usize, ctx: &mut Ctx, args: &[Value]) -> nvs_runtime::HelperRe
                 desc.name()
             ))
         })?;
-    // Before the call and not after it, so a closure that throws is still a
+    // Before the call and not after it, so a callable that throws is still a
     // call the test can assert was made.
     record(receiver, method, &args[1..]);
     let answering = crate::instance::slot(receiver, FIRST_METHOD_SLOT + slot);
@@ -5132,7 +5133,7 @@ fn answered(slot: usize, ctx: &mut Ctx, args: &[Value]) -> nvs_runtime::HelperRe
 /// # Errors
 ///
 /// A [`Fault::fatal`] where there is nothing behind the double to delegate to,
-/// which is [`descriptor_for`] having published a row for a method no closure
+/// which is [`descriptor_for`] having published a row for a method no callable
 /// and no real implementation answers. The delegate's own failure otherwise.
 fn delegated(
     ctx: &mut Ctx,
@@ -5154,10 +5155,10 @@ fn delegated(
     let real = crate::instance::slot(receiver, REAL_SLOT);
     // Unreachable from source: `double` publishes a row per field of the shape
     // it was given and `partial` one per method of `$real` besides, so a row
-    // with no closure belongs to a double that has a `$real`.
+    // with no callable belongs to a double that has a `$real`.
     if real.obj_ptr().is_none() {
         return Err(Fault::fatal(format!(
-            "internal error: a `{NAME}` double answers `{method}` with neither a closure nor a \
+            "internal error: a `{NAME}` double answers `{method}` with neither a callable nor a \
              real implementation"
         )));
     }
@@ -5746,16 +5747,16 @@ mod tests {
         dropped(since);
     }
 
-    /// The `int` [`answering`] hands back, so a call that reached the closure
+    /// The `int` [`answering`] hands back, so a call that reached the callable
     /// is told from one that did not.
     const ANSWERED: i64 = 7;
 
-    /// A closure's `invoke`, hand-written: it sweeps the references
+    /// A callable's `invoke`, hand-written: it sweeps the references
     /// `nvs_runtime::call_callable` retained for it — itself and its one
     /// parameter — and answers [`ANSWERED`].
     #[expect(
         unsafe_code,
-        reason = "`call_callable` passes exactly the closure and one parameter, \
+        reason = "`call_callable` passes exactly the callable and one parameter, \
                   each retained for this callee to release, and the result \
                   pointer is one value wide"
     )]
@@ -5769,9 +5770,9 @@ mod tests {
         nvs_runtime::OK
     }
 
-    /// A closure value of one parameter whose body is [`answering`].
+    /// A callable value of one parameter whose body is [`answering`].
     ///
-    /// `nvs_runtime::call_callable` reads exactly four things off a closure —
+    /// `nvs_runtime::call_callable` reads exactly four things off a callable —
     /// its class's `ClassTable::set_callable` bit, its arity slot, its
     /// parameter-tag slot and its `invoke`'s address — so a test in this crate
     /// can hand a double a `callable` with no compiler in front of it. The
@@ -5920,7 +5921,7 @@ mod tests {
             assert_eq!(
                 answered.as_int(),
                 Some(ANSWERED),
-                "the closure the shape gave is what answered the call"
+                "the callable the shape gave is what answered the call"
             );
             dropped(to);
         }
@@ -6015,7 +6016,7 @@ mod tests {
         let mut rows = rows_of(&given);
         assert!(
             rows.iter().all(|answer| !answer.delegated),
-            "an overridden method answers from its own closure"
+            "an overridden method answers from its own callable"
         );
         rows.extend(delegated);
         let first = descriptor_for(
@@ -7436,7 +7437,7 @@ mod tests {
         assert_eq!(RAN.load(Ordering::SeqCst), 3);
     }
 
-    /// A `fn (): void` closure whose body is `invoke`, over a leaked class
+    /// A `fn (): void` callable whose body is `invoke`, over a leaked class
     /// table: a descriptor's address is its identity.
     fn body_of(invoke: nvs_runtime::NvsFn) -> Value {
         let mut table = nvs_runtime::ClassTable::new();

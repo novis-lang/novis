@@ -44,7 +44,7 @@
 //!    happens in a signal context.
 //! 2. Each running request is asked for a safepoint
 //!    ([`nvs_runtime::SafepointFlags::SHUTDOWN`]).
-//! 3. `nvs_safepoint` runs the registered closure between two Novis statements,
+//! 3. `nvs_safepoint` runs the registered callable between two Novis statements,
 //!    on the request's own stack, with the whole budget and every `Core` member
 //!    reachable — `Ctx::run_shutdown_handler` is the home of the once-only rule
 //!    and of why nothing is reserved for it.
@@ -55,7 +55,7 @@
 //!
 //! # Registration and nothing else lives here
 //!
-//! [`crate::fatal`]'s division exactly. The member puts a closure on the
+//! [`crate::fatal`]'s division exactly. The member puts a callable on the
 //! request's context and stops; what a delivery then does with it belongs to
 //! `nvs_runtime`, because the safepoint is what has the request in hand. The
 //! slot is request-local for that module's reason as well — a `static` here
@@ -140,7 +140,7 @@ nvs_runtime::nvs_helper! {
         // a handler exists at all.
         if args[0].tag() == Some(Tag::Null) {
             return Err(Fault::fatal(
-                "Core\\Signal::onShutdown expected a closure for its handler, got null".to_string(),
+                "Core\\Signal::onShutdown expected a callable for its handler, got null".to_string(),
             ));
         }
         #[expect(
@@ -182,14 +182,14 @@ mod tests {
     /// already draining around it.
     #[derive(Clone, Copy)]
     struct Seen {
-        /// Whether the closure was entered with this request's context — the
+        /// Whether the callable was entered with this request's context — the
         /// thing that makes it ordinary Novis code rather than a callback.
         held_a_context: bool,
         /// What `nvs_runtime::drain::is_draining()` answered inside the call.
         drain_had_begun: bool,
     }
 
-    /// The closure the cases register: it records what it could see and answers
+    /// The callable the cases register: it records what it could see and answers
     /// nothing, exactly as a `void` handler compiled from Novis would.
     ///
     /// `call_callable` retains the receiver for this callee to release, and a
@@ -221,10 +221,10 @@ mod tests {
         nvs_runtime::OK
     }
 
-    /// A closure value whose `invoke` is the callback above, declaring no
+    /// A callable value whose `invoke` is the callback above, declaring no
     /// parameter.
     ///
-    /// `nvs_runtime::call_callable` reads a closure's arity and invoke address
+    /// `nvs_runtime::call_callable` reads a callable's arity and invoke address
     /// and nothing else, so this is a whole `callable` with no compiler in front
     /// of it. The table is leaked because a descriptor's address is its identity
     /// and it must outlive every instance made from it; the test process exiting
@@ -284,7 +284,7 @@ mod tests {
     /// ordinary code with the request's context in hand.
     ///
     /// Both halves are asserted, because only the pair says what the rule does.
-    /// Registration on its own runs nothing — a delivery that called the closure
+    /// Registration on its own runs nothing — a delivery that called the callable
     /// where it arrived would show up here — and the run that does happen is a
     /// `nvs_safepoint` frame the request continues out of, with a live `Ctx` the
     /// callee was handed. No signal handler could have either.
@@ -326,7 +326,7 @@ mod tests {
     /// and this class keeps no second bit to run inside instead.
     ///
     /// The delivery's whole effect on state is `Drain::process().begin()`, so
-    /// that is what this performs; what it then asserts is that the closure sees
+    /// that is what this performs; what it then asserts is that the callable sees
     /// a process already draining, which is only true if the two are one state
     /// machine. The roster half is asserted beside it: a member here answering
     /// the drain would be the second reading `Core\Server::isDraining()` already

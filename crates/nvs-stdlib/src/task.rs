@@ -1,6 +1,6 @@
 //! `Core\Task` — `rule:concurrency/one-scheduler`'s
 //! structured concurrency: two members that hand their host a group, and a
-//! third that hands the request one closure to run once it is over.
+//! third that hands the request one callable to run once it is over.
 //!
 //! §§ 1 and 2's typing is the half that reaches furthest. `Task::all` takes a
 //! shape of zero-argument callables and answers a shape with the same field
@@ -28,8 +28,8 @@
 //! member to sequence. So each body is:
 //!
 //! 1. Turn its argument into one [`Job`](nvs_runtime::host::Job) per child —
-//!    the one thing the two members do differently, since a shape literal
-//!    carries a different closure per field and an array shares one callback.
+//!    the one thing the two members do differently, since an anonymous object
+//!    carries a different callable per field and an array shares one callback.
 //! 2. Hand the jobs and § 3's [`Bounds`](nvs_runtime::host::Bounds) to the host
 //!    through [`run_group`](nvs_runtime::host::Host::run_group), which returns
 //!    only with nothing still running (§ 4).
@@ -38,7 +38,7 @@
 //!
 //! **A job's captures are borrowed, not owned**, which is what discharges the
 //! release obligation [`Job`](nvs_runtime::host::Job) documents for a job that
-//! is dropped without ever being called: the closure a field holds and the
+//! is dropped without ever being called: the callable a field holds and the
 //! element `map` passes both belong to *this* frame's arguments, which outlive
 //! the group by construction — the call does not return while a child is still
 //! running, and a cancelled parent's children are unwound without being
@@ -51,20 +51,20 @@
 //! descriptor, because `rule:types/object-top`'s shape class is named for its
 //! field names alone (`nvs_ir::lower::shape_class_label`) and those are
 //! identical on both sides. That descriptor's per-slot tags would otherwise be
-//! the *literal's*, where every field holds a closure, and `$page->count = 5`
+//! the *argument's*, where every field holds a callable, and `$page->count = 5`
 //! on a field declared `fn (): int` would be refused for writing an `int` to a
 //! slot promising `object`. So the call site records the **result** shape's
 //! representations against that same label
 //! (`nvs_ir::lower::Lowering::record_core_result_shape`), which degrades every
 //! slot the two spell differently to unchecked, exactly as two disagreeing
-//! literals of one shape already do — `nvs_runtime::object`'s module doc
+//! anonymous objects of one shape already do — `nvs_runtime::object`'s module doc
 //! § *What a shape write checks*, case 4.
 //!
 //! # `{limit, deadline}` is the only optioned spelling
 //!
 //! § 3: one trailing options shape (`rule:core-api/shape-rules` R2), the same two fields on `all`
 //! and on the `map` that follows it. Both default to [`Const::Null`] and both
-//! mean "unbounded" there — `limit` because a shape literal is already bounded
+//! mean "unbounded" there — `limit` because an anonymous object is already bounded
 //! by its field count, and `deadline` because a call that names none is bounded
 //! by the request tree's own `wall_time`, which `rule:config/three-changeability-classes` makes finite. There is
 //! no `timeout` member and no `race`: a timeout on a group *is* the `deadline`
@@ -75,12 +75,12 @@
 //! § 6's member shares the class and nothing else: it starts no child, waits
 //! for nothing, and returns while the request is still running. Its whole body
 //! is a retain and a push, and everything that makes it a *task* — when the
-//! closure runs, what a host with no response does about "after the response",
+//! callable runs, what a host with no response does about "after the response",
 //! why the queue seals while it drains, where a throw out of it goes, and why
 //! § 7's `max_concurrent` is a gap rather than a count — belongs to
 //! [`nvs_runtime::deferred`], which is that behaviour's one home.
 //! Its options bag is [`DEFERRED_OPTIONS`] rather than [`OPTIONS`] for the same
-//! reason: a single closure has no concurrency for a `limit` to shape.
+//! reason: a single callable has no concurrency for a `limit` to shape.
 
 use std::time::Duration;
 
@@ -116,7 +116,7 @@ const OPTIONS: &[CoreOption] = &[
     },
 ];
 
-/// § 6's own options bag: one field, because a single deferred closure has no
+/// § 6's own options bag: one field, because a single deferred callable has no
 /// concurrency for a `limit` to shape. `deadline` means what § 7 says rather
 /// than what [`OPTIONS`] says — omitted, the call inherits `[deferred]
 /// deadline` and not the tree's `wall_time`, which is over by then.
@@ -129,7 +129,7 @@ const DEFERRED_OPTIONS: &[CoreOption] = &[CoreOption {
 /// `Core\Task`'s class card — `rule:core-api/reference-card`.
 const CARD: ClassDoc = ClassDoc {
     short: "Runs work as tasks. `all()` and `map()` run several tasks at the same time and return \
-            when every one has finished. `afterResponse()` runs one closure after the response is \
+            when every one has finished. `afterResponse()` runs one function after the response is \
             sent.",
 };
 
@@ -210,20 +210,21 @@ const GROUP_ERRORS: &[ErrorDoc] = &[
 
 /// `Core\Task::all`'s reference card — `rule:core-api/reference-card`.
 const ALL_DOC: MethodDoc = MethodDoc {
-    short: "Runs every closure in the `$tasks` shape at the same time, and waits until all of \
-            them have finished. The result is a shape with the same field names, and each field \
-            has the type its closure returns.",
+    short: "Runs every function in the `$tasks` object at the same time, and waits until all \
+            of them have finished. The result is an object with the same field names, and each \
+            field has the type its function returns.",
     params: &[
         ParamDoc {
             name: "tasks",
-            desc: "A shape whose fields are closures with no parameters, written as `fn` literals \
-                   in the call. A variable of type `callable` in a field does not compile.",
+            desc: "An object whose fields are anonymous functions with no parameters, such as \
+                   `{a: fn (): int => 1}`. Write them directly in the call. A variable of type \
+                   `callable` in a field does not compile.",
             shape: &[],
         },
         LIMIT_DOC,
         DEADLINE_DOC,
     ],
-    ret: "A shape with the value each closure returned. No task is still running when the call \
+    ret: "An object with the value each function returned. No task is still running when the call \
           returns. If a task throws an error, the other tasks are stopped, and the call throws \
           that same error.",
     errors: GROUP_ERRORS,
@@ -265,19 +266,19 @@ const AFTER_RESPONSE_DOC: MethodDoc = MethodDoc {
     params: &[
         ParamDoc {
             name: "fn",
-            desc: "The closure to run. It takes no arguments, and its return value is ignored. An \
+            desc: "The function to run. It takes no arguments, and its return value is ignored. An \
                    error it throws is written to the log, and no `catch` in the request sees it.",
             shape: &[],
         },
         ParamDoc {
             name: "deadline",
-            desc: "The longest time the closure may run. Without it, the `[deferred] deadline` \
+            desc: "The longest time `$fn` may run. Without it, the `[deferred] deadline` \
                    setting is the limit. The request's `[limits] wall_time` does not apply here, \
                    but its other `[limits]` settings do.",
             shape: &[],
         },
     ],
-    ret: "Nothing. The closures run one at a time, in the order you added them. They do not run \
+    ret: "Nothing. The functions run one at a time, in the order you added them. They do not run \
           if the request ends with an uncaught error, an `exit` or a fatal error.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
@@ -331,7 +332,7 @@ fn bounds(args: &[Value], at: usize, member: &str) -> Result<Bounds, Fault> {
             ));
         }
         // Saturating rather than refusing: a limit past `u32::MAX` is one no
-        // shape literal and no array can reach, so it means the same thing the
+        // anonymous object and no array can reach, so it means the same thing the
         // largest representable one does.
         Some(count) => Some(u32::try_from(count).unwrap_or(u32::MAX)),
     };
@@ -346,7 +347,7 @@ fn bounds(args: &[Value], at: usize, member: &str) -> Result<Bounds, Fault> {
     Ok(Bounds { limit, deadline })
 }
 
-/// Runs one child's closure and leaves any failure where the host reads it.
+/// Runs one child's callable and leaves any failure where the host reads it.
 ///
 /// A [`Job`] answers with a [`Value`] and has no error channel, because the
 /// host takes a child's failure off the child's own context — `Ctx::pending`
@@ -459,7 +460,7 @@ nvs_runtime::nvs_helper! {
         let shape = receiver(args, "Core\\Task::all")?;
         let bounds = bounds(args, 1, "Core\\Task::all")?;
 
-        // Every closure is *borrowed* from the argument's slot — the module
+        // Every callable is *borrowed* from the argument's slot — the module
         // doc's paragraph on what a job captures owns why nothing is retained.
         let jobs: Vec<Job> = (0..shape.field_count())
             .map(|slot| {
@@ -571,9 +572,9 @@ nvs_runtime::nvs_helper! {
     ///
     /// The registration is the whole body, and the two things it does that a
     /// caller could not are the retain and the cap. `nvs_runtime::deferred` is
-    /// the one home for *when* the closure runs — a host with no response has
+    /// the one home for *when* the callable runs — a host with no response has
     /// to answer that too — and for why the cap counts request trees rather
-    /// than closures.
+    /// than callables.
     fn nvs_core_task_after_response(ctx, args: [2]) {
         // The row's first parameter is `CoreTy::Callable`, so `E0401` refuses a
         // `null` at the call and this guard is unreachable from source: what it
@@ -582,12 +583,12 @@ nvs_runtime::nvs_helper! {
         // over.
         if args[0].tag() == Some(Tag::Null) {
             return Err(Fault::fatal(
-                "Core\\Task::afterResponse expected a closure, got null".to_string(),
+                "Core\\Task::afterResponse expected a callable, got null".to_string(),
             ));
         }
         // § 7: the option the call named, or the tree's own default, both in
         // nanoseconds, where the queue reads `0` as "no deadline". A named
-        // deadline of zero or less is out of time before the closure starts,
+        // deadline of zero or less is out of time before the callable starts,
         // as [`bounds`] reads it for a group, so it becomes the smallest one
         // there is rather than that `0`.
         let deadline = if args[1].obj_ptr().is_some() {
@@ -644,7 +645,7 @@ nvs_runtime::nvs_helper! {
     }
 }
 
-/// The shape literal in argument slot 0, borrowed.
+/// The anonymous object in argument slot 0, borrowed.
 ///
 /// # Errors
 ///
@@ -686,10 +687,10 @@ mod tests {
     };
 
     /// How many times [`counts_a_run`] was called. Registering must never call
-    /// it: the closure runs at the drain, which no test here reaches.
+    /// it: the callable runs at the drain, which no test here reaches.
     static RUNS: AtomicUsize = AtomicUsize::new(0);
 
-    /// The registered closure, as the callee side of `call_callable`'s contract:
+    /// The registered callable, as the callee side of `call_callable`'s contract:
     /// it counts, sweeps the receiver it was handed and answers nothing.
     #[expect(
         unsafe_code,
@@ -705,9 +706,9 @@ mod tests {
         nvs_runtime::OK
     }
 
-    /// A closure declaring `arity` parameters of any type and calling `invoke`,
+    /// A callable declaring `arity` parameters of any type and calling `invoke`,
     /// owned by the caller — `crates/nvs-stdlib/tests/allocation_policy.rs`'s
-    /// `callable_of`, whose doc comment says why this is a whole closure and why
+    /// `callable_of`, whose doc comment says why this is a whole callable and why
     /// the table leaks.
     fn callable_of(arity: u32, invoke: NvsFn) -> Value {
         let mut table = ClassTable::new();
@@ -756,12 +757,12 @@ mod tests {
     #[test]
     fn after_response_queues_one_reference_on_the_request_and_refuses_a_child() {
         let callable = callable_of(0, counts_a_run);
-        let header = callable.obj_ptr().expect("the closure is an object");
+        let header = callable.obj_ptr().expect("the callable is an object");
         let trees = nvs_runtime::deferred::trees_in_flight();
         let refcount = || {
             #[expect(
                 unsafe_code,
-                reason = "`closure` keeps the allocation live until the last line of this test"
+                reason = "`callable` keeps the allocation live until the last line of this test"
             )]
             unsafe {
                 NvsObj::refcount_of(header)
@@ -826,7 +827,7 @@ mod tests {
         assert_eq!(RUNS.load(Ordering::SeqCst), 0, "registering runs nothing");
         #[expect(
             unsafe_code,
-            reason = "the test built the closure and owns its last reference"
+            reason = "the test built the callable and owns its last reference"
         )]
         unsafe {
             callable.release();
@@ -881,7 +882,7 @@ mod tests {
         }
     }
 
-    /// The first field's closure: sweeps its receiver and answers `7`.
+    /// The first field's callable: sweeps its receiver and answers `7`.
     #[expect(
         unsafe_code,
         reason = "`call_callable` passes one live value this callee owes a release, \
@@ -895,7 +896,7 @@ mod tests {
         nvs_runtime::OK
     }
 
-    /// The second field's closure: sweeps its receiver and answers `11`.
+    /// The second field's callable: sweeps its receiver and answers `11`.
     #[expect(
         unsafe_code,
         reason = "`call_callable` passes one live value this callee owes a release, \
@@ -914,7 +915,7 @@ mod tests {
     }
 
     /// `all` answers an object of the argument's own class, each slot holding
-    /// what that slot's closure returned, and borrows the closures rather than
+    /// what that slot's callable returned, and borrows the callables rather than
     /// keeping them. A `limit` of `0` is refused before any host is asked, and
     /// a thread with no host is a fatal that names the member.
     // covers: Core\Task::all
@@ -936,12 +937,12 @@ mod tests {
         let refcounts = || {
             #[expect(
                 unsafe_code,
-                reason = "`shape` holds both closures until the last line of this test"
+                reason = "`shape` holds both callables until the last line of this test"
             )]
             unsafe {
                 [
-                    NvsObj::refcount_of(seven.obj_ptr().expect("a closure is an object")),
-                    NvsObj::refcount_of(eleven.obj_ptr().expect("a closure is an object")),
+                    NvsObj::refcount_of(seven.obj_ptr().expect("a callable is an object")),
+                    NvsObj::refcount_of(eleven.obj_ptr().expect("a callable is an object")),
                 ]
             }
         };
@@ -991,19 +992,19 @@ mod tests {
             assert_eq!(
                 result.field(0).as_int(),
                 Some(7),
-                "`size` is its closure's answer"
+                "`size` is its callable's answer"
             );
             assert_eq!(
                 result.field(1).as_int(),
                 Some(11),
-                "`total` is its closure's answer"
+                "`total` is its callable's answer"
             );
         }
-        assert_eq!(refcounts(), [1, 1], "the call kept no closure");
+        assert_eq!(refcounts(), [1, 1], "the call kept no callable");
 
         #[expect(
             unsafe_code,
-            reason = "the test owns the answer and the shape, and the shape owns both closures"
+            reason = "the test owns the answer and the shape, and the shape owns both callables"
         )]
         unsafe {
             answer.release();
@@ -1106,12 +1107,12 @@ mod tests {
         let refcounts = || {
             #[expect(
                 unsafe_code,
-                reason = "the test holds both closures until its last line"
+                reason = "the test holds both callables until its last line"
             )]
             unsafe {
                 [
-                    NvsObj::refcount_of(by_value.obj_ptr().expect("a closure is an object")),
-                    NvsObj::refcount_of(by_key.obj_ptr().expect("a closure is an object")),
+                    NvsObj::refcount_of(by_value.obj_ptr().expect("a callable is an object")),
+                    NvsObj::refcount_of(by_key.obj_ptr().expect("a callable is an object")),
                 ]
             }
         };

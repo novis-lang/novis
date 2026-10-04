@@ -34,6 +34,6 @@ try {
     echo $version->message, "\n";
 }
 --EXPECT--
-Core\Serialize::encode(): a closure captures a heap and a scope, so it has no meaning on the other side of a copy boundary
+Core\Serialize::encode(): a callable captures variables from the code that created it, so it has no meaning on the other side of a copy boundary
 Core\Serialize::decode(): the payload does not carry Novis's serialization marker
 Core\Serialize::decode(): the payload is format version 99, and this build reads 1

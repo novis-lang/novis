@@ -14,6 +14,6 @@ foreach ($paths as string $path) {
 }
 --EXPECT--
 Core\Path::fromCwd cannot be used while answering a request, because a server's working directory is not the app's folder
-help: write the path as a string literal, which is relative to the file that contains it, or build it with `Core\Path::join`
+help: write the path directly in the code, in quotes. It is then relative to the file that contains it. You can also build it with `Core\Path::join`
 Core\Path::fromCwd cannot be used while answering a request, because a server's working directory is not the app's folder
-help: write the path as a string literal, which is relative to the file that contains it, or build it with `Core\Path::join`
+help: write the path directly in the code, in quotes. It is then relative to the file that contains it. You can also build it with `Core\Path::join`

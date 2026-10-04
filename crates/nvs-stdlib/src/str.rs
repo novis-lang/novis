@@ -1501,8 +1501,8 @@ const FORMAT_DOC: MethodDoc = MethodDoc {
         ParamDoc {
             name: "template",
             desc: "The template. It must be trusted text, so a tainted string is not allowed. \
-                   When the template is a literal, its placeholders are checked when the \
-                   program compiles.",
+                   When the template is written directly in the code, its placeholders are \
+                   checked when the program compiles.",
             shape: &[],
         },
         ParamDoc {

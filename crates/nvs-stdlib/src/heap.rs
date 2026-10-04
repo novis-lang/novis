@@ -622,7 +622,7 @@ nvs_runtime::nvs_helper! {
             Some(Tag::Null | Tag::Object) => {}
             _ => {
                 return Err(Fault::fatal(format!(
-                    "{NAME}'s constructor expected a closure or nothing for `comparator`, got \
+                    "{NAME}'s constructor expected a callable or nothing for `comparator`, got \
                      tag {}",
                     comparator.tag_byte()
                 )));

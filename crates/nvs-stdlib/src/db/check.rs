@@ -2,7 +2,7 @@
 //!
 //! [ADR 0067 § 4](/docs/decisions/0067.md)'s one-statement rule, the
 //! closing delimiter every region of a statement owes, and § 10's placeholder
-//! count are properties of a literal string alone, so a call that breaks any of
+//! count are properties of a string literal alone, so a call that breaks any of
 //! them is refused where it is written and never reaches a connection. What is
 //! below is the whole of that surface and the only part of this module
 //! `nvs-types` calls — which is the edge that puts the front end above this
@@ -12,12 +12,12 @@
 //! string and [`nvs_db::sql`], which is why the dependency it creates is on
 //! this module and not on a database connection.
 
-/// Whether every region a literal query opens is one it also closes —
+/// Whether a query written as a string literal closes every region it opens —
 /// `rule:core-classes/db-compile-time-query-checking`'s "an unterminated string
 /// literal", over [`nvs_db::sql::holds_an_unterminated_region`].
 ///
 /// A fact about the text alone, like [`check_single_statement`]'s, so it is
-/// asked of every literal query and not only of one whose params array this
+/// asked of every query written as a string literal and not only of one whose params array this
 /// pass could read whole. It is an earlier answer and not a different one in
 /// the way `rule:expressions/preparation-preserves-behaviour` asks for:
 /// [`nvs_db::sql::rewrite`] refuses these same texts when a request runs them,
@@ -42,16 +42,16 @@ pub fn check_closed_regions(sql: &str) -> Result<(), String> {
     .all(|dialect| nvs_db::sql::holds_an_unterminated_region(sql, dialect));
     if unterminated {
         return Err(
-            "a string literal, a quoted name or a comment this statement opens is never \
-             closed — every byte after it is read as being inside it, so what the statement \
-             binds is what fits inside an opening delimiter rather than what was written"
+            "a string, a quoted name or a comment in this statement is opened and never \
+             closed. Everything after it is read as part of it, so the statement does not \
+             bind what you wrote"
                 .to_owned(),
         );
     }
     Ok(())
 }
 
-/// Whether a literal query holds the one statement [ADR 0067
+/// Whether a query written as a string literal holds the one statement [ADR 0067
 /// § 1](/docs/decisions/0067.md) prepares — § 10's "a refused second
 /// statement", over [`nvs_db::sql::holds_a_second_statement`].
 ///
@@ -81,7 +81,7 @@ pub fn check_single_statement(sql: &str) -> Result<(), String> {
     Ok(())
 }
 
-/// A literal params array as far as the *compiler* can read one — [ADR 0067
+/// A params array written as an array literal, as far as the *compiler* can read one — [ADR 0067
 /// § 10](/docs/decisions/0067.md)'s "a literal params array", which is
 /// the only shape it promises anything about.
 ///
@@ -98,7 +98,7 @@ pub enum WrittenQueryParams<'a> {
     Named(&'a [&'a str]),
 }
 
-/// Whether a literal query agrees with the literal params array written beside
+/// Whether a query written as a string literal agrees with the params array literal written beside
 /// it — [ADR 0067 § 10](/docs/decisions/0067.md)'s "placeholder count
 /// against a literal params array, positional-vs-named consistency".
 ///

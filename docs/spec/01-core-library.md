@@ -567,7 +567,7 @@ are `rule:core-classes/regex-two-tiers`. `preg_match`'s `$matches` out-parameter
 | `replace` | `replace(string $subject, Pattern\|string $pattern, string $replacement, {limit?: uint}): string` | `preg_replace` | **sink** (pattern) |
 | `replaceWith` | `replaceWith(string $subject, Pattern\|string $pattern, callable(Match): string $fn, {limit?: uint}): string` | `preg_replace_callback`, `preg_replace_callback_array` | **sink** (pattern) |
 | `split` | `split(string $subject, Pattern\|string $pattern, {limit?: int, keepEmpty?: bool}): array<string>` | `preg_split` and its four flags | **sink** (pattern) |
-| `quote` | `quote(string $literal): string` | `preg_quote` | **launder** (for the pattern sink) |
+| `quote` | `quote(string $text): string` | `preg_quote` | **launder** (for the pattern sink) |
 
 `Match` replaces the positional-array shape with four members:
 

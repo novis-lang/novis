@@ -67,7 +67,7 @@
 //! position on unrendered is what that section refuses, since it would make a
 //! callback's `$key` type depend on how the subject is stored. It is visible
 //! now that `nvs_runtime::call_callable` checks each argument against the
-//! parameter tags the closure declared: a callback writing `int $k` throws
+//! parameter tags the callable declared: a callback writing `int $k` throws
 //! `LogicError` at the call, on a list exactly as on a map, rather than
 //! reading a string's payload as an integer.
 //!
@@ -81,7 +81,7 @@
 //!
 //! [`nvs_core_arr_sort`] takes the same rule one step further, because it is
 //! the one member that may not need the keys *at all*: with `preserveKeys`
-//! false and no `by` closure declaring a second parameter, nothing downstream
+//! false and no `by` callable declaring a second parameter, nothing downstream
 //! can observe a key, so its walk collects none rather than collecting and
 //! discarding them.
 //!
@@ -2138,13 +2138,13 @@ const SET_OPTIONS: &[CoreOption] = &[
 ];
 
 /// `{indexBy?: int|string}` — [`nvs_core_arr_column`]'s only option, and the
-/// first union option whose members are not literals.
+/// first union option whose members are not single-value types.
 ///
 /// [`CoreTy::Union`]'s docs own the rule this widened: what an option's
 /// default has to be is a value **outside** the declared type, so that "not
 /// given" cannot be confused with something a call site wrote. `int|string`
 /// admits no `null`, so [`Const::Null`] is that sentinel here exactly as it
-/// already is for `{by?: callable}` — the closed-set-of-literals shape
+/// already is for `{by?: callable}` — the set-of-allowed-values shape
 /// `Core\Validate::isIp`'s `{version?: 4|6}` needed was one instance of that
 /// rule rather than the rule itself.
 const COLUMN_OPTIONS: &[CoreOption] = &[CoreOption {
@@ -2362,7 +2362,7 @@ nvs_runtime::nvs_helper! {
     /// The predicate receives `($value, $key)` and may declare fewer
     /// parameters — the rule that removes `ARRAY_FILTER_USE_KEY` and
     /// `ARRAY_FILTER_USE_BOTH`. This member always offers both;
-    /// `nvs_runtime::call_callable` trims them to what the closure wants, and
+    /// `nvs_runtime::call_callable` trims them to what the callable wants, and
     /// is also where the retain/release around the call lives.
     ///
     /// Truthiness is `rule:expressions/truthy-positions`'s
@@ -2457,8 +2457,8 @@ nvs_runtime::nvs_helper! {
     /// [`nvs_core_arr_filter`] documents.
     ///
     /// **The `U` in the signature is real.** `map`'s result type is the
-    /// callback's own return type, bound at the call site from the `fn`
-    /// literal's recorded return — `nvs_types::generics` owns that rule and the
+    /// callback's own return type, bound at the call site from the anonymous
+    /// function's recorded return — `nvs_types::generics` owns that rule and the
     /// one argument shape that still leaves it `mixed`. Nothing here depends on
     /// it: the helper stores whatever `Value` the callback produced.
     ///
@@ -4380,7 +4380,7 @@ nvs_runtime::nvs_helper! {
 /// `nvs_runtime::call_callable` hands back one fresh reference per call, so the
 /// extracted values are this frame's to free — unlike the entries themselves,
 /// which belong to the subject array. Held in a guard rather than released at
-/// the end of the member because a `by` closure, a comparator or a wrong tag
+/// the end of the member because a `by` callable, a comparator or a wrong tag
 /// can all leave part-way through, and a `Drop` is the only release every one
 /// of those paths runs.
 struct Extracted(Vec<Value>);
@@ -4500,7 +4500,7 @@ nvs_runtime::nvs_helper! {
         })?;
 
         // Whether anything at all is going to look at a key: the result keeps
-        // them, or a `by` closure declared a parameter to receive one. A sort
+        // them, or a `by` callable declared a parameter to receive one. A sort
         // that renumbers and extracts by value alone — `sort($list)`, the
         // common call — reads none, so this walk collects none.
         // `docs/perf/userland-gap.md` § D's second paragraph.
@@ -4623,7 +4623,7 @@ nvs_runtime::nvs_helper! {
     /// a second sort: the same two stable sorts over an index permutation —
     /// [`crate::sort`]'s key sort over the keys' bytes when no comparator was
     /// given, the [`merge_sort`] under one — with the *keys* compared instead
-    /// of a `by` closure's answers. What differs is only what the comparison
+    /// of a `by` callable's answers. What differs is only what the comparison
     /// reads.
     ///
     /// # Why the bag is two options and not four
@@ -4750,7 +4750,7 @@ nvs_runtime::nvs_helper! {
     }
 }
 
-/// One optional callback option: the closure it names, or `None` for the
+/// One optional callback option: the callable it names, or `None` for the
 /// `Tag::Null` an omitting call site passes.
 ///
 /// `nvs_stdlib::registry::Const::Null` owns why "not given" is spelled that
@@ -4760,7 +4760,7 @@ fn optional_callback(value: &Value, member: &str, option: &str) -> Result<Option
         Some(Tag::Null) => Ok(None),
         Some(Tag::Object) => Ok(Some(*value)),
         _ => Err(Fault::fatal(format!(
-            "Core\\Arr::{member} expected a closure or nothing for `{option}`, got tag {}",
+            "Core\\Arr::{member} expected a callable or nothing for `{option}`, got tag {}",
             value.tag_byte()
         ))),
     }
@@ -7968,7 +7968,7 @@ mod tests {
 
         // `map` decodes its subject before it ever looks at the callback, so a
         // wrong subject is reported rather than reaching `call_callable` with a
-        // value that is not a closure either.
+        // value that is not a callable either.
         let mut ctx = Ctx::new(OutputSink::Sink);
         let status = call(
             super::nvs_core_arr_map,
@@ -8967,7 +8967,7 @@ mod tests {
     ///
     /// The sweep of the two references is not optional: `call_callable` retains
     /// the receiver and each argument for this callee to release, which is
-    /// what a compiled closure body does on its way out.
+    /// what a compiled anonymous function's body does on its way out.
     #[expect(
         unsafe_code,
         reason = "`call_callable` passes the receiver and one argument, each \
@@ -8988,12 +8988,12 @@ mod tests {
         nvs_runtime::OK
     }
 
-    /// A closure value declaring `arity` parameters, whose body is `invoke`.
+    /// A callable value declaring `arity` parameters, whose body is `invoke`.
     ///
     /// `nvs_runtime::call_callable` reads the arity and the parameter tags off
     /// the *object*'s own two slots rather than off the method row, so a table
     /// carrying one `CALLABLE_INVOKE` row plus those two fields is a whole
-    /// closure. Every parameter is tagged `CALLABLE_PARAM_TAG_ANY`, which is
+    /// callable. Every parameter is tagged `CALLABLE_PARAM_TAG_ANY`, which is
     /// what a `mixed` one gets: a Rust callback declares no type for the tag
     /// check to hold it to.
     ///

@@ -270,8 +270,8 @@ const UPGRADE_DOC: MethodDoc = MethodDoc {
             name: "entry",
             desc: "What the stream runs: a file path, resolved and root-checked exactly as \
                    `spawn script`'s operand is, or a static method written `Feed::run(...)`. \
-                   Never a closure — an isolate shares nothing but compiled code, so a capture \
-                   would cross the boundary the isolate exists to be.",
+                   It cannot be an anonymous function, because an anonymous function can \
+                   capture variables, and an isolate shares nothing but compiled code.",
             shape: &[],
         },
         ParamDoc {

@@ -7,7 +7,7 @@
 //! `rule:security/capture-answers-the-carrier`
 //! 's or the spec's rather than this file's:
 //!
-//! * **Scoped to a closure, so it nests by call nesting.** `ob_start` and
+//! * **Scoped to a callable, so it nests by call nesting.** `ob_start` and
 //!   `ob_get_clean` are two members of a *global* stack that can be started in
 //!   one function and ended in another, which is why inspecting it takes
 //!   `ob_get_level` and a loop. Here the two ends are the two ends of one call,
@@ -46,9 +46,9 @@ pub(crate) const NAME: &str = r"Core\Out";
 /// `capture`'s `{through?: callable}` — a transform applied to the captured
 /// carrier before it is answered.
 ///
-/// [`Const::Null`] rather than a do-nothing closure, for the reason that
+/// [`Const::Null`] rather than a do-nothing callable, for the reason that
 /// variant's own docs give: a `callable` has no "absent" value, and inventing
-/// an identity one would allocate a closure per omitting call site to express
+/// an identity one would allocate a callable per omitting call site to express
 /// "nothing to do".
 const CAPTURE_OPTIONS: &[CoreOption] = &[CoreOption {
     name: "through",
@@ -135,7 +135,7 @@ nvs_runtime::nvs_helper! {
     /// edges, the throwing one included: a `Fault` propagating out of a
     /// capture that stayed open would silently swallow the rest of the
     /// request's output, which is the worst failure this member could have.
-    /// That is why the closure's result is bound rather than `?`-ed.
+    /// That is why the callable's result is bound rather than `?`-ed.
     fn nvs_core_out_capture(ctx, args: [2]) {
         ctx.begin_capture();
         let outcome = nvs_runtime::call_callable(ctx, args[0], &[]);
@@ -176,7 +176,7 @@ nvs_runtime::nvs_helper! {
         if let Some(answered) = not_the_carrier(transformed, carrier) {
             #[expect(
                 unsafe_code,
-                reason = "the closure's result is this frame's to drop before it \
+                reason = "the callable's result is this frame's to drop before it \
                           reports the type error"
             )]
             unsafe {
@@ -212,7 +212,7 @@ pub(crate) fn carried(ctx: &nvs_runtime::Ctx, captured: &[u8]) -> Value {
     }
 }
 
-/// How to name what a `through` closure answered, or `None` where it answered
+/// How to name what a `through` callable answered, or `None` where it answered
 /// `carrier`, the class [`carried`] built for this sink.
 ///
 /// A `callable` is opaque as to signature (`rule:types/anonymous-function`),
@@ -251,9 +251,9 @@ mod tests {
 
     use super::*;
 
-    /// A closure value of no parameters whose `invoke` is a plain Rust
+    /// A callable value of no parameters whose `invoke` is a plain Rust
     /// function — `crates/nvs-stdlib/tests/allocation_policy.rs`'s
-    /// `callable_of`, whose doc comment says why this is a whole closure.
+    /// `callable_of`, whose doc comment says why this is a whole callable.
     ///
     /// The table is leaked because a descriptor's *address* is its identity and
     /// it must outlive every instance made from it.
@@ -328,8 +328,8 @@ mod tests {
     }
 
     /// `rule:security/capture-answers-the-carrier` driven through the member
-    /// itself: what the closure wrote comes back as a `Core\Cli\Text`, the sink
-    /// below sees none of it, and a closure that throws still leaves the
+    /// itself: what the callable wrote comes back as a `Core\Cli\Text`, the sink
+    /// below sees none of it, and a callable that throws still leaves the
     /// capture closed, so the rest of the request's output is not swallowed.
     // covers: Core\Out::capture
     #[test]

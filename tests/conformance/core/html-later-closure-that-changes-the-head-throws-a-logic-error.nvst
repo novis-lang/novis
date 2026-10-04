@@ -26,5 +26,5 @@ try {
 }
 --EXPECT--
 200
-A `Core\Html::later` closure cannot call `Core\Response::setStatus`. Only the main script sets the status, the headers, the cookies and the body.
+A function passed to `Core\Html::later` cannot call `Core\Response::setStatus`. Only the main script sets the status, the headers, the cookies and the body.
 Shop

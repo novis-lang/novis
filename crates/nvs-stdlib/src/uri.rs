@@ -2284,7 +2284,7 @@ struct Level {
 /// # Errors
 ///
 /// A [`Fault::thrown`] where the value is one `string` has no conversion from
-/// — an object or a closure. `null` never reaches here: [`build`] drops the
+/// — an object or a callable. `null` never reaches here: [`build`] drops the
 /// pair instead, which is `http_build_query`'s behaviour and the only one that
 /// round-trips, since a query string cannot spell an absent value.
 fn scalar_text(value: Value, owner: &str, member: &str) -> Result<Vec<u8>, Fault> {

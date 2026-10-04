@@ -1908,9 +1908,10 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             name: "push",
             names: &["script"],
             params: &[
-                // A **path**, so a relative literal is joined to the folder of the file that wrote
-                // the call (`rule:programs/relative-paths-resolve-from-their-file`), and the row
-                // stores the absolute path a worker in any folder runs.
+                // A **path**, so a relative one given as a string literal is joined to the folder
+                // of the file that wrote the call
+                // (`rule:programs/relative-paths-resolve-from-their-file`), and the row stores the
+                // absolute path a worker in any folder runs.
                 //
                 // A **sink**, and for `rule:core-classes/process-is-argv-only`'s reason rather than `rule:security/tainted-qualifier`'s usual one: the argument
                 // selects which file a worker will execute, so a `tainted` one would let a request pick
@@ -2169,7 +2170,7 @@ const PUSH_DOC: MethodDoc = MethodDoc {
             name: "script",
             desc: "The path of the file a worker runs, written the way `spawn script` writes one. \
                    A relative path starts at the folder of the file that calls `push`. \
-                   It is a file, not a class or a closure, so the job has no captured variables.",
+                   It is a file, not a class or a function, so the job has no captured variables.",
             shape: &[],
         },
         ParamDoc {
@@ -3326,9 +3327,10 @@ nvs_runtime::nvs_helper! {
                 ))
             })?
             .to_owned();
-        // `rule:programs/relative-paths-resolve-from-their-file`: a relative literal arrives joined
-        // to its file's folder, so a relative script here was built while the program ran. It
-        // throws before any other argument is read, and the row only ever stores an absolute path.
+        // `rule:programs/relative-paths-resolve-from-their-file`: a relative string literal arrives
+        // joined to its file's folder, so a relative script here was built while the program ran.
+        // It throws before any other argument is read, and the row only ever stores an absolute
+        // path.
         if let Some(message) =
             nvs_runtime::capability::relative(std::path::Path::new(&script), &format!("`{PUSH}`"))
         {
@@ -7511,7 +7513,7 @@ mod tests {
     ///
     /// Both members wanted a `{…}` an option could carry, and `rule:core-api/shape-parameter`
     /// answers them once: a shape is only ever a whole parameter. `open` took that answer — its
-    /// settings literal *is* the parameter — and `push` cannot, because
+    /// settings object *is* the parameter — and `push` cannot, because
     /// `rule:concurrency/queue-four-members` puts its knobs in the one trailing bag. So the two
     /// agree by there being no third spelling, which is asserted over every registered row rather
     /// than over these two: an option carrying a shape anywhere would mean one half had settled it
@@ -7531,7 +7533,7 @@ mod tests {
             open.params
                 .iter()
                 .any(|param| matches!(param, crate::registry::CoreTy::Shape(_))),
-            "`Core\\Db::open`'s settings literal is the whole parameter that lifted its half of the \
+            "`Core\\Db::open`'s settings object is the whole parameter that lifted its half of the \
              blocker, and this test reads the other half against it"
         );
         for class in crate::registry::CLASSES {

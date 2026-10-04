@@ -61,7 +61,7 @@
 //!
 //! # What cannot go wrong, and what is contained
 //!
-//! The key closures cannot fail: every value was classified before the sort
+//! The Rust key closures cannot fail: every value was classified before the sort
 //! began, so each `as_*` read answers. Allocation failure inside the crate
 //! falls back to the standard library's stable sort with the same order. A
 //! panic inside the crate is contained to one request by the helper

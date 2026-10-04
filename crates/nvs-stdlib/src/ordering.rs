@@ -109,7 +109,7 @@ pub(crate) fn compare_values(
 
 /// A verdict's sign, releasing the verdict itself.
 ///
-/// Every path that produces one — a comparator closure, a compiled `compareTo`,
+/// Every path that produces one — a comparator callable, a compiled `compareTo`,
 /// a `Core` class's comparer — hands back a *fresh* reference, so a member
 /// answering a heap value would otherwise leak one per comparison.
 ///

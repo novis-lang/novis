@@ -570,7 +570,7 @@ const PACK_DOC: MethodDoc = MethodDoc {
     params: &[
         ParamDoc {
             name: "format",
-            desc: "The format string — an intrinsic and a sink, so a literal — where each code \
+            desc: "The format string. It must be written directly in the code. Each code \
                    may be followed by a count or `*`: how many arguments a numeric field \
                    takes, and how many octets wide a buffer field is.",
             shape: &[],

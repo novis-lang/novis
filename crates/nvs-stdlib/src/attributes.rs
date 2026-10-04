@@ -4,9 +4,9 @@
 //! Every other class in this crate registers a signature *and* an
 //! implementation. This one registers a signature and nothing else, because §
 //! 5 says what the members do: a declaration's attached-attribute list is
-//! fully static and every payload is already a compile-time literal
+//! fully static and every payload is already a compile-time constant
 //! (§ 2), so `nvs check` **replaces the call with its answer** — a compiled-in
-//! `null`, the matched literal itself, or the array of them. There is no
+//! `null`, the matched payload object itself, or the array of them. There is no
 //! lookup left for a helper to perform, and `nvs_types::attributes` is where
 //! the answer is computed.
 //!
@@ -44,7 +44,7 @@ const T: CoreTy = CoreTy::Written("T");
 ///
 /// [`Qual::Neutral`] by the first bullet of [`Qual`]'s own rule, which is where
 /// that rule is written: neither member's answer can carry a byte of either
-/// argument. What comes back is a payload literal read out of a *declaration*
+/// argument. What comes back is a payload object read out of a *declaration*
 /// — § 5 folds the call to that constant before anything runs — so the name
 /// selects which declaration is read rather than flowing into what is read.
 const MEMBER: CoreTy = CoreTy::Text(Qual::Neutral);
@@ -102,27 +102,27 @@ const MEMBER_DOC: ParamDoc = ParamDoc {
 
 /// `Core\Attributes::get`'s reference card — `rule:core-api/reference-card`.
 const GET_DOC: MethodDoc = MethodDoc {
-    short: "Answers the one attribute attached to `$target` — or to its member `$member` — whose \
-            literal structurally satisfies the shape `T` written at the call site, resolved in \
-            `nvs check` so that the call is replaced by its answer and nothing runs.",
+    short: "Returns the one attribute on `$target`, or on its member `$member`, whose payload \
+            object matches the shape `T` written at the call site. `nvs check` finds it and \
+            replaces the call with the result, so nothing runs.",
     params: &[TARGET_DOC, MEMBER_DOC],
-    ret: "The matching attribute's payload literal as `T`, or `null` when none satisfies `T`; \
-          more than one is a compile error naming `all<T>` as the fix. Matching is width \
-          subtyping, so the empty shape `{}` is satisfied by every attached literal: a marker \
-          type with no fields asks for any attribute at all, and beside a second attribute it is \
-          that compile error rather than the marker.",
+    ret: "The payload object of the matching attribute, as `T`. The result is `null` when no \
+          attribute matches `T`. When more than one matches, the code does not compile, and the \
+          error names `all<T>` as the fix. A payload matches when it has at least the fields of \
+          `T`. So the empty shape `{}` matches every attribute, and a marker type with no fields \
+          gives that compile error when the target has a second attribute.",
     errors: &[],
 };
 
 /// `Core\Attributes::all`'s reference card — `rule:core-api/reference-card`.
 const ALL_DOC: MethodDoc = MethodDoc {
-    short: "Answers every attribute attached to `$target` — or to its member `$member` — whose \
-            literal structurally satisfies the shape `T` written at the call site, resolved in \
-            `nvs check` so that the call is replaced by its answer and nothing runs.",
+    short: "Returns every attribute on `$target`, or on its member `$member`, whose payload \
+            object matches the shape `T` written at the call site. `nvs check` finds them and \
+            replaces the call with the result, so nothing runs.",
     params: &[TARGET_DOC, MEMBER_DOC],
-    ret: "An `array<T>` of the matching payload literals in declaration order, empty when none \
-          satisfies `T`. Matching is width subtyping, so the empty shape `{}` answers every \
-          attached literal rather than the markers among them.",
+    ret: "An `array<T>` of the matching payload objects, in the order they are declared. It is \
+          empty when no attribute matches `T`. A payload matches when it has at least the \
+          fields of `T`, so the empty shape `{}` matches every attribute.",
     errors: &[],
 };
 

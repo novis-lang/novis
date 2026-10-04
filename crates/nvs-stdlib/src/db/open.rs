@@ -566,7 +566,7 @@ pub(super) fn settings_uint(value: &Value, key: &str) -> Result<Option<u64>, Fau
 /// A text slot the *written arm* requires.
 ///
 /// **Thrown and not [`Fault::fatal`], which the two members either side of it
-/// would be.** `E0402` refuses a literal that omits a key the merged list
+/// would be.** `E0402` refuses a settings object that omits a key the merged list
 /// requires, and the merged list can only require a key **every** arm does:
 /// `driver` is one, `host` is not, because the SQLite arm does not declare it.
 /// So a missing `host` reaches here as a `Tag::Null`, and until `rule:core-api/shape-arms-are-disjoint`'s
@@ -584,7 +584,7 @@ pub(super) fn settings_text<'a>(args: &'a [Value], at: usize, key: &str) -> Resu
     })
 }
 
-/// The memo key one settings literal opens under — `rule:core-classes/db-connection-is-named`'s "a hash of
+/// The memo key one settings object opens under — `rule:core-classes/db-connection-is-named`'s "a hash of
 /// every settings field", where `connect`'s key is the name an operator wrote.
 ///
 /// **It cannot collide with a `connect` key**, which is the one property this
@@ -631,7 +631,7 @@ pub(super) fn settings_key(
 /// **This is how an `open` finds the block whose bounds are its own**, which is
 /// `rule:security/db-pool-reset-is-a-boundary`'s answer for a member that names no block. `connect` is keyed
 /// on the name an operator wrote and reads that block's `[db.<name>.pool]`
-/// directly; a settings literal names nothing, so the only honest question is
+/// directly; a settings object names nothing, so the only honest question is
 /// whether the settings it wrote *are* a block's — and the memo key already
 /// answers it, since § 2 hashes exactly the fields that say what the connection
 /// is. Building the key from the block rather than comparing its fields one at a
@@ -641,9 +641,9 @@ pub(super) fn settings_key(
 /// connection.
 ///
 /// A field the block leaves unwritten hashes as the empty string, which is what
-/// a settings literal writing nothing for it hashes too — [`settings_text`]
+/// a settings object writing nothing for it hashes too — [`settings_text`]
 /// makes every one of the four a `&str`. `port` is the one that cannot be
-/// defaulted into agreement: a literal writing `5432` and a block leaving the
+/// defaulted into agreement: an object writing `5432` and a block leaving the
 /// server's default implicit are two keys and so two pools. That is the hash's
 /// own rule rather than this function's, and what an operator loses by it is
 /// § 13's bounds on that second pool, never a connection.
@@ -681,7 +681,7 @@ nvs_runtime::nvs_helper! {
     /// **The whole difference from `connect` is which authority wrote the
     /// endpoint**, and § 3 turns that into two checks this body makes and that
     /// one does not. `db.open` is asked about the host rather than a block
-    /// name, because a host is what a settings literal chooses; and the
+    /// name, because a host is what a settings object chooses; and the
     /// address it resolves to is then put through
     /// `rule:security/net-address-policy`'s
     /// denied ranges in full, which is the check a `connect`-named endpoint is
@@ -698,7 +698,7 @@ nvs_runtime::nvs_helper! {
     ///
     /// **What it spends:** one connection per distinct set of settings a
     /// request opens, and § 13's pool keeps up to `idle` of them per key on this
-    /// core between the requests that use them. A settings literal names no
+    /// core between the requests that use them. A settings object names no
     /// block, so what sizes that is
     /// [`crate::db::pool::settings_bounds`]: the `[db.<name>.pool]` table of the
     /// block these very settings describe, if a deployment wrote one, and
@@ -708,7 +708,7 @@ nvs_runtime::nvs_helper! {
     /// (`OFF`) is § 13 declining to pool `open` at all, which that section
     /// spends a bullet requiring. The consequence an operator has to be told
     /// rather than discover: the ceiling on the database is `cores × max` *per
-    /// distinct settings hash*, and a literal that differs from the block in any
+    /// distinct settings hash*, and an object that differs from the block in any
     /// hashed field — a written `port` where the block left the server's default
     /// implicit — is a second key and so a second pool of that size.
     fn nvs_core_db_open(ctx, args: [12]) {
@@ -793,10 +793,9 @@ nvs_runtime::nvs_helper! {
                 ThrownClass::Io,
                 format!(
                     "{OPEN}: these settings already hold their `max` of {max} connections to \
-                     {host} on this core, and {waited} — a settings literal is keyed on its own \
-                     fields, so it is bounded by the `[db.<name>.pool]` of the block describing \
-                     that same endpoint if one is written, and by the defaults if none is; open \
-                     fewer of them at once"
+                     {host} on this core, and {waited}. The limit for a settings object is the \
+                     `[db.<name>.pool]` of the block for the same endpoint, or the default if \
+                     there is no such block. Open fewer connections at once."
                 ),
             )
         };
@@ -817,7 +816,7 @@ nvs_runtime::nvs_helper! {
         let opened = match pooled {
             Some(warm) => warm,
             // The block the two resolvers read, built only on the path that
-            // needs it. Every field is one the settings literal wrote, so what
+            // needs it. Every field is one the settings object wrote, so what
             // comes back out is the same target a `[db.<name>]` block of the
             // same content would resolve to — including its refusals, which is
             // the point of going through them.
@@ -928,7 +927,7 @@ nvs_runtime::nvs_helper! {
 /// that wrote it (`rule:config/a-relative-path-resolves-against-the-file-it-is-written-in`),
 /// and a `path` written in a program resolves against the program file that
 /// wrote it: `Db\Settings`' `path` is a path field, so the compiler joins a
-/// relative literal to that file's folder
+/// relative path given as a string literal to that file's folder
 /// (`rule:programs/relative-paths-resolve-from-their-file`). A path the program
 /// built at run time arrives here as it was built, and a relative one is
 /// refused by the capability check below, as at every other door. The grant
@@ -982,7 +981,7 @@ pub(super) fn sqlite_settings(
     };
     let deadline = open_deadline(args)?;
     // The path stands where a host stands, and the three credential fields are
-    // empty because this arm declares none — two settings literals naming
+    // empty because this arm declares none — two settings objects naming
     // different files are two keys, which is all § 13 asks of it.
     let memo = settings_key(
         &[path, "", "", "", driver.matrix_name()],
@@ -1007,10 +1006,9 @@ pub(super) fn sqlite_settings(
             ThrownClass::Io,
             format!(
                 "{OPEN}: these settings already hold their `max` of {max} connections to \
-                 `{path}` on this core, and {waited} — a settings literal is keyed on its own \
-                 fields, so it is bounded by the `[db.<name>.pool]` of the block naming that same \
-                 file if one is written, and by the defaults if none is; open fewer of them at \
-                 once"
+                 `{path}` on this core, and {waited}. The limit for a settings object is the \
+                 `[db.<name>.pool]` of the block for the same file, or the default if there is \
+                 no such block. Open fewer connections at once."
             ),
         )
     };
@@ -1029,7 +1027,7 @@ pub(super) fn sqlite_settings(
         // with the server one and nothing else: `SqliteTarget::resolve` refuses
         // a `host`, a `user` or a `password` beside a `path`, and a block built
         // with those fields empty is the same target § 2's own arm selection
-        // has already guaranteed the literal wrote.
+        // has already guaranteed the object wrote.
         None => {
             let block = nvs_config::tree::Database {
                 driver: Some(driver.matrix_name().to_owned()),
@@ -1057,7 +1055,7 @@ pub(super) fn sqlite_settings(
     ))
 }
 
-/// Which port a settings literal reaches: the one it wrote, or the driver's.
+/// Which port a settings object reaches: the one it wrote, or the driver's.
 ///
 /// [`address_of`]'s rule, applied to the member that resolved its host
 /// somewhere else: a written port that does not fit a `u16` cannot be a port at
@@ -1237,7 +1235,7 @@ nvs_runtime::nvs_helper! {
     ///
     /// Read off the connection rather than off the `[db.<name>]` block in the
     /// receiver's second slot, because a `Core\Db::open` has no block: the
-    /// driver a settings literal named is a field of the thing that was opened,
+    /// driver a settings object named is a field of the thing that was opened,
     /// and that is the one place both entry points agree.
     fn nvs_core_db_connection_driver(ctx, args: [1]) {
         let (key, _) = connection_of(args[0], "driver")?;

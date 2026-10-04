@@ -923,7 +923,7 @@ mod tests {
     /// checker derived and asserts the boundary on both sides of it: that many
     /// renders, one fewer throws.
     #[test]
-    fn a_prepared_literal_and_its_runtime_twin_share_one_implementation() {
+    fn a_prepared_template_and_its_runtime_twin_share_one_implementation() {
         for template in ["%q", "%1$", "%", "%'", "%.2z"] {
             let checked = super::placeholders(template).expect_err("a refusal");
             let thrown = format(template, &[]).expect_err("a refusal");

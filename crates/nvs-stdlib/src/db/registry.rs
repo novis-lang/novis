@@ -18,7 +18,7 @@ use super::*;
 ///
 /// **The arms are separated by their `driver` and by nothing else that is
 /// declared.** § 2's arm selection is "exactly one arm accepts it", and ADR
-/// 0047's enum-case types are what make these two disjoint: a literal naming
+/// 0047's enum-case types are what make these two disjoint: a settings object naming
 /// `Driver::Sqlite` cannot satisfy the server arm's required `driver`, and one
 /// naming any other case cannot satisfy the SQLite arm's. Nothing here says
 /// `driver` *is* a discriminant, because saying so would be a second, weaker
@@ -479,7 +479,7 @@ pub(crate) const CONNECTION: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             // § 18's `Driver`, which is the same enum a `Core\Db::open`
-            // settings literal names first — [`DRIVER`]. A connection is the
+            // settings object names first — [`DRIVER`]. A connection is the
             // one place the answer is a fact rather than a request, since a
             // `connect` reads it out of the block the operator wrote.
             return_ty: CoreTy::Enum(DRIVER_NAME),
@@ -605,7 +605,7 @@ const IS_OPEN_DOC: MethodDoc = MethodDoc {
 /// only default that does not silently overrule the level the operator set on
 /// the server: the transaction runs at the connection's own. `readOnly` is
 /// false because a transaction is asked for by code that writes. `retries` is 0
-/// because § 7 says so out loud — a closure may have side effects that are not
+/// because § 7 says so out loud — a callable may have side effects that are not
 /// the database's, and re-running one that sends mail is worse than surfacing
 /// the conflict to the caller who can decide.
 ///
@@ -640,7 +640,7 @@ pub(super) const TRANSACTION_OPTIONS: &[CoreOption] = &[
 /// the loop around it.** [`nvs_db::PgConn::begin`] takes the level and the
 /// read-only flag and renders the command from them, and refuses a *nested*
 /// call that carries either rather than running it at the outer transaction's
-/// level. `retries` is read by the helper instead, which re-runs the closure on
+/// level. `retries` is read by the helper instead, which re-runs the callable on
 /// a conflict the driver says may be re-run, after the wait § 7 asks for.
 /// [`retry_backoff`] draws that wait exponentially and with full jitter and
 /// [`wait_between_attempts`] gives the core back for it; the declared default
@@ -649,7 +649,7 @@ pub(super) const TRANSACTION_ROW: CoreMethod = CoreMethod {
     name: "transaction",
     names: &["fn"],
     // Written, as `rule:types/callable-signature` has every callback spell what
-    // it receives: what this one is handed is a [`TRANSACTION`], and a closure
+    // it receives: what this one is handed is a [`TRANSACTION`], and a callable
     // declaring no parameter at all still satisfies the row under
     // `rule:types/callable-arity`'s prefix match — which is § 7's R9 allowance,
     // now stated where it is checked rather than left to
@@ -659,7 +659,7 @@ pub(super) const TRANSACTION_ROW: CoreMethod = CoreMethod {
         CoreTy::Options(TRANSACTION_OPTIONS),
     ],
     defaults: &[],
-    // § 7's `: T`. The member's answer *is* the closure's, so the transaction
+    // § 7's `: T`. The member's answer *is* the callable's, so the transaction
     // is scenery around a call that computes whatever it was going to compute
     // — the same binding `Core\Cli::live` performs, and the reason a
     // transaction can wrap an existing expression without retyping it.
@@ -668,7 +668,7 @@ pub(super) const TRANSACTION_ROW: CoreMethod = CoreMethod {
     doc: Some(&TRANSACTION_DOC),
 };
 
-/// Spec § 18's `Core\Db\Transaction` — what § 7's closure is handed, and the
+/// Spec § 18's `Core\Db\Transaction` — what § 7's callable is handed, and the
 /// only place a transaction is nameable.
 ///
 /// **`implements Queryable by $connection` is spelled here as the same rows
@@ -829,14 +829,14 @@ pub(crate) const DRIVER_NAME: &str = r"Core\Db\Driver";
 /// [`nvs_db::Driver`].
 ///
 /// **The two halves are one enum and the wire one is authoritative.** This
-/// table is what a program writes into a `Db\Settings` literal;
+/// table is what a program writes into a `Db\Settings` object;
 /// `nvs_db::Driver` is what a connection reports and what
 /// `nvs_db::Driver::from_config_name` reads a `[db.<name>]` block's `driver`
 /// as. Nothing about a backend is decided here.
 ///
 /// **The cases are what make `Db\Settings` a discriminated union**, and they
 /// are the whole of the mechanism: `rule:core-api/shape-arms-are-disjoint` selects an arm by asking which
-/// one accepts the literal, and `rule:types/single-value-types`'s enum-case types make
+/// one accepts the object, and `rule:types/single-value-types`'s enum-case types make
 /// `Driver::Sqlite` and the other four disjoint sets. No field is declared to
 /// be a discriminant, here or anywhere.
 ///
@@ -858,9 +858,9 @@ pub(crate) const DRIVER: CoreEnum = CoreEnum {
 
 /// [`DRIVER`]'s reference card — `rule:core-api/reference-card`.
 pub(super) const DRIVER_DOC: EnumDoc = EnumDoc {
-    short: "Which backend a connection speaks to. It is what a `Core\\Db::open` settings literal \
-            names first, and naming it is what decides which of the two shapes the rest of that \
-            literal has to be — a server takes a `host`, SQLite takes a `path`.",
+    short: "Which database a connection uses. It is the first field of the settings object that \
+            `Core\\Db::open` takes. It decides which of the two shapes the rest of that object \
+            has: a server needs a `host`, and SQLite needs a `path`.",
     cases: &[
         CaseDoc {
             name: "MySql",
@@ -922,7 +922,7 @@ pub(crate) const TLS: CoreEnum = CoreEnum {
 /// [`TLS`]'s reference card — `rule:core-api/reference-card`.
 pub(super) const TLS_DOC: EnumDoc = EnumDoc {
     short: "How much of a server's identity a TCP connection establishes before it sends a \
-            credential. `VerifyFull` is what every connection does and what a settings literal \
+            credential. `VerifyFull` is what every connection does and what a settings object \
             that names nothing gets; the weaker three are refused rather than honoured, because \
             a connection that verified less than it promised is the hole this enum exists to \
             close.",
@@ -958,7 +958,7 @@ pub(crate) const ISOLATION_NAME: &str = r"Core\Db\Isolation";
 /// **The two halves are one enum and the wire one is authoritative.** This
 /// table is what a program writes; `nvs_db::Isolation` is what a driver renders,
 /// and its doc comment owns both the rule that a driver lacking a level throws
-/// rather than running the closure at a weaker one, and the reason a driver may
+/// rather than running the callable at a weaker one, and the reason a driver may
 /// render a level as a *stronger* guarantee without throwing. Nothing about a
 /// level is decided here — there is no second place for it to be decided
 /// differently.
@@ -985,8 +985,8 @@ pub(crate) const ISOLATION: CoreEnum = CoreEnum {
 pub(super) const ISOLATION_DOC: EnumDoc = EnumDoc {
     short: "What a transaction is allowed to see of the work running beside it — the `isolation` \
             option `transaction` takes, and the connection's own level when it is absent. A driver \
-            that cannot offer the level asked for throws rather than running the closure at a \
-            weaker one.",
+            that cannot offer the requested level throws an error. It does not run `$fn` at a \
+            weaker level.",
     cases: &[
         CaseDoc {
             name: "ReadUncommitted",
@@ -1033,7 +1033,7 @@ pub(crate) const ERROR_KIND_NAME: &str = r"Core\Db\ErrorKind";
 /// maps its own codes onto, and its doc comment owns why the set is normalised
 /// at all — PDO exposes a `SQLSTATE` and a vendor integer, so real PHP matches
 /// on `"Duplicate entry"` or hard-codes `1062`. `nvs_db::DbErrorKind::is_retryable`
-/// owns which two of these § 7's `{retries: n}` re-runs a closure over, and
+/// owns which two of these § 7's `{retries: n}` re-runs a callable over, and
 /// nothing about that rule is decided here.
 ///
 /// **A class per condition was rejected** — § 8's own *Alternatives*: ten more
@@ -2098,7 +2098,7 @@ pub(super) const OPEN_DOC: MethodDoc = MethodDoc {
                     key: "driver",
                     ty: "Driver",
                     desc: "Which backend this is, and so which of the two shapes the rest of \
-                           the literal has to be.",
+                           the object has to be.",
                 },
                 ShapeKeyDoc {
                     key: "host",
@@ -2586,8 +2586,8 @@ pub(super) const TRANSACTION_DOC: MethodDoc = MethodDoc {
         ParamDoc {
             name: "retries",
             desc: "How many times a deadlock or a serialization failure the commit reports may \
-                   re-run `$fn`, outermost transactions only. Zero by default, because a closure \
-                   with side effects should not be re-run without being asked for; nothing else \
+                   re-run `$fn`, outermost transactions only. Zero by default, because a callable \
+                   with side effects should run again only when you ask for it. Nothing else \
                    is ever retried, there is no wait between attempts, and a conflict a statement \
                    inside `$fn` raised is thrown rather than re-run.",
             shape: &[],
@@ -2605,13 +2605,13 @@ pub(super) const TRANSACTION_DOC: MethodDoc = MethodDoc {
         },
         ErrorDoc {
             error: "LogicError",
-            desc: "A statement inside the closure was refused for the way it was written, the \
+            desc: "A statement inside `$fn` was not allowed because of the way it was written, the \
                    transaction was reached after the call that owned it returned, or a nested \
                    call asked for its own `isolation` or `readOnly`.",
         },
         ErrorDoc {
             error: "Core\\Db\\DbError",
-            desc: "The server refused the `BEGIN`, or refused the `COMMIT` after the closure \
+            desc: "The server refused the `BEGIN`, or refused the `COMMIT` after `$fn` \
                    returned — a serialization failure or a deferred constraint. The work is not \
                    committed either way.",
         },

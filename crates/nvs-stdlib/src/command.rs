@@ -78,8 +78,8 @@
 //! not an option's. A declared type is not a set of values: the page can say
 //! `uint` and a script would have to offer a number, so what it offered would
 //! be invented rather than generated. **That is a bound and not an omission**,
-//! and it holds for the two conversions that *do* carry their words — a union
-//! of literals and an enum's cases, `nvs_runtime::commands::ArgConv::OneOf` and
+//! and it holds for the two conversions that *do* carry their words — a set
+//! of allowed values and an enum's cases, `nvs_runtime::commands::ArgConv::OneOf` and
 //! `ArgConv::Enum` — because a script completing some values and staying silent
 //! about others teaches its user that the ones it left out are wrong.
 //!
@@ -607,7 +607,7 @@ fn convert(arg: &CommandArg, text: &str) -> Result<Value, String> {
         }
         // § 6's other closed set, and the refusal is the same sentence with the
         // enum's own name in it — the words are cases *of* something here, which
-        // is the one thing a union of literals has nothing to say. The value is
+        // is the one thing a set of allowed values has nothing to say. The value is
         // the case's backing integer and there is no case object to build:
         // `nvs_runtime::commands::ArgConv::Enum` is the home of both.
         ArgConv::Enum { class, cases } => cases
@@ -1584,7 +1584,7 @@ mod tests {
         );
     }
 
-    /// § 3's union of literal types, as the closed set a word is narrowed to:
+    /// § 3's set of allowed values, as the closed set a word is narrowed to:
     /// every member converts to its own word, and anything else is a **usage**
     /// error naming every value that would have been accepted — a command line
     /// is input, so a word outside the set is never a throw.

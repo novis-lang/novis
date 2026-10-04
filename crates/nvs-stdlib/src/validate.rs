@@ -86,7 +86,7 @@
 //! Omitting `version` accepts either family; `{version: 4}` and
 //! `{version: 6}` accept exactly one. The option is
 //! `rule:types/single-value-types`'s
-//! literal union rather than an `int`, so `{version: 5}` does not compile —
+//! set of allowed values rather than an `int`, so `{version: 5}` does not compile —
 //! spec § 12 names this as the reason `isIpV4`/`isIpV6` are *gone* rather than
 //! being two more member names. It is the registry's first union-typed option,
 //! and [`crate::registry::CoreTy::Union`] records what that costs.
@@ -365,7 +365,7 @@ const IP_OPTIONS: &[CoreOption] = &[CoreOption {
     default: Const::Null,
 }];
 
-/// `4|6` — `rule:types/single-value-types`'s integer literal type, twice.
+/// `4|6` — `rule:types/single-value-types`'s integer single-value type, twice.
 const IP_VERSION: &[CoreTy] = &[CoreTy::SingleValueInt(4), CoreTy::SingleValueInt(6)];
 
 /// The address of one of *this* module's symbols, or `None` for a symbol that
@@ -419,7 +419,7 @@ fn family(value: &Value) -> Result<Option<u8>, Fault> {
             Some(4) => Ok(Some(4)),
             Some(6) => Ok(Some(6)),
             // Unreachable from source: `IP_VERSION` declares the option as ADR
-            // 0047 § 1's literal union `4|6`, so any other integer is
+            // 0047 § 1's set of allowed values `4|6`, so any other integer is
             // `E0401: expected `4|6`, found `int`` at the option's own value —
             // a literal and a binding alike, since the union is checked at the
             // argument rather than folded.
@@ -891,7 +891,7 @@ mod tests {
             let answer = call(nvs_core_validate_is_ip, &mut ctx, &[subject, version]);
             #[expect(
                 unsafe_code,
-                reason = "this closure owns the string it built; the helper borrowed its \
+                reason = "this Rust closure owns the string it built; the helper borrowed its \
                           argument and answered a scalar"
             )]
             unsafe {

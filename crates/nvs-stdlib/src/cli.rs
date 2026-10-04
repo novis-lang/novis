@@ -2286,7 +2286,7 @@ nvs_runtime::nvs_helper! {
     /// sequence would be substituted on the way in and come back as a Control
     /// Picture, so what can be read is what was read *out of* the program's
     /// own text. [`crate::out`]'s `{through:}` is what wanted this — its
-    /// closure is handed the captured carrier and answers one, so without a
+    /// callable is handed the captured carrier and answers one, so without a
     /// read it could only replace what it was given.
     ///
     /// **What it spends:** one string the size of the text, per call.
@@ -3060,7 +3060,7 @@ thread_local! {
     /// The live regions open on this core, innermost last.
     ///
     /// A stack rather than one region, because `rule:tooling/in-place-output-is-a-scoped-live-region`'s shape is a scoped
-    /// closure and closures nest — and a stack is what makes a
+    /// callable and calls nest — and a stack is what makes a
     /// [`Core\Cli\Live`](LIVE) handle a plain `int`: the handle names a depth,
     /// so a handle that outlived its region names a depth that is no longer
     /// there instead of a pointer that is no longer valid.

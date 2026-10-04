@@ -2,7 +2,7 @@
 //! after a resource limit has stopped it, or after a throw reached the root of
 //! the request with nothing left to catch it.
 //!
-//! **Registration and nothing else lives here.** Each member takes a closure
+//! **Registration and nothing else lives here.** Each member takes a callable
 //! and puts it on the request's context; what a breach or a root throw then
 //! does with it — the reserved slice tier 1 runs under and tier 2 has none of,
 //! the zero-retry rule, the fall to tier 3 — belongs to the ladder in
@@ -16,16 +16,16 @@
 //! registering both gets two independent handlers and neither registration
 //! disturbs the other.
 //!
-//! **Why the closure is held by the context and not by this module.** A handler
+//! **Why the callable is held by the context and not by this module.** A handler
 //! is request-local by `rule:errors/on-limit` — it dies with the request like every other
 //! per-request slot (`rule:statements/static-is-a-member-modifier`,
 //! `rule:statements/no-host-populated-variables`) — so a `static`
 //! here would be the exact thing that section refuses: one request's safety net
 //! still armed while another request runs on the same core.
 //!
-//! **The row is `callable` whatever the report is.** § 1 spells the parameter
-//! `closure(LimitReport): void`, but `rule:types/callable-is-the-only-function-type` makes `callable` the only
-//! closure type there is and it says nothing about what a closure takes, so
+//! **The row is `callable` whatever the report is.** § 1 gives the parameter a
+//! signature taking a `LimitReport`, but `rule:types/callable-is-the-only-function-type` makes `callable` the only
+//! function type there is and it says nothing about what a callable takes, so
 //! what the handler is *handed* is decided at the call rather than here. It is
 //! an array with a `limit` key naming the limit that stopped the request, and
 //! `nvs_runtime::Limit` is that decision's home — including why an array and
@@ -82,7 +82,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 
 /// `Core\Fatal::onLimit`'s reference card — `rule:core-api/reference-card`.
 const ON_LIMIT_DOC: MethodDoc = MethodDoc {
-    short: "Registers the closure this request runs when a resource limit stops it — memory, CPU \
+    short: "Registers the callable this request runs when a resource limit stops it — memory, CPU \
             time, output, wall time, script depth or call-stack depth. It runs out of a slice of the \
             request's budget reserved for it, once and never twice, and it is the only thing that \
             observes a `FATAL` a `catch` never sees.",
@@ -101,7 +101,7 @@ const ON_LIMIT_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Fatal::onUncaughtThrow`'s reference card — `rule:core-api/reference-card`.
 const ON_UNCAUGHT_THROW_DOC: MethodDoc = MethodDoc {
-    short: "Registers the closure this request runs when a throw reaches the top of it with nothing \
+    short: "Registers the callable this request runs when a throw reaches the top of it with nothing \
             left to catch it. It runs out of the request's ordinary remaining budget, once and \
             never twice, and it is handed the exception itself.",
     params: &[ParamDoc {
@@ -146,7 +146,7 @@ nvs_runtime::nvs_helper! {
         // to decide whether a handler exists at all.
         if args[0].tag() == Some(Tag::Null) {
             return Err(Fault::fatal(
-                "Core\\Fatal::onLimit expected a closure for its handler, got null".to_string(),
+                "Core\\Fatal::onLimit expected a callable for its handler, got null".to_string(),
             ));
         }
         #[expect(
@@ -182,7 +182,7 @@ nvs_runtime::nvs_helper! {
         // reads to decide whether a handler exists at all.
         if args[0].tag() == Some(Tag::Null) {
             return Err(Fault::fatal(
-                "Core\\Fatal::onUncaughtThrow expected a closure for its handler, got null"
+                "Core\\Fatal::onUncaughtThrow expected a callable for its handler, got null"
                     .to_string(),
             ));
         }
@@ -217,9 +217,9 @@ mod tests {
     thread_local! {
         /// The payload bits of whatever [`records`] was handed, which is how a
         /// plain `extern "C"` callback reports back to the test that installed
-        /// it: a closure with no captured state has nowhere else to put it.
+        /// it: a callback with no captured state has nowhere else to put it.
         static SEEN: Cell<u64> = const { Cell::new(0) };
-        /// The payload bits of the closure [`counts`] ran as, [`SEEN`]'s
+        /// The payload bits of the callable [`counts`] ran as, [`SEEN`]'s
         /// reason: which of two registered handlers the ladder called.
         static RAN: Cell<u64> = const { Cell::new(0) };
         /// How many times [`counts`] ran, and whether its one argument was an
@@ -237,17 +237,17 @@ mod tests {
     ///
     /// The refcount is the half no `.nvst` case can see: a replacement that
     /// forgot the release still behaves correctly from source, and leaks one
-    /// closure per registration for the rest of the request.
+    /// callable per registration for the rest of the request.
     // covers: Core\Fatal::onLimit
     #[test]
     fn on_limit_keeps_the_last_handler_and_runs_it_once() {
         let mut ctx = Ctx::buffered();
         let first = callable_of(1, counts);
         let second = callable_of(1, counts);
-        let first_ptr = first.obj_ptr().expect("a closure is an object");
+        let first_ptr = first.obj_ptr().expect("a callable is an object");
         #[expect(
             unsafe_code,
-            reason = "this frame owns a reference to the closure for the whole test"
+            reason = "this frame owns a reference to the callable for the whole test"
         )]
         let count_of = |ptr| unsafe { NvsObj::refcount_of(ptr) };
         let before = count_of(first_ptr);
@@ -293,7 +293,7 @@ mod tests {
     }
 
     /// The callback [`on_limit_keeps_the_last_handler_and_runs_it_once`]
-    /// registers: note which closure ran and what it was handed, sweep the
+    /// registers: note which callable ran and what it was handed, sweep the
     /// references `call_callable` retained for this callee, and answer `null`.
     #[expect(
         unsafe_code,
@@ -302,7 +302,7 @@ mod tests {
                   address of a live `Value` for the result"
     )]
     unsafe extern "C" fn counts(_ctx: *mut Ctx, args: *const Value, out: *mut Value) -> i32 {
-        // Slot 0 is the closure itself and slot 1 the report.
+        // Slot 0 is the callable itself and slot 1 the report.
         let (itself, report) = unsafe { (*args, *args.add(1)) };
         RAN.with(|ran| ran.set(itself.bits()));
         CALLS.with(|calls| calls.set(calls.get() + 1));
@@ -387,7 +387,7 @@ mod tests {
 
     /// The callback the test registers: record what arrived, sweep the
     /// references `call_callable` retained for this callee, and answer `null` —
-    /// which is what a `void` closure answers.
+    /// which is what a `void` callable answers.
     #[expect(
         unsafe_code,
         reason = "`call_callable` passes exactly two live values, each retained \
@@ -396,7 +396,7 @@ mod tests {
                   expressible in the signature compiled code calls through"
     )]
     unsafe extern "C" fn records(_ctx: *mut Ctx, args: *const Value, out: *mut Value) -> i32 {
-        // Slot 0 is the closure itself and slot 1 its one parameter, which is
+        // Slot 0 is the callable itself and slot 1 its one parameter, which is
         // the exception — `nvs_runtime::call_callable` builds the frame that
         // way for a compiled callee and for this one alike.
         let thrown = unsafe { *args.add(1) };
@@ -410,11 +410,11 @@ mod tests {
         OK
     }
 
-    /// A closure value whose `invoke` is a plain Rust function —
+    /// A callable value whose `invoke` is a plain Rust function —
     /// `crates/nvs-stdlib/tests/allocation_policy.rs`'s `callable_of`, and its
-    /// doc comment is the home for why this is a whole closure: `call_callable`
+    /// doc comment is the home for why this is a whole callable: `call_callable`
     /// reads the arity slot, the tags slot and the invoke address, and nothing
-    /// else in a compiled closure's representation is anything but captured
+    /// else in a compiled anonymous function's representation is anything but captured
     /// state a native callback does not have.
     ///
     /// The table is leaked because a descriptor's *address* is its identity and

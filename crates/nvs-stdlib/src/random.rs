@@ -704,7 +704,7 @@ fn drawn(subject: &NvsArray, slots: &[usize]) -> Value {
 //
 // Each is the whole of a member except its argument decoding and its refusals,
 // which stay with the member so that the sentence a program is handed names the
-// class it called. That is also why a refusal arrives here as a closure: the
+// class it called. That is also why a refusal arrives here as a Rust closure: the
 // message belongs to `Core\Random::bytes` or to `Core\Random\Seeded::bytes`,
 // and the arithmetic belongs to neither.
 
@@ -934,7 +934,7 @@ pub(crate) fn draw<T>(ctx: &mut Ctx, with: impl FnOnce(&mut Generator<'_>) -> T)
     drawn
 }
 
-/// The generator [`draw`] hands its closure — whichever of the two the context
+/// The generator [`draw`] hands its Rust closure — whichever of the two the context
 /// selected, behind **one concrete type**.
 ///
 /// The alternative that does not work is making [`draw`] generic over the

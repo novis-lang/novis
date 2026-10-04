@@ -63,13 +63,13 @@
 //!   already excludes it, and the arity check needed no change at all.
 //! * **A bag flattens at the ABI.** `nvs_ir::lower::lower_call_args` expands
 //!   it into one argument per declared option, in the order [`CoreOption`]s
-//!   are written here — the literal's value where written, the option's
+//!   are written here — the anonymous object's value where written, the option's
 //!   default where not — so `nvs_core_arr_range` is an ordinary `args: [3]`
 //!   helper and no runtime representation of a shape exists. The rejected
 //!   alternative was building an `array<mixed>` per call: it allocates on the
 //!   common path, and needs a `null`/empty spelling the IR does not have.
 //! * **The cost is one restriction:** an options argument must be written as a
-//!   shape literal at the call site, or omitted — a diagnostic, never silence.
+//!   anonymous object at the call site, or omitted — a diagnostic, never silence.
 //!   That is exactly the set of programs that can run today, since
 //!   `ExprKind::AnonObject` has no lowering of its own at all.
 //!
@@ -281,7 +281,7 @@ pub enum CoreTy {
     /// A `string` parameter whose text is a **file path**, carrying its
     /// classification — [`Self::Text`] with one more fact, which is
     /// [`ParamText::Path`]'s: `rule:programs/relative-paths-resolve-from-their-file`
-    /// resolves a relative literal written here against the directory of the
+    /// resolves a relative path given as a string literal here against the directory of the
     /// file that wrote it, and an editor offers file names at it.
     ///
     /// A mark on the type rather than a roster beside the rows, for
@@ -473,9 +473,9 @@ pub enum CoreTy {
     Object,
     /// `array<T>`, whose element type is the wrapped one.
     Array(&'static CoreTy),
-    /// `callable` — `rule:types/callable-is-the-only-function-type`'s one closure type,
+    /// `callable` — `rule:types/callable-is-the-only-function-type`'s one function type,
     /// and the **top** of `rule:types/callable-signature`'s lattice: it says
-    /// nothing about the parameters or the result of the closure that
+    /// nothing about the parameters or the result of the callable that
     /// satisfies it, so a call through one is checked argument by argument at
     /// run time by `nvs_runtime::call_callable`, at the cost
     /// `rule:types/unions-and-mixed` gives `mixed`.
@@ -549,7 +549,7 @@ pub enum CoreTy {
     /// `array<T>` for `map` — because `nvs_types::core_lib` lowers this to
     /// `Ty::CallableSig` and `nvs_types::generics` rewrites that field-wise
     /// rather than collapsing it. That is what makes the expected type a
-    /// closure literal is checked against the *substituted* one, and `$u` a
+    /// anonymous function is checked against the *substituted* one, and `$u` a
     /// `User` rather than a `T`.
     CallableSig(&'static [CoreTy], &'static CoreTy),
     /// A type *variable*, named — `T` in `count(array<T> $a): uint`.
@@ -603,7 +603,7 @@ pub enum CoreTy {
     Written(&'static str),
     /// [`Self::Written`] for a type argument that names a `callable(...)` type
     /// returning the second field — `Core\Program::constructors<T, C>`'s `C`,
-    /// whose every row's `make` is a closure returning a `T`.
+    /// whose every row's `make` is a callable returning a `T`.
     ///
     /// Spelled and interned exactly as [`Self::Written`] is, by its name. The
     /// return type is here for [`CoreMethod::written`]'s order alone: it is
@@ -780,7 +780,7 @@ pub enum CoreTy {
     /// it *drives* — `iterate()` first when the value reaches `Iterable<T>`,
     /// then `advance()`/`current()` — through the class descriptor's own
     /// method table, exactly as `nvs_runtime::call_callable` already reaches a
-    /// closure's `invoke`. Every one of those members is bodiless
+    /// callable's `invoke`. Every one of those members is bodiless
     /// (`nvs_types::iter_lib`), so that name lookup *is* the dispatch a
     /// `foreach` over the same value performs. Materialising the sequence into
     /// an array in the IR before the call was the rejected alternative: it
@@ -2016,7 +2016,7 @@ pub const CLASSES: &[CoreClass] = &[
     // `rule:errors/on-limit`, and no spec § of its own: the escalation ladder's ADR is
     // where this member is specified, because what it registers is a rung of
     // that ladder rather than a library facility. [`crate::fatal`] owns why the
-    // closure is held by the request's context and not by the module.
+    // callable is held by the request's context and not by the module.
     crate::fatal::CLASS,
     // `rule:errors/log-write`, and beside `Core\Fatal` because the two are one ladder:
     // the rung above every `catch` and the reporting half every rung of it
@@ -2375,7 +2375,7 @@ pub const CLASSES: &[CoreClass] = &[
     // members are declared here once. `query`, `execute`, `executeMany` and
     // `transaction` are the four that have landed.
     crate::db::CONNECTION,
-    // What `rule:core-classes/db-transactions`'s closure is handed. It carries the same four rows
+    // What `rule:core-classes/db-transactions`'s callable is handed. It carries the same four rows
     // under the same symbols — which is what the delegation above is at
     // runtime — plus `rollBack`, the one member of the pair that is a
     // transaction's alone.
@@ -2450,7 +2450,7 @@ pub const CLASSES: &[CoreClass] = &[
 ///
 /// **Nothing reads this at run time.** It is audit data — `nvs meta` renders
 /// it, the reference documentation prints it beside a member's card (`rule:core-api/reference-card`),
-/// and § 7's closure test reads it. Enforcement is
+/// and § 7's completeness test reads it. Enforcement is
 /// `nvs_runtime::capability::require`, called inside the door that performs the
 /// effect, and that function never looks here — so an edit to this table cannot
 /// grant a permission, only misreport one.
@@ -2469,12 +2469,12 @@ pub const CLASSES: &[CoreClass] = &[
 /// table itself.
 ///
 /// **A `None` row is a declaration, not an exemption**, and that is § 7's
-/// closure as a *shape* rather than as a promise to keep a list short. A class
+/// completeness as a *shape* rather than as a promise to keep a list short. A class
 /// is a door once any one of its members is declared, and its remaining members
 /// then divide into two kinds a review has to tell apart: the ones nobody
 /// classified, and the ones classified as reaching nothing. Both used to look
 /// alike from here — a member simply absent from the table — so the second kind
-/// lived on a frozen allowlist beside the closure test, where growing it by one
+/// lived on a frozen allowlist beside the completeness test, where growing it by one
 /// entry was the move `rule:testing/capability-completeness-test` forbids and the only move a sibling like
 /// `Core\RateLimit::shed` left. Declaring `None` costs a would-be exemption
 /// exactly what a declaration costs, in the same table under the same review,
@@ -4532,8 +4532,8 @@ mod tests {
         }
     }
 
-    /// `rule:core-api/shape-arms-are-disjoint`: checking a written literal is "exactly one arm accepts
-    /// it", so two arms that could both accept one is a **registry** bug and
+    /// `rule:core-api/shape-arms-are-disjoint`: checking a written anonymous object is "exactly
+    /// one arm accepts it", so two arms that could both accept one is a **registry** bug and
     /// is refused here rather than at a call site. A pair is proved disjoint
     /// either by a field name both declare whose declared types share no
     /// value, or by one arm requiring a key the other does not declare at all
@@ -4589,8 +4589,8 @@ mod tests {
                             assert!(
                                 separated,
                                 "{}::{}'s shape arms {index} and a later one are not provably \
-                                 disjoint, so a literal could be accepted by both and arm \
-                                 selection would have to guess",
+                                 disjoint, so an anonymous object could be accepted by both \
+                                 and arm selection would have to guess",
                                 class.name, method.name
                             );
                         }
@@ -4601,7 +4601,7 @@ mod tests {
     }
 
     /// `rule:core-api/a-nullable-field-omits-as-the-never-written-marker`'s
-    /// pairing, over a shape's arms: every slot the written literal does not
+    /// pairing, over a shape's arms: every slot the written anonymous object does not
     /// fill passes a [`Const`], so "filled" is only readable while the
     /// constant an unfilled slot passes is one the field's own type cannot
     /// also hold. A field admitting `null` — a [`CoreTy::Nullable`], a
@@ -5875,7 +5875,7 @@ mod tests {
         }
     }
 
-    /// A literal type is only ever a member of a union — see
+    /// A single-value type is only ever a member of a union — see
     /// [`CoreTy::SingleValueInt`] for why a position admitting exactly one number
     /// is not a position at all.
     #[test]
@@ -5883,7 +5883,7 @@ mod tests {
         for (what, ty) in every_type() {
             assert!(
                 !matches!(ty, CoreTy::SingleValueInt(_)),
-                "{what} takes or answers a bare literal type"
+                "{what} takes or answers a bare single-value type"
             );
         }
         for class in CLASSES {
@@ -5891,7 +5891,7 @@ mod tests {
                 for option in method.options().unwrap_or(&[]) {
                     assert!(
                         !matches!(option.ty, CoreTy::SingleValueInt(_)),
-                        "{}::{}'s option `{}` is a bare literal type",
+                        "{}::{}'s option `{}` is a bare single-value type",
                         class.name,
                         method.name,
                         option.name

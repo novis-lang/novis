@@ -1819,7 +1819,7 @@ struct Issued<'a> {
 /// they arrived in — or the refusal saying it is not one.
 ///
 /// All of `verifyIssued` but its two ends: what a call site wrote is an
-/// [`Issued`] and a closure by the time it gets here, and what `T` is decoded
+/// [`Issued`] and a callable by the time it gets here, and what `T` is decoded
 /// from is the document this answers with.
 ///
 /// **The order is the whole design.** Shape, header policy, key, signature —

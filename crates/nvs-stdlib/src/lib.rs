@@ -341,9 +341,9 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
         ])
         // The sink carriers' row-less symbols, which are constructs rather than
         // members for the same reason those two are: `rule:core-classes/html-auto-escape`'s
-        // lift is `as` on a source literal, § 5's `Markup + Markup` and ADR
+        // lift is `as` on a string literal, § 5's `Markup + Markup` and ADR
         // 0086 § 2's `Text + Text` are an operator, and
-        // `rule:core-classes/html-template`'s pair is a markup literal's segment
+        // `rule:core-classes/html-template`'s pair is an html template's segment
         // and hole. Each is reachable only from the lowering of the construct
         // that spells it, which is what a row would undo — `html`'s and
         // `cli`'s own module docs own why.
@@ -548,8 +548,8 @@ mod tests {
                 + router::link::SYMBOLS.len()
                 // `rule:security/isolate-shares-nothing`'s `spawn script` — in its two entry forms, which
                 // are two symbols and one construct — and `await`, `rule:core-classes/html-auto-escape`'s `as Markup` and `Markup + Markup`, `rule:tooling/styling-is-a-value-not-a-grammar`'s
-                // `Text + Text`, and `rule:core-classes/html-template`'s markup
-                // literal, whose segment and hole are a second pair behind one
+                // `Text + Text`, and `rule:core-classes/html-template`'s html
+                // template, whose segment and hole are a second pair behind one
                 // construct: eight symbols behind six constructs, each syntax
                 // rather than a call, so none of them has a row either — see
                 // `script`'s, `html`'s and `cli`'s module docs.
@@ -672,7 +672,7 @@ mod tests {
     /// and a diagnostic does not; a well-formed one is accepted on both, and
     /// the regex half also pins the [`regex::Tier`] the fold records, which is
     /// the one prepared artifact a later stage reads back.
-    /// [`format`]'s own `a_prepared_literal_and_its_runtime_twin_share_one_implementation`
+    /// [`format`]'s own `a_prepared_template_and_its_runtime_twin_share_one_implementation`
     /// is this taken deeper on the one grammar read against the call's other
     /// arguments.
     ///
@@ -686,7 +686,7 @@ mod tests {
     /// (`nvs_types::intrinsics`' gap 3), so civil patterns are what the
     /// accepted half offers it.
     #[test]
-    fn every_intrinsic_literal_prepares_the_artifact_the_runtime_builds() {
+    fn every_intrinsic_argument_written_in_the_code_prepares_the_artifact_the_runtime_builds() {
         use nvs_runtime::{Ctx, Fault, Value};
 
         let mut ctx = Ctx::buffered();

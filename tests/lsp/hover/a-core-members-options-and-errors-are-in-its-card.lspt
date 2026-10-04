@@ -11,7 +11,7 @@ hover
 Core\Json::encode(mixed $value, {pretty?: bool, escapeUnicode?: bool} $options): string
 ```
 
-Serializes `$value` as JSON text — scalars, arrays, shape literals and instances of classes carrying `#[Json\Derive]` — on one line unless `pretty` is set.
+Serializes `$value` as JSON text. It can be a scalar, an array, an anonymous object or an instance of a class with `#[Json\Derive]`. The text is on one line unless `pretty` is set.
 
 **Parameters**
 

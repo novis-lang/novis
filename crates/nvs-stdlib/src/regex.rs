@@ -204,7 +204,7 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "quote",
-            names: &["literal"],
+            names: &["text"],
             params: &[CoreTy::Text(Qual::Launder)],
             defaults: &[],
             return_ty: CoreTy::Str,
@@ -445,10 +445,10 @@ const SPLIT_DOC: MethodDoc = MethodDoc {
 /// `Core\Regex::quote`'s reference card — `rule:core-api/reference-card`.
 const QUOTE_DOC: MethodDoc = MethodDoc {
     short: "Puts a `\\` before every character that has a special meaning in a pattern. The \
-            result is a pattern that matches `$literal` exactly. A `tainted` text is allowed \
+            result is a pattern that matches `$text` exactly. A `tainted` text is allowed \
             here, and the result can be used as a pattern.",
     params: &[ParamDoc {
-        name: "literal",
+        name: "text",
         desc: "The text to match exactly.",
         shape: &[],
     }],
@@ -1099,7 +1099,7 @@ fn compiled_prepared(
 ///
 /// # What a prepared tier changes, and what it cannot
 ///
-/// `prepared` is the tier the compiler settled for a literal pattern
+/// `prepared` is the tier the compiler settled for a pattern given as a string literal
 /// ([`crate::registry::PREPARED_MEMBERS`]), and [`Tier::Backtracking`] is the
 /// only value that changes anything: the linear engine's parser has already
 /// refused this text once, while checking, so offering it again would buy the
@@ -2219,11 +2219,11 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Regex::quote(string $literal): string` — replacing `preg_quote`,
+    /// `Core\Regex::quote(string $text): string` — replacing `preg_quote`,
     /// and `rule:security/regex-pattern-is-a-sink`'s one laundering member for the pattern sink.
     ///
     /// Escapes every character either engine gives a meaning to, so the result
-    /// matches `$literal` and nothing else. PHP's optional `$delimiter`
+    /// matches `$text` and nothing else. PHP's optional `$delimiter`
     /// argument has no equivalent, because `rule:core-classes/regex-syntax` removed the
     /// `/…/` delimiter syntax it existed for: a pattern here is a pattern, not
     /// a pattern wrapped in punctuation.
@@ -2236,13 +2236,13 @@ nvs_runtime::nvs_helper! {
     /// does not; `!:<=>` are meta to neither engine and PCRE's launderer
     /// escapes them anyway; `/` is escaped there only because a delimiter was
     /// handed in. What the two do agree on is the property both are for — the
-    /// result matches its own literal, matches it inside a larger subject, and
+    /// result matches its own text, matches it inside a larger subject, and
     /// matches nothing else — which
     /// `tests/differential/core/regex-quote-and-preg_quote-escape-different-sets-and-match-the-same-literals.nvst`
     /// counts over the whole ASCII table rather than comparing row by row.
     fn nvs_core_regex_quote(_ctx, args: [1]) {
-        let literal = text(&args[0], "quote", "the literal")?;
-        produced(&regex::escape(literal))
+        let unescaped = text(&args[0], "quote", "the text")?;
+        produced(&regex::escape(unescaped))
     }
 }
 
@@ -2993,7 +2993,7 @@ mod tests {
         assert_eq!(replace(&long, ".+", &"$0".repeat(1000), u64::MAX), None);
     }
 
-    /// A one-parameter closure calling `invoke`: the arity and tag slots and
+    /// A one-parameter callable calling `invoke`: the arity and tag slots and
     /// the invoke row are all `nvs_runtime::call_callable` reads. The table is
     /// leaked because a descriptor's address is its identity and must outlive
     /// every instance made from it.
@@ -3079,7 +3079,7 @@ mod tests {
         unsafe { answered(args, out, answer) }
     }
 
-    /// `Core\Regex::replaceWith` calls a real closure once per replaced match
+    /// `Core\Regex::replaceWith` calls a real callable once per replaced match
     /// on both engines, and inserts its answer literally: the `$1` a callback
     /// answers stays two characters. `limit` counts replacements, an answer
     /// that is not a string throws, and a result larger than the request's
@@ -3112,7 +3112,7 @@ mod tests {
                     .ok();
                 #[expect(
                     unsafe_code,
-                    reason = "this frame owns the two strings and the closure it built"
+                    reason = "this frame owns the two strings and the callable it built"
                 )]
                 unsafe {
                     args[0].release();
@@ -3255,7 +3255,7 @@ mod tests {
     /// its own literal, inside a larger text, and nothing else.
     // covers: Core\Regex::quote
     #[test]
-    fn quote_escapes_every_meta_character_so_the_result_matches_only_its_literal() {
+    fn quote_escapes_every_meta_character_so_the_result_matches_only_its_text() {
         let mut ctx = Ctx::buffered();
         let literal = r"#$&()*+-.?[\]^{|}~ a.b";
         let argument = Value::str(NvsStr::new(literal.as_bytes()));

@@ -22,11 +22,11 @@
 //!
 //! A registered wake is `Send` for [`nvs_runtime::Drain`]'s reason: the request that pushes runs
 //! on whichever core accepted it, and the workers are parked on the one core that arms them. A
-//! host supplies the closure, so the hop across threads is that host's own.
+//! host supplies the Rust closure, so the hop across threads is that host's own.
 //!
-//! **What it holds:** one boxed closure per idle worker, dropped when the wait ends or when a ring
-//! fires it. That is O(idle workers), which `[queue] workers` bounds. A ring with nobody waiting
-//! takes one uncontended lock and allocates nothing.
+//! **What it holds:** one boxed Rust closure per idle worker, dropped when the wait ends or when a
+//! ring fires it. That is O(idle workers), which `[queue] workers` bounds. A ring with nobody
+//! waiting takes one uncontended lock and allocates nothing.
 
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock, PoisonError};
 
@@ -41,7 +41,7 @@ struct Waiting {
 }
 
 impl std::fmt::Debug for Waiting {
-    /// Hand-written: the wakes are boxed closures, which have nothing to print.
+    /// Hand-written: the wakes are boxed Rust closures, which have nothing to print.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Waiting")
             .field("rings", &self.rings)

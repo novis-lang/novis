@@ -342,8 +342,9 @@ const CARD: ClassDoc = ClassDoc {
 /// [`nvs_core_json_encode`] and [`Encodable`] do, and nothing the spec's § 6
 /// promises beyond them.
 const ENCODE_DOC: MethodDoc = MethodDoc {
-    short: "Serializes `$value` as JSON text — scalars, arrays, shape literals and instances of \
-            classes carrying `#[Json\\Derive]` — on one line unless `pretty` is set.",
+    short: "Serializes `$value` as JSON text. It can be a scalar, an array, an anonymous object \
+            or an instance of a class with `#[Json\\Derive]`. The text is on one line unless \
+            `pretty` is set.",
     params: &[
         ParamDoc {
             name: "value",
@@ -398,8 +399,8 @@ const DECODE_DOC: MethodDoc = MethodDoc {
     errors: &[
         ErrorDoc {
             error: "ParseError",
-            desc: "`$json` is not a valid JSON document, nests deeper than `maxDepth`, or holds \
-                   an integer literal too large for `int`; the one issue it carries has an empty \
+            desc: "`$json` is not a valid JSON document, nests deeper than `maxDepth`, or contains \
+                   a whole number too large for `int`; the one issue it carries has an empty \
                    path.",
         },
         ErrorDoc {
@@ -434,8 +435,8 @@ const DECODE_AS_DOC: MethodDoc = MethodDoc {
     errors: &[
         ErrorDoc {
             error: "ParseError",
-            desc: "`$json` is not a valid JSON document, nests deeper than `maxDepth`, holds an \
-                   integer literal too large for `int`, is not an object at the top level (an \
+            desc: "`$json` is not a valid JSON document, nests deeper than `maxDepth`, contains \
+                   a whole number too large for `int`, is not an object at the top level (an \
                    array, for an `array<C>`), or has fields that are missing or of the wrong \
                    type — every failed field is one issue on the error, at its own path, and the \
                    message counts them. A list stops at its first bad element, and each of its \
@@ -463,8 +464,8 @@ const IS_VALID_DOC: MethodDoc = MethodDoc {
         desc: "The JSON text to check.",
         shape: &[],
     }],
-    ret: "`true` when `$json` parses; `false` for malformed text, nesting past `512`, or an \
-          integer literal too large for `int`.",
+    ret: "`true` when `$json` parses; `false` for malformed text, nesting past `512`, or \
+          a whole number too large for `int`.",
     errors: &[],
 };
 
@@ -1054,7 +1055,7 @@ impl Frame {
                     // carry (`rule:types/shape-type`) is the never-written
                     // storage state, so the key that was absent on the way in
                     // is absent on the way out. Nothing else can put a slot in
-                    // that state — a shape literal writes every one of its
+                    // that state — an anonymous object writes every one of its
                     // fields — and reading it from Novis is that rule's own
                     // catchable throw, which is not this encoder's answer to
                     // give.
@@ -2656,8 +2657,8 @@ unsafe fn decode_fields(
 /// One shape's decoded fields written into a fresh instance of its class — the
 /// half a derived class gets by running its own constructor.
 ///
-/// A shape class declares none: `rule:types/anonymous-object` gives a shape
-/// literal no constructor to write, so the class `nvs-ir` synthesizes lays its
+/// A shape class declares none: `rule:types/anonymous-object` gives an anonymous
+/// object no constructor to write, so the class `nvs-ir` synthesizes lays its
 /// slots out in the shape's sorted field-name order and every writer fills them
 /// one at a time. That order is why a shape's
 /// [`nvs_runtime::CodecField::param`] and `slot` are the same number, and why
@@ -2920,7 +2921,7 @@ unsafe fn convert_field(
 /// untrusted input choose which constructor runs.
 ///
 /// What it nests into is a class's contract or an inline shape's, which are one
-/// walk over two tables: a shape field's descriptor is the class a literal of
+/// walk over two tables: a shape field's descriptor is the class an anonymous object of
 /// those same field names builds, and the per-field wire types that label cannot
 /// carry come from the [`nvs_runtime::ShapeCodec`] beside it
 /// ([`Contract::shape_at`]).

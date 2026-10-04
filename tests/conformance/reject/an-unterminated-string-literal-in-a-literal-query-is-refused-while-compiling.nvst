@@ -17,7 +17,7 @@ $db->query("select id from t where name = 'x and id = ?", [1]);
 --EXPECT--
 
 --EXPECTF-ERROR--
-error[E0769]: this text is not valid for this function: a string literal, a quoted name or a comment this statement opens is never closed — every byte after it is read as being inside it, so what the statement binds is what fits inside an opening delimiter rather than what was written
+error[E0769]: this text is not valid for this function: a string, a quoted name or a comment in this statement is opened and never closed. Everything after it is read as part of it, so the statement does not bind what you wrote
 %A
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.

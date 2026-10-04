@@ -6,7 +6,7 @@
 //! upgrading request's heap. § 2 makes opening one `spawn script`-shaped, so
 //! the operand here is that construct's operand under exactly
 //! `rule:security/isolate-shares-nothing`'s rule — a path, or
-//! a static method written `Chat::run(...)`, and never a closure.
+//! a static method written `Chat::run(...)`, and never an anonymous function.
 //!
 //! # What is here, and what is not
 //!
@@ -93,9 +93,9 @@
 //!
 //! # The method form carries its names on the value
 //!
-//! A method arrives as a **first-class callable value** — the entry interns as
-//! `mixed`, so `Chat::run(...)` reaches this body as the closure `nvs_ir`'s
-//! `lower_callable_ref` built. ADR 0006 § *Decision* binds `args:` to the
+//! A method arrives as a **method reference** — the entry interns as
+//! `mixed`, so `Chat::run(...)` reaches this body as the callable `nvs_ir`'s
+//! `lower_method_ref` built. ADR 0006 § *Decision* binds `args:` to the
 //! entry's parameters **by name**, and the sibling construct has those names as
 //! a constant its lowering wrote into the call (`nvs_ir::lower`'s
 //! `spawn_method_entry`, read by `crate::script`'s `entry_names_agree` and
@@ -114,7 +114,7 @@
 //! every later `CoreTy::Entry` row the same way.
 //!
 //! [`method_program`] is what it buys, and how that form differs from a path's:
-//! its program is a closure over the retained callable, beside the statics
+//! its program is a Rust closure over the retained callable, beside the statics
 //! recipes and the class table the request's context is holding, and it arms
 //! the child itself exactly as a path entry's `install_in` does.
 //! `nvs_host::Isolate`'s own method entry is *not* what a connection uses, and
@@ -332,8 +332,8 @@ const UPGRADE_DOC: MethodDoc = MethodDoc {
         ParamDoc {
             name: "entry",
             desc: "What the connection runs: the path of a file, the same as `spawn script` \
-                   takes, or a static method written `Chat::run(...)`. A closure is not \
-                   allowed, because the connection shares no values with the request.",
+                   takes, or a static method written `Chat::run(...)`. An anonymous function is \
+                   not allowed, because the connection shares no values with the request.",
             shape: &[],
         },
         ParamDoc {
@@ -601,7 +601,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
 /// The two written forms are told apart by the value's own tag and by nothing
 /// else, which is what the module doc's "the entry interns as `mixed`" costs
 /// and buys: a path arrives as text, and a `Class::method(...)` reference
-/// arrives as the closure `nvs_ir`'s `lower_callable_ref` built. Anything else
+/// arrives as the callable `nvs_ir`'s `lower_method_ref` built. Anything else
 /// is unreachable from source — `nvs_types::expr::isolate`'s `entry_operand`
 /// refuses every other spelling with `E0802` where it is written — so a third
 /// tag here is a compiler bug and not a program's.
@@ -640,8 +640,8 @@ pub(crate) fn entry_program(
         return method_program(ctx, entry, args, member);
     };
     // `rule:programs/relative-paths-resolve-from-their-file`, as at `spawn
-    // script`: a relative literal arrives joined to its file's folder, so a
-    // relative path here was built while the program ran.
+    // script`: a relative path given as a string literal arrives joined to its
+    // file's folder, so a relative path here was built while the program ran.
     if let Some(message) =
         nvs_runtime::capability::relative(std::path::Path::new(path), &format!("`{member}`"))
     {
@@ -676,7 +676,7 @@ pub(crate) fn entry_program(
 /// keeps it alive from the request that prepared the upgrade to the connection
 /// that starts it.
 ///
-/// A [`Program`] is a boxed closure, and a [`Value`] captured in one is sixteen
+/// A [`Program`] is a boxed Rust closure, and a [`Value`] captured in one is sixteen
 /// plain bytes: dropping the box would drop the handle and release nothing. So
 /// the reference [`retained`] took is held *by a type with a destructor*, which
 /// is what makes both endings correct with no rule to remember — the connection
@@ -722,7 +722,7 @@ impl Drop for HeldCallable {
 /// **What it spends:** one retained reference to a thunk object for the length
 /// of the connection's preparation, plus one materialized slot per static
 /// property the unit declares, released with the connection. The thunk is the
-/// object `lower_callable_ref` built and holds no capture — § 2's entry rule
+/// object `lower_method_ref` built and holds no capture — § 2's entry rule
 /// admits only a *static* method, so there is no receiver field and nothing of
 /// the request's heap rides across inside it.
 ///
@@ -731,7 +731,7 @@ impl Drop for HeldCallable {
 /// A `callable` recording no parameter names at all, and `rule:security/isolate-shares-nothing`'s
 /// named-argument mismatch between the target's parameters and `args`.
 fn method_program(ctx: &Ctx, entry: Value, args: Value, member: &str) -> Result<Program, Fault> {
-    // `None` is a closure with no `fn#names` field, which is an `fn` literal:
+    // `None` is a callable with no `fn#names` field, which is an anonymous function:
     // `nvs_types::expr::isolate` refuses one where an entry is expected, so
     // this is a compiler disagreement rather than a program's — but it is
     // reported as a throw and not a fatal, because a wrong refusal is
@@ -750,8 +750,8 @@ fn method_program(ctx: &Ctx, entry: Value, args: Value, member: &str) -> Result<
     let statics = ctx.unit_statics();
     let errors = ctx.class_table();
     Ok(Box::new(move |child: &mut Ctx, argument: Value| {
-        // The whole guard is moved into the closure here. The body reads only
-        // `held.0`, a `Copy` field, and a closure that names only a field
+        // The whole guard is moved into the Rust closure here. The body reads only
+        // `held.0`, a `Copy` field, and a Rust closure that names only a field
         // captures only that field: the guard would then be dropped when
         // `method_program` returns, releasing the reference before the
         // connection ever runs.
@@ -1595,14 +1595,14 @@ mod tests {
         Value::array(map)
     }
 
-    /// The object `nvs_ir::lower`'s `lower_callable_ref` builds for a written
-    /// `Chat::run(...)`: the two reserved fields every closure carries, plus
-    /// the third only a first-class callable has — `rule:security/isolate-shares-nothing`'s parameter names,
+    /// The object `nvs_ir::lower`'s `lower_method_ref` builds for a written
+    /// `Chat::run(...)`: the two reserved fields every callable carries, plus
+    /// the third only a method reference has — `rule:security/isolate-shares-nothing`'s parameter names,
     /// comma-joined in declaration order.
     ///
     /// Built by hand rather than compiled, because there is no compiler on this
     /// side of the seam and the *writing* side is asserted where it is written,
-    /// by `nvs-ir`'s `a_first_class_callable_records_its_targets_parameter_names`.
+    /// by `nvs-ir`'s `a_method_reference_records_its_targets_parameter_names`.
     /// What is pinned here is what this member does with one.
     ///
     /// The class is leaked, exactly as the playbook's `callable_of` leaks its
@@ -1807,8 +1807,8 @@ mod tests {
     }
 
     /// `rule:programs/relative-paths-resolve-from-their-file` at the upgrade: a
-    /// relative literal is joined to its file's folder while compiling, so a
-    /// relative path that arrives here was built while the program ran. It
+    /// relative path given as a string literal is joined to its file's folder
+    /// while compiling, so a relative path that arrives here was built while the program ran. It
     /// throws, with a resolver installed that would have answered it and a
     /// grant that covers every path, and the slot stays empty.
     #[test]
@@ -1845,7 +1845,7 @@ mod tests {
     /// `101` with nobody left to report to.
     ///
     /// `unset` is the cheapest of the three tags the walk refuses — the others
-    /// are a closure and a resource, and neither is buildable here without a
+    /// are a callable and a resource, and neither is buildable here without a
     /// fixture that would pin itself rather than the rule. What matters is the
     /// **order**: the slot is still empty afterwards, so a request whose
     /// argument was refused has not half-upgraded.

@@ -297,7 +297,7 @@ pub(super) fn filed_connection<'a>(
 /// `[db.<name>.pool]` table of the block whose settings hash is `memo` when a
 /// deployment wrote one, and [`PoolBounds::DEFAULT`] when it did not.
 ///
-/// **A settings literal names no block, and that is the whole difficulty.**
+/// **A settings object names no block, and that is the whole difficulty.**
 /// `Core\Db::connect` asks `nvs_config::db::bounds_for` by the name an operator
 /// wrote; this path has only the hash § 2 built out of the settings themselves,
 /// so the block is found by building each block's own key and comparing —
@@ -309,13 +309,13 @@ pub(super) fn filed_connection<'a>(
 /// same connection to the same server under the same credentials, they already
 /// share a pool because § 2's key is the pool's key, and a pool with two
 /// answers for `max` would be a ceiling an operator sized and did not get. A
-/// literal naming an endpoint no block describes keeps the defaults, because
+/// settings object naming an endpoint no block describes keeps the defaults, because
 /// there is no table to read and § 13 requires the bounds to be finite anyway.
 ///
 /// **It costs one key per configured block per `open`, and only on the miss.**
 /// The memoized-connection check runs first and answers every `open` after the
 /// request's own first one, so this is reached once per distinct settings
-/// literal per request, over a `[db]` table an operator hand-wrote — a handful
+/// object per request, over a `[db]` table an operator hand-wrote — a handful
 /// of `DefaultHasher` runs over short strings. Caching the mapping on the
 /// snapshot would spend a per-generation table to save that, which `rule:programs/memory-priority`'s
 /// ordering does not buy: the latency is not on the request path's hot part,
@@ -456,9 +456,9 @@ mod tests {
     /// name an operator wrote, and `open` has only § 2's settings hash.
     ///
     /// The claim is asserted **on both sides**, because a body that read the
-    /// table for every connection would pass the first half alone. A literal
+    /// table for every connection would pass the first half alone. A settings object
     /// whose fields are the block's takes the block's `max` of `3`; the same
-    /// literal with one credential changed is a different connection to the
+    /// object with one credential changed is a different connection to the
     /// same server, matches no block, and takes the defaults — `16`, which is
     /// what every path here answered before the lookup existed.
     #[test]
@@ -493,7 +493,7 @@ mod tests {
     /// program described for itself.
     ///
     /// So all three of the ways a connection is bounded are asked here — the
-    /// literal that matches the block, the literal that matches nothing, and
+    /// object that matches the block, the object that matches nothing, and
     /// the `connect` by name that [`nvs_config::db::bounds_for`] answers — and
     /// the switch reaches all three. The middle one is the case no per-block
     /// spelling could ever have covered.
@@ -513,7 +513,7 @@ mod tests {
         for memo in [memo_for("s3cret"), memo_for("another-password")] {
             assert!(
                 !settings_bounds(&ctx, &memo).enabled,
-                "the switch is unscoped, so it reaches a settings literal whether or not a block \
+                "the switch is unscoped, so it reaches a settings object whether or not a block \
                  describes the same endpoint"
             );
         }

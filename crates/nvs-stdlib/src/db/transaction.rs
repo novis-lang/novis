@@ -1,9 +1,9 @@
-//! [ADR 0067 § 7](/docs/decisions/0067.md): a transaction is a
-//! closure, and what happens when it conflicts.
+//! [ADR 0067 § 7](/docs/decisions/0067.md): a transaction runs a
+//! callable, and what happens when it conflicts.
 //!
-//! The closure being the whole interface is what makes commit and rollback this
+//! The callable being the whole interface is what makes commit and rollback this
 //! module's decision rather than the program's — `rollBack` is the one explicit
-//! exit and it is still inside the closure. A retryable failure is taken again
+//! exit and it is still inside the callable. A retryable failure is taken again
 //! under the exponential, jittered, capped wait [`retry_backoff`] renders, and
 //! [`Attempts`] is why that rule can be asserted at all: a case scripts the
 //! conflict instead of provoking a real deadlock between two connections.
@@ -52,16 +52,16 @@ nvs_runtime::nvs_helper! {
     /// retries?}): T` — `rule:core-classes/db-transactions`'s whole shape, and the only way to open a
     /// transaction on this surface.
     ///
-    /// **The closure form is what removes the failure mode**, which § 7 argues
+    /// **The callable form is what removes the failure mode**, which § 7 argues
     /// and this body implements: there is no point between the `BEGIN` and the
     /// `COMMIT` at which a program can walk away, because the scope is a call
     /// and an early `return` inside it is still a return *through* here. With
     /// no destructors there is nothing an object-scoped transaction could hook
-    /// its rollback to, so the closure is not the tidier of two options — it is
+    /// its rollback to, so the callable is not the tidier of two options — it is
     /// the one that can be made to hold.
     ///
     /// **Committing is what returning does, and there is no member for it.**
-    /// The three outcomes are decided here rather than by the closure: it
+    /// The three outcomes are decided here rather than by the callable: it
     /// returned and nothing asked for a rollback, so the work commits and its
     /// answer is this call's; it threw, so the work rolls back and its
     /// exception travels on unchanged; or it recorded a reason through
@@ -70,7 +70,7 @@ nvs_runtime::nvs_helper! {
     ///
     /// **The third case is read off the transaction and not off the throw**,
     /// which is the point of § 7's flag: an intervening `catch (Throwable)`
-    /// swallows the signal, the closure returns normally, and this frame still
+    /// swallows the signal, the callable returns normally, and this frame still
     /// refuses to commit. That is the guarantee Doctrine's `setRollbackOnly`
     /// asks every layer to cooperate on.
     ///
@@ -83,7 +83,7 @@ nvs_runtime::nvs_helper! {
     /// which is where both the rendering and the one refusal live: a nested
     /// call carrying either is an `InvalidInput` there and so a `LogicError`
     /// here, because PostgreSQL settles both for the whole transaction and
-    /// running the closure at the outer one's level would be quietly weaker
+    /// running the callable at the outer one's level would be quietly weaker
     /// than what its author wrote. Reading the two here and deciding nothing
     /// with them is deliberate — the level a given backend can offer is the
     /// driver's question, and [`TRANSACTION_OPTIONS`] owns what their defaults
@@ -92,9 +92,9 @@ nvs_runtime::nvs_helper! {
     /// **`{retries: n}` goes around the whole block and not inside it.** Each
     /// attempt gets its own `BEGIN` and its own scope object, because the one
     /// above is closed and discarded on every path already — a re-run that
-    /// reused either would be handing the closure a `$tx` that is refusing.
+    /// reused either would be handing the callable a `$tx` that is refusing.
     /// **Either conflict re-runs it**: the commit's own refusal, and one a
-    /// statement inside the closure raised, which arrives as a pending
+    /// statement inside the callable raised, which arrives as a pending
     /// `Core\Db\DbError` instead and is read through
     /// [`nvs_runtime::Ctx::pending_slot`]. [`wait_between_attempts`] is the
     /// wait § 7 puts between two of them. The loop itself is
@@ -103,7 +103,7 @@ nvs_runtime::nvs_helper! {
     /// it is.
     ///
     /// **Rolling back after a throw discards its own failure.** The exception
-    /// the closure raised is what the request is about, and a connection whose
+    /// the callable raised is what the request is about, and a connection whose
     /// `ROLLBACK` was refused is one § 13's reset destroys rather than pools —
     /// so replacing the program's exception with the driver's would lose the
     /// only half a caller can act on.
@@ -158,7 +158,7 @@ nvs_runtime::nvs_helper! {
 /// **Every method is handed the context rather than borrowing out of it.** The
 /// loop calls Novis code between the `BEGIN` and the `COMMIT`, and that needs
 /// the same `&mut Ctx` the connection is filed in, so a borrow held across the
-/// closure cannot exist. That is why this is four questions asked one at a
+/// callable cannot exist. That is why this is four questions asked one at a
 /// time rather than one that answers a [`Transacting`], and it is the same
 /// reason the sites below re-read the connection at each of them.
 ///
@@ -365,7 +365,7 @@ pub(super) fn wait_between_attempts(ctx: &mut nvs_runtime::Ctx, taken: u32) -> R
 ///
 /// **The two channels differ only in the shape a conflict arrives in.** The
 /// commit's refusal is an `io::Error` carrying its own [`nvs_db::ServerError`];
-/// a conflict a statement *inside* the closure raised is a pending exception on
+/// a conflict a statement *inside* the callable raised is a pending exception on
 /// the context instead, so its kind is read back off that object's
 /// [`nvs_runtime::KIND_SLOT`] and turned into a [`nvs_db::DbErrorKind`] by
 /// [`error_kind_of`]. Both then ask [`nvs_db::DbErrorKind::is_retryable`],
@@ -374,8 +374,8 @@ pub(super) fn wait_between_attempts(ctx: &mut nvs_runtime::Ctx, taken: u32) -> R
 ///
 /// # Errors
 ///
-/// The closure's own failure, re-raised exactly as it left it where no attempt
-/// is left to spend; `Core\Db\RolledBack` where the closure abandoned the
+/// The callable's own failure, re-raised exactly as it left it where no attempt
+/// is left to spend; `Core\Db\RolledBack` where the callable abandoned the
 /// scope; and [`statement_failure`]'s rendering of a refusal by the `BEGIN` or
 /// by the command that closes the level.
 pub(super) fn transacted(
@@ -395,7 +395,7 @@ pub(super) fn transacted(
     loop {
         // § 7 retries **outermost transactions only**, and the depth before
         // the `BEGIN` is the only thing that says which this call is —
-        // re-running a nested closure would re-run it inside an outer
+        // re-running a nested callable would re-run it inside an outer
         // transaction the conflict has already aborted.
         let open = attempts.depth(ctx)?;
         let outermost = open == 0;
@@ -404,7 +404,7 @@ pub(super) fn transacted(
         // level ended.
         let level = open + 1;
         // § 11's event covers § 7's own commands as well as the statements
-        // inside them: a trace that showed the closure's writes but not the
+        // inside them: a trace that showed the callable's writes but not the
         // `BEGIN` and the `COMMIT` around them would put the transaction's
         // whole cost on its last statement. The driver answers with the
         // span because only it knows whether the depth made this a
@@ -430,7 +430,7 @@ pub(super) fn transacted(
         );
         let outcome = nvs_runtime::call_callable(ctx, call.callable, &[scope]);
 
-        // Closed before the outcome is acted on, so that a `$tx` the closure
+        // Closed before the outcome is acted on, so that a `$tx` the callable
         // stored somewhere is already refusing by the time this call returns
         // — and closed on every path, which is why it is not inside a
         // branch. An attempt that retries gets its own scope object below,
@@ -444,12 +444,12 @@ pub(super) fn transacted(
         let answered = match outcome {
             Ok(value) => value,
             Err(fault) => {
-                // The closure's own conflict, under the same four
+                // The callable's own conflict, under the same four
                 // conditions the commit's is. It is a `Fault::Pending`
                 // here, so the kind is read off the still-pending object
                 // rather than off an `io::Error` this path never has —
                 // borrowing it, because a failure that turns out not to be
-                // retryable is re-raised exactly as the closure left it.
+                // retryable is re-raised exactly as the callable left it.
                 let conflicted = ctx
                     .pending_slot(ThrownClass::DbError.name(), nvs_runtime::KIND_SLOT)
                     .and_then(error_kind_of)
@@ -462,7 +462,7 @@ pub(super) fn transacted(
                 if let Some(span) = undone {
                     file_span(ctx, watch, &block, span);
                 }
-                // A job the closure enqueued at this level went with it.
+                // A job the callable enqueued at this level went with it.
                 crate::queue::level_closed(ctx, call.key, level, false);
                 if !retry {
                     return Err(fault);
@@ -503,7 +503,7 @@ pub(super) fn transacted(
         // leaves nothing committed, so it is judged as a rollback.
         crate::queue::level_closed(ctx, call.key, level, abandoned.is_none() && closed.is_ok());
 
-        // On two of the three paths the closure's answer is not this call's,
+        // On two of the three paths the callable's answer is not this call's,
         // and this frame owns the only reference to it.
         let refused = match closed {
             Ok(span) => {
@@ -561,7 +561,7 @@ nvs_runtime::nvs_helper! {
     /// **There is deliberately no way to roll back and carry on.** § 7 gives
     /// the member a `void` return because it always throws: a program that
     /// wants the writes it has made kept has not asked for a transaction, and
-    /// one that wants to try again puts the retry outside the closure, where
+    /// one that wants to try again puts the retry outside the callable, where
     /// the second attempt gets its own `BEGIN`.
     fn nvs_core_db_transaction_roll_back(_ctx, args: [2]) {
         // Through the same guard every delegated member runs, and for the same
@@ -587,7 +587,7 @@ nvs_runtime::nvs_helper! {
 /// Drops a reference this frame owns, for a value it is not handing back.
 ///
 /// The mirror of [`owned`], and it exists for one member: `transaction` builds
-/// the scope object and receives the closure's answer, and on the paths where
+/// the scope object and receives the callable's answer, and on the paths where
 /// the transaction did not commit neither of them reaches Novis code at all.
 pub(super) fn discard(value: Value) {
     #[expect(
@@ -682,10 +682,10 @@ pub fn begin_test_transaction(ctx: &mut nvs_runtime::Ctx, name: &str) -> Result<
 /// rolled back, so the test's writes are gone and the connection is poolable.
 ///
 /// **A loop and not one `ROLLBACK`, because the depth is not this function's to
-/// assume.** § 7's closure closes its own level on every path out of it, so the
+/// assume.** § 7's callable closes its own level on every path out of it, so the
 /// depth is back to the one [`begin_test_transaction`] opened for every test
 /// that returned or threw — but a test that ended by cancellation or by a
-/// contained panic is a test whose closure did not return, and a connection
+/// contained panic is a test whose callable did not return, and a connection
 /// left one level in is one [`nvs_runtime::pool`] closes rather than reuses.
 /// The loop terminates because a `ROLLBACK` that the driver accepted is what
 /// lowers the depth (`nvs_db::pg`'s `roll_back`), and a refused one returns
@@ -714,7 +714,7 @@ mod tests {
     /// `rule:core-classes/db-transactions`'s two halves, and the second is the one a forwarding body
     /// would pass while still drifting.
     ///
-    /// **A transaction is a closure**: [`TRANSACTION_ROW`] takes one
+    /// **A transaction runs a callable**: [`TRANSACTION_ROW`] takes one
     /// `callable` and answers at *its* `T`, which is what lets a transaction
     /// wrap an existing expression without retyping it. Its consequence is
     /// asserted as an absence — § 7 removes `commit`, `rollBack` and
@@ -733,7 +733,7 @@ mod tests {
     #[test]
     fn a_transaction_is_a_callable_and_transaction_is_a_queryable() {
         assert_eq!(TRANSACTION_ROW.name, "transaction");
-        // § 7's `$fn`, and R9's allowance that the closure may declare no
+        // § 7's `$fn`, and R9's allowance that the callable may declare no
         // parameter at all is why the arity is not sayable in the row.
         assert_eq!(TRANSACTION_ROW.names, ["fn"]);
         assert_eq!(
@@ -745,14 +745,14 @@ mod tests {
                     CoreTy::Options(TRANSACTION_OPTIONS)
                 ]
             ),
-            "§ 7's `transaction` takes the closure and R2's one trailing bag"
+            "§ 7's `transaction` takes the callable and R2's one trailing bag"
         );
         // § 7's three options, in its order, at its defaults — asserted as the
         // whole bag rather than one lookup each, so an option added without
         // being specified fails here too. The defaults are the half a call site
         // never writes and so the half nothing else would catch: `isolation`
         // absent leaves the server's own level standing, and `retries` at 0 is
-        // § 7's argument that a side-effecting closure is not re-run unasked.
+        // § 7's argument that a side-effecting callable is not re-run unasked.
         assert_eq!(
             TRANSACTION_OPTIONS
                 .iter()
@@ -767,7 +767,7 @@ mod tests {
         assert_eq!(
             format!("{:?}", TRANSACTION_ROW.return_ty),
             format!("{:?}", CoreTy::Var("T")),
-            "§ 7's `: T` — the member's answer is the closure's own"
+            "§ 7's `: T` — the member's answer is the callable's own"
         );
 
         // "no `commit()`, no `rollBack()` on the connection and no
@@ -779,7 +779,7 @@ mod tests {
                     member.name,
                     "begin" | "commit" | "rollBack" | "savepoint" | "inTransaction"
                 ),
-                "`{}` declares `{}` — § 7 replaced that surface with a closure",
+                "`{}` declares `{}` — § 7 replaced that surface with a callable",
                 CONNECTION.name,
                 member.name
             );
@@ -911,7 +911,7 @@ mod tests {
         );
 
         // And the scope guard is the first hazard, still closed: a `$tx` the
-        // closure stored cannot abandon a transaction that has moved on.
+        // callable stored cannot abandon a transaction that has moved on.
         assert!(matches!(
             transaction_of(scope, "rollBack"),
             Err(Fault::Thrown(ThrownClass::Logic, _))
@@ -925,7 +925,7 @@ mod tests {
     /// case reads back the order they were asked in.
     ///
     /// Nothing here is scripted to *fail*, because the conflict § 7 retries on
-    /// arrives from the closure rather than from the connection — the half no
+    /// arrives from the callable rather than from the connection — the half no
     /// driver could induce, and the whole reason [`transacted`] takes its
     /// connection as an argument. The depth is 0 so every attempt is
     /// outermost, which is one of the four conditions the retry rule reads.
@@ -982,7 +982,7 @@ mod tests {
         static ATTEMPTS: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
     }
 
-    /// § 7's closure as a deadlock makes it behave: the first attempt throws a
+    /// § 7's callable as a deadlock makes it behave: the first attempt throws a
     /// retryable `Core\Db\DbError`, and every one after it returns.
     ///
     /// **The throw is built by [`statement_failure`] off a real
@@ -1063,10 +1063,10 @@ mod tests {
     }
 
     /// A `callable` whose `invoke` is `invoke` and which declares one
-    /// parameter — the `$tx` § 7 hands its closure.
+    /// parameter — the `$tx` § 7 hands its callable.
     ///
-    /// `nvs_runtime::call_callable` reads exactly three things off a closure
-    /// value, so this is a whole one: its class's closure bit, the arity in
+    /// `nvs_runtime::call_callable` reads exactly three things off a callable
+    /// value, so this is a whole one: its class's callable bit, the arity in
     /// its own slot, and the address in the class's `CALLABLE_INVOKE` row —
     /// see `nvs_runtime::ClassDesc::is_callable`. The table is leaked
     /// because a descriptor's *address* is its identity and it must outlive
@@ -1109,7 +1109,7 @@ mod tests {
     }
 
     /// `rule:core-classes/db-transactions`'s `{retries: n}`, at the seam that belongs to no driver: a
-    /// deadlock inside the closure re-runs it, and the second attempt's answer
+    /// deadlock inside the callable re-runs it, and the second attempt's answer
     /// is the call's.
     ///
     /// **The connection is handed in rather than filed**, which is what
@@ -1119,13 +1119,13 @@ mod tests {
     /// one half of § 7 a driver is never asked to implement — had no caller a
     /// test could reach.
     ///
-    /// **The conflict is induced the way a server induces one**: the closure
+    /// **The conflict is induced the way a server induces one**: the callable
     /// throws what [`statement_failure`] renders a `40P01` into, so the loop's
     /// decision goes through [`nvs_runtime::Ctx::pending_slot`] and § 8's
     /// normalised kind exactly as it does in a request.
     ///
     /// **Counting the attempts is not enough, so the commands are read back in
-    /// order.** A loop that re-ran the closure but left the aborted attempt
+    /// order.** A loop that re-ran the callable but left the aborted attempt
     /// open, or that opened no second `BEGIN`, would pass a count alone. The
     /// pending failure is asserted *gone* for the same reason: a retry the
     /// caller is never told about must leave nothing for the next member to
@@ -1133,7 +1133,7 @@ mod tests {
     ///
     /// **Both sides of the bound**, since a loop that always retried would
     /// pass the first half — § 7's default is 0, and at 0 the same conflict
-    /// reaches the caller with the closure run once.
+    /// reaches the caller with the callable run once.
     // covers: Core\Db\Connection::transaction
     #[test]
     fn retries_recover_an_induced_deadlock() {
@@ -1156,7 +1156,7 @@ mod tests {
         ctx.set_runtime_error_class(db_error_class());
         let mut recovered = Scripted { asked: Vec::new() };
         let answered = transacted(&mut ctx, &mut recovered, &attempted(1))
-            .expect("§ 7 re-runs a deadlocked closure, and the second attempt commits");
+            .expect("§ 7 re-runs a deadlocked callable, and the second attempt commits");
         assert_eq!(
             answered.as_int(),
             Some(2),
@@ -1185,12 +1185,12 @@ mod tests {
             .expect_err("§ 7's default is 0, and a conflict with no attempt left is the caller's");
         assert!(
             matches!(raised, Fault::Pending(_)),
-            "the closure's own failure travels on unchanged: {raised:?}"
+            "the callable's own failure travels on unchanged: {raised:?}"
         );
         assert_eq!(
             ctx.pending_class().as_deref(),
             Some(r"Core\Db\DbError"),
-            "§ 8's class, still pending exactly as the closure left it"
+            "§ 8's class, still pending exactly as the callable left it"
         );
         assert_eq!(ATTEMPTS.with(std::cell::Cell::get), 1);
         assert_eq!(
@@ -1214,7 +1214,7 @@ mod tests {
         nested: u32,
         /// Whether a job is announced at all.
         announces: bool,
-        /// Whether the closure throws after it, which rolls its transaction back.
+        /// Whether the callable throws after it, which rolls its transaction back.
         throws: bool,
     }
 
@@ -1229,7 +1229,7 @@ mod tests {
         static RINGS_INSIDE: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
     }
 
-    /// § 7's closure as a request that enqueues a job writes it: what `Core\Queue::push` does
+    /// § 7's callable as a request that enqueues a job writes it: what `Core\Queue::push` does
     /// once its insert has run, which is [`crate::queue::announce`], inside as many nested
     /// transactions as [`ENQUEUE`] names.
     #[expect(
@@ -1317,7 +1317,7 @@ mod tests {
         ctx.set_runtime_error_class(db_error_class());
         let key = ctx.hold_open_connection(None, None, Box::new(nvs_db::Connection::Sqlite(conn)));
 
-        // How far the count moved by the end of the outermost closure, and by the end of the call.
+        // How far the count moved by the end of the outermost callable, and by the end of the call.
         let moved = |ctx: &mut Ctx, plan: Enqueue| {
             let before = bell.rings();
             ENQUEUE.with(|held| held.set(plan));

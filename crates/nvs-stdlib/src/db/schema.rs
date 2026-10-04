@@ -665,7 +665,7 @@ fn run_ddl(
 /// refuse every plan ever computed. `crate::plan`'s module doc in `nvs-db` is
 /// the home of that reasoning.
 ///
-/// A free function rather than a closure written inline because it is the one
+/// A free function rather than a Rust closure written inline because it is the one
 /// thing `applySafe` decides, and `apply_safe_refuses_a_plan_holding_a_step_that_is_not_safe`
 /// asks it of a plan built with no server in front of it.
 pub(super) fn unsafe_step(plan: &nvs_db::Plan) -> Option<Fault> {

@@ -348,7 +348,7 @@ fn rendered_for(carrier: &str, nodes: &[Node]) -> String {
 /// newline.
 ///
 /// Public to the crate because
-/// `rule:testing/inline-snapshots`'s inline snapshot is *this* rendering held in a source literal —
+/// `rule:testing/inline-snapshots`'s inline snapshot is *this* rendering held in a string literal in the source —
 /// `Core\Test::assertMatchesInline` calls it rather than growing one of its
 /// own, so a snapshot and a dump of the same value cannot disagree about what
 /// that value looks like, and § 5's redaction reaches a snapshot for free.

@@ -12,14 +12,14 @@
 //!
 //! # Re-pinning is asked of the caller, not done here
 //!
-//! [`send`] takes a `repin` closure and calls it for every redirect hop, which
+//! [`send`] takes a `repin` Rust closure and calls it for every redirect hop, which
 //! is `rule:http-server/redirects-are-off-and-every-hop-is-re-pinned`'s
 //! "every hop is re-checked and re-pinned" with the checking left where the
 //! checking lives. A retry never calls it: § 4's other half is that every
 //! attempt of one call reuses the address the launderer approved, so there is
 //! no second resolution for a rebinding attack to answer differently.
 //!
-//! The closure is handed one thing this module knows and the caller does not:
+//! The Rust closure is handed one thing this module knows and the caller does not:
 //! whether the hop steps out of `https` and into plaintext. Both schemes are
 //! only in view here, and what to do about it belongs to the caller's grant and
 //! the caller's options
@@ -1163,7 +1163,7 @@ enum Sent {
 
 /// The URL, split into the four things composing a request needs.
 struct Parts {
-    /// The host, brackets and all for an IPv6 literal, as `Host:` writes it.
+    /// The host, brackets and all for an IPv6 address, as `Host:` writes it.
     authority: String,
     /// The bare host, with no port — what a certificate is checked against.
     ///
@@ -1183,11 +1183,11 @@ struct Parts {
 /// TLS behind, answered with the set the door approved.
 ///
 /// A name rather than the signature written out three times, which is the same
-/// argument the module doc makes about the closure itself — the decision is
+/// argument the module doc makes about the Rust closure itself — the decision is
 /// [`super::repinned`]'s and what crosses this boundary is only its answer.
 /// The lifetime is written out because a trait object inside an alias is
 /// `'static` by default, where the same type spelled at the parameter takes the
-/// reference's — and every closure handed here borrows the `Ctx` it decides on.
+/// reference's — and every Rust closure handed here borrows the `Ctx` it decides on.
 type Repin<'a> = dyn FnMut(&str, bool) -> Result<Vec<IpAddr>, Fault> + 'a;
 
 /// Runs `call` to an answer, re-pinning through `repin` at every redirect hop.
@@ -2176,7 +2176,7 @@ fn pool_key(
 ///
 /// One function for all four so that the text a proxy is asked for is the text
 /// the connection it answers with is filed under. The port is always written,
-/// since a request line has no default to fall back on, and an IPv6 literal
+/// since a request line has no default to fall back on, and an IPv6 address
 /// keeps the brackets [`Parts::host`] took off it — that spelling is an
 /// authority, and a server name is not.
 fn reached_at(parts: &Parts, at: Option<SocketAddr>) -> String {
@@ -2546,7 +2546,7 @@ fn parts(url: &str, member: &str) -> Result<Parts, Fault> {
     // `Host:` carries what the URL wrote, port and all where there was one, and
     // never the userinfo — an origin routes on the name it was asked for.
     let host = Authority::host(&authority);
-    // Without the brackets: `Host:` writes an IPv6 literal inside them and a
+    // Without the brackets: `Host:` writes an IPv6 address inside them and a
     // server name never does, so the two spellings part company here.
     let name = host
         .trim_start_matches('[')
@@ -5493,7 +5493,7 @@ pub(crate) mod tests {
     /// `plain`, run through the very re-pin `super::super::exchanged` hands this
     /// module.
     ///
-    /// The closure is the real one and not a stand-in, which is what makes the
+    /// The Rust closure is the real one and not a stand-in, which is what makes the
     /// three cases below statements about the client rather than about a test's
     /// own copy of the rule: `grant` is what the deployment wrote and `option`
     /// is what the call wrote, so each case moves exactly one of them.

@@ -47,9 +47,9 @@ fn list_of(count: usize) -> Value {
     Value::array(list)
 }
 
-/// A closure value whose `invoke` is a plain Rust function.
+/// A callable value whose `invoke` is a plain Rust function.
 ///
-/// `nvs_runtime::call_callable` reads exactly four things off a closure — its
+/// `nvs_runtime::call_callable` reads exactly four things off a callable — its
 /// class's `ClassTable::set_callable` bit, slot `CALLABLE_ARITY_SLOT`, slot
 /// `CALLABLE_PARAM_TAGS_SLOT`, and the `CALLABLE_INVOKE` method's address in its
 /// class — so a test in this crate can hand a `Core` member a `callable`

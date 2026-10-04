@@ -207,9 +207,9 @@ const ENTRIES_DOC: MethodDoc = MethodDoc {
                archive costs its entry count rather than its size.",
         shape: &[],
     }],
-    ret: "One `tainted string` per entry. A name is tainted whatever the archive's own type was, \
-          for the reason a claim out of a verified token is: the name was written by whoever built \
-          the archive, and a literal archive in a test is no safer than a downloaded one.",
+    ret: "One `tainted string` per entry. A name is always tainted, whatever the archive's own \
+          type was. The name was written by whoever built the archive. An archive written \
+          directly in a test is no safer than a downloaded one.",
     errors: &[ErrorDoc {
         error: "ParseError",
         desc: "`$archive` is not a well-formed zip archive, or it carries an entry naming an \

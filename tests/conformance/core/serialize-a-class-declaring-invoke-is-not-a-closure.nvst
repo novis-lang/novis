@@ -37,4 +37,4 @@ try {
 }
 --EXPECT--
 code=7 invoke=8
-Core\Serialize::encode(): a closure captures a heap and a scope, so it has no meaning on the other side of a copy boundary
+Core\Serialize::encode(): a callable captures variables from the code that created it, so it has no meaning on the other side of a copy boundary

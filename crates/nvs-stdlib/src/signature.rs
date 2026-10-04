@@ -76,7 +76,7 @@
 //!
 //! # What it refuses, and why refusing is the safe answer
 //!
-//! An object, a closure and a resource have no canonical form at all — two
+//! An object, a callable and a resource have no canonical form at all — two
 //! instances that a program calls equal are two different heaps — so a payload
 //! carrying one is a `LogicError` naming the path to it rather than a
 //! signature over something arbitrary. A `decimal` **is** signable, because
@@ -722,7 +722,7 @@ const NANOS_PER_SECOND: u32 = 1_000_000_000;
 ///
 /// # Errors
 ///
-/// A `LogicError` for a value with no canonical form — an object, a closure, a
+/// A `LogicError` for a value with no canonical form — an object, a callable, a
 /// resource — and for a payload nested past [`MAX_DEPTH`], both naming the
 /// path.
 pub(crate) fn document(

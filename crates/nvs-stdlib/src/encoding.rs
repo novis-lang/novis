@@ -764,7 +764,7 @@ pub(crate) fn decode_argument(args: &[Value], member: &str, raw: &[u8]) -> Resul
     decode_exact(charset, raw).map_err(|offset| {
         // The rule first and the member in the tail, so that the stem
         // `conformance_coverage.rs` reads off this site is neither empty nor
-        // full of backslashes a Novis literal cannot spell — the playbook's
+        // full of backslashes a Novis string literal cannot spell — the playbook's
         // *Writing a test case* bullet owns why both halves of that matter.
         Fault::thrown(format!(
             "a conversion is exact or it throws: {member}() found at offset {offset} a byte \
@@ -1500,7 +1500,7 @@ mod tests {
                 let owned = value.as_bytes().expect("a `bytes` answer").to_vec();
                 #[expect(
                     unsafe_code,
-                    reason = "the answer's one reference is this closure's, \
+                    reason = "the answer's one reference is this Rust closure's, \
                               and its octets are copied out before it goes"
                 )]
                 unsafe {
@@ -1510,7 +1510,7 @@ mod tests {
             });
             #[expect(
                 unsafe_code,
-                reason = "this closure owns the one reference it built, and \
+                reason = "this Rust closure owns the one reference it built, and \
                           the member borrowed rather than consumed it"
             )]
             unsafe {
@@ -1569,7 +1569,7 @@ mod tests {
                 let owned = value.as_bytes().expect("a `bytes` answer").to_vec();
                 #[expect(
                     unsafe_code,
-                    reason = "the answer's one reference is this closure's, \
+                    reason = "the answer's one reference is this Rust closure's, \
                               and its octets are copied out before it goes"
                 )]
                 unsafe {
@@ -1579,7 +1579,7 @@ mod tests {
             });
             #[expect(
                 unsafe_code,
-                reason = "this closure owns the one reference it built, and \
+                reason = "this Rust closure owns the one reference it built, and \
                           the member borrowed rather than consumed it"
             )]
             unsafe {
@@ -1649,7 +1649,7 @@ mod tests {
                 let owned = value.as_bytes().expect("a `bytes` answer").to_vec();
                 #[expect(
                     unsafe_code,
-                    reason = "the answer's one reference is this closure's, \
+                    reason = "the answer's one reference is this Rust closure's, \
                               and its octets are copied out before it goes"
                 )]
                 unsafe {
@@ -1659,7 +1659,7 @@ mod tests {
             });
             #[expect(
                 unsafe_code,
-                reason = "this closure owns the one reference it built, and \
+                reason = "this Rust closure owns the one reference it built, and \
                           the member borrowed rather than consumed it"
             )]
             unsafe {
@@ -1724,7 +1724,7 @@ mod tests {
                 let owned = value.as_bytes().expect("a `bytes` answer").to_vec();
                 #[expect(
                     unsafe_code,
-                    reason = "the answer's one reference is this closure's, \
+                    reason = "the answer's one reference is this Rust closure's, \
                               and its octets are copied out before it goes"
                 )]
                 unsafe {
@@ -1734,7 +1734,7 @@ mod tests {
             });
             #[expect(
                 unsafe_code,
-                reason = "this closure owns the one reference it built, and \
+                reason = "this Rust closure owns the one reference it built, and \
                           the member borrowed rather than consumed it"
             )]
             unsafe {
@@ -1794,7 +1794,7 @@ mod tests {
             let text = answered.as_text().expect("a `string` answer").to_owned();
             #[expect(
                 unsafe_code,
-                reason = "this closure owns the reference it built for the \
+                reason = "this Rust closure owns the reference it built for the \
                           argument and the one the member answered, and the \
                           member borrowed rather than consumed its own"
             )]
@@ -1866,7 +1866,7 @@ mod tests {
             let text = answered.as_text().expect("a `string` answer").to_owned();
             #[expect(
                 unsafe_code,
-                reason = "this closure owns the reference it built for the \
+                reason = "this Rust closure owns the reference it built for the \
                           argument and the one the member answered, and the \
                           member borrowed rather than consumed its own"
             )]
@@ -1941,7 +1941,7 @@ mod tests {
             let text = answered.as_text().expect("a `string` answer").to_owned();
             #[expect(
                 unsafe_code,
-                reason = "this closure owns the reference it built for the \
+                reason = "this Rust closure owns the reference it built for the \
                           argument and the one the member answered, and the \
                           member borrowed rather than consumed its own"
             )]
@@ -2028,7 +2028,7 @@ mod tests {
             let text = answered.as_text().expect("a `string` answer").to_owned();
             #[expect(
                 unsafe_code,
-                reason = "this closure owns the reference it built for the \
+                reason = "this Rust closure owns the reference it built for the \
                           argument and the one the member answered, and the \
                           member borrowed rather than consumed its own"
             )]

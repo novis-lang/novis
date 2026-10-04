@@ -397,8 +397,8 @@ const PARSE_DOC: MethodDoc = MethodDoc {
         ParamDoc {
             name: "text",
             desc: "The whole text to read: an optional `-` or `+`, then digits, and nothing \
-                   else. No leading-garbage rule, and no `_` separators — those are an integer \
-                   literal's spelling rather than a `string`'s.",
+                   else. Text before the number is not skipped. `_` separators are not \
+                   allowed: you can use them only in a number written directly in the code.",
             shape: &[],
         },
         ParamDoc {

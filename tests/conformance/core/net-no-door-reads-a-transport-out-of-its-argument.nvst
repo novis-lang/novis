@@ -63,8 +63,8 @@ connect = true
 listen = true
 --EXPECT--
 Core\Net::connect refuses `unix:/run/novis/app.sock`: a socket path is not something this door can authorize, since the address policy `net.connect` carries has no address to read — the grant that answers a socket path is `net.local`, and it is asked by the member that takes a path rather than by this one, which takes a host
-Core\Net::listen: `unix:/run/novis/app.sock` is not an address literal — a bind names an endpoint, and a hostname is not one
-Core\Net::bindDatagram: `unix:/run/novis/app.sock` is not an address literal — a bind names an endpoint, and a hostname is not one
+Core\Net::listen: `unix:/run/novis/app.sock` is not an IP address. A bind needs an endpoint, and a hostname is not one
+Core\Net::bindDatagram: `unix:/run/novis/app.sock` is not an IP address. A bind needs an endpoint, and a hostname is not one
 Core\Net::connectLocal needs an absolute path, and `unix:/run/novis/app.sock` is relative
 help: build the path with `Core\Path::join` from a folder you know, or with `Core\Path::fromCwd` for a path typed on the command line
 Core\Net::listenLocal needs an absolute path, and `unix:/run/novis/app.sock` is relative

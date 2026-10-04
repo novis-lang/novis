@@ -189,9 +189,9 @@ const WRITE_DOC: MethodDoc = MethodDoc {
             name: "fields",
             desc: "Structured context, written as a `fields` object beside the message rather \
                    than pasted into it. Omitted from the record entirely when it is empty, so an \
-                   ordinary call costs no key. Nothing a bag can hold makes a write fail: a \
-                   value the format has no spelling for — `bytes`, a closure, a cycle — is \
-                   rendered as what it is rather than refused.",
+                   ordinary call costs no key. Nothing in `fields` makes a write fail. A \
+                   value the format cannot write, such as `bytes`, a callable or a cycle, is \
+                   written as text that says what it is.",
             shape: &[],
         },
     ],

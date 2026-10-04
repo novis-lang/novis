@@ -50,9 +50,9 @@
 //!
 //! **A name this module is handed is one the compiler could not fold.** The
 //! route table is built and § 4's link is resolved against it while compiling:
-//! a literal name reaches [`link`]'s symbols carrying a prepared path — written
-//! positionally or as `name:`, which `nvs_types::links` reads through the
-//! call's own argument mapping — and an unknown literal one is `E0754` before
+//! a name given as a string literal reaches [`link`]'s symbols carrying a prepared
+//! path — written positionally or as `name:`, which `nvs_types::links` reads
+//! through the call's own argument mapping — and an unknown one is `E0754` before
 //! the program runs. So [`CLASS`]'s own link members answer exactly the case
 //! § 4 named: a *computed* name, which throws.
 
@@ -315,16 +315,17 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 /// `$name` and `$params`, documented once — both members take the same two.
 const NAME_DOC: ParamDoc = ParamDoc {
     name: "name",
-    desc: "The route's name as its `#[Route]` declared it; a literal is resolved against the \
-           route table while compiling, and an unknown literal is a compile error.",
+    desc: "The route's name, as its `#[Route]` declares it. A name written directly in the \
+           code is checked when the program compiles, and an unknown name is a compile error.",
     shape: &[],
 };
 
 /// See [`NAME_DOC`].
 const PARAMS_DOC: ParamDoc = ParamDoc {
     name: "params",
-    desc: "The path's captures by name, plus any query parameters; a literal key that is neither \
-           a capture nor a declared `#[Query]` parameter is a compile error.",
+    desc: "The path's captures by name, plus any query parameters. A key written directly in \
+           the code must be a capture or a declared `#[Query]` parameter. Any other key is a \
+           compile error.",
     shape: &[],
 };
 
@@ -339,8 +340,8 @@ const URL_DOC: MethodDoc = MethodDoc {
           as they are.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "When `$name` is not written as a literal string. When `$params` has no value for \
-               a capture that the path needs. When a value cannot be written as text. When a \
+        desc: "When `$name` is not a string written directly in the code. When `$params` has no \
+               value for a capture that the path needs. When a value cannot be written as text. When a \
                value is `.` or `..`, or a `{name...}` value has one of them between its `/` \
                characters, because a browser would move that link to another path.",
     }],
@@ -750,7 +751,7 @@ const MATCH_ACCESS_AS_DOC: MethodDoc = MethodDoc {
 ///
 /// Neither is a [`CoreMethod`] row, and that is the point: a program calls
 /// `Core\Router::url`, and `nvs_ir::lower` redirects the call here whenever
-/// `nvs_types::links` resolved its literal name against the compile-time table.
+/// `nvs_types::links` resolved a name given as a string literal against the compile-time table.
 /// So the *member* is one, and which of the two implementations answers is a
 /// property of what the compiler could prove — the same arrangement `rule:expressions/preparation-preserves-behaviour` states for every prepared literal: one implementation, reached at two
 /// entry points, never two implementations.
@@ -780,11 +781,11 @@ pub mod link {
     /// `$params`, one argument per field.
     pub const SIGNED_SYMBOL: &str = "nvs_core_router_link_signed";
     /// What separates two pieces. `\u{1}` because a path segment cannot hold
-    /// one: § 2's capture names are identifiers and its literal segments come
+    /// one: § 2's capture names are identifiers and its fixed segments come
     /// out of a `#[Route]` payload that a control byte would already have made
     /// unusable as a URL.
     pub const PIECE_SEPARATOR: char = '\u{1}';
-    /// A literal segment, its leading `/` included — copied out verbatim.
+    /// A fixed segment, its leading `/` included — copied out verbatim.
     pub const LITERAL: u8 = b'L';
     /// `{name}`: `/` and the percent-encoded value at `name`.
     pub const REQUIRED: u8 = b'R';
@@ -991,7 +992,7 @@ fn substitute(template: &str, params: &Value, member: &str) -> Result<String, Fa
         })?;
         // The same writer, and the same reason it is unreachable from source:
         // `prepared` builds a Rust `String` out of § 2's capture names and
-        // literal segments, so the bytes it hands over are UTF-8 by
+        // fixed segments, so the bytes it hands over are UTF-8 by
         // construction rather than by a check anything here could fail.
         let key = std::str::from_utf8(key)
             .map_err(|_| Fault::fatal("a prepared route link is built out of `str`"))?;
@@ -1528,9 +1529,9 @@ fn produced(text: &str) -> HelperResult {
 fn no_such_route(member: &str, args: &[nvs_runtime::Value]) -> Fault {
     let name = args[0].as_text().unwrap_or("<not a string>");
     Fault::thrown(format!(
-        "Core\\Router::{member}(): no route is named `{name}`. A computed name is not resolved \
-         against the compile-time route table (`rule:routing/link-name-and-params-are-checked`); \
-         write the route's name as a literal"
+        "Core\\Router::{member}(): no route is named `{name}`. A name computed at run time is \
+         not checked against the routes when the program compiles. Write the route's name as a \
+         string directly in the code"
     ))
 }
 

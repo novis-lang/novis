@@ -803,7 +803,7 @@ mod tests {
     }
 
     /// `rule:core-classes/db-transactions`'s first hazard, on the member most likely to meet
-    /// it: a `$tx` its closure carried out of the `transaction()` call still
+    /// it: a `$tx` its callable carried out of the `transaction()` call still
     /// names a live connection, so a write through it would run outside every
     /// transaction and on whatever that connection is doing now.
     ///
@@ -1189,7 +1189,7 @@ mod tests {
     }
 
     /// Reduces a callable parameter to the two names the case below compares:
-    /// the class it hands its closure, and the variable that closure answers.
+    /// the class it hands its callable, and the variable that callable answers.
     fn handed_over(ty: &CoreTy) -> Option<(&'static str, &'static str)> {
         match *ty {
             CoreTy::CallableSig(&[CoreTy::Instance(given)], &CoreTy::Var(answered)) => {
@@ -1208,16 +1208,16 @@ mod tests {
     }
 
     /// A nested `transaction` is the same row as the outermost one, so what
-    /// makes § 7's nesting compose is that neither what the closure is handed
-    /// nor what the member answers depends on the receiver: the closure is given
-    /// a [`TRANSACTION`], and the member answers the very variable that closure
+    /// makes § 7's nesting compose is that neither what the callable is handed
+    /// nor what the member answers depends on the receiver: the callable is given
+    /// a [`TRANSACTION`], and the member answers the very variable that callable
     /// declared. A library opening a transaction for its own writes then reads
     /// the same types inside a caller's transaction as outside one.
     ///
     /// **Asserted as the identity between the callable's answer and the row's,
     /// on every receiver that declares the row.** Either half alone is satisfied
     /// by the wrong shape: a row answering a variable of its own typechecks
-    /// against itself and still loses the closure's type at the call site, and
+    /// against itself and still loses the callable's type at the call site, and
     /// one handing over a [`CONNECTION`] would give a step the four members
     /// § 7 keeps off a transaction. The row is declared once and carried twice,
     /// so this is one decision, and the sweep over both receivers is what says
@@ -1234,7 +1234,7 @@ mod tests {
                 .unwrap_or_else(|| panic!("`{}` declares § 7's `transaction`", table.name));
             let (given, callable) = handed_over(&row.params[0]).unwrap_or_else(|| {
                 panic!(
-                    "`{}::transaction` takes the closure it runs first, at one written instance",
+                    "`{}::transaction` takes the callable it runs first, at one written instance",
                     table.name
                 )
             });
@@ -1246,13 +1246,13 @@ mod tests {
             });
             assert_eq!(
                 given, TRANSACTION_NAME,
-                "`{}::transaction` hands its closure `{given}`, which is a receiver § 7 keeps four \
+                "`{}::transaction` hands its callable `{given}`, which is a receiver § 7 keeps four \
                  members off",
                 table.name
             );
             assert_eq!(
                 callable, returned,
-                "`{}::transaction` answers `{returned}` where its closure answers `{callable}`, so \
+                "`{}::transaction` answers `{returned}` where its callable answers `{callable}`, so \
                  a nested call loses the type its call site wrote",
                 table.name
             );

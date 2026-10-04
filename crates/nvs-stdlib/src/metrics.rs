@@ -197,8 +197,9 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 };
 
 /// What every one of the three cards says about `$name`.
-const NAME_DESC: &str = "The series name, `[a-z][a-z0-9_]*`. A literal outside that grammar is a \
-                         compile error, and a `tainted` name is refused wherever it was written.";
+const NAME_DESC: &str = "The series name, `[a-z][a-z0-9_]*`. A name written directly in the code \
+                         that does not match this pattern does not compile. A `tainted` name \
+                         does not compile either.";
 
 /// What every one of the three cards says about `labels`.
 const LABELS_DESC: &str = "The label values this series is written under, keyed by label name. A \

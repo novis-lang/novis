@@ -24,7 +24,7 @@
 //! format, names an unresolvable class, or records a property set the class no
 //! longer has is *input that did not match a format this code declared*, which
 //! is what spec § 10's `ParseError` is. A value that cannot be encoded — a
-//! closure, a `secret` property — is a value the program itself built, so it is
+//! callable, a `secret` property — is a value the program itself built, so it is
 //! a bug in the program and a `LogicError`, exactly as `Core\Json::encode`
 //! already answers.
 //!
@@ -92,7 +92,7 @@ const ENCODE_DOC: MethodDoc = MethodDoc {
     ret: "The bytes. If `$value` is `tainted`, the bytes are also `tainted`.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "`$value` contains a closure, an open file or connection, or an object with a \
+        desc: "`$value` contains a callable, an open file or connection, or an object with a \
                `secret` property. It is also thrown when arrays and objects are nested more \
                than 256 levels deep.",
     }],

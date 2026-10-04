@@ -3,7 +3,7 @@
 //! declares its own, no member reaches the operating system except through the door, and no member
 //! reads a URI scheme off a path.
 //!
-//! The middle two are § 7's closure claim and § 2's, and neither subsumes the other: the first
+//! The middle two are § 7's completeness claim and § 2's, and neither subsumes the other: the first
 //! catches a member that goes through a door without being declared as doing so, the second a
 //! member that reaches the operating system with no door at all. The last is
 //! `rule:security/a-path-is-not-a-url`'s rather than 0118's, and sits here
@@ -275,7 +275,7 @@ fn every_capability_entry_names_a_member() {
     }
 }
 
-/// `rule:testing/capability-completeness-test`'s closure, and it has no exception list to read: a member of a capability-bearing
+/// `rule:testing/capability-completeness-test`'s completeness check, and it has no exception list to read: a member of a capability-bearing
 /// class that genuinely needs none declares `None` in `registry::CAPABILITIES`, in the same table
 /// under the same review as one that needs `fs.read`.
 ///

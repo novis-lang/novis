@@ -203,7 +203,7 @@ pub const CLASS: CoreClass = CoreClass {
         CoreMethod {
             name: "fromCwd",
             names: &["path"],
-            // Plain text and not a path parameter: a path parameter's literal
+            // Plain text and not a path parameter: a path parameter's string literal
             // is joined to the file that wrote it, and the whole point of this
             // member is the other base. A launderer for the file-path sink, so
             // a path from `Core\Cli::arguments` reaches a path door — the
@@ -479,8 +479,8 @@ const THIS_DIR_DOC: MethodDoc = MethodDoc {
             runs.",
     params: &[ParamDoc {
         name: "join",
-        desc: "A relative path written as a string literal, such as `'data'`. It is added to \
-               the folder. A variable or a full path does not compile. Use \
+        desc: "A relative path, written directly in the code as a string such as `'data'`. \
+               It is added to the folder. A variable or a full path does not compile. Use \
                `Core\\Path::join(Core\\Path::thisDir(), $part)` for a part the program builds.",
         shape: &[],
     }],

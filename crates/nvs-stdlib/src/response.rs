@@ -309,8 +309,8 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             // Unmarked, and the row where that is the *point*: § 4 says the
             // HTML member "takes the carrier and so has nothing to refuse",
             // because `Core\Html\Markup` is reached only through
-            // `rule:core-classes/html-auto-escape`'s own doors — a markup
-            // literal, `as` on a source literal, a launderer — each of which
+            // `rule:core-classes/html-auto-escape`'s own doors — an html
+            // template, `as` on a string literal, a launderer — each of which
             // already decided what may be raw. A `Qual` here would classify a
             // parameter whose type has settled the question.
             params: &[CoreTy::Instance(crate::html::MARKUP_NAME)],
@@ -633,8 +633,9 @@ const HTML_DOC: MethodDoc = MethodDoc {
     params: &[ParamDoc {
         name: "body",
         desc: "The page to send. It is a `Core\\Html\\Markup`, which is HTML that is already safe: \
-               an `html` literal escaped the values in its `{...}`, or `Core\\Html::escape` made \
-               it. It is sent as it is and nothing is escaped again. A `string` does not compile.",
+               an html template, ``html`…` ``, escaped the values in its `{...}`, or \
+               `Core\\Html::escape` made it. It is sent as it is and nothing is escaped again. \
+               A `string` does not compile.",
         shape: &[],
     }],
     ret: "Nothing. Using this and `echo` in one response does not compile.",
@@ -1086,8 +1087,8 @@ pub(crate) fn head_open(ctx: &nvs_runtime::Ctx, member: &str) -> Result<(), Faul
         return Err(Fault::thrown_as(
             nvs_runtime::ThrownClass::Logic,
             format!(
-                "A `Core\\Html::later` closure cannot call `{member}`. Only the main script \
-                 sets the status, the headers, the cookies and the body."
+                "A function passed to `Core\\Html::later` cannot call `{member}`. Only the main \
+                 script sets the status, the headers, the cookies and the body."
             ),
         ));
     }
@@ -1103,9 +1104,9 @@ nvs_runtime::nvs_helper! {
     ///
     /// **Nothing is escaped here, and that is the rule rather than an
     /// omission.** A `Core\Html\Markup` exists only where
-    /// `rule:core-classes/html-auto-escape` let one be built — a markup
-    /// literal, whose holes this member's argument already went through, `as`
-    /// on a source literal, or a launderer — so escaping the slot again would
+    /// `rule:core-classes/html-auto-escape` let one be built — an html
+    /// template, whose holes this member's argument already went through, `as`
+    /// on a string literal, or a launderer — so escaping the slot again would
     /// corrupt the page it was built for, exactly as it would in
     /// [`crate::html::nvs_core_html_markup_concat`]. The bytes are read through
     /// [`crate::html::markup_slot`], which is the one reader of that slot, so

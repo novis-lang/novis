@@ -35,7 +35,7 @@ nvs-config.workspace = true
 # rendering, rather than formatting a value here.
 nvs-render.workspace = true
 # ADR 0070 § 5: the duration grammar has exactly one implementation, and it is
-# `nvs_syntax::duration` -- the lexer reads the source literal with it, this
+# `nvs_syntax::duration` -- the lexer reads a duration written in the source with it, this
 # crate reads a run-time string with it, and `nvs.toml` will read a directive
 # with it. That module's own docs own why the shared code sits in the syntax
 # crate; ADR 0019's `Core\Ast` owes this same edge regardless.

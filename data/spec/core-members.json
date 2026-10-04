@@ -1289,7 +1289,7 @@
         ],
         [
           "`quote`",
-          "`quote(string $literal): string`",
+          "`quote(string $text): string`",
           "`preg_quote`",
           "**launder** (for the pattern sink)"
         ]

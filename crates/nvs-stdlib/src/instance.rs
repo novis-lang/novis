@@ -656,7 +656,7 @@ fn shape_descriptor(name: &str) -> *const ClassDesc {
 /// A fresh `rule:types/object-top` shape value — `{path: "…", message: "…"}` — its slots
 /// filled from `slots` in [`SHAPE_ROSTER`]'s order.
 ///
-/// The same anonymous methodless instance an Novis `{…}` literal builds, so
+/// The same anonymous methodless instance a Novis anonymous object (`{…}`) builds, so
 /// nothing downstream learns that `Core` produced this one. Takes over each
 /// slot value's reference, exactly as [`build`] does.
 ///
