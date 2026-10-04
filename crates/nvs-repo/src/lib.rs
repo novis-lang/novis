@@ -25,13 +25,20 @@
 //! A log that is named and cannot be written panics: a read that went unrecorded is a test that
 //! is later skipped over a change it depends on, which is the one failure this crate exists to
 //! prevent.
+//!
+//! [`scratch`] is where a test writes. It returns a fresh directory under `target/test-scratch/`
+//! and deletes it when the guard drops, also when the test panics. No test writes into the system
+//! temp directory. A scratch directory is written and never read from the tree, so it records
+//! nothing, and a test that only uses one stays narrow.
 
 use std::ffi::OsStr;
 use std::fs::OpenOptions;
 use std::io::Write;
+use std::ops::Deref;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 /// The environment variable naming the file each recorded path is appended to.
 pub const LOG_ENV: &str = "NVS_READS_LOG";
@@ -162,6 +169,69 @@ pub fn spawn(program: impl AsRef<OsStr>, reads: &[&str]) -> Command {
     Command::new(program)
 }
 
+/// The directory [`scratch`] made. It derefs to the directory's path, and dropping it deletes the
+/// directory and everything in it. A test that needs the directory across two steps keeps the
+/// guard alive for both.
+#[derive(Debug)]
+pub struct Scratch {
+    path: PathBuf,
+}
+
+impl Scratch {
+    /// The directory, which exists and was empty when the guard was made.
+    #[must_use]
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
+}
+
+impl Deref for Scratch {
+    type Target = Path;
+
+    fn deref(&self) -> &Path {
+        &self.path
+    }
+}
+
+impl AsRef<Path> for Scratch {
+    fn as_ref(&self) -> &Path {
+        &self.path
+    }
+}
+
+impl Drop for Scratch {
+    /// A file still open on Windows can stop the delete. Drop cannot report that, and a panic
+    /// here while a failing test unwinds would abort the binary, so what is left stays under
+    /// `target/test-scratch/` for `cargo clean`.
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.path);
+    }
+}
+
+/// A new empty directory `target/test-scratch/<name>-<pid>-<n>` for a test to write into, where
+/// `n` counts the calls in this process, so two tests that pass the same `name` never share one.
+/// Nothing is recorded: the directory is written, never read from the tree.
+///
+/// # Panics
+///
+/// If `name` is empty or holds a separator or `..`, and if the directory cannot be created.
+#[must_use]
+pub fn scratch(name: &str) -> Scratch {
+    static NEXT: AtomicUsize = AtomicUsize::new(0);
+    assert!(
+        !name.is_empty() && !name.contains(['/', '\\']) && !name.contains(".."),
+        "nvs_repo::scratch takes a directory name, and `{name}` is not one"
+    );
+    let n = NEXT.fetch_add(1, Ordering::Relaxed);
+    let path = repository()
+        .join("target")
+        .join("test-scratch")
+        .join(format!("{name}-{}-{n}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&path);
+    std::fs::create_dir_all(&path).unwrap_or_else(|err| panic!("{}: {err}", path.display()));
+    Scratch { path }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -213,5 +283,39 @@ mod tests {
     #[should_panic(expected = "a file name")]
     fn named_refuses_a_path() {
         let _ = named("crates/Cargo.toml");
+    }
+
+    #[test]
+    fn a_scratch_dir_is_under_the_target_dir() {
+        let (dirs, lines) = nvs_footprint::capture(|| (scratch("probe"), scratch("probe")));
+        let under = repository().join("target").join("test-scratch");
+        assert!(dirs.0.is_dir() && dirs.0.starts_with(&under));
+        assert_ne!(dirs.0.path(), dirs.1.path());
+        assert_eq!(std::fs::read_dir(dirs.0.path()).unwrap().count(), 0);
+        assert!(lines.is_empty(), "scratch recorded {lines:?}");
+    }
+
+    #[test]
+    fn a_scratch_dir_is_removed_when_its_guard_drops() {
+        let dir = scratch("dropped");
+        let kept = dir.to_path_buf();
+        std::fs::write(dir.join("a.txt"), "a").unwrap();
+        drop(dir);
+        assert!(!kept.exists());
+
+        let failed = std::panic::catch_unwind(|| {
+            let dir = scratch("failed");
+            std::fs::write(dir.join("a.txt"), "a").unwrap();
+            panic!("{}", dir.display());
+        });
+        let message = failed.unwrap_err();
+        let shown = message.downcast_ref::<String>().unwrap();
+        assert!(!Path::new(shown).exists());
+    }
+
+    #[test]
+    #[should_panic(expected = "a directory name")]
+    fn scratch_refuses_a_path() {
+        let _ = scratch("../elsewhere");
     }
 }

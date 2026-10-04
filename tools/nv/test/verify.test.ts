@@ -8,6 +8,10 @@ describe("wayOut", () => {
     expect(wayOut('fn t() { let s = std::fs::read_to_string("fixtures/a.txt"); }')).toBe("");
   });
 
+  test("a scratch directory from `nvs_repo` is not a way out", () => {
+    expect(wayOut('#[test]\nfn t() { let dir = nvs_repo::scratch("swap"); std::fs::write(dir.join("a.txt"), ""); }')).toBe("");
+  });
+
   test("starting another program is a way out, and the package's own binary is not", () => {
     expect(wayOut('fn t() { Command::new("git"); }')).toBe("starts a process with `Command::new`");
     expect(wayOut('fn t() { Command::new(env!("CARGO_BIN_EXE_nvs")); }')).toBe("");

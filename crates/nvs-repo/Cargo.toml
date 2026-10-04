@@ -1,6 +1,6 @@
 [package]
 name = "nvs-repo"
-description = "How a test reaches a file outside its own package: one function that returns the path and records that it was asked for, so `bun nv verify` knows what each test binary reads"
+description = "How a test reaches a file outside its own package: one function that returns the path and records that it was asked for, so `bun nv verify` knows what each test binary reads, and the scratch directory under `target/` a test writes into"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
