@@ -134,9 +134,11 @@ impl Hinting<'_> {
             StmtKind::Expr(expr) => self.expr(expr),
             StmtKind::Return(value) => self.opt_expr(value.as_ref()),
             StmtKind::Block(block) => self.block(block),
-            StmtKind::If { cond, then, else_ } => {
-                self.expr(cond);
-                self.stmt(then);
+            StmtKind::If { arms, else_ } => {
+                for arm in arms {
+                    self.expr(&arm.cond);
+                    self.stmt(&arm.then);
+                }
                 if let Some(otherwise) = else_ {
                     self.stmt(otherwise);
                 }

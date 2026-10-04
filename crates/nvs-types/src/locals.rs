@@ -833,10 +833,9 @@ fn terminates(stmt: &Stmt) -> bool {
         }) => true,
         StmtKind::Block(b) => b.stmts.last().is_some_and(terminates),
         StmtKind::If {
-            then,
+            arms,
             else_: Some(else_),
-            ..
-        } => terminates(then) && terminates(else_),
+        } => arms.iter().all(|arm| terminates(&arm.then)) && terminates(else_),
         _ => false,
     }
 }
@@ -880,14 +879,11 @@ pub(crate) fn check_block(
     let mut carried = Narrowing::default();
     for stmt in stmts {
         check_stmt(stmt, live, scope, return_ty, ctx, env);
-        if let StmtKind::If {
-            cond,
-            then,
-            else_: None,
-        } = &stmt.kind
-            && (terminates(then) || ends_in_break_or_continue(then))
+        if let StmtKind::If { arms, else_: None } = &stmt.kind
+            && let [arm] = arms.as_slice()
+            && (terminates(&arm.then) || ends_in_break_or_continue(&arm.then))
         {
-            carried.absorb(narrow(cond, false, scope, env));
+            carried.absorb(narrow(&arm.cond, false, scope, env));
         }
     }
     carried.restore(scope);
@@ -1119,26 +1115,42 @@ pub(crate) fn check_stmt(
         }
         StmtKind::Block(b) => check_block(&b.stmts, live, scope, return_ty, ctx, env),
         StmtKind::Empty | StmtKind::InlineHtml(_) | StmtKind::Error => {}
-        StmtKind::If { cond, then, else_ } => {
-            check_condition(cond, live, scope, ctx, env);
-            let mut then_live = live.clone();
-            let narrowed = narrow(cond, true, scope, env);
-            check_stmt(then, &mut then_live, scope, return_ty, ctx, env);
-            narrowed.restore(scope);
-            if let Some(else_stmt) = else_ {
-                let mut else_live = live.clone();
-                let narrowed = narrow(cond, false, scope, env);
-                check_stmt(else_stmt, &mut else_live, scope, return_ty, ctx, env);
+        // Each arm's `else` is the rest of the chain. The arms are checked in
+        // order with `live` as the rest's live set, each one under every
+        // earlier condition narrowed false. Then the joins are made from the
+        // last arm back to the first, undoing those narrowings as they go.
+        StmtKind::If { arms, else_ } => {
+            let mut joins = Vec::with_capacity(arms.len());
+            for (i, arm) in arms.iter().enumerate() {
+                check_condition(&arm.cond, live, scope, ctx, env);
+                let mut then_live = live.clone();
+                let narrowed = narrow(&arm.cond, true, scope, env);
+                check_stmt(&arm.then, &mut then_live, scope, return_ty, ctx, env);
                 narrowed.restore(scope);
-                *live = if terminates(then) {
-                    else_live
-                } else if terminates(else_stmt) {
-                    then_live
-                } else {
-                    then_live.intersection(&else_live).cloned().collect()
-                };
+                // No `else`: only the pre-existing `live` carries forward.
+                if i + 1 == arms.len() && else_.is_none() {
+                    break;
+                }
+                let narrowed = narrow(&arm.cond, false, scope, env);
+                joins.push((then_live, terminates(&arm.then), narrowed));
             }
-            // No `else`: only the pre-existing `live` carries forward.
+            let mut rest_terminates = false;
+            if let Some(else_stmt) = else_ {
+                check_stmt(else_stmt, live, scope, return_ty, ctx, env);
+                rest_terminates = terminates(else_stmt);
+            }
+            while let Some((then_live, then_terminates, narrowed)) = joins.pop() {
+                narrowed.restore(scope);
+                // When the arm terminates, `live` is already the rest's.
+                if !then_terminates {
+                    *live = if rest_terminates {
+                        then_live
+                    } else {
+                        then_live.intersection(live).cloned().collect()
+                    };
+                }
+                rest_terminates = then_terminates && rest_terminates;
+            }
         }
         StmtKind::While { cond, body } => {
             check_condition(cond, live, scope, ctx, env);

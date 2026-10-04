@@ -1320,6 +1320,19 @@ pub struct CatchClause {
     pub span: Span,
 }
 
+/// One `if`, `elseif` or `else if` arm of an [`StmtKind::If`] chain.
+#[derive(Clone, Debug, PartialEq)]
+pub struct IfArm {
+    /// The arm's condition.
+    pub cond: Expr,
+    /// The branch taken when `cond` is true and no earlier arm's was.
+    pub then: Stmt,
+    /// From the arm's `if` or `elseif` keyword to the end of the whole
+    /// statement: the part of the chain this arm and everything after it
+    /// covers. For the first arm it is the statement's own span.
+    pub span: Span,
+}
+
 /// One `case`/`default` arm of a `switch`.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SwitchCase {
@@ -1413,14 +1426,14 @@ pub enum StmtKind {
     /// (`if ($x) { ?>html<?nvs }` is legal, exactly as in PHP).
     InlineHtml(Span),
     /// `if (cond) then (elseif (cond2) then2)* (else else_)?`. An `elseif`
-    /// or an `else if` both collapse to the same shape: a nested `If` inside
-    /// `else_`, indistinguishable from a source-level `else { if (...) }`.
+    /// and an `else if` both add one arm to the same list, so a chain of any
+    /// length is one statement and every walk over it is a loop over `arms`.
+    /// A braced `else { if (...) }` is still an `If` nested in `else_`.
     If {
-        /// The condition.
-        cond: Expr,
-        /// The branch taken when `cond` is true.
-        then: Box<Stmt>,
-        /// The branch taken otherwise, if any.
+        /// The `if` arm first, then one per `elseif` or `else if`, in source
+        /// order. Never empty.
+        arms: Vec<IfArm>,
+        /// The branch taken when no arm's condition is true, if any.
         else_: Option<Box<Stmt>>,
     },
     /// `while (cond) body`.
@@ -1991,8 +2004,9 @@ fn stmt_yields(stmt: &Stmt) -> bool {
     match &stmt.kind {
         StmtKind::Expr(e) => is_yield_expr(e),
         StmtKind::Block(b) => is_generator_body(b),
-        StmtKind::If { then, else_, .. } => {
-            stmt_yields(then) || else_.as_deref().is_some_and(stmt_yields)
+        StmtKind::If { arms, else_ } => {
+            arms.iter().any(|arm| stmt_yields(&arm.then))
+                || else_.as_deref().is_some_and(stmt_yields)
         }
         StmtKind::While { body, .. }
         | StmtKind::DoWhile { body, .. }

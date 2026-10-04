@@ -388,29 +388,42 @@ impl<'src, 'd> Parser<'src, 'd> {
     // `if`/`elseif`/`else`
     // ------------------------------------------------------------------------
 
-    /// Parses the rest of an `if`/`elseif` given its keyword was already
-    /// consumed at `start`. `elseif` re-enters here directly — its keyword is
-    /// a single token, not `else` followed by `if`, but produces exactly the
-    /// same nested-`If`-inside-`else_` shape as the two-word spelling (which
-    /// falls out for free: `else` bumps its own keyword, then
-    /// `parse_statement` sees `if` next and recurses through the ordinary
-    /// dispatch arm above).
+    /// Parses the rest of an `if` chain given its `if` was already consumed at
+    /// `start`. Each `elseif`, and each `else` followed directly by `if`, adds
+    /// one arm in this loop, so a chain of any length costs no parser depth
+    /// and never reaches `MAX_RECURSION_DEPTH`. Only a branch's own statement
+    /// goes through `parse_statement` and its guard.
     pub(super) fn finish_if(&mut self, start: Span) -> Stmt {
-        self.expect(TokenKind::LParen, "`(`");
-        let cond = self.parse_expr();
-        self.expect(TokenKind::RParen, "`)`");
-        let then = Box::new(self.parse_statement());
-        let else_ = if let Some(elseif_start) = self.eat_keyword(Keyword::Elseif) {
-            Some(Box::new(self.finish_if(elseif_start)))
-        } else if self.eat_keyword(Keyword::Else).is_some() {
-            Some(Box::new(self.parse_statement()))
-        } else {
-            None
+        let mut arms = Vec::new();
+        let mut arm_start = start;
+        let else_ = loop {
+            self.expect(TokenKind::LParen, "`(`");
+            let cond = self.parse_expr();
+            self.expect(TokenKind::RParen, "`)`");
+            let then = self.parse_statement();
+            arms.push(IfArm {
+                cond,
+                then,
+                span: arm_start,
+            });
+            if let Some(elseif_start) = self.eat_keyword(Keyword::Elseif) {
+                arm_start = elseif_start;
+            } else if self.eat_keyword(Keyword::Else).is_some() {
+                match self.eat_keyword(Keyword::If) {
+                    Some(if_start) => arm_start = if_start,
+                    None => break Some(Box::new(self.parse_statement())),
+                }
+            } else {
+                break None;
+            }
         };
         let span = start.to(self.last_span);
+        for arm in &mut arms {
+            arm.span = arm.span.to(span);
+        }
         Stmt {
             span,
-            kind: StmtKind::If { cond, then, else_ },
+            kind: StmtKind::If { arms, else_ },
         }
     }
 

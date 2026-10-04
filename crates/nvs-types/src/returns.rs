@@ -86,8 +86,10 @@ fn visit_return<F: FnMut(Option<&Expr>, Span)>(stmt: &Stmt, f: &mut F) {
     match &stmt.kind {
         StmtKind::Return(operand) => f(operand.as_ref(), stmt.span),
         StmtKind::Block(b) => for_each_return_stmt(&b.stmts, f),
-        StmtKind::If { then, else_, .. } => {
-            visit_return(then, f);
+        StmtKind::If { arms, else_ } => {
+            for arm in arms {
+                visit_return(&arm.then, f);
+            }
             if let Some(else_) = else_ {
                 visit_return(else_, f);
             }
@@ -126,10 +128,9 @@ fn always_exits(stmt: &Stmt, exprs: &ExprTypeTable) -> bool {
         StmtKind::Expr(e) => expr_always_exits(e, exprs),
         StmtKind::Block(b) => block_always_exits(&b.stmts, exprs),
         StmtKind::If {
-            then,
+            arms,
             else_: Some(else_),
-            ..
-        } => always_exits(then, exprs) && always_exits(else_, exprs),
+        } => arms.iter().all(|arm| always_exits(&arm.then, exprs)) && always_exits(else_, exprs),
         // A loop is the reason a body exits only when nothing can leave it: an
         // `if` inside a `while (true)` that returns is *not* what makes the
         // enclosing body exit, because the `if` may be false forever.
@@ -197,8 +198,8 @@ fn escapes(stmt: &Stmt) -> bool {
         // out loud; the `_ => false` arm below would answer the same.
         StmtKind::Continue(_) => false,
         StmtKind::Block(b) => escapes_block(&b.stmts),
-        StmtKind::If { then, else_, .. } => {
-            escapes(then) || else_.as_ref().is_some_and(|e| escapes(e))
+        StmtKind::If { arms, else_ } => {
+            arms.iter().any(|arm| escapes(&arm.then)) || else_.as_ref().is_some_and(|e| escapes(e))
         }
         StmtKind::Try {
             body,

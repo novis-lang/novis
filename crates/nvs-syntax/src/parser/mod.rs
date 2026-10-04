@@ -58,7 +58,7 @@ use crate::ast::{
     AnonClassDecl, Arg, ArrayItem, AssignOp, Attribute, AttributeGroup, AutoloadDecl, AutoloadKind,
     BinaryOp, Block, CallArgs, CatchArm, CatchClause, ClassDecl, ClassMember, ClassMemberKind,
     ConstMember, DestructureElement, DestructureTarget, DocComment, DocTag, DocTagKind, EnumCase,
-    EnumDecl, Expr, ExprKind, FnBody, FnExpr, ForInit, ForeachBinding, ForeachBindingTy,
+    EnumDecl, Expr, ExprKind, FnBody, FnExpr, ForInit, ForeachBinding, ForeachBindingTy, IfArm,
     ImplementsClause, IncDecOp, InterfaceDecl, MatchArm, MemberName, MethodMember, Modifier, Name,
     NamespaceDecl, NewTarget, ObjectLiteralField, Param, PropertyHook, PropertyHookBody,
     PropertyHookKind, PropertyMember, ShapeField, SpawnOption, SpawnOptionKey, StaticVar, Stmt,

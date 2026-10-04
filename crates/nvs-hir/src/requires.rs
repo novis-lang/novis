@@ -966,9 +966,11 @@ fn walk_stmt(stmt: &Stmt, src: &SourceFile, out: &mut Harvest) {
             e!(x);
         }
         StmtKind::Block(b) => find_require_literals(&b.stmts, src, out),
-        StmtKind::If { cond, then, else_ } => {
-            e!(cond);
-            s!(then);
+        StmtKind::If { arms, else_ } => {
+            for arm in arms {
+                e!(&arm.cond);
+                s!(&arm.then);
+            }
             if let Some(else_) = else_ {
                 s!(else_);
             }

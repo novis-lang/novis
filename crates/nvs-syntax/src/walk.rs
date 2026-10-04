@@ -403,9 +403,11 @@ fn stmt(s: &Stmt) -> Node {
         }
         StmtKind::Empty => "Empty",
         StmtKind::InlineHtml(_) => "InlineHtml",
-        StmtKind::If { cond, then, else_ } => {
-            kids.push(expr(cond));
-            kids.push(stmt(then));
+        StmtKind::If { arms, else_ } => {
+            for arm in arms {
+                kids.push(expr(&arm.cond));
+                kids.push(stmt(&arm.then));
+            }
             if let Some(otherwise) = else_ {
                 kids.push(stmt(otherwise));
             }

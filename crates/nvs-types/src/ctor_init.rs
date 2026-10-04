@@ -270,23 +270,37 @@ fn walk_stmt(
             false
         }
         StmtKind::Block(b) => walk_stmts(&b.stmts, state, obligations, env),
-        StmtKind::If { cond, then, else_ } => {
-            scan_expr(cond, state, env);
-            let mut then_state = state.clone();
-            let then_terminates = walk_stmt(then, &mut then_state, obligations, env);
-            if let Some(else_stmt) = else_ {
-                let mut else_state = state.clone();
-                let else_terminates = walk_stmt(else_stmt, &mut else_state, obligations, env);
-                match (then_terminates, else_terminates) {
-                    (true, true) => return true,
-                    (true, false) => *state = else_state,
-                    (false, true) => *state = then_state,
-                    (false, false) => *state = InitState::merge(then_state, else_state),
+        // Each arm's `else` is the rest of the chain: the arms are walked in
+        // order with `state` as the rest's, then joined from the last arm
+        // back to the first. A state that ends in a terminating path is never
+        // read, so `state` may carry it.
+        StmtKind::If { arms, else_ } => {
+            let mut joins = Vec::with_capacity(arms.len());
+            for (i, arm) in arms.iter().enumerate() {
+                scan_expr(&arm.cond, state, env);
+                let mut then_state = state.clone();
+                let then_terminates = walk_stmt(&arm.then, &mut then_state, obligations, env);
+                // No `else`: only the pre-existing `state` carries forward,
+                // exactly like `crate::locals::check_block`'s own `If` arm.
+                if i + 1 < arms.len() || else_.is_some() {
+                    joins.push((then_state, then_terminates));
                 }
             }
-            // No `else`: only the pre-existing `state` carries forward,
-            // exactly like `crate::locals::check_block`'s own `If` arm.
-            false
+            let mut rest_terminates = match else_ {
+                Some(else_stmt) => walk_stmt(else_stmt, state, obligations, env),
+                None => false,
+            };
+            while let Some((then_state, then_terminates)) = joins.pop() {
+                match (then_terminates, rest_terminates) {
+                    (true, _) => {}
+                    (false, true) => *state = then_state,
+                    (false, false) => {
+                        *state = InitState::merge(then_state, std::mem::take(state));
+                    }
+                }
+                rest_terminates = then_terminates && rest_terminates;
+            }
+            rest_terminates
         }
         StmtKind::While { cond, body } => {
             scan_expr(cond, state, env);

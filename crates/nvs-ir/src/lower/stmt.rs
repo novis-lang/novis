@@ -198,8 +198,8 @@ impl<'a> Lowering<'a> {
                 }
             }
             StmtKind::Block(b) => self.lower_stmts(&b.stmts, cur, env),
-            StmtKind::If { cond, then, else_ } => {
-                self.lower_if(cond, then, else_.as_deref(), cur, env);
+            StmtKind::If { arms, else_ } => {
+                self.lower_if(arms, else_.as_deref(), cur, env);
             }
             StmtKind::While { cond, body } => self.lower_while(cond, body, cur, env),
             StmtKind::DoWhile { body, cond } => self.lower_do_while(body, cond, cur, env),

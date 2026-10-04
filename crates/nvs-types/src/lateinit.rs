@@ -140,23 +140,35 @@ fn walk_stmt(
             false
         }
         StmtKind::Block(b) => walk_stmts(&b.stmts, written, tracked, env),
-        StmtKind::If { cond, then, else_ } => {
-            scan_expr(cond, written, tracked, env);
-            let mut then_written = written.clone();
-            let then_terminates = walk_stmt(then, &mut then_written, tracked, env);
-            if let Some(else_stmt) = else_ {
-                let mut else_written = written.clone();
-                let else_terminates = walk_stmt(else_stmt, &mut else_written, tracked, env);
-                match (then_terminates, else_terminates) {
-                    (true, true) => return true,
-                    (true, false) => *written = else_written,
-                    (false, true) => *written = then_written,
-                    (false, false) => *written = merge(then_written, else_written),
+        // Each arm's `else` is the rest of the chain: the arms are walked in
+        // order with `written` as the rest's set, then joined from the last
+        // arm back to the first. A set that ends in a terminating path is
+        // never read, so `written` may carry it.
+        StmtKind::If { arms, else_ } => {
+            let mut joins = Vec::with_capacity(arms.len());
+            for (i, arm) in arms.iter().enumerate() {
+                scan_expr(&arm.cond, written, tracked, env);
+                let mut then_written = written.clone();
+                let then_terminates = walk_stmt(&arm.then, &mut then_written, tracked, env);
+                // No `else`: only the pre-existing `written` carries forward,
+                // exactly like `crate::ctor_init::walk_stmt`'s own `If` arm.
+                if i + 1 < arms.len() || else_.is_some() {
+                    joins.push((then_written, then_terminates));
                 }
             }
-            // No `else`: only the pre-existing `written` carries forward,
-            // exactly like `crate::ctor_init::walk_stmt`'s own `If` arm.
-            false
+            let mut rest_terminates = match else_ {
+                Some(else_stmt) => walk_stmt(else_stmt, written, tracked, env),
+                None => false,
+            };
+            while let Some((then_written, then_terminates)) = joins.pop() {
+                match (then_terminates, rest_terminates) {
+                    (true, _) => {}
+                    (false, true) => *written = then_written,
+                    (false, false) => *written = merge(then_written, std::mem::take(written)),
+                }
+                rest_terminates = then_terminates && rest_terminates;
+            }
+            rest_terminates
         }
         StmtKind::While { cond, body } => {
             scan_expr(cond, written, tracked, env);

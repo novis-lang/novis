@@ -1294,9 +1294,11 @@ fn stmt_types<'a>(stmt: &'a Stmt, start: BytePos, end: BytePos, found: &mut Vec<
         }
         StmtKind::Echo(exprs) | StmtKind::Unset(exprs) => exprs_types(exprs, start, end, found),
         StmtKind::Block(block) => stmts_types(&block.stmts, start, end, found),
-        StmtKind::If { cond, then, else_ } => {
-            expr_types(cond, start, end, found);
-            stmt_types(then, start, end, found);
+        StmtKind::If { arms, else_ } => {
+            for arm in arms {
+                expr_types(&arm.cond, start, end, found);
+                stmt_types(&arm.then, start, end, found);
+            }
             if let Some(else_) = else_ {
                 stmt_types(else_, start, end, found);
             }

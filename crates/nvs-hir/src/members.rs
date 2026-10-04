@@ -871,9 +871,11 @@ fn walk_stmt(stmt: &Stmt, src: &SourceFile, ctx: &Ctx<'_>, env: &mut Env<'_>) {
             e!(x);
         }
         StmtKind::Block(b) => walk_block(b, src, ctx, env),
-        StmtKind::If { cond, then, else_ } => {
-            e!(cond);
-            s!(then);
+        StmtKind::If { arms, else_ } => {
+            for arm in arms {
+                e!(&arm.cond);
+                s!(&arm.then);
+            }
             if let Some(else_) = else_ {
                 s!(else_);
             }

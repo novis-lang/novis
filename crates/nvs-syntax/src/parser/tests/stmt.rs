@@ -9,30 +9,47 @@ use super::*;
 #[test]
 fn if_elseif_else_chain() {
     let s = parse_stmt_ok("if ($a) { 1; } elseif ($b) { 2; } else { 3; }");
-    let StmtKind::If { then, else_, .. } = s.kind else {
+    let StmtKind::If { arms, else_ } = s.kind else {
         panic!("expected an if: {s:?}");
     };
-    assert!(matches!(then.kind, StmtKind::Block(_)));
-    let else_ = else_.expect("elseif chain");
-    let StmtKind::If {
-        else_: inner_else, ..
-    } = else_.kind
-    else {
-        panic!("expected `elseif` to produce a nested if: {else_:?}");
-    };
-    assert!(matches!(inner_else.unwrap().kind, StmtKind::Block(_)));
+    assert_eq!(arms.len(), 2);
+    assert!(
+        arms.iter()
+            .all(|arm| matches!(arm.then.kind, StmtKind::Block(_)))
+    );
+    assert_eq!(arms[0].span, s.span);
+    assert_eq!(arms[1].span.end, s.span.end);
+    assert!(matches!(else_.expect("an else").kind, StmtKind::Block(_)));
 }
 
 #[test]
 fn else_if_two_words_matches_elseif() {
-    // `else if (...)` recurses through the ordinary statement dispatch
-    // rather than a dedicated `elseif` production, but produces the same
-    // nested-`If` shape.
+    // `else if (...)` adds an arm exactly as `elseif` does; only a braced
+    // `else { if (...) }` nests.
     let s = parse_stmt_ok("if ($a) { 1; } else if ($b) { 2; }");
-    let StmtKind::If { else_, .. } = s.kind else {
+    let StmtKind::If { arms, else_ } = s.kind else {
         panic!("expected an if: {s:?}");
     };
-    assert!(matches!(else_.unwrap().kind, StmtKind::If { .. }));
+    assert_eq!(arms.len(), 2);
+    assert!(else_.is_none());
+}
+
+#[test]
+fn a_long_elseif_chain_is_one_statement_and_costs_no_depth() {
+    // Far past the parser's nesting limit, in both spellings.
+    for keyword in ["elseif", "else if"] {
+        let mut src = "if ($a == 0) { 0; }".to_owned();
+        for i in 1..2000 {
+            src.push_str(&format!(" {keyword} ($a == {i}) {{ {i}; }}"));
+        }
+        src.push_str(" else { -1; }");
+        let s = parse_stmt_ok(&src);
+        let StmtKind::If { arms, else_ } = s.kind else {
+            panic!("expected an if");
+        };
+        assert_eq!(arms.len(), 2000);
+        assert!(else_.is_some());
+    }
 }
 
 #[test]

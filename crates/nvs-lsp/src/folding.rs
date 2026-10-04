@@ -198,8 +198,10 @@ impl Walk<'_> {
             StmtKind::Block(block) => self.block(block),
             // A branch is a statement, so a braced one is folded by the arm
             // above and an unbraced one covers a line and folds at nothing.
-            StmtKind::If { then, else_, .. } => {
-                self.stmt(then);
+            StmtKind::If { arms, else_ } => {
+                for arm in arms {
+                    self.stmt(&arm.then);
+                }
                 if let Some(otherwise) = else_ {
                     self.stmt(otherwise);
                 }

@@ -8,8 +8,14 @@
 use super::*;
 
 impl<'a> Lowering<'a> {
-    /// `if (cond) then (else else_)?` — the module docs describe the
-    /// merge-point construction this drives.
+    /// `if (cond) then (elseif (cond2) then2)* (else else_)?` — the module
+    /// docs describe the merge-point construction this drives.
+    ///
+    /// Each arm's `else` is the rest of the chain, with a merge block of its
+    /// own. The arms are lowered in order first, each one's branch and
+    /// `then` side, keeping a frame per arm. Then the frames are merged from
+    /// the last arm back to the first. That is the order a nested `If` per
+    /// arm would give, block for block, and it costs no stack per arm.
     ///
     /// # Panics
     ///
@@ -19,66 +25,93 @@ impl<'a> Lowering<'a> {
     /// (`null`/`mixed`/a union).
     pub(crate) fn lower_if(
         &mut self,
-        cond: &Expr,
-        then: &'a Stmt,
+        arms: &'a [nvs_syntax::ast::IfArm],
         else_: Option<&'a Stmt>,
         cur: &mut BlockId,
         env: &mut Env,
     ) {
-        let cond_v = self.lower_truthy_cond(cond, env, cur);
-
-        let merge_block = self.new_block();
-        let then_block = self.new_block();
-        let then_edge = self.ids.next_edge(then.span);
-        let (else_block, else_edge) = match else_ {
-            Some(else_stmt) => (self.new_block(), self.ids.next_edge(else_stmt.span)),
-            // No `else`: the branch's false edge goes straight to the merge
-            // block, carrying the pre-branch environment unchanged.
-            None => (merge_block, self.ids.next_edge(cond.span)),
-        };
-        self.seal(
-            *cur,
-            Terminator::Branch {
-                cond: cond_v,
-                then_block,
-                then_edge,
-                else_block,
-                else_edge,
-            },
-        );
-        let pre_branch_block = *cur;
-
-        let mut then_env = env.clone();
-        let mut then_cur = then_block;
-        self.lower_stmt(then, &mut then_cur, &mut then_env);
-        let then_reaches_merge = !self.is_terminated(then_cur);
-        if then_reaches_merge {
-            self.seal(then_cur, Terminator::Jump(merge_block));
-        }
-
-        let (else_env, else_reaches_merge, else_cur) = if let Some(else_stmt) = else_ {
-            let mut else_env = env.clone();
-            let mut else_cur = else_block;
-            self.lower_stmt(else_stmt, &mut else_cur, &mut else_env);
-            let reaches = !self.is_terminated(else_cur);
-            if reaches {
-                self.seal(else_cur, Terminator::Jump(merge_block));
+        // The last block of an arm's `then` side and its environment, when it
+        // reaches the merge.
+        type ThenSide = Option<(BlockId, Env)>;
+        // One per arm: its merge block, its `then` side, and the environment
+        // its condition left behind.
+        let mut frames: Vec<(BlockId, ThenSide, Env)> = Vec::with_capacity(arms.len());
+        for (i, arm) in arms.iter().enumerate() {
+            // Every arm after the first is a statement of its own to coverage
+            // and to the statement counts, as a nested `If` would be.
+            if i > 0 {
+                let stmt_id = self.ids.next_stmt(arm.span);
+                self.cur_stmt_span = arm.span;
+                self.block_insts[cur.index() as usize].push(Inst {
+                    result: None,
+                    ty: None,
+                    kind: InstKind::StmtMarker(stmt_id),
+                    on_error: None,
+                    raise_site: None,
+                });
             }
-            (else_env, reaches, else_cur)
-        } else {
-            (env.clone(), true, pre_branch_block)
-        };
+            let cond_v = self.lower_truthy_cond(&arm.cond, env, cur);
 
-        let mut incoming = Vec::new();
-        if then_reaches_merge {
-            incoming.push((then_cur, then_env));
-        }
-        if else_reaches_merge {
-            incoming.push((else_cur, else_env));
+            let merge_block = self.new_block();
+            let then_block = self.new_block();
+            let then_edge = self.ids.next_edge(arm.then.span);
+            let rest_span = arms
+                .get(i + 1)
+                .map(|next| next.span)
+                .or(else_.map(|s| s.span));
+            let (else_block, else_edge) = match rest_span {
+                Some(span) => (self.new_block(), self.ids.next_edge(span)),
+                // No `else`: the branch's false edge goes straight to the merge
+                // block, carrying the pre-branch environment unchanged.
+                None => (merge_block, self.ids.next_edge(arm.cond.span)),
+            };
+            self.seal(
+                *cur,
+                Terminator::Branch {
+                    cond: cond_v,
+                    then_block,
+                    then_edge,
+                    else_block,
+                    else_edge,
+                },
+            );
+
+            let mut then_env = env.clone();
+            let mut then_cur = then_block;
+            self.lower_stmt(&arm.then, &mut then_cur, &mut then_env);
+            let then_side = (!self.is_terminated(then_cur)).then(|| {
+                self.seal(then_cur, Terminator::Jump(merge_block));
+                (then_cur, then_env)
+            });
+            frames.push((merge_block, then_side, env.clone()));
+            // The rest of the chain starts on the false edge. With no rest,
+            // that edge leaves the branch's own block.
+            if rest_span.is_some() {
+                *cur = else_block;
+            }
         }
 
-        *env = self.merge_envs(merge_block, &incoming, env);
-        *cur = merge_block;
+        // `cur` and `env` are now the false side of the last arm. Only a real
+        // `else` has a block of its own to close with a jump.
+        let mut owns_its_block = false;
+        if let Some(else_stmt) = else_ {
+            self.lower_stmt(else_stmt, cur, env);
+            owns_its_block = true;
+        }
+        while let Some((merge_block, then_side, entry_env)) = frames.pop() {
+            let rest_reaches_merge = !owns_its_block || !self.is_terminated(*cur);
+            if owns_its_block && rest_reaches_merge {
+                self.seal(*cur, Terminator::Jump(merge_block));
+            }
+            let mut incoming = Vec::new();
+            incoming.extend(then_side);
+            if rest_reaches_merge {
+                incoming.push((*cur, env.clone()));
+            }
+            *env = self.merge_envs(merge_block, &incoming, &entry_env);
+            *cur = merge_block;
+            owns_its_block = true;
+        }
     }
     /// `while (cond) body` — the module docs describe the loop-header phi
     /// construction this drives. A `break`/`continue` anywhere inside `body`
@@ -2037,9 +2070,11 @@ impl<'a> Lowering<'a> {
             // and `echo $n++;` re-point a local exactly as an expression
             // statement does, and the enclosing loop owes each of them the
             // same header phi.
-            StmtKind::If { cond, then, else_ } => {
-                self.collect_reassigned_in_expr(cond, seen, out);
-                self.collect_reassigned_locals(then, seen, out);
+            StmtKind::If { arms, else_ } => {
+                for arm in arms {
+                    self.collect_reassigned_in_expr(&arm.cond, seen, out);
+                    self.collect_reassigned_locals(&arm.then, seen, out);
+                }
                 if let Some(e) = else_ {
                     self.collect_reassigned_locals(e, seen, out);
                 }

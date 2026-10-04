@@ -381,9 +381,11 @@ fn check_stmt(stmt: &Stmt, src: &SourceFile, diags: &mut Diagnostics) {
         }
         StmtKind::EnumDecl(decl) => check_enum_decl(decl, src, diags),
         StmtKind::Block(b) => check_stmts(&b.stmts, src, diags),
-        StmtKind::If { cond, then, else_ } => {
-            check_expr(cond, src, diags);
-            check_stmt(then, src, diags);
+        StmtKind::If { arms, else_ } => {
+            for arm in arms {
+                check_expr(&arm.cond, src, diags);
+                check_stmt(&arm.then, src, diags);
+            }
             if let Some(else_) = else_ {
                 check_stmt(else_, src, diags);
             }

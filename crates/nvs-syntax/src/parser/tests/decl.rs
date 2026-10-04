@@ -957,9 +957,10 @@ fn closing_and_reopening_a_tag_mid_block_is_legal() {
     // `if ($x) { ?>html<?nvs }` — PHP allows leaving code mode inside a
     // block; the `}` that closes the `if` is itself back in code mode.
     let stmts = parse_file_ok("<?nvs if ($x) { ?>html<?nvs } ?>tail");
-    let StmtKind::If { then, .. } = &stmts[0].kind else {
+    let StmtKind::If { arms, .. } = &stmts[0].kind else {
         panic!("expected an if: {:?}", stmts[0]);
     };
+    let then = &arms[0].then;
     let StmtKind::Block(block) = &then.kind else {
         panic!("expected a block body: {then:?}");
     };
