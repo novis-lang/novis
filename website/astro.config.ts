@@ -368,6 +368,23 @@ export default defineConfig({
           label: 'In-Depth',
           items: [
             { label: 'Overview', link: '/in-depth/' },
+            { label: 'What Novis is for', link: '/in-depth/what-for/' },
+            { label: 'What Novis will never be', link: '/in-depth/never/' },
+            { label: 'How we decide', link: '/in-depth/how-we-decide/' },
+            { label: 'Design principles', link: '/in-depth/design-principles/' },
+            {
+              label: 'Concepts',
+              items: [
+                { label: 'Overview', link: '/in-depth/concepts/' },
+                { label: 'One request cannot hurt another', link: '/in-depth/concepts/isolation/' },
+                { label: 'Tainted input', link: '/in-depth/concepts/tainted-input/' },
+                { label: 'Memory and CPU limits', link: '/in-depth/concepts/limits/' },
+                { label: 'Compiled, never interpreted', link: '/in-depth/concepts/compiled/' },
+                { label: 'Strings are UTF-8', link: '/in-depth/concepts/utf8-strings/' },
+              ],
+            },
+            { label: 'Where Novis falls behind', link: '/in-depth/falls-behind/' },
+            { label: 'Roadmap', link: '/in-depth/roadmap/' },
             { label: 'What changed', link: '/in-depth/what-changed/' },
           ],
         },

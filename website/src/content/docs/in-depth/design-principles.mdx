@@ -1,0 +1,45 @@
+---
+title: Design principles
+covers: []
+description: Four ideas you meet in every part of Novis.
+---
+
+import { decisionRecord } from '@config/site.mjs'
+
+Four ideas shape most of the language. When a part of Novis surprises you, one of these is usually
+the reason.
+
+## One way for each job
+
+Each job has one syntax. You convert a value with `as`. You query a database with `Core\Db`. You
+receive an uploaded file as a stream. Code from another team then looks like your own code, and a
+security review has one pattern to check.
+
+<a href={decisionRecord('0034')}>Read why `as` is the only way to convert.</a>
+
+## Safe by default
+
+The safe choice is the one you get when you write nothing. Text from a request is tainted until you
+check it. A form needs a valid CSRF token unless you turn the check off. A request has a memory
+limit, and so does every program it starts.
+
+You can turn a check off when you have a reason. You have to write that in your code or in
+`nvs.toml`, so a reviewer can see it.
+
+## Checked conversions
+
+A conversion either gives the right value or throws an error. `"12abc" as int` throws an error.
+It does not return `12`. When a failed conversion is normal, write `as ?int`. Then the result is
+`null`, and your code checks for it.
+
+Read more in [Syntax: `as`](/syntax/values/as/).
+<a href={decisionRecord('0066')}>Read the full reasoning.</a>
+
+## Errors you can read
+
+An error message says what is wrong, where it is and what you can do about it. The compiler finds
+most mistakes before the program runs: a wrong type, a missing method, a misspelled variable. Every
+compiler error has a code, such as `E0301`. `nvs agent show` with that code prints a longer
+explanation.
+
+Read more in [Syntax: error types](/syntax/errors/error-types/).

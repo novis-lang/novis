@@ -1,0 +1,35 @@
+---
+title: Roadmap
+covers: []
+description: What Novis can do today, and the work that comes next.
+---
+
+Novis has no stable release yet. This page says what is built and what comes next. It gives no
+dates.
+
+## What is built
+
+- The language: types, classes, enums, closures, `match`, errors, tests and tainted input.
+- The compiler to machine code, with an error code for every compiler error.
+- `nvs serve`, a web server with a limit for each request.
+- The standard library: text, arrays, JSON, dates, HTTP, passwords, signed URLs and much more.
+- Databases: one API for SQLite, MySQL, MariaDB, PostgreSQL and SQL Server, with background jobs.
+- Tasks and channels, to run work at the same time inside one request.
+- Tests with `nvs test`, test doubles and code coverage.
+- A language server, and an extension for Visual Studio Code.
+
+## What comes next
+
+These are in the order they are planned. The order can change.
+
+1. **Extensions.** Code in another language runs as sandboxed WebAssembly, with its own memory.
+2. **Better tools.** More features in the editor, and support for more editors.
+3. **A converter from PHP.** `nvs convert` reads a PHP file and writes Novis code.
+4. **A faster compiler.** A second compiler makes code that runs often faster.
+5. **Packages.** A registry for packages, with checks that protect you from a changed package.
+6. **A web framework.** Ready parts for larger web apps, written and kept by the Novis project.
+7. **Documents.** Make and read PDF files and spreadsheets, and work with images.
+
+## Release notes
+
+[What changed](/in-depth/what-changed/) lists the changes in each release.

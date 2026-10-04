@@ -1,0 +1,37 @@
+---
+title: Compiled, never interpreted
+covers: []
+description: Novis compiles each file to machine code before it runs, with no build step.
+---
+
+import { decisionRecord } from '@config/site.mjs'
+
+Many languages for the web read your code line by line while it runs. That is an interpreter.
+Novis does not have one. It compiles each file to machine code, and the processor runs that code
+directly.
+
+## No build step
+
+You do not run a compiler yourself. `nvs run` and `nvs serve` compile a file the first time it is
+needed. The server keeps the compiled code in memory, so the next request uses it at once.
+
+When you change a file, the next request that needs it compiles the new version. You do not
+restart the server. Requests that already started finish with the old version.
+
+## Errors before the program runs
+
+The compiler checks the whole file before any of it runs. A wrong type, a call to a method that
+does not exist or a variable that was never declared stops the compile. You see the error at once,
+not when a user reaches that line.
+
+## Safe machine code
+
+Compiled code is written to memory and then made read-only before it runs. Memory that a program
+can both write and run is a common target for attacks, so Novis never has it.
+
+## Where to go next
+
+- [What Novis is for](/in-depth/what-for/) explains why speed matters for a web server.
+- [Roadmap](/in-depth/roadmap/) names the faster compiler that comes next.
+
+<a href={decisionRecord('0017')}>Read how compiled code is reused and replaced.</a>

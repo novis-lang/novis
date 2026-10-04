@@ -1,0 +1,43 @@
+---
+title: Tainted input
+covers: []
+description: The compiler tracks every value from outside the program, so it cannot reach SQL, HTML or a shell without a check.
+---
+
+import { decisionRecord } from '@config/site.mjs'
+
+Many attacks on web servers work the same way. Text from a request reaches a place that runs it as
+code. SQL injection, cross-site scripting and shell injection are all this one mistake.
+
+## A type for text from outside
+
+In Novis, a value from a request is `tainted`. This includes a form field, a header, a cookie, the
+address and a JSON body. Its type is `tainted string`, and the compiler treats it as a different
+type from `string`.
+
+A database query, an HTML page and a shell command need a plain `string`. So a tainted value does
+not compile there. The error points at the value, before the program ever runs.
+
+## The safe ways to use it
+
+You remove the taint by checking or escaping the value:
+
+- `as ?int` converts the text to a whole number. The result is a plain `int`, or `null`.
+- A hole in an `html` literal escapes the text.
+- A value in a database query goes in as a parameter.
+- `Core\Validate` checks a value against a rule, such as an email address.
+
+Each of these is safe for one kind of use. HTML escaping does not make a value safe for SQL, so
+the compiler needs the right check for each place.
+
+## Secret values
+
+A second word, `secret`, works the same way for passwords and keys. Code that prints a `secret`
+value with `echo` or puts it in an error message does not compile.
+
+## Where to go next
+
+- [Guides: tainted input](/guides/how-to-use/tainted-input/) shows each safe way in a program.
+- [Syntax: tainted and secret](/syntax/values/tainted-and-secret/) lists the rules.
+
+<a href={decisionRecord('0024')}>Read the full reasoning.</a>

@@ -1,0 +1,43 @@
+---
+title: Where Novis falls behind
+covers: []
+description: The real costs of choosing Novis today, stated plainly.
+---
+
+import { decisionRecord } from '@config/site.mjs'
+
+Every choice on the other In-Depth pages has a cost. This page lists the costs, so you can decide
+whether Novis fits your project.
+
+## Novis is new
+
+There is no stable release yet, and a part of the language can still change before version 1.0.
+There is one implementation and no independent security audit. No large site runs on Novis today.
+Older languages have had many years to find their bugs. Novis has not.
+
+## Few packages
+
+Older languages have thousands of packages and an answer online for almost every error message.
+Novis does not have that yet. Its standard library is large, so most programs need less from
+outside. But a standard library cannot replace an ecosystem. If an existing package already solves
+your problem in another language, that package can be the better choice today.
+
+## More memory
+
+Each request has its own memory, and compiled code stays in memory. A Novis server can use more
+memory than a server that shares one memory area between requests. Memory per request is still
+limited, so you can calculate the most a server uses. On a very small machine, this cost is real.
+<a href={decisionRecord('0004')}>Read the full reasoning.</a>
+
+## No global locale
+
+Novis has no global setting for the language and region of the user. A function that formats a date
+or sorts names for one language gets the locale as an argument. This makes each call clear, but it
+is more to write than one global setting at the start of the program.
+<a href={decisionRecord('0051')}>Read the full reasoning.</a>
+
+## Strict code is more code
+
+The compiler checks types, tainted input and conversions. A short script that reads a number from a
+form needs a check that another language would skip. This is the point of the check, but the first
+version of a program takes longer to write.

@@ -1,0 +1,37 @@
+---
+title: Strings are UTF-8
+covers: []
+description: A string is always valid UTF-8 text, and its length counts the characters a person sees.
+---
+
+import { decisionRecord } from '@config/site.mjs'
+
+UTF-8 is the way almost every web page and file stores text today. In Novis, a `string` is always
+valid UTF-8. A string with broken bytes cannot exist, so your code never has to check for one.
+
+## Length counts what a person sees
+
+`Core\Str::length` counts graphemes. A grapheme is what a person counts as one character. A flag,
+an emoji made of several parts and a letter with an accent are each one grapheme. So the length
+of `"café"` is `4`, whatever bytes the `é` uses.
+
+Methods that count bytes or code points also exist. Each has its own name, so you always know which
+unit you get.
+
+## Bytes are a different type
+
+Data that is not text, such as an image or a compressed file, has the type `bytes`. A `bytes`
+value can hold any data. You convert it to a `string` when you know it is text, and the conversion
+checks that it is valid UTF-8.
+
+## What it costs
+
+Counting graphemes is slower than counting bytes. For text that is plain ASCII, Novis uses a fast
+path. For other text, it reads the whole string.
+
+## Where to go next
+
+- [Syntax: strings](/syntax/values/strings/) shows how to write and join strings.
+- [Unicode strings](/guides/why-novis/unicode-strings/) shows the length of a few hard strings.
+
+<a href={decisionRecord('0009')}>Read the full reasoning.</a>

@@ -1,0 +1,34 @@
+---
+title: One request cannot hurt another
+covers: []
+description: Each request runs on its own, with its own memory, so an error in one request does not reach another.
+---
+
+import { decisionRecord } from '@config/site.mjs'
+
+A web server runs many requests at the same time. In Novis, each request runs on its own. It has
+its own memory and its own copy of every static property. Nothing is shared between two requests.
+
+## What this means for your server
+
+A request can crash, run out of memory or loop forever. When that happens, only that request
+stops. The server keeps running, and every other request finishes normally.
+
+One request also cannot read data that belongs to another. A value that one request stores in a
+static property is gone when the request ends. The next request starts with a clean copy.
+
+## Programs you start from your code
+
+Your code can start another Novis program and wait for its result. That program also runs on its
+own, inside the same server process. It gets a copy of each value you pass to it. When it fails,
+your code gets the error as part of the result and keeps running.
+
+Everything a request starts shares the limits of that request. A request that starts ten programs
+does not get ten times the memory. Read more in [Memory and CPU limits](/in-depth/concepts/limits/).
+
+## Where to go next
+
+- [One failure stops one program](/guides/why-novis/one-failure/) shows a child program that fails.
+- [Syntax: isolates](/syntax/concurrency/isolates/) shows how to start one.
+
+<a href={decisionRecord('0006')}>Read the full reasoning.</a>

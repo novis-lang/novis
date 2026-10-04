@@ -1,0 +1,40 @@
+---
+title: Memory and CPU limits
+covers: []
+description: Every request runs under limits for memory and time, and a request that goes over stops alone.
+---
+
+import { decisionRecord } from '@config/site.mjs'
+
+A server has a fixed amount of memory and processor time. Without limits, one slow or broken
+request can use all of it, and every other request waits. In Novis, every request runs under
+limits that you set in `nvs.toml`.
+
+## How a limit works
+
+`[limits]` sets what each request starts with, such as 64 MB of memory and 5 seconds of processor
+time. `[limits.hard]` sets the ceiling. A request that needs more may raise its own limit up to the
+ceiling, and no further.
+
+A request that goes over a limit stops at once. Only that request stops. The server writes the
+reason to its log, and the other requests keep running.
+
+## One limit for everything a request starts
+
+A request can start tasks and other programs. They all share the limits of that request. A request
+that starts fifty programs still has one memory limit, and the fifty programs share it.
+
+So the most memory a server can use is easy to calculate. It is the number of requests that run at
+the same time, multiplied by the memory ceiling.
+
+## Your code can read its own memory
+
+`Core\Budget` returns three numbers: the memory the request uses now, its memory limit and the
+highest amount it has used so far. A program that builds a large result can check this first.
+
+## Where to go next
+
+- [Guides: limits](/guides/how-to-use/limits/) lists every limit and shows how to raise one.
+- [Syntax: limits](/syntax/errors/limits/) shows what happens to your code when a limit is reached.
+
+<a href={decisionRecord('0005')}>Read the full reasoning.</a>

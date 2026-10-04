@@ -1,29 +1,31 @@
 ---
 title: What changed
 covers: []
-description: What changed in each Novis release — highlights, new APIs and breaking changes.
+description: The changes in each Novis release, newest first.
 tableOfContents:
   minHeadingLevel: 2
   maxHeadingLevel: 2
 ---
 
+This page lists the changes in each release of Novis, newest first. Each release has three parts:
+the highlights, the new features and the changes that can break your code.
+
 :::note
-Novis has not shipped a numbered release yet. The entry below shows the format release
-notes will use — one section per version, newest first, with highlights, new APIs and
-breaking changes called out separately. It is a placeholder, not a release.
+Novis has no numbered release yet. The section below shows the form that release notes will have.
+It does not describe a real release.
 :::
 
-## Version 0.1 (preview — not released)
+## Version 0.1 (not released)
 
 ### Highlights
 
-- **The pure Core** — `Core\Str`, `Core\Arr`, `Core\Math`, `Core\Regex`, `Core\Json`,
-  `Core\Path` and friends: implemented, tested and documented in the
-  [Core reference](/reference/core/).
-- **Checked-status error propagation** — a `throw` costs no more than a `return`.
-- **Structured concurrency** — `Core\Task::all` and `Core\Task::map` with cancellation
-  and deadlines.
+- The standard library: `Core\Str`, `Core\Arr`, `Core\Json`, `Core\Db` and many more classes. The
+  [Core reference](/reference/core/) lists all of them.
+- `nvs serve`: a web server that runs each request on its own, with limits that you set.
+- `nvs test`: tests are written in Novis, next to the code they test.
 
-### Breaking changes
+### Changes that can break your code
 
-- None — there is no previous release to break.
+None. There is no earlier release.
+
+The [Roadmap](/in-depth/roadmap/) says what comes after this release.
