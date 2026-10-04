@@ -16,3 +16,9 @@ pad. Nothing unwinds, because `cranelift-jit` registers no unwind tables with th
 platform, so an unwinder would walk off a coroutine stack into unrelated memory. Error paths are
 therefore ordinary IR the optimiser can see through, and a throw across a coroutine boundary is
 not a special case.
+
+Checked returns stay even if `cranelift-jit` learns to unwind through JIT frames, because coroutine
+stack switches and error-path refcount drops the optimiser can see still favour them. The canary
+`benches/abi-probe/tests/unwind_unavailable.rs` fails when that happens. The answer is then one
+decision record that rewrites the sentence about unwind tables above and turns the canary around, so
+it records that unwinding works and fails if that changes back.

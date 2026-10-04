@@ -1,21 +1,19 @@
 {
-  "state": "**Goal `goal-closeout`: Stage 4, building the user's answers.** Answer 2 is mostly built: `rule:security/writes-open-beneath-a-handle` (ADR 0264) is shipped. `capability::create`, `write`, `create_dir` and the writing modes of `open` resolve the path once (`resolve_write`), check the grant on that resolved path as written (`Capabilities::allows_resolved` in `nvs-config`), and open it through `crates/nvs-runtime/src/beneath.rs`, which walks from the root one level at a time and follows no link. The Windows half uses `NtCreateFile` with a root handle and refuses a name-surrogate reparse point. The tests pass on Windows (with a junction) and on Linux in WSL. The zip gap and the goal's question are deleted.\n\nStage 2 is green again: `lang:expressions/closures-fn`'s `about.md` was over its word limit after the closure-rebind slice.\n\n`bun nv owners --closes goal-closeout` names 1 gap: `copy-and-rename-open-their-destination-by-path`. When it is closed, and the owners check and `no question waits for the user` are the only red checks, the goal is `DONE`.",
+  "state": "**Goal `goal-closeout`: Stage 4 finished.** `rule:security/writes-open-beneath-a-handle` now covers every write door: `create`, `write`, `create_dir`, the writing modes of `open`, the destination of `copy` and both ends of `rename`. `crates/nvs-runtime/src/beneath.rs` has `rename` (`renameat` on Unix, `NtSetInformationFile` with the destination folder's handle as root on Windows) and `same_file` on two open handles. `capability::rename` resolves the folder above each end and keeps the last name as written (`resolve_name`). The `beneath` tests pass on Windows (junction) and on Linux in WSL. The gap `copy-and-rename-open-their-destination-by-path` is deleted.\n\n`bun nv owners --closes goal-closeout` names no gap, no question waits for the user, and `bun nv verify --doc` is green. The checked-return decision that only the goal's prose held is now in `rule:errors/propagation`. This session wrote `DONE`.",
   "next": {
     "stage": 4,
-    "title": "finished in place, the answers built",
+    "title": "finished in place",
     "files": [
-      "crates/nvs-runtime/src/capability.rs",
       "crates/nvs-runtime/src/beneath.rs"
     ],
     "items": [
       {
-        "done": false,
-        "text": "**Copy and rename under the walk** (`rule:security/writes-open-beneath-a-handle`, gap `copy-and-rename-open-their-destination-by-path`). `capability::copy` at `crates/nvs-runtime/src/capability.rs:739` resolves the destination through `resolve_write` and copies into a `beneath::open_file` handle (`crates/nvs-runtime/src/beneath.rs:53`) with `Mode::Truncate`; keep the `same_file` check and copy the source's permissions. `capability::rename` at `crates/nvs-runtime/src/capability.rs:793` needs a relative rename: add a `beneath::rename` that walks both parents (`sys::child` at `crates/nvs-runtime/src/beneath.rs:128` and `crates/nvs-runtime/src/beneath.rs:273`) and calls `renameat` on Unix, or `SetFileInformationByHandle` with `FileRenameInformationEx` and the destination folder's handle as `RootDirectory` on Windows. Add one test each that plants a junction or link where a destination folder was. Delete the gap when both land, and widen the rule fragment's list of doors."
+        "done": true,
+        "text": "**Copy and rename under the walk** (`rule:security/writes-open-beneath-a-handle`), at `crates/nvs-runtime/src/capability.rs:739` and `crates/nvs-runtime/src/beneath.rs:53`."
       }
     ]
   },
   "backlog": [
-    "The Linux half of `beneath.rs` is built and tested in WSL but not linted there; CI's Linux clippy is the first lint of it.",
-    "A volume mount point inside a granted tree is refused on Windows by the walk (ADR 0264 § *Revisiting*)."
+    "The `beneath` tests write their scratch folders under the system temp directory, not `.agent-tmp/` (`crates/nvs-runtime/src/beneath.rs`, AGENTS.md rule 10)."
   ]
 }
