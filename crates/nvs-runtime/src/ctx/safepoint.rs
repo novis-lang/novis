@@ -567,7 +567,7 @@ pub struct TreeState {
 
 /// The one wake [`TreeState::wall_time_watch`] holds, fired at most once.
 ///
-/// A lock rather than an atomic because the wake is a closure, and both sides
+/// A lock rather than an atomic because the wake is a Rust closure, and both sides
 /// take it rarely: the connection once per wait of a detached request, and the
 /// request once per `Core\Config::set` that moves its `wall_time`.
 #[derive(Default)]

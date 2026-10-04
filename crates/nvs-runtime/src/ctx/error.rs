@@ -676,9 +676,9 @@ impl Ctx {
     /// unchanged.
     ///
     /// `rule:core-classes/db-error`'s retry loop is why
-    /// this exists: it has to know whether the closure's own refusal was a
+    /// this exists: it has to know whether the callable's own refusal was a
     /// deadlock or a serialization failure before it decides to run the
-    /// closure again, and `take_thrown` would clear the very failure it is
+    /// callable again, and `take_thrown` would clear the very failure it is
     /// still deciding about — a decision that came out "do not retry" would
     /// then have to re-raise a throw it had already consumed.
     ///

@@ -114,14 +114,14 @@ pub enum ArgConv {
     /// arm's other half, carrying the segment and the class to that site and
     /// converting nothing on the way.
     Parses(String),
-    /// § 3's closed set: the word each member of a union of literal types
-    /// admits, in the order the union declares them, and a usage error for
+    /// § 3's closed set: the word each single-value type in a set of allowed
+    /// values admits, in the order the union declares them, and a usage error for
     /// anything else — a command line is input, so a word outside the set is
     /// never a throw.
     ///
     /// **The value a matched word becomes is the word**, as
     /// [`crate::routes::CaptureConv::OneOf`] answers the same set with
-    /// [`crate::routes::Param::Text`]. A union of `int` literals therefore
+    /// [`crate::routes::Param::Text`]. A set of allowed `int` values therefore
     /// binds the digits rather than the number, which is one wrinkle shared by
     /// the two tables rather than two answers that could come to disagree; ADR
     /// 0086 § 6 and `rule:routing/a-capture-narrows-to-a-closed-set` are the one home of the rule both read.

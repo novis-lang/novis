@@ -274,7 +274,7 @@ fn write_node(out: &mut String, node: &Node) {
             let plural = if *parameters == 1 { "" } else { "s" };
             span(
                 out,
-                "nvs-closure",
+                "nvs-callable",
                 &format!("callable({parameters} parameter{plural})"),
             );
         }

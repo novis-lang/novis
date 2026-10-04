@@ -297,9 +297,9 @@ fn object_body(
     let class = object.class_name().to_owned();
     let id = Some(seen.depth());
 
-    // `rule:types/implicit-capture` gives a closure no user-visible state at
+    // `rule:types/implicit-capture` gives a callable no user-visible state at
     // all — the fields are its captures, and a dump that showed them would be
-    // showing an implementation. A synthesized closure class is named
+    // showing an implementation. A synthesized callable class is named
     // `{owner}$fn{n}` by `nvs_types::expr::calls`, and `$` cannot appear in a
     // declared name (`rule:core-api/identifier-casing`), so the marker is
     // unambiguous.

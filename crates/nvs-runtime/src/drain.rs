@@ -46,11 +46,11 @@
 //!
 //! A registered wake is `Send`, which [`crate::host::Waker`] deliberately is
 //! not: the drain is begun by whichever thread took the signal, and the tasks
-//! it wakes are parked on every core. A host supplies the boxed closure, so the
+//! it wakes are parked on every core. A host supplies the boxed Rust closure, so the
 //! cross-thread hop is that host's own — `nvs-host`'s `RemoteWake` — and this
 //! module names neither a core nor a task.
 //!
-//! What it holds is one boxed closure per parked wait, dropped when the wait
+//! What it holds is one boxed Rust closure per parked wait, dropped when the wait
 //! ends or when the drain fires it: O(parked waits), which is O(in-flight).
 //!
 //! # Process-wide, and one handle that is not
@@ -249,7 +249,7 @@ impl Drain {
 }
 
 impl std::fmt::Debug for Drain {
-    /// Hand-written: the wakes are boxed closures, which have nothing to print.
+    /// Hand-written: the wakes are boxed Rust closures, which have nothing to print.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Drain")
             .field("draining", &self.is_draining())
@@ -285,7 +285,7 @@ impl Drop for DrainWake {
 }
 
 impl std::fmt::Debug for State {
-    /// For [`DrainWake`]'s derive, which cannot print the closures either.
+    /// For [`DrainWake`]'s derive, which cannot print the Rust closures either.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("State")
             .field("begun", &self.begun)
@@ -374,7 +374,7 @@ mod tests {
     /// rests on.
     ///
     /// The second `begin` is the assertion that a wake is owed once: a
-    /// shutdown that reached this twice would otherwise fire a closure the
+    /// shutdown that reached this twice would otherwise fire a Rust closure the
     /// connection it belongs to has already answered.
     #[test]
     fn a_registered_wake_fires_once_when_the_drain_begins() {

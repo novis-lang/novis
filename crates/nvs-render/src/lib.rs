@@ -349,7 +349,7 @@ pub enum Node {
         /// The case's own name.
         case: String,
     },
-    /// A closure, by the signature it declares — never a body, and never
+    /// A callable, by the signature it declares — never a body, and never
     /// captured state (`rule:types/anonymous-function`).
     Callable {
         /// How many parameters it declares.

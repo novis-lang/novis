@@ -108,7 +108,7 @@
 //! O(keys in use) and not O(connections) or O(generations seen).
 //!
 //! The line adds one entry per task *currently waiting* — a string, a number and
-//! a boxed closure — and nothing per task that is not. It is empty on every
+//! a boxed Rust closure — and nothing per task that is not. It is empty on every
 //! deployment whose `max` fits its traffic, which is the shape `max` is sized
 //! for, and it is O(in-flight) rather than O(requests served) in the shape that
 //! is not.
@@ -170,7 +170,7 @@ impl Ticket {
         }
     }
 
-    /// The ticket for one `Core\Db::open` settings literal, under the key § 2
+    /// The ticket for one `Core\Db::open` settings object, under the key § 2
     /// already hashes out of every field of it — `nvs_stdlib::db`'s
     /// `settings_key`, which owns which fields those are and why the hash
     /// cannot collide with a block's name.
@@ -180,8 +180,8 @@ impl Ticket {
     /// two requests share one connection? — from opposite sides. A block's name
     /// is an *indirection* an operator can repoint, so § 1's reload can publish
     /// different credentials under an unchanged name and only the generation
-    /// tells the two apart; a settings literal *is* the credentials, written by
-    /// the program, so two literals that hash alike name the same endpoint as
+    /// tells the two apart; a settings object *is* the credentials, written by
+    /// the program, so two settings objects that hash alike name the same endpoint as
     /// the same user whichever generation was live when each was written.
     /// Scoping it anyway would retire warm connections on every reload that are
     /// still exactly what the next request asked for. What a reload genuinely

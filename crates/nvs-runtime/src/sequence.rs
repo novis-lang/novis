@@ -15,8 +15,8 @@
 //! name — the class the member is handed decides, and it is a class this crate
 //! knows nothing about. [`crate::object`]'s descriptor carries exactly the
 //! table that answers it, and [`crate::call_callable`] already reaches a
-//! closure's `invoke` through it. This is that same lookup, over a cursor's
-//! names rather than a closure's one, and it is the same dispatch a `foreach`
+//! callable's `invoke` through it. This is that same lookup, over a cursor's
+//! names rather than a callable's one, and it is the same dispatch a `foreach`
 //! over the same value performs — [`crate::dispatch`] is where it lives, since
 //! more than one member asks an object something by name.
 //!

@@ -9,7 +9,7 @@
 //! nothing about, and the interface member is a bodiless declaration
 //! (`nvs_types::iter_lib`), so no symbol exists for a call site to resolve.
 //! The object's own descriptor carries the table that answers it, and
-//! [`crate::call_callable`] already reaches a closure's `invoke` through
+//! [`crate::call_callable`] already reaches a callable's `invoke` through
 //! exactly this lookup with the name fixed.
 //!
 //! So this is that lookup with the name as an argument, and it is the same
@@ -429,7 +429,7 @@ pub fn call_erased_method_from(
     // Over this frame's own copy rather than the caller's slice, because the
     // check both refuses and *converts*: a widened `int` must reach the callee
     // as a `float` while the caller keeps owning the `int` it passed. Trimmed
-    // to the declared arity first, exactly as a closure call trims — a site
+    // to the declared arity first, exactly as a callable call trims — a site
     // that wrote more than the callee takes is PHP's own answer for a
     // userland call, and an argument nothing declares has no tag to check.
     let mut passed = args[..arity].to_vec();
@@ -879,7 +879,7 @@ impl CrossedFixtures {
     /// # Errors
     ///
     /// [`crate::GraphError`] naming the fixture value that has no meaning on
-    /// the other side — a closure, or an object holding a host handle. That is
+    /// the other side — a callable, or an object holding a host handle. That is
     /// the **parent's** fault in `nvs_host::Isolate`'s own sense: the value was
     /// built before any test isolate existed, so nothing has run yet and the
     /// caller reports it against the test that asked for it.

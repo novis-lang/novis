@@ -55,7 +55,7 @@
 //! # Two wakes, because the two sides are woken by different machinery
 //!
 //! The writing side is a Novis task and parks through [`crate::host::Host::park`],
-//! so its wake is a [`crate::host::Waker`]: the one-shot closure that seam
+//! so its wake is a [`crate::host::Waker`]: the one-shot Rust closure that seam
 //! hands out. The draining side is a body `hyper` polls, so its wake is the
 //! [`std::task::Waker`] of the poll that found the cell empty. Neither is
 //! convertible into the other, so the cell holds one of each rather than
@@ -123,7 +123,7 @@ struct Wire {
 }
 
 impl fmt::Debug for Wire {
-    /// Hand-written for one reason: a [`crate::host::Waker`] is a boxed closure
+    /// Hand-written for one reason: a [`crate::host::Waker`] is a boxed Rust closure
     /// with no `Debug` to derive through. What a reader of this wants is the
     /// state anyway — what is in flight, and which end is finished.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

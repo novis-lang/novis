@@ -31,10 +31,10 @@ try {
 mixed $real = fn (string $s): string => $s . '!';
 echo $real('x') as string, "\n";
 --EXPECT--
-caught: a value of type `string` cannot be called: only a closure is a `callable`
-caught: a value of type `int` cannot be called: only a closure is a `callable`
-caught: `null` cannot be called: only a closure is a `callable`
-caught: a value of type `array` cannot be called: only a closure is a `callable`
-caught: an object of class `Box` cannot be called: only a closure is a `callable`
-caught: `null` cannot be called: only a closure is a `callable`
+caught: a value of type `string` cannot be called. Only an anonymous function or a method reference is a `callable`
+caught: a value of type `int` cannot be called. Only an anonymous function or a method reference is a `callable`
+caught: `null` cannot be called. Only an anonymous function or a method reference is a `callable`
+caught: a value of type `array` cannot be called. Only an anonymous function or a method reference is a `callable`
+caught: an object of class `Box` cannot be called. Only an anonymous function or a method reference is a `callable`
+caught: `null` cannot be called. Only an anonymous function or a method reference is a `callable`
 x!

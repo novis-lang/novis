@@ -373,7 +373,7 @@ pub fn escalate(ctx: &mut Ctx, record: &Record) -> bool {
 /// the hook that was installed before it — the default one, which prints to
 /// stderr — and `nvs run` behaves as it did.
 ///
-/// **What it spends:** one boxed closure for the life of the process, and
+/// **What it spends:** one boxed Rust closure for the life of the process, and
 /// nothing per request. The record is built on a path that has already failed.
 pub fn install_panic_hook() {
     let previous = std::panic::take_hook();

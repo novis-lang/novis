@@ -356,7 +356,7 @@ fn walk<C: Carrier>(
             }
             Ok(holder)
         }
-        // A closure is refused as the object it is ([`refusable`]), so the one
+        // A callable is refused as the object it is ([`refusable`]), so the one
         // tag left here is the never-written storage state, whose own name is
         // what the message has to say rather than a type spelling.
         Tag::Unset => Err(GraphError(
@@ -371,7 +371,7 @@ fn walk<C: Carrier>(
 /// arrive wearing [`Tag::Object`].
 ///
 /// All three refusals are a fact about the class and nothing structural. A
-/// closure is [`ClassDesc::is_callable()`] and not a declared `invoke`, which is
+/// callable is [`ClassDesc::is_callable()`] and not a declared `invoke`, which is
 /// a method name a program may use and refusing on it would make a user class
 /// uncopyable for spelling it. A generator is [`ClassDesc::is_generator()`],
 /// its synthesized state class: its slots are a suspended frame and its
@@ -386,8 +386,8 @@ fn walk<C: Carrier>(
 fn refusable(class: &ClassDesc) -> Result<(), GraphError> {
     if class.is_callable() {
         return Err(GraphError(
-            "a closure captures a heap and a scope, so it has no meaning on the \
-             other side of a copy boundary"
+            "a callable captures variables from the code that created it, so it \
+             has no meaning on the other side of a copy boundary"
                 .to_owned(),
         ));
     }
@@ -1093,10 +1093,10 @@ mod tests {
     /// its own line.
     #[test]
     fn the_boundary_copy_and_serialize_share_one_walk() {
-        // A closure, spelled the way `refusable` recognizes one: the bit, not
+        // A callable, built the way `refusable` recognizes one: the bit, not
         // the `invoke`.
         let mut callables = ClassTable::new();
-        let id = callables.define("Closure", &["arity"], &[]);
+        let id = callables.define("{callable}", &["arity"], &[]);
         callables.set_methods(
             id,
             vec![MethodRow {
@@ -1132,7 +1132,7 @@ mod tests {
         borrow_object(socket).set_field(0, Value::uint(3));
 
         for (what, subject, refused) in [
-            ("a closure", callable, true),
+            ("a callable", callable, true),
             ("a secret property", wallet, true),
             ("a host handle", socket, true),
             ("an int", Value::int(7), false),
@@ -1178,7 +1178,7 @@ mod tests {
         borrow_object(command).set_field(0, Value::int(7));
 
         retain(command);
-        let copied = copy_graph(command).expect("a declared `invoke` is not a closure");
+        let copied = copy_graph(command).expect("a declared `invoke` is not a callable");
         assert_eq!(borrow_object(copied).field(0).as_int(), Some(7));
         release(copied);
 

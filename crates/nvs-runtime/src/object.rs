@@ -157,7 +157,7 @@
 //! What is checked is the **tag**, from [`ClassDesc::field_tags`], and the
 //! declared type itself is deliberately not carried:
 //!
-//! * The class a shape literal constructs is named for its **field names
+//! * The class an anonymous object constructs is named for its **field names
 //!   alone** (`$shape{x,y}`, `nvs_ir::lower::shape_class_label`), so `{x: 1}`
 //!   and `{x: "s"}` are one class. A declared *type* per slot would have to
 //!   mint a class per name-and-type tuple — a bigger class table, a second
@@ -191,7 +191,7 @@
 //!    `Core\Task::all`'s argument and its result are the other, the result's
 //!    own representations being recorded at the call site
 //!    (`nvs_ir::lower::Lowering::record_core_result_shape`).
-//! 5. **A class with no layout of its own** — a closure's environment, a
+//! 5. **A class with no layout of its own** — a callable's environment, a
 //!    generator's state — carries no tags, because nothing declares its slots
 //!    in source for a type to come from. A *named* class does carry them: an
 //!    erased receiver reaches any class at all, so `nvs_ir::lower`'s
@@ -416,7 +416,7 @@ pub struct ClassDesc {
     /// order, or `None` for a slot whose declared type admits more than one —
     /// a union, a `?T`, a `mixed`. **Empty** for a class nothing has told —
     /// one the compiler synthesized rather than laid out from a declaration,
-    /// a closure's environment or a generator's state; an empty list means
+    /// a callable's environment or a generator's state; an empty list means
     /// "unknown", never "no field admits anything". Every class an
     /// `rule:types/erased-member-access`
     /// write can name from source carries one entry per slot.
@@ -583,9 +583,9 @@ pub struct ClassDesc {
     /// one pointer per class, once per process, not per instance.
     unwind: *const u8,
     /// Whether an instance of this class is a
-    /// `rule:types/callable-values` closure — its
-    /// [`crate::callable::CALLABLE_INVOKE`] the compiled body of a closure
-    /// literal and its fields that literal's captures — rather than an object
+    /// `rule:types/callable-values` callable — its
+    /// [`crate::callable::CALLABLE_INVOKE`] the compiled body of an anonymous
+    /// function and its fields that function's captures — rather than an object
     /// of a class a program declared.
     ///
     /// Carried rather than asked of the method table, because the structural
@@ -593,11 +593,11 @@ pub struct ClassDesc {
     /// declare one: that name decides whether
     /// [`crate::callable::call_callable`] jumps into a value's code at all, and
     /// whether `rule:classes/graph-copy`'s walk refuses the value as a
-    /// closure, so a user class spelling it would be both called through and
-    /// refused. `nvs_ir::lower` mints a closure's environment class,
+    /// callable, so a user class spelling it would be both called through and
+    /// refused. `nvs_ir::lower` mints a callable's environment class,
     /// `nvs_ir::ir::Class::is_callable` carries the bit down and `nvs-codegen`
     /// hands it to [`ClassTable::set_callable`] — which is also what native
-    /// code building a closure for a `Core` member to call answers. **Cost:**
+    /// code building a callable for a `Core` member to call answers. **Cost:**
     /// one `bool` per class, once per process, not per instance.
     is_callable: bool,
     /// Whether an instance of this class holds a **host handle** — a key into
@@ -629,7 +629,7 @@ pub struct ClassDesc {
 /// callee's representation and an `int` handed to a `string` parameter is an
 /// arbitrary dereference rather than a fault — the identical hole
 /// [`crate::callable`]'s module docs describe for `callable`, arrived at from
-/// the other side. So the row carries what a closure object already carries in
+/// the other side. So the row carries what a callable object already carries in
 /// `nvs_ir::lower`'s `FN_ARITY` and `FN_PARAM_TAGS` slots, in the same
 /// encoding, and [`crate::callable`]'s `check_param_tags` is the one
 /// implementation both paths share rather than a second copy of `rule:types/conversion`'s
@@ -651,7 +651,7 @@ pub struct MethodRow {
     pub code: *const u8,
     /// How many parameters the callee declares, **not** counting the implicit
     /// receiver in slot 0: the count a site that wrote the argument list is
-    /// judged against, exactly as a closure's `FN_ARITY` is.
+    /// judged against, exactly as a callable's `FN_ARITY` is.
     pub arity: u32,
     /// Which runtime [`Tag`] each declared parameter requires, one nibble per
     /// parameter and the receiver excluded, parameter 0 in the least
@@ -1349,8 +1349,8 @@ impl ClassDesc {
     }
 
     /// Whether this class is the one an
-    /// `rule:types/anonymous-object` shape
-    /// literal constructs, rather than one a `class` declaration named.
+    /// `rule:types/anonymous-object` anonymous object
+    /// constructs, rather than one a `class` declaration named.
     ///
     /// Read off the label `nvs_ir::lower::shape_class_label` mints —
     /// `$shape{x,y}` — because that label is the only mark a shape class
@@ -1385,7 +1385,7 @@ impl ClassDesc {
         self.name.ends_with("$gen")
     }
 
-    /// Whether an instance of this class is a closure rather than an object of
+    /// Whether an instance of this class is a callable rather than an object of
     /// a declared class — the bit [`ClassTable::set_callable`] writes, and the
     /// one answer [`crate::callable::call_callable`] and
     /// `rule:classes/graph-copy`'s walk both ask.
@@ -1420,8 +1420,8 @@ impl ClassDesc {
     /// view resolves through.
     ///
     /// `hint` is the slot the *static* type said the field was at, tried
-    /// first: where the receiver's shape is the value's own shape — a literal
-    /// read straight back — that is one length-and-bytes comparison and the
+    /// first: where the receiver's shape is the value's own shape — an
+    /// anonymous object read straight back — that is one length-and-bytes comparison and the
     /// scan never runs. Where it is a widened view it is simply wrong, and the
     /// scan below is the answer. A linear scan and not a sorted index because
     /// a class's slot count is small and the hint carries the common case;
@@ -1478,7 +1478,7 @@ impl ClassDesc {
     ///
     /// `false` for a slot nothing told this class about, which is the opposite
     /// direction from [`Self::field_is_secret`] and the safe one in both cases:
-    /// a class with no answer here is one no declaration laid out — a closure's
+    /// a class with no answer here is one no declaration laid out — a callable's
     /// environment, a generator's state, a `Core` class's own slots — and none
     /// of those has a property a program is entitled to read. A *declared*
     /// property always reaches the join that fills this, so the fallback is
@@ -2018,14 +2018,14 @@ impl ClassTable {
         id
     }
 
-    /// Marks `id` as a closure's environment class — see
+    /// Marks `id` as a callable's environment class — see
     /// [`ClassDesc::is_callable()`].
     ///
     /// A setter rather than a [`ClassTable::define`] parameter because the
     /// answer is `false` for every class a program declares and every `Core`
     /// class, and a parameter would make each of those call sites say so. What
-    /// calls this is `nvs-codegen`, for a class `nvs_ir::lower` minted from a
-    /// closure literal, and native code hand-building a closure for a `Core`
+    /// calls this is `nvs-codegen`, for a class `nvs_ir::lower` minted from an
+    /// anonymous function, and native code hand-building a callable for a `Core`
     /// member to call back into.
     ///
     /// # Panics
@@ -5288,7 +5288,7 @@ mod tests {
         words
     }
 
-    /// `rule:core-classes/html-template`'s folded literal, from the side this
+    /// `rule:core-classes/html-template`'s folded html template, from the side this
     /// crate owns: an immortal instance costs nothing to retain or release, is
     /// never freed however many times it is released, and — the half that keeps
     /// the plain `Cell` sound — is never *written*.

@@ -26,7 +26,7 @@
 //! # Only the request's own task may register
 //!
 //! The queue is a field of one [`Ctx`], and a [`Ctx::child`] — a `Core\Task`
-//! child and the deferred closures below, which run as children
+//! child and the deferred callables below, which run as children
 //! themselves — is born **sealed**. A registration made on one would be drained
 //! by nobody and released when that child ended, so a refusal is the only
 //! honest answer: `Core\Task::afterResponse` throws the `RuntimeError` § 6's
@@ -49,7 +49,7 @@
 //!
 //! # Each registration is one task, and the queue is a leaf
 //!
-//! A deferred closure runs as a group of one through [`crate::host::Host::run_group`],
+//! A deferred callable runs as a group of one through [`crate::host::Host::run_group`],
 //! which is what makes it "an ordinary task" in § 6's sense: it may `Core\Task::all`
 //! inside itself with no special case, it is cancelled with the tree, and § 7's
 //! `deadline` is [`Bounds::deadline`] with nothing else to implement. They run
@@ -58,7 +58,7 @@
 //! tree's peak where the request already put it.
 //!
 //! **Deferred work may not defer more**, which is the section above applied to
-//! this module's own children and not a second rule: a deferred closure runs on
+//! this module's own children and not a second rule: a deferred callable runs on
 //! a sealed context like every other child. The drain also seals the request's
 //! own queue as it takes it, so nothing extends a drain already under way. A
 //! queue that could extend itself is a tree that never leaves flight, and § 6's
@@ -89,7 +89,7 @@
 //! # What it spends
 //!
 //! One `Vec` header per request — three words, and no allocation for the
-//! requests that register nothing — plus two words and one closure reference
+//! requests that register nothing — plus two words and one callable reference
 //! per registration. It is
 //! O(in-flight trees) rather than O(requests served), per
 //! `rule:programs/memory-priority`, and nothing on
@@ -162,11 +162,11 @@ pub fn trees_in_flight() -> u64 {
     TREES.with(Cell::get)
 }
 
-/// One `Core\Task::afterResponse` registration — a closure this context owns a
+/// One `Core\Task::afterResponse` registration — a callable this context owns a
 /// reference to, and the deadline the call resolved to.
 #[derive(Debug)]
 pub struct Deferred {
-    /// The closure, owned: a helper's arguments are borrowed from the caller's
+    /// The callable, owned: a helper's arguments are borrowed from the caller's
     /// frame and this one outlives the call by the rest of the request.
     pub(crate) callable: Value,
     /// § 7's `deadline` in nanoseconds — the option the call named, or the
@@ -199,7 +199,7 @@ pub fn run_deferred(ctx: &mut Ctx) {
 /// One registration, as a group of one.
 #[expect(
     unsafe_code,
-    reason = "the queue handed over the one reference it held to this closure, \
+    reason = "the queue handed over the one reference it held to this callable, \
               and this is the frame that releases it"
 )]
 fn run_one(ctx: &mut Ctx, work: Deferred) {
@@ -261,12 +261,12 @@ fn run_one(ctx: &mut Ctx, work: Deferred) {
             unsafe { answer.release() };
         }
     }
-    // SAFETY: the queue held exactly one reference to this closure and handed
+    // SAFETY: the queue held exactly one reference to this callable and handed
     // it over with the `Deferred` above; nothing else points at it.
     unsafe { callable.release() };
 }
 
-/// Calls one deferred closure and leaves any failure where the host reads it.
+/// Calls one deferred callable and leaves any failure where the host reads it.
 ///
 /// The same translation `nvs_stdlib::task`'s `call_child` performs and for the
 /// same reason: a [`Job`] has no error channel, because the host takes a
@@ -322,7 +322,7 @@ mod tests {
     /// ceiling on what is in flight rather than on what has ever run.
     ///
     /// The registrations are `null` on purpose: nothing here drains, so the
-    /// closures are never called, and what is being pinned is the arithmetic
+    /// callables are never called, and what is being pinned is the arithmetic
     /// in front of the queue. `nvs-host`'s `tests/deferred.rs` is where a real
     /// registration runs.
     #[test]
@@ -350,12 +350,12 @@ mod tests {
         }
         assert_eq!(trees_in_flight(), cap, "the core is not counting trees");
 
-        // A tree already counted goes on registering: the second closure is
+        // A tree already counted goes on registering: the second callable is
         // more work for one tree, not a second tree.
         assert_eq!(
             held[0].defer(Value::null(), 0),
             Ok(()),
-            "a tree that already holds a slot was refused its second closure"
+            "a tree that already holds a slot was refused its second callable"
         );
         assert_eq!(
             trees_in_flight(),
@@ -385,11 +385,11 @@ mod tests {
     }
 
     thread_local! {
-        /// The temporary directory the deferred closure below is asked about —
+        /// The temporary directory the deferred callable below is asked about —
         /// the one the request was handed and the one its teardown sweeps.
         static WATCHED: std::cell::RefCell<Option<std::path::PathBuf>> =
             const { std::cell::RefCell::new(None) };
-        /// What that closure found, or `None` if it never ran at all — which is
+        /// What that callable found, or `None` if it never ran at all — which is
         /// a distinct failure from finding the directory already gone, and the
         /// whole of what the cancelled case below asserts.
         static STILL_STANDING: Cell<Option<bool>> = const { Cell::new(None) };
@@ -439,10 +439,10 @@ mod tests {
         crate::abi::OK
     }
 
-    /// A closure value declaring no parameters whose `invoke` is a plain Rust
+    /// A callable value declaring no parameters whose `invoke` is a plain Rust
     /// function — a registration with no compiler in front of it.
     ///
-    /// [`crate::call_callable`] reads only this much off a closure: the arity
+    /// [`crate::call_callable`] reads only this much off a callable: the arity
     /// slot, the parameter tags slot, and the `invoke` method's address in its
     /// class. Everything else in `nvs_ir::lower::lower_anon_fn`'s
     /// representation is captured state, and a native callback captures

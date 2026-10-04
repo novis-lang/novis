@@ -2516,7 +2516,7 @@ mod tests {
         // allocation either happens or does not: `Core\Arr::map` over a list
         // reads one key per entry and stores under it, and a one-parameter
         // callback never asks for the string. What that member walks is
-        // exactly this pair, so measuring it here needs no compiled closure.
+        // exactly this pair, so measuring it here needs no compiled callable.
         const RUN: i64 = 16;
 
         let list = list_of(RUN);

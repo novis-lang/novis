@@ -518,7 +518,7 @@ impl Ctx {
     /// while § 3's is the engine's and is the same whatever the request was
     /// allowed. The size is what a whole `.nvs` costs rather than what a
     /// message costs — this reserve compiles and runs a program, where § 1's
-    /// runs a closure the request already loaded — and 16 MiB is spent here
+    /// runs a callable the request already loaded — and 16 MiB is spent here
     /// under `rule:programs/memory-priority`'s
     /// ordering: a handler that cannot report is a failure nobody hears about.
     pub const DEFAULT_HANDLER_RESERVE_MEMORY: usize = 16 << 20;

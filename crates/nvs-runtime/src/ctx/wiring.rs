@@ -76,7 +76,7 @@ pub struct Session {
     /// filled in by `Core\Session::start`, the only member that opens a record
     /// at all.
     ///
-    /// A bare `fn` rather than a boxed closure: there is one implementation
+    /// A bare `fn` rather than a boxed Rust closure: there is one implementation
     /// and it captures nothing — everything it needs is on the [`Ctx`] it is
     /// handed — so a `dyn FnOnce` would be an allocation per request to say
     /// what one word already says.

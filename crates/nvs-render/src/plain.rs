@@ -9,8 +9,8 @@
 //! that is the one PHP output a reader already parses at a glance, and Novis's
 //! in vocabulary: `uint`, `decimal` and `bytes` are their own lines, an enum
 //! case renders as `Enum::Case` rather than as its backing integer, and a
-//! closure renders as a signature rather than as a `Closure` object with
-//! invisible captures.
+//! callable renders as a signature rather than as an object with invisible
+//! captures (PHP shows a `Closure` object).
 //!
 //! # No colour yet
 //!
@@ -312,7 +312,7 @@ mod tests {
     }
 
     /// An enum case renders as its name, never as the integer `rule:types/single-value-types`
-    /// spends no representation on hiding, and a closure as its signature
+    /// spends no representation on hiding, and a callable as its signature
     /// rather than as an object with invisible captures.
     #[test]
     fn an_enum_case_and_a_callable_render_as_what_they_are() {

@@ -169,7 +169,7 @@ pub(crate) type ExitDrain = fn(&mut Ctx, Result<(), i32>, Option<&Thrown>);
 /// The `Core` half of [`Ctx::class_desc`]'s answer: a name to the descriptor
 /// `nvs-stdlib` leaked for it, or `None` for a name that crate does not own.
 ///
-/// A plain `fn` and not a boxed closure, because the table behind it is the
+/// A plain `fn` and not a boxed Rust closure, because the table behind it is the
 /// **process's** — one leaked `ClassTable`, built on first use and never
 /// dropped — so there is nothing per request to capture and installing this
 /// costs one word.
@@ -513,7 +513,7 @@ pub struct Ctx {
     /// **What it spends:** one word per request.
     output_limit: usize,
     /// `rule:errors/on-limit`'s
-    /// tier-1 handler: the closure `Core\Fatal::onLimit` registered, owned, or
+    /// tier-1 handler: the callable `Core\Fatal::onLimit` registered, owned, or
     /// `null` for a request that registered none.
     ///
     /// **Here, beside the ceiling, because this is where the breach is asked.**
@@ -528,7 +528,7 @@ pub struct Ctx {
     /// decided a limit was breached reads it.
     ///
     /// **What it spends:** two words per request, and one reference to the
-    /// closure for a request that registers one — O(in-flight requests), per
+    /// callable for a request that registers one — O(in-flight requests), per
     /// `rule:programs/memory-priority`.
     limit_handler: Value,
     /// `rule:errors/on-limit`'s
@@ -581,7 +581,7 @@ pub struct Ctx {
     /// operator's own `[limits] cpu_time`, moved from one side of the ceiling to
     /// the other, so a request's total is unchanged.
     fatal_reserve_time: u64,
-    /// Takes ownership of the closure `Core\Fatal::onUncaughtThrow` registered
+    /// Takes ownership of the callable `Core\Fatal::onUncaughtThrow` registered
     /// — `rule:errors/on-uncaught-throw`'s
     /// tier 2, and the second handler slot beside [`Self::limit_handler`].
     ///
@@ -596,10 +596,10 @@ pub struct Ctx {
     /// same place for it: the request ending is the only unregistration.
     ///
     /// **What it spends:** one word per request, and one reference to the
-    /// closure for a request that registers one — O(in-flight requests), per
+    /// callable for a request that registers one — O(in-flight requests), per
     /// `rule:programs/memory-priority`.
     uncaught_handler: Value,
-    /// Takes ownership of the closure `Core\Signal::onShutdown` registered —
+    /// Takes ownership of the callable `Core\Signal::onShutdown` registered —
     /// what this request runs when the process is asked to stop.
     ///
     /// The third handler slot, and the one whose *firing* is not a failure:
@@ -615,7 +615,7 @@ pub struct Ctx {
     /// running request and each of them runs its own handler or none.
     ///
     /// **What it spends:** one word per request, and one reference to the
-    /// closure for a request that registers one — O(in-flight requests), per
+    /// callable for a request that registers one — O(in-flight requests), per
     /// `rule:programs/memory-priority`.
     shutdown_handler: Value,
     /// `rule:observability/script-on-exit`
@@ -724,7 +724,7 @@ pub struct Ctx {
     /// and why the cap beside it counts trees.
     ///
     /// **What it spends:** four words per request, and two words plus one
-    /// closure reference per registration — no allocation at all for a request
+    /// callable reference per registration — no allocation at all for a request
     /// that defers nothing.
     deferred: Option<Vec<crate::deferred::Deferred>>,
     /// Whether this tree is one of the ones this core is counting against
@@ -1094,7 +1094,7 @@ pub struct Ctx {
     /// `rule:security/capture-answers-the-carrier`
     /// .
     ///
-    /// A **stack**, because a capture is scoped to a closure and therefore
+    /// A **stack**, because a capture is scoped to the callable it runs and therefore
     /// nests by call nesting; PHP's global `ob_*` stack, which can be started
     /// in one function and ended in another, is exactly what
     /// `docs/spec/01-core-library.md` § 12 removed. While it is non-empty
@@ -1706,7 +1706,7 @@ pub const STACK_RESERVE: usize = 256 << 10;
 /// Which of `rule:errors/on-limit`'s resource limits stopped the request, as the tier-1 handler is told it.
 ///
 /// § 1 spells that handler's parameter `LimitReport`, and this is what the
-/// report is built from: [`Ctx::run_limit_handler`] hands the closure an array
+/// report is built from: [`Ctx::run_limit_handler`] hands the callable an array
 /// whose `limit` key is [`Limit::name`]. **An array and not a class**, because
 /// the report is built where the breach is — in this crate, which holds no
 /// `Core` class descriptor to instantiate one from and would have to reach into

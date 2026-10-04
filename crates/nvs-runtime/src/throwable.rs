@@ -370,7 +370,7 @@ pub enum ThrownClass {
     DbError,
     /// `Core\Db\RolledBack` — a transaction the program itself rolled back
     /// (`rule:core-classes/db-transactions`), propagated out of
-    /// the closure that owned it.
+    /// the callable that owned it.
     ///
     /// It is not a driver failure and deliberately not the same class as one:
     /// a `catch` distinguishing "I gave up" from "the database said no" is the

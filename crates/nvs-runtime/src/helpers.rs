@@ -651,7 +651,7 @@ fn value_ordering(left: Value, right: Value) -> Result<Option<std::cmp::Ordering
 ///
 /// Shared by every refusal a tag-dispatched row makes — [`no_ordering`] and
 /// [`no_arithmetic`] — so that "a `string` against an `array<T>`" reads the
-/// same whichever operator asked. A closure renders as `object` because it *is*
+/// same whichever operator asked. A callable renders as `object` because it *is*
 /// one (`rule:types/callable-values`), and the fallback covers the tags
 /// no source value carries.
 fn tag_name(value: Value) -> &'static str {
@@ -1483,7 +1483,7 @@ mod row {
 
     /// `f64::from_str` accepts `inf`/`nan`/`infinity` in any case; none is an
     /// "exact numeric literal", so each is refused here rather than becoming a
-    /// value no source literal could have written.
+    /// value no numeric literal in the source could have written.
     pub(super) fn str_to_float(text: &str) -> Option<f64> {
         text.parse::<f64>().ok().filter(|value| value.is_finite())
     }
@@ -2184,14 +2184,14 @@ crate::nvs_helper! {
 /// `nvs_ir::lower::array_element_tags`' word that describes it.
 ///
 /// The nibble *is* a [`Tag`] byte, which is what lets this share
-/// [`crate::callable::CALLABLE_PARAM_TAG_ANY`] with the closure-entry check
+/// [`crate::callable::CALLABLE_PARAM_TAG_ANY`] with the callable-entry check
 /// rather than inventing a second encoding: both ask "does this value carry
 /// the tag that representation carries", and neither can ask anything narrower
 /// in four bits. `Tag::Array` is the one nibble that continues — the rest of
 /// the word describes the elements of *this* element, which is how
 /// `array<array<int>>` is checked all the way down.
 ///
-/// No widening, unlike the closure-entry check: an `int` element does not
+/// No widening, unlike the callable-entry check: an `int` element does not
 /// have the tag `array<float>` describes. [`convert_element`] is what turns
 /// one into a `float`, in the copy [`to_array_of`] makes for it.
 fn element_has_tag(value: Value, tags: u64) -> bool {
@@ -2871,7 +2871,7 @@ crate::nvs_helper! {
 }
 
 crate::nvs_helper! {
-    /// `nvs_ir::Helper::EchoMarkup` — one piece of a markup literal written at
+    /// `nvs_ir::Helper::EchoMarkup` — one piece of an html template written at
     /// `echo`, which is the bytes of a `Core\Html\Markup` nobody built.
     ///
     /// [`nvs_echo_value`] writes a `Markup` raw under the HTML sink and
@@ -2909,7 +2909,7 @@ crate::nvs_helper! {
 /// `rule:types/single-value-types`
 /// membership test, rendered the way § 6's compile-time sibling renders it:
 /// a `string` double-quoted, an integer bare. Only the representations a
-/// closed literal set can name reach this — `nvs-codegen` boxed the operand
+/// set of allowed values can name reach this — `nvs-codegen` boxed the operand
 /// from `Ty::Str`, `Ty::Int`, `Ty::Uint` or `Ty::Tagged` — so the last arm is
 /// a value that arrived through `mixed` carrying some other tag entirely,
 /// which is a miss for the same reason a wrong string is.
@@ -2979,7 +2979,7 @@ crate::nvs_helper! {
 /// the branch is picked at compile time and there is no tag test on the hot
 /// path. This is the row for everything else, and its callers arrive by
 /// different routes at the same question. Native `Core` code holds
-/// a [`Value`] a closure just returned, whose static type is `callable`'s
+/// a [`Value`] a callable just returned, whose static type is `callable`'s
 /// opaque result and therefore nothing; and compiled code holding a
 /// `nvs_ir::ty::Ty::Tagged` operand — a `mixed`, a union, a `?T` no test
 /// narrowed — reaches it through [`nvs_value_truthy`], which is `rule:expressions/truthy-table`'s own last table row rather than a fallback below it.
@@ -2990,7 +2990,7 @@ crate::nvs_helper! {
 /// that `0`.
 ///
 /// A `Tag::Object` value is always truthy, which includes an exception and a
-/// closure alike; a tag byte denoting nothing at all is falsy,
+/// callable alike; a tag byte denoting nothing at all is falsy,
 /// the same "report what can be be sure of" floor every other decoder here
 /// takes.
 #[must_use]
@@ -3841,7 +3841,7 @@ mod tests {
             with(bad, |v| refused(nvs_str_to_int, v));
         }
         with("-1", |v| refused(nvs_str_to_uint, v));
-        // Not "an exact numeric literal": no Novis source literal writes one.
+        // Not "an exact numeric literal": no numeric literal in Novis source writes one.
         for bad in ["inf", "NaN", "infinity"] {
             with(bad, |v| refused(nvs_str_to_float, v));
         }

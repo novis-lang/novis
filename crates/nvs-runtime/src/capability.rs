@@ -170,8 +170,9 @@ pub fn working_dir(ctx: &Ctx, member: &str) -> Result<PathBuf, Fault> {
     if ctx.inbound().is_some() {
         return Err(Fault::thrown(format!(
             "{member} cannot be used while answering a request, because a server's working \
-             directory is not the app's folder\nhelp: write the path as a string literal, which is \
-             relative to the file that contains it, or build it with `Core\\Path::join`"
+             directory is not the app's folder\nhelp: write the path directly in the code, in \
+             quotes. It is then relative to the file that contains it. You can also build it \
+             with `Core\\Path::join`"
         )));
     }
     std::env::current_dir().map_err(|err| io_failure(member, Path::new("."), &err))
@@ -401,8 +402,8 @@ pub fn lookup_on_this_thread(host: &str) -> std::io::Result<Vec<std::net::IpAddr
 /// Every address `host` resolves to that a door will carry: the resolver's order, no address twice,
 /// and at most [`PINNED_ADDRESSES`] of them.
 ///
-/// It answers no policy question — [`pinned_addresses`] is the one that does — and an IP literal is
-/// a set of one that reaches no resolver at all, on a core or off it, because there is nothing for a
+/// It answers no policy question — [`pinned_addresses`] is the one that does — and a host given as
+/// an IP address is a set of one that reaches no resolver at all, on a core or off it, because there is nothing for a
 /// lookup to answer differently.
 ///
 /// # Errors
@@ -412,7 +413,7 @@ pub fn lookup_on_this_thread(host: &str) -> std::io::Result<Vec<std::net::IpAddr
 pub fn resolve_addresses(host: &str, member: &str) -> Result<Vec<std::net::IpAddr>, Fault> {
     use std::net::IpAddr;
 
-    // A bracketed IPv6 literal is written `[::1]` inside an authority and is not one anywhere else,
+    // A bracketed IPv6 address is written `[::1]` inside an authority and is not one anywhere else,
     // so the brackets come off before the address is read and stay off afterwards.
     let bare = host
         .strip_prefix('[')
@@ -453,8 +454,8 @@ fn unresolved(host: &str, member: &str) -> Fault {
 /// § 3's table denies any address the name answered.
 ///
 /// **Split out because one member asks the capability question differently and the address
-/// question identically.** `Core\Db::open`'s grant is `db.open`, whose scope is the host a
-/// settings literal named ([ADR 0067 § 3](/docs/decisions/0067.md)), so asking
+/// question identically.** `Core\Db::open`'s grant is `db.open`, whose scope is the host its
+/// settings object named ([ADR 0067 § 3](/docs/decisions/0067.md)), so asking
 /// `net.connect` as well would demand a second grant for the same host; what § 3 does say is that
 /// an `open` target "stays subject to that policy in full", and *that* policy is this function.
 /// Calling [`pin_host`] there instead would collapse two capabilities into one, and re-implementing
@@ -482,7 +483,7 @@ pub fn pinned_addresses(
     // match. It is refused here, in front of the resolution and of every caller's socket, so the
     // answer is the same whether or not anything is bound at the path -- a refusal that had to open
     // the path first would report the difference, and the difference is what a probe reads. A
-    // separator is the whole test: no name and no address literal carries one, where a list of the
+    // separator is the whole test: no name and no IP address carries one, where a list of the
     // sockets a host keeps would be wrong on the machine nobody tested.
     if host.contains('/') || host.contains('\\') {
         return Err(Fault::thrown(format!(
@@ -1477,9 +1478,9 @@ fn shell_target(program: &Path) -> Option<String> {
 /// from it owes the same message for the same kind of failure; one function is how the two agree
 /// rather than drifting into two spellings of "could not read".
 ///
-/// A file that is not there adds a `help:` line saying which folder a relative literal starts at,
-/// because a literal joined to the folder of its own file is the usual reason a path names a place
-/// the author did not expect. Every other kind of failure is the one line.
+/// A file that is not there adds a `help:` line saying which folder a relative path written in the
+/// code starts at, because such a path joined to the folder of its own file is the usual reason a
+/// path names a place the author did not expect. Every other kind of failure is the one line.
 #[must_use]
 pub fn io_failure(member: &str, path: &Path, err: &std::io::Error) -> Fault {
     let help = if err.kind() == std::io::ErrorKind::NotFound {
@@ -1576,7 +1577,7 @@ mod tests {
     ///
     /// The resolver seam is what makes that observable. A case cannot see which thread ran a lookup,
     /// but it can see whether one happened at all, and a refused host that asked for none is the
-    /// whole claim. The literal at the end is the other half: a set of one reaches no resolver, so
+    /// whole claim. The IP address at the end is the other half: a set of one reaches no resolver, so
     /// nothing is handed off for an address that was already written down.
     #[test]
     fn the_grant_is_asked_before_the_lookup_leaves_the_core() {
@@ -1610,10 +1611,10 @@ mod tests {
 
         assert_eq!(
             pin_host(&reaching("203.0.113.7"), "203.0.113.7", OUTBOUND)
-                .expect("a literal is its own approval"),
+                .expect("an IP address is its own approval"),
             public(7)
         );
-        assert_eq!(lookups(), 1, "and a literal asked no resolver at all");
+        assert_eq!(lookups(), 1, "and an IP address asked no resolver at all");
     }
 
     /// `rule:http-server/an-outbound-call-tries-every-approved-address`: a name answering one
@@ -1758,8 +1759,8 @@ mod tests {
         }
     }
 
-    /// A file that is not there is an `IOError` whose second line says where a relative literal
-    /// starts. Any other failure is one line.
+    /// A file that is not there is an `IOError` whose second line says where a relative path
+    /// written in the code starts. Any other failure is one line.
     #[test]
     fn a_missing_file_names_the_folder_a_written_relative_path_starts_at() {
         let path = Path::new("/srv/app/data/note.txt");
@@ -1842,7 +1843,7 @@ mod tests {
         let ctx = Ctx::buffered();
         let endpoint: std::net::SocketAddr = "127.0.0.1:8080"
             .parse()
-            .expect("a literal endpoint, not a name to resolve");
+            .expect("an endpoint written as an address, not a name to resolve");
         for (cap, scope, want) in [
             (
                 Cap::ProcessExec,

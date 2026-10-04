@@ -1546,12 +1546,12 @@ fn multipart(parts: &[SpecPart], boundary: &str) -> Vec<u8> {
 /// a connection that takes one and then declines to start it says so with
 /// [`Self::discard`] rather than by dropping it.
 ///
-/// **What it spends:** one boxed closure and one 16-byte value per upgrade, plus
+/// **What it spends:** one boxed Rust closure and one 16-byte value per upgrade, plus
 /// the argument graph the copy behind it holds — accounted where that copy is
 /// made, which is `nvs_stdlib::socket`'s "copied twice per upgrade".
 pub struct Upgrade {
     /// What the connection's isolate runs: the resolver's program for a path
-    /// entry, or the closure `nvs_stdlib::socket` built over an already-crossed
+    /// entry, or the Rust closure `nvs_stdlib::socket` built over an already-crossed
     /// callable for a static method one. Both of `rule:security/isolate-shares-nothing`'s two entry forms
     /// arrive here as one thing, which is what makes them one isolate.
     program: crate::script::Program,
@@ -1563,7 +1563,7 @@ pub struct Upgrade {
 
 impl std::fmt::Debug for Upgrade {
     /// Written out for [`Inbound`]'s reason: a [`crate::script::Program`] is a
-    /// closure and has no `Debug`, and there is nothing to print of it but that
+    /// Rust closure and has no `Debug`, and there is nothing to print of it but that
     /// one is here.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Upgrade")
@@ -2044,8 +2044,8 @@ mod tests {
 
     /// A [`Upgrade`] whose program records that it ran, which is the only thing
     /// a prepared isolate can be asked to prove on this side of the boundary:
-    /// what crossed is a closure, so "the same one came back out" is that
-    /// closure running and nothing else.
+    /// what crossed is a Rust closure, so "the same one came back out" is that
+    /// Rust closure running and nothing else.
     fn prepared(marker: &Rc<std::cell::Cell<u8>>, mark: u8) -> Upgrade {
         let marker = Rc::clone(marker);
         Upgrade::new(

@@ -65,7 +65,7 @@
 //! member could get wrong.
 //!
 //! It is also what lets both members share it: `Task::all` and `Task::map`
-//! differ in how their jobs are *built* — a shape literal's fields against one
+//! differ in how their jobs are *built* — an anonymous object's fields against one
 //! callback over an array — and in nothing about how they run.
 //!
 //! [`Host::sleep`] is the exception that proves the shape rather than a crack
@@ -107,7 +107,7 @@ use crate::value::Value;
 ///
 /// A boxed Rust closure rather than a Novis `callable` [`Value`], because the
 /// two members build their jobs differently and the host has no business
-/// knowing which: `Task::all` closes over one field's `fn` literal, `Task::map`
+/// knowing which: `Task::all` closes over one field's anonymous function, `Task::map`
 /// over the shared callback and one element. What the host is told is that this
 /// runs on a child's stack with a child's context and produces a value.
 ///
@@ -116,7 +116,7 @@ use crate::value::Value;
 /// sibling that threw, and an expired deadline all end the group with jobs
 /// still queued, and the host drops them rather than running work whose result
 /// § 4 has already decided it will not return. Anything a job captured that
-/// owns a reference — the element `Task::map` closed over, the closure both
+/// owns a reference — the element `Task::map` closed over, the callable both
 /// members call — must therefore be released by that capture's own [`Drop`] and
 /// not only by the body, or a cancelled group leaks one reference per job it
 /// never reached.
@@ -205,7 +205,7 @@ pub enum Woken {
 
 /// A one-shot handle that makes the task it was taken for runnable again.
 ///
-/// A boxed closure rather than a type of its own because there is exactly one
+/// A boxed Rust closure rather than a type of its own because there is exactly one
 /// thing a holder does with it — fire it — and because the host's own wake is
 /// a task id plus the tree it belongs to, neither of which this crate can
 /// spell. It is deliberately **not** `Send`: a task never migrates off its
@@ -240,7 +240,7 @@ pub enum Output {
 /// forms it wrote — a path, or a class and a method.
 ///
 /// The name and not the code, and that is the whole of why this type is here.
-/// A [`Program`] is a boxed closure over whatever the *parent's* resolver
+/// A [`Program`] is a boxed Rust closure over whatever the *parent's* resolver
 /// built, so it is neither `Send` nor meaningful anywhere but the core that
 /// made it, while a path and a label are strings. Carrying the name lets the
 /// core that is going to **run** the child be the one that prepares it, which

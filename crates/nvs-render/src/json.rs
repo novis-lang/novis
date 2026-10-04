@@ -42,7 +42,7 @@
 //!
 //! **A node kind JSON has no value for becomes a one-key object whose key
 //! begins with `$`**: `{"$bytes":"74657874"}`, `{"$decimal":"1.50"}`,
-//! `{"$float":"NaN"}`, `{"$enum":"Level::Info"}`, `{"$closure":{"parameters":2}}`,
+//! `{"$float":"NaN"}`, `{"$enum":"Level::Info"}`, `{"$callable":{"parameters":2}}`,
 //! `{"$redacted":true}`, `{"$elided":…}`, `{"$cycle":3}`, `{"$span":…}`, and an
 //! instance as `{"$class":…,"$id":…,"$properties":{…}}`. The consequences
 //! worth having in hand:
@@ -234,7 +234,7 @@ impl Serialize for AsNode<'_> {
             }
             Node::Callable { parameters } => {
                 let mut map = ser.serialize_map(Some(1))?;
-                map.serialize_entry("$closure", &Parameters(*parameters))?;
+                map.serialize_entry("$callable", &Parameters(*parameters))?;
                 map.end()
             }
             Node::Redacted => tagged(ser, "$redacted", &true),
@@ -265,7 +265,7 @@ impl Serialize for AsNode<'_> {
     }
 }
 
-/// A closure's declared arity, which is all a node carries of one.
+/// A callable's declared arity, which is all a node carries of one.
 struct Parameters(usize);
 
 impl Serialize for Parameters {

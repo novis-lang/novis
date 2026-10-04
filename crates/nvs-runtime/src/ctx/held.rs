@@ -116,7 +116,7 @@ pub trait HeldReader: std::fmt::Debug + std::any::Any {
 ///
 /// A pipe is taken out for the length of one read or write and put back
 /// afterwards, because the read happens on the blocking pool and
-/// `nvs_host::blocking::run`'s closure owns what it reads from. Holding the
+/// `nvs_host::blocking::run`'s Rust closure owns what it reads from. Holding the
 /// pipes beside the child rather than inside it is what makes that one move
 /// instead of a borrow across a suspension point.
 ///
@@ -196,7 +196,7 @@ impl HeldChild {
 
     /// Waits for the child to exit and answers its status, **blocking the
     /// calling thread** — so this is only ever called inside
-    /// `nvs_host::blocking::run`'s closure, which is why this type is moved
+    /// `nvs_host::blocking::run`'s Rust closure, which is why this type is moved
     /// out of the table for a `wait` rather than borrowed from it.
     ///
     /// The standard input pipe is dropped first. A child reading to the end of
@@ -408,11 +408,11 @@ impl Ctx {
     /// `None` when another wait is already holding it.
     ///
     /// A borrow will not do here where it does for a read: waiting blocks, so
-    /// it happens inside the blocking pool's closure, and that closure owns what
-    /// it waits on. The entry is left empty meanwhile, which is what makes a
+    /// it happens inside the blocking pool's Rust closure, and that closure owns
+    /// what it waits on. The entry is left empty meanwhile, which is what makes a
     /// second `wait` on a handle already inside one a refusal rather than two
     /// threads reaping the same child — and if the task never comes back for
-    /// it, the closure's result is dropped and [`HeldChild`]'s `Drop` kills the
+    /// it, the Rust closure's result is dropped and [`HeldChild`]'s `Drop` kills the
     /// child there instead.
     #[must_use]
     pub fn take_spawned_child(&mut self, key: u64) -> Option<HeldChild> {

@@ -62,11 +62,11 @@ pub enum Tag {
     /// A class instance; the payload is an [`ObjHeader`] pointer and the value
     /// owns one reference to it.
     ///
-    /// A `rule:types/callable-values` closure is one of these — one field
+    /// A `rule:types/callable-values` callable is one of these — one field
     /// per capture, one `invoke` method — so it needs no tag of its own;
     /// `nvs_ir::lower::lower_anon_fn` owns that decision and says why it reuses
     /// the object machinery rather than adding a second heap shape, and
-    /// [`crate::callable`] is what reads a closure back out of an object value.
+    /// [`crate::callable`] is what reads a callable back out of an object value.
     /// An engine-owned handle is a `Core` class holding a key into its own
     /// context's table, for the reason `nvs_stdlib::instance`'s module doc
     /// gives, so neither shape is a row of its own here.
@@ -385,7 +385,7 @@ impl Value {
     /// representation. It differs from [`Self::tag`] only for an enum case,
     /// and it is what a reader uses that asks which type a value is: a
     /// condition (`rule:enums/truthiness`), a declared slot's write check, a
-    /// closure parameter's check.
+    /// callable parameter's check.
     #[must_use]
     pub const fn exact_tag(self) -> Option<Tag> {
         Tag::from_byte(self.tag)

@@ -1,8 +1,8 @@
-//! Calling an `rule:types/anonymous-function`
-//! closure value from native code.
+//! Calling a `callable` value — an `rule:types/anonymous-function` or a
+//! method reference — from native code.
 //!
-//! A closure is an ordinary Novis object whose class declares exactly one
-//! method, [`CALLABLE_INVOKE`], and one field per captured binding —
+//! A callable is an ordinary Novis object whose class declares exactly one
+//! method, [`CALLABLE_INVOKE`], and one field per captured variable —
 //! `nvs_ir::lower::lower_anon_fn` owns that representation and says why it
 //! reuses the object machinery rather than adding a second heap shape. So
 //! everything here is already available: [`crate::nvs_class_method`] finds
@@ -33,9 +33,9 @@
 //! `Core\Arr::map($ints, fn (string $s): string => $s)` over an `array<int>`
 //! is all it takes to write one.
 //!
-//! So the closure object carries its parameter tags
+//! So the callable object carries its parameter tags
 //! ([`CALLABLE_PARAM_TAGS_SLOT`]) the way it already carries its arity
-//! ([`CALLABLE_ARITY_SLOT`]), written at the literal by
+//! ([`CALLABLE_ARITY_SLOT`]), written where the anonymous function is built by
 //! `nvs_ir::lower::lower_anon_fn_expr` from the declared types, and
 //! [`check_param_tags`] compares one against each argument on the way in —
 //! throwing the [`crate::ThrownClass::Logic`] `LogicError` [`nvs_call_callable`]
@@ -52,20 +52,20 @@
 //! widening the paragraph above names was inserted there rather than here — so
 //! that site reaches [`nvs_call_callable_proven`] and pays nothing per argument.
 //! [`TagCheck`] is which of the two a call is, and it is the only difference
-//! between them: the metadata stays on every closure object, because a closure
-//! does not know at its literal which kind of site will call it.
+//! between them: the metadata stays on every callable object, because the
+//! place that builds a callable does not know which kind of site will call it.
 
 use crate::abi::{Fault, NvsFn, OK};
 use crate::ctx::Ctx;
 use crate::object::{ClassDesc, NvsObj};
 use crate::value::{Tag, Value};
 
-/// The one method a closure's captured-environment class answers. Must agree
+/// The one method a callable's captured-environment class answers. Must agree
 /// with `nvs_ir::lower`'s own constant; `nvs-codegen`'s
 /// `a_callable_is_reachable_through_the_method_table` holds the two together.
 pub const CALLABLE_INVOKE: &str = "invoke";
 
-/// The field slot holding how many parameters a closure declares, not
+/// The field slot holding how many parameters a callable declares, not
 /// counting the receiver — always the first, since a descriptor carries no
 /// field names for a native caller to search.
 ///
@@ -75,7 +75,7 @@ pub const CALLABLE_INVOKE: &str = "invoke";
 /// together.
 pub const CALLABLE_ARITY_SLOT: usize = 0;
 
-/// The field slot holding which tag each of a closure's parameters requires —
+/// The field slot holding which tag each of a callable's parameters requires —
 /// always the second, and read by index for the same reason
 /// [`CALLABLE_ARITY_SLOT`] is.
 ///
@@ -88,29 +88,29 @@ pub const CALLABLE_ARITY_SLOT: usize = 0;
 /// its map against the tag bytes compiled code actually writes.
 pub const CALLABLE_PARAM_TAGS_SLOT: usize = 1;
 
-/// The field a **first-class callable**'s object records its target's
+/// The field a **method reference**'s object records its target's
 /// parameter names under, comma-separated in declaration order.
 ///
 /// Read by name rather than by index, and that is the whole safety argument:
 /// `nvs_ir::lower`'s `FN_PARAM_NAMES` writes this field at a `Class::method(...)`
-/// and at nothing else, so a `fn` literal's closure — whose third field is its
+/// and at nothing else, so an anonymous function's object — whose third field is its
 /// first *capture* — answers [`callable_param_names`] `None` rather than having
 /// a captured string read as a parameter list. [`CALLABLE_PARAM_NAMES_SLOT`] is
 /// the hint that keeps the lookup one comparison.
 ///
 /// Must agree with that constant; `nvs-ir`'s
-/// `a_first_class_callable_records_its_targets_parameter_names` is the writing
+/// `a_method_reference_records_its_targets_parameter_names` is the writing
 /// side asserted on its own — the field list and the joined names — and it
 /// stands alone rather than beside a behavioural end-to-end case for the
 /// reason that file's module doc gives: the one member that reads these needs
 /// a connection's slot, which no corpus case is offered.
 pub const CALLABLE_PARAM_NAMES: &str = "fn#names";
 
-/// Where [`CALLABLE_PARAM_NAMES`] sits on a first-class callable's object —
+/// Where [`CALLABLE_PARAM_NAMES`] sits on a method reference's object —
 /// third, after the arity and the tags.
 ///
 /// A **hint** rather than an index, unlike [`CALLABLE_ARITY_SLOT`] and
-/// [`CALLABLE_PARAM_TAGS_SLOT`], because this field is not on every closure
+/// [`CALLABLE_PARAM_TAGS_SLOT`], because this field is not on every callable
 /// class: [`ClassDesc::field_slot`] takes it, checks that one slot, and falls
 /// back to a search that answers `None` for a class without the field. So the
 /// common case costs a comparison and the absent case cannot be mistaken for
@@ -132,7 +132,7 @@ pub const CALLABLE_PARAM_NAMES_SLOT: usize = 2;
 pub const CALLABLE_PARAM_TAG_ANY: u8 = 15;
 
 /// How many parameters [`CALLABLE_PARAM_TAGS_SLOT`] can describe: one nibble
-/// each in a 64-bit payload. A closure declaring more cannot be called —
+/// each in a 64-bit payload. A callable declaring more cannot be called —
 /// [`check_param_tags`] says why refusing is the answer.
 const CALLABLE_PARAM_TAGS_CAPACITY: usize = 16;
 
@@ -142,7 +142,7 @@ const CALLABLE_PARAM_TAGS_CAPACITY: usize = 16;
 pub(crate) enum TagCheck {
     /// Nothing proved what the arguments hold: the callee is reached through
     /// bare `callable` or from a `Core` member's own roster, where the callback
-    /// arrived as a value and its declared parameters are the closure object's
+    /// arrived as a value and its declared parameters are the callable object's
     /// metadata alone.
     Required,
     /// The call site's callee carried a written signature, so `nvs_types`
@@ -152,10 +152,10 @@ pub(crate) enum TagCheck {
     Proven,
 }
 
-/// Calls the closure `closure` with as many leading `args` as it declares
+/// Calls `callable` with as many leading `args` as it declares
 /// parameters, borrowing every one of them.
 ///
-/// The trailing arguments a shorter closure does not want are dropped rather
+/// The trailing arguments a shorter callable does not want are dropped rather
 /// than passed, which is
 /// [docs/spec/01-core-library.md](/docs/spec/01-core-library.md)
 /// § 2's "every callback receives `($value, $key)` and may declare fewer
@@ -172,16 +172,16 @@ pub(crate) enum TagCheck {
 ///
 /// # Errors
 ///
-/// [`Fault::Pending`] carrying the callee's own status when the closure
+/// [`Fault::Pending`] carrying the callee's own status when the callable
 /// throws or faults, so the exception the callee recorded in `ctx` reaches
 /// the request unchanged rather than being replaced by a message from here.
-/// [`Fault::Thrown`] for an argument whose tag is not the one the closure
+/// [`Fault::Thrown`] for an argument whose tag is not the one the callable
 /// declares in that position, and which `rule:types/conversion`'s `int`-into-`float`
 /// widening does not reconcile — [`check_param_tags`], which runs before
 /// anything is retained or passed.
-/// [`Fault::Fatal`] when `closure` is not a closure value at all, or declares
+/// [`Fault::Fatal`] when `callable` is not a callable value at all, or declares
 /// more parameters than the caller has to offer — both engine faults: the
-/// checker only admits an `rule:types/callable-values` closure value where a `callable` is
+/// checker only admits an `rule:types/callable-values` callable value where a `callable` is
 /// expected, and no `Core` member offers fewer than the spec says it does.
 pub fn call_callable(ctx: &mut Ctx, callable: Value, args: &[Value]) -> Result<Value, Fault> {
     call_callable_with(ctx, callable, args, TagCheck::Required)
@@ -248,18 +248,18 @@ fn call_callable_with(
 }
 
 /// `nvs_ir::Helper::CallCallable` — `rule:types/anonymous-function`'s `$fn(...)`, which is compiled
-/// code's own way into [`call_callable`]. `args[0]` is the closure and
+/// code's own way into [`call_callable`]. `args[0]` is the callable and
 /// `args[1..argc]` the arguments it was called with, in written order.
 ///
 /// **The one helper that takes a count.** Every other one's arity is a
 /// literal in its [`crate::nvs_helper!`] expansion, because a conversion or a
-/// comparison has the same shape at every call site; a closure call's arity is
+/// comparison has the same shape at every call site; a callable call's arity is
 /// the *call site's*, so it travels beside the slot and this function is
 /// written out rather than generated. `nvs-codegen`'s `Signatures::helper_variadic`
 /// is the other half of that ABI.
 ///
 /// Too *many* arguments is not an error: [`call_callable`] trims to the
-/// arity the closure recorded, which is spec § 2's "every callback receives
+/// arity the callable recorded, which is spec § 2's "every callback receives
 /// `($value, $key)` and may declare fewer parameters" and is also PHP's own
 /// answer for extra positional arguments to a userland function. Too *few* is
 /// the catchable `LogicError` below rather than the engine fault
@@ -301,7 +301,7 @@ pub unsafe extern "C" fn nvs_call_callable(
 /// whose callee carried `rule:types/callable-signature`'s written signature.
 ///
 /// Identical in every respect but one: the arguments are not compared against
-/// the closure's recorded parameter tags, because `nvs_types` compared them
+/// the callable's recorded parameter tags, because `nvs_types` compared them
 /// against the *declared* ones where the call was written and `nvs-ir` inserted
 /// the conversion [`check_param_tags`] would have performed. That is what the
 /// signature is for — the check is a `rule:programs/memory-priority` priority 1
@@ -311,9 +311,9 @@ pub unsafe extern "C" fn nvs_call_callable(
 /// The arity trim, the retains, the borrowed arguments and the error edge are
 /// all [`nvs_call_callable`]'s unchanged, including the catchable `LogicError`
 /// for too few arguments: the checker counts a call site's list against the
-/// *type's* parameters, and the closure the value actually holds may declare
+/// *type's* parameters, and the callable the value actually is may declare
 /// any number up to that (`rule:types/callable-arity`), so the arity read here
-/// is still the closure's own.
+/// is still the callable's own.
 ///
 /// # Safety
 ///
@@ -341,12 +341,12 @@ pub unsafe extern "C" fn nvs_call_callable_proven(
     }
 }
 
-/// The body both closure-call helpers hand [`crate::run_helper`]: split the
-/// closure off the front of the slot run, and call it.
+/// The body both callable-call helpers hand [`crate::run_helper`]: split the
+/// callable off the front of the slot run, and call it.
 fn callable_call_body(ctx: &mut Ctx, args: &[Value], tags: TagCheck) -> Result<Value, Fault> {
     let Some((callable, passed)) = args.split_first() else {
         return Err(Fault::fatal(
-            "internal error: a closure call reached the runtime with no closure at all",
+            "internal error: a call reached the runtime with no callable to call",
         ));
     };
     call_callable_from_nvs(ctx, *callable, passed, tags)
@@ -357,7 +357,7 @@ crate::nvs_helper! {
     /// call site wrote a `...` argument, so how many arguments there are is the
     /// spread subject's own run-time length rather than the site's own count.
     ///
-    /// `args[0]` is the closure and `args[1]` **one array** holding every
+    /// `args[0]` is the callable and `args[1]` **one array** holding every
     /// argument in call order: the array `nvs_ir::lower::call` already builds
     /// for a variadic parameter's tail, with each spread flattened into it by
     /// [`crate::array::nvs_array_spread`]. That is the whole reason this is a second
@@ -403,7 +403,7 @@ crate::nvs_helper! {
     }
 }
 
-/// The field a closure that uses `$this` stores it under. `nvs_ir::lower`'s
+/// The field a callable that uses `$this` stores it under. `nvs_ir::lower`'s
 /// capture list names it, and [`bind_callable`] finds it by this name because
 /// a capture has no fixed slot.
 pub const CALLABLE_THIS_FIELD: &str = "this";
@@ -417,10 +417,10 @@ crate::nvs_helper! {
     }
 }
 
-/// `rule:types/callable-is-the-only-function-type`'s rebind: `closure` with `$this`
+/// `rule:types/callable-is-the-only-function-type`'s rebind: `callable` with `$this`
 /// replaced by `this`, as a fresh reference the caller owns.
 ///
-/// A closure whose body does not use `$this` has no [`CALLABLE_THIS_FIELD`]
+/// An anonymous function whose body does not use `$this` has no [`CALLABLE_THIS_FIELD`]
 /// (`rule:statements/an-anonymous-function-captures-this-only-where-it-uses-it`), so it comes
 /// back unchanged, one more reference to the same object, whatever `this` is.
 ///
@@ -432,18 +432,18 @@ crate::nvs_helper! {
 /// Anything else, `null` among them, throws a `LogicError` and copies nothing:
 /// reading an unrelated class at that layout would be a memory-safety hole.
 ///
-/// **Cost:** one class test by name and one closure copy per rebind, freed like
-/// any object. A `$this`-free closure pays only the field lookup.
+/// **Cost:** one class test by name and one callable copy per rebind, freed like
+/// any object. A `$this`-free callable pays only the field lookup.
 ///
 /// # Errors
 ///
 /// The `LogicError` above, and [`require_callable`]'s for a receiver that is
-/// not a closure.
+/// not a callable.
 pub fn bind_callable(callable: Value, this: Value) -> Result<Value, Fault> {
     require_callable(callable)?;
     let ptr = callable
         .obj_ptr()
-        .ok_or_else(|| Fault::fatal("internal error: a closure reached a rebind untagged"))?;
+        .ok_or_else(|| Fault::fatal("internal error: a callable reached a rebind untagged"))?;
     #[expect(
         unsafe_code,
         reason = "`require_callable` just read this object's descriptor, and the \
@@ -487,14 +487,14 @@ pub fn bind_callable(callable: Value, this: Value) -> Result<Value, Fault> {
         return Err(Fault::thrown_as(
             crate::ThrownClass::Logic,
             format!(
-                "this closure uses `$this`, so it can only be bound to an object of class \
+                "this callable uses `$this`, so it can only be bound to an object of class \
                  `{wanted}` or a subclass of it. The argument is {given}"
             ),
         ));
     }
     #[expect(
         unsafe_code,
-        reason = "the caller's reference keeps the closure live for the copy, \
+        reason = "the caller's reference keeps the callable live for the copy, \
                   and `this` is live for the retain the copy's slot takes over"
     )]
     let copy = unsafe {
@@ -507,7 +507,7 @@ pub fn bind_callable(callable: Value, this: Value) -> Result<Value, Fault> {
 }
 
 /// [`call_callable`] under the one check a *program* can reach, shared by the
-/// two helpers compiled Novis code calls a closure through.
+/// two helpers compiled Novis code calls a callable through.
 ///
 /// A native caller has no arity mistake to make — a `Core` member offers every
 /// argument the spec says it does, so [`call_callable`] answers it with an
@@ -519,7 +519,7 @@ pub fn bind_callable(callable: Value, this: Value) -> Result<Value, Fault> {
 ///
 /// The callee itself is checked first, for the same reason: a callee typed
 /// `mixed` or `?callable` reaches here unproven, so a value that is not a
-/// closure is program-reachable and throws ([`require_callable`]) rather than
+/// callable is program-reachable and throws ([`require_callable`]) rather than
 /// reaching the engine faults below.
 ///
 /// # Errors
@@ -547,12 +547,12 @@ fn call_callable_from_nvs(
 }
 
 /// `rule:types/callable-values`'s run-time half: a compiled `$f(...)`
-/// whose callee is not a closure throws a `LogicError` naming what it is.
+/// whose callee is not a callable throws a `LogicError` naming what it is.
 ///
 /// # Errors
 ///
 /// The catchable `LogicError` for a value whose tag or class is not a
-/// closure's, and [`Fault::Fatal`] for an object with no class descriptor.
+/// callable's, and [`Fault::Fatal`] for an object with no class descriptor.
 fn require_callable(callable: Value) -> Result<(), Fault> {
     let called = match callable.obj_ptr() {
         Some(ptr) if !ptr.is_null() => {
@@ -586,11 +586,13 @@ fn require_callable(callable: Value) -> Result<(), Fault> {
     };
     Err(Fault::thrown_as(
         crate::ThrownClass::Logic,
-        format!("{called} cannot be called: only a closure is a `callable`"),
+        format!(
+            "{called} cannot be called. Only an anonymous function or a method reference is a `callable`"
+        ),
     ))
 }
 
-/// How many parameters `closure` declares — [`CALLABLE_ARITY_SLOT`], read
+/// How many parameters `callable` declares — [`CALLABLE_ARITY_SLOT`], read
 /// straight off the object with no call made.
 ///
 /// [`call_callable`] uses it to trim the argument list, and a caller asks it
@@ -602,7 +604,7 @@ fn require_callable(callable: Value) -> Result<(), Fault> {
 ///
 /// # Errors
 ///
-/// [`Fault::Fatal`] when `closure` is not a closure value at all, the same
+/// [`Fault::Fatal`] when `callable` is not a callable value at all, the same
 /// engine fault [`call_callable`] answers with.
 pub fn callable_arity(callable: Value) -> Result<usize, Fault> {
     let ptr = callable.obj_ptr().ok_or_else(|| {
@@ -614,7 +616,7 @@ pub fn callable_arity(callable: Value) -> Result<usize, Fault> {
     #[expect(
         unsafe_code,
         reason = "the caller owns a reference to this object, and the slot \
-                  index is one every closure class has by construction"
+                  index is one every callable class has by construction"
     )]
     let slot = unsafe { crate::object::nvs_object_field_get(ptr, CALLABLE_ARITY_SLOT) };
     let arity = slot.as_int().ok_or_else(|| {
@@ -627,7 +629,7 @@ pub fn callable_arity(callable: Value) -> Result<usize, Fault> {
         .map_err(|_| Fault::fatal("internal error: a `callable` recorded a negative arity"))
 }
 
-/// The [`CALLABLE_PARAM_TAGS_SLOT`] word `closure` recorded — the nibbles
+/// The [`CALLABLE_PARAM_TAGS_SLOT`] word `callable` recorded — the nibbles
 /// [`check_param_tags`] judges its arguments against, read straight off the
 /// object with no call made.
 ///
@@ -637,7 +639,7 @@ pub fn callable_arity(callable: Value) -> Result<usize, Fault> {
 ///
 /// # Errors
 ///
-/// [`Fault::Fatal`] when `closure` is not a closure value at all, or when its
+/// [`Fault::Fatal`] when `callable` is not a callable value at all, or when its
 /// tag slot does not hold an `int` — both compiler or runtime bugs rather than
 /// anything a program can write.
 fn callable_param_tags(callable: Value) -> Result<u64, Fault> {
@@ -650,7 +652,7 @@ fn callable_param_tags(callable: Value) -> Result<u64, Fault> {
     #[expect(
         unsafe_code,
         reason = "the caller owns a reference to this object, and the slot \
-                  index is one every closure class has by construction"
+                  index is one every callable class has by construction"
     )]
     let slot = unsafe { crate::object::nvs_object_field_get(ptr, CALLABLE_PARAM_TAGS_SLOT) };
     let word = slot.as_int().ok_or_else(|| {
@@ -664,12 +666,12 @@ fn callable_param_tags(callable: Value) -> Result<u64, Fault> {
     Ok(u64::from_ne_bytes(word.to_ne_bytes()))
 }
 
-/// The parameter names `closure`'s target declares, in declaration order, or
-/// `None` for a closure that records none.
+/// The parameter names `callable`'s target declares, in declaration order, or
+/// `None` for a callable that records none.
 ///
-/// `None` is the honest answer for an `fn` literal and is not a failure:
+/// `None` is the honest answer for an anonymous function and is not a failure:
 /// [`CALLABLE_PARAM_NAMES`] is written at a `Class::method(...)` and nowhere
-/// else, so a literal's closure genuinely has no such field. A caller that
+/// else, so an anonymous function's object genuinely has no such field. A caller that
 /// *needs* names — [ADR 0006](/docs/decisions/0006.md)
 /// § *Decision*'s `args:` binding, which is by name — turns that `None` into
 /// its own refusal naming the form the program wrote, because only the caller
@@ -677,11 +679,11 @@ fn callable_param_tags(callable: Value) -> Result<u64, Fault> {
 ///
 /// An empty name list is `Some(&[][..])`-shaped rather than `None`: a target
 /// declaring no parameters is a callable an `args:`-less entry may open, and
-/// it is not the same fact as a closure that never recorded any.
+/// it is not the same fact as a callable that never recorded any.
 ///
 /// # Errors
 ///
-/// [`Fault::Fatal`] when `closure` is not an object, when its class has no
+/// [`Fault::Fatal`] when `callable` is not an object, when its class has no
 /// descriptor, or when the field is present and does not hold text. Each is a
 /// compiler or embedder bug rather than a program's: this lowering writes a
 /// `ConstStr` into that slot or writes no field at all.
@@ -745,12 +747,12 @@ pub fn callable_param_names(callable: Value) -> Result<Option<Vec<String>>, Faul
 /// against and the compiled `invoke` reads argument slot *i* at its own
 /// declared representation — an `int` handed to a `string` parameter is
 /// dereferenced as an `NvsStr` pointer. This is the one place that can still
-/// tell, because the closure object carries what the literal declared
+/// tell, because the callable object carries what its source declared
 /// (`nvs_ir::lower`'s `FN_PARAM_TAGS`), and it is on the path *both* callers
 /// take: a `Core` member's callback and `rule:types/anonymous-function`'s `$fn(...)` alike.
 ///
 /// **It is the erased *method* call's check too**, which is why it takes a
-/// word rather than a closure object. A `mixed` receiver defers the same
+/// word rather than a callable object. A `mixed` receiver defers the same
 /// question one storage kind along (`rule:types/erased-member-access`), and
 /// [`crate::MethodRow::param_tags`] carries the callee's nibbles in this very
 /// encoding so that `rule:types/conversion`'s one implicit conversion is written once —
@@ -783,7 +785,7 @@ pub fn callable_param_names(callable: Value) -> Result<Option<Vec<String>>, Faul
 /// [`Fault::Thrown`] carrying [`crate::ThrownClass::Arithmetic`] for an
 /// integer argument to a `float` parameter that the widening above cannot
 /// represent exactly, and [`crate::ThrownClass::Logic`] for a mismatched
-/// argument, and for a closure declaring more parameters than
+/// argument, and for a callable declaring more parameters than
 /// [`CALLABLE_PARAM_TAGS_CAPACITY`] can record — a program can reach both and a
 /// program-reachable failure is a throw
 /// (`rule:errors/propagation`). Refusing the
@@ -864,14 +866,14 @@ pub(crate) fn check_param_tags(callee: &str, word: u64, args: &mut [Value]) -> R
     Ok(())
 }
 
-/// The compiled address of `closure`'s [`CALLABLE_INVOKE`], or a [`Fault`]
+/// The compiled address of `callable`'s [`CALLABLE_INVOKE`], or a [`Fault`]
 /// naming what was passed instead.
 ///
-/// What makes a value a closure is its class's
+/// What makes a value a callable is its class's
 /// [`ClassDesc::is_callable()`] bit, not the `invoke` in its method table: an
 /// ordinary class may declare that name, and calling into one would jump
 /// through a method the caller never type-checked against
-/// `rule:types/callable-values`'s literal. The method lookup that
+/// `rule:types/callable-values`'s anonymous function. The method lookup that
 /// follows the bit can therefore only fail on a descriptor built wrong, which
 /// is why it reports an internal error rather than a mismatch.
 fn invoke_address(callable: Value) -> Result<*const u8, Fault> {
@@ -900,29 +902,29 @@ fn invoke_address(callable: Value) -> Result<*const u8, Fault> {
     let class = unsafe { &*desc };
     if !class.is_callable() {
         return Err(Fault::fatal(format!(
-            "internal error: `{}` was passed where a `callable` was expected, and is not a closure",
+            "internal error: `{}` was passed where a `callable` was expected, and is not a callable",
             class.name()
         )));
     }
     class.method(CALLABLE_INVOKE).ok_or_else(|| {
         Fault::fatal(format!(
-            "internal error: `{}` is marked a closure and declares no `{CALLABLE_INVOKE}`",
+            "internal error: `{}` is marked a callable and declares no `{CALLABLE_INVOKE}`",
             class.name()
         ))
     })
 }
 
-/// A Rust function a closure value can run as its body: what
+/// A Rust function a callable value can run as its body: what
 /// [`native_callable`] builds a `callable` from.
 pub trait NativeBody: 'static {
-    /// Runs on the context of the call, each time the closure is called.
+    /// Runs on the context of the call, each time the callable is called.
     fn run(ctx: &mut Ctx);
 }
 
-/// A closure that declares no parameters and runs `B::run` when called — a
+/// A callable that declares no parameters and runs `B::run` when called — a
 /// `callable` written in Rust, for a caller with no compiled code to take one
 /// from: a crate whose tests register work on `Core\Task::afterResponse`'s
-/// queue, which takes only a closure, and forbid the `unsafe` building one by
+/// queue, which takes only a callable, and forbid the `unsafe` building one by
 /// hand takes.
 ///
 /// **One class table per body type and thread, built at the first call and
@@ -980,7 +982,7 @@ pub fn native_callable<B: NativeBody>() -> Value {
 
 /// [`native_callable`]'s `invoke`: the callee side of [`call_callable`]'s
 /// contract, which releases the one reference it is handed — the receiver,
-/// since the closure declares no parameters — and answers `null`.
+/// since the callable declares no parameters — and answers `null`.
 #[expect(
     unsafe_code,
     reason = "`call_callable` passes the live context of the call, one live value \

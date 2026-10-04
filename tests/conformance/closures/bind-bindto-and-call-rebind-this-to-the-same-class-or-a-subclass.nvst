@@ -73,5 +73,5 @@ try {
 11
 15
 null
-this closure uses `$this`, so it can only be bound to an object of class `Counter` or a subclass of it. The argument is an object of class `Other`
-this closure uses `$this`, so it can only be bound to an object of class `Counter` or a subclass of it. The argument is `null`
+this callable uses `$this`, so it can only be bound to an object of class `Counter` or a subclass of it. The argument is an object of class `Other`
+this callable uses `$this`, so it can only be bound to an object of class `Counter` or a subclass of it. The argument is `null`

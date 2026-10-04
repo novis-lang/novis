@@ -5,8 +5,8 @@
 //!
 //! # A slot is a registration, and the frame ending is what runs it
 //!
-//! `Core\Html::later` records its closure here and returns the placeholder. The
-//! closures run when the request's own frame has returned, all of them at once
+//! `Core\Html::later` records its callable here and returns the placeholder. The
+//! callables run when the request's own frame has returned, all of them at once
 //! as one group through [`crate::host::Host::run_group`], and the response is
 //! the body with each placeholder replaced by its output. The rule's "starts
 //! `fn` at once" is therefore met for the slots among themselves and not yet
@@ -68,7 +68,7 @@
 //! # What it spends
 //!
 //! Nothing for a request that never calls `later`: one `Option<Box<_>>` word.
-//! A request that does holds one entry per slot — the closure reference, its
+//! A request that does holds one entry per slot — the callable reference, its
 //! two fragments and the placeholder bytes — until the pass, and each slot's
 //! output until it is spliced. A slotted response holds no whole page: the
 //! shell is written once and freed, each fill is held from its slot's end
@@ -111,7 +111,7 @@ struct Slot {
     callable: Value,
     /// The whole placeholder, as it was handed to the page.
     marker: Vec<u8>,
-    /// What the slot shows when its closure throws or passes its deadline.
+    /// What the slot shows when its callable throws or passes its deadline.
     error: Vec<u8>,
     deadline: Option<Duration>,
 }
@@ -152,7 +152,7 @@ impl Drop for Slots {
             #[expect(
                 unsafe_code,
                 reason = "the registration owns exactly one reference to its \
-                          closure, and a slot dropped unrun is where it is given back"
+                          callable, and a slot dropped unrun is where it is given back"
             )]
             // SAFETY: the reference was retained for this entry and nothing
             // else points at it.
@@ -164,7 +164,7 @@ impl Drop for Slots {
 }
 
 impl Ctx {
-    /// Registers `closure` as a slot and answers the placeholder bytes the page
+    /// Registers `callable` as a slot and answers the placeholder bytes the page
     /// writes where its output belongs.
     ///
     /// The caller passes an **owned** reference, which the slot keeps until it
@@ -203,7 +203,7 @@ impl Ctx {
             .is_some_and(|slots| !slots.entries.is_empty())
     }
 
-    /// Whether this context runs a slot's closure, or a task inside one. Every
+    /// Whether this context runs a slot's callable, or a task inside one. Every
     /// `Core` member that changes the response head reads it and throws
     /// `LogicError` when it is set.
     #[must_use]
@@ -341,7 +341,7 @@ fn claim(ctx: &mut Ctx, body: &[u8]) -> Option<Vec<Slot>> {
                 let record = crate::floor::note(
                     Level::Warn,
                     "a `Core\\Html::later` placeholder was never written to the page, so its \
-                     closure did not run",
+                     callable did not run",
                 );
                 crate::floor::report(ctx, &record);
                 release(slot.callable);
@@ -579,7 +579,7 @@ fn fill(child: &mut Ctx, callable: Value, deadline: Option<Duration>, error: &[u
     }
 }
 
-/// Calls the slot's closure and answers its output: what it echoed, then the
+/// Calls the slot's callable and answers its output: what it echoed, then the
 /// `Markup` it returned, with its own nested slots already filled.
 fn render(ctx: &mut Ctx, callable: Value) -> Value {
     let answer = match crate::call_callable(ctx, callable, &[]) {

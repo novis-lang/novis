@@ -435,7 +435,7 @@ where
     #[expect(
         unsafe_code,
         reason = "the caller guarantees `ctx` is valid for this call; this \
-                  borrow ends before the closure below takes its own"
+                  borrow ends before the Rust closure below takes its own"
     )]
     let breach = unsafe { &*ctx }.memory_breach();
     if let Some(fault) = breach {
@@ -488,7 +488,7 @@ where
 
     #[expect(
         unsafe_code,
-        reason = "same contract as above; the borrow taken inside the closure \
+        reason = "same contract as above; the borrow taken inside the Rust closure \
                   has ended, so this one cannot alias it"
     )]
     let ctx = unsafe { &mut *ctx };

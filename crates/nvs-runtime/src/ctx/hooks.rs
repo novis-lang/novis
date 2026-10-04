@@ -21,7 +21,7 @@
 use super::*;
 
 impl Ctx {
-    /// Takes ownership of the closure `Core\Fatal::onLimit` registered —
+    /// Takes ownership of the callable `Core\Fatal::onLimit` registered —
     /// `rule:errors/on-limit`'s
     /// tier 1.
     ///
@@ -30,7 +30,7 @@ impl Ctx {
     /// first rung ran an unbounded list of handlers out of one reserved slice
     /// would have to decide what a second handler sees after the first
     /// exhausted it, and "zero retries" is that section's answer to every such
-    /// question. So a second call releases the first closure here, which is
+    /// question. So a second call releases the first callable here, which is
     /// also what makes this the one place with both the reference and the
     /// request's lifetime in hand.
     ///
@@ -72,7 +72,7 @@ impl Ctx {
         self.limit_handler.tag() != Some(crate::Tag::Null)
     }
 
-    /// Takes ownership of the closure `Core\Fatal::onUncaughtThrow` registered
+    /// Takes ownership of the callable `Core\Fatal::onUncaughtThrow` registered
     /// — `rule:errors/on-uncaught-throw`'s
     /// tier 2.
     ///
@@ -162,7 +162,7 @@ impl Ctx {
         drop(self.take_pending());
         // SAFETY: the slot held one owned reference, which this frame now
         // holds. An `Ok` answer is a fresh value this frame owns, and releasing
-        // a `null` — which is what a `void` closure returns — is a no-op. The
+        // a `null` — which is what a `void` callable returns — is a no-op. The
         // exception itself is not released here: this frame never owned a
         // reference to it.
         unsafe {
@@ -244,7 +244,7 @@ impl Ctx {
             index += 1;
             match crate::call_callable(self, hook, &[report]) {
                 // SAFETY: an `Ok` answer is a fresh value this frame owns, and
-                // releasing the `null` a `void` closure answers is a no-op.
+                // releasing the `null` a `void` callable answers is a no-op.
                 Ok(answer) => unsafe { answer.release() },
                 Err(fault) => {
                     // An `exit` writes the status it names before it unwinds,
@@ -320,8 +320,8 @@ impl Ctx {
             crate::Fault::Pending(_) => {}
             crate::Fault::Thrown(class, message) => self.set_pending_as(*class, message.clone()),
             // `Fault` is `#[non_exhaustive]`, and the remaining variants reach
-            // a closure call only as `crate::call_callable`'s own two engine
-            // faults — a value that is not a closure, or one declaring more
+            // a callable call only as `crate::call_callable`'s own two engine
+            // faults — a value that is not a callable, or one declaring more
             // parameters than the one report there is to offer.
             other => self.set_pending(format!("a `Core\\Script::onExit` hook failed: {other:?}")),
         }
@@ -335,7 +335,7 @@ impl Ctx {
         true
     }
 
-    /// Registers `closure` to run once this request's own frame has returned —
+    /// Registers `callable` to run once this request's own frame has returned —
     /// `rule:concurrency/after-response-outlives-the-connection`
     /// , and [`mod@crate::deferred`] owns when that is on a host with no
     /// response.
@@ -370,7 +370,7 @@ impl Ctx {
             return Err(crate::deferred::DeferError::Sealed);
         }
         // Only the first registration takes a slot: what the cap counts is
-        // trees, so a request that defers twenty closures is one tree held open
+        // trees, so a request that defers twenty callables is one tree held open
         // exactly as a request that defers one is.
         if !self.holds_deferred_slot {
             let cap = self.deferred_max_concurrent();
@@ -494,7 +494,7 @@ impl Ctx {
     /// It is handed § 1's `LimitReport`: one array, whose `limit` key names the
     /// limit that stopped the request in the spelling [`Limit::name`] owns. A
     /// handler declaring no parameter still runs — [`crate::call_callable`] trims
-    /// the call to the arity the closure recorded — so the report costs nothing
+    /// the call to the arity the callable recorded — so the report costs nothing
     /// to a program that does not read it beyond the allocations building it.
     #[expect(
         unsafe_code,
@@ -610,7 +610,7 @@ impl Ctx {
         // holds; `call_callable` took its own of every slot for the callee to
         // release, so the report's reference here is still this frame's however
         // the call went. An `Ok` answer is a fresh value this frame owns, and
-        // releasing a `null` — which is what a `void` closure returns — is a
+        // releasing a `null` — which is what a `void` callable returns — is a
         // no-op.
         unsafe {
             if let Ok(answer) = answer {
@@ -621,7 +621,7 @@ impl Ctx {
         }
     }
 
-    /// Takes ownership of the closure `Core\Signal::onShutdown` registered —
+    /// Takes ownership of the callable `Core\Signal::onShutdown` registered —
     /// what this request runs when the process is asked to stop.
     ///
     /// [`Self::set_limit_handler`]'s contract exactly, and for its reasons:
@@ -688,7 +688,7 @@ impl Ctx {
         // holds; `call_callable` took its own for the callee to release, so this
         // frame's is still this frame's however the call went. An `Ok` answer is
         // a fresh value this frame owns, and releasing a `null` — which is what
-        // a `void` closure returns — is a no-op.
+        // a `void` callable returns — is a no-op.
         unsafe {
             if let Ok(answer) = answer {
                 answer.release();
@@ -747,11 +747,11 @@ mod tests {
         crate::abi::OK
     }
 
-    /// A closure value declaring one parameter whose `invoke` is a plain Rust
+    /// A callable value declaring one parameter whose `invoke` is a plain Rust
     /// function.
     ///
     /// [`crate::call_callable`] reads only the arity slot, the parameter tags
-    /// slot, and the `invoke` method's address in its class off a closure — so
+    /// slot, and the `invoke` method's address in its class off a callable — so
     /// a test needs no compiler in front of it to register a hook. Everything else in `nvs_ir::lower::lower_anon_fn`'s representation
     /// is captured state, and a native callback captures nothing.
     ///

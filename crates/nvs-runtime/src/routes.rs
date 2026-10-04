@@ -45,8 +45,8 @@
 //! leads to. `rule:security/route-capture-is-laundered-by-its-type` is the home
 //! of the split and of what it costs.
 //!
-//! Where two rows both match, the one that is *more literal earlier* wins:
-//! every row carries a rank — one byte per segment, literal below capture below
+//! Where two rows both match, the one with *more fixed segments earlier* wins:
+//! every row carries a rank — one byte per segment, fixed below capture below
 //! optional below catch-all — and the smallest rank in load order is the answer.
 //! That is `matchit`'s left-to-right precedence, which `rule:routing/path-grammar` names as the
 //! model, stated as a comparison rather than grown out of a trie.
@@ -83,7 +83,7 @@
 //! [`Routes::match_request`] compares the request against every row of the
 //! right verb rather than descending a trie, so what it costs grows with the
 //! **table** rather than with the path. That is a stated bound, not a gap. A
-//! row is a verb comparison, and for the rows that survive one, a literal
+//! row is a verb comparison, and for the rows that survive one, a fixed
 //! segment or two before [`Route::fill`] gives up — cheap enough that the
 //! length of a table an application declares does not show in the request it
 //! rides inside, which is what a trie would have to beat to be worth the
@@ -241,7 +241,7 @@ pub enum Param {
     },
 }
 
-/// § 2's three capture forms and the literal that is none of them, as the
+/// § 2's three capture forms and the fixed segment that is none of them, as the
 /// matcher walks a path rather than as an author wrote one.
 ///
 /// Parsed once, when the row is built, because a path is fixed for the life of
@@ -251,7 +251,7 @@ pub enum Param {
 enum Seg {
     /// Compared byte for byte and case-sensitively
     /// (`rule:classes/names-resolve-case-sensitively`).
-    Literal(String),
+    Fixed(String),
     /// `{name}` — one whole segment, which may not be empty.
     One(String),
     /// `{name?}` — one whole segment or none.
@@ -264,7 +264,7 @@ impl Seg {
     /// This form's place in § 2's precedence: lower binds tighter.
     fn rank(&self) -> u8 {
         match self {
-            Self::Literal(_) => 0,
+            Self::Fixed(_) => 0,
             Self::One(_) => 1,
             Self::Optional(_) => 2,
             Self::Rest(_) => 3,
@@ -314,8 +314,8 @@ impl Route {
     /// The row a compiled `#[Route]` becomes, with its path read as § 2's
     /// grammar.
     ///
-    /// A segment that is neither a literal nor a well-formed capture is taken
-    /// as a **literal**, which is the fail-closed reading: it then matches its
+    /// A segment that is neither fixed text nor a well-formed capture is taken
+    /// as a **fixed segment**, which is the fail-closed reading: it then matches its
     /// own text and absorbs nothing. Such a path does not compile
     /// (`nvs_types::routes::parse_path` refuses it), so this is only reachable
     /// from a table built by hand.
@@ -442,7 +442,7 @@ impl Route {
         let mut index = 0usize;
         for segment in &self.segments {
             match segment {
-                Seg::Literal(text) => {
+                Seg::Fixed(text) => {
                     if *request.get(index)? != text.as_str() {
                         return None;
                     }
@@ -519,7 +519,7 @@ impl Route {
                 .any(|value| value == text)
                 .then(|| Param::Text(text.to_owned())),
             // Compared byte for byte and case-sensitively under either
-            // spelling, as `Seg::Literal` is: a case name is a name
+            // spelling, as `Seg::Fixed` is: a case name is a name
             // (`rule:classes/names-resolve-case-sensitively`), and a backing
             // value has one decimal spelling and no other.
             CaptureConv::Enum { cases, .. } => cases
@@ -545,14 +545,14 @@ fn segments_of(path: &str) -> Vec<Seg> {
                 .strip_prefix('{')
                 .and_then(|rest| rest.strip_suffix('}'))
             else {
-                return Seg::Literal(segment.to_owned());
+                return Seg::Fixed(segment.to_owned());
             };
             if let Some(name) = inner.strip_suffix("...") {
                 Seg::Rest(name.to_owned())
             } else if let Some(name) = inner.strip_suffix('?') {
                 Seg::Optional(name.to_owned())
             } else if inner.is_empty() {
-                Seg::Literal(segment.to_owned())
+                Seg::Fixed(segment.to_owned())
             } else {
                 Seg::One(inner.to_owned())
             }
@@ -649,7 +649,7 @@ impl Routes {
     }
 
     /// Whether the unit that declared this table builds an absolute link over a
-    /// literal route name.
+    /// route name given as a string literal.
     ///
     /// Read at boot and never per request: it is
     /// `rule:routing/an-origin-is-per-mount-and-checked-at-boot`'s question,
@@ -737,7 +737,7 @@ impl Routes {
             if row.fill(&request).is_none() {
                 continue;
             }
-            // Two rows may claim one path under one verb — a literal and the
+            // Two rows may claim one path under one verb — a fixed segment and the
             // capture it beat — and `Allow: GET, GET` is not a header.
             if !verbs
                 .iter()
@@ -755,8 +755,8 @@ mod tests {
     use super::{Capture, CaptureConv, Decimal, Param, Routes};
 
     /// A table of the shapes § 2's grammar admits, in a deliberately
-    /// unhelpful load order: the capture rows come before the literals they
-    /// have to lose to.
+    /// unhelpful load order: the capture rows come before the fixed segments
+    /// they have to lose to.
     fn table() -> Routes {
         Routes::new(vec![
             super::Route::new(
@@ -853,12 +853,12 @@ mod tests {
     /// asserted where the answer is a *different* row rather than nothing, so a
     /// matcher that took the first shape-wise hit fails here.
     #[test]
-    fn a_literal_beats_a_capture_and_a_failed_conversion_is_a_miss() {
+    fn a_fixed_segment_beats_a_capture_and_a_failed_conversion_is_a_miss() {
         let routes = table();
         assert_eq!(
             routes
                 .match_request("GET", "/users/new")
-                .expect("the literal row")
+                .expect("the fixed-segment row")
                 .route()
                 .handler(),
             "App\\Users::new"
@@ -919,7 +919,7 @@ mod tests {
     }
 
     /// The answer is the *verbs*, once each and in load order — not one entry
-    /// per row, which the literal-beats-a-capture table would otherwise make
+    /// per row, which the fixed-segment-beats-a-capture table would otherwise make
     /// into `Allow: GET, GET`.
     #[test]
     fn a_paths_verbs_are_reported_once_each_in_load_order() {

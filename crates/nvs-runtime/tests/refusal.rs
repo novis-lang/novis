@@ -13,7 +13,7 @@
 //! the report `rule:errors/on-limit` promises, inside the slice reserved for it
 //! — is asserted end to end by
 //! `tests/conformance/error/one-operation-past-the-ceiling-is-refused-before-it-allocates.nvst`,
-//! where there is a registered closure to run. `Ctx::run_limit_handler` runs
+//! where there is a registered callable to run. `Ctx::run_limit_handler` runs
 //! nothing without one, so a case here could only assert the accessors it is
 //! built from.
 

@@ -27,7 +27,7 @@
 //!
 //! # What crosses, and who owns it afterwards
 //!
-//! A [`Program`] is a boxed closure, so the unit behind it is the resolver's to
+//! A [`Program`] is a boxed Rust closure, so the unit behind it is the resolver's to
 //! keep alive and its own to share: `rule:security/isolate-shares-nothing`'s "an isolate shares immutable
 //! compiled code" is a property of *that* cache, not of this seam. What the
 //! seam fixes is only the shape both ends agree on, and the argument's
@@ -107,7 +107,7 @@
 //! thread stays the seam; what is per process is the table, exactly as before.
 //!
 //! What crosses is therefore the handle and never a [`Program`], which is a
-//! boxed closure this crate never asked to be `Send` and is built on the core
+//! boxed Rust closure this crate never asked to be `Send` and is built on the core
 //! about to run it. [`resolve`]'s answer and [`ResolveError`] are unchanged by
 //! any of this: a started core holding the published handle answers a path the
 //! way the booting core does, and one holding nothing answers
@@ -152,7 +152,7 @@ use crate::{Fault, NvsArray, call_static_bound};
 /// floor leaks it, and a program that releases it itself has to be sure nothing
 /// else will read it — so there is one right answer and it is that method.
 ///
-/// A boxed closure rather than a path, and rather than a compiled artifact type
+/// A boxed Rust closure rather than a path, and rather than a compiled artifact type
 /// this crate would have to name: the module docs own why.
 pub type Program = Box<dyn FnOnce(&mut Ctx, Value) -> Value>;
 
@@ -417,7 +417,8 @@ fn published_slot() -> MutexGuard<'static, Option<SharedResolver>> {
 ///
 /// A relative path is refused rather than looked up in the working directory
 /// (`rule:programs/relative-paths-resolve-from-their-file`). Every caller hands
-/// over an absolute path — the compiler joined a literal to its file's folder,
+/// over an absolute path — the compiler joined a path given as a string
+/// literal to its file's folder,
 /// a door refused a relative value the program built, and the configuration
 /// joined `[[schedule]] script` and `[log] handler` to their file's folder — so
 /// a relative one arriving here is a defect upstream, reported with the door's
@@ -457,7 +458,7 @@ pub fn resolve(ctx: &Ctx, path: &str) -> Result<Program, ResolveError> {
 /// already judged that the map names exactly those parameters.
 ///
 /// It is built **here** rather than at the spawn site so that the seam carries
-/// the two names rather than a closure: a [`Program`] is the parent's to run
+/// the two names rather than a Rust closure: a [`Program`] is the parent's to run
 /// and means nothing on another core, and
 /// `rule:concurrency/on-worker-runs-the-child-on-another-core` needs the core
 /// that starts a child to be the one that prepares it.
@@ -757,7 +758,7 @@ mod tests {
         // `rule:security/isolate-shares-nothing`'s second form is code the
         // parent's unit already holds, so the core that starts such a child
         // needs no compiler on it — which is why the entry carries the label
-        // and the parameter names rather than a closure over either.
+        // and the parameter names rather than a Rust closure over either.
         assert!(!is_installed());
         let entry = Entry::Method {
             label: "Chat::run".to_owned(),

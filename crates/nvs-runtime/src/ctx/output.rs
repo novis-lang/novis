@@ -1138,7 +1138,7 @@ mod tests {
         );
     }
 
-    /// A capture is scoped to a closure, so captures nest by call nesting: the
+    /// A capture is scoped to the callable it runs, so captures nest by call nesting: the
     /// innermost one takes the bytes, and what it re-emits afterwards lands in
     /// the one outside it.
     #[test]
