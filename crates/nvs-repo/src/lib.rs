@@ -29,7 +29,8 @@
 //! [`scratch`] is where a test writes. It returns a fresh directory under `target/test-scratch/`
 //! and deletes it when the guard drops, also when the test panics. No test writes into the system
 //! temp directory. A scratch directory is written and never read from the tree, so it records
-//! nothing, and a test that only uses one stays narrow.
+//! nothing, and a test that only uses one stays narrow. [`scratch_private`] is the same directory
+//! locked to this account, for a test that runs the configuration's ownership check against it.
 
 use std::ffi::OsStr;
 use std::fs::OpenOptions;
@@ -169,12 +170,14 @@ pub fn spawn(program: impl AsRef<OsStr>, reads: &[&str]) -> Command {
     Command::new(program)
 }
 
-/// The directory [`scratch`] made. It derefs to the directory's path, and dropping it deletes the
-/// directory and everything in it. A test that needs the directory across two steps keeps the
-/// guard alive for both.
+/// The directory [`scratch`] or [`scratch_private`] made. It derefs to the directory's path, and
+/// dropping it deletes the directory and everything in it. A test that needs the directory across
+/// two steps keeps the guard alive for both.
 #[derive(Debug)]
 pub struct Scratch {
     path: PathBuf,
+    /// What the drop deletes: `path` itself, or the locked directory around it.
+    root: PathBuf,
 }
 
 impl Scratch {
@@ -204,7 +207,7 @@ impl Drop for Scratch {
     /// here while a failing test unwinds would abort the binary, so what is left stays under
     /// `target/test-scratch/` for `cargo clean`.
     fn drop(&mut self) {
-        let _ = std::fs::remove_dir_all(&self.path);
+        let _ = std::fs::remove_dir_all(&self.root);
     }
 }
 
@@ -217,6 +220,43 @@ impl Drop for Scratch {
 /// If `name` is empty or holds a separator or `..`, and if the directory cannot be created.
 #[must_use]
 pub fn scratch(name: &str) -> Scratch {
+    let path = fresh(name);
+    Scratch {
+        root: path.clone(),
+        path,
+    }
+}
+
+/// As [`scratch`], for a test that runs `rule:config/ownership-is-the-trust-boundary`'s check
+/// against what it writes. That check reads a path and its parent, and `target/` may inherit a
+/// write grant to a group from wherever the checkout sits, so a plain scratch directory can fail
+/// it on one machine and pass on another. This one is `case/` inside a directory only this
+/// account can reach: mode `0700` on Unix, and on Windows a DACL with inheritance cut and one
+/// entry, `OWNER RIGHTS` full control for this directory and everything created in it. The entry
+/// is a SID, because account names are localized, and `OWNER RIGHTS` names whoever owns each
+/// file, which is this account for everything the test creates. Both directories are deleted
+/// when the guard drops.
+///
+/// One `icacls` process per call on Windows, so a test that needs no trust check uses
+/// [`scratch`].
+///
+/// # Panics
+///
+/// As [`scratch`], and if the directory cannot be locked.
+#[must_use]
+pub fn scratch_private(name: &str) -> Scratch {
+    let root = fresh(name);
+    lock(&root);
+    let path = root.join("case");
+    std::fs::create_dir(&path).unwrap_or_else(|err| panic!("{}: {err}", path.display()));
+    // A Windows DACL is inherited by `case/`, and a Unix mode is not.
+    #[cfg(unix)]
+    lock(&path);
+    Scratch { path, root }
+}
+
+/// `target/test-scratch/<name>-<pid>-<n>`, created empty.
+fn fresh(name: &str) -> PathBuf {
     static NEXT: AtomicUsize = AtomicUsize::new(0);
     assert!(
         !name.is_empty() && !name.contains(['/', '\\']) && !name.contains(".."),
@@ -229,7 +269,31 @@ pub fn scratch(name: &str) -> Scratch {
         .join(format!("{name}-{}-{n}", std::process::id()));
     let _ = std::fs::remove_dir_all(&path);
     std::fs::create_dir_all(&path).unwrap_or_else(|err| panic!("{}: {err}", path.display()));
-    Scratch { path }
+    path
+}
+
+/// Mode `0700`.
+#[cfg(unix)]
+fn lock(dir: &Path) {
+    use std::os::unix::fs::PermissionsExt;
+    std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o700))
+        .unwrap_or_else(|err| panic!("{}: {err}", dir.display()));
+}
+
+/// The DACL [`scratch_private`] describes.
+#[cfg(windows)]
+fn lock(dir: &Path) {
+    let done = Command::new("icacls")
+        .arg(dir)
+        .args(["/inheritance:r", "/grant:r", "*S-1-3-4:(OI)(CI)F"])
+        .output()
+        .unwrap_or_else(|err| panic!("icacls: {err}"));
+    assert!(
+        done.status.success(),
+        "icacls on {}: {}",
+        dir.display(),
+        String::from_utf8_lossy(&done.stdout),
+    );
 }
 
 #[cfg(test)]
@@ -311,6 +375,16 @@ mod tests {
         let message = failed.unwrap_err();
         let shown = message.downcast_ref::<String>().unwrap();
         assert!(!Path::new(shown).exists());
+    }
+
+    #[test]
+    fn a_private_scratch_dir_is_removed_with_the_dir_around_it() {
+        let dir = scratch_private("private");
+        let root = dir.parent().unwrap().to_path_buf();
+        assert!(dir.is_dir() && dir.ends_with("case"));
+        std::fs::write(dir.join("a.txt"), "a").unwrap();
+        drop(dir);
+        assert!(!root.exists());
     }
 
     #[test]

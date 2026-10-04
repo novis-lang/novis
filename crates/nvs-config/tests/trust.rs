@@ -53,6 +53,21 @@ fn a_file_this_account_owns_is_trusted_and_comes_back_canonical() {
     drop(fs::remove_dir_all(&dir));
 }
 
+/// `nvs_repo::scratch_private` is what a test that runs this check writes into, so it must pass the
+/// check on every machine: a file in it, the directory itself and a subdirectory are all inside
+/// the boundary, whatever `target/` inherits.
+#[test]
+fn a_private_scratch_dir_is_inside_the_boundary() {
+    let dir = nvs_repo::scratch_private("trust-private");
+    let file = dir.join("nvs.toml");
+    fs::write(&file, "").expect("a configuration file");
+    fs::create_dir(dir.join("conf.d")).expect("a subdirectory");
+
+    check(&file).expect("a file in a private scratch directory");
+    check(&dir).expect("the private scratch directory and the one around it");
+    check(&dir.join("conf.d")).expect("a subdirectory, which inherits the lock");
+}
+
 /// A path that is not there is `Unreadable` and not a `Breach`. The resolver reports the two
 /// differently on purpose: absence is what `optional` is allowed to cover, and a breach never is.
 #[test]
