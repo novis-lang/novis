@@ -347,7 +347,7 @@ pub struct CapNet {
     /// `true` is not a spelling it has, for `internal`'s reason.
     pub downgrade: Option<Setting>,
     /// The addresses inside `rule:security/net-address-policy`'s denied ranges this deployment reaches anyway — the
-    /// operator's exception, written as IP address literals and never as hostnames, because the
+    /// operator's exception, written as IP addresses and never as hostnames, because the
     /// policy is asked of a resolved address and a name can resolve anywhere.
     ///
     /// It widens nothing on its own: an address named here is still only reachable under a host
@@ -634,7 +634,7 @@ pub struct HttpClient {
 /// three settle the one `ClientConfig` every session in the process shares
 /// (`nvs_host::tls`'s module doc § *The trust anchors are compiled in*), so a request setting one
 /// would be setting it for every co-resident request. There is no code-side spelling for any of
-/// them, which is the same closure `rule:security/one-tls-client` puts on a driver: a program does
+/// them, which is the same limit `rule:security/one-tls-client` puts on a driver: a program does
 /// not widen a decision the deployment made.
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(default, deny_unknown_fields)]
@@ -717,7 +717,7 @@ pub struct HttpClientProxy {
 ///
 /// Neither has a spelling that removes the bound: `false` and zero are both `E0647`, because
 /// `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect` is about exactly this pair of
-/// waits and `rule:http-server/no-spelling-for-an-unbounded-wait` is the same closure one level up.
+/// waits and `rule:http-server/no-spelling-for-an-unbounded-wait` is the same limit one level up.
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(default, deny_unknown_fields)]
 pub struct HttpClientSocket {

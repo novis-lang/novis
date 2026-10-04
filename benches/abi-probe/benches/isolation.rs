@@ -27,7 +27,7 @@
 //!   divided by the number of children, and the shared module's own doc owns why
 //!   both halves are measured here rather than one of them being quoted.
 //!
-//! The child here is a closure rather than a compiled unit, deliberately: a
+//! The child here is a Rust closure rather than a compiled unit, deliberately: a
 //! compiled one would measure `nvs-cli`'s unit cache instead, and the cache is
 //! warm by construction in the shape ADR 0006 sells — one path spawned many
 //! times. What is left is the boundary, plus the one `Box` a resolver allocates

@@ -284,7 +284,7 @@ impl Exporters {
                 let _live = live;
                 body(&theirs);
             });
-        // A closure that was never run was dropped with its count.
+        // A Rust closure that was never run was dropped with its count.
         spawned.map(|_| stop)
     }
 }

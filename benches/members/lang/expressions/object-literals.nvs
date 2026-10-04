@@ -1,6 +1,6 @@
 <?nvs
 // A request builds a small object for one step of its work, writes a field
-// and reads both of them back. This measures the object literal together
+// and reads both of them back. This measures the anonymous object together
 // with those reads and that write. Every round takes its input from the
 // round before it, so no work can be skipped.
 // bench: iterations 200000

@@ -49,7 +49,7 @@ static RAN_ON: Mutex<Vec<ThreadId>> = Mutex::new(Vec::new());
 /// The resolver this process publishes: one script, compiled wherever it is
 /// asked for.
 ///
-/// A closure rather than anything compiled, which is all a `Program` is
+/// A Rust closure rather than anything compiled, which is all a `Program` is
 /// (`nvs_runtime::script::Program`) — the questions here are where it is built
 /// and where it runs, and neither of those is a question about the language.
 #[derive(Debug)]

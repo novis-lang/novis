@@ -72,7 +72,7 @@
 //!
 //! The second half is read off that tree at the one point it means anything —
 //! the moment the test's body returns, on the test's own stack, in
-//! [`run_in_isolate`]'s program closure. **A task still running then is a
+//! [`run_in_isolate`]'s program, a Rust closure. **A task still running then is a
 //! failure named as such** ([`Outcome::with_tasks_left_running`]), because the
 //! alternative is what the scheduler does on its own: cancel the leftovers as
 //! the task retires and report a green test that never waited for its work.
@@ -661,7 +661,7 @@ impl nvs_runtime::inproc::Answering for UnderTest {
 
 /// Lowers and compiles `checked` into the **one** unit every test isolate of
 /// this run shares — `rule:testing/isolate-per-test`'s "shares compiled code with its siblings"
-/// is this `Rc` and the program closure each child holds a clone of.
+/// is this `Rc` and the program's Rust closure each child holds a clone of.
 ///
 /// `Err` is the message [`crate::report_internal`] renders; a compile that
 /// fails ends the run rather than any one test.
@@ -1045,7 +1045,7 @@ fn random_seed(case: &nvs_types::testing::TestCase) -> Option<u64> {
 /// its receiver, its statics, its ledger, its `echo` — is built on the child's
 /// own context and released with it. What this function does on the parent's
 /// side is only what has to happen before the child exists: § 9's row, § 8's
-/// copies, and the closure the two are moved into.
+/// copies, and the Rust closure the two are moved into.
 fn run_in_isolate(
     unit: &Rc<nvs_codegen::Unit>,
     ctx: &mut nvs_runtime::Ctx,
@@ -1123,7 +1123,7 @@ fn run_the_test(
     let crossed = match nvs_runtime::CrossedFixtures::copy(fixtures, &needed) {
         Some(Ok(crossed)) => crossed,
         // A fixture the parent built that has no meaning inside an isolate —
-        // a closure, an object over a host handle. It is reported against the
+        // a callable, an object over a host handle. It is reported against the
         // test that asked for it, which is where the name in the message
         // means something, and nothing has run.
         Some(Err(refused)) => {
@@ -1192,7 +1192,7 @@ fn run_the_test(
     };
     let seed = random_seed(case);
     // § 17's block name, read on the parent's side with every other option and
-    // owned because the closure outlives this frame — but *opened* inside the
+    // owned because the Rust closure outlives this frame — but *opened* inside the
     // child, which is the one decision this mechanism makes. A connection is
     // memoized on the context it was opened on, so a transaction begun out here
     // would be on a connection the test's own `Core\Db::connect` could never
@@ -1276,7 +1276,7 @@ fn run_the_test(
         };
         // § 16, read off the tree from inside the test's own task and nowhere
         // else: a child spawned here is a child of *this* task, and once this
-        // closure returns the scheduler cancels whatever is left rather than
+        // Rust closure returns the scheduler cancels whatever is left rather than
         // reporting it. `nvs_host::children_still_running` owns why an awaited
         // child is already gone from the count.
         // § 14's mismatches, taken on the child's own stack for the reason its
@@ -1381,7 +1381,7 @@ fn wants_db(case: &nvs_types::testing::TestCase) -> Option<&str> {
 ///
 /// **The handler holds a [`std::rc::Weak`] of the unit, never an [`Rc`].** The
 /// accept loop parks on a socket nothing will connect to again once the test is
-/// over, and a parked task's closure is dropped when the scheduler reaps it
+/// over, and a parked task's Rust closure is dropped when the scheduler reaps it
 /// rather than when [`Self::stop`] asks — so a strong handle here would keep the
 /// whole compiled program alive on a schedule this function does not control.
 /// A request arriving after the test that owns the program has ended finds no
@@ -1521,7 +1521,7 @@ impl TestServer {
 /// sends crosses the same door as one off the wire, so the check has to be taken
 /// here too. It is read once rather than per request because the listener
 /// outlives no reload — a test's tree is the one the case started under — and
-/// because the closure that answers is `'static` and a borrow of the context's
+/// because the Rust closure that answers is `'static` and a borrow of the context's
 /// snapshot is not.
 struct Door {
     /// `[http] csrf_key` decoded, or `None` where the tree names none.
@@ -1551,7 +1551,7 @@ impl Door {
 /// shape `UnderTest::answer` builds for § 18's first mechanism, over a
 /// carrier `hyper` filled instead of one a `Core` member wrote.
 ///
-/// It is a free function rather than a closure body so that the two halves read
+/// It is a free function rather than a Rust closure's body so that the two halves read
 /// side by side: everything about *which* program answers is the same, and
 /// everything about *what arrived* is the door's.
 fn answer_on_the_wire(

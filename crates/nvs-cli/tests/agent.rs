@@ -462,9 +462,9 @@ fn a_class_card_prints_its_prose_above_its_members() {
     );
 }
 
-/// The markup literal has no member to be named for, so the word `html` has to
+/// The html template has no member to be named for, so the word `html` has to
 /// reach it through a heading — and through the class whose value it makes —
-/// or an agent concludes from six member lines that no literal exists.
+/// or an agent concludes from six member lines that no html template exists.
 #[test]
 fn find_html_reaches_the_html_template_and_the_markup_class() {
     let (out, _, ok) = agent(&["find", "html"]);
@@ -476,14 +476,14 @@ fn find_html_reaches_the_html_template_and_the_markup_class() {
     );
     let section = lines
         .iter()
-        .find(|line| line.starts_with("types#") && line.contains("template literal"))
-        .unwrap_or_else(|| panic!("the literal's heading is among {lines:?}"));
+        .find(|line| line.starts_with("types#") && line.contains("template"))
+        .unwrap_or_else(|| panic!("the html template's heading is among {lines:?}"));
 
     let (card, _, ok) = agent(&["show", symbol_of(section)]);
     assert!(ok, "the section's symbol resolves");
     assert!(
         card.contains("begin with a variable") && card.contains("<?= expr ?>"),
-        "both hole grammars are stated at the literal: {card}"
+        "both hole grammars are stated at the html template: {card}"
     );
 }
 

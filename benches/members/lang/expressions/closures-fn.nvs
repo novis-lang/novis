@@ -1,8 +1,8 @@
 <?nvs
-// A closure is what a program hands to a sort or a filter. It is called far
-// more often than it is written. This measures three calls per round. They go
-// to a closure with no captures, one holding a captured number, and one
-// written as a block.
+// A program passes an anonymous function to a sort or a filter, and calls it
+// many times. This measures three calls per round: to an anonymous function
+// that captures nothing, to one that captures a number, and to one written
+// as a block.
 // bench: iterations 200000
 // bench: allocations 0
 // proof: gap nvs-runtime/call-through-a-callable-builds-its

@@ -87,7 +87,7 @@ nvs-stdlib.workspace = true
 # server answers is `nvs-lsp`'s. The direction matters — `rule:ide/stdout-belongs-to-the-protocol`
 # gives stdout to the protocol, so nothing this crate prints may reach it while
 # the server is running, and `nvs-lsp`'s own `tests/stdout_policy.rs` is what
-# keeps that true as its closure grows.
+# keeps that true as its dependencies grow.
 nvs-lsp.workspace = true
 # `nvs fmt` is that crate's one `format` call per file, and the I/O modes around
 # it. Every layout rule lives there and none of them here, so this binary owns

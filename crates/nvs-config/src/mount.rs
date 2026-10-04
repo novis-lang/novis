@@ -448,7 +448,7 @@ fn no_root(written_in: Option<&Origin>) -> Diagnostic {
 
 /// One `scan` glob, walked segment by segment from `root`.
 ///
-/// A `*` lists a directory and a literal segment joins; a candidate that does not exist drops out
+/// A `*` lists a directory and a fixed segment joins; a candidate that does not exist drops out
 /// as the walk passes through it, so nothing is ever asked about a path the disk does not hold. The
 /// capture rules are applied to the survivors and not to the listings, because a name only has to
 /// spell what it resolves to once it is a path the server could execute. A survivor that fails

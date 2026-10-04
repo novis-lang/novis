@@ -32,7 +32,7 @@
 //!   values, so taking it by value costs nothing at all.
 //! - **A buffered statement's rows come back materialized.** `rusqlite`'s `Rows`
 //!   borrows the statement, which borrows the connection, so it cannot outlive
-//!   the closure that produced it. [`SqliteRows`] therefore holds the whole
+//!   the Rust closure that produced it. [`SqliteRows`] therefore holds the whole
 //!   result set, which is memory spent — the priority ordering's last item —
 //!   to keep every other member one handoff and one answer.
 //!
@@ -346,7 +346,7 @@ impl rusqlite::types::ToSql for SqliteValue {
 /// # Errors
 ///
 /// `InvalidInput` for a value with no storage class to take — an array, an
-/// object, a closure, a `uint` past [`i64::MAX`] and a `NaN` — where the whole
+/// object, a callable, a `uint` past [`i64::MAX`] and a `NaN` — where the whole
 /// answer is the tag and never the value, for the reason [`crate::tds::encode`]
 /// gives.
 pub fn encode(value: Value) -> io::Result<SqliteValue> {
@@ -682,7 +682,7 @@ fn lost_walk() -> io::Error {
 ///   defaults are settled on the same footing.
 /// - **No busy timeout.** A lock contention answers `SQLITE_BUSY` at once, which
 ///   § 8 normalises to `Deadlock`, which is one of the kinds § 7's `retries`
-///   re-runs a closure on. A timeout set here would block a pool thread inside C
+///   re-runs a callable on. A timeout set here would block a pool thread inside C
 ///   for the duration and hide the conflict from the mechanism written to handle
 ///   it.
 ///
@@ -1015,7 +1015,7 @@ impl SqliteConn {
     ///
     /// A refusal stops the loop and the sets already applied stay applied, which
     /// is § 4's rule on every driver: `executeMany` is not a transaction, and a
-    /// caller that needs one writes § 7's closure around it.
+    /// caller that needs one calls it inside § 7's `transaction()`.
     ///
     /// # Errors
     ///
@@ -1056,7 +1056,7 @@ impl SqliteConn {
     /// [`Isolation`]'s own doc makes explicitly not the case § 7 says to throw
     /// over: nothing a program can observe is weakened by a stronger guarantee.
     /// The refusal § 7 requires is for a driver that would quietly run the
-    /// closure at a *weaker* level, and this backend has no weaker level to run
+    /// callable at a *weaker* level, and this backend has no weaker level to run
     /// it at. A `WAL` database's readers not blocking on a writer is the same
     /// serializable history reached without the lock, not a second level.
     ///
@@ -2258,7 +2258,7 @@ mod tests {
     }
 
     /// § 7's nested rollback undoes its own level and leaves the outer one's
-    /// writes alone — the composition the closure form exists for, asserted on
+    /// writes alone — the composition the callable form exists for, asserted on
     /// the rows rather than on the commands sent.
     #[test]
     fn a_nested_rollback_undoes_its_level_and_not_the_one_around_it() {

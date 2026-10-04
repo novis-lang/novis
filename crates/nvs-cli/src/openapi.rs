@@ -315,7 +315,7 @@ fn parameter(param: &RouteParam) -> Value {
 ///
 /// `allowed` is [`RouteParam::allowed`], and it *joins* the type mapping rather
 /// than replacing it: `enum` constrains a value, it does not describe one. A
-/// union of literal types has no entry in the list above and never will — its
+/// set of allowed values has no entry in the list above and never will — its
 /// rendering is `"en"|"de"|"fr"`, which names no JSON Schema type — so the set
 /// joins the empty schema and is the whole of what the parameter says,
 /// which is exactly
@@ -345,8 +345,8 @@ fn parameter(param: &RouteParam) -> Value {
 /// JSON Schema type either, and its set is the whole of what it says: the case
 /// spellings
 /// `rule:routing/an-enum-capture-is-spelled-by-its-backing-value-or-its-case-name`
-/// decided while compiling, which [`RouteParam::admits`] hands over beside a
-/// literal union's members — one list, because a document listing anything else
+/// decided while compiling, which [`RouteParam::admits`] hands over beside the
+/// members of a set of allowed values — one list, because a document listing anything else
 /// is a generated client building links the router answers `404` to.
 fn schema(ty: Option<&str>, allowed: Option<&[&str]>, parses: bool) -> Value {
     let mut rendered = match ty {

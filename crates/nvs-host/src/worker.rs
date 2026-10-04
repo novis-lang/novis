@@ -254,7 +254,7 @@ struct Inbox {
 
 impl std::fmt::Debug for Inbox {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        // Hand-written: a `Start` carries a closure and has no `Debug`. What is
+        // Hand-written: a `Start` carries a Rust closure and has no `Debug`. What is
         // printed is the state a reader of one of these actually asks about —
         // how much work is here and whether the core is still taking any.
         f.debug_struct("Inbox")
@@ -897,7 +897,7 @@ where
 
 /// A core that has agreed to take one placement, held before the work exists.
 ///
-/// [`post`] is the whole of this for a caller whose work is a closure it already
+/// [`post`] is the whole of this for a caller whose work is a Rust closure it already
 /// owns: it answers a [`Posted`] or hands the closure back untouched. A caller
 /// that has to **consume** something to build the closure needs the two steps
 /// apart, and `spawn script … on: "worker"` is one —

@@ -21,7 +21,7 @@
 //! # Decision: one unit per written path, swapped when its content moves
 //!
 //! `rule:security/isolate-shares-nothing`'s "an isolate shares immutable compiled code" is a property of this
-//! cache and of nothing else — the seam hands over a closure and has no opinion
+//! cache and of nothing else — the seam hands over a Rust closure and has no opinion
 //! about what is behind it. So a path is compiled once and every later isolate
 //! over it runs the same pages, which is what makes spawning a child cheap
 //! enough to be worth doing, until the file behind it changes.
@@ -1956,7 +1956,7 @@ mod tests {
 
     /// The same file with a body of its own, for a case whose statement is not
     /// an `echo`. The path is handed back with forward slashes available from
-    /// [`written`], because a Windows temp path inside a source literal is a
+    /// [`written`], because a Windows temp path inside a string literal in the source is a
     /// run of escapes rather than a path.
     fn a_file_running(name: &str, body: &str) -> std::path::PathBuf {
         let dir = std::env::temp_dir().join(format!("nvs-swap-{}-{name}", std::process::id()));
@@ -1966,7 +1966,7 @@ mod tests {
         path
     }
 
-    /// One of those paths as a source literal can carry it.
+    /// One of those paths in a form a string literal in the source can carry.
     fn written(path: &std::path::Path) -> String {
         path.to_string_lossy().replace('\\', "/")
     }
@@ -2021,7 +2021,7 @@ mod tests {
     #[test]
     fn a_childs_uncaught_throw_arrives_as_a_failure_value_rather_than_an_err() {
         // The other half of the boundary's asymmetry, reached through a real
-        // compiled child rather than a hand-built closure: the program ran, so
+        // compiled child rather than a hand-built Rust closure: the program ran, so
         // this is the child's fault and not the argument's.
         let completion = run_child(&from_root("examples/isolate/throws.nvs"));
         assert!(!completion.ok);

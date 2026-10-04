@@ -1496,10 +1496,10 @@ impl Cache {
 /// checksum is correct. Each file goes in as its name, its text and its folder, each behind its
 /// length, so no two file sets can hash alike by running together. A file *renamed* moves the key,
 /// because a diagnostic's path and a throw's frame name it. A file *moved* moves the key too: a
-/// relative path literal compiles to an absolute path joined to the file's folder
-/// (`rule:programs/relative-paths-resolve-from-their-file`), so the folder is a compile input like
-/// the text. The folder is [`nvs_types::paths::base_folder`]'s, the exact one the join used — inside
-/// a bundled executable, the folder beside it.
+/// relative path given as a string literal compiles to an absolute path joined to the file's
+/// folder (`rule:programs/relative-paths-resolve-from-their-file`), so the folder is a compile
+/// input like the text. The folder is [`nvs_types::paths::base_folder`]'s, the exact one the join
+/// used — inside a bundled executable, the folder beside it.
 pub(crate) fn program_digest(files: &[nvs_types::ProgramFile<'_>]) -> Digest {
     let mut bytes = Vec::new();
     for file in files {

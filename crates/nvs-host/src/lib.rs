@@ -28,7 +28,7 @@
 //!
 //! [`Worker::spawn`] starts a thread, pins it (best-effort — `affinity`'s
 //! module doc says why a refusal is never fatal), builds a [`Scheduler`] *on*
-//! that thread, and hands it to a closure. Nothing `!Send` crosses the thread
+//! that thread, and hands it to a Rust closure. Nothing `!Send` crosses the thread
 //! boundary, because the run queue is created on the far side of it.
 //!
 //! [`Reactor`] is what calls [`Scheduler::wake`]: readiness on epoll, kqueue or
@@ -166,7 +166,7 @@ pub use watchdog::{Registration, RunningRequest, Stall, Watchdog};
 /// The scheduler is built on the worker's own thread and never leaves it, so
 /// the `!Send` run queue and the `!Send` contexts in it are structurally
 /// unable to be shared — see this crate's module docs. What crosses the thread
-/// boundary is the closure and its return value, and those carry `Send` in the
+/// boundary is the Rust closure and its return value, and those carry `Send` in the
 /// ordinary way.
 pub struct Worker<T> {
     cpu: CpuId,

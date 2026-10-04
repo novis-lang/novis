@@ -857,7 +857,7 @@ impl PgConn {
     /// [ADR 0067 § 7](/docs/decisions/0067.md)'s `BEGIN`, or the
     /// `SAVEPOINT` a nested `transaction()` is.
     ///
-    /// This is the driver half of § 7 and nothing more: the closure, the
+    /// This is the driver half of § 7 and nothing more: the callable, the
     /// rollback-only flag and the retry rule are `nvs-stdlib`'s, and what a
     /// driver owes them is the commands that leave the connection at a message
     /// boundary. [`begin`] owns which command a given nesting depth gets and
@@ -892,7 +892,7 @@ impl PgConn {
     ///
     /// `nvs-stdlib` asks, and § 7's retry rule is the only reason this is
     /// public: a serialization failure is retried **only for an outermost
-    /// transaction**, because re-running the closure of a nested one would
+    /// transaction**, because re-running the callable of a nested one would
     /// re-run it inside an outer transaction the conflict already aborted. The
     /// caller cannot tell the two apart on its own — [`begin`] owns the nesting
     /// and deliberately gives the two cases the same signature — so it reads the
@@ -908,7 +908,7 @@ impl PgConn {
     }
 
     /// § 7's `COMMIT`, or the `RELEASE SAVEPOINT` closing a nested one — a
-    /// normal return out of the closure either way.
+    /// normal return out of the callable either way.
     ///
     /// # Errors
     ///
@@ -920,7 +920,7 @@ impl PgConn {
     }
 
     /// § 7's `ROLLBACK`, or the `ROLLBACK TO SAVEPOINT` undoing a nested one —
-    /// a throw out of the closure, or `rollBack`'s own signal.
+    /// a throw out of the callable, or `rollBack`'s own signal.
     ///
     /// # Errors
     ///
@@ -1839,7 +1839,7 @@ impl PgScalar<'_> {
 /// # Errors
 ///
 /// `InvalidInput` for a value with no text form to send — an array, an object,
-/// a closure — where the whole answer is the tag, and never the value, for the
+/// a callable — where the whole answer is the tag, and never the value, for the
 /// reason [`PgColumn::decode`]'s own refusals give: a bound parameter is the
 /// one thing in a statement most likely to be a credential.
 pub fn encode(value: Value) -> io::Result<Option<Vec<u8>>> {
@@ -3391,7 +3391,7 @@ fn reset_session<S: Read + Write>(wire: &mut Wire<S>, state: &Cell<State>) -> io
 /// A **nested** call may not carry `{isolation, readOnly}`, and asking is
 /// refused rather than ignored. PostgreSQL settles both for the whole
 /// transaction, at its first statement, so there is nothing a savepoint could
-/// do with them; running the closure at the *outer* transaction's level while
+/// do with them; running the callable at the *outer* transaction's level while
 /// its author wrote `Isolation::Serializable` is priority 2's exact failure —
 /// weaker semantics than the program asked for, silently. § 7's composition is
 /// not what this costs: a nested `transaction()` with no options is the case
@@ -3438,7 +3438,7 @@ fn begin<S: Read + Write>(
 /// `InvalidInput` for a connection in no transaction, otherwise as
 /// [`simple_command`]. PostgreSQL has already rolled the transaction back by
 /// the time it refuses an outermost `COMMIT`, so there is nothing left for the
-/// caller to undo — the connection is idle and poolable, and only the closure's
+/// caller to undo — the connection is idle and poolable, and only the callable's
 /// own side effects outlive it. **The count follows the connection there**: an
 /// outermost commit the *server* refused leaves the depth at 0, unlike every
 /// other refusal in this family, because the level really is gone. A caller that
@@ -3515,7 +3515,7 @@ fn roll_back<S: Read + Write>(
 /// The number of levels open, or the refusal for a connection in none.
 ///
 /// § 7 has no `commit()` and no `rollBack()` on the connection, so only the
-/// closure's own two exits reach these: a call with nothing open is this
+/// callable's own two exits reach these: a call with nothing open is this
 /// driver's bug rather than a program's, and saying so is worth more than
 /// sending a bare `ROLLBACK` that PostgreSQL answers with a warning nobody
 /// reads.
@@ -3803,7 +3803,7 @@ mod tests {
     /// transcript could only ever assert that we send *something*.
     ///
     /// A flush is the message boundary — every write in this module is
-    /// `write_all` then `flush` — so the closure is handed exactly what the
+    /// `write_all` then `flush` — so the Rust closure is handed exactly what the
     /// driver considers one send.
     struct Peer<F: FnMut(&[u8]) -> Vec<u8>> {
         server: F,
@@ -6098,7 +6098,7 @@ mod tests {
 
     /// Each of § 7's commands is one simple `Query` in its own flush, and the
     /// connection is back at a boundary after each — which is what makes the
-    /// closure's own statements ordinary ones rather than a mode.
+    /// callable's own statements ordinary ones rather than a mode.
     #[test]
     fn a_transaction_is_simple_queries_each_leaving_the_connection_idle() {
         let state = Cell::new(State::Idle);
@@ -6282,7 +6282,7 @@ mod tests {
     /// A nested transaction cannot ask for its own isolation level or read-only
     /// mode, because PostgreSQL settles both for the whole transaction — and
     /// the refusal is unsent, rather than the option being dropped and the
-    /// closure running at a level its author did not write.
+    /// callable running at a level its author did not write.
     #[test]
     fn a_nested_transaction_asking_for_its_own_isolation_is_refused_unsent() {
         for asked in [(Some(Isolation::Serializable), false), (None, true)] {
@@ -6586,7 +6586,7 @@ mod tests {
     }
 
     /// Every `SQLSTATE` this driver classifies, and the agreement that matters:
-    /// exactly the two codes § 7 names re-run the closure, asserted over the
+    /// exactly the two codes § 7 names re-run the callable, asserted over the
     /// whole table rather than on the two rows that answer `true`.
     #[test]
     fn every_sqlstate_classifies_and_only_the_two_the_retry_rule_names_retry() {

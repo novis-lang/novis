@@ -26,8 +26,8 @@
 //!
 //! # A thread held for a walk
 //!
-//! [`pin`] is the same handoff kept open. Where [`run`] hands over one closure
-//! and takes its answer back, `pin` hands over a closure that *stays* on the
+//! [`pin`] is the same handoff kept open. Where [`run`] hands over one Rust closure
+//! and takes its answer back, `pin` hands over a Rust closure that *stays* on the
 //! thread, holding state the core cannot be given — a cursor that borrows the
 //! thing it is walking — and answers one [`Pinned::ask`] at a time. The park is
 //! per question and identical: a [`RemoteWake`](reactor::RemoteWake) out with
@@ -44,7 +44,7 @@
 //! every existing one is busy, so the ordinary steady state of a worker doing no
 //! blocking work is **no threads at all**. What `rule:programs/memory-priority` asks to be said out
 //! loud: at most [`bound`] OS thread stacks per worker, reserved by the platform
-//! and resident only in what a job touches, plus one boxed closure per job in
+//! and resident only in what a job touches, plus one boxed Rust closure per job in
 //! flight. That is O(cores) and O(in-flight); nothing here grows with requests
 //! served, which is the property that makes an unbounded pool the wrong default
 //! rather than a generous one. A [`pin`]ned thread is one of the same [`bound`]
@@ -366,7 +366,7 @@ where
             let kept = nvs_runtime::budget::live_bytes().wrapping_sub(before);
             nvs_runtime::budget::carry(kept.wrapping_neg());
             *lock(&answer) = Some((outcome, kept));
-            // Explicit rather than left to the end of the closure: the answer is
+            // Explicit rather than left to the end of the Rust closure: the answer is
             // in the slot *before* the wake goes out, so the task cannot be
             // resumed to find it missing. The drop would deliver anyway, which
             // is what covers the panicking path above.
@@ -383,7 +383,7 @@ where
             };
         }
         // A cancellation is not a way out of this wait: the pool thread is
-        // already running the closure and the slot it writes into is on this
+        // already running the Rust closure and the slot it writes into is on this
         // stack, so the task has to be here when it lands. Ending early is what
         // would be unsound, and a cancelled task dies at its next safepoint
         // once the call it is inside returns.
@@ -458,7 +458,7 @@ impl<Q, A> Request<Q, A> {
 
 /// The questions a pinned thread has been asked, in the order they were asked.
 ///
-/// Held by the closure [`pin`] handed to the pool, which owns everything the
+/// Held by the Rust closure [`pin`] handed to the pool, which owns everything the
 /// walk is made of and blocks here between steps.
 pub struct Asked<Q, A> {
     asked: mpsc::Receiver<Request<Q, A>>,
@@ -476,7 +476,7 @@ impl<Q, A> Asked<Q, A> {
     /// `None` once the [`Pinned`] handle is gone.
     ///
     /// That `None` is how a walk ends when nobody ended it: the task that owned
-    /// the handle died, its connection was dropped, and the closure returns —
+    /// the handle died, its connection was dropped, and the Rust closure returns —
     /// releasing whatever it was holding and giving the thread back to the pool.
     pub fn next_question(&mut self) -> Option<Request<Q, A>> {
         let mut request = self.asked.recv().ok()?;
@@ -491,10 +491,10 @@ impl<Q, A> Asked<Q, A> {
 /// state that **cannot leave the thread it was built on**. A `rusqlite`
 /// statement borrows its connection, so the rows it steps cannot be carried back
 /// to the core the way `run`'s answer is — either the whole result set is
-/// materialized before the closure returns, or the thread keeps the statement
+/// materialized before the Rust closure returns, or the thread keeps the statement
 /// and answers a row per question. This is the second.
 ///
-/// Dropping it closes the channel, which is what ends the walk: the closure's
+/// Dropping it closes the channel, which is what ends the walk: the Rust closure's
 /// next [`Asked::next_question`] answers `None`, it returns, and the thread goes
 /// back to the pool. Nothing has to remember to release it.
 pub struct Pinned<Q, A> {
@@ -516,7 +516,7 @@ impl<Q, A> Pinned<Q, A> {
     /// to give back and this blocks on the channel instead, which is the same
     /// answer [`run`] gives by calling its function inline.
     ///
-    /// `None` where the thread ended without answering — a closure that
+    /// `None` where the thread ended without answering — a Rust closure that
     /// returned, a panic the pool swallowed, or a pool shutting down. It is the
     /// caller's to turn into whatever a half-read walk means to it.
     pub fn ask(&self, question: Q) -> Option<A> {
@@ -559,7 +559,7 @@ impl<Q, A> Pinned<Q, A> {
 /// Hands `serve` a thread of this thread's pool and keeps it until the answer
 /// handle is dropped.
 ///
-/// The closure owns the walk: it takes its questions off [`Asked`], holds
+/// `serve` owns the walk: it takes its questions off [`Asked`], holds
 /// whatever it is walking on its own stack, and returns when the handle goes
 /// away. Everything it holds is released by that return, so a task that dies
 /// mid-walk releases the thread at the same moment it releases everything else.

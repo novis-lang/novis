@@ -496,7 +496,7 @@ impl State {
 /// per driver.
 ///
 /// § 7 requires a driver that **lacks** a level to throw rather than quietly
-/// run the closure at a weaker one. A driver that renders a level as a
+/// run the transaction's callable at a weaker one. A driver that renders a level as a
 /// *stronger* guarantee than was asked for is not that case and does not
 /// throw: nothing a program can observe is weakened by it. Where each driver
 /// draws that line is in the driver — `pg.rs`'s `begin_command` is
@@ -631,11 +631,11 @@ pub enum DbErrorKind {
 
 impl DbErrorKind {
     /// Whether [ADR 0067 § 7](/docs/decisions/0067.md)'s
-    /// `{retries: n}` re-runs the closure over this.
+    /// `{retries: n}` re-runs the transaction's callable over this.
     ///
     /// **These two, and nothing else.** A retry is sound only where the server
     /// aborted the transaction *because* of a conflict it expects to be gone on
-    /// the next attempt; re-running a closure over a lock timeout or a lost
+    /// the next attempt; re-running a callable over a lock timeout or a lost
     /// connection would be running a side-effecting function again on a guess,
     /// which is also why § 7's default is 0 retries. The backoff and the re-run
     /// are `nvs-stdlib`'s — this is the part of the rule only a driver can
@@ -1045,13 +1045,13 @@ pub struct SqliteConn {
     /// [`mod@crate::sqlite`]'s own doc owns why this is an `Arc<Mutex<_>>` and
     /// not a plain field: `rusqlite::Connection` is `Send` and not `Sync`, so
     /// nothing else satisfies the `Send + 'static` bound
-    /// [`nvs_host::blocking::run`] puts on the closure. It is never contended —
+    /// [`nvs_host::blocking::run`] puts on its Rust closure. It is never contended —
     /// [`State`] below gives one request the connection at a time.
     pub(crate) handle: Arc<Mutex<rusqlite::Connection>>,
     /// The key of the last row the statement that just ran inserted, filled by
     /// the update hook [`crate::sqlite::open`] registers.
     ///
-    /// An `Arc` for the same reason the handle is one: the hook's closure is
+    /// An `Arc` for the same reason the handle is one: the hook's Rust closure is
     /// `Send + 'static` and outlives every statement, so it cannot borrow this
     /// connection. [`crate::sqlite::InsertedRow`] and this module's doc
     /// § *Which statement inserted a row* own what it holds and what it costs.

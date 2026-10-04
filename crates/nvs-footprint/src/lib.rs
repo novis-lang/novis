@@ -43,7 +43,7 @@
 //! named and cannot be opened or written stops the process: a footprint with a line missing is one
 //! that a later change is not selected by, which is the one failure this crate exists to prevent.
 //!
-//! [`capture`] collects the lines one thread writes while a closure runs, with or without the
+//! [`capture`] collects the lines one thread writes while a Rust closure runs, with or without the
 //! variable, which is how a crate's own unit tests check the lines its readers write.
 
 use std::cell::{Cell, RefCell};

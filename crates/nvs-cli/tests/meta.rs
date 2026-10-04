@@ -544,7 +544,7 @@ fn the_meta_document_carries_a_capabilities_roster_beside_its_other_four() {
 
 /// Every row of the roster resolves inside the same document, so a consumer can
 /// join `(class, member)` onto a member's card without reaching for anything
-/// this command did not print. `nvs-stdlib`'s closure test holds the table
+/// this command did not print. `nvs-stdlib`'s completeness test holds the table
 /// against the registry; this holds the *document* against itself, which is what
 /// a consumer outside the binary actually has.
 #[test]

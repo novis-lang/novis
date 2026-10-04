@@ -773,7 +773,7 @@ impl Capabilities {
     /// a deployment says it reaches anyway. Its shape, each part of it a refusal to widen further
     /// than the ADR does:
     ///
-    /// - **An entry is an IP address literal**, and one that does not parse as an address matches
+    /// - **An entry is an IP address**, and one that does not parse as an address matches
     ///   nothing. A hostname there would be read before resolution and so would exempt whatever the
     ///   name resolved to *afterwards*, which is the rebinding gap § 2's pinning closes.
     /// - **No ranges.** An operator writing `10.0.0.0/8` would hand back most of the table without

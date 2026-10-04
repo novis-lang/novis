@@ -1,5 +1,5 @@
 <?nvs
-// Adds a closure to run after the response and runs it, as a program does to send a receipt.
+// Adds a callable to run after the response and runs it, as a program does to send a receipt.
 // bench: iterations 20000
 
 class Bench {

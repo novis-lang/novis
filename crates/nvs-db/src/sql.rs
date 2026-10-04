@@ -56,9 +56,10 @@
 //! being inside it, so what [`rewrite`] binds is what fits inside an opening
 //! delimiter rather than what was written — and it refuses rather than send a
 //! statement bound against that. `rule:core-classes/db-compile-time-query-checking`
-//! asks for the same refusal while compiling a literal query, and that one can
-//! be made only because this one is made here. A `--` or `#` comment opens
-//! nothing and ends at the end of the text legitimately.
+//! asks for the same refusal while compiling a query given as a string
+//! literal, and that one can be made only because this one is made here. A
+//! `--` or `#` comment opens nothing and ends at the end of the text
+//! legitimately.
 //!
 //! **The rest of malformed SQL is the server's diagnosis, not ours.** A text
 //! whose regions all close goes out to be rejected by a parser that can say what
@@ -707,9 +708,10 @@ pub fn holds_a_second_statement(sql: &str, dialect: Dialect) -> bool {
 /// literal", as the question [`rewrite`] answers by refusing, asked of a text
 /// with no arguments written beside it.
 ///
-/// That is the shape the compile-time half needs: a literal query whose params
-/// array the checker could not read whole has nothing to hand [`rewrite`] as
-/// [`Params`], and the quoting is a fact about the text either way. It enters
+/// That is the shape the compile-time half needs: a query given as a string
+/// literal whose params array the checker could not read whole has nothing to
+/// hand [`rewrite`] as [`Params`], and the quoting is a fact about the text
+/// either way. It enters
 /// the regions that function enters, through the same helpers, so the two agree
 /// by construction rather than by being kept in step.
 #[must_use]

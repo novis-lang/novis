@@ -161,11 +161,11 @@ pub(crate) fn kind_of(code: u16, sql_state: &str) -> DbErrorKind {
         // `ER_CONSTRAINT_FAILED` — the row above says why it is not MySQL's.
         4025 => DbErrorKind::CheckViolation,
         // `ER_LOCK_DEADLOCK`: InnoDB rolled this transaction back whole, so
-        // § 7's retry re-runs the closure from nothing.
+        // § 7's retry re-runs the transaction's callable from nothing.
         1213 => DbErrorKind::Deadlock,
         // `ER_LOCK_WAIT_TIMEOUT` is a `Timeout` and not a `Deadlock` here for
         // the reason `crate::mysql::kind_of` argues at length: the transaction
-        // is still open and still holding its locks, so re-running the closure
+        // is still open and still holding its locks, so re-running the callable
         // would run its earlier statements a second time inside it.
         1205 | 1317 | 1969 => DbErrorKind::Timeout,
         1040 | 1053 | 1152 | 1927 => DbErrorKind::ConnectionLost,

@@ -1453,7 +1453,7 @@ where
         // request reaches its program through is built there — this loop never
         // holds one — and both of the walk's answers belong on it
         // (`nvs_runtime::Inbound::set_peer`). What stays here is the scheme,
-        // read again for `rule:http-server/secure-headers-with-nothing-written`'s header set at the end of this closure:
+        // read again for `rule:http-server/secure-headers-with-nothing-written`'s header set at the end of this Rust closure:
         // an `Origin` is `Copy`, so the two readings are one decision.
         //
         // `origin.ignored_address_header()` is § 6's one `Warn` and still has
@@ -1465,8 +1465,8 @@ where
         // selected no mount, allocated no isolate, compiled nothing and run no
         // Novis code. A valve that allocated in order to refuse would not
         // protect what it exists to protect. The guard lives to the end of this
-        // closure — or, for a response whose body is still being written when
-        // that closure ends, to the end of the isolate writing it ([`Streamed`]
+        // Rust closure — or, for a response whose body is still being written when
+        // that Rust closure ends, to the end of the isolate writing it ([`Streamed`]
         // is what carries it there). That is the whole of what "in flight"
         // means here: a request is in flight while it is still spending a core,
         // however much of its answer is already on the wire.
@@ -2681,7 +2681,7 @@ where
         });
         if spawned.is_none() {
             // Unreachable while `Wake::current` answered above, and the guard
-            // went down with the closure that was never run, so the tally is
+            // went down with the Rust closure that was never run, so the tally is
             // already honest.
             return Err(io::Error::other(
                 "the accept loop must run as a task on a core",
@@ -3398,7 +3398,7 @@ pub(crate) mod tests {
     /// path back, so that a response asserted below is the answer to the
     /// request that asked for it and not merely a well-formed response.
     ///
-    /// A closure is the program a test at this level can build — turning a path
+    /// A Rust closure is the program a test at this level can build — turning a path
     /// into runnable code is `nvs_runtime::script`'s seam and there is no
     /// compiler in this crate — and it writes through `Ctx::write_output`,
     /// which is the buffer a compiled `echo` reaches under `rule:tooling/echo-always-has-a-sink`'s
@@ -7289,7 +7289,7 @@ pub(crate) mod tests {
     /// One worker of the core boundary: this core's listener, the one
     /// connection it serves, and the half of the suite the caller names.
     ///
-    /// The handler is built inside the closure because a core's handler is an
+    /// The handler is built inside the Rust closure because a core's handler is an
     /// [`Rc`] and never crosses a thread — which is the shape under test, not
     /// an accommodation: what the cores share is compiled program text and
     /// nothing else
@@ -7958,7 +7958,7 @@ pub(crate) mod tests {
     ///
     /// The table is built here rather than handed in because it is the door's
     /// own: [`crate::route::take`] runs where the unit and the request are both
-    /// in hand, which in a server is this closure.
+    /// in hand, which in a server is this Rust closure.
     fn echo_under_a_named_route() -> Rc<impl Fn(Request<Incoming>, Origin) -> Reply> {
         let routes = Rc::new(nvs_runtime::routes::Routes::new(vec![
             nvs_runtime::routes::Route::new(

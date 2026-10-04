@@ -1224,7 +1224,7 @@ pub(crate) fn kind_of(code: u16, sql_state: &str) -> DbErrorKind {
         // server that does not enforce `CHECK` cannot raise it.
         3819 => DbErrorKind::CheckViolation,
         // `ER_LOCK_DEADLOCK`: InnoDB rolled this transaction back whole to break
-        // the cycle, so the closure § 7 re-runs starts from nothing.
+        // the cycle, so the callable § 7 re-runs starts from nothing.
         1213 => DbErrorKind::Deadlock,
         // **`ER_LOCK_WAIT_TIMEOUT` is a `Timeout` and not a `Deadlock`**, which
         // is the row of this table worth arguing: it is the other code an
@@ -1233,7 +1233,7 @@ pub(crate) fn kind_of(code: u16, sql_state: &str) -> DbErrorKind {
         // the server aborted the *transaction*, and InnoDB rolls back only the
         // statement on a lock wait timeout unless `innodb_rollback_on_timeout`
         // is set — the transaction is still open and still holding its locks, so
-        // re-running the closure would run its earlier statements a second time
+        // re-running the callable would run its earlier statements a second time
         // inside it. `ER_QUERY_INTERRUPTED` and `ER_QUERY_TIMEOUT` are a
         // `KILL QUERY` and `max_execution_time`, which is `57014` on the other
         // driver and the same thing from the statement's point of view.
@@ -1845,7 +1845,7 @@ impl MySqlConn {
     /// [ADR 0067 § 7](/docs/decisions/0067.md)'s `START TRANSACTION`,
     /// or the `SAVEPOINT` a nested `transaction()` is.
     ///
-    /// The driver half of § 7 and nothing more — the closure, the
+    /// The driver half of § 7 and nothing more — the callable, the
     /// rollback-only flag and the retry rule are `nvs-stdlib`'s, exactly as on
     /// [`crate::PgConn::begin`]. [`begin`] owns which command a nesting depth
     /// gets and how the two options are rendered, including the second round
@@ -1881,7 +1881,7 @@ impl MySqlConn {
     }
 
     /// § 7's `COMMIT`, or the `RELEASE SAVEPOINT` closing a nested one — a
-    /// normal return out of the closure either way.
+    /// normal return out of the callable either way.
     ///
     /// # Errors
     ///
@@ -1891,7 +1891,7 @@ impl MySqlConn {
     }
 
     /// § 7's `ROLLBACK`, or the `ROLLBACK TO SAVEPOINT` undoing a nested one —
-    /// a throw out of the closure, or `rollBack`'s own signal.
+    /// a throw out of the callable, or `rollBack`'s own signal.
     ///
     /// # Errors
     ///
@@ -2983,7 +2983,7 @@ impl MySqlScalar<'_> {
 /// # Errors
 ///
 /// `InvalidInput` for a value with no form to send — an array, an object, a
-/// closure, and the three non-finite floats — where the whole answer is the
+/// callable, and the three non-finite floats — where the whole answer is the
 /// tag and never the value, for the reason [`malformed`] gives.
 pub fn encode(value: Value) -> io::Result<Option<Vec<u8>>> {
     let rendered = match value.tag() {
@@ -3672,7 +3672,7 @@ mod tests {
     /// [`crate::pg`]'s `Peer` and for its reason: an authentication exchange's
     /// every packet depends on the one before it, so a canned transcript could
     /// only assert that we send *something*. A flush is the message boundary —
-    /// every write in this module is `write_all` then `flush` — so the closure
+    /// every write in this module is `write_all` then `flush` — so the Rust closure
     /// is handed exactly what the driver considers one send.
     struct Peer<F: FnMut(&[u8]) -> Vec<u8>> {
         server: F,
@@ -4716,7 +4716,7 @@ mod tests {
     /// byte, because a savepoint cannot answer for it.
     ///
     /// The refusal is priority 2's: MySQL settles both characteristics for the
-    /// whole transaction, so running the closure at the outer level while its
+    /// whole transaction, so running the callable at the outer level while its
     /// author wrote `Isolation::Serializable` would be weaker semantics than
     /// the program asked for, silently.
     #[test]
@@ -6323,7 +6323,7 @@ mod tests {
     /// `1213` and `1205` are the pair worth pinning together: they are what an
     /// application reads when it is deciding whether to retry, they are a digit
     /// apart in a long table, and a driver that mapped the lock wait
-    /// timeout to `Deadlock` would re-run a closure inside a transaction the
+    /// timeout to `Deadlock` would re-run a callable inside a transaction the
     /// server never rolled back. Asserting `is_retryable` on both sides is the
     /// claim; asserting the kind alone would let that swap read green against
     /// either row on its own.
@@ -6359,7 +6359,7 @@ mod tests {
 
         assert!(
             kind_of(1213, "40001").is_retryable(),
-            "§ 7 re-runs the closure over a deadlock: the server rolled the \
+            "§ 7 re-runs the callable over a deadlock: the server rolled the \
              transaction back and there is nothing left of it to run twice"
         );
         assert!(

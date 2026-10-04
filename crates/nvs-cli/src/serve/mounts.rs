@@ -187,7 +187,7 @@ type Stamp = Option<SystemTime>;
 ///
 /// A directory's modification time moves when an entry is added to it,
 /// removed or renamed. So the stamps of every directory a `*` listed and of
-/// every directory a literal segment or an entry file was looked for in are
+/// every directory a fixed segment or an entry file was looked for in are
 /// enough to know when an expansion could give a different answer. Where a
 /// path's directory is not there, the nearest one above it that is gets
 /// stamped, because that is where the missing one will appear.

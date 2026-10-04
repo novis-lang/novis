@@ -112,7 +112,7 @@
 //! does not leave the call with work still running", enforced one level below
 //! the member that promises it: a parent that forgets to wait leaves no orphan,
 //! it only loses the child's result. The one shape that outlives its spawning
-//! *call* is § 6's `afterResponse`, and it is not an exception — that closure is
+//! *call* is § 6's `afterResponse`, and it is not an exception — that callable is
 //! a child of the request tree rather than of the task that registered it, and
 //! [`detach_current`] is what takes that tree out from under the connection
 //! before it runs. Cutting the link is the tree's **own** act, taken with its
@@ -270,7 +270,7 @@ impl Resumed {
 /// only pointer to one that escapes is the opaque `*const ()` in [`Ctx`].
 type TaskYielder = Yielder<Resume, Suspended>;
 
-/// How large the closure a coroutine starts in may be, in bytes —
+/// How large the Rust closure a coroutine starts in may be, in bytes —
 /// `corosensei`'s number and not ours.
 ///
 /// It copies that closure onto the new stack before the first resume, and its
@@ -826,7 +826,7 @@ impl Scheduler {
         let (base, ceiling) = crate::stack::bounds(&stack);
         ctx.arm_stack_limit(base, ceiling);
         // Boxed for the crossing and unboxed the instant the coroutine starts,
-        // so what this closure *captures* is a pointer rather than a whole
+        // so what this Rust closure *captures* is a pointer rather than a whole
         // context: `CORO_TRANSFER_LIMIT` is why, and the assertion below is what
         // says so when a future field pushes it back over.
         let carried = Box::new(ctx);
@@ -857,7 +857,7 @@ impl Scheduler {
         };
         assert!(
             std::mem::size_of_val(&entry) <= CORO_TRANSFER_LIMIT,
-            "a task's entry closure is over `corosensei`'s transfer limit, so no task can \
+            "a task's entry Rust closure is over `corosensei`'s transfer limit, so no task can \
              start — put the new per-task state behind a pointer rather than raising the \
              limit, which is not ours"
         );
@@ -1451,7 +1451,7 @@ mod tests {
         Ctx::new(OutputSink::Sink)
     }
 
-    /// A task's entry closure stays far inside [`CORO_TRANSFER_LIMIT`], which
+    /// A task's entry Rust closure stays far inside [`CORO_TRANSFER_LIMIT`], which
     /// it does by carrying a pointer to the context rather than the context.
     ///
     /// The assertion in [`Scheduler::start`] is the one that fires on a real
@@ -1466,7 +1466,7 @@ mod tests {
         let body: Box<dyn FnOnce(&mut Ctx)> = Box::new(|_| {});
         let id = TaskId(1);
         let root = TaskRoot::Request;
-        // The capture set `Scheduler::start`'s closure has, and nothing else:
+        // The capture set `Scheduler::start`'s Rust closure has, and nothing else:
         // what is being pinned is that none of them is a whole `Ctx`.
         let entry = move |_yielder: &TaskYielder, _first: Resume| {
             let _ = (*carried, body, id, root);
@@ -1474,7 +1474,7 @@ mod tests {
         let size = std::mem::size_of_val(&entry);
         assert!(
             size <= CORO_TRANSFER_LIMIT / 8,
-            "a task's entry closure is {size} bytes against a limit of {CORO_TRANSFER_LIMIT} \
+            "a task's entry Rust closure is {size} bytes against a limit of {CORO_TRANSFER_LIMIT} \
              — near enough to it that the next per-task field is a breach rather than a \
              cost. Put the state behind a pointer, as the context already is."
         );
@@ -1935,7 +1935,7 @@ mod tests {
         let counts = Rc::new(RefCell::new(Vec::new()));
         for _ in 0..2 {
             // One reference per task, taken here and given back when the task's
-            // closure is dropped with it.
+            // Rust closure is dropped with it.
             let mine = text.clone();
             let log = Rc::clone(&counts);
             sched.spawn(ctx(), TaskRoot::Request, move |ctx| {

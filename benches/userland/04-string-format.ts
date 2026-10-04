@@ -1,4 +1,4 @@
-// Templated text: the default way userland renders a line -- a template literal where PHP uses sprintf.
+// Templated text: the default way userland renders a line -- a backtick template string where PHP uses sprintf.
 
 function run(rounds: number): number {
     let total = 0;

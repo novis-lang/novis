@@ -152,7 +152,7 @@
 # `Location` header. `true` is not a spelling it has.
 #downgrade = ["legacy.example.com"]   # example
 # The addresses inside `rule:security/net-address-policy`'s denied ranges this deployment reaches
-# anyway — written as IP literals and never as hostnames, because the policy is asked of a resolved
+# anyway — written as IP addresses and never as hostnames, because the policy is asked of a resolved
 # address and a name can resolve anywhere. It widens nothing on its own: an address named here is
 # still reachable only under a host `connect` grants, and `true` is not a spelling it has.
 #internal = ["10.0.0.5"]              # example

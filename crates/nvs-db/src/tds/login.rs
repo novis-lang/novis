@@ -89,7 +89,7 @@ pub(super) const OPT2_INIT_LANG_FATAL: u8 = 0x01;
 /// The server answers it by setting `ANSI_DEFAULTS` on, `IMPLICIT_TRANSACTIONS`
 /// off, `TEXTSIZE` to its maximum and `ROWCOUNT` to unlimited, and two of those
 /// are load-bearing. Implicit transactions off is what makes [ADR 0067
-/// § 7](/docs/decisions/0067.md)'s closure the only thing that ever
+/// § 7](/docs/decisions/0067.md)'s `transaction()` the only thing that ever
 /// opens a transaction on this connection — with them on, a bare `SELECT`
 /// opens one nothing commits, and § 13's reset would be destroying a connection
 /// per request. `ROWCOUNT` unlimited is what stops a server-side default from
@@ -415,7 +415,7 @@ mod tests {
         assert_eq!(
             message[25] & OPT2_ODBC,
             OPT2_ODBC,
-            "implicit transactions off is what makes § 7's closure the only transaction"
+            "implicit transactions off is what makes § 7's `transaction()` the only transaction"
         );
         assert_eq!(message[24], OPTION_FLAGS_1);
         assert_eq!(message[25], OPTION_FLAGS_2);

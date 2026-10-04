@@ -194,7 +194,7 @@ impl<T: Read + Write> NvsTls<T> {
     /// Completes a TLS handshake over `stream`, verifying the peer against the
     /// compiled-in anchors, and hands back the plaintext stream.
     ///
-    /// `name` is the DNS name or IP literal the certificate must be valid for.
+    /// `name` is the DNS name or IP address the certificate must be valid for.
     /// The handshake runs under whatever deadline `stream` already carries, so
     /// a caller bounding it sets [`NvsTcp::set_deadline`] first — this module's
     /// docs say why the clock lives there and not here.
@@ -216,7 +216,7 @@ impl<T: Read + Write> NvsTls<T> {
     ///
     /// # Errors
     ///
-    /// `InvalidInput` when `name` is neither a DNS name nor an IP literal,
+    /// `InvalidInput` when `name` is neither a DNS name nor an IP address,
     /// `InvalidData` when the peer's certificate does not verify against the
     /// anchors or the handshake is otherwise refused, `TimedOut` when the
     /// stream's deadline passed mid-handshake, and whatever the socket itself

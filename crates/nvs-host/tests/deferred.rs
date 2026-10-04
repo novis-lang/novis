@@ -15,7 +15,7 @@
 //! `callable`, the only way to build one with no compiler in front of it is a
 //! leaked `ClassTable` carrying an `invoke` address, and that crate inherits the
 //! workspace's `unsafe_code = "forbid"` (its `Cargo.toml` says so and says why).
-//! `nvs-stdlib`'s `allocation_policy.rs` owns the closure shape and why the
+//! `nvs-stdlib`'s `allocation_policy.rs` owns the hand-built callable's shape and why the
 //! table is leaked.
 
 use std::sync::Mutex;
@@ -37,7 +37,7 @@ fn note(what: &'static str) {
         .push(what);
 }
 
-/// The registered closure, as the callee side of `call_callable`'s contract: it
+/// The registered callable, as the callee side of `call_callable`'s contract: it
 /// records that it ran, sweeps the one reference it was handed — the receiver,
 /// since it declares no parameters — and answers nothing.
 #[expect(
@@ -59,7 +59,7 @@ unsafe extern "C" fn records_that_it_ran(
     nvs_runtime::OK
 }
 
-/// A zero-parameter closure calling `invoke`, owned by the caller.
+/// A zero-parameter callable calling `invoke`, owned by the caller.
 ///
 /// The table is leaked because a descriptor's address is its identity and it
 /// must outlive every instance made from it; the process exiting is what
@@ -104,7 +104,7 @@ fn callable_of(invoke: nvs_runtime::NvsFn) -> Value {
 /// the return being the load-bearing half. A task's death cancels whatever it
 /// left running (`nvs_host::scheduler`), so a tree that were still this
 /// joiner's child would be torn down by the very event § 6 says it must
-/// outlive, and the registered closure would never record anything.
+/// outlive, and the registered callable would never record anything.
 ///
 /// The ordering assertion is what separates this from "the work ran at all": a
 /// drain placed before the answer was filed would leave both entries in the log
@@ -154,7 +154,7 @@ fn an_after_response_tree_outlives_its_connection() {
 /// What the completion path handed the seam, and the code beside it.
 ///
 /// A static rather than a capture because the seam is a bare `fn` that captures
-/// nothing — `Ctx::set_exit_drain` owns why it is one word and not a closure —
+/// nothing — `Ctx::set_exit_drain` owns why it is one word and not a Rust closure —
 /// so a static is the only way a test reads what it was handed.
 static DRAINED: Mutex<Vec<(Result<(), i32>, i64)>> = Mutex::new(Vec::new());
 
@@ -265,7 +265,7 @@ fn raise_the_finish_marker(ctx: &mut Ctx) {
     raise_an_instance_of(ctx, nvs_runtime::FINISH_MARKER_NAME);
 }
 
-/// Whether the registered closure ran, for the two tests below that ask
+/// Whether the registered callable ran, for the two tests below that ask
 /// opposite questions of it.
 ///
 /// One counter rather than [`ORDER`]'s log: these cases are about the drain
@@ -341,7 +341,7 @@ fn a_finished_request_runs_its_after_response_work() {
     );
 }
 
-/// Whether the registered closure ran for the `exit` case, which is the control
+/// Whether the registered callable ran for the `exit` case, which is the control
 /// the case above needs: its own static, because the two run concurrently.
 static AFTER_AN_EXIT: Mutex<Vec<&'static str>> = Mutex::new(Vec::new());
 
@@ -586,7 +586,7 @@ fn a_served_requests_exit_hooks_run_before_its_after_response_work() {
 /// What ran at the end of the request that threw, in the order it ran in.
 static AFTER_AN_UNCAUGHT_THROW: Mutex<Vec<&'static str>> = Mutex::new(Vec::new());
 
-/// `rule:errors/on-uncaught-throw`'s tier-2 handler, as the closure a request
+/// `rule:errors/on-uncaught-throw`'s tier-2 handler, as the callable a request
 /// registers: the ladder's report, from the one tier a test can observe with no
 /// configuration in front of it.
 #[expect(

@@ -289,9 +289,10 @@ impl Armed {
 
 /// The caller's half of a fire: which isolate an entry's script is, and what its result means.
 ///
-/// Three questions rather than one closure, because they are asked at three different points — one
-/// on the fire's own task before it runs, one after it ends, and one from the tick itself — and a
-/// single `FnMut` would have to be shared across a task boundary to answer all three.
+/// Three questions rather than one Rust closure, because they are asked at three different
+/// points — one on the fire's own task before it runs, one after it ends, and one from the tick
+/// itself — and a single `FnMut` would have to be shared across a task boundary to answer all
+/// three.
 ///
 /// **Only `nvs serve` implements this** (§ 5): `nvs run`, `nvs check` and a bundled `rule:packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`
 /// executable run no schedules, because a schedule is a property of a running deployment rather than

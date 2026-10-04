@@ -5,7 +5,7 @@
 //! shaped the same way on purpose: one function doing the cheapest complete
 //! instance of the thing, so that `benches/isolation.rs` and the guard in
 //! `tests/perf_guards.rs` measure the same code rather than two spellings of
-//! it. Everything about *what* is measured — why the child is a closure rather
+//! it. Everything about *what* is measured — why the child is a Rust closure rather
 //! than a compiled unit, and what the number does and does not include — is the
 //! bench's own module doc.
 //!
@@ -39,7 +39,7 @@
 //! beside `os_process/noop`.
 //!
 //! What the ratio prices is cores, not the boundary: the crossing itself is
-//! [`spawn_to_result_batch`]'s figure, and a child here is a closure the far
+//! [`spawn_to_result_batch`]'s figure, and a child here is a Rust closure the far
 //! core runs as a task rather than an isolate rebuilt from parts
 //! (`nvs_host::placed` is that, and it takes a method entry a bench has no
 //! compiled unit to name). The placement is the real one — the parent's core is
@@ -49,7 +49,7 @@
 //!
 //! A placement that is **refused** is the trap this would otherwise fall into:
 //! off a core, or with no reactor to issue a wake, `nvs_host::worker::post`
-//! hands the closure back and a caller that simply ran it would time four
+//! hands the Rust closure back and a caller that simply ran it would time four
 //! children on one core and call the result a fan-out. So the refusal panics
 //! here instead, and the driver installs the reactor a placement parks on.
 

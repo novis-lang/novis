@@ -10,7 +10,7 @@
 //!
 //! [`crate::isolate::Isolate`] holds a [`Program`](nvs_runtime::script::Program)
 //! and a [`Value`], and neither may leave the core that built it: the program is
-//! a boxed closure over the *parent's* resolver, and a refcount is non-atomic
+//! a boxed Rust closure over the *parent's* resolver, and a refcount is non-atomic
 //! precisely because a value is reachable from one core. So a placement crosses
 //! four things, each of which is either plain data or a handle every core
 //! already reads — the [`Entry`]'s two names, the argument as
@@ -330,7 +330,7 @@ fn received(crossed: Crossed, receiving: Option<&ErrorClass>) -> Completion {
 
 /// [`nvs_runtime::graph::decode`]'s class resolver over a table handle.
 ///
-/// The handle keeps the table alive for as long as the closure can be called,
+/// The handle keeps the table alive for as long as the Rust closure can be called,
 /// which is what makes the descriptor addresses it hands out valid without any
 /// lifetime on the pointer — [`ErrorClass`]'s own doc owns that.
 fn resolver(table: Option<&ErrorClass>) -> impl Fn(&str) -> Option<*const ClassDesc> {

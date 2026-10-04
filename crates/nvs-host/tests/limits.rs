@@ -11,8 +11,8 @@
 //! `nvs-host` is the crate that owns a request's life, and it is the shallowest
 //! place both halves are reachable from without a compiler in front of them.
 //!
-//! A closure here is built by hand rather than compiled: `call_callable` reads
-//! little enough off a closure value that a `ClassTable` and a plain
+//! A callable here is built by hand rather than compiled: `call_callable` reads
+//! little enough off a callable value that a `ClassTable` and a plain
 //! `extern "C"` function are a whole one. `nvs-stdlib`'s `allocation_policy.rs`
 //! owns that shape and the reason the table is leaked.
 
@@ -275,20 +275,20 @@ unsafe extern "C" fn records_the_child_cpu_report(
     nvs_runtime::OK
 }
 
-/// A zero-parameter closure calling `invoke`, owned by the caller.
+/// A zero-parameter callable calling `invoke`, owned by the caller.
 fn callable_of(invoke: nvs_runtime::NvsFn) -> Value {
     callable_taking(invoke, 0)
 }
 
-/// A closure declaring one parameter of any representation, which is what a
-/// handler written to § 1's `closure(LimitReport)` signature is: `callable`
-/// carries no parameter list (`rule:types/anonymous-function`), so the nibble a written `fn`
-/// literal would record is the only thing `call_callable` checks against.
+/// A callable declaring one parameter of any representation, which is what a
+/// handler taking one `LimitReport` is: `callable` carries no parameter list
+/// (`rule:types/anonymous-function`), so the nibble a written anonymous function
+/// would record is the only thing `call_callable` checks against.
 fn callable_taking_the_report(invoke: nvs_runtime::NvsFn) -> Value {
     callable_taking(invoke, 1)
 }
 
-/// A closure of `arity` parameters calling `invoke`, owned by the caller.
+/// A callable of `arity` parameters calling `invoke`, owned by the caller.
 ///
 /// The table is leaked because a descriptor's address is its identity and it
 /// must outlive every instance made from it; the process exiting is what
@@ -425,7 +425,7 @@ fn a_cpu_cap_terminates_a_runaway_script_as_a_fatal() {
     );
 }
 
-/// `rule:errors/on-limit`'s `closure(LimitReport)`: the handler is handed a report, and
+/// `rule:errors/on-limit`'s handler is handed a `LimitReport`, and
 /// the report names the limit that stopped *this* request rather than the one
 /// the ladder happens to be written around.
 ///
@@ -740,7 +740,7 @@ fn reports_from_inside_the_reserve(ctx: &mut Ctx, args: Value) -> Value {
 /// This thread's resolver for the case below: one program for whatever path `[log] handler`
 /// named, and a note of the path it was asked for.
 ///
-/// A type rather than a closure because [`nvs_runtime::script::Resolver`] is a trait, and it
+/// A type rather than a Rust closure because [`nvs_runtime::script::Resolver`] is a trait, and it
 /// builds a fresh program per call because `resolve` only borrows `self` while a `Program` is a
 /// `Box<dyn FnOnce>` that has to be moved out.
 #[derive(Debug)]

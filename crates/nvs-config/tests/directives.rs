@@ -3138,7 +3138,7 @@ fn the_tier_three_handler_is_the_operators_and_its_row_ends_at_the_dot() {
 /// the failing request's is decided.
 ///
 /// What this asserts past the class is that the two reserves are two: `[limits]
-/// fatal_reserve_memory` is carved out of the request's own heap for a closure it already holds,
+/// fatal_reserve_memory` is carved out of the request's own heap for a callable it already holds,
 /// and this one is the engine's for a script that has yet to be compiled. They are the same size
 /// twice in a registry that lost one of the rows, and every deployment that wrote either would then
 /// be writing both.

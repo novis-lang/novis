@@ -390,7 +390,7 @@ pub fn pool_for(
 /// `pool = false` in front of it, which is where that directive is read and the only place it is.
 ///
 /// `block` is the name of the `[db.<name>]` block whose bounds are asked for, and `None` for a
-/// connection that matched no block at all: a `Core\Db::open` whose settings literal names an
+/// connection that matched no block at all: a `Core\Db::open` whose settings object names an
 /// endpoint no operator wrote. That case takes [`PoolBounds::DEFAULT`], which is the only finite
 /// answer available — there is no table to read — and it is still reached by the unscoped switch,
 /// which is the whole reason § 13 gives that switch an unscoped spelling. An audited deployment

@@ -788,7 +788,7 @@ pub fn is_installed() -> bool {
 /// to park on something the drain itself will never make ready.
 ///
 /// [`nvs_runtime::Drain`] holds the bit and the list of what is owed a wake, and
-/// says that the closure has to come from a host because the hop it makes is
+/// says that the Rust closure has to come from a host because the hop it makes is
 /// cross-thread: the drain is begun by whichever thread took the signal, and
 /// the waits it owes are parked on every core. This is that closure — the same
 /// [`RemoteWake`] the blocking pool uses, issued against the current task and
@@ -833,7 +833,7 @@ pub fn wake_this_task() -> Option<RemoteWake> {
 /// when the run queue empties, every task it finished is retired from the
 /// reactor's table, and a non-zero parked count is the "block in the reactor
 /// now" test. This is what a worker's body is, and `Worker::spawn` hands the
-/// scheduler to a closure precisely so that closure can be this.
+/// scheduler to a Rust closure precisely so that closure can be this.
 ///
 /// The reactor is not a parameter: it is borrowed out of the thread-local
 /// [`install`] put it in, once per turn and never across [`Scheduler::run`],

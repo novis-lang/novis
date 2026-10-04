@@ -3034,7 +3034,7 @@ fn run_run(
             // frame returning is when "after the response" is —
             // `nvs_runtime::deferred` owns that reading and why a request that
             // did not return ordinarily runs none of its deferred work. It runs
-            // *inside* the task, because a deferred closure is a task like any
+            // *inside* the task, because a deferred callable is a task like any
             // other and a child of one is spawned off the caller the scheduler
             // is holding.
             if outcome.is_ok() {

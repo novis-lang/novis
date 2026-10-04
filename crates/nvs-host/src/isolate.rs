@@ -26,12 +26,12 @@
 //! [`Isolate::over_event_stream`] a body — and nothing else differs between
 //! them.
 //!
-//! # The program arrives as a closure, not as a path
+//! # The program arrives as a Rust closure, not as a path
 //!
 //! An isolate runs another `.nvs` file, and turning a path into runnable code
 //! is [`nvs_runtime::script`]'s seam rather than anything this module can do —
 //! that module owns the decision and the reason. What matters here is only the
-//! consequence: a [`Program`] is a boxed closure over an already-prepared unit,
+//! consequence: a [`Program`] is a boxed Rust closure over an already-prepared unit,
 //! exactly as [`nvs_runtime::host::Job`] is for a task. Both crossings, the
 //! failure classification and the whole context construction live here
 //! regardless, because not one of them depends on where the code came from.
@@ -181,7 +181,7 @@ enum Charge {
 
 impl std::fmt::Debug for Isolate {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        // Hand-written: a `Program` is a closure and has no `Debug`.
+        // Hand-written: a `Program` is a Rust closure and has no `Debug`.
         f.debug_struct("Isolate")
             .field("output", &self.output)
             .finish_non_exhaustive()
@@ -1506,12 +1506,12 @@ mod tests {
         held.borrow_mut().take().expect("the task ran to the end")
     }
 
-    /// A closure, spelled the way `nvs_runtime::graph`'s walk recognizes one:
+    /// A callable, built the way `nvs_runtime::graph`'s walk recognizes one:
     /// a class carrying `ClassTable::set_callable`'s bit. Leaked, because a
     /// descriptor's address is its identity.
     fn callable_value() -> Value {
         let mut table = ClassTable::new();
-        let id = table.define("Closure", &["arity"], &[]);
+        let id = table.define("Callable", &["arity"], &[]);
         table.set_methods(
             id,
             vec![MethodRow {
@@ -1828,7 +1828,7 @@ mod tests {
     }
 
     /// `rule:classes/graph-copy`'s refusals reach this boundary because it is the same walk.
-    /// A closure is the shape a test at this level can build without a compiler,
+    /// A callable is the shape a test at this level can build without a compiler,
     /// and what is asserted is the *classification*: no child is started, and
     /// the caller is handed the refusal to raise in the parent.
     #[test]
@@ -1845,10 +1845,10 @@ mod tests {
             Isolate::new(program, callable_value(), Output::Capture),
             &mut ctx,
         )
-        .expect_err("a closure has no meaning in another arena");
+        .expect_err("a callable has no meaning in another arena");
 
         assert!(
-            refused.to_string().contains("closure"),
+            refused.to_string().contains("callable"),
             "the diagnostic names the offending value: {refused}"
         );
         assert!(
@@ -2092,7 +2092,7 @@ mod tests {
 
         assert!(!done.ok);
         let failure = done.error.expect("a failure is a value");
-        assert!(failure.message.contains("closure"), "{failure:?}");
+        assert!(failure.message.contains("callable"), "{failure:?}");
         assert!(ctx.pending().is_none(), "the parent is not failing");
     }
 
@@ -2551,7 +2551,7 @@ mod tests {
     /// 's teardown sweep exists for.
     ///
     /// An `extern "C"` entry reached through [`nvs_runtime::call`] rather than
-    /// a plain Rust call from the program closure, because that call is what
+    /// a plain Rust call from the program's Rust closure, because that call is what
     /// installs the child's context as the current one: an object links itself
     /// into the live list of whichever context is running, and a pair allocated
     /// with none current would sit in no list for the sweep to walk. Slot 0

@@ -243,7 +243,7 @@ macro_rules! probe_helper {
                     #[allow(
                         unsafe_code,
                         reason = "same contract as above; reached only while \
-                                  unwinding out of the closure"
+                                  unwinding out of the Rust closure"
                     )]
                     // SAFETY: as above. Allocating here is fine: this path is
                     // a contained bug, not ordinary control flow.

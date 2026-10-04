@@ -366,7 +366,7 @@ impl TdsConn {
     /// There is no charset to force — TDS carries text as UCS-2 and § 9's rows
     /// decode from that — and no session time zone to set, which
     /// [`TdsTarget::time_zone`] owns; LOGIN7's own option flags carry the ANSI
-    /// defaults § 7's closure rests on, so the connection is usable the moment
+    /// defaults § 7's `transaction()` rests on, so the connection is usable the moment
     /// the login is acknowledged.
     ///
     /// # Errors
@@ -589,7 +589,7 @@ impl TdsConn {
     /// [ADR 0067 § 7](/docs/decisions/0067.md)'s `BEGIN TRANSACTION`,
     /// or the `SAVE TRANSACTION` a nested `transaction()` is.
     ///
-    /// The driver half of § 7 and nothing more — the closure, the rollback-only
+    /// The driver half of § 7 and nothing more — the callable, the rollback-only
     /// flag and the retry rule are `nvs-stdlib`'s, exactly as on
     /// [`crate::MySqlConn::begin`]. [`begin`] owns which command a nesting depth
     /// gets, why `read_only` is refused on this backend, and how a
@@ -625,7 +625,7 @@ impl TdsConn {
     }
 
     /// § 7's `COMMIT TRANSACTION`, or the nested commit that sends nothing — a
-    /// normal return out of the closure either way.
+    /// normal return out of the callable either way.
     ///
     /// # Errors
     ///
@@ -640,7 +640,7 @@ impl TdsConn {
     }
 
     /// § 7's `ROLLBACK TRANSACTION`, or the one naming the savepoint that undoes
-    /// a nested level — a throw out of the closure, or `rollBack`'s own signal.
+    /// a nested level — a throw out of the callable, or `rollBack`'s own signal.
     ///
     /// # Errors
     ///

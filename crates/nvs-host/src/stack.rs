@@ -258,7 +258,7 @@ mod tests {
         assert_eq!(pool.pooled(), 2);
     }
 
-    /// Where a local of `on_spare_stack`'s closure lives.
+    /// Where a local of the function `on_spare_stack` runs lives.
     fn a_local_s_address() -> usize {
         let local = 0_u8;
         std::ptr::from_ref(std::hint::black_box(&local)) as usize
@@ -275,7 +275,7 @@ mod tests {
         let base = kept_base().expect("the thread keeps its spare stack after a call");
         assert!(
             first < base && first > base - SPARE_STACK_SIZE,
-            "the closure's local is inside the spare stack"
+            "the function's local is inside the spare stack"
         );
 
         let second = on_spare_stack(a_local_s_address);

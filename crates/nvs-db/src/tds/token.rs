@@ -139,14 +139,14 @@ pub(crate) fn kind_of(number: u32, class: u8) -> DbErrorKind {
         547 => DbErrorKind::ForeignKeyViolation,
         515 => DbErrorKind::NotNullViolation,
         // The deadlock victim: SQL Server rolled this transaction back whole,
-        // so § 7's closure re-runs from nothing.
+        // so § 7's callable re-runs from nothing.
         1205 => DbErrorKind::Deadlock,
         // Snapshot isolation could not serialise this transaction against a
         // concurrent one, and aborted it.
         3960 | 3961 => DbErrorKind::SerializationFailure,
         // A lock wait that ran out, which is `Timeout` and **not** `Deadlock`
         // for `crate::mysql`'s reason: nothing was rolled back, so re-running
-        // the closure would run its earlier statements again inside a
+        // the callable would run its earlier statements again inside a
         // transaction that is still open.
         1222 => DbErrorKind::Timeout,
         // A malformed statement, and the "no such thing" numbers § 8 makes one
@@ -495,11 +495,11 @@ mod tests {
 
         assert!(
             kind_of(1205, 13).is_retryable() && kind_of(3960, 16).is_retryable(),
-            "§ 7 re-runs a closure over these two and nothing else"
+            "§ 7 re-runs a callable over these two and nothing else"
         );
         assert!(
             !kind_of(1222, 16).is_retryable(),
-            "a lock timeout rolled nothing back, so the closure's earlier statements are still \
+            "a lock timeout rolled nothing back, so the callable's earlier statements are still \
              in the transaction"
         );
         assert_eq!(

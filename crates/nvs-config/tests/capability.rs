@@ -346,7 +346,7 @@ fn a_folder_that_fails_to_canonicalize_does_not_hide_a_symlink_below_it() {
     assert!(!granted.allows(Cap::FsWrite, Scope::Path(through.as_path()), &disk));
 }
 
-/// An address literal, for the exception test below.
+/// Parses an IP address written as text, for the exception test below.
 fn ip(text: &str) -> std::net::IpAddr {
     text.parse()
         .unwrap_or_else(|_| panic!("{text} is not an address"))

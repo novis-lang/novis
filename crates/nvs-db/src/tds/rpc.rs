@@ -582,7 +582,7 @@ pub(super) fn binary_param(out: &mut Vec<u8>, octets: &[u8], what: &str) -> io::
 /// # Errors
 ///
 /// `InvalidInput` for a value with no form to send — an array, an object, a
-/// closure, and the three non-finite floats — where the whole answer is the tag
+/// callable, and the three non-finite floats — where the whole answer is the tag
 /// and never the value, for the reason [`malformed`] gives.
 pub fn encode(value: Value) -> io::Result<Option<Vec<u8>>> {
     let rendered = match value.tag() {
@@ -1050,7 +1050,7 @@ mod tests {
     ///
     /// The refusal names the **tag** and never the value, which is what lets a
     /// case assert it without quoting a program's data back into a message.
-    /// An object and a closure take the same arm and are not built here: this
+    /// An object and a callable take the same arm and are not built here: this
     /// crate forbids `unsafe`, and an instance comes from `NvsObj::new`, which
     /// is one — so the arm is asked through the tags a safe caller can mint.
     #[test]

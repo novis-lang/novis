@@ -916,7 +916,7 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
         let watched = watched.clone();
         // The holder, not a rate read out of it here: `[trace] sample` reloads
         // (`rule:config/reloadability-is-its-own-field`), so a fraction resolved
-        // while this closure was being built would be the one an operator can no
+        // while this Rust closure was being built would be the one an operator can no
         // longer change. What a request draws against is read below, per request,
         // exactly as [`Scheduled`] reads a fire's tree per fire.
         let current = Arc::clone(&current);
@@ -1006,7 +1006,7 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
             }
             // And who it came from, which this handler is *told* rather than
             // reading: `rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing`'s walk ran on the connection, before the
-            // ceiling and before this closure, because the answer decides
+            // ceiling and before this Rust closure, because the answer decides
             // policy on responses no handler ever sees. Both of its answers
             // land here together — `Inbound::set_peer` owns why they are one
             // call — and `Core\Request::clientIp()` and `::scheme()` are what

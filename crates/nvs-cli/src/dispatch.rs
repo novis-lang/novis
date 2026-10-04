@@ -10,7 +10,7 @@
 //! first: under the SCM the dispatcher runs `platform::service_main` on a
 //! thread of its own and returns when it ends, and on a console the connect
 //! fails with `ERROR_FAILED_SERVICE_CONTROLLER_CONNECT` and the caller gets
-//! its closure back to run inline, which is `nvs serve` on a terminal exactly
+//! its Rust closure back to run inline, which is `nvs serve` on a terminal exactly
 //! as before. `nvs service run <name>` never comes here: it is the stored
 //! argv run on a terminal, on purpose (`crate::service`).
 //!
@@ -221,7 +221,7 @@ impl hosted::Reporting for Machine {
 /// Runs `run` under the SCM if this process was started by it, or hands it
 /// back for a console run.
 ///
-/// `Ok` is the exit code the service ended with; `Err` is the closure, untouched,
+/// `Ok` is the exit code the service ended with; `Err` is the Rust closure, untouched,
 /// because the connect failed the one way that means *no manager here*. Any
 /// other failure to connect is reported and is a failed start.
 #[cfg(windows)]
@@ -399,7 +399,9 @@ pub(crate) mod platform {
                 .lock()
                 .unwrap_or_else(PoisonError::into_inner)
                 .take()
-                .expect("the closure is taken only by `service_main`, which did not run");
+                .expect(
+                    "the service's Rust closure is taken only by `service_main`, which did not run",
+                );
             if error.raw_os_error()
                 == Some(i32::try_from(ERROR_FAILED_SERVICE_CONTROLLER_CONNECT).unwrap_or(i32::MAX))
             {
