@@ -28,14 +28,14 @@ probe; fixed, an `If` is now one statement with a list of arms,
 [performance-pass.md § *What got better*](performance-pass.md#what-got-better)) and [`conforming-to-scans-every-class-per-site`](../../data/gaps/nvs-codegen/conforming-to-scans-every-class-per-site.json).
 
 **Bounded:** `ClassLayout::slot_of` is a linear search per property default
-(`crates/nvs-ir/src/lower/mod.rs:316`), O(F²) in one class's fields. The duplicate-key check of a
-shape literal scans linearly (`crates/nvs-types/src/expr/literals.rs:1019`), O(K²) in one literal.
+(`crates/nvs-ir/src/lower/mod.rs:316`), O(F²) in one class's fields. The duplicate-key check of an
+anonymous object scans linearly (`crates/nvs-types/src/expr/literals.rs:1022`), O(K²) in one object.
 Not checked: recursion depth of the checker and lowering on expressions that pass the parser's limit,
 and whether `line_col` counts from the start of a file.
 
 ## values
 
-**Read:** freeing, arrays, objects and property lookup, throwables and backtraces, closures, debug
+**Read:** freeing, arrays, objects and property lookup, throwables and backtraces, callables, debug
 records, and the per-request tables of open handles.
 
 **Found:** a throw copies its message once per frame it unwinds, now fixed
@@ -59,7 +59,7 @@ over them are quadratic
 
 **Fine:** sort is a bottom-up merge sort over a permutation, O(n log n). `unique` without a
 comparator hashes. `replaceRange` is three linear walks with no shifting. The overlay family uses an
-explicit stack. `diff` and `intersect` with a comparator are O(n·m) closure calls by design: a user
+explicit stack. `diff` and `intersect` with a comparator are O(n·m) comparator calls by design: a user
 comparator cannot be hashed. `contains` is O(n) per call, which is what it is. Not checked:
 `crate::sort::natural`, and whether hole compaction holds for every cursor walk
 (`crates/nvs-runtime/src/array.rs:777`).
@@ -140,13 +140,13 @@ and `remove_dot_segments` are linear.
 
 ## templates
 
-**Read:** HTML and text escaping, value dumps, markup literal lowering, `echo`, and `Markup`
+**Read:** HTML and text escaping, value dumps, html template lowering, `echo`, and `Markup`
 composition.
 
 **Found:** `Markup + Markup` copies both sides, so a page built row by row is quadratic. The fix
 is new `unsafe` code, so it is recorded in [performance-pass.md](performance-pass.md) *Decisions for you*.
 
-**Fine:** a markup literal is lowered once at compile time into one concat and one escape per hole.
+**Fine:** an html template is lowered once at compile time into one concat and one escape per hole.
 Escaping reads its input at most three times. Dump recursion is bounded by the model's depth cap.
 
 ## numbers
