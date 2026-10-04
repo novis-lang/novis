@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { join } from "node:path";
 import {
-  agrees, AREAS, type Batch, batchSizes, boundsOf, CEILING, COUNT_BOUND, countsAgree, increments, judgeCounts, type Judged, ladderOf, ladderSizes, missingAreas,
+  agrees, AREAS, type Batch, batchSizes, boundsOf, CEILING, compileCounts, COUNT_BOUND, countsAgree, increments, judgeCounts, type Judged, ladderOf, ladderSizes, missingAreas,
   proposed, rebased, slopeOf, START, withBatch,
 } from "../cmd/scaling.ts";
 import { ROOT } from "../lib/paths.ts";
@@ -96,6 +96,13 @@ test("an area needs a ladder in its folder, and with a review, a section headed 
   expect(missingAreas(ladders, null)).toEqual({ noLadder: ["json"], noReview: [] });
   const review = AREAS.filter((a) => a !== "lsp").map((a) => `## \`${a}\`\n\nFine.\n`).join("\n");
   expect(missingAreas(ladders, review).noReview).toEqual(["lsp"]);
+});
+
+test("the compile line's counts are read by name, and stderr without one gives null", () => {
+  expect(compileCounts("no errors\ncompile: tokens=7 nodes=2 names=0 exprs=0\n")).toEqual({ tokens: 7, nodes: 2, names: 0, exprs: 0 });
+  expect(compileCounts("compile: tokens=7 nodes=2 names=0 exprs=0 ir=80\r\ncount: statements=1 calls=0 allocations=13 bytes=7081\r\n")!.ir).toBe(80);
+  expect(compileCounts("count: statements=1 calls=0 allocations=13 bytes=7081\n")).toBeNull();
+  expect(ladderOf("// scaling: kind compile\n// scaling: start 50\n// scaling: max 1600\n// scaling: expect linear\n")).toMatchObject({ kind: "compile" });
 });
 
 test("an increment is the cost beyond the batch before, per added operation, so set-up cancels", () => {

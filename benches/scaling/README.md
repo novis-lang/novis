@@ -34,7 +34,9 @@ echo Bench::run(1000), "\n";
 
 Size the work so that **the size is the only thing that grows**: build the input inside `run` from
 the size, do the operation once over it, and return something that depends on the result so nothing
-is skipped. A ladder that needs Unix sockets declares `// requires: unix`, as a bench does. A folder's
+is skipped. A `compile` ladder's `run` returns the source of a program of that size instead, and the
+closing line prints it; the tool checks and runs the program it printed. A ladder that needs Unix
+sockets declares `// requires: unix`, as a bench does. A folder's
 `nvs.toml` applies to every ladder in it, as in the bench tree.
 
 ## Running them

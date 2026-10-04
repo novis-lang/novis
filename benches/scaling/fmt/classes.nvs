@@ -1,0 +1,25 @@
+<?nvs
+// Prints a file of n small classes with untidy spacing, as `nvs fmt` meets in a large project.
+// scaling: kind fmt
+// scaling: start 50
+// scaling: max 1600
+// scaling: expect linear
+
+class Bench {
+    public static function run(uint $size): string {
+        array<string> $lines = ["<?nvs"];
+        uint $i = 0;
+        while ($i < $size) {
+            $lines[] = "class Item{$i}   {";
+            $lines[] = "  public static function price(int \$x):int{";
+            $lines[] = "        if (\$x>{$i}) { return \$x*2; }";
+            $lines[] = "   return \$x  +  {$i};";
+            $lines[] = "}";
+            $lines[] = "  }";
+            $i = $i + 1;
+        }
+        return Core\Str::join($lines, "\n") . "\n";
+    }
+}
+
+echo Bench::run(50);
