@@ -1,0 +1,12 @@
+{
+  "title": "The goal switch deletes the goal it leaves, and no goal's checks are carried as a floor",
+  "status": "accepted",
+  "scope": "what the driver's goal switch does to the goal it leaves, and what a goal's plan holds besides its own\nchecks. Which goal is live, and how the chain is ordered, are [0222](0222.md)'s and unchanged. The\none-time deletion of the goals walked before `goal-closeout` is that goal's Stage 6, not this rule.",
+  "dependsOn": [
+    "0222",
+    "0225",
+    "0226"
+  ],
+  "dependsOnText": "[0222](0222.md) for the chain record and the floor as a view, [0225](0225.md) for the\ngraduated floor checks, and [0226](0226.md) for the selection store that keys the sweep.",
+  "validatedBy": "`tools/nv/test/switch.test.ts` and `tools/nv/test/chain.test.ts`."
+}

@@ -1,10 +1,11 @@
 {
-  "title": "The chain record names the live goal, and a goal's floor is a view over every walked goal's checks, with the permanent suite's tests graduated",
-  "status": "shipped",
+  "title": "The chain record names the live goal, and the goal switch deletes the goal it leaves and carries none of its checks",
+  "status": "designed",
   "because": [
     "0222",
     "0225",
-    "0226"
+    "0226",
+    "0262"
   ],
   "seeAlso": [
     "tooling/a-repository-fact-is-one-json-record"

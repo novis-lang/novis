@@ -143,8 +143,8 @@ can walk. `tools/nv/cmd/chain.ts`'s module doc is the tool's one home; this sect
 enforces.
 
 A goal the run has **not reached** may be inserted, edited or appended while the loop is running: every
-turn of the driver is a fresh process that reads the chain again. The live goal and every goal the run
-has walked are not rewritten, because their checks are the floor of every goal behind them.
+turn of the driver is a fresh process that reads the chain again. The live goal's checks are rewritten
+only by the session working it. A goal the run has reached is gone: the switch deleted it.
 
 **Prose names a goal by its slug** — goal `parses`, not goal 21. A number is a position, and it moves the
 moment anything is inserted in front of it. `bun nv chain --check` fails on prose that names a goal by
@@ -155,17 +155,17 @@ Each goal is three files, named for it:
 | File | Holds |
 |---|---|
 | `docs/agent/goals/<slug>.md` | front matter naming its milestone, the target, `## Why here`, the item list grouped by file set, the standing decisions |
-| `data/goals/<slug>.json` | the acceptance test as data, and the `context` a session reads — **a walked goal keeps its checks**, because they are the floor of every goal behind it |
-| `data/goals/<slug>.handoff.json` | the handoff, written with the goal to name its first group and rewritten by every session's wrap — deleted when the goal is retired |
+| `data/goals/<slug>.json` | the acceptance test as data, and the `context` a session reads |
+| `data/goals/<slug>.handoff.json` | the handoff, written with the goal to name its first group and rewritten by every session's wrap |
 
-Four rules bind every one of them, and they are the reason the run can be left alone:
+All three are deleted by the goal switch that leaves the goal. Four rules bind every one of them, and
+they are the reason the run can be left alone:
 
-1. **A goal's acceptance list is the floor of every goal behind it, mechanically.** A goal's plan is its
-   record with every check of every walked goal carried in, each once, under a stage titled `floor`
-   (`goalPlan` in `tools/nv/lib/chain.ts`), which is how `tools/nv/driver/accept.ts` tells a carried
-   check from the goal's own. The floor is a view: nothing is copied, by hand or by the switch. The
-   floor is every goal deep, which is the point — the parity claim is only worth something if nothing
-   under it was traded away to reach it.
+1. **A goal's acceptance list is its own, and the suites are the floor.** A goal's plan is its record
+   and nothing else (`goalPlan` in `tools/nv/lib/chain.ts`): no goal is in front of the live one, so no
+   check is carried in. Finished work is protected by the permanent suites, `bun nv verify` and CI, so a
+   check that proves more than a suite becomes a test before its goal is reached, because the check is
+   deleted with the goal.
 2. **Every goal names the numbered ADRs it may open, and no session opens another.** The blanket "do not
    open a numbered ADR" rule that M4's goal carried does not survive this program: goals `concurrency` through `server` contain
    genuinely new designs — a reactor, a driver's wire I/O, a pool reset that is a security boundary — and
@@ -176,14 +176,14 @@ Four rules bind every one of them, and they are the reason the run can be left a
 3. **A goal that cannot verify itself does not advance.** The driver runs the acceptance test; a session
    claiming `DONE` against a red check gets a retry session handed that check, and a retry that fails
    on the same check holds the run as `done-claim`.
-4. **A goal switch copies and retires nothing.** A walked goal keeps its checks, because rule 1 reads
-   them from its record. A goal whose record has no checks is retired: it counts as walked wherever it
-   sits, and its checks are no floor, so a goal is emptied only when its checks are already carried by
-   a goal the run has walked. **The empty list is the record**, so there is no flag beside it to say
-   otherwise. **The prose and the rest of the record stay**, because they hold the prose that
-   [the plan](../../implementation-plan.md) and the milestone files cite. `bun nv chain --check` refuses
-   a retired goal at the live one or later in the chain — retiring is the claim that a goal's checks are
-   already somebody's floor, and that claim is false anywhere but among the goals the run has walked.
+4. **A goal switch deletes the goal it leaves.** It deletes the goal's prose, record and handoff record,
+   removes its slug from `goals`, makes the next goal `live` and renders the goal plan, all in one
+   commit. Nothing is archived, and `git log` is the history. A decision that only the goal's prose
+   holds is moved to a rule, a record or a module doc before the goal is reached, and `bun nv chain
+   --check` fails on prose outside a goal's own files that names a goal not on the chain. Decision
+   records and [goal-decisions.md](../goal-decisions.md) are frozen history and exempt.
+   `rule:tooling/the-chain-names-its-live-goal` is the rule, and goal `goal-closeout` is the first goal
+   it covers.
 
 ## Side goals
 
