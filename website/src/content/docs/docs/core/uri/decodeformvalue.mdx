@@ -1,6 +1,6 @@
 ---
 title: "Core\\Uri::decodeFormValue"
-description: "Reverses Core\\Uri::encodeFormValue, as urldecode does: a + is a space, %2B is a +, and every other %XX escape becomes its byte."
+description: "Decodes one value of a form, such as a value in a query string or in the body of a POST request. A + becomes a space. Each %XX escape becomes the byte it encodes, so %2B becomes a + and %20 becomes a space. Core\\Uri::encodeFormValue writes the escapes that this function reads. PHP's urldecode does the same."
 sidebar:
   label: "decodeFormValue"
 novis:

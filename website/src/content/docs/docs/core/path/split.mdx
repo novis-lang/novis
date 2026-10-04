@@ -1,6 +1,6 @@
 ---
 title: "Core\\Path::split"
-description: "Splits $path into its components — explode(DIRECTORY_SEPARATOR, …) for both separators at once, and lossless: Path::join(...Path::split($p)) is $p with its separators normalized."
+description: "Splits $path into its parts: the folders and the file name, in order. This replaces PHP's explode(\"/\", $path). Core\\Path::join puts the parts back together into the same path."
 sidebar:
   label: "split"
 novis:

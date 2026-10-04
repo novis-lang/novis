@@ -67,9 +67,12 @@ const LANES: Record<string, string[]> = {
     "Cargo.toml", "Cargo.lock", "deny.toml", "THIRD-PARTY-LICENSES.txt",
     "tools/nv/cmd/gen-attribution.ts", ".github/workflows/",
   ],
-  // docs/novis.md is generated from the binary's registry and the chapters, so either side moving can
-  // make the committed file stale.
-  refdoc: ["crates/", "docs/reference/", "docs/novis.md", "tools/nv/cmd/reference.ts", ".github/workflows/"],
+  // docs/novis.md and the website's `Core` pages are generated from the binary's registry and the
+  // chapters, so either side moving can make a committed file stale. Gates `reference`.
+  refdoc: [
+    "crates/", "docs/reference/", "docs/novis.md", "tools/nv/cmd/reference.ts",
+    "docs/spec/", "data/spec/", "website/", "tools/nv/renderers/", ".github/workflows/",
+  ],
   // What `bun nv proofs --verify` reads: the binary's inputs, every feature's examples, attacks, benches
   // and chapters, the perf ledger, the proof policy and the gap records a `proof: gap` marker names.
   // Gates `proofs`.

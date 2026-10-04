@@ -1,6 +1,6 @@
 ---
 title: "Core\\Task::map"
-description: "Calls $fn once per element of $items, each call a concurrent child task, and answers the results under the subject's own keys and in its order regardless of completion order — what curl_multi_ was for."
+description: "Calls $fn once for each element of $items, and runs the calls at the same time. The result has the same keys in the same order as $items, whichever call finishes first."
 sidebar:
   label: "map"
 novis:

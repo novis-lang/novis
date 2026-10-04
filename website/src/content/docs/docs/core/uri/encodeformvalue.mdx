@@ -1,6 +1,6 @@
 ---
 title: "Core\\Uri::encodeFormValue"
-description: "Encodes $s as one value of an application/x-www-form-urlencoded payload — a query-string pair or a POST body — as urlencode does: a space is +, and every byte outside letters, digits and -_. is escaped, ~ and the & and = that structure a pair included."
+description: "Escapes $s so that it can be one value of a form, such as a value in a query string or in the body of a POST request. A space becomes +. Every byte that is not a letter, a digit or one of -_. becomes a % and two hex digits. This includes ~, +, & and =. PHP's urlencode does the same."
 sidebar:
   label: "encodeFormValue"
 novis:

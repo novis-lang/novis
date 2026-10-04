@@ -1,6 +1,6 @@
 ---
 title: "Core\\Time::monotonic"
-description: "Reads the monotonic clock, replacing hrtime — for measuring, never for wall-clock time, which is why it answers a Duration: the value means nothing except against another reading of the same clock."
+description: "Reads a clock that only moves forward, for measuring how long something takes. It replaces PHP's hrtime. Subtract two readings to get the time between them."
 sidebar:
   label: "monotonic"
 novis:

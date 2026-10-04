@@ -1,6 +1,6 @@
 ---
 title: "Core\\Uri::decodeComponent"
-description: "Reverses Core\\Uri::encodeComponent, as rawurldecode does: every %XX escape becomes its byte, and a + stays a literal +."
+description: "Decodes one escaped part of a URI, such as a path segment or a fragment. Each %XX escape becomes the byte it encodes, so %20 becomes a space. A + stays a +. Core\\Uri::encodeComponent writes the escapes that this function reads. PHP's rawurldecode does the same."
 sidebar:
   label: "decodeComponent"
 novis:

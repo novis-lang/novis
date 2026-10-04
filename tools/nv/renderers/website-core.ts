@@ -18,7 +18,8 @@
 // draft page whose member is no longer published is deleted; a person's page is left alone.
 //
 // The registry comes from a built binary, so this renderer is in `--website` alone. CI's docs job runs
-// `nv render --check` without building one.
+// `nv render --check` without building one, and its `reference` job builds one and runs
+// `nv render --website --check`.
 
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync, statSync } from "node:fs";

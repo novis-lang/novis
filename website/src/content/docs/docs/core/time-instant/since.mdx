@@ -1,6 +1,6 @@
 ---
 title: "Core\\Time\\Instant::since"
-description: "Measures the exact time from $earlier to this instant, replacing date_diff and DateInterval arithmetic with none of that type's \"1 month\" ambiguity."
+description: "Returns the exact time from $earlier to this instant, as a Duration. $earlier->plus($later->since($earlier)) is $later again."
 sidebar:
   label: "since"
 novis:

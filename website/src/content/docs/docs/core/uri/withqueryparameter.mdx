@@ -1,6 +1,6 @@
 ---
 title: "Core\\Uri::withQueryParameter"
-description: "A fresh Uri with one query parameter set, replaced or removed and every other pair carried over — Core\\Uri::parseQuery, the edit and Core\\Uri::buildQuery in one member instead of three at the call site."
+description: "Returns a new Uri with one query parameter set, replaced or removed. For /search?q=shoes&page=2, withQueryParameter(\"page\", 3) returns /search?q=shoes&page=3. The other pairs are kept. The Uri you call it on does not change."
 sidebar:
   label: "withQueryParameter"
 novis:

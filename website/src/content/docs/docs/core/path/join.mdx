@@ -1,6 +1,6 @@
 ---
 title: "Core\\Path::join"
-description: "Appends each of $segments to $base with a separator between — the $a . \"/\" . $b every PHP program writes. Only the base decides the root: a segment's own leading separator or root is dropped rather than allowed to replace what came before."
+description: "Adds each of $segments to the end of $base, with one separator between each part. This replaces the $a . \"/\" . $b that PHP programs write. Only $base decides where the result starts. A segment that starts with / or a drive is added after $base and does not replace it."
 sidebar:
   label: "join"
 novis:

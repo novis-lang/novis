@@ -1,6 +1,6 @@
 ---
 title: "Core\\Str::wrap"
-description: "Breaks $s into lines no longer than $width characters by inserting breakWith at spaces, as wordwrap does — counted in graphemes."
+description: "Splits $s into lines of at most $width characters. It breaks a line at a space and writes breakWith in place of that space. A character is what a person sees as one character, so \"é\" counts as one. Replaces PHP's wordwrap."
 sidebar:
   label: "wrap"
 novis:

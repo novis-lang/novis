@@ -1,6 +1,6 @@
 ---
 title: "Core\\Str::fold"
-description: "Case-folds $s through Unicode's default full folding, as mb_convert_case($s, MB_CASE_FOLD) does — a comparison key rather than text to show, so ß becomes ss and ﬁ becomes fi."
+description: "Case-folds $s: every letter changes to one fixed form, so text that differs only in upper and lower case gives the same result. Replaces PHP's mb_convert_case($s, MB_CASE_FOLD)."
 sidebar:
   label: "fold"
 novis:

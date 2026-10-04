@@ -1,6 +1,6 @@
 ---
 title: "Core\\Uri::parse"
-description: "Reads $uri as an RFC 3986 URI reference, as parse_url does — reporting, never normalizing: every component comes back exactly as written, still percent-encoded and in its own case."
+description: "Reads the text of an address, such as https://example.com/cart?id=4, and returns a Uri. Its methods return the parts: scheme, userInfo, host, port, path, query and fragment. Each part is returned as it was written. Escapes such as %20 stay, and upper-case letters stay upper case. PHP's parse_url reads the same parts."
 sidebar:
   label: "parse"
 novis:

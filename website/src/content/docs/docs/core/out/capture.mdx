@@ -1,6 +1,6 @@
 ---
 title: "Core\\Out::capture"
-description: "Runs $fn with this request's output sink redirected into a buffer and answers what it wrote, as the carrier of the sink in force — ob_start/ob_get_clean and ob_start($callback), scoped to one closure so it nests by call nesting and always swallows."
+description: "Runs $fn and returns everything it printed with echo. This replaces PHP's ob_start and ob_get_clean. The printed text does not reach the output. You can call capture inside another capture, and each call collects only what its own function printed."
 sidebar:
   label: "capture"
 novis:

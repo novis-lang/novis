@@ -1,6 +1,6 @@
 ---
 title: "Core\\Time\\Instant::plus"
-description: "Moves the instant forward by an exact Duration, replacing date_add and modify for an exact offset — so it crosses a DST boundary without noticing one; a calendar step is $i->in($zone)->plus($n, Unit::Day)."
+description: "Moves the instant forward by an exact Duration. An instant has no time zone, so a change to or from summer time does not change the result. To add calendar days, use $i->in($zone)->plus($n, Unit::Day)."
 sidebar:
   label: "plus"
 novis:

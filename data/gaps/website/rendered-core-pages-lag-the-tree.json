@@ -1,6 +1,0 @@
-{
-  "module": "website/scripts",
-  "title": "Many rendered `Core` pages under `website/` are older than the descriptions in the tree.",
-  "text": "Goal `var-array-literal` ran `npm --prefix website run sync:render`, and it rewrote many `website/` core pages whose descriptions had changed in the tree and were never rendered again. That session put them back and rendered only the page it owed. Not checked again here. Closing this runs the render once over the whole tree, reviews the diff and commits it, and decides whether a check fails when a rendered page is older than its source.",
-  "goal": "goal-closeout"
-}

@@ -1,6 +1,6 @@
 ---
 title: "Core\\Regex::quote"
-description: "Escapes every character either engine gives a meaning to in $literal, as preg_quote does, so the result is a pattern matching that literal and nothing else — the launder for the pattern sink, so its result is accepted where a tainted string is not."
+description: "Puts a \\ before every character that has a special meaning in a pattern. The result is a pattern that matches $literal exactly. A tainted text is allowed here, and the result can be used as a pattern."
 sidebar:
   label: "quote"
 novis:

@@ -1,6 +1,6 @@
 ---
 title: "Core\\Uuid::tryParse"
-description: "Core\\Uuid::parse with null where it throws — the one spelling of \"is this text a UUID\", replacing uuid_is_valid and every userland isValid."
+description: "Reads the text $s as a UUID, like Core\\Uuid::parse. When the text is not a UUID, it returns null and does not throw an error. Use it to check whether a text is a UUID."
 sidebar:
   label: "tryParse"
 novis:

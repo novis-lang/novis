@@ -1,6 +1,6 @@
 ---
 title: "Core\\Validate::isEmail"
-description: "Answers whether $s is an email address, as filter_var with FILTER_VALIDATE_EMAIL does: one @, an unquoted dot-atom local part of at most 64 bytes, and a hostname of at least two labels, at most 254 bytes in all."
+description: "Checks whether $s is an email address, such as ada@example.com. The part before the @ has at most 64 characters: letters, digits, single dots and some symbols such as + and _. The part after the @ is a domain name with at least one dot. The whole address has at most 254 characters."
 sidebar:
   label: "isEmail"
 novis:

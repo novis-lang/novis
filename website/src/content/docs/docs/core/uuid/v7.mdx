@@ -1,6 +1,6 @@
 ---
 title: "Core\\Uuid::v7"
-description: "Draws a time-ordered UUID — a 48-bit millisecond timestamp then 74 random bits, RFC 9562's version 7 — for a database key, where an ascending identifier appends to the index instead of dirtying a random page. PHP has no equivalent."
+description: "Creates a new UUID that starts with the current time, such as 0190d1e6-8e3c-7c2a-9a4b-1f2e3d4c5b6a. The first 48 bits are the number of milliseconds since 1970. 74 of the other bits are random. Use it as a database key, because new keys sort after older ones."
 sidebar:
   label: "v7"
 novis:

@@ -1,6 +1,6 @@
 ---
 title: "Core\\Task::afterResponse"
-description: "Runs $fn once the request's own execution is over, still charged to the request tree — for receipts, webhooks, cache warming and audit shipping. This is not a queue: nothing is durable, nothing retries, and a process that dies loses the work with no record."
+description: "Runs $fn after the response is sent, so the client does not wait for it. Use it for receipts, webhooks and audit logs. The work is not saved anywhere: if the process stops, the work is lost and nothing tries it again."
 sidebar:
   label: "afterResponse"
 novis:

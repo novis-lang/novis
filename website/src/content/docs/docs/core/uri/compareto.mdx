@@ -1,6 +1,6 @@
 ---
 title: "Core\\Uri::compareTo"
-description: "Orders the receiver against $other over their RFC 3986 § 6.2.2 normal forms — Comparable's member, and the spelling of \"are these the same URI\": scheme and host fold to lower case, escapes' hex digits to upper, an escaped unreserved character becomes itself, and dot segments leave an absolute path. Neither side is rewritten."
+description: "Compares this address with $other, to sort addresses or to check if two are the same. Before it compares, it changes a copy of each one. The scheme and the host become lower case. An escape such as %7E becomes ~ when that character needs no escape. The . and .. parts are removed from a path that starts with /. Neither address itself changes."
 sidebar:
   label: "compareTo"
 novis:

@@ -1,6 +1,6 @@
 ---
 title: "Core\\Uri::with"
-description: "A fresh Uri with the named components replaced and every other one carried over, replacing reassembly by hand. Writing null for port, query or fragment removes that component, where leaving the key out carries it over; userInfo is not on the bag, so it can neither add nor drop a credential."
+description: "Returns a new Uri with some parts of the address changed. You name the parts in a block, for example with({scheme: \"https\", port: null}). Each part you do not name stays the same. null removes the port, the query or the fragment. The user part (userInfo) is always kept."
 sidebar:
   label: "with"
 novis:

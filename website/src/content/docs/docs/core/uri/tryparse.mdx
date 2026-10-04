@@ -1,6 +1,6 @@
 ---
 title: "Core\\Uri::tryParse"
-description: "Core\\Uri::parse with null where it throws — the one spelling of \"is this text a URI\", replacing filter_var with FILTER_VALIDATE_URL; its narrower question, \"is it absolute\", is tryParse($s)?->scheme() != null."
+description: "Reads the text of an address and returns a Uri, the same way Core\\Uri::parse does. When the text is not an address, the result is null and no error is thrown. A space, a % without two hex digits and a port above 65535 all give null. PHP code uses filter_var with FILTER_VALIDATE_URL for this check."
 sidebar:
   label: "tryParse"
 novis:

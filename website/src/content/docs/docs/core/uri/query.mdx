@@ -1,6 +1,6 @@
 ---
 title: "Core\\Uri::query"
-description: "The raw query as written, still encoded — parse_url's query key; Core\\Uri::parseQuery turns it into an array."
+description: "Returns the query of the address, which is the text after the ?. For https://example.com/search?q=shoes#top the result is q=shoes. Escapes such as %20 stay in it, and Core\\Uri::parseQuery reads it into an array."
 sidebar:
   label: "query"
 novis:

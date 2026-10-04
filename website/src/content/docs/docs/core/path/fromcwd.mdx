@@ -1,11 +1,11 @@
 ---
-title: "Core\\Math::hypot"
-description: "Returns the length of the longest side of a right triangle. $a and $b are the other two sides. The result is sqrt($a  $a + $b  $b), but it stays correct when $a  $a is too big for a float. This replaces PHP's hypot."
+title: "Core\\Path::fromCwd"
+description: "Joins $path to the folder the program was started from, and returns the full path. Use it for a path that a user typed on the command line."
 sidebar:
-  label: "hypot"
+  label: "fromCwd"
 novis:
   kind: method
-  id: "Math.hypot"
+  id: "Path.fromCwd"
   draft: true
 ---
 
@@ -26,32 +26,32 @@ import SeeAlso from '@components/SeeAlso.astro'
     from the repository's own data) is good enough; replace one with your own
     prose where it is not. */}
 
-<MethodLead id="Math.hypot" />
+<MethodLead id="Path.fromCwd" />
 
-<MethodSignature id="Math.hypot" />
+<MethodSignature id="Path.fromCwd" />
 
 ## Description
 
-<MethodDescription id="Math.hypot" />
+<MethodDescription id="Path.fromCwd" />
 
 ### Parameters
 
-<ParamDocs id="Math.hypot" kind="params" />
+<ParamDocs id="Path.fromCwd" kind="params" />
 
 ## Return value
 
-<MethodReturn id="Math.hypot" />
+<MethodReturn id="Path.fromCwd" />
 
 ## Errors
 
-<MethodErrors id="Math.hypot" />
+<MethodErrors id="Path.fromCwd" />
 
-<MethodChangelog id="Math.hypot" />
+<MethodChangelog id="Path.fromCwd" />
 
 {/* Tips & tricks: add a "## Tips" section here when there is something worth
     saying. The section is simply absent until then. */}
 
-<MethodExamples id="Math.hypot" />
+<MethodExamples id="Path.fromCwd" />
 
 {/* Related members: list ids like "Str.isEmpty". Renders nothing while empty. */}
 <SeeAlso ids={[]} />

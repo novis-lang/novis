@@ -1,6 +1,6 @@
 ---
 title: "Core\\Str::replaceAll"
-description: "Substitutes a whole table at once — $pairs keyed needle to replacement — as strtr and the array form of str_replace do: one pass, the longest matching needle wins at each position, and a replacement is never rescanned."
+description: "Replaces several texts in $s in one call. Each key of $pairs is a text to find, and its value is the text that replaces it. The string is read once, from left to right. Where several keys match at the same place, the longest one is used. The new text is not searched again. Replaces PHP's strtr and str_replace with arrays."
 sidebar:
   label: "replaceAll"
 novis:

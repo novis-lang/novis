@@ -1,6 +1,6 @@
 ---
 title: "Core\\Uri::queryParameter"
-description: "One query parameter by name, read through Core\\Uri::parseQuery's bracket convention instead of by parsing the query string at the call site."
+description: "Returns one value from the query of the address, by its name. For /search?q=red+shoes the result of queryParameter(\"q\") is red shoes. The query is read the same way as by Core\\Uri::parseQuery, and each call reads it again."
 sidebar:
   label: "queryParameter"
 novis:

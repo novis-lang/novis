@@ -635,8 +635,9 @@ jobs:
   # docs/novis.md is generated from the binary's own registry (`nvs meta
   # --json`) and the chapters under docs/reference/, and every example in it
   # runs against the binary -- so the check needs a built CLI, which is why
-  # this is not a step of the `docs` job below. A stale committed file, or an
-  # example the compiler no longer agrees with, fails here.
+  # this is not a step of the `docs` job below. The website's `Core` pages read
+  # the same registry, so `nv render --website --check` runs here too. A stale
+  # committed file, or an example the compiler no longer agrees with, fails here.
   # ---------------------------------------------------------------------------
   reference:
     name: docs/novis.md is current and its examples run
@@ -661,6 +662,12 @@ jobs:
       # job builds the plain debug `nvs` instead.
       - name: docs/novis.md matches the binary and the chapters, and every example holds
         run: bun nv reference --check
+        env:
+          NVS_BIN: ${{ github.workspace }}/target/debug/nvs
+      # The website's `Core` pages read the same registry, which is why `website-core` is in
+      # `nv render --website` alone and is checked here rather than in the `docs` job.
+      - name: Every website page matches the records and the binary it is rendered from
+        run: bun nv render --website --check
         env:
           NVS_BIN: ${{ github.workspace }}/target/debug/nvs
 

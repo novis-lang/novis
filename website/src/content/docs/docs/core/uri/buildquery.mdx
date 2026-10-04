@@ -1,6 +1,6 @@
 ---
 title: "Core\\Uri::buildQuery"
-description: "Writes $parameters as a query string, as http_build_query does — pairs joined by &, both halves form-encoded, and a nested array written under its whole bracket path with the indexes spelled out, so Core\\Uri::parseQuery reads it back to the same array."
+description: "Writes the array $parameters as a query string, such as page=2&sort=name. It gives the same text as PHP's http_build_query, and Core\\Uri::parseQuery reads it back to the same array."
 sidebar:
   label: "buildQuery"
 novis:

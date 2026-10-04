@@ -1,6 +1,6 @@
 ---
 title: "Core\\Uri::sign"
-description: "Answers the receiver with the reserved _sig query parameter set, over a signature taken across everything compareTo normalizes — scheme, userInfo, host, port, path and the query's parameters. Appending, removing or editing any parameter invalidates it; reordering them does not, and neither does a fragment."
+description: "Returns a copy of the address with a signature in the _sig query parameter. The signature covers the scheme, user info, host, port, path and every query parameter. If a parameter is added, removed or changed, verifySignature throws an error. A different order of the parameters and a fragment do not change the result."
 sidebar:
   label: "sign"
 novis:

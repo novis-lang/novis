@@ -1,6 +1,6 @@
 ---
 title: "Core\\Uri::encodeComponent"
-description: "Percent-encodes $s for use as one piece of a URI — a path segment, a fragment, one side of a query pair — as rawurlencode does: a space is %20, and every byte outside RFC 3986's unreserved set (letters, digits, -_.~) is escaped, the delimiters / ? # & = included."
+description: "Escapes $s so that it can be one part of a URI, such as a path segment, a fragment or one side of a query pair. A space becomes %20. Every byte that is not a letter, a digit or one of -_.~ becomes a % and two hex digits. This includes / ? # & =. PHP's rawurlencode does the same."
 sidebar:
   label: "encodeComponent"
 novis:

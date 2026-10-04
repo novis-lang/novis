@@ -1,6 +1,6 @@
 ---
 title: "Core\\Uri::verifySignature"
-description: "Checks the receiver's _sig against every key in $keys, and the lifetime that rode inside it. Answers nothing: a signed URL carries no claims to hand back — the claim is the URL the caller already holds — and a bool is a value a caller can drop."
+description: "Checks the signature in the _sig query parameter with the keys in $keys, and checks that the link has not expired. It returns nothing. If the check fails, it throws an error, so the next line runs only for a valid link."
 sidebar:
   label: "verifySignature"
 novis:

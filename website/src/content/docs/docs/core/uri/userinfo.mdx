@@ -1,6 +1,6 @@
 ---
 title: "Core\\Uri::userInfo"
-description: "The whole userinfo subcomponent as written — parse_url's user and pass keys as one reader, because RFC 3986 deprecates the user:password form and a member that split it would recommend writing one."
+description: "Returns the user part of the address, which is the text between // and @. For ftp://ann@files.example.com/ the result is ann. A password written as ann:secret is returned as one text. Escapes such as %40 stay in it."
 sidebar:
   label: "userInfo"
 novis:

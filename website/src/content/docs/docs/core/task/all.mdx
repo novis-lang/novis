@@ -1,6 +1,6 @@
 ---
 title: "Core\\Task::all"
-description: "Runs every closure of the $tasks shape literal as a concurrent child task and answers a shape with the same field names, each carrying that closure's own declared return type — a fixed, heterogeneous set decided where the call is written."
+description: "Runs every closure in the $tasks shape at the same time, and waits until all of them have finished. The result is a shape with the same field names, and each field has the type its closure returns."
 sidebar:
   label: "all"
 novis:

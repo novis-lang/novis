@@ -1,6 +1,6 @@
 ---
 title: "Core\\Uri::parseQuery"
-description: "Reads a query string into an array, as parse_str does but returning it rather than populating variables: pairs split at &, each at its first =, both halves form-decoded, and PHP's bracket convention in full — a[]=1&a[]=2 builds a list, a[b]=c a map, nested to any depth."
+description: "Reads a query string, such as q=red+shoes&page=2, into an array. The text is split into pairs at each &, and each pair is split at its first =. Names and values are decoded like decodeFormValue, so + becomes a space. Brackets in a name build nested arrays: a[]=1&a[]=2 gives a list, and a[b]=c gives an array with the key b. PHP's parse_str reads query strings the same way."
 sidebar:
   label: "parseQuery"
 novis:

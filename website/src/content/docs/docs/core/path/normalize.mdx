@@ -1,6 +1,6 @@
 ---
 title: "Core\\Path::normalize"
-description: "Resolves . and .. in $path lexically and re-renders it with Path::SEPARATOR — the half of realpath that does not touch the disk. Not a launder: removing ../ is not path-traversal safety, which is Core\\IO::within."
+description: "Removes the . and .. parts from $path and writes it with Core\\Path::SEPARATOR. The method works on the text only and never looks at the disk. The result can still point outside a folder, so it does not make a path safe. Core\\IO::within checks that."
 sidebar:
   label: "normalize"
 novis:

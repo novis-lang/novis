@@ -1,6 +1,6 @@
 ---
 title: "Core\\Uri::resolve"
-description: "Resolves $reference against the receiver as a base, RFC 3986 § 5's reference resolution, which PHP has no function for: the receiver's fragment is dropped first, and dot segments are removed from the result — the one member here that rewrites a path."
+description: "Turns a link found on a page into a full address, the way a browser does. The address of the page is the base. For the base https://example.com/blog/post and the link ../about, the result is https://example.com/about. The . and .. parts are removed from the path."
 sidebar:
   label: "resolve"
 novis:
