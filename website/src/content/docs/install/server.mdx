@@ -1,0 +1,169 @@
+---
+title: Install on a server
+covers: []
+description: The four folders a Novis server needs, the permissions Novis checks, and the commands that set them on Windows, Linux and macOS.
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components'
+
+On your own computer, `nvs` runs from any folder. On a server, it needs four folders with the
+correct permissions. Novis checks some of these permissions and does not start if they are wrong.
+
+## The four folders
+
+The folders can have any names and be anywhere.
+
+| Folder | Contains | Who writes to it | Who reads it |
+|---|---|---|---|
+| binary | `nvs` (`nvs.exe` on Windows) | administrators | every account, so that every account can run `nvs` |
+| config | `nvs.toml`, and the files it includes | administrators | the account that runs `nvs` |
+| cache | compiled programs | the account that runs `nvs` | the account that runs `nvs` |
+| logs | log files | the account that runs `nvs` | you decide |
+
+The simplest layout puts the other three folders inside the binary folder:
+
+<Tabs syncKey="os">
+<TabItem label="Windows">
+```txt
+D:\srv\novis\nvs.exe
+D:\srv\novis\config\nvs.toml
+D:\srv\novis\cache\
+D:\srv\novis\logs\
+```
+</TabItem>
+<TabItem label="Linux and macOS">
+```txt
+/opt/novis/nvs
+/opt/novis/config/nvs.toml
+/opt/novis/cache/
+/opt/novis/logs/
+```
+</TabItem>
+</Tabs>
+
+Put the binary folder on the `PATH`. `nvs init` writes a configuration file in which every
+setting is present and commented out. `--config` tells `nvs` where the file is:
+
+```sh
+nvs --config /opt/novis/config/nvs.toml init
+nvs --config /opt/novis/config/nvs.toml serve /srv/app/index.nvs
+```
+
+`nvs init` never overwrites a file that already exists. Two settings in the file name the cache
+and log folders. Write paths with `/`, also on Windows:
+
+```toml
+[opcache]
+file_cache_dir = "/opt/novis/cache"
+
+[log]
+target = "file:/opt/novis/logs/nvs.log"
+```
+
+## What Novis checks
+
+A configuration file can allow a program to read files, open network connections and start
+other programs. An account that can change this file can give itself all of these rights. The
+same is true for the cache, because Novis runs the compiled programs it finds there.
+
+So Novis checks **who owns a folder and who can write to it**. It does not check who can read a
+file. A file or folder passes the check when both of these are true:
+
+| | Windows | Linux and macOS |
+|---|---|---|
+| The owner is | the account that runs `nvs`, `Administrators` or `SYSTEM` | the account that runs `nvs`, or `root` |
+| Nobody else can write | `Everyone`, `Authenticated Users`, `Users`, `Guests` and `ANONYMOUS LOGON` cannot write to it | the group and others have no write permission |
+
+A permission for one named account, for example your own, passes the check.
+
+| Command | Checks | If the check fails |
+|---|---|---|
+| `nvs serve`, `nvs ctl reload` | every configuration file, and its folder | the server does not start, and the error is `E0607` |
+| `nvs init` | the folder it writes into, and the folder above it | nothing is written, and the exit status is `1` |
+| every command that compiles a program | the cache folder, and the folder above it | a warning. The program runs, but it is compiled again every time |
+
+`nvs run`, `nvs check` and `nvs test` do not check the configuration files. The log folder is
+not checked.
+
+## Set the permissions
+
+<Tabs syncKey="os">
+<TabItem label="Windows">
+On every drive except the system drive, Windows lets `Authenticated Users` change every new
+folder. So every account can replace `nvs.exe` and edit `nvs.toml`, and Novis does not accept the
+folder.
+
+Run these commands in a Command Prompt that you started with **Run as administrator**. Replace
+`svc-novis` with the account that runs `nvs`.
+
+1. Create the folders:
+
+   ```bat
+   mkdir D:\srv\novis\config D:\srv\novis\cache D:\srv\novis\logs
+   ```
+
+2. Remove the right of `Authenticated Users` to change the binary folder. The other folders get
+   the same permissions. `Users` can still read and run `nvs`.
+
+   ```bat
+   icacls D:\srv\novis /inheritance:d
+   icacls D:\srv\novis /remove:g *S-1-5-11
+   ```
+
+3. Make the configuration private. Only administrators and the accounts you add can read it.
+
+   ```bat
+   icacls D:\srv\novis\config /inheritance:d
+   icacls D:\srv\novis\config /remove:g *S-1-5-32-545
+   ```
+
+4. Give the account that runs `nvs` the right to read `config`, and to change `cache` and `logs`:
+
+   ```bat
+   icacls D:\srv\novis\config /grant svc-novis:(OI)(CI)RX
+   icacls D:\srv\novis\cache /grant svc-novis:(OI)(CI)M
+   icacls D:\srv\novis\logs /grant svc-novis:(OI)(CI)M
+   ```
+
+5. Check the result. `icacls D:\srv\novis` must not show `Authenticated Users` or `Everyone`.
+   `Users` must show `(RX)` only.
+
+The commands use the SID of each group, which starts with `*`. A SID is the same in every
+language. A group name is not: German Windows calls `Authenticated Users` "Authentifizierte
+Benutzer". In PowerShell, put quotes around an argument with parentheses: `"svc-novis:(OI)(CI)RX"`.
+
+An administrator account has administrator rights only in a prompt started with **Run as
+administrator**. In a normal prompt, `nvs init` can report `Access is denied` (`os error 5`).
+</TabItem>
+<TabItem label="Linux and macOS">
+Replace `novis` with the account that runs `nvs`.
+
+```sh
+sudo install -d -o root  -g root  -m 0755 /opt/novis
+sudo install    -o root  -g root  -m 0755 nvs /opt/novis/nvs
+sudo install -d -o root  -g novis -m 0750 /opt/novis/config
+sudo install -d -o novis -g novis -m 0755 /opt/novis/cache
+sudo install -d -o novis -g novis -m 0755 /opt/novis/logs
+```
+
+`root` owns `/opt/novis/config`. The group `novis` can read it and cannot write to it. Other
+accounts cannot open it. Give `nvs.toml` the mode `0640` and the same owner and group.
+
+A mode with write permission for the group or for others fails the check, for example `0775`,
+`0777` or `0664`. `chmod go-w <path>` fixes it.
+</TabItem>
+</Tabs>
+
+## When the check fails
+
+Every error message names a path. **Change the permissions of that path**, even when it is not
+the folder you were working in. For example, if `D:\srv\novis\config` is correct and
+`D:\srv\novis` is not, the message names `D:\srv\novis`.
+
+| Message | What to do |
+|---|---|
+| `... grants write access to ...`, `... is group-writable` or `... is world-writable` | Remove the write permission from the named path. On Windows, the message prints the SID to use. |
+| `... is owned by ..., which is neither this account ...` | Make the owner the account that runs `nvs`, or an administrator. |
+| `Access is denied` or `Permission denied` | Your own account cannot write there. Use an administrator prompt or `sudo`. |
+| `... it already exists, and it is never overwritten` | `nvs init` found a file. Edit it, or delete it and run `nvs init` again. |
+| `warning: [opcache] file_cache_dir ... is not used` | Fix the named path. Until then, programs work and start more slowly. |

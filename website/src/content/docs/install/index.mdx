@@ -1,59 +1,115 @@
 ---
-title: Installation
+title: Install Novis
 covers: []
-description: How to install the Novis toolchain — currently by building from source with Cargo; prebuilt binaries will come with the first release.
+description: Build the nvs program from source on Windows, Linux or macOS, and put it on your PATH.
 ---
 
-import { Steps } from '@astrojs/starlight/components'
+import { Steps, Tabs, TabItem } from '@astrojs/starlight/components'
+
+Novis is one program, `nvs`. It checks, compiles, runs, tests and serves your code.
 
 :::caution
-Novis has not shipped a release yet, so there are **no prebuilt binaries and no package
-manager installs** for now. The only way to get the toolchain today is building it from
-source. That said, the build is a single Cargo invocation.
+Novis has no release yet. There are no prebuilt downloads and no package manager installs. To
+get `nvs` today, you build it from source. The first release will have archives for Linux,
+Windows and macOS.
 :::
+
+## What you need
+
+You need Rust, which you install with [rustup](https://rustup.rs/). You do not need to choose a
+Rust version. The repository has a file, `rust-toolchain.toml`, that names the version. `rustup`
+installs that version the first time you build.
+
+Some parts of the build compile C code, so you also need a C compiler:
+
+<Tabs syncKey="os">
+<TabItem label="Windows">
+Install the Visual Studio Build Tools with the workload **Desktop development with C++**. The
+`rustup` installer offers to do this for you.
+</TabItem>
+<TabItem label="Linux">
+Install `git` and a C compiler. On Debian and Ubuntu, run `sudo apt install git build-essential`.
+</TabItem>
+<TabItem label="macOS">
+Install the Xcode command line tools with `xcode-select --install`. They include `git` and a C
+compiler.
+</TabItem>
+</Tabs>
 
 ## Build from source
 
-You need [Rust](https://rustup.rs/) via `rustup`. The repository pins its exact toolchain
-in `rust-toolchain.toml`, and `rustup` installs that version automatically the first time
-you build — you do not need to match it by hand.
-
 <Steps>
 
-1. Clone the repository:
+1. Get the source code:
 
    ```sh
    git clone https://github.com/novis-lang/novis.git novis
    cd novis
    ```
 
-2. Build the CLI:
+2. Build `nvs`. This takes several minutes the first time.
 
    ```sh
    cargo build --release -p nvs-cli
    ```
 
-3. Verify the binary:
+3. Check that it runs. The first line of the output is the version.
 
+   <Tabs syncKey="os">
+   <TabItem label="Windows">
+   ```powershell
+   .\target\release\nvs.exe --help
+   ```
+   </TabItem>
+   <TabItem label="Linux">
    ```sh
    ./target/release/nvs --help
    ```
+   </TabItem>
+   <TabItem label="macOS">
+   ```sh
+   ./target/release/nvs --help
+   ```
+   </TabItem>
+   </Tabs>
 
-   On Windows the binary is `.\target\release\nvs.exe`.
+4. Copy the program to a folder that is on your `PATH`. Then you can type `nvs` in any folder.
+
+   <Tabs syncKey="os">
+   <TabItem label="Windows">
+   Copy `target\release\nvs.exe` to a folder such as `C:\Tools`. Then add that folder to the
+   `Path` variable in **Settings > System > About > Advanced system settings > Environment
+   Variables**.
+   </TabItem>
+   <TabItem label="Linux">
+   ```sh
+   sudo install -m 0755 target/release/nvs /usr/local/bin/nvs
+   ```
+   </TabItem>
+   <TabItem label="macOS">
+   ```sh
+   sudo install -m 0755 target/release/nvs /usr/local/bin/nvs
+   ```
+   </TabItem>
+   </Tabs>
 
 </Steps>
 
-Put `target/release` on your `PATH`, or copy the `nvs` binary somewhere that already is.
-
-## What you get
-
-The `nvs` binary is the whole toolchain — checker, compiler, runner and test runner in one:
+## The commands you use first
 
 | Command | What it does |
 | --- | --- |
-| `nvs check file.nvs` | type-check a program without running it |
-| `nvs run file.nvs` | compile and run a program |
-| `nvs test` | run the tests in a project |
-| `nvs build` | produce a build artifact |
+| `nvs run file.nvs` | checks a program, then compiles and runs it |
+| `nvs check file.nvs` | checks a program and prints every error, without running it |
+| `nvs test file.nvs` | runs the `#[Test]` methods in a program |
+| `nvs serve file.nvs` | runs a web application until you stop it |
+| `nvs fmt file.nvs` | rewrites a file in the standard layout |
 
-Next: [write your first program](/install/hello-world/).
+`nvs help <command>` prints the help for one command.
+
+## Next steps
+
+- [Hello, World!](/install/hello-world/) is your first program.
+- [The editor extension](/install/editor/) adds colours, errors and completion to VS Code.
+- [Install on a server](/install/server/) shows the folders and permissions a server needs.
+- [A Tour of Novis](/guides/tour/) goes from Hello world to a running web application.

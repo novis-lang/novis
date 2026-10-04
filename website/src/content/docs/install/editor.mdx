@@ -1,0 +1,84 @@
+---
+title: The editor extension
+covers: []
+description: Install the Novis extension for VS Code, and the settings and commands it adds.
+---
+
+import { Steps } from '@astrojs/starlight/components'
+
+The Novis extension for VS Code colours `.nvs` files. It also shows errors while you type,
+completes names, and shows the documentation of a method when you point at it. It gets all of
+this from `nvs lsp`, the language server that is part of the `nvs` program.
+
+## Install the extension
+
+The extension is not in the VS Code Marketplace. You build it as a file, `nvs.vsix`, and install
+that file. You need [Node.js](https://nodejs.org/) and the Novis source code from
+[Install Novis](/install/).
+
+<Steps>
+
+1. Build the extension:
+
+   ```sh
+   cd editors/vscode
+   npm ci
+   npm run package
+   ```
+
+   This writes `nvs.vsix` into `editors/vscode`.
+
+2. Install it:
+
+   ```sh
+   code --install-extension nvs.vsix
+   ```
+
+   You can also open the Extensions view, click **...** and choose **Install from VSIX...**.
+
+3. Open a `.nvs` file. The status bar shows the version of `nvs` that the extension uses.
+
+</Steps>
+
+## How the extension finds nvs
+
+The extension does not include `nvs`. It looks in three places, in this order:
+
+1. the path in the setting `nvs.path`;
+2. `nvs` on your `PATH`;
+3. a copy that the command **Novis: Download nvs** installed.
+
+The extension and `nvs` must have the same version number before the second dot. For example,
+extension `0.4.2` works with `nvs` `0.4.0`, and does not work with `nvs` `0.5.0`.
+
+## Settings you may change
+
+| Setting | Default | What it does |
+|---|---|---|
+| `nvs.path` | `""` | The full path to the `nvs` program. Empty means: find `nvs` on the `PATH`. |
+| `nvs.lsp.enable` | `true` | Starts the language server. With `false`, you get colours and nothing else. |
+| `nvs.check.scope` | `"workspace"` | Which files are checked: `workspace` for every file in the folder, or `open` for the open files. |
+| `nvs.secrets.redact` | `true` | Hides values that the program marks as `secret`, such as a password. |
+| `nvs.taint.mark` | `"off"` | Shows a sign next to `tainted` values, which come from outside the program. Use `declaration` or `sink` to turn it on. |
+| `nvs.codeLens.enable` | `true` | Shows above each declaration how often it is used. |
+
+A change to `nvs.path` or `nvs.lsp.enable` restarts the server. After a change to another setting,
+run **Novis: Restart Language Server**.
+
+## Commands
+
+Open the command palette and type **Novis**. These are the commands you use most:
+
+| Command | What it does |
+|---|---|
+| **Novis: Run File** | Checks, compiles and runs the open file. |
+| **Novis: Run Tests** | Runs the `#[Test]` methods in the open file. |
+| **Novis: Restart Language Server** | Stops the server and starts it again. |
+| **Novis: Reveal Secret** | Shows the hidden value under the cursor. |
+| **Novis: Hide Secrets** | Hides every value you revealed again. |
+| **Novis: Download nvs** | Downloads the newest `nvs` that works with this extension. |
+
+**Novis: Download nvs** checks the download against the release's checksum file before it uses
+it. Nothing is downloaded unless you run this command.
+
+Next: [Hello, World!](/install/hello-world/), or [A Tour of Novis](/guides/tour/).
