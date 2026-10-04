@@ -1,0 +1,11 @@
+{
+  "lead": "A `.nvst` with a `--GET--` section still runs its file under a terminal sink, so `echo \"<b>\"` prints `<b>` and not `&lt;b&gt;`.",
+  "body": "The request sections only fill `Core\\Request`, and the HTML sink is attached by a real request. To test what `echo` writes under a request, call `Core\\Test::request(...)` in a `try` and put the handler in the `catch`, as `tests/conformance/core/echo-in-a-request-escapes-a-string-and-writes-markup-as-it-is.nvst` does.",
+  "files": [
+    "tests/conformance/core/echo-in-a-request-escapes-a-string-and-writes-markup-as-it-is.nvst"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "tests/conformance/core/echo-in-a-request-escapes-a-string-and-writes-markup-as-it-is.nvst:Core\\Test::request"
+  }
+}

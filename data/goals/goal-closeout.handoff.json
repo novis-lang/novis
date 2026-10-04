@@ -1,24 +1,24 @@
 {
-  "state": "**Goal `goal-closeout`, Stage 4 (finished in place).** `Core\\Server::traceId(): string` is built in `crates/nvs-stdlib/src/server.rs`, with all its feature proofs, so `bun nv proofs --id 'Core\\Server::traceId'` says complete. It reads the trace the context already has, so a request spends no new memory on it. It throws `LogicError` where no request arrived (`rule:security/request-state-throws-in-an-isolate`). A `.nvst` or `.nvsr` request now continues a `traceparent` header it writes, through `nvs_server::trace::take` in `crates/nvs-cli/src/main.rs`'s `inbound_of`.\n\nGap `core-server-has-no-request-environment` now owes only the environment half of spec § 15. Which members it needs beside `Core\\Request` and `Core\\Env` is a question in the goal prose's § *Questions for the user at the goal end*. Five questions wait there. Do not build the environment or the zip walk before the answers.\n\n**No session stops on `BLOCKED` before the goal end.** A question goes in that section, and the session carries on.\n\nThe floor check `the latest CI run on main succeeded for the code HEAD holds` is red because `main` is ahead of `origin/main`. It leaves with goal `ci-green`'s record in Stage 6, and nobody pushes for it.\n\n`bun nv owners --closes goal-closeout` names 10 gaps. Read each gap's record before building it: a gap can already be closed by tested code, and then the record is deleted. A change to a file a perf figure is keyed to stales that figure: run `bun nv proofs --owed` after any such change, and `bun nv proofs --record-perf --group '<class>'` for what it names.",
+  "state": "**Goal `goal-closeout`, Stage 4 (finished in place).** Nothing in code changed this session. Gap `an-isolate-result-output-is-typed-string` needs a design answer: `Core\\Cli\\Text` does not fix a page captured under a request, because `echo` escapes a `Cli\\Text` there on purpose, and the checker cannot know which sink will be in force. `Core\\Out::capture` has the same fault. The gap record names both, and the question *What type is captured output under a request?* is in the goal prose's § *Questions for the user at the goal end*. Six questions wait there. Do not build the environment, the zip walk or the captured-output type before the answers.\n\n**No session stops on `BLOCKED` before the goal end.** A question goes in that section, and the session carries on.\n\nThe floor check `the latest CI run on main succeeded for the code HEAD holds` is red because `main` is ahead of `origin/main`. It leaves with goal `ci-green`'s record in Stage 6, and nobody pushes for it.\n\n`bun nv owners --closes goal-closeout` names 10 gaps. Read each gap's record before building it: a gap can already be closed by tested code, and then the record is deleted. A change to a file a perf figure is keyed to stales that figure: run `bun nv proofs --owed` after any such change, and `bun nv proofs --record-perf --group '<class>'` for what it names.",
   "next": {
     "stage": 4,
     "title": "finished in place",
     "files": [],
-    "note": "one file set: `crates/nvs-types/src/expr/isolate.rs` and the isolate result's `output` field.",
+    "note": "one file set: `crates/nvs-stdlib/src/db/mod.rs` and the checker's interface acceptance.",
     "items": [
       {
         "done": false,
-        "text": "**A spawned isolate's `output` is typed from the parent's sink** — gap `an-isolate-result-output-is-typed-string`, `rule:security/isolate-output-is-captured` and `rule:security/capture-answers-the-carrier`. The result shape types `output` as `string` at `crates/nvs-types/src/expr/isolate.rs:593`, and the module doc calls the field unsettled at `crates/nvs-types/src/expr/isolate.rs:81`. Type it `Core\\Html\\Markup` under a request and `Cli\\Text` elsewhere, add a `.nvst` case where a captured page echoes unchanged, rewrite the paragraph, delete the gap record."
+        "text": "**`Core\\Db\\Queryable` becomes a type a program can write** — gap `core-db-queryable-is-not-a`, `rule:core-classes/db-transactions`. The module is `crates/nvs-stdlib/src/db/mod.rs:1`. Read the record first: it needs a checker change that accepts a `Core` class where a `Core` interface is written. Name the tradeoff before building it, and write a question in the goal prose if it is large."
       },
       {
         "done": false,
-        "text": "**`Core\\Db\\Queryable` becomes a type a program can write** — gap `core-db-queryable-is-not-a`, `rule:core-classes/db-transactions`. The module is `crates/nvs-stdlib/src/db/mod.rs:1`. Read the record first: it needs a checker change that accepts a `Core` class where a `Core` interface is written. Name the tradeoff before building it."
+        "text": "**A callable gets `bind`, `bindTo` and `call`, or the gap is struck as a bound** — gap `a-callable-has-no-bind-bindto-or-call`, at `crates/nvs-types/src/expr/calls.rs:1`. Read the record first."
       }
     ]
   },
   "backlog": [
     "The questions in `docs/agent/goals/goal-closeout.md` § *Questions for the user at the goal end* wait for the user at the goal end.",
-    "Gaps `a-callable-has-no-bind-bindto-or-call` (`crates/nvs-types/src/expr/calls.rs`) and `reference-cards-are-not-held-to-the-plain-voice` (`crates/nvs-stdlib/src/registry.rs`) are open.",
+    "Gap `reference-cards-are-not-held-to-the-plain-voice` (`crates/nvs-stdlib/src/registry.rs`) is open.",
     "Gaps `rendered-core-pages-lag-the-tree` and `the-website-grammar-is-hand-written-beside-the-editors` are open in `website/`.",
     "Stages 5 and 6 of the goal come after the gaps."
   ]
