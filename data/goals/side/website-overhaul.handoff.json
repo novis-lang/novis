@@ -1,26 +1,31 @@
 {
-  "state": "**Side goal `website-overhaul`: stage 5 (Install and Guides) is in progress. Install, the Tour, Why people pick Novis, Simple programs and Cookbook are done, and `--check guides` is written.**\n\nInstall has four pages under `install/`, snippets under `website/snippets/install/`. Novis has no release yet, so the install page builds from source.\n\nThe Tour is `guides/tour/index.mdx` and ten steps. Novis has no free functions (`E0215`), so every snippet uses a class. A compile error or `nvs test` output is shown as a `txt` block copied from a real run.\n\nWhy people pick Novis is `guides/why-novis/index.mdx` and 11 candidate pages. The user curates the final list when the goal lands.\n\nSimple programs (six pages) and Cookbook (`guides/cookbook/index.mdx` and ten task pages) give each program its own folder under `website/snippets/guides/<section>/<name>/`, because an `nvs.toml` there configures every snippet in the folder. The page shows that `nvs.toml` as a `toml` block. A request program has a `.nvsr`. An HTTP call uses `Core\\Test::answerHttp`, so it runs without a network. A database snippet uses `Core\\Db::connect` with a `[db.<name>]` block and `[capabilities.db] connect`; `Core\\Db::open` needs a grant the site runner does not give.\n\n`--check guides` (`guidesProblems` in `tools/nv/cmd/site.ts`) fails now only on `how-to-use`, `testing`, `production` and `example-apps`. `site structure`, `stale`, `reference`, `syntax` and `--build` pass. `snippets` and `prose` fail only on `index.mdx`, `sponsoring.mdx` and `in-depth/what-changed.mdx`, which stage 6 rewrites. `apps` and `in-depth` are stubs (`LATER` in `site.ts`).\n\nA page whose `covers:` names a feature id needs `bun nv site --stamp <page>` before `--check stale` passes.",
+  "state": "**Side goal `website-overhaul`: stage 5 (Install and Guides) is in progress. Install and seven of the eight Guides sections are done. Example apps is the last one.**\n\nInstall has four pages under `install/`, snippets under `website/snippets/install/`. Novis has no release yet, so the install page builds from source, and the Docker page copies a binary the reader built.\n\nGuides: Why people pick Novis (11 candidate pages; the user curates the list when the goal lands), the Tour (ten steps), Simple programs (six), How to use Novis (six pages, each with `## Do and don't`), Cookbook (ten), Testing your app (four) and Going to production (five). Each program has its own folder under `website/snippets/guides/<section>/<name>/`, with its `nvs.toml` and `.nvsr` beside it. `nvs test` output and compile errors are `txt` blocks copied from a real run.\n\nNovis has no free functions (`E0215`, `E0320`), so every snippet uses a class and `Core\\Math::intDiv` and so on. `Core\\Request::query` returns `mixed`: write `as tainted string` or `as ?int`. A route is tested in one file with the `catch (LogicError)` pattern in `website/snippets/guides/testing/test-a-route/test-a-route.nvs`.\n\n`--check guides` fails now only on `example-apps`. `site structure`, `stale`, `reference`, `syntax` and `--build` pass. `snippets` and `prose` fail only on `index.mdx`, `sponsoring.mdx` and `in-depth/what-changed.mdx`, which stage 6 rewrites. `apps` and `in-depth` are stubs (`LATER` in `site.ts`).\n\nA page whose `covers:` names a feature id needs `bun nv site --stamp <page>` before `--check stale` passes.",
   "next": {
     "stage": 5,
     "title": "Install and Guides",
     "files": [
-      "website/src/content/docs/guides/",
-      "website/snippets/guides/",
-      "website/astro.config.ts"
+      "apps/notes/",
+      "website/src/content/docs/guides/example-apps/",
+      "website/astro.config.ts",
+      "tools/nv/cmd/site.ts"
     ],
     "items": [
       {
         "done": false,
-        "text": "**How to use Novis, Testing your app, Going to production**: the three prose sections under `guides/how-to-use/`, `guides/testing/` and `guides/production/`, each with a Do / Don't list where the goal names one. In the sidebar, How to use goes between Simple programs and Cookbook, and Testing and Production after Cookbook, in `GUIDE_SECTIONS` order. Specified by `docs/agent/goals/side/website-overhaul.md` § Stage 5. Anchors: `website/astro.config.ts:170`, `tools/nv/cmd/site.ts:563`"
+        "text": "**The Notes app**: `apps/notes/` with SQLite, server-rendered HTML with html literals, a small JSON API, form validation and tests, run with `nvs serve` and `nvs test`. Specified by `docs/agent/goals/side/website-overhaul.md` § Stage 5, item 8. Its database snippets follow `website/snippets/guides/cookbook/page-db-rows/` (`Core\\Db::connect`, `[db.<name>]`, `[capabilities.db] connect`). Anchors: `website/astro.config.ts:209`"
       },
       {
         "done": false,
-        "text": "**Example apps**: `guides/example-apps/` with the Notes page, once `apps/notes/` exists, and `--check apps` written in place of its `LATER` stub. Specified by the same section. Anchors: `tools/nv/cmd/site.ts:563`"
+        "text": "**`--check apps`**: replace the `apps` entry of `LATER` with a part that runs `nvs test` over every app under `apps/` and boots each with `nvs serve` until `/` returns `200`. Specified by the same section. Anchors: `tools/nv/cmd/site.ts:66`"
+      },
+      {
+        "done": false,
+        "text": "**The Example apps page**: `guides/example-apps/index.mdx` and `guides/example-apps/notes.mdx` (sparse `git clone` of `apps/notes`, `cd`, `nvs serve`, `nvs test`, what each file does, how to start a new app from it), and a Guides sidebar group after Going to production. Anchors: `website/astro.config.ts:209`, `tools/nv/cmd/site.ts:563`"
       }
     ]
   },
   "backlog": [
-    "Stage 6: In-Depth, the home page, `sponsoring.mdx` and `in-depth/what-changed.mdx` (`docs/agent/goals/side/website-overhaul.md` § Stage 6).",
-    "The user curates the Why people pick Novis list before the goal lands (same file, § Standing decisions)."
+    "Stage 6: In-Depth's eight sections, the home page rewrite, `sponsoring.mdx` and `in-depth/what-changed.mdx` prose, and `--check in-depth` — `docs/agent/goals/side/website-overhaul.md` § Stage 6.",
+    "The Docker page says Novis has no published image. When a release lands, it should use the image from `docker/Dockerfile` — `website/src/content/docs/guides/production/docker.mdx`."
   ]
 }
