@@ -27886,6 +27886,8 @@ the file by itself, or only at its next start. Only `[server] listen`, `socket_m
 | `limits.max_decompressed` | operator only — a request cannot change it | at reload |
 | `limits.max_decompression_ratio` | operator only — a request cannot change it | at reload |
 | `limits.memory_high_water` | operator only — a request cannot change it | at reload |
+| `limits.cancel_on_disconnect` | operator only — a request cannot change it | at reload |
+| `limits.disconnect_grace` | operator only — a request cannot change it | at reload |
 | `mode.default` | a request may retune it, up to the `[limits.hard]` ceiling | at reload |
 | `mode.ceiling` | operator only — a request cannot change it | at reload |
 | `capabilities` | a request may only narrow it | at reload |

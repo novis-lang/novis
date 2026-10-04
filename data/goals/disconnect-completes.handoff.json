@@ -1,32 +1,39 @@
 {
-  "state": "**Goal `disconnect-completes` — a request whose client went away runs to its end, and a method can be set to cancel instead — has not started; nothing of it has landed yet.** No floor is carried: goal `goal-closeout` made a finished goal deleted, and the suites and `nv verify` are the floor.\n\nThe design is the user's (completion by default for every method, cancellation per method in `nvs.toml`) plus calls of mine the goal file lists as unconfirmed. Today `Peer::drop` abandons every request whose connection drops; that path stays for a listed method.",
+  "state": "**Goal `disconnect-completes`, Stage 2 done: the decision record and the two keys are on disk; the server does not read them yet.** ADR 0265 is the record. The old disconnect rule is renamed `rule:http-server/a-request-outlives-a-client-that-goes-away`, rewritten to the new behaviour and marked `designed`; Stage 3 flips it to `shipped` in `data/rules/http-server/a-request-outlives-a-client-that-goes-away.json` once the server holds it. `rule:concurrency/cancellation-runs-no-user-code` names the two disconnect cases that still cancel.\n\n`nvs_config::app::disconnect_for(&snapshot.config, &snapshot.origins)` returns `Disconnect { cancel, grace }` with `cancels(method)`; a per-app snapshot already has `[app.limits]` folded in. `app::disconnect` refuses a bad value at boot (`E0601` for the list, `E0619` for `false`/`0`). Both keys are `System` rows in `directive.rs`. `disconnect_grace` is in `live_config.rs`'s `REQUEST_READ`; `cancel_on_disconnect` is not, because `Core\\Config::get` returns `null` for a list value, so its `APPLY_PROOFS` row in `crates/nvs-config/tests/directives.rs` names a test that does not read it yet. The Stage 2 tests live in `crates/nvs-config/tests/app.rs`, not `src/tree.rs`.",
   "next": {
-    "stage": 2,
-    "title": "the two keys",
+    "stage": 3,
+    "title": "the server",
     "files": [
-      "crates/nvs-config/src/default.toml",
-      "crates/nvs-config/src/tree.rs",
-      "crates/nvs-config/src/value.rs",
-      "crates/nvs-config/src/app.rs"
+      "crates/nvs-server/src/serve.rs",
+      "crates/nvs-server/src/admit.rs",
+      "crates/nvs-runtime/src/host.rs",
+      "crates/nvs-host/src/worker.rs"
     ],
     "items": [
       {
         "done": false,
-        "text": "**The decision record**, from the goal's § *Standing decisions*, rewriting `rule:http-server/an-abandoned-request-is-cancelled-at-the-drop` and `rule:concurrency/cancellation-runs-no-user-code` — `docs/rules/http-server/an-abandoned-request-is-cancelled-at-the-drop.md:3`, `docs/rules/concurrency/cancellation-runs-no-user-code.md:7`."
+        "text": "**The drop detaches instead of abandoning** (`rule:http-server/a-request-outlives-a-client-that-goes-away`): `Peer::drop` and the end of `serve_connection` for a `Streamed` request read the method against `disconnect_for`'s list; a listed method abandons as today, any other hands the `Running` to a same-core owner that joins it and discards the `Completion` — `crates/nvs-server/src/serve.rs:964`, `crates/nvs-server/src/serve.rs:930`."
       },
       {
         "done": false,
-        "text": "**`cancel_on_disconnect` and `disconnect_grace`** in `[limits]` and `[app.limits]`, read where `max_regex_steps` is read — `crates/nvs-config/src/default.toml:70`, `crates/nvs-config/src/tree.rs`, `crates/nvs-config/src/value.rs`, `crates/nvs-config/src/app.rs`."
+        "text": "**The detached request keeps its admission place**: an owned form of `crate::admit::InFlight<'a>` held until the request ends — `crates/nvs-server/src/serve.rs:995`, `crates/nvs-server/src/admit.rs:1`."
       },
       {
         "done": false,
-        "text": "**The Stage 2 tests** — the seven names in the goal record's `nvs-config-the-disconnect-keys-are-read-and-refused` check, in `crates/nvs-config/src/tree.rs`."
+        "text": "**The grace, only without a `wall_time`**, through the request's own deadline machinery, following a `wall_time` set or cleared after the drop — `crates/nvs-runtime/src/host.rs:585`, `crates/nvs-host/src/worker.rs:500`."
+      },
+      {
+        "done": false,
+        "text": "**The two existing disconnect tests** keep testing cancellation with their method listed in `cancel_on_disconnect`, and the Stage 3 check's tests go beside them — `crates/nvs-server/src/serve.rs:5679`, `crates/nvs-server/src/serve.rs:5828`."
       }
     ]
   },
   "backlog": [
-    "**Stage 3: the server** — `Peer::drop` detaches, the admission place goes with it, the grace and the drain bound it; `crates/nvs-server/src/serve.rs:964`.",
-    "**Stage 4: the proofs** — a new `# When the client goes away` section in `docs/reference/tools/25-server.md` and its feature proofs.",
-    "When this goal's last check goes green the driver deletes it and takes goal `html-later`."
+    "`cancel_on_disconnect`'s live apply proof: a `live_config.rs` case where a reload adding a method makes the next request with it cancel at the drop, and its `APPLY_PROOFS` row re-pointed there (`rule:config/reloadability-is-its-own-field`), once Stage 3 reads the key.",
+    "`Core\\Response\\Stream::write` stops throwing at a gone client (Stage 3, second group): `crates/nvs-stdlib/src/response.rs:596`, `crates/nvs-runtime/src/stream.rs`, `docs/examples/core/Response-Stream/write/about.md`.",
+    "The drain, the log line and the root span for a detached request (Stage 3, goal prose § Stage 3).",
+    "Stage 0's sentences in `serve.rs`, `host.rs`, `worker.rs` doc comments, rewritten by the session that lands the behaviour.",
+    "Stage 4: `docs/reference/tools/25-server.md` § *When the client goes away*, `30-php-differences.md`, the feature proofs.",
+    "For the user: ADR 0265 § *Consequences* lists the unconfirmed calls (key names, `30s`, silent buffered write, send timeout as gone, drain)."
   ]
 }
