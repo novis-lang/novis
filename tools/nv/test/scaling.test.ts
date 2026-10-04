@@ -110,6 +110,7 @@ test("a serve ladder's size defaults to requests, belongs to serve alone, and sh
   expect(serveShape("header-bytes", 5).shape.headers).toEqual([["x-field", "aaaaa"]]);
   expect(serveShape("body-bytes", 7).shape.body!.length).toBe(7);
   expect(serveShape("query", 3).path).toBe("/?p0=value&p1=value&q=1");
+  expect(serveShape("form", 3).shape.body!.toString()).toBe("p0=value&p1=value&q=1");
   expect(serveShape("connections", 8)).toMatchObject({ requests: 8 * PER_CONNECTION, concurrency: 8 });
 });
 

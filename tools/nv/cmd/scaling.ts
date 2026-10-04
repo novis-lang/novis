@@ -69,7 +69,8 @@
 // stops the server. `requests`, the default, is that many GETs over one keep-alive connection. `headers`,
 // `header-bytes` and `query` send `SHAPED_REQUESTS` GETs that each carry that many extra headers, one
 // header of that many bytes, or that many query parameters, the last of them `q`; `body-bytes` sends as
-// many POSTs whose body is that many bytes. `connections` opens that many keep-alive connections before
+// many POSTs whose body is that many bytes, and `form` as many whose body is that many urlencoded
+// fields, named as `query` names its parameters. `connections` opens that many keep-alive connections before
 // the clock starts and sends `PER_CONNECTION` requests over each, all at once. The clock is the load's,
 // from the first request to the last answer, and the fastest of `--reps` boots. The server prints no
 // counts, so the clock decides as it does for `fmt`, and a clock slope left unread is reported invalid,
@@ -281,7 +282,7 @@ export const AREAS = [
 ] as const;
 
 /** What a `serve` ladder's size counts; the first is the default. */
-export const SERVE_SIZES = ["requests", "headers", "header-bytes", "body-bytes", "query", "connections"] as const;
+export const SERVE_SIZES = ["requests", "headers", "header-bytes", "body-bytes", "query", "form", "connections"] as const;
 
 /** How many requests one load sends when the size shapes each request rather than counting them. */
 export const SHAPED_REQUESTS = 1024;
@@ -640,12 +641,20 @@ export function serveShape(what: string, n: number): { path: string; shape: Http
     case "body-bytes":
       return { ...one, shape: { body: Buffer.alloc(n, "a") } };
     case "query":
-      return { ...one, path: `/?${Array.from({ length: n - 1 }, (_, i) => `p${i}=value&`).join("")}q=1` };
+      return { ...one, path: `/?${fields(n)}` };
+    case "form":
+      return { ...one, shape: { body: Buffer.from(fields(n), "latin1") } };
     case "connections":
       return { ...one, requests: n * PER_CONNECTION, concurrency: n };
     default:
       throw new PerfError(`\`size ${what}\` has no load`);
   }
+}
+
+/** `n` urlencoded fields, `p0` upwards and the last of them `q`: a `query` load's query string and a
+ * `form` load's body. */
+function fields(n: number): string {
+  return `${Array.from({ length: n - 1 }, (_, i) => `p${i}=value&`).join("")}q=1`;
 }
 
 /** The load `serveShape` gives for this size, sent to an `nvs serve` of the copy booted for this size

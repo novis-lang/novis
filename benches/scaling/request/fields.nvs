@@ -1,0 +1,14 @@
+<?nvs
+// Reads every field of a submitted form once, as a handler that saves a long form does.
+// scaling: kind serve
+// scaling: size form
+// scaling: start 64
+// scaling: max 4096
+// scaling: expect linear
+
+int $read = 0;
+while (Core\Request::post("p{$read}") != null) {
+    $read = $read + 1;
+}
+string $q = Core\Request::post("q") as string;
+echo "fields: ", $read, " q: ", $q, "\n";
