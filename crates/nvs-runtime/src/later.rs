@@ -21,6 +21,12 @@
 //! — is recorded on the slot's context, so the outer group stops every sibling
 //! and the request fails as it would have without `later`.
 //!
+//! **A slot cannot change the response head.** `fill` sets
+//! [`Ctx::in_later_slot`] on the slot's context, [`Ctx::child`] copies it into
+//! every task the slot starts, and each `Core` member that sets a status, a
+//! header, a cookie or a body, or regenerates the session, throws `LogicError`
+//! when it reads it.
+//!
 //! **A nested `later` is filled in the same pass.** A slot's context registers
 //! its own slots, and the slot assembles its own output before it answers, so
 //! the outer pass only ever sees finished bytes.
@@ -161,6 +167,14 @@ impl Ctx {
             .as_ref()
             .is_some_and(|slots| !slots.entries.is_empty())
     }
+
+    /// Whether this context runs a slot's closure, or a task inside one. Every
+    /// `Core` member that changes the response head reads it and throws
+    /// `LogicError` when it is set.
+    #[must_use]
+    pub fn in_later_slot(&self) -> bool {
+        self.in_later
+    }
 }
 
 /// Runs every slot this request registered and replaces each placeholder in
@@ -248,12 +262,15 @@ fn assemble(ctx: &mut Ctx, body: &mut Vec<u8>) {
         Some(Outcome::TimedOut | Outcome::Cancelled) => None,
         // An embedder that installed no host: the slots run one after another
         // on this stack, and only their deadlines are lost.
-        None => Some(
-            running
+        None => {
+            let outer = std::mem::replace(&mut ctx.in_later, true);
+            let answers = running
                 .iter()
                 .map(|slot| render(ctx, slot.closure))
-                .collect(),
-        ),
+                .collect();
+            ctx.in_later = outer;
+            Some(answers)
+        }
     };
     if let Some(answers) = filled {
         for (slot, answer) in running.iter().zip(answers) {
@@ -272,6 +289,9 @@ fn assemble(ctx: &mut Ctx, body: &mut Vec<u8>) {
 /// One slot, as a group of one under its own deadline, answering the bytes
 /// that replace its placeholder.
 fn fill(child: &mut Ctx, closure: Value, deadline: Option<Duration>, error: &[u8]) -> Value {
+    // The head is the request's and the main script has finished it, so the
+    // slot and every task it starts may not change it.
+    child.in_later = true;
     let bounds = Bounds {
         limit: None,
         deadline,

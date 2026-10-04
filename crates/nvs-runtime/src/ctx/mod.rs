@@ -744,6 +744,13 @@ pub struct Ctx {
     /// **What it spends:** one word per request, and the slots themselves only
     /// for a request that registers one.
     pub(crate) later: Option<Box<crate::later::Slots>>,
+    /// Whether this context runs a `Core\Html::later` slot, or a task inside
+    /// one, where the response head is closed (`rule:core-classes/html-later`).
+    /// Set by [`mod@crate::later`] and copied by [`Ctx::child`]; read by every
+    /// `Core` member that changes the head, through [`Ctx::in_later_slot`].
+    ///
+    /// **What it spends:** one byte per context.
+    pub(crate) in_later: bool,
     /// What is behind a pending `THROWN` or `FATAL` status — see [`Pending`]
     /// for why one field carries both shapes rather than two sitting beside
     /// each other.

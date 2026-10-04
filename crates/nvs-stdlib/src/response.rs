@@ -1047,6 +1047,26 @@ pub(crate) fn nameable(name: &str) -> bool {
             .all(|byte| byte.is_ascii_alphanumeric() || TOKEN_MARKS.contains(&byte))
 }
 
+/// `rule:core-classes/html-later`'s closed head: every member that sets a
+/// status, a header, a cookie or a body, and `Core\Session::regenerate`, calls
+/// this first, and a `Core\Html::later` slot calling one throws `LogicError`
+/// before anything is declared. The main script owns the head, and on a slotted
+/// route it is already on the wire by the time a slot runs.
+pub(crate) fn head_open(ctx: &nvs_runtime::Ctx, member: &str) -> Result<(), Fault> {
+    if ctx.in_later_slot() {
+        // A literal stem before the first hole, which is
+        // `conformance_coverage`'s error-path gate matching a site.
+        return Err(Fault::thrown_as(
+            nvs_runtime::ThrownClass::Logic,
+            format!(
+                "A `Core\\Html::later` closure cannot call `{member}`. Only the main script \
+                 sets the status, the headers, the cookies and the body."
+            ),
+        ));
+    }
+    Ok(())
+}
+
 nvs_runtime::nvs_helper! {
     /// `Core\Response::html(Core\Html\Markup $body): void` — `rule:security/response-body-is-one-typed-member`'s first row.
     ///
@@ -1065,6 +1085,7 @@ nvs_runtime::nvs_helper! {
     /// this member adds no second way out of the carrier for
     /// `rule:core-classes/html-to-source` to have to be about.
     fn nvs_core_response_html(ctx, args: [1]) {
+        head_open(ctx, "Core\\Response::html")?;
         let held = crate::html::markup_slot(args[0], r"`Core\Response::html`'s `$body`")?;
         // Unreachable from source twice over: the row's parameter is the
         // carrier, so `E0401` refuses anything else at the call, and the slot
@@ -1100,6 +1121,7 @@ nvs_runtime::nvs_helper! {
     /// (`Ctx::write_output`), and a half-written body whose type is unknown
     /// would be strictly worse to answer with than one whose type is not.
     fn nvs_core_response_text(ctx, args: [1]) {
+        head_open(ctx, "Core\\Response::text")?;
         // Unreachable from source: the row's parameter is a `CoreTy::Text`, so
         // `E0401` refuses anything that is not a `string` before this runs.
         let body = args[0].as_text().ok_or_else(|| {
@@ -1137,6 +1159,7 @@ nvs_runtime::nvs_helper! {
     /// read is, and the program learns which of the two layers refused it from
     /// which of the two answers it gets.
     fn nvs_core_response_set_status(ctx, args: [1]) {
+        head_open(ctx, "Core\\Response::setStatus")?;
         // Unreachable from source: the row's parameter is a `CoreTy::Uint`, so
         // `E0401` refuses anything that is not one — a negative literal
         // included — before this runs.
@@ -1178,6 +1201,7 @@ nvs_runtime::nvs_helper! {
     /// declared, on `bytes`' reasoning — and the two checks themselves, which
     /// are [`nameable`] and [`carriable`].
     fn nvs_core_response_set_header(ctx, args: [2]) {
+        head_open(ctx, "Core\\Response::setHeader")?;
         // Unreachable from source for both: the row's parameters are
         // `CoreTy::Text`, so `E0401` refuses anything that is not a `string`,
         // and refuses a `tainted` one besides, both being § 1's sink.
@@ -1247,6 +1271,7 @@ nvs_runtime::nvs_helper! {
     /// uses, so a program that names `Location` itself afterwards overrides
     /// this one exactly as it overrides the server's own.
     fn nvs_core_response_redirect(ctx, args: [2]) {
+        head_open(ctx, "Core\\Response::redirect")?;
         // Unreachable from source: the row's first parameter is a
         // `CoreTy::Text`, so `E0401` refuses anything that is not a `string`,
         // and refuses a `tainted` one besides, that being § 1's sink.
@@ -1515,6 +1540,7 @@ nvs_runtime::nvs_helper! {
     /// configured defaults are read off the request's own snapshot, which is an
     /// `Arc` every request on the core already shares.
     fn nvs_core_response_add_cookie(ctx, args: [8]) {
+        head_open(ctx, "Core\\Response::addCookie")?;
         // Unreachable from source for both: the row types them `CoreTy::Text`,
         // so `E0401` refuses a non-`string` — and a `tainted` one besides,
         // both being § 1 sinks.
@@ -1654,6 +1680,7 @@ nvs_runtime::nvs_helper! {
     /// `text`'s: an unencodable value throws with nothing written, so there is
     /// no body for a `Content-Type` to have described.
     fn nvs_core_response_json(ctx, args: [1]) {
+        head_open(ctx, "Core\\Response::json")?;
         let written = crate::json::written(ctx, args[0], "Core\\Response::json")?;
         ctx.declare_content_type(JSON_MEDIA_TYPE);
         // Unreachable from source, on `text`'s reasoning: `OutputSink::Buffer`
@@ -1677,6 +1704,7 @@ nvs_runtime::nvs_helper! {
     /// owns what the check is and why it is here and not only at the
     /// connection.
     fn nvs_core_response_bytes(ctx, args: [2]) {
+        head_open(ctx, "Core\\Response::bytes")?;
         // Unreachable from source for both: the row's parameters are a
         // `CoreTy::Blob` and a `CoreTy::Text`, so `E0401` refuses anything else
         // before this runs.
@@ -1752,6 +1780,7 @@ nvs_runtime::nvs_helper! {
     /// a response, and the bytes still come out in the order the program wrote
     /// them.
     fn nvs_core_response_send_file(ctx, args: [1]) {
+        head_open(ctx, "Core\\Response::sendFile")?;
         // Unreachable from source: the row's parameter is a `CoreTy::Text`, so
         // `E0401` refuses anything that is not a `string` before this runs —
         // and refuses a `tainted` one besides, that being § 1's sink.
@@ -1832,6 +1861,7 @@ nvs_runtime::nvs_helper! {
     /// the later declaration simply wins — `Ctx::declare_content_type`'s own
     /// rule for every body member written twice.
     fn nvs_core_response_stream(ctx, args: [1]) {
+        head_open(ctx, "Core\\Response::stream")?;
         // Unreachable from source: the row's parameter is a `CoreTy::Text`, so
         // `E0401` refuses anything that is not a `string` before this runs — and
         // refuses a `tainted` one besides, that being § 1's sink.

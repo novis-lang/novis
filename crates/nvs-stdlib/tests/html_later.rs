@@ -19,6 +19,8 @@ thread_local! {
     static INNER: Cell<Value> = const { Cell::new(Value::null()) };
     /// What happened, in order, for the after-response case.
     static ORDER: RefCell<Vec<&'static str>> = const { RefCell::new(Vec::new()) };
+    /// Each context's memory ceiling and request tree, as the limits case saw them.
+    static LIMITS: RefCell<Vec<(usize, usize)>> = const { RefCell::new(Vec::new()) };
 }
 
 fn closure_of(invoke: nvs_runtime::NvsFn) -> Value {
@@ -161,6 +163,71 @@ slot_fn!(notes_later, |ctx| {
 slot_fn!(notes_deferred, |_ctx| {
     ORDER.with(|order| order.borrow_mut().push("deferred"));
     Ok(Value::null())
+});
+
+/// The `Core` member compiled code calls by `symbol`.
+fn member(symbol: &str) -> nvs_runtime::NvsFn {
+    let (_, code) = nvs_stdlib::symbols()
+        .into_iter()
+        .find(|(name, _)| *name == symbol)
+        .unwrap_or_else(|| panic!("no `Core` member is linked as {symbol}"));
+    #[expect(
+        unsafe_code,
+        reason = "every `Core` member is linked with the one helper signature"
+    )]
+    // SAFETY: as above.
+    unsafe {
+        std::mem::transmute::<*const u8, nvs_runtime::NvsFn>(code)
+    }
+}
+
+/// Calls `symbol` with `args` and writes `refused` when it threw
+/// `LogicError`, `allowed` when it did not.
+fn try_head(ctx: &mut Ctx, symbol: &str, args: &[Value]) {
+    let verdict: &[u8] = match nvs_runtime::call(member(symbol), ctx, args) {
+        Ok(_) => b"allowed",
+        Err(_) if ctx.pending_class().as_deref() == Some("LogicError") => {
+            let _caught = ctx.take_pending();
+            b"refused"
+        }
+        Err(_) => panic!("{symbol} failed with {:?}", ctx.take_pending()),
+    };
+    ctx.write_output(verdict).expect("a buffer");
+}
+
+slot_fn!(sets_status, |ctx| {
+    try_head(ctx, "nvs_core_response_set_status", &[Value::uint(500)]);
+    Ok(Value::null())
+});
+
+slot_fn!(sets_header, |ctx| {
+    let name = Value::str(NvsStr::new(b"X-Shop"));
+    let value = Value::str(NvsStr::new(b"open"));
+    try_head(ctx, "nvs_core_response_set_header", &[name, value]);
+    Ok(Value::null())
+});
+
+slot_fn!(writes_text, |ctx| {
+    let body = Value::str(NvsStr::new(b"plain"));
+    try_head(ctx, "nvs_core_response_text", &[body]);
+    Ok(Value::null())
+});
+
+slot_fn!(notes_limits, |ctx| {
+    let tree = std::sync::Arc::as_ptr(&ctx.tree_handle()) as usize;
+    LIMITS.with(|seen| seen.borrow_mut().push((ctx.memory_limit(), tree)));
+    Ok(Value::null())
+});
+
+slot_fn!(writes_too_much, |ctx| {
+    ctx.write_output(&[b'x'; 4096]).expect("a buffer");
+    match ctx.output_breach() {
+        Some(_) => {
+            ctx.set_pending_fatal("the request exceeded its output limit");
+            Err(nvs_runtime::FATAL)
+        }
+        None => Ok(Value::null()),
+    }
 });
 
 /// A `Core\Html\Markup` holding `text`, escaped.
@@ -413,6 +480,75 @@ fn a_visitor_string_that_copies_the_placeholder_fills_nothing() {
         page.matches("<p>comments</p>").count(),
         1,
         "a slot was filled twice: {page}"
+    );
+}
+
+#[test]
+fn a_later_closure_that_changes_the_response_head_throws() {
+    let done = serve(|ctx| {
+        nvs_runtime::call(
+            member("nvs_core_response_set_status"),
+            ctx,
+            &[Value::uint(201)],
+        )
+        .expect("the main script sets the status");
+        let status = later(ctx, closure_of(sets_status), None, None, None);
+        let header = later(ctx, closure_of(sets_header), None, None, None);
+        let body = later(ctx, closure_of(writes_text), None, None, None);
+        for slot in [status, header, body] {
+            ctx.write_output(&text(slot)).expect("a buffer");
+            ctx.write_output(b"|").expect("a buffer");
+        }
+    });
+    assert!(done.ok, "a caught head change failed the page");
+    assert_eq!(body(&done), "refused|refused|refused|");
+    assert_eq!(done.status, Some(201), "a slot changed the status");
+    assert!(
+        done.headers
+            .iter()
+            .all(|header| !format!("{header:?}").contains("X-Shop")),
+        "a slot added a header: {:?}",
+        done.headers
+    );
+}
+
+#[test]
+fn later_tasks_share_the_requests_limits() {
+    LIMITS.with(|seen| seen.borrow_mut().clear());
+    let done = serve(|ctx| {
+        let tree = std::sync::Arc::as_ptr(&ctx.tree_handle()) as usize;
+        LIMITS.with(|seen| seen.borrow_mut().push((ctx.memory_limit(), tree)));
+        let a = later(ctx, closure_of(notes_limits), None, None, None);
+        let b = later(ctx, closure_of(notes_limits), None, None, None);
+        ctx.write_output(&text(a)).expect("a buffer");
+        ctx.write_output(&text(b)).expect("a buffer");
+    });
+    assert!(done.ok, "the page failed");
+    let seen = LIMITS.with(|seen| seen.borrow().clone());
+    assert_eq!(seen.len(), 3, "a slot did not run: {seen:?}");
+    assert!(
+        seen.iter().all(|limits| *limits == seen[0]),
+        "a slot has a ceiling or a tree of its own: {seen:?}"
+    );
+}
+
+#[test]
+fn a_limit_breach_fails_the_whole_request_on_a_normal_route() {
+    let done = serve(|ctx| {
+        ctx.set_output_limit(1024);
+        let greedy = later(ctx, closure_of(writes_too_much), None, Some("error"), None);
+        let slow = later(ctx, closure_of(slow_a), None, None, None);
+        ctx.write_output(&text(greedy)).expect("a buffer");
+        ctx.write_output(&text(slow)).expect("a buffer");
+    });
+    assert!(
+        !done.ok,
+        "a slot past the request's output limit did not fail the request"
+    );
+    assert!(
+        !body(&done).contains("error"),
+        "a limit breach showed the slot's error fragment: {}",
+        body(&done)
     );
 }
 

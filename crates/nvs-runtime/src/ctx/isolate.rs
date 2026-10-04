@@ -333,6 +333,12 @@ impl Ctx {
         child.memory_base = self.memory_base;
         child.memory_limit = self.memory_limit;
         child.fatal_reserve = self.fatal_reserve;
+        // The response ceiling by the same reasoning: a task's writes are
+        // counted on the core's total the request reads from its own zero
+        // point, so a task polls the request's reading against the request's
+        // `max_output`, and a slot writing past it fails the request.
+        child.output_base = self.output_base;
+        child.output_limit = self.output_limit;
         // Sealed rather than empty: `rule:concurrency/after-response-outlives-the-connection`'s queue is the *request's*, and
         // one on a child would be drained by nobody and released when the child
         // ended. `crate::deferred` is the one home for that rule and for why a
@@ -345,6 +351,9 @@ impl Ctx {
             .later
             .as_ref()
             .map(|slots| Box::new(slots.sharing_token()));
+        // A task a slot starts is still inside the slot, so the head stays
+        // closed to it.
+        child.in_later = self.in_later;
         child
     }
 

@@ -1298,6 +1298,7 @@ nvs_runtime::nvs_helper! {
     /// unconfigured or refused by capability, and for a `[session] cookie` that is not a cookie
     /// name; a thrown `IOError` for a store that cannot be reached.
     fn nvs_core_session_regenerate(ctx, _args: [0]) {
+        crate::response::head_open(ctx, "Core\\Session::regenerate")?;
         let Some(open) = ctx.session() else {
             return Err(unstarted("regenerate"));
         };
