@@ -1,24 +1,25 @@
 {
-  "state": "**Side goal `test-scratch-and-hover`, stage 2.** `nvs_repo::scratch(name) -> Scratch` (`crates/nvs-repo/src/lib.rs`) is a fresh directory `target/test-scratch/<name>-<pid>-<n>`, deleted when the guard drops. `nvs_repo::scratch_private(name)` is `case/` inside one such directory locked to this account (Unix `0700` on both; Windows one `icacls /inheritance:r /grant:r *S-1-3-4:(OI)(CI)F`, which `case/` inherits), for a test that runs the ownership check. `a_private_scratch_dir_is_inside_the_boundary` in `crates/nvs-config/tests/trust.rs` pins it against `nvs_config::trust::check`.\n\nThe guard `no_test_code_writes_into_the_system_temp_dir` is in `crates/nvs-repo/tests/scratch.rs`, with `SUBJECT` (empty) and the `NOT_YET_MOVED` ratchet, which fails when a file's count moves either way. Moving a site means lowering or deleting its row in the same commit.\n\n**All 25 `nvs-cli` calls are moved** (70 calls left in other crates). `cache.rs`, `config.rs` and `tests/init.rs` use `scratch_private`. The pattern: a helper that returned a `PathBuf` now returns the `Scratch`, and the test binds it for as long as it reads the files. A `Scratch` is not `Into<PathBuf>`: pass `dir.path()`.\n\n`target/test-scratch/init-cmd-windows-steps-*` on this machine are leftovers from an earlier session's reverted attempt, not from a current test. `cargo clean` removes them. Stage 3 (hover) is not started.\n\n**`bun nv verify`'s `extension` step fails in this worktree** because `editors/vscode/node_modules` does not exist (`Cannot find name 'node:fs'`, `Cannot find module 'vscode'`). Every Rust step was green. An `npm ci` in `editors/vscode` is the call this session did not make; it needs the user's go-ahead.",
+  "state": "**Side goal `test-scratch-and-hover`, stage 2 done as far as it can go without a call from the user; stage 3 (hover) is next.** `nvs_repo::scratch(name) -> Scratch` (`crates/nvs-repo/src/lib.rs`) is a fresh directory `target/test-scratch/<name>-<pid>-<n>`, deleted when the guard drops. `nvs_repo::scratch_private(name)` is `case/` inside one such directory locked to this account, for a test that runs the ownership check.\n\nThe guard `no_test_code_writes_into_the_system_temp_dir` is in `crates/nvs-repo/tests/scratch.rs`, with `SUBJECT` (empty) and the `NOT_YET_MOVED` ratchet. Moving a site means lowering or deleting its row in the same commit.\n\n**All of `nvs-cli` and `nvs-lsp` are moved, and so is `nvs-config/tests/trust.rs`** (on `scratch_private`). 42 calls are left, in `nvs-db`, `nvs-footprint`, `nvs-hir`, `nvs-host`, `nvs-runtime`, `nvs-server`, `nvs-stdlib`, `nvs-test`, `nvs-types` and `nvs-config/tests/control.rs`. A test `TempDir` struct now holds `path: nvs_repo::Scratch` and has no `Drop` of its own. A URI-only site makes a `Scratch` in the helper and names `case.nvs` inside it.\n\n**`crates/nvs-config/tests/control.rs:49` is not moved, on purpose.** It is a Unix socket path, and a socket path has a limit of about 104 bytes on macOS. A path under `target/test-scratch/` in a deep checkout can pass it. Moving it, or listing it in `SUBJECT` with that reason, is the user's call: the standing decision says no test writes into the temp directory.\n\n`crates/nvs-lsp/src/suite.rs:339` (`Materialised::write`, the `lsp-test` runner) writes each case into the system temp directory. It is not test code, so the guard does not see it.",
   "next": {
-    "stage": 2,
-    "title": "test scratch under `target/`",
+    "stage": 3,
+    "title": "hover on every class name, and `use` lines in references",
     "files": [],
-    "note": "one file set: `crates/nvs-repo/tests/scratch.rs` and the `nvs-lsp` test modules.",
+    "note": "one file set: `crates/nvs-lsp/src/hover.rs`, `crates/nvs-lsp/src/server.rs` and the cases under `tests/lsp/`.",
     "items": [
       {
         "done": false,
-        "text": "**Move the `nvs-lsp` sites (18 rows)**, the same way. Many only build a URI with `uri_of(&std::env::temp_dir().join(..))` and never write the file: give those a path under one `Scratch` the test holds. A site whose subject is the system temp directory goes to `SUBJECT` with its reason — `crates/nvs-lsp/src/definition.rs:1597`, `crates/nvs-lsp/src/document.rs:808`, `crates/nvs-lsp/tests/navigation.rs:230`"
+        "text": "**Hover answers on a `use` line, an `implements` clause, a parameter type, a return type and an array type argument** with the card of the class written there. Five cases under `tests/lsp/hover/`, named in the goal's check `hover-references-and-lens-cases`. Entry is `crates/nvs-lsp/src/hover.rs:121`; the Core card is `crates/nvs-lsp/src/hover.rs:589`."
       },
       {
         "done": false,
-        "text": "**Move `nvs-config`'s two rows** (`tests/trust.rs`, `tests/control.rs`) onto `scratch_private`, since both run the ownership check — `crates/nvs-config/tests/trust.rs:22`"
+        "text": "**Find References lists a `use` line, and the CodeLens does not count it** — `crates/nvs-lsp/src/server.rs:879` (`references`) and `crates/nvs-lsp/src/server.rs:1173` (`code_lens`), with `tests/lsp/references/a-use-line-is-listed-among-the-references-of-its-class.lspt` and `tests/lsp/lens/a-use-line-is-not-counted-by-the-lens.lspt`."
       }
     ]
   },
   "backlog": [
-    "Move the rest (`nvs-stdlib`, `nvs-runtime`, `nvs-test`, `nvs-host`, `nvs-db`, `nvs-server`, `nvs-types`, `nvs-hir`, `nvs-footprint`): `crates/nvs-repo/tests/scratch.rs`. One that runs the ownership check uses `scratch_private`.",
-    "Stage 3: hover on a `use` line, an `implements` clause and type positions; references list `use` lines and the lens does not count them (`docs/agent/goals/side/test-scratch-and-hover.md`).",
-    "`crates/nvs-cli/src/service.rs` and `crates/nvs-cli/src/tmp.rs` still end tests with an explicit `remove_dir_all(&root)`. That is harmless because the guard's drop ignores a missing directory."
+    "Move the other 41 `NOT_YET_MOVED` calls, one crate at a time — `crates/nvs-repo/tests/scratch.rs`.",
+    "Decide `crates/nvs-config/tests/control.rs:49` (socket path length) with the user — see State.",
+    "`suite.rs`'s `Materialised::write` could write under `target/` too when it runs from a test — `crates/nvs-lsp/src/suite.rs:339`.",
+    "`bun nv verify`'s `extension` step fails in this worktree until `npm ci` runs in `editors/vscode`, which needs the user's go-ahead."
   ]
 }

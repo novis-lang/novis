@@ -2,9 +2,9 @@
 //!
 //! `tests/resolve.rs` runs against an in-memory reader on purpose and so cannot see this half: that
 //! the check reads the platform's own idea of who owns a path and who may write it, and that what
-//! it hands back is canonical. Each case works under a directory of its own beneath the system
-//! temporary directory — the one place every target platform gives the invoking account and
-//! nobody else, which is what makes a *passing* case meaningful rather than accidental.
+//! it hands back is canonical. Each case works under a directory of its own from
+//! `nvs_repo::scratch_private`, which only the invoking account can reach, and that is what makes a
+//! *passing* case meaningful rather than accidental.
 //!
 //! Making a path group-writable is one `chmod` on Unix and an ACL edit on Windows, so each
 //! platform's refusals are written against its own tool: the `cfg(unix)` cases below use
@@ -14,16 +14,13 @@
 //! `crates/nvs-config/src/trust.rs`'s module doc.
 
 use std::fs;
-use std::path::PathBuf;
 
 use nvs_config::trust::{Untrusted, check};
 
-/// A directory of this case's own, empty, under the system temporary directory.
-fn scratch(name: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("nvs-trust-{}-{name}", std::process::id()));
-    drop(fs::remove_dir_all(&dir));
-    fs::create_dir_all(&dir).expect("a scratch directory of this case's own");
-    dir
+/// A directory of this case's own, empty, that only this account can reach. Dropping the guard
+/// deletes it.
+fn scratch(name: &str) -> nvs_repo::Scratch {
+    nvs_repo::scratch_private(&format!("trust-{name}"))
 }
 
 /// § 6 accepts what an ordinary installation looks like — a file this account owns in a directory
@@ -49,8 +46,6 @@ fn a_file_this_account_owns_is_trusted_and_comes_back_canonical() {
         "two spellings of one file resolve to one path — which is what closes a cycle a symlink \
          would otherwise hide",
     );
-
-    drop(fs::remove_dir_all(&dir));
 }
 
 /// `nvs_repo::scratch_private` is what a test that runs this check writes into, so it must pass the
@@ -79,8 +74,6 @@ fn a_path_that_is_not_there_is_unreadable_rather_than_a_breach() {
         matches!(why, Untrusted::Unreadable(_)),
         "an absent file is not a breach of the boundary: {why:?}",
     );
-
-    drop(fs::remove_dir_all(&dir));
 }
 
 /// § 6's mode half, on the file itself.
@@ -104,8 +97,6 @@ fn a_group_writable_file_is_a_breach() {
         "the refusal says what is wrong with it: {}",
         why.message(),
     );
-
-    drop(fs::remove_dir_all(&dir));
 }
 
 /// § 6's mode half, on the directory — the case a check that stopped at the file would pass. A file
@@ -129,8 +120,6 @@ fn a_file_in_a_world_writable_directory_is_a_breach_too() {
         "the refusal names the directory rather than the file it holds: {}",
         why.message(),
     );
-
-    drop(fs::remove_dir_all(&dir));
 }
 
 /// The installation chapter's Linux layout, asked of the check mode by mode. Every mode its
@@ -195,15 +184,13 @@ fn the_installed_modes_pass_and_a_write_bit_for_the_group_or_for_others_does_not
             "`chmod go-w` on a {mode:04o} file is the whole repair: {repaired:?}",
         );
     }
-
-    drop(fs::remove_dir_all(&dir));
 }
 
 /// One `icacls` edit, by SID because an account name is localized and a rename does not move it.
 ///
-/// `/inheritance:d` first, on every edit, because a scratch directory under the temporary
-/// directory inherits its entries: without that, a `/remove` names an entry that is not there to
-/// remove and the grant survives.
+/// `/inheritance:d` first, on every edit, because a scratch directory inherits the entries of the
+/// directory around it: without that, a `/remove` names an entry that is not there to remove and
+/// the grant survives.
 #[cfg(windows)]
 fn icacls(dir: &std::path::Path, args: &[&str]) {
     // `icacls` edits the scratch directory it is given and opens nothing in the repository.
@@ -241,8 +228,6 @@ fn a_directory_a_well_known_group_may_write_is_a_breach() {
 
     icacls(&dir, &["/remove:g", USERS]);
     check(&dir).expect("the grant is gone and the directory is inside the boundary again");
-
-    drop(fs::remove_dir_all(&dir));
 }
 
 /// The right asked about is the *effective* one, which is the whole reason the walk in
@@ -261,7 +246,6 @@ fn a_grant_a_deny_entry_cancels_is_not_a_breach() {
     check(&dir).expect("a right denied is a right this principal does not effectively have");
 
     icacls(&dir, &["/remove", USERS]);
-    drop(fs::remove_dir_all(&dir));
 }
 
 /// § 6's owner half, and the install chapter's row for it: a path another account owns is a breach
@@ -275,7 +259,7 @@ fn a_grant_a_deny_entry_cancels_is_not_a_breach() {
 #[test]
 fn a_directory_another_account_owns_is_a_breach_that_names_the_owner() {
     let root = std::env::var_os("SystemRoot").expect("Windows sets `SystemRoot`");
-    let system = nvs_config::trust::canonical(&PathBuf::from(root).join("System32"))
+    let system = nvs_config::trust::canonical(&std::path::PathBuf::from(root).join("System32"))
         .expect("the system directory exists");
 
     let why = check(&system).expect_err("neither this account nor an administrator owns it");
