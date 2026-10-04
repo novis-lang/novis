@@ -928,20 +928,60 @@ struct Policy {
 /// ([`serve_connection`]'s docs own the argument).
 ///
 /// The second is what a **drop** means. A service future can be dropped with
-/// its request still running — `hyper` giving up on the connection, or this
-/// task being torn down under it — and a drop that simply released the handle
-/// would leave an isolate running with nothing left that could prove it
-/// finished, which is
+/// its request still running — `hyper` giving up on a connection whose client
+/// went away, or this task being torn down under it — and a drop that simply
+/// released the handle would leave an isolate running with nothing left that
+/// could prove it finished, which is
 /// `rule:concurrency/nothing-is-still-running-when-a-call-returns`
-/// gone rather than kept. So the drop **abandons**: cancel, then wait.
-/// [`nvs_host::Running::abandon`] owns both halves and the one case that may
-/// not wait.
-struct Peer(Option<Box<dyn Running>>);
+/// gone rather than kept. So the drop **waits for the request to end**, on this
+/// connection's own task, and discards its answer:
+/// `rule:http-server/a-request-outlives-a-client-that-goes-away`. The task
+/// parking here is the request's same-core owner, which keeps everything the
+/// connection held for the request — its admission place, the drain's count of
+/// it — held until the request ends, with no second owner to hand them to.
+///
+/// The drop **abandons** instead — cancel, then wait, which
+/// [`nvs_host::Running::abandon`] owns with the one case that may not wait —
+/// for a method `[limits] cancel_on_disconnect` lists, once the drain period
+/// has ended, and when this task is itself cancelled or torn down.
+struct Peer {
+    running: Option<Box<dyn Running>>,
+    /// The connection's half of the request's *own* body, pumped by whoever
+    /// polls this connection — the wait in the service future, and the drive
+    /// loop once a streamed answer's head has gone out, since answering a head
+    /// early does not end the request. The drop hangs it up before it waits,
+    /// because nothing pumps it after that.
+    supply: Option<Supply>,
+    /// Whether the request's method is listed in `cancel_on_disconnect`, read
+    /// once at its start from the snapshot it runs under.
+    cancels: bool,
+    /// The drain this connection is under, and when it saw it: what ends a
+    /// wait for a request whose client is gone at the drain period's end.
+    draining: Draining,
+    seen: crate::io::DrainSeen,
+    period: Duration,
+}
 
 impl Peer {
     /// Whether the request has ended, asked without waiting for it.
     fn finished(&self) -> bool {
-        self.0.as_ref().is_none_or(|running| running.finished())
+        self.running
+            .as_ref()
+            .is_none_or(|running| running.finished())
+    }
+
+    /// Ends the request now and waits for it to stop: the drain period's cut.
+    fn cancel(mut self) {
+        if let Some(running) = self.running.take() {
+            running.abandon();
+        }
+    }
+
+    /// When the drain period ends, once a drain has begun.
+    fn cut_at(&self) -> Option<Instant> {
+        self.draining
+            .is_draining()
+            .then(|| self.seen.period_ends(self.period))
     }
 
     /// Takes the answer, once the request has ended.
@@ -957,15 +997,41 @@ impl Peer {
     /// reach — worth an answer rather than a panic all the same, since what it
     /// would cost a future caller is one `500` instead of a connection.
     fn collect(&mut self, ctx: &mut Ctx) -> Option<Completion> {
-        self.0.take().map(|running| running.join(ctx))
+        self.running.take().map(|running| running.join(ctx))
     }
 }
 
 impl Drop for Peer {
     fn drop(&mut self) {
-        if let Some(running) = self.0.take() {
-            running.abandon();
+        let Some(running) = self.running.take() else {
+            return;
+        };
+        if let Some(supply) = self.supply.take() {
+            supply.hang_up();
         }
+        if self.cancels {
+            running.abandon();
+            return;
+        }
+        // The request's own end wakes this task, as it does the wait in the
+        // service future; the drain's cut is the one other wake filed here.
+        while !running.finished() {
+            let cut_at = self.cut_at();
+            if cut_at.is_some_and(|at| at <= Instant::now()) || nvs_runtime::Teardown::in_progress()
+            {
+                break;
+            }
+            if let Some(at) = cut_at {
+                crate::bounds::wake_at(at);
+            }
+            let resumed = suspend_current(Waiting::Parked);
+            if !resumed.suspended() || resumed.cancelled() {
+                break;
+            }
+        }
+        // Returns at once for a request that ended: what it answered is
+        // dropped, because the client it was for has gone.
+        running.abandon();
     }
 }
 
@@ -976,17 +1042,13 @@ impl Drop for Peer {
 /// own frame. A streamed answer leaves that frame early — that is the whole of
 /// what "the head goes out when the member is called" costs — so the two are
 /// held on the connection instead, where [`joined_when_ended`] takes them once
-/// the body is over and the end of [`serve_connection`] abandons them for a
-/// peer that went away first.
+/// the body is over, and the end of [`serve_connection`] drops them for a peer
+/// that went away first.
 struct Streamed<'a> {
-    /// The isolate, joined once its body has ended and abandoned if this
-    /// connection dies first — [`Peer`]'s own drop is the second of those.
+    /// The isolate, joined once its body has ended. If this connection ends
+    /// first, [`Peer`]'s own drop waits for it or cancels it, and that drop
+    /// runs before the place below is given back.
     peer: Peer,
-    /// The connection's half of the request's *own* body, still being pumped:
-    /// answering a head early does not end the request, and a program that
-    /// streams its answer while it reads an upload is parked on this. Dropping
-    /// it here would fail that pull the moment the head went out.
-    supply: Option<Supply>,
     /// `rule:http-server/a-requests-blast-radius-is-bounded-at-four-tiers`'s
     /// tier C, held for as long as this request is still spending a core. A
     /// place given back when the head went out would be a request running
@@ -1499,7 +1561,7 @@ where
             // to drive: `crate::body::Supply` holds the `Incoming` the handler
             // could not send to the isolate, and one `pump` per poll reads a
             // chunk for a request that is waiting for one.
-            Reply::Run(isolate, mut supply) => {
+            Reply::Run(isolate, supply) => {
                 // The label, off the match `crate::route::take` already wrote
                 // onto the carrier — a name out of the compile-time table, which
                 // is the whole of why this reads a match rather than a path. The
@@ -1577,7 +1639,19 @@ where
                 let started = isolate.start(&mut ctx.borrow_mut());
                 match started {
                     Ok(running) => {
-                        let mut peer = Peer(Some(running));
+                        // An unreadable list is one the boot refused, so the
+                        // `false` here is never reached by a request.
+                        let cancels =
+                            nvs_config::app::disconnect_for(&snapshot.config, &snapshot.origins)
+                                .is_ok_and(|disconnect| disconnect.cancels(verb.as_str()));
+                        let mut peer = Peer {
+                            running: Some(running),
+                            supply,
+                            cancels,
+                            draining: draining.clone(),
+                            seen: drain_seen.clone(),
+                            period: drain_period,
+                        };
                         let mut parked = false;
                         let mut cut = false;
                         // No waker is registered, and that is the seam rather
@@ -1595,7 +1669,7 @@ where
                             // polled with. Ahead of the question, so that a
                             // request whose last act is to read its body is
                             // answered on this poll rather than one later.
-                            if let Some(supply) = supply.as_mut() {
+                            if let Some(supply) = peer.supply.as_mut() {
                                 supply.pump(cx);
                             }
                             // The head, asked **before** the end below and
@@ -1672,19 +1746,17 @@ where
                                 );
                                 *writing.borrow_mut() = Some(Streamed {
                                     peer,
-                                    supply: supply.take(),
                                     _place: place,
                                     recording,
                                 });
                                 head
                             }
                             // The drain period ended with the program still
-                            // running. Dropping the peer cancels the request
-                            // tree and waits for it to end, as a disconnect
-                            // does, and the client is told the server is going
-                            // away.
+                            // running. The request tree is cancelled and this
+                            // waits for it to end, and the client is told the
+                            // server is going away.
                             None if cut => {
-                                drop(peer);
+                                peer.cancel();
                                 cut_by_the_drain()
                             }
                             // Nothing left to wait for, so this join does not
@@ -1866,7 +1938,7 @@ where
         if let Some(supply) = writing
             .borrow_mut()
             .as_mut()
-            .and_then(|streamed| streamed.supply.as_mut())
+            .and_then(|streamed| streamed.peer.supply.as_mut())
         {
             supply.pump(cx);
         }
@@ -5541,11 +5613,17 @@ mod tests {
             budget: None,
         }));
         let writing: RefCell<Option<Streamed<'_>>> = RefCell::new(Some(Streamed {
-            peer: Peer(Some(Box::new(Writing {
-                ended: Rc::clone(&ended),
-                joined: Rc::clone(&joined),
-            }))),
-            supply: None,
+            peer: Peer {
+                running: Some(Box::new(Writing {
+                    ended: Rc::clone(&ended),
+                    joined: Rc::clone(&joined),
+                })),
+                supply: None,
+                cancels: false,
+                draining: Draining::detached(),
+                seen: crate::io::DrainSeen::default(),
+                period: Duration::ZERO,
+            },
             _place: admission.admit().expect("a free place under the ceiling"),
             // Nobody is recording this one: what it asserts is the join, and a
             // graph derived from a fixture's empty completion would be a second
@@ -5662,19 +5740,18 @@ mod tests {
     /// **What the door does with it is fail the park, not cut the frame**, and
     /// that is asserted here rather than assumed: the supply dies with the
     /// connection, `next_chunk` answers `Err`, and the program returns through
-    /// its own end. [`Peer`]'s cancel-then-wait is the layer below that, for a
-    /// request parked on something the connection cannot fail — and an isolate
-    /// parked on a channel whose sender it holds itself is not that request:
-    /// it wedged this fixture's core for three minutes, which is the playbook's
-    /// bullet and not this case's subject.
+    /// its own end. An isolate parked on a channel whose sender it holds
+    /// itself is not a request this case can use: it wedged this fixture's
+    /// core for three minutes, which is the playbook's bullet.
     ///
     /// **Asserted as an ordering rather than as a final state**, which is the
     /// only reading of it that is not vacuous: every task on this core is
     /// dropped when the scheduler is, so "the isolate is gone afterwards" holds
     /// just as well for a door that left it running. What is asserted is that
-    /// the isolate was released *before* the accept loop returned — [`Peer`]'s
-    /// drop is where that happens, and it abandons rather than releases:
-    /// cancel, then wait.
+    /// the isolate was released *before* the accept loop returned. `hyper`
+    /// keeps a request in flight after its body failed, so this request ends
+    /// through its own return, and the connection writes its answer to a
+    /// socket that is gone.
     #[test]
     fn a_client_disconnect_leaves_no_isolate_behind() {
         /// What happened, in the order it happened.
@@ -6030,6 +6107,173 @@ mod tests {
         assert!(
             next_door < stopped,
             "the neighbouring core let go of its isolate only when it stopped: {events:?}"
+        );
+    }
+
+    /// What one served request did after its client went away, in order.
+    type Notes = Arc<std::sync::Mutex<Vec<String>>>;
+
+    fn noted(notes: &Notes, what: impl Into<String>) {
+        notes.lock().expect("a poisoned log").push(what.into());
+    }
+
+    /// Serves one `POST` with an empty body on `written`'s tree, whose client
+    /// closes while the program runs `then`, and answers with what happened.
+    ///
+    /// The body is empty because `hyper` watches for the close only once the
+    /// whole request is read: that EOF ends the connection future and drops
+    /// the request's [`Peer`]. `then` is the work a request goes on with after
+    /// its client left (`rule:http-server/a-request-outlives-a-client-that-goes-away`).
+    /// The last note is always `the accept loop returned`, so a case reads an
+    /// ordering against the connection's end and not only a final state.
+    fn after_a_disconnect(
+        written: &str,
+        then: impl FnOnce(&Notes, &Admission) + 'static,
+    ) -> Vec<String> {
+        let serving = booted_on(written);
+        let admission = Arc::clone(&serving.admission);
+        let notes: Notes = Arc::new(std::sync::Mutex::new(Vec::new()));
+        type Then = Box<dyn FnOnce(&Notes, &Admission)>;
+        let then: RefCell<Option<Then>> = RefCell::new(Some(Box::new(then)));
+        let handler = {
+            let notes = Arc::clone(&notes);
+            Rc::new(move |request: Request<Incoming>, _origin: Origin| {
+                let mut inbound = nvs_runtime::Inbound::new(
+                    request.method().as_str(),
+                    request.uri().path(),
+                    request.uri().query().unwrap_or(""),
+                );
+                let (head, incoming) = request.into_parts();
+                let supply = match crate::body::of(&head.headers, incoming) {
+                    crate::body::Arrived::Streaming(supply, pull) => {
+                        inbound.set_body(pull);
+                        Some(supply)
+                    }
+                    crate::body::Arrived::Absent | crate::body::Arrived::TooLarge => None,
+                };
+                let notes = Arc::clone(&notes);
+                let admission = Arc::clone(&admission);
+                let then = then.borrow_mut().take().expect("one request per case");
+                // Noted when the program's captures are dropped, which is its
+                // end and its teardown alike: a cancelled task runs no more of
+                // its own code.
+                struct Stopped(Notes);
+                impl Drop for Stopped {
+                    fn drop(&mut self) {
+                        noted(&self.0, "the request stopped");
+                    }
+                }
+                let stopped = Stopped(Arc::clone(&notes));
+                let program: Program = Box::new(move |_child: &mut Ctx, _args| {
+                    let _stopped = &stopped;
+                    then(&notes, &admission);
+                    Value::null()
+                });
+                Reply::Run(
+                    Isolate::new(program, Value::null(), Output::Capture).answering(inbound),
+                    supply,
+                )
+            })
+        };
+
+        let mut listener = NvsListener::bind("127.0.0.1:0".parse().expect("a literal address"))
+            .expect("the OS refused a port");
+        let addr = listener
+            .local_addr()
+            .expect("a bound listener had no address");
+        let client = std::thread::spawn(move || {
+            let mut socket = TcpStream::connect(addr).expect("the loopback refused a connection");
+            socket
+                .write_all(
+                    b"POST /orders HTTP/1.1\r\nHost: example.com\r\nContent-Length: 0\r\n\r\n",
+                )
+                .expect("the write failed");
+            std::thread::sleep(Duration::from_millis(30));
+            drop(socket);
+        });
+
+        let ended = Arc::clone(&notes);
+        let mut sched = nvs_host::Scheduler::new();
+        let _installed =
+            nvs_host::reactor::install(nvs_host::Reactor::new().expect("the OS refused a poll"));
+        sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, move |_ctx| {
+            serve_on_this_core(
+                &mut listener,
+                &handler,
+                Waits::default(),
+                &serving,
+                &Draining::detached(),
+                |_note| {},
+                || ControlFlow::Break(()),
+            )
+            .expect("the accept loop failed");
+            noted(&ended, "the accept loop returned");
+        });
+        nvs_host::run_until_idle(&mut sched).expect("the loop failed");
+        client.join().expect("the client thread panicked");
+        notes.lock().expect("a poisoned log").clone()
+    }
+
+    /// Two writes with a wait between them, the shape of a script that saves
+    /// an order and then its items. A cancelled task stops at the wait.
+    fn two_writes(notes: &Notes, _admission: &Admission) {
+        noted(notes, "the first write");
+        if matches!(
+            nvs_host::sleep(Duration::from_millis(100)),
+            Woken::Cancelled
+        ) {
+            noted(notes, "cancelled");
+            return;
+        }
+        noted(notes, "the second write");
+    }
+
+    /// `rule:http-server/a-request-outlives-a-client-that-goes-away`'s
+    /// default: a request whose client left runs to its end, and the
+    /// connection's task does not return before it has.
+    #[test]
+    fn a_disconnected_request_finishes_both_of_its_writes() {
+        let notes = after_a_disconnect("", two_writes);
+        let at = |what: &str| notes.iter().position(|note| note == what);
+        let second = at("the second write")
+            .unwrap_or_else(|| panic!("the request stopped between its two writes: {notes:?}"));
+        let returned = at("the accept loop returned").expect("the accept loop never returned");
+        assert!(
+            second < returned,
+            "the connection ended before the request it was serving: {notes:?}"
+        );
+    }
+
+    /// A method listed in `cancel_on_disconnect` is cancelled at the drop, and
+    /// the cancellation still waits for the request to stop.
+    #[test]
+    fn a_disconnected_request_of_a_listed_method_is_cancelled() {
+        let notes = after_a_disconnect("[limits]\ncancel_on_disconnect = [\"POST\"]\n", two_writes);
+        assert!(
+            !notes.iter().any(|note| note == "the second write"),
+            "a listed method ran on after its client left: {notes:?}"
+        );
+        let at = |what: &str| notes.iter().position(|note| note == what);
+        let finished = at("the request stopped").expect("the request never stopped");
+        let returned = at("the accept loop returned").expect("the accept loop never returned");
+        assert!(
+            finished < returned,
+            "the connection ended before the request it cancelled had stopped: {notes:?}"
+        );
+    }
+
+    /// `rule:http-server/admission-is-arithmetic-not-a-number`'s place stays
+    /// taken while a request runs on without its client, so a client that
+    /// connects and leaves again cannot start unbounded work.
+    #[test]
+    fn a_disconnected_request_keeps_its_admission_place_until_it_ends() {
+        let notes = after_a_disconnect("", |notes, admission| {
+            let _ = nvs_host::sleep(Duration::from_millis(100));
+            noted(notes, format!("in flight: {}", admission.in_flight()));
+        });
+        assert!(
+            notes.iter().any(|note| note == "in flight: 1"),
+            "a request whose client left gave its place back before it ended: {notes:?}"
         );
     }
 

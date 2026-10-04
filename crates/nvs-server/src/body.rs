@@ -227,6 +227,23 @@ impl Supply {
         }
     }
 
+    /// Fails the body for a client that went away before it ended, and wakes a
+    /// program waiting for a chunk.
+    ///
+    /// Called where the connection lets go of a request that runs on without
+    /// it (`rule:http-server/a-request-outlives-a-client-that-goes-away`):
+    /// nothing pumps this supply after that, so a pull that parked would wait
+    /// for a chunk no task will read. The connection's wake is cleared with
+    /// it, so every later pull fails at once as well.
+    pub fn hang_up(mut self) {
+        if !self.spent {
+            self.spent = true;
+            self.wire.borrow_mut().failed = Some(HUNG_UP.into());
+        }
+        self.wire.borrow_mut().connection = None;
+        self.deliver();
+    }
+
     /// Answers the outstanding want and wakes the task that made it.
     fn deliver(&self) {
         let mut wire = self.wire.borrow_mut();
@@ -313,6 +330,9 @@ const OVER_CAP: &str = "the request body is larger than the upload_total limit a
 /// polled again to answer it. A refusal rather than a block: blocking the
 /// thread here would stop the core that owes the bytes.
 const NO_TASK: &str = "the request body cannot be read from outside the request's own task";
+
+/// The client closed the connection before it sent the whole body.
+const HUNG_UP: &str = "the client closed the connection before the request body ended";
 
 /// The request was cancelled while it waited — the peer went away, or `rule:concurrency/nothing-is-still-running-when-a-call-returns`
 /// 's teardown reached it. Delivered once, so this stops waiting.

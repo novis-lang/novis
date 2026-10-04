@@ -1,0 +1,11 @@
+{
+  "lead": "`hyper` drops a request's service future on a client close only when the whole request has been read.",
+  "body": "Its h1 dispatcher watches for EOF in flight (`mid_message_detect_eof`) only once the body is done; a body that fails part-way leaves the service polled until it answers, so the request ends by its own return and no `Peer` drop happens. A test of what the server does at a disconnect sends a complete request (an empty body is enough) and closes while the program parks, as `after_a_disconnect` in `crates/nvs-server/src/serve.rs` does.",
+  "files": [
+    "crates/nvs-server/src/serve.rs"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "crates/nvs-server/src/serve.rs:after_a_disconnect"
+  }
+}
