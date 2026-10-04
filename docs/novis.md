@@ -26812,6 +26812,19 @@ code is stable and is what the tables in this reference cite. The last line is p
 all the diagnostics. `nvs agent show E0401` prints what the error `E0401` means and how to fix it.
 `nvs check --json` does not print this line.
 
+`nvs check --count` also prints one line on standard error with how much work the compiler did. For
+a file that contains only `<?nvs` and `echo "Hello, World!\n";`, the line is:
+
+```text
+compile: tokens=7 nodes=2 names=0 exprs=0
+```
+
+`tokens` is the words and symbols in the source. `nodes` is the parts of the syntax tree. `names`
+is the classes, interfaces, enums, type aliases and `use` imports. `exprs` is the expressions that
+were given a type. The numbers are the same on every machine for the same program, so you can
+compare a small program with a large one to see how compile time grows. `nvs run --count` prints
+the same line before the program starts, with `ir`, the number of compiled instructions, added.
+
 You can check one class file of a program, such as `nvs check app/User.nvs`. A class file that a
 program loads with `autoload` cannot declare `autoload` itself. So when the file uses a class that no
 file declares, `nvs check` looks for the program that loads this file with `autoload` or `require`. It searches the `.nvs` files in
