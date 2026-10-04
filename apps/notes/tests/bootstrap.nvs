@@ -1,0 +1,4 @@
+<?nvs
+// `nvs test tests/` reads every file in this folder as one program.
+// This file loads the entry file, so the tests can use every class and every route.
+require '../public/index.nvs';

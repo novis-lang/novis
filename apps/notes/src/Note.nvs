@@ -1,0 +1,17 @@
+<?nvs
+namespace Notes;
+
+// One saved note: its number, its title and its text.
+// A user wrote the text, so it is `tainted`, also after it is saved.
+#[Core\Json\Derive]
+final class Note {
+    public uint $id;
+    public tainted string $title;
+    public tainted string $body;
+
+    public function constructor(uint $id, tainted string $title, tainted string $body) {
+        $this->id = $id;
+        $this->title = $title;
+        $this->body = $body;
+    }
+}

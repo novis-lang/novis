@@ -1,0 +1,60 @@
+<?nvs
+namespace Notes;
+
+use Core\Arr;
+use Core\Html\Markup;
+
+// Builds the HTML pages. Each `{$name}` in an `html` literal is escaped, so a `<` in a note prints as `&lt;`.
+final class Pages {
+    // The home page: a form for a new note, then every saved note.
+    public static function home(array<Note> $notes, Draft $draft, array<string> $problems): Markup {
+        tainted string $title = $draft->title;
+        tainted string $body = $draft->body;
+        var $form = html`<form method="post" action="/notes">
+<?= Pages::errorList($problems) ?>
+<p><label>Title <input name="title" value="{$title}"></label></p>
+<p><label>Note <textarea name="body">{$body}</textarea></label></p>
+<p><button>Save</button></p>
+</form>`;
+        var $list = html``;
+        foreach ($notes as Note $note) {
+            // `Core\Router::url` builds the path of the route `App::show`, such as `/notes/3`.
+            string $link = Core\Router::url("App::show", ["id" => $note->id]);
+            tainted string $noteTitle = $note->title;
+            $list = $list + html`<li><a href="{$link}">{$noteTitle}</a></li>`;
+        }
+        return Pages::layout("Notes", html`<h1>Notes</h1><?= $form ?><ul><?= $list ?></ul>`);
+    }
+
+    // The page for one note.
+    public static function note(Note $note): Markup {
+        tainted string $title = $note->title;
+        tainted string $body = $note->body;
+        return Pages::layout($title, html`<h1>{$title}</h1><p>{$body}</p><p><a href="/">All notes</a></p>`);
+    }
+
+    // The page for a path that has no route.
+    public static function notFound(): Markup {
+        return Pages::layout("Not found", html`<h1>Not found</h1><p><a href="/">All notes</a></p>`);
+    }
+
+    // Returns a list of the problems, or nothing when there are none.
+    private static function errorList(array<string> $problems): Markup {
+        if (Arr::count($problems) == 0) {
+            return html``;
+        }
+        var $items = html``;
+        foreach ($problems as string $problem) {
+            $items = $items + html`<li>{$problem}</li>`;
+        }
+        return html`<ul class="errors"><?= $items ?></ul>`;
+    }
+
+    private static function layout(tainted string $title, Markup $content): Markup {
+        return html`<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>{$title}</title></head>
+<body><?= $content ?></body>
+</html>`;
+    }
+}

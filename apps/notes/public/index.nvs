@@ -1,0 +1,6 @@
+<?nvs
+// This is the entry file. `nvs serve public/index.nvs` runs it once for each request.
+// The `autoload` line reads each class `Notes\...` from the folder `src`.
+autoload 'Notes' from '../src';
+
+Notes\App::handle();

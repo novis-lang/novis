@@ -1,0 +1,133 @@
+<?nvs
+namespace Notes;
+
+use Core\Access;
+use Core\Audience;
+use Core\Db;
+use Core\Http\Method;
+use Core\Request;
+use Core\Response;
+use Core\Route;
+use ParseError;
+
+// The routes of the app. Each method with a `Route` answers one kind of request.
+final class App {
+    // Answers one request. `public/index.nvs` calls this for every request.
+    public static function handle(): void {
+        // `route()` returns the route that matches the method and the path, or `null`.
+        ?Core\Router\Match $matched = Request::route();
+        if ($matched == null) {
+            Response::setStatus(404);
+            Response::html(Pages::notFound());
+            return;
+        }
+        string $name = $matched->name() ?? "";
+        if ($name == "App::home") {
+            App::home();
+        } else if ($name == "App::save") {
+            App::save();
+        } else if ($name == "App::show") {
+            App::show($matched->param("id") as uint);
+        } else if ($name == "App::apiList") {
+            App::apiList();
+        } else if ($name == "App::apiShow") {
+            App::apiShow($matched->param("id") as uint);
+        } else if ($name == "App::apiAdd") {
+            App::apiAdd();
+        }
+    }
+
+    // Shows the form and every note.
+    #[Route(path: "/", method: Method::Get, name: "App::home")]
+    #[Access(allow: Audience::Public)]
+    public static function home(): void {
+        Response::html(Pages::home(App::store()->all(), new Draft("", ""), []));
+    }
+
+    // Saves the note from the form. If the form is not valid, it shows the form again with the problems.
+    #[Route(path: "/notes", method: Method::Post, name: "App::save")]
+    #[Access(allow: Audience::Public)]
+    public static function save(): void {
+        var $store = App::store();
+        Draft $draft = new Draft("", "");
+        array<string> $problems = [];
+        try {
+            // `postAs` fills a `Draft` from the form fields `title` and `body`.
+            $draft = Request::postAs<Draft>();
+            $problems = $draft->problems();
+        } catch (ParseError $error) {
+            $problems = ["Please fill in the form."];
+        }
+        if (Core\Arr::count($problems) > 0) {
+            // 422 means the server understood the request, but the data is not valid.
+            Response::setStatus(422);
+            Response::html(Pages::home($store->all(), $draft, $problems));
+            return;
+        }
+        $store->add($draft);
+        // After a form is saved, the browser goes back to the home page.
+        Response::redirect(Core\Router::url("App::home", []));
+    }
+
+    // Shows one note.
+    #[Route(path: "/notes/{id}", method: Method::Get, name: "App::show")]
+    #[Access(allow: Audience::Public)]
+    public static function show(uint $id): void {
+        ?Note $note = App::store()->find($id);
+        if ($note == null) {
+            Response::setStatus(404);
+            Response::html(Pages::notFound());
+            return;
+        }
+        Response::html(Pages::note($note));
+    }
+
+    // Returns every note as JSON.
+    #[Route(path: "/api/notes", method: Method::Get, name: "App::apiList")]
+    #[Access(allow: Audience::Public)]
+    public static function apiList(): void {
+        Response::json(App::store()->all());
+    }
+
+    // Returns one note as JSON.
+    #[Route(path: "/api/notes/{id}", method: Method::Get, name: "App::apiShow")]
+    #[Access(allow: Audience::Public)]
+    public static function apiShow(uint $id): void {
+        ?Note $note = App::store()->find($id);
+        if ($note == null) {
+            Response::setStatus(404);
+            Response::json({error: "There is no note with this number."});
+            return;
+        }
+        Response::json($note);
+    }
+
+    // Saves a note from a JSON body such as `{"title": "Milk", "body": "Buy two"}`.
+    #[Route(path: "/api/notes", method: Method::Post, name: "App::apiAdd")]
+    #[Access(allow: Audience::Public)]
+    public static function apiAdd(): void {
+        try {
+            var $draft = Request::jsonAs<Draft>();
+            array<string> $problems = $draft->problems();
+            if (Core\Arr::count($problems) > 0) {
+                Response::setStatus(422);
+                Response::json({errors: $problems});
+                return;
+            }
+            // 201 means a new note was saved.
+            Response::setStatus(201);
+            Response::json(App::store()->add($draft));
+        } catch (ParseError $error) {
+            // A body that is not JSON, or that has a missing field, throws a `ParseError`.
+            Response::setStatus(422);
+            Response::json({errors: ["The body must be JSON with a title and a body."]});
+        }
+    }
+
+    // Opens the database `notes` from `nvs.toml` and creates the table when it is missing.
+    private static function store(): Store {
+        var $store = new Store(Db::connect("notes"));
+        $store->setUp();
+        return $store;
+    }
+}

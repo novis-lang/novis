@@ -1,0 +1,28 @@
+<?nvs
+use Core\Str;
+use Core\Test;
+use Notes\Draft;
+
+// Tests for the checks on a new note.
+final class DraftTest {
+    #[Test]
+    public function aTitleAndATextAreValid(): void {
+        Test::assertCount((new Draft("Milk", "Buy two"))->problems(), 0);
+    }
+
+    #[Test]
+    public function aTitleWithOnlySpacesIsNotValid(): void {
+        Test::assertEqualsDeep((new Draft("   ", "Buy two"))->problems(), ["Please enter a title."]);
+    }
+
+    #[Test]
+    public function aLongTitleIsNotValid(): void {
+        var $draft = new Draft(Str::repeat("a", 101), "");
+        Test::assertEqualsDeep($draft->problems(), ["The title can have at most 100 characters."]);
+    }
+
+    #[Test]
+    public function anEmptyTextIsValid(): void {
+        Test::assertCount((new Draft("Milk", ""))->problems(), 0);
+    }
+}

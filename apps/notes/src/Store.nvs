@@ -1,0 +1,52 @@
+<?nvs
+namespace Notes;
+
+use Core\Db\Connection;
+use Core\Db\Row;
+use Core\Str;
+
+// Reads and saves notes in a database.
+final class Store {
+    private Connection $db;
+
+    public function constructor(Connection $db) {
+        $this->db = $db;
+    }
+
+    // Creates the table `notes` if it does not exist yet.
+    public function setUp(): void {
+        $this->db->execute("create table if not exists notes (id integer primary key, title text not null, body text not null)", []);
+    }
+
+    // Returns every note. The newest note is first.
+    public function all(): array<Note> {
+        array<Note> $notes = [];
+        var $rows = $this->db->query("select id, title, body from notes order by id desc", []);
+        foreach ($rows as Row $row) {
+            $notes[] = Store::toNote($row);
+        }
+        return $notes;
+    }
+
+    // Returns the note with this number. If there is none, the result is `null`.
+    public function find(uint $id): ?Note {
+        var $rows = $this->db->query("select id, title, body from notes where id = ?", [$id]);
+        foreach ($rows as Row $row) {
+            return Store::toNote($row);
+        }
+        return null;
+    }
+
+    // Saves a valid draft and returns the new note.
+    // Each `?` is a placeholder. The database gets the text apart from the SQL, so the text cannot change the SQL.
+    public function add(Draft $draft): Note {
+        tainted string $title = Str::trim($draft->title);
+        tainted string $body = $draft->body;
+        var $write = $this->db->execute("insert into notes (title, body) values (?, ?)", [$title, $body]);
+        return new Note($write->lastId() ?? 0, $title, $body);
+    }
+
+    private static function toNote(Row $row): Note {
+        return new Note($row->uint("id") ?? 0, $row->string("title") ?? "", $row->string("body") ?? "");
+    }
+}

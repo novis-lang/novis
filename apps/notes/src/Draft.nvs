@@ -1,0 +1,31 @@
+<?nvs
+namespace Notes;
+
+use Core\Str;
+
+// A note that a user sent and that is not saved yet.
+// The form and the JSON API both fill a `Draft`. Its text comes from the user, so it is `tainted`.
+#[Core\Json\Derive]
+final class Draft {
+    public tainted string $title;
+    public tainted string $body;
+
+    public function constructor(tainted string $title, tainted string $body) {
+        $this->title = $title;
+        $this->body = $body;
+    }
+
+    // Returns one message for each field that is not valid. An empty array means the draft is valid.
+    public function problems(): array<string> {
+        array<string> $problems = [];
+        if (Str::trim($this->title) == "") {
+            $problems[] = "Please enter a title.";
+        } else if (Str::length($this->title) > 100) {
+            $problems[] = "The title can have at most 100 characters.";
+        }
+        if (Str::length($this->body) > 2000) {
+            $problems[] = "The note can have at most 2000 characters.";
+        }
+        return $problems;
+    }
+}

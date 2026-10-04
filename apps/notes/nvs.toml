@@ -1,0 +1,14 @@
+# The notes are kept in the SQLite file `notes.sqlite`, next to this file.
+# Novis creates the file when the first request opens the database.
+[db.notes]
+driver = "sqlite"
+path = "notes.sqlite"
+
+# The tests use this database. It is kept in memory and deleted when the tests end.
+[db.scratch]
+driver = "sqlite"
+path = ":memory:"
+
+# The program may open these two databases and no other.
+[capabilities.db]
+connect = ["notes", "scratch"]

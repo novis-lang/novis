@@ -1,0 +1,37 @@
+<?nvs
+use Core\Http\Method;
+use Core\Str;
+use Core\Test;
+
+// Tests that send requests to the app. `Test::request` runs the app without a server.
+// These requests do not save a note, so the file `notes.sqlite` stays the same.
+final class AppTest {
+    #[Test]
+    public function theHomePageShowsTheForm(): void {
+        var $response = Test::request(Method::Get, "/");
+        Test::assertEquals($response->status(), 200);
+        Test::assertTrue(Str::contains($response->body(), "<form method=\"post\" action=\"/notes\">"));
+    }
+
+    #[Test]
+    public function aFormWithNoTitleShowsTheProblem(): void {
+        array<string> $headers = ["content-type" => "application/x-www-form-urlencoded"];
+        var $response = Test::request(Method::Post, "/notes", {headers: $headers, body: "title=&body=Buy+two"});
+        Test::assertEquals($response->status(), 422);
+        Test::assertTrue(Str::contains($response->body(), "Please enter a title."));
+    }
+
+    #[Test]
+    public function theApiChecksTheJson(): void {
+        array<string> $headers = ["content-type" => "application/json"];
+        var $response = Test::request(Method::Post, "/api/notes", {headers: $headers, body: "{\"title\": \"\", \"body\": \"\"}"});
+        Test::assertEquals($response->status(), 422);
+        Test::assertSame($response->body(), "{\"errors\":[\"Please enter a title.\"]}");
+    }
+
+    #[Test]
+    public function aMissingNoteIsNotFound(): void {
+        Test::assertEquals(Test::request(Method::Get, "/api/notes/999999")->status(), 404);
+        Test::assertEquals(Test::request(Method::Get, "/no-such-page")->status(), 404);
+    }
+}

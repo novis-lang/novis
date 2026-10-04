@@ -1,0 +1,41 @@
+<?nvs
+use Core\Db;
+use Core\Test;
+use Notes\Draft;
+use Notes\Store;
+
+// Tests for saving and reading notes. They use the database `scratch`, which is kept in memory.
+final class StoreTest {
+    #[Test]
+    public function aSavedNoteCanBeFound(): void {
+        var $store = StoreTest::emptyStore();
+        var $saved = $store->add(new Draft("  Milk ", "Buy two"));
+        // `add` removes the spaces around the title.
+        Test::assertSame($saved->title as string, "Milk");
+        Test::assertSame($store->find($saved->id)?->body as ?string, "Buy two");
+    }
+
+    #[Test]
+    public function theNewestNoteIsFirst(): void {
+        var $store = StoreTest::emptyStore();
+        $store->add(new Draft("First", ""));
+        $store->add(new Draft("Second", ""));
+        var $notes = $store->all();
+        Test::assertCount($notes, 2);
+        Test::assertSame($notes[0]->title as string, "Second");
+    }
+
+    #[Test]
+    public function aMissingNoteIsNull(): void {
+        Test::assertNull(StoreTest::emptyStore()->find(42));
+    }
+
+    // Returns a store with no notes. All tests share the `scratch` database, so this deletes the notes of the last test.
+    private static function emptyStore(): Store {
+        var $db = Db::connect("scratch");
+        var $store = new Store($db);
+        $store->setUp();
+        $db->execute("delete from notes", []);
+        return $store;
+    }
+}
