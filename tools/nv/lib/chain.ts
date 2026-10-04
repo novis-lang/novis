@@ -1,9 +1,7 @@
-// Where the chain stands: its order, the live goal, the goals in front of it, and the plan the driver
-// runs for a goal.
+// Where the chain stands: its order, the live goal, and the plan the driver runs for a goal.
 //
 // All of it is `data/chain.json`: `goals` is the order and `live` the goal the driver works on. The goal
-// switch deletes the goal it leaves (`leaveGoal`), so a goal in front of the live one is a goal walked
-// before that rule, and `walkedGoals` names them.
+// switch deletes the goal it leaves (`leaveGoal`), so the live goal is first on the chain.
 //
 // **A goal's plan is its record and nothing else** (`rule:tooling/the-chain-names-its-live-goal`). No
 // check of another goal is carried into it: the permanent suites and `bun nv verify` protect finished
@@ -109,11 +107,6 @@ export function leaveGoal(from: string, to: string, root: string = ROOT): string
   for (const p of gone) rmSync(join(root, p));
   const chain = write(chainType, c.id, { live: to, goals: c.goals.filter((s) => s !== from) }, root).path;
   return [chain, ...gone];
-}
-
-/** slug -> goal, for every goal in front of the live one. None while no goal is live. */
-export function walkedGoals(goals: ChainGoal[] = chainGoals(), live: ChainGoal | null = liveGoal(goals)): Map<string, ChainGoal> {
-  return new Map(goals.filter((g) => live !== null && g.num < live.num).map((g) => [g.slug, g]));
 }
 
 /** The plan the driver runs for goal `slug`: its record, unchanged. Null when the goal has no record. */

@@ -118,7 +118,7 @@ describe("nv audit python", () => {
     expect(docNamingPython("x.md", "`bun nv links` is the gate\n", re)).toBeNull();
   });
 
-  test("a record under data/ is read unless it is a decision's or a walked goal's", () => {
+  test("a record under data/ is read unless it is a decision's", () => {
     const paths = [
       "data/chain.json",
       "data/decisions/0221.json",
@@ -131,8 +131,10 @@ describe("nv audit python", () => {
       "docs/agent/coordinator.md",
       "data/proofs/help-backlog.json",
     ];
-    expect(currentRecords(paths, new Set(["webcrypto"]))).toEqual([
+    expect(currentRecords(paths)).toEqual([
       "data/chain.json",
+      "data/goals/webcrypto.json",
+      "data/goals/webcrypto.handoff.json",
       "data/goals/tooling-overhaul.json",
       "data/goals/tooling-overhaul.handoff.json",
       "data/goals/side/restart-free.json",
@@ -155,7 +157,7 @@ describe("nv audit python", () => {
     expect(docNamingPython("docs/y.md", "bun nv session --wrap\n", re)).toBeNull();
   });
 
-  test("history and the prose of a reached goal are not read", () => {
+  test("history and the prose of the live goal are not read", () => {
     const paths = [
       "AGENTS.md",
       "CHANGELOG.md",
@@ -167,8 +169,9 @@ describe("nv audit python", () => {
       "tools/nv/cmd/audit.ts",
       ".agent-tmp/notes.md",
     ];
-    expect(currentDocs(paths, new Set(["webcrypto", "tooling-overhaul"]))).toEqual([
+    expect(currentDocs(paths, "webcrypto")).toEqual([
       "AGENTS.md",
+      "docs/agent/goals/tooling-overhaul.md",
       "docs/agent/goals/ci-green.md",
       "docs/agent/goals/side/restart-free.md",
     ]);

@@ -16,8 +16,7 @@
 //           tool, as a `tools/<x>.py` path or as a tool's bare `<x>.py`, or cites a home the cutover
 //           deleted (`LEGACY`), as a link, in backticks or as plain text; and no record under `data/`
 //           does either. What describes the past is not read: decision records and their records under
-//           `data/decisions/`, `CHANGELOG.md`, the prose of every goal the chain has reached, and the
-//           records of every goal it has walked.
+//           `data/decisions/`, `CHANGELOG.md` and the live goal's prose.
 //
 // A passing audit prints its `audit:` lines. A failing one prints a count and every offender under it,
 // and exits 1. An unknown audit name exits 2.
@@ -26,7 +25,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { parse as parseToml } from "smol-toml";
 import { OLD } from "../import/lib.ts";
-import { chainGoals, liveGoal, walkedGoals } from "../lib/chain.ts";
+import { liveGoal } from "../lib/chain.ts";
 import { indexEol, tracked } from "../lib/git.ts";
 import { ROOT } from "../lib/paths.ts";
 import { load } from "../lib/store.ts";
@@ -252,41 +251,33 @@ export function docNamingPython(path: string, text: string, re: RegExp): string 
 }
 
 /**
- * The tracked Markdown a reader follows today: everything but history and the prose of a goal the chain
- * has reached. That prose is history too, and the live goal's own names the tools it deletes.
+ * The tracked Markdown a reader follows today: everything but history and the live goal's prose, which
+ * names the tools it deletes.
  */
-export function currentDocs(paths: string[], reached: Set<string>): string[] {
+export function currentDocs(paths: string[], live: string | null): string[] {
   return paths.filter((p) => {
     if (!p.endsWith(".md") || p.startsWith(SCRATCH) || HISTORY.some((h) => p === h || (h.endsWith("/") && p.startsWith(h)))) return false;
-    const m = /^docs\/agent\/goals\/([a-z0-9-]+)\.md$/.exec(p);
-    return !(m && reached.has(m[1]!));
+    return p !== `docs/agent/goals/${live}.md`;
   });
 }
 
 /**
- * The tracked records under `data/` that describe the present: all but the decisions' and every walked
- * goal's record and handoff record. The live goal's records are read, since they are its state now.
+ * The tracked records under `data/` that describe the present: all but the decisions'. The live goal's
+ * records are read, since they are its state now.
  */
-export function currentRecords(paths: string[], walked: Set<string>): string[] {
-  return paths.filter((p) => {
-    if (!p.startsWith("data/") || !p.endsWith(".json") || RECORD_HISTORY.some((h) => p.startsWith(h))) return false;
-    const m = /^data\/goals\/([a-z0-9-]+)(?:\.handoff)?\.json$/.exec(p);
-    return !(m && walked.has(m[1]!));
-  });
+export function currentRecords(paths: string[]): string[] {
+  return paths.filter((p) => p.startsWith("data/") && p.endsWith(".json") && !RECORD_HISTORY.some((h) => p.startsWith(h)));
 }
 
 async function auditPython(): Promise<Finding[]> {
   const paths = await tracked();
-  const goals = chainGoals();
-  const live = liveGoal(goals);
-  const walked = new Set(walkedGoals(goals, live).keys());
-  const reached = new Set([...walked, ...(live ? [live.slug] : [])]);
+  const live = liveGoal()?.slug ?? null;
   const names = new Set(readdirSync(join(ROOT, "tools/nv/cmd")).filter((f) => f.endsWith(".ts")).map((f) => f.slice(0, -3)));
   for (const n of RENAMED_TOOLS) names.add(n);
   for (const p of paths) if (/^tools\/[\w-]+\.py$/.test(p)) names.add(p.slice(6, -3));
   const re = pastRe([...names]);
-  const docs = currentDocs(paths, reached).flatMap((p) => docNamingPython(p, readText(p) ?? "", re) ?? []);
-  const records = currentRecords(paths, walked).flatMap((p) => docNamingPython(p, readText(p) ?? "", re) ?? []);
+  const docs = currentDocs(paths, live).flatMap((p) => docNamingPython(p, readText(p) ?? "", re) ?? []);
+  const records = currentRecords(paths).flatMap((p) => docNamingPython(p, readText(p) ?? "", re) ?? []);
   return [
     { pass: "audit: no Python file is tracked beyond the bench's workload", fail: "Python file(s) are tracked beyond the bench's workload", offenders: strayPython(paths) },
     { pass: "audit: no document names a Python tool or a deleted home", fail: "document(s) name a Python tool or a deleted home", offenders: docs },

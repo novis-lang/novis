@@ -1,8 +1,7 @@
 // The chain: the order the loop walks the goals in, and the goal it stands on. `goals` is a list of
 // slugs, and a goal's position is its place in that list, printed as `N of M` and never part of a file
-// name. `live` is the goal the driver works on: every goal in front of it has walked, and its checks are
-// the live goal's floor. The goal switch moves `live` and commits it, so every clone, CI and a git hook
-// read the same live goal.
+// name. `live` is the goal the driver works on. The goal switch deletes the goal it leaves, moves `live`
+// and commits it, so every clone, CI and a git hook read the same live goal.
 
 import { defineRecord, s } from "../lib/schema.ts";
 

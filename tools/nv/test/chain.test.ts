@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { chainGoals, currentPlan, gatesInFrontOfGroups, type Goal, goalPlan, liveGoal, setLive, SIDE_ENV, sideGoal, sidePlan, walkedGoals } from "../lib/chain.ts";
+import { chainGoals, currentPlan, gatesInFrontOfGroups, type Goal, goalPlan, liveGoal, setLive, SIDE_ENV, sideGoal, sidePlan } from "../lib/chain.ts";
 import { goneCitations } from "../cmd/chain.ts";
 import { load, write } from "../lib/store.ts";
 import { chain } from "../schema/chain.ts";
@@ -69,12 +69,6 @@ describe("the chain's live goal", () => {
     expect(goalPlan("b", tmp.root)).toEqual(load(goal, tmp.root).find((r) => r.id === "b")!.value);
     expect(goalPlan("c", tmp.root)!.checks.map((c) => c.id)).toEqual(["tc"]);
     expect(goalPlan("gone", tmp.root)).toBeNull();
-  });
-
-  test("the walked goals are the ones in front of the live goal, and none while no goal is live", () => {
-    tmp = seed();
-    expect([...walkedGoals(chainGoals(tmp.root), liveGoal(undefined, tmp.root)).keys()]).toEqual(["a"]);
-    expect(walkedGoals(chainGoals(tmp.root), null).size).toBe(0);
   });
 
   test("setLive moves the pointer, keeps the order, and refuses a goal that is not on the chain", () => {

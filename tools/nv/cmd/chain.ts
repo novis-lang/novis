@@ -7,9 +7,8 @@
 //
 // `--check` is whether the driver can walk the chain, as a query over the records.
 //
-// A problem is something that stops the run when the chain reaches it. Of the goals on the chain, only
-// the live one and those behind it are asked anything past their prose, since a goal in front of the
-// live one was walked before the goal switch deleted the goal it left:
+// A problem is something that stops the run when the chain reaches it. The goal switch deletes the goal
+// it leaves, so every goal on the chain is still to be reached:
 //   - the chain is empty;
 //   - a goal record the chain does not name, which the driver never reaches;
 //   - a chain, goal or handoff record fails its schema, a foreign key or an invariant (`nv check`'s
@@ -130,9 +129,6 @@ async function check(): Promise<number> {
   const live = liveGoal(goals);
   const where = (g: ChainGoal) => `goal \`${g.slug}\` (${g.num} of ${goals.length})`;
   const ahead = (g: ChainGoal) => live === null || g.num > live.num;
-  // A goal in front of the live one was walked before the goal switch deleted the goal it left, and
-  // nothing is asked of it.
-  const walked = (g: ChainGoal) => live !== null && g.num < live.num;
   // A feature-proof goal's target is the features it lists, so it owes no reason for its place and no
   // row in the goals README.
   const provesFeatures = (text: string) => /\n## The target\n(?:(?!\n## )[^])*rule:testing\/feature-proofs/.test(text);
@@ -185,7 +181,6 @@ async function check(): Promise<number> {
       continue;
     }
     const text = read(g.md) ?? "";
-    if (walked(g)) continue;
     if ((records.get(g.slug)?.checks ?? []).length === 0) {
       problems.push(`${where(g)}: its record has no checks, so the driver cannot reach it`);
       continue;
@@ -215,7 +210,7 @@ async function check(): Promise<number> {
 
   // A whole-roster gate in front of a goal that still proves a roster group holds the run on a check no
   // session of its goal can turn green.
-  const toReach = goals.filter((g) => !walked(g) && records.has(g.slug));
+  const toReach = goals.filter((g) => records.has(g.slug));
   for (const { slug, behind } of gatesInFrontOfGroups(toReach.map((g) => ({ slug: g.slug, goal: records.get(g.slug) })))) {
     const named = behind.map((s) => `\`${s}\``).join(", ");
     problems.push(
@@ -319,8 +314,8 @@ function landing(args: string[], order: string[], before: string[], live: string
 }
 
 /**
- * Writes the new order, after refusing any edit that changes what the run has walked: a goal at or in
- * front of the live one stays where it is, and nothing lands in front of it either. A goal not pinned
+ * Writes the new order, after refusing any edit that moves the live goal: it stays where it is, and
+ * nothing lands in front of it. A goal not pinned
  * `position: last` never lands inside the pinned tail, and `--end` puts it just in front of that tail.
  */
 function edit(args: string[]): number {
@@ -330,7 +325,7 @@ function edit(args: string[]): number {
   const loaded = load(chainType)[0];
   const id = loaded?.id ?? "chain";
   const pinned = new Set(load(goalType).filter((g) => g.value.position === "last").map((g) => g.id));
-  const walkedEnd = live === null ? 0 : live.num;
+  const liveEnd = live === null ? 0 : live.num;
 
   const created = valueOf(args, "--new");
   const moved = valueOf(args, "--move");
@@ -345,13 +340,13 @@ function edit(args: string[]): number {
     if (at >= 0) throw new Error(`--new ${slug}: already on the chain, at ${at + 1} of ${order.length}`);
   } else {
     if (at < 0) throw new Error(`${moved !== undefined ? "--move" : "--remove"} ${slug}: not on the chain`);
-    if (at < walkedEnd) throw new Error(`${slug} is ${at + 1} of ${order.length}, at or in front of the live goal \`${live!.slug}\`, which only the goal switch changes`);
+    if (at < liveEnd) throw new Error(`${slug} is ${at + 1} of ${order.length}, at or in front of the live goal \`${live!.slug}\`, which only the goal switch changes`);
     order.splice(at, 1);
   }
 
   if (removed === undefined) {
     let i = landing(args, order, before, live?.slug ?? null);
-    if (i < walkedEnd) throw new Error(`that lands at ${i + 1}, in front of the live goal \`${live!.slug}\`, which only a goal already walked may do`);
+    if (i < liveEnd) throw new Error(`that lands at ${i + 1}, in front of the live goal \`${live!.slug}\`, which only the goal switch changes`);
     let tail = order.length;
     while (tail > 0 && pinned.has(order[tail - 1]!)) tail--;
     if (!pinned.has(slug)) {
