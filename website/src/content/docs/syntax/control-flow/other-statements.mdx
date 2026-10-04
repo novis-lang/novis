@@ -43,4 +43,4 @@ around it can handle, throw an error instead.
 - Do put `"\n"` at the end of an `echo` when you want a new line.
 - Do assign `null` to clear a nullable variable.
 - Don't use `unset` on a variable. It does not compile.
-- Don't call `exit` inside a library method. Throw an error, so the caller decides.
+- Don't call `exit` inside a library method. Throw an error, so the caller can handle it.

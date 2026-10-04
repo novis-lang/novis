@@ -11,8 +11,8 @@ Novis has one standard library, `Core`. Each class covers one kind of value or o
 
 <Snippet src="guides/why-novis/one-library.nvs" />
 
-Each task has one method. Every method takes its subject first and its options last, so you can guess
-the order of the arguments.
+Each task has one method. The first argument is always the value the method works on. Options come
+last. So you can guess the order of the arguments.
 
 `Core` also has an HTTP client, a database layer, JSON, CSV and a test library. A new project needs no
 packages for these tasks.

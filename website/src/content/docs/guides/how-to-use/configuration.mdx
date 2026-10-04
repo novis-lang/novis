@@ -5,7 +5,7 @@ description: What nvs.toml controls, how to start one, and how to check it befor
 ---
 
 All configuration is in one TOML file, `nvs.toml`. There are no environment variables and no
-command-line switches that change a setting. What the file says is what is in force.
+command-line switches that change a setting. The settings in the file are the settings that apply.
 
 ## Start with nvs init
 
@@ -46,8 +46,8 @@ folder you run `nvs` in.
 ## One file, several applications
 
 An `[[app]]` block sets values for one folder or one file. A later, more specific block replaces
-a value from an earlier one. So one application can have a lower limit, or lose a grant that the
-rest have.
+a value from an earlier one. So one application can have a lower limit. It can also have fewer
+permissions than the others.
 
 ```toml
 [[app]]
@@ -59,8 +59,8 @@ memory = "512M"
 
 ## Check it before you deploy
 
-A key that Novis does not know stops the program before it starts, with the error `E0601`. A typo
-never means "nothing is allowed" without telling you.
+A key that Novis does not know stops the program before it starts, with the error `E0601`. So a typo
+in a key always gives an error message.
 
 - `nvs config check` reads the file and reports every error.
 - `nvs config dump --origin` prints every key that is set, and the file that set it.

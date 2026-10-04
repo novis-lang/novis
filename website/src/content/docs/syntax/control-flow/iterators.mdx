@@ -11,8 +11,8 @@ next value to the loop that reads it.
 <Snippet src="syntax/iterators/01-generator.nvs" />
 
 - The return type of a generator is `Iterator<T>`. Each `yield` gives one `T`.
-- Calling the method runs none of its body. The body runs only as far as the loop needs the next
-  value.
+- Calling the method runs none of its body. Each time the loop needs a value, the body runs
+  until the next `yield`.
 - `return;` ends the values early. A generator cannot return a value.
 - `yield` is a statement. `$x = yield 1;` does not compile.
 - A generator can be used only once. A second loop over the same `Iterator` object gets no values.
@@ -45,10 +45,8 @@ inside another.
 A class implements `Iterable` or `Iterator` with a real type, such as `Iterable<int>`. You can also
 use both as types of parameters and variables: `Iterator<int> $it`.
 
-`Iterable` and `Iterator` are the only interfaces for loops. `ArrayAccess`, `Countable`,
-`IteratorAggregate`, `Traversable` and `Generator` do not exist. Neither do the functions
-`iterator_to_array`, `count`, `current`, `next` and `reset`. Use `Core\Arr::from` and
-`Core\Arr::count`.
+`Iterable` and `Iterator` are the only interfaces for loops. To make an array from an iterator, use
+`Core\Arr::from`. To count its values, use `Core\Arr::count`.
 
 ## Do and don't
 

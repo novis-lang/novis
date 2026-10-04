@@ -23,7 +23,7 @@ The program below runs it and uses the value:
 - Classes, interfaces, enums and `type` aliases are shared. Each file can use the ones the other
   declares.
 - Variables are not shared. A `$config` in `config.nvs` is a different variable from the
-  `$config` in the program. Use `return` to give a value back.
+  `$config` in the program. Use `return` in the file to give a value to the program.
 - `require` runs the file every time the program reaches it.
 - `include`, `include_once` and `require_once` do not exist. Use `require` to run a file, and
   `autoload` to load a class.
@@ -33,4 +33,4 @@ The program below runs it and uses the value:
 - Do use `require` for a file that returns a value, such as settings.
 - Do convert the result with `as` right away.
 - Don't use `require` for a file that only declares classes. Use `autoload`, which reads it once.
-- Don't expect a variable from the other file. Return the value instead.
+- Don't expect a variable from the other file. Return the value from that file.

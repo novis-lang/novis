@@ -24,7 +24,7 @@ Run it with `nvs run file-watcher.nvs`.
 ## How it works
 
 `Core\IO::modifiedAt` returns the time of the last change to a file, as a `Core\Time\Instant`. The
-`Watcher` object keeps the time it saw last. `compareTo` returns `0` when two times are equal, so
+`Watcher` object stores the last time it read. `compareTo` returns `0` when two times are equal, so
 `changed()` returns `false` until the time is different.
 
 `Core\Time::sleep` waits before each check. A short wait finds a change sooner, but the program

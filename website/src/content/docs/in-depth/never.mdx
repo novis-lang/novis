@@ -14,7 +14,7 @@ leaves these features out. This page lists them, so you know before you start.
 Your program cannot load a C library into the running process. One bad write in native code can
 damage the memory of every request on the server. One crash in native code stops all of them.
 
-Extensions will run as sandboxed WebAssembly instead. An extension has its own memory, and it
+Extensions will run as sandboxed WebAssembly. An extension has its own memory, and it
 reaches only what you allow. <a href={decisionRecord('0003')}>Read the full reasoning.</a>
 
 ## Global state
@@ -22,14 +22,15 @@ reaches only what you allow. <a href={decisionRecord('0003')}>Read the full reas
 Novis has no global variables and no `global` keyword. There is no global time zone and no global
 locale. A function that needs a time zone or a language gets it as an argument.
 
-Global state lets one part of a program change the result of another part without a trace. On a
+With global state, one part of a program can change the result of another part. Nothing in the code
+shows this. On a
 server, it can also carry a value from one request into the next.
 <a href={decisionRecord('0012')}>Read the full reasoning.</a>
 
 ## PHP that runs unchanged
 
-The syntax of Novis is close to PHP, but Novis does not run PHP files. It removes the parts of PHP
-that cause bugs, such as the `(int)` cast. A Novis program uses `as int` for that, and the
+Novis does not run PHP files. Its syntax is close, but it removes the parts that cause bugs, such
+as the `(int)` cast. A Novis program uses `as int` for that, and the
 conversion is checked. [Start here](/syntax/start-here/) lists the differences.
 
 ## A runtime that uses as little memory as possible

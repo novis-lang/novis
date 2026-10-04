@@ -22,7 +22,7 @@ connect = ["guests"]
 ```
 
 `limit ? offset ?` in the query reads `$size` rows after skipping the rows of the pages before.
-The `?` marks are filled from the array in the same order. Never put a value into the SQL text
+Each `?` is replaced by a value from the array, in the same order. Never put a value into the SQL text
 yourself.
 
 The query has `order by id`. Without an order, the database may return the rows in a different

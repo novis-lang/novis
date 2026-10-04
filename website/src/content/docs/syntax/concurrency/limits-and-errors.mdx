@@ -31,6 +31,6 @@ When one task throws an error, Novis stops the other tasks. Then the call throws
 ## Do and don't
 
 - Do set `limit` when each task uses something scarce, like a database connection.
-- Do set `deadline` when a slow server must not hold up your program.
+- Do set `deadline` when your program must not wait too long for a slow server.
 - Do catch `TimeoutError` around a call with a `deadline`.
 - Don't put a `try` inside each task only to stop the others. Novis already stops them.

@@ -7,12 +7,13 @@ description: The five priorities Novis uses to choose between two designs, in or
 import { decisionRecord } from '@config/site.mjs'
 
 Most design questions have two good answers. Novis chooses with five priorities. They are always
-used in the same order. A lower priority is given up to get a higher one, and never the other way.
+used in the same order. Novis gives up a lower priority to get a higher one. It never gives up a higher priority to get
+a lower one.
 
-1. **Security, and requests that cannot affect each other.** This is never traded for anything.
+1. **Security, and requests that cannot affect each other.** Novis never gives this up for any other priority.
 2. **Correct behaviour.** A program does what its code says, every time.
 3. **Speed of each request.** A request starts fast and finishes fast.
-4. **Simplicity.** First of the language you write, then of the code that runs it.
+4. **Simplicity.** The language you write must be simple. After that, the code of Novis itself.
 5. **Low memory use.** This comes last.
 
 ## What the order means for you
@@ -20,14 +21,14 @@ used in the same order. A lower priority is given up to get a higher one, and ne
 A check that keeps your server safe stays on, even when it costs a little speed. An example is the
 check on [tainted input](/in-depth/concepts/tainted-input/).
 
-A faster design wins over a simpler one. Novis compiles your code to machine code for this reason,
+Novis chooses a faster design over a simpler one. Novis compiles your code to machine code for this reason,
 although an interpreter would be simpler to build.
 
-A simpler language wins over one that uses less memory. When you change an array, Novis changes a
-copy if another variable still uses it. Your code never changes a value by surprise, and the copy
-costs memory.
+Novis chooses a simpler language over one that uses less memory. When you change an array, Novis changes a
+copy if another variable still uses it. So a change to one variable never changes another variable. The
+copy uses memory.
 
-## Memory is spent, and it is still limited
+## Memory use is allowed, and it is still limited
 
 Memory is last, but it is never unlimited. Every request has a memory limit that you set. The
 memory a server uses grows with the requests it runs at the same time. It does not grow with the

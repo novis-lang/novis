@@ -1,10 +1,10 @@
 ---
 title: Security checklist
 covers: []
-description: What to check before a Novis server answers its first request.
+description: What to check before a Novis server handles its first request.
 ---
 
-Check each item before the server answers its first request. Each line links to the page that
+Check each item before the server handles its first request. Each line links to the page that
 explains it.
 
 ## The configuration
@@ -16,7 +16,7 @@ explains it.
   [Reference: capabilities](/reference/config/capabilities/)
 - No password is in `nvs.toml`. Each one is read with `password_file`.
   [Reference: secrets from files](/reference/config/secrets-from-files/)
-- `[limits]` sets `memory` and `wall_time`, and `[limits.hard]` sets a ceiling.
+- `[limits]` sets `memory` and `wall_time`, and `[limits.hard]` sets a maximum.
   [Limits and logs](/guides/production/limits-and-logs/)
 
 ## The files

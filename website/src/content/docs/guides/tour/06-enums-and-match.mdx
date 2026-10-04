@@ -12,7 +12,7 @@ other priority can exist:
 <Snippet src="guides/tour/06-enums-and-match.nvs" />
 
 `Priority::High` is one case of the enum. The constructor gives `$priority` the default
-`Priority::Normal`, so the second task does not name one.
+`Priority::Normal`. The second task uses this default.
 
 `match` compares the priority with each arm and returns the result of the arm that is equal. This
 `match` has an arm for every case, so it needs no `default`.

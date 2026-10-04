@@ -11,7 +11,7 @@ first arm that is equal. `match` is an expression, so you can assign it or pass 
 <Snippet src="syntax/match/01-match.nvs" />
 
 - An arm is a list of values, then `=>`, then one expression. `1, 2 => "low"` matches `1` or `2`.
-- `match` compares with `==`. A value that can never be equal to the subject does not compile.
+- `match` compares with `==`. The value in parentheses after `match` is the subject. An arm value that can never be equal to it does not compile.
 - `default` is used when no other arm matches, wherever you write it.
 - No arm matches and there is no `default`: `match` throws a `LogicError`.
 - The result of an arm is one expression. It cannot be a block of statements.

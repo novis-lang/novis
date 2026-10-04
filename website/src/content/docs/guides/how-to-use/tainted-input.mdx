@@ -9,7 +9,7 @@ import Snippet from '@components/Snippet.astro'
 A value that comes from outside the program is `tainted`. This includes the address, a form field,
 a header, a cookie and a JSON body. The type of such a value is `tainted string`, not `string`.
 
-The compiler checks every place a tainted value goes. You cannot pass it where a plain `string` is
+The compiler checks every place where your code uses a tainted value. You cannot pass it where a plain `string` is
 needed, so it cannot reach SQL, a file name or HTML without a check.
 
 ## The safe ways to use it
@@ -21,7 +21,7 @@ safe ways:
 
 - `as ?int` checks the text. The result is a plain `int`, or `null` when the text is not a whole
   number.
-- A hole in an `html` literal escapes the text. The `<b>` is shown on the page and is not run.
+- A value you put into an `html` literal with `{$name}` is escaped. The `<b>` is shown on the page and is not run.
 
 There are more safe ways. A value in a database query goes in as a parameter, and the database
 never reads it as SQL. `Core\Validate` checks a value against a rule, such as an email address.
@@ -37,7 +37,7 @@ points at the value. You fix it by choosing one of the safe ways above.
 - Do read input into a class with `postAs` or `jsonAs`. Declare text fields as `tainted string`.
 - Do convert a number from the request with `as ?int` and handle the `null`.
 - Do build HTML with `html` literals, so every value is escaped.
-- Don't remove the `tainted` from a type to make an error go away. Check the value instead.
+- Don't remove the `tainted` from a type to fix a compile error. Check the value.
 - Don't use a tainted value as a file name. Choose the file name in your code.
 
 Read more in [Syntax: tainted and secret strings](/syntax/values/tainted-and-secret/) and

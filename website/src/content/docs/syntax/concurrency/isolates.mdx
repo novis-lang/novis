@@ -34,7 +34,7 @@ The result has four fields:
 - `on: "worker"` runs the child on another CPU core.
 - The entry can also be a static method: `spawn script Report::build(...)`. A `fn` literal does
   not compile.
-- A path in quotes starts at the folder of the file you write it in.
+- A path in quotes is relative to the folder of the file that contains it.
 - You can `await` a handle only once. A second `await` throws `LogicError`.
 - `spawn script` needs the capability `script.spawn`. This program's `nvs.toml` has
   `spawn = true` under `[capabilities.script]`. Without it, `spawn script` throws `RuntimeError`.

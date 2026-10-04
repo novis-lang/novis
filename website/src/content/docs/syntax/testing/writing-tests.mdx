@@ -1,7 +1,7 @@
 ---
 title: Writing and running tests
 covers: ['lang:testing/a-test-is-a-method-marked-test', 'lang:testing/every-test-is-its-own-isolate-and-the-constructor-is-setup', 'lang:testing/test-options', 'lang:testing/running-tests-nvs-test']
-description: How to write a test as a method with #[Test], what each test starts with, the test options, and how nvs test runs the tests.
+description: How to write a test as a method with #[Test], and how nvs test runs it. Also the test options.
 ---
 import Snippet from '@components/Snippet.astro'
 
@@ -35,7 +35,7 @@ a base class. `nvs test file.nvs` runs every test in the program.
   that a call returns.
 - Under `nvs test`, the top-level code of the file does not run. The classes are still compiled.
 
-## Each test starts fresh
+## Each test starts with new objects
 
 Each test runs in its own isolate (a separate copy of the program's memory). It gets a new object of
 its class. A static property starts at its first value again.
@@ -97,6 +97,6 @@ The report for this file:
 - Do write `#[Test]` methods to test your own code. Use a `.nvst` file only to check the exact
   text a whole program prints.
 - Do use `at:` and `seed:` in a test that reads the time or random numbers.
-- Do give every `skip:` a reason that says when the test comes back.
+- Do give every `skip:` a reason that says when the test will run again.
 - Don't use `retries:` to hide a bug. A flaky test is always shown in the report.
 - Don't share state between tests through a static property. Each test starts fresh.

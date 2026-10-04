@@ -1,5 +1,5 @@
 ---
-title: No surprises from null
+title: Null is checked when you compile
 covers: []
 description: Only a type that starts with ? can be null, and the compiler checks every place that uses one.
 ---
@@ -23,7 +23,7 @@ error[E0459]: `null|User` may be `null`, so `->` cannot reach a member of it
    |      ^^^^^^^^^^^^^^ this receiver is nullable
 ```
 
-You find the missing check when you compile. You do not find it in production.
+The compiler shows the missing check. You fix it before the program runs on a server.
 
 Read more in [Syntax: nullable types](/syntax/values/nullable/) and
 [Syntax: null coalescing](/syntax/operators/null-coalescing/).

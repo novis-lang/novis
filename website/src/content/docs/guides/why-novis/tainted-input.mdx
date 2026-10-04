@@ -7,7 +7,7 @@ description: Values from a request or a form are tainted, and the compiler check
 import Snippet from '@components/Snippet.astro'
 
 A value that comes from outside the program is `tainted`. That includes a form field, a header and a
-command-line argument. The compiler follows the value through your code:
+command-line argument. The compiler checks every place where your code uses the value:
 
 <Snippet src="guides/why-novis/tainted-input.nvs" />
 
@@ -24,6 +24,6 @@ error[E0401]: expected `string`, found `tainted string`
   |                 ^^^^^^^^ this is `tainted string`
 ```
 
-The mistake is found before the program runs. You do not need a code review to catch it.
+The compiler finds the mistake before the program runs. No person has to find it in a code review.
 
 Read more in [Syntax: tainted and secret strings](/syntax/values/tainted-and-secret/).

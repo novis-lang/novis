@@ -6,7 +6,7 @@ description: Which limits throw an error you can catch, and which ones stop the 
 import Snippet from '@components/Snippet.astro'
 
 A call stack that is too deep throws `RecursionError`. A call that needs a permission you did not
-give in `nvs.toml` throws `RuntimeError`. You can catch both, and the program goes on.
+give in `nvs.toml` throws `RuntimeError`. You can catch both. The program then continues.
 
 <Snippet src="syntax/limits/01-recursion-and-access.nvs" />
 

@@ -5,7 +5,7 @@ description: How a test gets objects from a fixture, runs once per row of data w
 ---
 import Snippet from '@components/Snippet.astro'
 
-A fixture is a method that builds something a test needs. You mark it with `#[Fixture]`. A test
+A fixture is a method that builds something a test needs. You write `#[Fixture]` above it. A test
 that has a parameter of the fixture's return type gets the value.
 
 <Snippet src="syntax/test-data/01-fixtures.nvs" />
@@ -13,7 +13,7 @@ that has a parameter of the fixture's return type gets the value.
 - A fixture is a `public static` method of the test class. Its return type says what it builds.
 - The parameter name does not matter. Only the type does.
 - Each fixture runs once for the class. Each test gets its own copy, so one test cannot change the
-  value another test sees.
+  value of another test.
 - A fixture runs only when a test needs it. A skipped test does not run its fixtures.
 - Only the fixtures of the test's own class are used. One class has at most one fixture per type.
 - A parameter that no fixture fills does not compile. Two fixtures that need each other do not

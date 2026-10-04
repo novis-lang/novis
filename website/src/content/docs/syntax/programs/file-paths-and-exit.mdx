@@ -22,7 +22,7 @@ server.
 - A relative path built while the program runs throws `RuntimeError` when you use it for a file.
   Build a full path with `Core\Path::join` and `Core\Path::thisDir()`.
 - `Core\Path::fromCwd` joins a path to the folder the program was started from. Use it for a path
-  typed on the command line. It throws an error while the program answers a web request.
+  typed on the command line. It throws an error while the program handles a web request.
 - A full path, like `/srv/data/rates.json`, is used as written.
 - A program may read a file only if its `nvs.toml` allows it. This program has
   `read = ["data"]` under `[capabilities.fs]`.
@@ -46,5 +46,5 @@ A program ends after its last line runs. Its exit status is then 0. `exit` ends 
 - Do write a file path in quotes, relative to the file that uses it.
 - Do use `Core\Path::join` with `Core\Path::thisDir()` for a path you build from parts.
 - Do use `exit(1)` or another status that is not 0 when a command-line program fails.
-- Don't use `Core\Path::fromCwd` in code that answers web requests.
+- Don't use `Core\Path::fromCwd` in code that handles web requests.
 - Don't write `die`. It does not compile.

@@ -13,8 +13,8 @@ Often you want a default value when a call fails. In Novis you write `catch` aft
 `Settings::get("workers")` throws an `IOError`, so the result is `4`. A `try` block works the same way
 when you need more than one line.
 
-Throwing an error is fast in Novis. You can use errors for missing records and failed checks, also on
-a busy web server.
+Throwing an error is fast in Novis. You can throw errors for missing records and failed checks. This is
+true on a busy web server too.
 
 Read more in [Syntax: the catch expression](/syntax/errors/catch-expression/) and
 [Syntax: throw and catch](/syntax/errors/throw-and-catch/).

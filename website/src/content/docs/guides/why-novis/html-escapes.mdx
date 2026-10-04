@@ -1,13 +1,13 @@
 ---
-title: HTML that escapes itself
+title: HTML is escaped for you
 covers: []
 description: An html literal escapes every value you put into it, so user text cannot add tags to your page.
 ---
 
 import Snippet from '@components/Snippet.astro'
 
-Cross-site scripting happens when text from a user ends up in a page as HTML. In Novis you write
-HTML with an `html` literal. Every value in a hole is escaped:
+Cross-site scripting happens when a page shows text from a user as HTML. In Novis you write HTML
+with an `html` literal. Every value you put into it, like `{$name}`, is escaped:
 
 <Snippet src="guides/why-novis/html-escapes.nvs" />
 

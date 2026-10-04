@@ -33,5 +33,5 @@ A `callable` variable contains a function. You call it with parentheses: `$add(1
 - Do use a named argument when the meaning of a value is not clear: `resize(width: 80)`.
 - Do convert the result of a callable with `as` before you use it.
 - Don't call a `callable` with too few arguments. The call throws an error.
-- Don't write `$this->callback(1)` for a property. It looks for a method named `callback`, and
-  does not compile.
+- Don't write `$this->callback(1)` for a property. This syntax calls a method named `callback`.
+  If there is no such method, it does not compile.

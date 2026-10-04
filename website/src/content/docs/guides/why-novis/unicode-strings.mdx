@@ -11,10 +11,10 @@ one character). `bytes` is a different type, for binary data:
 
 <Snippet src="guides/why-novis/unicode-strings.nvs" />
 
-The text has six characters. The emoji with a skin tone is one character, even though it is two
-code points.
+The text has six characters. The emoji with a skin tone is one character. In Unicode it is two
+code points (two numbers).
 
-`Core\Str::reverse` does not cut a character in half. There is no second set of methods for
+`Core\Str::reverse` keeps every character whole. There is no second set of methods for
 multi-byte text, and no method takes an encoding argument.
 
 Read more in [Syntax: strings](/syntax/values/strings/) and

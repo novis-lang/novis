@@ -9,7 +9,7 @@ A production server needs limits for each request and a log you can read. Both a
 
 ## Limits for each request
 
-Set a starting value and a ceiling for memory and time. Without them, one request can use the
+Set a starting value and a maximum for memory and time. Without them, one request can use the
 whole machine:
 
 ```toml
@@ -38,7 +38,7 @@ header_timeout = "10s"       # the longest wait for the headers of a request
 body_idle_timeout = "30s"    # the longest pause while a client sends the body
 ```
 
-Every wait has a value, even when you write none. A slow client cannot keep a connection open
+Every wait has a time limit. If you do not set one, Novis uses a default. A slow client cannot keep a connection open
 forever.
 
 ## The log
@@ -59,8 +59,8 @@ for example to write more detail.
 
 ## Change a setting while the server runs
 
-The server reads `nvs.toml` again when you save it. It checks the whole file first. A file with an
-error is written to the log, and the server keeps the settings it has.
+The server reads `nvs.toml` again when you save it. It checks the whole file first. If the file has
+an error, the server writes the error to the log and keeps its current settings.
 
 - `nvs ctl reload` applies the file at once and prints each key it changed.
 - `nvs ctl status` prints how many requests are running.

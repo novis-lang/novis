@@ -34,10 +34,10 @@ like `Core\Time::sleep`, returns when it is done.
 
 ## What Novis does not have
 
-- There is no `async`, no promise and no `Fiber`. A task is a function you give to `Core\Task`.
-- There are no threads and no `pcntl_fork`. To run code fully apart from your program, use
+- A task is a function you give to `Core\Task`. Novis has no `async` keyword and no promises.
+- Novis has no threads. To run code fully separate from your program, use
   [spawn script](/syntax/concurrency/isolates/).
-- A task never outlives the call that started it. `Core\Task::all` and `Core\Task::map` return
+- Every task ends before the call that started it returns. `Core\Task::all` and `Core\Task::map` return
   only after every task has ended.
 - Nothing is shared between two web requests. Each request has its own variables and static
   properties.

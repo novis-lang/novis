@@ -5,9 +5,9 @@ description: Novis runs web servers and command-line programs, securely and fast
 ---
 
 Novis is a programming language for two kinds of program. The first kind is a web server that
-answers requests. The second kind is a program you start from the command line, such as a script,
-a report or a scheduled job. The syntax is close to PHP, so most PHP programmers can read Novis
-at once. [Start here](/syntax/start-here/) shows the differences.
+handles requests. The second kind is a program you start from the command line, such as a script,
+a report or a scheduled job. The syntax is close to PHP, so a PHP programmer can read most Novis
+code without help. [Start here](/syntax/start-here/) shows the differences.
 
 ## Secure first, then fast
 
@@ -20,7 +20,7 @@ before your program runs:
 - Text from a request is tainted. You must check or escape it before it reaches a database query,
   a shell command or an HTML page. Read more in [Tainted input](/in-depth/concepts/tainted-input/).
 - Each request runs on its own. A request that crashes or loops forever stops only itself. Read
-  more in [One request cannot hurt another](/in-depth/concepts/isolation/).
+  more in [One request cannot change another](/in-depth/concepts/isolation/).
 - Each request has limits for memory and time, which you set in `nvs.toml`. Read more in
   [Memory and CPU limits](/in-depth/concepts/limits/).
 

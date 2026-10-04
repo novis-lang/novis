@@ -24,7 +24,7 @@ collects all routes of the program into one table. `Core\Router` reads that tabl
 - `name:` is optional. `Core\Router::url` finds the route by this name. Each name must be unique.
 - The same path with the same method twice does not compile.
 - Two `#[Core\Route]` lines on one method give two routes to the same method.
-- A path like `/users/new` wins over `/users/{id}`, in any order.
+- A fixed path like `/users/new` is used before `/users/{id}`, in any order.
 
 ## Building a link
 

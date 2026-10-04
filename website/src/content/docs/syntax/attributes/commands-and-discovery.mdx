@@ -11,7 +11,7 @@ do not need to list the classes yourself. The compiler finds them while it compi
 <Snippet src="syntax/implementing/01-implementing.nvs" />
 
 - The array is sorted by the full class name. The order is the same on every computer.
-- `I` is an interface or a class. A class that is not `abstract` is in its own list.
+- `I` is an interface or a class. If `I` is a class that is not `abstract`, the list includes `I` itself.
 - Every class in the list needs a constructor that takes no arguments.
 - The objects are made new each time the line runs.
 - When no class implements `I`, the result is `[]`.
@@ -37,7 +37,7 @@ all commands into one table and checks them.
 
 <Snippet src="syntax/commands/01-commands.nvs" />
 
-- Novis does not run these commands yet. There is no `nvs` command that calls them. Your program
+- No `nvs` command calls these commands. Your program
   reads the table with `Core\Program::implementing` and `Core\Attributes::get`, as above.
 - `name:` is required and must be unique. `about:` is a one-line description.
 - A parameter without `#[Core\Option]` is a positional argument. Text from the command line is
@@ -50,7 +50,7 @@ all commands into one table and checks them.
 ## Do and don't
 
 - Do pass what a class needs through the methods of `I`. Its constructor takes no arguments.
-- Do use `implementingWith` when you need the attribute of each class. Inside a loop over
-  `implementing`, you cannot name the class.
+- Do use `implementingWith` when you need the attribute of each class. `implementing` gives only
+  the objects, without their attributes.
 - Do declare a positional argument `tainted string`, and check it before you use it.
 - Don't expect `nvs` to run a command. The compiler checks commands, and nothing runs them.

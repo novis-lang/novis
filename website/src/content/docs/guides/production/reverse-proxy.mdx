@@ -4,7 +4,8 @@ covers: []
 description: Put nginx or another proxy in front of nvs serve for TLS, and tell Novis which proxy to trust.
 ---
 
-`nvs serve` does not handle TLS, compression or rate limits. A reverse proxy in front of it does.
+A reverse proxy in front of `nvs serve` handles TLS, compression and rate limits. `nvs serve`
+does not do these jobs.
 The proxy takes the HTTPS connection from the client and sends the request on to Novis.
 
 ## Listen where only the proxy can connect

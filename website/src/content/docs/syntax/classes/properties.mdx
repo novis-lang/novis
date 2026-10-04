@@ -44,5 +44,5 @@ inside the class and `Registry::$name` outside it.
 - Do give every property a type and, where you can, a default.
 - Do use `readonly` for a value that must not change after the object is created.
 - Don't use `lateinit` to skip setting a property in the constructor. Use it only when the value
-  really arrives later.
+  is not known until later.
 - Don't use a `static` property to keep data between requests. Every request starts with the default.

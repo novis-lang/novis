@@ -5,7 +5,7 @@ description: How |> passes a value through a chain of calls, from left to right.
 ---
 import Snippet from '@components/Snippet.astro'
 
-`$value |> f($_)` is the same as `f($value)`. `$_` marks the place where the value goes.
+`$value |> f($_)` is the same as `f($value)`. `$_` is the place where the value is used.
 
 <Snippet src="syntax/pipeline/01-pipeline.nvs" />
 
@@ -15,7 +15,7 @@ import Snippet from '@components/Snippet.astro'
 - `$_` must appear exactly once on each right side. Without it, the code does not compile.
 - `$_` has no meaning outside the right side of `|>`.
 
-`|>` costs nothing when the program runs. The compiler turns it into the nested calls.
+`|>` does not make the program slower. The compiler turns it into the nested calls.
 
 ## Use this when you apply several steps to one value
 

@@ -9,9 +9,9 @@ import Snippet from '@components/Snippet.astro'
 Each request runs under limits that you write in `nvs.toml`. A request that goes over a limit stops,
 and the other requests keep running.
 
-## A starting value and a ceiling
+## A starting value and a maximum
 
-`[limits]` is what each request starts with. `[limits.hard]` is the ceiling: the most a request may
+`[limits]` is what each request starts with. `[limits.hard]` is the maximum: the most a request may
 raise itself to. This is the `nvs.toml` for the program below:
 
 ```toml
@@ -36,7 +36,7 @@ raises its own limit:
 | Key | What it limits |
 |---|---|
 | `memory` | the memory one request may use |
-| `cpu_time` | the processor time one request may use; waiting for a database costs none of it |
+| `cpu_time` | the processor time one request may use; time spent waiting for a database is not counted |
 | `wall_time` | the time from the start of the request to the end, waiting included |
 | `max_output` | the size of the response |
 | `max_tasks` | how many tasks one request may run at the same time |
@@ -47,7 +47,7 @@ request that waits for a slow query. When a key is not set, there is no limit.
 ## When a request goes over
 
 The request stops at once. This is not an exception, so no `catch` block runs. The server writes
-`FATAL:` and the reason to its log. What the request already sent stays sent.
+`FATAL:` and the reason to its log. The client keeps the part of the response that was already sent.
 
 ## Do and don't
 

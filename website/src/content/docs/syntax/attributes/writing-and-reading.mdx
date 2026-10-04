@@ -38,11 +38,11 @@ written.
   `Users::constructor(...)` is the class itself. Every class has a constructor, even when you do
   not write one.
 - A second argument names a property or a parameter of that target, as a string literal.
-- The match uses the fields, not the name. `get<{path: string}>` finds any attribute with a
+- The match uses only the fields. The name of the attribute class is not checked. `get<{path: string}>` finds any attribute with a
   `path` field of type `string`.
 - When two attributes match, `get<T>` does not compile. Use `all<T>` in that case.
-- The empty shape `{}` matches every attribute. Give a marker attribute a field, so you can find
-  it.
+- The empty shape `{}` matches every attribute. So give every attribute at least one field. Then
+  you can find it.
 - The compiler reads the attributes while it compiles. Nothing is looked up when the program runs.
 - The result is an ordinary shape value. You read its fields with `->`.
 
@@ -50,7 +50,7 @@ written.
 
 A few attribute names belong to Novis: `Core\Json\Derive`, `Core\Json\Field`, `Core\Route`,
 `Core\Access`, `Core\Query`, `Core\Api`, `Core\Command`, `Core\Option` and the testing attributes.
-The compiler reads these itself and does something with them. The next pages show what.
+The compiler reads these itself. The next pages show what each one does.
 
 - The compiler checks the fields of these attributes. An unknown field, a field with the wrong type
   or a field given twice does not compile.
@@ -61,6 +61,6 @@ The compiler reads these itself and does something with them. The next pages sho
 
 - Do declare a `type` for each attribute you use often. The compiler then checks every place you
   write it.
-- Do give every attribute at least one field, so `get<T>` can tell it apart from the others.
+- Do give every attribute at least one field, so `get<T>` finds only that attribute.
 - Don't put a variable or a function call in an attribute. Use a class constant.
 - Don't name your own `type` after a Novis attribute. It only makes the code harder to read.

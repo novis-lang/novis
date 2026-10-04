@@ -18,7 +18,7 @@ block, and a `catch (IOError $e) { ... }` after it runs when that block throws a
 - The variable is optional: `catch (LogicError) { ... }` is allowed.
 - `catch (LogicError | IOError $e)` does not compile. Write two clauses.
 - Two clauses in one function need two different variable names, such as `$io` and `$logic`.
-- A `throw` inside a `catch` goes to the next `try` outside. The other clauses of the same `try` do not see it.
+- A `throw` inside a `catch` goes to the next `try` outside. The other clauses of the same `try` do not catch it.
 
 ## finally
 

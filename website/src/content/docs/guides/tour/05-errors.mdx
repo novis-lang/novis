@@ -13,8 +13,8 @@ A task with an empty title makes no sense. The constructor throws an error for i
 `throw` stops the method at once. The error goes to the caller, and then to its caller, until a
 `catch` clause takes it.
 
-`catch (LogicError $e)` takes errors of the class `LogicError`. The loop goes on with the next
-title. Without the `try`, the program stops at the first error and prints it.
+`catch (LogicError $e)` takes errors of the class `LogicError`. The loop then continues with the
+next title. Without the `try`, the program stops at the first error and prints it.
 
 Read more in [Syntax: throw and catch](/syntax/errors/throw-and-catch/) and
 [Syntax: error types](/syntax/errors/error-types/).

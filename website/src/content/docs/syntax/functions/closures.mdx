@@ -30,5 +30,5 @@ A closure can use the variables around it. It copies each one when the closure i
 
 - Do keep a closure short. Write a method when it needs many lines.
 - Do write the return type on a closure with a block body.
-- Don't expect a closure to see a later change to an outside variable. It has a copy.
+- Don't change an outside variable after you create a closure and expect the closure to use the new value. The closure has a copy.
 - Don't write `function () {}` for a closure. It does not compile. Use `fn`.

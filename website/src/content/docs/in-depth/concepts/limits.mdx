@@ -1,7 +1,7 @@
 ---
 title: Memory and CPU limits
 covers: []
-description: Every request runs under limits for memory and time, and a request that goes over stops alone.
+description: Every request runs under limits for memory and time, and a request that uses too much is stopped. The other requests keep running.
 ---
 
 import { decisionRecord } from '@config/site.mjs'
@@ -13,10 +13,10 @@ limits that you set in `nvs.toml`.
 ## How a limit works
 
 `[limits]` sets what each request starts with, such as 64 MB of memory and 5 seconds of processor
-time. `[limits.hard]` sets the ceiling. A request that needs more may raise its own limit up to the
-ceiling, and no further.
+time. `[limits.hard]` sets the maximum. A request that needs more may raise its own limit up to the
+maximum.
 
-A request that goes over a limit stops at once. Only that request stops. The server writes the
+A request that uses more than a limit stops immediately. Only that request stops. The server writes the
 reason to its log, and the other requests keep running.
 
 ## One limit for everything a request starts

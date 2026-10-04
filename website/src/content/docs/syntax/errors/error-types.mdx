@@ -35,7 +35,7 @@ Every error has four properties, and no methods to read them:
 |---|---|---|
 | `message` | `string` | the text given to the constructor |
 | `previous` | `?Throwable` | the error that caused this one, or `null` |
-| `backtrace` | `array<string>` | one `Class::method() at file:line` per function the error left, innermost first |
+| `backtrace` | `array<string>` | the calls that led to the error, one `Class::method() at file:line` each, the last call first |
 | `location` | `string` | the `file:line` of the `throw` |
 
 `ParseError` also has `issues`, a list of the problems found. `Core\Db\DbError` has `kind`, and

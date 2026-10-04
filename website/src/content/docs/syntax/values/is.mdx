@@ -10,7 +10,7 @@ the variable has the type `Cat`.
 
 <Snippet src="syntax/is/01-is.nvs" />
 
-The new type holds only inside the branch. After `if ($pet is Cat) { return ...; }`, `$pet` is still
+The new type applies only inside the branch. After `if ($pet is Cat) { return ...; }`, `$pet` is still
 a `Dog|Cat`, so the last line converts it with `as Dog`.
 
 These tests change the type in the same way:
@@ -21,14 +21,14 @@ These tests change the type in the same way:
 
 ## Use this when there are many types to test
 
-`match (true)` runs the first arm whose test is true. Each arm has the type its own test proved.
+`match (true)` runs the first arm whose test is true. Inside each arm, the variable has the type that the arm's test checked.
 
 <Snippet src="syntax/is/02-match-true.nvs" />
 
 To test whether a `mixed` value is a number, convert it: `($value as ?int) != null`. There is no
 `is int`.
 
-Assigning a new value to the variable inside the branch ends the new type.
+If you assign a new value to the variable inside the branch, the variable has its declared type again.
 
 ## Do and don't
 

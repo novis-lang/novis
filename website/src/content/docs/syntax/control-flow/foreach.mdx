@@ -14,8 +14,8 @@ that pass.
 - `var` gives the variable the element type of the array. For the key, `var` gives `string`.
 - The key of an array is always a `string`, also when it looks like a number.
 - `inout var $v` writes each change to `$v` back into the array.
-- The loop walks a copy of the array. Adding or removing elements in the body does not change which
-  elements the loop visits. An `inout` loop walks the array itself.
+- The loop reads a copy of the array. Adding or removing elements in the body does not change which
+  elements the loop visits. An `inout` loop reads the array itself.
 - To convert the value first, put it in parentheses: `foreach (($m as array<int>) as var $v)`.
 
 ## Objects and collections

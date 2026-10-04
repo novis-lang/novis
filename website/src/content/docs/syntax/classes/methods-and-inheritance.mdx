@@ -22,7 +22,7 @@ A method that returns `$this` can be chained.
 
 ## Extending a class
 
-`class Dog extends Animal` creates a class that has every member of `Animal`. `Dog` can replace
+`class Dog extends Animal` creates a class that has every property and method of `Animal`. `Dog` can replace
 a method with its own version. A class extends one class at most.
 
 <Snippet src="syntax/class-methods/03-extends.nvs" />
@@ -45,5 +45,5 @@ a method with its own version. A class extends one class at most.
 
 - Do use `static` when a child class should be able to change what a method returns.
 - Do call `parent::constructor(...)` first in a child constructor.
-- Don't build long chains of classes. An interface is often simpler.
+- Don't extend a class that extends another class many times. An interface is often simpler.
 - Don't look for traits. They do not exist. Use an interface with default methods instead.
