@@ -19,9 +19,8 @@
 > **Done:** **M0 through M8 are complete** — everything from project setup to the stdlib and the
 > five SQL drivers, which is the whole program ahead of the extension system, and M9 is the first
 > milestone with work still in front of it. `bun nv plan --past` is what says so, and it derives the
-> answer rather than reading it: every goal carrying a milestone has walked, and no register still
-> tags an item to it. Each milestone file under [docs/plan/](plan/) states its own acceptance, and
-> `bun nv plan --stale` finds a plan sentence still deferring work to a goal the chain has walked.
+> answer rather than reading it: no goal on the chain carries a milestone, and no register still
+> tags an item to it. Each milestone file under [docs/plan/](plan/) states its own acceptance.
 >
 > **On disk:** the workspace and its CI (three platforms, with miri, asan, tsan and fuzz legs), and
 > the nine crates — `nvs-diagnostics`, `nvs-syntax`, `nvs-hir`, `nvs-types`, `nvs-ir`,
