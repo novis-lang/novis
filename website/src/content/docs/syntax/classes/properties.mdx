@@ -10,7 +10,7 @@ A property is written as `visibility type $name`, with an optional default:
 
 <Snippet src="syntax/class-properties/01-defaults.nvs" />
 
-- A default must be a value the compiler knows: a literal, `[]`, an enum case or a class constant.
+- A default must be a value the compiler knows: a value written directly in the code, `[]`, an enum case or a class constant.
 - `null` is a valid default only when the type allows it, for example `?string`.
 - A property without a default must be set by the constructor, on every path. If one path does
   not set it, the class does not compile.

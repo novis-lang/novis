@@ -15,6 +15,6 @@ $p->x = 10;
 var $q = {x: 3, y: 4, label: "q"};
 echo Geo::sum($p), " ", Geo::sum($q), " ", $q->label, "\n";
 
-// A closure that returns an object literal puts it in parentheses.
+// When an anonymous function returns an anonymous object, write the object in parentheses.
 callable $make = fn(int $x): Point => ({x: $x, y: 0});
 echo ($make(5) as Point)->x, "\n";

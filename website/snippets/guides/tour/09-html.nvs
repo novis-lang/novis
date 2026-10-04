@@ -1,5 +1,5 @@
 <?nvs
-// This program writes the task list as an HTML page with an `html` literal.
+// This program writes the task list as an HTML page with an `html` template.
 class Task {
     public string $title;
     public bool $done = false;

@@ -1,33 +1,34 @@
 ---
-title: Object literals and shapes
-covers: ['lang:expressions/object-literals']
+title: Anonymous objects and shapes
+covers: ['lang:expressions/anonymous-objects']
 description: 'How to create an object without a class with {name: value}, and how a shape type describes its fields.'
 ---
 import Snippet from '@components/Snippet.astro'
 
-`{x: 1, y: 2}` creates an object without a class. It has exactly the fields you write. Its type is
+`{x: 1, y: 2}` creates an anonymous object: an object without a class. It has exactly the fields
+you write. Its type is
 a shape: `{x: int, y: int}`. You usually give a shape a name with `type`.
 
-<Snippet src="syntax/object-literals/01-literal.nvs" />
+<Snippet src="syntax/anonymous-objects/01-build.nvs" />
 
 - You read and write a field with `->`: `$p->x = 10`.
 - An object with more fields than the shape still has that shape.
 - A shape can be the type of a parameter, a return value or a variable.
-- Each literal creates a new object. `==` is `true` only when both sides are the same object.
-- At the start of a statement and right after `=>`, put the literal in parentheses: `({x: 1})`.
+- `{...}` creates a new object each time it runs. `==` is `true` only when both sides are the same object.
+- At the start of a statement and right after `=>`, put the object in parentheses: `({x: 1})`.
   Without them, `{` starts a block.
 - A field name written twice does not compile.
 
 ## Checking a value against a shape
 
-<Snippet src="syntax/object-literals/02-check.nvs" />
+<Snippet src="syntax/anonymous-objects/02-check.nvs" />
 
 - `$v is Point` checks that `$v` is an object with every field of `Point`, at the right type.
 - `$v as Point` runs the same check. If it fails, it throws a `RuntimeError`.
 
 ## Do and don't
 
-- Do use an object literal for a small group of values, like the result of a method.
+- Do use an anonymous object for a small group of values, like the result of a method.
 - Do name a shape with `type` when you use it in more than one place.
-- Don't use an object literal when the data needs methods or checks. Write a class.
+- Don't use an anonymous object when the data needs methods or checks. Write a class.
 - Don't start a statement with `{x: 1}`. It does not compile. Write `({x: 1})`.

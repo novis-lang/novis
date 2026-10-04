@@ -13,7 +13,7 @@ class Signup {
     }
 }
 
-// `Core\Test::double` builds a `Mailer`. Each method is a closure.
+// `Core\Test::double` builds a `Mailer`. Each method is an anonymous function.
 Mailer $mailer = Core\Test::double<Mailer>({
     send: fn(string $to, string $text): bool => $to != "bad@example.com",
 });

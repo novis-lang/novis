@@ -29,7 +29,7 @@ or different:
   `is` to test its class.
 - There are no global functions. Every built-in function is a method of a `Core` class, such as
   `Core\Arr::count`.
-- Options are one object literal at the end of a call: `{order: Core\Order::Asc}`.
+- Options are one anonymous object at the end of a call: `{order: Core\Order::Asc}`.
 - The constructor is called `constructor`. There are no magic methods such as `__toString`.
 - A doc comment starts with `///`.
 - A program can read files or open connections only when `nvs.toml` allows it.

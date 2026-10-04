@@ -1,15 +1,15 @@
 <?nvs
-// A closure copies each outside variable it uses, at the moment it is created.
+// An anonymous function captures each outside variable it uses. It copies the value when it is created.
 string $prefix = "one";
 callable $tag = fn(string $s): string => $prefix . ":" . $s;
 $prefix = "two";
-// The closure still has the old value. This prints `one:x`.
+// The function still has the old value. This prints `one:x`.
 echo $tag("x"), "\n";
 
 class Counter {
     public int $base = 10;
 
-    // Inside a method, a closure can use `$this`.
+    // Inside a method, an anonymous function can use `$this`.
     public function adder(): callable {
         return fn(int $x): int => $this->base + $x;
     }

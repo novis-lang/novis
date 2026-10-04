@@ -23,7 +23,7 @@ not compile there. The error points at the value, before the program ever runs.
 You remove the taint by checking or escaping the value:
 
 - `as ?int` converts the text to a whole number. The result is a plain `int`, or `null`.
-- A value you put into an `html` literal with `{$name}` is escaped.
+- A value you put into an `html` template with `{$name}` is escaped.
 - A value in a database query is passed as a parameter.
 - `Core\Validate` checks a value against a rule, such as an email address.
 

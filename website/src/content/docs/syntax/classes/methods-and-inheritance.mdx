@@ -14,7 +14,7 @@ A method is a function inside a class. An instance method uses `$this`. A `stati
 - `static` is the class the call was made on. On `LeafRegistry`, `static::tag()` calls `LeafRegistry::tag`.
 - `new self()` and `new static()` create an object of that class.
 - A return type of `static` means the method returns an object of the class the call was made on.
-- `static::` is not allowed inside a closure. Read the value into a variable before the closure.
+- `static::` is not allowed inside an anonymous function. Read the value into a variable before the function.
 
 A method that returns `$this` can be chained.
 

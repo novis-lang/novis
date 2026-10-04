@@ -39,8 +39,8 @@ once for each row.
 ```
 
 - The rows are numbered from `#0`, in the order they are written.
-- A field fills the parameter with the same name. Its value is an `int`, `uint`, `float`, `bool`
-  or `string` literal of the parameter's type.
+- A field fills the parameter with the same name. Its value is written directly in the code: an
+  `int`, `uint`, `float`, `bool` or `string` of the parameter's type.
 - A field with no parameter, or a value of the wrong type, does not compile.
 - A parameter that no row names is filled by a fixture.
 - `#[TestWith]` needs `#[Test]` on the same method. `skip:` skips every row.

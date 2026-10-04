@@ -1,19 +1,19 @@
 ---
 title: HTML is escaped for you
 covers: []
-description: An html literal escapes every value you put into it, so user text cannot add tags to your page.
+description: An html template escapes every value you put into it, so user text cannot add tags to your page.
 ---
 
 import Snippet from '@components/Snippet.astro'
 
 Cross-site scripting happens when a page shows text from a user as HTML. In Novis you write HTML
-with an `html` literal. Every value you put into it, like `{$name}`, is escaped:
+with an `html` template. Every value you put into it, like `{$name}`, is escaped:
 
 <Snippet src="guides/why-novis/html-escapes.nvs" />
 
 The name contains a `<script>` tag. The page shows it as text, and the browser does not run it.
 
-An `html` literal has the type `Core\Html\Markup`. You put one piece of markup into another with
+An `html` template has the type `Core\Html\Markup`. You put one piece of markup into another with
 `<?= $part ?>`. That value is already HTML, so it is not escaped a second time.
 
 You do not need to remember an escape function. The safe way is the only way to write it.

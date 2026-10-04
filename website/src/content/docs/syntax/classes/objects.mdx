@@ -36,7 +36,7 @@ A variable of type `object` can contain an object of any class.
 - You cannot call a method through `object`. Check the class with `is` first, or convert with `as`.
 - `$x is Tag` is `true` when `$x` is a `Tag` or an object of a child class of `Tag`. It is `false` for `null`.
 - With an interface name, `is` is `true` for every class that implements the interface.
-- `callable` is the type of a closure. An object is never a `callable`.
+- `callable` is the type of an anonymous function or a method reference. An object is never a `callable`.
 
 ## What a class cannot have
 

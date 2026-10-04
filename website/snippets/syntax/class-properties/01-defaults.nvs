@@ -1,5 +1,5 @@
 <?nvs
-// Each property has a type. A default value must be a literal, `[]`, an enum case or a constant.
+// Each property has a type. A default value must be a value written directly in the code, `[]`, an enum case or a constant.
 enum Mode { Off, On }
 
 class Config {

@@ -8,5 +8,5 @@ tainted string $comment = "<b>great</b>";
 int $count = $amount as int;
 echo $count * 2, "\n";
 
-// A hole in an `html` literal escapes the tainted string.
+// A hole in an `html` template escapes the tainted string.
 echo html`<p>{$comment}</p>`, "\n";

@@ -1,7 +1,7 @@
 <?nvs
 // This program reads a file that sits in the folder `data`, next to this program.
 
-// A relative path in a literal starts at the folder of this file.
+// A relative path written directly in the code starts at the folder of this file.
 // It does not depend on the folder you start the program from.
 echo Core\IO::read('data/greeting.txt');
 

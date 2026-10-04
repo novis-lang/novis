@@ -11,7 +11,7 @@ like `Core\Time::sleep`, returns when it is done.
 
 ## A fixed set of tasks
 
-`Core\Task::all` takes an object literal. Each field is a function with no parameters.
+`Core\Task::all` takes an anonymous object. Each field is a function with no parameters.
 
 <Snippet src="syntax/tasks/01-all.nvs" />
 
@@ -19,8 +19,8 @@ like `Core\Time::sleep`, returns when it is done.
 - The result has the same field names. Each field has the return type of its function, so you
   need no `as`.
 - A function with no return type gives a field of type `mixed`.
-- The functions can be `fn` literals, variables or first-class callables like `Loader::load(...)`.
-- An array of functions does not compile. Use an object literal with named fields.
+- The functions can be anonymous functions, variables or method references like `Loader::load(...)`.
+- An array of functions does not compile. Use an anonymous object with named fields.
 
 ## One task for each element
 

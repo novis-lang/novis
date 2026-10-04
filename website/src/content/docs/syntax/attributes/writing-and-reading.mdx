@@ -1,6 +1,6 @@
 ---
 title: Writing and reading attributes
-covers: ['lang:attributes/an-attribute-is-a-shape-literal-attached-to-a-declaration', 'lang:attributes/reading-attributes-back-core-attributes-get-and-all', 'lang:attributes/the-names-the-compiler-acts-on']
+covers: ['lang:attributes/an-attribute-is-an-anonymous-object-attached-to-a-declaration', 'lang:attributes/reading-attributes-back-core-attributes-get-and-all', 'lang:attributes/the-names-the-compiler-acts-on']
 description: How to attach data to a class, method, property or parameter with #[...], and how to read it back with Core\Attributes.
 ---
 import Snippet from '@components/Snippet.astro'
@@ -20,8 +20,9 @@ nothing by itself. Your program reads it back with `Core\Attributes`.
 - `#[{inject: "repo"}]` is an attribute without a name. Nothing checks its fields.
 - An attribute can be written in front of a `class`, an `interface`, an `enum`, a method, a
   property, a class constant and a parameter. In front of a statement, it does not compile.
-- Every value must be known when the program compiles. A literal, an array of literals, a class
-  constant and an enum case are allowed. A variable, a function call and `new` do not compile.
+- Every value must be known when the program compiles. A value written directly in the code is
+  allowed, and so is an array of such values, a class constant and an enum case. A variable, a
+  function call and `new` do not compile.
 - You can write several attributes on separate lines, or in one bracket with commas:
   `#[A(n: 1), B(s: "x")]`.
 - `#` alone starts a comment. Only `#[` starts an attribute.
@@ -37,7 +38,7 @@ written.
 - The first argument says where to look. `Users::show(...)` is the method `show`.
   `Users::constructor(...)` is the class itself. Every class has a constructor, even when you do
   not write one.
-- A second argument names a property or a parameter of that target, as a string literal.
+- A second argument names a property or a parameter of that target, as a string in quotes.
 - The match uses only the fields. The name of the attribute class is not checked. `get<{path: string}>` finds any attribute with a
   `path` field of type `string`.
 - When two attributes match, `get<T>` does not compile. Use `all<T>` in that case.

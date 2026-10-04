@@ -11,7 +11,7 @@ command-line argument. The compiler checks every place where your code uses the 
 
 <Snippet src="guides/why-novis/tainted-input.nvs" />
 
-`as int` checks the text and gives a plain `int`. A hole in an `html` literal escapes the text.
+`as int` checks the text and gives a plain `int`. A hole in an `html` template escapes the text.
 These are safe ways to use the value.
 
 Using a tainted value as a plain `string` does not compile:

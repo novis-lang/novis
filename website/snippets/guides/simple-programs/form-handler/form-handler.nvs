@@ -21,7 +21,7 @@ if (!Core\Validate::isEmail($form->email)) {
     Core\Response::setStatus(422);
     echo html`<p>Please enter a valid email address.</p>`, "\n";
 } else {
-    // An `html` literal escapes each value, so a `<` in the name is shown as text.
+    // An `html` template escapes each value, so a `<` in the name is shown as text.
     tainted string $name = $form->name;
     echo html`<p>Thank you, {$name}. We will answer soon.</p>`, "\n";
 }

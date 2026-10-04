@@ -295,7 +295,7 @@ export default defineConfig({
                 { label: 'Declaring a function', link: '/syntax/functions/declaring/' },
                 { label: 'Parameters and inout', link: '/syntax/functions/parameters/' },
                 { label: 'Calling a function', link: '/syntax/functions/calls/' },
-                { label: 'Closures with fn', link: '/syntax/functions/closures/' },
+                { label: 'Anonymous functions', link: '/syntax/functions/anonymous-functions/' },
               ],
             },
             {
@@ -308,7 +308,7 @@ export default defineConfig({
                 { label: 'Stringable, Comparable and Parses', link: '/syntax/classes/standard-interfaces/' },
                 { label: 'Property hooks', link: '/syntax/classes/property-hooks/' },
                 { label: 'Working with objects', link: '/syntax/classes/objects/' },
-                { label: 'Object literals and shapes', link: '/syntax/classes/object-literals/' },
+                { label: 'Anonymous objects and shapes', link: '/syntax/classes/anonymous-objects/' },
               ],
             },
             {

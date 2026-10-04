@@ -1,44 +1,52 @@
 ---
-title: Closures with fn
-covers: ['lang:expressions/closures-fn']
-description: How to write a closure with fn, store it in a callable, and which outside variables it can use.
+title: Anonymous functions
+covers: ['lang:expressions/anonymous-functions']
+description: How to write an anonymous function with fn, store it in a callable, and which outside variables it can use.
 ---
 import Snippet from '@components/Snippet.astro'
 
-A closure is a function without a name. You write it with `fn` and store it in a `callable`
-variable: `callable $double = fn(int $x): int => $x * 2;`.
+An anonymous function is a function without a name. You write it with `fn` and store it in a
+`callable` variable: `callable $double = fn(int $x): int => $x * 2;`.
 
-<Snippet src="syntax/closures/01-fn.nvs" />
+<Snippet src="syntax/anonymous-functions/01-fn.nvs" />
 
 - `fn(...) => expression` returns the value of the expression.
 - `fn(...): int => { ... }` runs a block. The block uses `return`, and the return type is required.
 - Every parameter has a type.
-- `fn` is the only way to write a closure. `function () {}` does not compile.
+- `fn` is the only way to write an anonymous function. `function () {}` does not compile.
 
 ## Outside variables
 
-A closure can use the variables around it. It copies each one when the closure is created.
+An anonymous function can use the variables around it. It captures each one: it copies the value
+when the function is created.
 
-<Snippet src="syntax/closures/02-capture.nvs" />
+<Snippet src="syntax/anonymous-functions/02-capture.nvs" />
 
-- A later change to the outside variable does not change the closure's copy.
-- A change inside the closure does not change the outside variable.
-- Inside a method, a closure can use `$this`.
-- To use a method as a closure, wrap it: `fn(string $s): int => Core\Str::length($s)`.
+- A later change to the outside variable does not change the captured copy.
+- A change inside the function does not change the outside variable.
+- Inside a method, an anonymous function can use `$this`.
+
+## A method as a callable
+
+A method reference gives you a method as a callable. Write the call with `(...)` in place of the
+arguments: `callable $len = Core\Str::length(...);`. Then `$len("abc")` returns `3`.
+
+- `$obj->method(...)` gives a method of one object.
+- `self::f(...)` and `static::f(...)` give a static method of the current class.
 
 ## A new `$this`
 
-`$fn->bindTo($obj)` returns a copy of the closure that uses `$obj` as `$this`. `$fn->bind($obj)`
+`$fn->bindTo($obj)` returns a copy of the callable that uses `$obj` as `$this`. `$fn->bind($obj)`
 is the same method. `$fn->call($obj, ...)` makes the copy and calls it with the other arguments.
 
-- The object must be of the class the closure was written in, or of a subclass. Any other object,
+- The object must be of the class the function was written in, or of a subclass. Any other object,
   and `null`, throws a `LogicError`.
-- A closure that does not use `$this` is returned unchanged.
+- A function that does not use `$this` is returned unchanged.
 - There is no second argument for a scope. It does not compile.
 
 ## Do and don't
 
-- Do keep a closure short. Write a method when it needs many lines.
-- Do write the return type on a closure with a block body.
-- Don't change an outside variable after you create a closure and expect the closure to use the new value. The closure has a copy.
-- Don't write `function () {}` for a closure. It does not compile. Use `fn`.
+- Do keep an anonymous function short. Write a method when it needs many lines.
+- Do write the return type on an anonymous function with a block body.
+- Don't change an outside variable after you create an anonymous function and expect it to use the new value. The function has a copy.
+- Don't write `function () {}`. It does not compile. Use `fn`.

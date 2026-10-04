@@ -8,6 +8,6 @@ tainted string $search = Core\Request::query("q") as tainted string;
 // `as ?int` checks the value and gives a plain `int`, or `null`.
 int $next = (Core\Request::query("page") as ?int ?? 1) + 1;
 
-// A hole in an `html` literal escapes the text, so the `<b>` is shown, not run.
+// A hole in an `html` template escapes the text, so the `<b>` is shown, not run.
 echo html`<p>Results for {$search}</p>`, "\n";
 echo "next page: ", $next, "\n";

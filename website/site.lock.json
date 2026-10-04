@@ -6,7 +6,7 @@
     "lang:types/qualifiers-tainted-and-secret": "4d9a603a542bc54e"
   },
   "syntax/attributes/commands-and-discovery.mdx": {
-    "lang:attributes/core-command-and-core-option-the-command-table": "abeb8b99e09ea7ce",
+    "lang:attributes/core-command-and-core-option-the-command-table": "737daa080cfa7939",
     "lang:attributes/core-program-implementing-i-every-class-that-is-an-i": "475d2cb7b303b63f",
     "lang:attributes/core-program-implementingwith-i-t-member-every-implementor-with-one-attribute": "6754f5782543b883"
   },
@@ -14,12 +14,12 @@
     "lang:attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec": "5a35edb0eed8ccc7"
   },
   "syntax/attributes/routes.mdx": {
-    "lang:attributes/core-api-and-the-openapi-document": "1fe35d01f0e7708f",
-    "lang:attributes/core-route-and-core-access-the-route-table": "e6cd67de3b84b3f9"
+    "lang:attributes/core-api-and-the-openapi-document": "8c75e2694eee0d72",
+    "lang:attributes/core-route-and-core-access-the-route-table": "9b71e3e6be4d82a8"
   },
   "syntax/attributes/writing-and-reading.mdx": {
-    "lang:attributes/an-attribute-is-a-shape-literal-attached-to-a-declaration": "77c4c5d2b7eb5ba6",
-    "lang:attributes/reading-attributes-back-core-attributes-get-and-all": "f7a0e7232cac5cb6",
+    "lang:attributes/an-attribute-is-an-anonymous-object-attached-to-a-declaration": "916df2da45a454a5",
+    "lang:attributes/reading-attributes-back-core-attributes-get-and-all": "21669bdd4b784c9d",
     "lang:attributes/the-names-the-compiler-acts-on": "655b2f6d62b9effb"
   },
   "syntax/basics/comments.mdx": {
@@ -27,15 +27,18 @@
     "lang:programs/doc-comments": "9d3846bee8114157"
   },
   "syntax/basics/constants.mdx": {
-    "lang:classes/constants-and-class": "d3d9ba2f00eb8f27"
+    "lang:classes/constants-and-class": "fa4b0e6866663a7d"
   },
   "syntax/basics/files-and-statements.mdx": {
     "lang:programs/a-program-is-a-file-of-top-level-statements": "f51c46ee225c7f7a",
-    "lang:programs/code-mode-and-html-mode": "5bdc9710eec0dda5",
+    "lang:programs/code-mode-and-html-mode": "2886116d78f17597",
     "lang:programs/names-and-casing": "a65bd70500311de2"
   },
   "syntax/basics/variables.mdx": {
     "lang:types/every-binding-has-a-type": "dd36d2fa193703ff"
+  },
+  "syntax/classes/anonymous-objects.mdx": {
+    "lang:expressions/anonymous-objects": "aaea7ea2477e55dc"
   },
   "syntax/classes/declaring.mdx": {
     "lang:classes/declaring-a-class": "d6fdb30070c13ea0"
@@ -44,23 +47,20 @@
     "lang:classes/interfaces": "9e2ecd46ca6c3266"
   },
   "syntax/classes/methods-and-inheritance.mdx": {
-    "lang:classes/inheritance": "811cec4790b76882",
-    "lang:classes/methods-self-static-and-parent": "e65d41f7533f60c9"
-  },
-  "syntax/classes/object-literals.mdx": {
-    "lang:expressions/object-literals": "81637df7d132d976"
+    "lang:classes/inheritance": "98ef537b726c6a14",
+    "lang:classes/methods-self-static-and-parent": "f041dfb84c200b03"
   },
   "syntax/classes/objects.mdx": {
     "lang:classes/nullable-objects-and": "95b0936d37e271ee",
     "lang:classes/object-the-top-of-every-class-type": "73f013ceceb14939",
     "lang:classes/objects-are-handles": "cdafefedd67c6e81",
-    "lang:classes/what-a-class-cannot-declare": "3ce2f31542d5d2fa",
-    "lang:expressions/is-new-clone-throw-print-exit-isset-empty": "d300c54e1196cd33",
-    "lang:types/callable-classes-object-shapes": "af7f10957928b59f"
+    "lang:classes/what-a-class-cannot-declare": "1f8b7b8ccf4b7aba",
+    "lang:expressions/is-new-clone-throw-print-exit-isset-empty": "d38a85827e7dfa05",
+    "lang:types/callable-classes-object-shapes": "1e05f17eee622431"
   },
   "syntax/classes/properties.mdx": {
     "lang:classes/properties": "7a7374e8cb875aaf",
-    "lang:types/properties-and-constants": "acca6527bf9c316e"
+    "lang:types/properties-and-constants": "606d2c7f24b2382f"
   },
   "syntax/classes/property-hooks.mdx": {
     "lang:classes/property-hooks": "8c5217027713ba4e",
@@ -79,29 +79,29 @@
     "lang:concurrency/core-task-channel-t-a-bounded-queue-between-tasks": "4a3423d1981915d1"
   },
   "syntax/concurrency/isolates.mdx": {
-    "lang:concurrency/a-child-s-failure-is-a-value": "d42d90fb212abbd4",
-    "lang:concurrency/a-child-shares-nothing": "28d88d7a3a59faff",
-    "lang:concurrency/isolates-spawn-script-and-await": "daf418a1296964bb"
+    "lang:concurrency/a-child-s-failure-is-a-value": "930f1cbe639c8e6e",
+    "lang:concurrency/a-child-shares-nothing": "b67a4975e6cbc216",
+    "lang:concurrency/isolates-spawn-script-and-await": "21e745d2db6916e9"
   },
   "syntax/concurrency/limits-and-errors.mdx": {
     "lang:concurrency/a-child-s-throw": "436f3216f2ebdc63",
     "lang:concurrency/limit-and-deadline": "9d94f1ba5ec99b94"
   },
   "syntax/concurrency/tasks.mdx": {
-    "lang:concurrency/core-task-all-a-fixed-set-of-tasks": "c9ef693dc4e2236c",
-    "lang:concurrency/core-task-map-one-task-per-element": "48d8aad260186e13",
+    "lang:concurrency/core-task-all-a-fixed-set-of-tasks": "82fbb8e7aa0b738f",
+    "lang:concurrency/core-task-map-one-task-per-element": "416509f4b453e81c",
     "lang:concurrency/no-colouring-i-o-just-waits": "44d588895d04b48c",
-    "lang:concurrency/what-does-not-exist": "f8754a7fc9282662"
+    "lang:concurrency/what-does-not-exist": "1e7a7e0a9bec0eef"
   },
   "syntax/control-flow/break-continue-return.mdx": {
-    "lang:statements/break-and-continue": "17583e24037ffa62",
+    "lang:statements/break-and-continue": "bb5e0a9f7db7f600",
     "lang:statements/return": "590137cb9dc139e3"
   },
   "syntax/control-flow/foreach.mdx": {
     "lang:iteration/core-collections-are-iterable": "08f8f188a02fd1a8",
     "lang:iteration/materialising-a-sequence-core-arr-from": "203059a10ea31651",
     "lang:iteration/what-foreach-walks": "ca10e817647a6dea",
-    "lang:statements/foreach": "e74fc3bad475650b"
+    "lang:statements/foreach": "cefe6ab334771322"
   },
   "syntax/control-flow/if.mdx": {
     "lang:statements/expression-statements-blocks-and-declarations": "71a1c5759975c3b3",
@@ -140,7 +140,7 @@
     "ArithmeticError": "00307a366b7e0370",
     "Core\\Cli\\NotInteractive": "0a53529b7f05636f",
     "Core\\Db\\DbError": "563bb55ceeee5be9",
-    "Core\\Db\\RolledBack": "dbe30b7f4ccd6573",
+    "Core\\Db\\RolledBack": "e253aa9c8bdbe69f",
     "Core\\Script\\Finished": "d67e0a8d12713160",
     "IOError": "dcea56a0ab16c5c1",
     "lang:errors/constructing-and-subclassing": "728544e799ad3a70",
@@ -155,11 +155,11 @@
   },
   "syntax/errors/limits.mdx": {
     "lang:errors/capability-denials-are-catchable": "ab28d1ff5f226a7f",
-    "lang:errors/fatal-errors-limits-no-catch-sees": "dadbc9da103530b2",
+    "lang:errors/fatal-errors-limits-no-catch-sees": "be8273bb85f50929",
     "lang:errors/recursion-depth": "1f5f5b10c2cd3562"
   },
   "syntax/errors/rethrowing.mdx": {
-    "lang:errors/an-uncaught-throw": "843e543ffa40aeb0",
+    "lang:errors/an-uncaught-throw": "53a30945bc339e60",
     "lang:errors/rethrowing": "34f63fcfb5a41045"
   },
   "syntax/errors/throw-and-catch.mdx": {
@@ -168,17 +168,17 @@
     "lang:statements/throw": "d98da1aaaa686567",
     "lang:statements/try-catch-finally": "bcfe6b5f24665829"
   },
+  "syntax/functions/anonymous-functions.mdx": {
+    "lang:expressions/anonymous-functions": "6da999dc6ec8017a"
+  },
   "syntax/functions/calls.mdx": {
     "lang:expressions/calls": "f48b263308e48fa2"
-  },
-  "syntax/functions/closures.mdx": {
-    "lang:expressions/closures-fn": "99f366a1ca3e4bd9"
   },
   "syntax/functions/declaring.mdx": {
     "lang:types/void-never-self-static": "656a82389884795e"
   },
   "syntax/functions/parameters.mdx": {
-    "lang:types/parameters": "81ea0a157ec619a7"
+    "lang:types/parameters": "b717ae73a872b8ae"
   },
   "syntax/operators/arithmetic.mdx": {
     "lang:expressions/arithmetic": "537f01ba95d7cd24",
@@ -186,36 +186,36 @@
   },
   "syntax/operators/comparison.mdx": {
     "lang:expressions/comparison-and-equality": "d9461e5271186485",
-    "lang:expressions/logical-operators-and-truth": "ee2dc00eaf11b2fb"
+    "lang:expressions/logical-operators-and-truth": "79c43ea21be70279"
   },
   "syntax/operators/null-coalescing.mdx": {
     "lang:expressions/and-the-ternary": "d082efd61d67d36b"
   },
   "syntax/operators/pipeline.mdx": {
-    "lang:expressions/the-pipeline-operator": "ebc56f2d1a052a84"
+    "lang:expressions/the-pipeline-operator": "581f6b4c82db1363"
   },
   "syntax/operators/precedence.mdx": {
     "lang:expressions/operators-php-has-that-do-not-parse": "3e99546919aed506",
     "lang:expressions/precedence-and-associativity": "a058f698d75a15dc",
-    "lang:expressions/refused-in-expression-position": "b4d273ec0c6798c4"
+    "lang:expressions/refused-in-expression-position": "8baf583324e9b2fc"
   },
   "syntax/operators/string-operators.mdx": {
-    "lang:expressions/string-operators": "c8d6801532018731"
+    "lang:expressions/string-operators": "644f8e446d09edc3"
   },
   "syntax/programs/file-paths-and-exit.mdx": {
     "lang:programs/ending-a-program": "454e214a8a01660e",
-    "lang:programs/file-paths-a-literal-starts-at-the-folder-of-its-file": "7f26e2a082af7e3b"
+    "lang:programs/file-paths-a-relative-path-starts-at-the-folder-of-its-file": "a143932e957e9d37"
   },
   "syntax/programs/namespaces.mdx": {
     "lang:programs/autoload-find-a-class-by-its-namespace": "eeb8a32ea3bcd27f",
     "lang:programs/namespaces-and-use": "dad7bb553bb0f54f"
   },
   "syntax/programs/require.mdx": {
-    "lang:programs/require-run-another-file-in-this-frame": "62a91698a2eeea27"
+    "lang:programs/require-run-another-file-in-this-frame": "b945c2fece1f05eb"
   },
   "syntax/start-here.mdx": {
-    "lang:programs/a-complete-program-annotated": "57bfda16febb6b64",
-    "lang:types/what-does-not-exist": "4b29ab1c109b9cca"
+    "lang:programs/a-complete-program-annotated": "4125ead9d5e1ee0a",
+    "lang:types/what-does-not-exist": "279f7c2dc6a5a27d"
   },
   "syntax/testing/fixtures-and-assertions.mdx": {
     "lang:testing/assertions": "1f3c6e61bf2a20c8",
@@ -229,12 +229,12 @@
     "lang:testing/test-options": "1205a1b0a3e41c84"
   },
   "syntax/values/arrays.mdx": {
-    "lang:expressions/arrays-in-expressions": "373a31917fdc3025",
-    "lang:types/array-t": "f1a68a3d63f2eddb"
+    "lang:expressions/arrays-in-expressions": "f724608860f5f344",
+    "lang:types/array-t": "7bfb5cead6673df4"
   },
   "syntax/values/as.mdx": {
-    "lang:types/the-conversion-operator-as": "e84193557b2be89d",
-    "lang:types/widening-without-as": "1ef61165e202f27e"
+    "lang:types/the-conversion-operator-as": "9484356bedc326a2",
+    "lang:types/widening-without-as": "e529d28265d3af00"
   },
   "syntax/values/bool-and-null.mdx": {
     "lang:types/truthiness": "ba0f72220bb24482"
@@ -251,11 +251,11 @@
     "Core\\Crypto\\KeyFormat": "0ecfd18820d46c78",
     "Core\\Crypto\\KeyKind": "96a638ba9f6235f7",
     "Core\\Db\\ColumnType": "495389eea4ac6c15",
-    "Core\\Db\\Driver": "e9f503398dadd6b8",
+    "Core\\Db\\Driver": "b1a8b55c9ac54d2d",
     "Core\\Db\\ErrorKind": "a569f4e17c2fd033",
-    "Core\\Db\\Isolation": "025feb613b2454ec",
+    "Core\\Db\\Isolation": "b7f83c3b65036906",
     "Core\\Db\\Plan\\Grade": "62d6119579e77120",
-    "Core\\Db\\Tls": "a57396b41759f843",
+    "Core\\Db\\Tls": "5da9ed9767a940c6",
     "Core\\Digest": "7f189cdefeebb30e",
     "Core\\Env\\Mode": "211dbe615cc04807",
     "Core\\Http\\Method": "d25e4847da784935",
@@ -265,7 +265,7 @@
     "Core\\NormalForm": "2a7f4d239a0330f1",
     "Core\\Order": "b889d7c1a9a80c8f",
     "Core\\Queue\\State": "1e124e915d5e5234",
-    "Core\\Reflect\\TypeKind": "d433be14ae93894e",
+    "Core\\Reflect\\TypeKind": "99bd81bfd50e460b",
     "Core\\Response\\Redirect": "20235b5b589d8229",
     "Core\\Response\\SameSite": "36c681ae41db640d",
     "Core\\RoundMode": "d481cd918ab6f7a6",
@@ -275,7 +275,7 @@
     "Core\\Weekday": "2f056b0af834e8c0",
     "Core\\Xml\\NodeKind": "432da8b0356a5c5c",
     "lang:enums/a-case-is-its-integer": "c8ba40a8e393513e",
-    "lang:enums/a-union-of-cases-is-a-narrower-type": "cad547e25d56a997",
+    "lang:enums/a-union-of-cases-is-a-narrower-type": "0204f352d260f5b0",
     "lang:enums/an-enum-as-a-type": "4aedddc5b4996f6c",
     "lang:enums/comparing-cases": "e01ffe788609eebf",
     "lang:enums/core-enums": "59e5a98b342e1c52",
@@ -285,25 +285,25 @@
     "lang:enums/what-replaces-php-s-enum-members": "d513ee76b1f78ff9"
   },
   "syntax/values/is.mdx": {
-    "lang:types/narrowing": "ee92a08aef72dddf"
+    "lang:types/narrowing": "e942af609df048f7"
   },
   "syntax/values/nullable.mdx": {
-    "lang:types/nullable-union-literal-and-enum-case-types": "80c478eec46a7b98"
+    "lang:types/nullable-union-single-value-and-enum-case-types": "572dc4590c11810c"
   },
   "syntax/values/numbers.mdx": {
-    "lang:types/literals": "a02efff51a0bc757",
-    "lang:types/numbers-bool-int-uint-float-decimal": "788438269e5375ad"
+    "lang:types/numbers-bool-int-uint-float-decimal": "d6c129f570f1b22b",
+    "lang:types/values-written-in-the-code": "e2596df64660bc2a"
   },
   "syntax/values/strings.mdx": {
-    "lang:types/literals": "a02efff51a0bc757",
-    "lang:types/text-string-and-bytes": "a310f08ce2aeaf49"
+    "lang:types/text-string-and-bytes": "495fc0b471e79523",
+    "lang:types/values-written-in-the-code": "e2596df64660bc2a"
   },
   "syntax/values/tainted-and-secret.mdx": {
     "lang:types/qualifiers-tainted-and-secret": "4d9a603a542bc54e"
   },
   "syntax/values/union-types.mdx": {
     "lang:types/mixed": "439a32c0e6f3d8e3",
-    "lang:types/nullable-union-literal-and-enum-case-types": "80c478eec46a7b98",
-    "lang:types/type-aliases": "204da5ca8277a34a"
+    "lang:types/nullable-union-single-value-and-enum-case-types": "572dc4590c11810c",
+    "lang:types/type-aliases": "26400907c53f9ddd"
   }
 }

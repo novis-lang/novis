@@ -10,7 +10,7 @@ A parameter is written `int $first`: a type, then the variable. It can have a de
 
 <Snippet src="syntax/parameters/01-defaults-and-rest.nvs" />
 
-- A default value is a literal, such as `2`, `"!"` or `null`.
+- A default value is written directly in the code, such as `2`, `"!"` or `null`.
 - Inside the method, `...$rest` is an `array<int>`. It is empty when no extra arguments are given.
 - Only the last parameter can be `...$rest`.
 
@@ -24,7 +24,7 @@ changes it, the caller's variable changes too.
 - The call writes `inout` before the argument: `Counter::bump(inout $count)`.
 - The argument must be a local variable. An array element or a property is not allowed.
 - A `foreach` variable can be `inout`. A change to it changes the array.
-- A closure cannot have an `inout` parameter.
+- An anonymous function cannot have an `inout` parameter.
 - `&` does not mean "by reference" anywhere in Novis. Use `inout`.
 
 ## Do and don't

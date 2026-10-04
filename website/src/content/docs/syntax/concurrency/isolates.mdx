@@ -34,8 +34,8 @@ The result has four fields:
 - `limits:` sets lower limits for the child. `grants:` names the capabilities it may use. A child
   never gets more than its parent has.
 - `on: "worker"` runs the child on another CPU core.
-- The entry can also be a static method: `spawn script Report::build(...)`. A `fn` literal does
-  not compile.
+- The entry can also be a static method: `spawn script Report::build(...)`. An anonymous function
+  does not compile.
 - A path in quotes is relative to the folder of the file that contains it.
 - You can `await` a handle only once. A second `await` throws `LogicError`.
 - `spawn script` needs the capability `script.spawn`. This program's `nvs.toml` has

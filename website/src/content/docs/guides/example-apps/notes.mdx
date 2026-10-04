@@ -9,7 +9,7 @@ The home page lists every note. The app also has a small JSON API for the same n
 
 The app shows how the parts of a Novis project work together:
 
-- HTML pages built with `html` literals, which escape every value.
+- HTML pages built with `html` templates, which escape every value.
 - A SQLite database, opened with `Core\Db::connect`.
 - Routes, written as attributes on the methods that handle them.
 - A form that is checked before anything is saved.
@@ -101,7 +101,7 @@ field that is not valid.
 `src/Store.nvs` runs the SQL. Every value goes to the database as a `?` placeholder. The text of a
 note is never part of the SQL.
 
-`src/Pages.nvs` builds each page with an `html` literal. A value you put into it with `{$name}` is escaped.
+`src/Pages.nvs` builds each page with an `html` template. A value you put into it with `{$name}` is escaped.
 A note with the title `<b>Milk</b>` shows those characters as text.
 
 ## The routes

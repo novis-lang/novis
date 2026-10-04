@@ -13,8 +13,8 @@ visibility, its type, its name and its value: `public const int MAX_ITEMS = 20;`
 Inside the class, `self::MAX_ITEMS` reads the constant. Everywhere else, write the class name:
 `Cart::MAX_ITEMS`. There are no global constants.
 
-The value must be known when the program compiles. A literal works, and so does an array of
-literals. A function call does not.
+The value must be known when the program compiles. A value written directly in the code works, and
+so does an array of such values. A function call does not.
 
 ## Constants that a subclass changes
 

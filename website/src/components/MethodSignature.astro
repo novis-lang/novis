@@ -153,7 +153,7 @@ for (const p of member.params) {
   }
 }
 
-// The options bag: a trailing shape literal, every entry optional.
+// The options bag: a trailing anonymous object, every entry optional.
 if (member.options.length > 0) {
   const keys: ShapeKey[] = member.options.map((o) => ({
     key: o.name,
