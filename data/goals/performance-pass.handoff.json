@@ -1,23 +1,25 @@
 {
-  "state": "**Goal `performance-pass`, Stage 5 (the fixes).** Stage 4's review is whole (`docs/perf/performance-review.md`, ending in `## floor`). Old refusals have not been priced again yet.\n\n**`bun nv scaling --check` is green.** `numbers/bigint-mul.nvs` squares sixteen sizes from n/2 to 31n/32 per step, because `num-bigint` recurses in steps by length and one size's allocation count is not monotonic. It reads allocations 1.31, bytes 1.40 and callgrind 1.29, and the tool reports it unclear, which `--check` passes. `docs/perf/performance-pass.md` *Benches to look at* records why.\n\n**25 gap records owned by `performance-pass`** keep `owners --closes performance-pass` red, and they are the rest of Stage 5: each is fixed and its record deleted, or struck as a stated bound. `docs/perf/performance-pass.md` *Decisions for you* has one entry: a total deadline for the request head.",
+  "state": "**Goal `performance-pass`, Stage 5 (the fixes).** Stage 4's review is whole (`docs/perf/performance-review.md`, ending in `## floor`). Old refusals have not been priced again yet.\n\n**`bun nv scaling --check` was green at the start of this session**, and the two ladders this session added, `request/fields` and `request/query-fields`, are flat (clock 1.01 and 1.13). `numbers/bigint-mul.nvs` stays unclear, which `--check` passes; `docs/perf/performance-pass.md` *Benches to look at* records why.\n\n**`Core\\Request::post` and `::query` parse once per request.** The parsed arrays are held on `nvs_runtime::Inbound` (`form`, `query_fields`) and released in `Ctx`'s `Drop` before the sweep, as `json()`'s document is. `bun nv scaling` has a new `size form` load. `Core\\Uri::queryParameter`'s share of the old gap is its own record now, `data/gaps/nvs-stdlib/uri-query-parameter-reparse-per-call.json`.\n\n**25 gap records owned by `performance-pass`** keep `owners --closes performance-pass` red, and they are the rest of Stage 5: each is fixed and its record deleted, or struck as a stated bound. `docs/perf/performance-pass.md` *Decisions for you* has one entry: a total deadline for the request head.",
   "next": {
     "stage": 5,
-    "title": "the fixes, request field reads",
+    "title": "the fixes, `Markup` concatenation",
     "files": [],
-    "note": "one file set: `crates/nvs-stdlib/src/request.rs` and a new `benches/scaling/request/fields.nvs` ladder.",
+    "note": "one file set: `crates/nvs-stdlib/src/html.rs` and a new `benches/scaling/templates/markup-loop.nvs` ladder.",
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Request::post($name)` parses the body once per request, not once per call** (`crates/nvs-stdlib/src/request.rs:2315`, `form_of`), so a handler reading P fields is O(P). The gap record `data/gaps/nvs-stdlib/request-post-and-query-reparse-per-call.json` names the shape and the ladder; the fix says the per-request memory it spends. Rule: the goal's base rule."
+        "text": "**`Markup + Markup` reuses the left buffer when that `Markup` has one reference** (`crates/nvs-stdlib/src/html.rs:817`, `nvs_core_html_markup_concat`), so a page built row by row with `+` is amortized linear. The gap record `data/gaps/nvs-stdlib/markup-concat-copies-the-whole-left-side.json` names the shape and the ladder. If the fix needs new `unsafe` code beyond what string concat already has, it is a large tradeoff under the goal's standing decisions: record it under *Decisions for you* and strike the gap as recorded. Rule: the goal's base rule."
       },
       {
         "done": false,
-        "text": "**`query($name)` and `queryAs` use the same parsed array** (`crates/nvs-stdlib/src/request.rs:2167`, `crates/nvs-stdlib/src/request.rs:2242`), then delete the gap record. Rule: the goal's base rule."
+        "text": "**`$uri->queryParameter` decides between a memo slot and a stated bound** (`crates/nvs-stdlib/src/uri.rs:2679`), per `data/gaps/nvs-stdlib/uri-query-parameter-reparse-per-call.json`. Rule: the goal's base rule."
       }
     ]
   },
   "backlog": [
-    "`data/gaps/nvs-runtime/route-matching-tries-every-route.json` — O(routes) dispatch per request, `crates/nvs-runtime/src/routes.rs`.",
-    "The other 22 gaps: `bun nv owners --closes performance-pass` lists them with their modules."
+    "`data/gaps/nvs-types/the-live-set-is-cloned-per-branch.json` — one long function checks in quadratic time; ladder `compiler/branches.nvs`.",
+    "`data/gaps/nvs-runtime/route-matching-tries-every-route.json` — every request is matched against every route.",
+    "`data/gaps/nvs-stdlib/a-string-index-walks-the-whole-subject.json` — `Core\\Str::at` and friends walk from the start per call.",
+    "`docs/perf/performance-pass.md` *What got better* records only this session's fix; the `elseif` chain and the bigint ladder fixes of earlier sessions are not in it yet."
   ]
 }
