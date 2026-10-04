@@ -1,5 +1,5 @@
 {
-  "state": "**Side goal `website-overhaul`: stage 5 (Install and Guides) is in progress. Install, the Tour and Why people pick Novis are done, and `--check guides` is written.**\n\nInstall has four pages under `install/`, snippets under `website/snippets/install/`. Novis has no release yet, so the install page builds from source.\n\nThe Tour is `guides/tour/index.mdx` and ten steps, `01-methods-and-types.mdx` to `10-web-app.mdx`. Each step ends with a \"Next:\" link. Novis has no free functions (`E0215`), so every snippet uses a class. A compile error or `nvs test` output is shown as a `txt` block copied from a real run.\n\nWhy people pick Novis is `guides/why-novis/index.mdx` and 11 candidate pages, grouped on the index as Safety, Language design and Simplicity, each with a snippet under `website/snippets/guides/why-novis/` and a link into Syntax or Reference. It is in the sidebar before the Tour. The user curates the final list when the goal lands. A complete-`match` page was dropped: a `match` on an enum with a missing arm compiles and throws `LogicError` at run time, so \"exhaustive match\" is not a claim Novis can make.\n\n`--check guides` (`guidesProblems` in `tools/nv/cmd/site.ts`) fails now only on the six sections not written yet. `site structure`, `stale`, `reference`, `syntax` and `--build` pass. `snippets` and `prose` fail only on `index.mdx`, `sponsoring.mdx` and `in-depth/what-changed.mdx`, which stage 6 rewrites. `apps` and `in-depth` are stubs (`LATER` in `site.ts`).\n\nA page whose `covers:` names a feature id needs `bun nv site --stamp <page>` before `--check stale` passes.",
+  "state": "**Side goal `website-overhaul`: stage 5 (Install and Guides) is in progress. Install, the Tour, Why people pick Novis and Simple programs are done, and `--check guides` is written.**\n\nInstall has four pages under `install/`, snippets under `website/snippets/install/`. Novis has no release yet, so the install page builds from source.\n\nThe Tour is `guides/tour/index.mdx` and ten steps. Novis has no free functions (`E0215`), so every snippet uses a class. A compile error or `nvs test` output is shown as a `txt` block copied from a real run.\n\nWhy people pick Novis is `guides/why-novis/index.mdx` and 11 candidate pages. The user curates the final list when the goal lands.\n\nSimple programs is `guides/simple-programs/index.mdx` and six pages. Each program has its own folder under `website/snippets/guides/simple-programs/<name>/`, because an `nvs.toml` there configures every snippet in the folder. The page shows that `nvs.toml` as a `toml` block. A request program (`json-api`, `form-handler`) has a `.nvsr`. The scraper uses `Core\\Test::answerHttp`, so it runs without a network.\n\n`--check guides` (`guidesProblems` in `tools/nv/cmd/site.ts`) fails now only on the five sections not written yet. `site structure`, `stale`, `reference`, `syntax` and `--build` pass. `snippets` and `prose` fail only on `index.mdx`, `sponsoring.mdx` and `in-depth/what-changed.mdx`, which stage 6 rewrites. `apps` and `in-depth` are stubs (`LATER` in `site.ts`).\n\nA page whose `covers:` names a feature id needs `bun nv site --stamp <page>` before `--check stale` passes.",
   "next": {
     "stage": 5,
     "title": "Install and Guides",
@@ -11,20 +11,20 @@
     "items": [
       {
         "done": false,
-        "text": "**Simple programs**: `guides/simple-programs/index.mdx` and six one-file programs (CSV report, JSON API, file watcher, scraper, form handler, scheduled job), each one snippet with its output and a short walk-through. A program that needs a capability gets an `nvs.toml` beside it, and one that answers a request gets a `.nvsr`. Add the group to the sidebar after the Tour. Specified by `docs/agent/goals/side/website-overhaul.md` § Stage 5. Anchors: `website/astro.config.ts:139`, `tools/nv/cmd/site.ts:563`"
+        "text": "**Cookbook**: `guides/cookbook/index.mdx` and ten task pages, one snippet each, in the sidebar after \"How to use Novis\" (so add that group's link first, or place Cookbook after Simple programs and keep `GUIDE_SECTIONS` order). Give a snippet that needs a grant its own folder with an `nvs.toml`. Specified by `docs/agent/goals/side/website-overhaul.md` § Stage 5. Anchors: `website/astro.config.ts:167`, `tools/nv/cmd/site.ts:563`"
       },
       {
         "done": false,
-        "text": "**Cookbook**: `guides/cookbook/` with ten task pages, one snippet each. Specified by the same section. Anchors: `website/astro.config.ts:139`"
+        "text": "**How to use Novis, Testing your app, Going to production**: the three prose sections, each with a Do / Don't list where the goal names one, linked in the sidebar in `GUIDE_SECTIONS` order. Specified by the same section. Anchors: `website/astro.config.ts:167`, `tools/nv/cmd/site.ts:563`"
       },
       {
         "done": false,
-        "text": "**How to use Novis, Testing your app, Going to production**: the three prose sections, each with a Do / Don't list where the goal names one. Specified by the same section. Anchors: `website/astro.config.ts:139`"
+        "text": "**Example apps**: `guides/example-apps/` with the Notes page, once `apps/notes/` exists. Specified by the same section. Anchors: `tools/nv/cmd/site.ts:563`"
       }
     ]
   },
   "backlog": [
-    "Example apps: `apps/notes/` and `guides/example-apps/`, plus `--check apps` (`LATER` in `tools/nv/cmd/site.ts`). Owner: `docs/agent/goals/side/website-overhaul.md` § Stage 5.",
-    "Stage 6: In-Depth, the home page, `sponsoring.mdx` and `in-depth/what-changed.mdx`. Owner: the same goal, § Stage 6."
+    "Stage 6: rewrite `index.mdx`, `sponsoring.mdx` and `in-depth/what-changed.mdx`, which fail `snippets` and `prose` (`docs/agent/goals/side/website-overhaul.md` § Stage 6).",
+    "`--check apps` and `--check in-depth` are stubs marked `LATER` in `tools/nv/cmd/site.ts`."
   ]
 }
