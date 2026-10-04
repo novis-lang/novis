@@ -1,0 +1,31 @@
+<?nvs
+// Prints a shop with n page classes, each with its own route, as an editor opens a large web application.
+// scaling: kind lsp
+// scaling: start 50
+// scaling: max 1600
+// scaling: expect linear
+
+class Bench {
+    public static function run(uint $size): string {
+        array<string> $lines = ["<?nvs", "class Prices {", "    public static function of(int \$x): int { return 100 + \$x * 7; }", "}"];
+        uint $i = 0;
+        while ($i < $size) {
+            $lines[] = "class Page{$i} {";
+            $lines[] = "    #[Core\\Route(path: \"/p{$i}\", method: Core\\Http\\Method::Get, name: \"Page{$i}::index\")]";
+            $lines[] = "    #[Core\\Access(allow: Core\\Audience::Public)]";
+            $lines[] = "    public function index(): string {";
+            $lines[] = "        string \$code = \"TEA-{$i}\";";
+            $lines[] = "        if (Core\\Validate::isAscii(\$code)) {";
+            $lines[] = "            return Core\\Json::encode({ code: \$code, price: Prices::of({$i}) });";
+            $lines[] = "        }";
+            $lines[] = "        return \"\";";
+            $lines[] = "    }";
+            $lines[] = "}";
+            $i = $i + 1;
+        }
+        $lines[] = "echo Prices::o<|>f(1), \"\\n\";";
+        return Core\Str::join($lines, "\n") . "\n";
+    }
+}
+
+echo Bench::run(50);

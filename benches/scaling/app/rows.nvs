@@ -1,0 +1,39 @@
+<?nvs
+// Builds the shop's product page with n products, as a shop page that lists a whole category does.
+// scaling: start 250
+// scaling: max 8000
+// scaling: expect linear
+
+class Bench {
+    public static function run(uint $size): uint {
+        // The page writes n products to the database and reads them back in price order.
+        var $db = Core\Db::connect("shop");
+        $db->execute("create table products (id integer primary key, code text not null, price int not null)", []);
+        uint $i = 0;
+        while ($i < $size) {
+            $db->execute("insert into products (code, price) values (?, ?)", ["TEA-" . $i, (100 + ($i % 50) * 7) as int]);
+            $i = $i + 1;
+        }
+        var $rows = $db->query("select code, price from products order by price", []);
+
+        // Each product code is checked, rendered as one list item, and kept for the JSON part of the page.
+        var $cache = Core\Cache::local();
+        array<Core\Html\Markup> $items = [];
+        array<mixed> $products = [];
+        foreach ($rows as var $row) {
+            string $code = $row->get("code") as string;
+            int $price = $row->get("price") as int;
+            if (Core\Validate::isAscii($code)) {
+                $cache->put("price:" . $code, $price);
+                $items[] = html`<li>{$code}: {$price}</li>`;
+                $products[] = { code: $code, price: $cache->get("price:" . $code) as int };
+            }
+        }
+
+        Core\Html\Markup $list = Core\Html::join($items, "\n" as Core\Html\Markup);
+        string $page = Core\Html::toSource($list, "the product list") . "\n" . Core\Json::encode($products);
+        return Core\Str::length($page) as uint;
+    }
+}
+
+echo Bench::run(250), "\n";
