@@ -120,7 +120,7 @@ import { respawn } from "../driver/respawn.ts";
 import { AllowWatch, loadSeen, record as recordAllow, saveSeen, settle as settleAllow } from "../driver/allow.ts";
 import { insideWorktree, landing, launchSide } from "../driver/side.ts";
 import { bringUp, docGate, enoughDisk, ownerGate, preflight, sweepDisk } from "../driver/gates.ts";
-import { chainGoals, type Goal, goalPlan, liveGoal, setLive, SIDE_ENV, sideGoal, sidePlan } from "../lib/chain.ts";
+import { chainGoals, type Goal, goalPlan, leaveGoal, liveGoal, SIDE_ENV, sideGoal, sidePlan } from "../lib/chain.ts";
 import { ROOT } from "../lib/paths.ts";
 import { ENV as PROGRESS_ENV, readProgress } from "../lib/progress.ts";
 import { goal as goalType } from "../schema/goal.ts";
@@ -1382,10 +1382,11 @@ async function serve(f: TurnFlags, state: RunState, fresh: boolean, touched: Tou
 }
 
 /**
- * The goal switch, once goal `from` is reached: `data/chain.json`'s `live` moves to the next goal on the chain
- * and is committed with the goal plan it changes and nothing else, that goal's services come up, and the counts a goal owns start over. Nothing is
- * copied or retired, since the next goal's floor is `goalPlan`'s view over every walked goal. Returns null
- * when the run goes on, or the verdict: the chain is complete, or the next goal cannot be run.
+ * The goal switch, once goal `from` is reached: `leaveGoal` deletes its prose, record and handoff record, takes
+ * its slug off the chain and makes the next goal live, and all of it is committed with the goal plan it changes
+ * and nothing else. Then that goal's services come up, and the counts a goal owns start over. Nothing is
+ * archived (`rule:tooling/the-chain-names-its-live-goal`). Returns null when the run goes on, or the verdict:
+ * the chain is complete, or the next goal cannot be run.
  */
 async function advance(state: RunState, from: string): Promise<Ended | null> {
   const goals = chainGoals();
@@ -1402,20 +1403,23 @@ async function advance(state: RunState, from: string): Promise<Ended | null> {
   const down = await preflight(plan.env.docker, (l) => say(`   ${l}`, C.GRAY));
   if (down) return end("chain-error", `chain: ${down}`);
 
-  const path = setLive(next.slug);
-  // The goal plan marks which goal is live, so it moves in the same commit.
+  const paths = leaveGoal(from, next.slug);
+  // The goal plan lists the chain and marks which goal is live, so it moves in the same commit.
   const rendered = writeGoalPlan();
   const msg = join(ROOT, ".agent-tmp", "chain-switch.txt");
   mkdirSync(dirname(msg), { recursive: true });
   // The subject names the goals and never their positions, which a later insert moves.
-  writeFileSync(msg, `docs(loop): the chain advances from \`${from}\` to \`${next.slug}\`\n`);
-  const committed = await runProc(["git", "commit", "-q", "-F", msg, "--", path, ...(rendered ? [join(ROOT, rendered)] : [])]);
-  if (committed.code !== 0) return end("chain-error", `chain: \`${next.slug}\` is live in ${path}, and its commit failed -- ${(committed.stderr || committed.stdout).trim().split("\n")[0]}`);
+  writeFileSync(msg, `docs(loop): the chain advances from \`${from}\` to \`${next.slug}\`\n\nGoal \`${from}\` is deleted: its prose, its record and its handoff record.\n`);
+  const committed = await runProc(["git", "commit", "-q", "-F", msg, "--", ...paths.map((p) => join(ROOT, p)), ...(rendered ? [join(ROOT, rendered)] : [])]);
+  rmSync(msg, { force: true });
+  if (committed.code !== 0) return end("chain-error", `chain: \`${next.slug}\` is live in data/chain.json, and its commit failed -- ${(committed.stderr || committed.stdout).trim().split("\n")[0]}`);
 
   const up = await bringUp(plan.env.docker, (l) => step(l, C.CYAN));
   if (up) return end("chain-error", `chain: ${up}`);
-  ledger(`## run continues on goal \`${next.slug}\` (${next.num} of ${goals.length})`);
-  say(`chain: goal \`${next.slug}\` is live, ${next.num} of ${goals.length}`, C.GREEN);
+  // `from` left the chain, so every place behind it moved up by one.
+  const place = `${next.num - 1} of ${goals.length - 1}`;
+  ledger(`## run continues on goal \`${next.slug}\` (${place})`);
+  say(`chain: goal \`${next.slug}\` is live, ${place}`, C.GREEN);
   // A new goal is a new worklist: a stall streak, its DONE retries and its repairs start over.
   state.stalls = 0;
   carry(state, { done_retries: 0, retry_check: "", repairs: 0 });

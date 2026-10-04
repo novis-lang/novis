@@ -19,7 +19,7 @@
 // the live one, and never the live goal's own, which are that goal's unfinished work. A process belongs to
 // a side run when `SIDE_ENV` names a side goal whose prose is on disk.
 
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync, readdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { ROOT } from "./paths.ts";
 import type { RecordType } from "./schema.ts";
@@ -108,6 +108,25 @@ export function setLive(slug: string, root: string = ROOT): string {
   const c = chainRecord(root);
   if (!c.goals.includes(slug)) throw new Error(`${slug} is not on the chain`);
   return write(chainType, c.id, { live: slug, goals: c.goals }, root).path;
+}
+
+/** A goal's three files, repo-relative: its prose, its record and its handoff record. */
+export function goalFiles(slug: string): string[] {
+  return [`${GOALS}/${slug}.md`, `data/goals/${slug}.json`, `data/goals/${slug}.handoff.json`];
+}
+
+/**
+ * The goal switch on disk, once goal `from` is reached: its three files are deleted, its slug leaves
+ * `goals`, and `to` becomes `live`. Returns every path it changed, repo-relative, for the caller to
+ * commit. Throws when either goal is not on the chain, and changes nothing then.
+ */
+export function leaveGoal(from: string, to: string, root: string = ROOT): string[] {
+  const c = chainRecord(root);
+  for (const slug of [from, to]) if (!c.goals.includes(slug)) throw new Error(`${slug} is not on the chain`);
+  const gone = goalFiles(from).filter((p) => existsSync(join(root, p)));
+  for (const p of gone) rmSync(join(root, p));
+  const chain = write(chainType, c.id, { live: to, goals: c.goals.filter((s) => s !== from) }, root).path;
+  return [chain, ...gone];
 }
 
 /** slug -> goal, for every goal the chain is already past. */
