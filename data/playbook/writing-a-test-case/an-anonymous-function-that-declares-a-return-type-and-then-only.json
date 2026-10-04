@@ -1,0 +1,11 @@
+{
+  "lead": "An anonymous function that declares a return type and then only throws does not compile.",
+  "body": "`fn(int $n): int => throw new LogicError('no')` is `E0401: expected int, found never`, while the same anonymous function with no `: int` on it is accepted, so the same throwing step is fine in one attack file and refused in the next. Write that step as a static method declaring the return type and throwing in its body, and hand the anonymous function a call to it.",
+  "files": [
+    "tests/hostile/core/Arr/filter/01-predicates-written-to-break-the-walk.nvs"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "tests/hostile/core/Arr/filter/01-predicates-written-to-break-the-walk.nvs:fn(int $n) => throw"
+  }
+}

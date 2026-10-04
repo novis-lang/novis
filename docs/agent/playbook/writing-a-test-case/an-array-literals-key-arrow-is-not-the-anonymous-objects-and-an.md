@@ -1,4 +1,4 @@
-- **An array literal's key arrow is `=>`, not the shape literal's `:`, and an enum declares its
+- **An array literal's key arrow is `=>`, not the anonymous object's `:`, and an enum declares its
   cases without PHP's `case` keyword.** `["a": 1]` and `case Off = 0;` are not near-misses but parse
   failures (`E0102`/`E0101`, `E0220`) repeated per line, none naming the spelling that works, and
   they hide whatever else the case asserts. `examples/arrays.nvs` has `["alpha" => 1]`;

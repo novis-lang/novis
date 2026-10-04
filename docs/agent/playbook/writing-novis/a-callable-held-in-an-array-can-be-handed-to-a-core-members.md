@@ -1,4 +1,4 @@
-- **A closure held in an array can be handed to a `Core` member's `callable` option**, and a call
+- **A callable held in an array can be handed to a `Core` member's `callable` option**, and a call
   through the holding variable lowers too. `foreach ($filters as callable $filter) {
   Core\Out::capture($body, {through: $filter}) }` over an `array<callable>` lowers and runs, because
   the call is `nvs_runtime::call_callable`, not a lowered `Call`. A `mixed` is not implicitly

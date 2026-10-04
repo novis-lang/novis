@@ -1,5 +1,5 @@
 - **A `spawn script` shape option arrives as an object, not an array.** `limits: {memory: "1M"}`
-  is a shape literal, and a shape is an object with one slot per field it names, so a helper that
+  is an anonymous object, and a shape is an object with one slot per field it names, so a helper that
   reads it with `nvs_array_next_slot` gets `expected a shape, got tag 7` at run time and nothing
   at compile time. Walk it with `NvsObj::from_raw` plus `ClassDesc::field_name(slot)` and
   `NvsObj::field(slot)`, which is also what spares the reader a second copy of the field list.

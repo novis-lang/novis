@@ -1,5 +1,5 @@
 {
-  "lead": "A `.nvst` with `--GET--` runs under `nvs run --request`, which keeps the terminal sink, so `echo` is not escaped and `Core\\Html::later` runs its closure in place.",
+  "lead": "A `.nvst` with `--GET--` runs under `nvs run --request`, which keeps the terminal sink, so `echo` is not escaped and `Core\\Html::later` runs its callable in place.",
   "body": "The HTML sink is attached only by an isolate handed a request (`crates/nvs-host/src/isolate.rs`'s sink choice), so a case about page output written under `--GET--` passes while testing nothing. Use the in-process pattern instead: `Core\\Test::request(...)` inside a `try`, with the page in the `catch (RuntimeError ...)` block, as `tests/conformance/core/echo-in-a-request-escapes-a-string-and-writes-markup-as-it-is.nvst` does.",
   "files": [
     "crates/nvs-host/src/isolate.rs",
