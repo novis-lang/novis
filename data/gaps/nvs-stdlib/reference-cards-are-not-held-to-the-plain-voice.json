@@ -1,6 +1,6 @@
 {
   "module": "crates/nvs-stdlib/src/registry.rs",
-  "title": "No rule holds a `Core` reference card to the plain voice, and the card sweep handoffs gave goal `plain-comments` was never in its scope.",
-  "text": "A card is what `nvs help`, a hover and the website print for a member, so an end user reads it. `AGENTS.md` § *Text an end user reads* covers only `.nvs` comments under `docs/examples/`, `tests/hostile/` and `benches/members/`, and `about.md`, and `rule:core-api/reference-card` says nothing about wording. Many proofs goals' handoffs left their classes' older cards to goal `plain-comments`, whose prose says it changes no line of code (`docs/agent/goals/plain-comments.md:12`). Cards in the old voice remain, for example `crates/nvs-stdlib/src/objset.rs:157` (\"holds\"), `crates/nvs-stdlib/src/objset.rs:185` (\"drops\") and `crates/nvs-stdlib/src/math.rs:623` (\"drops the remainder\"). Closing this either extends `rule:core-api/reference-card` to the plain voice and rewrites the cards, or states in that rule that cards are not held to it.",
-  "goal": "goal-closeout"
+  "title": "Older `Core` reference cards are not yet written in the plain voice.",
+  "text": "`rule:core-api/reference-card` holds every card to `AGENTS.md` § *Text an end user reads*, because a hover and `nvs help` print it. Cards written before that rule remain in another voice, for example `crates/nvs-stdlib/src/objset.rs:157` (\"holds\"), `crates/nvs-stdlib/src/objset.rs:185` (\"drops\") and `crates/nvs-stdlib/src/math.rs:623` (\"drops the remainder\"). No session sweeps them: a card is rewritten when its class is next touched, and this record is deleted when no card in the old voice is left.",
+  "milestone": "M10"
 }

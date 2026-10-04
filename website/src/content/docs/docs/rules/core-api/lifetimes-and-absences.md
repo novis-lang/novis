@@ -310,6 +310,10 @@ class's hand-written intro page under `docs/reference/core/` is compiled in at b
 under the class's own card by a hover and at the head of its stub; the page stays the website's, and
 nothing about it is copied into Rust by hand.
 
+**A card is text an end user reads**, because `nvs help`, a hover and the website print it, so it is
+written to `AGENTS.md` § *Text an end user reads*. A card added or changed is written that way. An older
+card in another voice is rewritten when its class is next touched, and no session sweeps every card.
+
 Extended prose is deliberately excluded. Long-form text inside Rust string literals is the worst reading
 surface available, so anything beyond the reference card stays in the website's pages. The cost is static
 strings in the binary — per process, not per request, on the order of a few hundred bytes per documented

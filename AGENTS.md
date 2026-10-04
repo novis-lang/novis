@@ -135,7 +135,8 @@ which are whole where they stand.
 
 **This section is the whole rule, and it is here because nothing checks the wording: it is followed at
 the first write, not repaired afterwards.** It covers every comment in a `.nvs` file under
-`docs/examples/`, `tests/hostile/` and `benches/members/`, and every `about.md`. Those are published on
+`docs/examples/`, `tests/hostile/` and `benches/members/`, every `about.md`, and every `Core` reference
+card (`rule:core-api/reference-card`). Those are published on
 the website and read by somebody who looked a feature up and has never seen this repository. **A
 beginner and an expert should both read it once and come away with the same picture.**
 
