@@ -1,37 +1,24 @@
 {
-  "state": "**Side goal `website-overhaul`: stage 5 (Install and Guides) is done. Stage 6 (In-Depth, the home page and the last links) is next.**\n\nInstall has four pages and Guides has all eight sections. Why people pick Novis has 11 candidate pages, and the user curates that list when the goal lands. Example apps has `index.mdx` and `notes.mdx`.\n\nThe Notes app is in `apps/notes/`: `nvs.toml` with two SQLite databases (`notes`, a file, and `scratch`, in memory, used only by `tests/StoreTest.nvs`), `public/index.nvs`, five classes under `src/` in namespace `Notes`, and 11 tests under `tests/`. `nvs test tests/` and `nvs serve public/index.nvs` run from the app's folder. Routes are dispatched by name in `Notes\\App::handle` (`apps/notes/src/App.nvs`). The app has no login and no CSRF token, and its page says so.\n\n`bun nv site --check apps` (`appsProblems` in `tools/nv/cmd/site.ts`) runs `nvs test tests/` in each app under `apps/`, then boots `nvs serve` on a free port until `GET /` returns 200, and deletes every file the run created (the `notes.sqlite`).\n\nGreen now: `site structure`, `stale`, `reference`, `syntax`, `guides`, `apps` and `--build`. `snippets` and `prose` fail only on `index.mdx`, `sponsoring.mdx` and `in-depth/what-changed.mdx`. `in-depth` is the last `LATER` stub.\n\nA page whose `covers:` names a feature id needs `bun nv site --stamp <page>` before `--check stale` passes. MDX reads `{...}` outside a code span as an expression, so keep route paths like `/notes/{id}` in backticks.",
+  "state": "**Side goal `website-overhaul`: stage 6 (In-Depth, the home page and the last links) has one item left: the plain-English read of the whole site, then closing the goal.**\n\nIn-Depth has its eight sections: `what-for`, `never`, `how-we-decide`, `design-principles`, `concepts/` (an index and five pages), `falls-behind`, `roadmap` and `what-changed`, each in the In-Depth sidebar in that order. Each essay links decision records through `decisionRecord` from `@config/site.mjs`, as `<a href={decisionRecord('NNNN')}>`, and never prints a record number.\n\nThe home page (`website/src/content/docs/index.mdx`) has a short hero, one `<Snippet src=\"home/greetings.nvs\">`, six standout features linking to their Why-Novis pages, and four `LinkCard`s built from `AREAS`. The six are a proposal: the user reviews them when the goal lands. `sponsoring.mdx` keeps the user's own voice, and only its dashes and two long sentences were split.\n\n`bun nv site --check in-depth` is `inDepthProblems` in `tools/nv/cmd/site.ts`, driven by `IN_DEPTH_SECTIONS`. `structure` now also fails on any page link or sidebar link that `builtUrls` does not list (each handwritten page, the Core class and method pages, the Configuration and CLI pages). No `LATER` stub is left.\n\nGreen in this session: `site structure`, `in-depth`, `prose`, `snippets`, `stale`, `--build`, `bun test tools/nv/test/site.test.ts` (18 pass) and `bun nv verify`. `reference`, `syntax`, `guides` and `apps` were not rerun. This session did not touch them.",
   "next": {
     "stage": 6,
     "title": "In-Depth, the home page and the last links",
-    "files": [
-      "website/src/content/docs/in-depth/",
-      "website/src/content/docs/index.mdx",
-      "website/astro.config.ts",
-      "website/src/components/Footer.astro",
-      "tools/nv/cmd/site.ts"
-    ],
+    "files": [],
+    "note": ": one file set: `website/src/content/docs/**`, `website/snippets/**`, `tools/nv/cmd/site.ts`.",
     "items": [
       {
         "done": false,
-        "text": "**In-Depth's eight sections**: What Novis is for, What Novis will never be, How we decide, Design principles, Concepts (five pages), Where Novis falls behind, Roadmap, What changed. Each is a short essay that links to decision records through `decisionRecord` in `website/config/site.mjs`. Specified by `docs/agent/goals/side/website-overhaul.md` § Stage 6. Anchors: `website/astro.config.ts:368`, `website/src/content/docs/in-depth/index.mdx:1`"
+        "text": "**The plain-English read of the whole site**: one `Explore` subagent that did not write the pages reads every handwritten page under `website/src/content/docs/` against `AGENTS.md` § *Text an end user reads*, and returns `file:line` plus the rule it breaks. Rewrite each flagged passage from what it means to say. Never trim it until `--check prose` passes. Specified by `docs/agent/goals/side/website-overhaul.md` § Stage 6, last bullet. Anchors: `website/src/content/docs/in-depth/index.mdx:1`, `website/src/content/docs/index.mdx:1`"
       },
       {
         "done": false,
-        "text": "**`--check in-depth`**: replace the last `LATER` entry with a part that checks the eight sections exist and each has a page, and make `structure` fail on a link to a URL the site does not build. Anchors: `tools/nv/cmd/site.ts:67`, `tools/nv/cmd/site.ts:689`"
-      },
-      {
-        "done": false,
-        "text": "**The home page and the last prose**: rewrite `index.mdx` (hero, one `<Snippet>`, 4–6 standout features linking to their Why-Novis pages, four area cards, Install button), and bring `sponsoring.mdx` and `in-depth/what-changed.mdx` inside `snippets` and `prose`. Anchors: `website/src/content/docs/index.mdx:1`, `website/src/components/Footer.astro:23`"
-      },
-      {
-        "done": false,
-        "text": "**Close the goal**: `bun nv verify --doc`, `bun nv owners --closes website-overhaul`, every `site --check` part green, then `DONE`. Anchors: `tools/nv/cmd/site.ts:63`"
+        "text": "**Close the goal**: `bun nv verify --doc` and fix every broken link it names, then `bun nv owners --closes website-overhaul`. Run every `bun nv site --check` part, `--build` and `bun test tools/nv/test/site.test.ts`. Then write `DONE`. The record's `sweep: \"done\"` means the driver sweeps only after that. Anchors: `tools/nv/cmd/site.ts:64`"
       }
     ]
   },
   "backlog": [
-    "CI: check that the workflow that runs `site --check` builds `nvs` first, so `apps` has a binary (`.github/workflows/`, not checked).",
-    "Notes app: a login and CSRF tokens are the obvious next example (`Core\\Csrf`, `Core\\Session`). The goal names one app for now (`docs/agent/goals/side/website-overhaul.md` § Stage 5).",
-    "The user curates the Why-Novis list when the goal lands (goal § Standing decisions)."
+    "The six standout features on the home page and the 11 Why-Novis pages wait for the user's review when the goal lands (`docs/agent/goals/side/website-overhaul.md` § Standing decisions).",
+    "`in-depth/what-changed.mdx` is a sample release, marked as one. The first numbered release replaces it.",
+    "`in-depth/roadmap.mdx` lists what is built and what comes next from `docs/plan/m9.md` to `docs/plan/m17.md`. A session that closes one of those plan files rewrites that list."
   ]
 }
