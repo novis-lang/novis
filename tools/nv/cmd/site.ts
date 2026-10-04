@@ -32,14 +32,15 @@
 // inline Novis fence, every `<Snippet src="..."/>` names a file under `website/snippets/`, every snippet
 // is used, keeps the comment bounds of `bun nv proofs --comments`, and prints exactly its `.out` with
 // exit 0), `stale` (no page lacks `covers:`, no id is broken and no page is stale), `reference` (see
-// `referenceProblems`), `syntax` (see `syntaxProblems`), `guides` (see `guidesProblems`) and `prose`
-// (the countable bounds of AGENTS.md § *Text an end user reads* over every handwritten page's prose: no
-// sentence over 25 words, no dash joining two sentences, and no paragraph over six sentences). The legal
-// pages are kept out of `prose`, since their wording is the law's. `in-depth` and `apps` belong to the
-// later stages of goal `website-overhaul` and fail until those stages write them.
+// `referenceProblems`), `syntax` (see `syntaxProblems`), `guides` (see `guidesProblems`), `apps` (see
+// `appsProblems`) and `prose` (the countable bounds of AGENTS.md § *Text an end user reads* over every
+// handwritten page's prose: no sentence over 25 words, no dash joining two sentences, and no paragraph
+// over six sentences). The legal pages are kept out of `prose`, since their wording is the law's.
+// `in-depth` belongs to the last stage of goal `website-overhaul` and fails until that stage writes it.
 
 import { createHash } from "node:crypto";
-import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { createServer } from "node:net";
 import { join } from "node:path";
 import { COVWS_TARGET, hostTriple } from "../lib/covws.ts";
 import { ROOT } from "../lib/paths.ts";
@@ -63,7 +64,7 @@ const LEGAL = ["impressum.md", "datenschutz.md"];
 export const PARTS = ["structure", "snippets", "stale", "reference", "syntax", "guides", "in-depth", "apps", "prose"] as const;
 type Part = (typeof PARTS)[number];
 /** The stage of goal `website-overhaul` that writes each part not written yet. */
-const LATER: Partial<Record<Part, number>> = { apps: 5, "in-depth": 6 };
+const LATER: Partial<Record<Part, number>> = { "in-depth": 6 };
 /** Where `--build` writes the site, which `reference` reads. */
 const DIST = "website/dist";
 
@@ -602,6 +603,73 @@ export function guidesProblems(root: string = ROOT): string[] {
   return problems;
 }
 
+/** The example apps' directory: each directory in it is one app, with `nvs.toml`, `public/index.nvs` and
+ * `tests/`. */
+export const APPS = "apps";
+/** How long an app's server has to answer `/` with a `200` once started. The debug build compiles every
+ * file before it binds the socket. */
+const BOOT_MS = 60_000;
+
+/** A TCP port nothing listens on now, which the operating system picked. */
+function freePort(): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const server = createServer();
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", () => {
+      const address = server.address();
+      const port = typeof address === "object" && address !== null ? address.port : 0;
+      server.close(() => resolve(port));
+    });
+  });
+}
+
+/**
+ * The `apps` part: every app under `APPS` passes `nvs test tests/`, and `nvs serve public/index.nvs`
+ * answers `GET /` with a `200` within `BOOT_MS`. Both run in the app's own directory, as its page tells
+ * a reader to, and every file the run left there that was not there before (the app's database) is
+ * deleted afterwards.
+ */
+export async function appsProblems(nvs: string, root: string = ROOT): Promise<string[]> {
+  const problems: string[] = [];
+  const dirs = existsSync(join(root, APPS)) ? readdirSync(join(root, APPS)).filter((d) => statSync(join(root, APPS, d)).isDirectory()) : [];
+  if (dirs.length === 0) return [`${APPS}/: no app`];
+  for (const dir of dirs.sort(comparePaths)) {
+    const app = `${APPS}/${dir}`;
+    const cwd = join(root, app);
+    const before = new Set(filesUnder(root, app));
+    try {
+      const test = await runProc([nvs, "test", "tests/"], { cwd, timeoutMs: 10 * 60_000, env: { NOVIS_NO_INIT: "1" } });
+      if (test.code !== 0) {
+        const tail = (test.stdout + test.stderr).trim().split("\n").slice(-15);
+        problems.push(`${app}: \`nvs test tests/\` exited ${test.code}`, ...tail.map((l) => `  ${l}`));
+      }
+      const port = await freePort();
+      const stop = new AbortController();
+      const serve = runProc([nvs, "serve", "public/index.nvs", "--port", String(port)], { cwd, signal: stop.signal, env: { NOVIS_NO_INIT: "1" } });
+      let status = 0;
+      let exited = false;
+      void serve.then(() => (exited = true));
+      const until = Date.now() + BOOT_MS;
+      while (status !== 200 && !exited && Date.now() < until) {
+        try {
+          status = (await fetch(`http://127.0.0.1:${port}/`, { redirect: "manual" })).status;
+        } catch {
+          await Bun.sleep(250);
+        }
+      }
+      stop.abort();
+      const served = await serve;
+      if (status !== 200) {
+        const why = exited && !served.aborted ? `the server exited ${served.code}: ${served.stderr.trim().split("\n").slice(-5).join(" / ")}` : status ? `\`/\` returned ${status}` : `no answer within ${BOOT_MS / 1000} s`;
+        problems.push(`${app}: \`nvs serve public/index.nvs\` did not answer \`GET /\` with 200: ${why}`);
+      }
+    } finally {
+      for (const f of filesUnder(root, app)) if (!before.has(f)) rmSync(join(root, f), { force: true });
+    }
+  }
+  return problems;
+}
+
 async function world(nvs: string): Promise<World> {
   const meta = await metaJson(nvs);
   return { entries: await roster(nvs, meta), meta };
@@ -630,6 +698,7 @@ async function check(parts: Part[], nvs: string | null): Promise<number> {
         });
     } else if (nvs === null) problems = ["no `nvs` binary: build one, or pass --nvs"];
     else if (part === "snippets") problems = await snippetProblems(nvs);
+    else if (part === "apps") problems = await appsProblems(nvs);
     else if (part === "reference") {
       w ??= await world(nvs);
       problems = await referenceProblems(w, nvs);
