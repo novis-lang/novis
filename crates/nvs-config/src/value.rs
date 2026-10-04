@@ -121,7 +121,11 @@ pub fn unit_of(key: &str) -> Option<Unit> {
         // The other half of that slice is a quantity of the same CPU time `cpu_time` bounds, and
         // is read here for the same reason: a limit missing from this table has no block, so a
         // bare name never reaches `[limits]` and the reader silently answers its default instead.
-        "cpu_time" | "wall_time" | "fatal_reserve_time" => Some(Unit::Duration),
+        // The grace after a disconnect is a stretch of the same wall-clock time `wall_time`
+        // bounds, read here so a bare number of seconds means what it means there.
+        "cpu_time" | "wall_time" | "fatal_reserve_time" | "disconnect_grace" => {
+            Some(Unit::Duration)
+        }
         // The ratio half is a multiplier rather than a fraction — output per octet of input — so
         // it is a `Count` and not `Unit::Ratio`, whose values run between zero and one.
         // The backtracking tier's step budget is a count of steps for the reason `max_tasks` is a

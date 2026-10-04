@@ -224,6 +224,18 @@ pub struct Limits {
     /// `[app.limits]` block that narrows `memory` keeps the same meaning; not under
     /// `[limits.hard]`, because there is no request-set value for a ceiling to bound.
     pub memory_high_water: Option<Setting>,
+    /// `System` — the request methods whose requests are cancelled when their client goes away
+    /// (`rule:http-server/a-request-outlives-a-client-that-goes-away`). Unwritten is `[]`, and
+    /// every other method's request runs to its end. A list of exact method names, read and
+    /// refused by [`crate::app::disconnect_for`]. `System` because a request choosing whether its
+    /// own abandonment stops it is a runtime switch that rule says there is none of; not under
+    /// `[limits.hard]`, because there is no request-set value for a ceiling to bound.
+    pub cancel_on_disconnect: Option<Setting>,
+    /// `System` — how long a request with no `wall_time` may run after its client went away, read
+    /// by [`crate::app::disconnect_for`] with its finite default. `false` and `0` are refused, as
+    /// `[server]`'s waits refuse them (`rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`).
+    /// Not under `[limits.hard]` for `cancel_on_disconnect`'s reason.
+    pub disconnect_grace: Option<Setting>,
     /// `[limits.hard]` — the same keys, `System`-class, and `false` removes a ceiling.
     pub hard: Option<LimitSet>,
 }

@@ -9,12 +9,13 @@
 
 use std::collections::BTreeMap;
 use std::path::{Component, Path, PathBuf};
+use std::time::Duration;
 
-use nvs_config::Setting;
-use nvs_config::app::{layer, matching};
+use nvs_config::app::{DISCONNECT_GRACE, Disconnect, disconnect_for, layer, matching};
 use nvs_config::resolve::{Files, Override, Resolved, Roots, resolve};
 use nvs_config::tree::App;
 use nvs_config::trust::Untrusted;
+use nvs_config::{Setting, Snapshot};
 use nvs_diagnostics::{Diagnostic, SourceMap, code};
 
 /// A path written the way an ADR writes one, as a path the host spells its own way.
@@ -567,5 +568,162 @@ fn a_high_water_fraction_outside_zero_to_one_refuses_the_boot() {
             .message
             .contains("limits.memory_high_water"),
         "the global block is checked as well as an application's",
+    );
+}
+
+/// `rule:http-server/a-request-outlives-a-client-that-goes-away`'s two keys, read from the
+/// snapshot one entry file gets.
+fn disconnect_of(fs: &Fake, entry: &str) -> Disconnect {
+    let snapshot = Snapshot::build(&tree_of(fs, "nvs.toml"), &p(entry), fs)
+        .unwrap_or_else(|err| panic!("refused: {} [{:?}]", err.message, err.notes));
+    disconnect_for(&snapshot.config, &snapshot.origins)
+        .unwrap_or_else(|err| panic!("refused: {}", err.message))
+}
+
+/// A tree whose `[limits]` is `limits`, with one entry file under no `[[app]]` block.
+fn host_limits(limits: &str) -> Fake {
+    Fake::with(&[
+        ("nvs.toml", &format!("[limits]\n{limits}")),
+        ("srv/index.nvs", ""),
+    ])
+}
+
+#[test]
+fn cancel_on_disconnect_defaults_to_no_method() {
+    let read = disconnect_of(&host_limits(""), "srv/index.nvs");
+    assert!(read.cancel.is_empty(), "{read:?}");
+    for method in ["GET", "HEAD", "POST"] {
+        assert!(!read.cancels(method), "{method} runs to its end by default");
+    }
+}
+
+#[test]
+fn cancel_on_disconnect_reads_a_list_of_methods() {
+    let read = disconnect_of(
+        &host_limits("cancel_on_disconnect = [\"GET\", \"HEAD\", \"PURGE\"]\n"),
+        "srv/index.nvs",
+    );
+    assert_eq!(read.cancel, ["GET", "HEAD", "PURGE"]);
+    assert!(read.cancels("GET") && read.cancels("PURGE"));
+    assert!(!read.cancels("POST"), "an unlisted method runs to its end");
+    assert!(!read.cancels("get"), "a method is matched case-sensitively");
+}
+
+#[test]
+fn cancel_on_disconnect_refuses_a_name_that_is_not_a_token() {
+    for written in [
+        "[\"GE T\"]",
+        "[\"\"]",
+        "[\"GET,HEAD\"]",
+        "[\"GÉT\"]",
+        "\"GET\"",
+    ] {
+        let refused = refusal(
+            &host_limits(&format!("cancel_on_disconnect = {written}\n")),
+            "nvs.toml",
+        );
+        assert_eq!(refused.code, Some(code::E_BAD_DIRECTIVE), "{written}");
+        assert!(
+            refused.message.contains("limits.cancel_on_disconnect"),
+            "the refusal names the key: {}",
+            refused.message,
+        );
+    }
+}
+
+#[test]
+fn cancel_on_disconnect_refuses_a_repeated_method() {
+    let refused = refusal(
+        &host_limits("cancel_on_disconnect = [\"GET\", \"POST\", \"GET\"]\n"),
+        "nvs.toml",
+    );
+    assert_eq!(refused.code, Some(code::E_BAD_DIRECTIVE));
+    assert!(
+        refused.message.contains("`GET` twice"),
+        "{}",
+        refused.message
+    );
+    let distinct = disconnect_of(
+        &host_limits("cancel_on_disconnect = [\"GET\", \"get\"]\n"),
+        "srv/index.nvs",
+    );
+    assert_eq!(
+        distinct.cancel,
+        ["GET", "get"],
+        "two spellings are two methods"
+    );
+}
+
+#[test]
+fn disconnect_grace_defaults_to_thirty_seconds() {
+    assert_eq!(DISCONNECT_GRACE, Duration::from_secs(30));
+    let read = disconnect_of(&host_limits(""), "srv/index.nvs");
+    assert_eq!(read.grace, DISCONNECT_GRACE);
+    for (written, seconds) in [("\"5s\"", 5), ("90", 90), ("\"2m\"", 120)] {
+        let read = disconnect_of(
+            &host_limits(&format!("disconnect_grace = {written}\n")),
+            "srv/index.nvs",
+        );
+        assert_eq!(read.grace, Duration::from_secs(seconds), "{written}");
+    }
+}
+
+#[test]
+fn disconnect_grace_refuses_false_and_zero() {
+    for written in ["false", "0", "\"0s\""] {
+        let refused = refusal(
+            &host_limits(&format!("disconnect_grace = {written}\n")),
+            "nvs.toml",
+        );
+        assert_eq!(refused.code, Some(code::E_UNBOUNDED_WAIT), "{written}");
+        assert!(
+            refused.message.contains("limits.disconnect_grace"),
+            "{}",
+            refused.message
+        );
+    }
+    let refused = refusal(&host_limits("disconnect_grace = \"soon\"\n"), "nvs.toml");
+    assert_eq!(refused.code, Some(code::E_BAD_DIRECTIVE));
+    let hard = refusal(
+        &host_limits("\n[limits.hard]\ndisconnect_grace = \"60s\"\n"),
+        "nvs.toml",
+    );
+    assert!(
+        hard.message.contains("disconnect_grace"),
+        "no request sets the grace, so it has no ceiling: {}",
+        hard.message
+    );
+}
+
+#[test]
+fn an_app_block_sets_both_disconnect_keys_for_its_own_requests() {
+    let fs = Fake::with(&[
+        (
+            "nvs.toml",
+            "[limits]\ncancel_on_disconnect = [\"GET\"]\n\n\
+             [[app]]\nroot = \"srv/shop\"\n\n[app.limits]\n\
+             cancel_on_disconnect = [\"GET\", \"HEAD\", \"POST\"]\ndisconnect_grace = \"5s\"\n",
+        ),
+        ("srv/shop/index.nvs", ""),
+        ("srv/blog/index.nvs", ""),
+    ]);
+    let shop = disconnect_of(&fs, "srv/shop/index.nvs");
+    assert_eq!(shop.cancel, ["GET", "HEAD", "POST"]);
+    assert_eq!(shop.grace, Duration::from_secs(5));
+    let blog = disconnect_of(&fs, "srv/blog/index.nvs");
+    assert_eq!(
+        blog.cancel,
+        ["GET"],
+        "another application keeps the global list"
+    );
+    assert_eq!(blog.grace, DISCONNECT_GRACE);
+    let refused = refusal(
+        &bounded("\n[app.limits]\ndisconnect_grace = 0\n"),
+        "nvs.toml",
+    );
+    assert!(
+        refused.message.contains("app.0.limits.disconnect_grace"),
+        "a block no request has matched yet is still checked: {}",
+        refused.message
     );
 }

@@ -101,6 +101,14 @@
 # (`rule:observability/memory-high-water-writes-a-warn`). A request with no `memory` cap is never
 # warned about.
 #memory_high_water = 0.8              # default: off
+# `System` — what happens to a request whose client goes away before its response is sent. A
+# request runs to its end and its response is thrown away, unless its method is listed here; a
+# listed method is cancelled at once. Methods are matched exactly, so `GET` and `get` differ.
+#cancel_on_disconnect = ["GET", "HEAD"] # default: []
+# `System` — how long a request with no `wall_time` may run after its client went away. A request
+# with a `wall_time` has only that limit. `false` and `0` are refused: there is no way to say
+# "forever".
+#disconnect_grace = "30s"             # default
 
 [limits.hard]
 # The ceiling a request may not raise itself past, for the `Runtime` keys that have one. `false`
@@ -921,6 +929,8 @@
 #max_decompressed = "64M"             # default
 #max_decompression_ratio = 1000       # default
 #memory_high_water = 0.8              # default: off
+#cancel_on_disconnect = ["GET", "HEAD"] # default: []
+#disconnect_grace = "30s"             # default
 
 #[app.limits.hard]
 # This application's ceilings; `false` removes one.

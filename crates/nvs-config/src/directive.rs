@@ -110,6 +110,11 @@ pub const DIRECTIVES: &[Directive] = &[
     // `rule:observability/memory-high-water-writes-a-warn`'s threshold, on the reserve's grounds:
     // a program able to raise the share that warns about it could silence the warning.
     Directive { key: "limits.memory_high_water", class: Class::System, apply: Apply::Reload },
+    // `rule:http-server/a-request-outlives-a-client-that-goes-away`'s two keys, on the reserve's
+    // grounds: there is no runtime switch for what a disconnect does, so a request may not change
+    // whether its own abandonment cancels it, or how long it may outlive its client.
+    Directive { key: "limits.cancel_on_disconnect", class: Class::System, apply: Apply::Reload },
+    Directive { key: "limits.disconnect_grace", class: Class::System, apply: Apply::Reload },
     // `[mode]` is the other block with that same two-halves shape (`rule:config/three-changeability-classes`, `rule:config/two-modes-and-the-default-is-production`).
     Directive { key: "mode.default", class: Class::Runtime, apply: Apply::Reload },
     Directive { key: "mode.ceiling", class: Class::System, apply: Apply::Reload },

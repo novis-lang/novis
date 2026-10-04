@@ -416,6 +416,9 @@ pub fn resolve(
     // `rule:observability/memory-high-water-writes-a-warn`'s fraction, over the same keyed roster:
     // a share outside `0..=1` is refused where it was written, not read as off at the first request.
     crate::app::high_water(&resolved.config, &origins)?;
+    // `rule:http-server/a-request-outlives-a-client-that-goes-away`'s two keys, over the same
+    // roster: a bad method list or an unbounded grace in any block stops the boot.
+    crate::app::disconnect(&resolved.config, &origins)?;
     // `rule:config/scheduled-work-is-a-config-block`, `rule:config/cron-is-five-fields-and-nothing-more` and `rule:config/a-fleet-entry-fires-at-most-once-under-a-lease`, last because it reads the `[capabilities]` the merge settled: a scheduled
     // script is checked against the `script.spawn` roots, which a later file may have replaced.
     crate::schedule::validate(&resolved.config, &origins, files)?;

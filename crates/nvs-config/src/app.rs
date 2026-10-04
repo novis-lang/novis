@@ -199,6 +199,159 @@ pub fn high_water(config: &Config, origins: &BTreeMap<String, Origin>) -> Result
     Ok(())
 }
 
+/// `disconnect_grace` with nothing written: finite, as
+/// `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect` requires of every wait.
+pub const DISCONNECT_GRACE: std::time::Duration = std::time::Duration::from_secs(30);
+
+/// What `rule:http-server/a-request-outlives-a-client-that-goes-away` reads from one block.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Disconnect {
+    /// The methods cancelled at the drop, as written: exact, case-sensitive, no repeats.
+    pub cancel: Vec<String>,
+    /// How long a request with no `wall_time` runs on after its client went away.
+    pub grace: std::time::Duration,
+}
+
+impl Disconnect {
+    /// Whether a request with this method is cancelled when its client goes away.
+    #[must_use]
+    pub fn cancels(&self, method: &str) -> bool {
+        self.cancel.iter().any(|listed| listed == method)
+    }
+}
+
+/// The two disconnect keys of `config`'s `[limits]`, with their defaults for a key left out.
+///
+/// A per-app [`Snapshot`](crate::snapshot::Snapshot) has already folded every matching
+/// `[app.limits]` onto `[limits]`, so this one reader answers for the host and for an application.
+///
+/// # Errors
+///
+/// `E0601` for a `cancel_on_disconnect` that is not a list of HTTP tokens or repeats one, and for a
+/// `disconnect_grace` that is not a duration; `E0619` for a grace of `false` or `0`.
+pub fn disconnect_for(
+    config: &Config,
+    origins: &BTreeMap<String, Origin>,
+) -> Result<Disconnect, Diagnostic> {
+    read_disconnect("limits", config.limits.as_ref(), origins)
+}
+
+/// The boot refusal for both disconnect keys, in `[limits]` and in every `[app.limits]`, so a bad
+/// value in a block no request has matched yet still stops the boot.
+///
+/// # Errors
+///
+/// [`disconnect_for`]'s, naming the block the value was written in.
+pub fn disconnect(config: &Config, origins: &BTreeMap<String, Origin>) -> Result<(), Diagnostic> {
+    read_disconnect("limits", config.limits.as_ref(), origins)?;
+    for (index, block) in config.app.iter().enumerate() {
+        read_disconnect(
+            &format!("app.{index}.limits"),
+            block.limits.as_ref(),
+            origins,
+        )?;
+    }
+    Ok(())
+}
+
+fn read_disconnect(
+    block_path: &str,
+    limits: Option<&Limits>,
+    origins: &BTreeMap<String, Origin>,
+) -> Result<Disconnect, Diagnostic> {
+    let cancel = match limits.and_then(|limits| limits.cancel_on_disconnect.as_ref()) {
+        None => Vec::new(),
+        Some(written) => methods(
+            &format!("{block_path}.cancel_on_disconnect"),
+            written,
+            origins,
+        )?,
+    };
+    let grace = match limits.and_then(|limits| limits.disconnect_grace.as_ref()) {
+        None => DISCONNECT_GRACE,
+        Some(written) => grace(&format!("{block_path}.disconnect_grace"), written, origins)?,
+    };
+    Ok(Disconnect { cancel, grace })
+}
+
+/// `cancel_on_disconnect` as a list of method names. A method is an HTTP token (RFC 9110 § 5.6.2),
+/// so a custom method can be listed, and a name no request can carry is refused rather than kept
+/// as a row that never matches.
+fn methods(
+    key: &str,
+    written: &Setting,
+    origins: &BTreeMap<String, Origin>,
+) -> Result<Vec<String>, Diagnostic> {
+    let refused = |message: String, help: &str| {
+        Diagnostic::error(code::E_BAD_DIRECTIVE, message)
+            .with_note(format!(
+                "this key lists the request methods that are cancelled when the client goes away{}",
+                origin_note(origins.get(key))
+            ))
+            .with_help(help.to_string())
+    };
+    let Setting::List(names) = written else {
+        return Err(refused(
+            format!(
+                "`{key}` is `{}`, which is not a list of methods",
+                crate::value::as_written(written)
+            ),
+            "write a list, as `[\"GET\", \"HEAD\"]`; an empty list cancels no request",
+        ));
+    };
+    let mut seen: Vec<String> = Vec::with_capacity(names.len());
+    for name in names {
+        let token = !name.is_empty()
+            && name
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || b"!#$%&'*+-.^_`|~".contains(&byte));
+        if !token {
+            return Err(refused(
+                format!("`{key}` lists `{name}`, which is not an HTTP method name"),
+                "a method name is letters, digits and `!#$%&'*+-.^_`|~` with no space, as `GET` or `PURGE`",
+            ));
+        }
+        if seen.contains(name) {
+            return Err(refused(
+                format!("`{key}` lists `{name}` twice"),
+                "list each method once; methods are matched exactly, so `get` and `GET` are two methods",
+            ));
+        }
+        seen.push(name.clone());
+    }
+    Ok(seen)
+}
+
+/// `disconnect_grace` as a duration. `false` and `0` are both a request with no `wall_time` that
+/// is never stopped once its client has gone, which is the unbounded default the key exists to
+/// close.
+fn grace(
+    key: &str,
+    written: &Setting,
+    origins: &BTreeMap<String, Origin>,
+) -> Result<std::time::Duration, Diagnostic> {
+    let quantity = Quantity::parse(key, crate::value::Unit::Duration, written)
+        .map_err(|invalid| invalid.diagnostic(origins.get(key)))?;
+    match quantity {
+        Quantity::Nanos(nanos) if nanos > 0 => Ok(std::time::Duration::from_nanos(nanos)),
+        _ => Err(Diagnostic::error(
+            code::E_UNBOUNDED_WAIT,
+            format!(
+                "`{key}` is `{}`, which never stops a request whose client has gone",
+                crate::value::as_written(written)
+            ),
+        )
+        .with_note(format!(
+            "a request with no `wall_time` is bounded only by this after its client goes away{}",
+            origin_note(origins.get(key))
+        ))
+        .with_help(format!(
+            "write how long such a request may run on, as `30s`, or set `wall_time`; leaving \
+             `{key}` out keeps the default of 30 seconds"
+        ))),
+    }
+}
+
 /// One key of one block against the host's ceiling for it.
 ///
 /// A key with no unit is left alone rather than compared: [`unit_of`] answers for every limit the

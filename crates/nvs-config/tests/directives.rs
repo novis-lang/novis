@@ -218,6 +218,16 @@ const APPLY_PROOFS: &[(&str, &str, &str)] = &[
         "every_request_read_directive_takes_the_reloaded_value_in_the_next_request",
     ),
     (
+        "limits.cancel_on_disconnect",
+        LIVE,
+        "every_request_read_directive_takes_the_reloaded_value_in_the_next_request",
+    ),
+    (
+        "limits.disconnect_grace",
+        LIVE,
+        "every_request_read_directive_takes_the_reloaded_value_in_the_next_request",
+    ),
+    (
         "http",
         LIVE,
         "a_changed_http_headers_block_reaches_the_next_response",
