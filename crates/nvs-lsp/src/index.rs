@@ -624,6 +624,20 @@ impl SymbolIndex {
             .collect()
     }
 
+    /// Every `use` import of `symbol`, in file and then source order.
+    ///
+    /// Apart from [`Self::occurrences`] because an import brings a name into
+    /// scope and uses nothing: *Find References* lists it, and the CodeLens
+    /// count of uses does not.
+    #[must_use]
+    pub fn imports_of(&self, symbol: &str) -> Vec<&Import> {
+        self.files
+            .values()
+            .flat_map(|indexed| &indexed.imports)
+            .filter(|import| import.symbol == symbol)
+            .collect()
+    }
+
     /// Every name `path` declares, in source order, or nothing for a file the
     /// index does not hold.
     #[must_use]

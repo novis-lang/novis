@@ -1,5 +1,7 @@
 `nvs-lsp` builds one workspace symbol index, and five features are each one query against it — none
-gets a walk of its own. `textDocument/references` is the index's read side. `textDocument/documentHighlight`
+gets a walk of its own. `textDocument/references` is the index's read side, and it lists each `use` line
+that imports the name among its uses; the CodeLens count leaves those lines out, because an import brings
+a name into scope and uses nothing. `textDocument/documentHighlight`
 is the same query narrowed to the open file, which is why it waits for the index rather than shipping
 earlier: it needs resolution applied to every occurrence, not to one. CodeLens above a declaration shows
 the reference count, a type's implementors, and the methods a method overrides and is overridden by; it is

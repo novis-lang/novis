@@ -921,12 +921,21 @@ fn uses_of(
     if include_declaration && let Some(declared) = index.declaration(&symbol) {
         sites.push(&declared.site);
     }
-    sites.extend(
-        index
-            .occurrences(&symbol)
-            .into_iter()
-            .map(|occurrence| &occurrence.site),
-    );
+    // A `use` line is listed among the uses, in its place in the file, though
+    // the CodeLens does not count it ([`SymbolIndex::imports_of`]).
+    let mut uses: Vec<&Site> = index
+        .occurrences(&symbol)
+        .into_iter()
+        .map(|occurrence| &occurrence.site)
+        .chain(
+            index
+                .imports_of(&symbol)
+                .into_iter()
+                .map(|import| &import.site),
+        )
+        .collect();
+    uses.sort();
+    sites.extend(uses);
     Some(locations(documents, &sites, encoding))
 }
 

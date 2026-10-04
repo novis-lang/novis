@@ -1,0 +1,17 @@
+--TEST--
+an import brings a name into scope and uses nothing, so the lens above the class counts the allocation and not the `use` line that *Find References* lists, `rule:ide/five-features-are-one-reference-index`
+--FILE--
+<?nvs
+namespace App;
+
+use App\User;
+
+class User
+{
+}
+
+var $u = new User();
+--REQUEST--
+codeLens
+--EXPECT--
+6:7 1 reference
