@@ -1,0 +1,11 @@
+{
+  "lead": "A fresh git worktree has no `editors/vscode/node_modules`, so `nv verify`'s `extension` step fails with hundreds of `TS2591 Cannot find name 'node:fs'` errors.",
+  "body": "The dependencies are git-ignored and installed per checkout, so the main checkout's copy does not reach a worktree. Run `npm.cmd ci --prefix editors/vscode --no-audit --no-fund` once in the worktree, which installs what `editors/vscode/package-lock.json` pins, and verify again.",
+  "files": [
+    "tools/nv/cmd/verify.ts"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "tools/nv/cmd/verify.ts:test:headless"
+  }
+}
