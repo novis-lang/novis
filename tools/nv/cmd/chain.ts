@@ -22,6 +22,8 @@
 //   - a side goal with checks has no prose, no `# Side goal` H1 or no handoff record;
 //   - a side goal has no checks, which is one that has landed: its files are deleted, never kept;
 //   - prose names a goal by its number, which is a position and moves;
+//   - a Markdown file names a goal that is neither on the chain nor a side goal (`goneCitations`). A
+//     goal's own files under `docs/agent/goals/` and the frozen records under `docs/decisions/` are exempt;
 //   - a goal's `context` names a shape or a playbook bullet that is not there (`nv orient`'s
 //     `manifestFindings`, over every goal still to be reached and every side goal with checks).
 // A note is something a reader misses: a goal not yet reached with no `## Why here` or no
@@ -56,6 +58,8 @@ export const NUMBER_CITE = /(?<![`\w])[Gg]oals?\s+\d+/g;
 const SHOWN_HEADER = /#\s*Loop goal \d+|#\s*Goal \d+ --|\*\*Goal \d+ —/g;
 export const OWN_HEADER = /^#\s*Loop goal \d+|^#\s*Goal \d+ --|^\*\*Goal \d+ —/;
 const BINARY = new Set([".png", ".jpg", ".jpeg", ".ico", ".svg", ".lock", ".woff", ".woff2"]);
+/** A goal named by its slug: `goal \`xml-tree\``, or the first of `goals \`a\` and \`b\``. */
+const SLUG_CITE = /(?<![`\w])[Gg]oals?\s+`([a-z][a-z0-9-]*)`/g;
 
 function read(path: string): string | null {
   const abs = join(ROOT, path);
@@ -69,9 +73,27 @@ async function shownFiles(): Promise<string[]> {
   return [...new Set(r.stdout.split("\0").filter((p) => p.length > 0))];
 }
 
-/** Every `goal 29` in a text file, as `path:line  text`. The goals README lists the chain and is exempt. */
-async function numberCitations(): Promise<string[]> {
+/**
+ * Every goal a Markdown file names by a slug `known` does not hold, as `path:line  text`. A goal's own
+ * files and the frozen decision records are exempt: the first are deleted with their goal, and the
+ * second keep the citation they were written with.
+ */
+export function goneCitations(path: string, text: string, known: Set<string>): string[] {
+  if (!path.endsWith(".md") || path.startsWith(`${GOALS}/`) || path.startsWith("docs/decisions/")) return [];
   const out: string[] = [];
+  text.split("\n").forEach((line, i) => {
+    for (const m of line.matchAll(SLUG_CITE)) if (!known.has(m[1]!)) out.push(`${path}:${i + 1}  ${m[0]}`);
+  });
+  return out;
+}
+
+/**
+ * Every `goal 29` in a text file, as `path:line  text`, and every `goneCitations` against `known`. The
+ * goals README lists the chain and is exempt from the first.
+ */
+async function citations(known: Set<string>): Promise<{ numbers: string[]; gone: string[] }> {
+  const out: string[] = [];
+  const gone: string[] = [];
   const utf8 = new TextDecoder("utf-8", { fatal: true });
   for (const path of await shownFiles()) {
     if (path === README) continue;
@@ -83,6 +105,7 @@ async function numberCitations(): Promise<string[]> {
     } catch {
       continue;
     }
+    gone.push(...goneCitations(path, text.replace(/\r\n/g, "\n"), known));
     if (!NUMBER_CITE.test(text)) continue;
     NUMBER_CITE.lastIndex = 0;
     text.split("\n").forEach((line, i) => {
@@ -93,7 +116,7 @@ async function numberCitations(): Promise<string[]> {
       }
     });
   }
-  return out;
+  return { numbers: out, gone };
 }
 
 function one<T>(rows: Record<string, unknown>[], col: string): T[] {
@@ -220,7 +243,7 @@ async function check(): Promise<number> {
     );
   }
 
-  const stale = await numberCitations();
+  const { numbers: stale, gone } = await citations(new Set([...goals.map((g) => g.slug), ...sideGoals, ...landedSides]));
   if (stale.length > 0) {
     problems.push(
       `${stale.length} place(s) name a goal by its NUMBER. A goal is named by its slug -- \`goal \`xml-tree\`\`, ` +
@@ -228,6 +251,14 @@ async function check(): Promise<number> {
     );
     for (const s of stale.slice(0, 15)) problems.push(`    ${s}`);
     if (stale.length > 15) problems.push(`    ... and ${stale.length - 15} more`);
+  }
+  if (gone.length > 0) {
+    problems.push(
+      `${gone.length} place(s) name a goal that is not on the chain. The goal switch deleted it, so the decision ` +
+        "the sentence cites belongs in its home, a rule or a module doc, and the sentence names that instead:",
+    );
+    for (const s of gone.slice(0, 15)) problems.push(`    ${s}`);
+    if (gone.length > 15) problems.push(`    ... and ${gone.length - 15} more`);
   }
 
   for (const p of problems) console.log(`  ${p}`);

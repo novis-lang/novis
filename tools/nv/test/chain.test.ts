@@ -2,6 +2,7 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { chainGoals, currentPlan, gatesInFrontOfGroups, type Goal, goalPlan, liveGoal, setLive, SIDE_ENV, sideGoal, sidePlan, walkedGoals } from "../lib/chain.ts";
+import { goneCitations } from "../cmd/chain.ts";
 import { load, write } from "../lib/store.ts";
 import { chain } from "../schema/chain.ts";
 import { goal, sideGoal as sideGoalType } from "../schema/goal.ts";
@@ -136,6 +137,21 @@ describe("the chain's live goal", () => {
     } finally {
       if (before === undefined) delete process.env[SIDE_ENV];
       else process.env[SIDE_ENV] = before;
+    }
+  });
+});
+
+describe("a goal named after it left the chain", () => {
+  const known = new Set(["goal-closeout", "side-a"]);
+  const text = "See goal `goal-closeout`.\nGoals `xml-tree` and `side-a` decided it.\nThe switch sets `live` to the next goal.\n";
+
+  test("a Markdown file naming a goal off the chain is reported by line", () => {
+    expect(goneCitations("docs/agent/commands.md", text, known)).toEqual(["docs/agent/commands.md:2  Goals `xml-tree`"]);
+  });
+
+  test("a goal's own files, the frozen records and anything not Markdown are exempt", () => {
+    for (const path of ["docs/agent/goals/xml-tree.md", "docs/decisions/0200.md", "tools/nv/cmd/chain.ts"]) {
+      expect(goneCitations(path, text, known)).toEqual([]);
     }
   });
 });

@@ -1805,10 +1805,11 @@ and never `live`.
 
 The driver's goal switch moves `live` and deletes the goal it leaves. Once a goal's sweep, its Linux
 legs and its goal-end gates are green, the switch deletes the goal's prose, its record and its handoff
-record, removes its slug from `goals`, makes the next goal `live`, renders the goal plan and commits all
-of it as one commit. Nothing is archived, and `git log` is the history. A decision that only a goal's
-prose holds is moved to its home before the goal is reached, and `bun nv chain --check` fails on prose
-outside a goal's own files that names a goal not on the chain.
+record, removes its slug from `goals`, sets `live` to the next goal, renders the goal plan and commits
+all of it as one commit. Nothing is archived, and `git log` is the history. A decision that only a
+goal's prose holds is moved to its home before the goal is reached, and `bun nv chain --check` fails on
+a Markdown file that names a goal not on the chain. A goal's own files under `docs/agent/goals/` and the
+frozen records under `docs/decisions/` are exempt.
 
 No goal's checks are carried as a floor. The live goal is first on the chain, so the plan the driver
 runs for a goal is its own record and nothing else. The permanent suites and `bun nv verify` protect
