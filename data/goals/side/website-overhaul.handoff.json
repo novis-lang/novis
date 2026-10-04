@@ -1,33 +1,32 @@
 {
-  "state": "**Side goal `website-overhaul`: stage 5 (Install and Guides) is in progress. Install is done, and the Tour has its first step.**\n\nInstall has four pages: `install/index.mdx` (build from source, with Windows, Linux and macOS tabs), `hello-world.mdx`, `editor.mdx` (the VS Code extension, from `docs/reference/tools/40-editor.md`) and `server.mdx` (folders and permissions, from `docs/reference/tools/15-install.md`). Their snippets are under `website/snippets/install/`. Every Install page ends with a link to the Tour. Novis has no release yet, so the install page says so and builds from source.\n\nGuides has one section so far, \"A Tour of Novis\": `guides/tour/index.mdx` and `guides/tour/01-methods-and-types.mdx`, snippets under `website/snippets/guides/tour/`. Novis has no free functions (`E0215`), so every Tour snippet uses a class with `public static function`. A snippet must exit 0, so a compile error is shown as a `txt` block copied from a real `nvs check`.\n\n`site structure`, `stale`, `reference`, `syntax` and `--build` pass. `snippets` and `prose` fail only on `index.mdx`, `sponsoring.mdx` and `in-depth/what-changed.mdx`, which stage 6 rewrites. `guides`, `apps` and `in-depth` are stubs in `tools/nv/cmd/site.ts` (`LATER`, line 66).",
+  "state": "**Side goal `website-overhaul`: stage 5 (Install and Guides) is in progress. Install is done, the Tour is done, and `--check guides` is written.**\n\nInstall has four pages under `install/`, snippets under `website/snippets/install/`. Novis has no release yet, so the install page builds from source.\n\nThe Tour is `guides/tour/index.mdx` and ten steps, `01-methods-and-types.mdx` to `10-web-app.mdx`, all in the sidebar. It builds a task list: arrays, objects, null, errors, enums and match, JSON, tests, html literals, and `nvs serve`. Each step ends with a \"Next:\" link. Novis has no free functions (`E0215`), so every snippet uses a class. A compile error or `nvs test` output is shown as a `txt` block copied from a real run.\n\n`--check guides` is `guidesProblems` in `tools/nv/cmd/site.ts`, with its tests in `tools/nv/test/site.test.ts`. `GUIDE_SECTIONS` fixes the eight section directories under `guides/`: `why-novis`, `tour`, `simple-programs`, `how-to-use`, `cookbook`, `testing`, `production`, `example-apps`. It checks each has pages beside its `index.mdx` (6 Simple programs, 10 Cookbook), a `<Snippet>` on every Simple program and Cookbook page, and the sidebar links in that order. It fails now on the seven sections not written yet.\n\nThe snippet runner passes `--request <name>.nvsr` when a `.nvsr` sits beside a snippet, as examples do. The Tour's last step uses it.\n\n`site structure`, `stale`, `reference`, `syntax` and `--build` pass. `snippets` and `prose` fail only on `index.mdx`, `sponsoring.mdx` and `in-depth/what-changed.mdx`, which stage 6 rewrites. `apps` and `in-depth` are stubs (`LATER` in `site.ts`).",
   "next": {
     "stage": 5,
     "title": "Install and Guides",
     "files": [
       "website/src/content/docs/guides/",
       "website/snippets/guides/",
-      "website/astro.config.ts",
-      "tools/nv/cmd/site.ts"
+      "website/astro.config.ts"
     ],
     "items": [
       {
         "done": false,
-        "text": "**`--check guides`**: write the `guides` part in `site.ts` (the eight sections in the goal's order, one page at least each, a snippet on every Simple program and Cookbook page, six Simple programs and ten Cookbook pages at least) and remove `guides` from `LATER`. Specified by `docs/agent/goals/side/website-overhaul.md` § Stage 5. Anchors: `tools/nv/cmd/site.ts:66`, `tools/nv/cmd/site.ts:329`, `website/astro.config.ts:121`"
+        "text": "**Why people pick Novis**: `guides/why-novis/index.mdx` and 10 to 14 candidate pages, one standout feature each (html literals that escape, tainted input, request isolation, typed JSON, no null surprises, tests in code, ...), each with a snippet and a link into Syntax or Reference. Draft from `website/src/content/claims/*.md`. Add the group to the sidebar before the Tour. Specified by `docs/agent/goals/side/website-overhaul.md` § Stage 5. Anchors: `website/astro.config.ts:121`, `tools/nv/cmd/site.ts:563`"
       },
       {
         "done": false,
-        "text": "**The Tour, steps 2 to 10**: about ten steps from Hello world to a running web app with `nvs serve`, each building on the last, each with a snippet and its `.out`. Step 1 is `website/src/content/docs/guides/tour/01-methods-and-types.mdx:1`. Specified by `docs/agent/goals/side/website-overhaul.md` § Stage 5. Anchors: `website/src/content/docs/guides/tour/index.mdx:1`, `website/astro.config.ts:121`"
+        "text": "**Simple programs**: `guides/simple-programs/` with six one-file programs (CSV report, JSON API, file watcher, scraper, form handler, scheduled job), each one snippet with its output. A request program gets a `.nvsr` beside it. Specified by the same section. Anchors: `website/astro.config.ts:121`, `tools/nv/cmd/site.ts:393`"
       },
       {
         "done": false,
-        "text": "**Why people pick Novis**: 10 to 14 candidate pages, one standout feature each, with a snippet and a link into Syntax or Reference, as the first Guides section. Specified by `docs/agent/goals/side/website-overhaul.md` § Stage 5. Anchors: `website/astro.config.ts:121`, `website/src/content/docs/guides/index.mdx:1`"
+        "text": "**Cookbook**: `guides/cookbook/` with ten task pages, one snippet each. Specified by the same section. Anchors: `website/astro.config.ts:121`"
       }
     ]
   },
   "backlog": [
-    "Simple programs (six at least), How to use Novis, Cookbook (ten at least), Testing your app, Going to production: `docs/agent/goals/side/website-overhaul.md` § Stage 5.",
-    "Example app Notes in `apps/notes/`, its Guides page, and `--check apps`: same section.",
-    "`install/index.mdx` needs a download section when the first release exists (`.github/workflows/release.yml` builds `nvs-*` archives and `SHA256SUMS`).",
-    "Stage 6: In-Depth, the home page, `sponsoring.mdx`, `--check in-depth`: `docs/agent/goals/side/website-overhaul.md` § Stage 6."
+    "How to use Novis, Testing your app, Going to production: one page at least each (`docs/agent/goals/side/website-overhaul.md` § Stage 5).",
+    "Example apps: `apps/notes/` and its page, then `--check apps` (`tools/nv/cmd/site.ts:66`).",
+    "Stage 6: In-Depth, the home page, `sponsoring.mdx`, `in-depth/what-changed.mdx`.",
+    "The driver's `the stale guard's own tests pass` check says no test file matched, but `bun test tools/nv/test/site.test.ts` passes in this worktree. The driver may run it from another checkout. Not checked."
   ]
 }
