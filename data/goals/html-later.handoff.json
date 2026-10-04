@@ -1,27 +1,30 @@
 {
-  "state": "**Goal `html-later` — Stage 2 is on disk and Stage 3 has its switch.** ADR 0266 decides the goal. `crates/nvs-runtime/src/later.rs` holds the slots and the one assembly pass. `crates/nvs-stdlib/src/response.rs`'s `head_open` makes head members throw `LogicError` inside a slot, and `crates/nvs-types/src/response.rs`'s `HEAD_MEMBERS` makes the same calls `E0842` where a closure is written in a `later` call's arguments. `slotted` is in that list too.\n\n**Both ways to make a response slotted exist, and nothing delivers one yet.** `#[Core\\Route(…, slotted: true)]` reaches `nvs_runtime::routes::Route::slotted()`. `Core\\Response::slotted()` is a registry row beside `setStatus` that calls `Ctx::make_slotted` (`later.rs`), which throws `LogicError` once `Ctx::main_ended` is set — by `run_later` and `run_deferred`, copied by `Ctx::child`. `Ctx::is_slotted()` answers both: the call's flag or the matched route's row. It is the one read the slotted assembly needs. A `Core\\Task` child's own `slotted()` call sets only that child's flag, as a status set there does.\n\nGreen: `slotted_after_the_main_script_ended_throws` (nvs-server) and the two nvs-types route tests. `rule:core-classes/html-later` stays `designed` until the slotted half runs; flip it when Stage 3 lands.\n\n**Known gap, in `later.rs`'s module doc:** slots run when the frame returns, concurrently with each other but not with the main script, and a `later` inside a `Core\\Task::all` child is never assembled.",
+  "state": "**Goal `html-later` — Stage 3's slotted delivery runs, and its two browser and CI halves are open.** ADR 0266 decides the goal. `crates/nvs-runtime/src/later.rs` holds the slots and both deliveries; its module doc § *A slotted response* says how the slotted one works and what it spends.\n\n**On disk:** when `Ctx::is_slotted()` holds and the connection's `BodySlot` carries `stream::Scripts`, `run_later` calls `deliver`. It sends the shell up to the last `</body`, then each slot writes its own `<template for>` fill and the trigger as it finishes, the polyfill ahead of the first fill only, then the held-back end. `Opened::slotted` makes `serve::streamed` add `X-Accel-Buffering: no` and the `slotted::Slotted` extension, and after the secure set is filled `slotted::allow_scripts` adds the two hashes to a script-limiting CSP. `crates/nvs-server/src/slotted/` holds `polyfill.js`, `trigger.js`, their hashes and the CSP amendment. Its `tests.rs` covers 15 of the stage check's 16 tests; the 16th, `slotted_after_the_main_script_ended_throws`, stays in `serve.rs`. All 16 are green. `serve::tests::served_page` is the helper they share.\n\n**Not proven yet:** the polyfill has never run in a browser. `rule:core-classes/html-later` stays `designed` until the Playwright check and the CI lane are green. Flip it in the session that closes them.\n\n**Known gaps, in `later.rs`'s module doc:** slots run when the frame returns, concurrently with each other but not with the main script. A `later` inside a `Core\\Task::all` child is never assembled. A slot whose task is cancelled while it writes ends the stream, and the fills after it are not sent.",
   "next": {
     "stage": 3,
     "title": "slotted delivery",
     "files": [],
-    "note": "one file set: `crates/nvs-runtime/src/later.rs`, `crates/nvs-host/src/isolate.rs`, `crates/nvs-server/src/serve.rs`, and a new `crates/nvs-server/src/slotted/` module, which the `browser` CI lane check names by path.",
+    "note": "one file set: `crates/nvs-server/src/slotted/`, `tools/nv/cmd/ci-changes.ts`, `.github/workflows/ci.yml`, and the new `tools/nv/test/html-later-polyfill.test.ts`.",
     "items": [
       {
         "done": false,
-        "text": "**The slotted assembly**: when `Ctx::is_slotted()` holds, `run_later` sends the shell with placeholders in place when the main script ends, then each fill as a `<template for>` with the trigger, the polyfill sent once, `</body></html>` held back, no `Content-Length`, `X-Accel-Buffering: no` (`rule:core-classes/html-later`). The body is written over time, so it rides the request's response-stream cell as `Core\\Response::stream` does — `crates/nvs-runtime/src/later.rs:218`, `crates/nvs-host/src/isolate.rs:1024`, `crates/nvs-server/src/serve.rs:2226`."
+        "text": "**The polyfill in a real browser**: `tools/nv/test/html-later-polyfill.test.ts` loads one page through Playwright, launched once with native `<template for>` and once without. It checks that each slot is filled once, that nothing the browser already applied changes, and that a second `_nvs()` changes nothing (`rule:core-classes/html-later`, the goal's standing decisions). Playwright is pre-authorized, with one Chromium download. The script under test is `crates/nvs-server/src/slotted/polyfill.js:1`. If the test shows the polyfill is wrong, fix it there, then recompute `POLYFILL_HASH` in `crates/nvs-server/src/slotted/mod.rs:54`; `the_polyfill_and_trigger_hashes_match_their_files` fails until you do."
       },
       {
         "done": false,
-        "text": "**The polyfill and trigger files with their CSP hashes**, 1 KB and 120-bytes-per-slot limits, and `tools/nv/test/html-later-polyfill.test.ts` under Playwright (`rule:core-classes/html-later`) — `crates/nvs-runtime/src/later.rs:1`."
+        "text": "**The CI `browser` lane**: a `browser` entry in `LANES` at `tools/nv/cmd/ci-changes.ts:41` matching `crates/nvs-server/src/slotted/` and the test file, and a `browser:` job in `.github/workflows/ci.yml:112` gated on `needs.changes.outputs.browser`, which runs that one test (`rule:testing/ci-lanes`)."
       },
       {
         "done": false,
-        "text": "**The CI `browser` lane** in `tools/nv/cmd/ci-changes.ts` and a `browser:` job in `.github/workflows/ci.yml` gated on `needs.changes.outputs.browser`, turned on by `crates/nvs-server/src/slotted/` (`rule:testing/ci-lanes`) — `tools/nv/cmd/ci-changes.ts:1`, `.github/workflows/ci.yml:1`."
+        "text": "**Flip `rule:core-classes/html-later` to shipped** once both are green, and name its guards: `crates/nvs-server/src/slotted/tests.rs:1` and the Playwright test."
       }
     ]
   },
   "backlog": [
-    "nvs-lsp: completion offers `later`'s options, hover shows its card (Stage 4).",
-    "`bun nv proofs --gate` with `later` and slotted routes in the roster (Stage 5)."
+    "Stage 4: `nvs-lsp` completion of `later`'s options and its hover card (`completion_offers_the_options_of_later`), and its help in the binary — the goal's record.",
+    "Stage 5: the feature proofs, `bun nv proofs --id` for `later` and slotted routes — `rule:testing/feature-proofs`.",
+    "Slots that overlap the main script need a host call that starts a child and returns — `crates/nvs-runtime/src/later.rs` module doc.",
+    "A `later` inside a `Core\\Task::all` child is never assembled — same module doc.",
+    "A test slot is a native function, and one parked in `sleep` cannot be torn down: it aborts the test binary. A test that needs a cancelled slot must not park in it — noted at `a_limit_breach_on_a_slotted_route_fills_every_unfilled_slot_with_its_error_and_ends`."
   ]
 }
