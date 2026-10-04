@@ -1,30 +1,32 @@
 {
-  "state": "**Goal `performance-pass`, Stage 2 (the growth tool).** `bun nv scaling --iterations` is on disk: `tools/nv/cmd/scaling.ts`, with the ramp, the agreement test, the ceiling and the bounds in its module doc, and its tests in `tools/nv/test/scaling.test.ts`. It copies each bench's folder under `.agent-tmp/scaling-<pid>/`, rebases the `nvs.toml` beside the copy, and rewrites the closing `echo Bench::run(N)` literal. `perf.ts` exports `countProgram`, `COUNTS` and `PerfError` for it.\n\n**The first full run, on the release binary: 954 benches judged flat on every count, 0 grow, 48 skipped** (35 whose closing line does not pass `iterations` as one literal, 11 with too few iterations, 2 `requires: unix`). So the first run makes no gap. At batches 16 to 128 the clock is mostly unread, because its increments are noise. Once, `core/Test/tlsSession` showed a clock slope above 1.5 on two runs in a row, and it did not repeat on a third run.\n\n**Blocked on the user:** `tools/nv/test/allow.test.ts` fails until `.claude/settings.json` has `\"Bash(bun nv scaling:*)\"` and `\"PowerShell(bun nv scaling:*)\"` in its allow list. Auto mode refused the session's edit to that file.\n\n`benches/scaling/README.md` and the ladder runner do not exist yet. `docs/perf/performance-pass.md` does not exist yet.",
+  "state": "**Goal `performance-pass`, Stage 2 (the growth tool).** `bun nv scaling` has three modes in `tools/nv/cmd/scaling.ts`, with the ramp, the bounds, `EXPECT`, `KINDS` and `AREAS` in its module doc: `--iterations` over `benches/members/`, the ladder runner over `benches/scaling/` (the default), and `--areas [--reviewed]`. `--check` prints each check's closing line. Tests: `tools/nv/test/scaling.test.ts`.\n\n**`bun nv scaling --iterations --check` passes**: 953 flat, 0 grow, 1 unclear, 48 skipped; all of them are listed under *Benches to look at* in `docs/perf/performance-pass.md`, which now has its five sections.\n\n**Ladders:** only `kind run` is measured; any other kind is reported `invalid`, so `--check` fails on it. One ladder exists, `benches/scaling/arrays/sort.nvs` (flat, `expect nlogn`). `benches/scaling/README.md` says what a ladder is. `benches/scaling` is in the root `Cargo.toml` `exclude`.\n\n`bun nv scaling --check` passes with the one ladder; `--areas` fails, 21 of 22 areas without a ladder. `docs/perf/performance-review.md` does not exist yet (Stage 4).",
   "next": {
     "stage": 2,
     "title": "the growth tool",
     "files": [
+      "crates/nvs-cli/src/main.rs",
       "tools/nv/cmd/scaling.ts",
-      "tools/nv/test/scaling.test.ts",
-      "benches/scaling/README.md"
+      "tools/nv/test/scaling.test.ts"
     ],
     "items": [
       {
         "done": false,
-        "text": "**The ladder runner** — `// scaling: start`, `max`, `expect` and the kinds, in `tools/nv/cmd/scaling.ts:253` (`rampOne` is the ramp to reuse; `slopeOf` and `judgeCounts` at `tools/nv/cmd/scaling.ts:148` already fit a slope from increments), plus `nvs check --count` per the goal's Stage 2; `benches/scaling/README.md` says what a ladder is."
+        "text": "**`nvs check --count`** — one stderr line with tokens, syntax nodes, resolved names, typed expressions and IR instructions, each read as a length when its phase ends (goal prose Stage 2, *The compiler gets counts of its own*); `run_check` at `crates/nvs-cli/src/main.rs:2196`, the `Command::Check` variant at `crates/nvs-cli/src/main.rs:986`, and `nvs run --count` prints the same line beside its own at `crates/nvs-cli/src/main.rs:3215`. Rule: `rule:testing/bench-counters`."
       },
       {
         "done": false,
-        "text": "**The ladder tests** — `tools/nv/test/scaling.test.ts:1`: a made-up linear ladder passes, a made-up quadratic one fails, a `proposal` ladder is reported. The `--iterations` pure parts are already tested there."
+        "text": "**The `compile` kind** — the ladder prints a program; the tool writes it under the scratch copy and runs `nvs check --count` and `nvs run`, fitting a slope per phase count. Add `compile` to `MEASURED_KINDS` at `tools/nv/cmd/scaling.ts:118`; `rampAt` is the ramp to reuse."
       },
       {
         "done": false,
-        "text": "**Record the 46 benches `--iterations` cannot judge** under *Benches to look at* in a new `docs/perf/performance-pass.md`; the skip reasons are at `tools/nv/cmd/scaling.ts:262`. `bun nv scaling --iterations --all` lists them as `skipped`, mostly `Core\\Response`, `Core\\Request-Part`, `Core\\Test-Response` and `lang/` programs whose closing line is not `echo Bench::run(N)`."
+        "text": "**The `fmt` and `lsp` kinds** — clock only, under the second-run bound and callgrind; dispatch at `crates/nvs-cli/src/main.rs:1707` and `crates/nvs-cli/src/main.rs:1723`, the drive shape in `tests/lsp/`."
       }
     ]
   },
   "backlog": [
-    "The clock at the `--iterations` batch sizes is mostly unread, and one clock-only \"grows\" did not repeat. Decide whether a clock-only verdict should go to callgrind before it fails (`tools/nv/cmd/scaling.ts` module doc owns the bounds).",
-    "Callgrind's leg is untested: no bench reached the ceiling unclear. Its default Linux binary is `/var/tmp/nvs-target-wsl/debug/nvs`."
+    "The `serve` kind: requests served, per-request counts and peak memory (goal prose Stage 2 table).",
+    "Stage 3: a ladder for each of the 21 areas still missing one (`bun nv scaling --areas`).",
+    "`core/IO-File/tell` is unclear after callgrind (`docs/perf/performance-pass.md` § *Benches to look at*).",
+    "The 46 benches `--iterations` cannot rewrite: their growth belongs to `serve` ladders in Stage 3."
   ]
 }
