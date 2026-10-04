@@ -1,0 +1,13 @@
+{
+  "lead": "`bun nv render --website --check` says to run `bun nv import --write` when a spec table and `data/spec/core-members.json` disagree, and that write rewrites hundreds of records.",
+  "body": "The import still reads legacy homes most record types have outgrown, so its `--write` puts their older text back and deletes the records it cannot build. Re-import the spec alone from a scratch script under `.agent-tmp/` that calls `spec.read(ROOT)` from `tools/nv/import/spec.ts` and `write` from `tools/nv/lib/store.ts`, then review `git diff -- data/spec`.",
+  "files": [
+    "tools/nv/import/spec.ts",
+    "tools/nv/lib/store.ts",
+    "tools/nv/renderers/website-core.ts"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "tools/nv/renderers/website-core.ts:import --write"
+  }
+}

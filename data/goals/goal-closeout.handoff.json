@@ -1,27 +1,32 @@
 {
-  "state": "**Goal `goal-closeout`, Stage 4 (finished in place).** The website grammar is now rendered. `tools/nv/renderers/website-grammar.ts` writes `website/config/novis.tmLanguage.json` from `editors/vscode/syntaxes/nvs.tmLanguage.json`, and it is in both `RENDERERS` and `WEBSITE_RENDERERS`, so CI's `nv render --check` fails when the two drift. The only difference is the top level: a site fence is a snippet with no `<?nvs`, so it opens in code mode. `website/README.md` says so. Gap `the-website-grammar-is-hand-written-beside-the-editors` is deleted.\n\nSeven questions wait in the goal prose's § *Questions for the user at the goal end*. Do not build the closure rebind, the environment, the zip walk, the captured-output type or directive completion before the answers. **No session stops on `BLOCKED` before the goal end.**\n\nThe floor check `the latest CI run on main succeeded for the code HEAD holds` is red because `main` is ahead of `origin/main`. It leaves with goal `ci-green`'s record in Stage 6, and nobody pushes for it.\n\n`bun nv owners --closes goal-closeout` names 8 gaps. Seven wait on questions. The one without a question is `rendered-core-pages-lag-the-tree` (module `website/scripts`). A change to a file a perf figure is keyed to stales that figure: run `bun nv proofs --owed`, then `bun nv proofs --record-perf --group '<class>'` per class it names.",
+  "state": "**Goal `goal-closeout`, Stage 4 (finished in place) is done; Stage 5 is next.** `bun nv import --check` runs again: the `rules` importer carries `data/rules/` through as it stands, and `--check` compares the staged records with `data/` instead of rendering. It still reports many differences, because most legacy homes are older than their records (backlog). `data/spec/core-members.json` matches the spec tables. The rendered `Core` pages are current, and CI's `reference` job now runs `bun nv render --website --check` against the binary it builds. Gap `rendered-core-pages-lag-the-tree` is deleted.\n\n`bun nv owners --closes goal-closeout` names 7 gaps, and each one waits on a question in the goal prose's § *Questions for the user at the goal end*. Do not build the closure rebind, the environment, the zip walk, the captured-output type, directive completion, card voice or completion images before the answers. **No session stops on `BLOCKED` while Stages 5 and 6 are open.**\n\nThe floor check `the latest CI run on main succeeded for the code HEAD holds` is red because `main` is ahead of `origin/main`. It leaves with goal `ci-green`'s record in Stage 6, and nobody pushes for it.",
   "next": {
-    "stage": 4,
-    "title": "finished in place",
+    "stage": 5,
+    "title": "deletion becomes the rule",
     "files": [],
-    "note": "one file set: the spec importer under `tools/nv/import/`, `data/spec/core-members.json` and the website Core renderer.",
+    "note": "one file set: the goal switch in `tools/nv/cmd/loop.ts`, the chain library `tools/nv/lib/chain.ts`, `tools/nv/cmd/chain.ts` and a new `tools/nv/test/switch.test.ts`.",
     "items": [
       {
         "done": false,
-        "text": "**The spec importer runs again** — `bun nv import --check` crashes reading `docs/rules/_index.json`, which no longer exists, at `tools/nv/import/rules.ts:34`. The rules moved to `data/rules/`, so the `rules` importer is stale: delete it or point it at the records. Rule `rule:tooling/the-chain-names-its-live-goal` is not the owner; `bun nv brief --where import` names it."
+        "text": "**The decision record, written first** — modifies `rule:tooling/the-chain-names-its-live-goal`: a walked goal is deleted at the switch and nothing is carried as a floor. Rewrite the fragment whole, and `docs/agent/goals/README.md` § *The chain contract*. Read the next free ADR number right before creating it. Goal prose § *Stage 5*, `docs/agent/goals/goal-closeout.md:111`."
       },
       {
         "done": false,
-        "text": "**`data/spec/core-members.json` matches the spec tables again** — `bun nv render --website --check` stops at `docs/spec/01-core-library.md:1007`: the table there has 11 rows and the record has 9. Run `bun nv import --write` once it works, and review the record diff."
+        "text": "**The switch deletes the goal it leaves** — `tools/nv/cmd/loop.ts:1390` (`advance`) deletes the walked goal's prose, record and handoff record, removes its slug from `data/chain.json`, renders the goal plan and commits it as the switch commit. The check runs `bun test tools/nv/test/switch.test.ts` and wants a test named `the goal switch deletes the goal it leaves`; the file does not exist yet."
       },
       {
         "done": false,
-        "text": "**Rendered `Core` pages are regenerated from the tree, and a check keeps them current** — gap `rendered-core-pages-lag-the-tree`, renderer `tools/nv/renderers/website-core.ts:1`. Needs a built `nvs` for `nvs meta --json`. Run `npm --prefix website run sync:render`, review the page diff, commit it. Then decide whether a check fails on a stale page; CI's docs job has no binary, which is why `website-core` is only in `WEBSITE_RENDERERS` (`tools/nv/renderers/index.ts:3`)."
+        "text": "**The floor machinery goes** — `tools/nv/lib/chain.ts:208` (`goalPlan`) carries no floor; `walkedGoals` at `tools/nv/lib/chain.ts:114`, the graduation in `tools/nv/cmd/chain.ts`, `retired` in `tools/nv/cmd/owners.ts` and the floor stage in `tools/nv/driver/accept.ts` are deleted where nothing else reads them, with their tests."
+      },
+      {
+        "done": false,
+        "text": "**The citation check** — `bun nv chain --check` fails on prose naming a goal not on the chain, beside `numberCitations` at `tools/nv/cmd/chain.ts:100`, with the exemptions the Stage 5 prose lists."
       }
     ]
   },
   "backlog": [
-    "The seven questions in `docs/agent/goals/goal-closeout.md` § *Questions for the user at the goal end*: once `rendered-core-pages-lag-the-tree` is closed and they are the only red check, write `BLOCKED` naming that section.",
-    "A site fence that has `?>` and then HTML colours the HTML as code. No fence on the site does this today (`tools/nv/renderers/website-grammar.ts:1`)."
+    "`bun nv import` reads legacy homes most record types have outgrown: `--check` finds many record files that differ and four types it cannot import. Retire the command and `tools/nv/import/known.json`, and keep only the modules `orient`, `session` and `playbook` import (`tools/nv/import/playbook.ts`, `goals.ts`, `plan.ts`, `lib.ts`). Owner: `rule:tooling/the-chain-names-its-live-goal` is not it; `bun nv brief --where import` names the home.",
+    "Stage 6: delete the goals in front of `goal-closeout` on the chain (goal prose § *Stage 6*).",
+    "The seven questions in `docs/agent/goals/goal-closeout.md` § *Questions for the user at the goal end*: when they are the only red check, write `BLOCKED` naming that section."
   ]
 }
