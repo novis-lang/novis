@@ -1,0 +1,22 @@
+<?nvs
+// Renders a list of n products as HTML, as a shop page does when it shows every product in a category.
+// scaling: start 1000
+// scaling: max 64000
+// scaling: expect linear
+
+class Bench {
+    public static function run(uint $size): uint {
+        array<Core\Html\Markup> $items = [];
+        uint $i = 0;
+        while ($i < $size) {
+            string $product = "Tea & biscuits " . $i;
+            $items[] = html`<li>{$product}</li>`;
+            $i = $i + 1;
+        }
+        Core\Html\Markup $list = Core\Html::join($items, "\n" as Core\Html\Markup);
+        Core\Html\Markup $page = ("<ul>\n" as Core\Html\Markup) + $list + ("\n</ul>" as Core\Html\Markup);
+        return Core\Str::length(Core\Html::toSource($page, "measuring the page"));
+    }
+}
+
+echo Bench::run(1000), "\n";

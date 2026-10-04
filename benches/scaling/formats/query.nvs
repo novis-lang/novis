@@ -1,0 +1,20 @@
+<?nvs
+// Reads a query string of n parameters into an array, as a server does with a long search form.
+// scaling: start 1000
+// scaling: max 64000
+// scaling: expect linear
+
+class Bench {
+    public static function run(uint $size): uint {
+        array<string> $pairs = [];
+        uint $i = 0;
+        while ($i < $size) {
+            $pairs[] = "field" . $i . "=red+shoes";
+            $i = $i + 1;
+        }
+        array<mixed> $params = Core\Uri::parseQuery(Core\Str::join($pairs, "&"));
+        return Core\Arr::count($params);
+    }
+}
+
+echo Bench::run(1000), "\n";
