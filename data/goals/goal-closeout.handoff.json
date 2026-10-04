@@ -1,23 +1,27 @@
 {
-  "state": "**Goal `goal-closeout`, Stage 4 (finished in place).** Route-name completion is built. Inside a `Core\\Router` link's name argument (`url`, `urlAbsolute`, `urlSigned`), `crates/nvs-lsp/src/completion.rs` offers the names the compiled route table holds. Inside a key of the link's `$params`, it offers that route's captures and `#[Query]` parameters. Both read `ExprTypeTable::routes`, and `nvs_types::is_link` is now public so the server asks the compiler which members are links. `crates/nvs-lsp/tests/completion_edits.rs` asserts both lists against the analysis's own table.\n\nGap `route-name-and-directive-completion-are-unbuilt` keeps its slug and now names only the `nvs.toml` directive half, which waits on the question *May the extension offer completion inside `nvs.toml`?*.\n\nSeven questions wait in the goal prose's § *Questions for the user at the goal end*. Do not build the closure rebind, the environment, the zip walk, the captured-output type or directive completion before the answers. **No session stops on `BLOCKED` before the goal end.**\n\nThe floor check `the latest CI run on main succeeded for the code HEAD holds` is red because `main` is ahead of `origin/main`. It leaves with goal `ci-green`'s record in Stage 6, and nobody pushes for it.\n\n`bun nv owners --closes goal-closeout` names 9 gaps. Seven wait on questions. The two without one are `the-website-grammar-is-hand-written-beside-the-editors` and `rendered-core-pages-lag-the-tree`. Read each gap's record before building it. A change to a file a perf figure is keyed to stales that figure: run `bun nv proofs --owed`, then `bun nv proofs --record-perf --group '<class>'` per class it names.",
+  "state": "**Goal `goal-closeout`, Stage 4 (finished in place).** The website grammar is now rendered. `tools/nv/renderers/website-grammar.ts` writes `website/config/novis.tmLanguage.json` from `editors/vscode/syntaxes/nvs.tmLanguage.json`, and it is in both `RENDERERS` and `WEBSITE_RENDERERS`, so CI's `nv render --check` fails when the two drift. The only difference is the top level: a site fence is a snippet with no `<?nvs`, so it opens in code mode. `website/README.md` says so. Gap `the-website-grammar-is-hand-written-beside-the-editors` is deleted.\n\nSeven questions wait in the goal prose's § *Questions for the user at the goal end*. Do not build the closure rebind, the environment, the zip walk, the captured-output type or directive completion before the answers. **No session stops on `BLOCKED` before the goal end.**\n\nThe floor check `the latest CI run on main succeeded for the code HEAD holds` is red because `main` is ahead of `origin/main`. It leaves with goal `ci-green`'s record in Stage 6, and nobody pushes for it.\n\n`bun nv owners --closes goal-closeout` names 8 gaps. Seven wait on questions. The one without a question is `rendered-core-pages-lag-the-tree` (module `website/scripts`). A change to a file a perf figure is keyed to stales that figure: run `bun nv proofs --owed`, then `bun nv proofs --record-perf --group '<class>'` per class it names.",
   "next": {
     "stage": 4,
     "title": "finished in place",
     "files": [],
-    "note": "one file set: `website/config/novis.tmLanguage.json` and the editor grammar it should be generated from.",
+    "note": "one file set: the spec importer under `tools/nv/import/`, `data/spec/core-members.json` and the website Core renderer.",
     "items": [
       {
         "done": false,
-        "text": "**The website grammar is generated from the editors' grammar, or the gap is struck as a stated bound** — gap `the-website-grammar-is-hand-written-beside-the-editors`, beside `editors/vscode/syntaxes/nvs.tmLanguage.json:1`, the editors' grammar. The site loads its own copy at `website/astro.config.ts` line 27. Read the record first (`bun nv gaps --module website/config/novis.tmLanguage.json`)."
+        "text": "**The spec importer runs again** — `bun nv import --check` crashes reading `docs/rules/_index.json`, which no longer exists, at `tools/nv/import/rules.ts:34`. The rules moved to `data/rules/`, so the `rules` importer is stale: delete it or point it at the records. Rule `rule:tooling/the-chain-names-its-live-goal` is not the owner; `bun nv brief --where import` names it."
       },
       {
         "done": false,
-        "text": "**Rendered `Core` pages are regenerated from the tree, and a check keeps them current** — gap `rendered-core-pages-lag-the-tree`, whose pages lag the descriptions in `crates/nvs-stdlib/src/registry.rs:1`. The site's copy scripts are under `website/scripts/`. Read the record first (`bun nv gaps --module website/scripts`)."
+        "text": "**`data/spec/core-members.json` matches the spec tables again** — `bun nv render --website --check` stops at `docs/spec/01-core-library.md:1007`: the table there has 11 rows and the record has 9. Run `bun nv import --write` once it works, and review the record diff."
+      },
+      {
+        "done": false,
+        "text": "**Rendered `Core` pages are regenerated from the tree, and a check keeps them current** — gap `rendered-core-pages-lag-the-tree`, renderer `tools/nv/renderers/website-core.ts:1`. Needs a built `nvs` for `nvs meta --json`. Run `npm --prefix website run sync:render`, review the page diff, commit it. Then decide whether a check fails on a stale page; CI's docs job has no binary, which is why `website-core` is only in `WEBSITE_RENDERERS` (`tools/nv/renderers/index.ts:3`)."
       }
     ]
   },
   "backlog": [
-    "Directive completion in `nvs.toml` — gap `route-name-and-directive-completion-are-unbuilt`, waits on its question.",
-    "Once every non-question gap is gone, the session that finds `no question waits for the user` the only red goal-end check writes `BLOCKED` naming the section (goal prose § *Standing decisions*)."
+    "The seven questions in `docs/agent/goals/goal-closeout.md` § *Questions for the user at the goal end*: once `rendered-core-pages-lag-the-tree` is closed and they are the only red check, write `BLOCKED` naming that section.",
+    "A site fence that has `?>` and then HTML colours the HTML as code. No fence on the site does this today (`tools/nv/renderers/website-grammar.ts:1`)."
   ]
 }
