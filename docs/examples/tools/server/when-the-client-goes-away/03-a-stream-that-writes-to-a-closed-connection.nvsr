@@ -1,0 +1,6 @@
+--METHOD--
+POST
+--PATH--
+/reports
+--HEADERS--
+host: example.com

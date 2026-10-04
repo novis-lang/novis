@@ -6284,6 +6284,7 @@ mod tests {
     /// `rule:http-server/a-request-outlives-a-client-that-goes-away`'s
     /// default: a request whose client left runs to its end, and the
     /// connection's task does not return before it has.
+    // covers: tools:server/when-the-client-goes-away
     #[test]
     fn a_disconnected_request_finishes_both_of_its_writes() {
         let notes = after_a_disconnect("", two_writes);
@@ -6299,6 +6300,7 @@ mod tests {
 
     /// A method listed in `cancel_on_disconnect` is cancelled at the drop, and
     /// the cancellation still waits for the request to stop.
+    // covers: tools:server/when-the-client-goes-away
     #[test]
     fn a_disconnected_request_of_a_listed_method_is_cancelled() {
         let notes = after_a_disconnect("[limits]\ncancel_on_disconnect = [\"POST\"]\n", two_writes);
@@ -6355,6 +6357,7 @@ mod tests {
 
     /// A request with no `wall_time` runs on after its client left for
     /// `disconnect_grace` and no longer, and is then cancelled.
+    // covers: tools:server/when-the-client-goes-away
     #[test]
     fn a_disconnected_request_with_no_wall_time_is_cancelled_at_its_grace() {
         let notes = after_a_disconnect(SHORT_GRACE, |_ctx, notes, _admission| {

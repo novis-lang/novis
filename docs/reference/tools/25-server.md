@@ -1,8 +1,8 @@
 ---
 id: server
 title: The HTTP server
-summary: `nvs serve`, the `[server]` block and its mounts, how a request finds the file that answers it, what a program reads about the door it came through, what reaches a running server, the drain, `nvs ctl` and `nvs service`
-keywords: nvs serve, server, HTTP, restart, restart required, deploy, hot reload, zero downtime, symlink, settle, revalidate_freq, listen, port, --listen, --port, [server], [[server.mount]], mount, prefix, host, scan, entry, origin, root, dispatch, static, static files, trusted_proxies, X-Forwarded-For, X-Forwarded-Proto, client IP, health_path, health check, max_in_flight, workers, timeout, drain, drain_timeout, graceful shutdown, reload, nvs ctl, control socket, nvs service, service, systemd, Windows service, Core\Request::mount, Core\Request\Mount, Core\Router::url, multi-tenant, subdirectory, virtual host, front controller, try_files, php -S, php-fpm, nginx, Apache, .htaccess, RewriteBase, SCRIPT_NAME, PATH_INFO, DocumentRoot
+summary: `nvs serve`, the `[server]` block and its mounts, how a request finds the file that answers it, what a program reads about the door it came through, what reaches a running server, the drain, what happens when the client goes away, `nvs ctl` and `nvs service`
+keywords: nvs serve, server, HTTP, disconnect, client disconnect, client goes away, cancel_on_disconnect, disconnect_grace, ignore_user_abort, restart, restart required, deploy, hot reload, zero downtime, symlink, settle, revalidate_freq, listen, port, --listen, --port, [server], [[server.mount]], mount, prefix, host, scan, entry, origin, root, dispatch, static, static files, trusted_proxies, X-Forwarded-For, X-Forwarded-Proto, client IP, health_path, health check, max_in_flight, workers, timeout, drain, drain_timeout, graceful shutdown, reload, nvs ctl, control socket, nvs service, service, systemd, Windows service, Core\Request::mount, Core\Request\Mount, Core\Router::url, multi-tenant, subdirectory, virtual host, front controller, try_files, php -S, php-fpm, nginx, Apache, .htaccess, RewriteBase, SCRIPT_NAME, PATH_INFO, DocumentRoot
 ---
 
 # nvs serve
@@ -327,6 +327,41 @@ connections, and they use the new configuration. The health path still answers `
 `draining: false`.
 
 <!-- src: `rule:concurrency/a-drain-closes-a-connection-cleanly`, `rule:config/the-config-is-an-immutable-snapshot`, `rule:http-server/health-path-is-off-and-checks-nothing` -->
+
+# When the client goes away
+
+A client can close its connection before the answer is sent. For example, the user closes the
+browser tab. The request still runs to its end, and the server throws its answer away:
+
+- A write to the answer returns at once and does not throw an error. This is true for `echo`,
+  for `Core\Response` and for `Core\Response\Stream::write`. The bytes are thrown away.
+- Work that the request gave to `Core\Task::afterResponse` still runs.
+- The request keeps its place in `[server] max_in_flight` until it ends.
+- When the server drains, it waits for this request as for any other, up to `drain_timeout`.
+
+A request with a `wall_time` stops at its `wall_time`, as it does with a client. A request with no
+`wall_time` stops when `disconnect_grace` has passed since the client went away. `false` and `0`
+are not allowed:
+
+```toml
+[limits]
+disconnect_grace = "30s"              # default
+```
+
+`cancel_on_disconnect` lists request methods. A request with a listed method stops as soon as its
+client goes away. The names are compared exactly, so `GET` and `get` are two different methods:
+
+```toml
+[limits]
+cancel_on_disconnect = ["GET", "HEAD"]   # default: []
+```
+
+A request that stops runs no more code of your program. No `catch` block runs. Both keys can also
+be written in `[app.limits]` for one application. A request cannot change them while it runs, and
+a program cannot test whether its client has gone. These keys do not apply to an event stream
+(`Core\Sse`) or a WebSocket.
+
+<!-- src: `rule:http-server/a-request-outlives-a-client-that-goes-away`, `rule:concurrency/cancellation-runs-no-user-code` -->
 
 # nvs ctl
 

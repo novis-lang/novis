@@ -2,7 +2,7 @@
 id: php-differences
 title: "Coming from PHP: every difference, and what to write instead"
 summary: the short list of what changed, every PHP spelling the compiler refuses with its replacement and diagnostic code, what parses but behaves differently, and the dev tools that are built in
-keywords: PHP, migration, <?php, function, const, define, global, static, $$var, eval, extract, compact, settype, (int), cast, and, or, xor, ===, !==, list(), include, require_once, trait, __construct, __toString, __get, __set, __call, __invoke, __destruct, goto, declare, strict_types, use as, group use, leading backslash, array(), $s[0], mixed, yield from, use ($x), new class, type test, callable string, resource, unset, $_GET, $_POST, $_SERVER, $GLOBALS, $argv, die, print_r, var_dump, echo, elseif, endif, endforeach, #, ?>, &$x, reference, @, backtick, __DIR__, __FILE__, __LINE__, __CLASS__, PHP_EOL, Exception, getMessage, heredoc, nowdoc, ==, ===, equality, type juggling, strlen, mb_strlen, overflow, PHP_INT_MAX, octal, bcmath, gmp, decimal, preg_match, PCRE, ReDoS, password_hash, password_verify, PHPUnit, PHPStan, Psalm, PHP CS Fixer, PHP_CodeSniffer, Xdebug, Composer, differences, switch from PHP
+keywords: PHP, migration, <?php, function, const, define, global, static, $$var, eval, extract, compact, settype, (int), cast, and, or, xor, ===, !==, list(), include, require_once, trait, __construct, __toString, __get, __set, __call, __invoke, __destruct, goto, declare, strict_types, use as, group use, leading backslash, array(), $s[0], mixed, yield from, use ($x), new class, type test, callable string, resource, unset, $_GET, $_POST, $_SERVER, $GLOBALS, $argv, die, print_r, var_dump, echo, elseif, endif, endforeach, #, ?>, &$x, reference, @, backtick, __DIR__, __FILE__, __LINE__, __CLASS__, PHP_EOL, Exception, getMessage, heredoc, nowdoc, ==, ===, equality, type juggling, strlen, mb_strlen, overflow, PHP_INT_MAX, octal, bcmath, gmp, decimal, preg_match, PCRE, ReDoS, password_hash, password_verify, ignore_user_abort, connection_aborted, PHPUnit, PHPStan, Psalm, PHP CS Fixer, PHP_CodeSniffer, Xdebug, Composer, differences, switch from PHP
 ---
 
 Novis is the PHP you already know with one spelling for each thing. This chapter is the
@@ -252,6 +252,12 @@ The library:
 | a `preg_*` pattern may backtrack exponentially (ReDoS) | a pattern runs on a linear-time engine whenever that engine can express it; a lookaround or a backreference needs the backtracking engine, which has a step budget and throws when it runs out |
 | `password_hash` takes an algorithm and cost at the call site | no algorithm argument exists — `Core\Password` owns the choice, `verify` still reads a PHP-stored bcrypt hash, and `needsRehash` answers *weaker*, never *different* |
 | control bytes written to a terminal pass through | every control byte reaching the terminal is substituted with a visible glyph |
+
+A request whose client went away runs to its end, as a PHP script with output buffering does in
+practice. Its writes return and their bytes are thrown away. There is no `ignore_user_abort()` and
+no `connection_aborted()`: a request cannot change this or test for it. The server's `nvs.toml`
+does, with `[limits] cancel_on_disconnect` and `disconnect_grace` — see *When the client goes away*
+in the server chapter.
 
 Four of those rows, run:
 

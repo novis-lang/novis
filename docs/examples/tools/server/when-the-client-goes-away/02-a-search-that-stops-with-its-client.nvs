@@ -1,0 +1,17 @@
+<?nvs
+// Shows a search that a `GET` request runs. The `nvs.toml` lists `GET` in
+// `cancel_on_disconnect`, so this search stops when its client goes away.
+
+array<string> $products = ["Blue mug", "Red mug", "Blue plate", "Green cup"];
+uint $found = 0;
+
+// When the client goes away, the program stops here. No more lines run.
+foreach ($products as string $product) {
+    if (Core\Str::contains($product, "Blue")) {
+        echo "found: ", $product, "\n";
+        $found = $found + 1;
+    }
+}
+
+// The client stayed, so this prints `2 results`.
+echo $found, " results\n";

@@ -1,0 +1,30 @@
+<?nvs
+// Attack: a request tries to keep running for ever after its client went away.
+// Only the person who runs the server may set these limits, so every change below should fail.
+
+// 1. Raise the time after the client went away to 100000 hours.
+echo 'raise the grace:    ', Core\Config::set('limits.disconnect_grace', '100000h') ? 'accepted' : 'refused', "\n";
+
+// 2. Remove the grace with `false`, and then with `0`.
+echo 'remove with false:  ', Core\Config::set('limits.disconnect_grace', 'false') ? 'accepted' : 'refused', "\n";
+echo 'remove with 0:      ', Core\Config::set('limits.disconnect_grace', '0') ? 'accepted' : 'refused', "\n";
+
+// 3. Remove every method from the list of methods that stop at once.
+echo 'empty the list:     ', Core\Config::set('limits.cancel_on_disconnect', '[]') ? 'accepted' : 'refused', "\n";
+
+// 4. Remove the request's own time limit. The grace still applies to a request with no time limit.
+echo 'remove wall_time:   ', Core\Config::set('limits.wall_time', 'false') ? 'accepted' : 'refused', "\n";
+
+// 5. Try 100000 different values for the grace.
+uint $accepted = 0;
+uint $i = 0;
+while ($i < 100000) {
+    if (Core\Config::set('limits.disconnect_grace', "{$i}h")) {
+        $accepted = $accepted + 1;
+    }
+    $i = $i + 1;
+}
+echo 'accepted changes:   ', $accepted, "\n";
+
+// 6. The grace still has the value from `nvs.toml`.
+echo 'the grace is still: ', Core\Config::get('limits.disconnect_grace') ?? 'not set', "\n";

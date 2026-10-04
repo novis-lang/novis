@@ -1,0 +1,16 @@
+<?nvs
+// Shows a request that saves an order in two steps. Both steps run, even when
+// the client goes away between them.
+
+uint $order = 1042;
+
+// Step one. If the client is gone, this `echo` returns and its text is thrown away.
+echo "Order #", $order, " is saved.\n";
+
+// Step two runs after step one in every case.
+echo "Stock for order #", $order, " is reserved.\n";
+
+// This closure runs after the answer, also when the client is gone.
+Core\Task::afterResponse(fn (): void => {
+    echo "Receipt for order #", $order, " is sent.\n";
+});
