@@ -1,5 +1,5 @@
 {
-  "state": "**Goal `disconnect-completes` is reached.** `rule:http-server/a-request-outlives-a-client-that-goes-away` is `shipped`, and `bun nv proofs --gate` owes nothing in the whole roster.\n\n`docs/reference/tools/25-server.md` has a `# When the client goes away` section after the drain's (`tools:server/when-the-client-goes-away`), with its `about.md`, three examples and one `nvs.toml` under `docs/examples/tools/server/when-the-client-goes-away/`, one attack under `tests/hostile/tools/server/when-the-client-goes-away/`, and `// covers:` markers on the disconnect tests in `crates/nvs-server/src/serve.rs`.\n\nThe two keys are directives on the roster, `directive:limits.cancel_on_disconnect` and `directive:limits.disconnect_grace`, each with an `about.md`, one example, one attack under `tests/hostile/config/` and a `// covers:` marker in `crates/nvs-config/tests/app.rs`.\n\n`docs/reference/tools/30-php-differences.md` has the `ignore_user_abort()` paragraph after the library table. The eleven `Core\\Response` perf figures are measured again.",
+  "state": "**Goal `disconnect-completes` is reached.** `rule:http-server/a-request-outlives-a-client-that-goes-away` is `shipped`, and `bun nv proofs --gate` owes nothing in the whole roster.\n\nThe driver's last sweep went red on `conformance_coverage`'s `every_error_path_is_asserted_or_declared_unreachable`: the `Core\\Response\\Stream::write` throw for a chunk over the message bound had lost its declaration. That arm, at `crates/nvs-stdlib/src/response.rs:1949`, now carries its own declaration, and `a_stream_write_over_the_message_bound_throws` asserts it.\n\n`docs/reference/tools/25-server.md` § *When the client goes away* has its `about.md`, three examples, one attack and `// covers:` markers. The two keys `directive:limits.cancel_on_disconnect` and `directive:limits.disconnect_grace` each have their proofs.",
   "next": {
     "stage": 4,
     "title": "the proofs",
@@ -9,14 +9,11 @@
     "items": [
       {
         "done": true,
-        "text": "**Every Stage 4 proof**, `docs/reference/tools/25-server.md:332` (`rule:testing/feature-proofs`)."
+        "text": "**The message-bound throw of `Stream::write` is declared and asserted** — `crates/nvs-stdlib/src/response.rs:1949`."
       }
     ]
   },
   "backlog": [
-    "`docs/examples/tools/server/stopping-and-reloading-the-drain/about.md` says `nvs ctl reload` does not drain; `docs/reference/tools/25-server.md` § the drain says a reload drains the connections that are open. One of them is wrong (owner: `rule:concurrency/a-drain-closes-a-connection-cleanly`).",
-    "The other wake that reaches `the_drain_waits_for_a_disconnected_request` with the drain registration taken out is *not checked* (probably `crates/nvs-server/src/io.rs:275`).",
-    "For the user: the examples share one `nvs.toml`, because a feature directory holds one, and no `[app.limits]` example exists. No bench was written: a tool section owes none.",
-    "`Core\\Config::get('limits.cancel_on_disconnect')` returns `null` even when the list is set: a list-valued key is not readable from a program."
+    "The goal's own calls the user has not confirmed yet (key names, the `30s` grace, a send timeout counting as gone) are listed in `docs/agent/goals/disconnect-completes.md` § *Standing decisions*."
   ]
 }

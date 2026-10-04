@@ -1,0 +1,11 @@
+{
+  "lead": "A `match` that splits one error site into a quiet arm and a throwing arm moves the throw below the gate's window.",
+  "body": "`every_error_path_is_asserted_or_declared_unreachable` in `crates/nvs-stdlib/tests/conformance_coverage.rs` reads only the 8 lines above a `Fault::` site, so a \"no case can reach this\" comment written above the whole `match` covers no arm once the arms push the throw down. Put the declaration on the throwing arm itself and name the `#[test]` that asserts that arm, since the one named above it covers the quiet arms.",
+  "files": [
+    "crates/nvs-stdlib/tests/conformance_coverage.rs"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "crates/nvs-stdlib/tests/conformance_coverage.rs:every_error_path_is_asserted_or_declared_unreachable"
+  }
+}
