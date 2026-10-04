@@ -1,33 +1,31 @@
 {
-  "state": "**Goal `performance-pass`, Stage 4 (the review) is written whole:** `bun nv scaling --areas --reviewed` prints `every area has a ladder and a review section`, and `docs/perf/performance-review.md` now ends with a `## floor` section: the counts and clocks of an empty run, an empty `nvs check`, one empty request and an empty file in `nvs lsp`, and what each is spent on. Old refusals have not been priced again yet.\n\n**29 gap records owned by `performance-pass`.** The floor added two, both measured with callgrind: `nvs-types/core-signatures-are-built-again-for-every-check` (the `Core` signature table is rebuilt per check: 54% of an empty `nvs check`, 63% of an empty-file editor session) and `nvs-lsp/an-edit-analyses-the-document-twice` (`index.refresh` and `publish` each analyse the same version). `nvs-syntax/an-elseif-chain-is-not-depth-guarded` now has its ladder, `benches/scaling/compiler/elseif.nvs`, which is **invalid** today: the release `nvs check` overflows its stack between 700 and 1024 arms.\n\n**Still red:** `scaling --check` (`fmt/classes.nvs`, `lsp/classes.nvs`, `numbers/bigint-mul.nvs` grow, `compiler/elseif.nvs` crashes) and `owners --closes performance-pass` (the 29 gaps). Stage 5 is fixing them. `docs/perf/performance-pass.md` *Decisions for you* has one entry: a total deadline for the request head.",
+  "state": "**Goal `performance-pass`, Stage 5 (the fixes).** Stage 4's review is whole (`docs/perf/performance-review.md`, ending in `## floor`). Old refusals have not been priced again yet.\n\n**The editor's per-edit floor is fixed.** `SymbolIndex::refresh` returns `Refreshed` and hands its analyses of open entries to `publish`, so an edit analyses the edited document once. The index keeps one read list per entry point (`SymbolIndex::reads`), and `unused_private` makes one pass over the occurrences: `bun nv scaling lsp/classes` is flat. What remains of the two editor gaps is narrowed into `nvs-lsp/a-request-analyses-an-unchanged-document-again` (a hover re-analyses the version an edit just analysed) and `nvs-lsp/a-hierarchy-lookup-scans-every-declaration`.\n\n**28 gap records owned by `performance-pass`.** Still red: `scaling --check` (`fmt/classes.nvs` and `numbers/bigint-mul.nvs` grow, `compiler/elseif.nvs` overflows the release stack between 700 and 1024 arms) and `owners --closes performance-pass`. `docs/perf/performance-pass.md` *Decisions for you* has one entry: a total deadline for the request head.",
   "next": {
     "stage": 5,
-    "title": "the fixes, the editor's per-edit floor",
+    "title": "the fixes, the formatter's per-line floor",
     "files": [
-      "crates/nvs-lsp/src/server.rs",
-      "crates/nvs-lsp/src/index.rs",
-      "crates/nvs-lsp/src/document.rs"
+      "crates/nvs-syntax/src/index.rs",
+      "crates/nvs-fmt/src/indent.rs",
+      "crates/nvs-fmt/src/brace.rs",
+      "crates/nvs-fmt/src/space.rs"
     ],
     "items": [
       {
         "done": false,
-        "text": "**Analyse an edited document once per version**: `reanalyse` (`crates/nvs-lsp/src/server.rs:485`) calls `index.refresh` (`crates/nvs-lsp/src/server.rs:497`), whose `absorb` (`crates/nvs-lsp/src/index.rs:609`) analyses the document, and `publish` (`crates/nvs-lsp/src/server.rs:2070`) analyses the same version again. Hand `absorb`'s analysis to `publish` when the versions agree, and close `data/gaps/nvs-lsp/an-edit-analyses-the-document-twice.json`. Rule: `rule:ide/the-server-is-synchronous`, `rule:ide/five-features-are-one-reference-index`."
+        "text": "**Make `SyntaxIndex::at` a logarithmic lookup** (`crates/nvs-syntax/src/index.rs:136`), and `children_of` (`crates/nvs-syntax/src/index.rs:171`) with it, then re-run `bun nv scaling fmt/classes` and close `data/gaps/nvs-syntax/a-syntax-index-lookup-scans-every-node.json`. Rule: the goal's base rule; `crates/nvs-fmt/src/indent.rs:55` states the quadratic cost as accepted and is rewritten with the fix."
       },
       {
         "done": false,
-        "text": "**Fix `unused_private`'s scan of every occurrence**, then re-run `bun nv scaling lsp/classes` and close `data/gaps/nvs-lsp/unused-private-scans-every-occurrence.json` if the ladder settles. Anchors are in the gap record; `crates/nvs-lsp/src/index.rs:344` is the refresh it feeds."
-      },
-      {
-        "done": false,
-        "text": "**Stop copying an entry's read list into every file it loads** (`crates/nvs-lsp/src/index.rs:613`), closing `data/gaps/nvs-lsp/the-index-copies-an-entrys-reads-into-every-file.json`."
+        "text": "**Cache each body's indent as the printer descends** instead of `opening_of` recursing per enclosing body (`crates/nvs-fmt/src/indent.rs:192`, callers `crates/nvs-fmt/src/brace.rs:109` and `crates/nvs-fmt/src/space.rs:231`), add the `fmt/depth.nvs` ladder the gap names, and close `data/gaps/nvs-fmt/opening-of-recurses-per-enclosing-body.json`."
       }
     ]
   },
   "backlog": [
-    "Build `Core` signatures once per process: `data/gaps/nvs-types/core-signatures-are-built-again-for-every-check.json` (`crates/nvs-types/src/core_lib.rs:45`). It reaches every check and every editor analysis, so it is worth a session of its own.",
-    "Flatten the `elseif` chain so neither spelling nests: `data/gaps/nvs-syntax/an-elseif-chain-is-not-depth-guarded.json`. An AST change across parser, checker, lowering and fmt, and the ladder `benches/scaling/compiler/elseif.nvs` checks it.",
-    "Price old refusals again (goal Stage 4 *Old refusals are priced again*): decision records and perf notes under `docs/decisions/` and `docs/perf/` that declined a change on a figure from a smaller tree.",
-    "The `fmt` growth: `data/gaps/nvs-syntax/a-syntax-index-lookup-scans-every-node.json` and `data/gaps/nvs-fmt/opening-of-recurses-per-enclosing-body.json`.",
-    "`numbers/bigint-mul.nvs` grows: judged against schoolbook multiplication, it may be a *Benches to look at* entry, not a defect."
+    "`compiler/elseif.nvs` overflows the release stack: `data/gaps/nvs-syntax/an-elseif-chain-is-not-depth-guarded.json`.",
+    "The `Core` signature table is rebuilt per check, 54% of an empty `nvs check`: `data/gaps/nvs-types/core-signatures-are-built-again-for-every-check.json`.",
+    "A request re-analyses an unchanged document: `data/gaps/nvs-lsp/a-request-analyses-an-unchanged-document-again.json`.",
+    "Hierarchy and CodeLens lookups scan every declaration: `data/gaps/nvs-lsp/a-hierarchy-lookup-scans-every-declaration.json`.",
+    "`numbers/bigint-mul.nvs` grows: a ladder with no gap record yet, owned by this goal (`docs/perf/performance-review.md`).",
+    "Old refusals not yet priced again (`docs/agent/goals/performance-pass.md`)."
   ]
 }
