@@ -406,7 +406,7 @@ function triageApplies(stage: number | null): boolean {
   const fail = verdict[1];
   const m = /\[(\d+)([^\]]*)\]:/.exec(fail);
   if (m === null) return !fail.includes(" is missing -- ");
-  if (m[1]!.startsWith("0") || m[2]!.includes("floor")) return true;
+  if (m[1]!.startsWith("0")) return true;
   return stage === null || Number(m[1]) < stage;
 }
 
@@ -475,7 +475,7 @@ function emitCheckBlock(src: Sources, goal: GoalValue, fail: string): void {
 /** The rest of the failing check's stage: what closing the stage means. */
 function emitStageSiblings(goal: GoalValue, hit: RecordCheck): void {
   const label = stageLabel(goal, hit.stage);
-  if (hit.stage === 0 || label.toLowerCase().includes("floor")) return;
+  if (hit.stage === 0) return;
   const siblings = (goal.checks ?? []).filter((c) => c.stage === hit.stage && c.id !== hit.id);
   if (siblings.length === 0) return;
   emit();
@@ -1703,7 +1703,7 @@ export async function run(args: string[]): Promise<number> {
     }
   }
 
-  // The failing check may be one the floor carried in, so it is looked for in the plan the driver ran.
+  // The failing check is looked for in the plan the driver ran, and a side goal's in its own record.
   await runMarker(src, src.side ? g : ((goalPlan(src.slug) as unknown as GoalValue | null) ?? g));
   const item = runState(src, h, opts.item);
   runAnchors(src, item);

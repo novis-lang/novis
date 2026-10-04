@@ -71,7 +71,7 @@ export const goalShape = s.object({
   milestone: s.nullable(s.ref("milestone")),
   /** `last` pins the goal behind every goal not pinned, whatever the chain's order. */
   position: s.optional(s.enum("last")),
-  /** The fixtures its checks run, carried into the next goal's floor with them. */
+  /** The fixtures its checks run. */
   files: s.array(s.string()),
   context,
   stages: s.array(stage),

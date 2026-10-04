@@ -20,8 +20,6 @@
 import { rel, ROOT } from "../lib/paths.ts";
 import { wrap } from "../lib/py.ts";
 
-/** The floor stage's title: every walked goal's checks, carried as the goal's own first stage. */
-export const FLOOR = "floor";
 
 export interface PlanStage {
   number: number;
@@ -65,8 +63,6 @@ export function words(command: string): string[] {
 
 const sameArgv = (a: string[], b: string[]) => a.length === b.length && a.every((w, i) => w === b[i]);
 
-/** The goal's own stages, which are every stage but the floor. */
-const own = (plan: Plan) => new Set(plan.stages.filter((s) => s.title !== FLOOR).map((s) => s.number));
 
 /** The lowest stage with a check that is not green, or null when every check is green. */
 export function currentStage(plan: Plan, results: Results): number | null {
@@ -74,10 +70,9 @@ export function currentStage(plan: Plan, results: Results): number | null {
   return red.length ? Math.min(...red) : null;
 }
 
-/** The share of the goal's own checks that are green, from 0 to 100. */
+/** The share of the goal's checks that are green, from 0 to 100. */
 export function percent(plan: Plan, results: Results): number {
-  const mine = own(plan);
-  const checks = plan.checks.filter((c) => mine.has(c.stage));
+  const checks = plan.checks;
   if (checks.length === 0) return 100;
   return Math.floor((checks.filter((c) => results.get(c.id) === true).length * 100) / checks.length);
 }

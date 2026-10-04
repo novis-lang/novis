@@ -6,13 +6,13 @@ import { type Plan, type Results, Session, cut, goalTable, keyRow, statusRow } f
 const plan: Plan = {
   slug: "demo",
   stages: [
-    { number: 1, title: "floor", summary: "Every check of every walked goal still passes." },
+    { number: 1, title: "the lexer", summary: "The lexer reads every token in the corpus." },
     { number: 2, title: "the parser", summary: "The parser reads every file in the corpus." },
     { number: 3, title: "the driver" },
   ],
   checks: [
-    { id: "floor-a", stage: 1, argv: ["cargo", "test"] },
-    { id: "floor-b", stage: 1 },
+    { id: "lex-a", stage: 1, argv: ["cargo", "test"] },
+    { id: "lex-b", stage: 1 },
     { id: "parse-a", stage: 2, argv: ["bun", "test", "tools/nv/test/parse.test.ts"] },
     { id: "parse-b", stage: 2 },
     { id: "drive-a", stage: 3, argv: ["bun", "nv", "loop", "--list"] },
@@ -55,8 +55,8 @@ const stream: Record<string, any>[] = [
 
 function replay(): { results: Results; session: Session } {
   const results: Results = new Map([
-    ["floor-a", true],
-    ["floor-b", true],
+    ["lex-a", true],
+    ["lex-b", true],
     ["drive-a", true],
   ]);
   const session = new Session(plan, results);
@@ -74,21 +74,21 @@ describe("the status row", () => {
     expect(session.context).toBe(84200);
     expect(session.out).toBe(6100);
     expect(session.calls).toBe(3);
-    expect(statusRow(plan, results, session, 200)).toBe("goal demo/2 | 25% | 84.2kin/6.1kout | 3 tool calls | session 14 | Edit tools/nv/cmd/loop.ts");
+    expect(statusRow(plan, results, session, 200)).toBe("goal demo/2 | 50% | 84.2kin/6.1kout | 3 tool calls | session 14 | Edit tools/nv/cmd/loop.ts");
     // What each running `nv` command says it is doing follows the tool call, the one started first first.
     expect(statusRow(plan, results, session, 200, ["verify: test (3/40 test binaries)", "proofs: 7/12 programs run"])).toEndWith(
       "| Edit tools/nv/cmd/loop.ts > verify: test (3/40 test binaries) > proofs: 7/12 programs run",
     );
     // The goal's place on the chain follows its slug and stage.
-    expect(statusRow(plan, results, session, 200, [], "3 of 9")).toStartWith("goal demo/2 (3 of 9) | 25% |");
-    expect(statusRow(plan, results, session, 200, [], "side goal")).toStartWith("goal demo/2 (side goal) | 25% |");
+    expect(statusRow(plan, results, session, 200, [], "3 of 9")).toStartWith("goal demo/2 (3 of 9) | 50% |");
+    expect(statusRow(plan, results, session, 200, [], "side goal")).toStartWith("goal demo/2 (side goal) | 50% |");
   });
 
-  test("the floor is left out of the percentage, and counts toward the stage", () => {
+  test("every stage counts toward the percentage, and the lowest red one is the stage", () => {
     const results: Results = new Map(plan.checks.filter((c) => c.stage !== 1).map((c) => [c.id, true]));
     const session = new Session(plan, results);
     session.begin(1);
-    expect(statusRow(plan, results, session, 200)).toStartWith("goal demo/1 | 100% | 0in/0out | 0 tool calls | session 1 | ");
+    expect(statusRow(plan, results, session, 200)).toStartWith("goal demo/1 | 66% | 0in/0out | 0 tool calls | session 1 | ");
     for (const c of plan.checks) results.set(c.id, true);
     expect(statusRow(plan, results, session, 200)).toStartWith("goal demo/done | 100% |");
   });
@@ -100,13 +100,13 @@ describe("the status row", () => {
     session.feed({ type: "assistant", message: { id: "m4", content: [{ type: "tool_use", id: "t5", name: "Glob", input: { pattern: "*" } }] } });
     expect(statusRow(plan, results, session, 200)).toEndWith("| Glob");
     session.phase("acceptance sweep 31/58");
-    expect(statusRow(plan, results, session, 200)).toBe("goal demo/2 | 25% | 84.2kin/6.1kout | 5 tool calls | session 14 | acceptance sweep 31/58");
+    expect(statusRow(plan, results, session, 200)).toBe("goal demo/2 | 50% | 84.2kin/6.1kout | 5 tool calls | session 14 | acceptance sweep 31/58");
   });
 
   test("a row wider than the terminal is cut at its end", () => {
     const { results, session } = replay();
     const row = statusRow(plan, results, session, 30);
-    expect(row).toBe("goal demo/2 | 25% | 84.2kin/6…");
+    expect(row).toBe("goal demo/2 | 50% | 84.2kin/6…");
     expect(Array.from(row).length).toBe(30);
     expect(cut("short", 30)).toBe("short");
   });
@@ -129,10 +129,10 @@ describe("the goal table", () => {
 
   test("one row per stage with its state and its green checks of all", () => {
     const t = table(120);
-    expect(t[0]).toBe("goal demo · 3 of 9 · 25% · session 14");
+    expect(t[0]).toBe("goal demo · 3 of 9 · 50% · session 14");
     expect(t[1]).toBe(" #  stage       state  checks  what it does");
     expect(t[2]).toMatch(/^─+$/);
-    expect(t[3]).toBe(" 1  floor       done      2/2  Every check of every walked goal still passes.");
+    expect(t[3]).toBe(" 1  the lexer   done      2/2  The lexer reads every token in the corpus.");
     expect(t[4]).toBe(" 2  the parser  now       1/2  The parser reads every file in the corpus.");
     expect(t[5]).toBe(" 3  the driver  ahead     0/2  the driver");
     expect(t[6]).toBe("now: Edit tools/nv/cmd/loop.ts · this session: 2 commits, the last `feat(loop): the row`");
@@ -140,12 +140,12 @@ describe("the goal table", () => {
 
   test("the sentence wraps inside its column, and ASCII replaces the box-drawing lines", () => {
     const t = table(50, false, []);
-    expect(t[0]).toBe("goal demo - 3 of 9 - 25% - session 14");
+    expect(t[0]).toBe("goal demo - 3 of 9 - 50% - session 14");
     expect(t[2]).toMatch(/^-+$/);
     for (const line of t) expect(Array.from(line).length).toBeLessThanOrEqual(50);
-    expect(t[3]).toBe(" 1  floor       done      2/2  Every check of");
-    expect(t[4]).toBe("                               every walked goal");
-    expect(t[5]).toBe("                               still passes.");
+    expect(t[3]).toBe(" 1  the lexer   done      2/2  The lexer reads");
+    expect(t[4]).toBe("                               every token in the");
+    expect(t[5]).toBe("                               corpus.");
     expect(t.at(-1)).toBe("now: Edit tools/nv/cmd/loop.ts - this session: no…");
   });
 });
