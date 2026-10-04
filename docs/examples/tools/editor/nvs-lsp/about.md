@@ -9,7 +9,7 @@ The server reports the errors that `nvs check` reports. It shows the documentati
 under the cursor and finds where that name is declared. It completes methods, constants, enum
 cases, keywords and variables, and it gives the outline of a file. It offers quick fixes for some
 errors. One fix corrects the upper and lower case of a name, and another rewrites an old cast to
-`as`. It can also convert a string to an html literal that prints the same text. The server also
+`as`. It can also convert a string to an html template that prints the same text. The server also
 tells the editor which values are written to a `secret` variable, so the editor can hide them on
 the screen.
 

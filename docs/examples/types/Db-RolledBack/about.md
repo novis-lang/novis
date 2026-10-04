@@ -1,6 +1,7 @@
 The error raised when a program gives up on a transaction it started.
 
-A transaction here is a closure: it returns and the work is kept, it throws and the work is undone.
+A transaction here runs a callable. If the callable returns, the work is kept. If it throws, the
+work is undone.
 `rollBack` is how the code inside says the work should not stand — a basket that no longer adds up, a
 stock count that would go negative, a check only the last step could make. It records the reason,
 throws this error carrying it, and the error leaves the call that owned the transaction whether or

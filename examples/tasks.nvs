@@ -7,7 +7,7 @@
 // is expected to rewrite the block that reaches it.
 
 // § 1: a fixed, heterogeneous set. Each field's type binds from the written
-// `fn` literal's declared return type, so `->rows` is an `array<int>` and
+// anonymous function's declared return type, so `->rows` is an `array<int>` and
 // `->label` a `string` at the use site with no cast — which is the whole
 // reason the member exists rather than returning `array<mixed>`. The other
 // half of § 1, that a field holding a `callable` *variable* is a compile

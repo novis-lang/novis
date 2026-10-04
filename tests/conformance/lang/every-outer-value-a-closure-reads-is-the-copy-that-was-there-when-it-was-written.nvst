@@ -2,7 +2,7 @@
 Every outer value a closure reads is the copy that was there where the closure was written, whichever shape held it, and an object captured that way is still the caller's own — `rule:types/implicit-capture`, `rule:types/anonymous-function`
 --FILE--
 <?nvs
-// covers: lang:expressions/closures-fn
+// covers: lang:expressions/anonymous-functions
 // Agreement over a sweep, not one answer: four shapes of captured storage are
 // each written to after the closure was created, and then counted. A shape
 // that read its value at the call instead of at the literal still prints

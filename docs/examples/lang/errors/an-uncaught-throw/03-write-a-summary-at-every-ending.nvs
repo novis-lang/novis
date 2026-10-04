@@ -6,7 +6,7 @@ final class Counter {
     public static int $written = 0;
 }
 
-// This closure runs at every ending: a normal one, an `exit`, and an error
+// This anonymous function runs at every ending: a normal one, an `exit`, and an error
 // that nothing caught. `status()` is 1 for an ending an error caused.
 Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
     echo "--- rows written: ", Counter::$written, "\n";

@@ -2,8 +2,8 @@ How a class is written in Novis, for somebody who knows PHP classes.
 
 The constructor is named `constructor`, and `__construct` does not compile. Novis has no magic
 methods. `__toString` becomes the `Stringable` interface with a `toString` method. `__get` and
-`__set` become a property hook. `__invoke` becomes a closure. `__call` and `__destruct` have no
-replacement. No name starts with `_`.
+`__set` become a property hook. `__invoke` becomes an anonymous function. `__call` and `__destruct`
+have no replacement. No name starts with `_`.
 
 Every method, property and constant writes `public`, `protected` or `private`. Traits and anonymous
 classes do not exist. Use an interface method with a body, or a named class. An enum has only

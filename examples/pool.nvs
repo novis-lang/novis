@@ -141,7 +141,7 @@ var $race = Core\Task::all({
         try {
             Db::connect('tight', { shared: false });
             return 'opened';
-        // `$busy` and not `$full`: a `catch` binding inside a closure that
+        // `$busy` and not `$full`: a `catch` binding inside an anonymous function that
         // spells a name the enclosing frame also binds is lowered as a capture
         // of that name (`docs/agent/playbook.md`).
         } catch (IOError $busy) {

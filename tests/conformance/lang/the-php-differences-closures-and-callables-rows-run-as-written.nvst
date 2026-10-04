@@ -2,7 +2,7 @@
 Every Novis spelling in the closures-and-callables table of the PHP-differences chapter compiles and runs — `rule:types/callable-values`
 --FILE--
 <?nvs
-// covers: tools:php-differences/closures-and-callables
+// covers: tools:php-differences/anonymous-functions-and-callables
 // The rows that compile to an error are pinned under `tests/conformance/reject/`;
 // this case runs the replacement column of every row.
 class Price {
@@ -28,10 +28,12 @@ callable $plain = fn(int $x) => $x;
 
 // A closure in place of `strlen(...)`.
 callable $len = fn(string $s): uint => Core\Str::length($s);
+// A method reference to the `Core` method in place of `strlen(...)`.
+callable $lenRef = Core\Str::length(...);
 
 // A call through `callable` returns `mixed`, so the result is converted.
 int $r = $add(1) as int;
-echo $r, " ", $block(5), " ", $plain(7), " ", $len("héllo"), "\n";
+echo $r, " ", $block(5), " ", $plain(7), " ", $len("héllo"), " ", $lenRef("héllo"), "\n";
 
 // A closure passed straight to a parameter that gives its type needs none.
 array<int> $a = [100, 200];
@@ -45,6 +47,6 @@ callable $off = $sale->apply(...);
 array<int> $taxed = Core\Arr::map($a, Price::withTax(...));
 echo $tax(1) as int, " ", $off(200) as int, " ", $taxed[1], "\n";
 --EXPECT--
-4 11 7 5
+4 11 7 5 5
 200 400
 21 150 220

@@ -2,7 +2,7 @@
 a relative path that reaches a `Core` door at run time throws a `RuntimeError` naming the path and both ways to make it absolute, before any grant is asked, and `Core\Path::fromCwd` or `Core\Path::join` makes it one the door accepts — `rule:programs/relative-paths-resolve-from-their-file`
 --FILE--
 <?nvs
-// covers: lang:programs/file-paths-a-literal-starts-at-the-folder-of-its-file
+// covers: lang:programs/file-paths-a-relative-path-starts-at-the-folder-of-its-file
 // The literal is assigned to a variable, so it is not written at a path
 // parameter, and the compiler leaves it as it is.
 string $name = 'data/note.txt';

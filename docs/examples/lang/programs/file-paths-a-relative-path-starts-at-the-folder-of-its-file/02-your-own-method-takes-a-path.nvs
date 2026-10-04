@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to make a parameter of your own method a file path.
+
+class Mail {
+    // `#[Core\Path]` says that `$template` is a file path. A path in quotes
+    // passed here starts at the folder of the file that calls the method.
+    public static function render(#[Core\Path] string $template, string $name): string {
+        return Core\Str::replace(Core\IO::read($template), "{name}", $name);
+    }
+}
+
+// This prints "Hello, Ada! Your order is on its way.".
+echo Mail::render("templates/welcome.txt", "Ada");

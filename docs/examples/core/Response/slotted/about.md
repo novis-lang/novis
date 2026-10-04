@@ -9,8 +9,8 @@ A route can do the same with `#[Core\Route(..., slotted: true)]`. Use the call w
 depends on the request, for example on its path. Calling it twice is the same as calling it once.
 A page with no `later` part is sent whole.
 
-**Good to know:** call it before the main script ends. In a `later` closure or in
-`Core\Task::afterResponse` work it throws a `LogicError`. A failed part shows its `error` markup,
+**Good to know:** call it before the main script ends. Inside a callable that `later` or
+`Core\Task::afterResponse` runs, it throws a `LogicError`. A failed part shows its `error` markup,
 and the status stays the same.
 
 **The examples below** show a page with two slow parts, a decision for one path only, and a part

@@ -407,8 +407,8 @@ where it stands with a **`FATAL`**, which is not a `Throwable`: no `catch` claus
 `finally` runs, and the process exits with status 1 after writing `FATAL: …` naming the limit to
 standard error.
 
-The one hook is `Core\Fatal::onLimit`. It registers a closure that runs once when a limit stops
-the program, out of a slice of memory reserved for it; the closure receives an array whose
+The one hook is `Core\Fatal::onLimit`. It registers a callable that runs once when a limit stops
+the program, out of a slice of memory reserved for it; the callable receives an array whose
 `limit` key names the limit that fired (`memory`, `cpu_time`), and may declare no parameter at
 all. A second registration replaces the first. After the handler the program still ends.
 

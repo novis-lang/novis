@@ -28,7 +28,7 @@ class LinesReport implements Renders {
 
 array<string> $rows = ["north", "south"];
 
-// A class name in a string literal is checked when the program compiles.
+// A class name written in quotes is checked when the program compiles.
 // If `CsvReport` did not implement `Renders`, the program would not compile.
 class<Renders> $default = 'CsvReport' as class<Renders>;
 

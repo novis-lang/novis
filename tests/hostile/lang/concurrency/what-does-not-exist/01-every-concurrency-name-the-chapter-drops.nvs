@@ -46,9 +46,9 @@ $steps->throw(new RuntimeError("stop"));
 $steps->getReturn();
 $steps->send($steps->send($steps->send(1)));
 
-// 4. `spawn worker`, which is not a spawn, and an entry that is a literal.
+// 4. `spawn worker`, which is not a spawn, and an entry that is an anonymous function.
 var $byWorker = spawn worker "child.nvs";
-var $byLiteral = spawn script fn(): int => 1;
+var $byFunction = spawn script fn(): int => 1;
 
 // 5. State that outlives the frame that wrote it.
 class Counter

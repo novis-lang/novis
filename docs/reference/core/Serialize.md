@@ -8,7 +8,7 @@ closed format, and `decode` rebuilds it: an object comes back as an instance of 
 program declares, its declared properties assigned directly — no constructor runs, and there is no
 `__serialize`, `__sleep` or `__wakeup` hook. A cycle is preserved as a cycle. `decode` answers
 `mixed`, so narrow it with `as`; it refuses foreign bytes, another format version, and a class whose
-declared properties no longer match with `ParseError`, and `encode` refuses a closure with `LogicError`.
+declared properties no longer match with `ParseError`, and `encode` throws `LogicError` on a callable.
 
 ```nvs
 <?nvs

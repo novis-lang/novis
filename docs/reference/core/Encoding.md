@@ -8,8 +8,8 @@ text through a `Core\Charset` case, and the base64, base64url, base32 and hex pa
 as text and read it back. Every decoder is strict — a character outside the alphabet, padding that
 is missing or non-canonical, a sequence the charset cannot read — and throws rather than answering
 `false` or substituting `?` or U+FFFD; `isValidText` is `decodeText`'s question with a `bool`
-answer. There is no `bytes` literal, so `fromHex` and `encodeText` are how a buffer is written in
-source.
+answer. A `bytes` value cannot be written directly in the code. Use `fromHex` or `encodeText` to
+write a buffer in source.
 
 ```nvs
 <?nvs

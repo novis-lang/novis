@@ -12,5 +12,6 @@ the way everything else does, and it is written with the type it has, so reading
 exactly that type.
 
 **Good to know:** a starting value is worked out once, before the program runs, so it has to be
-something already known: a literal, an empty list, an enum case, or another class's constant.
+something already known: a value written directly in the code, an empty list, an enum case, or
+another class's constant.
 Anything that has to be computed belongs in the constructor.

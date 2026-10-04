@@ -8,7 +8,7 @@
 
 echo 'requests held per core: ', Core\Config::get('deferred.max_concurrent') ?? '(nothing, so the built-in default)', "\n";
 
-// The limit counts requests, not pieces of work. A request with ten closures counts once.
+// The limit counts requests, not pieces of work. A request that adds ten callables counts once.
 // Each of these requests may use up to `limits.hard.memory`, so this prints `512M`.
 echo 'each may hold up to:    ', Core\Config::get('limits.hard.memory') ?? '(nothing)', "\n";
 
@@ -16,8 +16,8 @@ echo 'each may hold up to:    ', Core\Config::get('limits.hard.memory') ?? '(not
 // change it. `Core\Config::set` returns `false`, so this prints `no`.
 echo 'raise it from code:     ', Core\Config::set('deferred.max_concurrent', '4096') ? 'yes' : 'no', "\n";
 
-// `Core\Task::afterResponse` runs this closure after the response is sent. Over the limit, the
-// call throws an error while the request still runs, so it can do the work at once instead.
+// `Core\Task::afterResponse` runs this anonymous function after the response is sent.
+// Over the limit, it throws an error while the request still runs, so the work can run at once.
 Core\Task::afterResponse(fn (): void => {
     echo "and the work itself runs once the answer is on its way\n";
 });

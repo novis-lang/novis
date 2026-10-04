@@ -6,8 +6,8 @@ keywords: route, url, link, reverse routing, named route, #[Core\Route], origin,
 `Core\Router::url` builds a link from a route's `name` as its `#[Core\Route]` declared it: each
 `{capture}` in the path is substituted from `$params`, percent-encoded into its own segment. It is
 only meaningful in a program that declares routes — the attributes chapter owns the declaration, and
-every `#[Core\Route]` needs a sibling `#[Core\Access]`. The name must be a literal, and an unknown
-one is a compile error, as is a `$params` array missing a capture or carrying a key that is neither
+every `#[Core\Route]` needs a sibling `#[Core\Access]`. The name must be a string written directly in
+the code, and an unknown one is a compile error, as is a `$params` array missing a capture or carrying a key that is neither
 a capture nor a handler parameter declared `#[Core\Query]` — a declared one becomes the link's query
 string, `/users/7?page=2`. `urlAbsolute` is `url` with the `[[app]] origin` from `nvs.toml` in
 front, and throws `RuntimeError` when none is configured.

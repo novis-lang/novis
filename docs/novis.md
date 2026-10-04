@@ -39,15 +39,15 @@ Conventions the whole file uses:
 ### Part A — The language
 
 - A.1 [Programs, files and names](#lang-programs) — what a `.nvs` file is, how it runs, how names are spelled and resolved, and how one file reaches another *(<?nvs, <?=, ?>, inline HTML, shebang, nvs run, echo, print, comments, doc comment, ///, docblock, PHPDoc, @see, @example, exit, namespace, use, require, autoload, discover, class name, casing, constructor, visibility, top-level statements, main)*
-- A.2 [Types, declarations and conversions](#lang-types) — every type, how a binding declares one, every literal, the `as` conversion and its table, implicit widening, narrowing, truthiness, and the `tainted`/`secret` qualifiers *(bool, int, uint, float, decimal, string, bytes, array<T>, callable, class<T>, class reference, mixed, object, nullable, ?T, union, literal type, enum, shape, object literal, type alias, void, never, self, static, iterable, intersection, var, declaration, inout, variadic, default parameter, constant, literal, heredoc, nowdoc, interpolation, duration, html, markup, template, template literal, page, escape, xss, as, conversion, cast, (int), (string), (float), (bool), (array), intval, strval, floatval, boolval, settype, gettype, is_int, is_string, is_array, is_null, is_numeric, widening, narrowing, is, truthy, falsy, tainted, secret, resource)*
-- A.3 [Expressions and operators](#lang-expressions) — every operator with its precedence and what it accepts, calls and closures, `match`, arrays and object literals in expression position, and the PHP spellings that do not parse *(operators, precedence, associativity, arithmetic, +, -, *, /, %, **, pow, concatenation, ., .=, ==, !=, ===, !==, <>, <=>, spaceship, comparison, <, <=, >, >=, &&, ||, !, and, or, xor, ??, ??=, ??+=, ??-=, ??.=, defaulting assignment, ?:, elvis, ternary, ?->, nullsafe, match, is, new, clone, throw expression, print, isset, empty, unset, closure, fn, function, use, callable, first-class callable, named arguments, spread, ..., variadic, inout, array literal, subscript, append, [], destructuring, list(), object literal, shape, ++, --, increment, bitwise, &, |, ^, ~, <<, >>, shift, overflow, ArithmeticError, division by zero, @, backticks, eval, extract, compact, settype, variable variables, $$, =&, reference, |>, pipeline, pipe, $_, hole, substitution)*
+- A.2 [Types, declarations and conversions](#lang-types) — every type, how a binding declares one, every value written in the code, the `as` conversion and its table, implicit widening, narrowing, truthiness, and the `tainted`/`secret` qualifiers *(bool, int, uint, float, decimal, string, bytes, array<T>, callable, class<T>, class reference, mixed, object, nullable, ?T, union, single-value type, enum, shape, anonymous object, type alias, void, never, self, static, iterable, intersection, var, declaration, inout, variadic, default parameter, constant, string literal, numeric literal, heredoc, nowdoc, interpolation, duration, html, markup, template, html template, page, escape, xss, as, conversion, cast, (int), (string), (float), (bool), (array), intval, strval, floatval, boolval, settype, gettype, is_int, is_string, is_array, is_null, is_numeric, widening, narrowing, is, truthy, falsy, tainted, secret, resource)*
+- A.3 [Expressions and operators](#lang-expressions) — every operator with its precedence and what it accepts, calls, anonymous functions and method references, `match`, arrays and anonymous objects in expression position, and the PHP spellings that do not parse *(operators, precedence, associativity, arithmetic, +, -, *, /, %, **, pow, concatenation, ., .=, ==, !=, ===, !==, <>, <=>, spaceship, comparison, <, <=, >, >=, &&, ||, !, and, or, xor, ??, ??=, ??+=, ??-=, ??.=, defaulting assignment, ?:, elvis, ternary, ?->, nullsafe, match, is, new, clone, throw expression, print, isset, empty, unset, anonymous function, fn, function, use, callable, method reference, named arguments, spread, ..., variadic, inout, array literal, subscript, append, [], destructuring, list(), anonymous object, shape, ++, --, increment, bitwise, &, |, ^, ~, <<, >>, shift, overflow, ArithmeticError, division by zero, @, backticks, eval, extract, compact, settype, variable variables, $$, =&, reference, |>, pipeline, pipe, $_, hole, substitution)*
 - A.4 [Statements and control flow](#lang-statements) — expression statements, blocks and local declarations, `if`, the four loops, `switch`, `break`/`continue` with levels, `return`, `try`/`catch`/`finally`, `throw`, `echo`, `unset`, and the PHP statement forms that do not parse *(statement, block, scope, definite assignment, if, elseif, else if, else, endif, alternative syntax, while, endwhile, do while, for, foreach, endforeach, as, key, value, inout, by reference, Iterator, Iterable, switch, case, default, fallthrough, break, continue, break 2, continue 2, levels, return, try, catch, finally, multi-catch, throw, echo, print, unset, exit, yield, goto, label, declare, strict_types, global, static variable)*
 - A.5 [Classes, interfaces and objects](#lang-classes) — declaring a class, its properties, methods and constants; inheritance; interfaces, default methods and `by` delegation; hooks, observers, `Stringable`, `Comparable`; what an object is and what `clone` copies *(class, constructor, __construct, new, public, protected, private, static, self, parent, $this, abstract, final, extends, implements, interface, trait, delegation, by, readonly, lateinit, property hooks, get, set, PropertyObserver, Stringable, __toString, Comparable, compareTo, clone, __clone, is, object, ?->, nullsafe, __get, __set, __call, __callStatic, __invoke, __destruct, anonymous class, const, ::class, class<T>, class reference, new $cls, late static binding)*
 - A.6 [Enums](#lang-enums) — `enum` declares a closed set of named integers — how cases get their values, how a case converts to and from its integer, and what stands in for PHP's enum methods *(enum, case, backed enum, BackedEnum, UnitEnum, int enum, uint enum, string enum, ->name, ->value, cases(), from(), tryFrom(), as int, as E, enum match, enum switch, enum case type, closed set, Core\Order)*
 - A.7 [Iteration and generators](#lang-iteration) — what `foreach` accepts — arrays, `Iterable<T>`, `Iterator<T>` — how a class becomes iterable, and how a method with `yield` is a lazy `Iterator<T>` *(foreach, Iterable, Iterator, iterate, advance, current, yield, generator, Generator, yield from, IteratorAggregate, Traversable, ArrayAccess, Countable, iterator_to_array, Core\Arr::from, lazy, finally, ObjectMap, ObjectSet, Heap, Channel)*
 - A.8 [Errors, exceptions and limits](#lang-errors) — the throwable tree, `throw`/`try`/`catch`/`finally`, what an uncaught throw does, and the fatal limits no `catch` sees *(Throwable, Exception, Error, LogicError, RuntimeError, IOError, ParseError, TimeoutError, RecursionError, ArithmeticError, throw, try, catch, finally, rethrow, previous, backtrace, location, message, getMessage, getPrevious, getTrace, getCode, set_error_handler, set_exception_handler, trigger_error, error_reporting, fatal, FATAL, memory limit, onLimit, capability, fs.read, script.spawn, Core\Fatal, Core\Debug, var_dump, print_r, assert, Core\Test\Failure)*
 - A.9 [Tasks, channels and isolates](#lang-concurrency) — structured concurrency with `Core\Task`, bounded channels, and `spawn script` isolates that share nothing *(Core\Task, all, map, limit, deadline, TimeoutError, sleep, usleep, Core\Task\Channel, send, close, spawn script, await, Core\Script\Handle, isolate, ScriptResult, script.spawn, args, output, capture, inherit, async, await, Fiber, pcntl, pcntl_fork, pthreads, parallel, curl_multi, threads, workers, shared state)*
-- A.10 [Attributes, routes, commands and derived codecs](#lang-attributes) — `#[...]` metadata as shape literals, how it is read back, and the names the compiler acts on — JSON codecs, the route table, the command table, and program enumeration *(attribute, #[...], Attribute, Reflection, ReflectionAttribute, getAttributes, Core\Attributes, get, all, #[Route], Symfony route, Laravel route, Route, Access, Query, Api, OpenAPI, Router::url, urlAbsolute, Command, Option, Symfony Console, Json\Derive, Json\Field, JsonSerializable, decodeAs, Program::implementing, autoload)*
+- A.10 [Attributes, routes, commands and derived codecs](#lang-attributes) — `#[...]` metadata as anonymous objects, how it is read back, and the names the compiler acts on — JSON codecs, the route table, the command table, and program enumeration *(attribute, #[...], Attribute, Reflection, ReflectionAttribute, getAttributes, Core\Attributes, get, all, #[Route], Symfony route, Laravel route, Route, Access, Query, Api, OpenAPI, Router::url, urlAbsolute, Command, Option, Symfony Console, Json\Derive, Json\Field, JsonSerializable, decodeAs, Program::implementing, autoload)*
 - A.11 [Testing](#lang-testing) — `#[Test]` methods, `nvs test`, a directory of test files as one program, fixtures, data rows, the assertion roster, fixed clocks and seeds, and the report formats *(test, #[Test], nvs test, test directory, test suite, bootstrap, PHPUnit, TestCase, assertEquals, assertSame, assertTrue, assertNull, assertCount, expectException, assertThrows, dataProvider, TestWith, Fixture, setUp, skip, markTestSkipped, retries, flaky, Core\Test, Core\Test\Failure, --format json, junit, fixed clock, seed, .nvst, how to test, unit test, which test, expected output, phpt)*
 
 ### Part B — The `Core` library
@@ -56,7 +56,7 @@ Conventions the whole file uses:
 |---|---|
 | [`Core\Str`](#core-core-str) | text as graphemes — search, cut, split and join, case, padding and `printf`-style formatting |
 | [`Core\Arr`](#core-core-arr) | every array function as a pure member — filter, map, sort, search, reshape, combine and aggregate, always answering a new array |
-| [`Core\Attributes`](#core-core-attributes) | reads the shape-literal attributes attached to a class, a method, a property or a parameter — structurally, by the shape they satisfy, at compile time |
+| [`Core\Attributes`](#core-core-attributes) | reads the attributes attached to a class, a method, a property or a parameter — each one an anonymous object, read by the shape it satisfies, at compile time |
 | [`Core\Math`](#core-core-math) | numeric functions over `int`, `float` and `decimal` — magnitude, rounding, integer division, roots, logarithms, trigonometry, base conversion and number formatting, plus the constants |
 | [`Core\Decimal`](#core-core-decimal) | what a `decimal` reaches for where the operators cannot say it — two divisions that name their own rounding, the split whose parts add back exactly, the exact power, and the four cuts to a scale |
 | [`Core\BigInt`](#core-core-bigint) |  |
@@ -80,7 +80,7 @@ Conventions the whole file uses:
 | [`Core\Time\DateTime`](#core-core-time-datetime) | a civil date and time in a zone — calendar arithmetic and CLDR formatting |
 | [`Core\Time\Date`](#core-core-time-date) | a calendar date with no time and no zone |
 | [`Core\Time\TimeOfDay`](#core-core-time-timeofday) | a wall-clock reading with no date and no zone, wrapping within the day |
-| [`Core\Time\Duration`](#core-core-time-duration) | an exact, signed span of nanoseconds — the duration literal `1h30m` as a value |
+| [`Core\Time\Duration`](#core-core-time-duration) | an exact, signed span of nanoseconds — a duration written like `1h30m` is a value of this class |
 | [`Core\Time\Zone`](#core-core-time-zone) | a time zone — an IANA region, a fixed offset, or `UTC` — named explicitly at every conversion |
 | [`Core\ObjectMap<K, V>`](#core-core-objectmap) | a map keyed by object identity — the typed replacement for `SplObjectStorage` used as a map and for every `spl_object_id` side table |
 | [`Core\ObjectSet<T>`](#core-core-objectset) | a set of objects held by identity — the typed replacement for `SplObjectStorage` used as a set |
@@ -97,12 +97,12 @@ Conventions the whole file uses:
 | [`Core\Csv\Rows`](#core-core-csv-rows) |  |
 | [`Core\Serialize`](#core-core-serialize) | a value graph — scalars, arrays, objects, cycles included — copied into Novis's own byte format and rebuilt from it |
 | [`Core\Validate`](#core-core-validate) | the format predicates — is this text an email address, a hostname, an IP or MAC address, ASCII, printable — answering `bool` and laundering nothing |
-| [`Core\Out`](#core-core-out) | output buffering scoped to a closure — what it echoes is captured as the sink's carrier instead of reaching the output |
+| [`Core\Out`](#core-core-out) | output buffering scoped to a callable — what it echoes is captured as the sink's carrier instead of reaching the output |
 | [`Core\Debug`](#core-core-debug) | one readable rendering of any value — `dump` writes it to stderr, `render` answers it as text |
 | [`Core\Test`](#core-core-test) | the typed assertion roster a `#[Test]` method calls — what PHPUnit's `assert*` family becomes when testing is part of the language |
 | [`Core\Test\Response`](#core-core-test-response) | what `Core\Test::request` answers — the status, the headers, the cookies and the body one in-process request produced |
 | [`Core\Test\SentRequest`](#core-core-test-sentrequest) |  |
-| [`Core\Task`](#core-core-task) | structured concurrency — run a fixed set or a whole array of closures as child tasks and get every result back before the call returns |
+| [`Core\Task`](#core-core-task) | structured concurrency — run a fixed set or a whole array of callables as child tasks and get every result back before the call returns |
 | [`Core\Task\Channel<T>`](#core-core-task-channel) | a bounded queue between two tasks whose `send` waits at the bound — backpressure instead of a growing buffer |
 | [`Core\Script\Handle`](#core-core-script-handle) | what `spawn script` answers — a handle on a running child script that `await` collects exactly once |
 | [`Core\Script`](#core-core-script) |  |
@@ -154,7 +154,7 @@ Conventions the whole file uses:
 | [`Core\Jwe`](#core-core-jwe) |  |
 | [`Core\Jwe\Key`](#core-core-jwe-key) |  |
 | [`Core\Signature`](#core-core-signature) |  |
-| [`Core\Html`](#core-core-html) | HTML as a page writes it — the ``html`…` `` literal, `Core\Html\Markup`, escaping, sanitizing and parsing |
+| [`Core\Html`](#core-core-html) | HTML as a page writes it — the ``html`…` `` template, `Core\Html\Markup`, escaping, sanitizing and parsing |
 | [`Core\Html\Markup`](#core-core-html-markup) |  |
 | [`Core\Xml`](#core-core-xml) |  |
 | [`Core\Xml\Node`](#core-core-xml-node) |  |
@@ -264,7 +264,7 @@ in the chapter that owns it — types, statements, expressions — and named in 
 // A local declares its type once, and no binding ever changes type.
 array<string> $amounts = ["3", "11", "7"];
 
-// A member's optional knobs are one trailing object literal, `{key: value}`. They are not named
+// A member's optional knobs are one trailing anonymous object, `{key: value}`. They are not named
 // arguments and there are no flag parameters: this signature spells the bag `{order?: Core\Order}`.
 array<string> $ordered = Core\Arr::sort($amounts, {order: Core\Order::Asc});
 
@@ -321,10 +321,10 @@ types chapter.
 
 Inside an HTTP request the sink escapes every `string` it is given and writes a `Core\Html\Markup`
 raw, so `<?= $title ?>` cannot emit a tag. A page or a fragment of one built as a value is an
-``html`…` `` literal — trusted text around holes that are escaped — and a method that returns one
-is how a page is composed from parts. The same `<?= expr ?>` tag is a hole inside a literal, so what
-outputs in a page outputs in a literal. The literal is the types chapter's `Markup: the html
-template literal`.
+``html`…` `` template — trusted text around holes that are escaped — and a method that returns one
+is how a page is composed from parts. The same `<?= expr ?>` tag is a hole inside an html template,
+so what outputs in a page outputs in a template. The types chapter's `Markup: the html template`
+describes it.
 
 Code mode and HTML mode alternate freely, and a brace block may span them — the ordinary way to
 render a loop or a condition around raw HTML:
@@ -490,8 +490,8 @@ echo $config["host"], ":", $config["port"], "\n";
 example.test:8080
 ```
 
-- The path is relative to the requiring file's directory. A literal path is resolved while
-  compiling, so a missing file is a compile-time error; a computed path is resolved at run time and
+- The path is relative to the requiring file's directory. A path written directly in the code is
+  resolved while compiling, so a missing file is a compile-time error; a computed path is resolved at run time and
   throws if it cannot be read.
 - The value of a `require` expression is `mixed` — convert it with `as` to the type the file returns.
 - **Declarations cross and variables do not.** Every class, interface, enum and `type` alias either
@@ -532,7 +532,7 @@ autoload 'App\{..}' from '../src';                 // `{..}` is the name of the 
 - The same map answers `Core\Program::implementing<I>()` — every non-abstract class implementing
   an interface, found through the autoload roots even when nothing names it.
 
-### File paths: a literal starts at the folder of its file
+### File paths: a relative path starts at the folder of its file
 
 A relative string literal passed to a file path parameter is joined to the folder of the file that
 contains it, while compiling. The program reads the same file from a terminal, under `nvs serve` and
@@ -562,7 +562,7 @@ Core\IO::read('data/' . $name);            // throws RuntimeError: the path is r
 - `#[Core\Path]` on a `string` or `?string` parameter of your own method makes it one. A default
   value of that parameter starts at the folder of the file that declares it. On anything else the
   attribute does not compile (`E0836`).
-- Only a literal written as the argument itself is joined. A variable, a class constant and a
+- Only a string written directly in the code as the argument itself is joined. A variable, a class constant and a
   concatenation are values the program builds while it runs.
 - A relative path built while the program runs throws `RuntimeError` when it reaches a file
   operation. Build it with `Core\Path::join` from a full path, or with `Core\Path::fromCwd` for a
@@ -593,7 +593,7 @@ stopping
 <a id="lang-types"></a>
 ## A.2 Types, declarations and conversions
 
-Keywords: bool, int, uint, float, decimal, string, bytes, array<T>, callable, class<T>, class reference, mixed, object, nullable, ?T, union, literal type, enum, shape, object literal, type alias, void, never, self, static, iterable, intersection, var, declaration, inout, variadic, default parameter, constant, literal, heredoc, nowdoc, interpolation, duration, html, markup, template, template literal, page, escape, xss, as, conversion, cast, (int), (string), (float), (bool), (array), intval, strval, floatval, boolval, settype, gettype, is_int, is_string, is_array, is_null, is_numeric, widening, narrowing, is, truthy, falsy, tainted, secret, resource
+Keywords: bool, int, uint, float, decimal, string, bytes, array<T>, callable, class<T>, class reference, mixed, object, nullable, ?T, union, single-value type, enum, shape, anonymous object, type alias, void, never, self, static, iterable, intersection, var, declaration, inout, variadic, default parameter, constant, string literal, numeric literal, heredoc, nowdoc, interpolation, duration, html, markup, template, html template, page, escape, xss, as, conversion, cast, (int), (string), (float), (bool), (array), intval, strval, floatval, boolval, settype, gettype, is_int, is_string, is_array, is_null, is_numeric, widening, narrowing, is, truthy, falsy, tainted, secret, resource
 
 ### Every binding has a type
 
@@ -659,14 +659,14 @@ cannot infer an array whose elements have different types
 
 | Type | Holds | Notes |
 |---|---|---|
-| `bool` | `true`, `false` | `true` and `false` are also literal types of their own |
+| `bool` | `true`, `false` | `true` and `false` are also single-value types of their own |
 | `int` | 64-bit signed integer | overflow throws `ArithmeticError`, never wraps |
 | `uint` | 64-bit unsigned integer | `0` to `18446744073709551615`; underflow throws |
 | `float` | IEEE 754 double | prints without a trailing `.0`; `7 / 2` is `3.5`, `6 / 3` is `2` |
 | `decimal` | exact decimal, 28 places | keeps its scale: `1.10 * 3` is `3.30`; division rounds at the 28th place |
 
 - A numeric literal is untyped until it is placed: `uint $u = 6;` and `float $f = 3;` and
-  `decimal $d = 1.10;` each read the literal at the declared type. Beside a `uint` operand a bare
+  `decimal $d = 1.10;` each read the number at the declared type. Beside a `uint` operand a bare
   digit run is a `uint` too, so `$u + 1` compiles. A leading `-` is an operator, so `-1` is never a
   `uint`.
 - `int` and `uint` never mix: `$i + $u` is a compile error, and neither assigns to the other —
@@ -711,7 +711,7 @@ echo $d + $f, "\n";
 A `string` is always valid UTF-8 and is measured in graphemes — user-perceived characters — so a
 combining sequence counts once. A `string` has no subscript: `$s[0]` is a compile error, and a
 character or a range is `Core\Str::at` / `Core\Str::slice`. Binary data is the separate `bytes`
-type, measured in bytes. There is no `bytes` literal: a UTF-8 constant is `"…" as bytes`, and
+type, measured in bytes. A `bytes` value cannot be written directly in the code. A UTF-8 constant is `"…" as bytes`, and
 arbitrary octets come from `Core\Encoding::fromHex` or `Core\Encoding::fromBase64`.
 
 ```nvs
@@ -768,15 +768,15 @@ echo $grid[0][1], " ", Core\Json::encode($a), "\n";
 
 - An `int` subscript is the same key as its decimal spelling: `$a[1]` and `$a["1"]` name one
   element, and a `foreach` key binding is always `string`.
-- Every element must match `T` where the literal is written: `array<int> $a = [1, "two"];` is a
+- Every element must match `T` where the array literal is written: `array<int> $a = [1, "two"];` is a
   compile error. `array<mixed>` holds anything.
 - An `array<T>` has no string form (`echo $a` is refused — render it with `Core\Json::encode`), and
   `$a + $b` is a compile error (`Core\Arr::underlay`).
 
 ### `callable`, classes, `object`, shapes
 
-- `callable` is satisfied by a closure and nothing else. A closure is written with `fn`; there is no
-  callable string. A call through a `callable` variable answers `mixed`, so its result is converted:
+- A `callable` is a value you can call with `()`. An anonymous function, `fn (…) => …`, makes one,
+  and so does a method reference such as `Core\Str::length(...)`. There is no callable string. A call through a `callable` variable answers `mixed`, so its result is converted:
   `$f(4) as int`.
 - A class, interface or enum name is a type wherever a type is written. `object` is the top of every
   class type: any instance assigns to it, a property is read through it by name, and `is` or
@@ -786,9 +786,9 @@ echo $grid[0][1], " ", Core\Json::encode($a), "\n";
   one and nothing else — `new $cls(...)`, `$cls::f(...)` and `$x is $cls`, each refusing a
   bare `string` — and `as` is its only source (below). `Foo::class` is a `string` and stays one. Two
   class references are equal when they are the same class; nothing else is ever equal to one.
-- A **shape** `{x: int, y: string}` is a structural object type, and an **object literal**
-  `{x: 1, y: "two"}` builds an instance with exactly those fields. A literal with more fields than a
-  shape names still satisfies it. A shape type cannot open a statement (`{` there is a block), so
+- A **shape** `{x: int, y: string}` is a structural object type, and an **anonymous object**
+  `{x: 1, y: "two"}` is an instance with exactly those fields. An anonymous object with more fields
+  than a shape names still satisfies it. A shape type cannot open a statement (`{` there is a block), so
   name it with a `type` alias and declare through the alias.
 - `$v as Point` checks at run time that `$v` is an object with every field `Point` names, at the
   type `Point` gives it. If the check passes, the result is a `Point`. If it fails, `as` throws a
@@ -859,13 +859,14 @@ echo Core\Str::upper($text), "\n";
 expected `string`, found `mixed`
 ```
 
-### Nullable, union, literal and enum-case types
+### Nullable, union, single-value and enum-case types
 
 - `?T` holds `T` or `null`. `null` on its own is a type too, and `int $i = null;` is refused.
 - `A|B` holds either. `int|string $id` takes an `int` or a `string`; `object|int` is legal.
-- A **literal type** is one written value: `"read"|"write"`, `1|2|3`, `true`, `false`. A binding
-  of a literal union accepts only those values, checked at compile time for a literal and at run
-  time for an `as`.
+- A **single-value type** is one value written as a type: `"read"`, `3`, `true`, `false`. A union
+  of them, such as `"read"|"write"` or `1|2|3`, is a set of allowed values. A binding of that type
+  accepts only those values. A value written directly in the code is checked at compile time, and
+  an `as` is checked at run time.
 - An **enum case** is a type of its own: `Mode::Read|Mode::Write $m`. Enums are named integers —
   `enum Mode { Read, Write }` counts from `0`, `enum Mode: int { Read = 1 }` declares the values —
   and `$m as int` reads the number, `1 as Mode` converts back (throwing when no case matches).
@@ -968,8 +969,8 @@ echo Helper::nothing();
 ### `type` aliases
 
 `type Name = T;` gives a type expression a `PascalCase` name, written at file scope beside `namespace`
-and `use` or as a member of a class, interface or enum body — never inside a method body, a block or a
-closure, where it is refused by name. A body's alias takes no visibility modifier, is reached as
+and `use` or as a member of a class, interface or enum body — never inside a method body, a block or an
+anonymous function, where it is refused by name. A body's alias takes no visibility modifier, is reached as
 `Owner::Name` from anywhere and as a bare `Name` inside its owner, and is not inherited. The alias is
 a compile-time name only. It may not name a single bare class, interface or enum (`type Bar = Foo;` is
 refused: a class has its own name); `?Foo`, a union, a shape and an `array<…>` are all allowed.
@@ -1001,17 +1002,17 @@ type Bar = Foo;
 may not name a single class
 ```
 
-### Literals
+### Values written in the code
 
 **Numbers.** `1_000`, `0x1F`, `0b101`, `0o17`; `1.5`, `.5`, `5.`, `1e3`, `1E-2`, `1_000.5`. A
 leading-zero form `017` is decimal seventeen, not octal. `true`, `false`, `null`.
 
-**Strings.** A single-quoted literal interpolates nothing and has exactly two escapes, `\\` and
-`\'` — every other backslash stands for itself. A double-quoted literal interpolates `$x`, `$a[k]`,
+**Strings.** A single-quoted string interpolates nothing and has exactly two escapes, `\\` and
+`\'` — every other backslash stands for itself. A double-quoted string interpolates `$x`, `$a[k]`,
 `$a[0]` — the bare form reaches one level, no further — and in braces any expression whose first
 token is a variable: `{$o->p}`, `{$a["k"]["j"]}`, `{$o->m()}`, `{$a + $b}` (PHP stops at
 variable-rooted chains here; Novis takes the whole expression grammar). A `{` not followed by `$`
-is literal text, and PHP's deprecated `${name}` form does not exist. Its escapes are
+is plain text, and PHP's deprecated `${name}` form does not exist. Its escapes are
 `\\ \" \$ \n \t \r \v \f \e`, an octal `\0` through `\777`, `\xHH` and
 `\u{HHHH}`; an unrecognized one such as `\q` keeps its backslash. An interpolated value takes the
 same rule as `echo`: scalars and `null` render, `bytes`, arrays, enum cases and objects without
@@ -1053,14 +1054,14 @@ echo <<<TXT
     TXT;
 echo "|\n";
 echo <<<'TXT'
-  literal $who
+  as written: $who
   TXT;
 echo "|\n";
 ```
 ```output
 Name: Ada
   indented|
-literal $who|
+as written: $who|
 ```
 
 **Durations.** A number followed by a unit — `ns`, `us`, `ms`, `s`, `m`, `h`, `d`, `w` — is a
@@ -1077,17 +1078,17 @@ echo $wait, " ", $wait->toSeconds(), " ", 250us->toNanoseconds(), " ", 1d->toSec
 ```
 
 **Arrays and objects.** `[1, 2]` is positional (keys `"0"`, `"1"`), `["k" => $v]` is keyed, and
-the two mix. `{x: 1, y: "two"}` is an object literal; as a statement or an arrow body it is written
+the two mix. `{x: 1, y: "two"}` is an anonymous object; as a statement or an arrow body it is written
 `({…})`. Both are covered above.
 
-#### Markup: the `html` template literal
+#### Markup: the `html` template
 
 ``html`…` `` is a `Core\Html\Markup`. The text between the backticks is written to a page exactly
 as it is, and every hole in it is escaped. It is the way to build a page, or one fragment of a page,
 as a value. `Core\Html\Markup` is the only type an HTTP request's `echo`, `<?= ?>` and
 `Core\Response::html` write raw; a `string` written there is escaped.
 
-- A literal has two kinds of hole. `$name` and `{$…}` are a double-quoted string's: the expression
+- An html template has two kinds of hole. `$name` and `{$…}` are a double-quoted string's: the expression
   in braces must **begin with a variable** — `{$user->name()}`, `{$row["title"]}`, `{$a + $b}` —
   and a `{` not followed by `$` is text, so a `<style>` or `<script>` block needs no escape.
   `{Page::TITLE}` is therefore printed as written, and the compiler warns (`W1012`), because a
@@ -1098,11 +1099,11 @@ as a value. `Core\Html\Markup` is the only type an HTTP request's `echo`, `<?= ?
 - `+` joins two `Markup` values; `Core\Html::join` joins a list of them. `.` on a `Markup` is a
   compile error, because the text it would make is escaped again at the sink.
 - Every byte between the backticks is kept, indentation and newlines included; nothing is stripped
-  the way a heredoc's closing marker strips it. A literal backtick is `` \` ``, and `\{` is a
-  literal `{` that opens no hole; a `$name` after it still interpolates, so `\{$n}` prints `{`,
+  the way a heredoc's closing marker strips it. A backtick inside the template is written
+  `` \` ``, and `\{` is a plain `{` that opens no hole; a `$name` after it still interpolates, so `\{$n}` prints `{`,
   the value and `}`.
 - The delimiter is the backtick, always: `html"…"` is a compile error naming the backtick form.
-  `"<p>…</p>" as Core\Html\Markup` converts a string written as a literal and nothing else;
+  `"<p>…</p>" as Core\Html\Markup` converts a string written directly in the code and nothing else;
   `Core\Html::escape` and `Core\Html::sanitize` are the two ways a computed string becomes a
   `Markup`.
 
@@ -1148,13 +1149,13 @@ written with backticks
 
 ##### `<?= expr ?>`: a hole for any expression
 
-`<?= expr ?>` is a page's output tag, and inside a literal it is a hole that takes **any**
-expression: a class constant, a static call, a condition, a nested literal. It is the hole to
+`<?= expr ?>` is a page's output tag, and inside an html template it is a hole that takes **any**
+expression: a class constant, a static call, a condition, a nested template. It is the hole to
 write when the value has no variable in front of it, which is every `Class::` value, since Novis
 has no free functions and no global constants. Spaces around the expression are allowed, a `}`
-inside it is an ordinary brace, and the first `?>` outside a nested string or literal closes it. The
-value is escaped by the same rule as a brace hole. A `<?nvs` block inside a literal is a compile
-error: a literal is one expression, and a loop around markup is written in code mode outside it.
+inside it is an ordinary brace, and the first `?>` outside a nested string or template closes it. The
+value is escaped by the same rule as a brace hole. A `<?nvs` block inside a template is a compile
+error. A template is one expression, and a loop around markup is written in code mode outside it.
 
 ```nvs
 <?nvs
@@ -1178,13 +1179,13 @@ being written:
 | `int`, `uint` | `float` (exact; a value above 2^53 throws `ArithmeticError`) |
 | `T` | `?T`, any union containing `T`, `mixed` |
 | a class | `object`, any parent class or interface it implements |
-| a literal type | its base (`"read"` into `string`, `true` into `bool`) |
+| a single-value type | its base (`"read"` into `string`, `true` into `bool`) |
 | an untyped numeric literal | `int`, `uint`, `float` or `decimal`, from the target |
 
 Nothing else is implicit: `int` into `uint` (either way), a number into `string`, a `string` into
 a number, a `mixed` into anything, `?T` into `T` — each needs `as` or a narrowing test.
 
-The `int` row also converts a field of an object literal written where a shape is declared:
+The `int` row also converts a field of an anonymous object written where a shape is declared:
 `{x: 2}` at `{x: float}` stores `2.0`. It does not convert the field of a shape value or an object
 that already exists, so a `{x: int}` value is not a `{x: float}` value. Build a new value instead:
 `{x: $old->x}`.
@@ -1221,7 +1222,7 @@ expected `uint`, found `int`
 but fails at run time throws: `ArithmeticError` when a number does not fit (a fractional `float`
 into `int`, a negative into `uint`, an `int` past 2^53 into `float`, a non-integral `decimal` into
 `int`), `RuntimeError` for everything else (a string that is not a number, malformed `bytes`, a
-`mixed` of the wrong tag, a value outside a literal or enum-case set, an object of another class, an
+`mixed` of the wrong tag, a value outside a set of allowed values or enum cases, an object of another class, an
 object without the fields a shape names, a name that denotes no class this program declares to be a
 `T` when the target is `class<T>`).
 
@@ -1306,7 +1307,7 @@ woof a Dog
 cannot convert to `class<Animal>`: the value does not denote a class that is a `Animal`
 ```
 
-The usual pairing is a literal default checked while compiling and a configured name checked while
+The usual pairing is a default written directly in the code, checked while compiling, and a configured name checked while
 running, with `as ?class<T>` and `??` falling back from one to the other.
 
 ```nvs
@@ -1381,7 +1382,7 @@ The conversion table. A pair not listed is a compile error naming both types.
 | `mixed`, `object`, a union, a class | a shape | the value must have every field the shape names, at the named types, or it throws; a value whose type already has them converts for free |
 | `string` | `class<T>` | the name must denote `T` or a class that is one, or it throws; a written `Foo::class` operand is decided at compile time and never throws |
 | `class<U>` | `class<T>` | `U` must be a `T`, tested against the class the reference holds |
-| any | a literal or enum-case union | a `mixed` must equal a member; a typed operand converts first, then is tested |
+| any | a set of allowed values or an enum-case union | a `mixed` must equal a member; a typed operand converts first, then is tested |
 | any | `mixed` | free |
 
 ### Narrowing
@@ -1391,7 +1392,8 @@ Inside the branch a test proves, a binding is read at the narrower type. Four sp
 - `$x == null` / `$x != null` on a `?T`, on whichever edge proves the value present (`!` inverts).
 - `$x is C` on a `?C`, a union, `object` or `mixed`, on the true edge only: after
   `if ($pet is Cat) { return …; }` the binding is still `Dog|Cat`, not `Dog`.
-- `$x == literal` (or an enum case) on a literal or enum-case union, on the edge that proves it.
+- `$x == "read"` or `$x == Mode::Read` on a set of allowed values or an enum-case union, on the
+  edge that proves it. The right side is a value written directly in the code, or an enum case.
 - `match (true)` and `switch (true)`: each arm's label is one of the tests above and narrows its
   own body. `default` narrows nothing.
 
@@ -1526,7 +1528,7 @@ truthy
 
 ### Parameters
 
-A parameter is `T $name`, with an optional default `= literal`, and the last may be variadic —
+A parameter is `T $name`, with an optional default `= value` written directly in the code, and the last may be variadic —
 `T ...$rest`, an `array<T>` inside the body. Arguments may be passed by name:
 `Sum::bump(inout n: $count)`.
 
@@ -1536,8 +1538,8 @@ A parameter is `T $name`, with an optional default `= literal`, and the last may
 `$name` is what the caller holds afterwards. The call writes `inout` again in front of the
 argument — `Sum::bump(inout $count)` — so a reader sees at the call site which variable may
 change. Only a local can be passed `inout`: not an array element and not a property. `&` is not a
-by-reference marker anywhere. A `foreach` value binding may be `inout` too, and a closure has no
-`inout` parameter.
+by-reference marker anywhere. A `foreach` value binding may be `inout` too, and an anonymous function
+has no `inout` parameter.
 
 ```nvs
 <?nvs
@@ -1574,7 +1576,7 @@ echo Core\Json::encode($xs), "\n";
 
 A property is `visibility [static] T $name [= default];` — the default is a scalar literal, `[]`,
 an enum case or a class constant, and a union takes whichever of those its own members admit:
-`?string $label = null`, `?string $label = "plain"`, `"read"|"write" $mode = "read"`. A class constant is `visibility const T NAME = literal;`, and the type is written there as it is
+`?string $label = null`, `?string $label = "plain"`, `"read"|"write" $mode = "read"`. A class constant is `visibility const T NAME = value;`, and the type is written there as it is
 everywhere else (`E0246`). Constants are read at their declared type — `const uint WIDTH = 5` is
 a `uint`. The classes chapter owns everything else about members.
 
@@ -1734,7 +1736,7 @@ cannot be passed to `Core\Json::encode`
 | `settype($x, "string")` | refused: a binding's type never changes — convert into a new binding |
 | `gettype`, `is_int`, `is_string`, `is_array`, `is_null`, `is_numeric` | no free function exists; test a `mixed` with `is` for a class, `($m as ?int) != null` for a scalar, `== null` for null |
 | `resource` | no such type; a handle is a `Core` object |
-| a callable string `"Foo::bar"`, `[$obj, "m"]` | refused; a `callable` is a closure written with `fn` |
+| a callable string `"Foo::bar"`, `[$obj, "m"]` | refused; a `callable` comes from an anonymous function `fn (…) => …` or a method reference such as `Foo::bar(...)` |
 | `$s[0]` on a string | `Core\Str::at`, `Core\Str::slice` |
 | `"3" * 2`, `"3" == 3`, `"a" < "b"` | refused; convert with `as`, order with `Core\Str::compare` |
 | `list($a, $b) = …` | `[int $a, int $b] = $pair;` — every leaf typed |
@@ -1761,7 +1763,7 @@ no free function has this name
 <a id="lang-expressions"></a>
 ## A.3 Expressions and operators
 
-Keywords: operators, precedence, associativity, arithmetic, +, -, *, /, %, **, pow, concatenation, ., .=, ==, !=, ===, !==, <>, <=>, spaceship, comparison, <, <=, >, >=, &&, ||, !, and, or, xor, ??, ??=, ??+=, ??-=, ??.=, defaulting assignment, ?:, elvis, ternary, ?->, nullsafe, match, is, new, clone, throw expression, print, isset, empty, unset, closure, fn, function, use, callable, first-class callable, named arguments, spread, ..., variadic, inout, array literal, subscript, append, [], destructuring, list(), object literal, shape, ++, --, increment, bitwise, &, |, ^, ~, <<, >>, shift, overflow, ArithmeticError, division by zero, @, backticks, eval, extract, compact, settype, variable variables, $$, =&, reference, |>, pipeline, pipe, $_, hole, substitution
+Keywords: operators, precedence, associativity, arithmetic, +, -, *, /, %, **, pow, concatenation, ., .=, ==, !=, ===, !==, <>, <=>, spaceship, comparison, <, <=, >, >=, &&, ||, !, and, or, xor, ??, ??=, ??+=, ??-=, ??.=, defaulting assignment, ?:, elvis, ternary, ?->, nullsafe, match, is, new, clone, throw expression, print, isset, empty, unset, anonymous function, fn, function, use, callable, method reference, named arguments, spread, ..., variadic, inout, array literal, subscript, append, [], destructuring, list(), anonymous object, shape, ++, --, increment, bitwise, &, |, ^, ~, <<, >>, shift, overflow, ArithmeticError, division by zero, @, backticks, eval, extract, compact, settype, variable variables, $$, =&, reference, |>, pipeline, pipe, $_, hole, substitution
 
 ### Precedence and associativity
 
@@ -2040,7 +2042,7 @@ L|L1
 
 ### String operators
 
-`.` concatenates and `.=` appends; either side may be a `string`, `int`, `uint`, `float`, `decimal`, `bool` (`true` is `1`, `false` is empty), `null` (empty) or an object implementing `Stringable`. `bytes`, an array, an enum case and a `void` call have no string form and are refused — `$b as string`, `Core\Json::encode($a)`. Double-quoted strings interpolate `$name` and `{$expr}`; the literal forms are the types chapter's. `+` on two `Core\Html\Markup` values joins them into one `Markup`, and `.` on a `Markup` is refused; the ``html`…` `` literal that makes one is the types chapter's `Markup: the html template literal`.
+`.` concatenates and `.=` appends; either side may be a `string`, `int`, `uint`, `float`, `decimal`, `bool` (`true` is `1`, `false` is empty), `null` (empty) or an object implementing `Stringable`. `bytes`, an array, an enum case and a `void` call have no string form and are refused — `$b as string`, `Core\Json::encode($a)`. Double-quoted strings interpolate `$name` and `{$expr}`; the other ways to write a string are in the types chapter. `+` on two `Core\Html\Markup` values joins them into one `Markup`, and `.` on a `Markup` is refused; the ``html`…` `` template that makes one is the types chapter's `Markup: the html template`.
 
 ```nvs
 <?nvs
@@ -2167,7 +2169,7 @@ no `match` arm matched the subject
 ### `is`, `new`, `clone`, `throw`, `print`, `exit`, `isset`, `empty`
 
 - `$x is T` answers whether `$x` currently holds a `T`, for any type a value can inhabit, and narrows `$x` to `T` in the branch where it held. It is total: a subject whose declared type settles the answer compiles and folds to `true` or `false`. A `$` on the right is the one value form, `$x is $cls`, where `$cls` is a `class<T>`; anything else on the right is a type.
-- `new C(args)` constructs; the argument list is a call's, named arguments included, and may be omitted when empty. `new static()` and `new self()` work inside a class. `new C(...)` has no first-class form.
+- `new C(args)` constructs; the argument list is a call's, named arguments included, and may be omitted when empty. `new static()` and `new self()` work inside a class. `new C(...)` is not a method reference and does not compile.
 - `clone $o` is a shallow copy of an object: scalar and array properties are copied, object properties are shared. There is no clone hook. `clone` takes an object only.
 - `throw expr` is an expression, so it sits on the right of `??`, `||` or a ternary arm; the errors chapter owns what may be thrown.
 - `print expr` writes one value and answers `1`.
@@ -2261,7 +2263,7 @@ Hi, Ada! Yo, Bob?
 - `$_` appears **exactly once** on a right side. A right side with none is `E0129`, a second `$_` on one right side is `E0130`, and a `$_` written anywhere outside a right side is `E0131`.
 - `|>` is left-associative: `$a |> f($_) |> g($_)` is `g(f($a))`.
 - It binds tighter than every binary operator and looser than unary, so `$a |> Core\Str::length($_) > 5` compares the length and `$x = $a |> Core\Str::trim($_)` assigns the trimmed string.
-- This is not PHP 8.5's `|>`, which applies a callable resolved at run time. A first-class callable or a closure on the right side is `E0129`, and the diagnostic says which of the two operators you wrote.
+- This is not PHP 8.5's `|>`, which applies a callable resolved at run time. A method reference or an anonymous function on the right side is `E0129`, and the diagnostic says which of the two operators you wrote.
 
 ```nvs
 <?nvs
@@ -2305,9 +2307,9 @@ echo $s, "\n";
 `$_` is the pipeline hole and has no meaning here
 ```
 
-### Closures: `fn`
+### Anonymous functions
 
-`fn` is the only closure literal, and a closure is the only value a `callable` holds. `fn(params): T => expr` answers the expression; `fn(params): T => { … }` runs a block and `return`s. Every parameter declares a type; an expression body may omit the return type, and a block body declares it. Every outer local the body reads is captured **by value when the closure is created**, and `$this` is captured inside a method. There is no `use (…)` clause, no capture by reference, no `static fn`, no `inout` parameter, and no anonymous `function () {}`. `Class::m(...)` is not a way to obtain a closure — write `fn(...) => Class::m(...)`.
+`fn` writes an anonymous function. The value it makes is a callable: a value you can call with `()` and store in a `callable` variable. A method reference makes a callable too: `Core\Str::length(...)`, `$obj->m(...)`, `self::f(...)` and `static::f(...)` each give one. `fn(params): T => expr` returns the expression; `fn(params): T => { … }` runs a block and `return`s. Every parameter declares a type; an expression body may omit the return type, and a block body declares it. The anonymous function captures every outer local its body reads, **by value, when the function is created**, and it captures `$this` inside a method. There is no `use (…)` clause, no capture by reference, no `static fn`, no `inout` parameter, and no anonymous `function () {}`.
 
 ```nvs
 <?nvs
@@ -2343,7 +2345,7 @@ anonymous `function` expressions are not supported
 
 ### Arrays in expressions
 
-An array literal is `[a, b]`, `["k" => v]`, or both mixed. A literal is checked against its declared target type, as in `array<int> $a = [1, 2]`. Under `var` it has no target: `var $a = [1, 2]` is an `array<int>` because every element is an `int`, and a literal whose elements have different types, or an empty one, needs its type written. `[...$a, x]` copies `$a`'s entries into the literal, renumbering an integer-looking key under the literal's own counter and preserving every other, which is PHP's own spread. Every key is a `string`: an `int` or `uint` subscript names the same entry as its decimal spelling, so `$a[8]` and `$a["8"]` are one key while `"08"` is another, and a `foreach` key binding is always `string`.
+An array literal is `[a, b]`, `["k" => v]`, or both mixed. An array literal is checked against its declared target type, as in `array<int> $a = [1, 2]`. Under `var` it has no target: `var $a = [1, 2]` is an `array<int>` because every element is an `int`, and an array literal whose elements have different types, or an empty one, needs its type written. `[...$a, x]` copies `$a`'s entries into the new array, renumbering an integer-looking key under the new array's own counter and preserving every other, which is PHP's own spread. Every key is a `string`: an `int` or `uint` subscript names the same entry as its decimal spelling, so `$a[8]` and `$a["8"]` are one key while `"08"` is another, and a `foreach` key binding is always `string`.
 
 - `$a["k"]` reads; an absent key **throws** a `RuntimeError` (`undefined array key`). `$a["k"] ?? $d` is the read that does not.
 - `$a["k"] = v` writes, `$a[] = v` appends at the highest integer key so far plus one (`0` in an empty array), and both reach into nested arrays: `$g["r"]["c"] = 1` creates the inner array. `[]` is only a write target.
@@ -2408,9 +2410,9 @@ list($a, $b) = $pair;
 `list(...)` is not supported
 ```
 
-### Object literals
+### Anonymous objects
 
-`{name: value, …}` builds an anonymous object with exactly those fields, read and written as `$p->name`; its type is the shape `{name: T, …}`, which a `type` alias, a parameter or a return type can name. Two literals are two objects, so `==` is identity. Where a `{` would otherwise start a block — at the start of a statement, and directly after a closure's `=>` — the literal is written in parentheses, `({…})`. A field name written twice is a compile error.
+`{name: value, …}` builds an anonymous object with exactly those fields, read and written as `$p->name`; its type is the shape `{name: T, …}`, which a `type` alias, a parameter or a return type can name. Each `{…}` makes a new object, so `==` is identity. Where a `{` would otherwise start a block — at the start of a statement, and directly after an anonymous function's `=>` — the anonymous object is written in parentheses, `({…})`. A field name written twice is a compile error.
 
 ```nvs
 <?nvs
@@ -2437,7 +2439,7 @@ ambiguous with a block
 
 Each of these is parsed only so the diagnostic can name the replacement: `eval` (use `require` or `spawn script`), `extract` (destructure or index), `settype` (`as` into a new binding), `compact` and every other PHP free function (a `Core` member — `Core\Str::length($s)`), `$$name` and `${expr}`, `list(…)`, `(int)` casts, `@`, `=&`, `die` (`exit`), `include`/`require_once` (`require`), `yield` used as a value, and `self`/`static`/`parent` outside a class — the last of those at each of the four sites that resolve a class side, a constant, a static property, a static call and `new`.
 
-PHP's backticks are the one entry not parsed at all. There is no shell-execution form for a diagnostic to name a replacement for — `Core\Process::run` takes a path and an argv array, never a command line — and the character itself is the delimiter of ``html`…` ``, so a backtick with no prefix in front of it is `E0001` from the lexer. The literal itself is the types chapter's `Markup: the html template literal`.
+PHP's backticks are the one entry not parsed at all. There is no shell-execution form for a diagnostic to name a replacement for — `Core\Process::run` takes a path and an argv array, never a command line — and the character itself is the delimiter of ``html`…` ``, so a backtick with no prefix in front of it is `E0001` from the lexer. The html template itself is the types chapter's `Markup: the html template`.
 
 ```nvs error
 <?nvs
@@ -2589,7 +2591,7 @@ at most one binding
 - `var` on the value binding takes the subject's element type `T`, with any qualifier on it such as `tainted`; `var` on the key binding takes `string`. The type is then fixed, exactly as if it were written. A written type is checked against the element type, and is the one to write when the binding must be wider than the element — `int|float $v` over an `array<int>` whose body stores a `float` in `$v`.
 - Over an `array<T>`: the value binds as `T` and the key, when bound, is `string` — never `int`. `inout var $v` or `inout T $v` writes each element back into the array; `&$v` does not parse. The loop walks a copy, so appending to or unsetting from the array inside the body does not change what is visited (an `inout` loop walks the array itself).
 - Over an `Iterator<T>` or an `Iterable<T>` — a generator, or a class implementing either — the value binds as `T` and there is no key to bind. The iteration chapter owns those interfaces and generators.
-- The subject is an expression, but `as` in the header belongs to `foreach`: converting the subject needs parentheses, `foreach (($m as array<int>) as var $v)`. An array literal as the subject is `array<T>` under a `var` value binding when every element has the type `T`, as it is for `var $xs = [...]`; mixed element types or `[]` do not compile. Under a written binding type the literal has no element type, so bind it to a typed local first.
+- The subject is an expression, but `as` in the header belongs to `foreach`: converting the subject needs parentheses, `foreach (($m as array<int>) as var $v)`. An array literal as the subject is `array<T>` under a `var` value binding when every element has the type `T`, as it is for `var $xs = [...]`; mixed element types or `[]` do not compile. Under a written binding type the array literal has no element type, so bind it to a typed local first.
 - The body is one statement; `break`, `continue` and `return` leave it as they leave any loop.
 - A binding is declared by the loop, and a later `foreach` in the same function may declare the same name again at the same type, whether written or taken by `var`; at another type it is `E0406`.
 
@@ -3259,8 +3261,8 @@ does not resolve a static property
 
 ### Methods, `self`, `static` and `parent`
 
-- `$this` is the receiver inside an instance method. A `fn` closure written inside a method keeps
-  the `$this` it was made on and reaches that class's `private` members.
+- `$this` is the receiver inside an instance method. An anonymous function written inside a method
+  keeps the `$this` it was made on and reaches that class's `private` members.
 - A `static` method is called as `Class::method()`, or `self::method()` from inside the class.
   It has no `$this`.
 - `self` names the declaring class: `new self()`, `self::method()`, `self::CONST`, and as a
@@ -3268,8 +3270,8 @@ does not resolve a static property
   `new static()`, `static::method()`, `static::CONST` and the return type `static`. A body
   declared `: static` must return `$this`, `new static(...)` or a `static::` call; returning
   `new self()` or a named class there is a compile error.
-- `static::` is not allowed inside a closure body (`E0834`). Read the value into a variable
-  before the closure and use that variable.
+- `static::` is not allowed inside an anonymous function body (`E0834`). Read the value into a
+  variable before the anonymous function and use that variable.
 - `parent::method()` calls the parent's version of an overridden method, and
   `parent::constructor(...)` its constructor.
 
@@ -3306,7 +3308,7 @@ leaf/base
 1
 ```
 
-A method returning `self` or `static` chains, and a closure made inside a method keeps its receiver:
+A method returning `self` or `static` chains, and an anonymous function made inside a method keeps its receiver:
 
 ```nvs
 <?nvs
@@ -3366,7 +3368,8 @@ echo $b::class, "\n";            // Leaf — the class it *is*, not the declared
 ```
 
 A constant's value is **inlined at every read** — there is no storage a read loads it from — so the
-value has to have a compile-time form. Literals do, and so does an `array<T>` literal of them: each
+value has to have a compile-time form. A value written directly in the code has one, and so does
+an `array<T>` literal of such values: each
 element is placed in the declared element type, so `array<float> RATES = [1, 2.5]` holds two floats.
 Because it is inlined, every read builds its own array, and writing to one is invisible to the next
 read. What has no form yet is a *named* constant reaching into another — another class's `const`, an
@@ -3497,9 +3500,9 @@ does not declare `area`, which `Shape` requires
 An `abstract static` method has no body either, so a call to it must reach a subclass. Inside a
 method, `self::title()` and `static::title()` call the class the method was called on, so
 `Blog::heading()` runs `Blog`'s `title`. A call that names the class itself is a compile error
-(`E0835`): `Page::title()`, where `Page` gives `title` no body, and `self::title()` inside a closure,
-which calls the class the closure is written in. Call the method on a class that is not `abstract`,
-or call it outside the closure and use the result inside it.
+(`E0835`): `Page::title()`, where `Page` gives `title` no body, and `self::title()` inside an anonymous
+function, which calls the class the function is written in. Call the method on a class that is not
+`abstract`, or call it outside the anonymous function and use the result inside it.
 
 ```nvs
 <?nvs
@@ -4260,7 +4263,7 @@ the roots, the attributes chapter the metadata usually read off them.
 - **Magic methods.** No identifier may start with `_`, so `__get`, `__set`, `__call`,
   `__callStatic`, `__invoke`, `__clone`, `__destruct`, `__isset`, `__unset`, `__debugInfo`,
   `__set_state` and `__toString` are all refused where written. There is no property
-  interception beyond hooks and `PropertyObserver`, no callable objects (`callable` is a closure),
+  interception beyond hooks and `PropertyObserver`, no callable objects (a `callable` comes from an anonymous function or a method reference),
   and no destructor.
 - **Anonymous classes.** `new class { … }` does not exist; declare a named class.
 - **Nested classes.** A `class` inside a class body is refused; every class is declared at file
@@ -4519,7 +4522,7 @@ hearts;clubs;
 
 ### A union of cases is a narrower type
 
-`E::A|E::B` written as a type accepts only those cases: a case literal outside the set, or a
+`E::A|E::B` written as a type accepts only those cases: a case written in the code outside the set, or a
 value typed as the whole enum, is a compile error. A whole-enum value enters the set through
 `as E::A|E::B`, which throws when the value is not one of them. A single `==` narrows its subject to
 that one case's type; two comparisons joined by `||` do not narrow to the pair, so a set of two is
@@ -5540,8 +5543,8 @@ where it stands with a **`FATAL`**, which is not a `Throwable`: no `catch` claus
 `finally` runs, and the process exits with status 1 after writing `FATAL: …` naming the limit to
 standard error.
 
-The one hook is `Core\Fatal::onLimit`. It registers a closure that runs once when a limit stops
-the program, out of a slice of memory reserved for it; the closure receives an array whose
+The one hook is `Core\Fatal::onLimit`. It registers a callable that runs once when a limit stops
+the program, out of a slice of memory reserved for it; the callable receives an array whose
 `limit` key names the limit that fired (`memory`, `cpu_time`), and may declare no parameter at
 all. A second registration replaces the first. After the handler the program still ends.
 
@@ -5719,8 +5722,8 @@ users orders
 
 `Core\Task::all` takes a shape whose every field is a zero-argument callable, runs them all
 concurrently, and answers a shape with the same field names, each typed by that field's declared
-return type — no cast at the use site. Where the closure was written does not matter: a literal, a
-first-class callable and a variable are equally good, and a field whose callable declares no return
+return type — no cast at the use site. Where the callable was made does not matter: an anonymous
+function, a method reference and a variable are equally good, and a field whose callable declares no return
 type answers `mixed` for that field alone. What is refused is a subject that is not a shape of
 callables.
 
@@ -5746,9 +5749,9 @@ expected `{name: callable(): T, ...}`
 
 ### `Core\Task::map`: one task per element
 
-`Core\Task::map` calls a closure once per element of an array, each call its own task, and answers
+`Core\Task::map` calls a callable once per element of an array, each call its own task, and answers
 the results under the input's keys and in the input's order, whatever order they finished in. The
-closure receives `($value, $key)` and may declare only the first.
+callable receives `($value, $key)` and may declare only the first.
 
 ```nvs
 <?nvs
@@ -5904,11 +5907,12 @@ var $result = await $job;
 
 - The entry is either a **path** — any `string` expression naming a file — or a **static method**,
   written
-  `Class::method(...)`. An `fn` literal is refused (`E0802`): an isolate shares nothing but compiled
-  code, and a literal would carry the scope around it across that boundary.
+  `Class::method(...)`. An anonymous function is refused (`E0802`). An isolate shares nothing but
+  compiled code, and an anonymous function would carry the variables it captures across that
+  boundary.
 - A path written as a string literal starts at the folder of the file that contains it. A
   relative path built while the program runs throws a `RuntimeError`: build it with
-  `Core\Path::join` from a full path (§ *File paths: a literal starts at the folder of its file*).
+  `Core\Path::join` from a full path (§ *File paths: a relative path starts at the folder of its file*).
 - `with(…)` is optional. `output: 'capture'` collects what the child writes into the result;
   `output: 'inherit'` lets the child write straight to the parent's standard output, interleaved
   with the parent's own lines in whatever order the two run — only after `await` is all of it
@@ -6082,12 +6086,12 @@ try {
 
 ### What does not exist
 
-- `async`, a promise-style `await`, `Fiber`, generators as coroutines: a task is a closure handed to
+- `async`, a promise-style `await`, `Fiber`, generators as coroutines: a task is a callable handed to
   `Core\Task`, and waiting is implicit.
 - `pcntl_fork`, `pthreads`, `parallel`, a `spawn worker`: an isolate is the one unit of separate
   execution, and its entry is a whole file or a static method.
-- A closure or an `fn` literal as a spawn entry: refused, because a literal would carry the scope
-  around it into a child that shares nothing but compiled code.
+- An anonymous function as a spawn entry: refused. It would carry the variables it captures into
+  a child that shares nothing but compiled code.
 - State shared between requests, or between an isolate and its parent, other than the values that
   cross at `await`.
 
@@ -6105,10 +6109,10 @@ var $fiber = new Fiber(fn(): int => 1);
 
 Keywords: attribute, #[...], Attribute, Reflection, ReflectionAttribute, getAttributes, Core\Attributes, get, all, #[Route], Symfony route, Laravel route, Route, Access, Query, Api, OpenAPI, Router::url, urlAbsolute, Command, Option, Symfony Console, Json\Derive, Json\Field, JsonSerializable, decodeAs, Program::implementing, autoload
 
-### An attribute is a shape literal attached to a declaration
+### An attribute is an anonymous object attached to a declaration
 
-`#[...]` in front of a declaration attaches metadata to it. The payload is a shape literal, and the
-name in front of it is a `type` alias of a shape that the literal is checked against — an attribute
+`#[...]` in front of a declaration attaches metadata to it. The payload is an anonymous object, and the
+name in front of it is a `type` alias of a shape that the payload is checked against — an attribute
 is never a class, is never instantiated, and has no behaviour of its own.
 
 ```nvs
@@ -6142,32 +6146,33 @@ if ($onProperty != null) { echo "property: ", $onProperty->name, "\n"; }
 if ($onParameter != null) { echo "parameter: ", $onParameter->inject, "\n"; }
 
 array<Audited> $markers = Core\Attributes::all<Audited>(Users::constructor(...));
-echo "literals satisfying {}: ", Core\Arr::count($markers), "\n";
+echo "attributes matching {}: ", Core\Arr::count($markers), "\n";
 ```
 ```output
 class: /users
 method: /users/{id}
 property: user_name
 parameter: repo
-literals satisfying {}: 2
+attributes matching {}: 2
 ```
 
 The two spellings of an attribute:
 
 - **Named**: `#[Name(field: value, …)]`. `Name` resolves like any other name (through `use` and the
   file's namespace) and must be a `type` alias whose right-hand side is a shape; a class, an alias
-  of a scalar, or an undeclared name is refused. The literal is checked against that shape the way
+  of a scalar, or an undeclared name is refused. The payload is checked against that shape the way
   any shape-typed binding is: every field the shape declares must be present at its type, and
-  extra fields are allowed. `#[Name]` with no list attaches an empty literal, which satisfies an
+  extra fields are allowed. `#[Name]` with no list attaches an empty payload object, which satisfies an
   alias declaring no fields (`type Audited = {};`). `Name` may also be `Owner::Name`, an alias
   declared inside an interface, class or enum, written the same way as in a type:
   `#[Page::Meta(title: "Home")]`. A name the compiler acts on (below) is never written this way.
-- **Bare**: `#[{field: value, …}]` — a literal with no name and nothing to check it against.
+- **Bare**: `#[{field: value, …}]` — an anonymous object with no name and nothing to check it
+  against.
 
 Rules that hold for both:
 
-- **Every value is a compile-time constant**: a literal (`int`, `float`, `string`, `bool`, `null`),
-  an array or shape literal of constants, a class constant or an enum case. A variable, a call, a
+- **Every value is a compile-time constant**: a value written directly in the code (`int`,
+  `float`, `string`, `bool`, `null`), an array literal or anonymous object of constants, a class constant or an enum case. A variable, a call, a
   `new` or an interpolated string is refused where it is written. A `secret` class constant cannot
   reach a payload.
 - **Where an attribute may sit**: in front of a `class`, `interface`, `enum`, a method, a property, a
@@ -6193,19 +6198,19 @@ an attribute's field value is not a compile-time constant
 
 ### Reading attributes back: `Core\Attributes::get` and `all`
 
-Retrieval is **structural**: `get<T>` answers the one attached literal that satisfies the shape `T`
+Retrieval is **structural**: `get<T>` returns the one attached payload object that satisfies the shape `T`
 written at the call site, whether it was attached under a name or bare, and `all<T>` answers every
 match in declaration order. Both are resolved while compiling — the call is replaced by the
 payload, so nothing is reflected on at run time.
 
-- The target is a first-class-callable reference written at the call: `Users::show(...)` for a
+- The target is a method reference written at the call: `Users::show(...)` for a
   method, `Users::constructor(...)` for the class itself (a class with no written constructor still
-  has one). A second argument, a literal member name, selects a property or a parameter of that
+  has one). A second argument, a member name written as a string in quotes, selects a property or a parameter of that
   target. A computed member name answers `null`; a computed target is refused.
-- `get<T>` answers `?T` — `null` when nothing matches — and is a compile error when two literals
-  match; that is what `all<T>` is for, and it answers `[]` when nothing matches.
-- Matching is width subtyping, so a literal with extra fields satisfies a narrower shape, and the
-  empty shape `{}` is satisfied by **every** attached literal — a bare marker `#[Audited]` is
+- `get<T>` answers `?T` — `null` when nothing matches — and is a compile error when two payload
+  objects match; that is what `all<T>` is for, and it answers `[]` when nothing matches.
+- Matching is width subtyping, so a payload object with extra fields satisfies a narrower shape, and
+  the empty shape `{}` is satisfied by **every** attached payload object — a bare marker `#[Audited]` is
   therefore not distinguishable from any other attribute by retrieval; give a marker a field.
 - A payload may hold a class constant, an enum case or a `Foo::class`, and each is retrieved as the
   value a read of that same name inlines — folded in the scope the attribute was *written* in, not
@@ -6513,9 +6518,9 @@ A route method is an ordinary method that may also be called directly.
 
 The `#[Route]` payload:
 
-- `path:` — a string starting with `/`. Segments are literals or captures: `{name}` matches one
+- `path:` — a string starting with `/`. Segments are fixed segments or captures: `{name}` matches one
   segment, `{name?}` matches one or none and is allowed only as the last segment, `{name...}`
-  matches everything that remains, its own `/`s included. A literal segment beats a capture, so
+  matches everything that remains, its own `/`s included. A fixed segment beats a capture, so
   `/users/new` and `/users/{id}` coexist in any order.
 - `method:` — a case of `Core\Http\Method`.
 - `name:` — optional and never derived; it is what `Core\Router::url` looks a route up by, and must
@@ -6526,7 +6531,7 @@ The `#[Route]` payload:
 
 **Captures bind to parameters** by name: every `{name}` needs a parameter `$name`, and that
 parameter's declared type is what the segment converts to — `string`, `int`, `uint`, `decimal`,
-`bool`, an enum, a union of string or int literals (`"en"|"de"`), or a class implementing `Parses`,
+`bool`, an enum, a set of allowed string or int values (`"en"|"de"`), or a class implementing `Parses`,
 which `Core\Uuid` is one of and a class of your own is another. A `float`
 parameter is refused. A `{name?}` parameter needs a default. A `{name...}` parameter is a
 `string`. The converted value is not `tainted`.
@@ -6565,7 +6570,7 @@ echo Core\Router::url("file", ["path" => "a/b c.txt"]), "\n";
 
 `Core\Router::url` and `urlAbsolute`:
 
-- The route name is a **string literal at the call**, checked against the table: an unknown name
+- The route name is a **string written directly in the code at the call**, checked against the table: an unknown name
   is a compile error, and so is a `$params` that leaves a required capture unfilled or names a key
   that is neither a capture nor a `#[Query]` parameter. A name held in a variable is not checked
   and, in this build, throws a `RuntimeError` for every name.
@@ -6651,7 +6656,7 @@ For that file `nvs build --openapi main.nvs` prints:
 `#[Core\Api(...)]` sits beside a `#[Route]` (away from one it is refused) and may add what the
 declaration cannot say: `tags:` and `security:` as arrays of strings, `errors:` as an array of
 `{status: 404, type: NotFound::class}` entries naming classes the program declares, and `example:`
-as a shape literal whose keys are properties of the return type. Each is checked against the
+as an anonymous object whose keys are properties of the return type. Each is checked against the
 declaration while compiling and then written into the operation: `tags` and `security` as their own
 members, an `errors` entry as a response of its own described by its class, and `example` beside the
 `200` response's schema. An operation whose method declares no `#[Api]` carries none of them.
@@ -6734,8 +6739,8 @@ greet: Say hello
   the parameter's own name is not it; two options of one command with the same spelling are
   refused. `#[Option]` away from a `#[Command]` method is refused.
 - An option or positional parameter must have a type an argument's text converts to — the same
-  list a route capture accepts (`string`, `int`, `uint`, `decimal`, `bool`, an enum, a union of
-  literals, a class implementing `Parses`); anything else is refused.
+  list a route capture accepts (`string`, `int`, `uint`, `decimal`, `bool`, an enum, a set of
+  allowed values, a class implementing `Parses`); anything else is refused.
 - The method is **`static`** and returns `void` (exit status 0) or `uint` (the exit status). Both
   are refused where they are not met (`E0789`): a command is dispatched by name off the compiled
   table, which holds no instance to call a handler on, and what a handler answers with is the
@@ -9063,12 +9068,12 @@ Reads `$a` as the type `T` written at the call site — an inline shape, `{name:
 <a id="core-core-attributes"></a>
 ### `Core\Attributes`
 
-Keywords: ReflectionAttribute, getAttributes, newInstance, attribute, metadata, annotation, #[...], shape literal, get, all
+Keywords: ReflectionAttribute, getAttributes, newInstance, attribute, metadata, annotation, #[...], anonymous object, get, all
 
-`Core\Attributes::get<T>` answers the one attribute on a target whose literal satisfies the shape
-`T` written at the call site, or `null`; `all<T>` answers every one in declaration order, as
-`array<T>`. Retrieval is structural: a literal attached bare (`#[{audit: true}]`) or under a `type`
-name (`#[Route(path: "/x")]`) is found by any shape it satisfies, extra fields included. The target
+`Core\Attributes::get<T>` returns the one attribute on a target whose payload object satisfies the
+shape `T` written at the call site, or `null`; `all<T>` returns every one in declaration order, as
+`array<T>`. Retrieval is structural. A payload object attached bare (`#[{audit: true}]`) or under a
+`type` name (`#[Route(path: "/x")]`) is found by any shape it satisfies, extra fields included. The target
 is a class's `Class::constructor(...)` or a method's `Class::method(...)` reference, and the second
 argument names one of its properties or parameters; the call is resolved in `nvs check`, so a
 computed member name answers nothing, and two matches for `get` is a compile error naming `all`.
@@ -10572,14 +10577,14 @@ Keywords: preg_match, preg_match_all, preg_replace, preg_replace_callback, preg_
 
 A `Core\Regex` pattern is a plain string — no `/…/` delimiters and no trailing modifiers; the
 flags are options to `Core\Regex::compile`, which answers a `Core\Regex\Pattern` every other
-member also takes in place of the string. A single-quoted literal is the cheap spelling — `'\d+'`
+member also takes in place of the string. A single-quoted string is the cheap spelling — `'\d+'`
 has no escapes to double, where `"\\d+"` does. A pattern runs on a linear-time engine; one that needs
 a lookaround or a backreference runs on a backtracking engine under a step budget, and exhausting
 that budget throws rather than answering `false`. A pattern neither engine can compile throws too.
 `match` answers `?Core\Regex\Match` — `null` when nothing matched — and `matchAll` a list of them;
-in `replace`'s template `$1` and `${name}` are group references and `$$` a literal `$`, while
-`replaceWith`'s callback answer is inserted literally. A literal built into a pattern goes
-through `quote`.
+in `replace`'s template `$1` and `${name}` are group references and `$$` a plain `$`, while
+the value `replaceWith`'s callback returns is inserted as it is. Fixed text built into a pattern
+goes through `quote`.
 
 ```nvs
 <?nvs
@@ -11035,8 +11040,8 @@ text through a `Core\Charset` case, and the base64, base64url, base32 and hex pa
 as text and read it back. Every decoder is strict — a character outside the alphabet, padding that
 is missing or non-canonical, a sequence the charset cannot read — and throws rather than answering
 `false` or substituting `?` or U+FFFD; `isValidText` is `decodeText`'s question with a `bool`
-answer. There is no `bytes` literal, so `fromHex` and `encodeText` are how a buffer is written in
-source.
+answer. A `bytes` value cannot be written directly in the code. Use `fromHex` or `encodeText` to
+write a buffer in source.
 
 ```nvs
 <?nvs
@@ -11267,8 +11272,8 @@ Keywords: strlen, ord, chr, substr, strpos, strcmp, str_contains, str_starts_wit
 
 `Core\Bytes` reads and builds `bytes` — a buffer of octets with no character in it. Every position,
 length and count is a **byte** offset: `length` is O(1), `at` answers one octet as a `uint`, and a
-negative index counts from the end — where `Core\Str` counts graphemes. There is no `bytes` literal
-and no `.` over buffers: a buffer is written through `Core\Encoding` (`fromHex`, `encodeText`),
+negative index counts from the end — where `Core\Str` counts graphemes. A `bytes` value cannot be
+written directly in the code, and there is no `.` over buffers: a buffer is written through `Core\Encoding` (`fromHex`, `encodeText`),
 joined with `join`, built with `fill` and `repeat`, and laid out as a wire format with `pack` and
 `unpack`, whose code table names every field's width and byte order outright and refuses a value
 outside the field's range.
@@ -13072,8 +13077,8 @@ immutable: every member answers a new value. Its arithmetic is calendar arithmet
 Core\Unit::Month)` keeps the day-of-month clamped to the new month's length, `plus(1, Core\Unit::Day)`
 across a DST boundary is a 23- or 25-hour day, and `difference` counts whole units in the receiver's
 zone. `format` takes a **CLDR pattern**, not PHP's `date()` letters — the same grammar `Core\Time::parse`
-reads and `Date::format` and `TimeOfDay::format` take for their own fields. A literal pattern is
-checked when the program compiles, so a letter outside the table below is a compile error; a pattern
+reads and `Date::format` and `TimeOfDay::format` take for their own fields. A pattern written directly
+in the code is checked when the program compiles, so a letter outside the table below is a compile error; a pattern
 computed at run time throws a `LogicError` instead. Names render in English only; there is no
 `setlocale`.
 
@@ -13093,7 +13098,7 @@ computed at run time throws a `LogicError` instead. Names render in English only
 | `x` | offset, never `Z` | the same three counts |
 | `VV` | the zone's IANA identifier | `VV` only |
 
-Text between `'…'` is literal, and `''` is one apostrophe. `G`, `Q`, `w`, `W`, `L`, `c`, `F` and `u`
+Text between `'…'` is printed as it is, and `''` is one apostrophe. `G`, `Q`, `w`, `W`, `L`, `c`, `F` and `u`
 are refused.
 
 ```nvs
@@ -13723,14 +13728,14 @@ Checks which of two times comes first in the day, as `Comparable` requires. The 
 <a id="core-core-time-duration"></a>
 ### `Core\Time\Duration`
 
-Keywords: DateInterval, sleep, usleep, hrtime, strtotime("+3 days"), duration literal, 1h30m, 250ms, nanoseconds, exact offset, timeout, nanoseconds, microseconds, milliseconds, seconds, minutes, hours, days, weeks, parse, toNanoseconds, toMicroseconds, toMilliseconds, toSeconds, plus, minus, multipliedBy, negated, compareTo, toString
+Keywords: DateInterval, sleep, usleep, hrtime, strtotime("+3 days"), 1h30m, 250ms, nanoseconds, exact offset, timeout, nanoseconds, microseconds, milliseconds, seconds, minutes, hours, days, weeks, parse, toNanoseconds, toMicroseconds, toMilliseconds, toSeconds, plus, minus, multipliedBy, negated, compareTo, toString
 
-A `Duration` is a signed count of nanoseconds. Its literal is written in the source as a number and a
+A `Duration` is a signed count of nanoseconds. You write one directly in the code as a number and a
 unit — `30s`, `250ms`, `1h30m`, `7d` — with the units `ns`, `us`, `ms`, `s`, `m`, `h`, `d` and `w`, and
 `Duration::parse` reads the same grammar from text at run time. It is exact: `days(1)` and `1d` are
 twenty-four hours, never a calendar day, which is what `Core\Time\DateTime::plus($n, Core\Unit::Day)`
-is. `echo` renders a duration back in the literal grammar, so its text round-trips through `parse`. A
-literal argument to `parse` is read when the program compiles, so a bad one is a compile error; text
+is. `echo` renders a duration back in that same syntax, so its text round-trips through `parse`. An
+argument to `parse` written directly in the code is read when the program compiles, so a bad one is a compile error; text
 computed at run time throws a `ParseError`. Two durations are ordered with `compareTo`; the `<`
 operators do not compile on a `Duration`.
 
@@ -13754,7 +13759,7 @@ string $flag = "--since=30 seconds";
 try {
     Core\Time\Duration::parse(Core\Str::slice($flag, 8));
 } catch (ParseError $bad) {
-    echo "not a duration literal\n";
+    echo "not a duration\n";
 }
 ```
 ```output
@@ -13768,7 +13773,7 @@ try {
 0
 1d1h1m1s
 1s500ms
-not a duration literal
+not a duration
 ```
 
 | Member | Signature |
@@ -15792,8 +15797,8 @@ Keywords: route, url, link, reverse routing, named route, #[Core\Route], origin,
 `Core\Router::url` builds a link from a route's `name` as its `#[Core\Route]` declared it: each
 `{capture}` in the path is substituted from `$params`, percent-encoded into its own segment. It is
 only meaningful in a program that declares routes — the attributes chapter owns the declaration, and
-every `#[Core\Route]` needs a sibling `#[Core\Access]`. The name must be a literal, and an unknown
-one is a compile error, as is a `$params` array missing a capture or carrying a key that is neither
+every `#[Core\Route]` needs a sibling `#[Core\Access]`. The name must be a string written directly in
+the code, and an unknown one is a compile error, as is a `$params` array missing a capture or carrying a key that is neither
 a capture nor a handler parameter declared `#[Core\Query]` — a declared one becomes the link's query
 string, `/users/7?page=2`. `urlAbsolute` is `url` with the `[[app]] origin` from `nvs.toml` in
 front, and throws `RuntimeError` when none is configured.
@@ -15967,7 +15972,7 @@ can be called. The program calls the method itself, with one `switch` on `name()
 and the `405`.
 
 `name()` is the route's `#[Core\Route(name: …)]` as the program wrote it, or `null` for a route
-that declares none; it is a plain `string`, because it is the unit's own literal. `params()` is
+that declares none; it is a plain `string`, because the name is written directly in the code. `params()` is
 every capture the path filled, keyed by the parameter it binds, and `param()` is that array read at
 one key — `null` for a name the route does not declare, including an optional `{name?}` the request
 left off. A capture is `tainted string` where the route declared `string`, still percent-encoded,
@@ -16199,7 +16204,7 @@ closed format, and `decode` rebuilds it: an object comes back as an instance of 
 program declares, its declared properties assigned directly — no constructor runs, and there is no
 `__serialize`, `__sleep` or `__wakeup` hook. A cycle is preserved as a cycle. `decode` answers
 `mixed`, so narrow it with `as`; it refuses foreign bytes, another format version, and a class whose
-declared properties no longer match with `ParseError`, and `encode` refuses a closure with `LogicError`.
+declared properties no longer match with `ParseError`, and `encode` throws `LogicError` on a callable.
 
 ```nvs
 <?nvs
@@ -16419,13 +16424,13 @@ Checks whether `$s` contains no control characters. A control character has no v
 
 Keywords: ob_start, ob_get_clean, ob_get_contents, ob_end_clean, output buffering, capture, echo, capture
 
-`Core\Out::capture` runs a closure and answers everything it `echo`ed as the carrier of the sink in
+`Core\Out::capture` runs a callable and returns everything it `echo`ed as the carrier of the sink in
 force — a `Core\Cli\Text`, or a `Core\Html\Markup` under an HTTP request, typed
 `Core\Html\Markup|Core\Cli\Text` — never a plain `string`, so re-emitting it is one more `echo` and it
-is not escaped a second time. `as string` reads the text out. Nothing the closure wrote
+is not escaped a second time. `as string` reads the text out. Nothing the callable wrote
 reaches the output below; a capture nests by call nesting, and there is no global buffer stack, no
 `ob_get_contents` and no implicit flush. `{through: $fn}` transforms the carrier before it is
-answered, and the closure's own return value is discarded. `Core\Debug::dump` is never captured —
+returned, and the callable's own return value is discarded. `Core\Debug::dump` is never captured —
 it writes to stderr.
 
 ```nvs
@@ -17308,10 +17313,10 @@ Returns the body of this request, such as the JSON document or the form the prog
 
 Keywords: curl_multi_*, structured concurrency, parallel, concurrent, child task, fan-out, limit, deadline, TimeoutError, cancellation, all, map, all, map, afterResponse
 
-`Core\Task` runs closures as concurrent child tasks and never returns while one is still running.
+`Core\Task` runs callables as concurrent child tasks and never returns while one is still running.
 `all` takes a shape whose every field is a zero-argument callable and answers a shape with the same
 names, each field typed by that field's declared return — a field whose callable declares no return
-type answers `mixed`, and only that field. `map` calls one closure per element and answers the results under the subject's own keys, in the
+type answers `mixed`, and only that field. `map` calls one callable per element and answers the results under the subject's own keys, in the
 subject's order, whatever order the children finished in. Both take the same options: `limit` caps how many
 children run at once (the rest wait, nothing is refused) and `deadline` bounds the **whole call** — when it
 expires every child is cancelled and the call throws `TimeoutError`. The first child to throw cancels its
@@ -17686,7 +17691,7 @@ returned; take a prefix if a shorter one is wanted, because a caller handed eigh
 other fifty-six back. It is computed once, before the program starts, so calling it in a loop costs nothing.
 Use it to bust a cache, version an asset URL, or tell one deployment's log lines from another's — it is a
 digest, so it is safe to echo and reveals no source, though a reader who watches it learns when the
-deployment last changed. It cannot be a constant: writing the id into a file as a literal would change that
+deployment last changed. It cannot be a constant: writing the id directly into a file would change that
 file's bytes, and so the id it just wrote down.
 
 ```nvs file=lib/Greeter.nvs
@@ -20217,7 +20222,7 @@ What a publisher put on the topic, copied across the isolate boundary the way ev
 
 Keywords: register_shutdown_function, memory limit, resource limit, FATAL, onLimit, cpu_time, wall_time, max_output, out of memory, shutdown handler, onLimit, onUncaughtThrow
 
-`Core\Fatal::onLimit` registers the closure the request runs when a resource limit — memory, CPU time,
+`Core\Fatal::onLimit` registers the callable the request runs when a resource limit — memory, CPU time,
 output, wall time, script depth or call-stack depth — stops it. A limit breach is a `FATAL`, which no
 `catch` sees; the handler is the only code that observes one. It runs once, out of a slice of the request's
 budget reserved for it, and never a second time: a handler that throws or exhausts that slice is abandoned
@@ -21686,10 +21691,10 @@ Checks that `$token` was made by `Core\Signature::sign` with a key in `$keys`, a
 <a id="core-core-html"></a>
 ### `Core\Html`
 
-Keywords: html, markup, template, template literal, page, view, render, escape, escaping, xss, htmlspecialchars, htmlentities, html_entity_decode, strip_tags, DOMDocument, loadHTML, sanitize, parse, escape, join, later, toSource, parse, sanitize
+Keywords: html, markup, template, html template, page, view, render, escape, escaping, xss, htmlspecialchars, htmlentities, html_entity_decode, strip_tags, DOMDocument, loadHTML, sanitize, parse, escape, join, later, toSource, parse, sanitize
 
 `Core\Html\Markup` is the one type an HTTP request writes raw; every `string` written into a
-page is escaped. A `Markup` is made in three ways: an ``html`…` `` literal, whose text is trusted
+page is escaped. A `Markup` is made in three ways: an ``html`…` `` template, whose text is trusted
 because it was written in the source and whose `{$…}` holes are escaped; `Core\Html::escape`,
 which escapes a string; and `Core\Html::sanitize`, which rebuilds an untrusted document with
 only its safe parts. `+` joins two `Markup` values and `Core\Html::join` joins a list; `.` on a
@@ -26926,12 +26931,12 @@ skipped: not written yet
   they have the count `0`. Naming either flag beside a `.nvst` tree or `--list` is refused.
 - `--update` rewrites each failed `Core\Test::assertMatchesInline` snapshot in the source that
   wrote it, and is **the only spelling under which `nvs test` writes to a source file**. It
-  replaces the `$expected` literal and nothing else: a passing snapshot is untouched, and so is
+  replaces the `$expected` string and nothing else: a passing snapshot is untouched, and so is
   every other line of the file. The verdicts do not change — the tests that produced a new
   snapshot are still reported as failed, and the re-run is what says the new text is the one you
   meant. Write the snapshot as `''` and let the first run fill it in. Where one method holds two
   snapshots with the same text, neither is written and the run says so: there is no way to tell
-  which rendering belongs in which literal. Naming it beside a `.nvst` tree is refused — a case's
+  which rendering belongs in which string. Naming it beside a `.nvst` tree is refused — a case's
   expectation is its `--EXPECT--` section, which nothing rewrites.
 
 A `.nvst` case is a sequence of `--SECTION--` headers: `--TEST--` (one line saying what the case
@@ -27149,9 +27154,10 @@ $ nvs ast --json neg.nvs
 
 `--json` prints a frozen document instead of that notation, for a tool rather than a person: one
 object per node, carrying `kind`, `span` as `[start, end]` byte offsets, that production's own
-scalar fields — an operator, a flag, or which form a member name took — and `children`. A literal's
-text is not one of those fields: its span names it, and this command does not type-check, so it
-cannot know which literal is `secret` and owes a placeholder rather than its bytes.
+scalar fields — an operator, a flag, or which form a member name took — and `children`. The text of a
+value written directly in the code is not one of those fields: its span names it. This command does
+not type-check, so it cannot know which of those values is `secret` and needs a placeholder in
+place of its bytes.
 
 The comments and the whitespace the grammar drops are in that document too, as nodes of the same
 shape — `Whitespace`, `LineComment`, `BlockComment` or `DocComment`, each with its own span and no
@@ -27647,14 +27653,14 @@ connect = ["metrics.internal"]   # the names reachable
 internal = ["10.4.0.9"]          # the denied addresses this deployment reaches anyway
 ```
 
-An `internal` entry is an IP address literal — never a hostname, never a range, and `true` is not a
+An `internal` entry is an IP address written out in full — never a hostname, never a range, and `true` is not a
 spelling it has. It grants nothing on its own: an address named there is still only reached under a
 host `connect` grants.
 
 `net.listen` has no such key, because the policy's terms invert under a bind: binding loopback is
 the contained case and binding the unspecified address is the exposed one, so `connect`'s denied
 ranges would refuse the safe spelling and admit the dangerous one. An entry is an `address:port`
-literal instead, matched as the endpoint it names rather than as the string it was written as, and
+written out in full instead, matched as the endpoint it names rather than as the string it was written as, and
 one that does not parse as an endpoint matches nothing. `true` is every endpoint this process may
 bind.
 
@@ -28545,7 +28551,7 @@ member.
 
 Ten changes carry most of the distance between the two languages:
 
-- **Every binding declares a type once** — parameter, property, local, closure parameter — and no
+- **Every binding declares a type once** — parameter, property, local, anonymous function parameter — and no
   value ever changes type. `mixed` exists for when you mean it.
 - **Every function is a method and every constant is a class constant**, built-ins included. There
   is no global scope and nothing the host populates — no `$_GET`, no `$GLOBALS`, no `global`.
@@ -28593,8 +28599,8 @@ different 4
 ```
 
 Everything below is the same list at full resolution. Two rules explain most of the refusal
-tables. **Every binding declares a type once** — a parameter, a property, a local, a closure
-parameter — and no value ever changes type. **Every function is a method and every constant is a
+tables. **Every binding declares a type once** — a parameter, a property, a local, an
+anonymous function parameter — and no value ever changes type. **Every function is a method and every constant is a
 class constant**, so there is no global scope for anything to live in and nothing the host
 populates.
 
@@ -28622,7 +28628,7 @@ populates.
 | `define("X", 1)` | the same class constant | `E0320` |
 | `global $x;` | pass it as a parameter, or use a `static` property or a constant | `E0204` |
 | `static $n = 0;` inside a function | a `private static` property | `E0209` |
-| `static fn(…) => …` | `fn(…) => …` — a closure captures `$this` only if it uses it | `E0210` |
+| `static fn(…) => …` | `fn(…) => …` — an anonymous function captures `$this` only if it uses it | `E0210` |
 | `$$name`, `${"name"}` | an `array<T>`, whose keys are the names | `E0202` |
 | `eval($code)` | none: `require` a file, or `spawn script` one | `E0201` |
 | `extract($arr)` | destructure: `[int $a, int $b] = $arr;` | `E0205` |
@@ -28637,15 +28643,15 @@ populates.
 | PHP | Novis | Code |
 |---|---|---|
 | `function f($x)` | `function f(int $x)` — every parameter declares a type | `E0101` |
-| `fn($x) => …` | `fn(int $x) => …`; the type may be left out only where the closure is given to a `callable(int): int` type, which names it | `E0808` |
+| `fn($x) => …` | `fn(int $x) => …`; the type may be left out only where the anonymous function is given to a `callable(int): int` type, which names it | `E0808` |
 | `public $x;` | `public int $x = 0;` | `E0101` |
 | `(int)$s`, `(string)$n`, `(float)`, `(bool)`, `(array)` | `$s as int` — throws where a cast would truncate; `$s as ?int` answers `null` instead | `E0225` |
 | `settype($x, "int")` | a new binding: `int $n = $x as int;` | `E0208` |
 | `resource` | no such type; a handle is an object of a `Core` class | `E0303` |
 | `iterable $x` | `array<T>` for an array, `Iterable<T>` for a generator or an object; an `array<T>` is not an `Iterable<T>` | `E0401` at the call |
-| `callable $f = "strlen";`, `callable $f = [$obj, "m"];`, `callable $f = "A::m";` | only a closure is callable: `fn(string $s): uint => Core\Str::length($s)` | `E0418`, `E0419` |
+| `callable $f = "strlen";`, `callable $f = [$obj, "m"];`, `callable $f = "A::m";` | a callable is an anonymous function, `fn(string $s): uint => Core\Str::length($s)`, or a method reference, `Core\Str::length(...)` | `E0418`, `E0419` |
 | `never` return type | the same `never`; end every path of the body with `throw`, `exit` or a call to another `never` function. A path that reaches the end of the body does not compile, and a `return;` in it is refused | `E0739`, `E0822` |
-| `public int $x = 1 + 2;`, `public string $s = "a" . "b";` | write the value, or compute it in the constructor; a default is one literal, `null`, `[]`, an enum case or a constant | `E0472` |
+| `public int $x = 1 + 2;`, `public string $s = "a" . "b";` | write the value, or compute it in the constructor; a default is one value written directly in the code, `null`, `[]`, an enum case or a constant | `E0472` |
 | `1 == "1"` | convert one side: `$n == ($s as int)` — disjoint types do not compare | `E0466` |
 | `"3" * 2`, `"a" < "b"` | `($s as int) * 2`; `Core\Str::compare($a, $b)` | `E0716`, `E0715` |
 | `$s++` on a string | none; a binding never changes type | `E0474` |
@@ -28705,13 +28711,13 @@ the end of a file is fine.
 | `__toString()` | `implements Stringable` with `toString(): string` | `E0111` |
 | `__get`, `__set`, `__isset`, `__unset` | a property hook (`public int $x { get => …; set (int $v) => …; }`) or `implements PropertyObserver`; an undeclared property is always an error | `E0111` |
 | `__call`, `__callStatic` | none; declare the method | `E0111` |
-| `__invoke` | a closure, `fn(…) => …` | `E0111` |
+| `__invoke` | an anonymous function, `fn(…) => …` | `E0111` |
 | `__destruct`, `__clone`, `__sleep`, `__wakeup`, `__serialize`, `__debugInfo`, `__set_state` | none: no destructors, no clone hook, no serialization hook | `E0111` |
 | any name starting with `_` | no identifier starts with `_` | `E0111` on a method, `E0112` on a property |
 | `function f()` inside a class (no visibility) | `public function f(): T` — every member writes `public`, `protected` or `private` | `E0122` |
 | `trait T {}`, `use T;` inside a class | an interface method with a body for behaviour; `class C implements I by $field { … }` for state | `E0227` |
 | a property inside an `interface` body | a method every implementor writes, or a typed constant the implementor overrides and a default method reads as `static::NAME` | `E0254` |
-| `new class { … }` | a named class in the same file, or a closure where the class is one method — an anonymous class has no name for the static class table to hold | `E0244` |
+| `new class { … }` | a named class in the same file, or an anonymous function where the class is one method — an anonymous class has no name for the static class table to hold | `E0244` |
 | `readonly class A` | not a class modifier; `readonly` on a property parses | parse error `E0102` |
 | a `readonly` property initialized from any method of the declaring class, the second write throwing at run time | written by that class's `constructor` and nowhere else, refused where the write is written | `E0782` |
 | a write from outside the class to a property with a `get` hook and no `set` hook, which PHP stores when the property is backed | only the declaring class writes it — from outside, the accessors are the property | `E0787` |
@@ -28722,14 +28728,14 @@ Constructor promotion (`public function constructor(public int $x)`), `static::`
 `self::`, `abstract`, `final`, interfaces with constants and default method bodies, `clone`,
 `new A` without parentheses and `A::class` all work.
 
-### Closures and callables
+### Anonymous functions and callables
 
 | PHP | Novis | Code |
 |---|---|---|
 | `function (int $x) use ($k) { … }` | `fn(int $x): int => $x + $k;` — every outer variable read is captured by value, no `use` clause | `E0222`, `E0223` |
 | `function (int $x) { … }` (no `use`) | `fn(int $x): int => { …; return …; }` — the block-body form | `E0222` |
-| `fn($x) => $x` | `fn(int $x) => $x` — parameters declare a type unless the closure is passed straight to a parameter that gives one, as in `Core\Arr::map($a, fn($x) => $x * 2)`; the return type may be inferred | `E0808` |
-| `strlen(...)` | there is no free function to name: write a closure, `fn(string $s): uint => Core\Str::length($s)`; `A::f(...)` and `$o->m(...)` work as in PHP | `E0320` |
+| `fn($x) => $x` | `fn(int $x) => $x` — parameters declare a type unless the anonymous function is passed straight to a parameter that gives one, as in `Core\Arr::map($a, fn($x) => $x * 2)`; the return type may be inferred | `E0808` |
+| `strlen(...)` | there is no free function to name: write a method reference to the `Core` method, `Core\Str::length(...)`, or an anonymous function, `fn(string $s): uint => Core\Str::length($s)`; `A::f(...)` and `$o->m(...)` work as in PHP | `E0320` |
 | `call_user_func($f, 1)` | `$f(1)` — the answer of a call through `callable` is `mixed`, so `$f(1) as int` | `E0320` |
 
 ### Arrays and strings
@@ -28738,7 +28744,7 @@ Constructor promotion (`public function constructor(public int $x)`), `static::`
 |---|---|---|
 | `$a = [1, 2];` | `array<int> $a = [1, 2];` — a variable is declared with its type before it is assigned | `E0301` |
 | `var $a = [1, "a"];` | `array<int\|string> $a = [1, "a"];` — `var` finds an array's type only when every element has the same type | `E0414` |
-| `foreach ([1, 2] as $n)` | bind the literal to a typed local first | `E0401` |
+| `foreach ([1, 2] as $n)` | bind the array literal to a typed local first | `E0401` |
 | `array(1, 2)` | accepted; `[1, 2]` is the usual spelling | — |
 | `["a" => $x] = $arr;` keyed destructuring | give each variable its type: `["a" => int $x] = $arr;` | parse error `E0101` |
 | `print_r($v)`, `var_dump($v)`, `var_export($v)` | `Core\Debug::dump($v)` — writes to standard error, never to the output | `E0320` |
@@ -29064,8 +29070,8 @@ others are the protocol's own names and every theme already styles them.
 #### Concealed secrets
 
 `nvs/redactions` takes a document and answers one list of ranges, each with its kind. The
-`secretLiteral` ranges are the ones an editor must not show — the literals and interpolation slots
-that flow into a `secret` binding. The `taintedDeclaration` ranges are the opposite instruction: the
+`secretLiteral` ranges are the ones an editor must not show — the values written directly in the
+code, and the interpolation slots, that flow into a `secret` binding. The `taintedDeclaration` ranges are the opposite instruction: the
 name of each declaration whose type carries `tainted`, marked with a glyph and never concealed, and
 only where `nvs.taint.mark` asks for it. A credential on a shared screen is an incident; a tainted
 value on one is not, and the marker is teaching rather than a default. The server decides both,
@@ -29073,8 +29079,8 @@ never the client: a client that matched `password` against a variable name would
 definition of what a secret is.
 
 A value is concealed because of where it is *written to*, not because of what it looks like. A
-literal has no qualifier of its own; the binding it is assigned into carries `secret`, and that is
-the question this request asks at every literal in the file. It is deliberately not the semantic
+value written directly in the code has no qualifier of its own. The binding it is assigned into
+carries `secret`, and this request checks that binding for every such value in the file. It is deliberately not the semantic
 token channel with a modifier on it — that channel degrades to the plain token type when a client
 does not understand a modifier, and the failure mode here would be the value becoming visible.
 
@@ -29329,7 +29335,7 @@ trusted past its reach is worse than none.
   committed. Concealing a hardcoded credential does not make it less hardcoded.
 
 The blur is also a weaker concealment than an opaque fill would be: the smear is a convolution, so a
-recording of the screen carries more of the value than a fill would, and a short low-entropy literal
+recording of the screen carries more of the value than a fill would, and a short, low-entropy secret
 keeps its shape.
 
 A `taintedDeclaration` range is the opposite instruction and is never concealed — it is a name to

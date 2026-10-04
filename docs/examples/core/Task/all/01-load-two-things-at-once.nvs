@@ -1,8 +1,8 @@
 <?nvs
 // Shows how to run two pieces of work at the same time and use both results.
 
-// Each field of the shape is a closure. `Core\Task::all` runs them at the
-// same time and waits until both have finished.
+// Each field of the object is an anonymous function. `Core\Task::all` runs them
+// at the same time and waits until both have finished.
 var $page = Core\Task::all({
     name:   fn (): string => Core\Str::upper("anna"),
     orders: fn (): array<int> => [1042, 1043, 1051],

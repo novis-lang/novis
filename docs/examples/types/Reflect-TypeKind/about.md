@@ -9,5 +9,4 @@ fallback arm and no answer can be argued with.
 **Good to know:** this is the single question PHP asked with fourteen — the whole `is_*` family plus
 `gettype`. It also draws lines that family could not: a whole number that cannot be negative is
 `Uint` and not `Int`, an exact `Decimal` is never a `Float`, and a run of octets is `Bytes` rather
-than text that happens to hold them. A closure is an ordinary object, so there is no separate case
-for one to disagree with.
+than text that happens to hold them. A callable is an object, so it has no kind of its own.

@@ -6,7 +6,7 @@ $audit[] = "user 17 signed in";
 $audit[] = "user 17 changed the email address";
 $audit[] = "user 17 downloaded invoice 2026-031";
 
-// `deadline: 10s` stops the closure if it runs longer than 10 seconds.
+// `deadline: 10s` stops the anonymous function if it runs longer than 10 seconds.
 // A slow log server then cannot keep this work running for long.
 Core\Task::afterResponse(fn (): void => {
     foreach ($audit as string $line) {

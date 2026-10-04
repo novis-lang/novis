@@ -1,0 +1,53 @@
+<?nvs
+// Shows a common use of anonymous functions. One rule per field is kept in an
+// array. Each rule is an anonymous function that returns the message for a bad
+// value. The same loop then checks any form, so adding a field is adding a line.
+
+class Form {
+    // Each rule is given the value of its field and gives back an empty text
+    // when the value is fine.
+    public static function check(array<string> $values, array<callable> $rules): array<string> {
+        array<string> $problems = [];
+
+        foreach ($rules as string $field => callable $rule) {
+            string $message = $rule($values[$field] ?? "") as string;
+
+            if ($message != "") {
+                $problems = Core\Arr::append($problems, $field . ": " . $message);
+            }
+        }
+
+        return $problems;
+    }
+}
+
+// The shortest length is written once and carried into the rule that uses it.
+int $shortest = 8;
+
+array<callable> $rules = [
+    "name" => fn(string $value): string => $value == "" ? "please give a name" : "",
+    "email" => fn(string $value): string => Core\Str::contains($value, "@") ? "" : "needs an @",
+    "password" => fn(string $value): string =>
+        Core\Str::length($value) < $shortest ? "needs " . $shortest . " characters" : "",
+];
+
+array<string> $filled = [
+    "name" => "Ada",
+    "email" => "ada@example.com",
+    "password" => "correct horse",
+];
+
+// Nothing is wrong with this one, so the list of problems is empty.
+// This prints: filled in: 0 problem(s)
+echo "filled in: ", Core\Arr::count(Form::check($filled, $rules)), " problem(s)\n";
+
+array<string> $empty = [
+    "name" => "",
+    "email" => "ada.example.com",
+    "password" => "short",
+];
+
+// This prints one line per field that failed its rule.
+foreach (Form::check($empty, $rules) as string $problem) {
+    echo $problem, "\n";
+}

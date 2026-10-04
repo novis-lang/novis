@@ -1,5 +1,5 @@
 <?nvs
-// Attack: a program puts pipelines inside a pipeline, a closure and a `match`.
+// Attack: a program puts pipelines inside a pipeline, an anonymous function and a `match`.
 // It also writes a chain of forty-eight steps and sends megabytes through a chain.
 // Each `$_` should get the right value, or a limit should stop the program with
 // an error. The compiler should not crash or run forever.
@@ -19,9 +19,9 @@ class Attack
         return $a |> Attack::add($b |> Attack::twice($_), $_);
     }
 
-    /// A closure on the right side of a pipeline, with its own pipeline inside.
-    /// The `$_` inside the closure should be `$x`.
-    public static function holeUnderAClosure(array<int> $xs): int
+    /// An anonymous function on the right side of a pipeline, with its own pipeline inside.
+    /// The `$_` inside the function should be `$x`.
+    public static function holeUnderAFunction(array<int> $xs): int
     {
         return $xs
             |> Core\Arr::map($_, fn(int $x): int => $x |> Attack::twice($_))
@@ -96,7 +96,7 @@ class Attack
 }
 
 echo Attack::nestedRightSides(3, 4), "\n";
-echo Attack::holeUnderAClosure([1, 2, 3]), "\n";
+echo Attack::holeUnderAFunction([1, 2, 3]), "\n";
 echo Attack::holeUnderAMatch(4), "\n";
 echo Attack::longChain(0), "\n";
 echo Attack::deepParentheses(1), "\n";

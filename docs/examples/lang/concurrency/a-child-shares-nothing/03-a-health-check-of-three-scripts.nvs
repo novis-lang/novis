@@ -7,8 +7,8 @@ final class Report {
     public static int $problems = 0;
 }
 
-// `#[Core\Path]` says that a parameter is a file path. A relative string
-// literal passed to it starts at the folder of this file.
+// `#[Core\Path]` says that a parameter is a file path. A relative path in
+// quotes passed to it starts at the folder of this file.
 class Here {
     public static function path(#[Core\Path] string $path): string {
         return $path;

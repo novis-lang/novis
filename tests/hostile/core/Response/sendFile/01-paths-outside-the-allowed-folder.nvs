@@ -6,7 +6,7 @@
 
 class Here
 {
-    // Returns the literal as an absolute path, resolved from the folder of this file.
+    // Returns the path written in quotes as a full path, starting at the folder of this file.
     public static function path(#[Core\Path] string $path): string
     {
         return $path;

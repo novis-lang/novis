@@ -830,7 +830,7 @@ fn every_syntactic_form_is_reachable_through_a_heading() {
         "class-t",
         "html",
         "any-expression",
-        "closures-fn",
+        "anonymous-functions",
         "enum",
         "is",
         "yield",

@@ -2,7 +2,7 @@
 // Attack: a program may write only in `uploads`. It writes a file that is two million folders
 // deep in `config`. The write should fail at once, and the program should print `denied`.
 
-// `Here::path` returns its argument as a full path. A relative path in a string literal
+// `Here::path` returns its argument as a full path. A relative path written in quotes
 // starts at the folder of this file.
 class Here
 {

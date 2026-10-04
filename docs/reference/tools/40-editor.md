@@ -120,8 +120,8 @@ others are the protocol's own names and every theme already styles them.
 ## Concealed secrets
 
 `nvs/redactions` takes a document and answers one list of ranges, each with its kind. The
-`secretLiteral` ranges are the ones an editor must not show — the literals and interpolation slots
-that flow into a `secret` binding. The `taintedDeclaration` ranges are the opposite instruction: the
+`secretLiteral` ranges are the ones an editor must not show — the values written directly in the
+code, and the interpolation slots, that flow into a `secret` binding. The `taintedDeclaration` ranges are the opposite instruction: the
 name of each declaration whose type carries `tainted`, marked with a glyph and never concealed, and
 only where `nvs.taint.mark` asks for it. A credential on a shared screen is an incident; a tainted
 value on one is not, and the marker is teaching rather than a default. The server decides both,
@@ -129,8 +129,8 @@ never the client: a client that matched `password` against a variable name would
 definition of what a secret is.
 
 A value is concealed because of where it is *written to*, not because of what it looks like. A
-literal has no qualifier of its own; the binding it is assigned into carries `secret`, and that is
-the question this request asks at every literal in the file. It is deliberately not the semantic
+value written directly in the code has no qualifier of its own. The binding it is assigned into
+carries `secret`, and this request checks that binding for every such value in the file. It is deliberately not the semantic
 token channel with a modifier on it — that channel degrades to the plain token type when a client
 does not understand a modifier, and the failure mode here would be the value becoming visible.
 
@@ -385,7 +385,7 @@ trusted past its reach is worse than none.
   committed. Concealing a hardcoded credential does not make it less hardcoded.
 
 The blur is also a weaker concealment than an opaque fill would be: the smear is a convolution, so a
-recording of the screen carries more of the value than a fill would, and a short low-entropy literal
+recording of the screen carries more of the value than a fill would, and a short, low-entropy secret
 keeps its shape.
 
 A `taintedDeclaration` range is the opposite instruction and is never concealed — it is a name to

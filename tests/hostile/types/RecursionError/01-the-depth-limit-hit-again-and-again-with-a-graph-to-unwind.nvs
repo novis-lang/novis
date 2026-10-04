@@ -59,7 +59,7 @@ Nested::again(50);
 echo "fifty of them inside each other\n";
 
 // Two classes that call each other, so no single function calls itself.
-// After that, a closure that calls itself with no end.
+// After that, an anonymous function that calls itself with no end.
 class Ping
 {
     public static function go(uint $depth): uint
@@ -87,7 +87,7 @@ callable $forever = fn down(uint $depth): uint => down($depth + 1);
 try {
     $forever(0);
 } catch (Throwable $anything) {
-    echo "through a closure\n";
+    echo "through an anonymous function\n";
 }
 
 echo "still standing\n";

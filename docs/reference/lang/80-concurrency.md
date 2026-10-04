@@ -42,8 +42,8 @@ users orders
 
 `Core\Task::all` takes a shape whose every field is a zero-argument callable, runs them all
 concurrently, and answers a shape with the same field names, each typed by that field's declared
-return type — no cast at the use site. Where the closure was written does not matter: a literal, a
-first-class callable and a variable are equally good, and a field whose callable declares no return
+return type — no cast at the use site. Where the callable was made does not matter: an anonymous
+function, a method reference and a variable are equally good, and a field whose callable declares no return
 type answers `mixed` for that field alone. What is refused is a subject that is not a shape of
 callables.
 
@@ -69,9 +69,9 @@ expected `{name: callable(): T, ...}`
 
 # `Core\Task::map`: one task per element
 
-`Core\Task::map` calls a closure once per element of an array, each call its own task, and answers
+`Core\Task::map` calls a callable once per element of an array, each call its own task, and answers
 the results under the input's keys and in the input's order, whatever order they finished in. The
-closure receives `($value, $key)` and may declare only the first.
+callable receives `($value, $key)` and may declare only the first.
 
 ```nvs
 <?nvs
@@ -227,11 +227,12 @@ var $result = await $job;
 
 - The entry is either a **path** — any `string` expression naming a file — or a **static method**,
   written
-  `Class::method(...)`. An `fn` literal is refused (`E0802`): an isolate shares nothing but compiled
-  code, and a literal would carry the scope around it across that boundary.
+  `Class::method(...)`. An anonymous function is refused (`E0802`). An isolate shares nothing but
+  compiled code, and an anonymous function would carry the variables it captures across that
+  boundary.
 - A path written as a string literal starts at the folder of the file that contains it. A
   relative path built while the program runs throws a `RuntimeError`: build it with
-  `Core\Path::join` from a full path (§ *File paths: a literal starts at the folder of its file*).
+  `Core\Path::join` from a full path (§ *File paths: a relative path starts at the folder of its file*).
 - `with(…)` is optional. `output: 'capture'` collects what the child writes into the result;
   `output: 'inherit'` lets the child write straight to the parent's standard output, interleaved
   with the parent's own lines in whatever order the two run — only after `await` is all of it
@@ -405,12 +406,12 @@ try {
 
 # What does not exist
 
-- `async`, a promise-style `await`, `Fiber`, generators as coroutines: a task is a closure handed to
+- `async`, a promise-style `await`, `Fiber`, generators as coroutines: a task is a callable handed to
   `Core\Task`, and waiting is implicit.
 - `pcntl_fork`, `pthreads`, `parallel`, a `spawn worker`: an isolate is the one unit of separate
   execution, and its entry is a whole file or a static method.
-- A closure or an `fn` literal as a spawn entry: refused, because a literal would carry the scope
-  around it into a child that shares nothing but compiled code.
+- An anonymous function as a spawn entry: refused. It would carry the variables it captures into
+  a child that shares nothing but compiled code.
 - State shared between requests, or between an isolate and its parent, other than the values that
   cross at `await`.
 

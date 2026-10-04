@@ -2,7 +2,7 @@
 // Attack: a program tries to change which configuration files are read, or to add one.
 // Every attempt should fail, and the settings from the included file should stay the same.
 
-// `Here::path` returns its argument as a full path. A relative path in a string literal
+// `Here::path` returns its argument as a full path. A relative path written in quotes
 // starts at the folder of this file.
 class Here
 {

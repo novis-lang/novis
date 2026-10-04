@@ -7,8 +7,8 @@ its own.
 
 Write a number after either word to leave more than one level at once. `break 2` leaves the loop
 around the loop you are in. Levels count from 1 at the closest statement, and every loop and every
-`switch` is one level. The number has to be written out as a literal, so a variable is not allowed
-there.
+`switch` is one level. The number has to be written directly in the code, so a variable is not
+allowed there.
 
 **Good to know:** a level with no matching loop or `switch` does not compile. A wrong number is an
 error you see before the program runs.

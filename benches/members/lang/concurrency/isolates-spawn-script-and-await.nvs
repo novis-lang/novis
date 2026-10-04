@@ -5,8 +5,8 @@
 // bench: iterations 2000
 
 class Bench {
-    // `here` returns its argument as a full path. A relative path in a string
-    // literal starts at the folder of this file.
+    // `here` returns its argument as a full path. A relative path written in
+    // quotes starts at the folder of this file.
     private static function here(#[Core\Path] string $path): string {
         return $path;
     }

@@ -59,8 +59,8 @@ $db->execute(
 );
 $db->execute(
     'insert into counts (seats, label, share, picture) values (?, ?, ?, ?)',
-    // The smallest number is one below what a literal may write, so it is
-    // written as a subtraction.
+    // The smallest number is one below the smallest number you can write in the code,
+    // so it is written as a subtraction.
     [-9223372036854775807 - 1, 'the smallest', 0.0, '' as bytes],
 );
 foreach ($db->query('select seats, label from counts where row_id > ? order by row_id', [1]) as Core\Db\Row $wide) {

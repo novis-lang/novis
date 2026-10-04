@@ -9,8 +9,8 @@ immutable: every member answers a new value. Its arithmetic is calendar arithmet
 Core\Unit::Month)` keeps the day-of-month clamped to the new month's length, `plus(1, Core\Unit::Day)`
 across a DST boundary is a 23- or 25-hour day, and `difference` counts whole units in the receiver's
 zone. `format` takes a **CLDR pattern**, not PHP's `date()` letters — the same grammar `Core\Time::parse`
-reads and `Date::format` and `TimeOfDay::format` take for their own fields. A literal pattern is
-checked when the program compiles, so a letter outside the table below is a compile error; a pattern
+reads and `Date::format` and `TimeOfDay::format` take for their own fields. A pattern written directly
+in the code is checked when the program compiles, so a letter outside the table below is a compile error; a pattern
 computed at run time throws a `LogicError` instead. Names render in English only; there is no
 `setlocale`.
 
@@ -30,7 +30,7 @@ computed at run time throws a `LogicError` instead. Names render in English only
 | `x` | offset, never `Z` | the same three counts |
 | `VV` | the zone's IANA identifier | `VV` only |
 
-Text between `'…'` is literal, and `''` is one apostrophe. `G`, `Q`, `w`, `W`, `L`, `c`, `F` and `u`
+Text between `'…'` is printed as it is, and `''` is one apostrophe. `G`, `Q`, `w`, `W`, `L`, `c`, `F` and `u`
 are refused.
 
 ```nvs

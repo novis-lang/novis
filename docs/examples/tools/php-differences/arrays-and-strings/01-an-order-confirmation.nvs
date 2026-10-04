@@ -1,7 +1,7 @@
 <?nvs
 // Shows an order confirmation from a PHP program, written in Novis with typed arrays and a heredoc.
 
-// An array literal needs a type. `array<string>` is an array of strings.
+// An array written with `[...]` needs a type. `array<string>` is an array of strings.
 array<string> $order = ["id" => "1042", "name" => "Ada", "city" => "Vienna"];
 
 // Keyed destructuring copies entries into variables. Each variable has its type.

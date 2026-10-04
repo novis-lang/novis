@@ -10,11 +10,11 @@ echo Core\Str::length($date->format(Core\Str::repeat('y', 1000000))), " characte
 // 2. A million quote characters. Each pair prints one quote.
 echo Core\Str::length($date->format(Core\Str::repeat("'", 1000000))), " quotes\n";
 
-// 3. A literal that opens after a million letters and is never closed.
+// 3. A quoted text that opens after a million letters and is never closed.
 try {
     $date->format(Core\Str::repeat('d', 1000000) . "'open");
 } catch (LogicError $open) {
-    echo "unclosed literal refused\n";
+    echo "unclosed quote refused\n";
 }
 
 // 4. Every letter from A to Z and from a to z, alone and five times in a row.

@@ -13,7 +13,7 @@ can be called. The program calls the method itself, with one `switch` on `name()
 and the `405`.
 
 `name()` is the route's `#[Core\Route(name: …)]` as the program wrote it, or `null` for a route
-that declares none; it is a plain `string`, because it is the unit's own literal. `params()` is
+that declares none; it is a plain `string`, because the name is written directly in the code. `params()` is
 every capture the path filled, keyed by the parameter it binds, and `param()` is that array read at
 one key — `null` for a name the route does not declare, including an optional `{name?}` the request
 left off. A capture is `tainted string` where the route declared `string`, still percent-encoded,

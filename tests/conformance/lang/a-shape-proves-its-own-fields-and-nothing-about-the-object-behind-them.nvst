@@ -2,7 +2,7 @@
 A shape proves its own fields and nothing else: field order in a literal does not change the type, an object with more fields satisfies it, a name it does not list is read off the object at run time and throws only where that object has none, an optional field is proven in type and not in presence, and `==` stays identity — `rule:types/shape-type`
 --FILE--
 <?nvs
-// covers: lang:expressions/object-literals
+// covers: lang:expressions/anonymous-objects
 // A shape is a structural constraint and not a class, so what it proves is
 // narrower than what the object behind it holds. Each block below asks one
 // half of that, and the two halves fail in opposite directions: a checker

@@ -1,6 +1,6 @@
 <?nvs
 // A short leaderboard, best score first.
-// The second thing given to `sort` is one object literal holding its optional
+// The second thing given to `sort` is one anonymous object with its optional
 // settings. There are no flags to remember, and the loop says what it takes
 // out of the list.
 

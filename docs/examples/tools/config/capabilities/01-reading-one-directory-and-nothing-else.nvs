@@ -2,7 +2,7 @@
 // Shows a program that may read one directory and nothing else.
 // `nvs.toml` grants `fs.read` for `data`, and every other file access fails.
 
-// A relative path in a string literal starts at the folder of this file.
+// A relative path in quotes starts at the folder of this file.
 // The file is inside `data`, so this works. This prints `coffee 3.20`.
 echo Core\Str::trim(Core\IO::read("data/prices.txt")), "\n";
 

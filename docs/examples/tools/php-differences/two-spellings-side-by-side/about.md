@@ -5,8 +5,8 @@ The PHP version has a function outside a class, a parameter without a type, `arr
 
 The Novis version puts the function and a constant in a class named `Cart`. It declares
 `array<int> $prices`, converts a string with `as int`, and uses `&&`. It also shows
-`Core\Str::slice`, `<=>`, destructuring with types, a closure written with `fn`, and a `catch`
-clause that reads `$e->message`.
+`Core\Str::slice`, `<=>`, destructuring with types, an anonymous function written with `fn`, and a
+`catch` clause that reads `$e->message`.
 
 Two smaller PHP programs show two more errors. `__construct` gives `E0114`, and `$_GET` gives
 `E0211`.

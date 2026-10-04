@@ -1,7 +1,7 @@
 An array holds a list of values, or a table where every value has a name. This is the syntax for
 building one, reading it and changing it.
 
-A literal is written `[10, 20]` or `["city" => "Graz"]`. `var $prices = [10, 20]` takes the type
+You write an array as `[10, 20]` or `["city" => "Graz"]`. `var $prices = [10, 20]` takes the type
 from the values, so `$prices` is an `array<int>`. An empty array, or one whose values have different
 types, needs the type written: `array<int> $prices = []` or `array<int|string> $row = [1, "a"]`.
 `$prices[] = 30` adds a value at the end. Every key is text, so `$prices[8]` and `$prices["8"]` are

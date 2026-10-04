@@ -10,6 +10,6 @@ echo $elapsed->toMilliseconds(), "\n";
 // No part is lost. This prints 1500000 again.
 echo $elapsed->toNanoseconds(), "\n";
 
-// 90 seconds in nanoseconds has the same length as the literal `90s`.
+// 90 seconds in nanoseconds has the same length as the duration `90s`.
 // `compareTo` returns 0 for two durations of the same length, so this prints 0.
 echo Core\Time\Duration::nanoseconds(90000000000)->compareTo(90s), "\n";

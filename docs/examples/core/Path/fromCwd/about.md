@@ -6,8 +6,8 @@ A command-line tool uses it for a file name the user typed, such as `report.txt`
 is already full is returned without the folder.
 
 **Good to know:** `fromCwd` throws a `RuntimeError` while the program answers a web request. A
-server's working folder is not the folder of your app. Write a path in your program as a string
-literal instead, because a literal starts at the folder of the file that contains it.
+server's working folder is not the folder of your app. Write the path in your program as a string
+in quotes instead. A path written in quotes starts at the folder of the file that contains it.
 
 **The examples below** turn a typed file name into a full path, show that `.` and `..` are
 removed, and build export paths below the starting folder.

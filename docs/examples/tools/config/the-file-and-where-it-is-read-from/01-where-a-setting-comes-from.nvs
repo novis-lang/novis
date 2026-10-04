@@ -7,8 +7,8 @@ echo Core\Config::get("memory"), "\n";
 // `wall_time` is not in the file, so `Core\Config::get` returns `null`. This prints `unset`.
 echo Core\Config::get("wall_time") ?? "unset", "\n";
 
-// `nvs.toml` allows reading the `notes` folder next to it. A path in a string
-// literal starts at the folder of this program, which is the same folder.
+// `nvs.toml` allows reading the `notes` folder next to it. A path in quotes
+// starts at the folder of this program, which is the same folder.
 echo Core\IO::read("notes/today.txt");
 
 // `Core\Path::fromCwd` starts the path at the working directory.

@@ -17,7 +17,7 @@ member.
 
 Ten changes carry most of the distance between the two languages:
 
-- **Every binding declares a type once** — parameter, property, local, closure parameter — and no
+- **Every binding declares a type once** — parameter, property, local, anonymous function parameter — and no
   value ever changes type. `mixed` exists for when you mean it.
 - **Every function is a method and every constant is a class constant**, built-ins included. There
   is no global scope and nothing the host populates — no `$_GET`, no `$GLOBALS`, no `global`.
@@ -65,8 +65,8 @@ different 4
 ```
 
 Everything below is the same list at full resolution. Two rules explain most of the refusal
-tables. **Every binding declares a type once** — a parameter, a property, a local, a closure
-parameter — and no value ever changes type. **Every function is a method and every constant is a
+tables. **Every binding declares a type once** — a parameter, a property, a local, an
+anonymous function parameter — and no value ever changes type. **Every function is a method and every constant is a
 class constant**, so there is no global scope for anything to live in and nothing the host
 populates.
 
@@ -96,7 +96,7 @@ populates.
 | `define("X", 1)` | the same class constant | `E0320` |
 | `global $x;` | pass it as a parameter, or use a `static` property or a constant | `E0204` |
 | `static $n = 0;` inside a function | a `private static` property | `E0209` |
-| `static fn(…) => …` | `fn(…) => …` — a closure captures `$this` only if it uses it | `E0210` |
+| `static fn(…) => …` | `fn(…) => …` — an anonymous function captures `$this` only if it uses it | `E0210` |
 | `$$name`, `${"name"}` | an `array<T>`, whose keys are the names | `E0202` |
 | `eval($code)` | none: `require` a file, or `spawn script` one | `E0201` |
 | `extract($arr)` | destructure: `[int $a, int $b] = $arr;` | `E0205` |
@@ -112,15 +112,15 @@ populates.
 | PHP | Novis | Code |
 |---|---|---|
 | `function f($x)` | `function f(int $x)` — every parameter declares a type | `E0101` |
-| `fn($x) => …` | `fn(int $x) => …`; the type may be left out only where the closure is given to a `callable(int): int` type, which names it | `E0808` |
+| `fn($x) => …` | `fn(int $x) => …`; the type may be left out only where the anonymous function is given to a `callable(int): int` type, which names it | `E0808` |
 | `public $x;` | `public int $x = 0;` | `E0101` |
 | `(int)$s`, `(string)$n`, `(float)`, `(bool)`, `(array)` | `$s as int` — throws where a cast would truncate; `$s as ?int` answers `null` instead | `E0225` |
 | `settype($x, "int")` | a new binding: `int $n = $x as int;` | `E0208` |
 | `resource` | no such type; a handle is an object of a `Core` class | `E0303` |
 | `iterable $x` | `array<T>` for an array, `Iterable<T>` for a generator or an object; an `array<T>` is not an `Iterable<T>` | `E0401` at the call |
-| `callable $f = "strlen";`, `callable $f = [$obj, "m"];`, `callable $f = "A::m";` | only a closure is callable: `fn(string $s): uint => Core\Str::length($s)` | `E0418`, `E0419` |
+| `callable $f = "strlen";`, `callable $f = [$obj, "m"];`, `callable $f = "A::m";` | a callable is an anonymous function, `fn(string $s): uint => Core\Str::length($s)`, or a method reference, `Core\Str::length(...)` | `E0418`, `E0419` |
 | `never` return type | the same `never`; end every path of the body with `throw`, `exit` or a call to another `never` function. A path that reaches the end of the body does not compile, and a `return;` in it is refused | `E0739`, `E0822` |
-| `public int $x = 1 + 2;`, `public string $s = "a" . "b";` | write the value, or compute it in the constructor; a default is one literal, `null`, `[]`, an enum case or a constant | `E0472` |
+| `public int $x = 1 + 2;`, `public string $s = "a" . "b";` | write the value, or compute it in the constructor; a default is one value written directly in the code, `null`, `[]`, an enum case or a constant | `E0472` |
 | `1 == "1"` | convert one side: `$n == ($s as int)` — disjoint types do not compare | `E0466` |
 | `"3" * 2`, `"a" < "b"` | `($s as int) * 2`; `Core\Str::compare($a, $b)` | `E0716`, `E0715` |
 | `$s++` on a string | none; a binding never changes type | `E0474` |
@@ -182,13 +182,13 @@ the end of a file is fine.
 | `__toString()` | `implements Stringable` with `toString(): string` | `E0111` |
 | `__get`, `__set`, `__isset`, `__unset` | a property hook (`public int $x { get => …; set (int $v) => …; }`) or `implements PropertyObserver`; an undeclared property is always an error | `E0111` |
 | `__call`, `__callStatic` | none; declare the method | `E0111` |
-| `__invoke` | a closure, `fn(…) => …` | `E0111` |
+| `__invoke` | an anonymous function, `fn(…) => …` | `E0111` |
 | `__destruct`, `__clone`, `__sleep`, `__wakeup`, `__serialize`, `__debugInfo`, `__set_state` | none: no destructors, no clone hook, no serialization hook | `E0111` |
 | any name starting with `_` | no identifier starts with `_` | `E0111` on a method, `E0112` on a property |
 | `function f()` inside a class (no visibility) | `public function f(): T` — every member writes `public`, `protected` or `private` | `E0122` |
 | `trait T {}`, `use T;` inside a class | an interface method with a body for behaviour; `class C implements I by $field { … }` for state | `E0227` |
 | a property inside an `interface` body | a method every implementor writes, or a typed constant the implementor overrides and a default method reads as `static::NAME` | `E0254` |
-| `new class { … }` | a named class in the same file, or a closure where the class is one method — an anonymous class has no name for the static class table to hold | `E0244` |
+| `new class { … }` | a named class in the same file, or an anonymous function where the class is one method — an anonymous class has no name for the static class table to hold | `E0244` |
 | `readonly class A` | not a class modifier; `readonly` on a property parses | parse error `E0102` |
 | a `readonly` property initialized from any method of the declaring class, the second write throwing at run time | written by that class's `constructor` and nowhere else, refused where the write is written | `E0782` |
 | a write from outside the class to a property with a `get` hook and no `set` hook, which PHP stores when the property is backed | only the declaring class writes it — from outside, the accessors are the property | `E0787` |
@@ -200,14 +200,14 @@ Constructor promotion (`public function constructor(public int $x)`), `static::`
 `new A` without parentheses and `A::class` all work.
 
 <!-- primer -->
-# Closures and callables
+# Anonymous functions and callables
 
 | PHP | Novis | Code |
 |---|---|---|
 | `function (int $x) use ($k) { … }` | `fn(int $x): int => $x + $k;` — every outer variable read is captured by value, no `use` clause | `E0222`, `E0223` |
 | `function (int $x) { … }` (no `use`) | `fn(int $x): int => { …; return …; }` — the block-body form | `E0222` |
-| `fn($x) => $x` | `fn(int $x) => $x` — parameters declare a type unless the closure is passed straight to a parameter that gives one, as in `Core\Arr::map($a, fn($x) => $x * 2)`; the return type may be inferred | `E0808` |
-| `strlen(...)` | there is no free function to name: write a closure, `fn(string $s): uint => Core\Str::length($s)`; `A::f(...)` and `$o->m(...)` work as in PHP | `E0320` |
+| `fn($x) => $x` | `fn(int $x) => $x` — parameters declare a type unless the anonymous function is passed straight to a parameter that gives one, as in `Core\Arr::map($a, fn($x) => $x * 2)`; the return type may be inferred | `E0808` |
+| `strlen(...)` | there is no free function to name: write a method reference to the `Core` method, `Core\Str::length(...)`, or an anonymous function, `fn(string $s): uint => Core\Str::length($s)`; `A::f(...)` and `$o->m(...)` work as in PHP | `E0320` |
 | `call_user_func($f, 1)` | `$f(1)` — the answer of a call through `callable` is `mixed`, so `$f(1) as int` | `E0320` |
 
 <!-- primer -->
@@ -217,7 +217,7 @@ Constructor promotion (`public function constructor(public int $x)`), `static::`
 |---|---|---|
 | `$a = [1, 2];` | `array<int> $a = [1, 2];` — a variable is declared with its type before it is assigned | `E0301` |
 | `var $a = [1, "a"];` | `array<int\|string> $a = [1, "a"];` — `var` finds an array's type only when every element has the same type | `E0414` |
-| `foreach ([1, 2] as $n)` | bind the literal to a typed local first | `E0401` |
+| `foreach ([1, 2] as $n)` | bind the array literal to a typed local first | `E0401` |
 | `array(1, 2)` | accepted; `[1, 2]` is the usual spelling | — |
 | `["a" => $x] = $arr;` keyed destructuring | give each variable its type: `["a" => int $x] = $arr;` | parse error `E0101` |
 | `print_r($v)`, `var_dump($v)`, `var_export($v)` | `Core\Debug::dump($v)` — writes to standard error, never to the output | `E0320` |

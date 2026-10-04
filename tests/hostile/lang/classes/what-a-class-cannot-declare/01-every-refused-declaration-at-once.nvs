@@ -74,7 +74,7 @@ class Outer {
     }
 }
 
-// 4. A class declared inside a method body, and one inside a closure body.
+// 4. A class declared inside a method body, and one inside an anonymous function body.
 class Holder {
     public static function build(): int {
         class InAMethod {
@@ -85,7 +85,7 @@ class Holder {
 }
 
 callable $make = fn (): int => {
-    class InAClosure {
+    class InAnAnonymousFunction {
         public int $n = 1;
     }
     return 1;

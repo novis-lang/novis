@@ -5,14 +5,14 @@ keywords: preg_match, preg_match_all, preg_replace, preg_replace_callback, preg_
 
 A `Core\Regex` pattern is a plain string — no `/…/` delimiters and no trailing modifiers; the
 flags are options to `Core\Regex::compile`, which answers a `Core\Regex\Pattern` every other
-member also takes in place of the string. A single-quoted literal is the cheap spelling — `'\d+'`
+member also takes in place of the string. A single-quoted string is the cheap spelling — `'\d+'`
 has no escapes to double, where `"\\d+"` does. A pattern runs on a linear-time engine; one that needs
 a lookaround or a backreference runs on a backtracking engine under a step budget, and exhausting
 that budget throws rather than answering `false`. A pattern neither engine can compile throws too.
 `match` answers `?Core\Regex\Match` — `null` when nothing matched — and `matchAll` a list of them;
-in `replace`'s template `$1` and `${name}` are group references and `$$` a literal `$`, while
-`replaceWith`'s callback answer is inserted literally. A literal built into a pattern goes
-through `quote`.
+in `replace`'s template `$1` and `${name}` are group references and `$$` a plain `$`, while
+the value `replaceWith`'s callback returns is inserted as it is. Fixed text built into a pattern
+goes through `quote`.
 
 ```nvs
 <?nvs

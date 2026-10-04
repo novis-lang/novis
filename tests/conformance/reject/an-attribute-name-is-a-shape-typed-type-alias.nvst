@@ -2,7 +2,7 @@
 a named attribute's name resolves to a shape-typed `type` alias and the payload is checked against it, so a name that is anything else is refused where it is written — `rule:attributes/attach-sites-and-forms`
 --FILE--
 <?nvs
-// covers: lang:attributes/an-attribute-is-a-shape-literal-attached-to-a-declaration
+// covers: lang:attributes/an-attribute-is-an-anonymous-object-attached-to-a-declaration
 // `rule:attributes/attach-sites-and-forms`: the named form reads like a constructor call deliberately,
 // for PHP familiarity, and is not one — `Name` is never a class and never a
 // new namespace of attribute kinds. It is a pre-existing `type` alias whose

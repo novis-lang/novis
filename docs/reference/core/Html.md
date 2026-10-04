@@ -1,10 +1,10 @@
 ---
-summary: HTML as a page writes it — the ``html`…` `` literal, `Core\Html\Markup`, escaping, sanitizing and parsing
-keywords: html, markup, template, template literal, page, view, render, escape, escaping, xss, htmlspecialchars, htmlentities, html_entity_decode, strip_tags, DOMDocument, loadHTML, sanitize, parse
+summary: HTML as a page writes it — the ``html`…` `` template, `Core\Html\Markup`, escaping, sanitizing and parsing
+keywords: html, markup, template, html template, page, view, render, escape, escaping, xss, htmlspecialchars, htmlentities, html_entity_decode, strip_tags, DOMDocument, loadHTML, sanitize, parse
 ---
 
 `Core\Html\Markup` is the one type an HTTP request writes raw; every `string` written into a
-page is escaped. A `Markup` is made in three ways: an ``html`…` `` literal, whose text is trusted
+page is escaped. A `Markup` is made in three ways: an ``html`…` `` template, whose text is trusted
 because it was written in the source and whose `{$…}` holes are escaped; `Core\Html::escape`,
 which escapes a string; and `Core\Html::sanitize`, which rebuilds an untrusted document with
 only its safe parts. `+` joins two `Markup` values and `Core\Html::join` joins a list; `.` on a

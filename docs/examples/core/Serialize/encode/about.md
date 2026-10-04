@@ -6,7 +6,7 @@ arrays and objects. If two places point to the same object, they still point to 
 `decode()`. You can save the bytes in a file or a cache, or keep them as a copy of a value at one
 moment.
 
-Some values cannot be turned into bytes: a closure, an open file or connection, and an object with a
+Some values cannot be turned into bytes: a callable, an open file or connection, and an object with a
 `secret` property. For these values, `encode()` throws a `LogicError`.
 
 **Good to know:** the bytes use a format that only Novis reads. PHP cannot read them, and Novis cannot

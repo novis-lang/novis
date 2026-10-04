@@ -2,7 +2,7 @@
 An object literal is refused where its `{` or one of its fields would have two meanings: at the start of a statement, directly after a closure's `=>`, on a local declaration typed with a bare shape, with a field written twice, with a required field missing, and with a field the shape types differently — `rule:types/shape-type`
 --FILE--
 <?nvs
-// covers: lang:expressions/object-literals
+// covers: lang:expressions/anonymous-objects
 // A `{` opens a block before it is anything else, so the two positions
 // where a statement could start take the parenthesised literal instead.
 // Both are asked here: the bare statement, and the body of an arrow

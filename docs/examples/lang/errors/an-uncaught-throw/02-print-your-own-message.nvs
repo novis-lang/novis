@@ -2,7 +2,7 @@
 // Shows how to print your own message when an error ends the program.
 // proof: exit 1
 
-// This closure runs when a throw reaches the top of the program and nothing
+// This anonymous function runs when a throw reaches the top of the program and nothing
 // caught it. The program still ends, and the exit status is still 1.
 Core\Fatal::onUncaughtThrow(fn (Throwable $e): void => {
     echo "import stopped: ", $e->message, "\n";
@@ -20,6 +20,6 @@ class Import {
 
 echo Import::row("ada,lovelace"), "\n";
 
-// The second row is empty, so this throw ends the program. The closure above
+// The second row is empty, so this throw ends the program. The anonymous function above
 // runs first and prints the two lines you wrote for your user.
 echo Import::row(""), "\n";

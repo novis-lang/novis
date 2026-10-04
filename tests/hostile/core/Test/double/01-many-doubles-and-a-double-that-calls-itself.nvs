@@ -49,7 +49,7 @@ while ($calls < 200000) {
 Core\Test::assertCalled($busy, Counter::down, { times: 200000 });
 echo "200000 calls\n";
 
-// Step 3: a closure returns a text of sixteen megabytes, one hundred times.
+// Step 3: an anonymous function returns a text of sixteen megabytes, one hundred times.
 Source $source = Core\Test::double<Source>({
     text: fn(): string => Core\Str::repeat('x', 16777216),
     fail: fn(): int => Holder::down(),
@@ -62,7 +62,7 @@ while ($read < 100) {
 }
 echo $length, "\n";
 
-// Step 4: a closure throws an error. The caller of the method catches it.
+// Step 4: an anonymous function throws an error. The caller of the method catches it.
 try {
     $source->fail();
     echo "no error\n";
@@ -80,7 +80,7 @@ echo $first == $first ? 'same' : 'different', "\n";
 echo $first == $second ? 'same' : 'different', "\n";
 echo $first is Source ? 'a Source' : 'not a Source', "\n";
 
-// Step 6: the closure calls the same double again, one hundred thousand levels deep.
+// Step 6: the anonymous function calls the same double again, one hundred thousand levels deep.
 Holder $holder = new Holder();
 $holder->counter = Core\Test::double<Counter>({
     down: fn(int $n): int => $n == 0 ? 0 : ($holder->counter?->down($n - 1) ?? 0) + 1,

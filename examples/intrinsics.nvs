@@ -1,7 +1,7 @@
 <?nvs
-// ADR 0057's intrinsic literal folding, as a program.
+// ADR 0057's intrinsic folding of arguments written in the code, as a program.
 //
-// Four of § 1's closed list, each reached twice: once with a literal argument,
+// Four of § 1's closed list, each reached twice: once with an argument written in the code,
 // which the compiler validates and prepares while checking, and once through a
 // variable, which compiles to an ordinary runtime call with ordinary runtime
 // validation. Nothing is refused for being dynamic (§ 2) — the difference is
@@ -33,7 +33,7 @@ var $runtimeHit = Core\Regex::matches('order-4711', Core\Regex::compile($regexSo
 echo ($foldedHit == $runtimeHit) && $foldedHit ? 'matched' : 'diverged', "\n";
 
 // `Core\Str::format` — the one entry whose check is over the *call* and not
-// just the literal: the placeholder count and types are checked against the
+// just the format string: the placeholder count and types are checked against the
 // argument list, which turns a whole family of PHP `printf` bugs into compile
 // errors.
 var $template = 'total: %d';

@@ -1,8 +1,8 @@
 <?nvs
 // A request builds a small table for one row of data, writes into it and
-// reads the values back. This measures those four steps together: the array
-// literal, an append, a write by key and a read by key. Every round takes
-// its input from the round before it, so no work can be skipped.
+// reads the values back. This measures those four steps together: building the
+// array with `[...]`, an append, a write by key and a read by key. Every round
+// takes its input from the round before it, so no work can be skipped.
 // bench: iterations 200000
 
 class Bench

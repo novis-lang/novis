@@ -3,7 +3,7 @@ summary: the one hook that runs after a resource limit has stopped the request �
 keywords: register_shutdown_function, memory limit, resource limit, FATAL, onLimit, cpu_time, wall_time, max_output, out of memory, shutdown handler
 ---
 
-`Core\Fatal::onLimit` registers the closure the request runs when a resource limit — memory, CPU time,
+`Core\Fatal::onLimit` registers the callable the request runs when a resource limit — memory, CPU time,
 output, wall time, script depth or call-stack depth — stops it. A limit breach is a `FATAL`, which no
 `catch` sees; the handler is the only code that observes one. It runs once, out of a slice of the request's
 budget reserved for it, and never a second time: a handler that throws or exhausts that slice is abandoned

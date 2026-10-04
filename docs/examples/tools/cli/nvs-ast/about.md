@@ -11,5 +11,5 @@ and whitespace are nodes too.
 The command prints a tree for a file with syntax errors too. With `--strict`, it prints no tree
 when the parser reported an error.
 
-**Good to know:** the JSON does not contain the text of a literal. Use the `span` of the node to
-read the text from the file.
+**Good to know:** the JSON does not contain the text of a string or a number written in the code.
+Use the `span` of the node to read the text from the file.

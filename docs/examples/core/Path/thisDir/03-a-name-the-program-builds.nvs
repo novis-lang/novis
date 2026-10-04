@@ -3,7 +3,7 @@
 
 array<string> $months = ["2026-01", "2026-02"];
 
-// `thisDir` needs a string literal, so a built name goes to `Core\Path::join`.
+// `thisDir` only takes a path in quotes. For a name the program builds, use `Core\Path::join`.
 // This prints `2026-01.csv` and `2026-02.csv`.
 foreach ($months as string $month) {
     string $path = Core\Path::join(Core\Path::thisDir(), "exports", $month . ".csv");

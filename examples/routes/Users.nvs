@@ -33,7 +33,7 @@ class Users
         return 'user ' . $id;
     }
 
-    // § 2: precedence is structural, not declaration-ordered — a literal
+    // § 2: precedence is structural, not declaration-ordered — a fixed
     // segment beats a `{name}` capture — so `/users` and `/users/{id}` coexist
     // with no ordering rule to remember, and moving either declaration between
     // files cannot change which one wins.

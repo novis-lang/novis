@@ -17,7 +17,7 @@ try { Core\Time::parse('2024-06-05', $everyLetter, $utc); } catch (LogicError $l
 // 2. Quotes that never close, and one million quoted characters.
 try { Core\Time::parse('2024', "yyyy '" . Core\Str::repeat('x', 1000000), $utc); } catch (LogicError $open) { $badPattern = $badPattern + 1; }
 try { Core\Time::parse('2024', Core\Str::repeat("'", 1000001), $utc); } catch (LogicError $odd) { $badPattern = $badPattern + 1; } catch (ParseError $oddText) { $badText = $badText + 1; }
-try { Core\Time::parse('2024', "'" . Core\Str::repeat('x', 1000000) . "'yyyy", $utc); } catch (ParseError $longLiteral) { $badText = $badText + 1; }
+try { Core\Time::parse('2024', "'" . Core\Str::repeat('x', 1000000) . "'yyyy", $utc); } catch (ParseError $longQuoted) { $badText = $badText + 1; }
 
 // 3. A year field one million letters wide, with one million digits of text.
 string $digits = Core\Str::repeat('9', 1000000);

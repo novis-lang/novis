@@ -2,7 +2,8 @@ Creates a duration of a given number of weeks. Each week is exactly 7 days of 24
 168 hours.
 
 Use it when the number of weeks is known only while the program runs, for example when it comes from
-a setting. When the number is fixed, write a literal such as `2w` instead. A negative number gives a
+a setting. When the number is fixed, write the duration directly in the code,
+such as `2w`. A negative number gives a
 negative duration. The number can be up to 15,250 weeks, which is about 292 years. A larger number
 throws a `RuntimeError`.
 

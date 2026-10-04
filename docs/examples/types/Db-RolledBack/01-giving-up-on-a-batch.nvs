@@ -1,5 +1,5 @@
 <?nvs
-// A transaction is a closure: it returns and the work is kept, it throws and
+// A transaction runs a callable. If it returns, the work is kept. If it throws,
 // the work is undone. This one reads part-way through that the batch has a
 // reading no thermometer could have produced, and gives up on all of it.
 

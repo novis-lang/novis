@@ -10,7 +10,7 @@ echo "Order #", $order, " is saved.\n";
 // Step two runs after step one in every case.
 echo "Stock for order #", $order, " is reserved.\n";
 
-// This closure runs after the answer, also when the client is gone.
+// This anonymous function runs after the answer, also when the client is gone.
 Core\Task::afterResponse(fn (): void => {
     echo "Receipt for order #", $order, " is sent.\n";
 });

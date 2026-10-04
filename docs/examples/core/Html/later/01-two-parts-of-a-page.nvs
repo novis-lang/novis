@@ -7,8 +7,8 @@ try {
     var $page = Core\Test::request(Core\Http\Method::Get, "/");
     echo $page->body();
 } catch (RuntimeError $insideTheRequest) {
-    // Each call starts its closure and returns a placeholder at once.
-    // The two closures run at the same time, so the page waits about 30 ms, not 50 ms.
+    // Each call starts its anonymous function and returns a placeholder at once.
+    // The two anonymous functions run at the same time, so the page waits about 30 ms, not 50 ms.
     Core\Html\Markup $posts = Core\Html::later(fn(): Core\Html\Markup => {
         Core\Time::sleep(30ms);
         return html`<p>3 new blog posts</p>`;
@@ -19,6 +19,6 @@ try {
     });
 
     // Write each placeholder where its part belongs.
-    // Before the page is sent, the output of each closure replaces its placeholder.
+    // Before the page is sent, the output of each anonymous function replaces its placeholder.
     echo html`<h1>Welcome back</h1>`, "\n", $posts, "\n", $offers, "\n";
 }

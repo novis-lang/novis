@@ -264,12 +264,12 @@ skipped: not written yet
   they have the count `0`. Naming either flag beside a `.nvst` tree or `--list` is refused.
 - `--update` rewrites each failed `Core\Test::assertMatchesInline` snapshot in the source that
   wrote it, and is **the only spelling under which `nvs test` writes to a source file**. It
-  replaces the `$expected` literal and nothing else: a passing snapshot is untouched, and so is
+  replaces the `$expected` string and nothing else: a passing snapshot is untouched, and so is
   every other line of the file. The verdicts do not change — the tests that produced a new
   snapshot are still reported as failed, and the re-run is what says the new text is the one you
   meant. Write the snapshot as `''` and let the first run fill it in. Where one method holds two
   snapshots with the same text, neither is written and the run says so: there is no way to tell
-  which rendering belongs in which literal. Naming it beside a `.nvst` tree is refused — a case's
+  which rendering belongs in which string. Naming it beside a `.nvst` tree is refused — a case's
   expectation is its `--EXPECT--` section, which nothing rewrites.
 
 A `.nvst` case is a sequence of `--SECTION--` headers: `--TEST--` (one line saying what the case
@@ -487,9 +487,10 @@ $ nvs ast --json neg.nvs
 
 `--json` prints a frozen document instead of that notation, for a tool rather than a person: one
 object per node, carrying `kind`, `span` as `[start, end]` byte offsets, that production's own
-scalar fields — an operator, a flag, or which form a member name took — and `children`. A literal's
-text is not one of those fields: its span names it, and this command does not type-check, so it
-cannot know which literal is `secret` and owes a placeholder rather than its bytes.
+scalar fields — an operator, a flag, or which form a member name took — and `children`. The text of a
+value written directly in the code is not one of those fields: its span names it. This command does
+not type-check, so it cannot know which of those values is `secret` and needs a placeholder in
+place of its bytes.
 
 The comments and the whitespace the grammar drops are in that document too, as nodes of the same
 shape — `Whitespace`, `LineComment`, `BlockComment` or `DocComment`, each with its own span and no

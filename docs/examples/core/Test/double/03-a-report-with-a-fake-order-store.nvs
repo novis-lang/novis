@@ -16,7 +16,7 @@ class Report {
     }
 }
 
-// The closures use their argument, so each customer gets different numbers.
+// The anonymous functions use their argument, so each customer gets different numbers.
 Orders $orders = Core\Test::double<Orders>({
     countFor: fn(string $customer): int => $customer == "ada" ? 3 : 0,
     totalFor: fn(string $customer): int => $customer == "ada" ? 4200 : 0,

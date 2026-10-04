@@ -15,8 +15,8 @@ var $file = spawn script "scripts/count-orders.nvs" with(output: "capture");
 // the values its parameters need.
 var $method = spawn script Report::build(...) with(args: ["days" => 7]);
 
-// A closure is not allowed as the entry. A closure carries the variables around it,
-// and a spawned file shares nothing with your program except compiled code.
+// An anonymous function is not allowed as the entry, because it captures variables.
+// A spawned file shares nothing with your program except compiled code.
 
 // `await` waits for one entry and gives you its result.
 var $counted = await $file;

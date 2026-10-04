@@ -299,8 +299,8 @@ does not resolve a static property
 
 # Methods, `self`, `static` and `parent`
 
-- `$this` is the receiver inside an instance method. A `fn` closure written inside a method keeps
-  the `$this` it was made on and reaches that class's `private` members.
+- `$this` is the receiver inside an instance method. An anonymous function written inside a method
+  keeps the `$this` it was made on and reaches that class's `private` members.
 - A `static` method is called as `Class::method()`, or `self::method()` from inside the class.
   It has no `$this`.
 - `self` names the declaring class: `new self()`, `self::method()`, `self::CONST`, and as a
@@ -308,8 +308,8 @@ does not resolve a static property
   `new static()`, `static::method()`, `static::CONST` and the return type `static`. A body
   declared `: static` must return `$this`, `new static(...)` or a `static::` call; returning
   `new self()` or a named class there is a compile error.
-- `static::` is not allowed inside a closure body (`E0834`). Read the value into a variable
-  before the closure and use that variable.
+- `static::` is not allowed inside an anonymous function body (`E0834`). Read the value into a
+  variable before the anonymous function and use that variable.
 - `parent::method()` calls the parent's version of an overridden method, and
   `parent::constructor(...)` its constructor.
 
@@ -346,7 +346,7 @@ leaf/base
 1
 ```
 
-A method returning `self` or `static` chains, and a closure made inside a method keeps its receiver:
+A method returning `self` or `static` chains, and an anonymous function made inside a method keeps its receiver:
 
 ```nvs
 <?nvs
@@ -406,7 +406,8 @@ echo $b::class, "\n";            // Leaf — the class it *is*, not the declared
 ```
 
 A constant's value is **inlined at every read** — there is no storage a read loads it from — so the
-value has to have a compile-time form. Literals do, and so does an `array<T>` literal of them: each
+value has to have a compile-time form. A value written directly in the code has one, and so does
+an `array<T>` literal of such values: each
 element is placed in the declared element type, so `array<float> RATES = [1, 2.5]` holds two floats.
 Because it is inlined, every read builds its own array, and writing to one is invisible to the next
 read. What has no form yet is a *named* constant reaching into another — another class's `const`, an
@@ -537,9 +538,9 @@ does not declare `area`, which `Shape` requires
 An `abstract static` method has no body either, so a call to it must reach a subclass. Inside a
 method, `self::title()` and `static::title()` call the class the method was called on, so
 `Blog::heading()` runs `Blog`'s `title`. A call that names the class itself is a compile error
-(`E0835`): `Page::title()`, where `Page` gives `title` no body, and `self::title()` inside a closure,
-which calls the class the closure is written in. Call the method on a class that is not `abstract`,
-or call it outside the closure and use the result inside it.
+(`E0835`): `Page::title()`, where `Page` gives `title` no body, and `self::title()` inside an anonymous
+function, which calls the class the function is written in. Call the method on a class that is not
+`abstract`, or call it outside the anonymous function and use the result inside it.
 
 ```nvs
 <?nvs
@@ -1300,7 +1301,7 @@ the roots, the attributes chapter the metadata usually read off them.
 - **Magic methods.** No identifier may start with `_`, so `__get`, `__set`, `__call`,
   `__callStatic`, `__invoke`, `__clone`, `__destruct`, `__isset`, `__unset`, `__debugInfo`,
   `__set_state` and `__toString` are all refused where written. There is no property
-  interception beyond hooks and `PropertyObserver`, no callable objects (`callable` is a closure),
+  interception beyond hooks and `PropertyObserver`, no callable objects (a `callable` comes from an anonymous function or a method reference),
   and no destructor.
 - **Anonymous classes.** `new class { … }` does not exist; declare a named class.
 - **Nested classes.** A `class` inside a class body is refused; every class is declared at file

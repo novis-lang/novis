@@ -67,8 +67,8 @@ echo 'class=', $pet is Animal, "\n";
 Rank $rank = Rank::Silver;
 echo 'enum-case=', $rank is Rank::Silver, "\n";
 
-// A literal type is that same pair, against the one value the type is.
-echo 'literal=', $greeting is 'yay', "\n";
+// A single-value type is that same pair, against the one value the type is.
+echo 'single-value=', $greeting is 'yay', "\n";
 
 // `array<T>` with a named element type is the O(n) walk `as array<T>` already
 // performs, in the spelling that answers instead of throwing.

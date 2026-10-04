@@ -4,7 +4,7 @@
 // the runtime deny the same read fifty thousand times. Every attempt fails.
 // hostile: timeout-ms 30000
 
-// `Here::path` returns its argument as a full path. A relative path in a string literal
+// `Here::path` returns its argument as a full path. A relative path written in quotes
 // starts at the folder of this file.
 class Here
 {

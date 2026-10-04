@@ -6,7 +6,7 @@ file returned, which you convert with `as`. `output` is what the file printed, w
 with `output: "capture"`. `error` has the class name and the message when the file stopped with an
 error.
 
-A path written as a string literal starts at the folder of the file that contains it. A path you
+A path written in quotes starts at the folder of the file that contains it. A path you
 build while the program runs must be a full path, or `spawn script` throws `RuntimeError`. Build one
 with `Core\Path::join`. You can also start a static method, written `Class::method(...)`. You need the `script.spawn` capability to start either
 one. One handle can be awaited once. A second `await` of the same handle throws `LogicError`.

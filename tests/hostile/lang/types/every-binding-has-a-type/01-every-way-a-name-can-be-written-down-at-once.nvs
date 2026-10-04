@@ -1,7 +1,7 @@
 <?nvs
 // Attack: the program declares typed variables in hard places. Each step should give
 // a correct result or throw an error. The steps are deep recursion, a loop of a million
-// rounds and closures that keep large values. Then come a function with many variables,
+// rounds and anonymous functions that capture large values. Then come a function with many variables,
 // a very long variable name, and a deeply nested `if`.
 // hostile: timeout-ms 60000
 
@@ -38,7 +38,7 @@ while ($rounds < 1000000) {
 }
 echo $seen, " names written down and dropped\n";
 
-// A thousand closures. Each one keeps a large string from a loop round that has ended.
+// A thousand anonymous functions. Each one captures a large string from a loop round that has ended.
 // All of them are freed together at the end.
 array<callable> $kept = [];
 uint $made = 0;

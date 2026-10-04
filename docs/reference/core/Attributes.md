@@ -1,12 +1,12 @@
 ---
-summary: reads the shape-literal attributes attached to a class, a method, a property or a parameter — structurally, by the shape they satisfy, at compile time
-keywords: ReflectionAttribute, getAttributes, newInstance, attribute, metadata, annotation, #[...], shape literal
+summary: reads the attributes attached to a class, a method, a property or a parameter — each one an anonymous object, read by the shape it satisfies, at compile time
+keywords: ReflectionAttribute, getAttributes, newInstance, attribute, metadata, annotation, #[...], anonymous object
 ---
 
-`Core\Attributes::get<T>` answers the one attribute on a target whose literal satisfies the shape
-`T` written at the call site, or `null`; `all<T>` answers every one in declaration order, as
-`array<T>`. Retrieval is structural: a literal attached bare (`#[{audit: true}]`) or under a `type`
-name (`#[Route(path: "/x")]`) is found by any shape it satisfies, extra fields included. The target
+`Core\Attributes::get<T>` returns the one attribute on a target whose payload object satisfies the
+shape `T` written at the call site, or `null`; `all<T>` returns every one in declaration order, as
+`array<T>`. Retrieval is structural. A payload object attached bare (`#[{audit: true}]`) or under a
+`type` name (`#[Route(path: "/x")]`) is found by any shape it satisfies, extra fields included. The target
 is a class's `Class::constructor(...)` or a method's `Class::method(...)` reference, and the second
 argument names one of its properties or parameters; the call is resolved in `nvs check`, so a
 computed member name answers nothing, and two matches for `get` is a compile error naming `all`.

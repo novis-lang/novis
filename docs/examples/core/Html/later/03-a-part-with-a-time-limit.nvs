@@ -7,7 +7,7 @@ try {
     var $page = Core\Test::request(Core\Http\Method::Get, "/today");
     echo $page->body();
 } catch (RuntimeError $insideTheRequest) {
-    // This closure needs 2 seconds, but its `deadline` is 50 ms.
+    // This anonymous function needs 2 seconds, but its `deadline` is 50 ms.
     // After 50 ms it stops, and the page shows the `error` markup instead.
     Core\Html\Markup $weather = Core\Html::later(fn(): Core\Html\Markup => {
         Core\Time::sleep(2s);

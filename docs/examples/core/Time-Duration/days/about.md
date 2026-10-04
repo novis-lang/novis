@@ -1,7 +1,8 @@
 Creates a duration of a given number of days. Each day is exactly 24 hours.
 
 Use it when the number of days is known only while the program runs, for example when it comes from
-a setting. When the number is fixed, write a literal such as `30d` instead. A negative number gives
+a setting. When the number is fixed, write the duration directly in the code,
+such as `30d`. A negative number gives
 a negative duration. The number can be up to 106,751 days, which is about 292 years. A larger number
 throws a `RuntimeError`.
 

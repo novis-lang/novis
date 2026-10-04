@@ -30,7 +30,7 @@ class Files
 
 class Attack
 {
-    // Every link has to start with the route's own literal segments. A value
+    // Every link has to start with the route's own fixed segments. A value
     // that escaped its segment would show up here.
     public static function inside(string $url, string $prefix): uint
     {

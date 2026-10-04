@@ -1,12 +1,12 @@
 ---
-summary: structured concurrency — run a fixed set or a whole array of closures as child tasks and get every result back before the call returns
+summary: structured concurrency — run a fixed set or a whole array of callables as child tasks and get every result back before the call returns
 keywords: curl_multi_*, structured concurrency, parallel, concurrent, child task, fan-out, limit, deadline, TimeoutError, cancellation, all, map
 ---
 
-`Core\Task` runs closures as concurrent child tasks and never returns while one is still running.
+`Core\Task` runs callables as concurrent child tasks and never returns while one is still running.
 `all` takes a shape whose every field is a zero-argument callable and answers a shape with the same
 names, each field typed by that field's declared return — a field whose callable declares no return
-type answers `mixed`, and only that field. `map` calls one closure per element and answers the results under the subject's own keys, in the
+type answers `mixed`, and only that field. `map` calls one callable per element and answers the results under the subject's own keys, in the
 subject's order, whatever order the children finished in. Both take the same options: `limit` caps how many
 children run at once (the rest wait, nothing is refused) and `deadline` bounds the **whole call** — when it
 expires every child is cancelled and the call throws `TimeoutError`. The first child to throw cancels its

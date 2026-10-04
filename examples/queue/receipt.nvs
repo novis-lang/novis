@@ -2,7 +2,7 @@
 // The job `examples/queue.nvs` enqueues and expects to succeed.
 //
 // [ADR 0084](/docs/decisions/0084.md) § 1: a job names
-// a *file*, not a class or a closure — the third construct to take that shape
+// a *file*, not a class or a callable — the third construct to take that shape
 // after `spawn script` and `Core\Socket::upgrade` — and it runs in an isolate
 // with a budget and grants narrowed from the context that enqueued it.
 //

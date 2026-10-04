@@ -1792,7 +1792,7 @@ mod tests {
     /// `rule:programs/relative-paths-resolve-from-their-file`'s run-time half: a relative path throws
     /// at every path door before a grant is read, and the message names the path and both ways to
     /// make it absolute. A path that starts at a root reaches the grant check instead.
-    // covers: lang:programs/file-paths-a-literal-starts-at-the-folder-of-its-file
+    // covers: lang:programs/file-paths-a-relative-path-starts-at-the-folder-of-its-file
     #[test]
     fn a_relative_path_throws_before_any_grant_is_asked() {
         let ctx = Ctx::buffered();

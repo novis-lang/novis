@@ -2,7 +2,7 @@
 request from the same visitor reads it back with `Core\Session::get()`.
 
 If the key already has a value, `set()` replaces it. The value can be a string, a number, a bool,
-`null`, an array or an object. A closure cannot be saved, and `set()` throws a `LogicError` for it.
+`null`, an array or an object. A callable cannot be saved, and `set()` throws a `LogicError` for it.
 
 Call `Core\Session::start()` first. Before it, and after `Core\Session::destroy()`, `set()` throws a
 `RuntimeError`.

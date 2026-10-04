@@ -13,7 +13,7 @@ class Bench {
             // The file name in each round is chosen by the round before, so no round can be left out.
             string $name = $names[($total % 3) as int];
             // The part is created for this program's own file, so the bench needs no other file.
-            // A path in a string literal starts at the folder of this file.
+            // A path written in quotes starts at the folder of this file.
             Core\Http\Part $part = Core\Http\Part::file("file.nvs", {filename: $name});
             $total = $total + Core\Str::length($name) + 1;
             $i = $i + 1;

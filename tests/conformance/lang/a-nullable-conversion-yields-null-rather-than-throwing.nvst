@@ -2,7 +2,7 @@
 `rule:expressions/nullable-conversion`'s `as ?T` yields `null` exactly where `as T` would throw
 --FILE--
 <?nvs
-// covers: lang:types/nullable-union-literal-and-enum-case-types
+// covers: lang:types/nullable-union-single-value-and-enum-case-types
 // § 1 — the value the throwing form would produce, wherever it succeeds.
 echo ("42" as ?int) ?? -1, "\n";
 echo ("-7" as ?int) ?? -1, "\n";

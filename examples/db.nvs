@@ -65,7 +65,8 @@ class Day
 var $db = Db::connect('main');
 
 // DDL is a statement like any other — one statement per call, because § 10
-// makes a two-statement literal a compile-time diagnostic.
+// makes a string written in the code with two statements in it a compile-time
+// diagnostic.
 $db->execute('drop table if exists people', []);
 $db->execute('create table people (id integer primary key, name text not null)', []);
 
@@ -107,7 +108,7 @@ foreach ($db->query("select date '2024-03-05' as day, time '13:45:30' as clock, 
     var $at = $shape->instant('at');
     var $id = $shape->uuid('id');
     // Every reader answers `?T`, because a NULL column is an ordinary absence
-    // (§ 6). None of these four can be null — each column is a literal in the
+    // (§ 6). None of these four can be null — each column is written directly in the
     // statement above — so this is the compact spelling of a branch the
     // program still has to have: `?->` reaches the member only when there is
     // one, and `??` says what to print when there is not.

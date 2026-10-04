@@ -53,7 +53,7 @@ try {
 }
 echo 'step 3: ', Ask::once(), " after the full stack\n";
 
-// Step 4: the check runs inside a closure that is called 1,000,000 times.
+// Step 4: the check runs inside an anonymous function that is called 1,000,000 times.
 $true = 0;
 $i = 0;
 while ($i < 1000000) {

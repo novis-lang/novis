@@ -32,7 +32,7 @@ in the chapter that owns it — types, statements, expressions — and named in 
 // A local declares its type once, and no binding ever changes type.
 array<string> $amounts = ["3", "11", "7"];
 
-// A member's optional knobs are one trailing object literal, `{key: value}`. They are not named
+// A member's optional knobs are one trailing anonymous object, `{key: value}`. They are not named
 // arguments and there are no flag parameters: this signature spells the bag `{order?: Core\Order}`.
 array<string> $ordered = Core\Arr::sort($amounts, {order: Core\Order::Asc});
 
@@ -89,10 +89,10 @@ types chapter.
 
 Inside an HTTP request the sink escapes every `string` it is given and writes a `Core\Html\Markup`
 raw, so `<?= $title ?>` cannot emit a tag. A page or a fragment of one built as a value is an
-``html`…` `` literal — trusted text around holes that are escaped — and a method that returns one
-is how a page is composed from parts. The same `<?= expr ?>` tag is a hole inside a literal, so what
-outputs in a page outputs in a literal. The literal is the types chapter's `Markup: the html
-template literal`.
+``html`…` `` template — trusted text around holes that are escaped — and a method that returns one
+is how a page is composed from parts. The same `<?= expr ?>` tag is a hole inside an html template,
+so what outputs in a page outputs in a template. The types chapter's `Markup: the html template`
+describes it.
 
 Code mode and HTML mode alternate freely, and a brace block may span them — the ordinary way to
 render a loop or a condition around raw HTML:
@@ -258,8 +258,8 @@ echo $config["host"], ":", $config["port"], "\n";
 example.test:8080
 ```
 
-- The path is relative to the requiring file's directory. A literal path is resolved while
-  compiling, so a missing file is a compile-time error; a computed path is resolved at run time and
+- The path is relative to the requiring file's directory. A path written directly in the code is
+  resolved while compiling, so a missing file is a compile-time error; a computed path is resolved at run time and
   throws if it cannot be read.
 - The value of a `require` expression is `mixed` — convert it with `as` to the type the file returns.
 - **Declarations cross and variables do not.** Every class, interface, enum and `type` alias either
@@ -300,7 +300,7 @@ autoload 'App\{..}' from '../src';                 // `{..}` is the name of the 
 - The same map answers `Core\Program::implementing<I>()` — every non-abstract class implementing
   an interface, found through the autoload roots even when nothing names it.
 
-# File paths: a literal starts at the folder of its file
+# File paths: a relative path starts at the folder of its file
 
 A relative string literal passed to a file path parameter is joined to the folder of the file that
 contains it, while compiling. The program reads the same file from a terminal, under `nvs serve` and
@@ -330,7 +330,7 @@ Core\IO::read('data/' . $name);            // throws RuntimeError: the path is r
 - `#[Core\Path]` on a `string` or `?string` parameter of your own method makes it one. A default
   value of that parameter starts at the folder of the file that declares it. On anything else the
   attribute does not compile (`E0836`).
-- Only a literal written as the argument itself is joined. A variable, a class constant and a
+- Only a string written directly in the code as the argument itself is joined. A variable, a class constant and a
   concatenation are values the program builds while it runs.
 - A relative path built while the program runs throws `RuntimeError` when it reaches a file
   operation. Build it with `Core\Path::join` from a full path, or with `Core\Path::fromCwd` for a

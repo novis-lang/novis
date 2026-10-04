@@ -1,14 +1,14 @@
 ---
 id: attributes
 title: Attributes, routes, commands and derived codecs
-summary: `#[...]` metadata as shape literals, how it is read back, and the names the compiler acts on — JSON codecs, the route table, the command table, and program enumeration
+summary: `#[...]` metadata as anonymous objects, how it is read back, and the names the compiler acts on — JSON codecs, the route table, the command table, and program enumeration
 keywords: attribute, #[...], Attribute, Reflection, ReflectionAttribute, getAttributes, Core\Attributes, get, all, #[Route], Symfony route, Laravel route, Route, Access, Query, Api, OpenAPI, Router::url, urlAbsolute, Command, Option, Symfony Console, Json\Derive, Json\Field, JsonSerializable, decodeAs, Program::implementing, autoload
 ---
 
-# An attribute is a shape literal attached to a declaration
+# An attribute is an anonymous object attached to a declaration
 
-`#[...]` in front of a declaration attaches metadata to it. The payload is a shape literal, and the
-name in front of it is a `type` alias of a shape that the literal is checked against — an attribute
+`#[...]` in front of a declaration attaches metadata to it. The payload is an anonymous object, and the
+name in front of it is a `type` alias of a shape that the payload is checked against — an attribute
 is never a class, is never instantiated, and has no behaviour of its own.
 
 ```nvs
@@ -42,32 +42,33 @@ if ($onProperty != null) { echo "property: ", $onProperty->name, "\n"; }
 if ($onParameter != null) { echo "parameter: ", $onParameter->inject, "\n"; }
 
 array<Audited> $markers = Core\Attributes::all<Audited>(Users::constructor(...));
-echo "literals satisfying {}: ", Core\Arr::count($markers), "\n";
+echo "attributes matching {}: ", Core\Arr::count($markers), "\n";
 ```
 ```output
 class: /users
 method: /users/{id}
 property: user_name
 parameter: repo
-literals satisfying {}: 2
+attributes matching {}: 2
 ```
 
 The two spellings of an attribute:
 
 - **Named**: `#[Name(field: value, …)]`. `Name` resolves like any other name (through `use` and the
   file's namespace) and must be a `type` alias whose right-hand side is a shape; a class, an alias
-  of a scalar, or an undeclared name is refused. The literal is checked against that shape the way
+  of a scalar, or an undeclared name is refused. The payload is checked against that shape the way
   any shape-typed binding is: every field the shape declares must be present at its type, and
-  extra fields are allowed. `#[Name]` with no list attaches an empty literal, which satisfies an
+  extra fields are allowed. `#[Name]` with no list attaches an empty payload object, which satisfies an
   alias declaring no fields (`type Audited = {};`). `Name` may also be `Owner::Name`, an alias
   declared inside an interface, class or enum, written the same way as in a type:
   `#[Page::Meta(title: "Home")]`. A name the compiler acts on (below) is never written this way.
-- **Bare**: `#[{field: value, …}]` — a literal with no name and nothing to check it against.
+- **Bare**: `#[{field: value, …}]` — an anonymous object with no name and nothing to check it
+  against.
 
 Rules that hold for both:
 
-- **Every value is a compile-time constant**: a literal (`int`, `float`, `string`, `bool`, `null`),
-  an array or shape literal of constants, a class constant or an enum case. A variable, a call, a
+- **Every value is a compile-time constant**: a value written directly in the code (`int`,
+  `float`, `string`, `bool`, `null`), an array literal or anonymous object of constants, a class constant or an enum case. A variable, a call, a
   `new` or an interpolated string is refused where it is written. A `secret` class constant cannot
   reach a payload.
 - **Where an attribute may sit**: in front of a `class`, `interface`, `enum`, a method, a property, a
@@ -93,19 +94,19 @@ an attribute's field value is not a compile-time constant
 
 # Reading attributes back: `Core\Attributes::get` and `all`
 
-Retrieval is **structural**: `get<T>` answers the one attached literal that satisfies the shape `T`
+Retrieval is **structural**: `get<T>` returns the one attached payload object that satisfies the shape `T`
 written at the call site, whether it was attached under a name or bare, and `all<T>` answers every
 match in declaration order. Both are resolved while compiling — the call is replaced by the
 payload, so nothing is reflected on at run time.
 
-- The target is a first-class-callable reference written at the call: `Users::show(...)` for a
+- The target is a method reference written at the call: `Users::show(...)` for a
   method, `Users::constructor(...)` for the class itself (a class with no written constructor still
-  has one). A second argument, a literal member name, selects a property or a parameter of that
+  has one). A second argument, a member name written as a string in quotes, selects a property or a parameter of that
   target. A computed member name answers `null`; a computed target is refused.
-- `get<T>` answers `?T` — `null` when nothing matches — and is a compile error when two literals
-  match; that is what `all<T>` is for, and it answers `[]` when nothing matches.
-- Matching is width subtyping, so a literal with extra fields satisfies a narrower shape, and the
-  empty shape `{}` is satisfied by **every** attached literal — a bare marker `#[Audited]` is
+- `get<T>` answers `?T` — `null` when nothing matches — and is a compile error when two payload
+  objects match; that is what `all<T>` is for, and it answers `[]` when nothing matches.
+- Matching is width subtyping, so a payload object with extra fields satisfies a narrower shape, and
+  the empty shape `{}` is satisfied by **every** attached payload object — a bare marker `#[Audited]` is
   therefore not distinguishable from any other attribute by retrieval; give a marker a field.
 - A payload may hold a class constant, an enum case or a `Foo::class`, and each is retrieved as the
   value a read of that same name inlines — folded in the scope the attribute was *written* in, not
@@ -400,9 +401,9 @@ A route method is an ordinary method that may also be called directly.
 
 The `#[Route]` payload:
 
-- `path:` — a string starting with `/`. Segments are literals or captures: `{name}` matches one
+- `path:` — a string starting with `/`. Segments are fixed segments or captures: `{name}` matches one
   segment, `{name?}` matches one or none and is allowed only as the last segment, `{name...}`
-  matches everything that remains, its own `/`s included. A literal segment beats a capture, so
+  matches everything that remains, its own `/`s included. A fixed segment beats a capture, so
   `/users/new` and `/users/{id}` coexist in any order.
 - `method:` — a case of `Core\Http\Method`.
 - `name:` — optional and never derived; it is what `Core\Router::url` looks a route up by, and must
@@ -413,7 +414,7 @@ The `#[Route]` payload:
 
 **Captures bind to parameters** by name: every `{name}` needs a parameter `$name`, and that
 parameter's declared type is what the segment converts to — `string`, `int`, `uint`, `decimal`,
-`bool`, an enum, a union of string or int literals (`"en"|"de"`), or a class implementing `Parses`,
+`bool`, an enum, a set of allowed string or int values (`"en"|"de"`), or a class implementing `Parses`,
 which `Core\Uuid` is one of and a class of your own is another. A `float`
 parameter is refused. A `{name?}` parameter needs a default. A `{name...}` parameter is a
 `string`. The converted value is not `tainted`.
@@ -452,7 +453,7 @@ echo Core\Router::url("file", ["path" => "a/b c.txt"]), "\n";
 
 `Core\Router::url` and `urlAbsolute`:
 
-- The route name is a **string literal at the call**, checked against the table: an unknown name
+- The route name is a **string written directly in the code at the call**, checked against the table: an unknown name
   is a compile error, and so is a `$params` that leaves a required capture unfilled or names a key
   that is neither a capture nor a `#[Query]` parameter. A name held in a variable is not checked
   and, in this build, throws a `RuntimeError` for every name.
@@ -538,7 +539,7 @@ For that file `nvs build --openapi main.nvs` prints:
 `#[Core\Api(...)]` sits beside a `#[Route]` (away from one it is refused) and may add what the
 declaration cannot say: `tags:` and `security:` as arrays of strings, `errors:` as an array of
 `{status: 404, type: NotFound::class}` entries naming classes the program declares, and `example:`
-as a shape literal whose keys are properties of the return type. Each is checked against the
+as an anonymous object whose keys are properties of the return type. Each is checked against the
 declaration while compiling and then written into the operation: `tags` and `security` as their own
 members, an `errors` entry as a response of its own described by its class, and `example` beside the
 `200` response's schema. An operation whose method declares no `#[Api]` carries none of them.
@@ -621,8 +622,8 @@ greet: Say hello
   the parameter's own name is not it; two options of one command with the same spelling are
   refused. `#[Option]` away from a `#[Command]` method is refused.
 - An option or positional parameter must have a type an argument's text converts to — the same
-  list a route capture accepts (`string`, `int`, `uint`, `decimal`, `bool`, an enum, a union of
-  literals, a class implementing `Parses`); anything else is refused.
+  list a route capture accepts (`string`, `int`, `uint`, `decimal`, `bool`, an enum, a set of
+  allowed values, a class implementing `Parses`); anything else is refused.
 - The method is **`static`** and returns `void` (exit status 0) or `uint` (the exit status). Both
   are refused where they are not met (`E0789`): a command is dispatched by name off the compiled
   table, which holds no instance to call a handler on, and what a handler answers with is the

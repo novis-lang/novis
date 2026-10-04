@@ -44,6 +44,6 @@ echo "a list:           ", Kind::of($slot), "\n";
 $slot = new Point();
 echo "a thing you made: ", Kind::of($slot), "\n";
 
-// A closure is an ordinary object here, so it does not get a kind of its own.
+// An anonymous function is an object, so this prints `Object`.
 $slot = fn (int $n): int => $n + 1;
 echo "a function:       ", Kind::of($slot), "\n";

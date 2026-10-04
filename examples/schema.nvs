@@ -8,7 +8,7 @@
 // what should exist, and the difference between that and what does exist is
 // computed against the server every time.
 //
-// § 1 is the array literal below. A schema has three interchangeable spellings
+// § 1 is the `[...]` array below. A schema has three interchangeable spellings
 // — built in source, serialized to an array, introspected off a live
 // connection — and the array form is the canonical one, so what this program
 // writes is the same form `nvs schema dump` prints and a file on disk holds.

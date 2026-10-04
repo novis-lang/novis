@@ -1,8 +1,8 @@
 ---
 id: types
 title: Types, declarations and conversions
-summary: every type, how a binding declares one, every literal, the `as` conversion and its table, implicit widening, narrowing, truthiness, and the `tainted`/`secret` qualifiers
-keywords: bool, int, uint, float, decimal, string, bytes, array<T>, callable, class<T>, class reference, mixed, object, nullable, ?T, union, literal type, enum, shape, object literal, type alias, void, never, self, static, iterable, intersection, var, declaration, inout, variadic, default parameter, constant, literal, heredoc, nowdoc, interpolation, duration, html, markup, template, template literal, page, escape, xss, as, conversion, cast, (int), (string), (float), (bool), (array), intval, strval, floatval, boolval, settype, gettype, is_int, is_string, is_array, is_null, is_numeric, widening, narrowing, is, truthy, falsy, tainted, secret, resource
+summary: every type, how a binding declares one, every value written in the code, the `as` conversion and its table, implicit widening, narrowing, truthiness, and the `tainted`/`secret` qualifiers
+keywords: bool, int, uint, float, decimal, string, bytes, array<T>, callable, class<T>, class reference, mixed, object, nullable, ?T, union, single-value type, enum, shape, anonymous object, type alias, void, never, self, static, iterable, intersection, var, declaration, inout, variadic, default parameter, constant, string literal, numeric literal, heredoc, nowdoc, interpolation, duration, html, markup, template, html template, page, escape, xss, as, conversion, cast, (int), (string), (float), (bool), (array), intval, strval, floatval, boolval, settype, gettype, is_int, is_string, is_array, is_null, is_numeric, widening, narrowing, is, truthy, falsy, tainted, secret, resource
 ---
 
 # Every binding has a type
@@ -69,14 +69,14 @@ cannot infer an array whose elements have different types
 
 | Type | Holds | Notes |
 |---|---|---|
-| `bool` | `true`, `false` | `true` and `false` are also literal types of their own |
+| `bool` | `true`, `false` | `true` and `false` are also single-value types of their own |
 | `int` | 64-bit signed integer | overflow throws `ArithmeticError`, never wraps |
 | `uint` | 64-bit unsigned integer | `0` to `18446744073709551615`; underflow throws |
 | `float` | IEEE 754 double | prints without a trailing `.0`; `7 / 2` is `3.5`, `6 / 3` is `2` |
 | `decimal` | exact decimal, 28 places | keeps its scale: `1.10 * 3` is `3.30`; division rounds at the 28th place |
 
 - A numeric literal is untyped until it is placed: `uint $u = 6;` and `float $f = 3;` and
-  `decimal $d = 1.10;` each read the literal at the declared type. Beside a `uint` operand a bare
+  `decimal $d = 1.10;` each read the number at the declared type. Beside a `uint` operand a bare
   digit run is a `uint` too, so `$u + 1` compiles. A leading `-` is an operator, so `-1` is never a
   `uint`.
 - `int` and `uint` never mix: `$i + $u` is a compile error, and neither assigns to the other —
@@ -121,7 +121,7 @@ echo $d + $f, "\n";
 A `string` is always valid UTF-8 and is measured in graphemes — user-perceived characters — so a
 combining sequence counts once. A `string` has no subscript: `$s[0]` is a compile error, and a
 character or a range is `Core\Str::at` / `Core\Str::slice`. Binary data is the separate `bytes`
-type, measured in bytes. There is no `bytes` literal: a UTF-8 constant is `"…" as bytes`, and
+type, measured in bytes. A `bytes` value cannot be written directly in the code. A UTF-8 constant is `"…" as bytes`, and
 arbitrary octets come from `Core\Encoding::fromHex` or `Core\Encoding::fromBase64`.
 
 ```nvs
@@ -178,15 +178,15 @@ echo $grid[0][1], " ", Core\Json::encode($a), "\n";
 
 - An `int` subscript is the same key as its decimal spelling: `$a[1]` and `$a["1"]` name one
   element, and a `foreach` key binding is always `string`.
-- Every element must match `T` where the literal is written: `array<int> $a = [1, "two"];` is a
+- Every element must match `T` where the array literal is written: `array<int> $a = [1, "two"];` is a
   compile error. `array<mixed>` holds anything.
 - An `array<T>` has no string form (`echo $a` is refused — render it with `Core\Json::encode`), and
   `$a + $b` is a compile error (`Core\Arr::underlay`).
 
 # `callable`, classes, `object`, shapes
 
-- `callable` is satisfied by a closure and nothing else. A closure is written with `fn`; there is no
-  callable string. A call through a `callable` variable answers `mixed`, so its result is converted:
+- A `callable` is a value you can call with `()`. An anonymous function, `fn (…) => …`, makes one,
+  and so does a method reference such as `Core\Str::length(...)`. There is no callable string. A call through a `callable` variable answers `mixed`, so its result is converted:
   `$f(4) as int`.
 - A class, interface or enum name is a type wherever a type is written. `object` is the top of every
   class type: any instance assigns to it, a property is read through it by name, and `is` or
@@ -196,9 +196,9 @@ echo $grid[0][1], " ", Core\Json::encode($a), "\n";
   one and nothing else — `new $cls(...)`, `$cls::f(...)` and `$x is $cls`, each refusing a
   bare `string` — and `as` is its only source (below). `Foo::class` is a `string` and stays one. Two
   class references are equal when they are the same class; nothing else is ever equal to one.
-- A **shape** `{x: int, y: string}` is a structural object type, and an **object literal**
-  `{x: 1, y: "two"}` builds an instance with exactly those fields. A literal with more fields than a
-  shape names still satisfies it. A shape type cannot open a statement (`{` there is a block), so
+- A **shape** `{x: int, y: string}` is a structural object type, and an **anonymous object**
+  `{x: 1, y: "two"}` is an instance with exactly those fields. An anonymous object with more fields
+  than a shape names still satisfies it. A shape type cannot open a statement (`{` there is a block), so
   name it with a `type` alias and declare through the alias.
 - `$v as Point` checks at run time that `$v` is an object with every field `Point` names, at the
   type `Point` gives it. If the check passes, the result is a `Point`. If it fails, `as` throws a
@@ -269,13 +269,14 @@ echo Core\Str::upper($text), "\n";
 expected `string`, found `mixed`
 ```
 
-# Nullable, union, literal and enum-case types
+# Nullable, union, single-value and enum-case types
 
 - `?T` holds `T` or `null`. `null` on its own is a type too, and `int $i = null;` is refused.
 - `A|B` holds either. `int|string $id` takes an `int` or a `string`; `object|int` is legal.
-- A **literal type** is one written value: `"read"|"write"`, `1|2|3`, `true`, `false`. A binding
-  of a literal union accepts only those values, checked at compile time for a literal and at run
-  time for an `as`.
+- A **single-value type** is one value written as a type: `"read"`, `3`, `true`, `false`. A union
+  of them, such as `"read"|"write"` or `1|2|3`, is a set of allowed values. A binding of that type
+  accepts only those values. A value written directly in the code is checked at compile time, and
+  an `as` is checked at run time.
 - An **enum case** is a type of its own: `Mode::Read|Mode::Write $m`. Enums are named integers —
   `enum Mode { Read, Write }` counts from `0`, `enum Mode: int { Read = 1 }` declares the values —
   and `$m as int` reads the number, `1 as Mode` converts back (throwing when no case matches).
@@ -378,8 +379,8 @@ echo Helper::nothing();
 # `type` aliases
 
 `type Name = T;` gives a type expression a `PascalCase` name, written at file scope beside `namespace`
-and `use` or as a member of a class, interface or enum body — never inside a method body, a block or a
-closure, where it is refused by name. A body's alias takes no visibility modifier, is reached as
+and `use` or as a member of a class, interface or enum body — never inside a method body, a block or an
+anonymous function, where it is refused by name. A body's alias takes no visibility modifier, is reached as
 `Owner::Name` from anywhere and as a bare `Name` inside its owner, and is not inherited. The alias is
 a compile-time name only. It may not name a single bare class, interface or enum (`type Bar = Foo;` is
 refused: a class has its own name); `?Foo`, a union, a shape and an `array<…>` are all allowed.
@@ -411,17 +412,17 @@ type Bar = Foo;
 may not name a single class
 ```
 
-# Literals
+# Values written in the code
 
 **Numbers.** `1_000`, `0x1F`, `0b101`, `0o17`; `1.5`, `.5`, `5.`, `1e3`, `1E-2`, `1_000.5`. A
 leading-zero form `017` is decimal seventeen, not octal. `true`, `false`, `null`.
 
-**Strings.** A single-quoted literal interpolates nothing and has exactly two escapes, `\\` and
-`\'` — every other backslash stands for itself. A double-quoted literal interpolates `$x`, `$a[k]`,
+**Strings.** A single-quoted string interpolates nothing and has exactly two escapes, `\\` and
+`\'` — every other backslash stands for itself. A double-quoted string interpolates `$x`, `$a[k]`,
 `$a[0]` — the bare form reaches one level, no further — and in braces any expression whose first
 token is a variable: `{$o->p}`, `{$a["k"]["j"]}`, `{$o->m()}`, `{$a + $b}` (PHP stops at
 variable-rooted chains here; Novis takes the whole expression grammar). A `{` not followed by `$`
-is literal text, and PHP's deprecated `${name}` form does not exist. Its escapes are
+is plain text, and PHP's deprecated `${name}` form does not exist. Its escapes are
 `\\ \" \$ \n \t \r \v \f \e`, an octal `\0` through `\777`, `\xHH` and
 `\u{HHHH}`; an unrecognized one such as `\q` keeps its backslash. An interpolated value takes the
 same rule as `echo`: scalars and `null` render, `bytes`, arrays, enum cases and objects without
@@ -463,14 +464,14 @@ echo <<<TXT
     TXT;
 echo "|\n";
 echo <<<'TXT'
-  literal $who
+  as written: $who
   TXT;
 echo "|\n";
 ```
 ```output
 Name: Ada
   indented|
-literal $who|
+as written: $who|
 ```
 
 **Durations.** A number followed by a unit — `ns`, `us`, `ms`, `s`, `m`, `h`, `d`, `w` — is a
@@ -487,17 +488,17 @@ echo $wait, " ", $wait->toSeconds(), " ", 250us->toNanoseconds(), " ", 1d->toSec
 ```
 
 **Arrays and objects.** `[1, 2]` is positional (keys `"0"`, `"1"`), `["k" => $v]` is keyed, and
-the two mix. `{x: 1, y: "two"}` is an object literal; as a statement or an arrow body it is written
+the two mix. `{x: 1, y: "two"}` is an anonymous object; as a statement or an arrow body it is written
 `({…})`. Both are covered above.
 
-## Markup: the `html` template literal
+## Markup: the `html` template
 
 ``html`…` `` is a `Core\Html\Markup`. The text between the backticks is written to a page exactly
 as it is, and every hole in it is escaped. It is the way to build a page, or one fragment of a page,
 as a value. `Core\Html\Markup` is the only type an HTTP request's `echo`, `<?= ?>` and
 `Core\Response::html` write raw; a `string` written there is escaped.
 
-- A literal has two kinds of hole. `$name` and `{$…}` are a double-quoted string's: the expression
+- An html template has two kinds of hole. `$name` and `{$…}` are a double-quoted string's: the expression
   in braces must **begin with a variable** — `{$user->name()}`, `{$row["title"]}`, `{$a + $b}` —
   and a `{` not followed by `$` is text, so a `<style>` or `<script>` block needs no escape.
   `{Page::TITLE}` is therefore printed as written, and the compiler warns (`W1012`), because a
@@ -508,11 +509,11 @@ as a value. `Core\Html\Markup` is the only type an HTTP request's `echo`, `<?= ?
 - `+` joins two `Markup` values; `Core\Html::join` joins a list of them. `.` on a `Markup` is a
   compile error, because the text it would make is escaped again at the sink.
 - Every byte between the backticks is kept, indentation and newlines included; nothing is stripped
-  the way a heredoc's closing marker strips it. A literal backtick is `` \` ``, and `\{` is a
-  literal `{` that opens no hole; a `$name` after it still interpolates, so `\{$n}` prints `{`,
+  the way a heredoc's closing marker strips it. A backtick inside the template is written
+  `` \` ``, and `\{` is a plain `{` that opens no hole; a `$name` after it still interpolates, so `\{$n}` prints `{`,
   the value and `}`.
 - The delimiter is the backtick, always: `html"…"` is a compile error naming the backtick form.
-  `"<p>…</p>" as Core\Html\Markup` converts a string written as a literal and nothing else;
+  `"<p>…</p>" as Core\Html\Markup` converts a string written directly in the code and nothing else;
   `Core\Html::escape` and `Core\Html::sanitize` are the two ways a computed string becomes a
   `Markup`.
 
@@ -558,13 +559,13 @@ written with backticks
 
 ### `<?= expr ?>`: a hole for any expression
 
-`<?= expr ?>` is a page's output tag, and inside a literal it is a hole that takes **any**
-expression: a class constant, a static call, a condition, a nested literal. It is the hole to
+`<?= expr ?>` is a page's output tag, and inside an html template it is a hole that takes **any**
+expression: a class constant, a static call, a condition, a nested template. It is the hole to
 write when the value has no variable in front of it, which is every `Class::` value, since Novis
 has no free functions and no global constants. Spaces around the expression are allowed, a `}`
-inside it is an ordinary brace, and the first `?>` outside a nested string or literal closes it. The
-value is escaped by the same rule as a brace hole. A `<?nvs` block inside a literal is a compile
-error: a literal is one expression, and a loop around markup is written in code mode outside it.
+inside it is an ordinary brace, and the first `?>` outside a nested string or template closes it. The
+value is escaped by the same rule as a brace hole. A `<?nvs` block inside a template is a compile
+error. A template is one expression, and a loop around markup is written in code mode outside it.
 
 ```nvs
 <?nvs
@@ -588,13 +589,13 @@ being written:
 | `int`, `uint` | `float` (exact; a value above 2^53 throws `ArithmeticError`) |
 | `T` | `?T`, any union containing `T`, `mixed` |
 | a class | `object`, any parent class or interface it implements |
-| a literal type | its base (`"read"` into `string`, `true` into `bool`) |
+| a single-value type | its base (`"read"` into `string`, `true` into `bool`) |
 | an untyped numeric literal | `int`, `uint`, `float` or `decimal`, from the target |
 
 Nothing else is implicit: `int` into `uint` (either way), a number into `string`, a `string` into
 a number, a `mixed` into anything, `?T` into `T` — each needs `as` or a narrowing test.
 
-The `int` row also converts a field of an object literal written where a shape is declared:
+The `int` row also converts a field of an anonymous object written where a shape is declared:
 `{x: 2}` at `{x: float}` stores `2.0`. It does not convert the field of a shape value or an object
 that already exists, so a `{x: int}` value is not a `{x: float}` value. Build a new value instead:
 `{x: $old->x}`.
@@ -631,7 +632,7 @@ expected `uint`, found `int`
 but fails at run time throws: `ArithmeticError` when a number does not fit (a fractional `float`
 into `int`, a negative into `uint`, an `int` past 2^53 into `float`, a non-integral `decimal` into
 `int`), `RuntimeError` for everything else (a string that is not a number, malformed `bytes`, a
-`mixed` of the wrong tag, a value outside a literal or enum-case set, an object of another class, an
+`mixed` of the wrong tag, a value outside a set of allowed values or enum cases, an object of another class, an
 object without the fields a shape names, a name that denotes no class this program declares to be a
 `T` when the target is `class<T>`).
 
@@ -716,7 +717,7 @@ woof a Dog
 cannot convert to `class<Animal>`: the value does not denote a class that is a `Animal`
 ```
 
-The usual pairing is a literal default checked while compiling and a configured name checked while
+The usual pairing is a default written directly in the code, checked while compiling, and a configured name checked while
 running, with `as ?class<T>` and `??` falling back from one to the other.
 
 ```nvs
@@ -791,7 +792,7 @@ The conversion table. A pair not listed is a compile error naming both types.
 | `mixed`, `object`, a union, a class | a shape | the value must have every field the shape names, at the named types, or it throws; a value whose type already has them converts for free |
 | `string` | `class<T>` | the name must denote `T` or a class that is one, or it throws; a written `Foo::class` operand is decided at compile time and never throws |
 | `class<U>` | `class<T>` | `U` must be a `T`, tested against the class the reference holds |
-| any | a literal or enum-case union | a `mixed` must equal a member; a typed operand converts first, then is tested |
+| any | a set of allowed values or an enum-case union | a `mixed` must equal a member; a typed operand converts first, then is tested |
 | any | `mixed` | free |
 
 # Narrowing
@@ -801,7 +802,8 @@ Inside the branch a test proves, a binding is read at the narrower type. Four sp
 - `$x == null` / `$x != null` on a `?T`, on whichever edge proves the value present (`!` inverts).
 - `$x is C` on a `?C`, a union, `object` or `mixed`, on the true edge only: after
   `if ($pet is Cat) { return …; }` the binding is still `Dog|Cat`, not `Dog`.
-- `$x == literal` (or an enum case) on a literal or enum-case union, on the edge that proves it.
+- `$x == "read"` or `$x == Mode::Read` on a set of allowed values or an enum-case union, on the
+  edge that proves it. The right side is a value written directly in the code, or an enum case.
 - `match (true)` and `switch (true)`: each arm's label is one of the tests above and narrows its
   own body. `default` narrows nothing.
 
@@ -936,7 +938,7 @@ truthy
 
 # Parameters
 
-A parameter is `T $name`, with an optional default `= literal`, and the last may be variadic —
+A parameter is `T $name`, with an optional default `= value` written directly in the code, and the last may be variadic —
 `T ...$rest`, an `array<T>` inside the body. Arguments may be passed by name:
 `Sum::bump(inout n: $count)`.
 
@@ -946,8 +948,8 @@ A parameter is `T $name`, with an optional default `= literal`, and the last may
 `$name` is what the caller holds afterwards. The call writes `inout` again in front of the
 argument — `Sum::bump(inout $count)` — so a reader sees at the call site which variable may
 change. Only a local can be passed `inout`: not an array element and not a property. `&` is not a
-by-reference marker anywhere. A `foreach` value binding may be `inout` too, and a closure has no
-`inout` parameter.
+by-reference marker anywhere. A `foreach` value binding may be `inout` too, and an anonymous function
+has no `inout` parameter.
 
 ```nvs
 <?nvs
@@ -984,7 +986,7 @@ echo Core\Json::encode($xs), "\n";
 
 A property is `visibility [static] T $name [= default];` — the default is a scalar literal, `[]`,
 an enum case or a class constant, and a union takes whichever of those its own members admit:
-`?string $label = null`, `?string $label = "plain"`, `"read"|"write" $mode = "read"`. A class constant is `visibility const T NAME = literal;`, and the type is written there as it is
+`?string $label = null`, `?string $label = "plain"`, `"read"|"write" $mode = "read"`. A class constant is `visibility const T NAME = value;`, and the type is written there as it is
 everywhere else (`E0246`). Constants are read at their declared type — `const uint WIDTH = 5` is
 a `uint`. The classes chapter owns everything else about members.
 
@@ -1144,7 +1146,7 @@ cannot be passed to `Core\Json::encode`
 | `settype($x, "string")` | refused: a binding's type never changes — convert into a new binding |
 | `gettype`, `is_int`, `is_string`, `is_array`, `is_null`, `is_numeric` | no free function exists; test a `mixed` with `is` for a class, `($m as ?int) != null` for a scalar, `== null` for null |
 | `resource` | no such type; a handle is a `Core` object |
-| a callable string `"Foo::bar"`, `[$obj, "m"]` | refused; a `callable` is a closure written with `fn` |
+| a callable string `"Foo::bar"`, `[$obj, "m"]` | refused; a `callable` comes from an anonymous function `fn (…) => …` or a method reference such as `Foo::bar(...)` |
 | `$s[0]` on a string | `Core\Str::at`, `Core\Str::slice` |
 | `"3" * 2`, `"3" == 3`, `"a" < "b"` | refused; convert with `as`, order with `Core\Str::compare` |
 | `list($a, $b) = …` | `[int $a, int $b] = $pair;` — every leaf typed |

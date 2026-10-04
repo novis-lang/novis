@@ -1,6 +1,6 @@
 <?nvs
-// Attack: a request saves a closure, deeply nested arrays and large values in its
-// session. A closure must throw a `LogicError`, and nothing may crash or leak.
+// Attack: a request saves a callable, deeply nested arrays and large values in its
+// session. Saving a callable must throw a `LogicError`, and nothing may crash or leak.
 // hostile: timeout-ms 60000
 
 // 1. The request saves a value in a session it never started. This throws a `RuntimeError`.
@@ -13,13 +13,13 @@ try {
 
 Core\Session::start();
 
-// 2. The request saves a closure. This throws a `LogicError`, and the session does not change.
+// 2. The request saves a callable. This throws a `LogicError`, and the session does not change.
 var $fn = fn(): int => 1;
 try {
     Core\Session::set('handler', $fn);
-    echo "saved a closure\n";
-} catch (LogicError $closureError) {
-    echo "closure: LogicError\n";
+    echo "saved a callable\n";
+} catch (LogicError $callableError) {
+    echo "callable: LogicError\n";
 }
 echo 'handler: ', Core\Session::get('handler') ?? '(none)', "\n";
 

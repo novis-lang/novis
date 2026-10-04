@@ -28,7 +28,7 @@ returned; take a prefix if a shorter one is wanted, because a caller handed eigh
 other fifty-six back. It is computed once, before the program starts, so calling it in a loop costs nothing.
 Use it to bust a cache, version an asset URL, or tell one deployment's log lines from another's — it is a
 digest, so it is safe to echo and reveals no source, though a reader who watches it learns when the
-deployment last changed. It cannot be a constant: writing the id into a file as a literal would change that
+deployment last changed. It cannot be a constant: writing the id directly into a file would change that
 file's bytes, and so the id it just wrote down.
 
 ```nvs file=lib/Greeter.nvs

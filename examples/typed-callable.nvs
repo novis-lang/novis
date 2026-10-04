@@ -1,6 +1,6 @@
 <?nvs
 // `rule:types/callable-signature` end to end: a `callable` that names its
-// parameters and its return type, the literal that takes its own parameter
+// parameters and its return type, the anonymous function that takes its own parameter
 // types from the position it is written in, and what the pair changes about
 // four places a program already had.
 //
@@ -24,14 +24,14 @@ $claim('a typed callback runs and returns its declared type', $labelled == 'n=7'
 
 // `rule:types/callable-arity`: `Core\Arr::map` offers every callback
 // ($value, $key) and a callback may declare fewer, matched from the left.
-// Neither literal writes a parameter type — the position names them
+// Neither anonymous function writes a parameter type — the position names them
 // (`rule:types/anonymous-function-parameter-inference`).
 array<int> $scores = ['ana' => 2, 'bo' => 3];
 array<int> $doubled = Core\Arr::map($scores, fn ($v) => $v * 2);
 array<string> $named = Core\Arr::map($scores, fn ($v, $k) => $k . $v);
 $claim('a shorter callback receives only what it declares', $doubled['ana'] == 4 && $named['bo'] == 'bo3');
 
-// A `callable`-typed *variable* carries everything a written literal does, so
+// A `callable`-typed *variable* carries everything a written anonymous function does, so
 // `map` binds its result type from the variable's own signature.
 callable(int, string): string $render = fn (int $v, string $k): string => $k . '=' . $v;
 array<string> $rendered = Core\Arr::map($scores, $render);

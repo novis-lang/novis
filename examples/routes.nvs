@@ -15,7 +15,7 @@ autoload 'App' from './routes';
 // could: each one asks about a name or a path the caller already has.
 // `examples/octets.nvs` is where `match` is read back, over a route of its
 // own. What asserts the table here is therefore the compiler, not the
-// output: the two `Core\Router::url` calls below take a *literal* name, and
+// output: the two `Core\Router::url` calls below take a name written *directly in the code*, and
 // § 4 makes an unknown name, and a `$params` array that does not cover the
 // route's captures, compile errors. If `Users::show` were not in the table,
 // or its `{id}` did not bind to a `uint $id` parameter, this program would

@@ -1,6 +1,6 @@
 <?nvs
 // Attack: `[deferred] max_concurrent` counts requests, not pieces of work. So this request adds
-// 200,000 closures to run after the response, and one closure tries to add more while it runs.
+// 200,000 anonymous functions to run after the response. One of them tries to add more while it runs.
 // It also tries to raise the limit, and every change to the limit should fail.
 // The server should run all the work and keep running.
 // hostile: timeout-ms 40000
@@ -47,7 +47,7 @@ foreach ($nearby as string $key) {
     Core\Config::restore($key);
 }
 
-// 3. Add a closure that runs first and tries to add more work while it runs. Each try should throw.
+// 3. Add an anonymous function that runs first and tries to add more work while it runs. Each try should throw.
 Core\Task::afterResponse(fn (): void => {
     try {
         Core\Task::afterResponse(fn (): void => {});
@@ -64,12 +64,12 @@ Core\Task::afterResponse(fn (): void => {
     }
 });
 
-// 4. Add 200,000 closures, each with its own string. The limit counts this request once, so all are accepted.
+// 4. Add 200,000 anonymous functions, each with its own string. The limit counts this request once, so all are accepted.
 uint $i = 0;
 while ($i < 200000) {
     string $payload = 'entry-' . $i . '-' . Core\Str::repeat('x', 64);
     Core\Task::afterResponse(fn (): void => {
-        // This closure prints nothing. The test only checks that the server still runs afterwards.
+        // This function prints nothing. The test only checks that the server still runs afterwards.
         Core\Str::length($payload);
     });
     $i = $i + 1;

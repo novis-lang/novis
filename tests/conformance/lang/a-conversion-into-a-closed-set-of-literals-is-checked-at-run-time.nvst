@@ -2,7 +2,7 @@
 A checked `as` into a closed set of literals tests membership at run time and throws naming the set — `rule:types/single-value-types`
 --FILE--
 <?nvs
-// covers: lang:types/nullable-union-literal-and-enum-case-types
+// covers: lang:types/nullable-union-single-value-and-enum-case-types
 class Mode {
     // § 4's checked row: `mixed` into a closed set throws unless the value
     // equals one of the named literals. It never *converts* to reach one —

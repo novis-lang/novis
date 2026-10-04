@@ -269,14 +269,14 @@ connect = ["metrics.internal"]   # the names reachable
 internal = ["10.4.0.9"]          # the denied addresses this deployment reaches anyway
 ```
 
-An `internal` entry is an IP address literal — never a hostname, never a range, and `true` is not a
+An `internal` entry is an IP address written out in full — never a hostname, never a range, and `true` is not a
 spelling it has. It grants nothing on its own: an address named there is still only reached under a
 host `connect` grants.
 
 `net.listen` has no such key, because the policy's terms invert under a bind: binding loopback is
 the contained case and binding the unspecified address is the exposed one, so `connect`'s denied
 ranges would refuse the safe spelling and admit the dangerous one. An entry is an `address:port`
-literal instead, matched as the endpoint it names rather than as the string it was written as, and
+written out in full instead, matched as the endpoint it names rather than as the string it was written as, and
 one that does not parse as an endpoint matches nothing. `true` is every endpoint this process may
 bind.
 

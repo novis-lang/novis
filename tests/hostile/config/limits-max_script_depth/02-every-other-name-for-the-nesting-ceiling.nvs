@@ -62,7 +62,7 @@ Core\Config::restore('limits.max_script_depth');
 // Prints the limit, then starts the endless chain from the other file. The
 // chain should stop at the limit, and this prints `yes`.
 echo 'the ceiling reads: ', Core\Config::get('limits.max_script_depth') ?? '(nothing)', "\n";
-// `Here::path` returns its argument as a full path. A relative path in a string literal
+// `Here::path` returns its argument as a full path. A relative path written in quotes
 // starts at the folder of this file.
 class Here
 {

@@ -5,7 +5,7 @@
 string $email = "anna@example.com";
 uint $order = 1042;
 
-// This line adds the closure to a list. It does not run it yet.
+// This line adds the anonymous function to a list. It does not run it yet.
 Core\Task::afterResponse(fn (): void => {
     echo "Receipt for order #", $order, " sent to ", $email, "\n";
 });

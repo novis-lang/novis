@@ -6,8 +6,8 @@
 
 final class Job
 {
-    // The handler reads this. A closure copies the variables around it when it
-    // is written, so a variable would still hold its first value here.
+    // The handler reads this. An anonymous function copies the variables it
+    // captures when it is written, so a variable would still have its first value here.
     public static string $current = "none";
 }
 

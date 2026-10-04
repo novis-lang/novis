@@ -31,12 +31,13 @@ rows whose owner is an item number, 31 to 35. An item's owner is the row it sits
 
 ## Panics and aborts (P)
 
-- [x] **P1** First-class callable syntax `Class::method(...)` / `$obj->method(...)` type-checks and
+- [x] **P1** A method reference `Class::method(...)` / `$obj->method(...)` type-checks and
       panics in `nvs-ir` (`lower/expr.rs:2870`, "records `ExprInfo::CallableRef` … no arm"). `rule:types/callable-values`
       keeps the spelling. Works only as the argument of `Core\Attributes::get/all`, where it is
-      folded at check time. *probes1 `fcc`, probes2 `fcc_case`* — it lowers to the same closure
-      object a `fn` literal builds, over a forwarding thunk (`nvs_ir::lower::anon_fn`'s
-      `lower_callable`), so a `Core` member handed one cannot tell it from a written closure. Two
+      folded at check time. *probes1 `fcc`, probes2 `fcc_case`* — it lowers to the same callable
+      object an anonymous function builds, over a forwarding thunk (`nvs_ir::lower::anon_fn`'s
+      `lower_callable`), so a `Core` member handed one cannot tell it from a written anonymous
+      function. Two
       parameter lists a `callable` cannot forward — `inout` and a variadic tail — are `E0793` where
       the `(...)` is written, since either reaches the callee as a type confusion.
 - [x] **P2** Calling an instance method statically — `class C { public function f() … } C::f();` —
@@ -122,11 +123,11 @@ rows whose owner is an item number, 31 to 35. An item's owner is the row it sits
       unclassified `string`/`bytes` `Core` parameter (E0401). `echo $pw;`, `"{$pw}"` interpolation
       and `Core\Json::encode($pw)` all print the value — `rule:security/secret-sinks-refuse` lists output among the sinks.
       *probes2 `secret_echo`; types-probes* `E0790` refuses the operand at `echo` and `print`, which
-      covers the interpolation because the qualifier spreads to the composed literal, and `E0791`
+      covers the interpolation because the qualifier spreads to the composed string, and `E0791`
       refuses `Core\Json::encode`, walking the argument's type so a declared `array<secret string>`
       is refused with the bare value. A written `["token" => $pw]` still reaches neither: an array
       literal with no expectation infers `array<mixed>`, which is `rule:security/secret-qualifier`'s unmodelled container
-      axis and is fixed at the literal rather than at either sink.
+      axis and is fixed at the array literal rather than at either sink.
 - [x] **U5** `Core\Secret::reveal` does not exist (E0405), yet the E0422/E0724 help texts tell the
       user to call it. No member returns `tainted` or `secret`; a value is qualified only where a
       declaration spells it. *types-probes* `Core\Secret` is registered —
@@ -209,7 +210,7 @@ rows whose owner is an item number, 31 to 35. An item's owner is the row it sits
 - [x] **D3** `Core\Weekday as int` is zero-based (`Friday` → `4`); the enum card says the cases are
       ordered "as `date("N")`" (Friday = 5). Closed: the card keeps `date("N")` for the **order** and
       states the numbering is not its — `Monday as int` is `0`. *coretime-probes `t_enum_int`*
-- [x] **D4** A literal pattern/duration argument is a **compile error** (E0769), not the
+- [x] **D4** A pattern/duration argument given as a string literal is a **compile error** (E0769), not the
       `LogicError`/`ParseError` the cards name: `->format("yyyy-QQ")`, `Duration::parse("30 seconds")`.
       Only a computed argument throws. Closed: the three cards on `rule:expressions/intrinsic-list-is-closed`'s roster —
       `Duration::parse`, `DateTime::format` and `Core\Time::parse` — name `E0769` and say only a
@@ -303,13 +304,13 @@ rows whose owner is an item number, 31 to 35. An item's owner is the row it sits
       diagnostic cites `rule:types/erased-member-access`, so this may be intended. *r02, s01*
 - [x] **D19** A comparison (`$e == E::A || $e == E::B`) does not narrow an enum value to the
       case-union type; only `as E::A|E::B` does. *q06, r03b*
-- [x] **D20** An empty shape `{}` is satisfied by every attached attribute literal, so a bare marker
+- [x] **D20** An empty shape `{}` is satisfied by every attached attribute payload object, so a bare marker
       `#[Audited]` (`type Audited = {}`) is ambiguous (E0728) on a class with any other attribute.
       Correct, and it is the price `rule:attributes/structural-retrieval` chose knowingly: retrieval is structural so that there
       is no second namespace of attribute-kind names for unrelated frameworks to collide in, and once
-      the ask is a shape, `{}` asks for *any* attached literal — width subtyping admits no narrower
+      the ask is a shape, `{}` asks for *any* attached payload object — width subtyping admits no narrower
       reading of a shape with no fields. E0728 is then the honest answer rather than a gap: `get`
-      promises at most one, two literals satisfy the ask, and the attached list is static, so the
+      promises at most one, two payload objects satisfy the ask, and the attached list is static, so the
       question is settled at the call site instead of by whichever attribute a test run happened to see
       first. A marker meant to be retrieved earns a field of its own. Both `Core\Attributes` cards now
       say so, beside the chapter bullet that already did.
@@ -320,7 +321,7 @@ rows whose owner is an item number, 31 to 35. An item's owner is the row it sits
       retrieval's). `E0731` is left for a constant whose own declaration folds to nothing.
 - [x] **D22** `inout` accepts only a local: `M::bump(inout $a["k"])` is E0439, and the refusal is
       permanent — the `yet` is gone (`nvs_types::expr::args::check_inout_arg` owns why). *ref30*
-- [x] **D23** `rule:types/anonymous-function-self-name`'s named-closure recursion (`fn fact(int $n): int => … fact($n - 1)`)
+- [x] **D23** `rule:types/anonymous-function-self-name`'s named anonymous function recursion (`fn fact(int $n): int => … fact($n - 1)`)
       parses, but the recursive call resolves as a free function (E0320). *ref30*
 - [x] **D24** `1.0 / 0` answers `INF` without throwing; `rule:types/arithmetic`'s `/ 0` row is the integer one.
       *ref30*
@@ -345,7 +346,7 @@ rows whose owner is an item number, 31 to 35. An item's owner is the row it sits
       gives it `plain`/`styled`/`+`.
 - [x] **D32** `Core\Validate::isEmail` does not launder — `string $s = $in;` after a `true` answer is
       still E0401 (may be intended; noted because a reader expects a validator to launder).
-- [x] **D33** `assertSame($uintValue, 2)` is `E0401: expected uint, found int` — a literal beside a
+- [x] **D33** `assertSame($uintValue, 2)` is `E0401: expected uint, found int` — an integer literal beside a
       generic parameter does not adapt. Closed: it is placed against the substituted parameter type
       (`nvs_types::expr::args::check_generic_args` owns the rule).
 - [ ] **D34** `Core\Arr::sort` on an `array<decimal>` throws at run time: "no natural order for tag
@@ -361,7 +362,7 @@ rows whose owner is an item number, 31 to 35. An item's owner is the row it sits
 ## Named in the docs, absent from the registry (M)
 
 - [x] **M1** `Core\Task::afterResponse` (spec § 19) — only `all` and `map` exist. Closed:
-      `nvs_stdlib::task`'s third row registers the closure and `nvs_runtime::deferred` runs it once
+      `nvs_stdlib::task`'s third row registers the callable and `nvs_runtime::deferred` runs it once
       the request's own frame has returned, which is `rule:concurrency/after-response-outlives-the-connection`'s "after the response" on a host
       that has no response. Only the request's own task may register — a child's queue would be
       drained by nobody — and that module's known gaps are § 7's `max_concurrent` and an isolate's
@@ -410,7 +411,7 @@ rows whose owner is an item number, 31 to 35. An item's owner is the row it sits
 - Two `catch` clauses in one function must bind different names (E0406); so must two
   `for (int $i …)` loops; two `foreach` loops may reuse a binding name.
 - `1 << 64` answers `0`; a negative shift count throws.
-- Escapes `\v`, `\e`, `\f` are not escapes (`"a\vb"` prints `a\vb`); literal `017` is decimal 17.
+- Escapes `\v`, `\e`, `\f` are not escapes (`"a\vb"` prints `a\vb`); the integer literal `017` is decimal 17.
 - A `foreach` over an `Iterator<T>`/generator has no key to bind (E0444).
 - Both grant spellings work from an example's own directory: `[[app]] entry = "main.nvs"` +
   `[app.capabilities.fs]`, and the top-level `[capabilities.fs]` table.

@@ -1,10 +1,10 @@
 <?nvs
-// A transaction is a closure, and that is the whole of the shape.
+// A transaction is an anonymous function, and that is the whole of the shape.
 //
 // [ADR 0067](/docs/decisions/0067.md) § 7 removes `beginTransaction`,
 // `commit`, `rollBack` on the connection, `inTransaction` and explicit
 // savepoints, and replaces all five with one member that owns the scope:
-// the closure returns and the work commits, the closure throws and the work
+// the function returns and the work commits, the function throws and the work
 // rolls back. A transaction left open by an early `return` is the failure
 // mode the shape makes unspellable, so it is not a rule anyone has to
 // remember.
@@ -64,7 +64,7 @@ try {
 } catch (Core\Db\RolledBack $rolled) {
     // The string `rollBack` was given is on the throwable as `$reason`, so the
     // caller that catches it can say *why* the work was abandoned without the
-    // closure needing a second channel out — a transaction that returns nothing
+    // function needing a second channel out — a transaction that returns nothing
     // has no other way to report the decision it made.
     echo 'rolled back: ', $rolled->reason, "\n";
 }
@@ -73,7 +73,7 @@ try {
 // were written and are gone, and no `commit` was ever reachable.
 echo 'count=', Accounts::count($db), "\n";
 
-// The committing half — the same closure without the refusal at the end.
+// The committing half — the same anonymous function without the refusal at the end.
 // There is no `commit` member to call: returning is the commit.
 $db->transaction(fn (Transaction $tx): void => {
     $tx->executeMany('insert into accounts (id, owner) values (?, ?)', [

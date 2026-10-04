@@ -1,0 +1,102 @@
+<?nvs
+// Attack: a program encodes values that are too deep, point to themselves, hide
+// a callable, or are very large. Each value should give a result or an error.
+// The last one should stop the program at its memory limit, without a crash.
+// hostile: timeout-ms 60000
+// hostile: ends-early 6 FATAL
+
+class Node
+{
+    public uint $id;
+    public ?Node $next = null;
+    public mixed $payload;
+    public function constructor(uint $id)
+    {
+        $this->id = $id;
+        $this->payload = 0;
+    }
+}
+
+class Chain
+{
+    // Builds a chain of `$length` nodes, where each node points to the next one.
+    public static function of(uint $length): Node
+    {
+        Node $head = new Node(0);
+        Node $tail = $head;
+        uint $i = 1;
+        while ($i < $length) {
+            Node $node = new Node($i);
+            $tail->next = $node;
+            $tail = $node;
+            $i = $i + 1;
+        }
+        return $head;
+    }
+}
+
+// Step 1: a chain of 100,000 nodes is nested far deeper than the limit of 256 levels.
+try {
+    Core\Serialize::encode(Chain::of(100000));
+    echo "step 1: encoded\n";
+} catch (LogicError $e) {
+    echo 'step 1: ', $e->message, "\n";
+}
+
+// Step 2: chains one level under the limit, at it and one over it.
+array<uint> $lengths = [255, 256, 257, 258];
+foreach ($lengths as uint $length) {
+    try {
+        uint $size = Core\Bytes::length(Core\Serialize::encode(Chain::of($length)));
+        echo 'step 2: ', $length, " nodes encoded\n";
+    } catch (LogicError $e) {
+        echo 'step 2: ', $length, " nodes refused\n";
+    }
+}
+
+// Step 3: a node points to itself, and two nodes point to each other.
+Node $self = new Node(1);
+$self->next = $self;
+Node $a = new Node(2);
+Node $b = new Node(3);
+$a->next = $b;
+$b->next = $a;
+Node $loop = Core\Serialize::decode(Core\Serialize::encode($self)) as Node;
+Node $pair = Core\Serialize::decode(Core\Serialize::encode($a)) as Node;
+echo 'step 3: ', $loop->next?->next?->id ?? 0, ' ', $pair->next?->next?->id ?? 0, "\n";
+
+// Step 4: an anonymous function is hidden at the end of a chain of 200 nodes.
+Node $hidden = Chain::of(200);
+Node $last = $hidden;
+while ($last->next != null) {
+    $last = $last->next as Node;
+}
+$last->payload = fn(int $x): int => $x + 1;
+try {
+    Core\Serialize::encode($hidden);
+    echo "step 4: encoded\n";
+} catch (LogicError $e) {
+    echo "step 4: refused\n";
+}
+
+// Step 5: one array of 1,000,000 numbers is encoded and read back.
+array<int> $numbers = [];
+int $n = 0;
+while ($n < 1000000) {
+    $numbers[] = $n;
+    $n = $n + 1;
+}
+array<int> $back = Core\Serialize::decode(Core\Serialize::encode($numbers)) as array<int>;
+echo 'step 5: ', Core\Arr::count($back), "\n";
+
+// Step 6: one text of 1 million characters is in an array 10,000 times. The bytes
+// would need 10 gigabytes, so the program stops at its memory limit.
+echo "step 6\n";
+string $text = Core\Str::repeat('x', 1000000);
+array<string> $copies = [];
+$n = 0;
+while ($n < 10000) {
+    $copies[] = $text;
+    $n = $n + 1;
+}
+echo 'step 6: ', Core\Bytes::length(Core\Serialize::encode($copies)), "\n";

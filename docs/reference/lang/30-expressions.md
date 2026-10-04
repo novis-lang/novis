@@ -1,8 +1,8 @@
 ---
 id: expressions
 title: Expressions and operators
-summary: every operator with its precedence and what it accepts, calls and closures, `match`, arrays and object literals in expression position, and the PHP spellings that do not parse
-keywords: operators, precedence, associativity, arithmetic, +, -, *, /, %, **, pow, concatenation, ., .=, ==, !=, ===, !==, <>, <=>, spaceship, comparison, <, <=, >, >=, &&, ||, !, and, or, xor, ??, ??=, ??+=, ??-=, ??.=, defaulting assignment, ?:, elvis, ternary, ?->, nullsafe, match, is, new, clone, throw expression, print, isset, empty, unset, closure, fn, function, use, callable, first-class callable, named arguments, spread, ..., variadic, inout, array literal, subscript, append, [], destructuring, list(), object literal, shape, ++, --, increment, bitwise, &, |, ^, ~, <<, >>, shift, overflow, ArithmeticError, division by zero, @, backticks, eval, extract, compact, settype, variable variables, $$, =&, reference, |>, pipeline, pipe, $_, hole, substitution
+summary: every operator with its precedence and what it accepts, calls, anonymous functions and method references, `match`, arrays and anonymous objects in expression position, and the PHP spellings that do not parse
+keywords: operators, precedence, associativity, arithmetic, +, -, *, /, %, **, pow, concatenation, ., .=, ==, !=, ===, !==, <>, <=>, spaceship, comparison, <, <=, >, >=, &&, ||, !, and, or, xor, ??, ??=, ??+=, ??-=, ??.=, defaulting assignment, ?:, elvis, ternary, ?->, nullsafe, match, is, new, clone, throw expression, print, isset, empty, unset, anonymous function, fn, function, use, callable, method reference, named arguments, spread, ..., variadic, inout, array literal, subscript, append, [], destructuring, list(), anonymous object, shape, ++, --, increment, bitwise, &, |, ^, ~, <<, >>, shift, overflow, ArithmeticError, division by zero, @, backticks, eval, extract, compact, settype, variable variables, $$, =&, reference, |>, pipeline, pipe, $_, hole, substitution
 ---
 
 # Precedence and associativity
@@ -282,7 +282,7 @@ L|L1
 
 # String operators
 
-`.` concatenates and `.=` appends; either side may be a `string`, `int`, `uint`, `float`, `decimal`, `bool` (`true` is `1`, `false` is empty), `null` (empty) or an object implementing `Stringable`. `bytes`, an array, an enum case and a `void` call have no string form and are refused — `$b as string`, `Core\Json::encode($a)`. Double-quoted strings interpolate `$name` and `{$expr}`; the literal forms are the types chapter's. `+` on two `Core\Html\Markup` values joins them into one `Markup`, and `.` on a `Markup` is refused; the ``html`…` `` literal that makes one is the types chapter's `Markup: the html template literal`.
+`.` concatenates and `.=` appends; either side may be a `string`, `int`, `uint`, `float`, `decimal`, `bool` (`true` is `1`, `false` is empty), `null` (empty) or an object implementing `Stringable`. `bytes`, an array, an enum case and a `void` call have no string form and are refused — `$b as string`, `Core\Json::encode($a)`. Double-quoted strings interpolate `$name` and `{$expr}`; the other ways to write a string are in the types chapter. `+` on two `Core\Html\Markup` values joins them into one `Markup`, and `.` on a `Markup` is refused; the ``html`…` `` template that makes one is the types chapter's `Markup: the html template`.
 
 ```nvs
 <?nvs
@@ -409,7 +409,7 @@ no `match` arm matched the subject
 # `is`, `new`, `clone`, `throw`, `print`, `exit`, `isset`, `empty`
 
 - `$x is T` answers whether `$x` currently holds a `T`, for any type a value can inhabit, and narrows `$x` to `T` in the branch where it held. It is total: a subject whose declared type settles the answer compiles and folds to `true` or `false`. A `$` on the right is the one value form, `$x is $cls`, where `$cls` is a `class<T>`; anything else on the right is a type.
-- `new C(args)` constructs; the argument list is a call's, named arguments included, and may be omitted when empty. `new static()` and `new self()` work inside a class. `new C(...)` has no first-class form.
+- `new C(args)` constructs; the argument list is a call's, named arguments included, and may be omitted when empty. `new static()` and `new self()` work inside a class. `new C(...)` is not a method reference and does not compile.
 - `clone $o` is a shallow copy of an object: scalar and array properties are copied, object properties are shared. There is no clone hook. `clone` takes an object only.
 - `throw expr` is an expression, so it sits on the right of `??`, `||` or a ternary arm; the errors chapter owns what may be thrown.
 - `print expr` writes one value and answers `1`.
@@ -503,7 +503,7 @@ Hi, Ada! Yo, Bob?
 - `$_` appears **exactly once** on a right side. A right side with none is `E0129`, a second `$_` on one right side is `E0130`, and a `$_` written anywhere outside a right side is `E0131`.
 - `|>` is left-associative: `$a |> f($_) |> g($_)` is `g(f($a))`.
 - It binds tighter than every binary operator and looser than unary, so `$a |> Core\Str::length($_) > 5` compares the length and `$x = $a |> Core\Str::trim($_)` assigns the trimmed string.
-- This is not PHP 8.5's `|>`, which applies a callable resolved at run time. A first-class callable or a closure on the right side is `E0129`, and the diagnostic says which of the two operators you wrote.
+- This is not PHP 8.5's `|>`, which applies a callable resolved at run time. A method reference or an anonymous function on the right side is `E0129`, and the diagnostic says which of the two operators you wrote.
 
 ```nvs
 <?nvs
@@ -547,9 +547,9 @@ echo $s, "\n";
 `$_` is the pipeline hole and has no meaning here
 ```
 
-# Closures: `fn`
+# Anonymous functions
 
-`fn` is the only closure literal, and a closure is the only value a `callable` holds. `fn(params): T => expr` answers the expression; `fn(params): T => { … }` runs a block and `return`s. Every parameter declares a type; an expression body may omit the return type, and a block body declares it. Every outer local the body reads is captured **by value when the closure is created**, and `$this` is captured inside a method. There is no `use (…)` clause, no capture by reference, no `static fn`, no `inout` parameter, and no anonymous `function () {}`. `Class::m(...)` is not a way to obtain a closure — write `fn(...) => Class::m(...)`.
+`fn` writes an anonymous function. The value it makes is a callable: a value you can call with `()` and store in a `callable` variable. A method reference makes a callable too: `Core\Str::length(...)`, `$obj->m(...)`, `self::f(...)` and `static::f(...)` each give one. `fn(params): T => expr` returns the expression; `fn(params): T => { … }` runs a block and `return`s. Every parameter declares a type; an expression body may omit the return type, and a block body declares it. The anonymous function captures every outer local its body reads, **by value, when the function is created**, and it captures `$this` inside a method. There is no `use (…)` clause, no capture by reference, no `static fn`, no `inout` parameter, and no anonymous `function () {}`.
 
 ```nvs
 <?nvs
@@ -585,7 +585,7 @@ anonymous `function` expressions are not supported
 
 # Arrays in expressions
 
-An array literal is `[a, b]`, `["k" => v]`, or both mixed. A literal is checked against its declared target type, as in `array<int> $a = [1, 2]`. Under `var` it has no target: `var $a = [1, 2]` is an `array<int>` because every element is an `int`, and a literal whose elements have different types, or an empty one, needs its type written. `[...$a, x]` copies `$a`'s entries into the literal, renumbering an integer-looking key under the literal's own counter and preserving every other, which is PHP's own spread (`rule:types/arrays`). Every key is a `string`: an `int` or `uint` subscript names the same entry as its decimal spelling, so `$a[8]` and `$a["8"]` are one key while `"08"` is another, and a `foreach` key binding is always `string`.
+An array literal is `[a, b]`, `["k" => v]`, or both mixed. An array literal is checked against its declared target type, as in `array<int> $a = [1, 2]`. Under `var` it has no target: `var $a = [1, 2]` is an `array<int>` because every element is an `int`, and an array literal whose elements have different types, or an empty one, needs its type written. `[...$a, x]` copies `$a`'s entries into the new array, renumbering an integer-looking key under the new array's own counter and preserving every other, which is PHP's own spread (`rule:types/arrays`). Every key is a `string`: an `int` or `uint` subscript names the same entry as its decimal spelling, so `$a[8]` and `$a["8"]` are one key while `"08"` is another, and a `foreach` key binding is always `string`.
 
 - `$a["k"]` reads; an absent key **throws** a `RuntimeError` (`undefined array key`). `$a["k"] ?? $d` is the read that does not.
 - `$a["k"] = v` writes, `$a[] = v` appends at the highest integer key so far plus one (`0` in an empty array), and both reach into nested arrays: `$g["r"]["c"] = 1` creates the inner array. `[]` is only a write target.
@@ -650,9 +650,9 @@ list($a, $b) = $pair;
 `list(...)` is not supported
 ```
 
-# Object literals
+# Anonymous objects
 
-`{name: value, …}` builds an anonymous object with exactly those fields, read and written as `$p->name`; its type is the shape `{name: T, …}`, which a `type` alias, a parameter or a return type can name. Two literals are two objects, so `==` is identity. Where a `{` would otherwise start a block — at the start of a statement, and directly after a closure's `=>` — the literal is written in parentheses, `({…})`. A field name written twice is a compile error.
+`{name: value, …}` builds an anonymous object with exactly those fields, read and written as `$p->name`; its type is the shape `{name: T, …}`, which a `type` alias, a parameter or a return type can name. Each `{…}` makes a new object, so `==` is identity. Where a `{` would otherwise start a block — at the start of a statement, and directly after an anonymous function's `=>` — the anonymous object is written in parentheses, `({…})`. A field name written twice is a compile error.
 
 ```nvs
 <?nvs
@@ -679,7 +679,7 @@ ambiguous with a block
 
 Each of these is parsed only so the diagnostic can name the replacement: `eval` (use `require` or `spawn script`), `extract` (destructure or index), `settype` (`as` into a new binding), `compact` and every other PHP free function (a `Core` member — `Core\Str::length($s)`), `$$name` and `${expr}`, `list(…)`, `(int)` casts, `@`, `=&`, `die` (`exit`), `include`/`require_once` (`require`), `yield` used as a value, and `self`/`static`/`parent` outside a class — the last of those at each of the four sites that resolve a class side, a constant, a static property, a static call and `new`.
 
-PHP's backticks are the one entry not parsed at all. There is no shell-execution form for a diagnostic to name a replacement for — `Core\Process::run` takes a path and an argv array, never a command line (`rule:core-classes/process-is-argv-only`) — and the character itself is the delimiter of ``html`…` `` (`rule:core-classes/html-template`), so a backtick with no prefix in front of it is `E0001` from the lexer. The literal itself is the types chapter's `Markup: the html template literal`.
+PHP's backticks are the one entry not parsed at all. There is no shell-execution form for a diagnostic to name a replacement for — `Core\Process::run` takes a path and an argv array, never a command line (`rule:core-classes/process-is-argv-only`) — and the character itself is the delimiter of ``html`…` `` (`rule:core-classes/html-template`), so a backtick with no prefix in front of it is `E0001` from the lexer. The html template itself is the types chapter's `Markup: the html template`.
 
 ```nvs error
 <?nvs

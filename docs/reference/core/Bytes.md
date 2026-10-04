@@ -5,8 +5,8 @@ keywords: strlen, ord, chr, substr, strpos, strcmp, str_contains, str_starts_wit
 
 `Core\Bytes` reads and builds `bytes` — a buffer of octets with no character in it. Every position,
 length and count is a **byte** offset: `length` is O(1), `at` answers one octet as a `uint`, and a
-negative index counts from the end — where `Core\Str` counts graphemes. There is no `bytes` literal
-and no `.` over buffers: a buffer is written through `Core\Encoding` (`fromHex`, `encodeText`),
+negative index counts from the end — where `Core\Str` counts graphemes. A `bytes` value cannot be
+written directly in the code, and there is no `.` over buffers: a buffer is written through `Core\Encoding` (`fromHex`, `encodeText`),
 joined with `join`, built with `fill` and `repeat`, and laid out as a wire format with `pack` and
 `unpack`, whose code table names every field's width and byte order outright and refuses a value
 outside the field's range.

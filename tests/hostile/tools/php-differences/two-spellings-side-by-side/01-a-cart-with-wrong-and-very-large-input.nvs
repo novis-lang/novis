@@ -65,7 +65,7 @@ try {
     echo 'unpack: ', $missing->message, "\n";
 }
 
-// 4. A closure doubles a number until the number is too large for an `int`.
+// 4. An anonymous function doubles a number until the number is too large for an `int`.
 var $double = fn(int $n): int => $n * 2;
 int $value = 1;
 int $rounds = 0;

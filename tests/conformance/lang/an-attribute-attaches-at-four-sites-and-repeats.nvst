@@ -2,7 +2,7 @@
 an attribute attaches at a class, a method, a property and a parameter, the named and bare spellings reach retrieval alike, and a declaration keeps every attachment written on it (`rule:attributes/attach-sites-and-forms` and `rule:attributes/repeatable`)
 --FILE--
 <?nvs
-// covers: lang:attributes/an-attribute-is-a-shape-literal-attached-to-a-declaration
+// covers: lang:attributes/an-attribute-is-an-anonymous-object-attached-to-a-declaration
 // `rule:attributes/attach-sites-and-forms` names four attach sites. This case asks one
 // question at each of them and counts the agreements rather than reading any
 // one off a line of its own: a site that stopped attaching, or one attaching

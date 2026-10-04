@@ -1,7 +1,7 @@
 <?nvs
 // Attack: a program adds a very large amount of work to run after the response.
 // Some of it throws, waits past its time limit or tries to add more work.
-// Each bad closure should stop cleanly, and the closures after it should still run.
+// Each bad function should stop cleanly, and the functions after it should still run.
 // hostile: timeout-ms 30000
 
 // Step 1: a task started by `Core\Task::all` tries to add work. This is not
@@ -20,8 +20,8 @@ var $fromTask = Core\Task::all({
 });
 echo 'step 1: ', $fromTask->tried, "\n";
 
-// Step 2: add 100,000 closures. Each one uses the same text of 16 million
-// characters, so the closures share it and memory stays small.
+// Step 2: add 100,000 anonymous functions. Each one uses the same text of 16 million
+// characters, so the functions share it and memory stays small.
 string $big = Core\Str::repeat('w', 16000000);
 uint $i = 0;
 while ($i < 100000) {
@@ -32,17 +32,17 @@ while ($i < 100000) {
 }
 echo 'step 2: added ', $i, "\n";
 
-// Step 3: a closure throws an error. The error is written to the log,
-// and the next closure still runs.
+// Step 3: an anonymous function throws an error. The error is written to the log,
+// and the next function still runs.
 Core\Task::afterResponse(fn (): void => {
     throw new RuntimeError('the webhook failed');
 });
 Core\Task::afterResponse(fn (): void => {
-    echo "step 3: the closure after the error ran\n";
+    echo "step 3: the function after the error ran\n";
 });
 
-// Step 4: a closure tries to add one more closure. This is not allowed,
-// and the error is caught inside the closure.
+// Step 4: an anonymous function tries to add one more function. This is not allowed,
+// and the error is caught inside the function.
 Core\Task::afterResponse(fn (): void => {
     try {
         Core\Task::afterResponse(fn (): void => {
@@ -54,8 +54,8 @@ Core\Task::afterResponse(fn (): void => {
     }
 });
 
-// Step 5: closures wait longer than their time limit: 5 milliseconds, zero,
-// and a negative time. Each one is stopped, and the next closure still runs.
+// Step 5: three functions wait longer than their time limit: 5 milliseconds, zero,
+// and a negative time. Each one is stopped, and the next function still runs.
 Core\Task::afterResponse(fn (): void => {
     Core\Time::sleep(10s);
     echo "step 5: never\n";
@@ -69,7 +69,7 @@ Core\Task::afterResponse(fn (): void => {
     echo "step 5: never\n";
 }, { deadline: 1000000s->negated() });
 Core\Task::afterResponse(fn (): void => {
-    echo "step 5: the closure after the stopped ones ran\n";
+    echo "step 5: the function after the stopped ones ran\n";
 });
 
 // Step 6: the program ends normally, and all the work above runs now.

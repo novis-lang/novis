@@ -2,7 +2,7 @@
 an attribute payload's every field value is a literal, a class constant or an enum case, and anything the program would have to run is refused where it is written — `rule:attributes/attach-sites-and-forms` and `rule:attributes/payload-is-a-compile-time-constant`
 --FILE--
 <?nvs
-// covers: lang:attributes/an-attribute-is-a-shape-literal-attached-to-a-declaration
+// covers: lang:attributes/an-attribute-is-an-anonymous-object-attached-to-a-declaration
 // `rule:attributes/payload-is-a-compile-time-constant`: the whole payload is resolved once, at compile time, into the
 // unit's constant pool — the storage class an enum case's backing integer and
 // a class constant already use. There is therefore no moment at which a

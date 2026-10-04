@@ -78,8 +78,8 @@ Write what an attacker writes. The shapes that have found things in languages li
   bound, which exists and is guarded (`benches/abi-probe/tests/invariants.rs`).
 - **Boundaries by one** — an offset at the length, a negative length, an empty receiver, a range
   that ends before it starts, the largest `int` and the value after it.
-- **The refcount edges** — a cycle, a value held while the thing under it is replaced, a closure
-  capturing what created it, an `inout` outliving its frame. These are where a leak actually lives,
+- **The refcount edges** — a cycle, a value held while the thing under it is replaced, an anonymous
+  function capturing what created it, an `inout` outliving its frame. These are where a leak actually lives,
   which is why `--valgrind` exists.
 - **Encoding that is not text** — invalid UTF-8, a lone surrogate, a combining mark alone, a
   grapheme split down the middle, a NUL in a path.

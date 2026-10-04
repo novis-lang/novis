@@ -7,7 +7,7 @@
 // A lower memory limit, so the last step reaches the limit quickly.
 Core\Config::set('memory', '64M');
 
-// `Here::path` returns its argument as a full path. A relative path in a string literal
+// `Here::path` returns its argument as a full path. A relative path written in quotes
 // starts at the folder of this file.
 class Here
 {

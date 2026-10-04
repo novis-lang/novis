@@ -74,7 +74,7 @@ try {
 // the golden below is an encoding of a `Slot` made under a *different*
 // declaration of it: the same class name, with a second `int $extra` beside
 // `$n`. It is the format `crates/nvs-runtime/src/graph.rs` writes, byte for
-// byte, which is why it is a literal here rather than something this program
+// byte, which is why it is written directly in the code here rather than something this program
 // could produce. A version bump there rewrites this line.
 var $stale = "NVS\x1b\x01\x09\x04Slot\x02\x01n\x05extra\x02\x07\x00\x00\x00\x00\x00\x00\x00\x02\x00\x00\x00\x00\x00\x00\x00\x00" as bytes;
 try {

@@ -17,7 +17,7 @@ try {
     echo "1: throws\n";
 }
 
-// 2. Read it again with the path from a method and from a closure.
+// 2. Read it again with the path from a method and from an anonymous function.
 try {
     echo Core\IO::read(Blog::file()), "\n";
 } catch (RuntimeError $error) {
