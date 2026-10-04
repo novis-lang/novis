@@ -80,7 +80,7 @@
   },
   "syntax/concurrency/isolates.mdx": {
     "lang:concurrency/a-child-s-failure-is-a-value": "d42d90fb212abbd4",
-    "lang:concurrency/a-child-shares-nothing": "8eb481043653b12f",
+    "lang:concurrency/a-child-shares-nothing": "28d88d7a3a59faff",
     "lang:concurrency/isolates-spawn-script-and-await": "daf418a1296964bb"
   },
   "syntax/concurrency/limits-and-errors.mdx": {

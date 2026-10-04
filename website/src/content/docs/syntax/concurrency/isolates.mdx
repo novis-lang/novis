@@ -23,11 +23,13 @@ The result has four fields:
 |---|---|---|
 | `ok` | `bool` | `true` when the child ended without an error |
 | `value` | `mixed` | the value of the child's `return`, or `null` |
-| `output` | `string` | what the child printed, with `output: "capture"` |
+| `output` | `Core\Html\Markup\|Core\Cli\Text` | what the child printed, with `output: "capture"` |
 | `error` | `?{class: string, message: string}` | the error that ended the child, or `null` |
 
 - `with(...)` is optional. `output: "capture"` is the default. `output: "inherit"` prints the
   child's output directly, mixed with the parent's output.
+- `output` is a `Core\Html\Markup` when the program writes HTML, and a `Core\Cli\Text` otherwise.
+  To use it as a `string`, write `$result->output as string`.
 - `args:` copies one value into the child. The child reads it with `Core\Script::args()`.
 - `limits:` sets lower limits for the child. `grants:` names the capabilities it may use. A child
   never gets more than its parent has.
