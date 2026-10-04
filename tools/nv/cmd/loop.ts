@@ -1,7 +1,7 @@
 // `bun nv loop --list`: the live goal's acceptance plan. One line per check, `[<stage number> <stage
 // title>]`, its kind, its name and what it runs, then `list: N check(s) match` last. The live goal is the one
-// `data/chain.json` names `live`, and its plan is `lib/chain.ts`'s `goalPlan`: the goal's record with every
-// walked goal's checks carried in as its floor, so the plan printed is the whole plan the driver runs.
+// `data/chain.json` names `live`, and its plan is `lib/chain.ts`'s `goalPlan`: the goal's own record, which
+// is the whole plan the driver runs.
 //
 // Three filters narrow it, and a check is printed when it matches every one given:
 //   - `--stage <label>` — the stage's number, or the start of its label `8 the driver` or of its title;
@@ -263,7 +263,7 @@ function placeOf(live: Current, total: number): string {
 /**
  * The goal this process works on, its plan and the chain's length, or null once the reason it has none is
  * printed. It is the side goal `SIDE_ENV` names, with `sidePlan`'s plan, or else the live goal, with
- * `goalPlan`'s: the goal's record with every walked goal's checks carried in as its floor.
+ * `goalPlan`'s: the goal's own record.
  */
 function livePlan(): { live: Current; goal: Goal; total: number } | null {
   const goals = chainGoals();
@@ -1395,9 +1395,9 @@ async function advance(state: RunState, from: string): Promise<Ended | null> {
   if (next === undefined) return end("chain-complete", `CHAIN COMPLETE: \`${from}\` was the last goal in data/chain.json, and every one of them is green`);
   say("");
   step(`chain: switching to goal \`${next.slug}\`, ${next.num} of ${goals.length}`, C.CYAN);
-  if (next.retired) return end("chain-error", `chain: goal \`${next.slug}\` has no checks, so nothing can reach it; \`bun nv chain --check\` says what it owes`);
   const plan = goalPlan(next.slug);
   if (plan === null) return end("chain-error", `chain: goal \`${next.slug}\` has no record at data/goals/${next.slug}.json`);
+  if (plan.checks.length === 0) return end("chain-error", `chain: goal \`${next.slug}\` has no checks, so nothing can reach it; \`bun nv chain --check\` says what it owes`);
   const issues = goalType.schema.validate(plan);
   if (issues.length > 0) return end("chain-error", `chain: goal \`${next.slug}\`'s plan is not runnable -- ${JSON.stringify(issues[0])}`);
   const down = await preflight(plan.env.docker, (l) => say(`   ${l}`, C.GRAY));

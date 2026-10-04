@@ -3,7 +3,7 @@
 
 # Tooling
 
-*22 of 67 rules below are **designed** rather than shipped, and are marked where they appear.*
+*21 of 67 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="tooling-shebang-opens-code-mode"></a>
 
@@ -1794,7 +1794,7 @@ records, never merged by hand.
 
 <a id="tooling-the-chain-names-its-live-goal"></a>
 
-## The chain record names the live goal, and the goal switch deletes the goal it leaves and carries none of its checks  *(designed — not yet in the compiler)*
+## The chain record names the live goal, and the goal switch deletes the goal it leaves and carries none of its checks
 
 `rule:tooling/the-chain-names-its-live-goal`
 

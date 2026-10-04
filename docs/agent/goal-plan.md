@@ -5,135 +5,134 @@ Every goal on the chain, in the order the loop walks them, with the stages of ea
 goals, which are off the chain. `bun nv render` writes this file from `data/chain.json` and
 `data/goals/`: change those, never this file.
 
-The chain holds 200 goals. 184 are walked (120 of them retired), `goal-closeout` is live at 185 of 200, and 15 are ahead.
+The chain holds 200 goals. 184 are walked, `goal-closeout` is live at 185 of 200, and 15 are ahead.
 
-A goal's stage 1 is its floor: every check of every goal in front of it still passes. A record that does
-not write that stage lists only its own stages here, and the loop adds the floor when it runs the goal. A
-retired goal's record keeps no checks and no stages, so its prose is where to read it.
+The loop runs a goal's own record and no check of any other goal. A walked goal whose record keeps no
+checks and no stages is read in its prose.
 
 | # | Goal | What it builds | State | Milestone | Stages |
 |--:|---|---|---|---|---|
-| 1 | [`core-depth`](goals/core-depth.md) | `Core`'s pure half, finished | retired | M4S |  |
-| 2 | [`concurrency`](goals/concurrency.md) | the reactor, the scheduler, and isolates | retired | M5 |  |
-| 3 | [`governance`](goals/governance.md) | config, capabilities, limits, and the disk cache | retired | M6 |  |
-| 4 | [`core-part-ii`](goals/core-part-ii.md) | `Core`'s capability-bearing half | retired | M8 |  |
-| 5 | [`database`](goals/database.md) | `Core\Db` and five drivers | retired | M8 |  |
-| 6 | [`server`](goals/server.md) | the server, and the parity program's last gate | retired | M7 |  |
-| 7 | [`carried-gaps`](goals/carried-gaps.md) | The gaps no goal owned | retired |  |  |
-| 8 | [`warm-start`](goals/warm-start.md) | The on-disk artifact cache has a producer | retired |  |  |
-| 9 | [`temp-sweep`](goals/temp-sweep.md) | `rule:core-classes/temporary-dir-sweep`'s temporary-directory sweep | retired |  |  |
-| 10 | [`program-id`](goals/program-id.md) | `Core\Program::id()`, the program's own fingerprint | retired |  |  |
-| 11 | [`schema`](goals/schema.md) | `Core\Db\Schema`: tables, columns and indexes, converged | retired |  |  |
-| 12 | [`typed-callable`](goals/typed-callable.md) | a `callable` carries its signature | retired |  |  |
-| 13 | [`doc-comments`](goals/doc-comments.md) | `///` is a doc comment, and one JSON carries it | retired |  |  |
-| 14 | [`resilient-tree`](goals/resilient-tree.md) | the resilient tree, and one home for a position | retired | M4B |  |
-| 15 | [`surface`](goals/surface.md) | the last two front-end items, before anything colours them | retired | M1 |  |
-| 16 | [`lsp-server`](goals/lsp-server.md) | `nvs lsp`, and the format that can prove it | retired | M4B |  |
-| 17 | [`editor`](goals/editor.md) | `editors/vscode`, and colour | retired | M4B |  |
-| 18 | [`request-json`](goals/request-json.md) | a body is read once, and JSON is one of the ways to read it | retired | M7 |  |
-| 19 | [`test-request`](goals/test-request.md) | the request a test builds, and the peer facts it carries | retired | M8 |  |
-| 20 | [`input-shapes`](goals/input-shapes.md) | untrusted input becomes a declared shape, at one converter | retired | M7 |  |
-| 21 | [`parses`](goals/parses.md) | a class a string names, at one contract | retired | M7 |  |
-| 22 | [`unix-sockets`](goals/unix-sockets.md) | a configured store is authorized by its configuring, and may be a Unix socket | retired | M8 |  |
-| 23 | [`per-core`](goals/per-core.md) | `nvs serve` takes every core, and the compiled unit is shared | retired | M7 |  |
-| 24 | [`net-os-signal`](goals/net-os-signal.md) | `Core\Net`, `Core\Os` and `Core\Signal` | retired | M8 |  |
-| 25 | [`formats`](goals/formats.md) | `Core\Compress`, `Core\Mime` and `Core\Zip` | retired | M8 |  |
-| 26 | [`encoder-cycles`](goals/encoder-cycles.md) | An encoder ends a cycle where it closes, and every walk that can meet one is audited | retired | M8 |  |
-| 27 | [`record-origin`](goals/record-origin.md) | A record names the line it came from, and a repeat is bounded at the sink that suffers | retired | M8 |  |
-| 28 | [`agent-surface`](goals/agent-surface.md) | An agent learns Novis from the binary, in three calls | retired | M10 |  |
-| 29 | [`xml-tree`](goals/xml-tree.md) | `Core\Xml`'s tree and stream, and the WHATWG parser over it | retired | M8 |  |
-| 30 | [`gap-owners`](goals/gap-owners.md) | a module doc's gap names its owner, and a gate says so | retired |  |  |
-| 31 | [`unowned-sweep`](goals/unowned-sweep.md) | the gaps a past milestone left and no goal claimed | retired |  |  |
-| 32 | [`signed-urls`](goals/signed-urls.md) | signing a URL, and the payload behind it | retired | M8 |  |
-| 33 | [`type-test`](goals/type-test.md) | `is` tests a value against a type | retired | M1 |  |
-| 34 | [`queue-purge`](goals/queue-purge.md) | a job is removed from the language, by receipt or by tag | retired | M8 |  |
-| 35 | [`sqlite-queue`](goals/sqlite-queue.md) | the queue runs on SQLite | retired | M8 |  |
-| 36 | [`serve-runs-the-queue`](goals/serve-runs-the-queue.md) | `nvs serve` runs the queue's workers, and the drain stops them | retired | M7 |  |
-| 37 | [`editor-install`](goals/editor-install.md) | The extension guides an install instead of shipping a binary | retired |  |  |
-| 38 | [`workspace-index`](goals/workspace-index.md) | The language server grows past its first closed list | retired | M10 |  |
-| 39 | [`editor-surfaces`](goals/editor-surfaces.md) | The extension answers everything it contributes | retired | M10 |  |
-| 40 | [`resource-ceilings`](goals/resource-ceilings.md) | Every resource ceiling stops the request that breaks it | retired | M6 |  |
-| 41 | [`config-is-written`](goals/config-is-written.md) | The configuration is written down, and every key in it is read | retired | M6 |  |
-| 42 | [`event-streams`](goals/event-streams.md) | A response body written over time, and the two doors onto it | retired | M7 |  |
-| 43 | [`finish-response`](goals/finish-response.md) | a response ends where the code says so, and every finally still runs | retired | M7 |  |
-| 44 | [`markup-literal`](goals/markup-literal.md) | markup is written as a literal, not composed with an operator | retired | M8 |  |
-| 45 | [`fmt`](goals/fmt.md) | nvs fmt rewrites a file into its one canonical layout | retired | M10 |  |
-| 46 | [`template-format`](goals/template-format.md) | format-on-save formats the markup too, from where the Novis code is | retired | M10 |  |
-| 47 | [`webcrypto`](goals/webcrypto.md) | Novis reads what a browser encrypts and what an issuer signs | retired | M8 |  |
-| 48 | [`http-client`](goals/http-client.md) | a program talks to a real API: bodies, headers, streams and pooled connections | retired | M8 |  |
-| 49 | [`process-cache`](goals/process-cache.md) | a value outlives a request in the serving process, and a secret does so only sealed | retired | M8 |  |
-| 50 | [`outbound-proxy`](goals/outbound-proxy.md) | an operator routes outbound calls through a forward proxy, and the grant says what the address policy can no longer see | retired | M8 |  |
-| 51 | [`websocket-client`](goals/websocket-client.md) | a program holds a WebSocket to another server, opened like an outbound call and closed with the task that opened it | retired | M8 |  |
-| 52 | [`plan-truth`](goals/plan-truth.md) | every plan file and module doc says what the tree does | retired |  |  |
-| 53 | [`gap-register`](goals/gap-register.md) | one register reads every place a gap is written, and a milestone is an owner | retired |  |  |
-| 54 | [`m4-refusals`](goals/m4-refusals.md) | every shape the checker admits lowers, or a diagnostic naming its rule refuses it | retired | M4 |  |
-| 55 | [`m5-proofs`](goals/m5-proofs.md) | the scheduler's claims are proven at the scale M5 promised them | retired | M5 |  |
-| 56 | [`m4b-editor`](goals/m4b-editor.md) | the extension is tested in a real editor host and built by CI | retired | M4B |  |
-| 57 | [`m7-server-surface`](goals/m7-server-surface.md) | everything M7 promised a deployment is there to run | retired | M7 |  |
-| 58 | [`m8-db-queue`](goals/m8-db-queue.md) | every Core\\Db and Core\\Queue member answers on all five drivers | retired | M8 |  |
-| 59 | [`m8-stdlib-depth`](goals/m8-stdlib-depth.md) | every class M8 names is as deep as its spec section | retired | M8 |  |
-| 60 | [`unowned-closures`](goals/unowned-closures.md) | every unowned gap is built to the answer its decision sheet gave | retired |  |  |
-| 61 | [`class-scoped-types`](goals/class-scoped-types.md) | a shape a class owns is named inside it | retired |  |  |
-| 62 | [`worker-placement`](goals/worker-placement.md) | both entry forms reach a worker core, and a serving core offers itself | retired |  |  |
-| 63 | [`core-class-tests`](goals/core-class-tests.md) | a `Core` class is a name a type test can walk | retired |  |  |
-| 64 | [`tds-bytes`](goals/tds-bytes.md) | a `bytes` parameter binds on every driver | retired |  |  |
-| 65 | [`cache-shared-dial`](goals/cache-shared-dial.md) | a password, a database index and TLS reach the shared store | retired |  |  |
-| 66 | [`decided-closures`](goals/decided-closures.md) | every gap the decision sheet answered is built to its answer | retired |  |  |
-| 67 | [`one-type-test`](goals/one-type-test.md) | `is` is the one type test, and `instanceof` is gone | retired |  |  |
-| 68 | [`test-doubles`](goals/test-doubles.md) | `Core\Test`'s double half — a double is a shape checked against an interface, and a call is asserted after the fact | retired |  |  |
-| 69 | [`bigint`](goals/bigint.md) | `Core\BigInt` — the arbitrary-magnitude integer class ADR 0054 promised beside the `decimal` scalar | retired |  |  |
-| 70 | [`gap-zero`](goals/gap-zero.md) | no gap is owed by anyone but a future milestone, and the index that held them is gone | retired |  |  |
-| 71 | [`dossier`](goals/dossier.md) | queue the dossier | retired |  |  |
-| 72 | [`config-directives-1-3`](goals/config-directives-1-3.md) | config:directives (1/3) | retired |  |  |
-| 73 | [`config-directives-2-3`](goals/config-directives-2-3.md) | config:directives (2/3) | retired |  |  |
-| 74 | [`config-directives-3-3`](goals/config-directives-3-3.md) | config:directives (3/3) | retired |  |  |
-| 75 | [`types-enum-1-2`](goals/types-enum-1-2.md) | types:enum (1/2) | retired |  |  |
-| 76 | [`types-enum-2-2`](goals/types-enum-2-2.md) | types:enum (2/2) | retired |  |  |
-| 77 | [`types-exception`](goals/types-exception.md) | types:exception | retired |  |  |
-| 78 | [`types-interface`](goals/types-interface.md) | types:interface | retired |  |  |
-| 79 | [`lang-programs`](goals/lang-programs.md) | lang:programs | retired |  |  |
-| 80 | [`lang-types`](goals/lang-types.md) | lang:types | retired |  |  |
-| 81 | [`lang-expressions`](goals/lang-expressions.md) | lang:expressions | retired |  |  |
-| 82 | [`lang-statements`](goals/lang-statements.md) | lang:statements | retired |  |  |
-| 83 | [`lang-classes`](goals/lang-classes.md) | lang:classes | retired |  |  |
-| 84 | [`lang-enums`](goals/lang-enums.md) | lang:enums | retired |  |  |
-| 85 | [`lang-iteration`](goals/lang-iteration.md) | lang:iteration | retired |  |  |
-| 86 | [`lang-errors`](goals/lang-errors.md) | lang:errors | retired |  |  |
-| 87 | [`lang-concurrency`](goals/lang-concurrency.md) | lang:concurrency | retired |  |  |
-| 88 | [`lang-attributes`](goals/lang-attributes.md) | lang:attributes | retired |  |  |
-| 89 | [`lang-testing`](goals/lang-testing.md) | lang:testing | retired |  |  |
-| 90 | [`core-arr-1-4`](goals/core-arr-1-4.md) | Core\Arr (1/4) | retired |  |  |
-| 91 | [`core-arr-2-4`](goals/core-arr-2-4.md) | Core\Arr (2/4) | retired |  |  |
-| 92 | [`core-arr-3-4`](goals/core-arr-3-4.md) | Core\Arr (3/4) | retired |  |  |
-| 93 | [`core-arr-4-4`](goals/core-arr-4-4.md) | Core\Arr (4/4) | retired |  |  |
-| 94 | [`core-ast-and-2-more`](goals/core-ast-and-2-more.md) | Core\Ast and 2 more | retired |  |  |
-| 95 | [`core-bigint-1-2`](goals/core-bigint-1-2.md) | Core\BigInt (1/2) | retired |  |  |
-| 96 | [`core-bigint-2-2`](goals/core-bigint-2-2.md) | Core\BigInt (2/2) | retired |  |  |
-| 97 | [`core-budget`](goals/core-budget.md) | Core\Budget | retired |  |  |
-| 98 | [`core-bytes`](goals/core-bytes.md) | Core\Bytes | retired |  |  |
-| 99 | [`core-cache-and-5-more`](goals/core-cache-and-5-more.md) | Core\Cache and 5 more | retired |  |  |
-| 100 | [`core-cli-and-2-more`](goals/core-cli-and-2-more.md) | Core\Cli and 2 more | retired |  |  |
-| 101 | [`core-cli-progress-and-6-more`](goals/core-cli-progress-and-6-more.md) | Core\Cli\Progress and 6 more | retired |  |  |
-| 102 | [`core-config`](goals/core-config.md) | Core\Config | retired |  |  |
-| 103 | [`core-crypto-and-2-more`](goals/core-crypto-and-2-more.md) | Core\Crypto and 2 more | retired |  |  |
-| 104 | [`core-csrf-and-3-more`](goals/core-csrf-and-3-more.md) | Core\Csrf and 3 more | retired |  |  |
-| 105 | [`core-db-connection-and-2-more`](goals/core-db-connection-and-2-more.md) | Core\Db\Connection and 2 more | retired |  |  |
-| 106 | [`core-db-row`](goals/core-db-row.md) | Core\Db\Row | retired |  |  |
-| 107 | [`core-db-rows-and-1-more`](goals/core-db-rows-and-1-more.md) | Core\Db\Rows and 1 more | retired |  |  |
-| 108 | [`core-db-transaction-and-1-more`](goals/core-db-transaction-and-1-more.md) | Core\Db\Transaction and 1 more | retired |  |  |
-| 109 | [`core-debug`](goals/core-debug.md) | Core\Debug | retired |  |  |
-| 110 | [`core-decimal`](goals/core-decimal.md) | Core\Decimal | retired |  |  |
-| 111 | [`core-encoding`](goals/core-encoding.md) | Core\Encoding | retired |  |  |
-| 112 | [`core-env-and-4-more`](goals/core-env-and-4-more.md) | Core\Env and 4 more | retired |  |  |
-| 113 | [`core-html-and-1-more`](goals/core-html-and-1-more.md) | Core\Html and 1 more | retired |  |  |
-| 114 | [`core-http-client-and-2-more`](goals/core-http-client-and-2-more.md) | Core\Http\Client and 2 more | retired |  |  |
-| 115 | [`core-http-response-and-1-more`](goals/core-http-response-and-1-more.md) | Core\Http\Response and 1 more | retired |  |  |
-| 116 | [`core-http-socket-and-1-more`](goals/core-http-socket-and-1-more.md) | Core\Http\Socket and 1 more | retired |  |  |
-| 117 | [`core-http-stream`](goals/core-http-stream.md) | Core\Http\Stream | retired |  |  |
-| 118 | [`core-io-1-2`](goals/core-io-1-2.md) | Core\IO (1/2) | retired |  |  |
-| 119 | [`core-io-2-2`](goals/core-io-2-2.md) | Core\IO (2/2) | retired |  |  |
+| 1 | [`core-depth`](goals/core-depth.md) | `Core`'s pure half, finished | walked | M4S |  |
+| 2 | [`concurrency`](goals/concurrency.md) | the reactor, the scheduler, and isolates | walked | M5 |  |
+| 3 | [`governance`](goals/governance.md) | config, capabilities, limits, and the disk cache | walked | M6 |  |
+| 4 | [`core-part-ii`](goals/core-part-ii.md) | `Core`'s capability-bearing half | walked | M8 |  |
+| 5 | [`database`](goals/database.md) | `Core\Db` and five drivers | walked | M8 |  |
+| 6 | [`server`](goals/server.md) | the server, and the parity program's last gate | walked | M7 |  |
+| 7 | [`carried-gaps`](goals/carried-gaps.md) | The gaps no goal owned | walked |  |  |
+| 8 | [`warm-start`](goals/warm-start.md) | The on-disk artifact cache has a producer | walked |  |  |
+| 9 | [`temp-sweep`](goals/temp-sweep.md) | `rule:core-classes/temporary-dir-sweep`'s temporary-directory sweep | walked |  |  |
+| 10 | [`program-id`](goals/program-id.md) | `Core\Program::id()`, the program's own fingerprint | walked |  |  |
+| 11 | [`schema`](goals/schema.md) | `Core\Db\Schema`: tables, columns and indexes, converged | walked |  |  |
+| 12 | [`typed-callable`](goals/typed-callable.md) | a `callable` carries its signature | walked |  |  |
+| 13 | [`doc-comments`](goals/doc-comments.md) | `///` is a doc comment, and one JSON carries it | walked |  |  |
+| 14 | [`resilient-tree`](goals/resilient-tree.md) | the resilient tree, and one home for a position | walked | M4B |  |
+| 15 | [`surface`](goals/surface.md) | the last two front-end items, before anything colours them | walked | M1 |  |
+| 16 | [`lsp-server`](goals/lsp-server.md) | `nvs lsp`, and the format that can prove it | walked | M4B |  |
+| 17 | [`editor`](goals/editor.md) | `editors/vscode`, and colour | walked | M4B |  |
+| 18 | [`request-json`](goals/request-json.md) | a body is read once, and JSON is one of the ways to read it | walked | M7 |  |
+| 19 | [`test-request`](goals/test-request.md) | the request a test builds, and the peer facts it carries | walked | M8 |  |
+| 20 | [`input-shapes`](goals/input-shapes.md) | untrusted input becomes a declared shape, at one converter | walked | M7 |  |
+| 21 | [`parses`](goals/parses.md) | a class a string names, at one contract | walked | M7 |  |
+| 22 | [`unix-sockets`](goals/unix-sockets.md) | a configured store is authorized by its configuring, and may be a Unix socket | walked | M8 |  |
+| 23 | [`per-core`](goals/per-core.md) | `nvs serve` takes every core, and the compiled unit is shared | walked | M7 |  |
+| 24 | [`net-os-signal`](goals/net-os-signal.md) | `Core\Net`, `Core\Os` and `Core\Signal` | walked | M8 |  |
+| 25 | [`formats`](goals/formats.md) | `Core\Compress`, `Core\Mime` and `Core\Zip` | walked | M8 |  |
+| 26 | [`encoder-cycles`](goals/encoder-cycles.md) | An encoder ends a cycle where it closes, and every walk that can meet one is audited | walked | M8 |  |
+| 27 | [`record-origin`](goals/record-origin.md) | A record names the line it came from, and a repeat is bounded at the sink that suffers | walked | M8 |  |
+| 28 | [`agent-surface`](goals/agent-surface.md) | An agent learns Novis from the binary, in three calls | walked | M10 |  |
+| 29 | [`xml-tree`](goals/xml-tree.md) | `Core\Xml`'s tree and stream, and the WHATWG parser over it | walked | M8 |  |
+| 30 | [`gap-owners`](goals/gap-owners.md) | a module doc's gap names its owner, and a gate says so | walked |  |  |
+| 31 | [`unowned-sweep`](goals/unowned-sweep.md) | the gaps a past milestone left and no goal claimed | walked |  |  |
+| 32 | [`signed-urls`](goals/signed-urls.md) | signing a URL, and the payload behind it | walked | M8 |  |
+| 33 | [`type-test`](goals/type-test.md) | `is` tests a value against a type | walked | M1 |  |
+| 34 | [`queue-purge`](goals/queue-purge.md) | a job is removed from the language, by receipt or by tag | walked | M8 |  |
+| 35 | [`sqlite-queue`](goals/sqlite-queue.md) | the queue runs on SQLite | walked | M8 |  |
+| 36 | [`serve-runs-the-queue`](goals/serve-runs-the-queue.md) | `nvs serve` runs the queue's workers, and the drain stops them | walked | M7 |  |
+| 37 | [`editor-install`](goals/editor-install.md) | The extension guides an install instead of shipping a binary | walked |  |  |
+| 38 | [`workspace-index`](goals/workspace-index.md) | The language server grows past its first closed list | walked | M10 |  |
+| 39 | [`editor-surfaces`](goals/editor-surfaces.md) | The extension answers everything it contributes | walked | M10 |  |
+| 40 | [`resource-ceilings`](goals/resource-ceilings.md) | Every resource ceiling stops the request that breaks it | walked | M6 |  |
+| 41 | [`config-is-written`](goals/config-is-written.md) | The configuration is written down, and every key in it is read | walked | M6 |  |
+| 42 | [`event-streams`](goals/event-streams.md) | A response body written over time, and the two doors onto it | walked | M7 |  |
+| 43 | [`finish-response`](goals/finish-response.md) | a response ends where the code says so, and every finally still runs | walked | M7 |  |
+| 44 | [`markup-literal`](goals/markup-literal.md) | markup is written as a literal, not composed with an operator | walked | M8 |  |
+| 45 | [`fmt`](goals/fmt.md) | nvs fmt rewrites a file into its one canonical layout | walked | M10 |  |
+| 46 | [`template-format`](goals/template-format.md) | format-on-save formats the markup too, from where the Novis code is | walked | M10 |  |
+| 47 | [`webcrypto`](goals/webcrypto.md) | Novis reads what a browser encrypts and what an issuer signs | walked | M8 |  |
+| 48 | [`http-client`](goals/http-client.md) | a program talks to a real API: bodies, headers, streams and pooled connections | walked | M8 |  |
+| 49 | [`process-cache`](goals/process-cache.md) | a value outlives a request in the serving process, and a secret does so only sealed | walked | M8 |  |
+| 50 | [`outbound-proxy`](goals/outbound-proxy.md) | an operator routes outbound calls through a forward proxy, and the grant says what the address policy can no longer see | walked | M8 |  |
+| 51 | [`websocket-client`](goals/websocket-client.md) | a program holds a WebSocket to another server, opened like an outbound call and closed with the task that opened it | walked | M8 |  |
+| 52 | [`plan-truth`](goals/plan-truth.md) | every plan file and module doc says what the tree does | walked |  |  |
+| 53 | [`gap-register`](goals/gap-register.md) | one register reads every place a gap is written, and a milestone is an owner | walked |  |  |
+| 54 | [`m4-refusals`](goals/m4-refusals.md) | every shape the checker admits lowers, or a diagnostic naming its rule refuses it | walked | M4 |  |
+| 55 | [`m5-proofs`](goals/m5-proofs.md) | the scheduler's claims are proven at the scale M5 promised them | walked | M5 |  |
+| 56 | [`m4b-editor`](goals/m4b-editor.md) | the extension is tested in a real editor host and built by CI | walked | M4B |  |
+| 57 | [`m7-server-surface`](goals/m7-server-surface.md) | everything M7 promised a deployment is there to run | walked | M7 |  |
+| 58 | [`m8-db-queue`](goals/m8-db-queue.md) | every Core\\Db and Core\\Queue member answers on all five drivers | walked | M8 |  |
+| 59 | [`m8-stdlib-depth`](goals/m8-stdlib-depth.md) | every class M8 names is as deep as its spec section | walked | M8 |  |
+| 60 | [`unowned-closures`](goals/unowned-closures.md) | every unowned gap is built to the answer its decision sheet gave | walked |  |  |
+| 61 | [`class-scoped-types`](goals/class-scoped-types.md) | a shape a class owns is named inside it | walked |  |  |
+| 62 | [`worker-placement`](goals/worker-placement.md) | both entry forms reach a worker core, and a serving core offers itself | walked |  |  |
+| 63 | [`core-class-tests`](goals/core-class-tests.md) | a `Core` class is a name a type test can walk | walked |  |  |
+| 64 | [`tds-bytes`](goals/tds-bytes.md) | a `bytes` parameter binds on every driver | walked |  |  |
+| 65 | [`cache-shared-dial`](goals/cache-shared-dial.md) | a password, a database index and TLS reach the shared store | walked |  |  |
+| 66 | [`decided-closures`](goals/decided-closures.md) | every gap the decision sheet answered is built to its answer | walked |  |  |
+| 67 | [`one-type-test`](goals/one-type-test.md) | `is` is the one type test, and `instanceof` is gone | walked |  |  |
+| 68 | [`test-doubles`](goals/test-doubles.md) | `Core\Test`'s double half — a double is a shape checked against an interface, and a call is asserted after the fact | walked |  |  |
+| 69 | [`bigint`](goals/bigint.md) | `Core\BigInt` — the arbitrary-magnitude integer class ADR 0054 promised beside the `decimal` scalar | walked |  |  |
+| 70 | [`gap-zero`](goals/gap-zero.md) | no gap is owed by anyone but a future milestone, and the index that held them is gone | walked |  |  |
+| 71 | [`dossier`](goals/dossier.md) | queue the dossier | walked |  |  |
+| 72 | [`config-directives-1-3`](goals/config-directives-1-3.md) | config:directives (1/3) | walked |  |  |
+| 73 | [`config-directives-2-3`](goals/config-directives-2-3.md) | config:directives (2/3) | walked |  |  |
+| 74 | [`config-directives-3-3`](goals/config-directives-3-3.md) | config:directives (3/3) | walked |  |  |
+| 75 | [`types-enum-1-2`](goals/types-enum-1-2.md) | types:enum (1/2) | walked |  |  |
+| 76 | [`types-enum-2-2`](goals/types-enum-2-2.md) | types:enum (2/2) | walked |  |  |
+| 77 | [`types-exception`](goals/types-exception.md) | types:exception | walked |  |  |
+| 78 | [`types-interface`](goals/types-interface.md) | types:interface | walked |  |  |
+| 79 | [`lang-programs`](goals/lang-programs.md) | lang:programs | walked |  |  |
+| 80 | [`lang-types`](goals/lang-types.md) | lang:types | walked |  |  |
+| 81 | [`lang-expressions`](goals/lang-expressions.md) | lang:expressions | walked |  |  |
+| 82 | [`lang-statements`](goals/lang-statements.md) | lang:statements | walked |  |  |
+| 83 | [`lang-classes`](goals/lang-classes.md) | lang:classes | walked |  |  |
+| 84 | [`lang-enums`](goals/lang-enums.md) | lang:enums | walked |  |  |
+| 85 | [`lang-iteration`](goals/lang-iteration.md) | lang:iteration | walked |  |  |
+| 86 | [`lang-errors`](goals/lang-errors.md) | lang:errors | walked |  |  |
+| 87 | [`lang-concurrency`](goals/lang-concurrency.md) | lang:concurrency | walked |  |  |
+| 88 | [`lang-attributes`](goals/lang-attributes.md) | lang:attributes | walked |  |  |
+| 89 | [`lang-testing`](goals/lang-testing.md) | lang:testing | walked |  |  |
+| 90 | [`core-arr-1-4`](goals/core-arr-1-4.md) | Core\Arr (1/4) | walked |  |  |
+| 91 | [`core-arr-2-4`](goals/core-arr-2-4.md) | Core\Arr (2/4) | walked |  |  |
+| 92 | [`core-arr-3-4`](goals/core-arr-3-4.md) | Core\Arr (3/4) | walked |  |  |
+| 93 | [`core-arr-4-4`](goals/core-arr-4-4.md) | Core\Arr (4/4) | walked |  |  |
+| 94 | [`core-ast-and-2-more`](goals/core-ast-and-2-more.md) | Core\Ast and 2 more | walked |  |  |
+| 95 | [`core-bigint-1-2`](goals/core-bigint-1-2.md) | Core\BigInt (1/2) | walked |  |  |
+| 96 | [`core-bigint-2-2`](goals/core-bigint-2-2.md) | Core\BigInt (2/2) | walked |  |  |
+| 97 | [`core-budget`](goals/core-budget.md) | Core\Budget | walked |  |  |
+| 98 | [`core-bytes`](goals/core-bytes.md) | Core\Bytes | walked |  |  |
+| 99 | [`core-cache-and-5-more`](goals/core-cache-and-5-more.md) | Core\Cache and 5 more | walked |  |  |
+| 100 | [`core-cli-and-2-more`](goals/core-cli-and-2-more.md) | Core\Cli and 2 more | walked |  |  |
+| 101 | [`core-cli-progress-and-6-more`](goals/core-cli-progress-and-6-more.md) | Core\Cli\Progress and 6 more | walked |  |  |
+| 102 | [`core-config`](goals/core-config.md) | Core\Config | walked |  |  |
+| 103 | [`core-crypto-and-2-more`](goals/core-crypto-and-2-more.md) | Core\Crypto and 2 more | walked |  |  |
+| 104 | [`core-csrf-and-3-more`](goals/core-csrf-and-3-more.md) | Core\Csrf and 3 more | walked |  |  |
+| 105 | [`core-db-connection-and-2-more`](goals/core-db-connection-and-2-more.md) | Core\Db\Connection and 2 more | walked |  |  |
+| 106 | [`core-db-row`](goals/core-db-row.md) | Core\Db\Row | walked |  |  |
+| 107 | [`core-db-rows-and-1-more`](goals/core-db-rows-and-1-more.md) | Core\Db\Rows and 1 more | walked |  |  |
+| 108 | [`core-db-transaction-and-1-more`](goals/core-db-transaction-and-1-more.md) | Core\Db\Transaction and 1 more | walked |  |  |
+| 109 | [`core-debug`](goals/core-debug.md) | Core\Debug | walked |  |  |
+| 110 | [`core-decimal`](goals/core-decimal.md) | Core\Decimal | walked |  |  |
+| 111 | [`core-encoding`](goals/core-encoding.md) | Core\Encoding | walked |  |  |
+| 112 | [`core-env-and-4-more`](goals/core-env-and-4-more.md) | Core\Env and 4 more | walked |  |  |
+| 113 | [`core-html-and-1-more`](goals/core-html-and-1-more.md) | Core\Html and 1 more | walked |  |  |
+| 114 | [`core-http-client-and-2-more`](goals/core-http-client-and-2-more.md) | Core\Http\Client and 2 more | walked |  |  |
+| 115 | [`core-http-response-and-1-more`](goals/core-http-response-and-1-more.md) | Core\Http\Response and 1 more | walked |  |  |
+| 116 | [`core-http-socket-and-1-more`](goals/core-http-socket-and-1-more.md) | Core\Http\Socket and 1 more | walked |  |  |
+| 117 | [`core-http-stream`](goals/core-http-stream.md) | Core\Http\Stream | walked |  |  |
+| 118 | [`core-io-1-2`](goals/core-io-1-2.md) | Core\IO (1/2) | walked |  |  |
+| 119 | [`core-io-2-2`](goals/core-io-2-2.md) | Core\IO (2/2) | walked |  |  |
 | 120 | [`core-io-file-and-1-more`](goals/core-io-file-and-1-more.md) | Core\IO\File and 1 more | walked |  | **1** floor · **2** the dossier |
-| 121 | [`core-json-and-6-more`](goals/core-json-and-6-more.md) | Core\Json and 6 more | retired |  |  |
+| 121 | [`core-json-and-6-more`](goals/core-json-and-6-more.md) | Core\Json and 6 more | walked |  |  |
 | 122 | [`tooling-overhaul`](goals/tooling-overhaul.md) | the tools are one typed program over structured records, and every Markdown file a person reads is rendered from them | walked |  | **1** floor · **2** the Rust and Cargo cuts · **3** the foundation · **4** the records · **5** the read-only tools · **6** one key · **7** proofs · **8** the driver · **9** the cutover · **10** the playbook · **11** CI, the website and the hooks · **12** no Python |
 | 123 | [`core-math-1-3`](goals/core-math-1-3.md) | Core\Math (1/3) | walked |  | **2** the dossier |
 | 124 | [`core-math-2-3`](goals/core-math-2-3.md) | Core\Math (2/3) | walked |  | **2** the dossier |

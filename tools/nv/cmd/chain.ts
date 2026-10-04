@@ -7,35 +7,34 @@
 //
 // `--check` is whether the driver can walk the chain, as a query over the records.
 //
-// A problem is something that stops the run when the chain reaches it:
+// A problem is something that stops the run when the chain reaches it. Of the goals on the chain, only
+// the live one and those behind it are asked anything past their prose, since a goal in front of the
+// live one was walked before the goal switch deleted the goal it left:
 //   - the chain is empty;
 //   - a goal record the chain does not name, which the driver never reaches;
 //   - a chain, goal or handoff record fails its schema, a foreign key or an invariant (`nv check`'s
 //     findings, narrowed to those files);
 //   - a goal has no prose under `docs/agent/goals/`;
-//   - a goal with checks has no handoff record;
-//   - a retired goal, one whose record has no checks, stands at or behind the installed goal;
+//   - a goal still to be reached has no checks, or no handoff record;
 //   - a goal pinned `position: last` has an unpinned goal behind it;
 //   - a goal still to be reached runs `bun nv proofs --gate` over the whole roster while a goal behind it
 //     still proves a roster group with `--group` (`gatesInFrontOfGroups`);
 //   - a side goal with checks has no prose, no `# Side goal` H1 or no handoff record;
 //   - a side goal has no checks, which is one that has landed: its files are deleted, never kept;
 //   - prose names a goal by its number, which is a position and moves;
-//   - a walked goal's graduated test check names a test no Rust file spells or a case not on disk, since
-//     the floor runs only its whole crate or tree in its place (`graduatesTo`);
 //   - a goal's `context` names a shape or a playbook bullet that is not there (`nv orient`'s
-//     `manifestFindings`, over every goal not retired and every side goal with checks).
+//     `manifestFindings`, over every goal still to be reached and every side goal with checks).
 // A note is something a reader misses: a goal not yet reached with no `## Why here` or no
 // `## Standing decisions`, a goal with no row in the goals README, prose still carrying `TODO`, and
 // a `context` entry `manifestFindings` only reports.
 //
-// With no problem it prints two lines, one per invariant a floor check holds it to: every goal is
+// With no problem it prints two lines, one per invariant a check holds it to: every goal is
 // walkable and every manifest resolves, and the chain already names every goal record. Exits 0 when
 // there is no problem, 1 when there is one, and 2 on a bad argument.
 
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { type ChainGoal, chainGoals, gatesInFrontOfGroups, graduatesTo, h1Of, liveGoal, walkedGoals } from "../lib/chain.ts";
+import { type ChainGoal, chainGoals, gatesInFrontOfGroups, h1Of, liveGoal } from "../lib/chain.ts";
 import { Index } from "../lib/index.ts";
 import { ROOT } from "../lib/paths.ts";
 import { run as proc } from "../lib/proc.ts";
@@ -68,32 +67,6 @@ async function shownFiles(): Promise<string[]> {
   const r = await proc(["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard"], { cwd: ROOT, timeoutMs: 60_000 });
   if (r.code !== 0) throw new Error(`git ls-files: exit ${r.code}\n${r.stderr.trim()}`);
   return [...new Set(r.stdout.split("\0").filter((p) => p.length > 0))];
-}
-
-/**
- * Every test and case a walked goal's graduated check names that is gone: a test no tracked Rust file
- * spells, or a case not on disk. The floor still runs the check's whole crate or tree, so this is what
- * stops a deleted or renamed test from leaving the floor unnoticed.
- */
-async function graduatedGone(records: Map<string, any>, walked: string[]): Promise<string[]> {
-  const rust = (await shownFiles()).filter((p) => p.endsWith(".rs")).map((p) => read(p) ?? "").join("\n");
-  // Every identifier the files spell answers a name at once; a name spelled only inside a longer one is
-  // still found by searching the whole text.
-  const words = new Set(rust.match(/[A-Za-z_][A-Za-z0-9_]*/g) ?? []);
-  const spelled = (name: string) => words.has(name) || rust.includes(name);
-  const out: string[] = [];
-  for (const slug of walked) {
-    for (const c of records.get(slug)?.checks ?? []) {
-      if (graduatesTo(c) === null) continue;
-      for (const t of (c.tests ?? []) as string[]) {
-        if (!spelled(t.split("::").pop()!)) out.push(`data/goals/${slug}.json: check \`${c.id}\` names test \`${t}\`, which no Rust file spells`);
-      }
-      for (const k of (c.cases ?? []) as string[]) {
-        if (!existsSync(join(ROOT, k))) out.push(`data/goals/${slug}.json: check \`${c.id}\` names case ${k}, which is not on disk`);
-      }
-    }
-  }
-  return out;
 }
 
 /** Every `goal 29` in a text file, as `path:line  text`. The goals README lists the chain and is exempt. */
@@ -134,6 +107,9 @@ async function check(): Promise<number> {
   const live = liveGoal(goals);
   const where = (g: ChainGoal) => `goal \`${g.slug}\` (${g.num} of ${goals.length})`;
   const ahead = (g: ChainGoal) => live === null || g.num > live.num;
+  // A goal in front of the live one was walked before the goal switch deleted the goal it left, and
+  // nothing is asked of it.
+  const walked = (g: ChainGoal) => live !== null && g.num < live.num;
   // A feature-proof goal's target is the features it lists, so it owes no reason for its place and no
   // row in the goals README.
   const provesFeatures = (text: string) => /\n## The target\n(?:(?!\n## )[^])*rule:testing\/feature-proofs/.test(text);
@@ -186,13 +162,9 @@ async function check(): Promise<number> {
       continue;
     }
     const text = read(g.md) ?? "";
-    if (g.retired) {
-      if (live !== null && g.num >= live.num) {
-        problems.push(
-          `${where(g)}: is retired but the run stands on \`${live.slug}\` -- only a goal the run has LEFT ` +
-            "may be retired, since retiring is what says its checks are already somebody's floor",
-        );
-      }
+    if (walked(g)) continue;
+    if ((records.get(g.slug)?.checks ?? []).length === 0) {
+      problems.push(`${where(g)}: its record has no checks, so the driver cannot reach it`);
       continue;
     }
     if (!handoffs.has(g.slug)) problems.push(`${where(g)}: no data/goals/${g.slug}.handoff.json -- the first session has no group to take`);
@@ -220,7 +192,7 @@ async function check(): Promise<number> {
 
   // A whole-roster gate in front of a goal that still proves a roster group holds the run on a check no
   // session of its goal can turn green.
-  const toReach = goals.filter((g) => !g.retired && (live === null || g.num >= live.num) && records.has(g.slug));
+  const toReach = goals.filter((g) => !walked(g) && records.has(g.slug));
   for (const { slug, behind } of gatesInFrontOfGroups(toReach.map((g) => ({ slug: g.slug, goal: records.get(g.slug) })))) {
     const named = behind.map((s) => `\`${s}\``).join(", ");
     problems.push(
@@ -246,13 +218,6 @@ async function check(): Promise<number> {
       `side goal \`${slug}\`: no checks, so it has landed -- delete ${GOALS}/side/${slug}.md and data/goals/side/${slug}.json ` +
         "with its handoff, because a side goal is deleted when it is done, never retired",
     );
-  }
-
-  const gone = await graduatedGone(records, [...walkedGoals(goals, live).keys()]);
-  if (gone.length > 0) {
-    problems.push(`${gone.length} test(s) or case(s) a walked goal proved are gone. Write the check again over what replaced it, or delete it from its record:`);
-    for (const s of gone.slice(0, 15)) problems.push(`    ${s}`);
-    if (gone.length > 15) problems.push(`    ... and ${gone.length - 15} more`);
   }
 
   const stale = await numberCitations();
@@ -324,7 +289,7 @@ function landing(args: string[], order: string[], before: string[], live: string
 
 /**
  * Writes the new order, after refusing any edit that changes what the run has walked: a goal at or in
- * front of the installed one is its floor, and nothing lands in front of it either. A goal not pinned
+ * front of the live one stays where it is, and nothing lands in front of it either. A goal not pinned
  * `position: last` never lands inside the pinned tail, and `--end` puts it just in front of that tail.
  */
 function edit(args: string[]): number {
@@ -334,7 +299,7 @@ function edit(args: string[]): number {
   const loaded = load(chainType)[0];
   const id = loaded?.id ?? "chain";
   const pinned = new Set(load(goalType).filter((g) => g.value.position === "last").map((g) => g.id));
-  const floorEnd = live === null ? 0 : live.num;
+  const walkedEnd = live === null ? 0 : live.num;
 
   const created = valueOf(args, "--new");
   const moved = valueOf(args, "--move");
@@ -349,13 +314,13 @@ function edit(args: string[]): number {
     if (at >= 0) throw new Error(`--new ${slug}: already on the chain, at ${at + 1} of ${order.length}`);
   } else {
     if (at < 0) throw new Error(`${moved !== undefined ? "--move" : "--remove"} ${slug}: not on the chain`);
-    if (at < floorEnd) throw new Error(`${slug} is ${at + 1} of ${order.length}, at or in front of the installed goal \`${live!.slug}\`, so its checks are the floor`);
+    if (at < walkedEnd) throw new Error(`${slug} is ${at + 1} of ${order.length}, at or in front of the live goal \`${live!.slug}\`, which only the goal switch changes`);
     order.splice(at, 1);
   }
 
   if (removed === undefined) {
     let i = landing(args, order, before, live?.slug ?? null);
-    if (i < floorEnd) throw new Error(`that lands at ${i + 1}, in front of the installed goal \`${live!.slug}\`, which only a goal already walked may do`);
+    if (i < walkedEnd) throw new Error(`that lands at ${i + 1}, in front of the live goal \`${live!.slug}\`, which only a goal already walked may do`);
     let tail = order.length;
     while (tail > 0 && pinned.has(order[tail - 1]!)) tail--;
     if (!pinned.has(slug)) {

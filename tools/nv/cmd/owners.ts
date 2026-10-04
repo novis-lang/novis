@@ -12,10 +12,8 @@
 //   live       the goal `data/chain.json` names live, or the side goal this process runs. Accepted,
 //              because the driver's owner gate (`--closes`) will not let that goal walk while the gap
 //              names it, so the gap cannot outlive its owner.
-//   goal       any other goal. A goal is a schedule rather than an owner: it walks and is retired, and
-//              the gap outlives it.
-//   retired    a goal whose record carries no checks, which is how a goal the driver will not reach
-//              again is written. Nothing on the chain closes the gap.
+//   goal       any other goal. A goal is a schedule rather than an owner: the goal switch deletes it,
+//              and the gap outlives it.
 //   broken     an owner that resolves to no goal or milestone, or to a milestone that is done.
 //   unowned    the retired word `unowned`, refused by name so the reader knows the edit is to choose an
 //              owner rather than to fix a typo.
@@ -76,25 +74,23 @@ export interface Gap {
   why?: string;
 }
 
-export type Kind = "live" | "goal" | "milestone" | "past" | "unowned" | "untagged" | "broken" | "retired";
+export type Kind = "live" | "goal" | "milestone" | "past" | "unowned" | "untagged" | "broken";
 export type Kinds = Record<Kind, Gap[]>;
 
 /** Every kind `--check` refuses: all but `milestone` and `live`. */
-export const REFUSED: Kind[] = ["broken", "untagged", "unowned", "past", "goal", "retired"];
+export const REFUSED: Kind[] = ["broken", "untagged", "unowned", "past", "goal"];
 
 /** The label each kind is counted under, one count per line so a `want` of `0` cannot match `10`. */
 const LABELS: [Kind, string][] = [
   ["live", "live-goal-owned"], ["goal", "goal-owned"], ["milestone", "milestone-owned"], ["past", "past-milestone"],
-  ["unowned", "unowned"], ["untagged", "untagged"], ["broken", "broken-tag"], ["retired", "retired-owner"],
+  ["unowned", "unowned"], ["untagged", "untagged"], ["broken", "broken-tag"],
 ];
 
 /** The sentence a refused gap gets when its kind has only one way of being wrong. */
 const WHY: Partial<Record<Kind, string>> = {
-  goal: "names a goal, and a goal is a schedule rather than an owner: it walks and is retired, " +
+  goal: "names a goal, and a goal is a schedule rather than an owner: the goal switch deletes it, " +
     "and the gap outlives it. Build the item, strike it as a stated bound, or defer it to a " +
     "milestone whose plan states the scope",
-  retired: "names a goal that is retired, so nothing on the chain will reach this item. Build " +
-    "it, strike it as a stated bound, or defer it to a milestone whose plan states the scope",
 };
 
 /** Every gap record, ordered by module and then slug. */
@@ -120,7 +116,7 @@ export function classify(found: Gap[]): Kinds {
   const goals = new Map([...load(goalType), ...load(sideGoal)].map((g) => [g.id, g.value]));
   const plan = new Map(load(milestoneType).map((m) => [m.id, m.value]));
   const running = new Set([liveGoal()?.slug, runningSideGoal()].filter((s): s is string => !!s));
-  const out: Kinds = { live: [], goal: [], milestone: [], past: [], unowned: [], untagged: [], broken: [], retired: [] };
+  const out: Kinds = { live: [], goal: [], milestone: [], past: [], unowned: [], untagged: [], broken: [] };
   for (const gap of found) {
     const owner = gap.owner;
     const m = MILESTONE.exec(owner);
@@ -146,7 +142,6 @@ export function classify(found: Gap[]): Kinds {
     } else {
       const g = goals.get(owner);
       if (!g) out.broken.push({ ...gap, why: `no goal \`${owner}\` in data/goals/` });
-      else if (g.checks.length === 0) out.retired.push(gap);
       else if (running.has(owner)) out.live.push(gap);
       else out.goal.push(gap);
     }
@@ -276,7 +271,6 @@ function report(kinds: Kinds, found: Gap[], regs: Register[], sections: ReturnTy
   const refused: [Kind, string][] = [
     ["broken", "TAGS THAT DO NOT RESOLVE"],
     ["past", "DEFERRED TO A MILESTONE THE PROGRAM HAS ALREADY PASSED"],
-    ["retired", "OWNERS THAT WENT GREEN WITHOUT CLOSING THE GAP"],
   ];
   for (const [kind, head] of refused) {
     if (kinds[kind].length === 0) continue;
@@ -306,9 +300,7 @@ function report(kinds: Kinds, found: Gap[], regs: Register[], sections: ReturnTy
   }
   const modules = new Set(found.map((g) => g.module)).size;
   out.push("", `== ${found.length} item(s) across ${modules} module(s)`, ...countLines(kinds));
-  out.push(`  sections outside Known gaps: ${sections.length}`);
-  out.push(`  of the ${found.length}, ${kinds.retired.length} owned by a retired goal -- refused by ` +
-    "`--check` like every other goal owner, because the chain will not reach it", "");
+  out.push(`  sections outside Known gaps: ${sections.length}`, "");
   console.log(out.join("\n"));
   reportRegisters(regs);
 }

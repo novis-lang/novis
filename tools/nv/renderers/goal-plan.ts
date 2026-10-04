@@ -16,18 +16,16 @@ export const GOAL_PLAN = "docs/agent/goal-plan.md";
 /** Where a goal's prose sits, relative to the plan's own directory. */
 const PROSE_FROM_PLAN = "goals";
 
-type State = "walked" | "live" | "ahead" | "retired" | "side";
+type State = "walked" | "live" | "ahead" | "side";
 
 const STATE_WORD: Record<State, string> = {
   walked: "walked",
   live: "**live**",
   ahead: "ahead",
-  retired: "retired",
   side: "side",
 };
 
 function stateOf(g: ChainGoal, live: ChainGoal | null): State {
-  if (g.retired) return "retired";
   if (live === null) return "ahead";
   return g.num < live.num ? "walked" : g.num === live.num ? "live" : "ahead";
 }
@@ -59,11 +57,10 @@ export function renderGoalPlan(root: string = ROOT): Output {
     "goals, which are off the chain. `bun nv render` writes this file from `data/chain.json` and",
     "`data/goals/`: change those, never this file.",
     "",
-    `The chain holds ${goals.length} goals. ${count("walked") + count("retired")} are walked (${count("retired")} of them retired), ${where}, and ${count("ahead")} are ahead.`,
+    `The chain holds ${goals.length} goals. ${count("walked")} are walked, ${where}, and ${count("ahead")} are ahead.`,
     "",
-    "A goal's stage 1 is its floor: every check of every goal in front of it still passes. A record that does",
-    "not write that stage lists only its own stages here, and the loop adds the floor when it runs the goal. A",
-    "retired goal's record keeps no checks and no stages, so its prose is where to read it.",
+    "The loop runs a goal's own record and no check of any other goal. A walked goal whose record keeps no",
+    "checks and no stages is read in its prose.",
     "",
     "| # | Goal | What it builds | State | Milestone | Stages |",
     "|--:|---|---|---|---|---|",

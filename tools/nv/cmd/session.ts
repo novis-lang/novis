@@ -386,7 +386,7 @@ function manifestCopies(): ManifestCopy[] {
     stored = load<any>(sideGoalType).find((g) => g.id === side);
   } else {
     const live = liveGoal(chainGoals());
-    if (!live || live.retired) return [];
+    if (!live) return [];
     slug = live.slug;
     md = live.md ?? `docs/agent/goals/${slug}.md`;
     stored = load<any>(goalType).find((g) => g.id === live.slug);
@@ -1408,7 +1408,7 @@ function handoffScratch(side: string | null): string {
 function handoffOwner(side: string | null): { type: typeof handoffType; slug: string } | null {
   if (side) return { type: sideHandoffType, slug: side };
   const live = liveGoal();
-  return live && !live.retired ? { type: handoffType, slug: live.slug } : null;
+  return live ? { type: handoffType, slug: live.slug } : null;
 }
 
 /**

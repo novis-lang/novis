@@ -1,6 +1,6 @@
 {
   "title": "The chain record names the live goal, and the goal switch deletes the goal it leaves and carries none of its checks",
-  "status": "designed",
+  "status": "shipped",
   "because": [
     "0222",
     "0225",
