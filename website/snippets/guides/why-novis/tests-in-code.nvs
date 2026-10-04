@@ -1,0 +1,20 @@
+<?nvs
+// This program has a class and a test for it. `nvs test` runs the test.
+use Core\Test;
+
+class Cart {
+    public static function total(int $price, int $count): int {
+        return $price * $count;
+    }
+}
+
+final class CartTest {
+    // `#[Test]` makes this method a test. You do not install a package for it.
+    #[Test]
+    public function multipliesPriceByCount(): void {
+        Test::assertSame(Cart::total(250, 4), 1000);
+    }
+}
+
+// `nvs run` runs this line and not the test.
+echo Cart::total(250, 2), "\n";

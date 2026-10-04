@@ -1,0 +1,21 @@
+---
+title: Text is Unicode
+covers: []
+description: A string is always valid UTF-8, and its methods count the characters a person sees.
+---
+
+import Snippet from '@components/Snippet.astro'
+
+A `string` in Novis is always valid UTF-8 text. Its methods work on graphemes (what a person counts as
+one character). `bytes` is a different type, for binary data:
+
+<Snippet src="guides/why-novis/unicode-strings.nvs" />
+
+The text has six characters. The emoji with a skin tone is one character, even though it is two
+code points.
+
+`Core\Str::reverse` does not cut a character in half. There is no second set of methods for
+multi-byte text, and no method takes an encoding argument.
+
+Read more in [Syntax: strings](/syntax/values/strings/) and
+[Reference: `Core\Str`](/reference/core/str/).

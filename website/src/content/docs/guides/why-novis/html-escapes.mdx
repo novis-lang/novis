@@ -1,0 +1,22 @@
+---
+title: HTML that escapes itself
+covers: []
+description: An html literal escapes every value you put into it, so user text cannot add tags to your page.
+---
+
+import Snippet from '@components/Snippet.astro'
+
+Cross-site scripting happens when text from a user ends up in a page as HTML. In Novis you write
+HTML with an `html` literal. Every value in a hole is escaped:
+
+<Snippet src="guides/why-novis/html-escapes.nvs" />
+
+The name contains a `<script>` tag. The page shows it as text, and the browser does not run it.
+
+An `html` literal has the type `Core\Html\Markup`. You put one piece of markup into another with
+`<?= $part ?>`. That value is already HTML, so it is not escaped a second time.
+
+You do not need to remember an escape function. The safe way is the only way to write it.
+
+Read more in [Reference: `Core\Html`](/reference/core/html/) and in step 9 of the
+[Tour](/guides/tour/09-html/).

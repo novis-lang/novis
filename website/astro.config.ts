@@ -123,6 +123,23 @@ export default defineConfig({
           items: [
             { label: 'Overview', link: '/guides/' },
             {
+              label: 'Why people pick Novis',
+              items: [
+                { label: 'Overview', link: '/guides/why-novis/' },
+                { label: 'HTML that escapes itself', link: '/guides/why-novis/html-escapes/' },
+                { label: 'Input from outside is tainted', link: '/guides/why-novis/tainted-input/' },
+                { label: 'Secrets are never printed', link: '/guides/why-novis/secret-values/' },
+                { label: 'One failure stops one program', link: '/guides/why-novis/one-failure/' },
+                { label: 'No surprises from null', link: '/guides/why-novis/no-null-surprises/' },
+                { label: 'Every conversion is checked', link: '/guides/why-novis/checked-conversions/' },
+                { label: 'JSON with types', link: '/guides/why-novis/typed-json/' },
+                { label: 'Text is Unicode', link: '/guides/why-novis/unicode-strings/' },
+                { label: 'Tests are part of the language', link: '/guides/why-novis/tests-in-code/' },
+                { label: 'Errors with a default in one line', link: '/guides/why-novis/simple-errors/' },
+                { label: 'One standard library', link: '/guides/why-novis/one-library/' },
+              ],
+            },
+            {
               label: 'A Tour of Novis',
               items: [
                 { label: 'Start the Tour', link: '/guides/tour/' },

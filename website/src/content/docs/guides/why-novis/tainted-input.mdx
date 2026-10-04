@@ -1,0 +1,29 @@
+---
+title: Input from outside is tainted
+covers: ['lang:types/qualifiers-tainted-and-secret']
+description: Values from a request or a form are tainted, and the compiler checks where they go.
+---
+
+import Snippet from '@components/Snippet.astro'
+
+A value that comes from outside the program is `tainted`. That includes a form field, a header and a
+command-line argument. The compiler follows the value through your code:
+
+<Snippet src="guides/why-novis/tainted-input.nvs" />
+
+`as int` checks the text and gives a plain `int`. A hole in an `html` literal escapes the text.
+These are safe ways to use the value.
+
+Using a tainted value as a plain `string` does not compile:
+
+```txt
+error[E0401]: expected `string`, found `tainted string`
+  --> form.nvs:3:17
+  |
+3 | string $plain = $comment;
+  |                 ^^^^^^^^ this is `tainted string`
+```
+
+The mistake is found before the program runs. You do not need a code review to catch it.
+
+Read more in [Syntax: tainted and secret strings](/syntax/values/tainted-and-secret/).

@@ -1,0 +1,17 @@
+<?nvs
+// This program converts text to numbers. Each conversion is checked.
+string $quantity = "12";
+string $typo = "12abc";
+
+// `as int` converts the text. "12" is a whole number, so this prints `13`.
+echo ($quantity as int) + 1, "\n";
+
+// `as ?int` gives `null` when the text is not a whole number.
+echo ($typo as ?int) ?? "not a number", "\n";
+
+// `as int` throws an error when the conversion is not possible.
+try {
+    echo $typo as int, "\n";
+} catch (RuntimeError $e) {
+    echo $e->message, "\n";
+}

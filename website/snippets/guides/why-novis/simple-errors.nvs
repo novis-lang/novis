@@ -1,0 +1,21 @@
+<?nvs
+// This program reads a setting and uses a default when the setting is missing.
+class Settings {
+    public static function get(string $key): int {
+        if ($key != "port") {
+            throw new IOError("no setting named $key");
+        }
+        return 8080;
+    }
+}
+
+// `catch` after an expression gives the value on the right when the expression throws.
+echo Settings::get("port") catch (IOError $e) => 80, "\n";
+echo Settings::get("workers") catch (IOError $e) => 4, "\n";
+
+// A `try` block works too. The message says what went wrong.
+try {
+    Settings::get("timeout");
+} catch (IOError $e) {
+    echo $e->message, "\n";
+}

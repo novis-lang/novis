@@ -1,0 +1,29 @@
+---
+title: No surprises from null
+covers: []
+description: Only a type that starts with ? can be null, and the compiler checks every place that uses one.
+---
+
+import Snippet from '@components/Snippet.astro'
+
+In Novis a variable of type `User` is always a `User`. A value that may be missing has a type that
+starts with `?`, such as `?User`:
+
+<Snippet src="guides/why-novis/no-null-surprises.nvs" />
+
+`?->` reads a property only when the object is not `null`. `??` gives a default value.
+
+If you use `->` on a value that may be `null`, the program does not compile:
+
+```txt
+error[E0459]: `null|User` may be `null`, so `->` cannot reach a member of it
+   --> users.nvs:16:6
+   |
+16 | echo Users::find(2)->name, "\n";
+   |      ^^^^^^^^^^^^^^ this receiver is nullable
+```
+
+You find the missing check when you compile. You do not find it in production.
+
+Read more in [Syntax: nullable types](/syntax/values/nullable/) and
+[Syntax: null coalescing](/syntax/operators/null-coalescing/).

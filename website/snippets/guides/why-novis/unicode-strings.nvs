@@ -1,0 +1,12 @@
+<?nvs
+// This program counts and reverses text that has accents and an emoji.
+string $word = "café 👍🏽";
+
+// `Core\Str::length` counts the characters a person sees. This prints `6`.
+echo Core\Str::length($word), "\n";
+
+// `Core\Str::reverse` keeps each character whole.
+echo Core\Str::reverse($word), "\n";
+
+// `bytes` is binary data. Its length is the number of bytes.
+echo Core\Bytes::length($word as bytes), "\n";

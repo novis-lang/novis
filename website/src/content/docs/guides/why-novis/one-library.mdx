@@ -1,0 +1,20 @@
+---
+title: One standard library
+covers: []
+description: The Core classes cover strings, arrays, JSON, HTTP, databases and tests, with one name for each task.
+---
+
+import Snippet from '@components/Snippet.astro'
+
+Novis has one standard library, `Core`. Each class covers one kind of value or one task, such as
+`Core\Str` for strings and `Core\Arr` for arrays:
+
+<Snippet src="guides/why-novis/one-library.nvs" />
+
+Each task has one method. Every method takes its subject first and its options last, so you can guess
+the order of the arguments.
+
+`Core` also has an HTTP client, a database layer, JSON, CSV and a test library. A new project needs no
+packages for these tasks.
+
+Read more in [Reference: all Core classes](/reference/core/).

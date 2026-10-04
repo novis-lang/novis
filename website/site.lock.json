@@ -1,4 +1,10 @@
 {
+  "guides/why-novis/secret-values.mdx": {
+    "lang:types/qualifiers-tainted-and-secret": "4d9a603a542bc54e"
+  },
+  "guides/why-novis/tainted-input.mdx": {
+    "lang:types/qualifiers-tainted-and-secret": "4d9a603a542bc54e"
+  },
   "syntax/attributes/commands-and-discovery.mdx": {
     "lang:attributes/core-command-and-core-option-the-command-table": "abeb8b99e09ea7ce",
     "lang:attributes/core-program-implementing-i-every-class-that-is-an-i": "475d2cb7b303b63f",

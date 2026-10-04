@@ -1,0 +1,26 @@
+---
+title: Tests are part of the language
+covers: []
+description: You write tests with #[Test] next to your code and run them with nvs test, with nothing to install.
+---
+
+import Snippet from '@components/Snippet.astro'
+
+In many languages you first choose a test framework, install it and configure it. In Novis the test
+runner is part of `nvs`, and the assertions are in `Core\Test`:
+
+<Snippet src="guides/why-novis/tests-in-code.nvs" />
+
+`nvs run` runs the program. `nvs test` runs the methods with `#[Test]`:
+
+```txt
+  CartTest
+    ✓ multipliesPriceByCount           0.2 ms
+
+  0 failed, 1 passed, 0 skipped, 0 flaky in 1 ms
+```
+
+Each test runs on its own, so one test cannot change a value that another test reads.
+
+Read more in [Syntax: writing tests](/syntax/testing/writing-tests/) and
+[Reference: `nvs test`](/reference/cli/nvs-test/).

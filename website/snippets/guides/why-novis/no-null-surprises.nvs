@@ -1,0 +1,21 @@
+<?nvs
+// This program looks up a user by id. The user may not exist.
+class User {
+    public string $name;
+
+    public function constructor(string $name) {
+        $this->name = $name;
+    }
+}
+
+class Users {
+    // `?User` is a `User` or `null`. A plain `User` is never `null`.
+    public static function find(int $id): ?User {
+        return $id == 1 ? new User("Ada") : null;
+    }
+}
+
+// `?->` reads the property only when the object is not `null`.
+// `??` gives the value on the right when the left side is `null`.
+echo Users::find(1)?->name ?? "nobody", "\n";
+echo Users::find(2)?->name ?? "nobody", "\n";

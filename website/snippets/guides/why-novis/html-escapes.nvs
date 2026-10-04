@@ -1,0 +1,10 @@
+<?nvs
+// This program puts a name that a user typed into an HTML page.
+string $name = "<script>alert(1)</script>";
+
+// `{$name}` is a hole in an `html` literal. Its value is escaped.
+echo html`<p>Hello, {$name}</p>`, "\n";
+
+// `<?= $part ?>` inserts markup that is already HTML, so it is not escaped twice.
+Core\Html\Markup $part = html`<b>{$name}</b>`;
+echo html`<p><?= $part ?></p>`, "\n";

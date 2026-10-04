@@ -1,0 +1,12 @@
+<?nvs
+// This program uses two values from a form in a safe way.
+// `tainted` says that a string comes from outside the program.
+tainted string $amount = "42";
+tainted string $comment = "<b>great</b>";
+
+// `as int` checks the value. The result is a plain `int`.
+int $count = $amount as int;
+echo $count * 2, "\n";
+
+// A hole in an `html` literal escapes the tainted string.
+echo html`<p>{$comment}</p>`, "\n";

@@ -1,0 +1,8 @@
+<?nvs
+// This program starts a child program that fails, and keeps running.
+var $failed = await spawn script "one-failure-child.nvs" with(args: true, output: "capture");
+
+// The error of the child is part of its result. The parent does not stop.
+echo "ok=", $failed->ok ? "true" : "false", "\n";
+echo "error=", $failed->error?->class ?? "none", "\n";
+echo "parent still running\n";

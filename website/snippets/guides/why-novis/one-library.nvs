@@ -1,0 +1,14 @@
+<?nvs
+// This program uses a few `Core` classes. Each method takes its subject first.
+string $text = "red,green,blue";
+
+// `Core\Str` has the methods for strings.
+array<string> $colors = Core\Str::split($text, ",");
+echo Core\Str::upper($colors[0]), "\n";
+
+// `Core\Arr` has the methods for arrays.
+array<string> $sorted = Core\Arr::sort($colors);
+echo Core\Str::join($sorted, " "), "\n";
+
+// `Core\Json` turns a value into JSON text.
+echo Core\Json::encode(["count" => Core\Arr::count($colors)]), "\n";
