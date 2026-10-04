@@ -1,19 +1,19 @@
 {
-  "state": "**Goal `performance-pass`, Stage 5 (the fixes).** Stage 4's review is whole (`docs/perf/performance-review.md`, ending in `## floor`). Old refusals have not been priced again yet.\n\n**The formatter's indent recursion is bounded.** `Indent::opening_of` still recurses once per enclosing body, but the parser stops nesting at 96 levels (`E0108`), so the depth is a constant. `bun nv scaling fmt/depth` (n methods, each 40 `if` levels deep) is flat at exponent 0.66 over 10..320. The module doc of `crates/nvs-fmt/src/indent.rs` says so; no cache was built.\n\n**26 gap records owned by `performance-pass`.** Still red: `scaling --check` (`numbers/bigint-mul.nvs` grows, `compiler/elseif.nvs` overflows the release stack between 700 and 1024 arms) and `owners --closes performance-pass`. `docs/perf/performance-pass.md` *Decisions for you* has one entry: a total deadline for the request head.",
+  "state": "**Goal `performance-pass`, Stage 5 (the fixes).** Stage 4's review is whole (`docs/perf/performance-review.md`, ending in `## floor`). Old refusals have not been priced again yet.\n\n**An `if` chain is one statement with a list of arms.** `StmtKind::If { arms: Vec<IfArm>, else_ }` (`crates/nvs-syntax/src/ast.rs`): `elseif` and `else if` both add an arm in `finish_if`'s loop, so neither spelling costs parser depth. Every walk over it is a loop; the dataflow walks (`locals`, `lateinit`, `ctor_init`) and `lower_if` walk the arms forward and join them back to front, which gives the same IR block for block and one statement marker per later arm, as the nested shape did. `Core\\Ast`'s `If` node now lists `cond, then` per arm and then the `else`. `bun nv scaling compiler/elseif` is flat over 256..4096 on the release binary.\n\n**25 gap records owned by `performance-pass`.** Still red: `scaling --check` (`numbers/bigint-mul.nvs`, allocations grow with slope 1.85 under Toom-3) and `owners --closes performance-pass`. `docs/perf/performance-pass.md` *Decisions for you* has one entry: a total deadline for the request head.",
   "next": {
     "stage": 5,
-    "title": "the fixes, the `elseif` chain",
+    "title": "the fixes, the bigint ladder",
     "files": [],
-    "note": "one file set: `crates/nvs-syntax/src/parser/stmt.rs`, the `If` node in the AST, and every walk over its `else_`.",
+    "note": "one file set: `benches/scaling/numbers/bigint-mul.nvs`, `benches/scaling/README.md` and the growth tool's judgement.",
     "items": [
       {
         "done": false,
-        "text": "**Parse an `if`/`elseif` chain without recursion** (`crates/nvs-syntax/src/parser/stmt.rs:403`, `finish_if` calls itself once per `elseif`), so `benches/scaling/compiler/elseif.nvs` is flat and never overflows, and close `data/gaps/nvs-syntax/an-elseif-chain-is-not-depth-guarded.json`. The gap prefers one statement with a list of arms; first count the walks over `If::else_` that would change, and if every later walk recurses on `else_` too, the list is the root fix. The `else if` spelling is refused by `E0108` at 90 arms; the gap names it a defect too. Rule: the goal's base rule."
+        "text": "**Judge `numbers/bigint-mul.nvs` against Toom-3, not against linear** (`benches/scaling/numbers/bigint-mul.nvs:1`), so `bun nv scaling --check` goes green. The goal's base rule says an algorithm whose best form is steeper is judged against that algorithm; `docs/perf/performance-pass.md:85` has the measured slopes (clock 1.47, allocations 1.85, bytes 1.69). First read which `// scaling: expect` values the README allows; if none states a power, the tool needs one, and the allocations' 1.85 must still be explained or recorded under *Benches to look at*. Rule: the goal's base rule."
       }
     ]
   },
   "backlog": [
-    "`numbers/bigint-mul.nvs` grows — the other red ladder in `scaling --check` (`docs/perf/performance-review.md`).",
-    "25 more gap records owned by `performance-pass`; `bun nv owners --closes performance-pass` lists them."
+    "25 gap records `bun nv owners --closes performance-pass` lists: each is built, struck as a stated bound, or deferred (`data/gaps/`).",
+    "`crates/nvs-types/src/locals.rs` `the-live-set-is-cloned-per-branch`: the `If` arm still clones `live` once per arm, which the flat chain did not change."
   ]
 }
