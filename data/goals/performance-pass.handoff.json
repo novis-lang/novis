@@ -1,29 +1,32 @@
 {
-  "state": "**Goal `performance-pass`, Stage 3 (the ladders, area by area): 20 of 22 areas have a ladder.** `bun nv scaling` in `tools/nv/cmd/scaling.ts` measures five kinds (`run`, `compile`, `lsp`, `fmt`, `serve`); its module doc is the home of the ramp, the bounds, `KINDS`, `AREAS` and the `serve` sizes (`SERVE_SIZES`, `serveShape`). Tests: `tools/nv/test/scaling.test.ts`.\n\n**`--areas` still names two:** `http-client` and `app`. The `request` and `connections` ladders are written and flat (`request/headers`, `request/header-bytes`, `request/body`, `request/query`, `connections/open`).\n\n**Ladders that grow:** `fmt/classes.nvs`, `lsp/classes.nvs`, and `numbers/bigint-mul.nvs` (allocations at slope 1.85, clock follows Toom-3; under *Benches to look at*). Every other ladder is flat. `docs/perf/performance-pass.md` *What we found* has the 1.05 MB per `Core\\Task`, a POST body the program does not read losing its response at 16 KB and over, and requests with more than about 100 headers not being answered on a kept-alive connection. None of their causes is checked.\n\n**`lsp` callgrind** (`lspInstructions`) has not run. **`--iterations --check`** has had no full sweep since benches that settle on counts started going to callgrind. `docs/perf/performance-review.md` does not exist yet (Stage 4).",
+  "state": "**Goal `performance-pass`, Stage 3 (the ladders, area by area): all 22 areas have a ladder, and `bun nv scaling --areas` prints `every area has a ladder`.** `bun nv scaling` in `tools/nv/cmd/scaling.ts` measures six kinds (`run`, `compile`, `lsp`, `fmt`, `serve`, `fetch`); its module doc is the home of the ramp, the bounds, `KINDS`, `AREAS`, the `serve` sizes and the `fetch` server (`withServer`, `FETCH_URL_ENV`). Tests: `tools/nv/test/scaling.test.ts`.\n\n**New this session, both flat:** `http-client/response.nvs` (`kind fetch`: downloads one body of 16 KB to 1 MB from `http-client/response/server.nvs`; the client allocates about 5 bytes per body byte, linearly) and `app/requests.nvs` (`kind serve`, `size requests`: one shop page per request with a session in Redis at 127.0.0.1:16379, SQLite, `Core\\Validate`, an HTML list, JSON and `Core\\Cache::local`; peak memory flat to 4096 requests).\n\n**`app` is one ladder of the several the goal prose describes under Stage 3:** rows per page, routes in the program, clients at once, and the same app generated at n modules for `compile` and `lsp` are not written. It has no queued job yet: the queue needs the `nvs_jobs` tables `queue/jobs.nvs` creates.\n\n**Ladders that grow:** `fmt/classes.nvs`, `lsp/classes.nvs`, and `numbers/bigint-mul.nvs` (allocations at slope 1.85, clock follows Toom-3; under *Benches to look at*). `docs/perf/performance-pass.md` *What we found* has the 1.05 MB per `Core\\Task`, an unread POST body of 16 KB and over losing its response, and more than about 100 headers not being answered on a kept-alive connection; none of their causes is checked.\n\n**Still red:** `--areas --reviewed` (`docs/perf/performance-review.md` does not exist, Stage 4) and `scaling --check` (the growing ladders, Stage 5). `lspInstructions` has not run, and `--iterations --check` has had no full sweep.",
   "next": {
     "stage": 3,
     "title": "the ladders, area by area",
-    "files": [],
-    "note": "one file set: `tools/nv/cmd/scaling.ts` (the measures) and `benches/scaling/<area>/`.",
+    "files": [
+      "benches/scaling/app/",
+      "tools/nv/cmd/scaling.ts"
+    ],
     "items": [
       {
         "done": false,
-        "text": "**An `http-client` ladder**: response size under `Core\\Http`. The program needs a server to fetch from, so the tool boots one: a `run` ladder whose program fetches a local `nvs serve` of a fixture that answers `size` bytes, or a new `size` for `serve` where the client is the ladder. Pick the one that keeps `MEASURES` at `tools/nv/cmd/scaling.ts:692` simplest, and write the size into the module doc. Then add `benches/scaling/http-client/<name>.nvs`. Rule: `rule:testing/bench-counters`."
+        "text": "**The `app` ladders the goal still names**: rows per page (a `run` ladder over the same page logic with `Bench::run(size)`, or a `serve` ladder whose size is read from the query) and clients at once (`size connections`), beside `benches/scaling/app/requests.nvs:1`. If a size needs a new `SERVE_SIZES` entry, it goes in `serveShape` at `tools/nv/cmd/scaling.ts:621`. Rule: `rule:testing/bench-counters`."
       },
       {
         "done": false,
-        "text": "**The `app` ladder**: the small shop the goal prose describes under Stage 3, at `benches/scaling/app/`, run over rows per page and requests served. `serveShape` at `tools/nv/cmd/scaling.ts:621` shapes the load. Rule: `rule:testing/bench-counters`."
+        "text": "**The app at n modules** for `compile` and `lsp`: a `compile` ladder that prints the shop with n route classes, as `benches/scaling/compiler/functions.nvs:1` does, at `benches/scaling/app/modules.nvs`. Rule: `rule:testing/bench-counters`."
       },
       {
         "done": false,
-        "text": "**Check the two server findings** written under *What we found* in `docs/perf/performance-pass.md`, with `curl` against `nvs serve`: the unread POST body and the header count. The serve loop is `crates/nvs-server/src/serve.rs:6746`. Rule: `rule:http-server/request-body-and-upload-total-are-two-caps`."
+        "text": "**Check the two server findings** in `docs/perf/performance-pass.md` with `curl` against `nvs serve`: the unread POST body at 16 KB and over (`benches/scaling/request/body.nvs:1`), and more than about 100 headers on a kept-alive connection (`benches/scaling/request/headers.nvs:1`). Name each cause's `file:line` or record it as a gap owned by `performance-pass`."
       }
     ]
   },
   "backlog": [
-    "Run `lspInstructions` once under WSL so the `lsp` callgrind path is proven (`tools/nv/cmd/scaling.ts` module doc).",
-    "A full `bun nv scaling --iterations --check` sweep (`docs/perf/performance-pass.md`).",
-    "Find where each `Core\\Task`'s 1.05 MB goes (`docs/perf/performance-pass.md` *What we found*).",
-    "Stage 4: `docs/perf/performance-review.md`, one section per area (goal prose)."
+    "Stage 4: `docs/perf/performance-review.md`, one section per area in `AREAS` — goal prose § *Stage 4 — the review*.",
+    "`lsp` callgrind (`lspInstructions` in `tools/nv/cmd/scaling.ts`) has never run under WSL.",
+    "A full `bun nv scaling --iterations --check` sweep — `tools/nv/cmd/scaling.ts` module doc.",
+    "The growing ladders `fmt/classes.nvs`, `lsp/classes.nvs`, `numbers/bigint-mul.nvs` — Stage 5, `docs/perf/performance-pass.md`.",
+    "A queued job in the `app` ladder — `benches/scaling/queue/jobs.nvs` creates the tables it needs."
   ]
 }
