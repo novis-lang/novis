@@ -3471,7 +3471,7 @@
             {
               "id": "ide/the-extension-claims-nvs-only",
               "slug": "the-extension-claims-nvs-only",
-              "title": "The extension activates on `.nvs` and never claims `.php`",
+              "title": "The extension activates on `.nvs`, never claims `.php` or TOML, and offers completion in a file named `nvs.toml`",
               "status": "designed",
               "href": "/docs/rules/ide/one-server-thin-clients/#the-extension-claims-nvs-only",
               "diverges": "opening a `.php` file gets the PHP extension already installed, not Novis, even though `nvs-syntax` could parse it"

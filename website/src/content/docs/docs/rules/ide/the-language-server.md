@@ -277,6 +277,13 @@ start, run once more on demand. It is the one request that changes what the serv
 reading it, so it is answered where the store is mutable and never by a `.lspt` case, and its answer is
 the number of files the index holds.
 
+The sixth is `nvs/directives` ([`ide/the-extension-claims-nvs-only`](/docs/rules/ide/one-server-thin-clients/#the-extension-claims-nvs-only "The extension activates on .nvs, never claims .php or TOML, and offers completion in a file named nvs.toml")), and it passes the test with
+nothing new built: its table is the default `nvs.toml` the binary already ships, which `bun nv directives
+--check-template` already holds to the parser's tree. It is non-standard because the document it completes
+is not one the server opens: an `nvs.toml` belongs to the user's TOML extension, so the client sends the
+text and the cursor with the request. It has no `.lspt` vocabulary, and `crates/nvs-lsp/tests/directives.rs`
+holds it.
+
 `textDocument/declaration` is refused rather than deferred: Novis has no declaration that is not the
 definition, so it would answer identically to `textDocument/definition`, and the crate names neither
 spelling of it.

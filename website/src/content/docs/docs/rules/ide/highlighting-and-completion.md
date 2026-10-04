@@ -210,8 +210,9 @@ Novis's answer to "framework support", and it is a closed rule, not a starting p
 
 What that admits: route names and their parameters, from the route table
 [`routing/routes-are-compiled-not-registered`](/docs/rules/routing/declaring-a-route/#routes-are-compiled-not-registered "A route is a #[Route] compiled into the unit's table, and its three runtime bugs are compile errors") builds while compiling — the same table
-[`routing/link-name-and-params-are-checked`](/docs/rules/routing/links-and-the-api-document/#link-name-and-params-are-checked "Core\Router::url is a launderer whose literal name and $params are checked against the compiled table") checks a link against; configuration directives in
-`nvs.toml` and every file `[[include]]` pulls in, from the closed registry the runtime validates against
+[`routing/link-name-and-params-are-checked`](/docs/rules/routing/links-and-the-api-document/#link-name-and-params-are-checked "Core\Router::url is a launderer whose literal name and $params are checked against the compiled table") checks a link against; configuration directives in a
+file named `nvs.toml` ([`ide/the-extension-claims-nvs-only`](/docs/rules/ide/one-server-thin-clients/#the-extension-claims-nvs-only "The extension activates on .nvs, never claims .php or TOML, and offers completion in a file named nvs.toml")), from the default file the binary ships,
+which `bun nv directives --check-template` holds to the parser that refuses an unknown key
 ([`config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`](/docs/rules/config/the-file-and-the-tree/#a-duplicate-key-is-an-error-and-so-is-an-unknown-one "A duplicate key is an error, and so is an unknown one — per file")), so completion, hover with type and
 default, and "no such directive" are three readings of one registry, and `[[include]]`'s `path` and `dir`
 complete as paths — scoped to the workspace's config tree, never to every TOML file; a `require` path,
