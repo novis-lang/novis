@@ -1,0 +1,24 @@
+<?nvs
+// Runs one small task for each of n labels and reads every result, as a program does when it checks a long list of links.
+// scaling: start 16
+// scaling: max 128
+// scaling: expect linear
+
+class Bench {
+    public static function run(uint $size): uint {
+        array<string> $labels = [];
+        uint $i = 0;
+        while ($i < $size) {
+            $labels[] = "link " . $i;
+            $i = $i + 1;
+        }
+        var $sizes = Core\Task::map($labels, fn (string $label): uint => Core\Str::length($label));
+        uint $total = 0;
+        foreach ($sizes as uint $one) {
+            $total = $total + $one;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(16), "\n";

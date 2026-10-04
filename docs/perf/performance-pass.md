@@ -15,6 +15,13 @@ its batch grows. Every bench it could judge is flat on all four counts.
 linear, and `nvs check` on the same document is linear, so the extra cost is in the server's own
 analysis. Not fixed yet.
 
+**Each task a request starts holds about 1 MB against the request's memory limit.**
+[`benches/scaling/scheduler/tasks.nvs`](../../benches/scaling/scheduler/tasks.nvs) grows linearly,
+so it passes. But `Core\Task::map` over 300 labels stops the request at the default ceiling of
+256 MB: the release build reports 315,284,654 bytes held, which is 1.05 MB per task. So one request
+can run about 250 tasks at once. The ladder stays at 128 tasks or fewer. Where the megabyte goes is
+not checked yet.
+
 ## What got better
 
 Nothing yet: no fix has landed.
@@ -55,7 +62,21 @@ They run on the WSL leg.
 instructions with 1.01, but the increments did not agree by the ceiling of 4096, so the tool does
 not judge it.
 
+**A ladder whose allocation count grows faster than its work**:
+[`benches/scaling/numbers/bigint-mul.nvs`](../../benches/scaling/numbers/bigint-mul.nvs) squares a
+number of 64,000 to 512,000 bits. `num-bigint` uses Toom-3 at these sizes, which grows as n^1.47.
+The tool reports allocations with slope 1.85 and bytes with 1.69, so it fails the ladder. The clock
+follows the algorithm: a probe timing four multiplications, best of five runs, grew 60 times from
+32,000 to 512,000 bits, which is slope 1.47. The allocations are the library's temporaries at each
+level of the recursion, and the tool has no way to judge a count against the algorithm rather than
+the size. The size cannot go higher: one `Core\BigInt` result is at most 1,048,576 bits.
+
 ## What we checked and found fine
 
 The 953 benches `bun nv scaling --iterations` judged flat, `.scale.nvs` and `.twin.nvs` siblings
 included, at batches from 16 to at most 4096.
+
+The ladders `bun nv scaling` judged flat: `arrays/sort`, `compiler/functions`, `traffic/requests`,
+`values/copy`, `strings/build`, `strings/split-join`, `regex/subject`, `json/roundtrip`,
+`time/days`, `markup/xml-parse`, `formats/csv`, `formats/query`, `templates/rows`,
+`database/rows`, `cache/keys`, `queue/jobs` and `scheduler/tasks`.
