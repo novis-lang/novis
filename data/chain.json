@@ -1,7 +1,6 @@
 {
-  "live": "goal-closeout",
+  "live": "disconnect-completes",
   "goals": [
-    "goal-closeout",
     "disconnect-completes",
     "html-later",
     "performance-pass",
