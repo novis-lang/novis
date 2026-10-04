@@ -1,28 +1,18 @@
 {
-  "state": "**Goal `html-later` — Stages 3 and 4 are closed. Stage 5 (the proofs gate) is open.** ADR 0266 decides the goal. `crates/nvs-runtime/src/later.rs` holds the slots and both deliveries, and its module doc § *A slotted response* says how the slotted one works and what it costs.\n\n**On disk:** `rule:core-classes/html-later` is `shipped`. The editor answers for `later`. Completion offers a `Core` member's options inside its trailing `{…}` bag (`option_key_at` and `option_keys` in `crates/nvs-lsp/src/completion.rs`), for every member with an options bag, not only `later`. Hover already showed `later`'s card. `completion_offers_the_options_of_later` (`crates/nvs-lsp/tests/completion_edits.rs`) and `hover_on_later_shows_its_card` (`crates/nvs-lsp/tests/navigation.rs`) pin both. The stale perf figures for `Core\\Response`, `Core\\Response\\Stream`, `Core\\Session` and `Core\\Html` were re-measured into `docs/perf/members.ndjson`.\n\n**`bun nv proofs --gate` now owes exactly two features**, `Core\\Html::later` and `Core\\Response::slotted`. Each owes everything: `about.md`, 3 examples, 1 attack, 1 bench and a Rust test carrying its `// covers:` marker.\n\n**Known gaps, in `later.rs`'s module doc:** slots run when the frame returns, concurrently with each other but not with the main script. A `later` inside a `Core\\Task::all` child is never assembled. A slot whose task is cancelled while it writes ends the stream, and the fills after it are not sent.",
+  "state": "**Goal `html-later`: Stages 3 and 4 are closed, and Stage 5 (the proofs gate) is open.** ADR 0266 decides the goal. `crates/nvs-runtime/src/later.rs` holds the slots and both deliveries, and its module doc § *A slotted response* says how the slotted one works and what it costs.\n\n**On disk:** `Core\\Html::later` owes nothing. It has `about.md`, three examples with `.out`, one attack (`tests/hostile/core/Html/later/01-fake-and-repeated-placeholders.nvs`), one bench with a recorded figure, and `// covers: Core\\Html::later` on `fills_arrive_in_the_order_their_later_finished` in `crates/nvs-server/src/slotted/tests.rs`. Every one of them runs its page through `Core\\Test::request`, because `nvs run --request` is not an HTML response (playbook, *Writing a test case*). `// covers: Core\\Response::slotted` is already on `slotted_from_a_route_attribute_and_from_the_call_are_the_same` in the same file.\n\n**`bun nv proofs --gate` now owes one feature**, `Core\\Response::slotted`. It owes `about.md`, 3 examples, 1 attack and 1 bench.\n\n**The polyfill browser test** (`tools/nv/test/html-later-polyfill.test.ts`) was red in the driver's full run and green alone. The cause was not reproduced. Its tab wait is now bounded by the test's timeout and not by a 5 s loop, and Chromium's stderr is drained after launch, so a loaded machine is slower but no longer fails. If the full run still marks it red, read that run's output for the failing test.\n\n**Known gaps, in `later.rs`'s module doc:** slots run when the frame returns, concurrently with each other but not with the main script. A `later` inside a `Core\\Task::all` child is never assembled. A slot whose task is cancelled while it writes ends the stream, and the fills after it are not sent.",
   "next": {
     "stage": 5,
     "title": "the proofs gate",
-    "files": [
-      "docs/examples/core/Html/later/",
-      "docs/examples/core/Response/slotted/",
-      "tests/hostile/core/Html/later/",
-      "tests/hostile/core/Response/slotted/",
-      "benches/members/core/Html/later.nvs",
-      "benches/members/core/Response/slotted.nvs"
-    ],
+    "files": [],
+    "note": ". One file set: `docs/examples/core/Response/slotted/`, `tests/hostile/core/Response/slotted/`, `benches/members/core/Response/slotted.nvs`.",
     "items": [
       {
         "done": false,
-        "text": "**`Core\\Html::later`'s proofs**: `about.md`, three examples with `.out` (`bun nv proofs --bless`), one attack, one bench, and a `// covers: Core\\Html::later` line above a Rust test (`crates/nvs-server/src/slotted/tests.rs:74` is the nearest; `crates/nvs-cli/tests/request.rs:101` shows the marker's shape). The card to describe is `LATER_DOC` at `crates/nvs-stdlib/src/html.rs:403`. `bun nv proofs --id 'Core\\Html::later'` lists each path (`rule:testing/feature-proofs`)."
+        "text": "**`Core\\Response::slotted`'s proofs**: `about.md`, three examples with `.out` (`bun nv proofs --bless`), one attack and one bench, for the row at `crates/nvs-stdlib/src/response.rs:406` (`rule:testing/feature-proofs`). Copy the request shape of `docs/examples/core/Html/later/01-two-parts-of-a-page.nvs`. First check what `Core\\Test::request` returns for a slotted page: the assembled body, or the shell and its fills. Every comment follows `AGENTS.md` § *Text an end user reads*, so run `bun nv proofs --comments` over the new files."
       },
       {
         "done": false,
-        "text": "**`Core\\Response::slotted`'s proofs**: the same six, for the row at `crates/nvs-stdlib/src/response.rs:406` (`rule:testing/feature-proofs`). Every comment follows `AGENTS.md` § *Text an end user reads*; run `bun nv proofs --comments` over the new files before the wrap."
-      },
-      {
-        "done": false,
-        "text": "**The gate is green**: `bun nv proofs --gate` owes nothing; re-measure with `bun nv proofs --record-perf --group G` any group a later edit to `crates/nvs-stdlib/src/html.rs:403` or `crates/nvs-stdlib/src/response.rs:406` makes stale (`rule:testing/feature-proofs`)."
+        "text": "**The gate is green**: `bun nv proofs --gate` owes nothing. Record the bench with `bun nv proofs --record-perf --only 'Core\\Response::slotted'`. `--group` takes a group id, not a path. Re-record `later` the same way if `crates/nvs-stdlib/src/html.rs:403` changes (`rule:testing/feature-proofs`)."
       }
     ]
   },
