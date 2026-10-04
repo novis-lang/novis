@@ -15,7 +15,9 @@
 //! class<T>`, loaded or loadable, the classes the program loads at a
 //! class-name parameter, and the names the route table holds at the name
 //! argument of a `Core\Router` link and that route's parameters at a key of
-//! its `$params`.
+//! its `$params`. Outside a string, a field name in the `{…}` options bag a
+//! `Core` member takes last is offered that member's options
+//! ([`option_key_at`]).
 //!
 //! **`->` and `::` are one walk and two lookups.** Both are an access whose
 //! first child is its receiver, so which of the two the cursor is in decides
@@ -341,7 +343,9 @@ use lsp_types::{
 use nvs_diagnostics::{BytePos, Diagnostics, PositionEncoding, SourceFile, Span};
 use nvs_hir::{QName, SymbolKind};
 use nvs_stdlib::php_names::{self, Candidate, Item, Kind};
-use nvs_stdlib::registry::{self, CoreClass, CoreConst, CoreEnum, CoreMethod, ParamText};
+use nvs_stdlib::registry::{
+    self, CoreClass, CoreConst, CoreEnum, CoreMethod, CoreOption, ParamText,
+};
 use nvs_syntax::ast::{
     AutoloadKind, ClassMember, ClassMemberKind, EnumCase, MethodMember, Modifier, PropertyMember,
     StmtKind,
@@ -435,6 +439,7 @@ pub fn at(
         Asked::Literal(Literal::RouteKey(text_start, name)) => {
             route_keys(&cursor, text_start, &name)
         }
+        Asked::OptionKey(written, options) => option_keys(&cursor, written, options),
         Asked::Position => position(&cursor, php),
         Asked::Nothing => return Vec::new(),
     };
@@ -565,6 +570,10 @@ enum Asked {
     /// `require` or `autoload` path, an `autoload` prefix, the operand of
     /// `as class<T>`, or an argument at a path or class-name parameter.
     Literal(Literal),
+    /// The name half of a field in the `{…}` options bag a `Core` call takes
+    /// last, this many bytes of it written, and the options that member
+    /// declares.
+    OptionKey(usize, &'static [CoreOption]),
     /// No access at all — what may be written where a statement or an
     /// expression goes.
     Position,
@@ -1070,6 +1079,77 @@ fn route_keys(cursor: &Cursor<'_>, text_start: BytePos, name: &str) -> Vec<Compl
         .collect()
 }
 
+/// The field name the cursor at `offset` is writing in the `{…}` options bag
+/// of a `Core` call, as the length written so far and the options the
+/// member declares.
+///
+/// The bag is the innermost node, so a cursor inside a field's value is not
+/// here, and the text between the bag's `{` or the last `,` and the cursor is
+/// a name or nothing. The bag must fill the member's last parameter, the one
+/// [`CoreMethod::options`] reads, which is what keeps a `{…}` written for a
+/// shape parameter out of this answer.
+fn option_key_at(
+    analysed: &Analysed,
+    path: &NodePath,
+    offset: BytePos,
+) -> Option<(usize, &'static [CoreOption])> {
+    let [bag, call, ..] = path.nodes() else {
+        return None;
+    };
+    if bag.kind != "ObjectLiteral" || !matches!(call.kind, "StaticCall" | "MethodCall") {
+        return None;
+    }
+    let text = analysed.map.file(analysed.entry).text();
+    let inside = text.get(bag.span.start as usize + 1..offset as usize)?;
+    let name = inside
+        .trim_end_matches(|ch: char| ch.is_ascii_alphanumeric() || ch == '_')
+        .len();
+    let written = inside.len() - name;
+    let before = inside[..name].trim_end();
+    if !(before.is_empty() || before.ends_with(',')) {
+        return None;
+    }
+    let (ExprInfo::Call(resolved) | ExprInfo::ClassRefCall(resolved)) =
+        analysed.exprs.lookup(call.span)?
+    else {
+        return None;
+    };
+    let method = registry::class(&resolved.class.to_string())?
+        .members()
+        .find(|row| row.name == resolved.method)?;
+    let options = method.options()?;
+    let children = analysed.index.children_of(*call);
+    let spans: Vec<Span> = children.iter().map(|child| child.span).collect();
+    let open = crate::arguments::opens_at(analysed, call.span, &spans)?;
+    let argument = spans
+        .iter()
+        .filter(|span| span.start >= open)
+        .position(|span| span == &bag.span)?;
+    match resolved.arg_slots.get(argument) {
+        Some(nvs_types::expr_table::ArgSlot::Param(index)) if *index + 1 == method.params.len() => {
+            Some((written, options))
+        }
+        _ => None,
+    }
+}
+
+/// The options of a `Core` member's bag, each replacing the `written` bytes
+/// of the name before the cursor with the name and its `: `. The detail is
+/// the option's type.
+fn option_keys(cursor: &Cursor<'_>, written: usize, options: &[CoreOption]) -> Vec<CompletionItem> {
+    options
+        .iter()
+        .map(|option| CompletionItem {
+            text_edit: Some(cursor.replacing(written, format!("{}: ", option.name))),
+            ..item(
+                option.name.to_owned(),
+                CompletionItemKind::FIELD,
+                option.ty.spelled(),
+            )
+        })
+        .collect()
+}
+
 /// What the directory a path literal's text reaches holds, for the segment
 /// the cursor is writing.
 ///
@@ -1183,6 +1263,9 @@ fn asked(analysed: &Analysed, files: &CompletionFiles, path: &NodePath, offset: 
     // entry of it parses.
     if after_a_lone_colon(analysed, offset) {
         return Asked::Nothing;
+    }
+    if let Some((written, options)) = option_key_at(analysed, path, offset) {
+        return Asked::OptionKey(written, options);
     }
     if let Some(prefix) = namespace_written(analysed, offset) {
         return Asked::Namespace(prefix);

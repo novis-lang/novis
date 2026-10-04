@@ -253,6 +253,35 @@ fn a_link_params_key_is_offered_the_routes_parameters() {
     assert!(items.iter().all(|item| item.label != "id"));
 }
 
+/// A field name in the `{…}` bag `Core\Html::later` takes is offered the
+/// member's options, and accepting one writes its name and `: ` over what was
+/// typed. A field's value is offered none of them.
+#[test]
+fn completion_offers_the_options_of_later() {
+    let call = "<?nvs\n$m = Core\\Html::later(fn(): void => print('x'), ";
+    for (bag, typed) in [
+        ("{<|>});", ""),
+        ("{pl<|>});", "pl"),
+        ("{deadline: 2s, <|>});", ""),
+        ("{error: html`<p>no</p>`,\n  pla<|>});", "pla"),
+    ] {
+        let items = offered(&format!("{call}{bag}"));
+        let labels: Vec<&str> = items.iter().map(|item| item.label.as_str()).collect();
+        assert_eq!(labels, ["deadline", "error", "placeholder"], "{bag}");
+        let Some(CompletionTextEdit::Edit(edit)) = &named(&items, "placeholder").text_edit else {
+            panic!("an option replaces what was typed: {bag}");
+        };
+        assert_eq!(edit.new_text, "placeholder: ");
+        assert_eq!(
+            (edit.range.end.character - edit.range.start.character) as usize,
+            typed.len(),
+            "{bag}"
+        );
+    }
+    let items = offered(&format!("{call}{{placeholder: pl<|>}});"));
+    assert!(items.iter().all(|item| item.label != "placeholder"));
+}
+
 /// The operand of `as class<T>` is offered every class and interface the
 /// program's `autoload` map can load that is a `T`, and not only the ones the
 /// program already loads: the compiler loads the class a literal names.

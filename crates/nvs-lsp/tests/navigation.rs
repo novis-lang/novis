@@ -242,6 +242,25 @@ fn a_path_argument_hovers_as_the_path_it_names_and_whether_it_exists() {
     assert!(value.is_none_or(|value| !value.contains("exists")));
 }
 
+/// A hover on `later` shows its row, with the options bag spelled the way a
+/// call writes it, and the reference card under it: the card's sentence and
+/// a line for each option.
+#[test]
+fn hover_on_later_shows_its_card() {
+    let (_, value) = hovered(
+        "<?nvs\n$m = Core\\Html::lat<|>er(fn(): void => print('x'), {placeholder: html`<p>…</p>`});",
+    );
+    let value = value.expect("`later` hovers");
+    assert!(
+        value.contains("Core\\Html::later(callable(): mixed $fn, {placeholder?: "),
+        "{value}"
+    );
+    assert!(value.contains("returns a placeholder"), "{value}");
+    for option in ["placeholder", "error", "deadline"] {
+        assert!(value.contains(&format!("`{option}`")), "{option}: {value}");
+    }
+}
+
 #[test]
 fn signature_help_renders_a_core_row_and_a_declared_list_the_same_way() {
     // `Core\Str::length`'s row is frozen by

@@ -695,6 +695,9 @@ fn sources() -> Vec<Source> {
 /// resolves a `Core\Router` link's name and checks its `$params` keys against,
 /// so every name and key they offer is one that link compiles with.
 ///
+/// The options-bag arm reads the `CoreOption` rows of the registry row the
+/// checker resolved the call to, the same rows it checks the bag against.
+///
 /// The completion-file arm reads the values `CompletionFiles::values_at`
 /// hands it, the table the completion files were loaded into, and reads no
 /// file itself. At a path or class-name parameter it adds those values to the
@@ -703,7 +706,7 @@ fn sources() -> Vec<Source> {
 /// `crate::arguments` reads them off `ResolvedCall::param_tys` and the
 /// checker's type interner, the types the checker recorded on the call it
 /// resolved.
-const SOURCED: [(&str, &str); 37] = [
+const SOURCED: [(&str, &str); 38] = [
     ("named_type", "..item("),
     ("type_row", "..named_type("),
     ("method_row", "..item("),
@@ -719,6 +722,7 @@ const SOURCED: [(&str, &str); 37] = [
     ("class_names", "hierarchy::implements_interface("),
     ("route_names", "exprs.routes()"),
     ("route_keys", "exprs.routes()"),
+    ("option_keys", "&[CoreOption]"),
     ("file_values", "completion_files::Value"),
     ("value_item", "completion_files::Value"),
     ("values_beside", "file_values(cursor"),
