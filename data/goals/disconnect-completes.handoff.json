@@ -1,33 +1,22 @@
 {
-  "state": "**Goal `disconnect-completes`, Stage 3 done; Stage 4 (the proofs) is next.** `rule:http-server/a-request-outlives-a-client-that-goes-away` is `shipped`, guarded by `crates/nvs-server/src/serve.rs` and `crates/nvs-stdlib/src/response.rs`.\n\n`Core\\Response\\Stream::write` (`crates/nvs-stdlib/src/response.rs`, `nvs_core_response_stream_write`) returns `null` when `Emit::send` answers `nvs_runtime::stream::CLOSED` or `SEND_TIMED_OUT` (`CLOSED` is now public for that match). It still throws for a chunk over the message bound, and for no task or a cancellation. `Emit::send` itself is unchanged, so `Core\\Sse` keeps throwing. The member's reference card now says a write to a gone client returns at once, and its one `RuntimeError` row is the oversized part.\n\nEvery Stage 3 check passes locally (`bun nv verify` green). `the_drain_waits_for_a_disconnected_request` also passes with the drain registration taken out; the other wake that reaches it is *not checked* (probably `crates/nvs-server/src/io.rs:275`).",
+  "state": "**Goal `disconnect-completes` is reached.** `rule:http-server/a-request-outlives-a-client-that-goes-away` is `shipped`, and `bun nv proofs --gate` owes nothing in the whole roster.\n\n`docs/reference/tools/25-server.md` has a `# When the client goes away` section after the drain's (`tools:server/when-the-client-goes-away`), with its `about.md`, three examples and one `nvs.toml` under `docs/examples/tools/server/when-the-client-goes-away/`, one attack under `tests/hostile/tools/server/when-the-client-goes-away/`, and `// covers:` markers on the disconnect tests in `crates/nvs-server/src/serve.rs`.\n\nThe two keys are directives on the roster, `directive:limits.cancel_on_disconnect` and `directive:limits.disconnect_grace`, each with an `about.md`, one example, one attack under `tests/hostile/config/` and a `// covers:` marker in `crates/nvs-config/tests/app.rs`.\n\n`docs/reference/tools/30-php-differences.md` has the `ignore_user_abort()` paragraph after the library table. The eleven `Core\\Response` perf figures are measured again.",
   "next": {
     "stage": 4,
     "title": "the proofs",
     "files": [
-      "docs/reference/tools/25-server.md",
-      "docs/examples/tools/server/",
-      "docs/reference/tools/30-php-differences.md"
+      "docs/examples/tools/server/when-the-client-goes-away/"
     ],
     "items": [
       {
-        "done": false,
-        "text": "**A `# When the client goes away` section** beside the drain's, `docs/reference/tools/25-server.md:286` (`rule:testing/feature-proofs`). Then `bun nv proofs --id` names what the new feature owes."
-      },
-      {
-        "done": false,
-        "text": "**Three examples with an `nvs.toml` each** under `docs/examples/tools/server/` shaped like `docs/examples/tools/server/stopping-and-reloading-the-drain/01-a-long-request-that-stops-early.nvs:1`: a two-step write that finishes after the client left; `cancel_on_disconnect = [\"GET\", \"HEAD\"]`; one `[app.limits]` that cancels every method. Comments follow `AGENTS.md` § *Text an end user reads*."
-      },
-      {
-        "done": false,
-        "text": "**One paragraph in the PHP differences**, `docs/reference/tools/30-php-differences.md:16`: a request whose client left finishes, and there is no `ignore_user_abort()`."
-      },
-      {
-        "done": false,
-        "text": "**The attack, the bench, the help and `about.md`** (`docs/agent/goals/disconnect-completes.md:183`), then `bun nv reference`, until `bun nv proofs --gate` says nothing is owed."
+        "done": true,
+        "text": "**Every Stage 4 proof**, `docs/reference/tools/25-server.md:332` (`rule:testing/feature-proofs`)."
       }
     ]
   },
   "backlog": [
-    "Which wake reaches the parked drop at a drain without `nvs_host::wake_at_drain` — owner `crates/nvs-server/src/serve.rs` module doc; *not checked*."
+    "`docs/examples/tools/server/stopping-and-reloading-the-drain/about.md` says `nvs ctl reload` does not drain; `docs/reference/tools/25-server.md` § the drain says a reload drains the connections that are open. One of them is wrong (owner: `rule:concurrency/a-drain-closes-a-connection-cleanly`).",
+    "The other wake that reaches `the_drain_waits_for_a_disconnected_request` with the drain registration taken out is *not checked* (probably `crates/nvs-server/src/io.rs:275`).",
+    "For the user: the examples share one `nvs.toml`, because a feature directory holds one, and no `[app.limits]` example exists. No bench was written: a tool section owes none.",
+    "`Core\\Config::get('limits.cancel_on_disconnect')` returns `null` even when the list is set: a list-valued key is not readable from a program."
   ]
 }
