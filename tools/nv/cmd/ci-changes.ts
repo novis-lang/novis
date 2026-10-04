@@ -87,6 +87,12 @@ const LANES: Record<string, string[]> = {
   // `bun nv db-matrix` runs the tests of and every package those are compiled against. Gates
   // `database`, the one job that needs a daemon.
   db: ["tests/db/", "tools/nv/cmd/db-matrix.ts", "Cargo.toml", "Cargo.lock", ".github/workflows/"],
+  // The slotted response's polyfill and trigger, the Chromium test that runs them, and the lockfile
+  // that pins the Playwright release and so the browser it downloads. Gates `browser`.
+  browser: [
+    "crates/nvs-server/src/slotted/", "tools/nv/test/html-later-polyfill.test.ts",
+    "package.json", "bun.lock", ".github/workflows/",
+  ],
 };
 
 const DB_HARNESS = "tools/nv/cmd/db-matrix.ts";
