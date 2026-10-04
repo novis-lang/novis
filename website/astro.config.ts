@@ -216,6 +216,13 @@ export default defineConfig({
                 { label: 'Security checklist', link: '/guides/production/security-checklist/' },
               ],
             },
+            {
+              label: 'Example apps',
+              items: [
+                { label: 'Overview', link: '/guides/example-apps/' },
+                { label: 'Notes', link: '/guides/example-apps/notes/' },
+              ],
+            },
           ],
         },
         {

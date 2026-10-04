@@ -1,0 +1,142 @@
+---
+title: Notes
+covers: []
+description: A small notes app with SQLite, HTML pages, a JSON API, form checks and tests. Download it, run it and start your own app from it.
+---
+
+Notes is a small web app. You write a note in a form, and the app saves it in a SQLite database.
+The home page lists every note. The app also has a small JSON API for the same notes.
+
+The app shows how the parts of a Novis project work together:
+
+- HTML pages built with `html` literals, which escape every value.
+- A SQLite database, opened with `Core\Db::connect`.
+- Routes, written as attributes on the methods that answer them.
+- A form that is checked before anything is saved.
+- Tests that send requests to the app without a server.
+
+## Get it running
+
+[Install Novis](/install/) first. Then download only the folder `apps/notes` of the Novis
+repository. A sparse clone (a clone that checks out only the folders you name) does this:
+
+```sh
+git clone --depth 1 --filter=blob:none --sparse https://github.com/novis-lang/novis.git
+cd novis
+git sparse-checkout set apps/notes
+cd apps/notes
+```
+
+Start the server from the folder `apps/notes`:
+
+```sh
+nvs serve public/index.nvs
+```
+
+Open `http://127.0.0.1:8000/` in your browser. The first request creates the file `notes.sqlite` in
+the same folder. Your notes are kept there, so they are still there after a restart.
+
+## Run the tests
+
+```sh
+nvs test tests/
+```
+
+`nvs test` reads every file in the folder `tests` as one program and runs each `#[Test]` method:
+
+```txt
+  AppTest
+    ✓ theHomePageShowsTheForm          12.4 ms
+    ✓ aFormWithNoTitleShowsTheProblem  0.5 ms
+    ✓ theApiChecksTheJson              0.2 ms
+    ✓ aMissingNoteIsNotFound           0.4 ms
+  DraftTest
+    ✓ aTitleAndATextAreValid           0.1 ms
+    ✓ aTitleWithOnlySpacesIsNotValid   0.1 ms
+    ✓ aLongTitleIsNotValid             0.1 ms
+    ✓ anEmptyTextIsValid               0.0 ms
+  StoreTest
+    ✓ aSavedNoteCanBeFound             0.6 ms
+    ✓ theNewestNoteIsFirst             0.3 ms
+    ✓ aMissingNoteIsNull               0.2 ms
+
+  0 failed, 11 passed, 0 skipped, 0 flaky in 16 ms
+```
+
+## What each file does
+
+```txt
+notes/
+  nvs.toml             the configuration: the two databases and the permission to open them
+  public/
+    index.nvs          the entry file: every request starts here
+  src/
+    App.nvs            the routes, and the method that sends each request to its route
+    Draft.nvs          a note from the form or the API, and the checks on it
+    Note.nvs           a saved note
+    Pages.nvs          the HTML pages
+    Store.nvs          reads and saves notes in the database
+  tests/
+    bootstrap.nvs      loads the entry file, so the tests can use every class
+    AppTest.nvs        sends requests to the app and checks the responses
+    DraftTest.nvs      tests the checks on a new note
+    StoreTest.nvs      tests saving and reading notes
+```
+
+`nvs.toml` names two SQLite databases. `notes` is the file `notes.sqlite`. `scratch` is kept in
+memory, and only the tests use it. The section `[capabilities.db]` allows the app to open these two
+databases. A database that is not in this list cannot be opened.
+
+`public/index.nvs` has two lines. The `autoload` line reads each class `Notes\...` from the folder
+`src`. Then it calls `Notes\App::handle()`.
+
+`src/App.nvs` has one method for each route. A `#[Core\Route]` attribute gives the path and the
+HTTP method. `handle()` calls `Core\Request::route()` to find the route that matches the request.
+Then it calls the method of that route. A path with no route gets the status `404`.
+
+`src/Draft.nvs` is a note that is not saved yet. The form and the JSON API both create a `Draft`.
+Its text came from the user, so it is `tainted string`. `problems()` returns one message for each
+field that is not valid.
+
+`src/Store.nvs` runs the SQL. Every value goes to the database as a `?` placeholder. The text of a
+note is never part of the SQL.
+
+`src/Pages.nvs` builds each page with an `html` literal. A value in a `{$name}` hole is escaped.
+A note with the title `<b>Milk</b>` shows those characters as text.
+
+## The routes
+
+| Method and path | What it does |
+|---|---|
+| `GET /` | Shows the form and every note, newest first. |
+| `POST /notes` | Saves the note from the form, then goes back to `/`. If the form is not valid, it shows the form again with the status `422`. |
+| `GET /notes/{id}` | Shows one note. |
+| `GET /api/notes` | Returns every note as JSON. |
+| `GET /api/notes/{id}` | Returns one note as JSON, or the status `404`. |
+| `POST /api/notes` | Saves a note from a JSON body and returns it with the status `201`. |
+
+Try the API with `curl` while the server runs:
+
+```sh
+curl -H "content-type: application/json" -d '{"title": "Milk", "body": "Buy two"}' http://127.0.0.1:8000/api/notes
+curl http://127.0.0.1:8000/api/notes
+```
+
+## Start your own app from it
+
+1. Copy the folder `apps/notes` and give it the name of your app.
+2. Choose a namespace for your app, for example `Shop`. Change `namespace Notes;` in each file
+   under `src/`. Change the `autoload` line in `public/index.nvs` and the `use` lines in the tests.
+3. In `nvs.toml`, rename the database `notes` and its file. Change the name in
+   `[capabilities.db]` and in the call to `Core\Db::connect` in `src/App.nvs`.
+4. Delete the classes you do not need, and their tests. Run `nvs test tests/` after each change.
+
+Notes has no login. Anybody who can open the page can write a note. Before you put an app like this
+on the internet, add a login and a [CSRF token](/reference/core/csrf/) to each form. Then read the
+[security checklist](/guides/production/security-checklist/).
+
+## Read more
+
+- [Project layout](/guides/how-to-use/project-layout/) explains the folders.
+- [Page through database rows](/guides/cookbook/page-db-rows/) shows more of `Core\Db`.
+- [Testing a page](/guides/testing/test-a-route/) shows `Core\Test::request`.
