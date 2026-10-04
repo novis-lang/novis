@@ -3304,6 +3304,14 @@ impl CoreInterface {
 /// Every [`CoreInterface`].
 pub const INTERFACES: &[CoreInterface] = &[crate::db::QUERYABLE];
 
+/// The name of every [`CoreInterface`]. A front end hands it to
+/// `nvs_hir::CoreRoster::Names` as `closed`, so a program class that names one
+/// in `implements` is told the interface exists and is closed to it.
+#[must_use]
+pub fn closed_interfaces() -> Vec<&'static str> {
+    INTERFACES.iter().map(|core| core.name).collect()
+}
+
 /// Looks a [`CoreInterface`] up by its fully-qualified name.
 #[must_use]
 pub fn interface(name: &str) -> Option<&'static CoreInterface> {

@@ -1179,6 +1179,16 @@ pub mod code {
          that names a directory. A wildcard such as `App\\*` is not allowed. To load many \
          directories, use `autoload discover`.",
     );
+    /// An `extends`/`implements` clause naming a `Core` interface that only
+    /// `Core` classes implement, such as `Core\Db\Queryable`
+    /// (`rule:core-classes/db-transactions`). The name exists, so this is not
+    /// [`E_UNDEFINED_CLASS`]: a program may write it as a type and test a
+    /// value with `is`, and its members read state only a `Core` class has.
+    pub const E_CORE_INTERFACE_NOT_IMPLEMENTABLE: Code = Code::new("E0328").card(
+        "This `Core` interface is implemented only by `Core` classes. Your class cannot \
+         implement it. You can still use it as a type for a parameter or a variable, and test \
+         a value with `is`.",
+    );
 
     // --- E04xx types -------------------------------------------------------
     /// A value whose type cannot be what this position requires.

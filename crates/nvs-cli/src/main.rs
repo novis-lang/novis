@@ -2042,7 +2042,11 @@ fn front_end_in(
     };
 
     let core = nvs_stdlib::registry::link_targets();
-    let roster = nvs_hir::CoreRoster::Names(&core);
+    let closed = nvs_stdlib::registry::closed_interfaces();
+    let roster = nvs_hir::CoreRoster::Names {
+        links: &core,
+        closed: &closed,
+    };
     let plain = nvs_hir::lenders::is_plain(map.file(id).text());
     let (mut diags, mut module, mut loaded, mut autoload) =
         resolve_entry(&mut map, id, roster, strict_docs, &[]);

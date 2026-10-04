@@ -13,7 +13,8 @@ class Fake implements Core\Db\Queryable {
 mixed $m = 1;
 var $q = $m as Core\Db\Queryable;
 --EXPECTF-ERROR--
-error[E0303]: %a
+error[E0328]: `Core\Db\Queryable` is implemented only by `Core` classes
+%a
 error[E0711]: `mixed` cannot be converted to `Core\Db\Queryable`
 %a
 error: aborting due to 2 errors

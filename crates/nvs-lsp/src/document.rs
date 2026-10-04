@@ -594,6 +594,7 @@ pub fn analyse_file(documents: &Documents, path: &Path, version: i32) -> Option<
     } = parse(map.file(entry), &mut diags);
     check_declarations(&stmts, map.file(entry), &mut diags);
     let core = nvs_stdlib::registry::link_targets();
+    let closed = nvs_stdlib::registry::closed_interfaces();
     // The one place this walk is not `nvs check`'s, which is always handed the
     // file a program starts from. A file some program autoloads or requires
     // has no map of its own to resolve a name through, so it borrows that
@@ -604,7 +605,10 @@ pub fn analyse_file(documents: &Documents, path: &Path, version: i32) -> Option<
         entry,
         stmts,
         &mut map,
-        nvs_hir::CoreRoster::Names(&core),
+        nvs_hir::CoreRoster::Names {
+            links: &core,
+            closed: &closed,
+        },
         Some(nvs_stdlib::php_names::became),
         &mut diags,
         lender.map_or(&[], |lender| lender.sites()),

@@ -80,9 +80,18 @@ pub enum CoreRoster<'a> {
     #[default]
     Trusted,
     /// Exactly these names exist, fully qualified and spelled as source writes
-    /// them (`Core\Arr`). `nvs_stdlib::registry::class_names` is what builds
-    /// one.
-    Names(&'a [&'a str]),
+    /// them (`Core\Arr`).
+    Names {
+        /// The names a link clause may resolve to.
+        /// `nvs_stdlib::registry::link_targets` builds it.
+        links: &'a [&'a str],
+        /// The `Core` interfaces that exist but that only `Core` classes
+        /// implement. A link naming one gets
+        /// [`code::E_CORE_INTERFACE_NOT_IMPLEMENTABLE`] instead of the
+        /// "no such class" a name in neither list gets.
+        /// `nvs_stdlib::registry::closed_interfaces` builds it.
+        closed: &'a [&'a str],
+    },
 }
 
 impl CoreRoster<'_> {
@@ -95,7 +104,23 @@ impl CoreRoster<'_> {
     pub const fn names(&self) -> &[&str] {
         match self {
             Self::Trusted => &[],
-            Self::Names(names) => names,
+            Self::Names { links, .. } => links,
+        }
+    }
+
+    /// Whether `qname` is one of [`Self::Names`]'s `closed` interfaces, matched
+    /// the way [`Self::holds`] matches. Always `false` for [`Self::Trusted`],
+    /// which holds every name already.
+    #[must_use]
+    pub fn closes(&self, qname: &QName) -> bool {
+        match self {
+            Self::Trusted => false,
+            Self::Names { closed, .. } => {
+                let written = qname.to_string();
+                closed
+                    .iter()
+                    .any(|name| name.eq_ignore_ascii_case(&written))
+            }
         }
     }
 
@@ -106,12 +131,12 @@ impl CoreRoster<'_> {
     pub fn holds(&self, qname: &QName) -> bool {
         match self {
             Self::Trusted => true,
-            Self::Names(names) => {
+            Self::Names { links, .. } => {
                 let written = qname.to_string();
                 if qname.is_core() {
                     nvs_footprint::class(&written);
                 }
-                names.iter().any(|name| name.eq_ignore_ascii_case(&written))
+                links.iter().any(|name| name.eq_ignore_ascii_case(&written))
             }
         }
     }
@@ -631,6 +656,16 @@ fn resolve_supertype(
         if core.holds(&qname) {
             return Some(qname);
         }
+        if core.closes(&qname) {
+            diags.report(
+                Diagnostic::error(
+                    code::E_CORE_INTERFACE_NOT_IMPLEMENTABLE,
+                    format!("`{qname}` is implemented only by `Core` classes"),
+                )
+                .with_primary(raw.span, "a program's class cannot implement it"),
+            );
+            return None;
+        }
         diags.report(
             Diagnostic::error(
                 code::E_UNDEFINED_CLASS,
@@ -877,12 +912,15 @@ mod tests {
     /// `Core` namespace declares nothing".
     #[test]
     fn a_core_name_the_roster_lacks_is_refused_by_the_link_pass() {
-        const ROSTER: &[&str] = &[r"Core\Arr"];
+        const ROSTER: CoreRoster<'static> = CoreRoster::Names {
+            links: &[r"Core\Arr"],
+            closed: &[],
+        };
         let listed = "<?nvs\nclass Listish implements Core\\Arr {}\n";
         let missing = "<?nvs\nclass Listish implements Core\\Arrr {}\n";
         let declared = QName::parse("Listish");
 
-        let (graph, diags) = links(CoreRoster::Names(ROSTER), listed);
+        let (graph, diags) = links(ROSTER, listed);
         assert!(!diags.has_errors(), "a rostered name resolves: {diags:?}");
         assert_eq!(
             graph
@@ -892,7 +930,7 @@ mod tests {
             vec![QName::parse(r"Core\Arr")]
         );
 
-        let (graph, diags) = links(CoreRoster::Names(ROSTER), missing);
+        let (graph, diags) = links(ROSTER, missing);
         assert!(
             diags.iter().any(
                 |d| d.code == Some(code::E_UNDEFINED_CLASS) && d.message.contains(r"Core\Arrr")
@@ -912,6 +950,41 @@ mod tests {
         assert!(
             !diags.has_errors(),
             "`Trusted` is not an empty roster: {diags:?}"
+        );
+    }
+
+    /// A `Core` interface on the roster's `closed` list exists, so a link
+    /// naming it gets `E_CORE_INTERFACE_NOT_IMPLEMENTABLE` and not the
+    /// "no such class" of `E_UNDEFINED_CLASS`, and the link stays out of the
+    /// graph either way.
+    #[test]
+    fn a_closed_core_interface_is_refused_as_closed_not_as_missing() {
+        let roster = CoreRoster::Names {
+            links: &[r"Core\Arr"],
+            closed: &[r"Core\Db\Queryable"],
+        };
+        let source = "<?nvs\nclass Fake implements Core\\Db\\Queryable {}\n";
+        let (graph, diags) = links(roster, source);
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_CORE_INTERFACE_NOT_IMPLEMENTABLE)
+                    && d.message.contains(r"Core\Db\Queryable")),
+            "a closed interface names its own code: {diags:?}"
+        );
+        assert!(
+            !diags
+                .iter()
+                .any(|d| d.code == Some(code::E_UNDEFINED_CLASS)),
+            "a closed interface is not reported as missing: {diags:?}"
+        );
+        assert!(
+            graph
+                .get(&QName::parse("Fake"))
+                .expect("the class has links")
+                .implements
+                .is_empty(),
+            "a refused link is left out of the graph"
         );
     }
 
