@@ -1,5 +1,5 @@
 {
-  "state": "**Goal `html-later` — `Core\\Html::later`: a page goes out at once, and its slow parts fill in as they are ready — has not started; nothing of it has landed yet.** No floor is carried: goal `goal-closeout` made a finished goal deleted, and the suites and `nv verify` are the floor.\n\nThe design is the user's (method name, `<template for>` with a polyfill, the route field plus the call, the error fragment, concurrency on a normal route) plus calls of mine the goal file lists as unconfirmed. Today every response is buffered whole and `Core\\Response::stream` is the only early byte.",
+  "state": "**Goal `html-later` — Stage 2 has begun: the decision record is on disk, no behaviour yet.** ADR 0266 (`docs/decisions/0266.md`) decides the whole goal: `later`, the placeholder and token, normal-route assembly, slotted delivery, the polyfill, failure and limits, the closed head, and the after-response trigger. It creates `rule:core-classes/html-later` (status `designed`, empty `guardedBy`) and modifies `rule:concurrency/nothing-is-still-running-when-a-call-returns`, `rule:concurrency/after-response-outlives-the-connection` and `rule:core-classes/html-auto-escape`; each modified text stays true today, since a request with no `later` behaves as before. The module doc of `crates/nvs-runtime/src/deferred.rs` states the new trigger.\n\nThe second ADR slot (the polyfill and its CSP hash) is unused and only for Stage 3. `docs/reference/lang/80-concurrency.md:10-13` and `docs/spec/02-php-migration.md:862` are still to be rewritten by the session that lands the behaviour (goal § Stage 0).",
   "next": {
     "stage": 2,
     "title": "`later` on a normal route",
@@ -12,21 +12,21 @@
     "items": [
       {
         "done": false,
-        "text": "**The decision record**, from the goal's § *Standing decisions*, rewriting `rule:concurrency/nothing-is-still-running-when-a-call-returns` and `rule:concurrency/after-response-outlives-the-connection` and adding the `later` rule — `docs/rules/concurrency/after-response-outlives-the-connection.md:9`, `crates/nvs-runtime/src/deferred.rs:1`."
+        "text": "**`Core\\Html::later`**: the registry row beside `join`, its task a child of the request started the way `afterResponse` registers (`rule:core-classes/html-later`), the per-request 96-bit token and the placeholder bytes, and the one assembly pass when the frame and every task have ended — `crates/nvs-stdlib/src/html.rs:186`, `crates/nvs-stdlib/src/task.rs:164`, `crates/nvs-runtime/src/ctx/output.rs:51`."
       },
       {
         "done": false,
-        "text": "**`Core\\Html::later`**, its task a child of the request, the placeholder with the per-request token, and the one assembly pass — `crates/nvs-stdlib/src/html.rs:619`, `crates/nvs-stdlib/src/task.rs:577`, `crates/nvs-runtime/src/ctx/output.rs:51`."
+        "text": "**The request's limits and the head rule**: every `later` task charged to the request tree with no limit of its own, a limit breach failing the whole request, a throw or own `deadline` filling `error`, and `LogicError` for a head change inside a closure — `crates/nvs-stdlib/src/task.rs:73`, `crates/nvs-runtime/src/deferred.rs:1`."
       },
       {
         "done": false,
-        "text": "**The request's limits and the head rule** — every `later` task charged to the request tree with no limit of its own, a limit breach failing the whole request, and `LogicError` for a head change inside a `later` closure — `crates/nvs-stdlib/src/task.rs:577`."
+        "text": "**After-response work waits for the last `later` task** (ADR 0266 § 10), and `rule:core-classes/html-later` flips to `shipped` with its `guardedBy` filled once the two `.nvst` cases land — `crates/nvs-runtime/src/deferred.rs:1`."
       }
     ]
   },
   "backlog": [
-    "**Stage 3: slotted delivery** — the route field, `Core\\Response::slotted()`, the shell, the fills, the polyfill; `crates/nvs-server/src/serve.rs:1785`, `crates/nvs-runtime/src/routes.rs:289`.",
-    "**Stage 4: tests, the editor and the help**; **Stage 5: the proofs and the reference**.",
-    "When this goal's last check goes green the driver deletes it and takes goal `performance-pass`."
+    "Stage 3, slotted delivery and the Playwright browser test — goal `html-later` § Stage 3.",
+    "Stage 0's two remaining sentences, `docs/reference/lang/80-concurrency.md:10-13` and `docs/spec/02-php-migration.md:862`, with the behaviour — goal § Stage 0.",
+    "The calls ADR 0266 § Consequences lists as open to the user's review."
   ]
 }
