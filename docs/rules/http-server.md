@@ -3,7 +3,7 @@
 
 # The HTTP server
 
-*8 of 81 rules below are **designed** rather than shipped, and are marked where they appear.*
+*7 of 81 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="http-server-two-deployments-and-nothing-a-proxy-owns"></a>
 
@@ -1679,7 +1679,7 @@ serving to be ended. Detection without a kill is still worth its cost: a wedged 
 
 <a id="http-server-a-request-outlives-a-client-that-goes-away"></a>
 
-## A request whose client goes away runs to its end under its `wall_time`, or `disconnect_grace` when it has none, unless its method is listed in `cancel_on_disconnect`  *(designed — not yet in the compiler)*
+## A request whose client goes away runs to its end under its `wall_time`, or `disconnect_grace` when it has none, unless its method is listed in `cancel_on_disconnect`
 
 `rule:http-server/a-request-outlives-a-client-that-goes-away`
 

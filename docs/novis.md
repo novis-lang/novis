@@ -19683,9 +19683,9 @@ Sends one part of the body. If the client has not finished reading the last part
 |---|---|---|
 | `$chunk` | `string\|bytes` (neutral) | The part to send, as a `string` or as `bytes`. It is sent exactly as it is. An empty part sends nothing and is not an error. A `tainted` value is allowed, as it is for `Core\Response::text`. |
 
-**Returns** `void` — Nothing. When this method returns, the part has been given to the connection.
+**Returns** `void` — Nothing. When this method returns, the part has been given to the connection. If the client has gone, this method returns at once and the part is thrown away. The client has gone when it closed the connection, or when it did not read a part before the server's send timeout. Your request still runs to its end.
 
-**Throws** `RuntimeError` — The client stopped reading. It closed the connection, or it did not read this part before the server's send timeout. The stream is then closed.
+**Throws** `RuntimeError` — The part is larger than the server allows for one part. Nothing is sent, and you can still send smaller parts.
 
 <a id="core-core-session"></a>
 ### `Core\Session`

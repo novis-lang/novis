@@ -1,6 +1,6 @@
 {
   "title": "A request whose client goes away runs to its end under its `wall_time`, or `disconnect_grace` when it has none, unless its method is listed in `cancel_on_disconnect`",
-  "status": "designed",
+  "status": "shipped",
   "because": [
     "0106",
     "0072",
@@ -17,6 +17,7 @@
     "http-server/an-unsafe-or-unbounded-default-is-a-defect"
   ],
   "guardedBy": [
-    "crates/nvs-server/src/serve.rs"
+    "crates/nvs-server/src/serve.rs",
+    "crates/nvs-stdlib/src/response.rs"
   ]
 }
