@@ -1,0 +1,21 @@
+--TEST--
+the name an `implements` clause writes answers the `///` run of the interface it resolved to, `rule:ide/the-index-answers-the-cursor`
+--FILE--
+<?nvs
+/// Something that can say hello.
+interface Greets
+{
+    public function greet(): string;
+}
+
+class User implements Gre<|>ets
+{
+    public function greet(): string
+    {
+        return "hi";
+    }
+}
+--REQUEST--
+hover
+--EXPECT--
+Something that can say hello.

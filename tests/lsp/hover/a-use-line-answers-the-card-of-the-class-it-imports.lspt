@@ -1,0 +1,23 @@
+--TEST--
+the path a `use` line imports is a reference to the class it names, so the cursor on its last segment answers that class's `///` run, `rule:ide/the-index-answers-the-cursor`
+--FILE--
+<?nvs
+require 'lib/user.nvs';
+
+use App\Us<|>er;
+
+var $u = new User();
+echo $u->name;
+--FILE lib/user.nvs--
+<?nvs
+namespace App;
+
+/// One person, as the store holds them.
+class User
+{
+    public string $name = "";
+}
+--REQUEST--
+hover
+--EXPECT--
+One person, as the store holds them.

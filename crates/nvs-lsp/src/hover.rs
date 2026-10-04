@@ -19,6 +19,13 @@
 //! walk over the nodes, because a literal records no name and the walk would
 //! step out to what holds it.
 //!
+//! **A class name written outside an expression answers that class's card.**
+//! A written type — a parameter's, a return type, an argument of `array<…>` —
+//! an `extends` or `implements` clause, an attribute and the path of a `use`
+//! line are no node of the index, so each is read off the record of what it
+//! resolved to, the one go-to-definition reads ([`name`]). A declaration's own
+//! name is still no reference and answers nothing.
+//!
 //! **The walk from the cursor to the declaration is
 //! [`crate::definition`]'s.** Hover and go-to-definition ask the same question
 //! about *where* and differ only in what they read once they are there, so the
@@ -109,7 +116,8 @@ use nvs_types::{ExprInfo, ResolvedCall, TypeInterner};
 use crate::card::{core_member_hover, core_type_hover, namespace_card};
 use crate::completion_files::CompletionFiles;
 use crate::definition::{
-    Target, attribute_at, payload_path, site, target_of, written_class_name_at,
+    Target, attribute_at, clause_at, import_at, payload_path, site, target_of, type_name_at,
+    written_class_name_at,
 };
 use crate::document::Analysed;
 use crate::position::range_at;
@@ -137,9 +145,12 @@ pub fn at(
         .or_else(|| written_class_name(analysed, offset))
         .or_else(|| path_argument(analysed, offset))
         .or_else(|| file_value(analysed, files, offset))
+        .or_else(|| name(analysed, type_name_at(analysed, offset)?, offset))
         .or_else(|| answer_in(analysed, &nodes, offset))
         .or_else(|| answer_in(analysed, &payload_path(analysed, offset), offset))
-        .or_else(|| attribute(analysed, offset))?;
+        .or_else(|| name(analysed, clause_at(analysed, offset)?, offset))
+        .or_else(|| name(analysed, attribute_at(analysed, offset)?, offset))
+        .or_else(|| name(analysed, import_at(analysed, offset)?, offset))?;
     // A run of bare `///` markers is a run with nothing in it, and it takes the
     // same answer as no run at all rather than opening a popup on whitespace.
     if value.trim().is_empty() {
@@ -486,15 +497,21 @@ fn autoload_prefix(analysed: &Analysed, offset: BytePos) -> Option<(String, Span
     Some((value, literal))
 }
 
-/// The card of the attribute whose name the cursor is on, and that name's
-/// span.
+/// The card of the class, interface, enum or attribute a name written outside
+/// any expression resolved to, and that name's span.
 ///
-/// A name is no node of the index, so this is asked after the walk over the
-/// nodes found nothing, off the checker's own record of what the name resolved
-/// to ([`attribute_at`]). A compiler attribute answers its card; a userland
-/// one answers the `///` run above the alias it names, where one is written.
-fn attribute(analysed: &Analysed, offset: BytePos) -> Option<(String, Span)> {
-    let (target, span) = attribute_at(analysed, offset)?;
+/// A name is no node of the index, so each is asked off the record that holds
+/// what it resolved to: a written type ([`type_name_at`]) before the walk over
+/// the nodes, because the walk would answer the call or the cast around it; a
+/// clause ([`clause_at`]), an attribute ([`attribute_at`]) and a `use` line
+/// ([`import_at`]) after it. A `Core` class answers its card, a declared one
+/// the `///` run above it, and a namespace segment in front of the last the
+/// namespace's card.
+fn name(
+    analysed: &Analysed,
+    (target, span): (Target<'_>, Span),
+    offset: BytePos,
+) -> Option<(String, Span)> {
     let value = written(analysed, &target, span, offset, false)
         .or_else(|| core(analysed, &target))
         .or_else(|| run(analysed, &target))?;
