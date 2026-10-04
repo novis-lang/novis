@@ -55,15 +55,15 @@ use std::collections::VecDeque;
 use nvs_diagnostics::{BytePos, Diagnostic, Diagnostics, SourceFile, Span, code};
 
 use crate::ast::{
-    AnonClassDecl, Arg, ArrayItem, AssignOp, Attribute, AttributeGroup, AutoloadDecl, AutoloadKind,
-    BinaryOp, Block, CallArgs, CatchArm, CatchClause, ClassDecl, ClassMember, ClassMemberKind,
-    ConstMember, DestructureElement, DestructureTarget, DocComment, DocTag, DocTagKind, EnumCase,
-    EnumDecl, Expr, ExprKind, FnBody, FnExpr, ForInit, ForeachBinding, ForeachBindingTy, IfArm,
-    ImplementsClause, IncDecOp, InterfaceDecl, MatchArm, MemberName, MethodMember, Modifier, Name,
-    NamespaceDecl, NewTarget, ObjectLiteralField, Param, PropertyHook, PropertyHookBody,
-    PropertyHookKind, PropertyMember, ShapeField, SpawnOption, SpawnOptionKey, StaticVar, Stmt,
-    StmtKind, StringPart, SwitchCase, TestOperand, Type, TypeAliasDecl, TypeAtom, TypeKind,
-    UnaryOp, UseDecl, Visibility, WrittenModifier,
+    AnonClassDecl, AnonObjectField, Arg, ArrayItem, AssignOp, Attribute, AttributeGroup,
+    AutoloadDecl, AutoloadKind, BinaryOp, Block, CallArgs, CatchArm, CatchClause, ClassDecl,
+    ClassMember, ClassMemberKind, ConstMember, DestructureElement, DestructureTarget, DocComment,
+    DocTag, DocTagKind, EnumCase, EnumDecl, Expr, ExprKind, FnBody, FnExpr, ForInit,
+    ForeachBinding, ForeachBindingTy, IfArm, ImplementsClause, IncDecOp, InterfaceDecl, MatchArm,
+    MemberName, MethodMember, Modifier, Name, NamespaceDecl, NewTarget, Param, PropertyHook,
+    PropertyHookBody, PropertyHookKind, PropertyMember, ShapeField, SpawnOption, SpawnOptionKey,
+    StaticVar, Stmt, StmtKind, StringPart, SwitchCase, TestOperand, Type, TypeAliasDecl, TypeAtom,
+    TypeKind, UnaryOp, UseDecl, Visibility, WrittenModifier,
 };
 use crate::index::SyntaxIndex;
 use crate::lexer::Lexer;
@@ -140,14 +140,14 @@ pub struct Parser<'src, 'd> {
     /// `constructor`, which is what
     /// `rule:php-migration/a-constructor-return-carries-no-value` refuses a
     /// returned value in. Every nested body parks it — see
-    /// [`Self::in_callable_body`] — because a `return` written in a closure,
+    /// [`Self::in_callable_body`] — because a `return` written in an anonymous function,
     /// a property hook or a method declared inside a constructor leaves that
     /// body and not the constructor.
     in_constructor: bool,
     /// Set while the cursor is inside a `finally` block, which
     /// `rule:php-migration/no-return-leaves-a-finally` refuses a `return` in.
     /// [`Self::in_callable_body`] parks it exactly as it parks
-    /// [`Self::in_constructor`], because a `return` written in a closure or a
+    /// [`Self::in_constructor`], because a `return` written in an anonymous function or a
     /// method declared inside the block leaves that body and not the `finally`.
     in_finally: bool,
     /// How many loops and `switch`es have been opened since the innermost
@@ -791,18 +791,18 @@ impl<'src, 'd> Parser<'src, 'd> {
         );
     }
 
-    /// `rule:statements/no-function-static-and-no-global`: `static` is not a closure modifier — a closure captures
-    /// `$this` only if it uses it, so the keyword has nothing left to mean.
-    /// Reports and keeps going; the caller still builds the closure node.
-    fn report_static_closure_modifier(&mut self, span: Span) {
+    /// `rule:statements/no-function-static-and-no-global`: `static` is not a modifier of an anonymous
+    /// function. An anonymous function captures `$this` only if it uses it, so the keyword has nothing
+    /// left to mean. Reports and keeps going; the caller still builds the anonymous function's node.
+    fn report_static_anon_fn_modifier(&mut self, span: Span) {
         self.diags.report(
             Diagnostic::error(
-                code::E_STATIC_CLOSURE_UNSUPPORTED,
-                "`static` is not a closure modifier",
+                code::E_STATIC_ANON_FN_UNSUPPORTED,
+                "`static` is not allowed before an anonymous function",
             )
             .with_primary(
                 span,
-                "a closure already captures `$this` only if it uses it",
+                "an anonymous function captures `$this` only when it uses it",
             )
             .with_help("drop `static` (`rule:statements/no-function-static-and-no-global`)"),
         );

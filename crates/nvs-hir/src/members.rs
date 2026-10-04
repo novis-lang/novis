@@ -417,10 +417,11 @@ struct Env<'a> {
     /// The self-name of the `fn` literal whose body is being walked
     /// (`rule:types/anonymous-function-self-name`), or `None` outside one.
     ///
-    /// Set to *this* closure's own name on entering its body and restored
-    /// afterwards, so it is `None` again inside a nested literal that declares
-    /// no name: § 3's name is visible in one body and not in a closure written
-    /// inside it, which is the same reach `nvs_ir::lower::closure`'s `FN_SELF`
+    /// Set to *this* anonymous function's own name on entering its body and
+    /// restored afterwards, so it is `None` again inside a nested one that
+    /// declares no name: § 3's name is visible in one body and not in an
+    /// anonymous function written inside it, which is the same reach
+    /// `nvs_ir::lower::closure`'s `FN_SELF`
     /// receiver has. It exists here for one rule — `fact(...)` inside `fact`'s
     /// own body is not the free function `E0320` refuses.
     fn_self: Option<String>,
@@ -1144,7 +1145,7 @@ fn walk_expr(expr: &Expr, src: &SourceFile, ctx: &Ctx<'_>, env: &mut Env<'_>) {
                 ExprKind::ConstFetch(name) => {
                     let text = name_text(src, name);
                     // `rule:types/anonymous-function-self-name`: inside `fn fact(...) => … fact(…)`, the
-                    // callee is this closure and not a free function. Only in
+                    // callee is this anonymous function and not a free function. Only in
                     // callee position — the name resolves the way `self::`
                     // does, so it is not a value and a bare `fact` below is
                     // still `E0319`.
@@ -1217,7 +1218,7 @@ fn walk_expr(expr: &Expr, src: &SourceFile, ctx: &Ctx<'_>, env: &mut Env<'_>) {
                 // with no target recorded and panic there; `E0309` is what
                 // keeps that a diagnostic about the program, and it is the one
                 // code the mistake draws.
-                if !(name == "constructor" && matches!(args, CallArgs::FirstClassCallable)) {
+                if !(name == "constructor" && matches!(args, CallArgs::MethodRef)) {
                     check_member_ref(class, name, MemberKind::Method, src, ctx, env);
                 }
             }
@@ -1337,7 +1338,7 @@ fn walk_expr(expr: &Expr, src: &SourceFile, ctx: &Ctx<'_>, env: &mut Env<'_>) {
         ExprKind::ConstFetch(name) => {
             let text = name_text(src, name);
             if !env.refused_toplevel.contains(text) {
-                // `html"…"` is the markup literal written with a string's
+                // `html"…"` is an html template written with a string's
                 // delimiter, one character from the form that compiles, and a
                 // help about class constants reads as "there is no such
                 // literal". The bare name followed by a quote is that guess
@@ -1347,7 +1348,7 @@ fn walk_expr(expr: &Expr, src: &SourceFile, ctx: &Ctx<'_>, env: &mut Env<'_>) {
                     .get(expr.span.end as usize..)
                     .is_some_and(|after| after.starts_with(['"', '\'']));
                 let help = if text == "html" && quote_follows {
-                    "the markup literal is written with backticks, `html`<p>{$name}</p>``: its \
+                    "an html template is written with backticks, `html`<p>{$name}</p>``: its \
                      text is a `Core\\Html\\Markup` and every `{$…}` hole in it is escaped"
                         .to_owned()
                 } else if matches!(text, "__FILE__" | "__DIR__") {

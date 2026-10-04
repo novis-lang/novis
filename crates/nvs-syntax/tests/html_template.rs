@@ -1,7 +1,7 @@
-//! The one template habit a markup literal warns about: `{Page::TITLE}`, a
+//! The one template habit an html template warns about: `{Page::TITLE}`, a
 //! brace directly before a class path, which `rule:core-classes/html-template`
-//! keeps as text and which a page then prints as written. The literal's
-//! typing is `nvs-types`'s `markup_literal.rs`; what is held here is the
+//! keeps as text and which a page then prints as written. The template's
+//! typing is tested in `nvs-types`; what is held here is the
 //! lexer's warning — where it points, what it names, and every brace it stays
 //! silent on.
 
@@ -23,11 +23,11 @@ fn text(map: &SourceMap, span: Span) -> &str {
         .expect("a span from this parse is inside the file it came from")
 }
 
-/// Every span this parse warned [`code::W_MARKUP_BRACE_BEFORE_A_CLASS_PATH`] at.
+/// Every span this parse warned [`code::W_HTML_TEMPLATE_BRACE_BEFORE_A_CLASS_PATH`] at.
 fn braces(diags: &Diagnostics) -> Vec<Span> {
     diags
         .iter()
-        .filter(|d| d.code == Some(code::W_MARKUP_BRACE_BEFORE_A_CLASS_PATH))
+        .filter(|d| d.code == Some(code::W_HTML_TEMPLATE_BRACE_BEFORE_A_CLASS_PATH))
         .filter_map(Diagnostic::primary_span)
         .collect()
 }
@@ -36,7 +36,7 @@ fn braces(diags: &Diagnostics) -> Vec<Span> {
 /// line, and its help rewrites the same text as the `<?= … ?>` hole that
 /// takes it. A namespaced path and a static call are the same habit.
 #[test]
-fn a_brace_before_a_class_path_in_a_markup_literal_warns_at_the_brace() {
+fn a_brace_before_a_class_path_in_an_html_template_warns_at_the_brace() {
     let src = "<?nvs\n\
         echo html`<h1>{Page::TITLE} {Money::format($c)} {App\\Shop::NAME}</h1>`;\n";
     let (map, diags) = parse(src);
@@ -51,7 +51,7 @@ fn a_brace_before_a_class_path_in_a_markup_literal_warns_at_the_brace() {
     );
     let notes = diags
         .iter()
-        .find(|d| d.code == Some(code::W_MARKUP_BRACE_BEFORE_A_CLASS_PATH))
+        .find(|d| d.code == Some(code::W_HTML_TEMPLATE_BRACE_BEFORE_A_CLASS_PATH))
         .map(|d| d.notes.join("\n"))
         .unwrap_or_default();
     assert!(

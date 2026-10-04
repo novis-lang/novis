@@ -3,9 +3,9 @@
 //! # What is here so far
 //!
 //! Types ([`Type`]/[`TypeKind`]/[`TypeAtom`], `rule:types/grammar`) and expressions
-//! ([`Expr`]/[`ExprKind`], every construct M1's plan names — `match`, closures
-//! and arrow functions, `spawn script`, `require`, named arguments,
-//! spread, nullsafe, first-class callable syntax, the `as` conversion
+//! ([`Expr`]/[`ExprKind`], every construct M1's plan names — `match`, anonymous
+//! functions, `spawn script`, `require`, named arguments,
+//! spread, nullsafe, method references, the `as` conversion
 //! operator). [`Block`]/[`Stmt`]/[`StmtKind`] now also cover every
 //! control-flow statement (`if`, `while`, `do`/`while`, `for`, `foreach`'s
 //! mandatory typed bindings, `switch`, `break`/`continue`, `try`/`catch`/
@@ -167,7 +167,7 @@ pub enum TypeAtom {
     /// checked by width subtyping rather than nominal `implements` — Novis's
     /// one deliberate exception to otherwise fully nominal typing. May be
     /// empty (`{}`), which carries the same "no field promised" meaning as
-    /// plain [`Self::Object`]; unlike [`ExprKind::ObjectLiteral`], there is
+    /// plain [`Self::Object`]; unlike [`ExprKind::AnonObject`], there is
     /// no expression/block ambiguity in type position forcing a non-empty
     /// rule here.
     Shape(Vec<ShapeField>),
@@ -187,16 +187,16 @@ pub enum TypeAtom {
     /// included, exactly as [`ExprKind::Str`]'s does, so one decoder serves
     /// both positions; an interpolated `"$x"` is refused in the parser, since
     /// a type has nothing to interpolate from.
-    StringLiteral(Span),
+    SingleValueString(Span),
     /// `1`, `-1` — the type inhabited by exactly that one integer,
     /// `rule:types/single-value-types`. The span covers a leading `-` when one was written.
     /// There is deliberately no `float` counterpart (§ 7).
-    IntLiteral(Span),
+    SingleValueInt(Span),
     /// `Foo::BAR` in type position — `rule:types/constant-in-type-position` and `rule:types/enum-case-type`. The [`Name`] is the
     /// class or enum, the [`Span`] the member identifier after `::`.
     ///
     /// One atom, two meanings, and the parser cannot tell them apart: a
-    /// *class constant* folds to its own literal type (§ 2) while an *enum
+    /// *class constant* folds to its own single-value type (§ 2) while an *enum
     /// case* stays a narrowed subtype of its enum (§ 3), which needs the name
     /// resolved. That is the same division of labour [`Self::Name`] already
     /// has, for the same reason.
@@ -476,14 +476,14 @@ pub struct Arg {
     pub span: Span,
 }
 
-/// The argument list of a call, or the first-class callable marker.
+/// The argument list of a call, or the method-reference marker.
 #[derive(Clone, Debug, PartialEq)]
 pub enum CallArgs {
     /// An ordinary, possibly empty, argument list.
     List(Vec<Arg>),
-    /// `(...)` — first-class callable syntax: the call site names a callable
-    /// value rather than invoking one.
-    FirstClassCallable,
+    /// `(...)` — a method reference: the call site names a callable value
+    /// rather than invoking one.
+    MethodRef,
 }
 
 /// One element of an array literal: `value`, `key => value`, `...value`
@@ -502,11 +502,11 @@ pub struct ArrayItem {
     pub span: Span,
 }
 
-/// One `name: value` field of an [`ExprKind::ObjectLiteral`] — `rule:types/anonymous-object`.
+/// One `name: value` field of an [`ExprKind::AnonObject`] — `rule:types/anonymous-object`.
 /// Unlike [`ArrayItem`], there is no shorthand, no spread and no computed
 /// key: every field name is a static identifier, full stop.
 #[derive(Clone, Debug, PartialEq)]
-pub struct ObjectLiteralField {
+pub struct AnonObjectField {
     /// The field's name.
     pub name: Span,
     /// The field's value.
@@ -539,11 +539,11 @@ pub struct AttributeGroup {
 /// One attribute inside an [`AttributeGroup`] — `rule:attributes/attach-sites-and-forms`'s two forms,
 /// `Name(field: value, ...)` and a bare `{field: value, ...}`.
 ///
-/// Both attach the *same* thing: `rule:types/anonymous-object`'s anonymous object literal. The named form is sugar for a name
-/// immediately followed by that literal, so the payload is
-/// [`ObjectLiteralField`]s in either case rather than a [`CallArgs`] list —
+/// Both attach the *same* thing: `rule:types/anonymous-object`'s anonymous object. The named form is sugar for a name
+/// immediately followed by that object, so the payload is
+/// [`AnonObjectField`]s in either case rather than a [`CallArgs`] list —
 /// an attribute payload has no positional argument, no shorthand and no
-/// computed key, which is the object literal's rule and not a second one.
+/// computed key, which is the anonymous object's rule and not a second one.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Attribute {
     /// The `type` alias the named form names, or `None` for the bare form.
@@ -555,9 +555,9 @@ pub struct Attribute {
     /// (`rule:types/class-scoped-alias`). `None` for a plain name and for the
     /// bare form.
     pub member: Option<Span>,
-    /// The attached literal's fields, in source order.
-    pub fields: Vec<ObjectLiteralField>,
-    /// The payload literal alone — the parenthesized list or the braced one,
+    /// The payload object's fields, in source order.
+    pub fields: Vec<AnonObjectField>,
+    /// The payload object alone — the parenthesized list or the braced one,
     /// and the name itself where the named form wrote no list at all.
     pub payload: Span,
     /// The whole attribute, name and payload.
@@ -633,12 +633,12 @@ pub struct WrittenModifier {
     pub span: Span,
 }
 
-/// One parameter of a function, method or closure.
+/// One parameter of a function, method or anonymous function.
 ///
 /// A declaration's parameter names its type (`rule:types/declaration`), and one
 /// written without it is reported where it is written, `ty` staying `None` so
-/// the parameter is still a node. A **closure literal's** parameter may leave
-/// the type out and take it from the position the literal appears in
+/// the parameter is still a node. An **anonymous function's** parameter may leave
+/// the type out and take it from the position the function appears in
 /// (`rule:types/anonymous-function-parameter-inference`), which is the one `None` nothing
 /// was reported for.
 #[derive(Clone, Debug, PartialEq)]
@@ -650,7 +650,7 @@ pub struct Param {
     /// Promoted-property modifiers (constructor parameters only).
     pub modifiers: Vec<Modifier>,
     /// The declared type, or `None` where the parameter left it out — inferred
-    /// on a closure literal, already reported anywhere else.
+    /// on an anonymous function, already reported anywhere else.
     pub ty: Option<Type>,
     /// Whether this parameter binds by reference — `inout int $x`, `rule:statements/inout-is-the-by-reference-spelling`. The mechanism is copy-in/copy-out at the call site, which is why
     /// the word is `inout` rather than `ref`.
@@ -693,7 +693,7 @@ impl Param {
     }
 }
 
-/// The body of an `fn` closure literal (`rule:types/anonymous-function`): an expression with an
+/// The body of an `fn` anonymous function (`rule:types/anonymous-function`): an expression with an
 /// implicit return, or a block requiring an explicit `return`.
 #[derive(Clone, Debug, PartialEq)]
 pub enum FnBody {
@@ -704,10 +704,10 @@ pub enum FnBody {
 }
 
 /// `fn [name] (...): T => expr` or `fn [name] (...): T => { ... }`, optionally
-/// `static` — the one closure literal `rule:types/anonymous-function` keeps. There is no `use`
+/// `static` — the one anonymous function syntax `rule:types/anonymous-function` keeps. There is no `use`
 /// clause: every outer variable the body reads is captured automatically, by
 /// value (`rule:types/implicit-capture`). `name` is the optional self-name for recursion
-/// (`rule:types/anonymous-function-self-name`), resolvable only inside this closure's own body.
+/// (`rule:types/anonymous-function-self-name`), resolvable only inside this function's own body.
 #[derive(Clone, Debug, PartialEq)]
 pub struct FnExpr {
     /// Whether declared `static` (no `$this` binding) — rejected with a
@@ -719,7 +719,7 @@ pub struct FnExpr {
     pub params: Vec<Param>,
     /// The declared return type, if written.
     pub return_type: Option<Type>,
-    /// The closure's body.
+    /// The anonymous function's body.
     pub body: FnBody,
 }
 
@@ -893,7 +893,7 @@ pub enum ExprKind {
     Int(Span),
     /// A float literal; the digits are cooked later.
     Float(Span),
-    /// A duration literal — `30s`, `1h30m`
+    /// A duration — `30s`, `1h30m`
     /// (`rule:types/duration`).
     ///
     /// A span like every other literal, cooked by
@@ -910,17 +910,17 @@ pub enum ExprKind {
     Str(Span),
     /// A double-quoted string or heredoc with at least one interpolation site.
     Interpolated(Vec<StringPart>),
-    /// ``html`…` `` — a markup literal (`rule:core-classes/html-template`).
+    /// ``html`…` `` — an html template (`rule:core-classes/html-template`).
     ///
     /// The same [`StringPart`] vector [`Interpolated`](Self::Interpolated)
     /// carries, and for the same reason: a segment is literal text and a hole
     /// is an ordinary expression. What differs is the type it is given and
     /// what happens to a hole on the way out — the segments are trusted
-    /// because the author wrote them, and every hole is escaped. A literal
+    /// because the author wrote them, and every hole is escaped. A template
     /// with no holes is one [`StringPart::Text`] rather than an
     /// [`Str`](Self::Str), because the node, not the part count, is what says
     /// this is `Core\Html\Markup`.
-    Markup(Vec<StringPart>),
+    HtmlTemplate(Vec<StringPart>),
     /// `$name`
     Variable(Span),
     /// A bare constant fetch: `FOO`, `Core\Bytes::class`'s `Core\Bytes` part is
@@ -1108,8 +1108,8 @@ pub enum ExprKind {
     },
     /// `clone expr`
     Clone(Box<Expr>),
-    /// `fn (...) => expr` or `fn (...) => { ... }` — the one closure literal
-    /// (`rule:types/anonymous-function`).
+    /// `fn (...) => expr` or `fn (...) => { ... }` — the one anonymous function
+    /// syntax (`rule:types/anonymous-function`).
     Fn(FnExpr),
     /// `match (subject) { ... }`
     Match {
@@ -1184,7 +1184,7 @@ pub enum ExprKind {
     /// this variant for an empty `{}` — the disambiguating lookahead only
     /// recognizes a *non*-empty literal attempt (`{ident :`), so an empty
     /// `{}` there stays an empty block, exactly as before this ADR.
-    ObjectLiteral(Vec<ObjectLiteralField>),
+    AnonObject(Vec<AnonObjectField>),
     /// A placeholder produced during error recovery, carrying the span of what
     /// it stood in for: the construct that was refused, or the insertion point
     /// where a required expression was not written. A diagnostic was already
@@ -1940,7 +1940,7 @@ pub enum AutoloadKind {
         prefix: Span,
         /// The root paths' literals, quotes included, in declaration order.
         /// Never empty in a well-formed declaration; a malformed one that
-        /// reported [`code::E_AUTOLOAD_PATH_NOT_LITERAL`](nvs_diagnostics::code::E_AUTOLOAD_PATH_NOT_LITERAL)
+        /// reported [`code::E_AUTOLOAD_PATH_NOT_WRITTEN_DIRECTLY`](nvs_diagnostics::code::E_AUTOLOAD_PATH_NOT_WRITTEN_DIRECTLY)
         /// still records what it could read.
         roots: Vec<Span>,
     },
@@ -1992,8 +1992,8 @@ pub struct TypeAliasDecl {
 /// produces nothing for a surrounding expression to consume, and a `yield`
 /// buried inside one is refused where it is *checked*, not here.
 ///
-/// It never descends into a nested `fn` body, because a closure appears only
-/// as an *expression* and this walk visits none — so `rule:types/anonymous-function`'s closures
+/// It never descends into a nested `fn` body, because an anonymous function appears only
+/// as an *expression* and this walk visits none — so `rule:types/anonymous-function`'s anonymous functions
 /// cannot make their enclosing method a generator, which is exactly `rule:iteration/generators`'s "`yield` is lexically confined to the generator's own body".
 #[must_use]
 pub fn is_generator_body(body: &Block) -> bool {

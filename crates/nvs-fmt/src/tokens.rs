@@ -31,7 +31,7 @@
 //!   own fragment records this as the reading of its "would force to be
 //!   escaped" clause.
 //!
-//! A heredoc, a nowdoc and a markup literal are never candidates: a heredoc's
+//! A heredoc, a nowdoc and an html template are never candidates: a heredoc's
 //! span opens on `<<<` rather than on a quote, and the other two are their own
 //! nodes.
 //!
@@ -67,7 +67,7 @@
 //! A mis-cased reserved spelling goes out in lower case
 //! (`rule:tooling/fmt-normalizes-only-reserved-spellings`), and what it is read
 //! from is the parse's own diagnostics: both spellings that rule names — the
-//! open tag and a duration literal's unit — are errors, each reported under
+//! open tag and a duration's unit — are errors, each reported under
 //! [`code::E_RESERVED_SPELLING_CASE`] with its primary span on the bytes to
 //! respell. [`repairs`] is what that costs the refusal in [`crate::format`],
 //! which turns on an error this stage does *not* rewrite rather than on an
@@ -106,15 +106,15 @@ const LOWER: &str = "abcdefghijklmnopqrstuvwxyz";
 /// Each of these ends at the delimiter that closes the list it wrote, so the
 /// node the index answers at a closer *is* the list. What that keeps out is
 /// everything else a `)`, `]` or `}` ends: a parenthesised expression, an
-/// index, a block, a class body and a closure separate nothing with commas, and
+/// index, a block, a class body and an anonymous function separate nothing with commas, and
 /// none of them is here.
 const LISTS: &[&str] = &[
+    "AnonObject",
     "ArrayLiteral",
     "Call",
     "Match",
     "MethodCall",
     "New",
-    "ObjectLiteral",
     "StaticCall",
 ];
 

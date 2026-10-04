@@ -360,7 +360,7 @@ fn a_return_never_leaves_a_finally() {
     for src in [
         // The `try` and the `catch` both keep it.
         "try { return 1; } catch (TypeError $e) { return 2; }",
-        // A closure written in the block returns from itself.
+        // An anonymous function written in the block returns from itself.
         "try { $a = 1; } finally { $f = fn() => { return 1; }; }",
     ] {
         let (_, diags) = parse_stmt_with_diags(src);
@@ -729,9 +729,9 @@ fn typed_function_scope_static_is_also_diagnosed() {
 }
 
 #[test]
-fn static_closure_and_static_property_are_not_confused_with_function_static() {
+fn static_anon_fn_and_static_property_are_not_confused_with_function_static() {
     // `static fn`/`static function` are already diagnosed as unsupported
-    // closure modifiers (chunk 1) — the point here is that they must
+    // modifiers of an anonymous function — the point here is that they must
     // NOT also be routed into the function-scope-`static` rejection.
     let (s, diags) = parse_stmt_with_diags("static fn (int $x) => $x;");
     assert!(

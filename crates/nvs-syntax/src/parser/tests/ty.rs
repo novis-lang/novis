@@ -217,8 +217,8 @@ fn a_string_literal_is_a_type_atom() {
     for src in [r#""a""#, "'a'"] {
         let (ty, written) = conversion_type(src);
         assert!(
-            matches!(ty.kind, TypeKind::Atom(TypeAtom::StringLiteral(_))),
-            "expected a string literal type for {src}: {ty:?}"
+            matches!(ty.kind, TypeKind::Atom(TypeAtom::SingleValueString(_))),
+            "expected a single-value string type for {src}: {ty:?}"
         );
         assert_eq!(written, src, "the span covers the quotes");
     }
@@ -229,15 +229,15 @@ fn an_int_literal_is_a_type_atom_with_or_without_a_sign() {
     for src in ["1", "-1"] {
         let (ty, written) = conversion_type(src);
         assert!(
-            matches!(ty.kind, TypeKind::Atom(TypeAtom::IntLiteral(_))),
-            "expected an int literal type for {src}: {ty:?}"
+            matches!(ty.kind, TypeKind::Atom(TypeAtom::SingleValueInt(_))),
+            "expected a single-value int type for {src}: {ty:?}"
         );
         assert_eq!(written, src, "the span covers a leading `-`");
     }
 }
 
 #[test]
-fn literal_atoms_union_and_take_the_nullable_sugar() {
+fn single_value_types_union_and_take_the_nullable_sugar() {
     let (ty, _) = conversion_type(r#""a"|"b"|"c""#);
     let TypeKind::Union(members) = ty.kind else {
         panic!("expected a union: {ty:?}");
@@ -246,7 +246,7 @@ fn literal_atoms_union_and_take_the_nullable_sugar() {
     assert!(
         members
             .iter()
-            .all(|m| matches!(m.kind, TypeKind::Atom(TypeAtom::StringLiteral(_))))
+            .all(|m| matches!(m.kind, TypeKind::Atom(TypeAtom::SingleValueString(_))))
     );
 
     // `?"a"` is the same `?atom` production every other atom already has.
@@ -256,7 +256,7 @@ fn literal_atoms_union_and_take_the_nullable_sugar() {
     };
     assert!(matches!(
         inner.kind,
-        TypeKind::Atom(TypeAtom::StringLiteral(_))
+        TypeKind::Atom(TypeAtom::SingleValueString(_))
     ));
 
     // A heterogeneous union is not this ADR's business to restrict.
@@ -294,8 +294,8 @@ fn a_class_constant_or_enum_case_parses_in_type_position() {
 fn a_float_literal_is_refused_in_type_position() {
     for src in ["1.5", "-1.5"] {
         assert!(
-            conversion_type_reports(src, code::E_FLOAT_LITERAL_TYPE),
-            "expected E_FLOAT_LITERAL_TYPE for {src}"
+            conversion_type_reports(src, code::E_FLOAT_SINGLE_VALUE_TYPE),
+            "expected E_FLOAT_SINGLE_VALUE_TYPE for {src}"
         );
     }
 }
@@ -308,12 +308,12 @@ fn an_interpolated_string_is_refused_in_type_position() {
     );
 }
 
-/// The statement-position half: a literal type declares a local exactly
+/// The statement-position half: a single-value type declares a local exactly
 /// as any other type does, and a statement that merely *starts* with a
 /// literal still reaches the expression path through
 /// `parse_stmt_maybe_local_decl`'s backtrack.
 #[test]
-fn a_literal_type_declares_a_local_without_swallowing_literal_expressions() {
+fn a_single_value_type_declares_a_local_without_swallowing_literal_expressions() {
     let s = parse_stmt_ok(r#""a"|"b" $mode = "a";"#);
     let StmtKind::LocalDecl { ty: Some(ty), .. } = s.kind else {
         panic!("expected a typed local: {s:?}");
@@ -330,7 +330,7 @@ fn a_literal_type_declares_a_local_without_swallowing_literal_expressions() {
 }
 
 #[test]
-fn a_literal_type_declares_a_parameter() {
+fn a_single_value_type_declares_a_parameter() {
     let stmts = parse_file_ok(
         "<?nvs\nclass C { public function setMode(\"a\"|\"b\"|\"c\" $mode): void {} }\n",
     );
@@ -451,7 +451,7 @@ fn a_shape_field_can_be_marked_optional() {
 }
 
 /// `rule:types/shape-type`: a keyword is a field name in a shape type, as it
-/// is in the object literal, so `{class: string}` is the type of the value
+/// is in the anonymous object, so `{class: string}` is the type of the value
 /// `{class: "Blog"}` builds.
 #[test]
 fn a_shape_field_may_be_named_by_a_keyword() {

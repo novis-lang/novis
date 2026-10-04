@@ -742,7 +742,7 @@ fn record_name(name: &Name, src: &SourceFile, out: &mut Harvest) {
 /// Only a literal written as the operand itself. A class constant, a
 /// concatenation and a variable are values built at run time, and nothing is
 /// loaded for them (`rule:programs/no-runtime-autoload`).
-fn record_class_literal(operand: &Expr, ty: &Type, src: &SourceFile, out: &mut Harvest) {
+fn record_written_class_name(operand: &Expr, ty: &Type, src: &SourceFile, out: &mut Harvest) {
     let target = match &ty.kind {
         TypeKind::Nullable(inner) => &inner.kind,
         kind => kind,
@@ -894,8 +894,8 @@ fn walk_type(ty: &Type, src: &SourceFile, out: &mut Harvest) {
             | TypeAtom::Never
             | TypeAtom::True
             | TypeAtom::False
-            | TypeAtom::StringLiteral(_)
-            | TypeAtom::IntLiteral(_)
+            | TypeAtom::SingleValueString(_)
+            | TypeAtom::SingleValueInt(_)
             | TypeAtom::Iterable
             | TypeAtom::Callable
             | TypeAtom::SelfTy
@@ -1150,7 +1150,7 @@ fn walk_stmt(stmt: &Stmt, src: &SourceFile, out: &mut Harvest) {
 /// — so this is where a prefix and its roots become strings, through the same
 /// [`cook_quoted`] a `require` path goes through. A literal that will not
 /// cook (a heredoc) is dropped: the parser already reported
-/// `E_AUTOLOAD_PATH_NOT_LITERAL` for every path that is not a plain string.
+/// `E_AUTOLOAD_PATH_NOT_WRITTEN_DIRECTLY` for every path that is not a plain string.
 fn record_autoload(decl: &AutoloadDecl, src: &SourceFile, out: &mut Harvest) {
     let cook = |span: Span| cook_quoted(src, span);
     let kind = match &decl.kind {
@@ -1366,10 +1366,10 @@ fn walk_expr(expr: &Expr, src: &SourceFile, out: &mut Harvest) {
             // arm still worth statically pulling in) — that generality isn't
             // needed yet, so this stops at the top-level path expression.
         }
-        // `rule:core-classes/html-template`'s markup literal carries the same
+        // `rule:core-classes/html-template`'s html template carries the same
         // parts an interpolated string does, and a hole in either is an
         // ordinary expression.
-        ExprKind::Interpolated(parts) | ExprKind::Markup(parts) => {
+        ExprKind::Interpolated(parts) | ExprKind::HtmlTemplate(parts) => {
             for part in parts {
                 if let StringPart::Expr(x) = part {
                     e!(x);
@@ -1409,7 +1409,7 @@ fn walk_expr(expr: &Expr, src: &SourceFile, out: &mut Harvest) {
             e!(else_);
         }
         ExprKind::Conversion { expr, ty, .. } => {
-            record_class_literal(expr, ty, src, out);
+            record_written_class_name(expr, ty, src, out);
             e!(expr);
             walk_type(ty, src, out);
         }
@@ -1541,7 +1541,7 @@ fn walk_expr(expr: &Expr, src: &SourceFile, out: &mut Harvest) {
             }
         }
         ExprKind::Await(inner) => e!(inner),
-        ExprKind::ObjectLiteral(fields) => {
+        ExprKind::AnonObject(fields) => {
             for field in fields {
                 e!(&field.value);
             }
@@ -2330,7 +2330,7 @@ class Unreached {}
     /// the literal is the whole name even inside a namespace. A concatenation
     /// is a value built at run time and loads nothing.
     #[test]
-    fn a_class_literal_conversion_loads_its_class() {
+    fn a_written_class_name_conversion_loads_its_class() {
         let dir = TempDir::new("autoload-class-literal");
         fs::create_dir_all(dir.path.join("src")).expect("create root");
         dir.write("Bootstrap.nvs", "<?nvs\nautoload 'Shop' from './src';\n");
@@ -2801,10 +2801,10 @@ class Unreached {}
         );
     }
 
-    /// [`Site::directories`], which an editor's link reads: each path literal
+    /// [`Site::directories`], which an editor's link reads: each written path
     /// of a declaration and the directory it resolves to, where there is one.
     #[test]
-    fn each_autoload_literal_names_the_directory_it_resolves_to() {
+    fn each_written_autoload_path_names_the_directory_it_resolves_to() {
         let dir = TempDir::new("autoload-literals");
         dir.write("src/Thing.nvs", "<?nvs\n");
         dir.write("modules/Shop/src/Cart.nvs", "<?nvs\n");

@@ -12,7 +12,7 @@
 //!
 //! What a whitespace run has to be is [`Runs`], which every stage that decides
 //! one contributes to: the line a brace sits on ([`crate::brace`]) and the run
-//! a qualifier, a one-line object literal or a `match` arm wants
+//! a qualifier, a one-line anonymous object or a `match` arm wants
 //! ([`crate::space`]) are the same answer to "what must precede this byte", and
 //! the run that is not there to rewrite is written into the code run instead.
 //!
@@ -24,8 +24,8 @@
 //! gets the delimiters — a multi-line list the comma, and a mis-cased reserved
 //! spelling its lower-case letters — that [`crate::tokens`] decides.
 //! `rule:tooling/fmt-never-reflows` leaves what is inside an expression to the
-//! author, and bytes a program prints — inline HTML, a heredoc body, a markup
-//! literal's body — are never a formatter's to touch, so a rule that appears to
+//! author, and bytes a program prints — inline HTML, a heredoc body, an html
+//! template's body — are never a formatter's to touch, so a rule that appears to
 //! require rewriting one is being misread.
 
 use std::iter::Peekable;

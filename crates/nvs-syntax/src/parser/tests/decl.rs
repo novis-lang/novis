@@ -801,7 +801,7 @@ fn toplevel_function_and_const_are_rejected() {
     };
     assert_eq!(consts.len(), 1);
 
-    // An anonymous `fn` closure statement is unaffected — only the
+    // An anonymous function statement (`fn`) is unaffected — only the
     // named, top-level `function` declaration above is rejected.
     parse_stmt_ok("fn () => 1;");
 }
@@ -1065,8 +1065,8 @@ fn an_autoload_path_that_is_not_a_literal_is_a_compile_error() {
         assert!(
             diags
                 .iter()
-                .any(|d| d.code == Some(code::E_AUTOLOAD_PATH_NOT_LITERAL)),
-            "expected E_AUTOLOAD_PATH_NOT_LITERAL for {src:?}: {diags:?}"
+                .any(|d| d.code == Some(code::E_AUTOLOAD_PATH_NOT_WRITTEN_DIRECTLY)),
+            "expected E_AUTOLOAD_PATH_NOT_WRITTEN_DIRECTLY for {src:?}: {diags:?}"
         );
         assert_eq!(diags.iter().count(), 1, "for {src:?}: {diags:?}");
         assert!(
@@ -1096,7 +1096,7 @@ fn an_autoload_declaration_owes_a_from_and_a_root() {
 /// name was written and in nothing else, and a name written with no list at
 /// all attaches an empty literal rather than a second kind of attribute.
 #[test]
-fn both_attach_forms_carry_one_object_literal_payload() {
+fn both_attach_forms_carry_one_anon_object_payload() {
     let s = parse_stmt_ok(
         "#[Route(path: \"/users\", method: \"GET\"), {tag: 1}] \
          #[Audit] \
@@ -1184,7 +1184,7 @@ fn a_constructor_return_carries_no_value() {
     for src in [
         // The early exit the rule keeps.
         "class C { public function constructor() { return; } }",
-        // A closure's own body, and an ordinary method's.
+        // An anonymous function's own body, and an ordinary method's.
         "class C { public function constructor() { $f = fn() => 1; } }",
         "class C { public function value(): int { return 1; } }",
         // A method declared inside the constructor's body does not inherit it.

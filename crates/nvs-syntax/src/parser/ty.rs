@@ -136,7 +136,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                 | TokenKind::Question
                 | TokenKind::LParen
                 | TokenKind::LBrace
-                // `rule:types/single-value-types`'s two literal atoms. A statement that merely
+                // `rule:types/single-value-types`'s two atoms, a string and an int. A statement that merely
                 // *starts* with one (`1 + 2;`, `"x" . $y;`) is no longer a
                 // free ride to the expression path, but it still gets there:
                 // `parse_stmt_maybe_local_decl` trial-parses the type and
@@ -573,21 +573,21 @@ impl<'src, 'd> Parser<'src, 'd> {
                     span,
                 }
             }
-            // `rule:types/single-value-types`'s literal atoms, the generalisation of the `true`
+            // `rule:types/single-value-types`'s atoms, the generalisation of the `true`
             // and `false` atoms just above from `bool`'s two values to every
             // `string` and `int`.
             TokenKind::SingleQuotedString => {
                 self.bump();
                 Type {
-                    kind: TypeKind::Atom(TypeAtom::StringLiteral(start)),
+                    kind: TypeKind::Atom(TypeAtom::SingleValueString(start)),
                     span: start,
                 }
             }
-            TokenKind::DoubleQuoteOpen => self.parse_string_literal_type(),
+            TokenKind::DoubleQuoteOpen => self.parse_string_single_value_type(),
             TokenKind::IntLiteral => {
                 self.bump();
                 Type {
-                    kind: TypeKind::Atom(TypeAtom::IntLiteral(start)),
+                    kind: TypeKind::Atom(TypeAtom::SingleValueInt(start)),
                     span: start,
                 }
             }
@@ -596,18 +596,18 @@ impl<'src, 'd> Parser<'src, 'd> {
                 let lit = self.bump().span;
                 let span = start.to(lit);
                 Type {
-                    kind: TypeKind::Atom(TypeAtom::IntLiteral(span)),
+                    kind: TypeKind::Atom(TypeAtom::SingleValueInt(span)),
                     span,
                 }
             }
             TokenKind::FloatLiteral => {
                 self.bump();
-                self.reject_float_literal_type(start)
+                self.reject_float_single_value_type(start)
             }
             TokenKind::Minus if matches!(self.peek_at(1).kind, TokenKind::FloatLiteral) => {
                 self.bump();
                 let lit = self.bump().span;
-                self.reject_float_literal_type(start.to(lit))
+                self.reject_float_single_value_type(start.to(lit))
             }
             _ => {
                 let span = self.error_expected("a type");
@@ -625,7 +625,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     /// value position's, and an interpolated one is refused: a type has no
     /// scope to interpolate a variable from. The refused case still yields
     /// the atom, so the rest of the declaration parses on.
-    pub(super) fn parse_string_literal_type(&mut self) -> Type {
+    pub(super) fn parse_string_single_value_type(&mut self) -> Type {
         let open = self.bump().span; // DoubleQuoteOpen
         let (parts, close) = self.parse_string_body(TokenKind::DoubleQuoteClose);
         let span = open.to(close);
@@ -633,7 +633,7 @@ impl<'src, 'd> Parser<'src, 'd> {
             self.diags.report(
                 Diagnostic::error(
                     code::E_INTERPOLATION_IN_TYPE,
-                    "a string literal type cannot interpolate",
+                    "a single-value string type cannot contain variables",
                 )
                 .with_primary(span, "this type names one exact string")
                 .with_help(
@@ -643,25 +643,28 @@ impl<'src, 'd> Parser<'src, 'd> {
             );
         }
         Type {
-            kind: TypeKind::Atom(TypeAtom::StringLiteral(span)),
+            kind: TypeKind::Atom(TypeAtom::SingleValueString(span)),
             span,
         }
     }
 
-    /// `rule:types/single-value-types`: there is no `float` literal type, deferred until
+    /// `rule:types/single-value-types`: there is no single-value `float` type, deferred until
     /// floating-point equality has a real answer. Diagnosed by name rather
     /// than left to `error_expected("a type")`, since the reason a reader
     /// needs is "not this type, on purpose" and not "unparseable here".
-    pub(super) fn reject_float_literal_type(&mut self, span: Span) -> Type {
+    pub(super) fn reject_float_single_value_type(&mut self, span: Span) -> Type {
         self.diags.report(
             Diagnostic::error(
-                code::E_FLOAT_LITERAL_TYPE,
-                "a `float` literal is not a type",
+                code::E_FLOAT_SINGLE_VALUE_TYPE,
+                "a `float` value cannot be used as a type",
             )
-            .with_primary(span, "only `string` and `int` literals name a type")
+            .with_primary(
+                span,
+                "only a string or a whole number can be a single-value type",
+            )
             .with_help(
-                "use `float` and guard the value, or name the accepted set with `int` \
-                 literals (`rule:types/single-value-types`)",
+                "use `float` and check the value, or list the allowed values as whole \
+                 numbers (`rule:types/single-value-types`)",
             ),
         );
         Type {
@@ -762,7 +765,7 @@ impl<'src, 'd> Parser<'src, 'd> {
 
     /// `{name: T, name?: T, ...}` in type position — `rule:types/shape-type`,
     /// Novis's one structurally-checked type. No ambiguity to resolve here the
-    /// way the value literal has (see [`Self::parse_object_literal_expr`]): type
+    /// way the value literal has (see [`Self::parse_anon_object_expr`]): type
     /// position never dispatches `{` to a block, so an empty `{}` is simply
     /// an empty shape rather than needing the literal's "at least one field"
     /// rule.
@@ -776,7 +779,7 @@ impl<'src, 'd> Parser<'src, 'd> {
         while !self.at(TokenKind::RBrace) && !self.at(TokenKind::Eof) {
             let field_start = self.peek().span;
             // A keyword is a field name here for the reason the value literal
-            // gives in `Self::parse_object_literal_expr`: `{class: string}`
+            // gives in `Self::parse_anon_object_expr`: `{class: string}`
             // is the type of `{class: …}`, and a value the literal can build
             // needs a type a declaration can write.
             let name = if matches!(self.peek().kind, TokenKind::Keyword(_)) {

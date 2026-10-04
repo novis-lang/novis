@@ -392,11 +392,11 @@ fn a_new_target_followed_by_a_comparison_is_still_a_comparison() {
 }
 
 #[test]
-fn object_literal_parses_as_a_primary_expression() {
+fn anon_object_parses_as_a_primary_expression() {
     // `rule:types/anonymous-object`.
     let e = parse_ok("{x: 1, y: 2}");
-    let ExprKind::ObjectLiteral(fields) = e.kind else {
-        panic!("expected an object literal: {e:?}");
+    let ExprKind::AnonObject(fields) = e.kind else {
+        panic!("expected an anonymous object: {e:?}");
     };
     assert_eq!(fields.len(), 2);
     assert!(matches!(fields[0].value.kind, ExprKind::Int(_)));
@@ -404,43 +404,43 @@ fn object_literal_parses_as_a_primary_expression() {
 
     // A trailing comma is allowed, same as an array literal.
     let e = parse_ok("{count: 0,}");
-    let ExprKind::ObjectLiteral(fields) = e.kind else {
-        panic!("expected an object literal: {e:?}");
+    let ExprKind::AnonObject(fields) = e.kind else {
+        panic!("expected an anonymous object: {e:?}");
     };
     assert_eq!(fields.len(), 1);
 }
 
 #[test]
-fn object_literal_rejects_shorthand_and_computed_key() {
+fn anon_object_rejects_shorthand_and_computed_key() {
     // `rule:types/anonymous-object`: every field is `name: value` — no shorthand, no
     // computed key.
     let (_, diags) = parse_with_diags("$o = {x};");
     assert!(
         diags
             .iter()
-            .any(|d| d.code == Some(code::E_OBJECT_LITERAL_SHORTHAND)),
-        "expected E_OBJECT_LITERAL_SHORTHAND, got {diags:?}"
+            .any(|d| d.code == Some(code::E_ANON_OBJECT_SHORTHAND)),
+        "expected E_ANON_OBJECT_SHORTHAND, got {diags:?}"
     );
 
     let (_, diags) = parse_with_diags("$o = {[$k]: 1};");
     assert!(
         diags
             .iter()
-            .any(|d| d.code == Some(code::E_OBJECT_LITERAL_COMPUTED_KEY)),
-        "expected E_OBJECT_LITERAL_COMPUTED_KEY, got {diags:?}"
+            .any(|d| d.code == Some(code::E_ANON_OBJECT_COMPUTED_KEY)),
+        "expected E_ANON_OBJECT_COMPUTED_KEY, got {diags:?}"
     );
 }
 
 #[test]
-fn object_literal_needs_parens_in_an_arrow_body() {
+fn anon_object_needs_parens_in_an_arrow_body() {
     // `rule:types/anonymous-object`: `fn() => {...}` already means a block body per
     // `rule:types/anonymous-function` — returning a literal needs `fn() => ({...})` instead.
     let (_, diags) = parse_with_diags("$f = fn() => {x: 1, y: 2};");
     assert!(
         diags
             .iter()
-            .any(|d| d.code == Some(code::E_OBJECT_LITERAL_NEEDS_PARENS)),
-        "expected E_OBJECT_LITERAL_NEEDS_PARENS, got {diags:?}"
+            .any(|d| d.code == Some(code::E_ANON_OBJECT_NEEDS_PARENS)),
+        "expected E_ANON_OBJECT_NEEDS_PARENS, got {diags:?}"
     );
 
     // Parenthesized, it's an ordinary returned literal with no
@@ -449,8 +449,8 @@ fn object_literal_needs_parens_in_an_arrow_body() {
     assert!(
         !diags
             .iter()
-            .any(|d| d.code == Some(code::E_OBJECT_LITERAL_NEEDS_PARENS)),
-        "did not expect E_OBJECT_LITERAL_NEEDS_PARENS, got {diags:?}"
+            .any(|d| d.code == Some(code::E_ANON_OBJECT_NEEDS_PARENS)),
+        "did not expect E_ANON_OBJECT_NEEDS_PARENS, got {diags:?}"
     );
     let e = parse_ok("fn() => ({x: 1, y: 2})");
     let ExprKind::Fn(f) = e.kind else {
@@ -462,7 +462,7 @@ fn object_literal_needs_parens_in_an_arrow_body() {
     let ExprKind::Paren(inner) = body.kind else {
         panic!("expected a paren: {body:?}");
     };
-    assert!(matches!(inner.kind, ExprKind::ObjectLiteral(_)));
+    assert!(matches!(inner.kind, ExprKind::AnonObject(_)));
 
     // An ordinary block body is completely unaffected.
     let e = parse_ok("fn() => { return 1; }");
@@ -473,15 +473,15 @@ fn object_literal_needs_parens_in_an_arrow_body() {
 }
 
 #[test]
-fn object_literal_needs_parens_as_a_bare_statement() {
+fn anon_object_needs_parens_as_a_bare_statement() {
     // `rule:types/anonymous-object`: a statement-initial `{` already means a block —
     // a discarded literal needs `({...});` instead.
     let (_, diags) = parse_stmt_with_diags("{x: 1, y: 2};");
     assert!(
         diags
             .iter()
-            .any(|d| d.code == Some(code::E_OBJECT_LITERAL_NEEDS_PARENS)),
-        "expected E_OBJECT_LITERAL_NEEDS_PARENS, got {diags:?}"
+            .any(|d| d.code == Some(code::E_ANON_OBJECT_NEEDS_PARENS)),
+        "expected E_ANON_OBJECT_NEEDS_PARENS, got {diags:?}"
     );
 
     let s = parse_stmt_ok("({x: 1, y: 2});");
@@ -491,7 +491,7 @@ fn object_literal_needs_parens_as_a_bare_statement() {
     let ExprKind::Paren(inner) = e.kind else {
         panic!("expected a paren: {e:?}");
     };
-    assert!(matches!(inner.kind, ExprKind::ObjectLiteral(_)));
+    assert!(matches!(inner.kind, ExprKind::AnonObject(_)));
 
     // An ordinary empty block is completely unaffected — the
     // disambiguating lookahead only fires for a non-empty literal
@@ -597,55 +597,55 @@ fn match_expression() {
 }
 
 #[test]
-fn function_closure_with_use_by_ref_is_rejected() {
-    // `rule:types/anonymous-function`/§ 2: `function` closures don't exist at all, and a
+fn function_expression_with_use_by_ref_is_rejected() {
+    // `rule:types/anonymous-function`/§ 2: anonymous `function` expressions don't exist at all, and a
     // `use (&$y)` clause gets its own, more specific diagnostic on top.
     let (e, diags) = parse_with_diags("function (int $x) use (&$y): int { return $x + $y; }");
     assert!(matches!(e.kind, ExprKind::Error(_)));
     assert!(
         diags
             .iter()
-            .any(|d| d.code == Some(code::E_FUNCTION_CLOSURE_UNSUPPORTED))
+            .any(|d| d.code == Some(code::E_FUNCTION_EXPRESSION_UNSUPPORTED))
     );
     assert!(
         diags
             .iter()
-            .any(|d| d.code == Some(code::E_CLOSURE_USE_BY_REF_UNSUPPORTED))
+            .any(|d| d.code == Some(code::E_ANON_FN_USE_BY_REF_UNSUPPORTED))
     );
 }
 
 #[test]
-fn function_closure_with_use_by_value_is_rejected() {
+fn function_expression_with_use_by_value_is_rejected() {
     let (e, diags) = parse_with_diags("function () use ($y) { return $y; }");
     assert!(matches!(e.kind, ExprKind::Error(_)));
     assert!(
         diags
             .iter()
-            .any(|d| d.code == Some(code::E_FUNCTION_CLOSURE_UNSUPPORTED))
+            .any(|d| d.code == Some(code::E_FUNCTION_EXPRESSION_UNSUPPORTED))
     );
     assert!(
         diags
             .iter()
-            .any(|d| d.code == Some(code::E_CLOSURE_USE_UNSUPPORTED))
+            .any(|d| d.code == Some(code::E_ANON_FN_USE_UNSUPPORTED))
     );
 }
 
 #[test]
-fn function_closure_without_use_is_rejected_once() {
+fn function_expression_without_use_is_rejected_once() {
     let (e, diags) = parse_with_diags("function () { return 1; }");
     assert!(matches!(e.kind, ExprKind::Error(_)));
     assert_eq!(
         diags
             .iter()
-            .filter(|d| d.code == Some(code::E_FUNCTION_CLOSURE_UNSUPPORTED))
+            .filter(|d| d.code == Some(code::E_FUNCTION_EXPRESSION_UNSUPPORTED))
             .count(),
         1
     );
     assert!(
         !diags
             .iter()
-            .any(|d| d.code == Some(code::E_CLOSURE_USE_UNSUPPORTED)
-                || d.code == Some(code::E_CLOSURE_USE_BY_REF_UNSUPPORTED))
+            .any(|d| d.code == Some(code::E_ANON_FN_USE_UNSUPPORTED)
+                || d.code == Some(code::E_ANON_FN_USE_BY_REF_UNSUPPORTED))
     );
 }
 
@@ -691,7 +691,7 @@ fn fn_expr_self_name_for_recursion() {
 }
 
 #[test]
-fn a_closure_parameter_may_omit_its_type() {
+fn an_anon_fn_parameter_may_omit_its_type() {
     // `rule:types/anonymous-function-parameter-inference`: the omission parses, and the
     // type comes from the position the literal is written in. A parameter
     // beside it may still name one.
@@ -706,19 +706,19 @@ fn a_closure_parameter_may_omit_its_type() {
 
 #[test]
 fn a_declared_parameter_still_names_its_type() {
-    // `rule:types/declaration`: only a closure literal stands in a position
+    // `rule:types/declaration`: only an anonymous function stands in a position
     // that has a type to offer, so a method's list keeps the refusal.
     let (_, diags) = parse_stmt_with_diags("class A { public function f($x): int { return 1; } }");
     assert!(diags.has_errors());
 }
 
 #[test]
-fn first_class_callable_syntax() {
+fn method_reference_syntax() {
     let e = parse_ok("strlen(...)");
     assert!(matches!(
         e.kind,
         ExprKind::Call {
-            args: CallArgs::FirstClassCallable,
+            args: CallArgs::MethodRef,
             ..
         }
     ));
@@ -764,7 +764,7 @@ fn a_keyword_spelled_parameter_name_is_a_named_argument() {
 }
 
 #[test]
-fn a_closure_argument_is_still_a_closure() {
+fn an_anon_fn_argument_is_still_an_anon_fn() {
     // The other side of the rule above: a keyword is only a name when a `:`
     // follows it immediately, so an `fn` literal — which always has its
     // parameter list next — is untouched.
@@ -814,23 +814,23 @@ fn double_quoted_string_with_interpolation() {
 }
 
 #[test]
-fn a_markup_literal_without_holes_stays_a_markup_node() {
+fn an_html_template_without_holes_stays_an_html_template_node() {
     // Unlike a quoted string, a hole-free body does not collapse to
     // `ExprKind::Str`: the node, not the part count, is what says
     // `Core\Html\Markup` (`rule:core-classes/html-template`).
     let e = parse_ok("html`<hr>`");
-    let ExprKind::Markup(parts) = e.kind else {
-        panic!("expected a markup literal: {e:?}");
+    let ExprKind::HtmlTemplate(parts) = e.kind else {
+        panic!("expected an html template: {e:?}");
     };
     assert_eq!(parts.len(), 1);
     assert!(matches!(parts[0], StringPart::Text(_)));
 }
 
 #[test]
-fn a_markup_hole_is_a_strings_hole() {
+fn an_html_template_hole_is_a_strings_hole() {
     let e = parse_ok("html`<span>{$u->fullName()}</span>`");
-    let ExprKind::Markup(parts) = e.kind else {
-        panic!("expected a markup literal: {e:?}");
+    let ExprKind::HtmlTemplate(parts) = e.kind else {
+        panic!("expected an html template: {e:?}");
     };
     assert_eq!(parts.len(), 3);
     assert!(matches!(parts[0], StringPart::Text(_)));
@@ -847,8 +847,8 @@ fn a_tag_hole_is_the_same_part_as_a_brace_hole_and_takes_a_static_call() {
     // `<?= … ?>` is one more `StringPart::Expr`, so nothing downstream learns a
     // second kind of hole (`rule:core-classes/html-template`).
     let e = parse_ok("html`<td><?= Money::format($c) ?></td>`");
-    let ExprKind::Markup(parts) = e.kind else {
-        panic!("expected a markup literal: {e:?}");
+    let ExprKind::HtmlTemplate(parts) = e.kind else {
+        panic!("expected an html template: {e:?}");
     };
     assert_eq!(parts.len(), 3);
     let StringPart::Expr(inner) = &parts[1] else {
@@ -989,7 +989,7 @@ fn name_span_covers_the_qualified_name() {
 }
 
 #[test]
-fn static_function_closure_is_diagnosed_as_a_function_closure() {
+fn static_function_expression_is_diagnosed_as_a_function_expression() {
     // `static function () {}` hits the same "not supported, use `fn`"
     // diagnostic as the unqualified spelling — there is no separate
     // static-modifier complaint once the literal itself is rejected.
@@ -998,7 +998,7 @@ fn static_function_closure_is_diagnosed_as_a_function_closure() {
     assert!(
         diags
             .iter()
-            .any(|d| d.code == Some(code::E_FUNCTION_CLOSURE_UNSUPPORTED))
+            .any(|d| d.code == Some(code::E_FUNCTION_EXPRESSION_UNSUPPORTED))
     );
 }
 

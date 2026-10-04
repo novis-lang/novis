@@ -168,8 +168,8 @@ impl<'src, 'd> Parser<'src, 'd> {
     /// One attribute — `rule:attributes/attach-sites-and-forms`'s named `Name(field: value, ...)` or bare
     /// `{field: value, ...}`. Both carry the same payload, so the
     /// parenthesized list is parsed by the very function that parses an
-    /// `rule:types/anonymous-object` object literal's fields: an attribute payload is that
-    /// literal written without its braces, not an argument list, so a
+    /// `rule:types/anonymous-object` anonymous object's fields: an attribute payload is that
+    /// object written without its braces, not an argument list, so a
     /// positional argument is "expected a field name" where it is written
     /// rather than something a later pass has to refuse.
     ///
@@ -182,7 +182,7 @@ impl<'src, 'd> Parser<'src, 'd> {
         let start = self.peek().span;
         if self.at(TokenKind::LBrace) {
             let open = self.bump().span; // '{'
-            let fields = self.parse_object_literal_fields(TokenKind::RBrace);
+            let fields = self.parse_anon_object_fields(TokenKind::RBrace);
             let close = self.expect(TokenKind::RBrace, "`}`");
             let payload = open.to(close);
             return Attribute {
@@ -207,7 +207,7 @@ impl<'src, 'd> Parser<'src, 'd> {
         let written = member.map_or(name.span, |member| name.span.to(member));
         let (fields, payload) = if self.at(TokenKind::LParen) {
             let open = self.bump().span; // '('
-            let fields = self.parse_object_literal_fields(TokenKind::RParen);
+            let fields = self.parse_anon_object_fields(TokenKind::RParen);
             let close = self.expect(TokenKind::RParen, "`)`");
             (fields, open.to(close))
         } else {
@@ -629,12 +629,12 @@ impl<'src, 'd> Parser<'src, 'd> {
         self.bump(); // 'autoload'
         let kind = if self.at_contextual("discover") {
             self.bump();
-            match self.parse_autoload_literal("a quoted glob") {
+            match self.parse_written_autoload_path("a quoted glob") {
                 Some(glob) => AutoloadKind::Discover { glob },
                 None => return self.recover_autoload_decl(start),
             }
         } else {
-            let Some(prefix) = self.parse_autoload_literal("a quoted namespace prefix") else {
+            let Some(prefix) = self.parse_written_autoload_path("a quoted namespace prefix") else {
                 return self.recover_autoload_decl(start);
             };
             if self.at_contextual("from") {
@@ -645,7 +645,7 @@ impl<'src, 'd> Parser<'src, 'd> {
             }
             let mut roots = Vec::new();
             loop {
-                let Some(root) = self.parse_autoload_literal("a quoted root path") else {
+                let Some(root) = self.parse_written_autoload_path("a quoted root path") else {
                     return self.recover_autoload_decl(start);
                 };
                 roots.push(root);
@@ -676,7 +676,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     /// The span returned covers the whole literal, quotes included, so
     /// `nvs_hir` decodes it with the same `cook_quoted` a `require` path goes
     /// through.
-    fn parse_autoload_literal(&mut self, what: &str) -> Option<Span> {
+    fn parse_written_autoload_path(&mut self, what: &str) -> Option<Span> {
         let span = match self.peek().kind {
             TokenKind::SingleQuotedString => self.bump().span,
             TokenKind::DoubleQuoteOpen => {
@@ -684,14 +684,14 @@ impl<'src, 'd> Parser<'src, 'd> {
                 let (parts, close) = self.parse_string_body(TokenKind::DoubleQuoteClose);
                 let span = open.to(close);
                 if !parts.iter().all(|p| matches!(p, StringPart::Text(_))) {
-                    self.report_autoload_not_literal(span, format!("expected {what}"));
+                    self.report_autoload_not_written(span, format!("expected {what}"));
                     return None;
                 }
                 span
             }
             _ => {
                 let span = self.peek().span;
-                self.report_autoload_not_literal(span, format!("expected {what}"));
+                self.report_autoload_not_written(span, format!("expected {what}"));
                 return None;
             }
         };
@@ -700,17 +700,17 @@ impl<'src, 'd> Parser<'src, 'd> {
         // whose first operand happens to be one.
         if self.at(TokenKind::Dot) {
             let dot = self.peek().span;
-            self.report_autoload_not_literal(dot, "a path cannot be built by concatenation");
+            self.report_autoload_not_written(dot, "a path cannot be built by concatenation");
             return None;
         }
         Some(span)
     }
 
-    fn report_autoload_not_literal(&mut self, span: Span, label: impl Into<String>) {
+    fn report_autoload_not_written(&mut self, span: Span, label: impl Into<String>) {
         self.diags.report(
             Diagnostic::error(
-                code::E_AUTOLOAD_PATH_NOT_LITERAL,
-                "an `autoload` declaration takes literal strings only",
+                code::E_AUTOLOAD_PATH_NOT_WRITTEN_DIRECTLY,
+                "an `autoload` declaration needs strings written directly in the code",
             )
             .with_primary(span, label)
             .with_help(
@@ -1712,7 +1712,7 @@ impl<'src, 'd> Parser<'src, 'd> {
 
     /// Whether `function` at the current position starts a rejected
     /// top-level declaration (`function foo() { ... }`) rather than an
-    /// anonymous closure used as a bare expression statement
+    /// anonymous `function` used as a bare expression statement
     /// (`function () { ... };`) — decided by whether a name, not `(`,
     /// follows, skipping an optional by-reference `&`.
     pub(super) fn at_named_function_decl(&mut self) -> bool {

@@ -7,7 +7,7 @@
 //!
 //! # Why the grammar lives in the *syntax* crate
 //!
-//! § 5 names three places that must agree — the source literal, the run-time
+//! § 5 names three places that must agree — the duration written in the source, the run-time
 //! `Core\Time\Duration::parse`, and a duration-valued `nvs.toml` directive —
 //! and says the three share one parser so a grammar change cannot land in one
 //! and miss the others. Exactly one of the three is lexical, so exactly one

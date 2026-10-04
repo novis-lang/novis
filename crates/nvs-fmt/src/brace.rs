@@ -15,8 +15,8 @@
 //! node containing a `{` is the production that wrote it, because every
 //! construct that could hold a brace of its own — a nested block, an
 //! expression, a member — is a node in its own right. That is also what keeps a
-//! brace inside a string literal or an attribute's object literal out of this:
-//! a literal is an expression node, so the innermost node at its `{` is never a
+//! brace inside a string literal or an attribute's payload object out of this:
+//! either one is an expression node, so the innermost node at its `{` is never a
 //! declaration. The kinds below are the ones
 //! `crates/nvs-syntax/src/walk.rs` spells, never a match on
 //! [`nvs_syntax::ast`], for the reason [`crate::indent`]'s doc gives.
@@ -28,7 +28,7 @@
 //! corpus is LF (`.gitattributes`), so this is about files this tool is pointed
 //! at, not about the tree.
 //!
-//! An `fn` closure is on the K&R side rather than absent: it is an expression,
+//! An `fn` anonymous function is on the K&R side rather than absent: it is an expression,
 //! so its body brace stays on the line its parameter list and return type were
 //! written on, and only the closing brace of a multi-line body gets a line of
 //! its own (`rule:tooling/fmt-novis-constructs`). An anonymous class, a
@@ -55,8 +55,8 @@ const DECLARATIONS: &[&str] = &[
 /// The nodes that write every brace of theirs inside themselves.
 ///
 /// A `try` holds its own body's braces and each `catch`'s and the `finally`'s,
-/// a `switch` holds the pair around its arms, and an `fn` closure's block body
-/// is spliced into the closure rather than given a [`Block`] of its own, so a
+/// a `switch` holds the pair around its arms, and an anonymous function's block
+/// body is spliced into the function rather than given a [`Block`] of its own, so a
 /// `{` whose innermost node is one of these is a body opener with nothing
 /// further to check.
 ///
@@ -117,7 +117,7 @@ pub(crate) fn placements(
 /// each brace and each continuation keyword in it wants written before it.
 ///
 /// A declaration's body opener is collected apart from the rest: an attribute's
-/// object literal is written inside the declaration it decorates and outside
+/// payload object is written inside the declaration it decorates and outside
 /// every node the walk builds, so it lands here as a candidate too, and the one
 /// that opens the body is the last of them — the members that follow it are
 /// nodes of their own. A declaration whose last byte is not `}` has no body at

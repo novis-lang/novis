@@ -35,7 +35,7 @@ use super::*;
 /// How far past a statement-initial `{` the shape-typed-local tell looks for
 /// the matching `}`. A shape a local would be declared with is a handful of
 /// tokens; past this the tell gives up and the `{` is read as the block or
-/// object literal it otherwise looks like, which costs a worse message on
+/// anonymous object it otherwise looks like, which costs a worse message on
 /// input no author writes. This is what keeps the scan — the one place the
 /// parser looks further ahead than three tokens — buffering a bounded number
 /// of tokens rather than however many the braced run holds.
@@ -74,18 +74,18 @@ impl<'src, 'd> Parser<'src, 'd> {
 
     /// Whether the `{` at the current position opens a *shape type* written in
     /// front of a local's name (`{x: int} $point;`, `{x?: int} $point;`)
-    /// rather than a block or an object literal, answering with how far the
+    /// rather than a block or an anonymous object, answering with how far the
     /// matching `}` is from here so the refusal can consume the run this
     /// identified.
     ///
     /// Both halves are load-bearing. The braced run has to open like a field
     /// list, which is what keeps a block a variable happens to follow
     /// (`{ echo 1; } $x = 1;`) out of it, and the token after the *matched*
-    /// `}` has to be a variable, which is what keeps a discarded object
-    /// literal (`{x: 1};`) out. An optional key (`{x?: int}`) opens a field
+    /// `}` has to be a variable, which is what keeps a discarded anonymous
+    /// object (`{x: 1};`) out. An optional key (`{x?: int}`) opens a field
     /// list too: it is the same declaration written in the same place, and
-    /// only [`Self::at_object_literal_in_block_position`], which answers for a
-    /// *literal*, has no spelling for it.
+    /// only [`Self::at_anon_object_in_block_position`], which answers for a
+    /// *value*, has no spelling for it.
     fn at_shape_typed_local(&mut self) -> Option<usize> {
         if self.peek().kind != TokenKind::LBrace || self.peek_at(1).kind != TokenKind::Ident {
             return None;
@@ -230,11 +230,11 @@ impl<'src, 'd> Parser<'src, 'd> {
             TokenKind::LBrace => {
                 if let Some(close) = self.at_shape_typed_local() {
                     self.parse_shape_typed_local_refusal(close)
-                } else if self.at_object_literal_in_block_position() {
+                } else if self.at_anon_object_in_block_position() {
                     // `rule:types/anonymous-object`: a statement-initial `{` already means a
-                    // block — a discarded object-literal statement needs
+                    // block — a discarded anonymous-object statement needs
                     // `({...});` instead.
-                    let expr = self.parse_object_literal_needs_parens();
+                    let expr = self.parse_anon_object_needs_parens();
                     self.expect(TokenKind::Semicolon, "`;`");
                     let span = start.to(self.last_span);
                     Stmt {

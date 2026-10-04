@@ -3,7 +3,7 @@
 //! `rule:tooling/fmt-base-style-is-per` opens with four-space indentation and
 //! no tabs, and the depth it counts is the nesting of brace-delimited bodies —
 //! a [`Block`](nvs_syntax::ast::Block), a class or interface or enum body, a
-//! `try` and its clauses, a function's or a closure's body. The depth of a byte
+//! `try` and its clauses, a function's or an anonymous function's body. The depth of a byte
 //! is therefore a question about the tree, and
 //! [`SyntaxIndex::at`](nvs_syntax::SyntaxIndex::at) already answers "which
 //! nodes contain this offset, innermost first" for
@@ -17,7 +17,7 @@
 //! on, rather than an absolute count of enclosing braces
 //! ([`Indent::opening_of`]). The two agree on every line of ordinary code and
 //! part company exactly where `rule:tooling/fmt-never-reflows` says they must:
-//! a closure the author wrapped inside a multi-line argument list starts at a
+//! an anonymous function the author wrapped inside a multi-line argument list starts at a
 //! column this formatter did not choose and must not move, and its body is one
 //! level in from there.
 //!
@@ -183,7 +183,7 @@ impl<'a> Indent<'a> {
     ///
     /// A body indents its contents from the line its own opening was written
     /// on, not from an absolute count of enclosing braces, and that is what
-    /// keeps `rule:tooling/fmt-never-reflows` whole: a closure written inside a
+    /// keeps `rule:tooling/fmt-never-reflows` whole: an anonymous function written inside a
     /// multi-line argument list starts at a column the author chose, and its
     /// body belongs one level in from *that* rather than one level in from the
     /// statement four continuation lines above. A line this module places
@@ -265,8 +265,8 @@ fn commented(trivia: &[Trivia], offset: usize) -> bool {
 /// A `Block` is the braces of whatever holds it, so an `if` whose condition
 /// wrapped across three lines still indents its body from the `if` rather than
 /// from the continuation line the `{` happened to land on. Every other body in
-/// [`BODIES`] is its own opener — a closure's body belongs to the closure, and
-/// the closure is where the author put it. A block held by another body is a
+/// [`BODIES`] is its own opener — an anonymous function's body belongs to the
+/// function, and the function is where the author put it. A block held by another body is a
 /// block statement of its own and opens where it is written. A `match`'s arm
 /// list is the `match` itself, which is what puts its closing brace on the line
 /// the keyword was written on.

@@ -160,6 +160,7 @@ pub enum Field {
 /// the two one home: it reads this file's own text and fails on a production
 /// in either and not the other.
 pub const KINDS: &[&str] = &[
+    "AnonObject",
     "ArrayLiteral",
     "Assign",
     "AutoloadDecl",
@@ -196,6 +197,7 @@ pub const KINDS: &[&str] = &[
     "Function",
     "Global",
     "Goto",
+    "HtmlTemplate",
     "If",
     "Index",
     "InlineHtml",
@@ -204,14 +206,12 @@ pub const KINDS: &[&str] = &[
     "Interpolated",
     "Isset",
     "LocalDecl",
-    "Markup",
     "Match",
     "Method",
     "MethodCall",
     "NamespaceDecl",
     "New",
     "Null",
-    "ObjectLiteral",
     "Paren",
     "ParentExpr",
     "PostIncDec",
@@ -246,7 +246,7 @@ pub const KINDS: &[&str] = &[
 impl Node {
     /// This node's whole subtree, itself excluded, in source order.
     ///
-    /// The transitive closure of [`Self::children`], and excluding the
+    /// Every descendant [`Self::children`] reaches, and excluding the
     /// receiver for the same reason `children` does: both answer *what this
     /// node contains*, and a node does not contain itself.
     #[must_use]
@@ -582,14 +582,14 @@ fn expr(e: &Expr) -> Node {
             }
             "Interpolated"
         }
-        ExprKind::Markup(parts) => {
+        ExprKind::HtmlTemplate(parts) => {
             for part in parts {
                 match part {
                     StringPart::Text(_) => {}
                     StringPart::Expr(e) => kids.push(expr(e)),
                 }
             }
-            "Markup"
+            "HtmlTemplate"
         }
         ExprKind::Variable(written) => {
             name = Some(*written);
@@ -815,11 +815,11 @@ fn expr(e: &Expr) -> Node {
             kids.push(expr(inner));
             "Paren"
         }
-        ExprKind::ObjectLiteral(fields) => {
+        ExprKind::AnonObject(fields) => {
             for field in fields {
                 kids.push(expr(&field.value));
             }
-            "ObjectLiteral"
+            "AnonObject"
         }
         ExprKind::Error(_) => "Error",
     };
@@ -1001,7 +1001,7 @@ fn push_block(kids: &mut Vec<Node>, block: &Block) {
 fn push_args(kids: &mut Vec<Node>, args: &CallArgs) {
     match args {
         CallArgs::List(list) => kids.extend(list.iter().map(|arg| expr(&arg.value))),
-        CallArgs::FirstClassCallable => {}
+        CallArgs::MethodRef => {}
     }
 }
 

@@ -1,5 +1,5 @@
 //! The whitespace a construct of Novis's own requires: one space in front of a
-//! qualified type, one inside each brace of a one-line object literal, and a
+//! qualified type, one inside each brace of a one-line anonymous object, and a
 //! line of its own for each arm of a `match` written across lines.
 //!
 //! `rule:tooling/fmt-novis-constructs` gives every construct PER never saw one
@@ -19,7 +19,7 @@
 //! (`$row->tainted`) and also an English word inside text a program prints, and
 //! neither of those is a type's. The first is told by the byte in front of the
 //! word and the second by the node the byte is in: everything inside a string
-//! literal, a markup literal or an inline-HTML region is the program's own
+//! literal, an html template or an inline-HTML region is the program's own
 //! output, which no formatter writes.
 //!
 //! What follows the word settles the rest. A qualifier qualifies `string`,
@@ -33,10 +33,10 @@
 //! every other one (`rule:tooling/fmt-never-reflows`), and a gap holding one is
 //! left alone.
 //!
-//! # A one-line object literal
+//! # A one-line anonymous object
 //!
 //! `{a: 1, b: 2}` goes out as `{ a: 1, b: 2 }`: one space after the opening
-//! brace and one before the closing one. Only a literal its author wrote on one
+//! brace and one before the closing one. Only an object its author wrote on one
 //! line is this rule's — across lines it is one field per line, which is
 //! [`crate::indent`]'s depth and [`crate::tokens`]'s trailing comma rather than
 //! a space. An empty literal has no inside to space, and a literal written
@@ -79,7 +79,7 @@ const QUALIFIERS: &[&str] = &["tainted", "secret"];
 /// inside a string literal looking exactly like a qualifier in front of a
 /// nullable type. The innermost node holding the byte is what tells them apart,
 /// and these are the kinds that answer "not code".
-const TEXT: &[&str] = &["Str", "Interpolated", "Markup", "InlineHtml"];
+const TEXT: &[&str] = &["Str", "Interpolated", "HtmlTemplate", "InlineHtml"];
 
 /// Everything these rules require of `text`, which must be `index`'s and
 /// `trivia`'s own file: the run that has to precede an offset, by that offset.
@@ -108,7 +108,7 @@ pub(crate) fn runs(
 }
 
 /// Reads `text[from..to]`, which is code and nothing else, and records what
-/// each qualifier, each one-line object literal and each `match` arm list in it
+/// each qualifier, each one-line anonymous object and each `match` arm list in it
 /// requires.
 fn scan(
     wanted: &mut Vec<(usize, String)>,
@@ -122,7 +122,7 @@ fn scan(
     for (offset, byte) in text.as_bytes().iter().enumerate().take(to).skip(from) {
         match *byte {
             b'{' => {
-                literal(wanted, index, text, trivia, offset);
+                anon_object(wanted, index, text, trivia, offset);
                 arm_lines(wanted, index, indent, text, offset);
             }
             b's' | b't' => qualifier(wanted, index, text, trivia, offset),
@@ -164,9 +164,9 @@ fn qualifier(
     wanted.push((at, SPACE.to_owned()));
 }
 
-/// Records the two spaces the object literal opened at `offset` requires
+/// Records the two spaces the anonymous object opened at `offset` requires
 /// inside its braces, where one is written there on a single line.
-fn literal(
+fn anon_object(
     wanted: &mut Vec<(usize, String)>,
     index: &SyntaxIndex,
     text: &str,
@@ -179,7 +179,7 @@ fn literal(
     let Some(node) = index.at(pos).innermost() else {
         return;
     };
-    if node.kind != "ObjectLiteral" || node.span.start as usize != offset {
+    if node.kind != "AnonObject" || node.span.start as usize != offset {
         return;
     }
     let end = node.span.end as usize;

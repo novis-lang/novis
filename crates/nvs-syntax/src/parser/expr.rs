@@ -8,11 +8,11 @@
 //! `and`/`or`/`xor` are caught at the bottom of the chain rather than parsed,
 //! since `&&`/`||` are the only logical connectives Novis keeps (`rule:expressions/no-keyword-logical-operators`).
 //!
-//! Beyond the operators: `match`, closures and arrow functions (`rule:types/anonymous-function`'s one
-//! literal, `fn`, plus the `function` forms it refuses), generators
-//! (`yield`/`yield from`), named arguments, spread, nullsafe, first-class
-//! callable syntax, `require` (an expression, not a statement — `rule:statements/require-is-the-only-inclusion-construct`),
-//! `spawn script … with(…)`, `rule:types/anonymous-object`'s `{a: 1}` object literal, and the
+//! Beyond the operators: `match`, anonymous functions (`rule:types/anonymous-function`'s one
+//! syntax, `fn`, plus the `function` forms it refuses), generators
+//! (`yield`/`yield from`), named arguments, spread, nullsafe, method
+//! references, `require` (an expression, not a statement — `rule:statements/require-is-the-only-inclusion-construct`),
+//! `spawn script … with(…)`, `rule:types/anonymous-object`'s `{a: 1}` anonymous object, and the
 //! interpolated-string bodies the lexer hands back in parts.
 //!
 //! Several PHP spellings are parsed here only to be diagnosed, and they are
@@ -695,15 +695,15 @@ impl<'src, 'd> Parser<'src, 'd> {
             &rhs.kind,
             ExprKind::Fn(_)
                 | ExprKind::Call {
-                    args: CallArgs::FirstClassCallable,
+                    args: CallArgs::MethodRef,
                     ..
                 }
                 | ExprKind::MethodCall {
-                    args: CallArgs::FirstClassCallable,
+                    args: CallArgs::MethodRef,
                     ..
                 }
                 | ExprKind::StaticCall {
-                    args: CallArgs::FirstClassCallable,
+                    args: CallArgs::MethodRef,
                     ..
                 }
         );
@@ -1250,7 +1250,7 @@ impl<'src, 'd> Parser<'src, 'd> {
         if self.at(TokenKind::Ellipsis) && self.peek_at(1).kind == TokenKind::RParen {
             self.bump();
             self.bump();
-            return CallArgs::FirstClassCallable;
+            return CallArgs::MethodRef;
         }
         let mut args = Vec::new();
         while !self.at(TokenKind::RParen) && !self.at(TokenKind::Eof) {
@@ -1369,7 +1369,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                     kind: ExprKind::Error(start),
                 }
             }
-            TokenKind::DurationLiteral => {
+            TokenKind::Duration => {
                 self.bump();
                 Expr {
                     span: start,
@@ -1384,7 +1384,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                 }
             }
             TokenKind::DoubleQuoteOpen => self.parse_double_quoted_string(),
-            TokenKind::MarkupOpen => self.parse_markup_literal(),
+            TokenKind::HtmlTemplateOpen => self.parse_html_template(),
             TokenKind::HeredocOpen | TokenKind::NowdocOpen => self.parse_heredoc_string(),
             TokenKind::Variable => {
                 if self.file.span_text(start) == Some("$_") {
@@ -1437,7 +1437,9 @@ impl<'src, 'd> Parser<'src, 'd> {
                 }
             }
             TokenKind::Keyword(Keyword::Static) => match self.peek_at(1).kind {
-                TokenKind::Keyword(Keyword::Function) => self.parse_rejected_function_closure(true),
+                TokenKind::Keyword(Keyword::Function) => {
+                    self.parse_rejected_function_expression(true)
+                }
                 TokenKind::Keyword(Keyword::Fn) => self.parse_fn_expr(true),
                 _ => {
                     self.bump();
@@ -1449,7 +1451,7 @@ impl<'src, 'd> Parser<'src, 'd> {
             },
             TokenKind::LBracket => self.parse_array_literal_brackets(),
             TokenKind::Keyword(Keyword::Array) => self.parse_array_literal_legacy(),
-            TokenKind::LBrace => self.parse_object_literal_expr(),
+            TokenKind::LBrace => self.parse_anon_object_expr(),
             TokenKind::LParen => {
                 self.bump();
                 let inner = self.parse_expr();
@@ -1470,7 +1472,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                     kind: ExprKind::Clone(Box::new(e)),
                 }
             }
-            TokenKind::Keyword(Keyword::Function) => self.parse_rejected_function_closure(false),
+            TokenKind::Keyword(Keyword::Function) => self.parse_rejected_function_expression(false),
             TokenKind::Keyword(Keyword::Fn) => self.parse_fn_expr(false),
             TokenKind::Keyword(Keyword::Match) => self.parse_match(),
             TokenKind::Keyword(Keyword::Yield) => self.parse_yield(),
@@ -1621,35 +1623,35 @@ impl<'src, 'd> Parser<'src, 'd> {
     }
 
     // ========================================================================
-    // Object literals (`rule:types/anonymous-object`)
+    // Anonymous objects (`rule:types/anonymous-object`)
     // ========================================================================
 
     /// Whether `{` at the current position looks like the start of an
-    /// object-literal field (`{ ident :`) rather than a genuine block — the
+    /// anonymous object's field (`{ ident :`) rather than a genuine block — the
     /// one-token-past-`{` lookahead the ADR's two "already commits to a
     /// block" call sites ([`Self::parse_fn_expr`]'s arrow body,
     /// [`Self::parse_statement_inner`]'s statement-initial `{`) need before
     /// committing. An empty `{}` never matches, so it stays a block at both
     /// sites, unchanged from before this ADR.
-    pub(super) fn at_object_literal_in_block_position(&mut self) -> bool {
+    pub(super) fn at_anon_object_in_block_position(&mut self) -> bool {
         self.peek_at(1).kind == TokenKind::Ident && self.peek_at(2).kind == TokenKind::Colon
     }
 
-    /// Parses the `{...}` at a position [`Self::at_object_literal_in_block_position`]
-    /// already confirmed looks like an object literal, reports the
+    /// Parses the `{...}` at a position [`Self::at_anon_object_in_block_position`]
+    /// already confirmed looks like an anonymous object, reports the
     /// parenthesize-to-disambiguate diagnostic, and discards the parsed
     /// value in favour of [`ExprKind::Error`] — the same "diagnose the
     /// closed, already-identified collision, recover with `Error`" shape
     /// [`Self::parse_unary_inner`]'s legacy-cast handling already uses,
-    /// rather than smuggling a literal through a position that was
+    /// rather than smuggling an object through a position that was
     /// unambiguously a block a moment ago.
-    pub(super) fn parse_object_literal_needs_parens(&mut self) -> Expr {
-        let literal = self.parse_object_literal_expr();
-        let span = literal.span;
+    pub(super) fn parse_anon_object_needs_parens(&mut self) -> Expr {
+        let object = self.parse_anon_object_expr();
+        let span = object.span;
         self.diags.report(
             Diagnostic::error(
-                code::E_OBJECT_LITERAL_NEEDS_PARENS,
-                "an object literal here is ambiguous with a block",
+                code::E_ANON_OBJECT_NEEDS_PARENS,
+                "an anonymous object here is ambiguous with a block",
             )
             .with_primary(span, "`{` already means a block in this position")
             .with_help("wrap it in parentheses: `({...})` (`rule:types/anonymous-object`)"),
@@ -1663,14 +1665,14 @@ impl<'src, 'd> Parser<'src, 'd> {
     /// `{name: value, ...}` as a primary expression — `rule:types/anonymous-object`. No
     /// shorthand (`{x}`) and no computed key (`{[expr]: value}`); either is
     /// diagnosed in place and the field is dropped rather than aborting the
-    /// whole literal, so one bad field doesn't hide problems with the rest.
-    pub(super) fn parse_object_literal_expr(&mut self) -> Expr {
+    /// whole object, so one bad field doesn't hide problems with the rest.
+    pub(super) fn parse_anon_object_expr(&mut self) -> Expr {
         let start = self.bump().span; // '{'
-        let fields = self.parse_object_literal_fields(TokenKind::RBrace);
+        let fields = self.parse_anon_object_fields(TokenKind::RBrace);
         let close = self.expect(TokenKind::RBrace, "`}`");
         Expr {
             span: start.to(close),
-            kind: ExprKind::ObjectLiteral(fields),
+            kind: ExprKind::AnonObject(fields),
         }
     }
 
@@ -1678,10 +1680,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     /// `close` its caller is about to expect. Shared with `rule:attributes/attach-sites-and-forms`'s
     /// attribute payload, whose named form writes the same run inside
     /// parentheses — one rule about what a field may be, in one place.
-    pub(super) fn parse_object_literal_fields(
-        &mut self,
-        close: TokenKind,
-    ) -> Vec<ObjectLiteralField> {
+    pub(super) fn parse_anon_object_fields(&mut self, close: TokenKind) -> Vec<AnonObjectField> {
         let mut fields = Vec::new();
         while !self.at(close) && !self.at(TokenKind::Eof) {
             if self.at(TokenKind::LBracket) {
@@ -1691,11 +1690,11 @@ impl<'src, 'd> Parser<'src, 'd> {
                 let key_span = key_start.to(key_end);
                 self.diags.report(
                     Diagnostic::error(
-                        code::E_OBJECT_LITERAL_COMPUTED_KEY,
-                        "an object literal has no computed key",
+                        code::E_ANON_OBJECT_COMPUTED_KEY,
+                        "an anonymous object cannot have a computed key",
                     )
                     .with_primary(key_span, "every field name is a static identifier")
-                    .with_help("write the literal field name directly, e.g. `{name: value}`"),
+                    .with_help("write the field name directly, e.g. `{name: value}`"),
                 );
                 if self.eat(TokenKind::Colon).is_some() {
                     let _ = self.parse_expr();
@@ -1707,7 +1706,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                 // (`rule:tooling/a-prompt-is-a-core-member`) and `{match: …}`, `{class: …}` are the shapes
                 // a JSON document or an HTML attribute set arrives as. Nothing
                 // is ambiguous here — the token is followed by a `:` inside an
-                // already-open literal, where no statement keyword can begin —
+                // already-open anonymous object, where no statement keyword can begin —
                 // and refusing them would put a spelling in the spec that no
                 // call site could write.
                 let name = if matches!(self.peek().kind, TokenKind::Keyword(_)) {
@@ -1718,8 +1717,8 @@ impl<'src, 'd> Parser<'src, 'd> {
                 if self.eat(TokenKind::Colon).is_none() {
                     self.diags.report(
                         Diagnostic::error(
-                            code::E_OBJECT_LITERAL_SHORTHAND,
-                            "an object literal has no shorthand field",
+                            code::E_ANON_OBJECT_SHORTHAND,
+                            "an anonymous object cannot have a shorthand field",
                         )
                         .with_primary(name, "write the value explicitly")
                         .with_help("write `{name: value}` instead of `{name}`"),
@@ -1727,7 +1726,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                 } else {
                     let value = self.parse_expr();
                     let span = field_start.to(value.span);
-                    fields.push(ObjectLiteralField { name, value, span });
+                    fields.push(AnonObjectField { name, value, span });
                 }
             }
             if self.eat(TokenKind::Comma).is_none() {
@@ -1814,7 +1813,7 @@ impl<'src, 'd> Parser<'src, 'd> {
             .with_primary(start.to(class), "this class has no name to be known by")
             .with_help(
                 "declare a named class in the same file and write `new That(…)`, or use a \
-                 closure where the class is one method (`rule:types/anonymous-function`)",
+                 anonymous function when the class has only one method (`rule:types/anonymous-function`)",
             ),
         );
         let args = if self.at(TokenKind::LParen) {
@@ -1963,7 +1962,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     }
 
     // ========================================================================
-    // Closures and arrow functions
+    // Anonymous functions
     // ========================================================================
 
     /// A declaration's parameter list, where `rule:types/declaration` holds
@@ -1972,18 +1971,18 @@ impl<'src, 'd> Parser<'src, 'd> {
         self.parse_param_list(true)
     }
 
-    /// A closure literal's parameter list, the one list where a parameter may
+    /// An anonymous function's parameter list, the one list where a parameter may
     /// leave its type out (`rule:types/anonymous-function-parameter-inference`) and take it
-    /// from the position the literal is written in. Nothing else in the
+    /// from the position the function is written in. Nothing else in the
     /// language stands in such a position, so every other list keeps the
     /// refusal.
-    pub(super) fn parse_closure_params(&mut self) -> Vec<Param> {
+    pub(super) fn parse_anon_fn_params(&mut self) -> Vec<Param> {
         self.parse_param_list(false)
     }
 
     /// Every list goes through here, so this is where a second parameter of
-    /// one name is `E_BAD_PARAM_LIST`, for a method, a closure and an arrow
-    /// function alike. The parameter is kept, so the list still has its
+    /// one name is `E_BAD_PARAM_LIST`, for a method and an anonymous function
+    /// alike. The parameter is kept, so the list still has its
     /// arity.
     fn parse_param_list(&mut self, ty_required: bool) -> Vec<Param> {
         self.expect(TokenKind::LParen, "`(`");
@@ -2068,19 +2067,19 @@ impl<'src, 'd> Parser<'src, 'd> {
     /// `function (...) { ... }` / `function (...) use (...) { ... }`: not a
     /// spelling Novis keeps at all (`rule:types/anonymous-function`) — `fn` covers both a block
     /// and an expression body, so there is nothing left for a second
-    /// literal to do. Recovers by parsing the whole shape (params, an
+    /// syntax to do. Recovers by parsing the whole shape (params, an
     /// optional `use` clause, an optional return type, the block) so the
     /// parser can keep going, then discards it in favor of `ExprKind::Error`.
-    pub(super) fn parse_rejected_function_closure(&mut self, is_static: bool) -> Expr {
+    pub(super) fn parse_rejected_function_expression(&mut self, is_static: bool) -> Expr {
         let start = self.peek().span;
         if is_static {
             self.bump();
         }
         let function_span = self.peek().span;
         self.bump(); // `function`
-        let _ = self.eat(TokenKind::Amp); // by-ref return — dropped along with this literal
-        let _ = self.parse_closure_params();
-        let use_clause = self.parse_and_discard_closure_use_clause();
+        let _ = self.eat(TokenKind::Amp); // by-ref return — dropped along with this expression
+        let _ = self.parse_anon_fn_params();
+        let use_clause = self.parse_and_discard_use_clause();
         let _ = if self.eat(TokenKind::Colon).is_some() {
             Some(self.parse_type())
         } else {
@@ -2090,16 +2089,16 @@ impl<'src, 'd> Parser<'src, 'd> {
         let span = start.to(body.span);
         self.diags.report(
             Diagnostic::error(
-                code::E_FUNCTION_CLOSURE_UNSUPPORTED,
-                "anonymous `function` literals are not supported",
+                code::E_FUNCTION_EXPRESSION_UNSUPPORTED,
+                "anonymous `function` expressions are not supported",
             )
-            .with_primary(function_span, "Novis keeps exactly one closure literal")
+            .with_primary(function_span, "write an anonymous function with `fn`")
             .with_help(
                 "use `fn(...) => ...` (an expression body) or `fn(...) => { ... }` (a block body)",
             ),
         );
         if let Some(by_ref) = use_clause {
-            self.report_closure_use_clause(span, by_ref);
+            self.report_use_clause(span, by_ref);
         }
         Expr {
             span,
@@ -2110,7 +2109,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     /// Parses a `use (...)` capture clause if one is present, purely for
     /// error recovery — `fn` has no `use` clause of any kind (`rule:types/implicit-capture`).
     /// Returns `Some(saw_by_ref)` if a clause was present at all.
-    pub(super) fn parse_and_discard_closure_use_clause(&mut self) -> Option<bool> {
+    pub(super) fn parse_and_discard_use_clause(&mut self) -> Option<bool> {
         self.eat_keyword(Keyword::Use)?;
         self.expect(TokenKind::LParen, "`(`");
         let mut saw_by_ref = false;
@@ -2127,51 +2126,50 @@ impl<'src, 'd> Parser<'src, 'd> {
         Some(saw_by_ref)
     }
 
-    /// `rule:types/implicit-capture`/§ 6: a closure has no `use` clause, ever; capture by
+    /// `rule:types/implicit-capture`/§ 6: an anonymous function has no `use` clause, ever; capture by
     /// reference specifically has no replacement syntax at all.
-    pub(super) fn report_closure_use_clause(&mut self, span: Span, by_ref: bool) {
+    pub(super) fn report_use_clause(&mut self, span: Span, by_ref: bool) {
         if by_ref {
             self.diags.report(
                 Diagnostic::error(
-                    code::E_CLOSURE_USE_BY_REF_UNSUPPORTED,
+                    code::E_ANON_FN_USE_BY_REF_UNSUPPORTED,
                     "capture by reference is not supported",
                 )
-                .with_primary(span, "closures have no `use` clause")
+                .with_primary(span, "an anonymous function has no `use` clause")
                 .with_help("share the value through an object property instead"),
             );
         } else {
             self.diags.report(
                 Diagnostic::error(
-                    code::E_CLOSURE_USE_UNSUPPORTED,
-                    "closures have no `use` clause",
+                    code::E_ANON_FN_USE_UNSUPPORTED,
+                    "an anonymous function has no `use` clause",
                 )
                 .with_primary(
                     span,
-                    "every outer variable a closure's body reads is captured automatically, \
-                     by value",
+                    "an anonymous function captures every outer variable it reads, by value",
                 ),
             );
         }
     }
 
     /// `fn [name] (...): T => expr` or `fn [name] (...): T => { ... }` — the
-    /// one closure literal (`rule:types/anonymous-function`). `name` is an optional self-name
+    /// one anonymous function syntax (`rule:types/anonymous-function`). `name` is an optional self-name
     /// for recursion (§ 3); a stray `use (...)` clause is still accepted
     /// for recovery and diagnosed the same way the rejected `function`
-    /// literal is.
+    /// expression's is.
     pub(super) fn parse_fn_expr(&mut self, is_static: bool) -> Expr {
         let start = self.peek().span;
         if is_static {
-            self.report_static_closure_modifier(start);
+            self.report_static_anon_fn_modifier(start);
             self.bump();
         }
         self.expect(TokenKind::Keyword(Keyword::Fn), "`fn`");
         let name = self.eat(TokenKind::Ident);
-        let params = self.parse_closure_params();
+        let params = self.parse_anon_fn_params();
         let use_span = self.peek().span;
-        let use_clause = self.parse_and_discard_closure_use_clause();
+        let use_clause = self.parse_and_discard_use_clause();
         if let Some(by_ref) = use_clause {
-            self.report_closure_use_clause(use_span, by_ref);
+            self.report_use_clause(use_span, by_ref);
         }
         let return_type = if self.eat(TokenKind::Colon).is_some() {
             Some(self.parse_type())
@@ -2180,10 +2178,10 @@ impl<'src, 'd> Parser<'src, 'd> {
         };
         self.expect(TokenKind::FatArrow, "`=>`");
         let body = if self.at(TokenKind::LBrace) {
-            if self.at_object_literal_in_block_position() {
+            if self.at_anon_object_in_block_position() {
                 // `rule:types/anonymous-object`: `{` here already means a block body — an
-                // object literal needs `fn() => ({...})` instead.
-                FnBody::Expr(Box::new(self.parse_object_literal_needs_parens()))
+                // anonymous object needs `fn() => ({...})` instead.
+                FnBody::Expr(Box::new(self.parse_anon_object_needs_parens()))
             } else {
                 FnBody::Block(self.in_callable_body(false, Self::parse_block))
             }
@@ -2595,14 +2593,14 @@ impl<'src, 'd> Parser<'src, 'd> {
     ///
     /// It does not collapse a hole-free body the way a quoted string does: the
     /// node is what says `Core\Html\Markup`, so ``html`<hr>` `` must stay an
-    /// [`ExprKind::Markup`] holding one text part rather than becoming an
+    /// [`ExprKind::HtmlTemplate`] holding one text part rather than becoming an
     /// [`ExprKind::Str`].
-    pub(super) fn parse_markup_literal(&mut self) -> Expr {
-        let open = self.bump().span; // MarkupOpen
-        let (parts, close) = self.parse_string_body(TokenKind::MarkupClose);
+    pub(super) fn parse_html_template(&mut self) -> Expr {
+        let open = self.bump().span; // HtmlTemplateOpen
+        let (parts, close) = self.parse_string_body(TokenKind::HtmlTemplateClose);
         Expr {
             span: open.to(close),
-            kind: ExprKind::Markup(parts),
+            kind: ExprKind::HtmlTemplate(parts),
         }
     }
 
@@ -2627,10 +2625,10 @@ impl<'src, 'd> Parser<'src, 'd> {
                 // The same part as a brace hole: what differs is only which
                 // expressions the lexer let through, and by here that is
                 // decided (`rule:core-classes/html-template`).
-                TokenKind::MarkupEchoOpen => {
+                TokenKind::HtmlTemplateEchoOpen => {
                     self.bump();
                     let e = self.parse_expr();
-                    self.expect(TokenKind::MarkupEchoClose, "`?>`");
+                    self.expect(TokenKind::HtmlTemplateEchoClose, "`?>`");
                     parts.push(StringPart::Expr(e));
                 }
                 TokenKind::Eof => return (parts, self.peek().span),

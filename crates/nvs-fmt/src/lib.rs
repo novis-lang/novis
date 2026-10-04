@@ -40,7 +40,7 @@
 //! The one error that refuses nothing is the one this formatter itself
 //! rewrites: a mis-cased reserved spelling
 //! (`rule:tooling/fmt-normalizes-only-reserved-spellings`). Nothing about such
-//! a file is half written — the lexer read the tag or the duration literal it
+//! a file is half written — the lexer read the tag or the duration it
 //! was handed, every span behind it is exact, and the diagnostic names the
 //! bytes to lower-case — so [`crate::tokens`] writes the spelling and the file
 //! is formatted. A rule naming a rewrite that no file carrying one ever reaches

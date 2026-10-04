@@ -25,7 +25,7 @@
 //! enum/enum-case/namespace-segment names (`PascalCase`), method names
 //! (`camelCase`), property/parameter/local-variable names (`camelCase`,
 //! `$`-sigil stripped before the pattern check), and class constant names
-//! (`SCREAMING_SNAKE_CASE`). A closure's optional self-name
+//! (`SCREAMING_SNAKE_CASE`). An anonymous function's optional self-name
 //! ([`crate::ast::FnExpr::name`]) is checked the same way as a local
 //! variable — it is exactly that shape of identifier, just spelled without a
 //! `$` sigil.
@@ -301,8 +301,8 @@ fn check_const_name(span: Span, src: &SourceFile, diags: &mut Diagnostics) {
     );
 }
 
-/// Property/parameter/local-variable/closure-name check. `strip_dollar`
-/// distinguishes the three sigil-carrying categories from a closure's
+/// Property/parameter/local-variable/anonymous-function-name check. `strip_dollar`
+/// distinguishes the three sigil-carrying categories from an anonymous function's
 /// self-name, which is a plain identifier — see [`crate::ast::FnExpr::name`].
 fn check_member_casing(
     span: Span,
@@ -344,8 +344,8 @@ fn check_local_name(span: Span, src: &SourceFile, diags: &mut Diagnostics) {
     check_member_casing(span, src, "local variable", true, diags);
 }
 
-fn check_closure_name(span: Span, src: &SourceFile, diags: &mut Diagnostics) {
-    check_member_casing(span, src, "closure", false, diags);
+fn check_anon_fn_name(span: Span, src: &SourceFile, diags: &mut Diagnostics) {
+    check_member_casing(span, src, "anonymous function", false, diags);
 }
 
 // ============================================================================
@@ -659,7 +659,7 @@ fn check_anon_class(anon: &AnonClassDecl, src: &SourceFile, diags: &mut Diagnost
 
 fn check_fn_expr(fn_expr: &FnExpr, src: &SourceFile, diags: &mut Diagnostics) {
     if let Some(name) = fn_expr.name {
-        check_closure_name(name, src, diags);
+        check_anon_fn_name(name, src, diags);
     }
     check_params(&fn_expr.params, src, diags);
     match &fn_expr.body {
@@ -697,7 +697,7 @@ fn check_new_target(target: &NewTarget, src: &SourceFile, diags: &mut Diagnostic
 )]
 fn check_expr(expr: &Expr, src: &SourceFile, diags: &mut Diagnostics) {
     match &expr.kind {
-        ExprKind::Interpolated(parts) | ExprKind::Markup(parts) => {
+        ExprKind::Interpolated(parts) | ExprKind::HtmlTemplate(parts) => {
             for part in parts {
                 if let StringPart::Expr(x) = part {
                     check_expr(x, src, diags);
@@ -832,7 +832,7 @@ fn check_expr(expr: &Expr, src: &SourceFile, diags: &mut Diagnostics) {
         }
         ExprKind::Await(inner) => check_expr(inner, src, diags),
         ExprKind::Require { path } => check_expr(path, src, diags),
-        ExprKind::ObjectLiteral(fields) => {
+        ExprKind::AnonObject(fields) => {
             // `rule:types/anonymous-object`: a literal's field names are ordinary property
             // names, so `rule:core-api/identifier-casing`'s camelCase rule applies unchanged — reuse
             // the same check an ordinary class property declaration gets,
@@ -1007,21 +1007,21 @@ mod tests {
     }
 
     #[test]
-    fn a_correctly_cased_object_literal_field_is_clean() {
+    fn a_correctly_cased_anon_object_field_is_clean() {
         // `rule:types/anonymous-object`: field names are ordinary property names.
         let diags = check("<?nvs\n$o = {userId: 1};\n");
         assert!(diags.is_empty(), "{diags:?}");
     }
 
     #[test]
-    fn a_mis_cased_object_literal_field_is_diagnosed() {
+    fn a_mis_cased_anon_object_field_is_diagnosed() {
         let diags = check("<?nvs\n$o = {user_id: 1};\n");
         assert_eq!(only_code(&diags), code::E_BAD_MEMBER_CASING);
         assert!(diags.iter().next().unwrap().message.contains("userId"));
     }
 
     #[test]
-    fn a_leading_underscore_object_literal_field_is_rejected() {
+    fn a_leading_underscore_anon_object_field_is_rejected() {
         let diags = check("<?nvs\n$o = {_cache: 1};\n");
         assert_eq!(only_code(&diags), code::E_BAD_MEMBER_CASING);
     }
@@ -1090,7 +1090,7 @@ mod tests {
     }
 
     #[test]
-    fn a_closure_self_name_is_checked_like_a_local() {
+    fn an_anon_fn_self_name_is_checked_like_a_local() {
         let diags = check(
             "<?nvs\nclass Foo { public function a(): void { $f = fn bad_name(int $n) => $n; } }\n",
         );
@@ -1098,7 +1098,7 @@ mod tests {
     }
 
     #[test]
-    fn a_correctly_named_closure_self_name_is_clean() {
+    fn a_correctly_named_anon_fn_self_name_is_clean() {
         let diags = check(
             "<?nvs\nclass Foo { public function a(): void { $f = fn factorial(int $n) => $n; } }\n",
         );

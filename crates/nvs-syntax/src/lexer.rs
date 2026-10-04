@@ -12,11 +12,11 @@
 //! tag is legal to run to end of file"
 //! ([`docs/spec/00-overview.md` § 1](/docs/spec/00-overview.md)).
 //! Everything nested inside that outer state — a double-quoted string, a
-//! markup literal, a heredoc/nowdoc, a `{$…}` interpolation site — is a
+//! html template, a heredoc/nowdoc, a `{$…}` interpolation site — is a
 //! genuine push/pop frame, and reaching end of input with any of those still
 //! open is [`code::E_UNTERMINATED`].
 //!
-//! A markup literal, ``html`…` ``, is [`Mode::DoubleQuoted`] with the
+//! An html template, ``html`…` ``, is [`Mode::DoubleQuoted`] with the
 //! delimiter swapped: the same segments, the same `{$` holes counting brace
 //! depth, the same escapes. The lexer scans for the closing backtick and for
 //! `{$`, and for nothing else — it learns no HTML
@@ -55,9 +55,9 @@ enum Mode {
         interpolation: bool,
         /// Nested `{`/`}` seen since this frame opened, for the interpolation
         /// case: the frame closes on a `}` seen at depth 0, not on the first
-        /// `}` at all — a closure literal inside `{$…}` has its own braces.
+        /// `}` at all — an anonymous function inside `{$…}` has its own braces.
         brace_depth: u32,
-        /// True for a frame opened by `<?=` inside a markup literal
+        /// True for a frame opened by `<?=` inside an html template
         /// (`rule:core-classes/html-template`): it closes on `?>` and on nothing
         /// else, so a `}` inside it is an ordinary [`TokenKind::RBrace`]
         /// whatever the depth.
@@ -66,12 +66,12 @@ enum Mode {
     /// Inside `"…"`, between [`TokenKind::DoubleQuoteOpen`] and
     /// [`TokenKind::DoubleQuoteClose`].
     DoubleQuoted { start: BytePos },
-    /// Inside ``html`…` ``, between [`TokenKind::MarkupOpen`] and
-    /// [`TokenKind::MarkupClose`]. This is [`Mode::DoubleQuoted`] with the
+    /// Inside ``html`…` ``, between [`TokenKind::HtmlTemplateOpen`] and
+    /// [`TokenKind::HtmlTemplateClose`]. This is [`Mode::DoubleQuoted`] with the
     /// delimiter swapped and nothing else changed: the segments, the `{$`
     /// holes and the escapes are a double-quoted string's
     /// (`rule:core-classes/html-template`).
-    Markup { start: BytePos },
+    HtmlTemplate { start: BytePos },
     /// Inside a heredoc/nowdoc body, between its open and close delimiters.
     /// `interpolation` is false for a nowdoc (`<<<'LABEL'`).
     Heredoc {
@@ -213,7 +213,7 @@ impl<'a> Lexer<'a> {
         match self.modes.last() {
             Some(Mode::Html) => self.lex_html(diags),
             Some(Mode::Code { .. }) => self.lex_code(diags),
-            Some(Mode::DoubleQuoted { .. } | Mode::Markup { .. } | Mode::Heredoc { .. }) => {
+            Some(Mode::DoubleQuoted { .. } | Mode::HtmlTemplate { .. } | Mode::Heredoc { .. }) => {
                 self.lex_quoted_body(diags)
             }
             None => unreachable!("mode stack is never empty"),
@@ -229,23 +229,23 @@ impl<'a> Lexer<'a> {
         }
         let mode = self.modes.pop().expect("checked len() > 1 above");
         let (what, start, close_kind) = match mode {
-            Mode::DoubleQuoted { start } => (
-                "unterminated string literal",
-                start,
-                TokenKind::DoubleQuoteClose,
-            ),
-            Mode::Markup { start } => {
-                ("unterminated markup literal", start, TokenKind::MarkupClose)
+            Mode::DoubleQuoted { start } => {
+                ("unterminated string", start, TokenKind::DoubleQuoteClose)
             }
+            Mode::HtmlTemplate { start } => (
+                "unterminated html template",
+                start,
+                TokenKind::HtmlTemplateClose,
+            ),
             Mode::Heredoc { start, .. } => (
                 "unterminated heredoc/nowdoc",
                 start,
                 TokenKind::HeredocClose,
             ),
             Mode::Code { tag_hole: true, .. } => (
-                "unterminated `<?= … ?>` hole in a markup literal",
+                "unterminated `<?= … ?>` hole in an html template",
                 self.pos,
-                TokenKind::MarkupEchoClose,
+                TokenKind::HtmlTemplateEchoClose,
             ),
             Mode::Code { .. } => (
                 "unterminated `{$…}` interpolation",
@@ -302,7 +302,7 @@ impl<'a> Lexer<'a> {
         text.starts_with("/**") && !text.starts_with("/**/")
     }
 
-    /// At a `{` inside a markup literal: the length of the text that is the
+    /// At a `{` inside an html template: the length of the text that is the
     /// template habit `{Page::TITLE}` — a name, `::`, then up to and including
     /// the `}` that closes it on the same line — or `None` when the brace is
     /// followed by anything else. With no `}` before the line ends the length
@@ -329,7 +329,7 @@ impl<'a> Lexer<'a> {
             Some(end) if bytes[end] == b'}' => end + 2,
             _ => 1,
         };
-        Some(u32::try_from(len).expect("a markup literal is shorter than 4 GiB"))
+        Some(u32::try_from(len).expect("an html template is shorter than 4 GiB"))
     }
 
     // --- cursor -------------------------------------------------------------
@@ -574,13 +574,16 @@ impl<'a> Lexer<'a> {
         );
         let tag_frame = matches!(self.modes.last(), Some(Mode::Code { tag_hole: true, .. }));
 
-        // A `<?= … ?>` hole inside a markup literal ends here, and the literal's
-        // body resumes: this frame was pushed over the markup mode, so popping
+        // A `<?= … ?>` hole inside an html template ends here, and the template's
+        // body resumes: this frame was pushed over the html template mode, so popping
         // it is all the return takes.
         if tag_frame && self.starts_with("?>") {
             let start = self.pos;
             self.pos += 2;
-            self.push(TokenKind::MarkupEchoClose, self.mk_span(start, self.pos));
+            self.push(
+                TokenKind::HtmlTemplateEchoClose,
+                self.mk_span(start, self.pos),
+            );
             self.modes.pop();
             return;
         }
@@ -659,8 +662,8 @@ impl<'a> Lexer<'a> {
         if self.starts_with("html`") {
             let start = self.pos;
             self.pos += 5;
-            self.push(TokenKind::MarkupOpen, self.mk_span(start, self.pos));
-            self.modes.push(Mode::Markup { start });
+            self.push(TokenKind::HtmlTemplateOpen, self.mk_span(start, self.pos));
+            self.modes.push(Mode::HtmlTemplate { start });
             return;
         }
 
@@ -742,7 +745,7 @@ impl<'a> Lexer<'a> {
         self.push(kind, span);
     }
 
-    /// A numeric literal, and — `rule:types/duration` — the duration literal that shares its opening digits.
+    /// A numeric literal, and — `rule:types/duration` — the duration that shares its opening digits.
     ///
     /// A duration is reached only from a **plain decimal** integer: the
     /// `0x`/`0o`/`0b` forms return before this point, so `0x1d` stays one hex
@@ -882,7 +885,7 @@ impl<'a> Lexer<'a> {
         let span = self.mk_span(start, end);
         self.pos = end;
         match duration::parse(candidate) {
-            Ok(_) => self.push(TokenKind::DurationLiteral, span),
+            Ok(_) => self.push(TokenKind::Duration, span),
             // A unit in the wrong case is the one refusal here that leaves the
             // literal's shape intact: `rule:classes/reserved-spellings-are-lower-case` gives the
             // spelling one form and the bytes are a duration otherwise, so the
@@ -899,13 +902,13 @@ impl<'a> Lexer<'a> {
                     )
                     .with_primary(span, format!("write `{}`", candidate.to_ascii_lowercase())),
                 );
-                self.push(TokenKind::DurationLiteral, span);
+                self.push(TokenKind::Duration, span);
             }
             Err(err) => {
                 diags.report(
                     Diagnostic::error(
-                        code::E_BAD_DURATION_LITERAL,
-                        format!("`{candidate}` is not a duration literal"),
+                        code::E_BAD_DURATION,
+                        format!("`{candidate}` is not a valid duration"),
                     )
                     .with_primary(span, err.message()),
                 );
@@ -946,7 +949,7 @@ impl<'a> Lexer<'a> {
             match self.peek() {
                 None => {
                     diags.report(
-                        Diagnostic::error(code::E_UNTERMINATED, "unterminated string literal")
+                        Diagnostic::error(code::E_UNTERMINATED, "unterminated string")
                             .with_primary(self.mk_span(start, self.pos), "runs to end of file"),
                     );
                     break;
@@ -1396,16 +1399,20 @@ impl<'a> Lexer<'a> {
                 true,
                 String::new(),
             ),
-            Some(Mode::Markup { .. }) => (Some(('`', TokenKind::MarkupClose)), true, String::new()),
+            Some(Mode::HtmlTemplate { .. }) => (
+                Some(('`', TokenKind::HtmlTemplateClose)),
+                true,
+                String::new(),
+            ),
             Some(Mode::Heredoc {
                 label,
                 interpolation,
                 ..
             }) => (None, *interpolation, label.clone()),
-            _ => unreachable!("lex_quoted_body called outside a string/heredoc/markup mode"),
+            _ => unreachable!("lex_quoted_body called outside a string/heredoc/html template mode"),
         };
         let is_heredoc = delimiter.is_none();
-        let is_markup = matches!(delimiter, Some(('`', _)));
+        let is_template = matches!(delimiter, Some(('`', _)));
 
         if is_heredoc && self.heredoc_terminator_here(&label) {
             let span = self.consume_heredoc_terminator(&label);
@@ -1424,14 +1431,17 @@ impl<'a> Lexer<'a> {
         }
 
         if interpolation {
-            // The output tag a page already uses opens a hole in a markup
-            // literal too, and the hole takes any expression, so a constant or
+            // The output tag a page already uses opens a hole in an html
+            // template too, and the hole takes any expression, so a constant or
             // a static call needs no local to reach the page
             // (`rule:core-classes/html-template`). A string keeps `{$` alone.
-            if is_markup && self.starts_with("<?=") {
+            if is_template && self.starts_with("<?=") {
                 let start = self.pos;
                 self.pos += 3;
-                self.push(TokenKind::MarkupEchoOpen, self.mk_span(start, self.pos));
+                self.push(
+                    TokenKind::HtmlTemplateEchoOpen,
+                    self.mk_span(start, self.pos),
+                );
                 self.modes.push(Mode::Code {
                     interpolation: true,
                     brace_depth: 0,
@@ -1473,10 +1483,10 @@ impl<'a> Lexer<'a> {
                 if self.starts_with("{$") {
                     break;
                 }
-                if is_markup && self.starts_with("<?=") {
+                if is_template && self.starts_with("<?=") {
                     break;
                 }
-                if is_markup
+                if is_template
                     && self.peek() == Some('{')
                     && let Some(len) = self.brace_before_class_path()
                 {
@@ -1490,7 +1500,7 @@ impl<'a> Lexer<'a> {
                     let inner = inner.strip_suffix('}').unwrap_or(inner);
                     diags.report(
                         Diagnostic::warning(
-                            code::W_MARKUP_BRACE_BEFORE_A_CLASS_PATH,
+                            code::W_HTML_TEMPLATE_BRACE_BEFORE_A_CLASS_PATH,
                             "this brace opens no hole",
                         )
                         .with_primary(span, "text, written to the page as it is")
@@ -1500,7 +1510,7 @@ impl<'a> Lexer<'a> {
                         )),
                     );
                 }
-                if is_markup && let Some((_, len)) = self.match_open_tag() {
+                if is_template && let Some((_, len)) = self.match_open_tag() {
                     // A code block has no meaning inside a value: the literal is
                     // one expression, and a loop or a condition around it is
                     // written in code mode outside. Reported once, at the tag,
@@ -1509,10 +1519,10 @@ impl<'a> Lexer<'a> {
                     let span = self.mk_span(self.pos, self.pos + len);
                     diags.report(
                         Diagnostic::error(
-                            code::E_CODE_BLOCK_IN_MARKUP,
-                            "a code block cannot open inside a markup literal",
+                            code::E_CODE_BLOCK_IN_HTML_TEMPLATE,
+                            "a code block cannot open inside an html template",
                         )
-                        .with_primary(span, "a markup literal is one expression")
+                        .with_primary(span, "an html template is one expression")
                         .with_help(
                             "write `<?= expr ?>` for one value, or build the fragments in code \
                              mode and compose them with `+` or `Core\\Html::join`",
@@ -2051,17 +2061,11 @@ mod tests {
     /// `rule:types/duration`: one token per literal, maximal munch, and the units in
     /// descending order.
     #[test]
-    fn duration_literal_shapes() {
+    fn duration_shapes() {
         assert_eq!(
             kinds_ok("<?nvs 30s 1h30m 500ms 1w 1w2d3h4m5s6ms7us8ns"),
             vec![
-                OpenTagNvs,
-                DurationLiteral,
-                DurationLiteral,
-                DurationLiteral,
-                DurationLiteral,
-                DurationLiteral,
-                Eof
+                OpenTagNvs, Duration, Duration, Duration, Duration, Duration, Eof
             ]
         );
     }
@@ -2070,7 +2074,7 @@ mod tests {
     /// because the `0x` form returns before the duration production is
     /// reached, and `3 d` is two tokens because whitespace ends the candidate.
     #[test]
-    fn a_duration_literal_does_not_swallow_a_hex_literal_or_a_spaced_identifier() {
+    fn a_duration_does_not_swallow_a_hex_literal_or_a_spaced_identifier() {
         assert_eq!(kinds_ok("<?nvs 0x1d"), vec![OpenTagNvs, IntLiteral, Eof]);
         assert_eq!(
             kinds_ok("<?nvs 3 d"),
@@ -2097,7 +2101,7 @@ mod tests {
     /// this holds is that the lexer *reaches* it. There is nothing left to lex,
     /// so the token is [`TokenKind::Unknown`].
     #[test]
-    fn a_malformed_duration_literal_is_one_lexer_error() {
+    fn a_malformed_duration_is_one_lexer_error() {
         for src in ["<?nvs 30m1h", "<?nvs 1h1h", "<?nvs 1.5s", "<?nvs 100000w"] {
             let (kinds, diags) = kinds(src);
             assert!(diags.has_errors(), "{src} should be refused");
@@ -2148,7 +2152,7 @@ mod tests {
     #[test]
     fn a_mis_cased_duration_unit_keeps_its_token_and_names_its_spelling() {
         let (kinds, diags) = kinds("<?nvs 1H30M");
-        assert_eq!(kinds, vec![OpenTagNvs, DurationLiteral, Eof]);
+        assert_eq!(kinds, vec![OpenTagNvs, Duration, Eof]);
         assert_eq!(diags.error_count(), 1);
         assert!(
             diags
@@ -2162,10 +2166,10 @@ mod tests {
     /// to decide whether the `-` in `$a -7d` is binary — it is always its own
     /// token, and `nvs_types` refuses the arithmetic that results.
     #[test]
-    fn a_duration_literal_never_carries_a_sign() {
+    fn a_duration_never_carries_a_sign() {
         assert_eq!(
             kinds_ok("<?nvs -7d"),
-            vec![OpenTagNvs, Minus, DurationLiteral, Eof]
+            vec![OpenTagNvs, Minus, Duration, Eof]
         );
     }
 
@@ -2353,7 +2357,7 @@ mod tests {
 
     #[test]
     fn complex_interpolation_tracks_nested_braces() {
-        // The closure's own braces must not be mistaken for the closing `}`
+        // The anonymous function's own braces must not be mistaken for the closing `}`
         // of the interpolation site.
         assert_eq!(
             kinds_ok(r#"<?nvs "{$f(function () { return 1; })}""#),
@@ -2380,7 +2384,7 @@ mod tests {
     }
 
     #[test]
-    fn a_markup_literal_lexes_as_parts_the_way_a_double_quoted_string_does() {
+    fn an_html_template_lexes_as_parts_the_way_a_double_quoted_string_does() {
         // The same shape a `"…"` produces with the delimiter swapped: segments
         // and `{$` holes, and nothing in the lexer that knows what a tag is
         // (`rule:core-classes/html-template`).
@@ -2389,12 +2393,12 @@ mod tests {
             vec![
                 OpenTagNvs,
                 Keyword(super::Keyword::Echo),
-                MarkupOpen,
+                HtmlTemplateOpen,
                 StringPart,
                 ComplexInterpOpen,
                 Variable,
                 ComplexInterpClose,
-                MarkupClose,
+                HtmlTemplateClose,
                 Semicolon,
                 Eof,
             ]
@@ -2402,14 +2406,14 @@ mod tests {
     }
 
     #[test]
-    fn a_markup_hole_tracks_nested_braces_so_a_closure_does_not_close_it() {
+    fn a_template_hole_tracks_nested_braces_so_an_anon_fn_does_not_close_it() {
         // The hole opens the same `Mode::Code` frame a string's does, so the
-        // closure's braces are counted rather than mistaken for the closer.
+        // anonymous function's braces are counted rather than mistaken for the closer.
         assert_eq!(
             kinds_ok("<?nvs html`<p>{$f(function () { return 1; })}</p>`;"),
             vec![
                 OpenTagNvs,
-                MarkupOpen,
+                HtmlTemplateOpen,
                 StringPart,
                 ComplexInterpOpen,
                 Variable,
@@ -2425,7 +2429,7 @@ mod tests {
                 RParen,
                 ComplexInterpClose,
                 StringPart,
-                MarkupClose,
+                HtmlTemplateClose,
                 Semicolon,
                 Eof,
             ]
@@ -2442,11 +2446,11 @@ mod tests {
             kinds_ok("<?nvs html`<style>.a{color:red}</style>{Money::format($c)}`;"),
             vec![
                 OpenTagNvs,
-                MarkupOpen,
+                HtmlTemplateOpen,
                 StringPart,
                 Variable,
                 StringPart,
-                MarkupClose,
+                HtmlTemplateClose,
                 Semicolon,
                 Eof,
             ]
@@ -2454,16 +2458,16 @@ mod tests {
     }
 
     #[test]
-    fn a_bare_dollar_name_interpolates_in_a_markup_literal() {
+    fn a_bare_dollar_name_interpolates_in_an_html_template() {
         assert_eq!(
             kinds_ok("<?nvs html`<b>$name</b>`;"),
             vec![
                 OpenTagNvs,
-                MarkupOpen,
+                HtmlTemplateOpen,
                 StringPart,
                 Variable,
                 StringPart,
-                MarkupClose,
+                HtmlTemplateClose,
                 Semicolon,
                 Eof,
             ]
@@ -2471,16 +2475,16 @@ mod tests {
     }
 
     #[test]
-    fn a_backslash_backtick_is_a_literal_backtick_in_a_markup_segment() {
+    fn a_backslash_backtick_is_a_plain_backtick_in_an_html_template() {
         // The escape is consumed with the segment, so the delimiter it names
         // never reaches the closer check and the body stays one part.
         assert_eq!(
             kinds_ok(r"<?nvs html`<code>\`</code>`;"),
             vec![
                 OpenTagNvs,
-                MarkupOpen,
+                HtmlTemplateOpen,
                 StringPart,
-                MarkupClose,
+                HtmlTemplateClose,
                 Semicolon,
                 Eof,
             ]
@@ -2495,11 +2499,11 @@ mod tests {
             kinds_ok(r"<?nvs html`\{$name}`;"),
             vec![
                 OpenTagNvs,
-                MarkupOpen,
+                HtmlTemplateOpen,
                 StringPart,
                 Variable,
                 StringPart,
-                MarkupClose,
+                HtmlTemplateClose,
                 Semicolon,
                 Eof,
             ]
@@ -2507,23 +2511,23 @@ mod tests {
     }
 
     #[test]
-    fn an_output_tag_opens_a_hole_that_takes_any_expression_in_a_markup_literal() {
-        // `<?=` is the second hole a markup literal has, and the expression in
+    fn an_output_tag_opens_a_hole_that_takes_any_expression_in_an_html_template() {
+        // `<?=` is the second hole an html template has, and the expression in
         // it may begin with anything — here a class name — where a brace hole
         // has to begin with `$` (`rule:core-classes/html-template`).
         assert_eq!(
             kinds_ok("<?nvs html`<p><?= App::VERSION ?></p>`;"),
             vec![
                 OpenTagNvs,
-                MarkupOpen,
+                HtmlTemplateOpen,
                 StringPart,
-                MarkupEchoOpen,
+                HtmlTemplateEchoOpen,
                 Ident,
                 DoubleColon,
                 Ident,
-                MarkupEchoClose,
+                HtmlTemplateEchoClose,
                 StringPart,
-                MarkupClose,
+                HtmlTemplateClose,
                 Semicolon,
                 Eof,
             ]
@@ -2532,15 +2536,15 @@ mod tests {
 
     #[test]
     fn a_brace_inside_a_tag_hole_is_a_brace_and_only_the_close_tag_ends_it() {
-        // A closure with a body is written in a tag hole as anywhere else: the
+        // An anonymous function with a body is written in a tag hole as anywhere else: the
         // frame closes on `?>`, never on a `}`, whatever the depth.
         assert_eq!(
             kinds_ok("<?nvs html`<p><?= $f(function () { return 1; }) ?></p>`;"),
             vec![
                 OpenTagNvs,
-                MarkupOpen,
+                HtmlTemplateOpen,
                 StringPart,
-                MarkupEchoOpen,
+                HtmlTemplateEchoOpen,
                 Variable,
                 LParen,
                 Keyword(super::Keyword::Function),
@@ -2552,9 +2556,9 @@ mod tests {
                 Semicolon,
                 RBrace,
                 RParen,
-                MarkupEchoClose,
+                HtmlTemplateEchoClose,
                 StringPart,
-                MarkupClose,
+                HtmlTemplateClose,
                 Semicolon,
                 Eof,
             ]
@@ -2581,16 +2585,16 @@ mod tests {
     }
 
     #[test]
-    fn a_code_tag_inside_a_markup_literal_is_e0010_and_then_text() {
+    fn a_code_tag_inside_an_html_template_is_e0010_and_then_text() {
         let src = "<?nvs html`<ul><?nvs echo 1; ?></ul>`;";
         let (kinds, diags) = kinds(src);
         assert_eq!(
             kinds,
             vec![
                 OpenTagNvs,
-                MarkupOpen,
+                HtmlTemplateOpen,
                 StringPart,
-                MarkupClose,
+                HtmlTemplateClose,
                 Semicolon,
                 Eof,
             ],
@@ -2598,8 +2602,8 @@ mod tests {
         );
         let reported = diags
             .iter()
-            .find(|d| d.code == Some(code::E_CODE_BLOCK_IN_MARKUP))
-            .expect("a code tag inside a literal is reported");
+            .find(|d| d.code == Some(code::E_CODE_BLOCK_IN_HTML_TEMPLATE))
+            .expect("a code tag inside a template is reported");
         assert_eq!(
             reported.primary_span().map(|span| span.start),
             src.find("<?nvs echo")
@@ -2609,9 +2613,9 @@ mod tests {
     }
 
     #[test]
-    fn an_unterminated_markup_literal_reports_e0002_at_the_delimiter_that_opened_it() {
+    fn an_unterminated_html_template_reports_e0002_at_the_delimiter_that_opened_it() {
         // The code an unterminated string, heredoc and interpolation already
-        // carry -- the literal adds no diagnostic of its own
+        // carry -- the template adds no diagnostic of its own
         // (`rule:core-classes/html-template`).
         let src = "<?nvs echo html`<p>hello";
         let (kinds, diags) = kinds(src);
@@ -2620,16 +2624,16 @@ mod tests {
             vec![
                 OpenTagNvs,
                 Keyword(super::Keyword::Echo),
-                MarkupOpen,
+                HtmlTemplateOpen,
                 StringPart,
-                MarkupClose,
+                HtmlTemplateClose,
                 Eof,
             ]
         );
         let reported = diags
             .iter()
             .find(|d| d.code == Some(code::E_UNTERMINATED))
-            .expect("an open literal at end of file is reported");
+            .expect("an open template at end of file is reported");
         let opener = u32::try_from(src.find("html`").expect("the opener is in the source"))
             .expect("test sources are short");
         assert_eq!(reported.labels[0].span.start, opener);

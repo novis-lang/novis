@@ -1,7 +1,7 @@
 //! The bytes a program prints, across the two modes the lexer has.
 //!
-//! A `.nvs` file is code and text in turn — an `?> … <?nvs` region, and a
-//! markup literal's body — and neither of those is layout. The goal's standing
+//! A `.nvs` file is code and text in turn — an `?> … <?nvs` region, and
+//! an html template's body — and neither of those is layout. The goal's standing
 //! decision and `rule:tooling/fmt-never-reflows` are the same claim from two
 //! directions: what a program *prints* is its value, so a formatter that
 //! touched one byte of it would be changing the program's output to suit a
@@ -45,8 +45,8 @@ echo $title;
 }
 
 #[test]
-fn a_markup_literal_body_is_byte_identical_after_formatting() {
-    // The body of a markup literal is the same bytes in a second spelling
+fn an_html_template_body_is_byte_identical_after_formatting() {
+    // The body of an html template is the same bytes in a second spelling
     // (`rule:core-classes/html-template`), including across the `{$…}` holes
     // that make it more than a string, so the ragged lines inside one survive
     // exactly as the text region's do.

@@ -849,7 +849,7 @@ pub fn listed_names(dir: &Path) -> Option<Vec<String>> {
 /// list.
 ///
 /// This is the listing a `discover` glob and § 3's scan read, unfiltered. An
-/// editor offers names out of it while a `require` or `autoload` path literal
+/// editor offers names out of it while a `require` or `autoload` written path
 /// is being written, so what it offers is what resolution would find.
 #[must_use]
 pub fn entries_of(dir: &Path) -> Option<Vec<(String, bool)>> {

@@ -127,14 +127,14 @@ pub enum TokenKind {
     IntLiteral,
     /// A floating-point literal, including an exponent (`1e10`, `1.5e-3`).
     FloatLiteral,
-    /// A duration literal — `30s`, `1h30m`, `500ms`
+    /// A duration — `30s`, `1h30m`, `500ms`
     /// (`rule:types/duration`).
     ///
     /// **One token, maximal munch**: `1h30m` is this, not three tokens. The
     /// lexer has already checked the whole grammar
     /// ([`crate::duration`](../duration/index.html)) and reported anything
     /// wrong, so a token of this kind always cooks to a nanosecond count.
-    DurationLiteral,
+    Duration,
 
     /// `'…'`, a single-quoted string. Recognises only PHP's two escapes
     /// (`\\` and `\'`); everything else is literal, so the whole token is
@@ -172,29 +172,29 @@ pub enum TokenKind {
     /// Closes a `{$ … }` interpolation: the matching `}`.
     ComplexInterpClose,
 
-    /// Opens a markup literal: the prefix and the delimiter together,
+    /// Opens an html template: the prefix and the delimiter together,
     /// `` html` `` (`rule:core-classes/html-template`). Between this and
-    /// [`MarkupClose`](Self::MarkupClose) the lexer is in a double-quoted
+    /// [`HtmlTemplateClose`](Self::HtmlTemplateClose) the lexer is in a double-quoted
     /// string's body mode with the delimiter swapped — the same
     /// [`StringPart`](Self::StringPart) runs and the same
     /// [`ComplexInterpOpen`](Self::ComplexInterpOpen) holes — so it scans for
     /// nothing but those and the closing backtick, and learns no HTML.
-    MarkupOpen,
-    /// Closes a markup literal: the `` ` `` itself. A backtick in the body is
+    HtmlTemplateOpen,
+    /// Closes an html template: the `` ` `` itself. A backtick in the body is
     /// written `` \` ``, which the body scanner takes as an escape like any
     /// other and leaves for the cooking pass.
-    MarkupClose,
-    /// Opens the second kind of hole a markup literal has, `<?=` — the output
-    /// tag a page already uses, so a literal is a piece of a page in a value.
+    HtmlTemplateClose,
+    /// Opens the second kind of hole an html template has, `<?=` — the output
+    /// tag a page already uses, so a template is a piece of a page in a value.
     /// One expression follows, lexed as ordinary code tokens, then
-    /// [`MarkupEchoClose`](Self::MarkupEchoClose). Unlike
+    /// [`HtmlTemplateEchoClose`](Self::HtmlTemplateEchoClose). Unlike
     /// [`ComplexInterpOpen`](Self::ComplexInterpOpen) the expression may begin
     /// with anything, which is what puts a constant or a static call in a page
     /// without a local (`rule:core-classes/html-template`).
-    MarkupEchoOpen,
+    HtmlTemplateEchoOpen,
     /// Closes a `<?= … ?>` hole: the `?>`. Inside the hole `}` is a brace like
     /// any other, and nothing but this token ends it.
-    MarkupEchoClose,
+    HtmlTemplateEchoClose,
 
     // --- punctuation and operators ------------------------------------------
     /// `(`

@@ -142,8 +142,8 @@ class Inbox
 }
 
 #[test]
-fn a_fn_closure_body_brace_stays_on_its_signature_line() {
-    // A closure is an expression, so the brace that opens its body never
+fn an_anon_fn_body_brace_stays_on_its_signature_line() {
+    // An anonymous function is an expression, so the brace that opens its body never
     // leaves the line its parameter list, return type and `=>` were written
     // on. A body already written there is a fixed point, and a multi-line one
     // keeps its closing brace on a line of its own.
@@ -219,7 +219,7 @@ fn a_class_scoped_type_alias_has_one_layout() {
     // is what the printer answers today. The runs inside the type expression
     // are among them: a type is a node to nobody in
     // `crates/nvs-syntax/src/walk.rs`, so the `{` of a shape written in type
-    // position is outside the one-space rule the object literal below is
+    // position is outside the one-space rule the anonymous object below is
     // inside, which is the crate's own known gap `nvs-fmt/comma-separated-list-whose-closing-delimiter` and is the same at file
     // scope. The blank line each author left is theirs, here as everywhere
     // (known gap 1).
@@ -301,7 +301,7 @@ echo Report::total({ total: 2.5 }), \"\\n\";
 }
 
 #[test]
-fn an_object_literal_on_one_line_has_one_space_inside_each_brace() {
+fn an_anon_object_on_one_line_has_one_space_inside_each_brace() {
     // One literal with no space inside either brace and one with too much, and
     // a literal its author wrote across lines, whose fields are one per line
     // and not this rule's at all.

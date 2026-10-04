@@ -22,7 +22,7 @@
 //!
 //! # Decision: a child is what this expression evaluates, not what it contains
 //!
-//! A closure's body and an anonymous class's members are written inside an
+//! An anonymous function's body and an anonymous class's members are written inside an
 //! expression and run when they are *called*, which is not where they are
 //! written and need not be ever. So [`each_child_expr`] stops at
 //! [`crate::ast::ExprKind::Fn`] and at
@@ -50,7 +50,7 @@ use crate::ast::{CallArgs, Expr, ExprKind, MemberName, NewTarget, StringPart, Te
 /// in source order — one level deep, so a caller that wants the whole subtree
 /// recurses through `f`.
 ///
-/// See the module docs for what a child is: a closure's body and an anonymous
+/// See the module docs for what a child is: an anonymous function's body and an anonymous
 /// class's members are not children of the expression that writes them, and a
 /// branch that may not run is.
 pub fn each_child_expr<'a>(e: &'a Expr, f: &mut dyn FnMut(&'a Expr)) {
@@ -69,7 +69,7 @@ pub fn each_child_expr<'a>(e: &'a Expr, f: &mut dyn FnMut(&'a Expr)) {
         | ExprKind::Error(_) => {}
         // A body of its own, run when it is called: see the module docs.
         ExprKind::Fn(_) => {}
-        ExprKind::Interpolated(parts) | ExprKind::Markup(parts) => {
+        ExprKind::Interpolated(parts) | ExprKind::HtmlTemplate(parts) => {
             for part in parts {
                 if let StringPart::Expr(hole) = part {
                     f(hole);
@@ -159,7 +159,7 @@ pub fn each_child_expr<'a>(e: &'a Expr, f: &mut dyn FnMut(&'a Expr)) {
             match target {
                 NewTarget::Expr(class) => f(class),
                 // The members of an anonymous class are bodies of their own,
-                // exactly as a closure's is.
+                // exactly as an anonymous function's is.
                 NewTarget::Name(_)
                 | NewTarget::SelfTy
                 | NewTarget::StaticTy
@@ -208,7 +208,7 @@ pub fn each_child_expr<'a>(e: &'a Expr, f: &mut dyn FnMut(&'a Expr)) {
             }
         }
         ExprKind::Require { path } => f(path),
-        ExprKind::ObjectLiteral(fields) => {
+        ExprKind::AnonObject(fields) => {
             for field in fields {
                 f(&field.value);
             }
@@ -216,9 +216,9 @@ pub fn each_child_expr<'a>(e: &'a Expr, f: &mut dyn FnMut(&'a Expr)) {
     }
 }
 
-/// The expressions an argument list evaluates. `(...)` — the first-class
-/// callable marker — names a callable rather than calling one, so it
-/// evaluates nothing.
+/// The expressions an argument list evaluates. `(...)` — the method-reference
+/// marker — names a callable rather than calling one, so it evaluates
+/// nothing.
 fn each_arg<'a>(args: &'a CallArgs, f: &mut dyn FnMut(&'a Expr)) {
     if let CallArgs::List(list) = args {
         for arg in list {
@@ -290,11 +290,11 @@ mod tests {
         );
     }
 
-    /// A closure's body runs when the closure is called, so the assignment
-    /// inside this one is not a child of the expression that writes it — only
-    /// the closure itself is.
+    /// An anonymous function's body runs when the function is called, so the
+    /// assignment inside this one is not a child of the expression that writes
+    /// it — only the function itself is.
     #[test]
-    fn a_closure_body_is_not_walked_into() {
+    fn an_anon_fn_body_is_not_walked_into() {
         assert_eq!(
             child_kinds("<?nvs\n$f = fn () => $this->a = 1;\n"),
             ["Variable", "Fn"]

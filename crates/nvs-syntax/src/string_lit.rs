@@ -21,7 +21,7 @@
 //! one have to agree byte for byte about what a written literal denotes:
 //! `nvs-hir`'s `require` resolution reads a path out of one before any
 //! checking happens, `nvs-types`'s `ExprKind::Str` arm diagnoses it and
-//! interns its literal type, and `nvs-ir`'s lowering emits the actual bytes.
+//! interns its single-value type, and `nvs-ir`'s lowering emits the actual bytes.
 //! `nvs-syntax` is the only crate all three already depend on, so this is
 //! where the routine sits and `nvs_types::string_lit` is a re-export of it
 //! rather than a second implementation. The duplicate that direction *does*
@@ -105,27 +105,27 @@ pub fn cook_double_quoted_text(src: &SourceFile, span: Span) -> (String, Vec<Coo
     cook_double_quoted_chars(text, span, span_of(span), &[], None)
 }
 
-/// The two escapes a markup literal adds to the double-quoted grammar, and the
+/// The two escapes an html template adds to the double-quoted grammar, and the
 /// whole of what it adds: `` \` `` for a backtick in the body, and `\{` for the
 /// one case that wants a literal `{$` (`rule:core-classes/html-template`).
 ///
 /// Neither can be a row of the shared table: in a double-quoted string both are
 /// an unknown escape, which PHP passes through as the two characters written,
 /// and that pass-through is itself a rule the table states.
-const MARKUP_ESCAPES: &[char] = &['`', '{'];
+const HTML_TEMPLATE_ESCAPES: &[char] = &['`', '{'];
 
-/// Cooks one [`crate::ast::StringPart::Text`] run of a markup literal —
+/// Cooks one [`crate::ast::StringPart::Text`] run of an html template —
 /// ``html`…` ``'s segment grammar, which is [`cook_double_quoted_text`]'s plus
-/// [`MARKUP_ESCAPES`].
+/// [`HTML_TEMPLATE_ESCAPES`].
 ///
 /// A segment is trusted bytes and nothing about it is escaped *for* HTML here:
 /// `rule:core-classes/html-template` trusts a segment because the author wrote
 /// it, so what runs over one is the same source-escape grammar every other
 /// literal's text runs, and `<` stays `<`.
 #[must_use]
-pub fn cook_markup_text(src: &SourceFile, span: Span) -> (String, Vec<CookIssue>) {
+pub fn cook_html_template_text(src: &SourceFile, span: Span) -> (String, Vec<CookIssue>) {
     let text = src.span_text(span).unwrap_or_default();
-    cook_double_quoted_chars(text, span, span_of(span), MARKUP_ESCAPES, None)
+    cook_double_quoted_chars(text, span, span_of(span), HTML_TEMPLATE_ESCAPES, None)
 }
 
 /// Maps a cooked run's own byte offsets back to spans in the file, for a run

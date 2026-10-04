@@ -58,7 +58,7 @@
 /// `Transaction::rollBack` throw it and
 /// [docs/spec/01-core-library.md](/docs/spec/01-core-library.md) § 18
 /// puts it *in this tree*, extending `RuntimeError` — a deliberate rollback is
-/// the database saying no rather than a bug in the program, and the closure
+/// the database saying no rather than a bug in the program, and the callable
 /// that owns the transaction propagates it to a `catch` written by name. Like
 /// `ParseError`, it declares a property of its own; see [`OWN_PROPERTIES`].
 ///
@@ -147,7 +147,7 @@ pub const BACKTRACE_SLOT: usize = 2;
 /// rather than the first. `Core\Db\RolledBack` is another, which spec § 18
 /// gives a `reason` — the string
 /// `rule:core-classes/db-transactions`'s `Transaction::rollBack`
-/// was called with, readable from the `catch` outside the transaction closure
+/// was called with, readable from the `catch` outside the transaction callable
 /// that the throw unwound. `Core\Db\DbError` is the last, which
 /// `rule:core-classes/db-error` gives a normalised `kind`
 /// so that an application branches on the condition rather than on a vendor
