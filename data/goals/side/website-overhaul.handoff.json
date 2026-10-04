@@ -1,29 +1,28 @@
 {
-  "state": "**Side goal `website-overhaul`, stage 4 (Syntax) is in progress. These pages are written: \"Start here\", the Basics, \"Values and types\", Operators, Control flow, Errors, Functions, Classes and objects, Programs and files, and Concurrency.**\n\n`tools/nv/cmd/site.ts` `syntaxProblems` is the `syntax` part, tested in `tools/nv/test/site.test.ts`. Every Syntax page except `syntax/index.mdx` needs a non-empty `covers:`, a `<Snippet>` and a `## Do and don't` list.\n\nOn disk: `website/src/content/docs/syntax/` has `start-here.mdx`, `basics/`, `values/`, `operators/`, `control-flow/`, `errors/`, `functions/`, `classes/`, `programs/` (3 pages) and `concurrency/` (4 pages). Snippets sit under `website/snippets/syntax/<dir>/` and must exit 0 when run from the repo root, so a child or helper file (a `require`d file, an autoloaded class, a `spawn script` child) is itself a snippet: it needs a `.out` (empty is fine), a page that shows it, and must not throw when run alone (`isolates/check-stock.nvs` throws only when `args:` says so). An `nvs.toml` beside a snippet is passed as `--config` (`site.ts` `snippetProblems`), which is how `file-paths/` grants `fs.read` and `isolates/` grants `script.spawn`. A snippet dir name must not clash with an existing one. Sidebar entries are in `website/astro.config.ts`, stamps in `website/site.lock.json` (`bun nv site --stamp syntax/<group>/<page>.mdx ...`). A front-matter value with `: ` in it must be quoted.\n\n`site structure`, `stale` and `reference` pass. `site syntax` reports 16 uncovered features: `lang:attributes/*` (9) and `lang:testing/*` (7). `snippets` and `prose` fail only on `index.mdx`, `install/*`, `sponsoring.mdx` and `in-depth/what-changed.mdx`, which stages 5 and 6 rewrite.",
+  "state": "**Side goal `website-overhaul`: stage 4 (Syntax) is closed. `bun nv site --check syntax` passes, and `syntax/index.mdx` links the first page of every group. Stage 5 (Install and Guides) is next.**\n\nSyntax has these groups, in sidebar order: Basics, Values and types, Operators, Control flow, Errors, Functions, Classes and objects, Programs and files, Concurrency, Attributes (4 pages) and Testing (2 pages). Snippets are under `website/snippets/syntax/<dir>/`. They are run with `nvs run`, so a `#[Test]` file prints nothing: its `.out` is empty, and the page shows the `nvs test` report as a `txt` block, copied from a real run.\n\n`site structure`, `stale`, `reference` and `syntax` pass. `snippets` and `prose` fail only on `index.mdx`, `install/*`, `sponsoring.mdx` and `in-depth/what-changed.mdx`, which stages 5 and 6 rewrite. `guides`, `apps` and `in-depth` are stubs in `tools/nv/cmd/site.ts` (`LATER`, line 66) that fail until their stage writes them.",
   "next": {
-    "stage": 4,
-    "title": "Syntax",
+    "stage": 5,
+    "title": "Install and Guides",
     "files": [],
-    "note": "one file set: `website/src/content/docs/syntax/`, `website/snippets/syntax/` and `website/astro.config.ts`, read against `docs/reference/lang/`.",
+    "note": "one file set: `website/src/content/docs/install/`, `website/src/content/docs/guides/`, `website/snippets/install/`, `website/astro.config.ts` and `tools/nv/cmd/site.ts`, read against `docs/reference/tools/`.",
     "items": [
       {
         "done": false,
-        "text": "**Attributes**: attribute syntax, reading them back, the names the compiler acts on, JSON derive, routes and access, `Core\\Api`, commands, `Core\\Program::implementing` and `implementingWith`. A sidebar group `syntax/attributes/` after \"Concurrency\", about four pages. It covers `lang:attributes/*`. Anchors: `docs/reference/lang/90-attributes.md:8`, `docs/reference/lang/90-attributes.md:171`, `docs/reference/lang/90-attributes.md:286`, `docs/reference/lang/90-attributes.md:546`, `docs/reference/lang/90-attributes.md:642`, `website/astro.config.ts:220`"
+        "text": "**Install**: rewrite `/install/` (each platform, from `docs/reference/tools/15-install.md`) and Hello world with `<Snippet>`s in place of inline Novis fences, add an editor-extension page (from `docs/reference/tools/40-editor.md`) and a \"next: the Tour\" link. That clears the `snippets` and `prose` failures under `install/`. Specified by `docs/agent/goals/side/website-overhaul.md` § Stage 5 and `rule:testing/website-pages-are-stamped`. Anchors: `website/src/content/docs/install/index.mdx:1`, `website/src/content/docs/install/hello-world.mdx:12`, `docs/reference/tools/15-install.md:1`, `docs/reference/tools/40-editor.md:1`, `website/astro.config.ts:271`"
       },
       {
         "done": false,
-        "text": "**Testing**: `#[Test]`, setUp, options, fixtures, `TestWith`, assertions, `nvs test`. A sidebar group `syntax/testing/`, about two pages. It covers `lang:testing/*`. A test file run with `nvs run` must still exit 0. Anchors: `docs/reference/lang/95-testing.md:8`, `docs/reference/lang/95-testing.md:182`, `docs/reference/lang/95-testing.md:280`, `docs/reference/lang/95-testing.md:348`"
+        "text": "**`--check guides`**: write the `guides` part in `site.ts` (eight sections, one page at least each, a snippet on every Simple program and Cookbook page, at least six Simple programs and ten Cookbook pages) with its tests, and remove `guides` from `LATER`. Specified by `docs/agent/goals/side/website-overhaul.md` § Stage 5. Anchors: `tools/nv/cmd/site.ts:66`, `tools/nv/test/site.test.ts:1`"
       },
       {
         "done": false,
-        "text": "**Close stage 4**: `bun nv site --check syntax` passes, and `syntax/index.mdx` links every group. Anchors: `website/src/content/docs/syntax/index.mdx:1`"
+        "text": "**Guides skeleton**: the eight sidebar sections in the goal's order under `website/astro.config.ts:123`, starting with \"A Tour of Novis\". Anchors: `website/astro.config.ts:123`, `website/src/content/docs/guides/index.mdx:1`"
       }
     ]
   },
   "backlog": [
-    "Stage 5: Install and Guides (goal § Stage 5), including the Notes app in `apps/notes/`.",
-    "Stage 6: In-Depth, the home page and the last links (goal § Stage 6).",
-    "`index.mdx`, `install/*`, `sponsoring.mdx` and `in-depth/what-changed.mdx` still fail `snippets` and `prose`. Stages 5 and 6 rewrite them.",
-    "`tools/nv/test/site.test.ts` has no case for the sibling `nvs.toml` that `snippetProblems` passes as `--config`."
+    "Notes app in `apps/notes/` and `--check apps`: `docs/agent/goals/side/website-overhaul.md` § Stage 5.",
+    "\"Why people pick Novis\": 10 to 14 candidates, which the user curates when the goal lands. Same section.",
+    "Stage 6: In-Depth, the home page, `sponsoring.mdx`, `what-changed.mdx`: § Stage 6."
   ]
 }
