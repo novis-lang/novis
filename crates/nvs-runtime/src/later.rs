@@ -175,6 +175,37 @@ impl Ctx {
     pub fn in_later_slot(&self) -> bool {
         self.in_later
     }
+
+    /// `Core\Response::slotted()`: makes this request's response slotted, or
+    /// throws `LogicError` once the main script is over. By then the slots
+    /// run, and a normal response is already being assembled.
+    ///
+    /// # Errors
+    ///
+    /// A `LogicError` [`crate::Fault`] in a `later` slot, in after-response
+    /// work, and in any task either of them starts.
+    pub fn make_slotted(&mut self) -> Result<(), crate::Fault> {
+        if self.main_ended {
+            return Err(crate::Fault::thrown_as(
+                ThrownClass::Logic,
+                "`Core\\Response::slotted()` was called after the main script ended. Call it \
+                 before the main script returns.",
+            ));
+        }
+        self.slotted = true;
+        Ok(())
+    }
+
+    /// Whether this request's response is slotted: the route it matched was
+    /// declared `slotted: true`, or the program called `Core\Response::slotted()`.
+    #[must_use]
+    pub fn is_slotted(&self) -> bool {
+        self.slotted
+            || self
+                .inbound()
+                .and_then(crate::ctx::Inbound::route)
+                .is_some_and(|matched| matched.route().slotted())
+    }
 }
 
 /// Runs every slot this request registered and replaces each placeholder in
@@ -185,6 +216,9 @@ impl Ctx {
 /// completion paths. A request with no slot pays one branch, and a request that
 /// threw, exited or failed runs none of them: its slots go down with it.
 pub fn run_later(ctx: &mut Ctx) {
+    // Before the early return: a request with no slot still has a main script
+    // that is over, and its after-response work reads this.
+    ctx.main_ended = true;
     if !ctx.has_later() || ctx.pending().is_some() || ctx.ending().is_err() {
         return;
     }

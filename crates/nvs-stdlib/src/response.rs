@@ -13,8 +13,9 @@
 //! request, and what the bytes are called is the static-file policy's table
 //! rather than anything this module declares.
 //!
-//! Beside them, § 15's `setStatus`, `setHeader`, `redirect` and `addCookie`:
-//! the four members here that shape a response without writing one.
+//! Beside them, § 15's `setStatus`, `setHeader`, `redirect` and `addCookie`,
+//! and `rule:core-classes/html-later`'s `slotted`: the five members here that
+//! shape a response without writing one.
 //!
 //! # Why `addCookie` appends where `setHeader` overrides
 //!
@@ -399,6 +400,17 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             symbol: "nvs_core_response_set_status",
             doc: Some(&SET_STATUS_DOC),
         },
+        // Beside `setStatus` because it is the other member that says how the
+        // response goes out without writing any of it.
+        CoreMethod {
+            name: "slotted",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Void,
+            symbol: "nvs_core_response_slotted",
+            doc: Some(&SLOTTED_DOC),
+        },
         CoreMethod {
             name: "setHeader",
             names: &["name", "value"],
@@ -740,6 +752,20 @@ const SET_STATUS_DOC: MethodDoc = MethodDoc {
     }],
 };
 
+/// `Core\Response::slotted`'s reference card — `rule:core-api/reference-card`.
+const SLOTTED_DOC: MethodDoc = MethodDoc {
+    short: "Sends the page as soon as the main script ends. Each `Core\\Html::later` part \
+            follows when it is ready. A route with `slotted: true` does the same for every \
+            request.",
+    params: &[],
+    ret: "Nothing. Calling it twice is the same as calling it once.",
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "The main script has already ended. This is the case in a `Core\\Html::later` \
+               function and in `Core\\Task::afterResponse` work.",
+    }],
+};
+
 /// `Core\Response::setHeader`'s reference card — `rule:core-api/reference-card`.
 const SET_HEADER_DOC: MethodDoc = MethodDoc {
     short: "Sets the response header `$name` to `$value`. If the server already sets this \
@@ -980,6 +1006,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         STREAM_SYMBOL => (nvs_core_response_stream as *const ()).cast(),
         STREAM_WRITE_SYMBOL => (nvs_core_response_stream_write as *const ()).cast(),
         "nvs_core_response_set_status" => (nvs_core_response_set_status as *const ()).cast(),
+        "nvs_core_response_slotted" => (nvs_core_response_slotted as *const ()).cast(),
         "nvs_core_response_set_header" => (nvs_core_response_set_header as *const ()).cast(),
         "nvs_core_response_redirect" => (nvs_core_response_redirect as *const ()).cast(),
         "nvs_core_response_add_cookie" => (nvs_core_response_add_cookie as *const ()).cast(),
@@ -1187,6 +1214,20 @@ nvs_runtime::nvs_helper! {
             ));
         };
         ctx.declare_status(declared);
+        Ok(Value::null())
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Response::slotted(): void` — `rule:core-classes/html-later`'s
+    /// runtime switch, the call a route's `slotted: true` stands beside.
+    ///
+    /// One flag on the request's context and nothing written:
+    /// `Ctx::make_slotted` owns the `LogicError` once the main script is over,
+    /// which also covers a `later` slot, so this member does not call
+    /// [`head_open`].
+    fn nvs_core_response_slotted(ctx, _args: [0]) {
+        ctx.make_slotted()?;
         Ok(Value::null())
     }
 }

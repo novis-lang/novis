@@ -134,11 +134,13 @@ pub(crate) struct BodyWriters {
 /// The members that change the response head, which a `Core\Html::later`
 /// closure may not call: [`BODY_MEMBERS`], plus these.
 ///
-/// The same list as `nvs_stdlib::response::head_open`'s callers, which throw
-/// `LogicError` inside a slot at run time; this is the half of
-/// `rule:core-classes/html-later`'s refusal the checker can see.
-const HEAD_MEMBERS: [(&str, &str); 5] = [
+/// The same list as `nvs_stdlib::response::head_open`'s callers, plus
+/// `slotted`, whose `Ctx::make_slotted` throws in a slot because the main
+/// script is over. Each throws `LogicError` inside a slot at run time; this is
+/// the half of `rule:core-classes/html-later`'s refusal the checker can see.
+const HEAD_MEMBERS: [(&str, &str); 6] = [
     ("Response", "setStatus"),
+    ("Response", "slotted"),
     ("Response", "setHeader"),
     ("Response", "redirect"),
     ("Response", "addCookie"),

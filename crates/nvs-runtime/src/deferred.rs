@@ -184,6 +184,9 @@ pub struct Deferred {
 /// isolate, a served request included. The module doc owns why "ordinarily" is
 /// a condition and what a failing request does instead.
 pub fn run_deferred(ctx: &mut Ctx) {
+    // `nvs run` reaches here without `crate::later::run_later`, and its main
+    // script is over too.
+    ctx.main_ended = true;
     for work in ctx.take_deferred() {
         run_one(ctx, work);
     }

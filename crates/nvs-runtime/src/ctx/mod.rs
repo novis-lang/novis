@@ -751,6 +751,19 @@ pub struct Ctx {
     ///
     /// **What it spends:** one byte per context.
     pub(crate) in_later: bool,
+    /// Whether this request's own frame has returned, so its main script is
+    /// over and `Core\Response::slotted()` throws. Set by
+    /// [`crate::later::run_later`] and copied by [`Ctx::child`], so a slot and
+    /// after-response work both read it.
+    ///
+    /// **What it spends:** one byte per context.
+    pub(crate) main_ended: bool,
+    /// Whether `Core\Response::slotted()` was called on this context. A route
+    /// declared `slotted: true` is read off the match instead, and
+    /// [`Ctx::is_slotted`] answers both.
+    ///
+    /// **What it spends:** one byte per context.
+    pub(crate) slotted: bool,
     /// What is behind a pending `THROWN` or `FATAL` status — see [`Pending`]
     /// for why one field carries both shapes rather than two sitting beside
     /// each other.

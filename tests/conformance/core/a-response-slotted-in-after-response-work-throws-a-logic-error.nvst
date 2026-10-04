@@ -1,0 +1,18 @@
+--TEST--
+Off a request, `Core\Response::slotted()` in the main script does not throw, and in `Core\Task::afterResponse` work it throws `LogicError`, because the main script has ended -- `rule:core-classes/html-later`
+--FILE--
+<?nvs
+Core\Response::slotted();
+echo "main\n";
+
+// This work runs after the script ends, so the call throws `LogicError`.
+Core\Task::afterResponse(fn(): void => {
+    try {
+        Core\Response::slotted();
+    } catch (LogicError $e) {
+        echo $e->message, "\n";
+    }
+});
+--EXPECT--
+main
+`Core\Response::slotted()` was called after the main script ended. Call it before the main script returns.

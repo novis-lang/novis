@@ -19470,7 +19470,7 @@ no request here
 <a id="core-core-response"></a>
 ### `Core\Response`
 
-Keywords: html, json, text, bytes, sendFile, stream, setStatus, setHeader, redirect, addCookie
+Keywords: html, json, text, bytes, sendFile, stream, setStatus, slotted, setHeader, redirect, addCookie
 
 | Member | Signature |
 |---|---|
@@ -19481,6 +19481,7 @@ Keywords: html, json, text, bytes, sendFile, stream, setStatus, setHeader, redir
 | [`Core\Response::sendFile`](#core-core-response-sendfile) | `sendFile(string $path): void` |
 | [`Core\Response::stream`](#core-core-response-stream) | `stream(string $contentType): Core\Response\Stream` |
 | [`Core\Response::setStatus`](#core-core-response-setstatus) | `setStatus(uint $code): void` |
+| [`Core\Response::slotted`](#core-core-response-slotted) | `slotted(): void` |
 | [`Core\Response::setHeader`](#core-core-response-setheader) | `setHeader(string $name, string $value): void` |
 | [`Core\Response::redirect`](#core-core-response-redirect) | `redirect(string $url, Core\Response\Redirect $status = Core\Response\Redirect::SeeOther): void` |
 | [`Core\Response::addCookie`](#core-core-response-addcookie) | `addCookie(string $name, string $value, {secure?: bool, httpOnly?: bool, sameSite?: Core\Response\SameSite, path?: string, domain?: string, maxAge?: Core\Time\Duration}): void` |
@@ -19600,6 +19601,19 @@ Sets the HTTP status of the response to `$code`, such as `404` or `201`. It does
 **Returns** `void` — Nothing. If you call it more than once, the last call sets the status. If the request fails with an error, the status is `500`.
 
 **Throws** `LogicError` — `$code` is less than 100 or greater than 599. The status does not change.
+
+<a id="core-core-response-slotted"></a>
+#### `Core\Response::slotted`
+
+```nvs skip
+Core\Response::slotted(): void
+```
+
+Sends the page as soon as the main script ends. Each `Core\Html::later` part follows when it is ready. A route with `slotted: true` does the same for every request.
+
+**Returns** `void` — Nothing. Calling it twice is the same as calling it once.
+
+**Throws** `LogicError` — The main script has already ended. This is the case in a `Core\Html::later` function and in `Core\Task::afterResponse` work.
 
 <a id="core-core-response-setheader"></a>
 #### `Core\Response::setHeader`

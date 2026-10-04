@@ -6506,6 +6506,90 @@ mod tests {
         );
     }
 
+    /// `rule:core-classes/html-later`'s `Core\Response::slotted()` works while
+    /// the main script runs and throws `LogicError` once it has ended — from a
+    /// `later` slot and from after-response work alike.
+    #[test]
+    fn slotted_after_the_main_script_ended_throws() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        static IN_MAIN: AtomicUsize = AtomicUsize::new(0);
+        static REFUSED: AtomicUsize = AtomicUsize::new(0);
+        struct AsksForSlotting;
+        impl nvs_runtime::NativeBody for AsksForSlotting {
+            fn run(ctx: &mut Ctx) {
+                if matches!(
+                    ctx.make_slotted(),
+                    Err(nvs_runtime::Fault::Thrown(
+                        nvs_runtime::ThrownClass::Logic,
+                        _
+                    ))
+                ) {
+                    REFUSED.fetch_add(1, Ordering::Relaxed);
+                }
+            }
+        }
+
+        let listener = NvsListener::bind("127.0.0.1:0".parse().expect("a literal address"))
+            .expect("the OS refused a port");
+        let addr = listener
+            .local_addr()
+            .expect("a bound listener had no address");
+        let handler = Rc::new(|request: Request<Incoming>, _origin: Origin| {
+            let inbound = nvs_runtime::Inbound::new(
+                request.method().as_str(),
+                request.uri().path(),
+                request.uri().query().unwrap_or(""),
+            );
+            let program: Program = Box::new(|ctx: &mut Ctx, _args| {
+                if ctx.make_slotted().is_ok() && ctx.is_slotted() {
+                    IN_MAIN.fetch_add(1, Ordering::Relaxed);
+                }
+                let marker = ctx.register_later(
+                    nvs_runtime::native_closure::<AsksForSlotting>(),
+                    b"",
+                    b"",
+                    None,
+                );
+                ctx.write_output(&marker)
+                    .expect("a captured body refused a write");
+                ctx.defer(nvs_runtime::native_closure::<AsksForSlotting>(), 0)
+                    .expect("the request's queue refused a registration");
+                Value::null()
+            });
+            Reply::Run(
+                Isolate::new(program, Value::null(), Output::Capture).answering(inbound),
+                None,
+            )
+        });
+        let client = std::thread::spawn(move || {
+            let mut socket = TcpStream::connect(addr).expect("the loopback refused a connection");
+            socket
+                .write_all(b"GET /page HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")
+                .expect("the write failed");
+            let mut answer = String::new();
+            socket
+                .read_to_string(&mut answer)
+                .expect("the response could not be read");
+            answer
+        });
+
+        let answer = served_by(listener, &handler, client);
+        assert!(
+            answer.starts_with("HTTP/1.1 200"),
+            "the request did not answer: {answer}"
+        );
+        assert_eq!(
+            IN_MAIN.load(Ordering::Relaxed),
+            1,
+            "the main script could not make its response slotted"
+        );
+        assert_eq!(
+            REFUSED.load(Ordering::Relaxed),
+            2,
+            "a slot or after-response work made the response slotted after the main script ended"
+        );
+    }
+
     /// A request that carried no body leaves the carrier with none to read —
     /// `Inbound::body` answering `None` is "there was no body", which is the
     /// distinction RFC 9110 § 8.6 draws and what a `Core\Request` member reports

@@ -1,0 +1,18 @@
+--TEST--
+`Core\Response::slotted()` in the main script does not throw, a second call is the same as one, and a slotted page with no `Core\Html::later` is sent whole -- `rule:core-classes/html-later`
+--FILE--
+<?nvs
+// The program sends a request to itself. Inside that request the call below
+// throws an error, so the `catch` block is the page the request runs.
+try {
+    var $page = Core\Test::request(Core\Http\Method::Get, "/blog");
+    echo $page->status(), "\n";
+    echo $page->body(), "\n";
+} catch (RuntimeError $inside) {
+    Core\Response::slotted();
+    Core\Response::slotted();
+    echo "Blog";
+}
+--EXPECT--
+200
+Blog

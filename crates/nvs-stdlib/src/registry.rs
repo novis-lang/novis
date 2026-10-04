@@ -2515,6 +2515,8 @@ pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
     (crate::response::NAME, "bytes", None),
     (crate::response::NAME, "stream", None),
     (crate::response::NAME, "setStatus", None),
+    // A flag on the request's own context, like `setStatus`' number.
+    (crate::response::NAME, "slotted", None),
     (crate::response::NAME, "setHeader", None),
     (crate::response::NAME, "redirect", None),
     (crate::response::NAME, "addCookie", None),
