@@ -213,7 +213,7 @@ fn a_folded_test_emits_no_code_at_all() {
 }
 
 #[test]
-fn a_literal_test_is_one_tag_comparison_with_a_payload_compare_behind_it() {
+fn a_single_value_test_is_one_tag_comparison_with_a_payload_compare_behind_it() {
     // Two comparisons and not one: the tag says the payload word may be read
     // at this representation, and only then does the compare say whether it
     // holds the value. Both `is` spellings of the same subject pay one tag

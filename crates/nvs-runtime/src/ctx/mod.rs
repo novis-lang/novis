@@ -1579,7 +1579,7 @@ impl Drop for Ctx {
                           goes down"
             )]
             unsafe {
-                work.closure.release();
+                work.callable.release();
             }
         }
         // The other end of § 7's count, for a tree that ended without draining

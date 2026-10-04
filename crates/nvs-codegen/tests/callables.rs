@@ -8,10 +8,10 @@ mod common;
 use common::*;
 
 #[test]
-fn a_closure_is_reachable_through_the_method_table() {
+fn a_callable_is_reachable_through_the_method_table() {
     // `rule:types/anonymous-function` end to end: `Core\Arr::filter` is native Rust and reaches the
-    // closure through `nvs_runtime::call_closure`, which resolves
-    // `nvs_runtime::CLOSURE_INVOKE` against the receiver's descriptor — so
+    // closure through `nvs_runtime::call_callable`, which resolves
+    // `nvs_runtime::CALLABLE_INVOKE` against the receiver's descriptor — so
     // this fails the moment `nvs-ir`'s label for that method and the
     // runtime's stop agreeing.
     let source = "<?nvs
@@ -23,9 +23,9 @@ echo Core\\Arr::count($big);
 }
 
 #[test]
-fn a_closure_object_carries_its_own_arity_in_slot_zero() {
+fn a_callable_object_carries_its_own_arity_in_slot_zero() {
     // The two-parameter predicate and the one-parameter one run over the same
-    // array through the same `Core` member. `nvs_runtime::CLOSURE_ARITY_SLOT`
+    // array through the same `Core` member. `nvs_runtime::CALLABLE_ARITY_SLOT`
     // is what tells them apart, so a disagreement with `nvs_ir::lower`'s
     // `FN_ARITY` field order shows up here as a wrong count or a fault, not as
     // a silent extra argument.
@@ -39,7 +39,7 @@ echo Core\\Arr::count($byKey), \"|\", Core\\Arr::count($byValue);
 }
 
 #[test]
-fn a_closure_captures_an_outer_local_by_value() {
+fn an_anon_fn_captures_an_outer_local_by_value() {
     // `rule:types/implicit-capture`: the snapshot is taken when the literal is evaluated, so
     // reassigning the captured local afterwards does not reach the closure.
     let source = "<?nvs
@@ -53,9 +53,9 @@ echo Core\\Arr::count(Core\\Arr::filter($nums, $f));
 }
 
 #[test]
-fn a_closure_capturing_a_string_in_a_loop_leaks_nothing() {
+fn an_anon_fn_capturing_a_string_in_a_loop_leaks_nothing() {
     // Ten thousand closure objects, each holding one retained capture. A
-    // missing release in `lower_closure`'s exit sweep leaks a buffer per
+    // missing release in `lower_anon_fn`'s exit sweep leaks a buffer per
     // iteration; a doubled one crashes here.
     let source = "<?nvs
 array<int> $nums = [1, 2, 3];
@@ -73,9 +73,9 @@ echo $seen;
 }
 
 #[test]
-fn a_closure_that_throws_propagates_out_of_the_core_member_that_called_it() {
+fn a_callable_that_throws_propagates_out_of_the_core_member_that_called_it() {
     // `nvs_runtime::Fault::Pending` is what keeps the exception the closure
-    // raised intact: a `Fault::Thrown` built inside `call_closure` would
+    // raised intact: a `Fault::Thrown` built inside `call_callable` would
     // replace it with a bare message from the helper.
     let source = "<?nvs
 class Boom {
@@ -116,7 +116,7 @@ array<mixed> $mixed = [\"a\", \"b\", 3];
 fn a_mismatched_argument_throws_a_logic_error_out_of_the_core_member_that_called_it() {
     // `rule:types/anonymous-function`: a `callable` carries no parameter list, so nothing above
     // the call site saw what this closure requires and
-    // `nvs_runtime::call_closure` is the only thing that can refuse the
+    // `nvs_runtime::call_callable` is the only thing that can refuse the
     // argument. Caught as `LogicError` specifically, which is the half
     // `tests/conformance/lang/a-closure-argument-is-checked-against-its-parameter-type.nvst`
     // cannot pin: it catches `Throwable`, and the widening row beside this one
@@ -138,7 +138,7 @@ fn a_mismatched_argument_throws_a_logic_error_out_of_the_core_member_that_called
 
     // Uncaught, the throw is an ordinary `THROWN` status carrying the same
     // message — never a `Fault::Fatal`, which is what the check reserves for a
-    // compiler bug (`nvs_runtime::closure`'s `check_param_tags`).
+    // compiler bug (`nvs_runtime::callable`'s `check_param_tags`).
     let mut ctx = Ctx::buffered();
     let uncaught = format!("{MISMATCH}Core\\Arr::filter($mixed, $forward);\n");
     assert_eq!(run_with(&mut ctx, &uncaught).unwrap_err(), THROWN);
@@ -153,7 +153,7 @@ fn an_int_argument_widens_into_a_float_parameter_and_is_refused_past_two_to_the_
     // `rule:types/conversion`'s one implicit conversion, reached from the caller no
     // written `as float` ever passes through: `Core\Arr::map` hands a native
     // `int` to a closure whose parameter is declared `float`, and
-    // `nvs_runtime::call_closure` converts it in place because no checker saw
+    // `nvs_runtime::call_callable` converts it in place because no checker saw
     // this call site to insert it — a `callable` carries no parameter list
     // (`rule:types/anonymous-function`).
     //
@@ -172,7 +172,7 @@ array<int> $ints = [7, 9007199254740992];
 // `map` declares what it hands its callback (`rule:types/callable-signature`),
 // which a bare `callable` does not promise, so `$half` is reached through a
 // literal — and the conversion under test is still the one
-// `nvs_runtime::call_closure` makes on the way into `$half`.
+// `nvs_runtime::call_callable` makes on the way into `$half`.
 echo Core\\Json::encode(Core\\Arr::map($ints, fn (int $n) => $half($n))), \"\\n\";
 
 // The first refused one, one past that bound. Caught as `ArithmeticError`
@@ -231,7 +231,7 @@ fn live_bytes_of_run(source: &str) -> isize {
 #[cfg(debug_assertions)]
 fn the_partial_result_a_mismatched_argument_abandons_leaks_nothing() {
     // The half a `.nvst` case cannot see. `Core\Arr::filter` is two kept
-    // entries into its walk when `nvs_runtime::call_closure` refuses the
+    // entries into its walk when `nvs_runtime::call_callable` refuses the
     // third, and `nvs_core_arr_filter`'s doc claims the early return itself
     // frees the partial result and the entry's key, since `NvsArray` and
     // `NvsStr` release on drop. A missed release leaks that array plus the two
@@ -301,9 +301,9 @@ fn helpers_of(program: &nvs_ir::Program) -> Vec<nvs_ir::ir::Helper> {
 fn a_proven_callable_call_site_emits_no_param_tag_check() {
     // `rule:types/callable-signature`'s whole purpose: the callee's type names
     // its parameters, so `nvs_types` checked both arguments where they are
-    // written and `nvs_runtime::closure::check_param_tags` has nothing left to
-    // decide. `Helper::CallClosureProven` is the site that skips it — the
-    // runtime reads the tags from `nvs_call_closure` alone.
+    // written and `nvs_runtime::callable::check_param_tags` has nothing left to
+    // decide. `Helper::CallCallableProven` is the site that skips it — the
+    // runtime reads the tags from `nvs_call_callable` alone.
     let source = "<?nvs
 callable(int, string): string $f = fn(int $n, string $s): string => $s . $n;
 echo $f(2, \"x\");
@@ -311,24 +311,24 @@ echo $f(2, \"x\");
     let helpers = helpers_of(&lower(source));
 
     assert!(
-        helpers.contains(&nvs_ir::ir::Helper::CallClosureProven),
+        helpers.contains(&nvs_ir::ir::Helper::CallCallableProven),
         "a call through a written signature must reach the proven helper: {helpers:?}"
     );
     assert!(
-        !helpers.contains(&nvs_ir::ir::Helper::CallClosure),
+        !helpers.contains(&nvs_ir::ir::Helper::CallCallable),
         "nothing may still pay the per-argument check here: {helpers:?}"
     );
     assert_eq!(output_of(source), "x2");
 }
 
 #[test]
-fn a_closure_object_still_carries_both_metadata_slots() {
+fn a_callable_object_still_carries_both_metadata_slots() {
     // What a proven site removes is the work, not the metadata: a literal does
     // not know which kind of site will call it, and the *same* closure object
-    // reaches both here. `nvs_runtime::CLOSURE_ARITY_SLOT` is what trims the
-    // third argument at the dynamic site and `CLOSURE_PARAM_TAGS_SLOT` is what
+    // reaches both here. `nvs_runtime::CALLABLE_ARITY_SLOT` is what trims the
+    // third argument at the dynamic site and `CALLABLE_PARAM_TAGS_SLOT` is what
     // refuses the `string` in the first position — so dropping either write
-    // from `nvs_ir::lower::lower_closure_literal` fails here while the proven
+    // from `nvs_ir::lower::lower_anon_fn_expr` fails here while the proven
     // site above keeps printing.
     let source = "<?nvs
 callable(int, string): string $join = fn (int $n, string $s): string => $s . $n;
@@ -361,11 +361,11 @@ echo $f(2, \"x\");
     let helpers = helpers_of(&lower(source));
 
     assert!(
-        helpers.contains(&nvs_ir::ir::Helper::CallClosure),
+        helpers.contains(&nvs_ir::ir::Helper::CallCallable),
         "a call through bare `callable` keeps the dynamic helper: {helpers:?}"
     );
     assert!(
-        !helpers.contains(&nvs_ir::ir::Helper::CallClosureProven),
+        !helpers.contains(&nvs_ir::ir::Helper::CallCallableProven),
         "nothing proved these arguments: {helpers:?}"
     );
     assert_eq!(output_of(source), "x2");

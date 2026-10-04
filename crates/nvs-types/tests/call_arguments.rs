@@ -245,7 +245,7 @@ fn a_spread_argument_through_a_callable_is_accepted() {
     // The other half of the same rule: how many arguments a `...` hands over
     // is its own run-time length, which needs no parameter list to mean
     // something — so it is left alone here and lowers
-    // (`nvs_ir::Helper::CallClosureArray`). What still applies is the order
+    // (`nvs_ir::Helper::CallCallableArray`). What still applies is the order
     // rule, asserted below.
     let src = with_method(
         "int $count",

@@ -6,6 +6,6 @@
   ],
   "until": {
     "kind": "gone",
-    "arg": "crates/nvs-ir/src/lower/tests.rs:a_closure_lowers_to_a_captured_environment_object_and_an_invoke_method"
+    "arg": "crates/nvs-ir/src/lower/tests.rs:an_anon_fn_lowers_to_a_captured_environment_object_and_an_invoke_method"
   }
 }

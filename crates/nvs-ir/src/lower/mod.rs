@@ -116,8 +116,8 @@ macro_rules! guarded_by {
 // header. Rust allows that for an inherent impl inside one crate; the methods
 // there are `pub(crate)`, which reaches exactly as far as `lower/` and no
 // further.
+pub(crate) mod anon_fn;
 pub(crate) mod call;
-pub(crate) mod closure;
 pub(crate) mod control;
 pub(crate) mod convert;
 pub(crate) mod exception;
@@ -129,7 +129,7 @@ pub(crate) mod stmt;
 // `call`, `control`, `expr` and `stmt` only add methods to the one
 // `impl Lowering` below, so they export nothing to import. The ones named
 // here also carry free items this module and its siblings call.
-use self::{call::delegation_forward, closure::*, exception::*, generator::*};
+use self::{anon_fn::*, call::delegation_forward, exception::*, generator::*};
 
 /// A local's current SSA binding: which value it holds, and at what
 /// representation type.
@@ -720,7 +720,7 @@ pub fn lower_program(
                                 let lowered =
                                     lower_method(label, m, src, exprs, checked_types, enums);
                                 out.push(lowered.function);
-                                out.extend(lowered.closures);
+                                out.extend(lowered.anon_fns);
                                 synthesized.extend(lowered.classes);
                             }
                             // `rule:classes/property-hooks`'s property hooks are compiled the
@@ -747,7 +747,7 @@ pub fn lower_program(
                                         enums,
                                     );
                                     out.push(lowered.function);
-                                    out.extend(lowered.closures);
+                                    out.extend(lowered.anon_fns);
                                     synthesized.extend(lowered.classes);
                                 }
                             }
@@ -798,7 +798,7 @@ pub fn lower_program(
             role,
         );
         functions.push(lowered.function);
-        functions.extend(lowered.closures);
+        functions.extend(lowered.anon_fns);
         synthesized.extend(lowered.classes);
     }
     // The functions with no source text — see
@@ -876,7 +876,7 @@ pub fn lower_program(
                 // the name is skipped rather than mis-indexed, for the same reason
                 // the codec above skips one.
                 defaults: property_defaults(label, layout, exprs),
-                is_closure: false,
+                is_callable: false,
             }
         })
         .collect();
@@ -890,9 +890,9 @@ pub fn lower_program(
     // that left it out would be one where `$x is callable` names a descriptor
     // the unit does not declare instead of answering `false`. It declares no
     // field and no method, the whole of what it carries being its own identity.
-    // See `CLOSURE_MARKER`.
+    // See `CALLABLE_MARKER`.
     classes.push(crate::ir::Class {
-        label: CLOSURE_MARKER.to_owned(),
+        label: CALLABLE_MARKER.to_owned(),
         fields: Vec::new(),
         field_reprs: Vec::new(),
         secret_fields: Vec::new(),
@@ -911,17 +911,17 @@ pub fn lower_program(
         defaults: Vec::new(),
         // The marker every closure conforms to is not itself a closure:
         // nothing is ever an instance of it.
-        is_closure: false,
+        is_callable: false,
     });
     // One marker supertype per written `callable(...)` signature some `is` in
     // this program tested, each carrying no field and no method for
-    // `CLOSURE_MARKER`'s reason: the whole of what one holds is its own
+    // `CALLABLE_MARKER`'s reason: the whole of what one holds is its own
     // identity, which is what the descriptor walk behind
     // `$x is callable(int): string` compares. Which closures conform is in
     // `nvs_types::callables`, because the relation is `is_assignable` itself
     // and needs a `ClassGraph`, a `SignatureTable` and a mutable interner —
     // none of which lowering holds; this reads the answer back off the table
-    // and the edges go on each literal's class in `super::closure`.
+    // and the edges go on each literal's class in `super::anon_fn`.
     classes.extend(exprs.callable_sig_markers().map(|marker| crate::ir::Class {
         label: marker.to_owned(),
         fields: Vec::new(),
@@ -940,7 +940,7 @@ pub fn lower_program(
         db_codec: Vec::new(),
         ctor_arity: 0,
         defaults: Vec::new(),
-        is_closure: false,
+        is_callable: false,
     }));
     // A shape reached as a *field* has no call site to be lowered at, so the
     // class it decodes into is collected off the derived codecs here. A label a
@@ -1258,14 +1258,14 @@ pub fn lower_method(
         low.seal(cur, Terminator::Return(None));
     }
 
-    let pending = std::mem::take(&mut low.closures);
+    let pending = std::mem::take(&mut low.anon_fns);
     // Beside the closures, and out the same channel: see `Lowering::callables`.
     let callables = std::mem::take(&mut low.callables);
     // Beside the closures, and out the same channel: see `Lowering::shapes`.
     let shapes = std::mem::take(&mut low.shapes);
     let (blocks, stmt_spans, edge_spans) = low.finish();
-    let (closures, mut classes) =
-        drain_closures(pending, callables, src, exprs, checked_types, enums);
+    let (anon_fns, mut classes) =
+        drain_anon_fns(pending, callables, src, exprs, checked_types, enums);
     classes.extend(shapes);
     Lowered {
         function: Function {
@@ -1277,7 +1277,7 @@ pub fn lower_method(
             stmt_spans,
             edge_spans,
         },
-        closures,
+        anon_fns,
         classes,
     }
 }
@@ -1444,14 +1444,14 @@ pub fn lower_property_hook(
         low.seal(cur, Terminator::Return(None));
     }
 
-    let pending = std::mem::take(&mut low.closures);
+    let pending = std::mem::take(&mut low.anon_fns);
     // Beside the closures, and out the same channel: see `Lowering::callables`.
     let callables = std::mem::take(&mut low.callables);
     // Beside the closures, and out the same channel: see `Lowering::shapes`.
     let shapes = std::mem::take(&mut low.shapes);
     let (blocks, stmt_spans, edge_spans) = low.finish();
-    let (closures, mut classes) =
-        drain_closures(pending, callables, src, exprs, checked_types, enums);
+    let (anon_fns, mut classes) =
+        drain_anon_fns(pending, callables, src, exprs, checked_types, enums);
     classes.extend(shapes);
     Lowered {
         function: Function {
@@ -1463,7 +1463,7 @@ pub fn lower_property_hook(
             stmt_spans,
             edge_spans,
         },
-        closures,
+        anon_fns,
         classes,
     }
 }
@@ -1558,14 +1558,14 @@ pub fn lower_script(
         low.seal(cur, Terminator::Return(Some(sealed)));
     }
 
-    let pending = std::mem::take(&mut low.closures);
+    let pending = std::mem::take(&mut low.anon_fns);
     // Beside the closures, and out the same channel: see `Lowering::callables`.
     let callables = std::mem::take(&mut low.callables);
     // Beside the closures, and out the same channel: see `Lowering::shapes`.
     let shapes = std::mem::take(&mut low.shapes);
     let (blocks, stmt_spans, edge_spans) = low.finish();
-    let (closures, mut classes) =
-        drain_closures(pending, callables, src, exprs, checked_types, enums);
+    let (anon_fns, mut classes) =
+        drain_anon_fns(pending, callables, src, exprs, checked_types, enums);
     classes.extend(shapes);
     Lowered {
         function: Function {
@@ -1577,7 +1577,7 @@ pub fn lower_script(
             stmt_spans,
             edge_spans,
         },
-        closures,
+        anon_fns,
         classes,
     }
 }
@@ -1806,10 +1806,10 @@ pub(crate) struct Lowering<'a> {
     /// [`lower_generator`], which owns the whole transform.
     generator: Option<GenFrame>,
     /// Every `rule:types/anonymous-function` `fn` literal met in this body so far, in source order,
-    /// each awaiting a function of its own — see [`lower_closure`]. Drained
+    /// each awaiting a function of its own — see [`lower_anon_fn`]. Drained
     /// by whichever entry point built this frame, since a
     /// [`crate::ir::Function`] has nowhere to carry a second one.
-    closures: Vec<PendingClosure>,
+    anon_fns: Vec<PendingAnonFn>,
     /// Every `rule:types/callable-values` first-class callable met in this body so far, in
     /// source order, each awaiting the forwarding thunk that gives it the one
     /// closure representation there is — see [`lower_callable`]. Travels out
@@ -1820,7 +1820,7 @@ pub(crate) struct Lowering<'a> {
     /// unit and two files may each write `Foo::bar(...)`.
     callables: Vec<PendingCallable>,
     /// One synthesized class per distinct `rule:types/anonymous-object` shape literal this
-    /// body writes — see [`Lowering::lower_object_literal`], which builds
+    /// body writes — see [`Lowering::lower_anon_object`], which builds
     /// them, and [`shape_class_label`], which names them.
     ///
     /// Travels out beside `closures` for the same reason: a class is
@@ -2071,7 +2071,7 @@ impl<'a> Lowering<'a> {
             inout_elements: Vec::new(),
             pending_refs: Vec::new(),
             generator: None,
-            closures: Vec::new(),
+            anon_fns: Vec::new(),
             callables: Vec::new(),
             shapes: Vec::new(),
         }
@@ -2144,7 +2144,7 @@ impl<'a> Lowering<'a> {
             db_codec: Vec::new(),
             ctor_arity: 0,
             defaults: Vec::new(),
-            is_closure: false,
+            is_callable: false,
         });
     }
     /// The synthesized class a `Core` member answering a shape returns,
@@ -2174,7 +2174,7 @@ impl<'a> Lowering<'a> {
         };
         // `nvs_types::ty::TypeInterner::shape` interns a shape's fields in
         // sorted name order, which is the order the class's slots count
-        // through — [`Self::lower_object_literal`] owns why the two sides have
+        // through — [`Self::lower_anon_object`] owns why the two sides have
         // to agree.
         let names: Vec<String> = fields.iter().map(|field| field.name.clone()).collect();
         let reprs: Vec<Ty> = fields
@@ -3807,7 +3807,7 @@ fn nested_shapes(
             db_codec: Vec::new(),
             ctor_arity: 0,
             defaults: Vec::new(),
-            is_closure: false,
+            is_callable: false,
         });
         codecs.push(crate::ir::ShapeCodec {
             key: shape_codec_key(&fields),
@@ -4180,7 +4180,7 @@ pub(crate) const FN_INVOKE: &str = "invoke";
 ///
 /// **Cost:** one field-less, method-less descriptor per compiled unit — once per
 /// unit, never per request or per task.
-pub(crate) const CLOSURE_MARKER: &str = "$closure";
+pub(crate) const CALLABLE_MARKER: &str = "$callable";
 
 /// The reserved **first** field of every closure's environment class: how many
 /// parameters [`FN_INVOKE`] declares, not counting the receiver.
@@ -4190,8 +4190,8 @@ pub(crate) const CLOSURE_MARKER: &str = "$closure";
 /// fewer parameters" — so a native caller has to know how many the closure
 /// actually wants before it can pass, and retain, the right number. A
 /// descriptor carries no arity, so the closure object carries it, in a slot
-/// whose index `nvs_runtime::CLOSURE_ARITY_SLOT` restates and
-/// `nvs-codegen`'s `a_closure_object_carries_its_own_arity_in_slot_zero`
+/// whose index `nvs_runtime::CALLABLE_ARITY_SLOT` restates and
+/// `nvs-codegen`'s `a_callable_object_carries_its_own_arity_in_slot_zero`
 /// holds the two together.
 ///
 /// One 16-byte slot per closure, per evaluation of the literal — bought
@@ -4213,7 +4213,7 @@ pub(crate) const FN_ARITY: &str = "fn#arity";
 /// arbitrary dereference rather than a fault. That is a priority-1 hole, so
 /// the one party that still knows the declared types — this lowering, at the
 /// literal — writes them down for the one party that can act on them:
-/// `nvs_runtime::call_closure`, which compares before it passes.
+/// `nvs_runtime::call_callable`, which compares before it passes.
 ///
 /// A nibble is the `nvs_runtime::Tag` discriminant the argument must carry,
 /// so the reader needs no table of its own; [`param_tag_nibble`] is the map
@@ -4266,12 +4266,12 @@ pub(crate) const FN_PARAM_TAGS_CAPACITY: usize = 16;
 /// literal's names could never be read — and paying a slot per closure
 /// evaluation for a field nothing reads is the wrong trade under this
 /// repository's priority ordering. The absence is *load-bearing* rather than
-/// an omission: `nvs_runtime::closure_param_names` asks the descriptor for a
+/// an omission: `nvs_runtime::callable_param_names` asks the descriptor for a
 /// field of this name, so a `fn` literal's closure answers `None` instead of
 /// having its first capture read as a name list.
 ///
 /// Placed third, ahead of [`FCC_RECV`](closure::FCC_RECV), so
-/// the index `nvs_runtime::CLOSURE_PARAM_NAMES_SLOT` restates is a *hint* that
+/// the index `nvs_runtime::CALLABLE_PARAM_NAMES_SLOT` restates is a *hint* that
 /// hits on the first probe for every callable that has one.
 ///
 /// One 16-byte slot per written `(...)`, per evaluation of it, holding an
@@ -4296,7 +4296,7 @@ pub const FN_PARAM_TAG_ANY: u8 = 15;
 /// `nvs_runtime::Tag` (it does not depend on it) and neither can `nvs-runtime`
 /// name this, so the two are held together by a test in `nvs-codegen`, which
 /// sees both. That is the same shape [`FN_ARITY`] and
-/// `nvs_runtime::CLOSURE_ARITY_SLOT` already stand in.
+/// `nvs_runtime::CALLABLE_ARITY_SLOT` already stand in.
 ///
 /// Exhaustive on purpose: a new [`Ty`] variant is a decision about what a
 /// closure parameter of that representation admits, and this is where it gets
@@ -4320,7 +4320,7 @@ pub const FN_PARAM_TAG_ANY: u8 = 15;
 /// its label, so admitting one is a type confusion rather than a wrong answer.
 /// The label four bits have no room for is checked at the closure's **entry**
 /// instead, one class test per class-declared parameter
-/// (`lower::closure::check_param_class`); `docs/adr/README.md` § *Decisions
+/// (`lower::anon_fn::check_param_class`); `docs/adr/README.md` § *Decisions
 /// taken at project start* owns why that boundary pays rather than every
 /// named-class property access, and
 /// `tests/conformance/core/out-a-callback-parameter-naming-a-class-checks-the-argument-class-at-entry.nvst`
@@ -4359,9 +4359,9 @@ pub fn param_tag_nibble(ty: Ty) -> u8 {
 /// significant first.
 ///
 /// The one implementation of that packing. Its two callers pack the same word
-/// for two readers that must agree — `lower::closure`'s
+/// for two readers that must agree — `lower::anon_fn`'s
 /// `param_tags_word` writes it into a closure object for
-/// `nvs_runtime::call_closure`, and `nvs-codegen` writes it into a
+/// `nvs_runtime::call_callable`, and `nvs-codegen` writes it into a
 /// `nvs_runtime::MethodRow` for the erased call `rule:types/erased-member-access` defers — and both
 /// readers are one `check_param_tags`, so two packings would be two chances
 /// for the shift or the capacity to be read differently.
@@ -4479,7 +4479,7 @@ pub struct Lowered {
     pub function: Function,
     /// One `invoke` per `fn` literal in it, transitively — a closure written
     /// inside another closure's body is in here too.
-    pub closures: Vec<Function>,
+    pub anon_fns: Vec<Function>,
     /// The captured-environment class each of those is a method of.
     pub classes: Vec<crate::ir::Class>,
 }

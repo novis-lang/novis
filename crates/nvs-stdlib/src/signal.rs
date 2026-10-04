@@ -192,11 +192,11 @@ mod tests {
     /// The closure the cases register: it records what it could see and answers
     /// nothing, exactly as a `void` handler compiled from Novis would.
     ///
-    /// `call_closure` retains the receiver for this callee to release, and a
+    /// `call_callable` retains the receiver for this callee to release, and a
     /// handler declaring no parameter gets that one slot and no other.
     #[expect(
         unsafe_code,
-        reason = "`call_closure` passes the receiver live and retained for this \
+        reason = "`call_callable` passes the receiver live and retained for this \
                   callee to release, and the address of a live `Value` for the \
                   result — neither is expressible in the signature compiled code \
                   calls through"
@@ -224,18 +224,18 @@ mod tests {
     /// A closure value whose `invoke` is the callback above, declaring no
     /// parameter.
     ///
-    /// `nvs_runtime::call_closure` reads a closure's arity and invoke address
+    /// `nvs_runtime::call_callable` reads a closure's arity and invoke address
     /// and nothing else, so this is a whole `callable` with no compiler in front
     /// of it. The table is leaked because a descriptor's address is its identity
     /// and it must outlive every instance made from it; the test process exiting
     /// is what reclaims it.
     fn a_handler() -> Value {
         let mut table = nvs_runtime::ClassTable::new();
-        let id = table.define("{closure}", &["arity", "params"], &[]);
+        let id = table.define("{callable}", &["arity", "params"], &[]);
         table.set_methods(
             id,
             vec![nvs_runtime::MethodRow {
-                name: nvs_runtime::CLOSURE_INVOKE.to_owned(),
+                name: nvs_runtime::CALLABLE_INVOKE.to_owned(),
                 code: records_what_it_saw as *const u8,
                 arity: 0,
                 param_tags: 0,
@@ -246,7 +246,7 @@ mod tests {
                 native: false,
             }],
         );
-        table.set_closure(id);
+        table.set_callable(id);
         let table: &'static nvs_runtime::ClassTable = Box::leak(Box::new(table));
         #[expect(
             unsafe_code,
@@ -254,8 +254,8 @@ mod tests {
                       instance made from it — `NvsObj::new`'s whole obligation"
         )]
         let object = unsafe { nvs_runtime::NvsObj::new(table.desc(id)) };
-        object.set_field(nvs_runtime::CLOSURE_ARITY_SLOT, Value::int(0));
-        object.set_field(nvs_runtime::CLOSURE_PARAM_TAGS_SLOT, Value::int(0));
+        object.set_field(nvs_runtime::CALLABLE_ARITY_SLOT, Value::int(0));
+        object.set_field(nvs_runtime::CALLABLE_PARAM_TAGS_SLOT, Value::int(0));
         Value::object(object)
     }
 

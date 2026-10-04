@@ -3379,7 +3379,7 @@ mod tests {
                     name: "onPropertySet".to_owned(),
                     code: (ledger_observed as NvsFn) as *const u8,
                     arity: 2,
-                    // Both nibbles are `CLOSURE_PARAM_TAG_ANY`: the callee
+                    // Both nibbles are `CALLABLE_PARAM_TAG_ANY`: the callee
                     // above reads its own two arguments and says what it
                     // expected, so a tag rule written here would be a second
                     // opinion about a signature this test declares.

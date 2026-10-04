@@ -53,7 +53,7 @@
 //!
 //! § 2's refusals are about what a value *is*, and the two an object can still
 //! carry into the walk are both marks on its [`ClassDesc`]:
-//! [`ClassDesc::is_closure()`] and [`ClassDesc::holds_host_handle()`]. Neither
+//! [`ClassDesc::is_callable()`] and [`ClassDesc::holds_host_handle()`]. Neither
 //! is inferred from the instance in front of [`refusable`] — a declared
 //! `invoke` is a method name a program may use, and the slot holding a host
 //! handle is a `uint` like every other — so the crate that knows is the one
@@ -371,7 +371,7 @@ fn walk<C: Carrier>(
 /// arrive wearing [`Tag::Object`].
 ///
 /// All three refusals are a fact about the class and nothing structural. A
-/// closure is [`ClassDesc::is_closure()`] and not a declared `invoke`, which is
+/// closure is [`ClassDesc::is_callable()`] and not a declared `invoke`, which is
 /// a method name a program may use and refusing on it would make a user class
 /// uncopyable for spelling it. A generator is [`ClassDesc::is_generator()`],
 /// its synthesized state class: its slots are a suspended frame and its
@@ -384,7 +384,7 @@ fn walk<C: Carrier>(
 /// would address the *receiving* side's table at that index and read whatever
 /// that side has open there.
 fn refusable(class: &ClassDesc) -> Result<(), GraphError> {
-    if class.is_closure() {
+    if class.is_callable() {
         return Err(GraphError(
             "a closure captures a heap and a scope, so it has no meaning on the \
              other side of a copy boundary"
@@ -1095,12 +1095,12 @@ mod tests {
     fn the_boundary_copy_and_serialize_share_one_walk() {
         // A closure, spelled the way `refusable` recognizes one: the bit, not
         // the `invoke`.
-        let mut closures = ClassTable::new();
-        let id = closures.define("Closure", &["arity"], &[]);
-        closures.set_methods(
+        let mut callables = ClassTable::new();
+        let id = callables.define("Closure", &["arity"], &[]);
+        callables.set_methods(
             id,
             vec![MethodRow {
-                name: crate::closure::CLOSURE_INVOKE.to_owned(),
+                name: crate::callable::CALLABLE_INVOKE.to_owned(),
                 code: std::ptr::dangling(),
                 arity: 0,
                 param_tags: 0,
@@ -1111,9 +1111,9 @@ mod tests {
                 native: false,
             }],
         );
-        closures.set_closure(id);
+        callables.set_callable(id);
         #[expect(unsafe_code, reason = "the table outlives the object")]
-        let closure = Value::object(unsafe { NvsObj::new(closures.desc(id)) });
+        let callable = Value::object(unsafe { NvsObj::new(callables.desc(id)) });
 
         // A `secret` property, which § 2's walk refuses on the same pass.
         let mut wallets = ClassTable::new();
@@ -1132,7 +1132,7 @@ mod tests {
         borrow_object(socket).set_field(0, Value::uint(3));
 
         for (what, subject, refused) in [
-            ("a closure", closure, true),
+            ("a closure", callable, true),
             ("a secret property", wallet, true),
             ("a host handle", socket, true),
             ("an int", Value::int(7), false),
@@ -1153,16 +1153,16 @@ mod tests {
 
     /// § 2's refusal is about what a value *is*, so a class a program declared
     /// crosses both carriers however it spelled its method names — the
-    /// [`ClassDesc::is_closure()`] bit is the whole test, and `invoke` is a
+    /// [`ClassDesc::is_callable()`] bit is the whole test, and `invoke` is a
     /// name a program may use.
     #[test]
-    fn a_class_declaring_invoke_is_not_a_closure() {
+    fn a_class_declaring_invoke_is_not_a_callable() {
         let mut table = ClassTable::new();
         let id = table.define("Command", &["code"], &[]);
         table.set_methods(
             id,
             vec![MethodRow {
-                name: crate::closure::CLOSURE_INVOKE.to_owned(),
+                name: crate::callable::CALLABLE_INVOKE.to_owned(),
                 code: std::ptr::dangling(),
                 arity: 0,
                 param_tags: 0,

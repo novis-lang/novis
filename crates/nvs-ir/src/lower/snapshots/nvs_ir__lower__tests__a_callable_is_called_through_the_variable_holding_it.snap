@@ -15,7 +15,7 @@ fn m(object) -> void {
     ; stmt s1 @5:5-5:29
     v4 = const.int 6  ; int
     v5 = const.int 7  ; int
-    v6 = helper.call_closure v1, v4, v5 ! bb2  ; tagged
+    v6 = helper.call_callable v1, v4, v5 ! bb2  ; tagged
     v7 = helper.tagged_as_string v6 ! bb3  ; string
     release v6
     helper.echo_str v7 ! bb4

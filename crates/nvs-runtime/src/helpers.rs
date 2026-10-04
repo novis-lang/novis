@@ -1395,7 +1395,7 @@ fn does_not_fit(what: &str, target: &str) -> Fault {
 /// [`does_not_fit`] for a number the target type has no room for — an `int`
 /// past 2^53 into `float`, a `float` with a fraction into `int`, a `uint` past
 /// `int::MAX` — which is the overflow `rule:types/arithmetic` names `ArithmeticError`,
-/// and the class `crate::closure`'s identical widening check already raises.
+/// and the class `crate::callable`'s identical widening check already raises.
 /// Same wording as the non-numeric case, so a diagnostic quoting one quotes
 /// both.
 fn numeric_does_not_fit(what: &str, target: &str) -> Fault {
@@ -1691,7 +1691,7 @@ pub fn to_float(value: Value) -> Option<f64> {
 /// `float` position — as a value-to-value row, for the one caller that cannot
 /// reach it through a lowered `as`.
 ///
-/// `crate::closure::check_param_tags` is that caller: a `callable` carries no
+/// `crate::callable::check_param_tags` is that caller: a `callable` carries no
 /// parameter list (`rule:types/anonymous-function`), so no checker ever saw the call site and
 /// nothing inserted the widening conversion the declared `float` earns. It is
 /// applied there instead, out of the same [`row`] set every written `as float`
@@ -2184,7 +2184,7 @@ crate::nvs_helper! {
 /// `nvs_ir::lower::array_element_tags`' word that describes it.
 ///
 /// The nibble *is* a [`Tag`] byte, which is what lets this share
-/// [`crate::closure::CLOSURE_PARAM_TAG_ANY`] with the closure-entry check
+/// [`crate::callable::CALLABLE_PARAM_TAG_ANY`] with the closure-entry check
 /// rather than inventing a second encoding: both ask "does this value carry
 /// the tag that representation carries", and neither can ask anything narrower
 /// in four bits. `Tag::Array` is the one nibble that continues — the rest of
@@ -2196,7 +2196,7 @@ crate::nvs_helper! {
 /// one into a `float`, in the copy [`to_array_of`] makes for it.
 fn element_has_tag(value: Value, tags: u64) -> bool {
     let nibble = u8::try_from(tags & 0xf).unwrap_or(u8::MAX);
-    if nibble == crate::closure::CLOSURE_PARAM_TAG_ANY {
+    if nibble == crate::callable::CALLABLE_PARAM_TAG_ANY {
         return true;
     }
     let (Some(required), Some(given)) = (Tag::from_byte(nibble), value.exact_tag()) else {
@@ -2933,7 +2933,7 @@ fn rendered_operand(value: Value) -> String {
 }
 
 crate::nvs_helper! {
-    /// `nvs_ir::Helper::LiteralMismatch` — `rule:types/single-value-types`'s membership test
+    /// `nvs_ir::Helper::SingleValueMismatch` — `rule:types/single-value-types`'s membership test
     /// having missed every literal its target names, which § 4 makes a throw.
     ///
     /// **Never returns `Ok`.** The comparison chain that calls it already
@@ -2951,11 +2951,11 @@ crate::nvs_helper! {
     /// block only an `Ok` would reach. `args[0]` keeps the ordinary
     /// convention: the operand is the conversion's own value and its caller
     /// owns it.
-    fn nvs_literal_mismatch(_ctx, args: [2]) {
+    fn nvs_single_value_mismatch(_ctx, args: [2]) {
         let accepted = args[1]
             .as_str_bytes()
             .and_then(|bytes| str::from_utf8(bytes).ok())
-            .ok_or_else(|| wrong_tag("nvs_literal_mismatch", Tag::Str, args[1]))?;
+            .ok_or_else(|| wrong_tag("nvs_single_value_mismatch", Tag::Str, args[1]))?;
         let message = format!("`{}` is not one of {accepted}", rendered_operand(args[0]));
         #[expect(
             unsafe_code,
@@ -3139,26 +3139,29 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
         ("nvs_echo_value", address(nvs_echo_value)),
         ("nvs_echo_markup", address(nvs_echo_markup)),
         ("nvs_exit", address(nvs_exit)),
-        ("nvs_literal_mismatch", address(nvs_literal_mismatch)),
+        (
+            "nvs_single_value_mismatch",
+            address(nvs_single_value_mismatch),
+        ),
         (
             "nvs_str_new",
             (crate::string::nvs_str_new as *const ()).cast::<u8>(),
         ),
         (
-            "nvs_call_closure",
-            (crate::closure::nvs_call_closure as *const ()).cast::<u8>(),
+            "nvs_call_callable",
+            (crate::callable::nvs_call_callable as *const ()).cast::<u8>(),
         ),
         (
-            "nvs_call_closure_proven",
-            (crate::closure::nvs_call_closure_proven as *const ()).cast::<u8>(),
+            "nvs_call_callable_proven",
+            (crate::callable::nvs_call_callable_proven as *const ()).cast::<u8>(),
         ),
         (
-            "nvs_call_closure_array",
-            (crate::closure::nvs_call_closure_array as *const ()).cast::<u8>(),
+            "nvs_call_callable_array",
+            (crate::callable::nvs_call_callable_array as *const ()).cast::<u8>(),
         ),
         (
-            "nvs_closure_bind",
-            (crate::closure::nvs_closure_bind as *const ()).cast::<u8>(),
+            "nvs_callable_bind",
+            (crate::callable::nvs_callable_bind as *const ()).cast::<u8>(),
         ),
         (
             "nvs_call_erased_method",

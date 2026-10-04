@@ -177,7 +177,7 @@ pub enum Ty {
     /// the reason [`nvs_syntax::ast::TypeAtom::CallableSig`] is an atom of its
     /// own: bare `callable` is the **top** of the callable lattice and goes on
     /// meaning exactly what it meant — a callable whose signature is unknown,
-    /// reached by a dynamic call whose arguments `nvs_runtime::closure` checks
+    /// reached by a dynamic call whose arguments `nvs_runtime::callable` checks
     /// one tag at a time — while a written signature is checked where the call
     /// is written and pays nothing at run time. The two never collapse.
     ///

@@ -2,7 +2,7 @@
 `Core\Test::assertThrows` at the root and `Core\Test::assertDoesNotThrow` are one predicate and its negation over every body, and below the root they are not -- `rule:testing/assertions-are-typed` and `rule:testing/runner-is-strict`
 --FILE--
 <?nvs
-// The two members read the same three outcomes off one `call_closure`: the
+// The two members read the same three outcomes off one `call_callable`: the
 // body returned, the body threw, or the body ended the request. Each was
 // written to answer the *middle* one and to hand the third on unchanged, so
 // the property that ties them together is that over any body they disagree --
@@ -61,7 +61,7 @@ final class Ran {
     }
 
     // The throw crosses a closure frame before it reaches the one
-    // `call_closure` is watching, which is the edge a member reading its own
+    // `call_callable` is watching, which is the edge a member reading its own
     // frame rather than the pending throw would part company on.
     public static function nested(): void {
         callable(): mixed $inner = fn (): void => { throw new IOError("the disk is full"); };

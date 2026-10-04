@@ -15,7 +15,7 @@
 //! member that grew its own walk again would still pass the second and fail the
 //! first.
 //!
-//! `closure_of` is `tests/allocation_policy.rs`'s, and deliberately a second
+//! `callable_of` is `tests/allocation_policy.rs`'s, and deliberately a second
 //! copy rather than a shared module: the two test binaries are separate crates,
 //! and the alternative is a `mod` that neither of them owns.
 
@@ -49,20 +49,20 @@ fn list_of(count: usize) -> Value {
 
 /// A closure value whose `invoke` is a plain Rust function.
 ///
-/// `nvs_runtime::call_closure` reads exactly four things off a closure — its
-/// class's `ClassTable::set_closure` bit, slot `CLOSURE_ARITY_SLOT`, slot
-/// `CLOSURE_PARAM_TAGS_SLOT`, and the `CLOSURE_INVOKE` method's address in its
+/// `nvs_runtime::call_callable` reads exactly four things off a closure — its
+/// class's `ClassTable::set_callable` bit, slot `CALLABLE_ARITY_SLOT`, slot
+/// `CALLABLE_PARAM_TAGS_SLOT`, and the `CALLABLE_INVOKE` method's address in its
 /// class — so a test in this crate can hand a `Core` member a `callable`
 /// without a compiler in front of it. The
 /// table is leaked because a descriptor's *address* is its identity and it must
 /// outlive every instance made from it.
-fn closure_of(arity: usize, invoke: nvs_runtime::NvsFn) -> Value {
+fn callable_of(arity: usize, invoke: nvs_runtime::NvsFn) -> Value {
     let mut table = nvs_runtime::ClassTable::new();
-    let id = table.define("{closure}", &["arity", "params"], &[]);
+    let id = table.define("{callable}", &["arity", "params"], &[]);
     table.set_methods(
         id,
         vec![nvs_runtime::MethodRow {
-            name: nvs_runtime::CLOSURE_INVOKE.to_owned(),
+            name: nvs_runtime::CALLABLE_INVOKE.to_owned(),
             code: invoke as *const u8,
             arity: 0,
             param_tags: 0,
@@ -73,7 +73,7 @@ fn closure_of(arity: usize, invoke: nvs_runtime::NvsFn) -> Value {
             native: false,
         }],
     );
-    table.set_closure(id);
+    table.set_callable(id);
     let table: &'static nvs_runtime::ClassTable = Box::leak(Box::new(table));
     #[expect(
         unsafe_code,
@@ -82,22 +82,22 @@ fn closure_of(arity: usize, invoke: nvs_runtime::NvsFn) -> Value {
     )]
     let object = unsafe { nvs_runtime::NvsObj::new(table.desc(id)) };
     object.set_field(
-        nvs_runtime::CLOSURE_ARITY_SLOT,
+        nvs_runtime::CALLABLE_ARITY_SLOT,
         Value::int(i64::try_from(arity).expect("a small arity")),
     );
     object.set_field(
-        nvs_runtime::CLOSURE_PARAM_TAGS_SLOT,
-        Value::int(i64::from(nvs_runtime::CLOSURE_PARAM_TAG_ANY)),
+        nvs_runtime::CALLABLE_PARAM_TAGS_SLOT,
+        Value::int(i64::from(nvs_runtime::CALLABLE_PARAM_TAG_ANY)),
     );
     Value::object(object)
 }
 
-/// Counts its calls and sweeps the references `call_closure` retained for it —
+/// Counts its calls and sweeps the references `call_callable` retained for it —
 /// the receiver and the one parameter — so an abandoned walk leaks nothing the
 /// WSL valgrind leg would find later.
 #[expect(
     unsafe_code,
-    reason = "`call_closure` passes exactly the receiver and one parameter, \
+    reason = "`call_callable` passes exactly the receiver and one parameter, \
               each retained for this callee to release, and the result pointer \
               is the address of a live `Value` — neither is expressible in the \
               signature compiled code calls through"
@@ -144,7 +144,7 @@ fn an_expired_deadline_stops_arr_map_at_the_first_batch_boundary() {
     ctx.expire_deadline();
 
     let subject = list_of(ENTRIES);
-    let callback = closure_of(1, counts_under_a_deadline);
+    let callback = callable_of(1, counts_under_a_deadline);
     let status = nvs_runtime::call(nvs_core_arr_map, &mut ctx, &[subject, callback])
         .expect_err("the deadline had already passed when the walk began");
 
@@ -175,7 +175,7 @@ fn a_walk_with_no_deadline_still_visits_every_entry() {
     let mut ctx = nvs_runtime::Ctx::buffered();
 
     let subject = list_of(ENTRIES);
-    let callback = closure_of(1, counts_with_no_deadline);
+    let callback = callable_of(1, counts_with_no_deadline);
     let mapped = nvs_runtime::call(nvs_core_arr_map, &mut ctx, &[subject, callback])
         .expect("nothing set a deadline on this context");
 

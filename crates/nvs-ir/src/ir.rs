@@ -357,14 +357,14 @@ pub struct Class {
     /// from it. Zero for a class with no codec.
     pub ctor_arity: usize,
     /// Whether this class is a closure literal's environment class — the one
-    /// `crate::lower::closure` mints for a `fn (...) { ... }` or a `(...)`
+    /// `crate::lower::anon_fn` mints for a `fn (...) { ... }` or a `(...)`
     /// first-class callable, carrying that literal's captures as its fields
     /// and its compiled body as the `invoke` method.
     ///
-    /// `nvs-codegen` hands it to `nvs_runtime::ClassTable::set_closure`, and
-    /// `nvs_runtime::ClassDesc::is_closure` owns why the runtime carries the
+    /// `nvs-codegen` hands it to `nvs_runtime::ClassTable::set_callable`, and
+    /// `nvs_runtime::ClassDesc::is_callable` owns why the runtime carries the
     /// answer rather than testing for the `invoke` in the method table. It is
-    /// the same fact `crate::lower::CLOSURE_MARKER` puts in
+    /// the same fact `crate::lower::CALLABLE_MARKER` puts in
     /// [`Self::conforms`], reaching the runtime by the one route a descriptor
     /// walk cannot: a class test compares descriptor *addresses*, so the
     /// marker answers `$x is callable` inside the unit that emitted it, while
@@ -372,7 +372,7 @@ pub struct Class {
     ///
     /// **Cost:** one `bool` per class per compiled unit, once per unit, not
     /// per request.
-    pub is_closure: bool,
+    pub is_callable: bool,
 }
 
 /// One lowered method or function.
@@ -671,7 +671,7 @@ pub enum InstKind {
     ///
     /// A literal with holes never reaches here. Its bytes are not known until
     /// it runs, so it stays the join and the lift
-    /// [`crate::lower::Lowering::lower_markup_literal`] emits.
+    /// [`crate::lower::Lowering::lower_html_template`] emits.
     ConstMarkup(String),
     /// Reads the function's own parameter at this positional index.
     Param(u32),
@@ -2495,29 +2495,29 @@ pub enum Helper {
     /// a chain of [`BinOp::Eq`] comparisons, so it is pushed with
     /// `result: None` the way [`Self::EchoStr`] is, and always carries
     /// `rule:errors/propagation`'s error edge. The membership test itself costs no helper call
-    /// at all — see `crate::lower::Lowering::lower_literal_membership` for why
+    /// at all — see `crate::lower::Lowering::lower_single_value_membership` for why
     /// a comparison chain and not one call over an encoded set.
     ///
     /// It **owns** that second argument, uniquely among helpers: a call that
     /// never returns leaves no reachable instruction to release the fresh
     /// [`InstKind::ConstStr`] at, so `nvs_runtime`'s own helper drops it.
     /// The operand keeps the ordinary convention and is the caller's.
-    LiteralMismatch,
+    SingleValueMismatch,
     /// One argument: the [`crate::ty::Ty::Tagged`] operand of a `clone` whose
     /// tag turned out not to be an object, so `rule:classes/clone-is-shallow`'s
     /// "a new instance of `$x`'s class" names no class. It is the miss arm of
     /// the one [`InstKind::TagIs`] `crate::lower::Lowering::guard_cloneable`
     /// asks, defines no value and **never returns normally**, so it is pushed
-    /// with `result: None` the way [`Self::LiteralMismatch`] is and always
+    /// with `result: None` the way [`Self::SingleValueMismatch`] is and always
     /// carries `rule:errors/propagation`'s error edge.
     ///
     /// The message is PHP's own, and it names the type it was given — which is
     /// why it is rendered in `nvs_runtime` rather than at lowering time the way
-    /// [`Self::LiteralMismatch`]'s accepted set is: the operand's tag is what
+    /// [`Self::SingleValueMismatch`]'s accepted set is: the operand's tag is what
     /// answers it, and that is a run-time fact.
     ///
     /// It **owns** its argument, the second helper here to do so and for
-    /// [`Self::LiteralMismatch`]'s reason: a call that never returns leaves no
+    /// [`Self::SingleValueMismatch`]'s reason: a call that never returns leaves no
     /// reachable instruction to release a reference at, so lowering retains a
     /// borrowed operand in front of the call and `nvs_runtime` releases what it
     /// was handed.
@@ -2807,7 +2807,7 @@ pub enum Helper {
     /// (`rule:types/anonymous-function`), so the checker types the call `mixed` and cannot say which
     /// function a variable holds; what answers both questions is the closure
     /// object itself, whose class declares the one `invoke`
-    /// `nvs_runtime::call_closure` reaches through. That helper is the same
+    /// `nvs_runtime::call_callable` reaches through. That helper is the same
     /// one every `Core` member taking a `callable` already calls, so a
     /// closure invoked from Novis and one invoked from a native member take the
     /// identical path.
@@ -2815,10 +2815,10 @@ pub enum Helper {
     /// Being variadic, it is the one helper whose argument count is not baked
     /// into `nvs_runtime`'s own declaration: `nvs-codegen` passes the count
     /// beside the argument slot, which is `Signatures::helper_variadic` there
-    /// and one extra parameter on `nvs_call_closure` here.
+    /// and one extra parameter on `nvs_call_callable` here.
     ///
     /// Arguments are **borrowed**, the treatment every helper's are given:
-    /// `call_closure` retains the receiver and each argument it actually
+    /// `call_callable` retains the receiver and each argument it actually
     /// passes, and the callee's own exit sweep releases those, so the caller
     /// keeps owning exactly what it lowered. The result is a fresh
     /// [`crate::ty::Ty::Tagged`] nothing else owns — the callee's return
@@ -2829,16 +2829,16 @@ pub enum Helper {
     /// `crate::lower::Lowering::emit_fallible` and carries `rule:errors/propagation`'s error
     /// edge: the closure's own throw or fault travels back as
     /// `Fault::Pending`, unchanged.
-    CallClosure,
+    CallCallable,
     /// `$fn(...)` where `$fn`'s type carries `rule:types/callable-signature`'s
-    /// written signature — [`CallClosure`](Self::CallClosure) with the
+    /// written signature — [`CallCallable`](Self::CallCallable) with the
     /// per-argument tag check left out.
     ///
     /// Everything about the emitted call is that row's: the closure at
     /// `args[0]`, the arguments after it in written order, the count beside the
     /// slot, borrowed arguments, a fresh [`crate::ty::Ty::Tagged`] result and
     /// `rule:errors/propagation`'s error edge. What differs is what the runtime
-    /// does with them — `nvs_runtime::closure`'s `check_param_tags` is not run,
+    /// does with them — `nvs_runtime::callable`'s `check_param_tags` is not run,
     /// because `nvs_types` checked every argument against a declared parameter
     /// type where the call was written, and `crate::lower` coerced each one
     /// into that parameter's own representation, which is the conversion the
@@ -2848,8 +2848,8 @@ pub enum Helper {
     /// know which kind of site will call it, and bare `callable` — the top of
     /// the lattice, and every callback a `Core` member reaches — still needs
     /// them.
-    CallClosureProven,
-    /// `$fn(...$args)` — [`CallClosure`](Self::CallClosure) for a call site
+    CallCallableProven,
+    /// `$fn(...$args)` — [`CallCallable`](Self::CallCallable) for a call site
     /// that wrote a `...` argument, where how many arguments there are is the
     /// spread subject's own run-time length.
     ///
@@ -2857,21 +2857,21 @@ pub enum Helper {
     /// in call order — the array `crate::lower::Lowering::lower_args_as_array`
     /// already builds for a variadic parameter's tail, each `...` flattened
     /// into it by `nvs_runtime::nvs_array_spread`. It is a second row rather
-    /// than a wider [`CallClosure`](Self::CallClosure) because that one's
+    /// than a wider [`CallCallable`](Self::CallCallable) because that one's
     /// argument count is a literal in the emitted call — `nvs-codegen` writes
     /// it beside the argument slot — and a `...` is precisely the shape with no
     /// such count, so this one is an ordinary fixed-arity helper taking two
     /// values.
     ///
     /// Ownership, the result and the error edge are all
-    /// [`CallClosure`](Self::CallClosure)'s: the array is borrowed like every
+    /// [`CallCallable`](Self::CallCallable)'s: the array is borrowed like every
     /// other helper argument, the result is a fresh
     /// [`crate::ty::Ty::Tagged`] the callee transferred, and the callee's own
     /// throw travels back as `Fault::Pending`.
-    CallClosureArray,
+    CallCallableArray,
     /// `$m->method(...)` on a **`mixed`** receiver — `rule:types/erased-member-access`'s deferral
     /// applied to a call, dispatched on the value the way
-    /// [`CallClosure`](Self::CallClosure) dispatches on a closure object.
+    /// [`CallCallable`](Self::CallCallable) dispatches on a closure object.
     ///
     /// `args[0]` is the receiver, still tagged — nothing proved it holds an
     /// object at all, so a tag that is not one is a catchable throw down
@@ -2882,14 +2882,14 @@ pub enum Helper {
     /// built by `crate::lower::Lowering::lower_args_as_array`.
     ///
     /// It is a helper rather than an [`InstKind`] for
-    /// [`CallClosureArray`](Self::CallClosureArray)'s reason and its
+    /// [`CallCallableArray`](Self::CallCallableArray)'s reason and its
     /// arguments are packed for the same one: how many there are is a
     /// **run-time** fact — a `...` argument's count is its subject's own
     /// length — and the callee's arity is not known here either, that being
     /// what the receiver's descriptor answers. `docs/adr/README.md`
     /// § *Decisions taken at project start* owns the convention: the method
     /// row on the receiver's own `ClassDesc` carries the callee's arity and
-    /// parameter tags, and `nvs_runtime::closure`'s `check_param_tags` is the
+    /// parameter tags, and `nvs_runtime::callable`'s `check_param_tags` is the
     /// one implementation this path and `callable`'s share.
     ///
     /// Ownership is every helper's: the receiver, the name and the array are
@@ -2909,15 +2909,15 @@ pub enum Helper {
     /// `$fn->bindTo($obj)` and `$fn->bind($obj)` —
     /// `rule:types/callable-is-the-only-function-type`'s rebind, and the first half of
     /// `$fn->call($obj, ...)`, whose second half is
-    /// [`CallClosure`](Self::CallClosure) on what this returns.
+    /// [`CallCallable`](Self::CallCallable) on what this returns.
     ///
     /// `args[0]` is the closure and `args[1]` the new `$this`, both borrowed.
     /// The result is a fresh closure reference: the same object for a closure
     /// that does not use `$this`, a copy holding the new `$this` for one that
-    /// does. `nvs_runtime::closure::bind_closure` owns the class test, and its
+    /// does. `nvs_runtime::callable::bind_callable` owns the class test, and its
     /// `LogicError` for an object the body was not checked against is this
     /// row's error edge.
-    BindClosure,
+    BindCallable,
 }
 
 /// A binary arithmetic or comparison operator, already resolved to a single

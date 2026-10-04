@@ -156,7 +156,7 @@ fn write_node(out: &mut String, node: &Node, depth: usize) {
             out.push('}');
         }
         Node::EnumCase { enum_name, case } => out.push_str(&format!("{enum_name}::{case}")),
-        Node::Closure { parameters } => {
+        Node::Callable { parameters } => {
             let plural = if *parameters == 1 { "" } else { "s" };
             out.push_str(&format!("callable({parameters} parameter{plural})"));
         }
@@ -315,7 +315,7 @@ mod tests {
     /// spends no representation on hiding, and a closure as its signature
     /// rather than as an object with invisible captures.
     #[test]
-    fn an_enum_case_and_a_closure_render_as_what_they_are() {
+    fn an_enum_case_and_a_callable_render_as_what_they_are() {
         assert_eq!(
             line(Node::EnumCase {
                 enum_name: "Mode".to_owned(),
@@ -324,11 +324,11 @@ mod tests {
             "Mode::Read"
         );
         assert_eq!(
-            line(Node::Closure { parameters: 2 }),
+            line(Node::Callable { parameters: 2 }),
             "callable(2 parameters)"
         );
         assert_eq!(
-            line(Node::Closure { parameters: 1 }),
+            line(Node::Callable { parameters: 1 }),
             "callable(1 parameter)"
         );
     }

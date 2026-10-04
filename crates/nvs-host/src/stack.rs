@@ -270,7 +270,7 @@ mod tests {
     }
 
     #[test]
-    fn the_closure_runs_on_the_thread_s_spare_stack_and_the_stack_is_kept() {
+    fn the_callable_runs_on_the_thread_s_spare_stack_and_the_stack_is_kept() {
         let first = on_spare_stack(a_local_s_address);
         let base = kept_base().expect("the thread keeps its spare stack after a call");
         assert!(
@@ -295,7 +295,7 @@ mod tests {
     }
 
     #[test]
-    fn a_panic_in_the_closure_reaches_the_caller() {
+    fn a_panic_in_the_callable_reaches_the_caller() {
         let caught = std::panic::catch_unwind(|| on_spare_stack(|| panic!("inside")));
         assert!(caught.is_err());
         assert_eq!(on_spare_stack(|| 7), 7, "the next call still runs");

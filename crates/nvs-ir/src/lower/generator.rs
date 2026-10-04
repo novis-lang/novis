@@ -520,7 +520,7 @@ pub(crate) fn lower_generator(
             enums,
         ));
     }
-    functions.append(&mut advance.closures);
+    functions.append(&mut advance.anon_fns);
     let mut classes = advance.classes;
     classes.push(crate::ir::Class {
         label: class.clone(),
@@ -589,7 +589,7 @@ pub(crate) fn lower_generator(
         // Synthesized, but not a closure: a generator's state is resumed
         // through `GENERATOR_UNWIND_METHOD` and its own advance entry point,
         // never called as a `callable`.
-        is_closure: false,
+        is_callable: false,
     });
     (functions, classes)
 }
@@ -845,11 +845,11 @@ pub(crate) fn lower_generator_advance(
         },
     );
 
-    let pending = std::mem::take(&mut low.closures);
+    let pending = std::mem::take(&mut low.anon_fns);
     // Beside the closures, and out the same channel: see `Lowering::callables`.
     let callables = std::mem::take(&mut low.callables);
     let (blocks, stmt_spans, edge_spans) = low.finish();
-    let (closures, classes) = drain_closures(pending, callables, src, exprs, checked_types, enums);
+    let (anon_fns, classes) = drain_anon_fns(pending, callables, src, exprs, checked_types, enums);
     (
         Lowered {
             function: Function {
@@ -861,7 +861,7 @@ pub(crate) fn lower_generator_advance(
                 stmt_spans,
                 edge_spans,
             },
-            closures,
+            anon_fns,
             classes,
         },
         frame.fields,

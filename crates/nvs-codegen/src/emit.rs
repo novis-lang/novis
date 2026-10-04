@@ -617,9 +617,9 @@ impl Emitter<'_, '_> {
                 // Two rows of the table are variadic — the closure call and
                 // the proven one beside it, whose arity is the call site's and
                 // not the helper's — so they are the ones that pass a count.
-                // See `nvs_ir::Helper::CallClosure`.
+                // See `nvs_ir::Helper::CallCallable`.
                 let sig = match helper {
-                    Helper::CallClosure | Helper::CallClosureProven => RuntimeSig::HelperVariadic,
+                    Helper::CallCallable | Helper::CallCallableProven => RuntimeSig::HelperVariadic,
                     _ => RuntimeSig::Helper,
                 };
                 return self.emit_helper(cur, inst, symbol, args, sig);
@@ -2214,7 +2214,7 @@ impl Emitter<'_, '_> {
     /// variadic ones. [`RuntimeSig::HelperVariadic`] is the same call with the
     /// argument **count** passed beside the slot, which a helper needs when
     /// its arity is a property of the call site rather than of its own
-    /// declaration — see `nvs_ir::Helper::CallClosure`.
+    /// declaration — see `nvs_ir::Helper::CallCallable`.
     fn emit_helper(
         &mut self,
         cur: Block,
@@ -4040,7 +4040,7 @@ fn helper_symbol(helper: Helper) -> Result<&'static str, CodegenError> {
         Helper::EchoValue => "nvs_echo_value",
         Helper::EchoMarkup => "nvs_echo_markup",
         Helper::Exit => "nvs_exit",
-        Helper::LiteralMismatch => "nvs_literal_mismatch",
+        Helper::SingleValueMismatch => "nvs_single_value_mismatch",
         Helper::CloneOperandNotAnObject => "nvs_clone_not_an_object",
         Helper::Identical => "nvs_value_identical",
         Helper::NumericEq => "nvs_numeric_eq",
@@ -4067,11 +4067,11 @@ fn helper_symbol(helper: Helper) -> Result<&'static str, CodegenError> {
         Helper::ValueIndexOptionalGet => "nvs_value_index_optional_get",
         Helper::ValueToArrayKey => "nvs_value_to_array_key",
         Helper::SecretEq => "nvs_secret_eq",
-        Helper::CallClosure => "nvs_call_closure",
-        Helper::CallClosureProven => "nvs_call_closure_proven",
-        Helper::CallClosureArray => "nvs_call_closure_array",
+        Helper::CallCallable => "nvs_call_callable",
+        Helper::CallCallableProven => "nvs_call_callable_proven",
+        Helper::CallCallableArray => "nvs_call_callable_array",
         Helper::CallErasedMethod => "nvs_call_erased_method",
-        Helper::BindClosure => "nvs_closure_bind",
+        Helper::BindCallable => "nvs_callable_bind",
         Helper::BytesTruthy => "nvs_bytes_truthy",
         Helper::ArrayTruthy => "nvs_array_truthy",
         Helper::ValueTruthy => "nvs_value_truthy",

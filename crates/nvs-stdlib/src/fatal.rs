@@ -208,7 +208,7 @@ mod tests {
     use std::cell::Cell;
 
     use nvs_runtime::{
-        CLOSURE_ARITY_SLOT, CLOSURE_INVOKE, CLOSURE_PARAM_TAG_ANY, CLOSURE_PARAM_TAGS_SLOT,
+        CALLABLE_ARITY_SLOT, CALLABLE_INVOKE, CALLABLE_PARAM_TAG_ANY, CALLABLE_PARAM_TAGS_SLOT,
         ClassTable, Ctx, ErrorClass, Limit, MethodRow, NvsFn, NvsObj, OK, Tag, Value, call,
     };
 
@@ -242,8 +242,8 @@ mod tests {
     #[test]
     fn on_limit_keeps_the_last_handler_and_runs_it_once() {
         let mut ctx = Ctx::buffered();
-        let first = closure_of(1, counts);
-        let second = closure_of(1, counts);
+        let first = callable_of(1, counts);
+        let second = callable_of(1, counts);
         let first_ptr = first.obj_ptr().expect("a closure is an object");
         #[expect(
             unsafe_code,
@@ -294,10 +294,10 @@ mod tests {
 
     /// The callback [`on_limit_keeps_the_last_handler_and_runs_it_once`]
     /// registers: note which closure ran and what it was handed, sweep the
-    /// references `call_closure` retained for this callee, and answer `null`.
+    /// references `call_callable` retained for this callee, and answer `null`.
     #[expect(
         unsafe_code,
-        reason = "`call_closure` passes exactly two live values, each retained \
+        reason = "`call_callable` passes exactly two live values, each retained \
                   for this callee to release, and `abi::call` passes the \
                   address of a live `Value` for the result"
     )]
@@ -351,7 +351,7 @@ mod tests {
             "an installed class is what promotes a bare failure to an object"
         );
 
-        let handler = closure_of(1, records);
+        let handler = callable_of(1, records);
         call(nvs_core_fatal_on_uncaught_throw, &mut ctx, &[handler])
             .expect("registering answers `void` and cannot fail");
         assert!(
@@ -386,18 +386,18 @@ mod tests {
     }
 
     /// The callback the test registers: record what arrived, sweep the
-    /// references `call_closure` retained for this callee, and answer `null` —
+    /// references `call_callable` retained for this callee, and answer `null` —
     /// which is what a `void` closure answers.
     #[expect(
         unsafe_code,
-        reason = "`call_closure` passes exactly two live values, each retained \
+        reason = "`call_callable` passes exactly two live values, each retained \
                   for this callee to release, and `abi::call` passes the \
                   address of a live `Value` for the result — neither is \
                   expressible in the signature compiled code calls through"
     )]
     unsafe extern "C" fn records(_ctx: *mut Ctx, args: *const Value, out: *mut Value) -> i32 {
         // Slot 0 is the closure itself and slot 1 its one parameter, which is
-        // the exception — `nvs_runtime::call_closure` builds the frame that
+        // the exception — `nvs_runtime::call_callable` builds the frame that
         // way for a compiled callee and for this one alike.
         let thrown = unsafe { *args.add(1) };
         SEEN.with(|seen| seen.set(thrown.bits()));
@@ -411,21 +411,21 @@ mod tests {
     }
 
     /// A closure value whose `invoke` is a plain Rust function —
-    /// `crates/nvs-stdlib/tests/allocation_policy.rs`'s `closure_of`, and its
-    /// doc comment is the home for why this is a whole closure: `call_closure`
+    /// `crates/nvs-stdlib/tests/allocation_policy.rs`'s `callable_of`, and its
+    /// doc comment is the home for why this is a whole closure: `call_callable`
     /// reads the arity slot, the tags slot and the invoke address, and nothing
     /// else in a compiled closure's representation is anything but captured
     /// state a native callback does not have.
     ///
     /// The table is leaked because a descriptor's *address* is its identity and
     /// it must outlive every instance made from it.
-    fn closure_of(arity: usize, invoke: NvsFn) -> Value {
+    fn callable_of(arity: usize, invoke: NvsFn) -> Value {
         let mut table = ClassTable::new();
-        let id = table.define("{closure}", &["arity", "params"], &[]);
+        let id = table.define("{callable}", &["arity", "params"], &[]);
         table.set_methods(
             id,
             vec![MethodRow {
-                name: CLOSURE_INVOKE.to_owned(),
+                name: CALLABLE_INVOKE.to_owned(),
                 code: invoke as *const u8,
                 arity: 0,
                 param_tags: 0,
@@ -436,7 +436,7 @@ mod tests {
                 native: false,
             }],
         );
-        table.set_closure(id);
+        table.set_callable(id);
         let table: &'static ClassTable = Box::leak(Box::new(table));
         #[expect(
             unsafe_code,
@@ -446,15 +446,15 @@ mod tests {
         )]
         let object = unsafe { NvsObj::new(table.desc(id)) };
         object.set_field(
-            CLOSURE_ARITY_SLOT,
+            CALLABLE_ARITY_SLOT,
             Value::int(i64::try_from(arity).expect("a small arity")),
         );
         let mut tags: u64 = 0;
         for parameter in 0..arity {
-            tags |= u64::from(CLOSURE_PARAM_TAG_ANY) << (parameter * 4);
+            tags |= u64::from(CALLABLE_PARAM_TAG_ANY) << (parameter * 4);
         }
         object.set_field(
-            CLOSURE_PARAM_TAGS_SLOT,
+            CALLABLE_PARAM_TAGS_SLOT,
             Value::int(i64::from_ne_bytes(tags.to_ne_bytes())),
         );
         Value::object(object)

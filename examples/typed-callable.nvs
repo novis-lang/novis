@@ -7,7 +7,7 @@
 // Every line below is printed through a call whose callee carries a written
 // signature — so the reporting is itself the feature, and a run that prints
 // four claims has already exercised the path that no longer reads a tag per
-// argument (`nvs_runtime::closure`'s `check_param_tags`).
+// argument (`nvs_runtime::callable`'s `check_param_tags`).
 callable(string, bool): void $claim = fn (string $text, bool $held): void => {
     if ($held) {
         echo $text, "\n";

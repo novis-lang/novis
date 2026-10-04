@@ -390,7 +390,7 @@ fn compare(
     let member = label(member);
     let comparator = comparator_of(receiver);
     if comparator.tag() == Some(Tag::Object) {
-        let verdict = nvs_runtime::call_closure(ctx, comparator, &[left, right])?;
+        let verdict = nvs_runtime::call_callable(ctx, comparator, &[left, right])?;
         return sign_of(verdict, member);
     }
     // An object pair is `compare_values`'s own row, not a branch here: two

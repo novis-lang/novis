@@ -1844,11 +1844,11 @@ fn filled(
     let Some(_held) = elected(ctx, filling, at.who)? else {
         return Ok(None);
     };
-    let entry = nvs_runtime::call_closure(ctx, fill, &[])?;
+    let entry = nvs_runtime::call_callable(ctx, fill, &[])?;
     let answered = supplied(ctx, at, entry);
     #[expect(
         unsafe_code,
-        reason = "`call_closure` hands back a value this frame owns, and the \
+        reason = "`call_callable` hands back a value this frame owns, and the \
                   entry is never handed on -- what leaves here is the secret it \
                   carried"
     )]

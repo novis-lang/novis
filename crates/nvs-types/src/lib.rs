@@ -508,7 +508,7 @@ pub(crate) struct Env<'a> {
     ///
     /// Saved and restored across an anonymous function's body exactly as [`Self::exit_targets`]
     /// is, and for the same reason: § 3's name reaches one body and no other,
-    /// which is the reach `nvs_ir::lower::closure`'s `FN_SELF` receiver has.
+    /// which is the reach `nvs_ir::lower::anon_fn`'s `FN_SELF` receiver has.
     /// [`crate::expr::calls::check_anon_fn`] owns what it resolves to.
     pub fn_self: Option<FnSelf>,
     /// One entry per enclosing `break` target the statement being checked

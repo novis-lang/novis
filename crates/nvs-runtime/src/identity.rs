@@ -72,7 +72,7 @@
 //!   two instances *by their contents* is a `Comparable::compareTo` call the
 //!   class opts into, so a member that walked properties here would be the
 //!   property-walk fallback that rule refuses. A closure is an object
-//!   ([`crate::closure`]), so two `fn` literals are never identical and one
+//!   ([`crate::callable`]), so two `fn` literals are never identical and one
 //!   closure value is identical to a copy of itself.
 //!
 //! # Why this terminates, and what it costs

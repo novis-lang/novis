@@ -138,7 +138,7 @@ nvs_runtime::nvs_helper! {
     /// That is why the closure's result is bound rather than `?`-ed.
     fn nvs_core_out_capture(ctx, args: [2]) {
         ctx.begin_capture();
-        let outcome = nvs_runtime::call_closure(ctx, args[0], &[]);
+        let outcome = nvs_runtime::call_callable(ctx, args[0], &[]);
         let captured = ctx.end_capture().unwrap_or_default();
         // The body's own return value is discarded — `capture` answers what was
         // written, not what was computed — so its reference ends here.
@@ -146,7 +146,7 @@ nvs_runtime::nvs_helper! {
             Ok(result) => {
                 #[expect(
                     unsafe_code,
-                    reason = "`call_closure` hands back a value the caller owns, \
+                    reason = "`call_callable` hands back a value the caller owns, \
                               and this one is never handed on"
                 )]
                 unsafe {
@@ -162,10 +162,10 @@ nvs_runtime::nvs_helper! {
         if matches!(args[1].tag(), Some(Tag::Null) | None) {
             return Ok(text);
         }
-        let transformed = nvs_runtime::call_closure(ctx, args[1], &[text]);
+        let transformed = nvs_runtime::call_callable(ctx, args[1], &[text]);
         #[expect(
             unsafe_code,
-            reason = "`call_closure` takes its own reference to each argument, \
+            reason = "`call_callable` takes its own reference to each argument, \
                       so the one this frame built is still ours to drop"
         )]
         unsafe {
@@ -245,25 +245,25 @@ fn not_the_carrier(value: Value, carrier: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use nvs_runtime::{
-        CARRIER_TEXT_SLOT, CLOSURE_ARITY_SLOT, CLOSURE_INVOKE, CLOSURE_PARAM_TAGS_SLOT, ClassTable,
-        Ctx, MethodRow, NvsFn, OK, THROWN, call,
+        CALLABLE_ARITY_SLOT, CALLABLE_INVOKE, CALLABLE_PARAM_TAGS_SLOT, CARRIER_TEXT_SLOT,
+        ClassTable, Ctx, MethodRow, NvsFn, OK, THROWN, call,
     };
 
     use super::*;
 
     /// A closure value of no parameters whose `invoke` is a plain Rust
     /// function — `crates/nvs-stdlib/tests/allocation_policy.rs`'s
-    /// `closure_of`, whose doc comment says why this is a whole closure.
+    /// `callable_of`, whose doc comment says why this is a whole closure.
     ///
     /// The table is leaked because a descriptor's *address* is its identity and
     /// it must outlive every instance made from it.
-    fn closure_of(invoke: NvsFn) -> Value {
+    fn callable_of(invoke: NvsFn) -> Value {
         let mut table = ClassTable::new();
-        let id = table.define("{closure}", &["arity", "params"], &[]);
+        let id = table.define("{callable}", &["arity", "params"], &[]);
         table.set_methods(
             id,
             vec![MethodRow {
-                name: CLOSURE_INVOKE.to_owned(),
+                name: CALLABLE_INVOKE.to_owned(),
                 code: invoke as *const u8,
                 arity: 0,
                 param_tags: 0,
@@ -274,7 +274,7 @@ mod tests {
                 native: false,
             }],
         );
-        table.set_closure(id);
+        table.set_callable(id);
         let table: &'static ClassTable = Box::leak(Box::new(table));
         #[expect(
             unsafe_code,
@@ -283,17 +283,17 @@ mod tests {
                       obligation"
         )]
         let object = unsafe { NvsObj::new(table.desc(id)) };
-        object.set_field(CLOSURE_ARITY_SLOT, Value::int(0));
-        object.set_field(CLOSURE_PARAM_TAGS_SLOT, Value::int(0));
+        object.set_field(CALLABLE_ARITY_SLOT, Value::int(0));
+        object.set_field(CALLABLE_PARAM_TAGS_SLOT, Value::int(0));
         Value::object(object)
     }
 
     /// `fn (): void => { echo "inside"; }`: write through the context the way
-    /// a compiled `echo` does, release the receiver `call_closure` retained,
+    /// a compiled `echo` does, release the receiver `call_callable` retained,
     /// and answer `null`.
     #[expect(
         unsafe_code,
-        reason = "`call_closure` passes a live context and exactly one retained \
+        reason = "`call_callable` passes a live context and exactly one retained \
                   value, the receiver, and `abi::call` passes the address of a \
                   live `Value` for the result"
     )]
@@ -337,7 +337,7 @@ mod tests {
         let mut ctx = Ctx::buffered();
         ctx.write_output(b"before<").expect("a buffered sink");
 
-        let body = closure_of(echoes);
+        let body = callable_of(echoes);
         let captured = call(nvs_core_out_capture, &mut ctx, &[body, Value::null()])
             .expect("a body that returns is captured");
         assert!(
@@ -351,7 +351,7 @@ mod tests {
         );
         assert_eq!(ctx.capture_depth(), 0);
 
-        let thrower = closure_of(echoes_then_throws);
+        let thrower = callable_of(echoes_then_throws);
         assert!(call(nvs_core_out_capture, &mut ctx, &[thrower, Value::null()]).is_err());
         assert_eq!(
             ctx.capture_depth(),
@@ -405,7 +405,7 @@ mod tests {
     #[test]
     fn capture_under_the_html_sink_answers_markup() {
         let mut ctx = Ctx::new(nvs_runtime::OutputSink::Body(Vec::new()));
-        let body = closure_of(echoes);
+        let body = callable_of(echoes);
         let captured = call(nvs_core_out_capture, &mut ctx, &[body, Value::null()])
             .expect("a body that returns is captured");
         assert!(

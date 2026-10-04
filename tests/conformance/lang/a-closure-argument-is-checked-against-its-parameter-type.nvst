@@ -4,7 +4,7 @@ An argument to a closure is checked against the parameter's declared type, ident
 <?nvs
 // `rule:types/anonymous-function`: a `callable` carries no parameter list, so nothing above the
 // call can check what a closure's parameters require. The closure object
-// records one nibble per parameter and `nvs_runtime::call_closure` compares
+// records one nibble per parameter and `nvs_runtime::call_callable` compares
 // each argument against it — the one path both callers below take.
 callable $isKeep = fn (string $s): bool => $s == "keep";
 

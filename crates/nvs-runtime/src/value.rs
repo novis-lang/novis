@@ -64,9 +64,9 @@ pub enum Tag {
     ///
     /// A `rule:types/callable-values` closure is one of these — one field
     /// per capture, one `invoke` method — so it needs no tag of its own;
-    /// `nvs_ir::lower::lower_closure` owns that decision and says why it reuses
+    /// `nvs_ir::lower::lower_anon_fn` owns that decision and says why it reuses
     /// the object machinery rather than adding a second heap shape, and
-    /// [`crate::closure`] is what reads a closure back out of an object value.
+    /// [`crate::callable`] is what reads a closure back out of an object value.
     /// An engine-owned handle is a `Core` class holding a key into its own
     /// context's table, for the reason `nvs_stdlib::instance`'s module doc
     /// gives, so neither shape is a row of its own here.

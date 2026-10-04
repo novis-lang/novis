@@ -23,13 +23,13 @@ thread_local! {
     static LIMITS: RefCell<Vec<(usize, usize)>> = const { RefCell::new(Vec::new()) };
 }
 
-fn closure_of(invoke: nvs_runtime::NvsFn) -> Value {
+fn callable_of(invoke: nvs_runtime::NvsFn) -> Value {
     let mut table = nvs_runtime::ClassTable::new();
-    let id = table.define("{closure}", &["arity", "params"], &[]);
+    let id = table.define("{callable}", &["arity", "params"], &[]);
     table.set_methods(
         id,
         vec![nvs_runtime::MethodRow {
-            name: nvs_runtime::CLOSURE_INVOKE.to_owned(),
+            name: nvs_runtime::CALLABLE_INVOKE.to_owned(),
             code: invoke as *const u8,
             arity: 0,
             param_tags: 0,
@@ -40,7 +40,7 @@ fn closure_of(invoke: nvs_runtime::NvsFn) -> Value {
             native: false,
         }],
     );
-    table.set_closure(id);
+    table.set_callable(id);
     let table: &'static nvs_runtime::ClassTable = Box::leak(Box::new(table));
     #[expect(
         unsafe_code,
@@ -48,8 +48,8 @@ fn closure_of(invoke: nvs_runtime::NvsFn) -> Value {
                   instance made from it — `NvsObj::new`'s whole obligation"
     )]
     let object = unsafe { nvs_runtime::NvsObj::new(table.desc(id)) };
-    object.set_field(nvs_runtime::CLOSURE_ARITY_SLOT, Value::int(0));
-    object.set_field(nvs_runtime::CLOSURE_PARAM_TAGS_SLOT, Value::int(0));
+    object.set_field(nvs_runtime::CALLABLE_ARITY_SLOT, Value::int(0));
+    object.set_field(nvs_runtime::CALLABLE_PARAM_TAGS_SLOT, Value::int(0));
     Value::object(object)
 }
 
@@ -57,7 +57,7 @@ fn closure_of(invoke: nvs_runtime::NvsFn) -> Value {
 /// `body` on the context, and answer what it returns.
 #[expect(
     unsafe_code,
-    reason = "`call_closure` passes one live value this callee owes a release, \
+    reason = "`call_callable` passes one live value this callee owes a release, \
               and the address of a live `Value` for the result"
 )]
 unsafe fn invoke(
@@ -255,7 +255,7 @@ fn text(markup: Value) -> Vec<u8> {
 /// `Core\Html::later($fn, {placeholder, error, deadline})`.
 fn later(
     ctx: &mut Ctx,
-    closure: Value,
+    callable: Value,
     placeholder: Option<&str>,
     error: Option<&str>,
     deadline: Option<Value>,
@@ -265,7 +265,7 @@ fn later(
     nvs_runtime::call(
         nvs_core_html_later,
         ctx,
-        &[closure, placeholder, error, deadline.unwrap_or_default()],
+        &[callable, placeholder, error, deadline.unwrap_or_default()],
     )
     .expect("`later` registered its slot")
 }
@@ -318,7 +318,7 @@ fn later_output_replaces_its_placeholder_in_the_assembled_body() {
         ctx.write_output(b"<h1>Blog</h1>").expect("a buffer");
         let slot = later(
             ctx,
-            closure_of(echoes_comments),
+            callable_of(echoes_comments),
             Some("<p>Loading</p>"),
             None,
             None,
@@ -337,11 +337,11 @@ fn later_output_replaces_its_placeholder_in_the_assembled_body() {
 }
 
 #[test]
-fn later_closures_run_concurrently_and_the_page_waits_for_the_slowest() {
+fn later_callables_run_concurrently_and_the_page_waits_for_the_slowest() {
     let began = Instant::now();
     let done = serve(|ctx| {
-        let a = later(ctx, closure_of(slow_a), None, None, None);
-        let b = later(ctx, closure_of(slow_b), None, None, None);
+        let a = later(ctx, callable_of(slow_a), None, None, None);
+        let b = later(ctx, callable_of(slow_b), None, None, None);
         ctx.write_output(&text(a)).expect("a buffer");
         ctx.write_output(b"-").expect("a buffer");
         ctx.write_output(&text(b)).expect("a buffer");
@@ -361,9 +361,9 @@ fn later_closures_run_concurrently_and_the_page_waits_for_the_slowest() {
 
 #[test]
 fn a_nested_later_is_filled_in_the_same_pass() {
-    INNER.with(|inner| inner.set(closure_of(echoes_comments)));
+    INNER.with(|inner| inner.set(callable_of(echoes_comments)));
     let done = serve(|ctx| {
-        let outer = later(ctx, closure_of(nests), None, None, None);
+        let outer = later(ctx, callable_of(nests), None, None, None);
         ctx.write_output(&text(outer)).expect("a buffer");
     });
     assert!(done.ok, "the page failed");
@@ -373,8 +373,8 @@ fn a_nested_later_is_filled_in_the_same_pass() {
 #[test]
 fn a_later_that_throws_fills_its_slot_with_its_error_fragment() {
     let done = serve(|ctx| {
-        let broken = later(ctx, closure_of(throws), None, Some("unavailable"), None);
-        let fine = later(ctx, closure_of(echoes_comments), None, None, None);
+        let broken = later(ctx, callable_of(throws), None, Some("unavailable"), None);
+        let fine = later(ctx, callable_of(echoes_comments), None, None, None);
         ctx.write_output(&text(broken)).expect("a buffer");
         ctx.write_output(b"|").expect("a buffer");
         ctx.write_output(&text(fine)).expect("a buffer");
@@ -395,7 +395,7 @@ fn a_later_past_its_deadline_fills_its_slot_with_its_error_fragment() {
         .expect("a duration");
         let slow = later(
             ctx,
-            closure_of(sleeps_forever),
+            callable_of(sleeps_forever),
             None,
             Some("timed out"),
             Some(deadline),
@@ -414,7 +414,7 @@ fn a_later_past_its_deadline_fills_its_slot_with_its_error_fragment() {
 fn a_later_whose_placeholder_is_never_written_is_cancelled_and_warned() {
     RAN.with(|ran| ran.set(0));
     let done = serve(|ctx| {
-        let _unused = later(ctx, closure_of(echoes_comments), None, None, None);
+        let _unused = later(ctx, callable_of(echoes_comments), None, None, None);
         ctx.write_output(b"<p>no slot here</p>").expect("a buffer");
     });
     assert!(done.ok, "an unwritten placeholder failed the page");
@@ -429,7 +429,7 @@ fn a_later_whose_placeholder_is_never_written_is_cancelled_and_warned() {
 #[test]
 fn a_placeholder_written_twice_throws() {
     let done = serve(|ctx| {
-        let slot = later(ctx, closure_of(echoes_comments), None, None, None);
+        let slot = later(ctx, callable_of(echoes_comments), None, None, None);
         let bytes = text(slot);
         ctx.write_output(&bytes).expect("a buffer");
         ctx.write_output(&bytes).expect("a buffer");
@@ -446,7 +446,7 @@ fn later_outside_an_html_response_runs_in_place() {
     ctx.set_core_classes(nvs_stdlib::core_class_desc);
     let answer = later(
         &mut ctx,
-        closure_of(echoes_comments),
+        callable_of(echoes_comments),
         Some("<p>Loading</p>"),
         None,
         None,
@@ -458,7 +458,7 @@ fn later_outside_an_html_response_runs_in_place() {
 #[test]
 fn a_visitor_string_that_copies_the_placeholder_fills_nothing() {
     let done = serve(|ctx| {
-        let slot = later(ctx, closure_of(echoes_comments), None, None, None);
+        let slot = later(ctx, callable_of(echoes_comments), None, None, None);
         let bytes = text(slot);
         // A visitor who learned the placeholder submits it as a comment.
         let visitor = markup(ctx, &String::from_utf8_lossy(&bytes));
@@ -484,7 +484,7 @@ fn a_visitor_string_that_copies_the_placeholder_fills_nothing() {
 }
 
 #[test]
-fn a_later_closure_that_changes_the_response_head_throws() {
+fn a_later_callable_that_changes_the_response_head_throws() {
     let done = serve(|ctx| {
         nvs_runtime::call(
             member("nvs_core_response_set_status"),
@@ -492,9 +492,9 @@ fn a_later_closure_that_changes_the_response_head_throws() {
             &[Value::uint(201)],
         )
         .expect("the main script sets the status");
-        let status = later(ctx, closure_of(sets_status), None, None, None);
-        let header = later(ctx, closure_of(sets_header), None, None, None);
-        let body = later(ctx, closure_of(writes_text), None, None, None);
+        let status = later(ctx, callable_of(sets_status), None, None, None);
+        let header = later(ctx, callable_of(sets_header), None, None, None);
+        let body = later(ctx, callable_of(writes_text), None, None, None);
         for slot in [status, header, body] {
             ctx.write_output(&text(slot)).expect("a buffer");
             ctx.write_output(b"|").expect("a buffer");
@@ -518,8 +518,8 @@ fn later_tasks_share_the_requests_limits() {
     let done = serve(|ctx| {
         let tree = std::sync::Arc::as_ptr(&ctx.tree_handle()) as usize;
         LIMITS.with(|seen| seen.borrow_mut().push((ctx.memory_limit(), tree)));
-        let a = later(ctx, closure_of(notes_limits), None, None, None);
-        let b = later(ctx, closure_of(notes_limits), None, None, None);
+        let a = later(ctx, callable_of(notes_limits), None, None, None);
+        let b = later(ctx, callable_of(notes_limits), None, None, None);
         ctx.write_output(&text(a)).expect("a buffer");
         ctx.write_output(&text(b)).expect("a buffer");
     });
@@ -536,8 +536,8 @@ fn later_tasks_share_the_requests_limits() {
 fn a_limit_breach_fails_the_whole_request_on_a_normal_route() {
     let done = serve(|ctx| {
         ctx.set_output_limit(1024);
-        let greedy = later(ctx, closure_of(writes_too_much), None, Some("error"), None);
-        let slow = later(ctx, closure_of(slow_a), None, None, None);
+        let greedy = later(ctx, callable_of(writes_too_much), None, Some("error"), None);
+        let slow = later(ctx, callable_of(slow_a), None, None, None);
         ctx.write_output(&text(greedy)).expect("a buffer");
         ctx.write_output(&text(slow)).expect("a buffer");
     });
@@ -556,8 +556,8 @@ fn a_limit_breach_fails_the_whole_request_on_a_normal_route() {
 fn after_response_work_runs_after_the_last_later() {
     ORDER.with(|order| order.borrow_mut().clear());
     let done = serve(|ctx| {
-        assert_eq!(ctx.defer(closure_of(notes_deferred), 0), Ok(()));
-        let slot = later(ctx, closure_of(notes_later), None, None, None);
+        assert_eq!(ctx.defer(callable_of(notes_deferred), 0), Ok(()));
+        let slot = later(ctx, callable_of(notes_later), None, None, None);
         ctx.write_output(&text(slot)).expect("a buffer");
     });
     assert!(done.ok, "the page failed");

@@ -49,8 +49,8 @@ const FAILED: &[u8] = b"<p>failed</p>";
 /// and [`END`].
 fn page(ctx: &mut Ctx, slots: &[Value]) {
     write(ctx, TOP.as_bytes());
-    for &closure in slots {
-        let marker = ctx.register_later(closure, LOADING, FAILED, None);
+    for &callable in slots {
+        let marker = ctx.register_later(callable, LOADING, FAILED, None);
         write(ctx, &marker);
     }
     write(ctx, END.as_bytes());
@@ -128,7 +128,7 @@ fn a_slotted_route_sends_its_shell_while_a_later_is_still_parked() {
         |ctx| {
             ctx.make_slotted()
                 .expect("the main script could not make its response slotted");
-            page(ctx, &[nvs_runtime::native_closure::<Parks>()]);
+            page(ctx, &[nvs_runtime::native_callable::<Parks>()]);
         },
         None,
         |mut socket, _| {
@@ -162,8 +162,8 @@ fn a_slotted_route_sends_its_shell_while_a_later_is_still_parked() {
 fn fills_arrive_in_the_order_their_later_finished() {
     let answer = slotted(|| {
         vec![
-            nvs_runtime::native_closure::<After<300>>(),
-            nvs_runtime::native_closure::<After<30>>(),
+            nvs_runtime::native_callable::<After<300>>(),
+            nvs_runtime::native_callable::<After<30>>(),
         ]
     });
     let (_, body) = split(&answer);
@@ -183,8 +183,8 @@ fn fills_arrive_in_the_order_their_later_finished() {
 fn the_polyfill_is_sent_once_and_only_with_a_fill() {
     let answer = slotted(|| {
         vec![
-            nvs_runtime::native_closure::<After<30>>(),
-            nvs_runtime::native_closure::<After<60>>(),
+            nvs_runtime::native_callable::<After<30>>(),
+            nvs_runtime::native_callable::<After<60>>(),
         ]
     });
     let (_, body) = split(&answer);
@@ -206,7 +206,7 @@ fn the_polyfill_is_sent_once_and_only_with_a_fill() {
             ctx.make_slotted()
                 .expect("the main script could not make its response slotted");
             write(ctx, TOP.as_bytes());
-            let _ = ctx.register_later(nvs_runtime::native_closure::<Writes>(), b"", b"", None);
+            let _ = ctx.register_later(nvs_runtime::native_callable::<Writes>(), b"", b"", None);
             write(ctx, END.as_bytes());
         },
         None,
@@ -223,8 +223,8 @@ fn the_polyfill_is_sent_once_and_only_with_a_fill() {
 fn the_end_of_the_document_is_held_back_until_the_last_fill() {
     let answer = slotted(|| {
         vec![
-            nvs_runtime::native_closure::<After<30>>(),
-            nvs_runtime::native_closure::<After<60>>(),
+            nvs_runtime::native_callable::<After<30>>(),
+            nvs_runtime::native_callable::<After<60>>(),
         ]
     });
     let (_, body) = split(&answer);
@@ -293,7 +293,7 @@ fn the_polyfill_and_trigger_hashes_are_added_only_to_a_policy_that_limits_script
             ctx.make_slotted()
                 .expect("the main script could not make its response slotted");
             ctx.declare_header("Content-Security-Policy", "default-src 'self'");
-            page(ctx, &[nvs_runtime::native_closure::<Writes>()]);
+            page(ctx, &[nvs_runtime::native_callable::<Writes>()]);
         },
         None,
         whole,
@@ -303,7 +303,7 @@ fn the_polyfill_and_trigger_hashes_are_added_only_to_a_policy_that_limits_script
         head.contains(&format!("default-src 'self' {both}").to_ascii_lowercase()),
         "a declared policy did not learn the hashes: {head}"
     );
-    let (head, _) = split(&slotted(|| vec![nvs_runtime::native_closure::<Writes>()]));
+    let (head, _) = split(&slotted(|| vec![nvs_runtime::native_callable::<Writes>()]));
     assert!(
         !head.contains("sha256-"),
         "the shipped policy learned hashes: {head}"
@@ -314,9 +314,9 @@ fn the_polyfill_and_trigger_hashes_are_added_only_to_a_policy_that_limits_script
 fn every_fill_ends_with_the_trigger() {
     let answer = slotted(|| {
         vec![
-            nvs_runtime::native_closure::<After<30>>(),
-            nvs_runtime::native_closure::<Writes>(),
-            nvs_runtime::native_closure::<After<60>>(),
+            nvs_runtime::native_callable::<After<30>>(),
+            nvs_runtime::native_callable::<Writes>(),
+            nvs_runtime::native_callable::<After<60>>(),
         ]
     });
     let (_, body) = split(&answer);
@@ -349,7 +349,7 @@ fn a_slot_adds_at_most_120_bytes_beyond_its_content() {
             write(ctx, TOP.as_bytes());
             for _ in 0..12 {
                 let marker =
-                    ctx.register_later(nvs_runtime::native_closure::<Writes>(), b"", b"", None);
+                    ctx.register_later(nvs_runtime::native_callable::<Writes>(), b"", b"", None);
                 write(ctx, &marker);
             }
             write(ctx, END.as_bytes());
@@ -368,7 +368,7 @@ fn a_slot_adds_at_most_120_bytes_beyond_its_content() {
 
 #[test]
 fn a_slot_name_carries_a_16_character_token() {
-    let (_, body) = split(&slotted(|| vec![nvs_runtime::native_closure::<Writes>()]));
+    let (_, body) = split(&slotted(|| vec![nvs_runtime::native_callable::<Writes>()]));
     let at = fills(&body)[0] + "<template for=\"".len();
     let name = &body[at..at + body[at..].find('"').expect("an unterminated name")];
     let (prefix, rest) = name.split_once('-').expect("a name with no prefix");
@@ -413,7 +413,7 @@ fn the_polyfill_and_trigger_hashes_match_their_files() {
 
 #[test]
 fn a_slotted_response_carries_no_content_length_and_turns_off_proxy_buffering() {
-    let (head, _) = split(&slotted(|| vec![nvs_runtime::native_closure::<Writes>()]));
+    let (head, _) = split(&slotted(|| vec![nvs_runtime::native_callable::<Writes>()]));
     assert!(
         !head.contains("content-length"),
         "a slotted response has a length: {head}"
@@ -432,14 +432,14 @@ fn a_slotted_response_carries_no_content_length_and_turns_off_proxy_buffering() 
 #[test]
 fn slotted_from_a_route_attribute_and_from_the_call_are_the_same() {
     let by_route = served_page(
-        |ctx| page(ctx, &[nvs_runtime::native_closure::<Writes>()]),
+        |ctx| page(ctx, &[nvs_runtime::native_callable::<Writes>()]),
         Some(
             nvs_runtime::routes::Route::new("GET", "/page", None, "Blog::show", None, vec![])
                 .with_slotted(),
         ),
         whole,
     );
-    let by_call = slotted(|| vec![nvs_runtime::native_closure::<Writes>()]);
+    let by_call = slotted(|| vec![nvs_runtime::native_callable::<Writes>()]);
     let (head, body) = split(&by_route);
     assert!(
         head.contains("x-accel-buffering: no"),
@@ -480,9 +480,9 @@ fn a_limit_breach_on_a_slotted_route_fills_every_unfilled_slot_with_its_error_an
     // torn down. The two quick slots finish before the breach.
     let answer = slotted(|| {
         vec![
-            nvs_runtime::native_closure::<Writes>(),
-            nvs_runtime::native_closure::<Breaches>(),
-            nvs_runtime::native_closure::<Writes>(),
+            nvs_runtime::native_callable::<Writes>(),
+            nvs_runtime::native_callable::<Breaches>(),
+            nvs_runtime::native_callable::<Writes>(),
         ]
     });
     let (head, body) = split(&answer);
@@ -515,7 +515,7 @@ fn a_slotted_response_holds_its_admission_place_until_its_last_fill() {
         |ctx| {
             ctx.make_slotted()
                 .expect("the main script could not make its response slotted");
-            page(ctx, &[nvs_runtime::native_closure::<After<300>>()]);
+            page(ctx, &[nvs_runtime::native_callable::<After<300>>()]);
         },
         None,
         |mut socket, admission| {

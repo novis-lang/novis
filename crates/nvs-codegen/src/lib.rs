@@ -1494,12 +1494,12 @@ impl Classes {
         }
         let id = self.table.define(&class.label, &class.fields, &parents);
         // `rule:types/callable-values`'s bit, carried down rather than
-        // recomputed: `nvs_runtime::ClassDesc::is_closure` is what decides
+        // recomputed: `nvs_runtime::ClassDesc::is_callable` is what decides
         // whether a value may be called as a `callable` and whether
         // `rule:classes/graph-copy`'s walk refuses it, and the `invoke` in the
         // method table is a name a program is free to declare.
-        if class.is_closure {
-            self.table.set_closure(id);
+        if class.is_callable {
+            self.table.set_callable(id);
         }
         if !class.defaults.is_empty() {
             self.table.set_defaults(id, class.defaults.clone());
@@ -1726,8 +1726,8 @@ struct Signatures {
     /// `(ctx, args, argc, out) -> status` — [`Self::helper`] with the
     /// argument **count** passed beside the slot, for the two helpers whose
     /// arity belongs to the call site rather than to their own declaration:
-    /// `nvs_runtime::nvs_call_closure` and `nvs_call_closure_proven`, which are
-    /// `nvs_ir::Helper::CallClosure` and `CallClosureProven` — the dynamic and
+    /// `nvs_runtime::nvs_call_callable` and `nvs_call_callable_proven`, which are
+    /// `nvs_ir::Helper::CallCallable` and `CallCallableProven` — the dynamic and
     /// the checked spellings of `rule:types/anonymous-function`'s `$fn(...)`.
     /// Every other helper's arity is a literal in its `nvs_helper!` expansion,
     /// so no count crosses the boundary at all.

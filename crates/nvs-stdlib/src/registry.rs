@@ -477,7 +477,7 @@ pub enum CoreTy {
     /// and the **top** of `rule:types/callable-signature`'s lattice: it says
     /// nothing about the parameters or the result of the closure that
     /// satisfies it, so a call through one is checked argument by argument at
-    /// run time by `nvs_runtime::call_closure`, at the cost
+    /// run time by `nvs_runtime::call_callable`, at the cost
     /// `rule:types/unions-and-mixed` gives `mixed`.
     ///
     /// A row writes this where the value is **not a callback the member
@@ -539,7 +539,7 @@ pub enum CoreTy {
     /// An ordinary *type*, which is what separates it from the two binding
     /// sites above it. It says what a callback receives, so the checker
     /// answers where the call is written what
-    /// [`Self::Callable`] leaves to `nvs_runtime::call_closure`'s per-argument
+    /// [`Self::Callable`] leaves to `nvs_runtime::call_callable`'s per-argument
     /// tag test, and `nvs_types::expr::calls`' `check_anon_fn` fills an
     /// unannotated `fn($u) => …`'s parameter from it —
     /// `rule:types/anonymous-function-parameter-inference`.
@@ -663,7 +663,7 @@ pub enum CoreTy {
     /// Never a whole parameter or a bare option type, for [`Self::EnumCase`]'s
     /// reason: a position admitting exactly one number admits no choice, and
     /// would be an argument the caller writes and the member could assume.
-    /// `a_literal_type_only_appears_inside_a_union` holds that.
+    /// `a_single_value_type_only_appears_inside_a_union` holds that.
     SingleValueInt(i64),
     /// `?T` — `rule:expressions/nullable-conversion`'s
     /// nullable, which the spec's own tables write at every member that
@@ -779,7 +779,7 @@ pub enum CoreTy {
     /// is an `NvsArray` the helper walks directly, and `Tag::Obj` is a cursor
     /// it *drives* — `iterate()` first when the value reaches `Iterable<T>`,
     /// then `advance()`/`current()` — through the class descriptor's own
-    /// method table, exactly as `nvs_runtime::call_closure` already reaches a
+    /// method table, exactly as `nvs_runtime::call_callable` already reaches a
     /// closure's `invoke`. Every one of those members is bodiless
     /// (`nvs_types::iter_lib`), so that name lookup *is* the dispatch a
     /// `foreach` over the same value performs. Materialising the sequence into
@@ -5213,7 +5213,7 @@ mod tests {
     /// `rule:types/callable-signature`'s whole point, swept: a callback a
     /// `Core` member *calls* says what it is handed and what it must answer,
     /// so a mismatch is refused where the call is written rather than by
-    /// `nvs_runtime::call_closure`'s per-argument tag test one frame in. That
+    /// `nvs_runtime::call_callable`'s per-argument tag test one frame in. That
     /// check is `rule:security/isolate-shares-nothing`'s guard between a
     /// mismatched argument and an arbitrary dereference, and a proven call
     /// site stops paying it.
@@ -5879,7 +5879,7 @@ mod tests {
     /// [`CoreTy::SingleValueInt`] for why a position admitting exactly one number
     /// is not a position at all.
     #[test]
-    fn a_literal_type_only_appears_inside_a_union() {
+    fn a_single_value_type_only_appears_inside_a_union() {
         for (what, ty) in every_type() {
             assert!(
                 !matches!(ty, CoreTy::SingleValueInt(_)),

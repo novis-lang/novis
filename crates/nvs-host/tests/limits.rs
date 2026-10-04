@@ -11,7 +11,7 @@
 //! `nvs-host` is the crate that owns a request's life, and it is the shallowest
 //! place both halves are reachable from without a compiler in front of them.
 //!
-//! A closure here is built by hand rather than compiled: `call_closure` reads
+//! A closure here is built by hand rather than compiled: `call_callable` reads
 //! little enough off a closure value that a `ClassTable` and a plain
 //! `extern "C"` function are a whole one. `nvs-stdlib`'s `allocation_policy.rs`
 //! owns that shape and the reason the table is leaked.
@@ -30,12 +30,12 @@ use nvs_runtime::{Ctx, NvsStr, OutputSink, Value, nvs_safepoint};
 static ENTERED: AtomicUsize = AtomicUsize::new(0);
 
 /// A registered `Core\Fatal::onLimit` handler, as the callee side of
-/// `call_closure`'s contract: it counts its own entry, sweeps the one
+/// `call_callable`'s contract: it counts its own entry, sweeps the one
 /// reference it was handed — the receiver, since it declares no parameters —
 /// and answers nothing.
 #[expect(
     unsafe_code,
-    reason = "`call_closure` passes one live value this callee owes a release, \
+    reason = "`call_callable` passes one live value this callee owes a release, \
               and the address of a live `Value` for the result; neither is \
               expressible in the signature compiled code is called through"
 )]
@@ -276,16 +276,16 @@ unsafe extern "C" fn records_the_child_cpu_report(
 }
 
 /// A zero-parameter closure calling `invoke`, owned by the caller.
-fn closure_of(invoke: nvs_runtime::NvsFn) -> Value {
-    closure_taking(invoke, 0)
+fn callable_of(invoke: nvs_runtime::NvsFn) -> Value {
+    callable_taking(invoke, 0)
 }
 
 /// A closure declaring one parameter of any representation, which is what a
 /// handler written to § 1's `closure(LimitReport)` signature is: `callable`
 /// carries no parameter list (`rule:types/anonymous-function`), so the nibble a written `fn`
-/// literal would record is the only thing `call_closure` checks against.
-fn closure_taking_the_report(invoke: nvs_runtime::NvsFn) -> Value {
-    closure_taking(invoke, 1)
+/// literal would record is the only thing `call_callable` checks against.
+fn callable_taking_the_report(invoke: nvs_runtime::NvsFn) -> Value {
+    callable_taking(invoke, 1)
 }
 
 /// A closure of `arity` parameters calling `invoke`, owned by the caller.
@@ -293,13 +293,13 @@ fn closure_taking_the_report(invoke: nvs_runtime::NvsFn) -> Value {
 /// The table is leaked because a descriptor's address is its identity and it
 /// must outlive every instance made from it; the process exiting is what
 /// reclaims it.
-fn closure_taking(invoke: nvs_runtime::NvsFn, arity: i64) -> Value {
+fn callable_taking(invoke: nvs_runtime::NvsFn, arity: i64) -> Value {
     let mut table = nvs_runtime::ClassTable::new();
-    let id = table.define("{closure}", &["arity", "params"], &[]);
+    let id = table.define("{callable}", &["arity", "params"], &[]);
     table.set_methods(
         id,
         vec![nvs_runtime::MethodRow {
-            name: nvs_runtime::CLOSURE_INVOKE.to_owned(),
+            name: nvs_runtime::CALLABLE_INVOKE.to_owned(),
             code: invoke as *const u8,
             // Read off the object's own slots below, never off this row.
             arity: 0,
@@ -311,7 +311,7 @@ fn closure_taking(invoke: nvs_runtime::NvsFn, arity: i64) -> Value {
             native: false,
         }],
     );
-    table.set_closure(id);
+    table.set_callable(id);
     let table: &'static nvs_runtime::ClassTable = Box::leak(Box::new(table));
     #[expect(
         unsafe_code,
@@ -319,15 +319,15 @@ fn closure_taking(invoke: nvs_runtime::NvsFn, arity: i64) -> Value {
                   instance made from it — `NvsObj::new`'s whole obligation"
     )]
     let object = unsafe { nvs_runtime::NvsObj::new(table.desc(id)) };
-    object.set_field(nvs_runtime::CLOSURE_ARITY_SLOT, Value::int(arity));
+    object.set_field(nvs_runtime::CALLABLE_ARITY_SLOT, Value::int(arity));
     // One nibble per parameter, and `ANY` in each: what this file's callees
     // read off their argument slots is the report's own tag, so the check the
     // nibbles exist for has nothing to add here.
     let mut tags: i64 = 0;
     for slot in 0..arity {
-        tags |= i64::from(nvs_runtime::CLOSURE_PARAM_TAG_ANY) << (slot * 4);
+        tags |= i64::from(nvs_runtime::CALLABLE_PARAM_TAG_ANY) << (slot * 4);
     }
-    object.set_field(nvs_runtime::CLOSURE_PARAM_TAGS_SLOT, Value::int(tags));
+    object.set_field(nvs_runtime::CALLABLE_PARAM_TAGS_SLOT, Value::int(tags));
     Value::object(object)
 }
 
@@ -404,7 +404,7 @@ fn a_memory_cap_terminates_a_runaway_script_as_a_fatal() {
 fn a_cpu_cap_terminates_a_runaway_script_as_a_fatal() {
     let mut ctx = Ctx::new(OutputSink::Sink);
     ctx.request_safepoint(nvs_runtime::SafepointFlags::CPU_LIMIT);
-    ctx.set_limit_handler(closure_of(answers_nothing));
+    ctx.set_limit_handler(callable_of(answers_nothing));
 
     #[expect(
         unsafe_code,
@@ -442,7 +442,7 @@ fn a_limit_handler_is_handed_a_report_naming_the_limit() {
     };
 
     let (mut ctx, hog) = breached();
-    ctx.set_limit_handler(closure_taking_the_report(records_the_report));
+    ctx.set_limit_handler(callable_taking_the_report(records_the_report));
     #[expect(
         unsafe_code,
         reason = "as above: the safepoint's ABI takes a context pointer, and \
@@ -455,7 +455,7 @@ fn a_limit_handler_is_handed_a_report_naming_the_limit() {
 
     let mut ctx = Ctx::new(OutputSink::Sink);
     ctx.request_safepoint(nvs_runtime::SafepointFlags::CPU_LIMIT);
-    ctx.set_limit_handler(closure_taking_the_report(records_the_report));
+    ctx.set_limit_handler(callable_taking_the_report(records_the_report));
     #[expect(
         unsafe_code,
         reason = "the same live local, one branch of the poll further down"
@@ -479,7 +479,7 @@ fn a_limit_fatal_reaches_on_limit_and_never_a_catch() {
     let (mut ctx, hog) = breached();
     let before = ENTERED.load(Ordering::SeqCst);
     // The registration is an owned reference, which the context then holds.
-    ctx.set_limit_handler(closure_of(counts_its_entry));
+    ctx.set_limit_handler(callable_of(counts_its_entry));
     assert!(ctx.has_limit_handler());
 
     #[expect(
@@ -520,7 +520,7 @@ fn a_fatal_handler_runs_inside_its_reserved_slice() {
     let (mut ctx, hog) = breached();
     let ordinary = ctx.memory_limit();
     ctx.set_fatal_reserve(4 << 20);
-    ctx.set_limit_handler(closure_of(reports_its_budget));
+    ctx.set_limit_handler(callable_of(reports_its_budget));
 
     #[expect(
         unsafe_code,
@@ -568,7 +568,7 @@ fn a_fatal_handler_runs_inside_its_reserved_time_slice() {
     ctx.set_cpu_limit(2_000_000_000);
     ctx.set_fatal_reserve_time(300_000_000);
     ctx.request_safepoint(nvs_runtime::SafepointFlags::CPU_LIMIT);
-    ctx.set_limit_handler(closure_of(reports_its_time));
+    ctx.set_limit_handler(callable_of(reports_its_time));
 
     #[expect(
         unsafe_code,
@@ -871,7 +871,7 @@ fn a_recursive_spawn_is_reported_as_max_script_depth_and_not_as_memory() {
     // one refused and this is the bound's far side.
     let mut deepest = request.isolate(OutputSink::Sink).isolate(OutputSink::Sink);
     assert_eq!(deepest.script_depth(), 2);
-    deepest.set_limit_handler(closure_taking_the_report(records_the_spawn_report));
+    deepest.set_limit_handler(callable_taking_the_report(records_the_spawn_report));
 
     let refused = nvs_host::Isolate::new(
         Box::new(|_ctx: &mut Ctx, _args: Value| Value::null()),
@@ -925,7 +925,7 @@ fn a_childs_memory_breach_arrives_as_ok_false_and_the_parent_keeps_running() {
     let completion = nvs_host::Isolate::new(
         Box::new(|child: &mut Ctx, _args: Value| {
             child.set_memory_limit(4096);
-            child.set_limit_handler(closure_taking_the_report(records_the_child_memory_report));
+            child.set_limit_handler(callable_taking_the_report(records_the_child_memory_report));
             // Held across the poll, as `breached` holds its own and for its reason: the reading is
             // what this thread holds now against what it held when the child's context was made.
             let hog = vec![0_u8; 1 << 20];
@@ -1006,7 +1006,7 @@ fn a_childs_cpu_breach_arrives_as_ok_false_and_the_parent_keeps_running() {
 
     let completion = nvs_host::Isolate::new(
         Box::new(|child: &mut Ctx, _args: Value| {
-            child.set_limit_handler(closure_taking_the_report(records_the_child_cpu_report));
+            child.set_limit_handler(callable_taking_the_report(records_the_child_cpu_report));
             child.request_safepoint(nvs_runtime::SafepointFlags::CPU_LIMIT);
 
             #[expect(

@@ -360,7 +360,7 @@ fn walk(
             }
 
             let mut harvest = Harvest::default();
-            find_require_literals(&stmts, map.file(id), &mut harvest);
+            find_written_requires(&stmts, map.file(id), &mut harvest);
             wanted.append(&mut harvest.names);
             scan = scan.or_else(|| harvest.scans.first().copied());
             let targets = std::mem::take(&mut harvest.requires);
@@ -942,7 +942,7 @@ fn record_implements(clauses: &[ImplementsClause], src: &SourceFile, out: &mut H
 /// declaration, and every name that might need one — because they are found
 /// in the same places by the same recursion, and a second walker over the
 /// whole AST would be a second walker to keep in step with the first.
-fn find_require_literals(stmts: &[Stmt], src: &SourceFile, out: &mut Harvest) {
+fn find_written_requires(stmts: &[Stmt], src: &SourceFile, out: &mut Harvest) {
     for stmt in stmts {
         walk_stmt(stmt, src, out);
     }
@@ -965,7 +965,7 @@ fn walk_stmt(stmt: &Stmt, src: &SourceFile, out: &mut Harvest) {
         StmtKind::Return(Some(x)) | StmtKind::Break(Some(x)) | StmtKind::Continue(Some(x)) => {
             e!(x);
         }
-        StmtKind::Block(b) => find_require_literals(&b.stmts, src, out),
+        StmtKind::Block(b) => find_written_requires(&b.stmts, src, out),
         StmtKind::If { arms, else_ } => {
             for arm in arms {
                 e!(&arm.cond);
@@ -1020,7 +1020,7 @@ fn walk_stmt(stmt: &Stmt, src: &SourceFile, out: &mut Harvest) {
                 if let Some(cond) = &case.cond {
                     e!(cond);
                 }
-                find_require_literals(&case.body, src, out);
+                find_written_requires(&case.body, src, out);
             }
         }
         StmtKind::Try {
@@ -1028,13 +1028,13 @@ fn walk_stmt(stmt: &Stmt, src: &SourceFile, out: &mut Harvest) {
             catches,
             finally,
         } => {
-            find_require_literals(&body.stmts, src, out);
+            find_written_requires(&body.stmts, src, out);
             for catch in catches {
                 walk_type(&catch.ty, src, out);
-                find_require_literals(&catch.body.stmts, src, out);
+                find_written_requires(&catch.body.stmts, src, out);
             }
             if let Some(finally) = finally {
-                find_require_literals(&finally.stmts, src, out);
+                find_written_requires(&finally.stmts, src, out);
             }
         }
         StmtKind::Echo(xs) | StmtKind::Unset(xs) => {
@@ -1099,7 +1099,7 @@ fn walk_stmt(stmt: &Stmt, src: &SourceFile, out: &mut Harvest) {
             // `namespace Name;` changes both for the rest of the file, which
             // is what *not* restoring them does.
             if let Some(block) = body {
-                find_require_literals(&block.stmts, src, out);
+                find_written_requires(&block.stmts, src, out);
                 out.namespace = outer_ns;
                 out.imports = outer_imports;
             }
@@ -1200,7 +1200,7 @@ fn walk_method(method: &MethodMember, src: &SourceFile, out: &mut Harvest) {
         walk_type(ty, src, out);
     }
     if let Some(body) = &method.body {
-        find_require_literals(&body.stmts, src, out);
+        find_written_requires(&body.stmts, src, out);
     }
 }
 
@@ -1242,7 +1242,7 @@ fn walk_class_members(members: &[ClassMember], src: &SourceFile, out: &mut Harve
 }
 
 fn walk_block(block: &Block, src: &SourceFile, out: &mut Harvest) {
-    find_require_literals(&block.stmts, src, out);
+    find_written_requires(&block.stmts, src, out);
 }
 
 fn walk_params(params: &[Param], src: &SourceFile, out: &mut Harvest) {
@@ -1597,7 +1597,7 @@ type ConstTable = FxHashMap<QName, FxHashMap<String, String>>;
 /// order — so a constant naming one declared above it resolves, and one naming
 /// a constant below it does not.
 ///
-/// A pass of its own rather than part of [`find_require_literals`], because it
+/// A pass of its own rather than part of [`find_written_requires`], because it
 /// reads declaration positions alone: the `namespace`/`use` sequence a class
 /// name resolves through, the class and interface declarations, and their
 /// `const` members. That is what lets a whole file's constants be in the table

@@ -130,7 +130,7 @@ mod tests {
     use nvs_ir::lower::{FN_PARAM_TAG_ANY, param_tag_nibble};
 
     /// A closure object records one nibble per parameter and
-    /// `nvs_runtime::call_closure` compares it against the tag an argument
+    /// `nvs_runtime::call_callable` compares it against the tag an argument
     /// actually carries — so `nvs_ir::lower::param_tag_nibble` has to answer
     /// exactly the byte [`tag_of`] answers. Neither of those crates can name
     /// the other, and this one names both: a representation whose two answers

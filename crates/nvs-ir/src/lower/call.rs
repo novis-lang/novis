@@ -375,7 +375,7 @@ impl<'a> Lowering<'a> {
     /// The shape both variadic call sites share: a resolved call's variadic
     /// tail ([`Self::lower_variadic_tail`], which owns what the array *means*
     /// there) and a call through a `callable` that wrote a `...`
-    /// ([`Self::lower_closure_call`], where it is the whole argument list).
+    /// ([`Self::lower_callable_call`], where it is the whole argument list).
     /// `expected` is the element type to widen each written-out entry into, and
     /// is `None` at the second site: `rule:types/anonymous-function` gives `callable` no parameter
     /// list, so there is nothing to widen towards.
@@ -795,9 +795,9 @@ impl<'a> Lowering<'a> {
     /// `rule:types/anonymous-function`'s
     /// closure, called through the variable holding it.
     ///
-    /// One [`Helper::CallClosure`], with the closure at `args[0]` and its
+    /// One [`Helper::CallCallable`], with the closure at `args[0]` and its
     /// arguments after it in written order — which is
-    /// `nvs_runtime::call_closure`, the same entry point every `Core` member
+    /// `nvs_runtime::call_callable`, the same entry point every `Core` member
     /// taking a `callable` already reaches, so a closure invoked from Novis
     /// takes no second path into a compiled body. It is deliberately **not**
     /// an [`InstKind::Call`]: § 1 gives `callable` no parameter list, so
@@ -806,7 +806,7 @@ impl<'a> Lowering<'a> {
     /// `invoke` answers all three at run time.
     ///
     /// Ownership is [`Self::account_for_arg`]'s borrowed column, the closure
-    /// itself included: `call_closure` retains everything it passes and the
+    /// itself included: `call_callable` retains everything it passes and the
     /// callee's exit sweep releases that, so this frame keeps owning exactly
     /// what it lowered. Whatever the expression built is released after the
     /// call, and on the error edge by the landing block — the shape a `Core`
@@ -815,9 +815,9 @@ impl<'a> Lowering<'a> {
     /// # A `...` argument
     ///
     /// A spread makes the argument *count* the subject's own run-time length,
-    /// and [`Helper::CallClosure`]'s count is a literal in the emitted call —
+    /// and [`Helper::CallCallable`]'s count is a literal in the emitted call —
     /// `nvs-codegen` writes it beside the argument slot. So a call site that
-    /// wrote one goes through [`Helper::CallClosureArray`] instead, with the
+    /// wrote one goes through [`Helper::CallCallableArray`] instead, with the
     /// whole list built into one array by [`Self::lower_args_as_array`], which
     /// is the same array a resolved call's variadic tail already is. That
     /// array is one more borrowed argument, so this frame releases it on both
@@ -841,7 +841,7 @@ impl<'a> Lowering<'a> {
     /// Panics for a `name:` argument — `rule:types/anonymous-function` gives
     /// `callable` no parameter list, so there is no parameter for a name to fill
     /// and `nvs_types` refuses one where it is written (`E0712`).
-    pub(crate) fn lower_closure_call(
+    pub(crate) fn lower_callable_call(
         &mut self,
         call: &Expr,
         callee: &Expr,
@@ -852,11 +852,11 @@ impl<'a> Lowering<'a> {
         let list = match args {
             CallArgs::List(list) => list,
             CallArgs::MethodRef => {
-                let (closure, closure_ty) = self.lower_expr(callee, None, env, cur);
-                if closure_ty.is_refcounted() && self.aliasing_read(callee) {
-                    self.emit_retain(*cur, closure);
+                let (anon_fn, callable_ty) = self.lower_expr(callee, None, env, cur);
+                if callable_ty.is_refcounted() && self.aliasing_read(callee) {
+                    self.emit_retain(*cur, anon_fn);
                 }
-                return (closure, closure_ty);
+                return (anon_fn, callable_ty);
             }
         };
         // `rule:types/callable-signature`: the checker records this on the
@@ -873,10 +873,10 @@ impl<'a> Lowering<'a> {
         // one — `(fn (): int => 7)()` — is this frame's temporary too, and an
         // argument that throws while it is in flight has to drop it.
         let mark = self.temporaries_mark();
-        let (closure, closure_ty) = self.lower_expr(callee, None, env, cur);
+        let (anon_fn, callable_ty) = self.lower_expr(callee, None, env, cur);
         let aliasing = self.aliasing_read(callee);
-        self.account_for_arg(closure, closure_ty, ArgOwnership::Borrowed, aliasing, *cur);
-        let mut values = vec![closure];
+        self.account_for_arg(anon_fn, callable_ty, ArgOwnership::Borrowed, aliasing, *cur);
+        let mut values = vec![anon_fn];
         assert!(
             list.iter().all(|arg| arg.name.is_none()),
             "nvs-ir: a `name:` argument reached a call through a `callable` — this crate trusts \
@@ -885,19 +885,19 @@ impl<'a> Lowering<'a> {
         // A `...` makes the argument *count* a run-time fact, which the one
         // helper whose count is a literal in the emitted call cannot carry. So
         // the whole list becomes one array instead, and the other helper reads
-        // its length — see `Helper::CallClosureArray`.
+        // its length — see `Helper::CallCallableArray`.
         let helper = match list.iter().any(|arg| arg.spread) {
             true => {
                 let rest: Vec<&nvs_syntax::ast::Arg> = list.iter().collect();
                 let array = self.lower_args_as_array(&rest, None, env, cur);
                 self.account_for_arg(array, Ty::Array, ArgOwnership::Borrowed, false, *cur);
                 values.push(array);
-                Helper::CallClosureArray
+                Helper::CallCallableArray
             }
             false => match &proven {
                 // The proof spent on the arguments. Each one reaches the callee
                 // in the representation its *declared* parameter names, because
-                // `nvs_runtime::closure`'s `check_param_tags` — the one thing
+                // `nvs_runtime::callable`'s `check_param_tags` — the one thing
                 // this helper does not run — is also what widened an `int` into
                 // a `float` parameter, and nothing else would.
                 Some((params, _)) => {
@@ -916,7 +916,7 @@ impl<'a> Lowering<'a> {
                         self.account_for_arg(v, want, ArgOwnership::Borrowed, aliasing, *cur);
                         values.push(v);
                     }
-                    Helper::CallClosureProven
+                    Helper::CallCallableProven
                 }
                 None => {
                     for arg in list {
@@ -925,7 +925,7 @@ impl<'a> Lowering<'a> {
                         self.account_for_arg(v, ty, ArgOwnership::Borrowed, aliasing, *cur);
                         values.push(v);
                     }
-                    Helper::CallClosure
+                    Helper::CallCallable
                 }
             },
         };
@@ -972,14 +972,14 @@ impl<'a> Lowering<'a> {
     /// class descriptor answers all three when the call runs.
     ///
     /// The arguments are packed rather than passed one per slot for
-    /// [`Self::lower_closure_call`]'s `...` reason, and here it holds for
+    /// [`Self::lower_callable_call`]'s `...` reason, and here it holds for
     /// *every* site: a helper's argument count is a literal `nvs-codegen`
     /// writes beside the slot, while what this call site wrote is judged
     /// against a callee chosen when it runs. So one shape carries both the
     /// spread and the plain list, and the array is the same one a variadic
     /// tail already is.
     ///
-    /// Ownership is [`Self::lower_closure_call`]'s throughout — the borrowed
+    /// Ownership is [`Self::lower_callable_call`]'s throughout — the borrowed
     /// column for the receiver and for the array, released on both edges by
     /// this frame — and the name needs no accounting at all, an
     /// `InstKind::ConstStr` being an immortal address in the unit's data
@@ -1057,10 +1057,10 @@ impl<'a> Lowering<'a> {
     /// `$fn->bindTo($obj)`, `$fn->bind($obj)` and `$fn->call($obj, ...)` —
     /// `nvs_types`' `ExprInfo::CallableRebind`.
     ///
-    /// All three emit [`Helper::BindClosure`] on the closure and the first
+    /// All three emit [`Helper::BindCallable`] on the closure and the first
     /// argument, and `bind`/`bindTo` give its result. `call` then calls that
     /// result with the rest of the arguments, exactly as
-    /// [`Self::lower_closure_call`]'s dynamic path calls a closure, and the
+    /// [`Self::lower_callable_call`]'s dynamic path calls a closure, and the
     /// bound copy is a temporary this frame frees after the call.
     ///
     /// The receiver stays tagged ([`ReceiverProof::Erased`]): the helper tests
@@ -1070,7 +1070,7 @@ impl<'a> Lowering<'a> {
     ///
     /// Panics for the first-class-callable sentinel, for which `nvs_types`
     /// records nothing, and for an empty list, which it refuses as `E0402`.
-    pub(crate) fn lower_closure_rebind(
+    pub(crate) fn lower_callable_rebind(
         &mut self,
         object: &Expr,
         nullsafe: bool,
@@ -1093,10 +1093,10 @@ impl<'a> Lowering<'a> {
             )
         });
         let mark = self.temporaries_mark();
-        let (closure, closure_ty, guard) =
+        let (anon_fn, callable_ty, guard) =
             self.open_nullsafe(object, nullsafe, ReceiverProof::Erased, env, cur);
         let aliasing = self.aliasing_read(object);
-        self.account_for_arg(closure, closure_ty, ArgOwnership::Borrowed, aliasing, *cur);
+        self.account_for_arg(anon_fn, callable_ty, ArgOwnership::Borrowed, aliasing, *cur);
         let (this_v, this_ty) = self.lower_expr(&this_arg.value, None, env, cur);
         let aliasing = self.aliasing_read(&this_arg.value);
         self.account_for_arg(this_v, this_ty, ArgOwnership::Borrowed, aliasing, *cur);
@@ -1104,8 +1104,8 @@ impl<'a> Lowering<'a> {
             *cur,
             Ty::Object,
             InstKind::HelperCall {
-                helper: Helper::BindClosure,
-                args: vec![closure, this_v],
+                helper: Helper::BindCallable,
+                args: vec![anon_fn, this_v],
             },
             env,
         );
@@ -1120,7 +1120,7 @@ impl<'a> Lowering<'a> {
             let array = self.lower_args_as_array(&rest, None, env, cur);
             self.account_for_arg(array, Ty::Array, ArgOwnership::Borrowed, false, *cur);
             values.push(array);
-            Helper::CallClosureArray
+            Helper::CallCallableArray
         } else {
             for arg in rest {
                 let (v, ty) = self.lower_expr(&arg.value, None, env, cur);
@@ -1128,7 +1128,7 @@ impl<'a> Lowering<'a> {
                 self.account_for_arg(v, ty, ArgOwnership::Borrowed, aliasing, *cur);
                 values.push(v);
             }
-            Helper::CallClosure
+            Helper::CallCallable
         };
         let (v, ty) = self.emit_fallible(
             *cur,

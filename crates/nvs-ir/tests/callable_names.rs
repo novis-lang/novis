@@ -7,7 +7,7 @@
 //! 0006 binds that map to the entry's parameters **by name**. A `callable`
 //! carries its arity and its parameter tags and nothing else, so the names are
 //! written at the site — `lower::FN_PARAM_NAMES` — and read off the object by
-//! `nvs_runtime::closure_param_names`.
+//! `nvs_runtime::callable_param_names`.
 //!
 //! Both halves are asserted here because neither is observable from a script:
 //! `Core\Socket::upgrade` refuses a request no connection offered a slot for,
@@ -52,8 +52,8 @@ fn compile(src: &str) -> Program {
 /// Selected on the reserved first field every environment class carries, which
 /// is what tells the synthesized classes from the program's own `Chat`. The `$`
 /// in a label says only that no declaration wrote it, and that is true of
-/// `nvs_ir::lower::CLOSURE_MARKER`'s field-less descriptor as well.
-fn closure_classes(program: &Program) -> Vec<(String, Vec<String>)> {
+/// `nvs_ir::lower::CALLABLE_MARKER`'s field-less descriptor as well.
+fn callable_classes(program: &Program) -> Vec<(String, Vec<String>)> {
     program
         .classes
         .iter()
@@ -87,8 +87,8 @@ fn a_first_class_callable_records_its_targets_parameter_names() {
     // The names are the *target's declared* ones, not the call site's — there
     // is no call site, which is the whole of why they have to be recorded.
     // Third in the field list, which is the index
-    // `nvs_runtime::CLOSURE_PARAM_NAMES_SLOT` hints at, and comma-joined in
-    // declaration order, which is what `closure_param_names` splits.
+    // `nvs_runtime::CALLABLE_PARAM_NAMES_SLOT` hints at, and comma-joined in
+    // declaration order, which is what `callable_param_names` splits.
     let program = compile(
         "<?nvs
 class Chat {
@@ -98,7 +98,7 @@ var $entry = Chat::run(...);
 ",
     );
 
-    let classes = closure_classes(&program);
+    let classes = callable_classes(&program);
     assert_eq!(
         classes.len(),
         1,
@@ -132,7 +132,7 @@ var $entry = Chat::run(...);
     );
 
     assert_eq!(
-        closure_classes(&program)[0].1,
+        callable_classes(&program)[0].1,
         vec!["fn#arity", "fn#params", "fn#names"],
         "the field is present whatever the target declares"
     );
@@ -144,9 +144,9 @@ var $entry = Chat::run(...);
 }
 
 #[test]
-fn an_fn_literal_records_no_parameter_names_at_all() {
+fn an_anon_fn_records_no_parameter_names_at_all() {
     // The absence is load-bearing rather than an omission: a literal's third
-    // field is its first *capture*, so `closure_param_names` must be able to
+    // field is its first *capture*, so `callable_param_names` must be able to
     // tell "no names recorded" from "names recorded, and they are these" — and
     // it does that by asking the descriptor for the field by name. A literal
     // that grew a `fn#names` field would have its capture read as a parameter
@@ -158,7 +158,7 @@ var $f = fn(int $userId): string => $room;
 ",
     );
 
-    let classes = closure_classes(&program);
+    let classes = callable_classes(&program);
     assert_eq!(classes.len(), 1, "one literal, one class: {classes:?}");
     assert_eq!(
         classes[0].1,

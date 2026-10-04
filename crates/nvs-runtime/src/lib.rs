@@ -209,8 +209,8 @@ pub mod arith;
 pub mod array;
 mod beneath;
 pub mod budget;
+pub mod callable;
 pub mod capability;
-pub mod closure;
 pub mod commands;
 #[cfg(test)]
 pub(crate) mod counting_alloc;
@@ -288,10 +288,10 @@ pub use array::{
     nvs_array_next_slot, nvs_array_release, nvs_array_retain, nvs_array_set, nvs_array_set_index,
     nvs_array_unset, nvs_array_value_at, prime_empty_array,
 };
-pub use closure::{
-    CLOSURE_ARITY_SLOT, CLOSURE_INVOKE, CLOSURE_PARAM_NAMES, CLOSURE_PARAM_NAMES_SLOT,
-    CLOSURE_PARAM_TAG_ANY, CLOSURE_PARAM_TAGS_SLOT, NativeBody, call_closure, closure_arity,
-    closure_param_names, native_closure,
+pub use callable::{
+    CALLABLE_ARITY_SLOT, CALLABLE_INVOKE, CALLABLE_PARAM_NAMES, CALLABLE_PARAM_NAMES_SLOT,
+    CALLABLE_PARAM_TAG_ANY, CALLABLE_PARAM_TAGS_SLOT, NativeBody, call_callable, callable_arity,
+    callable_param_names, native_callable,
 };
 pub use ctx::{
     AnswerTable, AnsweredTls, AssertionOutcome, BodyNeed, BodySource, CARRIER_CLI_TEXT,

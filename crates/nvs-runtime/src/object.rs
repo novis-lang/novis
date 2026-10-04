@@ -584,28 +584,28 @@ pub struct ClassDesc {
     unwind: *const u8,
     /// Whether an instance of this class is a
     /// `rule:types/callable-values` closure — its
-    /// [`crate::closure::CLOSURE_INVOKE`] the compiled body of a closure
+    /// [`crate::callable::CALLABLE_INVOKE`] the compiled body of a closure
     /// literal and its fields that literal's captures — rather than an object
     /// of a class a program declared.
     ///
     /// Carried rather than asked of the method table, because the structural
     /// test is "does this class declare an `invoke`" and a program is free to
     /// declare one: that name decides whether
-    /// [`crate::closure::call_closure`] jumps into a value's code at all, and
+    /// [`crate::callable::call_callable`] jumps into a value's code at all, and
     /// whether `rule:classes/graph-copy`'s walk refuses the value as a
     /// closure, so a user class spelling it would be both called through and
     /// refused. `nvs_ir::lower` mints a closure's environment class,
-    /// `nvs_ir::ir::Class::is_closure` carries the bit down and `nvs-codegen`
-    /// hands it to [`ClassTable::set_closure`] — which is also what native
+    /// `nvs_ir::ir::Class::is_callable` carries the bit down and `nvs-codegen`
+    /// hands it to [`ClassTable::set_callable`] — which is also what native
     /// code building a closure for a `Core` member to call answers. **Cost:**
     /// one `bool` per class, once per process, not per instance.
-    is_closure: bool,
+    is_callable: bool,
     /// Whether an instance of this class holds a **host handle** — a key into
     /// one [`Ctx`]'s own table of the open files, sockets, readers, database
     /// connections and children that request opened, which is what
     /// `rule:security/isolate-values-cross-by-copy` refuses at a copy boundary.
     ///
-    /// Carried for [`Self::is_closure`]'s reason and one of its own: a key is a
+    /// Carried for [`Self::is_callable`]'s reason and one of its own: a key is a
     /// `uint` slot like every other, so nothing about the value says it
     /// addresses a table, and the table it addresses belongs to the side that
     /// opened it. `nvs_stdlib::instance` writes it through
@@ -628,10 +628,10 @@ pub struct ClassDesc {
 /// is the callee's own shape, without which slot *i* is reinterpreted at the
 /// callee's representation and an `int` handed to a `string` parameter is an
 /// arbitrary dereference rather than a fault — the identical hole
-/// [`crate::closure`]'s module docs describe for `callable`, arrived at from
+/// [`crate::callable`]'s module docs describe for `callable`, arrived at from
 /// the other side. So the row carries what a closure object already carries in
 /// `nvs_ir::lower`'s `FN_ARITY` and `FN_PARAM_TAGS` slots, in the same
-/// encoding, and [`crate::closure`]'s `check_param_tags` is the one
+/// encoding, and [`crate::callable`]'s `check_param_tags` is the one
 /// implementation both paths share rather than a second copy of `rule:types/conversion`'s
 /// `int`-into-`float` widening. `docs/adr/README.md` § *Decisions taken at
 /// project start* owns why this rides on the descriptor rather than on a
@@ -659,7 +659,7 @@ pub struct MethodRow {
     /// verbatim, `nvs_ir::lower::FN_PARAM_TAG_ANY` for a parameter whose
     /// representation is itself a tag. Sixteen parameters fit; a callee
     /// declaring more is refused rather than passed an argument nothing
-    /// checked, which is [`crate::closure`]'s own rule.
+    /// checked, which is [`crate::callable`]'s own rule.
     pub param_tags: u64,
     /// What each declared parameter is *called*, in the same order and with
     /// the receiver excluded the same way — the `$` sigil not included.
@@ -1386,16 +1386,16 @@ impl ClassDesc {
     }
 
     /// Whether an instance of this class is a closure rather than an object of
-    /// a declared class — the bit [`ClassTable::set_closure`] writes, and the
-    /// one answer [`crate::closure::call_closure`] and
+    /// a declared class — the bit [`ClassTable::set_callable`] writes, and the
+    /// one answer [`crate::callable::call_callable`] and
     /// `rule:classes/graph-copy`'s walk both ask.
     ///
     /// Not a question about the method table: the field's own docs say why a
     /// declared `invoke` is the wrong test, and a class carrying this bit is
     /// the only kind either reader treats as callable.
     #[must_use]
-    pub fn is_closure(&self) -> bool {
-        self.is_closure
+    pub fn is_callable(&self) -> bool {
+        self.is_callable
     }
 
     /// Whether an instance of this class holds a host handle — the bit
@@ -2012,14 +2012,14 @@ impl ClassTable {
             render: std::ptr::null(),
             compare: std::ptr::null(),
             unwind: std::ptr::null(),
-            is_closure: false,
+            is_callable: false,
             holds_host_handle: false,
         }));
         id
     }
 
     /// Marks `id` as a closure's environment class — see
-    /// [`ClassDesc::is_closure()`].
+    /// [`ClassDesc::is_callable()`].
     ///
     /// A setter rather than a [`ClassTable::define`] parameter because the
     /// answer is `false` for every class a program declares and every `Core`
@@ -2031,18 +2031,18 @@ impl ClassTable {
     /// # Panics
     ///
     /// If `id` does not belong to this table.
-    pub fn set_closure(&mut self, id: ClassId) {
+    pub fn set_callable(&mut self, id: ClassId) {
         let desc = self
             .classes
             .get_mut(id.0)
             .expect("a class id always belongs to the table that handed it out");
-        desc.is_closure = true;
+        desc.is_callable = true;
     }
 
     /// Marks `id` as a class whose instances hold a host handle — see
     /// [`ClassDesc::holds_host_handle()`].
     ///
-    /// A setter on [`ClassTable::set_closure`]'s exact terms, and the one
+    /// A setter on [`ClassTable::set_callable`]'s exact terms, and the one
     /// caller is `nvs_stdlib::instance`: it builds the process's `Core`
     /// descriptors, and its crate is the only one that knows which slot of
     /// which class carries a key filed by [`Ctx::hold_open_file`] and its
@@ -4201,7 +4201,7 @@ pub const COMPARE_TO: &str = "compareTo";
 /// on the error paths too — an argument is consumed whether or not the
 /// constructor ran. The returned value is one fresh reference the caller owns.
 ///
-/// This is the second half of the mismatch [`crate::closure::call_closure`]
+/// This is the second half of the mismatch [`crate::callable::call_callable`]
 /// exists for, in the other direction: a helper *borrows* its own arguments
 /// and a compiled method *owns* its parameters, so the reconciliation lives
 /// here once rather than in each `Core` member that builds an object.
@@ -5058,7 +5058,7 @@ pub fn write_erased_property(
         // the hook as the `float` it declares — so it runs over this frame's
         // own copy, exactly as `dispatch::call_erased_method_from`'s does.
         let mut passed = [value];
-        crate::closure::check_param_tags(&callee, row.param_tags, &mut passed)?;
+        crate::callable::check_param_tags(&callee, row.param_tags, &mut passed)?;
         let answered = crate::dispatch::call_at(ctx, receiver, row.code, &passed)?;
         #[expect(
             unsafe_code,

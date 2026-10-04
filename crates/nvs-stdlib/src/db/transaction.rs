@@ -133,7 +133,7 @@ nvs_runtime::nvs_helper! {
             &Attempted {
                 key,
                 block,
-                closure: args[1],
+                callable: args[1],
                 isolation,
                 read_only,
                 retries,
@@ -265,7 +265,7 @@ pub(super) struct Attempted {
     /// The `[db.<name>]` block this transaction refuses under.
     block: Value,
     /// § 7's `$fn`, run once per attempt.
-    closure: Value,
+    callable: Value,
     /// § 7's `{isolation}`, decided by the driver and refused when nested.
     isolation: Option<nvs_db::Isolation>,
     /// § 7's `{readOnly}`, on the same terms.
@@ -428,7 +428,7 @@ pub(super) fn transacted(
                 Value::null(),
             ],
         );
-        let outcome = nvs_runtime::call_closure(ctx, call.closure, &[scope]);
+        let outcome = nvs_runtime::call_callable(ctx, call.callable, &[scope]);
 
         // Closed before the outcome is acted on, so that a `$tx` the closure
         // stored somewhere is already refusing by the time this call returns
@@ -593,7 +593,7 @@ pub(super) fn discard(value: Value) {
     #[expect(
         unsafe_code,
         reason = "the reference released here is one this frame took — from \
-                  `instance::build`, or from `call_closure`, which hands back a \
+                  `instance::build`, or from `call_callable`, which hands back a \
                   value the caller owns"
     )]
     unsafe {
@@ -731,7 +731,7 @@ mod tests {
     /// by construction; [`BEYOND_QUERYABLE`] is the one set that is outside it
     /// on purpose, and the sweep checks that list from both ends first.
     #[test]
-    fn a_transaction_is_a_closure_and_transaction_is_a_queryable() {
+    fn a_transaction_is_a_callable_and_transaction_is_a_queryable() {
         assert_eq!(TRANSACTION_ROW.name, "transaction");
         // § 7's `$fn`, and R9's allowance that the closure may declare no
         // parameter at all is why the arity is not sayable in the row.
@@ -993,7 +993,7 @@ mod tests {
     /// of that round trip.
     #[expect(
         unsafe_code,
-        reason = "`call_closure` passes exactly these two live values, each \
+        reason = "`call_callable` passes exactly these two live values, each \
                   retained for this callee to release, and `run_helper` \
                   discharges the rest of the helper ABI's pointer contract"
     )]
@@ -1065,20 +1065,20 @@ mod tests {
     /// A `callable` whose `invoke` is `invoke` and which declares one
     /// parameter — the `$tx` § 7 hands its closure.
     ///
-    /// `nvs_runtime::call_closure` reads exactly three things off a closure
+    /// `nvs_runtime::call_callable` reads exactly three things off a closure
     /// value, so this is a whole one: its class's closure bit, the arity in
-    /// its own slot, and the address in the class's `CLOSURE_INVOKE` row —
-    /// see `nvs_runtime::ClassDesc::is_closure`. The table is leaked
+    /// its own slot, and the address in the class's `CALLABLE_INVOKE` row —
+    /// see `nvs_runtime::ClassDesc::is_callable`. The table is leaked
     /// because a descriptor's *address* is its identity and it must outlive
     /// every instance made from it, which is `crate::instance`'s own rule; the
     /// test process exiting is what reclaims it.
-    fn closure_of(invoke: nvs_runtime::NvsFn) -> Value {
+    fn callable_of(invoke: nvs_runtime::NvsFn) -> Value {
         let mut table = nvs_runtime::ClassTable::new();
-        let id = table.define("{closure}", &["arity", "params"], &[]);
+        let id = table.define("{callable}", &["arity", "params"], &[]);
         table.set_methods(
             id,
             vec![nvs_runtime::MethodRow {
-                name: nvs_runtime::CLOSURE_INVOKE.to_owned(),
+                name: nvs_runtime::CALLABLE_INVOKE.to_owned(),
                 code: invoke as *const u8,
                 // Read off the object's own slots below rather than off this
                 // row — see `nvs_runtime::MethodRow`.
@@ -1091,7 +1091,7 @@ mod tests {
                 native: false,
             }],
         );
-        table.set_closure(id);
+        table.set_callable(id);
         let table: &'static nvs_runtime::ClassTable = Box::leak(Box::new(table));
         #[expect(
             unsafe_code,
@@ -1100,10 +1100,10 @@ mod tests {
                       obligation"
         )]
         let object = unsafe { nvs_runtime::NvsObj::new(table.desc(id)) };
-        object.set_field(nvs_runtime::CLOSURE_ARITY_SLOT, Value::int(1));
+        object.set_field(nvs_runtime::CALLABLE_ARITY_SLOT, Value::int(1));
         object.set_field(
-            nvs_runtime::CLOSURE_PARAM_TAGS_SLOT,
-            Value::int(i64::from(nvs_runtime::CLOSURE_PARAM_TAG_ANY)),
+            nvs_runtime::CALLABLE_PARAM_TAGS_SLOT,
+            Value::int(i64::from(nvs_runtime::CALLABLE_PARAM_TAG_ANY)),
         );
         Value::object(object)
     }
@@ -1138,11 +1138,11 @@ mod tests {
     #[test]
     fn retries_recover_an_induced_deadlock() {
         let block = Value::str(NvsStr::new(b"main"));
-        let closure = closure_of(conflicts_once);
+        let callable = callable_of(conflicts_once);
         let attempted = |retries| Attempted {
             key: 1,
             block,
-            closure,
+            callable,
             isolation: None,
             read_only: false,
             retries,
@@ -1201,7 +1201,7 @@ mod tests {
         );
 
         drop(ctx.take_thrown());
-        discard(closure);
+        discard(callable);
         discard(block);
     }
 
@@ -1234,7 +1234,7 @@ mod tests {
     /// transactions as [`ENQUEUE`] names.
     #[expect(
         unsafe_code,
-        reason = "`call_closure` passes exactly these two live values, each \
+        reason = "`call_callable` passes exactly these two live values, each \
                   retained for this callee to release, and `run_helper` \
                   discharges the rest of the helper ABI's pointer contract"
     )]
@@ -1271,20 +1271,20 @@ mod tests {
     /// One `transaction` on the connection filed under `key`, running [`enqueues`].
     fn transacted_on(ctx: &mut Ctx, key: u64) -> Result<Value, Fault> {
         let block = Value::str(NvsStr::new(b"main"));
-        let closure = closure_of(enqueues);
+        let callable = callable_of(enqueues);
         let answered = transacted(
             ctx,
             &mut Filed { key },
             &Attempted {
                 key,
                 block,
-                closure,
+                callable,
                 isolation: None,
                 read_only: false,
                 retries: 0,
             },
         );
-        discard(closure);
+        discard(callable);
         discard(block);
         answered
     }

@@ -466,7 +466,7 @@ fn a_class_card_prints_its_prose_above_its_members() {
 /// reach it through a heading — and through the class whose value it makes —
 /// or an agent concludes from six member lines that no literal exists.
 #[test]
-fn find_html_reaches_the_literal_and_the_markup_class() {
+fn find_html_reaches_the_html_template_and_the_markup_class() {
     let (out, _, ok) = agent(&["find", "html"]);
     assert!(ok, "`nvs agent find` succeeds");
     let lines: Vec<&str> = out.lines().collect();

@@ -153,9 +153,9 @@ impl Ctx {
         // encoding of "nothing registered" `Self::has_uncaught_handler` reads.
         let handler = std::mem::take(&mut self.uncaught_handler);
         // Borrowed: the reference keeping the object alive across the call is
-        // the caller's `Thrown`, and `crate::call_closure` takes one of its own
+        // the caller's `Thrown`, and `crate::call_callable` takes one of its own
         // for the callee to release.
-        let answer = crate::call_closure(self, handler, &[thrown.as_value()]);
+        let answer = crate::call_callable(self, handler, &[thrown.as_value()]);
         // Zero retries, and the failure the request reports is the one that
         // reached the root — so a handler's own throw ends here rather than
         // travelling on as this request's status.
@@ -242,7 +242,7 @@ impl Ctx {
         while index < self.exit_hooks.len() {
             let hook = self.exit_hooks[index];
             index += 1;
-            match crate::call_closure(self, hook, &[report]) {
+            match crate::call_callable(self, hook, &[report]) {
                 // SAFETY: an `Ok` answer is a fresh value this frame owns, and
                 // releasing the `null` a `void` closure answers is a no-op.
                 Ok(answer) => unsafe { answer.release() },
@@ -320,7 +320,7 @@ impl Ctx {
             crate::Fault::Pending(_) => {}
             crate::Fault::Thrown(class, message) => self.set_pending_as(*class, message.clone()),
             // `Fault` is `#[non_exhaustive]`, and the remaining variants reach
-            // a closure call only as `crate::call_closure`'s own two engine
+            // a closure call only as `crate::call_callable`'s own two engine
             // faults — a value that is not a closure, or one declaring more
             // parameters than the one report there is to offer.
             other => self.set_pending(format!("a `Core\\Script::onExit` hook failed: {other:?}")),
@@ -363,7 +363,7 @@ impl Ctx {
     /// queued.
     pub fn defer(
         &mut self,
-        closure: Value,
+        callable: Value,
         deadline_nanos: u64,
     ) -> Result<(), crate::deferred::DeferError> {
         if self.deferred.is_none() {
@@ -383,7 +383,7 @@ impl Ctx {
             .as_mut()
             .expect("the queue was there a line ago")
             .push(crate::deferred::Deferred {
-                closure,
+                callable,
                 deadline_nanos,
             });
         Ok(())
@@ -493,7 +493,7 @@ impl Ctx {
     ///
     /// It is handed § 1's `LimitReport`: one array, whose `limit` key names the
     /// limit that stopped the request in the spelling [`Limit::name`] owns. A
-    /// handler declaring no parameter still runs — [`crate::call_closure`] trims
+    /// handler declaring no parameter still runs — [`crate::call_callable`] trims
     /// the call to the arity the closure recorded — so the report costs nothing
     /// to a program that does not read it beyond the allocations building it.
     #[expect(
@@ -596,7 +596,7 @@ impl Ctx {
             Value::str(crate::NvsStr::new(limit.name().as_bytes())),
         );
         let report = Value::array(report);
-        let answer = crate::call_closure(self, handler, &[report]);
+        let answer = crate::call_callable(self, handler, &[report]);
         self.memory_limit = ordinary;
         self.fatal_reserve = reserve;
         self.arm_memory_ceiling();
@@ -607,7 +607,7 @@ impl Ctx {
             self.request_safepoint(SafepointFlags::CPU_LIMIT);
         }
         // SAFETY: the slot held one owned reference, which this frame now
-        // holds; `call_closure` took its own of every slot for the callee to
+        // holds; `call_callable` took its own of every slot for the callee to
         // release, so the report's reference here is still this frame's however
         // the call went. An `Ok` answer is a fresh value this frame owns, and
         // releasing a `null` — which is what a `void` closure returns — is a
@@ -683,9 +683,9 @@ impl Ctx {
         // `Value::default()` is the null this leaves behind, which is the
         // encoding of "nothing registered" [`Self::has_shutdown_handler`] reads.
         let handler = std::mem::take(&mut self.shutdown_handler);
-        let answer = crate::call_closure(self, handler, &[]);
+        let answer = crate::call_callable(self, handler, &[]);
         // SAFETY: the slot held one owned reference, which this frame now
-        // holds; `call_closure` took its own for the callee to release, so this
+        // holds; `call_callable` took its own for the callee to release, so this
         // frame's is still this frame's however the call went. An `Ok` answer is
         // a fresh value this frame owns, and releasing a `null` — which is what
         // a `void` closure returns — is a no-op.
@@ -718,7 +718,7 @@ mod tests {
     /// still standing when the queue ran.
     #[expect(
         unsafe_code,
-        reason = "`call_closure` passes the receiver and each parameter live, \
+        reason = "`call_callable` passes the receiver and each parameter live, \
                   every one of them retained for this callee to release, and \
                   the address of a live `Value` for the result — neither is \
                   expressible in the signature compiled code calls through"
@@ -731,7 +731,7 @@ mod tests {
         // The receiver and the one report parameter, given back exactly as a
         // compiled callee's exit sweep gives them back.
         for slot in 0..2 {
-            // SAFETY: `call_closure` passed two live values and retained each.
+            // SAFETY: `call_callable` passed two live values and retained each.
             unsafe { (*args.add(slot)).release() };
         }
         let standing = WATCHED.with_borrow(|watched| {
@@ -750,9 +750,9 @@ mod tests {
     /// A closure value declaring one parameter whose `invoke` is a plain Rust
     /// function.
     ///
-    /// [`crate::call_closure`] reads only the arity slot, the parameter tags
+    /// [`crate::call_callable`] reads only the arity slot, the parameter tags
     /// slot, and the `invoke` method's address in its class off a closure — so
-    /// a test needs no compiler in front of it to register a hook. Everything else in `nvs_ir::lower::lower_closure`'s representation
+    /// a test needs no compiler in front of it to register a hook. Everything else in `nvs_ir::lower::lower_anon_fn`'s representation
     /// is captured state, and a native callback captures nothing.
     ///
     /// The table is leaked because a descriptor's *address* is its identity and
@@ -760,14 +760,14 @@ mod tests {
     /// what reclaims it.
     fn hook_of(invoke: crate::abi::NvsFn) -> Value {
         let mut table = ClassTable::new();
-        let id = table.define("{closure}", &["arity", "params"], &[]);
+        let id = table.define("{callable}", &["arity", "params"], &[]);
         table.set_methods(
             id,
             vec![MethodRow {
-                name: crate::closure::CLOSURE_INVOKE.to_owned(),
+                name: crate::callable::CALLABLE_INVOKE.to_owned(),
                 code: invoke as *const u8,
                 // Read off the object's own two slots below rather than off
-                // this row — `crate::call_closure` says so.
+                // this row — `crate::call_callable` says so.
                 arity: 0,
                 param_tags: 0,
                 param_names: Vec::new(),
@@ -777,7 +777,7 @@ mod tests {
                 native: false,
             }],
         );
-        table.set_closure(id);
+        table.set_callable(id);
         let table: &'static ClassTable = Box::leak(Box::new(table));
         #[expect(
             unsafe_code,
@@ -786,10 +786,10 @@ mod tests {
                       obligation"
         )]
         let object = unsafe { NvsObj::new(table.desc(id)) };
-        object.set_field(crate::closure::CLOSURE_ARITY_SLOT, Value::int(1));
+        object.set_field(crate::callable::CALLABLE_ARITY_SLOT, Value::int(1));
         object.set_field(
-            crate::closure::CLOSURE_PARAM_TAGS_SLOT,
-            Value::int(i64::from(crate::closure::CLOSURE_PARAM_TAG_ANY)),
+            crate::callable::CALLABLE_PARAM_TAGS_SLOT,
+            Value::int(i64::from(crate::callable::CALLABLE_PARAM_TAG_ANY)),
         );
         Value::object(object)
     }
@@ -858,7 +858,7 @@ mod tests {
     /// `FATAL` is one that returns it — there is nothing else it may do.
     #[expect(
         unsafe_code,
-        reason = "`call_closure` passes the receiver and each parameter live, \
+        reason = "`call_callable` passes the receiver and each parameter live, \
                   every one of them retained for this callee to release, and \
                   the address of a live `Value` for the result — plus the \
                   context pointer compiled code is called with, live for this \
@@ -872,7 +872,7 @@ mod tests {
         // The receiver and the one report parameter, given back exactly as
         // [`looks_for_the_directory`] gives them back.
         for slot in 0..2 {
-            // SAFETY: `call_closure` passed two live values and retained each.
+            // SAFETY: `call_callable` passed two live values and retained each.
             unsafe { (*args.add(slot)).release() };
         }
         ENTRIES.with(|entries| entries.set(entries.get() + 1));

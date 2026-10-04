@@ -753,7 +753,7 @@ pub(crate) fn check_double_answers(
 /// `rule:types/callable-variance`'s contravariant parameters and covariant
 /// return are what a double is held to, with no comparison of its own: a
 /// callable declaring fewer parameters than the method is accepted here for the
-/// reason `nvs_runtime::closure` accepts it at the call.
+/// reason `nvs_runtime::callable` accepts it at the call.
 fn check_answer_signatures(
     interface: &QName,
     named: &[(String, TypeId)],
@@ -771,7 +771,7 @@ fn check_answer_signatures(
         // Bare `callable` carries no parameter list to compare
         // (`rule:types/callable-values`), and that is the accepted case
         // rather than a refusal: the field promises a callable and nothing more,
-        // which is what `nvs_runtime::closure` checks a tag at a time.
+        // which is what `nvs_runtime::callable` checks a tag at a time.
         if matches!(env.interner.get(*field), Ty::Callable) {
             continue;
         }

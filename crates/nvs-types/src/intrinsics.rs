@@ -687,7 +687,7 @@ pub(crate) fn check_call(
 /// to agree.
 ///
 /// The refusal is `nvs_stdlib::db`'s, which runs the rewriter the request
-/// itself would have run; `check_literal_query`'s doc owns why it is the
+/// itself would have run; `check_written_query`'s doc owns why it is the
 /// rewriter rather than a second reader, and why a refusal has to hold on all
 /// four dialects.
 ///
@@ -732,9 +732,9 @@ fn check_sql(
     }
     let keyed = items.iter().filter(|item| item.key.is_some()).count();
     let refused = if keyed == 0 {
-        nvs_stdlib::db::check_literal_query(
+        nvs_stdlib::db::check_written_query(
             text,
-            nvs_stdlib::db::LiteralParams::Positional(items.len()),
+            nvs_stdlib::db::WrittenQueryParams::Positional(items.len()),
         )
     } else if keyed == items.len() {
         let mut names = Vec::with_capacity(items.len());
@@ -748,7 +748,7 @@ fn check_sql(
             names.push(name);
         }
         let keys: Vec<&str> = names.iter().map(String::as_str).collect();
-        nvs_stdlib::db::check_literal_query(text, nvs_stdlib::db::LiteralParams::Named(&keys))
+        nvs_stdlib::db::check_written_query(text, nvs_stdlib::db::WrittenQueryParams::Named(&keys))
     } else {
         // § 5's two spellings in one array. The array is neither list-keyed nor
         // string-keyed, and the `LogicError` for that is raised where the array

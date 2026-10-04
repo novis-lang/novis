@@ -355,7 +355,7 @@ fn bounds(args: &[Value], at: usize, member: &str) -> Result<Bounds, Fault> {
 /// is recorded on the child's context instead, which is the same translation
 /// `nvs_runtime`'s helper ABI performs one frame further out.
 fn call_child(ctx: &mut Ctx, callback: Value, args: &[Value]) -> Value {
-    match nvs_runtime::call_closure(ctx, callback, args) {
+    match nvs_runtime::call_callable(ctx, callback, args) {
         Ok(answer) => answer,
         // The callee already recorded what failed. Which tier it was is the
         // status, and a `FATAL` is said on the context because a job has no
@@ -463,8 +463,8 @@ nvs_runtime::nvs_helper! {
         // doc's paragraph on what a job captures owns why nothing is retained.
         let jobs: Vec<Job> = (0..shape.field_count())
             .map(|slot| {
-                let closure = shape.field(slot);
-                Box::new(move |ctx: &mut Ctx| call_child(ctx, closure, &[])) as Job
+                let callable = shape.field(slot);
+                Box::new(move |ctx: &mut Ctx| call_child(ctx, callable, &[])) as Job
             })
             .collect();
         let answers = run_group(ctx, jobs, bounds, "Core\\Task::all")?;
@@ -495,8 +495,8 @@ nvs_runtime::nvs_helper! {
     ///
     /// The callback receives `($value, $key)` and may declare fewer parameters,
     /// the same rule `Core\Arr::map` documents — and the same reason to read
-    /// `closure_arity` once before the walk rather than build a key per element
-    /// for `nvs_runtime::call_closure` to trim away.
+    /// `callable_arity` once before the walk rather than build a key per element
+    /// for `nvs_runtime::call_callable` to trim away.
     fn nvs_core_task_map(ctx, args: [4]) {
         // Unreachable from source: the subject is a `CoreTy::Array` parameter,
         // so anything else is `E0401: expected array<T>, found …` at the call.
@@ -509,7 +509,7 @@ nvs_runtime::nvs_helper! {
         })?;
         let base = crate::arr::borrowed(subject);
         let bounds = bounds(args, 2, "Core\\Task::map")?;
-        let wants_key = nvs_runtime::closure_arity(args[1])? >= 2;
+        let wants_key = nvs_runtime::callable_arity(args[1])? >= 2;
         let callback = args[1];
 
         // The keys stay here, borrowed from the subject, because a job is
@@ -539,7 +539,7 @@ nvs_runtime::nvs_helper! {
                 let Some(text) = rendered else {
                     return call_child(ctx, callback, &[value]);
                 };
-                // One reference for the duration of the call; `call_closure`
+                // One reference for the duration of the call; `call_callable`
                 // takes its own.
                 let key_arg = Value::str(nvs_runtime::NvsStr::new(text.as_bytes()));
                 let answer = call_child(ctx, callback, &[value, key_arg]);
@@ -681,7 +681,7 @@ mod tests {
         Waker, Woken,
     };
     use nvs_runtime::{
-        CLOSURE_ARITY_SLOT, CLOSURE_INVOKE, CLOSURE_PARAM_TAG_ANY, CLOSURE_PARAM_TAGS_SLOT,
+        CALLABLE_ARITY_SLOT, CALLABLE_INVOKE, CALLABLE_PARAM_TAG_ANY, CALLABLE_PARAM_TAGS_SLOT,
         ClassTable, Ctx, MethodRow, NvsArray, NvsFn, NvsObj, NvsStr, Value,
     };
 
@@ -689,11 +689,11 @@ mod tests {
     /// it: the closure runs at the drain, which no test here reaches.
     static RUNS: AtomicUsize = AtomicUsize::new(0);
 
-    /// The registered closure, as the callee side of `call_closure`'s contract:
+    /// The registered closure, as the callee side of `call_callable`'s contract:
     /// it counts, sweeps the receiver it was handed and answers nothing.
     #[expect(
         unsafe_code,
-        reason = "`call_closure` passes one live value this callee owes a release, \
+        reason = "`call_callable` passes one live value this callee owes a release, \
                   and the address of a live `Value` for the result"
     )]
     unsafe extern "C" fn counts_a_run(_ctx: *mut Ctx, args: *const Value, out: *mut Value) -> i32 {
@@ -707,15 +707,15 @@ mod tests {
 
     /// A closure declaring `arity` parameters of any type and calling `invoke`,
     /// owned by the caller — `crates/nvs-stdlib/tests/allocation_policy.rs`'s
-    /// `closure_of`, whose doc comment says why this is a whole closure and why
+    /// `callable_of`, whose doc comment says why this is a whole closure and why
     /// the table leaks.
-    fn closure_of(arity: u32, invoke: NvsFn) -> Value {
+    fn callable_of(arity: u32, invoke: NvsFn) -> Value {
         let mut table = ClassTable::new();
-        let id = table.define("{closure}", &["arity", "params"], &[]);
+        let id = table.define("{callable}", &["arity", "params"], &[]);
         table.set_methods(
             id,
             vec![MethodRow {
-                name: CLOSURE_INVOKE.to_owned(),
+                name: CALLABLE_INVOKE.to_owned(),
                 code: invoke as *const u8,
                 arity: 0,
                 param_tags: 0,
@@ -726,7 +726,7 @@ mod tests {
                 native: false,
             }],
         );
-        table.set_closure(id);
+        table.set_callable(id);
         let table: &'static ClassTable = Box::leak(Box::new(table));
         #[expect(
             unsafe_code,
@@ -737,11 +737,11 @@ mod tests {
         let object = unsafe { NvsObj::new(table.desc(id)) };
         let mut tags: u64 = 0;
         for parameter in 0..arity {
-            tags |= u64::from(CLOSURE_PARAM_TAG_ANY) << (parameter * 4);
+            tags |= u64::from(CALLABLE_PARAM_TAG_ANY) << (parameter * 4);
         }
-        object.set_field(CLOSURE_ARITY_SLOT, Value::int(i64::from(arity)));
+        object.set_field(CALLABLE_ARITY_SLOT, Value::int(i64::from(arity)));
         object.set_field(
-            CLOSURE_PARAM_TAGS_SLOT,
+            CALLABLE_PARAM_TAGS_SLOT,
             Value::int(i64::from_ne_bytes(tags.to_ne_bytes())),
         );
         Value::object(object)
@@ -755,8 +755,8 @@ mod tests {
     // covers: Core\Task::afterResponse
     #[test]
     fn after_response_queues_one_reference_on_the_request_and_refuses_a_child() {
-        let closure = closure_of(0, counts_a_run);
-        let header = closure.obj_ptr().expect("the closure is an object");
+        let callable = callable_of(0, counts_a_run);
+        let header = callable.obj_ptr().expect("the closure is an object");
         let trees = nvs_runtime::deferred::trees_in_flight();
         let refcount = || {
             #[expect(
@@ -773,7 +773,7 @@ mod tests {
             let answer = nvs_runtime::call(
                 super::nvs_core_task_after_response,
                 &mut request,
-                &[closure, Value::null()],
+                &[callable, Value::null()],
             )
             .expect("the request's own task may defer work");
             assert_eq!(
@@ -799,7 +799,7 @@ mod tests {
             let refused = nvs_runtime::call(
                 super::nvs_core_task_after_response,
                 &mut child,
-                &[closure, Value::null()],
+                &[callable, Value::null()],
             );
             assert!(refused.is_err(), "a child task may not defer work");
             let message = child.take_pending().expect("the refusal has a sentence");
@@ -829,7 +829,7 @@ mod tests {
             reason = "the test built the closure and owns its last reference"
         )]
         unsafe {
-            closure.release();
+            callable.release();
         }
     }
 
@@ -884,7 +884,7 @@ mod tests {
     /// The first field's closure: sweeps its receiver and answers `7`.
     #[expect(
         unsafe_code,
-        reason = "`call_closure` passes one live value this callee owes a release, \
+        reason = "`call_callable` passes one live value this callee owes a release, \
                   and the address of a live `Value` for the result"
     )]
     unsafe extern "C" fn answers_seven(_ctx: *mut Ctx, args: *const Value, out: *mut Value) -> i32 {
@@ -898,7 +898,7 @@ mod tests {
     /// The second field's closure: sweeps its receiver and answers `11`.
     #[expect(
         unsafe_code,
-        reason = "`call_closure` passes one live value this callee owes a release, \
+        reason = "`call_callable` passes one live value this callee owes a release, \
                   and the address of a live `Value` for the result"
     )]
     unsafe extern "C" fn answers_eleven(
@@ -928,8 +928,8 @@ mod tests {
             reason = "the table above is leaked, so the descriptor outlives the shape"
         )]
         let shape = unsafe { NvsObj::new(table.desc(id)) };
-        let seven = closure_of(0, answers_seven);
-        let eleven = closure_of(0, answers_eleven);
+        let seven = callable_of(0, answers_seven);
+        let eleven = callable_of(0, answers_eleven);
         shape.set_field(0, seven);
         shape.set_field(1, eleven);
         let shape = Value::object(shape);
@@ -1015,7 +1015,7 @@ mod tests {
     /// answers ten times the entry.
     #[expect(
         unsafe_code,
-        reason = "`call_closure` passes the receiver and one argument, each \
+        reason = "`call_callable` passes the receiver and one argument, each \
                   retained for this callee to release, and the address of a \
                   live `Value` for the result"
     )]
@@ -1036,7 +1036,7 @@ mod tests {
     /// answers the key it was shown, a `=` and the entry, as one text.
     #[expect(
         unsafe_code,
-        reason = "`call_closure` passes the receiver and two arguments, each \
+        reason = "`call_callable` passes the receiver and two arguments, each \
                   retained for this callee to release, and the address of a \
                   live `Value` for the result"
     )]
@@ -1101,8 +1101,8 @@ mod tests {
         }
         let subject = Value::array(subject);
         let empty = Value::array(NvsArray::new());
-        let by_value = closure_of(1, times_ten);
-        let by_key = closure_of(2, names_the_key);
+        let by_value = callable_of(1, times_ten);
+        let by_key = callable_of(2, names_the_key);
         let refcounts = || {
             #[expect(
                 unsafe_code,

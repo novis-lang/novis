@@ -78,7 +78,7 @@ pub const EXITED: i32 = 3;
 /// Every compiled call site writes that leading slot, so a hand caller that
 /// passes only the declared arguments does not get a diagnostic — it reads one
 /// `Value` past the end of its own slice for **every** parameter, and answers
-/// with whatever was next in memory. [`crate::dispatch`], [`crate::closure`]
+/// with whatever was next in memory. [`crate::dispatch`], [`crate::callable`]
 /// and `nvs_codegen::Unit`'s named entry points — `script`, `call_static`,
 /// `call_on_new_instance`, `build_fixture` — are the constructors that get it
 /// right, and that type's own docs are the table of which one is which; prefer
@@ -144,7 +144,7 @@ pub enum Fault {
     /// The one variant carrying no message, and deliberately: a
     /// [`Self::Thrown`] built here would call [`Ctx::set_pending`] a second
     /// time and replace the exception object the callee raised with a bare
-    /// string. Reached from [`crate::call_closure`], which is the one place a
+    /// string. Reached from [`crate::call_callable`], which is the one place a
     /// helper calls compiled Novis code, and from `nvs_exit`, whose *success* is
     /// [`EXITED`] and which has already recorded the status on the context.
     Pending(i32),

@@ -168,7 +168,7 @@ pub fn trees_in_flight() -> u64 {
 pub struct Deferred {
     /// The closure, owned: a helper's arguments are borrowed from the caller's
     /// frame and this one outlives the call by the rest of the request.
-    pub(crate) closure: Value,
+    pub(crate) callable: Value,
     /// § 7's `deadline` in nanoseconds — the option the call named, or the
     /// `[deferred] deadline` default it inherited — and `0` for neither, which
     /// is a deferred task under no deadline of its own.
@@ -203,13 +203,13 @@ pub fn run_deferred(ctx: &mut Ctx) {
               and this is the frame that releases it"
 )]
 fn run_one(ctx: &mut Ctx, work: Deferred) {
-    let closure = work.closure;
+    let callable = work.callable;
     let bounds = Bounds {
         limit: None,
         deadline: (work.deadline_nanos != 0).then(|| Duration::from_nanos(work.deadline_nanos)),
     };
     let outcome = crate::host::with_current(|host| {
-        let job: Job = Box::new(move |child: &mut Ctx| call_deferred(child, closure));
+        let job: Job = Box::new(move |child: &mut Ctx| call_deferred(child, callable));
         host.run_group(ctx, vec![job], bounds)
     });
     match outcome {
@@ -256,14 +256,14 @@ fn run_one(ctx: &mut Ctx, work: Deferred) {
         // was registered and is owed, so it runs here rather than being
         // dropped, and the only thing it loses is the deadline.
         None => {
-            let answer = call_deferred(ctx, closure);
+            let answer = call_deferred(ctx, callable);
             // SAFETY: `call_deferred` answers with a value it owns.
             unsafe { answer.release() };
         }
     }
     // SAFETY: the queue held exactly one reference to this closure and handed
     // it over with the `Deferred` above; nothing else points at it.
-    unsafe { closure.release() };
+    unsafe { callable.release() };
 }
 
 /// Calls one deferred closure and leaves any failure where the host reads it.
@@ -271,8 +271,8 @@ fn run_one(ctx: &mut Ctx, work: Deferred) {
 /// The same translation `nvs_stdlib::task`'s `call_child` performs and for the
 /// same reason: a [`Job`] has no error channel, because the host takes a
 /// child's failure off the child's own context.
-fn call_deferred(child: &mut Ctx, closure: Value) -> Value {
-    match crate::call_closure(child, closure, &[]) {
+fn call_deferred(child: &mut Ctx, callable: Value) -> Value {
+    match crate::call_callable(child, callable, &[]) {
         Ok(answer) => answer,
         // The callee already recorded what failed, and the status says which
         // tier: a `FATAL` is said on the context, where the host reads it.
@@ -411,7 +411,7 @@ mod tests {
     /// was still standing when the queue drained.
     #[expect(
         unsafe_code,
-        reason = "`call_closure` passes the receiver live and retained for this \
+        reason = "`call_callable` passes the receiver live and retained for this \
                   callee to release, and the address of a live `Value` for the \
                   result — neither is expressible in the signature compiled \
                   code calls through"
@@ -423,8 +423,8 @@ mod tests {
     ) -> i32 {
         // The receiver, given back exactly as a compiled callee's exit sweep
         // gives it back. [`call_deferred`] calls with no arguments, so slot 0
-        // is the whole of what `call_closure` retained.
-        // SAFETY: `call_closure` passed one live value and retained it.
+        // is the whole of what `call_callable` retained.
+        // SAFETY: `call_callable` passed one live value and retained it.
         unsafe { (*args).release() };
         let standing = WATCHED.with_borrow(|watched| {
             watched
@@ -442,23 +442,23 @@ mod tests {
     /// A closure value declaring no parameters whose `invoke` is a plain Rust
     /// function — a registration with no compiler in front of it.
     ///
-    /// [`crate::call_closure`] reads only this much off a closure: the arity
+    /// [`crate::call_callable`] reads only this much off a closure: the arity
     /// slot, the parameter tags slot, and the `invoke` method's address in its
-    /// class. Everything else in `nvs_ir::lower::lower_closure`'s
+    /// class. Everything else in `nvs_ir::lower::lower_anon_fn`'s
     /// representation is captured state, and a native callback captures
     /// nothing. The table is leaked because a descriptor's *address* is its
     /// identity and it must outlive every instance made from it; the test
     /// process exiting is what reclaims it.
     fn work_of(invoke: crate::abi::NvsFn) -> Value {
         let mut table = ClassTable::new();
-        let id = table.define("{closure}", &["arity", "params"], &[]);
+        let id = table.define("{callable}", &["arity", "params"], &[]);
         table.set_methods(
             id,
             vec![MethodRow {
-                name: crate::closure::CLOSURE_INVOKE.to_owned(),
+                name: crate::callable::CALLABLE_INVOKE.to_owned(),
                 code: invoke as *const u8,
                 // Read off the object's own slots below rather than off this
-                // row — `crate::call_closure` says so.
+                // row — `crate::call_callable` says so.
                 arity: 0,
                 param_tags: 0,
                 param_names: Vec::new(),
@@ -468,7 +468,7 @@ mod tests {
                 native: false,
             }],
         );
-        table.set_closure(id);
+        table.set_callable(id);
         let table: &'static ClassTable = Box::leak(Box::new(table));
         #[expect(
             unsafe_code,
@@ -477,8 +477,8 @@ mod tests {
                       obligation"
         )]
         let object = unsafe { NvsObj::new(table.desc(id)) };
-        object.set_field(crate::closure::CLOSURE_ARITY_SLOT, Value::int(0));
-        object.set_field(crate::closure::CLOSURE_PARAM_TAGS_SLOT, Value::int(0));
+        object.set_field(crate::callable::CALLABLE_ARITY_SLOT, Value::int(0));
+        object.set_field(crate::callable::CALLABLE_PARAM_TAGS_SLOT, Value::int(0));
         Value::object(object)
     }
 

@@ -22,7 +22,7 @@ final class Twin {
 
     // `rule:expressions/nullable-conversion-availability` row 2: "that conversion is already checked and throwing;
     // this is its non-throwing twin." Same chain, with the miss edge answering
-    // `null` instead of reaching `Helper::LiteralMismatch`.
+    // `null` instead of reaching `Helper::SingleValueMismatch`.
     public static function nullableMode(mixed $m): string {
         ?Mode $mode = $m as ?Mode;
         if ($mode != null) {

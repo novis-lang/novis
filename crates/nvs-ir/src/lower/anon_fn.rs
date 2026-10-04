@@ -20,7 +20,7 @@ use super::*;
 pub(crate) const FN_SELF: &str = "fn#self";
 
 /// One `fn` literal met while lowering a body, waiting for its own function
-/// to be built — see [`lower_closure`].
+/// to be built — see [`lower_anon_fn`].
 ///
 /// Owns its [`FnExpr`] rather than borrowing it. A borrow would have to live
 /// as long as [`Lowering`]'s own lifetime parameter, which is the *source
@@ -28,7 +28,7 @@ pub(crate) const FN_SELF: &str = "fn#self";
 /// buy back one clone of a small AST subtree, once per closure literal, at
 /// compile time only, is the wrong trade under this repository's priority
 /// ordering.
-pub(crate) struct PendingClosure {
+pub(crate) struct PendingAnonFn {
     /// The environment class's label.
     pub(crate) class: String,
     /// The literal itself.
@@ -42,7 +42,7 @@ pub(crate) struct PendingClosure {
     /// The label of the class the body's `$this` was checked against, or
     /// `None` for a closure that does not use `$this`. It becomes the `this`
     /// slot's [`crate::ir::Class::field_classes`] entry, which is what
-    /// `nvs_runtime::closure::bind_closure` tests a new `$this` against.
+    /// `nvs_runtime::callable::bind_callable` tests a new `$this` against.
     pub(crate) this_class: Option<String>,
     /// Where the literal was written. The key `nvs_types::ExprTypeTable`
     /// recorded this closure's `callable(...)` conformance under, and the only
@@ -62,8 +62,8 @@ pub(crate) struct PendingClosure {
 ///
 /// # Panics
 ///
-/// Reading each parameter through [`closure_param_ty`], exactly as
-/// [`lower_closure`] reads the same list.
+/// Reading each parameter through [`callable_param_ty`], exactly as
+/// [`lower_anon_fn`] reads the same list.
 pub(crate) fn param_tags_word(
     fn_expr: &FnExpr,
     exprs: &ExprTypeTable,
@@ -73,7 +73,7 @@ pub(crate) fn param_tags_word(
         fn_expr
             .params
             .iter()
-            .map(|p| closure_param_ty(p, exprs, checked_types).0),
+            .map(|p| callable_param_ty(p, exprs, checked_types).0),
     );
     // A sixteenth parameter puts a nibble in the sign bit. The slot holds the
     // same 64 bits whichever way they are read, and the reader takes them
@@ -88,8 +88,8 @@ pub(crate) fn param_tags_word(
 /// callable and a thunk body may not write anything at all: draining the
 /// closures first is what makes `callables` complete by the time the second
 /// loop starts, so neither list needs a second pass.
-pub(crate) fn drain_closures(
-    mut pending: Vec<PendingClosure>,
+pub(crate) fn drain_anon_fns(
+    mut pending: Vec<PendingAnonFn>,
     mut callables: Vec<PendingCallable>,
     src: &SourceFile,
     exprs: &ExprTypeTable,
@@ -100,7 +100,7 @@ pub(crate) fn drain_closures(
     let mut classes = Vec::new();
     while let Some(next) = pending.pop() {
         let (function, synthesized, more, more_callables) =
-            lower_closure(&next, src, exprs, checked_types, enums);
+            lower_anon_fn(&next, src, exprs, checked_types, enums);
         functions.push(function);
         classes.extend(synthesized);
         pending.extend(more);
@@ -167,8 +167,8 @@ pub(crate) fn drain_closures(
 ///
 /// The environment class first, then one per `rule:types/anonymous-object` shape literal the
 /// body wrote — [`Lowering::shapes`], which has nowhere else to travel.
-pub(crate) fn lower_closure(
-    pending: &PendingClosure,
+pub(crate) fn lower_anon_fn(
+    pending: &PendingAnonFn,
     src: &SourceFile,
     exprs: &ExprTypeTable,
     checked_types: &TypeInterner,
@@ -176,10 +176,10 @@ pub(crate) fn lower_closure(
 ) -> (
     Function,
     Vec<crate::ir::Class>,
-    Vec<PendingClosure>,
+    Vec<PendingAnonFn>,
     Vec<PendingCallable>,
 ) {
-    let PendingClosure {
+    let PendingAnonFn {
         class,
         fn_expr,
         captures,
@@ -236,7 +236,7 @@ pub(crate) fn lower_closure(
              know to stage the cell — `nvs_types::expr::calls` refuses this where it is \
              written, as `E0493`"
         );
-        let (ty, class, ty_span) = closure_param_ty(p, exprs, checked_types);
+        let (ty, class, ty_span) = callable_param_ty(p, exprs, checked_types);
         let index = u32::try_from(i + 1).expect("far more parameters than a call could ever take");
         let pname = strip_sigil(span_text(src, p.name)).to_owned();
         let (v, _) = low.emit(entry, ty, InstKind::Param(index));
@@ -275,7 +275,7 @@ pub(crate) fn lower_closure(
         }
     }
 
-    let more = std::mem::take(&mut low.closures);
+    let more = std::mem::take(&mut low.anon_fns);
     // `rule:types/callable-values`'s `(...)` written inside a closure body has the same nowhere
     // else to go — see `Lowering::callables`.
     let more_callables = std::mem::take(&mut low.callables);
@@ -334,11 +334,11 @@ pub(crate) fn lower_closure(
                 None => Vec::new(),
             },
             // The marker `rule:types/callable-values`'s `$x is callable`
-            // walks for — see `super::CLOSURE_MARKER` — and one more per
+            // walks for — see `super::CALLABLE_MARKER` — and one more per
             // written signature this literal satisfies, which is the same walk
             // one step more specific. The checker decided the second set,
             // keyed by this literal's span; `nvs_types::callables` is why.
-            conforms: std::iter::once(super::CLOSURE_MARKER.to_owned())
+            conforms: std::iter::once(super::CALLABLE_MARKER.to_owned())
                 .chain(exprs.callable_markers_at(*span).iter().cloned())
                 .collect(),
             // Public: a closure's environment class is unspellable, so nothing
@@ -362,11 +362,11 @@ pub(crate) fn lower_closure(
             db_codec: Vec::new(),
             ctor_arity: 0,
             defaults: Vec::new(),
-            // What `nvs_runtime::ClassDesc::is_closure` answers with, and the
-            // one test `call_closure` and `rule:classes/graph-copy`'s walk
+            // What `nvs_runtime::ClassDesc::is_callable` answers with, and the
+            // one test `call_callable` and `rule:classes/graph-copy`'s walk
             // make: the `invoke` above is a method name a program may also
             // declare, so neither reader may look for it.
-            is_closure: true,
+            is_callable: true,
         })
         .chain(shapes)
         .collect(),
@@ -426,7 +426,7 @@ pub(crate) fn declared_class(
 /// The class check one class-declared closure parameter runs at the body's
 /// first block, returning the block the body continues in.
 ///
-/// `nvs_runtime::closure::check_param_tags` compares representations, and a
+/// `nvs_runtime::callable::check_param_tags` compares representations, and a
 /// four-bit nibble has no room for a class label, so every class name arrives
 /// as the same "an object" — a lie a named-class binding then reads and writes
 /// at a *fixed offset*, which is a type confusion rather than a wrong answer.
@@ -534,7 +534,7 @@ pub(crate) const FCC_RECV: &str = "fcc#recv";
 /// One `Class::method(...)`/`$obj->method(...)` met while lowering a body,
 /// waiting for the thunk that forwards it — see [`lower_callable`].
 ///
-/// Owns its [`ResolvedCall`] for [`PendingClosure`]'s reason: the borrow would
+/// Owns its [`ResolvedCall`] for [`PendingAnonFn`]'s reason: the borrow would
 /// have to live as long as the source file's lifetime, and a call's resolved
 /// facts are a small clone taken once per written `(...)`.
 pub(crate) struct PendingCallable {
@@ -584,7 +584,7 @@ pub(crate) enum ThunkTarget {
 
 /// Lowers one first-class callable to the `invoke` method of a class
 /// synthesized for that one site — `rule:types/callable-values`, on top of
-/// [`lower_closure`]'s representation and adding nothing to it.
+/// [`lower_anon_fn`]'s representation and adding nothing to it.
 ///
 /// # Why a thunk rather than another call shape
 ///
@@ -594,7 +594,7 @@ pub(crate) enum ThunkTarget {
 /// through the method table. Given that, the cheapest correct body for that
 /// `invoke` is the forwarding call this builds — every argument passed
 /// straight through, the receiver read back out of [`FCC_RECV`] — and the
-/// alternative, teaching `nvs_runtime::call_closure` to dispatch on a second
+/// alternative, teaching `nvs_runtime::call_callable` to dispatch on a second
 /// closure shape carrying a method row instead of a code pointer, is a second
 /// callable representation for every native caller to know about. The cost is
 /// stated rather than hidden: one extra compiled function per written
@@ -1020,7 +1020,7 @@ fn thunk_class(
         // edges an `fn` literal's class does — the one every closure has
         // and one per written signature it satisfies, read back at the
         // span the `(...)` was written at.
-        conforms: std::iter::once(super::CLOSURE_MARKER.to_owned())
+        conforms: std::iter::once(super::CALLABLE_MARKER.to_owned())
             .chain(exprs.callable_markers_at(span).iter().cloned())
             .collect(),
         methods: vec![(
@@ -1039,7 +1039,7 @@ fn thunk_class(
         defaults: Vec::new(),
         // A first-class callable is a closure over its target, so it
         // carries the bit a written literal's class carries.
-        is_closure: true,
+        is_callable: true,
     }
 }
 
@@ -1053,7 +1053,7 @@ fn thunk_class(
 /// parameter's own name — the only span an unannotated parameter has. The
 /// checker refuses the literal outright where it could not answer, so an
 /// unrecorded one here is a bug in that pass rather than a program.
-fn closure_param_ty(
+fn callable_param_ty(
     p: &nvs_syntax::ast::Param,
     exprs: &ExprTypeTable,
     checked_types: &TypeInterner,

@@ -525,7 +525,7 @@ pub(crate) fn infer(
                 env.exprs.record(callee.span, ExprInfo::AnonFnSelf);
                 // The anonymous function being written is its own signature, so the
                 // arguments are held to its parameter list here rather than to
-                // `nvs_runtime::closure`'s tag at a time
+                // `nvs_runtime::callable`'s tag at a time
                 // (`calls::check_self_name_args`). The three argument shapes it
                 // hands back are the ones with no parameter to be checked
                 // against, and they take the ordinary walk below.
@@ -541,7 +541,7 @@ pub(crate) fn infer(
             let callee_ty = check_expr(callee, None, live, scope, ctx, env);
             // `rule:types/callable-signature`: where the callee's type names
             // its parameters, the arguments are proven here rather than a tag
-            // at a time in `nvs_runtime::closure`. Ahead of `check_args`
+            // at a time in `nvs_runtime::callable`. Ahead of `check_args`
             // because each argument is checked against the parameter it fills,
             // which is also where an anonymous function argument takes its own
             // parameter types from (`calls::check_call_through_signature`).

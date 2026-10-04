@@ -10,7 +10,7 @@ callable $upper = fn (string $s): string => Core\Str::upper($s);
 
 // Agreement, not one answer: the same closure called directly and handed to
 // `Core\Arr::map`, which reaches the closure's `invoke` through
-// `nvs_runtime::call_closure` too. A direct call that grew a second entry
+// `nvs_runtime::call_callable` too. A direct call that grew a second entry
 // point with a convention of its own would fail here while each half still
 // printed plausibly on its own line. A bare `callable` promises no signature
 // and `map`'s callback asks for one (`rule:types/callable-signature`), so it

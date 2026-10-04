@@ -304,8 +304,8 @@ fn object_body(
     // declared name (`rule:core-api/identifier-casing`), so the marker is
     // unambiguous.
     if class.contains("$fn") {
-        let parameters = crate::closure_arity(value).unwrap_or(0);
-        return Node::Closure { parameters };
+        let parameters = crate::callable_arity(value).unwrap_or(0);
+        return Node::Callable { parameters };
     }
     if depth >= caps.depth {
         return Node::Elided(Elision::Depth);

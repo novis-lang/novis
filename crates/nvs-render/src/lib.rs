@@ -351,7 +351,7 @@ pub enum Node {
     },
     /// A closure, by the signature it declares — never a body, and never
     /// captured state (`rule:types/anonymous-function`).
-    Closure {
+    Callable {
         /// How many parameters it declares.
         parameters: usize,
     },

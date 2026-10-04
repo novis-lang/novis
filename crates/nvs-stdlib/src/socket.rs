@@ -104,7 +104,7 @@
 //! one ordinary argument — so the names ride on the value instead, in a third
 //! reserved field beside the arity and the parameter tags:
 //! `nvs_ir::lower`'s `FN_PARAM_NAMES` writes it and
-//! [`nvs_runtime::closure_param_names`] reads it back.
+//! [`nvs_runtime::callable_param_names`] reads it back.
 //!
 //! Binding by *position* was the alternative and is the wrong one: `{room: …,
 //! userId: …}` binding correctly because the program happened to write the map
@@ -736,7 +736,7 @@ fn method_program(ctx: &Ctx, entry: Value, args: Value, member: &str) -> Result<
     // this is a compiler disagreement rather than a program's — but it is
     // reported as a throw and not a fatal, because a wrong refusal is
     // recoverable and a wrong `FATAL` ends the request.
-    let Some(names) = nvs_runtime::closure_param_names(entry)? else {
+    let Some(names) = nvs_runtime::callable_param_names(entry)? else {
         return Err(Fault::thrown(format!(
             "`{member}` was handed a `callable` that records no parameter names, so `rule:security/isolate-shares-nothing`'s \
              `args:` binding has nothing to bind by. Name a static method — `Chat::run(...)` — \
@@ -772,9 +772,9 @@ fn method_program(ctx: &Ctx, entry: Value, args: Value, member: &str) -> Result<
         // the root owns the map, and the map owns them.
         child.set_isolate_argument(argument);
         let bound = nvs_runtime::script::bound_arguments(&names, child.isolate_argument());
-        match nvs_runtime::call_closure(child, held.0, &bound) {
+        match nvs_runtime::call_callable(child, held.0, &bound) {
             Ok(value) => value,
-            // The judgement `call_closure` makes on this frame's behalf — an
+            // The judgement `call_callable` makes on this frame's behalf — an
             // argument whose tag the parameter does not admit, `rule:security/isolate-shares-nothing`'s
             // "typed at the boundary". There is no frame above it inside the
             // connection, so it is recorded as the isolate's pending throw.
@@ -1605,7 +1605,7 @@ mod tests {
     /// by `nvs-ir`'s `a_first_class_callable_records_its_targets_parameter_names`.
     /// What is pinned here is what this member does with one.
     ///
-    /// The class is leaked, exactly as the playbook's `closure_of` leaks its
+    /// The class is leaked, exactly as the playbook's `callable_of` leaks its
     /// table: the descriptor has to outlive the object, which is `NvsObj::new`'s
     /// whole obligation.
     fn a_callable(names: &str, invoke: nvs_runtime::NvsFn) -> Value {
@@ -1613,15 +1613,15 @@ mod tests {
         let mut table = nvs_runtime::ClassTable::new();
         let id = table.define(
             "Chat$fcc0",
-            &["fn#arity", "fn#params", nvs_runtime::CLOSURE_PARAM_NAMES],
+            &["fn#arity", "fn#params", nvs_runtime::CALLABLE_PARAM_NAMES],
             &[],
         );
         table.set_methods(
             id,
             vec![nvs_runtime::MethodRow {
-                name: nvs_runtime::CLOSURE_INVOKE.to_owned(),
+                name: nvs_runtime::CALLABLE_INVOKE.to_owned(),
                 code: invoke as *const u8,
-                // `call_closure` reads the arity and the tags off the object's
+                // `call_callable` reads the arity and the tags off the object's
                 // own slots below rather than off this row — see
                 // `nvs_runtime::MethodRow`.
                 arity: 0,
@@ -1633,7 +1633,7 @@ mod tests {
                 native: false,
             }],
         );
-        table.set_closure(id);
+        table.set_callable(id);
         let table: &'static nvs_runtime::ClassTable = Box::leak(Box::new(table));
         #[expect(
             unsafe_code,
@@ -1643,19 +1643,19 @@ mod tests {
         )]
         let object = unsafe { nvs_runtime::NvsObj::new(table.desc(id)) };
         object.set_field(
-            nvs_runtime::CLOSURE_ARITY_SLOT,
+            nvs_runtime::CALLABLE_ARITY_SLOT,
             Value::int(i64::try_from(declared.len()).expect("a small arity")),
         );
         let mut tags: u64 = 0;
         for parameter in 0..declared.len() {
-            tags |= u64::from(nvs_runtime::CLOSURE_PARAM_TAG_ANY) << (parameter * 4);
+            tags |= u64::from(nvs_runtime::CALLABLE_PARAM_TAG_ANY) << (parameter * 4);
         }
         object.set_field(
-            nvs_runtime::CLOSURE_PARAM_TAGS_SLOT,
+            nvs_runtime::CALLABLE_PARAM_TAGS_SLOT,
             Value::int(i64::from_ne_bytes(tags.to_ne_bytes())),
         );
         object.set_field(
-            nvs_runtime::CLOSURE_PARAM_NAMES_SLOT,
+            nvs_runtime::CALLABLE_PARAM_NAMES_SLOT,
             Value::str(NvsStr::new(names.as_bytes())),
         );
         Value::object(object)
@@ -1664,7 +1664,7 @@ mod tests {
     /// A one-parameter entry answering with the `int` it was passed, after the
     /// exit sweep a compiled callee performs.
     ///
-    /// The sweep is not decoration: `call_closure` retains the receiver and
+    /// The sweep is not decoration: `call_callable` retains the receiver and
     /// every argument on the way in *because* the callee releases them, so a
     /// fixture that skipped it would leak one reference per call and the
     /// valgrind leg would report it against this member rather than against the
@@ -1672,7 +1672,7 @@ mod tests {
     ///
     /// # Safety
     ///
-    /// The callee half of `nvs_runtime::NvsFn`'s contract, which `call_closure`
+    /// The callee half of `nvs_runtime::NvsFn`'s contract, which `call_callable`
     /// satisfies: `args` points at the receiver plus one live retained value,
     /// and `out` is writable.
     #[expect(
@@ -1684,7 +1684,7 @@ mod tests {
         // SAFETY: the receiver and one argument, both live for this call.
         let room = unsafe { *args.add(1) }.as_int().unwrap_or(-1);
         for slot in 0..2 {
-            // SAFETY: each is a reference `call_closure` retained for this
+            // SAFETY: each is a reference `call_callable` retained for this
             // callee to release, which is what a compiled exit sweep does.
             unsafe { (*args.add(slot)).release() };
         }

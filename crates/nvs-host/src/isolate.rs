@@ -1507,15 +1507,15 @@ mod tests {
     }
 
     /// A closure, spelled the way `nvs_runtime::graph`'s walk recognizes one:
-    /// a class carrying `ClassTable::set_closure`'s bit. Leaked, because a
+    /// a class carrying `ClassTable::set_callable`'s bit. Leaked, because a
     /// descriptor's address is its identity.
-    fn closure_value() -> Value {
+    fn callable_value() -> Value {
         let mut table = ClassTable::new();
         let id = table.define("Closure", &["arity"], &[]);
         table.set_methods(
             id,
             vec![MethodRow {
-                name: nvs_runtime::closure::CLOSURE_INVOKE.to_owned(),
+                name: nvs_runtime::callable::CALLABLE_INVOKE.to_owned(),
                 code: std::ptr::dangling(),
                 arity: 0,
                 param_tags: 0,
@@ -1526,7 +1526,7 @@ mod tests {
                 native: false,
             }],
         );
-        table.set_closure(id);
+        table.set_callable(id);
         let table: &'static ClassTable = Box::leak(Box::new(table));
         #[expect(unsafe_code, reason = "the leaked table outlives the object")]
         // SAFETY: the table is leaked, so the descriptor outlives every value.
@@ -1832,7 +1832,7 @@ mod tests {
     /// and what is asserted is the *classification*: no child is started, and
     /// the caller is handed the refusal to raise in the parent.
     #[test]
-    fn a_closure_a_reference_or_a_resource_is_refused_at_the_boundary() {
+    fn a_callable_a_reference_or_a_resource_is_refused_at_the_boundary() {
         let mut ctx = parent();
         let ran = Rc::new(Cell::new(false));
         let started = Rc::clone(&ran);
@@ -1842,7 +1842,7 @@ mod tests {
         });
 
         let refused = run(
-            Isolate::new(program, closure_value(), Output::Capture),
+            Isolate::new(program, callable_value(), Output::Capture),
             &mut ctx,
         )
         .expect_err("a closure has no meaning in another arena");
@@ -1858,7 +1858,7 @@ mod tests {
     }
 
     /// An instance of `name`, from a class table of its own. Leaked, for
-    /// `closure_value`'s reason: a descriptor's address is its identity, and
+    /// `callable_value`'s reason: a descriptor's address is its identity, and
     /// this fixture exists to have an address the parent's table never
     /// hands out.
     fn instance_of(name: &str) -> Value {
@@ -2082,7 +2082,7 @@ mod tests {
     #[test]
     fn an_answer_that_cannot_cross_is_a_failure_value_and_not_a_refusal() {
         let mut ctx = parent();
-        let program: Program = Box::new(|_: &mut Ctx, _args| closure_value());
+        let program: Program = Box::new(|_: &mut Ctx, _args| callable_value());
 
         let done = run(
             Isolate::new(program, Value::null(), Output::Capture),
@@ -2534,7 +2534,7 @@ mod tests {
     }
 
     /// A one-field class for [`build_a_cycle`] to allocate from. Leaked for
-    /// [`closure_value`]'s reason — a descriptor's address is its identity, so
+    /// [`callable_value`]'s reason — a descriptor's address is its identity, so
     /// it has to outlive every object made against it — and built **once** per
     /// test, outside every measured region: a table leaked per request would
     /// grow the very reading the two cases below hold flat.

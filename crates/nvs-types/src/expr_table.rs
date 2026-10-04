@@ -466,7 +466,7 @@ pub enum ExprInfo {
     /// resolves to the anonymous function being written, not to a declared `callable`.
     ///
     /// Carries nothing. The value the name resolves to is the invoke's own
-    /// receiver, which the consumer already holds — `nvs_ir::lower::closure`'s
+    /// receiver, which the consumer already holds — `nvs_ir::lower::anon_fn`'s
     /// `FN_SELF` — so a field naming the anonymous function's class would be a
     /// second copy of a fact the frame being lowered *is*. A consumer that finds
     /// this on a span it is not lowering an anonymous function's body for is
@@ -486,7 +486,7 @@ pub enum ExprInfo {
     ///
     /// Both halves are what the consumer cannot recompute. `params` is the
     /// representation each argument must reach the callee in, because
-    /// `nvs_runtime::closure`'s `check_param_tags` — which is what widened an
+    /// `nvs_runtime::callable`'s `check_param_tags` — which is what widened an
     /// `int` into a `float` parameter — is exactly what this entry removes.
     /// `ret` is what the call answers, which `nvs-ir` otherwise reads as
     /// `mixed` for want of a resolved target to name.
@@ -586,7 +586,7 @@ pub enum ExprInfo {
     /// `$fn->bindTo($obj)`, `$fn->bind($obj)` or `$fn->call($obj, ...)` on a
     /// `callable` receiver — `rule:types/callable-is-the-only-function-type`'s three
     /// builtin operations, which no class declares, so no [`ResolvedCall`]
-    /// names them. `nvs-ir` lowers each to `nvs_ir::Helper::BindClosure`, and
+    /// names them. `nvs-ir` lowers each to `nvs_ir::Helper::BindCallable`, and
     /// `call` then calls what that returns with the rest of the arguments.
     CallableRebind {
         /// `true` for `call`, `false` for `bind` and `bindTo`, which are the

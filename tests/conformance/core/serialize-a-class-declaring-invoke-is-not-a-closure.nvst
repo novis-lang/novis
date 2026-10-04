@@ -5,7 +5,7 @@ What the copy boundary refuses is a closure, not a method name: a class declarin
 // § 2's refusal is about what a value *is*. A closure captures a heap and a
 // scope; a class that happens to declare a method called `invoke` captures
 // nothing, and `invoke` is a name a program is free to use. The two are told
-// apart by the bit `nvs_runtime::ClassDesc::is_closure` carries, so this case
+// apart by the bit `nvs_runtime::ClassDesc::is_callable` carries, so this case
 // asserts the bound from both sides — the last thing that crosses and the
 // first thing that does not.
 class Command {

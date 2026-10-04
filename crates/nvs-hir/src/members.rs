@@ -421,7 +421,7 @@ struct Env<'a> {
     /// restored afterwards, so it is `None` again inside a nested one that
     /// declares no name: § 3's name is visible in one body and not in an
     /// anonymous function written inside it, which is the same reach
-    /// `nvs_ir::lower::closure`'s `FN_SELF`
+    /// `nvs_ir::lower::anon_fn`'s `FN_SELF`
     /// receiver has. It exists here for one rule — `fact(...)` inside `fact`'s
     /// own body is not the free function `E0320` refuses.
     fn_self: Option<String>,

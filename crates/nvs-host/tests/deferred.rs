@@ -37,12 +37,12 @@ fn note(what: &'static str) {
         .push(what);
 }
 
-/// The registered closure, as the callee side of `call_closure`'s contract: it
+/// The registered closure, as the callee side of `call_callable`'s contract: it
 /// records that it ran, sweeps the one reference it was handed — the receiver,
 /// since it declares no parameters — and answers nothing.
 #[expect(
     unsafe_code,
-    reason = "`call_closure` passes one live value this callee owes a release, \
+    reason = "`call_callable` passes one live value this callee owes a release, \
               and the address of a live `Value` for the result; neither is \
               expressible in the signature compiled code is called through"
 )]
@@ -64,13 +64,13 @@ unsafe extern "C" fn records_that_it_ran(
 /// The table is leaked because a descriptor's address is its identity and it
 /// must outlive every instance made from it; the process exiting is what
 /// reclaims it.
-fn closure_of(invoke: nvs_runtime::NvsFn) -> Value {
+fn callable_of(invoke: nvs_runtime::NvsFn) -> Value {
     let mut table = nvs_runtime::ClassTable::new();
-    let id = table.define("{closure}", &["arity", "params"], &[]);
+    let id = table.define("{callable}", &["arity", "params"], &[]);
     table.set_methods(
         id,
         vec![nvs_runtime::MethodRow {
-            name: nvs_runtime::CLOSURE_INVOKE.to_owned(),
+            name: nvs_runtime::CALLABLE_INVOKE.to_owned(),
             code: invoke as *const u8,
             // Read off the object's own slots below, never off this row.
             arity: 0,
@@ -82,7 +82,7 @@ fn closure_of(invoke: nvs_runtime::NvsFn) -> Value {
             native: false,
         }],
     );
-    table.set_closure(id);
+    table.set_callable(id);
     let table: &'static nvs_runtime::ClassTable = Box::leak(Box::new(table));
     #[expect(
         unsafe_code,
@@ -90,10 +90,10 @@ fn closure_of(invoke: nvs_runtime::NvsFn) -> Value {
                   instance made from it — `NvsObj::new`'s whole obligation"
     )]
     let object = unsafe { nvs_runtime::NvsObj::new(table.desc(id)) };
-    object.set_field(nvs_runtime::CLOSURE_ARITY_SLOT, Value::int(0));
-    // No parameters, so no nibble to fill: `call_closure` reads this word and
+    object.set_field(nvs_runtime::CALLABLE_ARITY_SLOT, Value::int(0));
+    // No parameters, so no nibble to fill: `call_callable` reads this word and
     // finds nothing to hold an argument to.
-    object.set_field(nvs_runtime::CLOSURE_PARAM_TAGS_SLOT, Value::int(0));
+    object.set_field(nvs_runtime::CALLABLE_PARAM_TAGS_SLOT, Value::int(0));
     Value::object(object)
 }
 
@@ -119,7 +119,7 @@ fn an_after_response_tree_outlives_its_connection() {
         |connection: &mut Ctx| {
             let program: Program = Box::new(|request: &mut Ctx, _args| {
                 assert_eq!(
-                    request.defer(closure_of(records_that_it_ran), 0),
+                    request.defer(callable_of(records_that_it_ran), 0),
                     Ok(()),
                     "an isolate's queue refused a registration, so it is still sealed"
                 );
@@ -276,7 +276,7 @@ static AFTER_A_FINISH: Mutex<Vec<&'static str>> = Mutex::new(Vec::new());
 /// [`records_that_it_ran`]'s twin, writing to [`AFTER_A_FINISH`].
 #[expect(
     unsafe_code,
-    reason = "`call_closure` passes one live value this callee owes a release, \
+    reason = "`call_callable` passes one live value this callee owes a release, \
               and the address of a live `Value` for the result; neither is \
               expressible in the signature compiled code is called through"
 )]
@@ -314,7 +314,7 @@ fn a_finished_request_runs_its_after_response_work() {
         |connection: &mut Ctx| {
             let program: Program = Box::new(|request: &mut Ctx, _args| {
                 assert_eq!(
-                    request.defer(closure_of(records_that_it_ran_after), 0),
+                    request.defer(callable_of(records_that_it_ran_after), 0),
                     Ok(()),
                     "an isolate's queue refused a registration, so it is still sealed"
                 );
@@ -348,7 +348,7 @@ static AFTER_AN_EXIT: Mutex<Vec<&'static str>> = Mutex::new(Vec::new());
 /// [`records_that_it_ran`]'s twin, writing to [`AFTER_AN_EXIT`].
 #[expect(
     unsafe_code,
-    reason = "`call_closure` passes one live value this callee owes a release, \
+    reason = "`call_callable` passes one live value this callee owes a release, \
               and the address of a live `Value` for the result; neither is \
               expressible in the signature compiled code is called through"
 )]
@@ -385,7 +385,7 @@ fn an_exited_request_still_runs_no_after_response_work() {
         |connection: &mut Ctx| {
             let program: Program = Box::new(|request: &mut Ctx, _args| {
                 assert_eq!(
-                    request.defer(closure_of(records_that_it_ran_after_an_exit), 0),
+                    request.defer(callable_of(records_that_it_ran_after_an_exit), 0),
                     Ok(()),
                     "an isolate's queue refused a registration, so it is still sealed"
                 );
@@ -514,7 +514,7 @@ fn records_that_the_queue_drained(
 /// [`AT_THE_END_OF_A_SERVED_REQUEST`].
 #[expect(
     unsafe_code,
-    reason = "`call_closure` passes one live value this callee owes a release, \
+    reason = "`call_callable` passes one live value this callee owes a release, \
               and the address of a live `Value` for the result; neither is \
               expressible in the signature compiled code is called through"
 )]
@@ -551,7 +551,7 @@ fn a_served_requests_exit_hooks_run_before_its_after_response_work() {
             let program: Program = Box::new(|request: &mut Ctx, _args| {
                 request.set_exit_drain(records_that_the_queue_drained);
                 assert_eq!(
-                    request.defer(closure_of(records_that_the_after_response_work_ran), 0),
+                    request.defer(callable_of(records_that_the_after_response_work_ran), 0),
                     Ok(()),
                     "an isolate's queue refused a registration, so it is still sealed"
                 );
@@ -591,7 +591,7 @@ static AFTER_AN_UNCAUGHT_THROW: Mutex<Vec<&'static str>> = Mutex::new(Vec::new()
 /// configuration in front of it.
 #[expect(
     unsafe_code,
-    reason = "`call_closure` passes one live value this callee owes a release, \
+    reason = "`call_callable` passes one live value this callee owes a release, \
               and the address of a live `Value` for the result; neither is \
               expressible in the signature compiled code is called through"
 )]
@@ -650,7 +650,7 @@ fn a_served_requests_exit_hooks_run_after_the_ladder_has_reported_a_throw() {
         TaskRoot::Request,
         |connection: &mut Ctx| {
             let program: Program = Box::new(|request: &mut Ctx, _args| {
-                request.set_uncaught_handler(closure_of(records_that_the_ladder_reported));
+                request.set_uncaught_handler(callable_of(records_that_the_ladder_reported));
                 request.set_exit_drain(records_the_drain_after_a_throw);
                 raise_an_instance_of(request, "Throwable");
                 Value::null()

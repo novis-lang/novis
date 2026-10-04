@@ -316,7 +316,7 @@ fn assignable(
     }
     // `rule:types/callable-arity` and `rule:types/callable-variance` are one
     // comparison. Arity is a **prefix** match — `n ≤ m`, only the first `n`
-    // parameters compared — which describes `nvs_runtime::closure`'s own
+    // parameters compared — which describes `nvs_runtime::callable`'s own
     // behaviour rather than overruling it, since a callee is already handed
     // just the arguments it declares. Parameters are then contravariant and the
     // return type covariant, each refusing the one unsound direction: the slot

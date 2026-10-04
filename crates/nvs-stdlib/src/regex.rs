@@ -1990,7 +1990,7 @@ nvs_runtime::nvs_helper! {
 ///
 /// Exactly two references are created here and both are released here: the
 /// [`MATCH`] this frame builds for the callback, and the `string` the callback
-/// answers with, which `nvs_runtime::call_closure` hands back as one fresh
+/// answers with, which `nvs_runtime::call_callable` hands back as one fresh
 /// reference. Each release is written *before* the `?` that could carry the
 /// failure out — a throw from inside the callback and an answer of the wrong
 /// tag are the two edges a plain `?` would otherwise leak past.
@@ -2002,11 +2002,11 @@ fn replacement_for(
     captured: &Captured<'_>,
 ) -> Result<String, Fault> {
     let matched = built_match(offsets, names, captured);
-    let answered = nvs_runtime::call_closure(ctx, callback, &[matched]);
+    let answered = nvs_runtime::call_callable(ctx, callback, &[matched]);
     #[expect(
         unsafe_code,
         reason = "this frame owns exactly the reference `built_match` produced, \
-                  and `call_closure` retained its own for the length of the call"
+                  and `call_callable` retained its own for the length of the call"
     )]
     unsafe {
         matched.release();
@@ -2015,7 +2015,7 @@ fn replacement_for(
     let copied = text(&answered, "replaceWith", "the callback's answer").map(str::to_owned);
     #[expect(
         unsafe_code,
-        reason = "this frame owns exactly the reference `call_closure` returned"
+        reason = "this frame owns exactly the reference `call_callable` returned"
     )]
     unsafe {
         answered.release();
@@ -2994,16 +2994,16 @@ mod tests {
     }
 
     /// A one-parameter closure calling `invoke`: the arity and tag slots and
-    /// the invoke row are all `nvs_runtime::call_closure` reads. The table is
+    /// the invoke row are all `nvs_runtime::call_callable` reads. The table is
     /// leaked because a descriptor's address is its identity and must outlive
     /// every instance made from it.
-    fn closure_of(invoke: nvs_runtime::NvsFn) -> Value {
+    fn callable_of(invoke: nvs_runtime::NvsFn) -> Value {
         let mut table = nvs_runtime::ClassTable::new();
-        let id = table.define("{closure}", &["arity", "params"], &[]);
+        let id = table.define("{callable}", &["arity", "params"], &[]);
         table.set_methods(
             id,
             vec![nvs_runtime::MethodRow {
-                name: nvs_runtime::CLOSURE_INVOKE.to_owned(),
+                name: nvs_runtime::CALLABLE_INVOKE.to_owned(),
                 code: invoke as *const u8,
                 arity: 0,
                 param_tags: 0,
@@ -3014,26 +3014,26 @@ mod tests {
                 native: false,
             }],
         );
-        table.set_closure(id);
+        table.set_callable(id);
         let table: &'static nvs_runtime::ClassTable = Box::leak(Box::new(table));
         #[expect(
             unsafe_code,
             reason = "the table above is leaked, so the descriptor outlives every instance made from it"
         )]
         let object = unsafe { nvs_runtime::NvsObj::new(table.desc(id)) };
-        object.set_field(nvs_runtime::CLOSURE_ARITY_SLOT, Value::int(1));
+        object.set_field(nvs_runtime::CALLABLE_ARITY_SLOT, Value::int(1));
         object.set_field(
-            nvs_runtime::CLOSURE_PARAM_TAGS_SLOT,
-            Value::int(i64::from(nvs_runtime::CLOSURE_PARAM_TAG_ANY)),
+            nvs_runtime::CALLABLE_PARAM_TAGS_SLOT,
+            Value::int(i64::from(nvs_runtime::CALLABLE_PARAM_TAG_ANY)),
         );
         Value::object(object)
     }
 
-    /// Releases the receiver and the `Match` `call_closure` retained for a
+    /// Releases the receiver and the `Match` `call_callable` retained for a
     /// one-parameter callee, and answers `answer`.
     #[expect(
         unsafe_code,
-        reason = "`call_closure` passes the receiver and one argument, each retained for this \
+        reason = "`call_callable` passes the receiver and one argument, each retained for this \
                   callee to release, and the address of a live `Value` for the result"
     )]
     unsafe fn answered(args: *const Value, out: *mut Value, answer: Value) -> i32 {
@@ -3094,7 +3094,7 @@ mod tests {
                 let args = [
                     Value::str(NvsStr::new(subject.as_bytes())),
                     Value::str(NvsStr::new(pattern.as_bytes())),
-                    closure_of(invoke),
+                    callable_of(invoke),
                     Value::uint(limit),
                 ];
                 let answer = nvs_runtime::call(nvs_core_regex_replace_with, &mut ctx, &args)

@@ -14,7 +14,7 @@
 //! (`nvs_types::iter_lib`), so no compiled function exists for a *call site* to
 //! name — the class the member is handed decides, and it is a class this crate
 //! knows nothing about. [`crate::object`]'s descriptor carries exactly the
-//! table that answers it, and [`crate::call_closure`] already reaches a
+//! table that answers it, and [`crate::call_callable`] already reaches a
 //! closure's `invoke` through it. This is that same lookup, over a cursor's
 //! names rather than a closure's one, and it is the same dispatch a `foreach`
 //! over the same value performs — [`crate::dispatch`] is where it lives, since

@@ -2760,7 +2760,7 @@ mod tests {
         use nvs_runtime::CodecTy;
 
         // A descriptor is identified by its address, so the table outlives the
-        // test rather than being moved — `allocation_policy.rs`'s `closure_of`
+        // test rather than being moved — `allocation_policy.rs`'s `callable_of`
         // is the same shape and the same reason.
         let table: &'static mut nvs_runtime::ClassTable =
             Box::leak(Box::new(nvs_runtime::ClassTable::new()));

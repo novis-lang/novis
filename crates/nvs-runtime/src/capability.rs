@@ -1761,7 +1761,7 @@ mod tests {
     /// A file that is not there is an `IOError` whose second line says where a relative literal
     /// starts. Any other failure is one line.
     #[test]
-    fn a_missing_file_names_the_folder_a_relative_literal_starts_at() {
+    fn a_missing_file_names_the_folder_a_written_relative_path_starts_at() {
         let path = Path::new("/srv/app/data/note.txt");
         let missing = std::io::Error::from(std::io::ErrorKind::NotFound);
         let Fault::Thrown(class, message) = super::io_failure("Core\\IO::read", path, &missing)

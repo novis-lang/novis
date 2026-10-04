@@ -933,7 +933,7 @@ jobs:
           sample -p nvs-types --lib -- ty::tests:: layout::tests:: generics::tests:: lower::tests::
           sample -p nvs-ir --lib -- --exact \
             lower::tests::a_generator_lowers_to_a_factory_a_state_class_and_a_resumption_switch \
-            lower::tests::a_closure_lowers_to_a_captured_environment_object_and_an_invoke_method
+            lower::tests::an_anon_fn_lowers_to_a_captured_environment_object_and_an_invoke_method
 
   # ---------------------------------------------------------------------------
   # The half Miri cannot reach: the crates that execute generated machine code,

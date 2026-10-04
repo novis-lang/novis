@@ -1337,7 +1337,7 @@ mod tests {
     use std::cell::RefCell;
 
     use nvs_runtime::{
-        CLOSURE_ARITY_SLOT, CLOSURE_INVOKE, CLOSURE_PARAM_TAG_ANY, CLOSURE_PARAM_TAGS_SLOT,
+        CALLABLE_ARITY_SLOT, CALLABLE_INVOKE, CALLABLE_PARAM_TAG_ANY, CALLABLE_PARAM_TAGS_SLOT,
         ClassTable, Ctx, ErrorClass, MethodRow, NvsFn, NvsObj, OK, Value, call,
     };
 
@@ -1783,7 +1783,7 @@ mod tests {
     /// The table is the narrowest one the raise needs: `RuntimeError` for the
     /// class the context installs, and the marker beside it with no parent and
     /// no slots, which is what `nvs_hir::errors::TREE` declares it as. Leaked
-    /// for [`closure_of`]'s reason.
+    /// for [`callable_of`]'s reason.
     fn finish_marker(ctx: &mut Ctx) -> nvs_runtime::Thrown {
         const SLOTS: [&str; 4] = ["message", "previous", "backtrace", "location"];
         let mut classes = ClassTable::new();
@@ -1832,7 +1832,7 @@ mod tests {
     /// makes these tests cover the boundary as well as the queue: the member
     /// takes a reference of its own, so the caller still owns what it passed.
     fn register(ctx: &mut Ctx, arity: usize, invoke: NvsFn) -> Value {
-        let hook = closure_of(arity, invoke);
+        let hook = callable_of(arity, invoke);
         call(nvs_core_script_on_exit, ctx, &[hook])
             .expect("registering answers `void` and cannot fail");
         hook
@@ -1841,13 +1841,13 @@ mod tests {
     /// Reads the report in slot 1 and appends what it says under `who`.
     #[expect(
         unsafe_code,
-        reason = "`call_closure` passes exactly two live values, each retained \
+        reason = "`call_callable` passes exactly two live values, each retained \
                   for this callee to release, and the report is an object this \
                   crate laid out"
     )]
     unsafe fn record(who: &'static str, args: *const Value, out: *mut Value) -> i32 {
         // Slot 0 is the closure itself and slot 1 its one parameter, which is
-        // the report — `nvs_runtime::call_closure` builds the frame that way
+        // the report — `nvs_runtime::call_callable` builds the frame that way
         // for a compiled callee and for this one alike.
         let report = unsafe { *args.add(1) };
         let object = report
@@ -1908,16 +1908,16 @@ mod tests {
     }
 
     /// A closure value whose `invoke` is a plain Rust function —
-    /// `crates/nvs-stdlib/tests/allocation_policy.rs`'s `closure_of`, whose doc
+    /// `crates/nvs-stdlib/tests/allocation_policy.rs`'s `callable_of`, whose doc
     /// comment is the home of why this is a whole closure. The table is leaked
     /// because a descriptor's *address* is its identity.
-    fn closure_of(arity: usize, invoke: NvsFn) -> Value {
+    fn callable_of(arity: usize, invoke: NvsFn) -> Value {
         let mut table = ClassTable::new();
-        let id = table.define("{closure}", &["arity", "params"], &[]);
+        let id = table.define("{callable}", &["arity", "params"], &[]);
         table.set_methods(
             id,
             vec![MethodRow {
-                name: CLOSURE_INVOKE.to_owned(),
+                name: CALLABLE_INVOKE.to_owned(),
                 code: invoke as *const u8,
                 arity: 0,
                 param_tags: 0,
@@ -1928,7 +1928,7 @@ mod tests {
                 native: false,
             }],
         );
-        table.set_closure(id);
+        table.set_callable(id);
         let table: &'static ClassTable = Box::leak(Box::new(table));
         #[expect(
             unsafe_code,
@@ -1938,15 +1938,15 @@ mod tests {
         )]
         let object = unsafe { NvsObj::new(table.desc(id)) };
         object.set_field(
-            CLOSURE_ARITY_SLOT,
+            CALLABLE_ARITY_SLOT,
             Value::int(i64::try_from(arity).expect("a small arity")),
         );
         let mut tags: u64 = 0;
         for parameter in 0..arity {
-            tags |= u64::from(CLOSURE_PARAM_TAG_ANY) << (parameter * 4);
+            tags |= u64::from(CALLABLE_PARAM_TAG_ANY) << (parameter * 4);
         }
         object.set_field(
-            CLOSURE_PARAM_TAGS_SLOT,
+            CALLABLE_PARAM_TAGS_SLOT,
             Value::int(i64::from_ne_bytes(tags.to_ne_bytes())),
         );
         Value::object(object)

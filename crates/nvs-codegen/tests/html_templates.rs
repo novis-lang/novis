@@ -103,7 +103,7 @@ echo Core\Html::toSource($posted, "the test reads back the bytes the literal bui
 "#;
 
 #[test]
-fn a_markup_literal_echoed_lowers_to_writes_and_builds_no_markup() {
+fn an_html_template_echoed_lowers_to_writes_and_builds_no_markup() {
     assert_eq!(
         output_of(ECHOED),
         "<span>posted by &lt;b&gt;Ann&lt;/b&gt;</span>"
@@ -113,7 +113,7 @@ fn a_markup_literal_echoed_lowers_to_writes_and_builds_no_markup() {
 }
 
 #[test]
-fn a_markup_literal_assigned_to_a_local_does_build_one() {
+fn an_html_template_assigned_to_a_local_does_build_one() {
     assert_eq!(
         output_of(ASSIGNED),
         "<span>posted by &lt;b&gt;Ann&lt;/b&gt;</span>"
@@ -122,13 +122,13 @@ fn a_markup_literal_assigned_to_a_local_does_build_one() {
 }
 
 #[test]
-fn a_markup_literal_returned_from_a_function_does_build_one() {
+fn an_html_template_returned_from_a_function_does_build_one() {
     assert_eq!(output_of(RETURNED), "<b>&lt;x&gt;</b>");
     assert_eq!(carriers_built(RETURNED), 1);
 }
 
 #[test]
-fn a_hole_holding_a_carrier_is_spliced_raw_and_the_literal_still_builds_one() {
+fn a_hole_holding_a_carrier_is_spliced_raw_and_the_template_still_builds_one() {
     // `rule:core-classes/html-template`: a hole already holding a `Markup` is
     // `Markup + Markup` written in interpolation syntax, so its markup reaches
     // the page as markup — and the composition is still one carrier, not one
@@ -160,7 +160,7 @@ echo Core\Html::toSource($m, "the test reads back the bytes the literal built");
 /// `InstKind::ConstMarkup` and no lift at all — where the same literal with a
 /// hole is the join and the carrier the tests above count.
 #[test]
-fn a_hole_free_markup_literal_folds_to_one_constant() {
+fn a_hole_free_html_template_folds_to_one_constant() {
     assert_eq!(output_of(FOLDED), "<span>posted by Ann</span>");
     assert_eq!(constants_folded(FOLDED), 1);
     assert_eq!(carriers_built(FOLDED), 0);
@@ -174,7 +174,7 @@ fn a_hole_free_markup_literal_folds_to_one_constant() {
 /// built once, while compiling, so what a run spends does not depend on how
 /// many times the literal is evaluated.
 #[test]
-fn a_hole_free_markup_literal_in_a_loop_allocates_once_for_the_whole_loop() {
+fn a_hole_free_html_template_in_a_loop_allocates_once_for_the_whole_loop() {
     let loops = |rounds: u32| {
         format!(
             r#"<?nvs

@@ -1595,7 +1595,7 @@ mod tests {
     /// all: `ArgConv::Text`, which is what this parameter's type answered
     /// before the set crossed, accepts it.
     #[test]
-    fn a_union_of_literal_types_admits_its_own_words_and_refuses_every_other() {
+    fn a_union_of_single_value_types_admits_its_own_words_and_refuses_every_other() {
         let row = Command {
             name: "report".to_owned(),
             about: None,

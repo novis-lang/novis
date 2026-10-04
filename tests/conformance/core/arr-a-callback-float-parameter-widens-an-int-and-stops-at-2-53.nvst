@@ -5,7 +5,7 @@
 // The depth claim is *a bound asserted on both sides*. A `callable` has no
 // parameter list (`rule:types/anonymous-function`), so no checker ever saw this call site to
 // insert a conversion into it; the widening is applied by the runtime's own
-// argument check (`nvs_runtime::closure`), out of the same helper a written
+// argument check (`nvs_runtime::callable`), out of the same helper a written
 // `as float` lands on. That makes two things worth pinning at once: that the
 // one implicit conversion `rule:types/conversion` admits does reach here at all, and that
 // it stops where the ADR says it stops rather than where `f64` happens to run

@@ -35,7 +35,7 @@ rows whose owner is an item number, 31 to 35. An item's owner is the row it sits
       panics in `nvs-ir` (`lower/expr.rs:2870`, "records `ExprInfo::CallableRef` … no arm"). `rule:types/callable-values`
       keeps the spelling. Works only as the argument of `Core\Attributes::get/all`, where it is
       folded at check time. *probes1 `fcc`, probes2 `fcc_case`* — it lowers to the same closure
-      object a `fn` literal builds, over a forwarding thunk (`nvs_ir::lower::closure`'s
+      object a `fn` literal builds, over a forwarding thunk (`nvs_ir::lower::anon_fn`'s
       `lower_callable`), so a `Core` member handed one cannot tell it from a written closure. Two
       parameter lists a `callable` cannot forward — `inout` and a variadic tail — are `E0793` where
       the `(...)` is written, since either reaches the callee as a type confusion.

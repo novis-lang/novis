@@ -6509,7 +6509,7 @@ pub(crate) mod tests {
 
         let notes = after_a_disconnect("", |ctx, notes, _admission| {
             assert_eq!(
-                ctx.defer(nvs_runtime::native_closure::<WaitsAndRecords>(), 0),
+                ctx.defer(nvs_runtime::native_callable::<WaitsAndRecords>(), 0),
                 Ok(()),
                 "the request's queue refused a registration"
             );
@@ -6566,14 +6566,14 @@ pub(crate) mod tests {
                     IN_MAIN.fetch_add(1, Ordering::Relaxed);
                 }
                 let marker = ctx.register_later(
-                    nvs_runtime::native_closure::<AsksForSlotting>(),
+                    nvs_runtime::native_callable::<AsksForSlotting>(),
                     b"",
                     b"",
                     None,
                 );
                 ctx.write_output(&marker)
                     .expect("a captured body refused a write");
-                ctx.defer(nvs_runtime::native_closure::<AsksForSlotting>(), 0)
+                ctx.defer(nvs_runtime::native_callable::<AsksForSlotting>(), 0)
                     .expect("the request's queue refused a registration");
                 Value::null()
             });

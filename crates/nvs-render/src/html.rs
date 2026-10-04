@@ -270,7 +270,7 @@ fn write_node(out: &mut String, node: &Node) {
         Node::EnumCase { enum_name, case } => {
             span(out, "nvs-enum", &format!("{enum_name}::{case}"));
         }
-        Node::Closure { parameters } => {
+        Node::Callable { parameters } => {
             let plural = if *parameters == 1 { "" } else { "s" };
             span(
                 out,

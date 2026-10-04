@@ -116,7 +116,7 @@ fn print_inst(out: &mut String, inst: &Inst, f: &Function, src: &SourceFile) {
         return;
     }
     // A value-less `HelperCall` is invoked purely for an effect:
-    // `Helper::EchoStr` writes and returns nothing, `Helper::LiteralMismatch`
+    // `Helper::EchoStr` writes and returns nothing, `Helper::SingleValueMismatch`
     // never returns at all. Such a call has no `result` for the general arm
     // below to print, so it prints here.
     if let InstKind::HelperCall { helper, ref args } = inst.kind
@@ -580,7 +580,7 @@ fn helper_name(h: Helper) -> &'static str {
         Helper::EchoValue => "echo_value",
         Helper::EchoMarkup => "echo_markup",
         Helper::Exit => "exit",
-        Helper::LiteralMismatch => "literal_mismatch",
+        Helper::SingleValueMismatch => "single_value_mismatch",
         Helper::CloneOperandNotAnObject => "clone_not_an_object",
         Helper::Identical => "identical",
         Helper::NumericEq => "numeric_eq",
@@ -607,10 +607,10 @@ fn helper_name(h: Helper) -> &'static str {
         Helper::ValueIndexOptionalGet => "value_index_optional_get",
         Helper::ValueToArrayKey => "value_to_array_key",
         Helper::SecretEq => "secret_eq",
-        Helper::CallClosure => "call_closure",
-        Helper::CallClosureProven => "call_closure_proven",
-        Helper::CallClosureArray => "call_closure_array",
+        Helper::CallCallable => "call_callable",
+        Helper::CallCallableProven => "call_callable_proven",
+        Helper::CallCallableArray => "call_callable_array",
         Helper::CallErasedMethod => "call_erased_method",
-        Helper::BindClosure => "bind_closure",
+        Helper::BindCallable => "bind_callable",
     }
 }

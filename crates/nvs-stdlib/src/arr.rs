@@ -56,9 +56,9 @@
 //! each call back into Novis code per entry, and § 2's "every callback receives
 //! `($value, $key)` and may declare fewer parameters" means the key is
 //! frequently built and then dropped by the trimming in
-//! `nvs_runtime::call_closure`. On a list that is a rendered decimal and an
+//! `nvs_runtime::call_callable`. On a list that is a rendered decimal and an
 //! `NvsStr` allocation per entry, for nothing. So each of them reads
-//! `nvs_runtime::closure_arity` **once before the loop** and builds the key
+//! `nvs_runtime::callable_arity` **once before the loop** and builds the key
 //! only where the callback declared a parameter to receive it.
 //!
 //! Rendering it *where it is wanted* is a rule and not a convenience: `rule:types/arrays` makes the `$key` a callback receives a `string` over every array shape,
@@ -66,7 +66,7 @@
 //! [`store_at`] just below would take the position as it stands. Handing the
 //! position on unrendered is what that section refuses, since it would make a
 //! callback's `$key` type depend on how the subject is stored. It is visible
-//! now that `nvs_runtime::call_closure` checks each argument against the
+//! now that `nvs_runtime::call_callable` checks each argument against the
 //! parameter tags the closure declared: a callback writing `int $k` throws
 //! `LogicError` at the call, on a list exactly as on a map, rather than
 //! reading a string's payload as an integer.
@@ -2362,7 +2362,7 @@ nvs_runtime::nvs_helper! {
     /// The predicate receives `($value, $key)` and may declare fewer
     /// parameters — the rule that removes `ARRAY_FILTER_USE_KEY` and
     /// `ARRAY_FILTER_USE_BOTH`. This member always offers both;
-    /// `nvs_runtime::call_closure` trims them to what the closure wants, and
+    /// `nvs_runtime::call_callable` trims them to what the closure wants, and
     /// is also where the retain/release around the call lives.
     ///
     /// Truthiness is `rule:expressions/truthy-positions`'s
@@ -2379,7 +2379,7 @@ nvs_runtime::nvs_helper! {
         // Read once for the whole walk rather than per entry: a predicate
         // declaring one parameter is never handed a key, so none is rendered
         // for it — `docs/perf/userland-gap.md` § D.
-        let wants_key = nvs_runtime::closure_arity(args[1])? >= 2;
+        let wants_key = nvs_runtime::callable_arity(args[1])? >= 2;
 
         let mut kept = NvsArray::new();
         let mut from = 0usize;
@@ -2397,10 +2397,10 @@ nvs_runtime::nvs_helper! {
 
             let verdict = if wants_key {
                 // One reference for the duration of the call, released right
-                // after: `call_closure` takes its own, and `key` itself is
+                // after: `call_callable` takes its own, and `key` itself is
                 // still owed to either `kept` or its own drop below.
                 let key_arg = Value::str(key.to_str());
-                let verdict = nvs_runtime::call_closure(ctx, args[1], &[value, key_arg]);
+                let verdict = nvs_runtime::call_callable(ctx, args[1], &[value, key_arg]);
                 #[expect(
                     unsafe_code,
                     reason = "this frame owns exactly the reference \
@@ -2411,7 +2411,7 @@ nvs_runtime::nvs_helper! {
                 }
                 verdict
             } else {
-                nvs_runtime::call_closure(ctx, args[1], &[value])
+                nvs_runtime::call_callable(ctx, args[1], &[value])
             };
             let verdict = verdict?;
             let truthy = nvs_runtime::value_truthy(verdict);
@@ -2453,7 +2453,7 @@ nvs_runtime::nvs_helper! {
     /// Re-keying is `mapKeys`, its own member in the spec's § 2 table.
     ///
     /// The callback receives `($value, $key)` and may declare fewer parameters,
-    /// the same rule and the same `nvs_runtime::call_closure` trimming
+    /// the same rule and the same `nvs_runtime::call_callable` trimming
     /// [`nvs_core_arr_filter`] documents.
     ///
     /// **The `U` in the signature is real.** `map`'s result type is the
@@ -2462,14 +2462,14 @@ nvs_runtime::nvs_helper! {
     /// one argument shape that still leaves it `mixed`. Nothing here depends on
     /// it: the helper stores whatever `Value` the callback produced.
     ///
-    /// The mapped value is *owned* by this frame — `call_closure` returns one
+    /// The mapped value is *owned* by this frame — `call_callable` returns one
     /// fresh reference — so it is stored without a retain and never released.
     /// That is the difference from `filter`, which stores a value belonging to
     /// the subject array and therefore has to retain one first.
     fn nvs_core_arr_map(ctx, args: [2]) {
         let base = held_subject(args, "map")?;
         // Read once for the whole walk — [`nvs_core_arr_filter`]'s comment.
-        let wants_key = nvs_runtime::closure_arity(args[1])? >= 2;
+        let wants_key = nvs_runtime::callable_arity(args[1])? >= 2;
 
         let mut out = NvsArray::new();
         // The live slots, as an iterator, so the walk goes through
@@ -2497,10 +2497,10 @@ nvs_runtime::nvs_helper! {
 
             let mapped = if wants_key {
                 // One reference for the duration of the call, released right
-                // after — `call_closure` takes its own. `key` itself is still
+                // after — `call_callable` takes its own. `key` itself is still
                 // owed to [`store_at`] below.
                 let key_arg = Value::str(key.to_str());
-                let mapped = nvs_runtime::call_closure(ctx, args[1], &[value, key_arg]);
+                let mapped = nvs_runtime::call_callable(ctx, args[1], &[value, key_arg]);
                 #[expect(
                     unsafe_code,
                     reason = "this frame owns exactly the reference \
@@ -2511,7 +2511,7 @@ nvs_runtime::nvs_helper! {
                 }
                 mapped
             } else {
-                nvs_runtime::call_closure(ctx, args[1], &[value])
+                nvs_runtime::call_callable(ctx, args[1], &[value])
             };
             // Unwrapped into a local of its own *before* `key` is moved: a
             // throw partway through then frees the partial result and this
@@ -2564,10 +2564,10 @@ nvs_runtime::nvs_helper! {
                 .expect("next_slot only names live entries");
 
             // One reference for the duration of the call, released right
-            // after — `call_closure` takes its own, and the old key is not
+            // after — `call_callable` takes its own, and the old key is not
             // owed to anything else here.
             let key_arg = Value::str(key);
-            let named = nvs_runtime::call_closure(ctx, args[1], &[value, key_arg]);
+            let named = nvs_runtime::call_callable(ctx, args[1], &[value, key_arg]);
             #[expect(
                 unsafe_code,
                 reason = "this frame owns exactly the reference `key_at` just \
@@ -2653,10 +2653,10 @@ nvs_runtime::nvs_helper! {
                 .expect("next_slot only names live entries");
 
             // One reference for the duration of the call, released right
-            // after: `call_closure` takes its own, and `key` itself is still
+            // after: `call_callable` takes its own, and `key` itself is still
             // owed to the bucket below.
             let key_arg = Value::str(key.clone());
-            let named = nvs_runtime::call_closure(ctx, args[1], &[value, key_arg]);
+            let named = nvs_runtime::call_callable(ctx, args[1], &[value, key_arg]);
             #[expect(
                 unsafe_code,
                 reason = "this frame owns exactly the reference `key.clone()` \
@@ -4233,9 +4233,9 @@ nvs_runtime::nvs_helper! {
                         .key_at(slot)
                         .expect("next_slot only names live entries");
                     // One reference for the duration of the call, released
-                    // right after: `call_closure` takes its own.
+                    // right after: `call_callable` takes its own.
                     let key_arg = Value::str(key);
-                    let named = nvs_runtime::call_closure(ctx, callback, &[value, key_arg]);
+                    let named = nvs_runtime::call_callable(ctx, callback, &[value, key_arg]);
                     #[expect(
                         unsafe_code,
                         reason = "this frame owns exactly the reference `key_at` \
@@ -4319,7 +4319,7 @@ nvs_runtime::nvs_helper! {
         // a callback declaring `($carry, $value)` — the shape a sum is written
         // in — never sees one and none is built. § D, and
         // [`nvs_core_arr_filter`] is the same reading two positions earlier.
-        let wants_key = nvs_runtime::closure_arity(args[1])? >= 3;
+        let wants_key = nvs_runtime::callable_arity(args[1])? >= 3;
 
         let mut from = 0usize;
         while let Some(slot) = base.next_slot(from) {
@@ -4330,14 +4330,14 @@ nvs_runtime::nvs_helper! {
 
             let next = if wants_key {
                 // One reference for the duration of the call, released right
-                // after — `call_closure` takes its own. Nothing else in a fold
+                // after — `call_callable` takes its own. Nothing else in a fold
                 // wants the key, so this is the only place it is built.
                 let key_arg = Value::str(
                     base.slot_key(slot)
                         .expect("next_slot only names live entries")
                         .to_str(),
                 );
-                let next = nvs_runtime::call_closure(ctx, args[1], &[carry.0[0], value, key_arg]);
+                let next = nvs_runtime::call_callable(ctx, args[1], &[carry.0[0], value, key_arg]);
                 #[expect(
                     unsafe_code,
                     reason = "this frame owns exactly the reference \
@@ -4348,7 +4348,7 @@ nvs_runtime::nvs_helper! {
                 }
                 next
             } else {
-                nvs_runtime::call_closure(ctx, args[1], &[carry.0[0], value])
+                nvs_runtime::call_callable(ctx, args[1], &[carry.0[0], value])
             };
             // Unwrapped after the key is released and while the guard still
             // holds the current carry, so a throwing callback frees both.
@@ -4377,7 +4377,7 @@ nvs_runtime::nvs_helper! {
 /// and [`nvs_core_arr_reduce`]'s carry, which are one obligation under three
 /// names.
 ///
-/// `nvs_runtime::call_closure` hands back one fresh reference per call, so the
+/// `nvs_runtime::call_callable` hands back one fresh reference per call, so the
 /// extracted values are this frame's to free — unlike the entries themselves,
 /// which belong to the subject array. Held in a guard rather than released at
 /// the end of the member because a `by` closure, a comparator or a wrong tag
@@ -4391,7 +4391,7 @@ impl Drop for Extracted {
             #[expect(
                 unsafe_code,
                 reason = "each of these is exactly the one reference \
-                          `call_closure` returned to this frame"
+                          `call_callable` returned to this frame"
             )]
             unsafe {
                 value.release();
@@ -4505,7 +4505,7 @@ nvs_runtime::nvs_helper! {
         // common call — reads none, so this walk collects none.
         // `docs/perf/userland-gap.md` § D's second paragraph.
         let by_wants_key = match by {
-            Some(by) => nvs_runtime::closure_arity(by)? >= 2,
+            Some(by) => nvs_runtime::callable_arity(by)? >= 2,
             None => false,
         };
         let needs_keys = preserve_keys || by_wants_key;
@@ -4537,7 +4537,7 @@ nvs_runtime::nvs_helper! {
             for (index, value) in values.iter().enumerate() {
                 let extracted = if by_wants_key {
                     let key_arg = Value::str(keys[index].to_str());
-                    let extracted = nvs_runtime::call_closure(ctx, by, &[*value, key_arg]);
+                    let extracted = nvs_runtime::call_callable(ctx, by, &[*value, key_arg]);
                     #[expect(
                         unsafe_code,
                         reason = "this frame owns exactly the reference \
@@ -4548,7 +4548,7 @@ nvs_runtime::nvs_helper! {
                     }
                     extracted
                 } else {
-                    nvs_runtime::call_closure(ctx, by, &[*value])
+                    nvs_runtime::call_callable(ctx, by, &[*value])
                 };
                 sort_keys.0.push(extracted?);
             }
@@ -4561,7 +4561,7 @@ nvs_runtime::nvs_helper! {
         let mut compare = |left: usize, right: usize| -> Result<std::cmp::Ordering, Fault> {
             let ordering = match comparator {
                 Some(comparator) => {
-                    let verdict = nvs_runtime::call_closure(
+                    let verdict = nvs_runtime::call_callable(
                         ctx,
                         comparator,
                         &[compared[left], compared[right]],
@@ -4699,7 +4699,7 @@ nvs_runtime::nvs_helper! {
                     let left_arg = Value::str(keys[left].clone());
                     let right_arg = Value::str(keys[right].clone());
                     let verdict =
-                        nvs_runtime::call_closure(ctx, comparator, &[left_arg, right_arg]);
+                        nvs_runtime::call_callable(ctx, comparator, &[left_arg, right_arg]);
                     #[expect(
                         unsafe_code,
                         reason = "this frame owns exactly the two references \
@@ -4923,7 +4923,7 @@ fn owned_key_at(subject: &NvsArray, slot: usize) -> Value {
 /// them stops at the first match, which is what makes them one walk.
 ///
 /// The callback receives `($value, $key)` and may declare fewer parameters,
-/// the same rule and the same `nvs_runtime::call_closure` trimming
+/// the same rule and the same `nvs_runtime::call_callable` trimming
 /// [`nvs_core_arr_filter`] documents; the retain/release around the key
 /// argument and around the verdict are that member's too, and for the same
 /// reasons.
@@ -4944,7 +4944,7 @@ fn find_slot(
                 .key_at(slot)
                 .expect("next_slot only names live entries"),
         );
-        let verdict = nvs_runtime::call_closure(ctx, predicate, &[value, key]);
+        let verdict = nvs_runtime::call_callable(ctx, predicate, &[value, key]);
         #[expect(
             unsafe_code,
             reason = "this frame owns exactly the reference `key_at` cloned"
@@ -5216,9 +5216,9 @@ nvs_runtime::nvs_helper! {
                 None => value,
                 Some(by) => {
                     // One reference for the duration of the call, released
-                    // right after: `call_closure` takes its own.
+                    // right after: `call_callable` takes its own.
                     let key_arg = Value::str(key.clone());
-                    let named = nvs_runtime::call_closure(ctx, by, &[value, key_arg]);
+                    let named = nvs_runtime::call_callable(ctx, by, &[value, key_arg]);
                     #[expect(
                         unsafe_code,
                         reason = "this frame owns exactly the reference \
@@ -5624,9 +5624,9 @@ fn comparison_subject(
     };
 
     // One reference for the duration of the call, released right after:
-    // `call_closure` takes its own.
+    // `call_callable` takes its own.
     let key_arg = Value::str(key.clone());
-    let answer = nvs_runtime::call_closure(ctx, by, &[value, key_arg]);
+    let answer = nvs_runtime::call_callable(ctx, by, &[value, key_arg]);
     #[expect(
         unsafe_code,
         reason = "this frame owns exactly the reference `key.clone()` just produced"
@@ -5730,7 +5730,7 @@ fn set_member(
                     if on == On::Both && their_key.as_bytes() != key.as_bytes() {
                         continue;
                     }
-                    let verdict = nvs_runtime::call_closure(ctx, comparator, &[mine, *compared])?;
+                    let verdict = nvs_runtime::call_callable(ctx, comparator, &[mine, *compared])?;
                     let sign = comparator_sign(verdict, member);
                     #[expect(
                         unsafe_code,
@@ -7026,7 +7026,7 @@ mod tests {
     /// reason.
     #[expect(
         unsafe_code,
-        reason = "`call_closure` passes the receiver and two arguments, each \
+        reason = "`call_callable` passes the receiver and two arguments, each \
                   retained for this callee to release, and `abi::call` passes \
                   the address of a live `Value` for the result — neither is \
                   expressible in the signature compiled code calls through"
@@ -7072,7 +7072,7 @@ mod tests {
             vec![(b"a".to_vec(), 2), (b"b".to_vec(), 2), (b"c".to_vec(), 2)]
         );
 
-        let comparator = closure_of(2, compares_with_a_nan);
+        let comparator = callable_of(2, compares_with_a_nan);
         call(
             super::nvs_core_arr_sort_by_key,
             &mut ctx,
@@ -7967,7 +7967,7 @@ mod tests {
         assert_eq!(status, nvs_runtime::FATAL);
 
         // `map` decodes its subject before it ever looks at the callback, so a
-        // wrong subject is reported rather than reaching `call_closure` with a
+        // wrong subject is reported rather than reaching `call_callable` with a
         // value that is not a closure either.
         let mut ctx = Ctx::new(OutputSink::Sink);
         let status = call(
@@ -8619,7 +8619,7 @@ mod tests {
 
     /// `find`/`findKey` answer from the *first* match, and `any`/`all` answer
     /// an empty subject the two vacuous ways round. The predicate here is
-    /// `Value::null()`, which `call_closure` rejects — so these go through the
+    /// `Value::null()`, which `call_callable` rejects — so these go through the
     /// conformance suite instead, and what is checked here is the one shape a
     /// unit test can reach: a non-array subject.
     #[test]
@@ -8965,12 +8965,12 @@ mod tests {
     /// A one-parameter predicate answering whether its entry is below ten, and
     /// counting the entry it was shown.
     ///
-    /// The sweep of the two references is not optional: `call_closure` retains
+    /// The sweep of the two references is not optional: `call_callable` retains
     /// the receiver and each argument for this callee to release, which is
     /// what a compiled closure body does on its way out.
     #[expect(
         unsafe_code,
-        reason = "`call_closure` passes the receiver and one argument, each \
+        reason = "`call_callable` passes the receiver and one argument, each \
                   retained for this callee to release, and `abi::call` passes \
                   the address of a live `Value` for the result — neither is \
                   expressible in the signature compiled code calls through"
@@ -8990,10 +8990,10 @@ mod tests {
 
     /// A closure value declaring `arity` parameters, whose body is `invoke`.
     ///
-    /// `nvs_runtime::call_closure` reads the arity and the parameter tags off
+    /// `nvs_runtime::call_callable` reads the arity and the parameter tags off
     /// the *object*'s own two slots rather than off the method row, so a table
-    /// carrying one `CLOSURE_INVOKE` row plus those two fields is a whole
-    /// closure. Every parameter is tagged `CLOSURE_PARAM_TAG_ANY`, which is
+    /// carrying one `CALLABLE_INVOKE` row plus those two fields is a whole
+    /// closure. Every parameter is tagged `CALLABLE_PARAM_TAG_ANY`, which is
     /// what a `mixed` one gets: a Rust callback declares no type for the tag
     /// check to hold it to.
     ///
@@ -9004,13 +9004,13 @@ mod tests {
         reason = "the table is leaked, so the descriptor outlives every \
                   instance made from it — `NvsObj::new`'s whole obligation"
     )]
-    fn closure_of(arity: usize, invoke: nvs_runtime::NvsFn) -> Value {
+    fn callable_of(arity: usize, invoke: nvs_runtime::NvsFn) -> Value {
         let mut table = ClassTable::new();
-        let id = table.define("{closure}", &["arity", "params"], &[]);
+        let id = table.define("{callable}", &["arity", "params"], &[]);
         table.set_methods(
             id,
             vec![nvs_runtime::MethodRow {
-                name: nvs_runtime::CLOSURE_INVOKE.to_owned(),
+                name: nvs_runtime::CALLABLE_INVOKE.to_owned(),
                 code: invoke as *const u8,
                 arity: 0,
                 param_tags: 0,
@@ -9021,19 +9021,19 @@ mod tests {
                 native: false,
             }],
         );
-        table.set_closure(id);
+        table.set_callable(id);
         let table: &'static ClassTable = Box::leak(Box::new(table));
         let object = unsafe { NvsObj::new(table.desc(id)) };
         object.set_field(
-            nvs_runtime::CLOSURE_ARITY_SLOT,
+            nvs_runtime::CALLABLE_ARITY_SLOT,
             Value::int(i64::try_from(arity).expect("a small arity")),
         );
         let mut tags: u64 = 0;
         for parameter in 0..arity {
-            tags |= u64::from(nvs_runtime::CLOSURE_PARAM_TAG_ANY) << (parameter * 4);
+            tags |= u64::from(nvs_runtime::CALLABLE_PARAM_TAG_ANY) << (parameter * 4);
         }
         object.set_field(
-            nvs_runtime::CLOSURE_PARAM_TAGS_SLOT,
+            nvs_runtime::CALLABLE_PARAM_TAGS_SLOT,
             Value::int(i64::from_ne_bytes(tags.to_ne_bytes())),
         );
         Value::object(object)
@@ -9090,7 +9090,7 @@ mod tests {
     fn a_callback_that_writes_to_the_subject_walks_what_it_started_with() {
         let mut ctx = Ctx::buffered();
         ROWS.with(|rows| rows.set(list_of(&[1, 2, 3])));
-        let callback = closure_of(1, appends_to_rows);
+        let callback = callable_of(1, appends_to_rows);
         let subject = ROWS.with(std::cell::Cell::get);
         let answer = call(super::nvs_core_arr_filter, &mut ctx, &[subject, callback])
             .expect("the member answered");
@@ -9113,7 +9113,7 @@ mod tests {
             .unwrap_or_else(std::sync::PoisonError::into_inner);
         let mut ctx = Ctx::buffered();
         let subject = list_of(entries);
-        let predicate = closure_of(1, below_ten);
+        let predicate = callable_of(1, below_ten);
         PREDICATE_CALLS.store(0, std::sync::atomic::Ordering::Relaxed);
         let answer = call(member, &mut ctx, &[subject, predicate]).expect("the member answered");
         let seen = PREDICATE_CALLS.load(std::sync::atomic::Ordering::Relaxed);
@@ -9181,7 +9181,7 @@ mod tests {
             .unwrap_or_else(std::sync::PoisonError::into_inner);
         let mut ctx = Ctx::buffered();
         let subject = list_of(entries);
-        let predicate = closure_of(1, below_ten);
+        let predicate = callable_of(1, below_ten);
         PREDICATE_CALLS.store(0, std::sync::atomic::Ordering::Relaxed);
         let answer = call(member, &mut ctx, &[subject, predicate]).expect("the member answered");
         let seen = PREDICATE_CALLS.load(std::sync::atomic::Ordering::Relaxed);
@@ -9768,7 +9768,7 @@ mod tests {
     /// [`below_ten`]'s reason.
     #[expect(
         unsafe_code,
-        reason = "`call_closure` passes the receiver and one argument, each \
+        reason = "`call_callable` passes the receiver and one argument, each \
                   retained for this callee to release, and `abi::call` passes \
                   the address of a live `Value` for the result — neither is \
                   expressible in the signature compiled code calls through"
@@ -9802,7 +9802,7 @@ mod tests {
     fn map_answers_are_stored_with_the_one_reference_they_arrived_with() {
         let mut ctx = Ctx::buffered();
         let subject = mixed_keys();
-        let mapper = closure_of(1, labels_every_entry);
+        let mapper = callable_of(1, labels_every_entry);
 
         let result = call(super::nvs_core_arr_map, &mut ctx, &[subject, mapper])
             .expect("this callback never fails");
@@ -9874,7 +9874,7 @@ mod tests {
     /// reason.
     #[expect(
         unsafe_code,
-        reason = "`call_closure` passes the receiver and two arguments, each \
+        reason = "`call_callable` passes the receiver and two arguments, each \
                   retained for this callee to release, and `abi::call` passes \
                   the address of a live `Value` for the result — neither is \
                   expressible in the signature compiled code calls through"
@@ -9915,7 +9915,7 @@ mod tests {
     fn map_keys_stores_the_subject_value_with_a_reference_of_its_own() {
         let mut ctx = Ctx::buffered();
         let subject = mixed_keys_holding_long_values();
-        let namer = closure_of(2, names_the_entry_after_its_key);
+        let namer = callable_of(2, names_the_entry_after_its_key);
 
         let result = call(super::nvs_core_arr_map_keys, &mut ctx, &[subject, namer])
             .expect("this callback never fails");
@@ -9966,7 +9966,7 @@ mod tests {
     /// reason.
     #[expect(
         unsafe_code,
-        reason = "`call_closure` passes the receiver and one argument, each \
+        reason = "`call_callable` passes the receiver and one argument, each \
                   retained for this callee to release, and `abi::call` passes \
                   the address of a live `Value` for the result — neither is \
                   expressible in the signature compiled code calls through"
@@ -10019,7 +10019,7 @@ mod tests {
             array.set(NvsStr::new(key), Value::str(NvsStr::new(value)));
         }
         let subject = Value::array(array);
-        let namer = closure_of(1, groups_by_the_last_character);
+        let namer = callable_of(1, groups_by_the_last_character);
 
         PREDICATE_CALLS.store(0, std::sync::atomic::Ordering::Relaxed);
         let result = call(super::nvs_core_arr_group_by, &mut ctx, &[subject, namer])
@@ -10089,7 +10089,7 @@ mod tests {
     /// reason.
     #[expect(
         unsafe_code,
-        reason = "`call_closure` passes the receiver and two arguments, each \
+        reason = "`call_callable` passes the receiver and two arguments, each \
                   retained for this callee to release, and `abi::call` passes \
                   the address of a live `Value` for the result — neither is \
                   expressible in the signature compiled code calls through"
@@ -10123,7 +10123,7 @@ mod tests {
     fn reduce_holds_one_reference_to_the_carry_for_the_whole_fold() {
         let mut ctx = Ctx::buffered();
         let subject = mixed_keys();
-        let folder = closure_of(2, drops_the_carry_for_a_text_of_its_own);
+        let folder = callable_of(2, drops_the_carry_for_a_text_of_its_own);
         let seed = Value::str(NvsStr::new(b"a seed long enough to be its own text"));
 
         let answer = call(
@@ -10166,7 +10166,7 @@ mod tests {
     /// [`below_ten`]'s reason.
     #[expect(
         unsafe_code,
-        reason = "`call_closure` passes the receiver and one argument, each \
+        reason = "`call_callable` passes the receiver and one argument, each \
                   retained for this callee to release, and `abi::call` passes \
                   the address of a live `Value` for the result — neither is \
                   expressible in the signature compiled code calls through"
@@ -10202,7 +10202,7 @@ mod tests {
     fn filter_keeps_the_subject_keys_and_reads_a_verdict_that_is_not_a_bool() {
         let mut ctx = Ctx::buffered();
         let subject = mixed_keys();
-        let predicate = closure_of(1, keeps_what_is_not_b);
+        let predicate = callable_of(1, keeps_what_is_not_b);
 
         let result = call(super::nvs_core_arr_filter, &mut ctx, &[subject, predicate])
             .expect("this predicate never fails");

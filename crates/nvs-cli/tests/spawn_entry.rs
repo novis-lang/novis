@@ -47,8 +47,8 @@ fn refusal(fixture: &str) -> String {
 /// captures, so a diagnostic that only said "no" would leave a reader with a
 /// working alternative one keyword away and no reason to prefer either.
 #[test]
-fn an_fn_literal_is_refused_as_a_spawn_target_naming_the_method_form() {
-    let stderr = refusal("fn-literal-entry.nvs");
+fn an_anon_fn_is_refused_as_a_spawn_target_naming_the_method_form() {
+    let stderr = refusal("anon-fn-entry.nvs");
     assert!(
         stderr.contains("E0802"),
         "the entry-form refusal, not a type mismatch: {stderr}"

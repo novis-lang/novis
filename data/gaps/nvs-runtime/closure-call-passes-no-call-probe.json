@@ -1,6 +1,6 @@
 {
   "module": "crates/nvs-runtime/src/lib.rs",
   "title": "A closure call passes no call probe.",
-  "text": "`rule:testing/debug-probes` puts an entry and an exit probe at every call site, and codegen emits them from `nvs_codegen`'s invoke path alone; a call through a `callable` is a helper call to [`closure::nvs_call_closure`], so [`nvs_probe_call_enter`] never fires for it. A trace and a profile therefore attribute a callback's work to whatever called it, and `nvs run --count` reports fewer calls than the program made. Closing it means deciding what a call site with no compile-time callee name reports as its label, and re-measuring every recorded figure whose bench calls a closure.",
+  "text": "`rule:testing/debug-probes` puts an entry and an exit probe at every call site, and codegen emits them from `nvs_codegen`'s invoke path alone; a call through a `callable` is a helper call to [`closure::nvs_call_callable`], so [`nvs_probe_call_enter`] never fires for it. A trace and a profile therefore attribute a callback's work to whatever called it, and `nvs run --count` reports fewer calls than the program made. Closing it means deciding what a call site with no compile-time callee name reports as its label, and re-measuring every recorded figure whose bench calls a closure.",
   "milestone": "M10"
 }

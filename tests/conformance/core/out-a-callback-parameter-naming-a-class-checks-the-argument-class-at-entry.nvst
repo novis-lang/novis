@@ -7,7 +7,7 @@ A closure parameter naming a class is checked against the argument's own ancestr
 // case cannot reach: an **object**. Two checks stand at a closure's entry and
 // the case asserts where each one stops.
 //
-// `nvs_runtime::closure::check_param_tags` compares the four-bit
+// `nvs_runtime::callable::check_param_tags` compares the four-bit
 // representation a parameter erases to, and `nvs_ir::lower::param_tag_nibble`
 // gives every class name — and `object` itself — the same nibble 7, because
 // the tag carries no class label. That draws the first line around objecthood:
@@ -15,7 +15,7 @@ A closure parameter naming a class is checked against the argument's own ancestr
 //
 // The class label the nibble cannot hold is read at the body's own first
 // block, one class test per class-declared parameter
-// (`nvs_ir::lower::closure::check_param_class`), which is what draws the
+// (`nvs_ir::lower::anon_fn::check_param_class`), which is what draws the
 // second line — around the argument's *ancestry*, not around its exact class.
 // `docs/adr/README.md` § *Decisions taken at project start* owns why the
 // closure's entry is the boundary that pays for it: without it a named-class

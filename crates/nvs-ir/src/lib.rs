@@ -169,7 +169,7 @@
 //!   checker already knows.
 //!   The consequence a widening contributor must hold: **a call site whose
 //!   type argument names a shape registers that shape's class itself.**
-//!   `lower::Lowering::lower_object_literal` synthesizes one only where a
+//!   `lower::Lowering::lower_anon_object` synthesizes one only where a
 //!   literal is *written*, so a unit that hydrates a `{n: int}` it never
 //!   spells would otherwise have no `$shape{n}` for the descriptor constant to
 //!   resolve to — `lower::Lowering::written_type_constants` is where it does
@@ -335,18 +335,18 @@
 //!    vivifying descent asks; [`ir::InstKind::ArraySet`] models no absent key
 //!    at all, because a write is what makes one present.
 //! 6. **A closure literal lowers, and so does `$f(...)`, and what an argument
-//!    is checked against travels on the closure object.** The call is one [`ir::Helper::CallClosure`]
-//!    — `nvs_runtime::call_closure`, the same entry point native `Core` code
+//!    is checked against travels on the closure object.** The call is one [`ir::Helper::CallCallable`]
+//!    — `nvs_runtime::call_callable`, the same entry point native `Core` code
 //!    reaches a callback through, so there is one body and not a second
-//!    convention beside it ([`lower::Lowering::lower_closure_call`]). `rule:types/anonymous-function-self-name`'s self-name lowers too, and lowers to nothing: the closure it names
+//!    convention beside it ([`lower::Lowering::lower_callable_call`]). `rule:types/anonymous-function-self-name`'s self-name lowers too, and lowers to nothing: the closure it names
 //!    is the invoke's own receiver, already bound under
-//!    [`lower::closure::FN_SELF`], so the recursive call is the same
-//!    `CallClosure` with that binding as its callee and the environment class
+//!    [`lower::anon_fn::FN_SELF`], so the recursive call is the same
+//!    `CallCallable` with that binding as its callee and the environment class
 //!    gains no field. What decides *which* bare name is one is
 //!    `nvs_types::expr::calls::check_anon_fn`, whose record this crate
 //!    reads. A `...` argument goes
-//!    through [`ir::Helper::CallClosureArray`] instead — the whole list built
-//!    into one array, because `CallClosure`'s own argument count is a literal
+//!    through [`ir::Helper::CallCallableArray`] instead — the whole list built
+//!    into one array, because `CallCallable`'s own argument count is a literal
 //!    in the emitted call and a spread's is not — and a `name:` one is refused
 //!    where it is written (`E0712`), § 1 leaving no parameter for a name to
 //!    fill at either end. The first-class-callable sentinel is the one
@@ -357,9 +357,9 @@
 //!    no parameter list (§ 1), so no checker can compare a call site against
 //!    the body it will reach: this crate packs the declared representations
 //!    into the closure object's own `FN_PARAM_TAGS` word at the literal
-//!    ([`lower::closure::param_tags_word`]), and
-//!    `nvs_runtime::closure`'s `check_param_tags` compares one per argument
-//!    inside `call_closure` — the one path a `Core` member's callback and
+//!    ([`lower::anon_fn::param_tags_word`]), and
+//!    `nvs_runtime::callable`'s `check_param_tags` compares one per argument
+//!    inside `call_callable` — the one path a `Core` member's callback and
 //!    `$f(1)` both take, so neither caller is left holding it. A site whose
 //!    callee carries `rule:types/callable-signature`'s written signature was
 //!    proven where it was written and pays nothing per argument, which is the
@@ -469,8 +469,8 @@
 //!     `Ty::Str`, `1|2` a `Ty::Int` and `Mode::Read|Mode::Write` the enum's
 //!     own tag rather than a `Ty::Tagged`, and § 4's
 //!     checked row runs the membership test
-//!     [`lower::Lowering::lower_literal_membership`] emits — a comparison per
-//!     member, throwing through [`ir::Helper::LiteralMismatch`] with the
+//!     [`lower::Lowering::lower_single_value_membership`] emits — a comparison per
+//!     member, throwing through [`ir::Helper::SingleValueMismatch`] with the
 //!     accepted set named. § 3's enum-case subset is in that set: every
 //!     lowering entry point takes the run's `nvs_types::EnumTable` (handed
 //!     back by `nvs_types::check_program` rather than rebuilt, so `rule:enums/declaration`/§ 2's declaration errors are not reported twice), which is where a
@@ -484,7 +484,7 @@
 //!     a statically typed operand. `$n as Mode` is one free
 //!     [`ir::InstKind::Reinterpret`] — an enum is a tag over its backing
 //!     integer — in front of which
-//!     [`lower::Lowering::lower_literal_membership`] emits the same chain,
+//!     [`lower::Lowering::lower_single_value_membership`] emits the same chain,
 //!     built from **every** case of the declaration
 //!     ([`lower::convert::whole_enum_set`], sorted by the case's constant because the
 //!     table behind it is a hash map). An operand that is not already the
@@ -556,7 +556,7 @@
 //!     carried it anyway: helper arguments are stored as
 //!     `nvs_runtime::Value`s, and a class descriptor is not one. A `Core`
 //!     class with instances is the same test against the descriptor the
-//!     process publishes (`lower::closure::declared_class` names which `Core`
+//!     process publishes (`lower::anon_fn::declared_class` names which `Core`
 //!     classes have one), and a shape is
 //!     `lower::Lowering::lower_shape_conversion`'s field walk on the same two
 //!     edges. The object targets left name nothing to test against — plain

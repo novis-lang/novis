@@ -953,7 +953,7 @@ fn query(sql: &str, params: &str) -> Diagnostics {
 #[test]
 fn a_placeholder_count_mismatch_on_a_literal_is_a_diagnostic() {
     // `rule:core-classes/db-compile-time-query-checking`'s first clause, in both directions. The refusal is the
-    // rewriter's own — `nvs_stdlib::db::check_literal_query` runs the one the
+    // rewriter's own — `nvs_stdlib::db::check_written_query` runs the one the
     // request would have run — so this is the `LogicError` the first call would
     // have thrown, moved to `nvs check`.
     let short = query("\"select id from t where a = ? and b = ?\"", "[1]");

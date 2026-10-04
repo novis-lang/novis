@@ -9,7 +9,7 @@
 //! nothing about, and the interface member is a bodiless declaration
 //! (`nvs_types::iter_lib`), so no symbol exists for a call site to resolve.
 //! The object's own descriptor carries the table that answers it, and
-//! [`crate::call_closure`] already reaches a closure's `invoke` through
+//! [`crate::call_callable`] already reaches a closure's `invoke` through
 //! exactly this lookup with the name fixed.
 //!
 //! So this is that lookup with the name as an argument, and it is the same
@@ -22,7 +22,7 @@
 //!
 //! [`call_method`] retains the receiver and every argument before it calls,
 //! because a compiled Novis function releases its parameters — the same
-//! reconciliation [`crate::call_closure`] performs, and for the same reason.
+//! reconciliation [`crate::call_callable`] performs, and for the same reason.
 //! The [`Value`] it hands back is a fresh reference this frame owns.
 
 use crate::abi::{Fault, NvsFn, OK};
@@ -194,7 +194,7 @@ pub unsafe fn call_static_on(
 /// before the call exists. Here the list is as long as the map the program
 /// passed and holds whatever that map held, and a compiled callee reads its
 /// slots without asking — so both questions are asked *here*, through
-/// [`crate::closure`]'s `check_param_tags`, which is the one implementation
+/// [`crate::callable`]'s `check_param_tags`, which is the one implementation
 /// `rule:types/conversion`'s `int`-into-`float` widening lives in and which `callable`
 /// and an erased method call already share. Another copy of that comparison is
 /// exactly what the shared helper exists to prevent.
@@ -250,7 +250,7 @@ pub fn call_static_bound(
             ),
         ));
     }
-    crate::closure::check_param_tags(label, param_tags, args)?;
+    crate::callable::check_param_tags(label, param_tags, args)?;
     call_at(ctx, Value::class_desc(desc), code, args).map(Some)
 }
 
@@ -262,7 +262,7 @@ pub fn call_static_bound(
 /// question a checker would have answered is answered here instead, from the
 /// receiver's own [`ClassDesc`]: its [`crate::MethodRow`] carries the callee's
 /// arity and the tag each parameter requires, and
-/// [`crate::closure`]'s `check_param_tags` judges the arguments against them
+/// [`crate::callable`]'s `check_param_tags` judges the arguments against them
 /// through the one implementation this path and `callable`'s share.
 /// `docs/adr/README.md` § *Decisions taken at project start* owns the
 /// convention and why it is a descriptor row rather than a per-method thunk.
@@ -292,7 +292,7 @@ pub fn call_static_bound(
 ///   convention *borrows* argument 0 where a compiled method owns its
 ///   parameters, and for which no signature reached this crate at all;
 /// - too few arguments for the arity the row records, which is
-///   [`crate::closure`]'s own wording for a `callable`;
+///   [`crate::callable`]'s own wording for a `callable`;
 /// - an argument whose tag is not the one the parameter requires, and which
 ///   `rule:types/conversion`'s `int`-into-`float` widening does not reconcile.
 ///
@@ -433,7 +433,7 @@ pub fn call_erased_method_from(
     // that wrote more than the callee takes is PHP's own answer for a
     // userland call, and an argument nothing declares has no tag to check.
     let mut passed = args[..arity].to_vec();
-    crate::closure::check_param_tags(&callee, row.param_tags, &mut passed)?;
+    crate::callable::check_param_tags(&callee, row.param_tags, &mut passed)?;
     call_at(ctx, receiver, row.code, &passed)
 }
 
@@ -1122,11 +1122,11 @@ crate::nvs_helper! {
     /// fixed-arity helper at all: a site's own count is not the fact the call
     /// turns on — a `...` argument's count is its subject's own length, and
     /// what the arguments are judged against is a callee chosen when this
-    /// runs. `nvs_ir::Helper::CallClosureArray` is the same shape for the same
+    /// runs. `nvs_ir::Helper::CallCallableArray` is the same shape for the same
     /// reason.
     ///
     /// The entries are **borrowed** from an array the caller owns for the
-    /// length of this call, exactly as [`crate::closure::nvs_call_closure_array`]'s
+    /// length of this call, exactly as [`crate::callable::nvs_call_callable_array`]'s
     /// are; [`call_at`] retains each one it actually passes.
     fn nvs_call_erased_method(ctx, args: [3]) {
         let name = args[1]
@@ -1141,7 +1141,7 @@ crate::nvs_helper! {
                       allocation, so it is live for this read"
         )]
         // The caller's reference is the caller's: this handle reads the table
-        // and must not run its own drop, exactly as `nvs_call_closure_array`'s
+        // and must not run its own drop, exactly as `nvs_call_callable_array`'s
         // subject handle does.
         let entries = unsafe {
             let source = std::mem::ManuallyDrop::new(crate::array::NvsArray::from_raw(array));

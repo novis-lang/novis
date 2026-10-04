@@ -1,11 +1,11 @@
 {
   "lead": "A `NativeBody` slot or task that parks in `nvs_host::sleep` aborts the whole test binary when its group cancels it.",
-  "body": "The forced unwind crosses `crates/nvs-runtime/src/closure.rs`'s `invoke_native` `extern \"C\"` frame, and the process stops with `STATUS_STACK_BUFFER_OVERRUN` and no panic message of its own. Let a native test closure park only where nothing cancels it, and stop siblings while they sit in Rust frames instead.",
+  "body": "The forced unwind crosses `crates/nvs-runtime/src/callable.rs`'s `invoke_native` `extern \"C\"` frame, and the process stops with `STATUS_STACK_BUFFER_OVERRUN` and no panic message of its own. Let a native test closure park only where nothing cancels it, and stop siblings while they sit in Rust frames instead.",
   "files": [
-    "crates/nvs-runtime/src/closure.rs"
+    "crates/nvs-runtime/src/callable.rs"
   ],
   "until": {
     "kind": "gone",
-    "arg": "crates/nvs-runtime/src/closure.rs:invoke_native"
+    "arg": "crates/nvs-runtime/src/callable.rs:invoke_native"
   }
 }

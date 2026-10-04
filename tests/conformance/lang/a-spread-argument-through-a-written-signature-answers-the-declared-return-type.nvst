@@ -6,7 +6,7 @@ callable(int, string): string $join = fn (int $n, string $s): string => $s . $n;
 
 // A `...` makes the argument count the spread subject's own run-time length,
 // so no argument here has a parameter to be checked against and
-// `nvs_runtime::closure`'s per-argument tag check is what they are finally
+// `nvs_runtime::callable`'s per-argument tag check is what they are finally
 // held to. What the callee answers with does not depend on its arguments,
 // though, so the call reads the signature's declared return type and a
 // `string` slot takes it with no conversion written.

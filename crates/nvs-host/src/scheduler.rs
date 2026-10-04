@@ -1461,7 +1461,7 @@ mod tests {
     /// added anywhere in the workspace turns every coroutine in the suite into
     /// `type is too big to transfer`.
     #[test]
-    fn a_tasks_entry_closure_leaves_the_stack_switch_room_to_spare() {
+    fn a_tasks_entry_callable_leaves_the_stack_switch_room_to_spare() {
         let carried = Box::new(ctx());
         let body: Box<dyn FnOnce(&mut Ctx)> = Box::new(|_| {});
         let id = TaskId(1);

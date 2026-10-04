@@ -108,7 +108,7 @@ pub struct Slots {
 #[derive(Debug)]
 struct Slot {
     /// Owned: the registration outlives the call that made it.
-    closure: Value,
+    callable: Value,
     /// The whole placeholder, as it was handed to the page.
     marker: Vec<u8>,
     /// What the slot shows when its closure throws or passes its deadline.
@@ -157,7 +157,7 @@ impl Drop for Slots {
             // SAFETY: the reference was retained for this entry and nothing
             // else points at it.
             unsafe {
-                slot.closure.release();
+                slot.callable.release();
             }
         }
     }
@@ -171,7 +171,7 @@ impl Ctx {
     /// runs or the request ends.
     pub fn register_later(
         &mut self,
-        closure: Value,
+        callable: Value,
         placeholder: &[u8],
         error: &[u8],
         deadline: Option<Duration>,
@@ -187,7 +187,7 @@ impl Ctx {
         marker.extend_from_slice(placeholder);
         marker.extend_from_slice(b"<?end>");
         slots.entries.push(Slot {
-            closure,
+            callable,
             marker: marker.clone(),
             error: error.to_vec(),
             deadline,
@@ -276,10 +276,10 @@ fn assemble(ctx: &mut Ctx, body: &mut Vec<u8>) {
     let jobs: Vec<Job> = running
         .iter()
         .map(|slot| {
-            let closure = slot.closure;
+            let callable = slot.callable;
             let deadline = slot.deadline;
             let error = slot.error.clone();
-            Box::new(move |child: &mut Ctx| fill(child, closure, deadline, &error)) as Job
+            Box::new(move |child: &mut Ctx| fill(child, callable, deadline, &error)) as Job
         })
         .collect();
     let outcome = crate::host::with_current(|host| host.run_group(ctx, jobs, Bounds::default()));
@@ -300,7 +300,7 @@ fn assemble(ctx: &mut Ctx, body: &mut Vec<u8>) {
             let outer = std::mem::replace(&mut ctx.in_later, true);
             let answers = running
                 .iter()
-                .map(|slot| render(ctx, slot.closure))
+                .map(|slot| render(ctx, slot.callable))
                 .collect();
             ctx.in_later = outer;
             Some(answers)
@@ -316,7 +316,7 @@ fn assemble(ctx: &mut Ctx, body: &mut Vec<u8>) {
         }
     }
     for slot in running {
-        release(slot.closure);
+        release(slot.callable);
     }
 }
 
@@ -344,17 +344,17 @@ fn claim(ctx: &mut Ctx, body: &[u8]) -> Option<Vec<Slot>> {
                      closure did not run",
                 );
                 crate::floor::report(ctx, &record);
-                release(slot.closure);
+                release(slot.callable);
             }
             _ => {
                 doubled = true;
-                release(slot.closure);
+                release(slot.callable);
             }
         }
     }
     if doubled {
         for slot in running {
-            release(slot.closure);
+            release(slot.callable);
         }
         ctx.set_pending_as(
             ThrownClass::Logic,
@@ -414,13 +414,13 @@ fn deliver(ctx: &mut Ctx, mut body: Vec<u8>, cell: &BodySlot, scripts: Scripts) 
         .iter()
         .enumerate()
         .map(|(index, slot)| {
-            let closure = slot.closure;
+            let callable = slot.callable;
             let deadline = slot.deadline;
             let error = slot.error.clone();
             let name = name_of(&slot.marker).to_vec();
             let outbox = Rc::clone(&outbox);
             Box::new(move |child: &mut Ctx| {
-                let answer = fill(child, closure, deadline, &error);
+                let answer = fill(child, callable, deadline, &error);
                 // A string is a finished slot. `null` is a slot stopped by a
                 // limit or cancelled, which the pass below fills instead.
                 if let Some(bytes) = answer.as_str_bytes() {
@@ -457,7 +457,7 @@ fn deliver(ctx: &mut Ctx, mut body: Vec<u8>, cell: &BodySlot, scripts: Scripts) 
         emit.finish();
     }
     for slot in running {
-        release(slot.closure);
+        release(slot.callable);
     }
 }
 
@@ -536,7 +536,7 @@ fn held_back(body: &[u8]) -> usize {
 
 /// One slot, as a group of one under its own deadline, answering the bytes
 /// that replace its placeholder.
-fn fill(child: &mut Ctx, closure: Value, deadline: Option<Duration>, error: &[u8]) -> Value {
+fn fill(child: &mut Ctx, callable: Value, deadline: Option<Duration>, error: &[u8]) -> Value {
     // The head is the request's and the main script has finished it, so the
     // slot and every task it starts may not change it.
     child.in_later = true;
@@ -545,7 +545,7 @@ fn fill(child: &mut Ctx, closure: Value, deadline: Option<Duration>, error: &[u8
         deadline,
     };
     let outcome = crate::host::with_current(|host| {
-        let job: Job = Box::new(move |inner: &mut Ctx| render(inner, closure));
+        let job: Job = Box::new(move |inner: &mut Ctx| render(inner, callable));
         host.run_group(child, vec![job], bounds)
     });
     match outcome {
@@ -575,14 +575,14 @@ fn fill(child: &mut Ctx, closure: Value, deadline: Option<Duration>, error: &[u8
             Value::null()
         }
         Some(Outcome::Cancelled) => Value::null(),
-        None => render(child, closure),
+        None => render(child, callable),
     }
 }
 
 /// Calls the slot's closure and answers its output: what it echoed, then the
 /// `Markup` it returned, with its own nested slots already filled.
-fn render(ctx: &mut Ctx, closure: Value) -> Value {
-    let answer = match crate::call_closure(ctx, closure, &[]) {
+fn render(ctx: &mut Ctx, callable: Value) -> Value {
+    let answer = match crate::call_callable(ctx, callable, &[]) {
         Ok(answer) => answer,
         Err(crate::Fault::Pending(status)) => {
             if status == crate::FATAL {

@@ -3595,7 +3595,7 @@ pub mod code {
     /// defers instead, so a *call* through it dispatches on the receiver's
     /// runtime class. This spelling does not call at all: `rule:types/callable-values` makes it a
     /// callable **value**, which carries the callee's arity and parameter tags
-    /// in the value itself (`nvs_runtime::closure`), and there is no class
+    /// in the value itself (`nvs_runtime::callable`), and there is no class
     /// here to read either off — the receiver's descriptor answers a call it
     /// is present at, not a value that outlives the site. Narrowing the
     /// receiver, or calling the member directly, is the fix; both are what the
@@ -5155,7 +5155,7 @@ pub mod code {
     ///
     /// A field typed bare `callable` is accepted: it carries no parameter list
     /// to compare (`rule:types/callable-values`), and the call it stands
-    /// in for is checked one argument at a time by `nvs_runtime::closure`.
+    /// in for is checked one argument at a time by `nvs_runtime::callable`.
     pub const E_DOUBLE_METHOD_SIGNATURE: Code = Code::new("E0828").card(
         "The function given for this method of the test double does not fit the method's declaration. \
          It may have fewer parameters, but each parameter must accept what callers pass, and \

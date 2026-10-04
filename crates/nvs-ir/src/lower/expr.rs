@@ -10,7 +10,7 @@
 //! session editing one area does not carry the rest in context. The methods
 //! are `pub(crate)` so they reach across these modules and no further.
 
-use super::convert::{LiteralAtom, literal_constant};
+use super::convert::{SingleValueAtom, single_value_constant};
 use super::*;
 
 /// What `nvs_types::expr_table::ExprInfo::ShapeProperty` resolved for one
@@ -179,7 +179,7 @@ impl<'a> Lowering<'a> {
             ExprKind::Null => self.emit(*cur, Ty::Null, InstKind::ConstNull),
             ExprKind::Int(span) => self.lower_int_literal(*span, expr, expected, cur),
             ExprKind::Float(span) => self.lower_float_literal(*span, expr, expected, cur),
-            ExprKind::Duration(span) => self.lower_duration_literal(*span, env, cur),
+            ExprKind::Duration(span) => self.lower_duration(*span, env, cur),
             // A fresh `Ty::Str` value with exactly one natural owner — see
             // `Self::bind_local`'s doc comment for why a value produced here
             // never needs a retain of its own, only whatever consumes it.
@@ -218,7 +218,7 @@ impl<'a> Lowering<'a> {
             // deliberately skips `collapse_string_parts` for this node, since
             // the node and not the part count is what says
             // `Core\Html\Markup`.
-            ExprKind::HtmlTemplate(parts) => self.lower_markup_literal(parts, env, cur),
+            ExprKind::HtmlTemplate(parts) => self.lower_html_template(parts, env, cur),
             ExprKind::Variable(span) => {
                 let name = strip_sigil(span_text(self.src, *span));
                 let &(v, ty) = env.get(name).unwrap_or_else(|| {
@@ -288,7 +288,7 @@ impl<'a> Lowering<'a> {
                 self.lower_null_identity(*op, lhs, rhs, env, cur)
             }
             ExprKind::Binary { .. } => self.lower_binary(expr, expected, env, cur),
-            ExprKind::Fn(fn_expr) => self.lower_closure_literal(fn_expr, expr, env, cur),
+            ExprKind::Fn(fn_expr) => self.lower_anon_fn_expr(fn_expr, expr, env, cur),
             ExprKind::New { target, args, .. } => self.lower_new(target, args, expr, env, cur),
             ExprKind::MethodCall {
                 object,
@@ -376,7 +376,7 @@ impl<'a> Lowering<'a> {
                 property,
             } => self.lower_property_access(object, property, *nullsafe, expr, env, cur),
             ExprKind::ArrayLiteral(items) => self.lower_array_literal(items, env, cur),
-            ExprKind::AnonObject(fields) => self.lower_object_literal(fields, env, cur),
+            ExprKind::AnonObject(fields) => self.lower_anon_object(fields, env, cur),
             ExprKind::Index { base, index } => {
                 self.lower_index(base, index.as_deref(), expr, env, cur)
             }
@@ -607,18 +607,18 @@ impl<'a> Lowering<'a> {
             // total in `(ValueId, Ty)`.
             ExprKind::Exit(arg) => self.lower_exit(arg.as_deref(), env, cur),
             // `$fn(...)` — a closure called through the variable holding it,
-            // which is one `Helper::CallClosure` and not a lowered `Call`:
+            // which is one `Helper::CallCallable` and not a lowered `Call`:
             // there is no resolved target to name, whether or not the callee's
             // type named its parameters. Which of the two closure-call helpers
             // it is — and so whether the runtime still checks a tag per
             // argument — is the checker's record on this expression's own span,
-            // read in `Self::lower_closure_call`.
+            // read in `Self::lower_callable_call`.
             ExprKind::Call { callee, args } => {
-                self.lower_closure_call(expr, callee, args, env, cur)
+                self.lower_callable_call(expr, callee, args, env, cur)
             }
             // `rule:types/anonymous-function-self-name`'s self-name — `fact` inside
             // `fn fact(int $n): int => … fact($n - 1)`. The closure it names is
-            // the frame's own receiver, which `closure::lower_closure` bound
+            // the frame's own receiver, which `closure::lower_anon_fn` bound
             // under `FN_SELF` at entry, so this is a lookup and never a load:
             // § 3's name is not a slot and the environment class holds no field
             // for it. Every *other* bare name is `E0319` — see the roster
@@ -627,7 +627,7 @@ impl<'a> Lowering<'a> {
             ExprKind::ConstFetch(_)
                 if matches!(self.exprs.lookup(expr.span), Some(ExprInfo::AnonFnSelf)) =>
             {
-                *env.get(closure::FN_SELF).unwrap_or_else(|| {
+                *env.get(anon_fn::FN_SELF).unwrap_or_else(|| {
                     panic!(
                         "nvs-ir: `ExprInfo::AnonFnSelf` outside a closure body — \
                          nvs_types::expr::calls::check_anon_fn binds `rule:types/anonymous-function-self-name`'s \
@@ -721,7 +721,7 @@ impl<'a> Lowering<'a> {
     ///
     /// A ``html`…` `` operand takes neither path and becomes no value at all:
     /// `rule:core-classes/html-template`'s sink position is a write per piece,
-    /// which is [`Self::echo_markup_parts`].
+    /// which is [`Self::echo_html_template_parts`].
     ///
     /// An operand `concat_operand` reports as non-aliasing (a literal, a
     /// nested `Concat`'s own result, or a freshly converted `HelperCall`
@@ -736,9 +736,9 @@ impl<'a> Lowering<'a> {
         for operand in operands {
             // A markup literal written straight at a sink is the one operand
             // that never becomes a value at all — see
-            // [`Self::echo_markup_parts`].
+            // [`Self::echo_html_template_parts`].
             if let ExprKind::HtmlTemplate(parts) = &operand.kind {
-                self.echo_markup_parts(parts, env, cur);
+                self.echo_html_template_parts(parts, env, cur);
                 continue;
             }
             let mark = self.temporaries_mark();
@@ -806,7 +806,7 @@ impl<'a> Lowering<'a> {
     /// neutralize *more* — a control unterminated in the whole text is
     /// unterminated in its own piece too — so this is the safe direction of the
     /// difference, and it is the granularity `echo $a, $b;` already has.
-    fn echo_markup_parts(&mut self, parts: &[StringPart], env: &mut Env, cur: &mut BlockId) {
+    fn echo_html_template_parts(&mut self, parts: &[StringPart], env: &mut Env, cur: &mut BlockId) {
         for part in parts {
             let mark = self.temporaries_mark();
             let piece = match part {
@@ -814,7 +814,7 @@ impl<'a> Lowering<'a> {
                     let s = nvs_types::string_lit::cook_html_template_text(self.src, *span).0;
                     self.emit(*cur, Ty::Str, InstKind::ConstStr(s)).0
                 }
-                StringPart::Expr(e) => self.lower_markup_hole(e, env, cur),
+                StringPart::Expr(e) => self.lower_html_template_hole(e, env, cur),
             };
             // Every piece is fresh and has exactly one use, the write below,
             // which writes it as the `Markup` it would have been part of.
@@ -1969,7 +1969,7 @@ impl<'a> Lowering<'a> {
     /// [`Self::reinterpret_enum_to_backing`] relabels the subject once above
     /// the chain and each label as it is lowered, exactly as
     /// [`Self::lower_binary`] relabels a written `==` between two cases and
-    /// `Self::lower_literal_membership` `rule:types/single-value-types`'s chain — `nvs-codegen`'s
+    /// `Self::lower_single_value_membership` `rule:types/single-value-types`'s chain — `nvs-codegen`'s
     /// `BinOp` table is `Ty::Int`/`Ty::Uint`/`Ty::Bool` and carries no
     /// `Ty::Enum` row at all. The relabelling is free (no machine instruction)
     /// and feeds the comparisons alone: the subject's own value is what the
@@ -2018,7 +2018,7 @@ impl<'a> Lowering<'a> {
         // An enum subject is compared one representation down, on the integer
         // its cases *are* — the free `Reinterpret` of `rule:types/conversion` row 1,
         // which `Self::lower_binary` already makes for a written `==` between
-        // two cases and `Self::lower_literal_membership` for `rule:types/single-value-types`'s
+        // two cases and `Self::lower_single_value_membership` for `rule:types/single-value-types`'s
         // chain, `nvs-codegen`'s `BinOp` table carrying no `Ty::Enum` row.
         // It is made once, above the chain, and feeds the comparisons alone:
         // `subj_v` stays the value the release below reads, and each label
@@ -2320,7 +2320,7 @@ impl<'a> Lowering<'a> {
     /// **One carrier, however many pieces**, for a literal that has holes. Each
     /// piece becomes bytes first — a
     /// segment cooked by `nvs_types::string_lit::cook_html_template_text`, a hole by
-    /// [`Self::lower_markup_hole`] — and the join is the same n-ary
+    /// [`Self::lower_html_template_hole`] — and the join is the same n-ary
     /// [`InstKind::Concat`] an interpolated string's parts fold to. Only the
     /// join is lifted, through the identical `nvs_types::CORE_HTML_MARKUP` call
     /// [`Self::lower_markup_lift`] emits for `as Core\Html\Markup`. Escaping
@@ -2336,7 +2336,7 @@ impl<'a> Lowering<'a> {
     /// takes the reference its slot keeps, so the joined bytes are released
     /// here too and the carrier leaves with exactly one owner — the same pair
     /// [`Self::lower_markup_lift`] leaves.
-    pub(crate) fn lower_markup_literal(
+    pub(crate) fn lower_html_template(
         &mut self,
         parts: &[StringPart],
         env: &mut Env,
@@ -2366,7 +2366,7 @@ impl<'a> Lowering<'a> {
                     let s = nvs_types::string_lit::cook_html_template_text(self.src, *span).0;
                     self.emit(*cur, Ty::Str, InstKind::ConstStr(s)).0
                 }
-                StringPart::Expr(e) => self.lower_markup_hole(e, env, cur),
+                StringPart::Expr(e) => self.lower_html_template_hole(e, env, cur),
             };
             self.own_temporary(piece);
             pieces.push(piece);
@@ -2426,7 +2426,7 @@ impl<'a> Lowering<'a> {
     /// once the call has read it and a borrowed one is left where it is. The
     /// answer is this expression's own fresh `string`, which the literal's join
     /// then owns.
-    fn lower_markup_hole(&mut self, e: &Expr, env: &mut Env, cur: &mut BlockId) -> ValueId {
+    fn lower_html_template_hole(&mut self, e: &Expr, env: &mut Env, cur: &mut BlockId) -> ValueId {
         let mark = self.temporaries_mark();
         let (v, ty) = self.lower_expr(e, None, env, cur);
         let (operand, operand_ty, symbol, aliasing) = if self.hole_is_carrier(e.span) {
@@ -2703,12 +2703,7 @@ impl<'a> Lowering<'a> {
     /// an immortal header, which is exactly what a string literal is
     /// owed by `nvs-runtime`'s own gap 3. Both close together; until
     /// then this is one call on a constant.
-    fn lower_duration_literal(
-        &mut self,
-        span: Span,
-        env: &mut Env,
-        cur: &mut BlockId,
-    ) -> (ValueId, Ty) {
+    fn lower_duration(&mut self, span: Span, env: &mut Env, cur: &mut BlockId) -> (ValueId, Ty) {
         let text = span_text(self.src, span);
         let nanos = nvs_syntax::duration::parse(text).unwrap_or_else(|err| {
             panic!(
@@ -2869,9 +2864,9 @@ impl<'a> Lowering<'a> {
     /// captured binding into it — "by value at the point the closure
     /// literal is evaluated" (§ 2), which is exactly what a field
     /// store at this program point is. The body itself becomes that
-    /// class's one method, lowered later; see `lower_closure`, which
+    /// class's one method, lowered later; see `lower_anon_fn`, which
     /// owns the whole representation.
-    fn lower_closure_literal(
+    fn lower_anon_fn_expr(
         &mut self,
         fn_expr: &FnExpr,
         expr: &Expr,
@@ -2895,7 +2890,7 @@ impl<'a> Lowering<'a> {
         let ret = erase_checked_ty(*return_ty, self.checked_types);
         let names: Vec<String> = captures.iter().map(|(n, _)| n.clone()).collect();
         // The class a rebind's new `$this` is tested against — see
-        // `PendingClosure::this_class`.
+        // `PendingAnonFn::this_class`.
         let this_class = captures
             .iter()
             .find(|(n, _)| n == "this")
@@ -2952,7 +2947,7 @@ impl<'a> Lowering<'a> {
             self.emit_field_set(*cur, obj, class.clone(), name.clone(), v);
             captured.push((name, ty));
         }
-        self.closures.push(PendingClosure {
+        self.anon_fns.push(PendingAnonFn {
             class,
             fn_expr: fn_expr.clone(),
             captures: captured,
@@ -2986,7 +2981,7 @@ impl<'a> Lowering<'a> {
     /// list. A member with a trailing default is therefore reachable through
     /// its own name and not through a `callable` that omits the argument:
     /// `callable` carries no parameter list for a call site to read (`rule:types/callable-is-the-only-function-type`), so the defaults a caller would materialize are ones no caller
-    /// can see. That is a refusal at run time by `nvs_runtime::call_closure`,
+    /// can see. That is a refusal at run time by `nvs_runtime::call_callable`,
     /// where every other arity mismatch through a `callable` is reported.
     ///
     /// # Panics
@@ -3993,7 +3988,7 @@ impl<'a> Lowering<'a> {
         // which no class declares, so no `ExprInfo::Call` names them.
         if let Some(ExprInfo::CallableRebind { call }) = self.exprs.lookup(expr.span) {
             let call = *call;
-            return self.lower_closure_rebind(object, nullsafe, call, args, env, cur);
+            return self.lower_callable_rebind(object, nullsafe, call, args, env, cur);
         }
         // `rule:types/callable-values`'s `$obj->method(...)`, which names the member rather
         // than calling it. Taken before the resolved arm for the erased one's
@@ -4956,7 +4951,7 @@ impl<'a> Lowering<'a> {
     /// carries one. It stays because the disagreement it would otherwise hide
     /// is silent — the interned shape reads the first of the pair and the
     /// class below carries one slot per name.
-    fn lower_object_literal(
+    fn lower_anon_object(
         &mut self,
         fields: &[AnonObjectField],
         env: &mut Env,
@@ -5790,13 +5785,13 @@ impl<'a> Lowering<'a> {
                 // alone, which is the whole reason for the block. Nothing is
                 // merged but the answer: both edges assign nothing, so there
                 // is no `Env` to reconcile, exactly as
-                // [`Self::lower_literal_membership`]'s chain has none.
+                // [`Self::lower_single_value_membership`]'s chain has none.
                 let (narrowed, _) = self.emit(
                     payload,
                     payload_repr(repr),
                     InstKind::Untag { operand: value },
                 );
-                let (equal, _) = self.literal_payload_eq(payload, narrowed, &atom);
+                let (equal, _) = self.single_value_payload_eq(payload, narrowed, &atom);
                 self.seal(payload, Terminator::Jump(merge));
                 let answer = self.emit(
                     merge,
@@ -5819,7 +5814,7 @@ impl<'a> Lowering<'a> {
                 // already arrives at the representation it compares at, where
                 // that call is the identity.
                 let (narrowed, _) = self.reinterpret_enum_to_backing(value, subject, cur);
-                self.literal_payload_eq(*cur, narrowed, &atom)
+                self.single_value_payload_eq(*cur, narrowed, &atom)
             }
             // Every other representation carries a tag this literal's is not,
             // which is the class and element rows' constant reached for the
@@ -6157,7 +6152,7 @@ impl<'a> Lowering<'a> {
     /// The shape is [`Self::lower_or`]'s and [`Self::lower_and`]'s, with the
     /// operands already in hand instead of lowered per edge, and no `Env` is
     /// merged: a member test binds nothing, so the early edges carry only the
-    /// constant they decided on — [`Self::lower_literal_membership`]'s chain
+    /// constant they decided on — [`Self::lower_single_value_membership`]'s chain
     /// has no environment to reconcile for the same reason.
     ///
     /// Each member reads the subject and owns none of it, so a chain holds
@@ -6225,17 +6220,17 @@ impl<'a> Lowering<'a> {
     /// already at the representation its tag names, against the one constant
     /// the literal type is.
     ///
-    /// [`Self::lower_literal_membership`]'s arm without the chain — one atom
+    /// [`Self::lower_single_value_membership`]'s arm without the chain — one atom
     /// rather than a set, and an answer rather than a branch to a throw —
-    /// over the same [`super::convert::literal_constant`] table, so `$x as
+    /// over the same [`super::convert::single_value_constant`] table, so `$x as
     /// 'yay'` and `$x is 'yay'` compare the identical way.
-    fn literal_payload_eq(
+    fn single_value_payload_eq(
         &mut self,
         block: BlockId,
         value: ValueId,
-        atom: &LiteralAtom,
+        atom: &SingleValueAtom,
     ) -> (ValueId, Ty) {
-        let (kind, ty) = literal_constant(atom);
+        let (kind, ty) = single_value_constant(atom);
         let (wanted, _) = self.emit(block, ty, kind);
         let equal = self.emit(
             block,
@@ -6247,7 +6242,7 @@ impl<'a> Lowering<'a> {
             },
         );
         // The constant is fresh and this comparison is its one and only use —
-        // the policy [`Self::lower_literal_membership`] applies to its own.
+        // the policy [`Self::lower_single_value_membership`] applies to its own.
         if ty.is_refcounted() {
             self.emit_release(block, wanted);
         }
@@ -6319,7 +6314,7 @@ impl<'a> Lowering<'a> {
     /// That helper never returns, so it takes the operand's reference with it
     /// and a borrowed operand is retained in front of the call: an instruction
     /// emitted after a call that never returns sits in a block only an `Ok`
-    /// would reach, which is the same inversion [`Helper::LiteralMismatch`]
+    /// would reach, which is the same inversion [`Helper::SingleValueMismatch`]
     /// carries for its own rendered argument.
     ///
     /// **What it spends** (`rule:programs/memory-priority`): the one tag compare
@@ -6520,7 +6515,7 @@ enum TestShape {
         /// then read at.
         repr: Ty,
         /// The value that payload has to hold.
-        atom: LiteralAtom,
+        atom: SingleValueAtom,
     },
 }
 
@@ -6533,7 +6528,7 @@ enum TestShape {
 /// intersection and `iterable` are their members' rows chained, so none of the
 /// three is a cost of its own. `callable` is the class row against the one
 /// label every closure's environment class conforms to
-/// ([`CLOSURE_MARKER`](super::CLOSURE_MARKER)), and
+/// ([`CALLABLE_MARKER`](super::CALLABLE_MARKER)), and
 /// `rule:types/callable-signature`'s written signature is that same row one
 /// step more specific, against the marker class `nvs_types::callables`
 /// resolved for that signature — which is what `exprs` is read for here.
@@ -6559,7 +6554,7 @@ enum TestShape {
 /// `collect_signatures` takes every tested signature from the same places this
 /// function recurses into: a union member, an intersection member, an array
 /// element, a shape field. The `None` keeps it that way rather than a fallback
-/// to [`CLOSURE_MARKER`](super::CLOSURE_MARKER), which would answer `true` for
+/// to [`CALLABLE_MARKER`](super::CALLABLE_MARKER), which would answer `true` for
 /// a closure of any signature at all.
 fn test_shape(
     tested: TypeId,
@@ -6568,7 +6563,7 @@ fn test_shape(
     enums: &EnumTable,
 ) -> Option<TestShape> {
     // `QName` is destructured rather than named, for
-    // `super::closure::declared_class`'s reason: `nvs-hir` is a
+    // `super::anon_fn::declared_class`'s reason: `nvs-hir` is a
     // dev-dependency of this crate.
     if let CheckedTy::Class(qname, _) = checked_types.get(tested) {
         // A `Core` interface has no descriptor, since no value is an instance
@@ -6619,7 +6614,7 @@ fn test_shape(
         // because it is the one member that reaches no descriptor, then
         // `rule:iteration/two-interfaces`' two interfaces through the walk
         // a class test already emits. Both labels are spelled rather than named
-        // for `super::closure::declared_class`'s reason, and a descriptor for
+        // for `super::anon_fn::declared_class`'s reason, and a descriptor for
         // each is in every program's class table whether or not the file
         // implements one (`super::lower_program`).
         CheckedTy::Iterable => {
@@ -6631,12 +6626,12 @@ fn test_shape(
         }
         // `rule:types/callable-values`: a closure satisfies `callable`
         // and no other value does, so the question is whether the subject is an
-        // object of one of the environment classes `super::closure`
+        // object of one of the environment classes `super::anon_fn`
         // synthesizes — which is what the marker edge on each of them says.
         // That makes this the descriptor walk a class test already emits, with
         // no field read, no tag of its own and no second table.
         CheckedTy::Callable => {
-            return Some(TestShape::Class(super::CLOSURE_MARKER.to_owned()));
+            return Some(TestShape::Class(super::CALLABLE_MARKER.to_owned()));
         }
         // A written signature asks what a closure's parameters and return type
         // are, and a closure carries neither at run time — the object holds a
@@ -6646,7 +6641,7 @@ fn test_shape(
         // supertype per tested signature, conformed to by every literal whose
         // own signature is assignable to it. `nvs_types::callables` owns that
         // relation and why it cannot be computed here; `super::lower_program`
-        // emits the descriptor and `super::closure` the edges.
+        // emits the descriptor and `super::anon_fn` the edges.
         CheckedTy::CallableSig { .. } => {
             return exprs
                 .callable_sig_marker(tested)
@@ -6697,7 +6692,7 @@ fn test_shape(
                     .into_iter()
                     .map(|(_, value)| TestShape::Literal {
                         repr,
-                        atom: LiteralAtom::EnumCase(value),
+                        atom: SingleValueAtom::EnumCase(value),
                     })
                     .collect(),
             ));
@@ -6733,12 +6728,12 @@ fn test_shape(
     // keeps out of the type (§ 3) and which the run's own enum table holds
     // instead.
     let literal = match checked_types.get(tested) {
-        CheckedTy::SingleValueString(text) => Some((Ty::Str, LiteralAtom::Str(text.clone()))),
-        CheckedTy::SingleValueInt(value) => Some((Ty::Int, LiteralAtom::Int(*value))),
+        CheckedTy::SingleValueString(text) => Some((Ty::Str, SingleValueAtom::Str(text.clone()))),
+        CheckedTy::SingleValueInt(value) => Some((Ty::Int, SingleValueAtom::Int(*value))),
         // `rule:types/grammar`'s two `bool` singletons, which are types here
         // and not values: `$x is true` is this row, `$x == true` is not.
-        CheckedTy::True => Some((Ty::Bool, LiteralAtom::Bool(true))),
-        CheckedTy::False => Some((Ty::Bool, LiteralAtom::Bool(false))),
+        CheckedTy::True => Some((Ty::Bool, SingleValueAtom::Bool(true))),
+        CheckedTy::False => Some((Ty::Bool, SingleValueAtom::Bool(false))),
         CheckedTy::EnumCase(qname, backing, case) => {
             let value = enums.case(qname, case).unwrap_or_else(|| {
                 panic!(
@@ -6747,7 +6742,7 @@ fn test_shape(
                      resolved, so the two tables disagree"
                 )
             });
-            Some((enum_repr(*backing), LiteralAtom::EnumCase(value)))
+            Some((enum_repr(*backing), SingleValueAtom::EnumCase(value)))
         }
         _ => None,
     };

@@ -2711,10 +2711,10 @@ class G {
 /// `rule:types/anonymous-function`'s `fn` literal, lowered: the literal site allocates the
 /// captured-environment object and stores a *retained* snapshot of each
 /// capture into it, and the body becomes that class's one `invoke`, which
-/// reads every capture back out of parameter 0. See `lower_closure`,
+/// reads every capture back out of parameter 0. See `lower_anon_fn`,
 /// which owns the representation.
 #[test]
-fn a_closure_lowers_to_a_captured_environment_object_and_an_invoke_method() {
+fn an_anon_fn_lowers_to_a_captured_environment_object_and_an_invoke_method() {
     let (p, map, file) = lower_program(
         "<?nvs
 string $tag = \"t\";
@@ -2735,7 +2735,7 @@ echo $bump;
 /// says `invoke` reads a value rather than the caller's address, which is
 /// what makes the closure safe to outlive the call that staged the cell.
 #[test]
-fn a_closure_capturing_a_by_reference_parameter_snapshots_the_cell() {
+fn an_anon_fn_capturing_a_by_reference_parameter_snapshots_the_cell() {
     let (p, map, file) = lower_program(
         "<?nvs
 class T {
@@ -2941,8 +2941,8 @@ fn a_spread_argument_lowers_to_the_positions_it_fills() {
 
 /// The same `...` through a `callable`, where there is no signature and so
 /// no tail to fill: the *whole* argument list becomes the array instead,
-/// and the call goes through `Helper::CallClosureArray` rather than the
-/// `call_closure` beside it, whose argument count `nvs-codegen` writes as a
+/// and the call goes through `Helper::CallCallableArray` rather than the
+/// `call_callable` beside it, whose argument count `nvs-codegen` writes as a
 /// literal. The second call is the unspread one, which still emits the
 /// counted helper — one snapshot holding both rows.
 #[test]
@@ -2963,15 +2963,15 @@ fn a_spread_argument_through_a_callable_becomes_one_array() {
 /// local, then *called* through the variable holding it — which is what
 /// `examples/callable.nvs`'s `direct` line runs.
 ///
-/// The call is the runtime's (`Helper::CallClosure` into
-/// `nvs_runtime::call_closure`) rather than a lowered `Call` to a label,
+/// The call is the runtime's (`Helper::CallCallable` into
+/// `nvs_runtime::call_callable`) rather than a lowered `Call` to a label,
 /// because a `callable` names no compiled function; the environment object
 /// the literal built is the receiver. The neighbouring fixture asks the
 /// same question of a `callable` *parameter*, where there is no literal in
 /// the frame at all — the pair is what separates "the closure lowers" from
 /// "the variable holding one is callable".
 #[test]
-fn a_closure_is_called_through_the_variable_holding_it() {
+fn a_callable_is_called_through_the_variable_holding_it() {
     let (f, map, file) = lower_first_method(concat!(
         "<?nvs\n",
         "class T {\n",
@@ -3263,8 +3263,8 @@ fn a_file_with_no_class_still_carries_every_compiler_declared_class() {
         [
             // The closure marker, ahead of every declared label because `$`
             // cannot start one, and here in a file with no closure for the
-            // reason `crate::lower::CLOSURE_MARKER` gives.
-            "$closure",
+            // reason `crate::lower::CALLABLE_MARKER` gives.
+            "$callable",
             "ArithmeticError",
             "Comparable",
             // `rule:tooling/a-prompt-is-a-core-member`'s refusal to block, `rule:core-classes/db-error`'s driver failure

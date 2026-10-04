@@ -232,7 +232,7 @@ impl Serialize for AsNode<'_> {
             Node::EnumCase { enum_name, case } => {
                 tagged(ser, "$enum", &format!("{enum_name}::{case}"))
             }
-            Node::Closure { parameters } => {
+            Node::Callable { parameters } => {
                 let mut map = ser.serialize_map(Some(1))?;
                 map.serialize_entry("$closure", &Parameters(*parameters))?;
                 map.end()

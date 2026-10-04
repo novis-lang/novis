@@ -19,7 +19,7 @@
 //! per signature the program tests for, conformed to by every anonymous function whose
 //! own signature is assignable to it, which makes the test the `callable`
 //! row's own shape: the descriptor walk `$x is C` already emits, with no
-//! field read and no second table. `nvs_ir::lower::CLOSURE_MARKER` is the same
+//! field read and no second table. `nvs_ir::lower::CALLABLE_MARKER` is the same
 //! device one step less specific.
 //!
 //! The relation is [`crate::expr::is_assignable`] and not a second reading of
@@ -84,7 +84,7 @@ pub(crate) fn resolve(
             .map(|(span, _)| *span)
             .collect::<Vec<_>>();
         // Recorded whether or not anything conforms, for
-        // `nvs_ir::lower::CLOSURE_MARKER`'s reason: a walk needs a descriptor
+        // `nvs_ir::lower::CALLABLE_MARKER`'s reason: a walk needs a descriptor
         // to compare against before it can answer `false`, so a unit that
         // emitted the marker only where something satisfied it would leave
         // `is` naming a class the unit does not declare.

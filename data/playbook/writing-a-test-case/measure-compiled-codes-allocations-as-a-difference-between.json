@@ -1,11 +1,11 @@
 {
   "lead": "Measure compiled code's allocations as a difference between two run lengths or two arities, never as an absolute zero.",
-  "body": "A run allocates its array, locals and output buffer once, and `call_closure` its retained argument slice once per call, so \"400 passes allocated what 4 did\" holds where \"allocated nothing\" cannot. Pair it with a control arm that *does* allocate per access; only with no callback (`sort($list)`) is an absolute bound right.",
+  "body": "A run allocates its array, locals and output buffer once, and `call_callable` its retained argument slice once per call, so \"400 passes allocated what 4 did\" holds where \"allocated nothing\" cannot. Pair it with a control arm that *does* allocate per access; only with no callback (`sort($list)`) is an absolute bound right.",
   "files": [
-    "crates/nvs-runtime/src/closure.rs"
+    "crates/nvs-runtime/src/callable.rs"
   ],
   "until": {
     "kind": "gone",
-    "arg": "crates/nvs-runtime/src/closure.rs:call_closure"
+    "arg": "crates/nvs-runtime/src/callable.rs:call_callable"
   }
 }

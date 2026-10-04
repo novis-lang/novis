@@ -1603,7 +1603,7 @@ nvs_runtime::nvs_helper! {
             if !given(validate) {
                 return Ok(value);
             }
-            let verdict = nvs_runtime::call_closure(ctx, validate, &[value]);
+            let verdict = nvs_runtime::call_callable(ctx, validate, &[value]);
             let accepted = match verdict {
                 Ok(verdict) => {
                     let truthy = nvs_runtime::value_truthy(verdict);
@@ -1918,7 +1918,7 @@ fn options_of(value: Value, member: &str) -> Result<Vec<Value>, Fault> {
 /// throws here rather than printing a placeholder nobody can choose between.
 fn label_of(ctx: &mut nvs_runtime::Ctx, labels: Value, option: Value) -> Result<String, Fault> {
     let rendered = if given(labels) {
-        let answered = nvs_runtime::call_closure(ctx, labels, &[option])?;
+        let answered = nvs_runtime::call_callable(ctx, labels, &[option])?;
         let text = nvs_runtime::stringify(ctx, answered);
         #[expect(
             unsafe_code,
@@ -3130,10 +3130,10 @@ nvs_runtime::nvs_helper! {
             &LIVE,
             [Value::int(i64::try_from(open.depth).unwrap_or(i64::MAX))],
         );
-        let outcome = nvs_runtime::call_closure(ctx, args[0], &[handle]);
+        let outcome = nvs_runtime::call_callable(ctx, args[0], &[handle]);
         #[expect(
             unsafe_code,
-            reason = "`call_closure` takes its own reference to each argument, \
+            reason = "`call_callable` takes its own reference to each argument, \
                       so the one this frame built is still ours to drop"
         )]
         unsafe {
@@ -3292,10 +3292,10 @@ nvs_runtime::nvs_helper! {
         // The empty bar is drawn before the body runs, so a program that takes
         // a second to reach its first `advance` is on screen for it.
         paint(open.depth, vec![bar(0, total, "")]);
-        let outcome = nvs_runtime::call_closure(ctx, args[1], &[handle]);
+        let outcome = nvs_runtime::call_callable(ctx, args[1], &[handle]);
         #[expect(
             unsafe_code,
-            reason = "`call_closure` takes its own reference to each argument, \
+            reason = "`call_callable` takes its own reference to each argument, \
                       so the one this frame built is still ours to drop"
         )]
         unsafe {

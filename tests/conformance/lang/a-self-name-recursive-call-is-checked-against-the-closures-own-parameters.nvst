@@ -5,7 +5,7 @@ A closure calling itself by its self-name has its arguments checked against the 
 // The self-name is not a value of the opaque `callable` type — it is the
 // closure being written — so its parameter list is what the recursive call's
 // arguments are checked against, and the mismatch is a diagnostic here rather
-// than `nvs_runtime::closure`'s per-argument tag check at run time.
+// than `nvs_runtime::callable`'s per-argument tag check at run time.
 callable $fact = fn fact(int $n): int => $n <= 1 ? 1 : $n * fact("no");
 
 // The count is exact for the same reason: a call through a written signature

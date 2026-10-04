@@ -650,7 +650,7 @@ nvs_runtime::nvs_helper! {
             ));
         }
         ctx.begin_capture();
-        let answer = nvs_runtime::call_closure(ctx, args[0], &[]);
+        let answer = nvs_runtime::call_callable(ctx, args[0], &[]);
         let mut bytes = ctx.end_capture().unwrap_or_default();
         let answer = answer?;
         if answer.obj_ptr().is_some() {
@@ -661,7 +661,7 @@ nvs_runtime::nvs_helper! {
         }
         #[expect(
             unsafe_code,
-            reason = "`call_closure` answered with a reference this frame owns"
+            reason = "`call_callable` answered with a reference this frame owns"
         )]
         // SAFETY: as above, and nothing reads `answer` after this.
         unsafe {

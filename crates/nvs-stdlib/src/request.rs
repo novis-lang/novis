@@ -6317,7 +6317,7 @@ mod tests {
     ///
     /// The table is leaked because a descriptor's *address* is its identity and
     /// it must outlive every instance made from it, which is `NvsObj::new`'s
-    /// obligation and `crate::fatal`'s `closure_of`'s reason for doing the
+    /// obligation and `crate::fatal`'s `callable_of`'s reason for doing the
     /// same.
     fn reading_class() -> *const ClassDesc {
         let mut table = ClassTable::new();

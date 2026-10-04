@@ -2182,10 +2182,10 @@ nvs_runtime::nvs_helper! {
         }
         ctx.set_fixed_clock(moved);
         let before = nvs_host::children_still_running();
-        let answered = nvs_runtime::call_closure(ctx, args[BODY_ARG], &[])?;
+        let answered = nvs_runtime::call_callable(ctx, args[BODY_ARG], &[])?;
         #[expect(
             unsafe_code,
-            reason = "`call_closure` hands back a value the caller owns, and this one is \
+            reason = "`call_callable` hands back a value the caller owns, and this one is \
                       never handed on"
         )]
         unsafe {
@@ -3660,11 +3660,11 @@ nvs_runtime::nvs_helper! {
                 args[1].tag_byte()
             ))
         })?.to_owned();
-        match nvs_runtime::call_closure(ctx, args[0], &[]) {
+        match nvs_runtime::call_callable(ctx, args[0], &[]) {
             Ok(result) => {
                 #[expect(
                     unsafe_code,
-                    reason = "`call_closure` hands back a value the caller owns, and \
+                    reason = "`call_callable` hands back a value the caller owns, and \
                               this one is never handed on"
                 )]
                 unsafe {
@@ -3728,11 +3728,11 @@ nvs_runtime::nvs_helper! {
     /// did fail. `Core\Test::expectFailure` is the member that discharges one;
     /// this member never does.
     fn nvs_core_test_assert_does_not_throw(ctx, args: [2]) {
-        match nvs_runtime::call_closure(ctx, args[0], &[]) {
+        match nvs_runtime::call_callable(ctx, args[0], &[]) {
             Ok(result) => {
                 #[expect(
                     unsafe_code,
-                    reason = "`call_closure` hands back a value the caller owns, and \
+                    reason = "`call_callable` hands back a value the caller owns, and \
                               this one is never handed on"
                 )]
                 unsafe {
@@ -3780,12 +3780,12 @@ nvs_runtime::nvs_helper! {
     /// exception class table installed.
     fn nvs_core_test_expect_failure(ctx, args: [1]) {
         let mark = ctx.assertion_count();
-        let outcome = nvs_runtime::call_closure(ctx, args[0], &[]);
+        let outcome = nvs_runtime::call_callable(ctx, args[0], &[]);
         let discharged = ctx.discharge_failures_from(mark);
         if let Ok(result) = outcome {
             #[expect(
                 unsafe_code,
-                reason = "`call_closure` hands back a value the caller owns, and \
+                reason = "`call_callable` hands back a value the caller owns, and \
                           this one is never handed on"
             )]
             unsafe {
@@ -4380,11 +4380,11 @@ pub(crate) fn double_of(
     let (desc, object) = unsafe { (&*class, nvs_runtime::NvsObj::new(class)) };
     object.set_field(RECORD_SLOT, Value::array(nvs_runtime::NvsArray::new()));
     object.set_field(REAL_SLOT, real);
-    for (name, closure) in answers {
+    for (name, callable) in answers {
         let slot = desc
             .field_slot(&format!("{SIGIL}{name}"), FIRST_METHOD_SLOT)
             .unwrap_or_else(|| panic!("{} has no field answering `{name}`", desc.name()));
-        object.set_field(slot, closure);
+        object.set_field(slot, callable);
     }
     Value::object(object)
 }
@@ -4767,8 +4767,8 @@ fn answers_of(value: Value, member: &str) -> Result<Vec<Given>, Fault> {
 fn rows_of(given: &[Given]) -> Vec<Answer> {
     given
         .iter()
-        .map(|(name, closure)| {
-            let (arity, params) = closure_shape(*closure);
+        .map(|(name, callable)| {
+            let (arity, params) = callable_shape(*callable);
             Answer {
                 name: name.clone(),
                 arity,
@@ -4804,10 +4804,10 @@ fn delegated_rows(real: &nvs_runtime::ClassDesc, overridden: &[Given]) -> Vec<An
 ///
 /// `(0, 0)` for a value that is not a closure at all, which until the
 /// checker's refusals land is a shape field it still admits: the row published
-/// for one answers through `nvs_runtime::call_closure`, whose own refusal names
+/// for one answers through `nvs_runtime::call_callable`, whose own refusal names
 /// the value, rather than being read here as a shape it does not have.
-fn closure_shape(closure: Value) -> (u32, u64) {
-    let Some(object) = closure.obj_ptr() else {
+fn callable_shape(callable: Value) -> (u32, u64) {
+    let Some(object) = callable.obj_ptr() else {
         return (0, 0);
     };
     #[expect(
@@ -4817,17 +4817,17 @@ fn closure_shape(closure: Value) -> (u32, u64) {
                   below are read only once the class says it is a closure's, \
                   which is what puts them in range"
     )]
-    let closure_class = unsafe { nvs_runtime::NvsObj::class_of(object).as_ref() }
-        .is_some_and(nvs_runtime::ClassDesc::is_closure);
-    if !closure_class {
+    let callable_class = unsafe { nvs_runtime::NvsObj::class_of(object).as_ref() }
+        .is_some_and(nvs_runtime::ClassDesc::is_callable);
+    if !callable_class {
         return (0, 0);
     }
-    let arity = crate::instance::slot(object, nvs_runtime::CLOSURE_ARITY_SLOT)
+    let arity = crate::instance::slot(object, nvs_runtime::CALLABLE_ARITY_SLOT)
         .as_int()
         .unwrap_or(0);
     // The sixteenth nibble sits in the sign bit; the slot holds the same 64
     // bits either way, and only the nibbles are ever read.
-    let tags = crate::instance::slot(object, nvs_runtime::CLOSURE_PARAM_TAGS_SLOT)
+    let tags = crate::instance::slot(object, nvs_runtime::CALLABLE_PARAM_TAGS_SLOT)
         .as_int()
         .unwrap_or(0);
     (
@@ -4846,8 +4846,8 @@ fn retained(given: Vec<Given>) -> Vec<Given> {
                   the reference this adds"
     )]
     unsafe {
-        for (_, closure) in &given {
-            closure.retain();
+        for (_, callable) in &given {
+            callable.retain();
         }
     }
     given
@@ -5058,7 +5058,7 @@ fn answer(slot: usize, ctx: &mut Ctx, args: &[Value]) -> nvs_runtime::HelperResu
     // included, exactly as it does to the compiled method this row stands in
     // for — so this frame owes each one a release on every edge, which is
     // this module's *the rows are not native*. Everything the body passed on
-    // was borrowed: `nvs_runtime::call_closure` and
+    // was borrowed: `nvs_runtime::call_callable` and
     // `nvs_runtime::call_method` each retain what they pass.
     #[expect(
         unsafe_code,
@@ -5122,7 +5122,7 @@ fn answered(slot: usize, ctx: &mut Ctx, args: &[Value]) -> nvs_runtime::HelperRe
     if answering.obj_ptr().is_none() {
         return delegated(ctx, receiver, method, &args[1..]);
     }
-    nvs_runtime::call_closure(ctx, answering, &args[1..])
+    nvs_runtime::call_callable(ctx, answering, &args[1..])
 }
 
 /// What a `partial` does with a method its shape did not override: the same
@@ -5751,11 +5751,11 @@ mod tests {
     const ANSWERED: i64 = 7;
 
     /// A closure's `invoke`, hand-written: it sweeps the references
-    /// `nvs_runtime::call_closure` retained for it — itself and its one
+    /// `nvs_runtime::call_callable` retained for it — itself and its one
     /// parameter — and answers [`ANSWERED`].
     #[expect(
         unsafe_code,
-        reason = "`call_closure` passes exactly the closure and one parameter, \
+        reason = "`call_callable` passes exactly the closure and one parameter, \
                   each retained for this callee to release, and the result \
                   pointer is one value wide"
     )]
@@ -5771,22 +5771,22 @@ mod tests {
 
     /// A closure value of one parameter whose body is [`answering`].
     ///
-    /// `nvs_runtime::call_closure` reads exactly four things off a closure —
-    /// its class's `ClassTable::set_closure` bit, its arity slot, its
+    /// `nvs_runtime::call_callable` reads exactly four things off a closure —
+    /// its class's `ClassTable::set_callable` bit, its arity slot, its
     /// parameter-tag slot and its `invoke`'s address — so a test in this crate
     /// can hand a double a `callable` with no compiler in front of it. The
     /// table is leaked because a descriptor's *address* is its identity and it
     /// must outlive every instance made from it.
-    fn closure_of() -> Value {
+    fn callable_of() -> Value {
         let mut table = nvs_runtime::ClassTable::new();
-        let id = table.define("{closure}", &["arity", "params"], &[]);
+        let id = table.define("{callable}", &["arity", "params"], &[]);
         table.set_methods(
             id,
             vec![nvs_runtime::MethodRow {
-                name: nvs_runtime::CLOSURE_INVOKE.to_owned(),
+                name: nvs_runtime::CALLABLE_INVOKE.to_owned(),
                 code: (answering as *const ()).cast(),
                 arity: 1,
-                param_tags: u64::from(nvs_runtime::CLOSURE_PARAM_TAG_ANY),
+                param_tags: u64::from(nvs_runtime::CALLABLE_PARAM_TAG_ANY),
                 param_names: Vec::new(),
                 param_types: Vec::new(),
                 public: true,
@@ -5794,7 +5794,7 @@ mod tests {
                 native: false,
             }],
         );
-        table.set_closure(id);
+        table.set_callable(id);
         let table: &'static nvs_runtime::ClassTable = Box::leak(Box::new(table));
         #[expect(
             unsafe_code,
@@ -5803,10 +5803,10 @@ mod tests {
                       obligation"
         )]
         let object = unsafe { nvs_runtime::NvsObj::new(table.desc(id)) };
-        object.set_field(nvs_runtime::CLOSURE_ARITY_SLOT, Value::int(1));
+        object.set_field(nvs_runtime::CALLABLE_ARITY_SLOT, Value::int(1));
         object.set_field(
-            nvs_runtime::CLOSURE_PARAM_TAGS_SLOT,
-            Value::int(i64::from(nvs_runtime::CLOSURE_PARAM_TAG_ANY)),
+            nvs_runtime::CALLABLE_PARAM_TAGS_SLOT,
+            Value::int(i64::from(nvs_runtime::CALLABLE_PARAM_TAG_ANY)),
         );
         Value::object(object)
     }
@@ -5826,7 +5826,7 @@ mod tests {
         let answers = [Answer {
             name: "page".to_owned(),
             arity: 1,
-            params: u64::from(nvs_runtime::CLOSURE_PARAM_TAG_ANY),
+            params: u64::from(nvs_runtime::CALLABLE_PARAM_TAG_ANY),
             delegated: false,
         }];
 
@@ -5900,7 +5900,7 @@ mod tests {
             &[Answer {
                 name: "send".to_owned(),
                 arity: 1,
-                params: u64::from(nvs_runtime::CLOSURE_PARAM_TAG_ANY),
+                params: u64::from(nvs_runtime::CALLABLE_PARAM_TAG_ANY),
                 delegated: false,
             }],
         )
@@ -5910,7 +5910,7 @@ mod tests {
         let double = double_of(
             class,
             Value::null(),
-            vec![("send".to_owned(), closure_of())],
+            vec![("send".to_owned(), callable_of())],
         );
         for recipient in [b"a@example.test".as_slice(), b"b@example.test"] {
             let to = Value::str(nvs_runtime::NvsStr::new(recipient));
@@ -5966,7 +5966,7 @@ mod tests {
                 name: name.to_owned(),
                 code: (answering as *const ()).cast(),
                 arity,
-                param_tags: u64::from(nvs_runtime::CLOSURE_PARAM_TAG_ANY),
+                param_tags: u64::from(nvs_runtime::CALLABLE_PARAM_TAG_ANY),
                 param_names: Vec::new(),
                 param_types: Vec::new(),
                 public: true,
@@ -6935,7 +6935,7 @@ mod tests {
             &[Answer {
                 name: "send".to_owned(),
                 arity: 1,
-                params: u64::from(nvs_runtime::CLOSURE_PARAM_TAG_ANY),
+                params: u64::from(nvs_runtime::CALLABLE_PARAM_TAG_ANY),
                 delegated: false,
             }],
         )
@@ -6945,7 +6945,7 @@ mod tests {
         let double = double_of(
             class,
             Value::null(),
-            vec![("send".to_owned(), closure_of())],
+            vec![("send".to_owned(), callable_of())],
         );
         for recipient in ["a@example.test", "b@example.test"] {
             let to = text(recipient);
@@ -7309,7 +7309,7 @@ mod tests {
         /// clock it read.
         #[expect(
             unsafe_code,
-            reason = "`call_closure` passes a live context and exactly one retained \
+            reason = "`call_callable` passes a live context and exactly one retained \
                       value, the receiver, and `abi::call` passes the address of a \
                       live `Value` for the result"
         )]
@@ -7331,7 +7331,7 @@ mod tests {
         /// fixed clock, whose status it passes on.
         #[expect(
             unsafe_code,
-            reason = "`call_closure` passes a live context and exactly one retained \
+            reason = "`call_callable` passes a live context and exactly one retained \
                       value, the receiver, and `abi::call` passes the address of a \
                       live `Value` for the result"
         )]
@@ -7440,11 +7440,11 @@ mod tests {
     /// table: a descriptor's address is its identity.
     fn body_of(invoke: nvs_runtime::NvsFn) -> Value {
         let mut table = nvs_runtime::ClassTable::new();
-        let id = table.define("{closure}", &["arity", "params"], &[]);
+        let id = table.define("{callable}", &["arity", "params"], &[]);
         table.set_methods(
             id,
             vec![nvs_runtime::MethodRow {
-                name: nvs_runtime::CLOSURE_INVOKE.to_owned(),
+                name: nvs_runtime::CALLABLE_INVOKE.to_owned(),
                 code: (invoke as *const ()).cast(),
                 arity: 0,
                 param_tags: 0,
@@ -7455,7 +7455,7 @@ mod tests {
                 native: false,
             }],
         );
-        table.set_closure(id);
+        table.set_callable(id);
         let table: &'static nvs_runtime::ClassTable = Box::leak(Box::new(table));
         #[expect(
             unsafe_code,
@@ -7464,8 +7464,8 @@ mod tests {
                       obligation"
         )]
         let object = unsafe { nvs_runtime::NvsObj::new(table.desc(id)) };
-        object.set_field(nvs_runtime::CLOSURE_ARITY_SLOT, Value::int(0));
-        object.set_field(nvs_runtime::CLOSURE_PARAM_TAGS_SLOT, Value::int(0));
+        object.set_field(nvs_runtime::CALLABLE_ARITY_SLOT, Value::int(0));
+        object.set_field(nvs_runtime::CALLABLE_PARAM_TAGS_SLOT, Value::int(0));
         Value::object(object)
     }
 
@@ -7505,7 +7505,7 @@ mod tests {
         /// A body that fails and catches [`CAUGHT`] assertions, and holds one.
         #[expect(
             unsafe_code,
-            reason = "`call_closure` passes a live context and exactly one retained \
+            reason = "`call_callable` passes a live context and exactly one retained \
                       value, the receiver, and `abi::call` passes the address of a \
                       live `Value` for the result"
         )]
@@ -7527,7 +7527,7 @@ mod tests {
         /// A body whose one failed assertion is thrown out of it.
         #[expect(
             unsafe_code,
-            reason = "`call_closure` passes a live context and exactly one retained \
+            reason = "`call_callable` passes a live context and exactly one retained \
                       value, the receiver, and `abi::call` passes the address of a \
                       live `Value` for the result"
         )]
@@ -7555,7 +7555,7 @@ mod tests {
         /// `LogicError` `Core\Test::advance(1ns)` throws with no fixed clock.
         #[expect(
             unsafe_code,
-            reason = "`call_closure` passes a live context and exactly one retained \
+            reason = "`call_callable` passes a live context and exactly one retained \
                       value, the receiver, and `abi::call` passes the address of a \
                       live `Value` for the result"
         )]
@@ -7582,7 +7582,7 @@ mod tests {
         /// A body whose one assertion holds.
         #[expect(
             unsafe_code,
-            reason = "`call_closure` passes a live context and exactly one retained \
+            reason = "`call_callable` passes a live context and exactly one retained \
                       value, the receiver, and `abi::call` passes the address of a \
                       live `Value` for the result"
         )]

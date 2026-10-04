@@ -1224,7 +1224,7 @@ mod tests {
     /// so.
     // covers: Core\Db\Transaction::transaction
     #[test]
-    fn a_nested_transaction_hands_over_a_transaction_and_answers_its_closures_own_variable() {
+    fn a_nested_transaction_hands_over_a_transaction_and_answers_its_callables_own_variable() {
         let mut swept: Vec<&str> = Vec::new();
         for table in [&TRANSACTION, &CONNECTION] {
             let row = table
@@ -1232,7 +1232,7 @@ mod tests {
                 .iter()
                 .find(|member| member.name == "transaction")
                 .unwrap_or_else(|| panic!("`{}` declares § 7's `transaction`", table.name));
-            let (given, closure) = handed_over(&row.params[0]).unwrap_or_else(|| {
+            let (given, callable) = handed_over(&row.params[0]).unwrap_or_else(|| {
                 panic!(
                     "`{}::transaction` takes the closure it runs first, at one written instance",
                     table.name
@@ -1251,8 +1251,8 @@ mod tests {
                 table.name
             );
             assert_eq!(
-                closure, returned,
-                "`{}::transaction` answers `{returned}` where its closure answers `{closure}`, so \
+                callable, returned,
+                "`{}::transaction` answers `{returned}` where its closure answers `{callable}`, so \
                  a nested call loses the type its call site wrote",
                 table.name
             );

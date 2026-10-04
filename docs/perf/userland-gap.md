@@ -274,14 +274,14 @@ to reach it through compiled code.
 ### D — no key is synthesized for a callback that does not want one
 
 ~~`Core\Arr::map`, `filter`, `reduce` and `sort` all call `nvs_array_key_at` per element. On a
-packed list that renders a decimal and allocates an `NvsStr` — two allocations — and `call_closure`
+packed list that renders a decimal and allocates an `NvsStr` — two allocations — and `call_callable`
 then slices the argument list to the closure's declared arity and throws it away.
 `12-array-map-filter` burns 400 000 of them per round for nothing. The arity is a field on the
 closure object and is readable once before the loop instead of per call.~~ ~~`Core\Arr::sort`
 compounds it: it builds a key per element even when `preserveKeys` is `false`, and the key is then
 discarded.~~ **Landed, both halves.**
 
-All four members read `nvs_runtime::closure_arity` once before their loop and build the key only
+All four members read `nvs_runtime::callable_arity` once before their loop and build the key only
 where the callback declared a parameter to receive it. That alone would not have paid for `map` and
 `filter`, which *preserve* keys and so were going to build one anyway, so the store half changed
 too: `nvs_runtime::SlotKey` answers the key in whichever form the subject's own shape already holds
@@ -401,7 +401,7 @@ default methods sit in it.
 megamorphic over a baseline; a slot index is the baseline it speculates *from*, and M12 gets
 cheaper for it existing.
 
-Beside it and unrelated to the layout question: `call_closure` and `call_at` each `Vec::with_capacity`
+Beside it and unrelated to the layout question: `call_callable` and `call_at` each `Vec::with_capacity`
 per call, which is a heap allocation on every closure call and every native-to-object dispatch.
 `smallvec` is already a workspace dependency.
 

@@ -1428,7 +1428,7 @@ fn never_a_callable(ty: TypeId, interner: &crate::ty::TypeInterner) -> bool {
 /// A *call* through a `mixed` defers to the receiver's own descriptor, which
 /// is present at the call and marshals it. This spelling makes no call: it
 /// names a callable **value**, and a callable carries its callee's arity and
-/// parameter tags in the value itself (`nvs_runtime::closure`), so building
+/// parameter tags in the value itself (`nvs_runtime::callable`), so building
 /// one here would mean reading a method row off a receiver for a value that
 /// outlives the site and may be called anywhere. That is a mechanism rather
 /// than a lowering, and no ADR asks for it — so the spelling is refused where
@@ -1474,7 +1474,7 @@ pub(crate) enum NoParameterList {
 /// variable holds, so this site has no parameter list to resolve a name
 /// against — and neither has the run time, a callable object recording its
 /// arity and its parameter *tags* and never their names
-/// (`nvs_runtime::closure`). Through a `mixed` receiver the callee is not
+/// (`nvs_runtime::callable`). Through a `mixed` receiver the callee is not
 /// chosen until the call runs, and the method row that marshals it carries
 /// exactly the same two facts for exactly that reason. PHP allows the spelling
 /// only because a `Closure` there carries its whole declaration.
@@ -1488,7 +1488,7 @@ pub(crate) enum NoParameterList {
 ///
 /// A `...` argument is left alone and lowers: how many arguments it hands over
 /// is its own run-time length, which needs no parameter list to mean something
-/// (`nvs_ir::Helper::CallClosureArray`). What still applies is rule 1 of
+/// (`nvs_ir::Helper::CallCallableArray`). What still applies is rule 1 of
 /// [`super::args::map_arguments`] — a positional argument cannot follow a `...`
 /// — for the same reason it applies at a resolved call, so the two refusals are
 /// one walk.
@@ -1588,7 +1588,7 @@ pub(crate) fn report_args_with_no_parameter_list(
 /// callable, so it gives `mixed`, as a call through bare `callable` does. No
 /// scope argument is accepted (`E_ARITY_MISMATCH`): a scope would open another
 /// class's `private` members. Whether the object fits the body is a run-time
-/// test, `nvs_runtime::closure::bind_closure`, because `callable` does not say
+/// test, `nvs_runtime::callable::bind_callable`, because `callable` does not say
 /// whether the function behind it uses `$this`.
 #[expect(
     clippy::too_many_arguments,
@@ -1810,7 +1810,7 @@ pub(crate) fn check_args(
 /// [`None`] means "not that call", and is [`super::infer`]'s existing path: the
 /// callee is bare `callable`, or is not callable at all, or the argument list
 /// has a shape no signature can be matched against. Those keep `mixed` and the
-/// per-argument tag check `nvs_runtime::closure::check_param_tags` performs.
+/// per-argument tag check `nvs_runtime::callable::check_param_tags` performs.
 /// [`Some`] is the proven site, and it records
 /// [`ExprInfo::CallThroughSignature`] for `nvs-ir` to spend.
 ///
@@ -2170,7 +2170,7 @@ pub(crate) fn check_new_target(
 /// offer it to `isset`, to an assignment and to a nested anonymous function's capture
 /// set, and the environment class would need a field pointing at itself. What
 /// the call needs at run time is already to hand without any of that: the
-/// invoke's own receiver, which `nvs_ir::lower::closure`'s `FN_SELF` binds,
+/// invoke's own receiver, which `nvs_ir::lower::anon_fn`'s `FN_SELF` binds,
 /// so an anonymous function that does not use its name costs nothing for having one.
 ///
 /// The reach follows from that receiver. An anonymous function written *inside* this body

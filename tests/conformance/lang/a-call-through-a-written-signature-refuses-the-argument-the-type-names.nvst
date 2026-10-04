@@ -4,7 +4,7 @@ A call through a `callable` that names its parameters refuses a mismatched argum
 <?nvs
 callable(int, string): string $join = fn (int $n, string $s): string => $s . $n;
 // The argument is checked against the parameter the signature names. Through
-// bare `callable` this is `nvs_runtime::closure`'s per-argument tag check and
+// bare `callable` this is `nvs_runtime::callable`'s per-argument tag check and
 // a `LogicError` at run time; here there is nothing left for it to decide.
 echo $join("a", "b");
 // The count is exact in this one direction: the value may hold a closure

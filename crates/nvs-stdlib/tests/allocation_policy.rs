@@ -17,9 +17,9 @@
 //!
 //! The last two are `docs/perf/userland-gap.md` § D, and they are measured
 //! here rather than from compiled code because the member is where the
-//! decision is made: `nvs_runtime::closure_arity` is read once before the walk
+//! decision is made: `nvs_runtime::callable_arity` is read once before the walk
 //! and decides whether a key is *built*, so a native callback with an arity
-//! slot is the whole of what the measurement needs. [`closure_of`] is that
+//! slot is the whole of what the measurement needs. [`callable_of`] is that
 //! callback, and it is the only thing in this file a compiler would otherwise
 //! have to produce.
 
@@ -310,16 +310,16 @@ fn list_of(count: usize) -> nvs_runtime::Value {
 
 /// A closure value whose `invoke` is a plain Rust function.
 ///
-/// `nvs_runtime::call_closure` reads exactly four things off a closure — its
-/// class's `ClassTable::set_closure` bit, which is what makes the value a
-/// closure at all, slot `CLOSURE_ARITY_SLOT`, slot `CLOSURE_PARAM_TAGS_SLOT`,
-/// and the `CLOSURE_INVOKE` method's address in its class — so a test in this
+/// `nvs_runtime::call_callable` reads exactly four things off a closure — its
+/// class's `ClassTable::set_callable` bit, which is what makes the value a
+/// closure at all, slot `CALLABLE_ARITY_SLOT`, slot `CALLABLE_PARAM_TAGS_SLOT`,
+/// and the `CALLABLE_INVOKE` method's address in its class — so a test in this
 /// crate can hand a `Core` member a `callable` without a compiler in front of
 /// it.
-/// Everything else in `nvs_ir::lower::lower_closure`'s representation is
+/// Everything else in `nvs_ir::lower::lower_anon_fn`'s representation is
 /// captured state, and a native callback captures nothing.
 ///
-/// Every parameter is recorded as `CLOSURE_PARAM_TAG_ANY`, which is what a
+/// Every parameter is recorded as `CALLABLE_PARAM_TAG_ANY`, which is what a
 /// `mixed` one gets: the callback below is a Rust function taking whatever the
 /// member hands it, so there is no declared type for the tag check to hold it
 /// to.
@@ -329,15 +329,15 @@ fn list_of(count: usize) -> nvs_runtime::Value {
 /// `nvs_stdlib::instance`'s own docs state; the test process exiting is what
 /// reclaims it.
 #[cfg(debug_assertions)]
-fn closure_of(arity: usize, invoke: nvs_runtime::NvsFn) -> nvs_runtime::Value {
+fn callable_of(arity: usize, invoke: nvs_runtime::NvsFn) -> nvs_runtime::Value {
     let mut table = nvs_runtime::ClassTable::new();
-    let id = table.define("{closure}", &["arity", "params"], &[]);
+    let id = table.define("{callable}", &["arity", "params"], &[]);
     table.set_methods(
         id,
         vec![nvs_runtime::MethodRow {
-            name: nvs_runtime::CLOSURE_INVOKE.to_owned(),
+            name: nvs_runtime::CALLABLE_INVOKE.to_owned(),
             code: invoke as *const u8,
-            // A closure is called through `call_closure`, which reads the
+            // A closure is called through `call_callable`, which reads the
             // arity and the tags off the *object*'s own two slots below rather
             // than off this row — see `nvs_runtime::MethodRow`.
             arity: 0,
@@ -349,7 +349,7 @@ fn closure_of(arity: usize, invoke: nvs_runtime::NvsFn) -> nvs_runtime::Value {
             native: false,
         }],
     );
-    table.set_closure(id);
+    table.set_callable(id);
     let table: &'static nvs_runtime::ClassTable = Box::leak(Box::new(table));
     #[expect(
         unsafe_code,
@@ -358,15 +358,15 @@ fn closure_of(arity: usize, invoke: nvs_runtime::NvsFn) -> nvs_runtime::Value {
     )]
     let object = unsafe { nvs_runtime::NvsObj::new(table.desc(id)) };
     object.set_field(
-        nvs_runtime::CLOSURE_ARITY_SLOT,
+        nvs_runtime::CALLABLE_ARITY_SLOT,
         nvs_runtime::Value::int(i64::try_from(arity).expect("a small arity")),
     );
     let mut tags: u64 = 0;
     for parameter in 0..arity {
-        tags |= u64::from(nvs_runtime::CLOSURE_PARAM_TAG_ANY) << (parameter * 4);
+        tags |= u64::from(nvs_runtime::CALLABLE_PARAM_TAG_ANY) << (parameter * 4);
     }
     object.set_field(
-        nvs_runtime::CLOSURE_PARAM_TAGS_SLOT,
+        nvs_runtime::CALLABLE_PARAM_TAGS_SLOT,
         nvs_runtime::Value::int(i64::from_ne_bytes(tags.to_ne_bytes())),
     );
     nvs_runtime::Value::object(object)
@@ -374,7 +374,7 @@ fn closure_of(arity: usize, invoke: nvs_runtime::NvsFn) -> nvs_runtime::Value {
 
 /// What every callback below does: sweep the `slots` references a compiled
 /// callee would release on exit — the receiver and each parameter, which
-/// `call_closure` retained on the way in — and answer `true`.
+/// `call_callable` retained on the way in — and answer `true`.
 ///
 /// `true` rather than anything derived from the arguments so that the callback
 /// itself allocates nothing: what is being counted is what the *member* spends
@@ -382,7 +382,7 @@ fn closure_of(arity: usize, invoke: nvs_runtime::NvsFn) -> nvs_runtime::Value {
 #[cfg(debug_assertions)]
 #[expect(
     unsafe_code,
-    reason = "`call_closure` passes exactly `slots` live values, each retained \
+    reason = "`call_callable` passes exactly `slots` live values, each retained \
               for this callee to release, and `abi::call` passes the address \
               of a live `Value` for the result — neither is expressible in the \
               signature compiled code calls through"
@@ -448,20 +448,20 @@ fn callback(arity: usize) -> nvs_runtime::Value {
         3 => declares_three,
         other => panic!("no native callback declares {other} parameters"),
     };
-    closure_of(arity, invoke)
+    callable_of(arity, invoke)
 }
 
 /// `docs/perf/userland-gap.md` § D, measured: the key a callback never
 /// declared is never built.
 ///
-/// `map`, `filter` and `reduce` each read `nvs_runtime::closure_arity` once
+/// `map`, `filter` and `reduce` each read `nvs_runtime::callable_arity` once
 /// before their walk and pass `$key` only to a callback with somewhere to put
 /// it. On a packed list that key is a *rendered decimal* — one `NvsStr` per
 /// entry — so the difference between the two arities is exactly one allocation
 /// per element, and it is the whole of what this pins.
 ///
 /// **The key-free run is not zero**, and the assertion is a difference for
-/// that reason: `call_closure` builds the argument slice it retains, which is
+/// that reason: `call_callable` builds the argument slice it retains, which is
 /// one allocation per call whatever the callback declares. That cost is
 /// identical in both runs, so subtracting them isolates the key.
 #[cfg(debug_assertions)]
@@ -496,7 +496,7 @@ fn a_one_parameter_callback_synthesizes_no_key() {
         assert!(
             quiet_spent <= ENTRIES + ENTRIES / 4,
             "`Core\\Arr::{name}` spent {quiet_spent} allocations over {ENTRIES} entries for a \
-             {quiet}-parameter callback, and the floor is one an entry — `call_closure`'s own \
+             {quiet}-parameter callback, and the floor is one an entry — `call_callable`'s own \
              argument slice. Anything much above that is a key being built and dropped again."
         );
         assert!(
@@ -563,7 +563,7 @@ fn a_sort_that_renumbers_builds_no_keys() {
     assert!(
         quiet <= bare + ENTRIES + ENTRIES / 4,
         "a one-parameter `by` cost {quiet} allocations against the bare sort's {bare} over \
-         {ENTRIES} entries, and it owes only `call_closure`'s argument slice per entry: \
+         {ENTRIES} entries, and it owes only `call_callable`'s argument slice per entry: \
          anything more is a key built for a callback that never declared one"
     );
     assert!(

@@ -839,7 +839,7 @@ impl<'a> Lowering<'a> {
     /// one written inside a `namespace` block — arrives here already resolved,
     /// where the source text would name a class neither descriptor table
     /// holds. `QName` is destructured rather than named, for
-    /// `super::closure::declared_class`'s reason: `nvs-hir` is a
+    /// `super::anon_fn::declared_class`'s reason: `nvs-hir` is a
     /// dev-dependency of this crate.
     ///
     /// The written text is the fallback for a clause the checker recorded no

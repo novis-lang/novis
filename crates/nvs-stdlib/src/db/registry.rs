@@ -519,7 +519,7 @@ pub(crate) const CONNECTION: CoreClass = CoreClass {
 /// `Connection` members "beyond `Queryable`".
 ///
 /// It exists so that the delegation sweep in
-/// [`crate::db::transaction`]'s `a_transaction_is_a_closure_and_transaction_is_a_queryable`
+/// [`crate::db::transaction`]'s `a_transaction_is_a_callable_and_transaction_is_a_queryable`
 /// stays a sweep. That case compares the two rosters row for row, which is what
 /// catches a member added to one and not the other; a `close` that is *meant*
 /// to be on one alone would have to weaken it to a member-by-member check, so
@@ -653,7 +653,7 @@ pub(super) const TRANSACTION_ROW: CoreMethod = CoreMethod {
     // declaring no parameter at all still satisfies the row under
     // `rule:types/callable-arity`'s prefix match — which is § 7's R9 allowance,
     // now stated where it is checked rather than left to
-    // `nvs_runtime::call_closure`'s trim.
+    // `nvs_runtime::call_callable`'s trim.
     params: &[
         CoreTy::CallableSig(&[CoreTy::Instance(TRANSACTION_NAME)], &CoreTy::Var("T")),
         CoreTy::Options(TRANSACTION_OPTIONS),

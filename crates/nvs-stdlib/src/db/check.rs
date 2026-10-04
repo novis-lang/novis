@@ -24,7 +24,7 @@
 /// because a region the text never leaves makes what the statement binds what
 /// fits inside an opening delimiter rather than what was written.
 ///
-/// All four dialects, for [`check_literal_query`]'s reason: a backtick opens a
+/// All four dialects, for [`check_written_query`]'s reason: a backtick opens a
 /// quoted name on MySQL and is ordinary text on PostgreSQL, so a region only
 /// one of them enters is a region this pass says nothing about.
 ///
@@ -55,7 +55,7 @@ pub fn check_closed_regions(sql: &str) -> Result<(), String> {
 /// § 1](/docs/decisions/0067.md) prepares — § 10's "a refused second
 /// statement", over [`nvs_db::sql::holds_a_second_statement`].
 ///
-/// All four dialects, for [`check_literal_query`]'s reason and with the same
+/// All four dialects, for [`check_written_query`]'s reason and with the same
 /// direction: a `;` that only one of them reads as a separator is a `;` this
 /// pass says nothing about.
 ///
@@ -91,7 +91,7 @@ pub fn check_single_statement(sql: &str) -> Result<(), String> {
 /// unkeyed elements — is not one of these at all, and the call is left to run
 /// time.
 #[derive(Debug, Clone, Copy)]
-pub enum LiteralParams<'a> {
+pub enum WrittenQueryParams<'a> {
     /// A list-keyed array literal, and how many elements it has.
     Positional(usize),
     /// A string-keyed array literal, its keys in written order.
@@ -120,15 +120,15 @@ pub enum LiteralParams<'a> {
 /// # Errors
 ///
 /// The rewriter's own message, where every dialect refused.
-pub fn check_literal_query(sql: &str, params: LiteralParams<'_>) -> Result<(), String> {
+pub fn check_written_query(sql: &str, params: WrittenQueryParams<'_>) -> Result<(), String> {
     let positional;
     let named;
     let params = match params {
-        LiteralParams::Positional(count) => {
+        WrittenQueryParams::Positional(count) => {
             positional = vec![nvs_db::sql::Binding::One; count];
             nvs_db::sql::Params::Positional(&positional)
         }
-        LiteralParams::Named(keys) => {
+        WrittenQueryParams::Named(keys) => {
             named = keys
                 .iter()
                 .map(|key| (*key, nvs_db::sql::Binding::One))

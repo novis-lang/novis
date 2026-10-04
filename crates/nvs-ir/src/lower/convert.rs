@@ -5,7 +5,7 @@
 //! rule [`super::expr`]'s own header states: the methods are `pub(crate)`, so they
 //! reach across these modules and no further.
 //!
-//! The closed-set machinery at the bottom — [`AcceptedSet`], `closed_literal_set`
+//! The closed-set machinery at the bottom — [`AcceptedSet`], `closed_single_value_set`
 //! and the two membership lowerings — is here rather than beside the operators
 //! because its only callers are `lower_conversion` and `lower_checked_downcast`:
 //! it exists to answer "does this operand's type name a set the target tests
@@ -50,7 +50,7 @@ impl<'a> Lowering<'a> {
     /// declaration, which [`Ty::Enum`] has already erased to a backing type by
     /// the time this runs. [`Self::lower_conversion`] emits it instead — the
     /// same membership chain `rule:types/single-value-types`'s closed set gets, built from every
-    /// case of the declaration ([`Self::closed_literal_set`]) — and it is this
+    /// case of the declaration ([`Self::closed_single_value_set`]) — and it is this
     /// function's only caller, so the two halves cannot come apart.
     ///
     /// `operand` is the un-lowered source expression, used only to decide
@@ -830,11 +830,11 @@ impl<'a> Lowering<'a> {
                 // nobody took and the second release of the pair corrupts the
                 // heap. The chain itself releases only the name constants it
                 // makes. The retain goes after it because
-                // `Self::lower_literal_membership` moves `*cur` to the block
+                // `Self::lower_single_value_membership` moves `*cur` to the block
                 // the hit arm lands in, which is the one block the value leaves
                 // through.
                 if let Some(accepted) = self.property_key_set(ty) {
-                    self.lower_literal_membership(v, from, &accepted, ty.span, env, cur, None);
+                    self.lower_single_value_membership(v, from, &accepted, ty.span, env, cur, None);
                     if Ty::Str.is_refcounted() && self.aliasing_read(inner) {
                         self.emit_retain(*cur, v);
                     }
@@ -844,7 +844,7 @@ impl<'a> Lowering<'a> {
                 // of this operator whose test is a *class* rather than a tag.
                 // It is here rather than in `Self::convert` because it
                 // branches, and that function's `cur` is by value — the same
-                // reason `Self::lower_literal_membership` is a caller of this
+                // reason `Self::lower_single_value_membership` is a caller of this
                 // arm rather than a row of the table.
                 //
                 // `Ty::Object` is a source as much as `Ty::Tagged` is, and for
@@ -862,7 +862,7 @@ impl<'a> Lowering<'a> {
                 if (from == Ty::Tagged || from == Ty::Object)
                     && to == Ty::Object
                     && let Some(class) =
-                        super::closure::declared_class(ty, self.exprs, self.checked_types)
+                        super::anon_fn::declared_class(ty, self.exprs, self.checked_types)
                 {
                     return self.lower_checked_downcast(v, from, &class, inner, ty.span, env, cur);
                 }
@@ -902,7 +902,7 @@ impl<'a> Lowering<'a> {
                 {
                     return self.lower_array_restamp(v, from, tags, inner, false, env, cur);
                 }
-                let Some(accepted) = self.closed_literal_set(ty, inner, from) else {
+                let Some(accepted) = self.closed_single_value_set(ty, inner, from) else {
                     return self.convert(v, from, to, inner, env, *cur);
                 };
                 // `rule:types/single-value-types`'s membership test, on whichever side of
@@ -932,7 +932,7 @@ impl<'a> Lowering<'a> {
                 // hazard above cannot arise: an enum's base is never
                 // `string`.
                 if from == Ty::Tagged && !matches!(to, Ty::Enum(_)) {
-                    self.lower_literal_membership(v, from, &accepted, ty.span, env, cur, None);
+                    self.lower_single_value_membership(v, from, &accepted, ty.span, env, cur, None);
                     // A `bool` set is the one target with no conversion left
                     // to run. Every other base is reached by a row that
                     // happens to be an identity once the test above has
@@ -961,7 +961,7 @@ impl<'a> Lowering<'a> {
                     return self.convert(v, from, to, inner, env, *cur);
                 }
                 let (converted, converted_ty) = self.convert(v, from, to, inner, env, *cur);
-                self.lower_literal_membership(
+                self.lower_single_value_membership(
                     converted,
                     converted_ty,
                     &accepted,
@@ -1141,7 +1141,7 @@ impl<'a> Lowering<'a> {
     /// annotation.
     ///
     /// The `nvs_hir::QName` is destructured here rather than handed on for the
-    /// reason [`super::closure::declared_class`] gives: `nvs-hir` is only a
+    /// reason [`super::anon_fn::declared_class`] gives: `nvs-hir` is only a
     /// dev-dependency of this crate, so a signature naming that type would not
     /// compile.
     fn class_ref_base(&self, ty: &Type) -> Option<String> {
@@ -1185,7 +1185,7 @@ impl<'a> Lowering<'a> {
     ///
     /// The throw is a `RuntimeError` and not the `LogicError` a closure
     /// parameter's identical check raises
-    /// ([`super::closure`]'s `check_param_class`): this is the `as` operator,
+    /// ([`super::anon_fn`]'s `check_param_class`): this is the `as` operator,
     /// whose string and non-numeric rows throw that class through
     /// `nvs_runtime::helpers`' `does_not_fit` (its numeric rows are `rule:types/arithmetic`'s `ArithmeticError`), and an operand out of `mixed` is untrusted
     /// input rather than a call written wrong. What arrived is not
@@ -1348,7 +1348,7 @@ impl<'a> Lowering<'a> {
     /// Whether `ty` names `rule:core-classes/html-auto-escape`'s `Core\Html\Markup` — the one class target this crate lowers by
     /// *building* rather than by testing.
     ///
-    /// [`super::closure::declared_class`] cannot answer it and should not:
+    /// [`super::anon_fn::declared_class`] cannot answer it and should not:
     /// that helper reports only a class the program itself declared, `Core`
     /// names deliberately excluded, because every target it feeds is checked
     /// against a descriptor the compiled unit laid out and a `Core` class has
@@ -1362,7 +1362,7 @@ impl<'a> Lowering<'a> {
         };
         match self.checked_types.get(id) {
             // `QName` is destructured rather than named, for
-            // `super::closure::declared_class`'s reason: `nvs-hir` is a
+            // `super::anon_fn::declared_class`'s reason: `nvs-hir` is a
             // dev-dependency of this crate.
             CheckedTy::Class(qname, _) => qname.to_string() == nvs_types::CORE_HTML_MARKUP_CLASS,
             _ => false,
@@ -1532,7 +1532,7 @@ impl<'a> Lowering<'a> {
     ///   construction. It is the *same* enum and not merely one with the same
     ///   backing type, because `nvs_types` refuses a conversion between two
     ///   different enums outright (`reject_enum_to_enum_conversion`).
-    fn closed_literal_set(&self, ty: &Type, inner: &Expr, from: Ty) -> Option<AcceptedSet> {
+    fn closed_single_value_set(&self, ty: &Type, inner: &Expr, from: Ty) -> Option<AcceptedSet> {
         let target = self.exprs.declared_ty(ty.span)?;
         let atoms: Vec<TypeId> = match self.checked_types.get(target) {
             CheckedTy::Union(members) => members.clone(),
@@ -1558,7 +1558,7 @@ impl<'a> Lowering<'a> {
     /// `Ty::Str` → `Ty::Str` row [`Self::convert`] already answers.
     ///
     /// The rendering is the throw's whole message past the name that failed —
-    /// `nvs_runtime`'s `nvs_literal_mismatch` writes "`x` is not one of " in
+    /// `nvs_runtime`'s `nvs_single_value_mismatch` writes "`x` is not one of " in
     /// front of it — which is why the class is named here rather than left to a
     /// bare list, and § 2 asks for exactly that.
     fn property_key_set(&self, ty: &Type) -> Option<AcceptedSet> {
@@ -1568,7 +1568,7 @@ impl<'a> Lowering<'a> {
         Some(AcceptedSet {
             members: names
                 .iter()
-                .map(|name| LiteralAtom::Str(name.clone()))
+                .map(|name| SingleValueAtom::Str(name.clone()))
                 .collect(),
             rendered: if names.is_empty() {
                 format!("`{class}`'s public declared properties, of which it has none")
@@ -1585,7 +1585,7 @@ impl<'a> Lowering<'a> {
         })
     }
 
-    /// [`Self::closed_literal_set`] over an atom list the caller already
+    /// [`Self::closed_single_value_set`] over an atom list the caller already
     /// expanded, which is what an `as ?T` needs: its annotation's checked type
     /// is the union `T|null`, so the target is what is left once `null` is
     /// dropped ([`Self::nullable_target_atoms`]) and there is no single
@@ -1634,17 +1634,17 @@ impl<'a> Lowering<'a> {
         // reaches — an internal-consistency check between a list and itself.
         // `collect::<Option<_>>` makes "this target is not a closed set" the
         // same answer here as it is above.
-        let members: Vec<LiteralAtom> = atoms
+        let members: Vec<SingleValueAtom> = atoms
             .iter()
             .map(|id| match types.get(*id) {
-                CheckedTy::SingleValueString(text) => Some(LiteralAtom::Str(text.clone())),
-                CheckedTy::SingleValueInt(value) => Some(LiteralAtom::Int(*value)),
+                CheckedTy::SingleValueString(text) => Some(SingleValueAtom::Str(text.clone())),
+                CheckedTy::SingleValueInt(value) => Some(SingleValueAtom::Int(*value)),
                 // `rule:types/grammar`'s two `bool` singletons — one value each, so a
                 // closed set of exactly the kind § 5 tests, and the reason
                 // `$m as true` is `as bool` plus a membership test rather than
                 // a target the language parses and cannot lower.
-                CheckedTy::True => Some(LiteralAtom::Bool(true)),
-                CheckedTy::False => Some(LiteralAtom::Bool(false)),
+                CheckedTy::True => Some(SingleValueAtom::Bool(true)),
+                CheckedTy::False => Some(SingleValueAtom::Bool(false)),
                 // § 3's enum-case subset. The checked type names the enum and
                 // the case but deliberately not the value (see
                 // `nvs_types::ty::Ty::EnumCase`'s own doc comment for why
@@ -1659,7 +1659,7 @@ impl<'a> Lowering<'a> {
                              case it resolved, so the two tables disagree"
                         )
                     });
-                    Some(LiteralAtom::EnumCase(value))
+                    Some(SingleValueAtom::EnumCase(value))
                 }
                 // One wider atom and the target is not a closed set at all —
                 // `string`, or the `null` an `as ?T` adds. See this function's
@@ -1775,7 +1775,7 @@ impl<'a> Lowering<'a> {
     /// needs no exception to exist at all. Two substitutions on
     /// [`Self::lower_conversion`]'s non-nullable arm buy the same thing: the
     /// membership chain takes a `miss` block instead of the throw
-    /// ([`Self::lower_literal_membership`]), and the base conversion runs
+    /// ([`Self::lower_single_value_membership`]), and the base conversion runs
     /// through [`Self::convert_or_null`] wherever its row can fail.
     ///
     /// The two shapes below are the same split that arm already makes, for
@@ -1846,7 +1846,7 @@ impl<'a> Lowering<'a> {
                 (converted, converted_ty, answer)
             }
         };
-        self.lower_literal_membership(probe, probe_ty, accepted, span, env, cur, Some(miss));
+        self.lower_single_value_membership(probe, probe_ty, accepted, span, env, cur, Some(miss));
         let hit = *cur;
         self.seal(hit, Terminator::Jump(join));
         self.emit_release(miss, answer);
@@ -1891,7 +1891,7 @@ impl<'a> Lowering<'a> {
     /// answers `null` — [`Self::lower_nullable_membership`] owns that block,
     /// because only it knows what the result value and its ownership are.
     #[allow(clippy::too_many_arguments)]
-    fn lower_literal_membership(
+    fn lower_single_value_membership(
         &mut self,
         value: ValueId,
         value_ty: Ty,
@@ -1907,7 +1907,7 @@ impl<'a> Lowering<'a> {
         let (value, value_ty) = self.reinterpret_enum_to_backing(value, value_ty, cur);
         let hit = self.new_block();
         for member in &accepted.members {
-            let (kind, ty) = literal_constant(member);
+            let (kind, ty) = single_value_constant(member);
             let (wanted, _) = self.emit(*cur, ty, kind);
             let (equal, _) = if value_ty == Ty::Tagged {
                 self.emit_fallible(
@@ -1964,17 +1964,17 @@ impl<'a> Lowering<'a> {
             result: None,
             ty: None,
             kind: InstKind::HelperCall {
-                helper: Helper::LiteralMismatch,
+                helper: Helper::SingleValueMismatch,
                 args: vec![value, listed],
             },
             on_error: Some(landing),
             raise_site: None,
         });
-        // No release for `listed`: `Helper::LiteralMismatch` owns it, for the
+        // No release for `listed`: `Helper::SingleValueMismatch` owns it, for the
         // reason that variant states — one emitted here would sit in the
         // block only an `Ok` return reaches, which this call never makes.
         //
-        // `Helper::LiteralMismatch` never returns normally, so this jump is
+        // `Helper::SingleValueMismatch` never returns normally, so this jump is
         // unreachable — written anyway because a block still owes a
         // terminator, and `hit` is the block control would have reached.
         self.seal(*cur, Terminator::Jump(hit));
@@ -1998,7 +1998,7 @@ impl<'a> Lowering<'a> {
 /// A free function rather than a method because it needs nothing of the
 /// lowering state: `name` is the enum's resolved name already rendered, which
 /// is how this stays clear of `nvs_hir::QName` — this crate does not depend on
-/// `nvs-hir`, and [`Lowering::closed_literal_set`] holds the one reference to
+/// `nvs-hir`, and [`Lowering::closed_single_value_set`] holds the one reference to
 /// one long enough to do the table lookup itself.
 ///
 /// The order is [`sorted_enum_cases`]', which is also what `is` walks: one
@@ -2009,7 +2009,7 @@ pub(crate) fn whole_enum_set(info: &nvs_types::EnumInfo, name: &str) -> Accepted
     AcceptedSet {
         members: cases
             .iter()
-            .map(|(_, value)| LiteralAtom::EnumCase(*value))
+            .map(|(_, value)| SingleValueAtom::EnumCase(*value))
             .collect(),
         rendered: cases
             .iter()
@@ -2048,14 +2048,14 @@ pub(crate) fn sorted_enum_cases(info: &nvs_types::EnumInfo) -> Vec<(&str, nvs_ty
 
 /// The closed set of values a checked `as` into an
 /// `rule:types/single-value-types` literal
-/// type accepts — see [`Lowering::closed_literal_set`], which is the only
-/// thing that builds one, and [`Lowering::lower_literal_membership`], which is
+/// type accepts — see [`Lowering::closed_single_value_set`], which is the only
+/// thing that builds one, and [`Lowering::lower_single_value_membership`], which is
 /// the only thing that consumes it.
 pub(crate) struct AcceptedSet {
     /// The values themselves, in the order the target type states them — or,
     /// for a whole enum, in the order [`whole_enum_set`] sorts the
     /// declaration's cases into, since a hash map states no order at all.
-    members: Vec<LiteralAtom>,
+    members: Vec<SingleValueAtom>,
     /// Those same values rendered for the throw's message — built here rather
     /// than at run time because a literal type does not survive erasure, so
     /// this is the last point at which the set can be named at all.
@@ -2071,7 +2071,7 @@ pub(crate) struct AcceptedSet {
 /// into [`Self::Int`]: the backing type decides both the constant's
 /// instruction and its representation, and an enum's tag is not `Ty::Int`
 /// even where its backing is (see [`Ty::Enum`]).
-pub(crate) enum LiteralAtom {
+pub(crate) enum SingleValueAtom {
     Str(String),
     Int(i64),
     /// `true` or `false` — `rule:types/grammar`'s two `bool` singletons, whose
@@ -2080,11 +2080,11 @@ pub(crate) enum LiteralAtom {
     EnumCase(nvs_types::EnumValue),
 }
 
-/// The constant one [`LiteralAtom`] tests for: the instruction that
+/// The constant one [`SingleValueAtom`] tests for: the instruction that
 /// materializes it, and the representation it lands at.
 ///
 /// A table of its own because two operators reduce the same atom the same
-/// way — `as`'s [`Lowering::lower_literal_membership`] and `is`'s
+/// way — `as`'s [`Lowering::lower_single_value_membership`] and `is`'s
 /// [`Lowering::lower_type_test`] — and a second copy would be a second place
 /// an atom kind has to be added to.
 ///
@@ -2092,13 +2092,17 @@ pub(crate) enum LiteralAtom {
 /// which is what the atom kept an [`nvs_types::EnumValue`] for: the
 /// comparison happens one representation down, and the two backings are two
 /// instructions.
-pub(crate) fn literal_constant(atom: &LiteralAtom) -> (InstKind, Ty) {
+pub(crate) fn single_value_constant(atom: &SingleValueAtom) -> (InstKind, Ty) {
     match atom {
-        LiteralAtom::Str(text) => (InstKind::ConstStr(text.clone()), Ty::Str),
-        LiteralAtom::Int(number) => (InstKind::ConstInt(*number), Ty::Int),
-        LiteralAtom::Bool(value) => (InstKind::ConstBool(*value), Ty::Bool),
-        LiteralAtom::EnumCase(nvs_types::EnumValue::Int(n)) => (InstKind::ConstInt(*n), Ty::Int),
-        LiteralAtom::EnumCase(nvs_types::EnumValue::Uint(n)) => (InstKind::ConstUint(*n), Ty::Uint),
+        SingleValueAtom::Str(text) => (InstKind::ConstStr(text.clone()), Ty::Str),
+        SingleValueAtom::Int(number) => (InstKind::ConstInt(*number), Ty::Int),
+        SingleValueAtom::Bool(value) => (InstKind::ConstBool(*value), Ty::Bool),
+        SingleValueAtom::EnumCase(nvs_types::EnumValue::Int(n)) => {
+            (InstKind::ConstInt(*n), Ty::Int)
+        }
+        SingleValueAtom::EnumCase(nvs_types::EnumValue::Uint(n)) => {
+            (InstKind::ConstUint(*n), Ty::Uint)
+        }
     }
 }
 
