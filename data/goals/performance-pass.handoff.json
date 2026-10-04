@@ -1,29 +1,30 @@
 {
-  "state": "**Goal `performance-pass`, Stage 2 (the growth tool) is complete for requests served.** `bun nv scaling` in `tools/nv/cmd/scaling.ts` measures all five ladder kinds — `run`, `compile`, `lsp`, `fmt`, `serve` — each a `Measure` there; the module doc is the home of the ramp, the bounds, `EXPECT`, `PEAK_SLACK`, `KINDS` and `AREAS`. Tests: `tools/nv/test/scaling.test.ts`.\n\n**`serve`** boots `nvs serve` on the copy per size, sends `size` GETs over one keep-alive connection with `bun nv bench`'s `HttpConn` and `hammer`, and reads the server's peak memory from `Server.peakMemory` (`tools/nv/cmd/bench.ts`). Its size is requests served only: connections and the size of one request are not measured. The server prints no counts, so the clock decides; `peakGrows` fails a ramp whose peak rises more than `PEAK_SLACK` above its lowest.\n\n**`lsp` callgrind** (`lspInstructions`) has not run yet. **`--iterations --check`** has had no full sweep since a bench whose counts settled but whose clock grew twice started going to callgrind.\n\n**Ladders:** `arrays/sort.nvs` (run, flat), `compiler/functions.nvs` (compile, flat), `traffic/requests.nvs` (serve, flat), `fmt/classes.nvs` (fmt, **grows**), `lsp/classes.nvs` (lsp, **grows**; both written in `docs/perf/performance-pass.md` § *What we found*). `--check` fails on those two, and `--areas` names 17 of 22 areas without a ladder. `docs/perf/performance-review.md` does not exist yet (Stage 4).",
+  "state": "**Goal `performance-pass`, Stage 3 (the ladders, area by area): 18 of 22 areas have a ladder.** `bun nv scaling` in `tools/nv/cmd/scaling.ts` measures five kinds (`run`, `compile`, `lsp`, `fmt`, `serve`); its module doc is the home of the ramp, the bounds, `KINDS` and `AREAS`. Tests: `tools/nv/test/scaling.test.ts`.\n\n**`--areas` still names four:** `request`, `connections`, `http-client` and `app`. `request` and `connections` need a `serve` size the tool does not have yet: `serveLoad` sends `size` GETs over one keep-alive connection, so requests served is its only size.\n\n**Ladders that grow:** `fmt/classes.nvs`, `lsp/classes.nvs`, and `numbers/bigint-mul.nvs`. The BigInt ladder fails on allocations (slope 1.85) while its clock follows Toom-3 (1.47). It is written under *Benches to look at* in `docs/perf/performance-pass.md`, and the tool cannot judge a count against an algorithm. Every other ladder is flat, and that doc's *What we checked and found fine* lists them. The same doc's *What we found* records that each `Core\\Task` holds about 1.05 MB against the request limit, so one request runs about 250 tasks. The cause is not checked.\n\n**`lsp` callgrind** (`lspInstructions`) has not run. **`--iterations --check`** has had no full sweep since benches that settle on counts started going to callgrind. `docs/perf/performance-review.md` does not exist yet (Stage 4).",
   "next": {
     "stage": 3,
     "title": "the ladders, area by area",
     "files": [],
-    "note": "one file set: `benches/scaling/<area>/`, run with `bun nv scaling <area>`, and `tools/nv/cmd/scaling.ts` only if an area needs a measure it lacks.",
+    "note": "one file set: `tools/nv/cmd/scaling.ts` (the `serve` measure) and `benches/scaling/<area>/`.",
     "items": [
       {
         "done": false,
-        "text": "**Ladders for the core-library areas** — `values`, `strings`, `regex`, `json`, `numbers`, `time`: each a `run` ladder sized by the input it builds, the shape `benches/scaling/arrays/sort.nvs:1` has; `missingAreas` at `tools/nv/cmd/scaling.ts:756` closes each area as its folder gets one. Rule: `rule:testing/bench-counters`. The goal prose Stage 3 table names what each area grows."
+        "text": "**A `serve` size for one request's size and for connections**: the `request` area grows headers, header size, body size and query parameters, and `connections` grows open connections. Each needs a `// scaling: size <what>` line, or a second `serve` kind, that `serveLoad` at `tools/nv/cmd/scaling.ts:600` reads to shape its load. Then add `benches/scaling/request/<name>.nvs` and `benches/scaling/connections/<name>.nvs`. Rule: `rule:testing/bench-counters`. The module doc at `tools/nv/cmd/scaling.ts:66` is where the new size is written down."
       },
       {
         "done": false,
-        "text": "**Ladders for `markup`, `formats`, `templates`** — the same shape, from `benches/scaling/arrays/sort.nvs:1`."
+        "text": "**An `http-client` ladder**: response size under `Core\\Http`, served by a local `nvs serve` or a fixture. The measure is chosen by `MEASURES` at `tools/nv/cmd/scaling.ts:647`."
       },
       {
         "done": false,
-        "text": "**A `serve` size for one request's size and for connections** — the `request` and `connections` areas grow headers, body size and open connections, which `serveLoad` at `tools/nv/cmd/scaling.ts:600` does not vary yet: it sends `size` requests of one shape. Rule: `rule:testing/bench-counters`."
+        "text": "**The `app` ladder**: the small shop the goal prose describes under Stage 3, at `benches/scaling/app/`, run over rows per page and requests served. Its `nvs.toml` takes the `[db]` shape from `benches/scaling/database/nvs.toml:1`."
       }
     ]
   },
   "backlog": [
-    "`nvs serve --count`: per-request counts for a `serve` ladder; the server prints none, so the clock decides alone (goal prose Stage 2, *The bounds*).",
-    "`fmt/classes.nvs` and `lsp/classes.nvs` grow: Stage 5's fixes (`docs/perf/performance-pass.md` § *What we found*).",
-    "A full `bun nv scaling --iterations --check` sweep (module doc of `tools/nv/cmd/scaling.ts`).",
-    "The `lsp` callgrind path (`lspInstructions`) has never run under WSL."
+    "The BigInt ladder fails `--check` on allocations alone: decide whether a `run` ladder over a Rust member is judged on its clock or callgrind instructions (`tools/nv/cmd/scaling.ts` module doc, `docs/perf/performance-pass.md` § *Benches to look at*).",
+    "Where a `Core\\Task`'s 1.05 MB goes, and whether it is a gap record (`docs/perf/performance-pass.md` § *What we found*).",
+    "`nvs fmt` and `nvs lsp` grow (Stage 5), each with a gap record under its crate.",
+    "`lspInstructions` has never run under WSL callgrind.",
+    "A full `bun nv scaling --iterations --check` sweep."
   ]
 }
