@@ -42,10 +42,10 @@
 >
 > **Open now:** **`data/chain.json` is the list of what is open**, in the order the loop walks it,
 > and each goal is its prose at `docs/agent/goals/<slug>.md` plus its record under `data/goals/` —
-> this field restates neither. A goal switch carries a closed goal's checks forward as the live
-> goal's floor, so what is closed is what passes today. What a feature still owes of
-> `rule:testing/feature-proofs` is `bun nv proofs --owed`, and what a crate still owes is a gap
-> record under `data/gaps/` naming its owner.
+> this field restates neither. A goal's plan is its own record: the goal switch deletes the goal it
+> leaves and carries none of its checks. What a feature still owes of `rule:testing/feature-proofs`
+> is `bun nv proofs --owed`, and what a crate still owes is a gap record under `data/gaps/` naming
+> its owner.
 >
 > **Blocking:** Every `spec-*-outstanding.txt` ratchet under `crates/nvs-stdlib/tests/` holds zero
 > keys, and what a shipped feature still owes is a gap record under `data/gaps/` naming its owner.
