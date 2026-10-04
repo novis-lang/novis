@@ -321,7 +321,8 @@ numbers, no internals. It has these sections:
 - **Frozen output stays frozen.** No expected output of a test, a case or an example is edited to make
   a fix pass.
 - **Subagents.** Stage 4 runs one read-only subagent per area. Stage 3 may run one per area to write
-  and run ladders. Each stays under 250k of context, writes any scratch file under `.agent-tmp/`, and
+  and run ladders. Each stays under the subagent ceiling (`AGENTS.md` §
+  *Session workflow* step 2), writes any scratch file under `.agent-tmp/`, and
   deletes it before it reports. Only the session edits code in `crates/`, so two agents never edit
   one file.
 - **Unix-only paths** run on the WSL leg. A ladder that needs Unix sockets declares `// requires: unix`

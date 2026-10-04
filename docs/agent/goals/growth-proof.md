@@ -177,6 +177,6 @@ reached the ceiling without a clear pattern, one line each, or says "none".
 - **Nothing found stops the run.** A bench the proof cannot judge is listed in Stage 6's section. No
   session reports `BLOCKED` for it.
 - **Subagents.** Stage 2's backfill of `// bench: complexity` runs one subagent per area. Each stays
-  under 250k of context, writes any scratch file under `.agent-tmp/`, and deletes it before it reports.
+  under the subagent ceiling (`AGENTS.md` § *Session workflow* step 2), writes any scratch file under `.agent-tmp/`, and deletes it before it reports.
 - **ADR slots:** two new records, Stage 2's for the growth proof and Stage 4's for the ledger's
   currency, and no other number.

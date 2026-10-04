@@ -71,7 +71,7 @@ When choosing between designs:
 Each is one sentence here because not knowing it exists is the entire cost. The mechanism, and why, is in
 [docs/agent/commands.md](docs/agent/commands.md), except rules 7 to 9, whose homes are
 [docs/agent/conventions.md](docs/agent/conventions.md) § *A code comment*,
-[docs/agent/grounding.md](docs/agent/grounding.md) and `rule:testing/feature-proofs`, and rules 10 and 11,
+[docs/agent/grounding.md](docs/agent/grounding.md) and `rule:testing/feature-proofs`, and rules 10 to 12,
 which are whole where they stand.
 
 1. **A shell never carries file content into the tree.** Create and edit files with Write and Edit — never
@@ -130,6 +130,16 @@ which are whole where they stand.
    `example.com` — and say "many" where the report gave a figure. Reproduce the *shape* of what was
    reported, never its words: this repository is public, and a name copied from a report publishes a
    piece of somebody's private codebase.
+12. **An interactive session splits big work across subagents, and decides that before it starts.** Big
+   is work that will not fit under the session's own ceiling (§ *Session workflow* step 2): several
+   slices over different file sets, a sweep across many areas, a long fix-and-verify loop. The session
+   keeps the decisions, the check of each result and the wrap; each subagent gets one narrow deliverable
+   — a slice or two committed one at a time, or a report — and a brief that names its ceiling and tells
+   it to commit and report back before it gets near it. Read-only subagents go out together in one
+   message; ones that write run one after another, unless each has its own worktree under
+   `.agent-tmp/worktrees/`. A subagent's report is a pointer to check, not evidence (rule 8). When the
+   session itself nears its ceiling with work left, it says where the work stands and tells the user to
+   continue in a fresh session, never runs past it.
 
 ## Text an end user reads
 
@@ -260,8 +270,9 @@ Every session runs the same five steps, in this order, and **stops**:
    related slices and the file set they share. **Keep taking slices from that group while both hold: the
    next one touches files already loaded, *and* you are under 120k with the previous one committed. Stop at
    the first slice that fails either test.** Context is the binding budget here, not the clock: an agent
-   degrades well before its window is full, so the ceiling is a fixed **200k**. **This paragraph is the
-   cap's only home** — every other file points here rather than restating a number.
+   degrades well before its window is full, so the ceiling is a fixed **200k** for a loop session and
+   **250k** for an interactive session and for each subagent any session starts (rule 12). **This
+   paragraph is the cap's only home** — every other file points here rather than restating a number.
 
    **The gate is the budget, not a count of slices.** A session pays a fixed cost — orienting, verifying,
    wrapping — that is the same for a three-line slice as for a three-hundred-line one, so small slices over
