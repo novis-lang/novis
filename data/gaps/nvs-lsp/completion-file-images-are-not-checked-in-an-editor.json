@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-lsp/src/completion_files.rs",
-  "title": "Whether a completion file's image renders in an editor's hover has never been checked.",
-  "text": "Goal `completion-files` ended with one hand check left: open a completion file with an image link in the Extension Development Host and see whether the hover shows the image. A loop session cannot run that check, and this module's doc records no result. The goal accepted the text rendering as a fallback. Closing this is the user's check, and its result is written into this module's doc.",
-  "goal": "goal-closeout"
-}

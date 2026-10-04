@@ -217,24 +217,6 @@ answered by the user with the others at the goal end. A question says, in order:
 
 The check `no question waits for the user` fails while a line `- **Answer:** open` is left.
 
-### Does a completion file's image show in an editor hover?
-
-- **Gap** — `completion-file-images-are-not-checked-in-an-editor`,
-  `data/gaps/nvs-lsp/completion-file-images-are-not-checked-in-an-editor.json`.
-- **What has to be decided** — Nobody has looked at it. A loop session cannot open VS Code. The
-  hover text already renders, and goal `completion-files` accepted that as the fallback.
-- **Options** —
-  1. *You check it.* Press F5 in `editors/vscode`, open a project with a `.novis/completion/` file
-     whose description has an image link, and hover a completed value. Report "image shows" or
-     "text only". It takes a few minutes. The session writes the result into the module doc, and on
-     "text only" it states the text as the bound.
-  2. *Strike it unchecked.* The module doc says the image was never checked in an editor, and the
-     text fallback is the bound. No work, but the docs then promise nothing about images.
-- **Recommendation** — 1. It is the only way to know, and it costs a few minutes.
-- **Answer:** 1, checked: **image shows.** The user hovered a value whose `documentation` has a
-  relative image link, in the release server and an installed VS Code. The hover showed the image. The
-  server sent the link as an absolute `file:` URI under the completion file's folder.
-
 ### May file writes walk from a folder handle instead of a path?
 
 - **Gap** — `zip-extraction-creates-a-file-by-path-after-resolving-its-folder`, `place` at

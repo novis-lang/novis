@@ -55,7 +55,9 @@
 //! - **A symbolic link to a folder is not followed**, so a link cannot make the walk loop.
 //! - **A relative link in `documentation` becomes a `file:` URI** under the file's folder
 //!   ([`Value::markdown`]), because a client resolves a relative target against nothing it knows.
-//!   A target with a scheme, an absolute path or a fragment is kept as written.
+//!   A target with a scheme, an absolute path or a fragment is kept as written. VS Code's hover
+//!   shows an image linked this way: it was checked by hand with the release server, a value whose
+//!   `documentation` links an image relative to its completion file, and an installed VS Code.
 //!
 //! # The checks against the index
 //!
