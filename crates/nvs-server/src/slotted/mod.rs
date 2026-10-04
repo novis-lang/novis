@@ -51,7 +51,7 @@ pub const POLYFILL: &str = include_str!("polyfill.js");
 pub const TRIGGER: &str = include_str!("trigger.js");
 
 /// [`POLYFILL`]'s hash, as a policy source. A test recomputes it from the file.
-pub const POLYFILL_HASH: &str = "'sha256-I0MrixJBC+aKunTzQh/2rN/uwSaydex/JBM1irlqrOw='";
+pub const POLYFILL_HASH: &str = "'sha256-Cv56uYStB0yzKrxuhDebXTZTtjoiUMDKcPelMO0jPSQ='";
 
 /// [`TRIGGER`]'s hash, as a policy source. A test recomputes it from the file.
 pub const TRIGGER_HASH: &str = "'sha256-3Nf+JVg1PpD5oeimsznw4iqTL5f3sp5qoBVgFxvr/g0='";
