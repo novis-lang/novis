@@ -139,9 +139,9 @@ foreach ($fields as string $field) {
 }
 echo $whole, " whole, ", $onDates, " calendar, ", $onClocks, " clock, ", $onBoth, " both, ", $onNeither, " neither\n";
 --EXPECT--
-Core\Time\DateTime::format(): `j` is not a pattern letter this library carries; quote it as `'j'` to emit it literally
-Core\Time\Date::format(): `j` is not a pattern letter this library carries; quote it as `'j'` to emit it literally
-Core\Time\TimeOfDay::format(): `j` is not a pattern letter this library carries; quote it as `'j'` to emit it literally
+Core\Time\DateTime::format(): `j` is not a pattern letter Novis supports; write `'j'` to print the letter as it is
+Core\Time\Date::format(): `j` is not a pattern letter Novis supports; write `'j'` to print the letter as it is
+Core\Time\TimeOfDay::format(): `j` is not a pattern letter Novis supports; write `'j'` to print the letter as it is
 j
 Core\Time\DateTime::format(): a `'` opens a literal that nothing closes
 '
@@ -153,7 +153,7 @@ Core\Time\Date::format(): a pattern rendering a date names no zone — a `Core\T
 Core\Time\TimeOfDay::format(): a pattern rendering a time of day names no calendar field — a `Core\Time\TimeOfDay` carries none
 Core\Time\TimeOfDay::format(): a pattern rendering a time of day names no zone — a `Core\Time\TimeOfDay` is zone-free
 HH|yyyy
-Core\Time\Date::format(): `j` is not a pattern letter this library carries; quote it as `'j'` to emit it literally
+Core\Time\Date::format(): `j` is not a pattern letter Novis supports; write `'j'` to print the letter as it is
 Core\Time\Date::format(): a pattern rendering a date names no time of day — a `Core\Time\Date` carries none
 Core\Time\TimeOfDay::format(): a pattern rendering a time of day names no calendar field — a `Core\Time\TimeOfDay` carries none
 36 taken, 16 refused, 15 named

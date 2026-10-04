@@ -30091,7 +30091,7 @@ One row per PHP built-in. *member*: a `Core` member in Part B does the job. *lan
 | `intval` | language | `$x as int`, or `$x as ?int` where PHP relied on `0` for a failure |
 | `is_array` | member | `Core\Reflect::typeOf` — meaningful only on a `mixed` |
 | `is_bool` | member | `Core\Reflect::typeOf` |
-| `is_callable` | member | `Core\Reflect::typeOf`; `callable` is closures only |
+| `is_callable` | member | `Core\Reflect::typeOf`; a `callable` is only an anonymous function or a method reference |
 | `is_countable` | member | `Core\Reflect::typeOf` |
 | `is_double` | member | `Core\Reflect::typeOf` |
 | `is_float` | member | `Core\Reflect::typeOf` |
@@ -30274,11 +30274,11 @@ One row per PHP built-in. *member*: a `Core` member in Part B does the job. *lan
 | `mhash_get_block_size` | dropped | same; each case's width is in `Digest`'s roster, which [01 § 11](spec/01-core-library.md) states is its only home |
 | `mhash_get_hash_name` | dropped | same; a case has a name because it is an enum |
 | `mhash_keygen_s2k` | dropped | S2K is OpenPGP's key derivation. Deriving a key is `Core\Crypto` |
-| `ob_start` | member | `Core\Out::capture`, which takes the closure whose output is captured — a buffer's extent is a call, not a pair of statements someone must remember to match |
+| `ob_start` | member | `Core\Out::capture`, which takes the callable whose output is captured — a buffer's extent is a call, not a pair of statements someone must remember to match |
 | `ob_get_clean` | member | `Core\Out::capture` is exactly this pair: it captures and returns, and there is no state left behind to clean |
 | `ob_get_contents` | member | `Core\Out::capture`'s return value. There is no way to read a buffer somebody else started, because there is no buffer somebody else started |
-| `ob_end_clean` | dropped | a buffer ends when its closure returns |
-| `ob_clean` | dropped | emptying a buffer half way through and carrying on is only possible where the buffer outlives the statement that filled it. A `capture`'s bytes are its closure's return value: not calling it is how they are discarded |
+| `ob_end_clean` | dropped | a buffer ends when its callable returns |
+| `ob_clean` | dropped | emptying a buffer half way through and carrying on is only possible where the buffer outlives the statement that filled it. A `capture`'s bytes are its callable's return value: not calling it is how they are discarded |
 | `ob_end_flush` | dropped | `capture` always swallows. Re-emitting is a visible `echo Core\Out::capture(…)` rather than the engine passing bytes through on a program's behalf |
 | `ob_flush` | dropped | same |
 | `ob_get_flush` | dropped | same |
@@ -30350,7 +30350,7 @@ One row per PHP built-in. *member*: a `Core` member in Part B does the job. *lan
 | `spl_autoload_call` | dropped | there is no moment at which a name is declared but not yet resolved |
 | `spl_autoload` | dropped | the default loader, which is the `include`-path search `autoload`'s literal paths replace |
 | `spl_autoload_extensions` | dropped | same — `autoload` names paths, so there is no extension list to guess a filename from |
-| `call_user_func` | language | `$f(...)`. A `callable` is closures only, and a closure is invoked by writing the call; the `"Class::method"` string form has no spelling at all |
+| `call_user_func` | language | `$f(...)`. A `callable` is only an anonymous function or a method reference, and you call it by writing the call; the `"Class::method"` string form has no spelling at all |
 | `call_user_func_array` | language | `$f(...$args)`, argument unpacking |
 | `forward_static_call` | dropped | it exists to forward late static binding through a call whose target is a string. A static call's target is a name the compiler resolves, and the binding is `static::` written directly |
 | `forward_static_call_array` | dropped | the same, with unpacking |
@@ -30573,7 +30573,7 @@ One row per PHP built-in. *member*: a `Core` member in Part B does the job. *lan
 | `highlight_string` | dropped | the same over a string. Highlighting is the editor's; a program that renders code renders text, through `Core\Html::escape` |
 | `show_source` | dropped | `highlight_file`'s alias |
 | `version_compare` | dropped | its ordering is PHP's own — `pl` above everything, `RC` below release, `beta` folded in by a string scan — and it is a resolver's rule rather than a string operation. Versions are resolved while building, where a pin is a digest and a range is a maximum |
-| `clone` | language | the `clone` keyword, unchanged — PHP's shallow, single-level copy. The function spelling exists so that cloning can be passed as a callable, and a callable here is a closure |
+| `clone` | language | the `clone` keyword, unchanged — PHP's shallow, single-level copy. The function spelling exists so that cloning can be passed as a callable, and a callable here is an anonymous function or a method reference |
 | `pack` | member | `Core\Bytes::pack` ([01 § 7](spec/01-core-library.md)), whose format string is a template rather than a mode string, so R11 does not reach it |
 | `unpack` | member | `Core\Bytes::unpack`, which names its fields the same way |
 | `parse_ini_file` | dropped | Novis's own configuration is TOML, read by the runtime rather than by the program; `Core\Config` is the request-local view of it. Parsing somebody else's `.ini` is an ordinary parse, and a package's |
@@ -30661,8 +30661,8 @@ One row per PHP built-in. *member*: a `Core` member in Part B does the job. *lan
 | `mysqli_free_result` | dropped | frees the result set. A `Db\Rows` is released with the rest of the request's memory |
 | `mysqli_get_warnings` | dropped | the connection's warning list, as an object to walk after a call that succeeded. A condition worth acting on throws `Db\DbError`; one that is not is the server's to log |
 | `mysqli_warning_count` | dropped | how many of them there are |
-| `mysqli_commit` | dropped | the closure returning is the commit. A separate `commit` would be a second way to end the same transaction |
-| `mysqli_rollback` | dropped | a throw out of the closure is the rollback. `$tx->rollBack(string $reason)` sets a rollback-only flag *and* throws `Db\RolledBack`, so an intervening `catch (Throwable)` cannot leave the transaction committed |
+| `mysqli_commit` | dropped | the callable returning is the commit. A separate `commit` would be a second way to end the same transaction |
+| `mysqli_rollback` | dropped | a throw out of the callable is the rollback. `$tx->rollBack(string $reason)` sets a rollback-only flag *and* throws `Db\RolledBack`, so an intervening `catch (Throwable)` cannot leave the transaction committed |
 | `mysqli_autocommit` | dropped | switches the connection between implicit and explicit transactions, for statements written before the switch and after it alike. A statement outside `transaction()` is its own transaction and one inside is not, so there is no mode to hold |
 | `mysqli_savepoint` | dropped | a nested `transaction()` on the same connection issues `SAVEPOINT` itself, which is what lets a library wrap its own writes and stay callable from inside a caller's transaction |
 | `mysqli_release_savepoint` | dropped | releases one by name; the nesting owns both ends of it |
@@ -30730,7 +30730,7 @@ One row per PHP built-in. *member*: a `Core` member in Part B does the job. *lan
 | `pg_get_notify` | dropped | a pending `NOTIFY` payload, for a connection that has issued `LISTEN`. That pair is deferred and the pool's reset drops a connection's listeners. The durable answer to the same problem is a job row, which commits with the write that enqueued it |
 | `pg_trace` | dropped | writes the client-server conversation to a file the program names. What a statement did is a `query` trace event instead, carrying the statement's own facts and never a bound parameter |
 | `pg_untrace` | dropped | stops that, and has nothing to stop |
-| `pg_transaction_status` | dropped | whether the connection is inside a transaction, and whether that transaction has failed. `PDO::inTransaction` is refused permanently: a transaction is a closure, so the answer is which function you are inside, and a `Db\Transaction` parameter states it in the type |
+| `pg_transaction_status` | dropped | whether the connection is inside a transaction, and whether that transaction has failed. `PDO::inTransaction` is refused permanently: a transaction is a callable, so the answer is which function you are inside, and a `Db\Transaction` parameter states it in the type |
 | `pg_convert` | dropped | turns an associative array into SQL-ready values by checking it against the table's metadata. Values are bound, never made SQL-ready, and building a statement out of a table name and an array is query-builder work, which is not `Core` at all (`rule:core-api/tier-placement` test 6) |
 | `pg_insert` | dropped | builds and runs an `INSERT` from that array, under the same test. `Core\Db\Queryable::execute` runs the statement the program wrote |
 | `pg_update` | dropped | the same for `UPDATE`, with a second array standing in for the `WHERE` clause |

@@ -533,7 +533,7 @@ almost every predicate below a question the checker has already answered.
 | `intval` | language | `$x as int`, or `$x as ?int` where PHP relied on `0` for a failure |
 | `is_array` | member | `Core\Reflect::typeOf` — meaningful only on a `mixed` |
 | `is_bool` | member | `Core\Reflect::typeOf` |
-| `is_callable` | member | `Core\Reflect::typeOf`; `callable` is closures only (`rule:types/callable-values`) |
+| `is_callable` | member | `Core\Reflect::typeOf`; a `callable` is only an anonymous function or a method reference (`rule:types/callable-values`) |
 | `is_countable` | member | `Core\Reflect::typeOf` |
 | `is_double` | member | `Core\Reflect::typeOf` |
 | `is_float` | member | `Core\Reflect::typeOf` |
@@ -838,18 +838,18 @@ a callback the engine calls invisibly. PHP's process family is **a shell string*
 differ only in what they do with the output, all of them concatenating a command line and two more whose
 job is to escape what was concatenated.
 
-`Core\Out::capture` ([01 § 12](01-core-library.md)) answers the first with a buffer scoped to a closure,
+`Core\Out::capture` ([01 § 12](01-core-library.md)) answers the first with a buffer scoped to a callable,
 nesting by call nesting, always swallowing. `rule:core-classes/process-is-argv-only`
 answers the second by never accepting a shell string at all, which is why `escapeshellarg` and
 `escapeshellcmd` are dropped with nothing to point at: there is no string to escape.
 
 | PHP | Outcome | Novis |
 |---|---|---|
-| `ob_start` | member | `Core\Out::capture`, which takes the closure whose output is captured — a buffer's extent is a call, not a pair of statements someone must remember to match |
+| `ob_start` | member | `Core\Out::capture`, which takes the callable whose output is captured — a buffer's extent is a call, not a pair of statements someone must remember to match |
 | `ob_get_clean` | member | `Core\Out::capture` is exactly this pair: it captures and returns, and there is no state left behind to clean |
 | `ob_get_contents` | member | `Core\Out::capture`'s return value. There is no way to read a buffer somebody else started, because there is no buffer somebody else started |
-| `ob_end_clean` | dropped | a buffer ends when its closure returns |
-| `ob_clean` | dropped | emptying a buffer half way through and carrying on is only possible where the buffer outlives the statement that filled it. A `capture`'s bytes are its closure's return value: not calling it is how they are discarded |
+| `ob_end_clean` | dropped | a buffer ends when its callable returns |
+| `ob_clean` | dropped | emptying a buffer half way through and carrying on is only possible where the buffer outlives the statement that filled it. A `capture`'s bytes are its callable's return value: not calling it is how they are discarded |
 | `ob_end_flush` | dropped | `capture` always swallows. Re-emitting is a visible `echo Core\Out::capture(…)` rather than the engine passing bytes through on a program's behalf |
 | `ob_flush` | dropped | same |
 | `ob_get_flush` | dropped | same |
@@ -911,8 +911,8 @@ a top-level declaration with literal paths and no runtime existence whatsoever
 question the compiler has already answered or one member of `Core\Reflect`
 ([01 § 13](01-core-library.md)), and never a lookup that can load a file as a side effect.
 
-The rest divides in two. The **dynamic-call** family is the language: a `callable` is closures only
-(`rule:types/callable-values`) and a closure is called by writing the call, a
+The rest divides in two. The **dynamic-call** family is the language: a `callable` is only an anonymous
+function or a method reference (`rule:types/callable-values`) and is called by writing the call, a
 variadic parameter is the list `func_get_args` reconstructed, and no static call takes a target assembled
 at run time. The **dumping** family is one diagnostic record with three renderings
 (`rule:errors/diagnostic-record`), which is `Core\Debug`.
@@ -956,7 +956,7 @@ identify.
 | `spl_autoload_call` | dropped | there is no moment at which a name is declared but not yet resolved |
 | `spl_autoload` | dropped | the default loader, which is the `include`-path search `autoload`'s literal paths replace |
 | `spl_autoload_extensions` | dropped | same — `autoload` names paths, so there is no extension list to guess a filename from |
-| `call_user_func` | language | `$f(...)`. A `callable` is closures only (`rule:types/callable-values`), and a closure is invoked by writing the call; the `"Class::method"` string form has no spelling at all |
+| `call_user_func` | language | `$f(...)`. A `callable` is only an anonymous function or a method reference (`rule:types/callable-values`), and you call it by writing the call; the `"Class::method"` string form has no spelling at all |
 | `call_user_func_array` | language | `$f(...$args)`, argument unpacking |
 | `forward_static_call` | dropped | it exists to forward late static binding through a call whose target is a string. A static call's target is a name the compiler resolves, and the binding is `static::` written directly |
 | `forward_static_call_array` | dropped | the same, with unpacking |
@@ -1408,7 +1408,7 @@ deployment: a program reads the one key it needs through `Core\Config::get`, and
 | `highlight_string` | dropped | the same over a string. Highlighting is the editor's (`rule:ide/one-server-two-thin-clients`); a program that renders code renders text, through `Core\Html::escape` |
 | `show_source` | dropped | `highlight_file`'s alias |
 | `version_compare` | dropped | its ordering is PHP's own — `pl` above everything, `RC` below release, `beta` folded in by a string scan — and it is a resolver's rule rather than a string operation. Versions are resolved while building (`rule:packaging/a-package-is-its-digest`), where a pin is a digest and a range is a maximum |
-| `clone` | language | the `clone` keyword, unchanged — PHP's shallow, single-level copy (`rule:classes/two-copy-depths`). The function spelling exists so that cloning can be passed as a callable, and a callable here is a closure (`rule:types/anonymous-function`) |
+| `clone` | language | the `clone` keyword, unchanged — PHP's shallow, single-level copy (`rule:classes/two-copy-depths`). The function spelling exists so that cloning can be passed as a callable, and a callable here is an anonymous function or a method reference (`rule:types/anonymous-function`) |
 | `pack` | member | `Core\Bytes::pack` ([01 § 7](01-core-library.md)), whose format string is a template rather than a mode string, so R11 does not reach it |
 | `unpack` | member | `Core\Bytes::unpack`, which names its fields the same way |
 | `parse_ini_file` | dropped | Novis's own configuration is TOML, read by the runtime rather than by the program (`rule:config/the-file-is-nvs-toml-and-it-is-toml`); `Core\Config` is the request-local view of it. Parsing somebody else's `.ini` is an ordinary parse, and a package's |
@@ -1445,7 +1445,7 @@ dropped rather than renamed: they exist to be read after a call that returned `f
 The result half is emptied by a third rule, `rule:core-api/shape-rules` R17: `fetch_row`,
 `fetch_assoc`, `fetch_array` and `fetch_object` are four spellings of one operation, chosen by a constant,
 and the shape a member returns does not vary with an argument here. The transaction half is emptied by § 7 —
-a transaction is a closure, so `commit`, `rollback`, `autocommit` and the two savepoint calls have no call
+a transaction is a callable, so `commit`, `rollback`, `autocommit` and the two savepoint calls have no call
 site left.
 
 ### Connections
@@ -1567,9 +1567,9 @@ site left.
 
 | PHP | Outcome | Novis |
 |---|---|---|
-| `mysqli_begin_transaction` | member | `Core\Db\Queryable::transaction`, which takes a closure: a normal return commits, a throw rolls back and propagates, and a failed commit throws `Db\DbError` (`rule:core-classes/db-transactions`). The closure form is forced because there are no destructors, so an object-scoped transaction would have no point at which to roll back |
-| `mysqli_commit` | dropped | the closure returning is the commit. A separate `commit` would be a second way to end the same transaction |
-| `mysqli_rollback` | dropped | a throw out of the closure is the rollback. `$tx->rollBack(string $reason)` sets a rollback-only flag *and* throws `Db\RolledBack`, so an intervening `catch (Throwable)` cannot leave the transaction committed (`rule:core-classes/db-transactions`) |
+| `mysqli_begin_transaction` | member | `Core\Db\Queryable::transaction`, which takes a callable: a normal return commits, a throw rolls back and propagates, and a failed commit throws `Db\DbError` (`rule:core-classes/db-transactions`). The callable form is forced because there are no destructors, so an object-scoped transaction would have no point at which to roll back |
+| `mysqli_commit` | dropped | the callable returning is the commit. A separate `commit` would be a second way to end the same transaction |
+| `mysqli_rollback` | dropped | a throw out of the callable is the rollback. `$tx->rollBack(string $reason)` sets a rollback-only flag *and* throws `Db\RolledBack`, so an intervening `catch (Throwable)` cannot leave the transaction committed (`rule:core-classes/db-transactions`) |
 | `mysqli_autocommit` | dropped | switches the connection between implicit and explicit transactions, for statements written before the switch and after it alike. A statement outside `transaction()` is its own transaction and one inside is not, so there is no mode to hold |
 | `mysqli_savepoint` | dropped | a nested `transaction()` on the same connection issues `SAVEPOINT` itself, which is what lets a library wrap its own writes and stay callable from inside a caller's transaction (`rule:core-classes/db-transactions`) |
 | `mysqli_release_savepoint` | dropped | releases one by name; the nesting owns both ends of it |
@@ -1729,7 +1729,7 @@ with better manners.
 
 | PHP | Outcome | Novis |
 |---|---|---|
-| `pg_transaction_status` | dropped | whether the connection is inside a transaction, and whether that transaction has failed. `PDO::inTransaction` is refused permanently (`rule:core-classes/db-one-api`): a transaction is a closure, so the answer is which function you are inside, and a `Db\Transaction` parameter states it in the type (`rule:core-classes/db-transactions`) |
+| `pg_transaction_status` | dropped | whether the connection is inside a transaction, and whether that transaction has failed. `PDO::inTransaction` is refused permanently (`rule:core-classes/db-one-api`): a transaction is a callable, so the answer is which function you are inside, and a `Db\Transaction` parameter states it in the type (`rule:core-classes/db-transactions`) |
 | `pg_convert` | dropped | turns an associative array into SQL-ready values by checking it against the table's metadata. Values are bound, never made SQL-ready (`rule:security/sink-predicate`), and building a statement out of a table name and an array is query-builder work, which is not `Core` at all (`rule:core-api/tier-placement` test 6) |
 | `pg_insert` | dropped | builds and runs an `INSERT` from that array, under the same test. `Core\Db\Queryable::execute` runs the statement the program wrote |
 | `pg_update` | dropped | the same for `UPDATE`, with a second array standing in for the `WHERE` clause |

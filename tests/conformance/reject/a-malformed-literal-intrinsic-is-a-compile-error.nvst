@@ -54,9 +54,9 @@ echo "unreachable\n";
 --EXPECT--
 
 --EXPECTF-ERROR--
-error[E0769]: this text is not valid for this function: `j` is not a pattern letter this library carries; quote it as `'j'` to emit it literally
+error[E0769]: this text is not valid for this function: `j` is not a pattern letter Novis supports; write `'j'` to print the letter as it is
 %A
-error[E0769]: this text is not valid for this function: `j` is not a pattern letter this library carries; quote it as `'j'` to emit it literally
+error[E0769]: this text is not valid for this function: `j` is not a pattern letter Novis supports; write `'j'` to print the letter as it is
 %A
 error[E0769]: this text is not valid for this function: `^order-(\d+$` is not a pattern either engine can compile:%A
 error[E0769]: this text is not valid for this function: `%%q` is not one of the conversions the template grammar allows (`%%s %%d %%u %%f %%e %%g %%x %%X %%o %%b %%%%`)

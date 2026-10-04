@@ -25792,7 +25792,7 @@
       "name": "Core\\Program",
       "section": "13. Compiler-facing surfaces",
       "summary": "",
-      "surface": "`implementing<T>()`, and `implementingWith<I, T>(string $member = \"\")` — the same enumeration with one attribute retrieval joined per class, each row holding the instance and its matching payload or null — and `constructors<T, C>()`, the same classes in the same order, each row holding the class name and a `make` closure typed `C` that builds it",
+      "surface": "`implementing<T>()`, and `implementingWith<I, T>(string $member = \"\")` — the same enumeration with one attribute retrieval joined per class, each row holding the instance and its matching payload or null — and `constructors<T, C>()`, the same classes in the same order, each row holding the class name and a `make` callable typed `C` that builds it",
       "adrs": [
         "0061",
         "0212",
@@ -25924,7 +25924,7 @@
       "slug": "program",
       "url": "/reference/core/program/",
       "summaryHtml": "",
-      "surfaceHtml": "<code>implementing&lt;T&gt;()</code>, and <code>implementingWith&lt;I, T&gt;(string $member = &quot;&quot;)</code> — the same enumeration with one attribute retrieval joined per class, each row holding the instance and its matching payload or null — and <code>constructors&lt;T, C&gt;()</code>, the same classes in the same order, each row holding the class name and a <code>make</code> closure typed <code>C</code> that builds it"
+      "surfaceHtml": "<code>implementing&lt;T&gt;()</code>, and <code>implementingWith&lt;I, T&gt;(string $member = &quot;&quot;)</code> — the same enumeration with one attribute retrieval joined per class, each row holding the instance and its matching payload or null — and <code>constructors&lt;T, C&gt;()</code>, the same classes in the same order, each row holding the class name and a <code>make</code> callable typed <code>C</code> that builds it"
     },
     {
       "id": "Queue",

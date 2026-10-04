@@ -146,10 +146,10 @@ echo $caught, " caught either way\n";
 2024-03-31 12:00 +02:00 Europe/Berlin|
 2024-12-31 23:45:30|
 2024-06-01|
-Core\Time::parse(): `j` is not a pattern letter this library carries; quote it as `'j'` to emit it literally
+Core\Time::parse(): `j` is not a pattern letter Novis supports; write `'j'` to print the letter as it is
 Core\Time::parse(): a `'` opens a literal that nothing closes
 Core\Time::parse(): `V` names a zone only as `VV`, the IANA identifier
-Core\Time::parse(): `j` is not a pattern letter this library carries; quote it as `'j'` to emit it literally
+Core\Time::parse(): `j` is not a pattern letter Novis supports; write `'j'` to print the letter as it is
 Core\Time::parse(): a pattern that parses names no zone — `Core\Time::parse` takes one as its third argument
 Core\Time::parse(): expected ` ` at offset 10
 Core\Time::parse(): expected 2 or more digits of month at offset 6

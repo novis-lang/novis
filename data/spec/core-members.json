@@ -1969,7 +1969,7 @@
         ],
         [
           "`Core\\Program`",
-          "`implementing<T>()`, and `implementingWith<I, T>(string $member = \"\")` — the same enumeration with one attribute retrieval joined per class, each row holding the instance and its matching payload or null — and `constructors<T, C>()`, the same classes in the same order, each row holding the class name and a `make` closure typed `C` that builds it",
+          "`implementing<T>()`, and `implementingWith<I, T>(string $member = \"\")` — the same enumeration with one attribute retrieval joined per class, each row holding the instance and its matching payload or null — and `constructors<T, C>()`, the same classes in the same order, each row holding the class name and a `make` callable typed `C` that builds it",
           "[0061](../decisions/0061.md), [0212](../decisions/0212.md), [0253](../decisions/0253.md)"
         ],
         [

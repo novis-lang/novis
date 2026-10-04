@@ -788,8 +788,8 @@ pub(crate) fn compile(pattern: &str) -> Result<Vec<Piece>, String> {
         }
         let field = Field::of(byte).ok_or_else(|| {
             format!(
-                "`{}` is not a pattern letter this library carries; quote it as `'{}'` to emit it \
-                 literally",
+                "`{}` is not a pattern letter Novis supports; write `'{}'` to print the letter as \
+                 it is",
                 char::from(byte),
                 char::from(byte)
             )

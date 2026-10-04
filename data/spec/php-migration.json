@@ -2272,7 +2272,7 @@
       "section": "Types and conversions",
       "php": "is_callable",
       "outcome": "member",
-      "novis": "`Core\\Reflect::typeOf`; `callable` is closures only (`rule:types/callable-values`)"
+      "novis": "`Core\\Reflect::typeOf`; a `callable` is only an anonymous function or a method reference (`rule:types/callable-values`)"
     },
     {
       "section": "Types and conversions",
@@ -3556,7 +3556,7 @@
       "section": "Output buffering and the process",
       "php": "ob_start",
       "outcome": "member",
-      "novis": "`Core\\Out::capture`, which takes the closure whose output is captured — a buffer's extent is a call, not a pair of statements someone must remember to match"
+      "novis": "`Core\\Out::capture`, which takes the callable whose output is captured — a buffer's extent is a call, not a pair of statements someone must remember to match"
     },
     {
       "section": "Output buffering and the process",
@@ -3574,13 +3574,13 @@
       "section": "Output buffering and the process",
       "php": "ob_end_clean",
       "outcome": "dropped",
-      "novis": "a buffer ends when its closure returns"
+      "novis": "a buffer ends when its callable returns"
     },
     {
       "section": "Output buffering and the process",
       "php": "ob_clean",
       "outcome": "dropped",
-      "novis": "emptying a buffer half way through and carrying on is only possible where the buffer outlives the statement that filled it. A `capture`'s bytes are its closure's return value: not calling it is how they are discarded"
+      "novis": "emptying a buffer half way through and carrying on is only possible where the buffer outlives the statement that filled it. A `capture`'s bytes are its callable's return value: not calling it is how they are discarded"
     },
     {
       "section": "Output buffering and the process",
@@ -4066,7 +4066,7 @@
       "section": "Reflection and the class API",
       "php": "call_user_func",
       "outcome": "language",
-      "novis": "`$f(...)`. A `callable` is closures only (`rule:types/callable-values`), and a closure is invoked by writing the call; the `\"Class::method\"` string form has no spelling at all"
+      "novis": "`$f(...)`. A `callable` is only an anonymous function or a method reference (`rule:types/callable-values`), and you call it by writing the call; the `\"Class::method\"` string form has no spelling at all"
     },
     {
       "section": "Reflection and the class API",
@@ -5584,7 +5584,7 @@
       "section": "The program describing itself",
       "php": "clone",
       "outcome": "language",
-      "novis": "the `clone` keyword, unchanged — PHP's shallow, single-level copy (`rule:classes/two-copy-depths`). The function spelling exists so that cloning can be passed as a callable, and a callable here is a closure (`rule:types/anonymous-function`)"
+      "novis": "the `clone` keyword, unchanged — PHP's shallow, single-level copy (`rule:classes/two-copy-depths`). The function spelling exists so that cloning can be passed as a callable, and a callable here is an anonymous function or a method reference (`rule:types/anonymous-function`)"
     },
     {
       "section": "The program describing itself",
@@ -6256,19 +6256,19 @@
       "section": "Transactions",
       "php": "mysqli_begin_transaction",
       "outcome": "member",
-      "novis": "`Core\\Db\\Queryable::transaction`, which takes a closure: a normal return commits, a throw rolls back and propagates, and a failed commit throws `Db\\DbError` (`rule:core-classes/db-transactions`). The closure form is forced because there are no destructors, so an object-scoped transaction would have no point at which to roll back"
+      "novis": "`Core\\Db\\Queryable::transaction`, which takes a callable: a normal return commits, a throw rolls back and propagates, and a failed commit throws `Db\\DbError` (`rule:core-classes/db-transactions`). The callable form is forced because there are no destructors, so an object-scoped transaction would have no point at which to roll back"
     },
     {
       "section": "Transactions",
       "php": "mysqli_commit",
       "outcome": "dropped",
-      "novis": "the closure returning is the commit. A separate `commit` would be a second way to end the same transaction"
+      "novis": "the callable returning is the commit. A separate `commit` would be a second way to end the same transaction"
     },
     {
       "section": "Transactions",
       "php": "mysqli_rollback",
       "outcome": "dropped",
-      "novis": "a throw out of the closure is the rollback. `$tx->rollBack(string $reason)` sets a rollback-only flag *and* throws `Db\\RolledBack`, so an intervening `catch (Throwable)` cannot leave the transaction committed (`rule:core-classes/db-transactions`)"
+      "novis": "a throw out of the callable is the rollback. `$tx->rollBack(string $reason)` sets a rollback-only flag *and* throws `Db\\RolledBack`, so an intervening `catch (Throwable)` cannot leave the transaction committed (`rule:core-classes/db-transactions`)"
     },
     {
       "section": "Transactions",
@@ -6814,7 +6814,7 @@
       "section": "Transactions and the array helpers",
       "php": "pg_transaction_status",
       "outcome": "dropped",
-      "novis": "whether the connection is inside a transaction, and whether that transaction has failed. `PDO::inTransaction` is refused permanently (`rule:core-classes/db-one-api`): a transaction is a closure, so the answer is which function you are inside, and a `Db\\Transaction` parameter states it in the type (`rule:core-classes/db-transactions`)"
+      "novis": "whether the connection is inside a transaction, and whether that transaction has failed. `PDO::inTransaction` is refused permanently (`rule:core-classes/db-one-api`): a transaction is a callable, so the answer is which function you are inside, and a `Db\\Transaction` parameter states it in the type (`rule:core-classes/db-transactions`)"
     },
     {
       "section": "Transactions and the array helpers",
