@@ -239,6 +239,22 @@ impl Emit {
         Err(CLOSED.into())
     }
 
+    /// Writes `bytes` as as many chunks as the message bound needs, for a
+    /// writer whose bytes are not one message: `rule:core-classes/html-later`'s
+    /// shell and fills, whose size is the page's and not the connection's.
+    ///
+    /// # Errors
+    ///
+    /// The first refusal [`Self::send`] gives. Nothing after it is written.
+    pub fn send_all(&mut self, mut bytes: Vec<u8>) -> Result<(), Box<str>> {
+        while bytes.len() > self.largest_chunk {
+            let rest = bytes.split_off(self.largest_chunk);
+            self.send(bytes)?;
+            bytes = rest;
+        }
+        self.send(bytes)
+    }
+
     /// Ends the body: the connection frames whatever it still holds, then the
     /// end of the stream.
     pub fn finish(&mut self) {
@@ -352,6 +368,22 @@ pub struct Opened {
     pub headers: Vec<DeclaredHeader>,
     /// The consumer's half, taken by whoever is framing the response.
     pub drain: Drain,
+    /// Whether this body is `rule:core-classes/html-later`'s slotted page,
+    /// whose head the connection gives `X-Accel-Buffering: no` and whose
+    /// script policy it lets run the two [`Scripts`].
+    pub slotted: bool,
+}
+
+/// The two inline scripts a slotted page sends: the polyfill that applies a
+/// `<template for>` fill where the browser did not, and the call that runs it
+/// after each fill. The server owns the text, because it owns the script
+/// policy that names their hashes, and hands it in through [`BodySlot`].
+#[derive(Clone, Copy, Debug)]
+pub struct Scripts {
+    /// The body of the `<script>` sent once, before the first fill.
+    pub polyfill: &'static str,
+    /// The body of the `<script>` sent after every fill.
+    pub trigger: &'static str,
 }
 
 /// The place a **request-scoped** streaming body is left, shared between the
@@ -379,6 +411,9 @@ pub struct Opened {
 pub struct BodySlot {
     send_timeout: Duration,
     largest_chunk: usize,
+    /// What a slotted page sends beside its fills, and `None` where whoever
+    /// offered the cell has none: such a page is assembled whole instead.
+    scripts: Option<Scripts>,
     cell: Rc<RefCell<Opening>>,
 }
 
@@ -410,8 +445,24 @@ impl BodySlot {
         Self {
             send_timeout,
             largest_chunk,
+            scripts: None,
             cell: Rc::new(RefCell::new(Opening::default())),
         }
+    }
+
+    /// This cell, able to carry a slotted page: `scripts` is what the page
+    /// sends beside its fills.
+    #[must_use]
+    pub fn with_scripts(mut self, scripts: Scripts) -> Self {
+        self.scripts = Some(scripts);
+        self
+    }
+
+    /// The scripts [`Self::with_scripts`] gave, and `None` where a slotted page
+    /// cannot be sent through this cell.
+    #[must_use]
+    pub fn scripts(&self) -> Option<Scripts> {
+        self.scripts
     }
 
     /// Opens the body at `content_type`, answering the writing half and leaving
@@ -435,6 +486,28 @@ impl BodySlot {
         status: Option<u16>,
         headers: Vec<DeclaredHeader>,
     ) -> Option<Emit> {
+        self.open_as(content_type, status, headers, false)
+    }
+
+    /// [`Self::open`] for `rule:core-classes/html-later`'s slotted page, whose
+    /// head says so.
+    #[must_use]
+    pub fn open_slotted(
+        &self,
+        content_type: &str,
+        status: Option<u16>,
+        headers: Vec<DeclaredHeader>,
+    ) -> Option<Emit> {
+        self.open_as(content_type, status, headers, true)
+    }
+
+    fn open_as(
+        &self,
+        content_type: &str,
+        status: Option<u16>,
+        headers: Vec<DeclaredHeader>,
+        slotted: bool,
+    ) -> Option<Emit> {
         let mut cell = self.cell.borrow_mut();
         if cell.opened {
             return None;
@@ -446,6 +519,7 @@ impl BodySlot {
             status,
             headers,
             drain,
+            slotted,
         });
         if let Some(watcher) = cell.watcher.take() {
             watcher.wake();

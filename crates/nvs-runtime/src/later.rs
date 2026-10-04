@@ -1,6 +1,7 @@
-//! `rule:core-classes/html-later`'s slots on a normal route: what
-//! `Core\Html::later` registered, the placeholder each one wrote, and the one
-//! pass that replaces every placeholder with its output.
+//! `rule:core-classes/html-later`'s slots: what `Core\Html::later` registered,
+//! the placeholder each one wrote, and the two deliveries — one pass that
+//! replaces every placeholder with its output, and on a slotted response the
+//! shell sent first and each output after it as a fill.
 //!
 //! # A slot is a registration, and the frame ending is what runs it
 //!
@@ -40,23 +41,56 @@
 //! body cancels its slot before it starts, with a `Warn`; one found twice fails
 //! the request with `LogicError`, because only one copy could be replaced.
 //!
+//! # A slotted response
+//!
+//! Where [`Ctx::is_slotted`] holds and the connection offered a
+//! [`crate::stream::BodySlot`] carrying its [`Scripts`], the body goes out over
+//! that cell as `Core\Response::stream`'s does, with the head the main script
+//! declared. The shell is the body up to its last `</body`, placeholders in
+//! place. Each slot's task writes its own fill the moment it finishes —
+//! `<template for="<name>">…</template>` and the trigger script, the polyfill
+//! script ahead of the first one only — so fills arrive in finishing order.
+//! One task writes at a time, because a write parks while the peer reads and
+//! the cell wakes one writer; a slot that finishes meanwhile queues its fill
+//! for the writing task to send. The held-back end goes last, then the body
+//! ends, and only then does after-response work run.
+//!
+//! A limit breach, a throw out of the outer group, or a slot stopped with it
+//! leaves a slot without a fill: each one gets its `error` fragment instead,
+//! the end is sent, and the request fails as the same page would unslotted.
+//! The head is out by then, so the status stays what the main script set.
+//! A slot whose task was cancelled while it wrote ends the stream, and the
+//! fills after it are not sent.
+//!
+//! A slotted response with no placeholder to fill is sent whole, and so is
+//! one no connection offered a cell to: `nvs run`, a `#[Test]`, an embedder.
+//!
 //! # What it spends
 //!
 //! Nothing for a request that never calls `later`: one `Option<Box<_>>` word.
 //! A request that does holds one entry per slot — the closure reference, its
 //! two fragments and the placeholder bytes — until the pass, and each slot's
-//! output until it is spliced. All of it is the request's, under its memory
-//! cap, and freed with it.
+//! output until it is spliced. A slotted response holds no whole page: the
+//! shell is written once and freed, each fill is held from its slot's end
+//! until it is written, and the held-back end until the last fill. All of it
+//! is the request's, under its memory cap, and freed with it.
 
+use std::cell::RefCell;
+use std::collections::VecDeque;
+use std::rc::Rc;
 use std::time::Duration;
 
 use nvs_render::Level;
 
 use crate::ctx::Ctx;
 use crate::host::{Bounds, Job, Outcome};
+use crate::stream::{BodySlot, Emit, Scripts};
 use crate::string::NvsStr;
 use crate::throwable::ThrownClass;
 use crate::value::Value;
+
+/// What every placeholder begins with, up to its name.
+const START: &[u8] = b"<?start name=\"";
 
 /// The URL-safe base64 alphabet a token is written in.
 const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
@@ -146,7 +180,8 @@ impl Ctx {
         let number = slots.next;
         slots.next += 1;
         let mut marker = Vec::with_capacity(placeholder.len() + 48);
-        marker.extend_from_slice(b"<?start name=\"nvs-");
+        marker.extend_from_slice(START);
+        marker.extend_from_slice(b"nvs-");
         marker.extend_from_slice(&slots.token);
         marker.extend_from_slice(format!("-{number}\">").as_bytes());
         marker.extend_from_slice(placeholder);
@@ -225,54 +260,19 @@ pub fn run_later(ctx: &mut Ctx) {
     let Some(mut body) = ctx.take_buffered_output() else {
         return;
     };
+    if let Some((cell, scripts)) = slotted_cell(ctx) {
+        deliver(ctx, body, &cell, scripts);
+        return;
+    }
     assemble(ctx, &mut body);
     ctx.restore_body(body);
 }
 
 /// The pass itself, over `body`, for the slots `ctx` registered.
 fn assemble(ctx: &mut Ctx, body: &mut Vec<u8>) {
-    let Some(mut slots) = ctx.later.take() else {
+    let Some(running) = claim(ctx, body) else {
         return;
     };
-    // Kept on the context with no entries, so a slot started below still
-    // inherits the token through `Ctx::child`.
-    let entries: Vec<Slot> = slots.entries.drain(..).collect();
-    ctx.later = Some(slots);
-
-    let mut running = Vec::new();
-    let mut doubled = false;
-    for slot in entries {
-        match occurrences(body, &slot.marker) {
-            1 => running.push(slot),
-            0 => {
-                let record = crate::floor::note(
-                    Level::Warn,
-                    "a `Core\\Html::later` placeholder was never written to the page, so its \
-                     closure did not run",
-                );
-                crate::floor::report(ctx, &record);
-                release(slot.closure);
-            }
-            _ => {
-                doubled = true;
-                release(slot.closure);
-            }
-        }
-    }
-    if doubled {
-        for slot in running {
-            release(slot.closure);
-        }
-        ctx.set_pending_as(
-            ThrownClass::Logic,
-            "a `Core\\Html::later` placeholder was written twice; write each one once",
-        );
-        return;
-    }
-    if running.is_empty() {
-        return;
-    }
-
     let jobs: Vec<Job> = running
         .iter()
         .map(|slot| {
@@ -318,6 +318,220 @@ fn assemble(ctx: &mut Ctx, body: &mut Vec<u8>) {
     for slot in running {
         release(slot.closure);
     }
+}
+
+/// The slots `ctx` registered whose placeholder `body` carries once, taken off
+/// the context, and `None` where there is nothing to run.
+///
+/// A placeholder written nowhere cancels its slot with a `Warn`. One written
+/// twice cancels every slot and leaves `LogicError` pending.
+fn claim(ctx: &mut Ctx, body: &[u8]) -> Option<Vec<Slot>> {
+    let mut slots = ctx.later.take()?;
+    // Kept on the context with no entries, so a slot started below still
+    // inherits the token through `Ctx::child`.
+    let entries: Vec<Slot> = slots.entries.drain(..).collect();
+    ctx.later = Some(slots);
+
+    let mut running = Vec::new();
+    let mut doubled = false;
+    for slot in entries {
+        match occurrences(body, &slot.marker) {
+            1 => running.push(slot),
+            0 => {
+                let record = crate::floor::note(
+                    Level::Warn,
+                    "a `Core\\Html::later` placeholder was never written to the page, so its \
+                     closure did not run",
+                );
+                crate::floor::report(ctx, &record);
+                release(slot.closure);
+            }
+            _ => {
+                doubled = true;
+                release(slot.closure);
+            }
+        }
+    }
+    if doubled {
+        for slot in running {
+            release(slot.closure);
+        }
+        ctx.set_pending_as(
+            ThrownClass::Logic,
+            "a `Core\\Html::later` placeholder was written twice; write each one once",
+        );
+        return None;
+    }
+    (!running.is_empty()).then_some(running)
+}
+
+/// The cell a slotted page is sent through, and what it sends beside its
+/// fills: `None` where the response is not slotted, or where it cannot be sent
+/// over time — no host to park on, no connection, or a body already opened.
+fn slotted_cell(ctx: &Ctx) -> Option<(BodySlot, Scripts)> {
+    if !ctx.is_slotted() || crate::host::with_current(|_| ()).is_none() {
+        return None;
+    }
+    let cell = ctx
+        .inbound()
+        .and_then(crate::ctx::Inbound::response_stream_slot)?;
+    let scripts = cell.scripts()?;
+    (!cell.is_open()).then(|| (cell.clone(), scripts))
+}
+
+/// The slotted delivery: `body` goes out as the shell, without its
+/// `</body>` and what follows, then each slot's output as a `<template for>`
+/// fill in the order the slots finish, then the held-back end.
+fn deliver(ctx: &mut Ctx, mut body: Vec<u8>, cell: &BodySlot, scripts: Scripts) {
+    let Some(running) = claim(ctx, &body) else {
+        ctx.restore_body(body);
+        return;
+    };
+    let content_type = ctx.take_content_type();
+    let media_type = content_type
+        .as_deref()
+        .unwrap_or(crate::host::ECHOED_MEDIA_TYPE);
+    let status = ctx.take_status();
+    let headers = ctx.take_headers();
+    // `slotted_cell` checked the cell is unopened, so this always opens it.
+    let Some(mut emit) = cell.open_slotted(media_type, status, headers) else {
+        ctx.restore_body(body);
+        return;
+    };
+    let end = body.split_off(held_back(&body));
+    // A client that has gone is not the program's error, and the slots run on
+    // all the same (`rule:http-server/a-request-outlives-a-client-that-goes-away`).
+    let _ = emit.send_all(body);
+
+    let outbox = Rc::new(RefCell::new(Outbox {
+        emit: Some(emit),
+        queue: VecDeque::new(),
+        filled: vec![false; running.len()],
+        polyfill: Some(scripts.polyfill),
+        trigger: scripts.trigger,
+    }));
+    let jobs: Vec<Job> = running
+        .iter()
+        .enumerate()
+        .map(|(index, slot)| {
+            let closure = slot.closure;
+            let deadline = slot.deadline;
+            let error = slot.error.clone();
+            let name = name_of(&slot.marker).to_vec();
+            let outbox = Rc::clone(&outbox);
+            Box::new(move |child: &mut Ctx| {
+                let answer = fill(child, closure, deadline, &error);
+                // A string is a finished slot. `null` is a slot stopped by a
+                // limit or cancelled, which the pass below fills instead.
+                if let Some(bytes) = answer.as_str_bytes() {
+                    post(&outbox, index, &name, bytes);
+                    pump(&outbox);
+                }
+                release(answer);
+                Value::null()
+            }) as Job
+        })
+        .collect();
+    let outcome = crate::host::with_current(|host| host.run_group(ctx, jobs, Bounds::default()));
+    let failed = match outcome {
+        Some(Outcome::Fatal(message)) => {
+            ctx.set_pending_fatal(message);
+            true
+        }
+        Some(Outcome::Threw(thrown)) => {
+            ctx.raise(thrown);
+            true
+        }
+        _ => false,
+    };
+    // The head is already out, so a limit breach cannot change the status.
+    // Every slot still open shows its `error` fragment, and the page ends.
+    if failed {
+        for (index, slot) in running.iter().enumerate() {
+            post(&outbox, index, name_of(&slot.marker), &slot.error);
+        }
+    }
+    pump(&outbox);
+    if let Some(mut emit) = outbox.borrow_mut().emit.take() {
+        let _ = emit.send_all(end);
+        emit.finish();
+    }
+    for slot in running {
+        release(slot.closure);
+    }
+}
+
+/// What the slots of one slotted page share while they run: the writing half,
+/// the fills waiting for it, and which slots have one.
+struct Outbox {
+    /// `None` while a slot's task is writing. Only one task writes at a time,
+    /// because a write can park and the cell wakes one writer.
+    emit: Option<Emit>,
+    /// Fills in the order their slots finished, not yet written.
+    queue: VecDeque<Vec<u8>>,
+    filled: Vec<bool>,
+    /// Taken by the first fill, which is the only one that carries it.
+    polyfill: Option<&'static str>,
+    trigger: &'static str,
+}
+
+/// Queues the fill for slot `index`, unless it already has one.
+fn post(outbox: &RefCell<Outbox>, index: usize, name: &[u8], content: &[u8]) {
+    let mut outbox = outbox.borrow_mut();
+    if std::mem::replace(&mut outbox.filled[index], true) {
+        return;
+    }
+    let mut chunk = Vec::with_capacity(content.len() + 96);
+    if let Some(polyfill) = outbox.polyfill.take() {
+        chunk.extend_from_slice(b"<script>");
+        chunk.extend_from_slice(polyfill.as_bytes());
+        chunk.extend_from_slice(b"</script>");
+    }
+    chunk.extend_from_slice(b"<template for=\"");
+    chunk.extend_from_slice(name);
+    chunk.extend_from_slice(b"\">");
+    chunk.extend_from_slice(content);
+    chunk.extend_from_slice(b"</template><script>");
+    chunk.extend_from_slice(outbox.trigger.as_bytes());
+    chunk.extend_from_slice(b"</script>");
+    outbox.queue.push_back(chunk);
+}
+
+/// Writes every queued fill, unless another task is already writing: that
+/// task writes this one too before it gives the writing half back.
+fn pump(outbox: &RefCell<Outbox>) {
+    loop {
+        let (mut emit, chunk) = {
+            let mut outbox = outbox.borrow_mut();
+            let Some(emit) = outbox.emit.take() else {
+                return;
+            };
+            let Some(chunk) = outbox.queue.pop_front() else {
+                outbox.emit = Some(emit);
+                return;
+            };
+            (emit, chunk)
+        };
+        // A client that has gone: the fill is dropped and the slots run on.
+        let _ = emit.send_all(chunk);
+        outbox.borrow_mut().emit = Some(emit);
+    }
+}
+
+/// The slot's name, `nvs-<token>-<n>`, out of its whole placeholder.
+fn name_of(marker: &[u8]) -> &[u8] {
+    let name = &marker[START.len()..];
+    let end = name.iter().position(|&byte| byte == b'"').unwrap_or(0);
+    &name[..end]
+}
+
+/// Where the part of the page sent after the last fill begins: the last
+/// `</body`, in any case, or the end of the page where it has none.
+fn held_back(body: &[u8]) -> usize {
+    const CLOSE: &[u8] = b"</body";
+    body.windows(CLOSE.len())
+        .rposition(|window| window.eq_ignore_ascii_case(CLOSE))
+        .unwrap_or(body.len())
 }
 
 /// One slot, as a group of one under its own deadline, answering the bytes
