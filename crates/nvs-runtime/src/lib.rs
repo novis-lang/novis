@@ -229,6 +229,7 @@ pub mod helpers;
 pub mod host;
 pub mod identity;
 pub mod inproc;
+pub mod later;
 pub mod logfile;
 pub mod metrics;
 pub mod object;

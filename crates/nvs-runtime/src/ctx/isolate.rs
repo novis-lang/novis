@@ -338,6 +338,13 @@ impl Ctx {
         // ended. `crate::deferred` is the one home for that rule and for why a
         // refusal is the only honest answer to a registration nothing would run.
         child.deferred = None;
+        // `rule:core-classes/html-later`'s token is the request's, so a slot a
+        // task registers carries the same one; the slots themselves are the
+        // task's own.
+        child.later = self
+            .later
+            .as_ref()
+            .map(|slots| Box::new(slots.sharing_token()));
         child
     }
 

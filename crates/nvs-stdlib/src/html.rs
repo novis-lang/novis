@@ -151,7 +151,7 @@ use html5ever::{Attribute, QualName};
 use nvs_runtime::{Fault, NvsStr, Tag, Value};
 
 use crate::registry::{
-    ClassDoc, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
+    ClassDoc, Const, CoreClass, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
 };
 use crate::xml::{DEPTH_CEILING, Kind, Parsed};
 
@@ -198,6 +198,18 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             return_ty: CoreTy::Instance(MARKUP_NAME),
             symbol: "nvs_core_html_join",
             doc: Some(&JOIN_DOC),
+        },
+        CoreMethod {
+            name: "later",
+            names: &["fn"],
+            params: &[
+                CoreTy::CallableSig(&[], &CoreTy::Mixed),
+                CoreTy::Options(LATER_OPTIONS),
+            ],
+            defaults: &[],
+            return_ty: CoreTy::Instance(MARKUP_NAME),
+            symbol: "nvs_core_html_later",
+            doc: Some(&LATER_DOC),
         },
         CoreMethod {
             name: "toSource",
@@ -369,6 +381,64 @@ const JOIN_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
+/// `Core\Html::later`'s options, in the order the ABI passes them.
+const LATER_OPTIONS: &[CoreOption] = &[
+    CoreOption {
+        name: "placeholder",
+        ty: CoreTy::Instance(MARKUP_NAME),
+        default: Const::Null,
+    },
+    CoreOption {
+        name: "error",
+        ty: CoreTy::Instance(MARKUP_NAME),
+        default: Const::Null,
+    },
+    CoreOption {
+        name: "deadline",
+        ty: CoreTy::Instance(crate::time::DURATION_NAME),
+        default: Const::Null,
+    },
+];
+
+/// `Core\Html::later`'s reference card — `rule:core-api/reference-card`.
+const LATER_DOC: MethodDoc = MethodDoc {
+    short: "Runs `$fn` as a separate task and returns a placeholder. Write the placeholder where \
+            the output belongs. When the page is finished, the output of `$fn` replaces the \
+            placeholder. Several `later` calls run at the same time.",
+    params: &[
+        ParamDoc {
+            name: "fn",
+            desc: "The closure to run. It takes no arguments. Its output is what it echoes, \
+                   followed by the `Core\\Html\\Markup` it returns, if any.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "placeholder",
+            desc: "The markup the page shows until the output is ready. The default is empty.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "error",
+            desc: "The markup shown instead of the output when `$fn` throws an error or runs \
+                   past its `deadline`. The default is empty.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "deadline",
+            desc: "The longest time `$fn` may run. Without it, only the request's own limits \
+                   apply.",
+            shape: &[],
+        },
+    ],
+    ret: "A `Core\\Html\\Markup` placeholder. Outside an HTML response, `$fn` runs at once and \
+          the result is its output.",
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "When the page writes the same placeholder twice. A placeholder that the page never \
+               writes is not an error: its closure does not run, and a warning is logged.",
+    }],
+};
+
 /// `Core\Html::toSource`'s reference card — `rule:core-api/reference-card`.
 const TO_SOURCE_DOC: MethodDoc = MethodDoc {
     short: "Hands back the source text a `Core\\Html\\Markup` carries — the one way out of the \
@@ -446,6 +516,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     Some(match symbol {
         "nvs_core_html_escape" => (nvs_core_html_escape as *const ()).cast(),
         "nvs_core_html_join" => (nvs_core_html_join as *const ()).cast(),
+        "nvs_core_html_later" => (nvs_core_html_later as *const ()).cast(),
         "nvs_core_html_parse" => (nvs_core_html_parse as *const ()).cast(),
         "nvs_core_html_sanitize" => (nvs_core_html_sanitize as *const ()).cast(),
         "nvs_core_html_to_source" => (nvs_core_html_to_source as *const ()).cast(),
@@ -524,6 +595,80 @@ fn escaped_text(value: Value, subject: &str) -> Result<Value, Fault> {
         return Ok(value);
     };
     Ok(Value::str(NvsStr::new(escaped.as_bytes())))
+}
+
+/// The bytes of an optional `Markup` option, or nothing for one the call did
+/// not name.
+fn option_bytes(value: Value, position: &str) -> Result<Vec<u8>, Fault> {
+    if value.obj_ptr().is_none() {
+        return Ok(Vec::new());
+    }
+    let slot = markup_slot(value, position)?;
+    Ok(slot.as_str_bytes().unwrap_or_default().to_vec())
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Html::later(callable $fn, {placeholder?, error?, deadline?}): Markup`
+    /// — `rule:core-classes/html-later`.
+    ///
+    /// In an HTML response the body is a registration: the closure and its two
+    /// fragments go to the request's slots and the answer is the placeholder.
+    /// `nvs_runtime::later` owns when a slot runs and how its output reaches
+    /// the page. Anywhere else there is no page to assemble, so the closure
+    /// runs here and its output is the answer.
+    fn nvs_core_html_later(ctx, args: [4]) {
+        // Unreachable from source: the parameter is a callable, so `null` is
+        // refused at the call.
+        if args[0].tag() == Some(Tag::Null) {
+            return Err(Fault::fatal(
+                "Core\\Html::later expected a closure, got null".to_string(),
+            ));
+        }
+        let placeholder = option_bytes(args[1], "`Core\\Html::later`'s `placeholder`")?;
+        let error = option_bytes(args[2], "`Core\\Html::later`'s `error`")?;
+        let deadline = if args[3].obj_ptr().is_some() {
+            let nanos = crate::time::nanos_of(args, 3, "deadline")?;
+            Some(std::time::Duration::from_nanos(u64::try_from(nanos).unwrap_or(0)))
+        } else {
+            None
+        };
+        if ctx.carrier() == MARKUP_NAME {
+            #[expect(
+                unsafe_code,
+                reason = "the argument is borrowed from the caller's frame and the \
+                          slot keeps it past this call, so it needs a reference of its own"
+            )]
+            // SAFETY: the caller's argument slot is live for this call; the
+            // reference taken here is the one the slot releases.
+            unsafe {
+                args[0].retain();
+            }
+            let marker = ctx.register_later(args[0], &placeholder, &error, deadline);
+            return Ok(crate::instance::build(
+                &MARKUP,
+                [Value::str(NvsStr::new(&marker))],
+            ));
+        }
+        ctx.begin_capture();
+        let answer = nvs_runtime::call_closure(ctx, args[0], &[]);
+        let mut bytes = ctx.end_capture().unwrap_or_default();
+        let answer = answer?;
+        if answer.obj_ptr().is_some() {
+            let slot = markup_slot(answer, "the `Markup` `Core\\Html::later`'s closure returned");
+            if let Ok(slot) = slot {
+                bytes.extend_from_slice(slot.as_str_bytes().unwrap_or_default());
+            }
+        }
+        #[expect(
+            unsafe_code,
+            reason = "`call_closure` answered with a reference this frame owns"
+        )]
+        // SAFETY: as above, and nothing reads `answer` after this.
+        unsafe {
+            answer.release();
+        }
+        Ok(crate::instance::build(&MARKUP, [Value::str(NvsStr::new(&bytes))]))
+    }
 }
 
 nvs_runtime::nvs_helper! {

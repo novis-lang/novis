@@ -805,6 +805,16 @@ impl Ctx {
         self.headers.take()
     }
 
+    /// Puts `body` back in front of whatever was written since it was taken
+    /// with [`Self::take_buffered_output`], without charging `[limits]
+    /// max_output` a second time for bytes it already counted.
+    pub(crate) fn restore_body(&mut self, mut body: Vec<u8>) {
+        if let OutputSink::Buffer(buffer) | OutputSink::Body(buffer) = &mut self.output {
+            body.append(buffer);
+            *buffer = body;
+        }
+    }
+
     /// Takes everything written so far, if this context buffers its output.
     #[must_use]
     pub fn take_buffered_output(&mut self) -> Option<Vec<u8>> {

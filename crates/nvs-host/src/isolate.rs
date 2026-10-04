@@ -1019,6 +1019,9 @@ fn start_as_task(
         let _unpublished = unpublished;
         let began = timed.then(Instant::now);
         let answer = program(child, args);
+        // `rule:core-classes/html-later`: the page is the body with every slot
+        // filled, so the pass runs before the answer is copied out.
+        nvs_runtime::later::run_later(child);
         // Stopped where the body stops and before the crossing below, so the
         // copy-out lands on the parent's side of the split rather than inside
         // the child's own compute.
@@ -1140,6 +1143,7 @@ pub(crate) fn run_here(
     // body is what it measures.
     let began = timed.then(Instant::now);
     let answer = program(&mut isolate_ctx, args);
+    nvs_runtime::later::run_later(&mut isolate_ctx);
     let wall = began.map(|at| at.elapsed());
     let mut completion = finish(&mut isolate_ctx, answer, receiving.as_ref());
     completion.wall = wall;

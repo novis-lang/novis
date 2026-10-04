@@ -738,6 +738,12 @@ pub struct Ctx {
     ///
     /// **What it spends:** one word per request.
     holds_deferred_slot: bool,
+    /// `rule:core-classes/html-later`'s slots, or `None` for a request that
+    /// never called `Core\Html::later`. [`mod@crate::later`] owns when they run.
+    ///
+    /// **What it spends:** one word per request, and the slots themselves only
+    /// for a request that registers one.
+    pub(crate) later: Option<Box<crate::later::Slots>>,
     /// What is behind a pending `THROWN` or `FATAL` status — see [`Pending`]
     /// for why one field carries both shapes rather than two sitting beside
     /// each other.
