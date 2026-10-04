@@ -13,7 +13,7 @@ error[E0420]: a value of type `string` is not callable
   |
 6 | echo $function($name), "\n";
   |      ^^^^^^^^^^^^^^^^ called with `(...)` here
-  = help: only a closure is callable (`rule:types/callable-values`): write an `fn` literal, or take a reference with first-class callable syntax — `Class::method(...)` or `$obj->method(...)`. A string holding a function's name is not one
+  = help: only an anonymous function or a method reference can be called. Write `fn (...) => ...`, or `Class::method(...)` or `$obj->method(...)`. A string with a function's name cannot be called
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.

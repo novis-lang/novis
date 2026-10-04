@@ -187,7 +187,7 @@ impl<'a> Lowering<'a> {
             // checker joined it to (`rule:programs/relative-paths-resolve-from-their-file`):
             // the same constant, with different bytes, and nothing at run time.
             ExprKind::Str(span) => {
-                let s = match self.exprs.path_literal(*span) {
+                let s = match self.exprs.written_path(*span) {
                     Some(path) => path.to_owned(),
                     None => cook_str_literal(self.src, *span),
                 };
@@ -218,7 +218,7 @@ impl<'a> Lowering<'a> {
             // deliberately skips `collapse_string_parts` for this node, since
             // the node and not the part count is what says
             // `Core\Html\Markup`.
-            ExprKind::Markup(parts) => self.lower_markup_literal(parts, env, cur),
+            ExprKind::HtmlTemplate(parts) => self.lower_markup_literal(parts, env, cur),
             ExprKind::Variable(span) => {
                 let name = strip_sigil(span_text(self.src, *span));
                 let &(v, ty) = env.get(name).unwrap_or_else(|| {
@@ -310,7 +310,7 @@ impl<'a> Lowering<'a> {
                 // replaced with the path of the file that wrote them, under
                 // the call's span in the table a path literal uses
                 // (`rule:programs/relative-paths-resolve-from-their-file`).
-                if let Some(path) = self.exprs.path_literal(expr.span) {
+                if let Some(path) = self.exprs.written_path(expr.span) {
                     return self.emit(*cur, Ty::Str, InstKind::ConstStr(path.to_owned()));
                 }
                 // `rule:programs/implementing-with`'s join: the same list, each
@@ -376,7 +376,7 @@ impl<'a> Lowering<'a> {
                 property,
             } => self.lower_property_access(object, property, *nullsafe, expr, env, cur),
             ExprKind::ArrayLiteral(items) => self.lower_array_literal(items, env, cur),
-            ExprKind::ObjectLiteral(fields) => self.lower_object_literal(fields, env, cur),
+            ExprKind::AnonObject(fields) => self.lower_object_literal(fields, env, cur),
             ExprKind::Index { base, index } => {
                 self.lower_index(base, index.as_deref(), expr, env, cur)
             }
@@ -625,12 +625,12 @@ impl<'a> Lowering<'a> {
             // below — which is why the guard is the checker's own record and
             // not the syntax.
             ExprKind::ConstFetch(_)
-                if matches!(self.exprs.lookup(expr.span), Some(ExprInfo::ClosureSelf)) =>
+                if matches!(self.exprs.lookup(expr.span), Some(ExprInfo::AnonFnSelf)) =>
             {
                 *env.get(closure::FN_SELF).unwrap_or_else(|| {
                     panic!(
-                        "nvs-ir: `ExprInfo::ClosureSelf` outside a closure body — \
-                         nvs_types::expr::calls::check_fn_literal binds `rule:types/anonymous-function-self-name`'s \
+                        "nvs-ir: `ExprInfo::AnonFnSelf` outside a closure body — \
+                         nvs_types::expr::calls::check_anon_fn binds `rule:types/anonymous-function-self-name`'s \
                          self-name for one body, whose invoke binds `FN_SELF` at entry"
                     )
                 })
@@ -737,7 +737,7 @@ impl<'a> Lowering<'a> {
             // A markup literal written straight at a sink is the one operand
             // that never becomes a value at all — see
             // [`Self::echo_markup_parts`].
-            if let ExprKind::Markup(parts) = &operand.kind {
+            if let ExprKind::HtmlTemplate(parts) = &operand.kind {
                 self.echo_markup_parts(parts, env, cur);
                 continue;
             }
@@ -811,7 +811,7 @@ impl<'a> Lowering<'a> {
             let mark = self.temporaries_mark();
             let piece = match part {
                 StringPart::Text(span) => {
-                    let s = nvs_types::string_lit::cook_markup_text(self.src, *span).0;
+                    let s = nvs_types::string_lit::cook_html_template_text(self.src, *span).0;
                     self.emit(*cur, Ty::Str, InstKind::ConstStr(s)).0
                 }
                 StringPart::Expr(e) => self.lower_markup_hole(e, env, cur),
@@ -2306,7 +2306,7 @@ impl<'a> Lowering<'a> {
         }
         (v, Ty::Str)
     }
-    /// Lowers `ExprKind::Markup`'s parts into the one `Core\Html\Markup` they
+    /// Lowers `ExprKind::HtmlTemplate`'s parts into the one `Core\Html\Markup` they
     /// denote — `rule:core-classes/html-template`'s **value** position, which is
     /// the literal assigned, returned or put in an array rather than written
     /// straight to a sink.
@@ -2319,7 +2319,7 @@ impl<'a> Lowering<'a> {
     ///
     /// **One carrier, however many pieces**, for a literal that has holes. Each
     /// piece becomes bytes first — a
-    /// segment cooked by `nvs_types::string_lit::cook_markup_text`, a hole by
+    /// segment cooked by `nvs_types::string_lit::cook_html_template_text`, a hole by
     /// [`Self::lower_markup_hole`] — and the join is the same n-ary
     /// [`InstKind::Concat`] an interpolated string's parts fold to. Only the
     /// join is lifted, through the identical `nvs_types::CORE_HTML_MARKUP` call
@@ -2349,7 +2349,9 @@ impl<'a> Lowering<'a> {
                     // The issues are discarded for the reason the pieces below
                     // discard theirs: `nvs_types::check_program` has already
                     // reported them against this same span.
-                    text.push_str(&nvs_types::string_lit::cook_markup_text(self.src, *span).0);
+                    text.push_str(
+                        &nvs_types::string_lit::cook_html_template_text(self.src, *span).0,
+                    );
                 }
             }
             return self.emit(*cur, Ty::Object, InstKind::ConstMarkup(text));
@@ -2361,7 +2363,7 @@ impl<'a> Lowering<'a> {
                 StringPart::Text(span) => {
                     // The issues are discarded: `nvs_types::check_program` has
                     // already reported them against this same span.
-                    let s = nvs_types::string_lit::cook_markup_text(self.src, *span).0;
+                    let s = nvs_types::string_lit::cook_html_template_text(self.src, *span).0;
                     self.emit(*cur, Ty::Str, InstKind::ConstStr(s)).0
                 }
                 StringPart::Expr(e) => self.lower_markup_hole(e, env, cur),
@@ -2409,7 +2411,7 @@ impl<'a> Lowering<'a> {
     /// other hole is escaped** (`rule:core-classes/html-template`), which is the
     /// one question here. It cannot be asked of the [`Ty`]s: a carrier and a
     /// `rule:classes/stringable` object both erase to [`Ty::Object`]. So
-    /// `nvs_types::expr::literals::infer_markup_literal` records the hole's
+    /// `nvs_types::expr::literals::infer_html_template` records the hole's
     /// checked type at the hole's own span and [`Self::hole_is_carrier`] reads
     /// it back.
     ///
@@ -2876,7 +2878,7 @@ impl<'a> Lowering<'a> {
         env: &mut Env,
         cur: &mut BlockId,
     ) -> (ValueId, Ty) {
-        let Some(ExprInfo::Closure {
+        let Some(ExprInfo::AnonFn {
             class,
             captures,
             return_ty,
@@ -3799,7 +3801,7 @@ impl<'a> Lowering<'a> {
         if !matches!(
             &path.kind,
             ExprKind::StaticCall {
-                args: CallArgs::FirstClassCallable,
+                args: CallArgs::MethodRef,
                 ..
             }
         ) {
@@ -3930,7 +3932,7 @@ impl<'a> Lowering<'a> {
     /// # Panics
     ///
     /// Panics for an argument that is not an object literal, or one missing
-    /// either field: `nvs_types::check_program` reports `E_OPTIONS_NOT_A_LITERAL`
+    /// either field: `nvs_types::check_program` reports `E_OPTIONS_NOT_AN_ANON_OBJECT`
     /// for the first and a shape mismatch for the second, exactly as
     /// [`Self::lower_options_arg`] trusts it to.
     fn lower_signing_settings(
@@ -3940,11 +3942,11 @@ impl<'a> Lowering<'a> {
         cur: &mut BlockId,
         out: &mut Vec<ValueId>,
     ) {
-        let ExprKind::ObjectLiteral(fields) = &written.kind else {
+        let ExprKind::AnonObject(fields) = &written.kind else {
             panic!(
                 "nvs-ir: `Core\\Router::urlSigned`'s settings lowered from something that is not \
                  an object literal — nvs_types::check_program is trusted to have reported \
-                 E_OPTIONS_NOT_A_LITERAL"
+                 E_OPTIONS_NOT_AN_ANON_OBJECT"
             )
         };
         for name in ["keys", "until"] {
@@ -3989,7 +3991,7 @@ impl<'a> Lowering<'a> {
         }
         // `rule:types/callable-is-the-only-function-type`'s `bind`, `bindTo` and `call`,
         // which no class declares, so no `ExprInfo::Call` names them.
-        if let Some(ExprInfo::ClosureRebind { call }) = self.exprs.lookup(expr.span) {
+        if let Some(ExprInfo::CallableRebind { call }) = self.exprs.lookup(expr.span) {
             let call = *call;
             return self.lower_closure_rebind(object, nullsafe, call, args, env, cur);
         }
@@ -4949,14 +4951,14 @@ impl<'a> Lowering<'a> {
     ///
     /// The assert on a literal that writes one field name twice is an
     /// internal-consistency check rather than a gap: a shape's fields are a
-    /// set, so `nvs_types::expr::literals::check_object_literal` refuses the
+    /// set, so `nvs_types::expr::literals::check_anon_object` refuses the
     /// repeat where it is written as `E0494` and nothing that reaches here
     /// carries one. It stays because the disagreement it would otherwise hide
     /// is silent — the interned shape reads the first of the pair and the
     /// class below carries one slot per name.
     fn lower_object_literal(
         &mut self,
-        fields: &[ObjectLiteralField],
+        fields: &[AnonObjectField],
         env: &mut Env,
         cur: &mut BlockId,
     ) -> (ValueId, Ty) {
@@ -4970,7 +4972,7 @@ impl<'a> Lowering<'a> {
         assert!(
             sorted.len() == names.len(),
             "an object literal writing one field name twice reached lowering: a shape's \
-             fields are a set, so `nvs_types::expr::literals::check_object_literal` refuses \
+             fields are a set, so `nvs_types::expr::literals::check_anon_object` refuses \
              the repeat where it is written, as `E0494` — the interned shape reads the \
              first of the pair while this class carries one slot per name, and there is no \
              layout the two sides agree on"
@@ -4994,7 +4996,7 @@ impl<'a> Lowering<'a> {
         let mut reprs: FxHashMap<&str, Ty> = FxHashMap::default();
         for (field, name) in fields.iter().zip(&names) {
             // A field the checker gave its declared type, when the literal sits
-            // at a declared shape (`nvs_types::expr::literals::check_object_literal`),
+            // at a declared shape (`nvs_types::expr::literals::check_anon_object`),
             // is converted to that type here and its slot has that type: `{w: 2}`
             // at `{w: float}` stores `2.0` in a `float` slot. Any other field
             // stores its value as the value lowered.
@@ -6731,8 +6733,8 @@ fn test_shape(
     // keeps out of the type (§ 3) and which the run's own enum table holds
     // instead.
     let literal = match checked_types.get(tested) {
-        CheckedTy::StringLiteral(text) => Some((Ty::Str, LiteralAtom::Str(text.clone()))),
-        CheckedTy::IntLiteral(value) => Some((Ty::Int, LiteralAtom::Int(*value))),
+        CheckedTy::SingleValueString(text) => Some((Ty::Str, LiteralAtom::Str(text.clone()))),
+        CheckedTy::SingleValueInt(value) => Some((Ty::Int, LiteralAtom::Int(*value))),
         // `rule:types/grammar`'s two `bool` singletons, which are types here
         // and not values: `$x is true` is this row, `$x == true` is not.
         CheckedTy::True => Some((Ty::Bool, LiteralAtom::Bool(true))),

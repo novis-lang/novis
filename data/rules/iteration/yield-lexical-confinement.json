@@ -11,6 +11,6 @@
   ],
   "guardedBy": [
     "crates/nvs-types/tests/generators.rs",
-    "crates/nvs-types/tests/closures.rs"
+    "crates/nvs-types/tests/anon_fns.rs"
   ]
 }

@@ -9,7 +9,7 @@ autoload discover '../../*/src';                       // each directory names i
 
 Paths resolve **relative to the file that declares them**, never to the entry point, which is what lets
 one framework directory serve many unrelated project trees. A concatenated or interpolated path is
-`E_AUTOLOAD_PATH_NOT_LITERAL`. A prefix carries no trailing separator; matching appends one.
+`E_AUTOLOAD_PATH_NOT_WRITTEN_DIRECTLY`. A prefix carries no trailing separator; matching appends one.
 
 Every prefix segment is a `PascalCase` namespace segment, or the declaration is
 `E_AUTOLOAD_PREFIX_SHAPE`: a prefix that no name can match, such as the PSR-4 `'App\*'`, is reported

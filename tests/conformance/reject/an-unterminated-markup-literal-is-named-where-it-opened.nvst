@@ -12,6 +12,6 @@ echo "unreachable\n";
 --EXPECT--
 
 --EXPECTF-ERROR--
-error[E0002]: unterminated markup literal
+error[E0002]: unterminated html template
   --> case.nvs:7:13
 %A

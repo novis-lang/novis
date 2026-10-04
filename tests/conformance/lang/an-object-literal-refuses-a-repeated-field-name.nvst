@@ -21,28 +21,28 @@ array<int> $rows = [1];
 echo Core\Json::encode($rows, {pretty: true, pretty: false}), "\n";
 echo "unreached\n";
 --EXPECTF-ERROR--
-error[E0494]: the field `a` is written twice in this object literal
+error[E0494]: the field `a` is written twice in this anonymous object
   --> %s:6:21
   |
 6 | var $twice = {a: 1, a: 2};
   |                     ^ already given a value above
   = help: a shape's fields are a set, so there is one slot per name — drop one of the two, or give the second field its own name
 
-error[E0494]: the field `b` is written twice in this object literal
+error[E0494]: the field `b` is written twice in this anonymous object
   --> %s:9:22
   |
 9 | var $thrice = {b: 1, b: 2, b: 3};
   |                      ^ already given a value above
   = help: a shape's fields are a set, so there is one slot per name — drop one of the two, or give the second field its own name
 
-error[E0494]: the field `b` is written twice in this object literal
+error[E0494]: the field `b` is written twice in this anonymous object
   --> %s:9:28
   |
 9 | var $thrice = {b: 1, b: 2, b: 3};
   |                            ^ already given a value above
   = help: a shape's fields are a set, so there is one slot per name — drop one of the two, or give the second field its own name
 
-error[E0494]: the field `inner` is written twice in this object literal
+error[E0494]: the field `inner` is written twice in this anonymous object
    --> %s:12:34
    |
 12 | var $nested = {outer: {inner: 1, inner: 2}};

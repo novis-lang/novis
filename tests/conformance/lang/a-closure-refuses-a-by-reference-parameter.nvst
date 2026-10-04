@@ -26,13 +26,13 @@ echo "unreachable\n";
 --EXPECT--
 
 --EXPECTF-ERROR--
-error[E0493]: a closure cannot take `$n` as `inout`
+error[E0493]: an anonymous function cannot take `$n` as `inout`
   --> case.nvs:9:32
 %A
-error[E0493]: a closure cannot take `$a` as `inout`
+error[E0493]: an anonymous function cannot take `$a` as `inout`
    --> case.nvs:12:32
 %A
-error[E0493]: a closure cannot take `$b` as `inout`
+error[E0493]: an anonymous function cannot take `$b` as `inout`
    --> case.nvs:12:46
 %A
 error: aborting due to 3 errors

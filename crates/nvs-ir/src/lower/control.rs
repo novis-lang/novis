@@ -2245,7 +2245,7 @@ impl<'a> Lowering<'a> {
             // A markup literal's holes are walked beside an interpolation's
             // for the same reason: `html`{$i++}`` re-points `$i` exactly as
             // `"{$i++}"` does, whatever the two literals then denote.
-            ExprKind::Interpolated(parts) | ExprKind::Markup(parts) => {
+            ExprKind::Interpolated(parts) | ExprKind::HtmlTemplate(parts) => {
                 for part in parts {
                     if let StringPart::Expr(x) = part {
                         self.collect_reassigned_in_expr(x, seen, out);
@@ -2260,7 +2260,7 @@ impl<'a> Lowering<'a> {
                     self.collect_reassigned_in_expr(&item.value, seen, out);
                 }
             }
-            ExprKind::ObjectLiteral(fields) => {
+            ExprKind::AnonObject(fields) => {
                 for field in fields {
                     self.collect_reassigned_in_expr(&field.value, seen, out);
                 }

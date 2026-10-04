@@ -19,6 +19,6 @@
     "tests/conformance/lang/a-conversion-into-a-set-of-mixed-literal-kinds-tags-its-operand.nvst",
     "tests/conformance/lang/a-conversion-the-operand-disproves-is-a-compile-error.nvst",
     "tests/conformance/lang/a-true-or-false-target-is-a-literal-type-of-bool.nvst",
-    "crates/nvs-types/tests/literal_types.rs"
+    "crates/nvs-types/tests/single_value_types.rs"
   ]
 }

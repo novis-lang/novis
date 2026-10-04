@@ -71,7 +71,7 @@
 //! * **The cost is one restriction:** an options argument must be written as a
 //!   shape literal at the call site, or omitted — a diagnostic, never silence.
 //!   That is exactly the set of programs that can run today, since
-//!   `ExprKind::ObjectLiteral` has no lowering of its own at all.
+//!   `ExprKind::AnonObject` has no lowering of its own at all.
 //!
 //! A **required, positional** fixed-key shape parameter — `Core\Db::open`'s
 //! `Db\Settings`, the first the spec writes — generalises all four, and is
@@ -540,7 +540,7 @@ pub enum CoreTy {
     /// sites above it. It says what a callback receives, so the checker
     /// answers where the call is written what
     /// [`Self::Callable`] leaves to `nvs_runtime::call_closure`'s per-argument
-    /// tag test, and `nvs_types::expr::calls`' `check_fn_literal` fills an
+    /// tag test, and `nvs_types::expr::calls`' `check_anon_fn` fills an
     /// unannotated `fn($u) => …`'s parameter from it —
     /// `rule:types/anonymous-function-parameter-inference`.
     ///
@@ -664,7 +664,7 @@ pub enum CoreTy {
     /// reason: a position admitting exactly one number admits no choice, and
     /// would be an argument the caller writes and the member could assume.
     /// `a_literal_type_only_appears_inside_a_union` holds that.
-    IntLiteral(i64),
+    SingleValueInt(i64),
     /// `?T` — `rule:expressions/nullable-conversion`'s
     /// nullable, which the spec's own tables write at every member that
     /// answers "absent" (`Core\Arr::first`, `Str::indexOf`, `Path::extension`
@@ -1340,7 +1340,7 @@ impl CoreTy {
                 .map(Self::spelled)
                 .collect::<Vec<_>>()
                 .join("|"),
-            Self::IntLiteral(value) => value.to_string(),
+            Self::SingleValueInt(value) => value.to_string(),
             Self::Nullable(inner) => format!("?{}", inner.spelled()),
             Self::Enum(name) | Self::Instance(name) => (*name).into(),
             Self::InstanceAt(name, args) => {
@@ -4549,7 +4549,7 @@ mod tests {
         fn atoms(ty: &CoreTy) -> Option<Vec<String>> {
             match ty {
                 CoreTy::EnumCase(name, case) => Some(vec![format!("{name}::{case}")]),
-                CoreTy::IntLiteral(value) => Some(vec![format!("int {value}")]),
+                CoreTy::SingleValueInt(value) => Some(vec![format!("int {value}")]),
                 CoreTy::Union(members) => {
                     let mut all = Vec::new();
                     for member in *members {
@@ -5876,13 +5876,13 @@ mod tests {
     }
 
     /// A literal type is only ever a member of a union — see
-    /// [`CoreTy::IntLiteral`] for why a position admitting exactly one number
+    /// [`CoreTy::SingleValueInt`] for why a position admitting exactly one number
     /// is not a position at all.
     #[test]
     fn a_literal_type_only_appears_inside_a_union() {
         for (what, ty) in every_type() {
             assert!(
-                !matches!(ty, CoreTy::IntLiteral(_)),
+                !matches!(ty, CoreTy::SingleValueInt(_)),
                 "{what} takes or answers a bare literal type"
             );
         }
@@ -5890,7 +5890,7 @@ mod tests {
             for method in class.members() {
                 for option in method.options().unwrap_or(&[]) {
                     assert!(
-                        !matches!(option.ty, CoreTy::IntLiteral(_)),
+                        !matches!(option.ty, CoreTy::SingleValueInt(_)),
                         "{}::{}'s option `{}` is a bare literal type",
                         class.name,
                         method.name,

@@ -29,13 +29,13 @@ echo "after\n";
 --EXPECT--
 
 --EXPECTF-ERROR--
-error[E0834]: `static::` names no class inside a closure body
+error[E0834]: `static::` names no class inside an anonymous function
    --> case.nvs:10:40
 %A
-error[E0834]: `static::` names no class inside a closure body
+error[E0834]: `static::` names no class inside an anonymous function
    --> case.nvs:15:40
 %A
-error[E0834]: `static::` names no class inside a closure body
+error[E0834]: `static::` names no class inside an anonymous function
    --> case.nvs:20:40
 %A
 error: aborting due to 3 errors

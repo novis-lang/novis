@@ -29,7 +29,7 @@ enum Top { Last = 9223372036854775807, Past }
 --EXPECTF-ERROR--
 error[E0219]: an enum cannot be backed by `string`
 %A
-error[E0436]: an enum case's value must be an integer literal
+error[E0436]: an enum case's value must be a whole number written directly in the code
 %A
 error[E0239]: an enum case is not written with `case`
 %A

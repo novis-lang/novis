@@ -3882,7 +3882,7 @@ mod tests {
             | CoreTy::Callable
             | CoreTy::MethodRef
             | CoreTy::Entry
-            | CoreTy::IntLiteral(_) => false,
+            | CoreTy::SingleValueInt(_) => false,
         }
     }
 
@@ -3945,7 +3945,7 @@ mod tests {
             | CoreTy::Callable
             | CoreTy::MethodRef
             | CoreTy::Entry
-            | CoreTy::IntLiteral(_) => true,
+            | CoreTy::SingleValueInt(_) => true,
         }
     }
 

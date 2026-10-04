@@ -4607,8 +4607,8 @@ fn lower_decl_type_answers_every_type_atom_the_grammar_has() {
         (TypeAtom::Never, Some(Ty::Void)),
         (TypeAtom::True, Some(Ty::Bool)),
         (TypeAtom::False, Some(Ty::Bool)),
-        (TypeAtom::StringLiteral(at), Some(Ty::Str)),
-        (TypeAtom::IntLiteral(at), Some(Ty::Int)),
+        (TypeAtom::SingleValueString(at), Some(Ty::Str)),
+        (TypeAtom::SingleValueInt(at), Some(Ty::Int)),
         (TypeAtom::Member(name, at), None),
         (TypeAtom::Iterable, Some(Ty::Tagged)),
         (TypeAtom::Callable, Some(Ty::Object)),
@@ -4715,8 +4715,8 @@ fn erase_checked_ty_answers_every_checked_type_a_value_can_have() {
         (CheckedTy::Never, Ty::Void),
         (CheckedTy::True, Ty::Bool),
         (CheckedTy::False, Ty::Bool),
-        (CheckedTy::StringLiteral("a".to_owned()), Ty::Str),
-        (CheckedTy::IntLiteral(1), Ty::Int),
+        (CheckedTy::SingleValueString("a".to_owned()), Ty::Str),
+        (CheckedTy::SingleValueInt(1), Ty::Int),
         (
             CheckedTy::EnumCase(
                 one.clone(),

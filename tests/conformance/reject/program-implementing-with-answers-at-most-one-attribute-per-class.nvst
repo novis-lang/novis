@@ -18,7 +18,7 @@ echo "after\n";
 --EXPECT--
 
 --EXPECTF-ERROR--
-error[E0728]: `Index::render` carries 2 attached literals satisfying this shape
+error[E0728]: `Index::render` has 2 attribute payloads that match this shape
    --> case.nvs:12:13
 %A
 error: aborting due to 1 error

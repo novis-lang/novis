@@ -4,18 +4,18 @@ A `<?nvs` tag inside a markup literal is `E0010`, reported once per tag with the
 <?nvs
 echo html`<ul><?nvs echo 1; ?><li></li><?nvs ?></ul>`;
 --EXPECTF-ERROR--
-error[E0010]: a code block cannot open inside a markup literal
+error[E0010]: a code block cannot open inside an html template
   --> %s:2:15
   |
 2 | echo html`<ul><?nvs echo 1; ?><li></li><?nvs ?></ul>`;
-  |               ^^^^^ a markup literal is one expression
+  |               ^^^^^ an html template is one expression
   = help: write `<?= expr ?>` for one value, or build the fragments in code mode and compose them with `+` or `Core\Html::join`
 
-error[E0010]: a code block cannot open inside a markup literal
+error[E0010]: a code block cannot open inside an html template
   --> %s:2:40
   |
 2 | echo html`<ul><?nvs echo 1; ?><li></li><?nvs ?></ul>`;
-  |                                        ^^^^^ a markup literal is one expression
+  |                                        ^^^^^ an html template is one expression
   = help: write `<?= expr ?>` for one value, or build the fragments in code mode and compose them with `+` or `Core\Html::join`
 
 error: aborting due to 2 errors

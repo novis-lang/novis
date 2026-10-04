@@ -54,15 +54,15 @@ echo "unreachable\n";
 --EXPECT--
 
 --EXPECTF-ERROR--
-error[E0769]: this literal is not one this member can read: `j` is not a pattern letter this library carries; quote it as `'j'` to emit it literally
+error[E0769]: this text is not valid for this function: `j` is not a pattern letter this library carries; quote it as `'j'` to emit it literally
 %A
-error[E0769]: this literal is not one this member can read: `j` is not a pattern letter this library carries; quote it as `'j'` to emit it literally
+error[E0769]: this text is not valid for this function: `j` is not a pattern letter this library carries; quote it as `'j'` to emit it literally
 %A
-error[E0769]: this literal is not one this member can read: `^order-(\d+$` is not a pattern either engine can compile:%A
-error[E0769]: this literal is not one this member can read: `%%q` is not one of the conversions the template grammar allows (`%%s %%d %%u %%f %%e %%g %%x %%X %%o %%b %%%%`)
+error[E0769]: this text is not valid for this function: `^order-(\d+$` is not a pattern either engine can compile:%A
+error[E0769]: this text is not valid for this function: `%%q` is not one of the conversions the template grammar allows (`%%s %%d %%u %%f %%e %%g %%x %%X %%o %%b %%%%`)
 %A
-error[E0769]: this literal is not one this member can read: duration units strictly descend and may not repeat, so `h` may not follow `m`
+error[E0769]: this text is not valid for this function: duration units strictly descend and may not repeat, so `h` may not follow `m`
 %A
-error[E0769]: this literal is not one this member can read: this text is not a URI reference (RFC 3986 § 4.1)%A
+error[E0769]: this text is not valid for this function: this text is not a URI reference (RFC 3986 § 4.1)%A
 error: aborting due to 6 errors
 To read what a code means and how to fix it, run `nvs agent show <code>`.

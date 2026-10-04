@@ -44,7 +44,7 @@ error[E0134]: a local declaration cannot be typed with a bare shape
 error[E0134]: a local declaration cannot be typed with a bare shape
    --> case.nvs:14:1
 %A
-error[E0117]: an object literal here is ambiguous with a block
+error[E0117]: an anonymous object here is ambiguous with a block
    --> case.nvs:31:1
 %A
 error: aborting due to 4 errors

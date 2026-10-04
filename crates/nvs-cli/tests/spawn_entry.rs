@@ -54,7 +54,7 @@ fn an_fn_literal_is_refused_as_a_spawn_target_naming_the_method_form() {
         "the entry-form refusal, not a type mismatch: {stderr}"
     );
     assert!(
-        stderr.contains("an `fn` literal"),
+        stderr.contains("an anonymous function"),
         "the label names what was written: {stderr}"
     );
     assert!(

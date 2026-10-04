@@ -91,7 +91,7 @@ error[E0738]: this `#[TestWith]` is on a method that is not a `#[Test]`
 error[E0738]: `itNormalizes` declares no parameter `$inputs`
    --> case.nvs:52:16
 %A
-error[E0738]: the data row field `input` is not a `string` literal, which is what `$input` is declared as
+error[E0738]: the data row field `input` is not a `string` value written directly in the code, which is what `$input` is declared as
    --> case.nvs:59:16
 %A
 error[E0738]: this data row of `itFolds` gives no `$want`, which another does

@@ -2,7 +2,7 @@
 id: editor
 title: "The editor: nvs lsp, nvs lsp-test and the VS Code extension"
 summary: the language server — every request it answers, the diagnostics it publishes, the positions it speaks and the secrets it conceals — `nvs lsp-test`, the suite that freezes an editor answer as text, and the VS Code extension that is the reference client
-keywords: nvs lsp, language server, LSP, Language Server Protocol, editor, IDE, VS Code, stdio, initialize, hover, go to definition, completion, autocomplete, semantic tokens, syntax highlighting, document symbol, outline, selection range, folding, document link, code action, quick fix, refactor, convert to html literal, publishDiagnostics, nvs/redactions, secret, position encoding, utf-8, utf-16, nvs lsp-test, .lspt, --coverage, extension, vsix, TextMate grammar, nvs.path, nvs.lsp.enable, nvs.secrets.redact, nvs.taint.mark, reveal secret, restart language server, activation
+keywords: nvs lsp, language server, LSP, Language Server Protocol, editor, IDE, VS Code, stdio, initialize, hover, go to definition, completion, autocomplete, semantic tokens, syntax highlighting, document symbol, outline, selection range, folding, document link, code action, quick fix, refactor, convert to html template, publishDiagnostics, nvs/redactions, secret, position encoding, utf-8, utf-16, nvs lsp-test, .lspt, --coverage, extension, vsix, TextMate grammar, nvs.path, nvs.lsp.enable, nvs.secrets.redact, nvs.taint.mark, reveal secret, restart language server, activation
 ---
 
 # nvs lsp
@@ -37,7 +37,7 @@ anything else, because nothing else is offered.
 | `textDocument/documentSymbol` | the outline of the entry file: every declaration it writes, as a tree |
 | `textDocument/selectionRange` | the chain of nodes the cursor is inside, innermost first, so expand-selection walks the tree |
 | `textDocument/foldingRange` | every construct written over three lines or more, plus the comment blocks |
-| `textDocument/documentLink` | each `require`'s path literal, with the file it reached, and each `autoload` root and `discover` glob, with the folder it names. A glob links to the folder before its `*`. A root that does not exist has no link. The prefix of an `autoload` line links to the first of its folders that exists. A path you pass to a function that reads or writes a file links to that file or folder, if it exists. In VS Code, Ctrl+click on a folder link shows that folder in the Explorer |
+| `textDocument/documentLink` | each `require`'s path, with the file it reached, and each `autoload` root and `discover` glob, with the folder it names. A glob links to the folder before its `*`. A root that does not exist has no link. The prefix of an `autoload` line links to the first of its folders that exists. A path you pass to a function that reads or writes a file links to that file or folder, if it exists. In VS Code, Ctrl+click on a folder link shows that folder in the Explorer |
 | `textDocument/codeAction` | the quick fixes and the one refactor below |
 | `nvs/redactions` | the byte ranges the editor must conceal. Novis's own request; the protocol has no shape for it |
 
@@ -46,9 +46,9 @@ are the rename that corrects an identifier's casing, and the rewrite of a legacy
 A fix the compiler would have to compute for itself is not offered. The fixes are `quickfix` actions.
 They are also grouped under `source.fixAll.nvs`, so an editor can run them on save.
 
-One action is not a fix: **Convert to html literal**, of kind `refactor.rewrite.htmlLiteral`. Put
+One action is not a fix: **Convert to html template**, of kind `refactor.rewrite.htmlTemplate`. Put
 the cursor on a string, or select it, and the action rewrites the string as an
-``html`…` `` literal that prints the same text:
+``html`…` `` template that prints the same text:
 
 ```nvs
 var $name = "Ada";
@@ -66,7 +66,7 @@ echo html`<b>{$name}</b> is <?= Core\Str::upper("here") ?>!`;
 ```
 
 The action changes what the line prints. Text from a plain string is escaped when it is printed,
-and the text of an html literal is printed as markup. So the action is never applied on save. Read
+and the text of an html template is printed as markup. So the action is never applied on save. Read
 the preview before you apply it. It is offered for a double-quoted or single-quoted string. It is
 not offered for a heredoc or nowdoc, for an array key, a `case` or `match` condition, a constant, or
 the path of a `require` or `use`.
@@ -309,7 +309,7 @@ Every one is under the **Novis** category in the command palette.
 | `nvs.restartServer` | Restart Language Server | stops the server and starts it again, which is also what clicking the status item does |
 | `nvs.revealSecret` | Reveal Secret | uncovers the one concealed range under the cursor, in this window |
 | `nvs.hideSecrets` | Hide Secrets | conceals every range revealed in this window again |
-| `nvs.convertToHtmlLiteral` | Convert to html literal | applies the server's **Convert to html literal** action at the cursor. It is also in the editor's context menu |
+| `nvs.convertToHtmlTemplate` | Convert to html template | applies the server's **Convert to html template** action at the cursor. It is also in the editor's context menu |
 | `nvs.checkWorkspace` | Check Workspace | indexes every `.nvs` file in the workspace once, and says how many files the index holds. `nvs.check.scope` keeps its value |
 | `nvs.run` | Run File | starts the `nvs` task that checks the open file, then compiles and runs it |
 | `nvs.test` | Run Tests | starts the `nvs` task that runs the open file's `#[Test]` methods, or the `.nvst` cases under it |

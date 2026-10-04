@@ -1,12 +1,12 @@
 {
   "lead": "A spec option spelled with a keyword can be refused by the parser rather than by any rule, and the diagnostics never say \"keyword\".",
-  "body": "`default`, `match`, `class` and `for` are all plausible option names, and `{default: \"ada\"}` produced `E0101 expected a field name` and a cascade of recoveries, none naming the cause. Before renaming an option away from what its rule spells, check `crates/nvs-syntax/src/token.rs`'s keyword table; `nvs_syntax::parser::expr::parse_object_literal_fields` is where an object-literal field was widened to take one.",
+  "body": "`default`, `match`, `class` and `for` are all plausible option names, and `{default: \"ada\"}` produced `E0101 expected a field name` and a cascade of recoveries, none naming the cause. Before renaming an option away from what its rule spells, check `crates/nvs-syntax/src/token.rs`'s keyword table; `nvs_syntax::parser::expr::parse_anon_object_fields` is where an object-literal field was widened to take one.",
   "files": [
     "crates/nvs-syntax/src/token.rs",
     "crates/nvs-syntax/src/parser/expr.rs"
   ],
   "until": {
     "kind": "gone",
-    "arg": "crates/nvs-syntax/src/parser/expr.rs:parse_object_literal_fields"
+    "arg": "crates/nvs-syntax/src/parser/expr.rs:parse_anon_object_fields"
   }
 }

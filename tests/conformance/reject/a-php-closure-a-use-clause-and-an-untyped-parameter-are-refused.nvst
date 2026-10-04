@@ -9,9 +9,9 @@ fn($x) => $x;
 --EXPECT--
 
 --EXPECTF-ERROR--
-error[E0222]: anonymous `function` literals are not supported
+error[E0222]: anonymous `function` expressions are not supported
 %A
-error[E0223]: closures have no `use` clause
+error[E0223]: an anonymous function has no `use` clause
 %A
 error[E0808]: this parameter has no type, and no position to take one from
 %A

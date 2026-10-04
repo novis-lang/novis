@@ -10,7 +10,7 @@
     "types/enum-case-type"
   ],
   "guardedBy": [
-    "crates/nvs-types/tests/literal_types.rs",
+    "crates/nvs-types/tests/single_value_types.rs",
     "crates/nvs-syntax/src/parser/tests/ty.rs"
   ]
 }

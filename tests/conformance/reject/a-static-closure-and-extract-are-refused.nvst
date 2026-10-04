@@ -15,7 +15,7 @@ class Prices {
 array<int> $arr = ["a" => 1];
 extract($arr);
 --EXPECTF-ERROR--
-error[E0210]: `static` is not a closure modifier
+error[E0210]: `static` is not allowed before an anonymous function
 %A
 error[E0205]: `extract` is not supported
 %A

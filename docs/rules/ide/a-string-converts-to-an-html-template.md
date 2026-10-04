@@ -1,5 +1,5 @@
-A cursor on a string, or a selection covering one exactly, is offered **Convert to html literal**, a
-code action of kind `refactor.rewrite.htmlLiteral` that replaces the string with the ``html`…` ``
+A cursor on a string, or a selection covering one exactly, is offered **Convert to html template**, a
+code action of kind `refactor.rewrite.htmlTemplate` that replaces the string with the ``html`…` ``
 template printing the same text (`rule:core-classes/html-template`). On an operand of a `.` chain the
 whole chain converts, since half a chain converted is a `Core\Html\Markup` concatenated with a string.
 
@@ -26,7 +26,7 @@ Before it is offered, the template written is parsed back, and its segments must
 text and its holes must be the original expressions, in order — so a string the conversion cannot
 write exactly is offered nothing rather than something else. The server computes it from the
 expression alone, so every client gets the same edit, and the VS Code command
-`nvs.convertToHtmlLiteral` only asks the editor to apply the action by its kind. It is never under
+`nvs.convertToHtmlTemplate` only asks the editor to apply the action by its kind. It is never under
 `source.fixAll.nvs`: a plain string echoed is escaped as text and a template's segments are markup, so
 applying it changes what the line prints, which is why it is a refactor and not a fix
 (`rule:ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`).

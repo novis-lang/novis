@@ -12,7 +12,7 @@
     "ide/the-index-answers-the-cursor"
   ],
   "guardedBy": [
-    "crates/nvs-lsp/src/html_literal.rs",
+    "crates/nvs-lsp/src/html_template.rs",
     "crates/nvs-lsp/tests/actions.rs",
     "tests/lsp/actions/a-double-quoted-string-converts-to-an-html-literal.lspt",
     "tests/lsp/actions/a-single-quoted-string-keeps-its-dollar-and-backtick-as-text.lspt",

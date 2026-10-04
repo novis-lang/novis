@@ -25,7 +25,7 @@ switch ($depth) {
 // The same rule with no level written at all — level 1 of nothing.
 break;
 --EXPECTF-ERROR--
-error[E0475]: a `break` level must be an integer literal
+error[E0475]: a `break` level must be a whole number written directly in the code
   --> %s:8:11
   |
 8 |     break $depth;

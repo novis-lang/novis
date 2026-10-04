@@ -1,7 +1,7 @@
 - **A new `ExprKind` variant compiles workspace-wide with one arm written, and that is not the same as
-  being handled.** `ExprKind::Markup` broke exactly one match — `crates/nvs-syntax/src/walk.rs:392`,
+  being handled.** `ExprKind::HtmlTemplate` broke exactly one match — `crates/nvs-syntax/src/walk.rs:392`,
   which is exhaustive — while `nvs-hir`, `nvs-lsp`, `nvs-ir` and `nvs-types` each swallowed it in a
   catch-all, so a green `cargo check --workspace --all-targets` says nothing about whether inference or
   lowering saw the node. Before the parser is taught to produce a new expression node, `grep -rn
   "ExprKind::<the sibling variant>"` over `crates/` is the list of places that must gain a deliberate
-  arm. [until: gone crates/nvs-syntax/src/walk.rs:ExprKind::Markup]
+  arm. [until: gone crates/nvs-syntax/src/walk.rs:ExprKind::HtmlTemplate]

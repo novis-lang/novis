@@ -25,5 +25,5 @@ and the parentheses that keep the current meaning beside it are not.
 
 A rewrite with no diagnostic behind it is not an inspection. The one there is, a string converted to
 an html template (`rule:ide/a-string-converts-to-an-html-template`), is offered beside the quick fixes
-under its own `refactor.rewrite.htmlLiteral` kind and never under `source.fixAll.nvs`, since it
+under its own `refactor.rewrite.htmlTemplate` kind and never under `source.fixAll.nvs`, since it
 changes what the line prints.

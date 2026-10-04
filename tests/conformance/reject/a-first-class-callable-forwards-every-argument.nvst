@@ -25,9 +25,9 @@ echo "unreachable\n";
 --EXPECT--
 
 --EXPECTF-ERROR--
-error[E0793]: `Adder::bump` has no first-class callable form
+error[E0793]: `Adder::bump` cannot be used as a method reference
 %A
-error[E0793]: `Adder::total` has no first-class callable form
+error[E0793]: `Adder::total` cannot be used as a method reference
 %A
 error: aborting due to 2 errors
 To read what a code means and how to fix it, run `nvs agent show <code>`.

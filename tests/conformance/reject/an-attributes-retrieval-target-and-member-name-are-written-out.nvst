@@ -60,7 +60,7 @@ error[E0798]: a `Core\Attributes` retrieval names `$row`, which `Target` does no
 error[E0798]: a `Core\Attributes` retrieval names `$id`, which `Target` does not declare
    --> case.nvs:42:73
 %A
-error[E0728]: `Target::constructor` carries 2 attached literals satisfying this shape
+error[E0728]: `Target::constructor` has 2 attribute payloads that match this shape
    --> case.nvs:45:19
 %A
 error: aborting due to 4 errors

@@ -22,21 +22,21 @@ final class EdgeTest {
     }
 }
 --EXPECTF-ERROR--
-error[E0738]: the data row field `floor` is not a `int` literal, which is what `$floor` is declared as
+error[E0738]: the data row field `floor` is not a `int` value written directly in the code, which is what `$floor` is declared as
   --> %s:9:45
   |
 9 |     #[TestWith(stock: 18446744073709551615, floor: 18446744073709551615)]
   |                                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^ this data row does not describe the method it is on
   = help: `rule:testing/data-rows` matches a data row against the method's parameters by name **and** by type, so that a row is compiled into the call it will be made with
 
-error[E0738]: the data row field `stock` is not a `uint` literal, which is what `$stock` is declared as
+error[E0738]: the data row field `stock` is not a `uint` value written directly in the code, which is what `$stock` is declared as
    --> %s:15:16
    |
 15 |     #[TestWith(stock: 18446744073709551616)]
    |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^ this data row does not describe the method it is on
    = help: `rule:testing/data-rows` matches a data row against the method's parameters by name **and** by type, so that a row is compiled into the call it will be made with
 
-error[E0429]: this integer literal is too large to represent in either `int` or `uint`
+error[E0429]: this number is too large for both `int` and `uint`
    --> %s:15:23
    |
 15 |     #[TestWith(stock: 18446744073709551616)]

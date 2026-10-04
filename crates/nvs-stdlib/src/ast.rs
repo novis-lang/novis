@@ -273,6 +273,7 @@ macro_rules! productions {
 }
 
 productions![
+    "AnonObject",
     "ArrayLiteral",
     "Assign",
     "AutoloadDecl",
@@ -309,6 +310,7 @@ productions![
     "Function",
     "Global",
     "Goto",
+    "HtmlTemplate",
     "If",
     "Index",
     "InlineHtml",
@@ -317,14 +319,12 @@ productions![
     "Interpolated",
     "Isset",
     "LocalDecl",
-    "Markup",
     "Match",
     "Method",
     "MethodCall",
     "NamespaceDecl",
     "New",
     "Null",
-    "ObjectLiteral",
     "Paren",
     "ParentExpr",
     "PostIncDec",
@@ -1346,7 +1346,7 @@ mod tests {
             | CoreTy::Callable
             | CoreTy::MethodRef
             | CoreTy::Entry
-            | CoreTy::IntLiteral(_) => false,
+            | CoreTy::SingleValueInt(_) => false,
         }
     }
 

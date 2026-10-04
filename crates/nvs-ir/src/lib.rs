@@ -343,7 +343,7 @@
 //!    [`lower::closure::FN_SELF`], so the recursive call is the same
 //!    `CallClosure` with that binding as its callee and the environment class
 //!    gains no field. What decides *which* bare name is one is
-//!    `nvs_types::expr::calls::check_fn_literal`, whose record this crate
+//!    `nvs_types::expr::calls::check_anon_fn`, whose record this crate
 //!    reads. A `...` argument goes
 //!    through [`ir::Helper::CallClosureArray`] instead — the whole list built
 //!    into one array, because `CallClosure`'s own argument count is a literal

@@ -1,5 +1,5 @@
 - **A `Core` row that spells its callback's signature does not on its own hand
-  `check_fn_literal` a substituted expected type.** `nvs_types::expr::args`' `check_generic_args`
+  `check_anon_fn` a substituted expected type.** `nvs_types::expr::args`' `check_generic_args`
   checks every argument but the options bag in its **first** pass, before `sig.substituted`, so a
   closure at a parameter mentioning a type variable is checked against `unplaced_expectation`'s
   answer — nothing — and an unannotated parameter still has nothing to take. Read that function's

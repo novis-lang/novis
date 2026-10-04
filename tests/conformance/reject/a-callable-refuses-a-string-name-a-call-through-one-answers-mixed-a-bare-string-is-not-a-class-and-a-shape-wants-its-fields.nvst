@@ -35,7 +35,7 @@ Point $short = {x: 1};
 --EXPECT--
 
 --EXPECTF-ERROR--
-error[E0418]: a string is not callable in Novis; take a reference with first-class callable syntax instead
+error[E0418]: a string is not callable in Novis. Use a method reference instead
 %A
 error[E0401]: expected `int`, found `mixed`
 %A

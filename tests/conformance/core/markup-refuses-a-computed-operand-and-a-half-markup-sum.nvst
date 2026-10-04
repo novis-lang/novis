@@ -18,11 +18,11 @@ echo $ok + "raw", "\n";
 --EXPECT--
 
 --EXPECTF-ERROR--
-error[E0417]: only a source-literal string may be converted `as Markup`; a runtime-computed or `tainted` value can never become trusted markup this way
+error[E0417]: only a string written directly in the code can be converted `as Markup`. A computed or `tainted` value cannot become trusted markup this way
 %A
 error[E0716]: `+` has no meaning for `Core\Html\Markup`
 %A
-   = help: `rule:core-classes/html-auto-escape` composes `Markup` with `Markup` and nothing else: lift the other operand with `as Markup` if it is a source literal, or escape it with `Core\Html::escape(...)` — `+` is not a sink and will not escape it for you
+   = help: `+` adds `Markup` only to `Markup`. Convert the other operand with `as Markup` if it is a string written directly in the code, or escape it with `Core\Html::escape(...)`. `+` does not escape it for you
 
 error: aborting due to 2 errors
 To read what a code means and how to fix it, run `nvs agent show <code>`.

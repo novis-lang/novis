@@ -568,7 +568,7 @@ One code action is not a fix and has no diagnostic behind it: the rewrite of a s
 an html template ([`ide/a-string-converts-to-an-html-template`](ide.md#ide-a-string-converts-to-an-html-template)). Nothing about the string is wrong,
 so there is no diagnostic to carry it, and the server computes it from the expression under the cursor
 alone, with no type or module question. It is the only such action, it is filed under its own
-`refactor.rewrite.htmlLiteral` kind, and it is never under `source.fixAll.nvs` or `quickfix`, because
+`refactor.rewrite.htmlTemplate` kind, and it is never under `source.fixAll.nvs` or `quickfix`, because
 applying it changes what the line prints. Any further action the server computes for itself is still
 M10's.
 
@@ -607,7 +607,7 @@ and the parentheses that keep the current meaning beside it are not.
 
 A rewrite with no diagnostic behind it is not an inspection. The one there is, a string converted to
 an html template ([`ide/a-string-converts-to-an-html-template`](ide.md#ide-a-string-converts-to-an-html-template)), is offered beside the quick fixes
-under its own `refactor.rewrite.htmlLiteral` kind and never under `source.fixAll.nvs`, since it
+under its own `refactor.rewrite.htmlTemplate` kind and never under `source.fixAll.nvs`, since it
 changes what the line prints.
 
 <sub>See also [`ide/the-tree-survives-a-syntax-error`](ide.md#ide-the-tree-survives-a-syntax-error), [`ide/the-first-server-answers-a-closed-list`](ide.md#ide-the-first-server-answers-a-closed-list), [`routing/a-quick-fix-writes-a-derived-path`](routing.md#routing-a-quick-fix-writes-a-derived-path), [`core-api/identifier-casing`](core-api.md#core-api-identifier-casing), [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`statements/require-is-the-only-inclusion-construct`](statements.md#statements-require-is-the-only-inclusion-construct), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic), [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed), [`ide/a-code-action-writes-only-what-is-already-determined`](ide.md#ide-a-code-action-writes-only-what-is-already-determined), [`expressions/misread-grouping-warns`](expressions.md#expressions-misread-grouping-warns), [`ide/a-string-converts-to-an-html-template`](ide.md#ide-a-string-converts-to-an-html-template). Decided in [0040](../decisions/0040.md), [0039](../decisions/0039.md), [0099](../decisions/0099.md), [0258](../decisions/0258.md), [0259](../decisions/0259.md).</sub>
@@ -618,8 +618,8 @@ changes what the line prints.
 
 `rule:ide/a-string-converts-to-an-html-template`
 
-A cursor on a string, or a selection covering one exactly, is offered **Convert to html literal**, a
-code action of kind `refactor.rewrite.htmlLiteral` that replaces the string with the ``html`…` ``
+A cursor on a string, or a selection covering one exactly, is offered **Convert to html template**, a
+code action of kind `refactor.rewrite.htmlTemplate` that replaces the string with the ``html`…` ``
 template printing the same text ([`core-classes/html-template`](core-classes.md#core-classes-html-template)). On an operand of a `.` chain the
 whole chain converts, since half a chain converted is a `Core\Html\Markup` concatenated with a string.
 
@@ -646,7 +646,7 @@ Before it is offered, the template written is parsed back, and its segments must
 text and its holes must be the original expressions, in order — so a string the conversion cannot
 write exactly is offered nothing rather than something else. The server computes it from the
 expression alone, so every client gets the same edit, and the VS Code command
-`nvs.convertToHtmlLiteral` only asks the editor to apply the action by its kind. It is never under
+`nvs.convertToHtmlTemplate` only asks the editor to apply the action by its kind. It is never under
 `source.fixAll.nvs`: a plain string echoed is escaped as text and a template's segments are markup, so
 applying it changes what the line prints, which is why it is a refactor and not a fix
 ([`ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`](ide.md#ide-a-code-action-ships-only-a-fix-a-diagnostic-already-knows)).

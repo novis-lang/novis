@@ -294,7 +294,7 @@ mod tests {
     #[test]
     fn a_codes_line_carries_its_cards_first_sentence_and_show_the_whole_card() {
         let document = crate::meta::document();
-        let carded = nvs_diagnostics::code::E_BAD_DURATION_LITERAL;
+        let carded = nvs_diagnostics::code::E_BAD_DURATION;
         let card = nvs_diagnostics::code::card(carded).expect("the lexer's codes carry cards");
         let entry = show_target(&document, "E0007").expect("the code resolves");
         assert_eq!(

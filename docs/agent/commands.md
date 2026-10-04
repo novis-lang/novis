@@ -182,7 +182,7 @@ the target flags do exactly that — `--lib`, `--bin nvs` and `--test <name>` ke
 
 ```sh
 bun nv verify -p nvs-types                             # the tree's build; only nvs-types's test binaries run
-cargo test --test closures a_filter                    # one integration-test target, by name, off the same build
+cargo test --test anon_fns a_filter                    # one integration-test target, by name, off the same build
 cargo test --bin nvs cache::tests::                    # the CLI's unit tests, filtered
 cargo test --lib a_filter                              # every crate's unit tests, filtered; warm, seconds
 ```

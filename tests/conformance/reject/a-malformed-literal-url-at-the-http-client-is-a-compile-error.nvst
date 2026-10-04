@@ -24,37 +24,37 @@ echo "unreachable\n";
 --EXPECT--
 
 --EXPECTF-ERROR--
-error[E0769]: this literal is not one this member can read: %s
+error[E0769]: this text is not valid for this function: %s
   --> case.nvs:7:32
 %A
-error[E0769]: this literal is not one this member can read: %s
+error[E0769]: this text is not valid for this function: %s
   --> case.nvs:8:33
 %A
-error[E0769]: this literal is not one this member can read: %s
+error[E0769]: this text is not valid for this function: %s
   --> case.nvs:9:32
 %A
-error[E0769]: this literal is not one this member can read: %s
+error[E0769]: this text is not valid for this function: %s
    --> case.nvs:10:34
 %A
-error[E0769]: this literal is not one this member can read: %s
+error[E0769]: this text is not valid for this function: %s
    --> case.nvs:11:35
 %A
-error[E0769]: this literal is not one this member can read: %s
+error[E0769]: this text is not valid for this function: %s
    --> case.nvs:12:33
 %A
-error[E0769]: this literal is not one this member can read: %s
+error[E0769]: this text is not valid for this function: %s
    --> case.nvs:13:59
 %A
-error[E0769]: this literal is not one this member can read: the authority's port is not a TCP port number. %s
+error[E0769]: this text is not valid for this function: the authority's port is not a TCP port number. %s
    --> case.nvs:14:32
 %A
-error[E0769]: this literal is not one this member can read: %s
+error[E0769]: this text is not valid for this function: %s
    --> case.nvs:15:58
 %A
-error[E0769]: this literal is not one this member can read: %s
+error[E0769]: this text is not valid for this function: %s
    --> case.nvs:16:39
 %A
-error[E0769]: this literal is not one this member can read: the authority's port is not a TCP port number. %s
+error[E0769]: this text is not valid for this function: the authority's port is not a TCP port number. %s
    --> case.nvs:17:30
 %A
 error: aborting due to 11 errors

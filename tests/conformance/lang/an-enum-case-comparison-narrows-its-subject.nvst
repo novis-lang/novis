@@ -3,7 +3,7 @@ A comparison against an enum case narrows its subject to that case's own type, o
 --FILE--
 <?nvs
 // `rule:types/single-value-types`'s guard row, over the third of the three spellings
-// `nvs_types::locals::literal_residue` admits. A written case is not a
+// `nvs_types::locals::single_value_residue` admits. A written case is not a
 // literal that cooks to a value with no context — which enum `Read` belongs
 // to is a question about the writing site's namespace and imports — so the
 // residue is read back off the `ExprInfo::EnumCase` the operand recorded when

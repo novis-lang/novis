@@ -12,7 +12,7 @@
     "types/anonymous-object"
   ],
   "guardedBy": [
-    "crates/nvs-types/tests/closures.rs",
+    "crates/nvs-types/tests/anon_fns.rs",
     "crates/nvs-syntax/src/parser/tests/expr.rs",
     "tests/conformance/class/a-closure-returned-from-a-method-keeps-this.nvst"
   ]

@@ -14,13 +14,13 @@ echo "unreachable\n";
 --EXPECT--
 
 --EXPECTF-ERROR--
-error[E0769]: this literal is not one this member can read: a series name starts with `a`-`z`, and `HttpRequests` starts with `H`
+error[E0769]: this text is not valid for this function: a series name starts with `a`-`z`, and `HttpRequests` starts with `H`
   --> case.nvs:7:25
 %A
-error[E0769]: this literal is not one this member can read: a series name is `[a-z][a-z0-9_]*`, and `http.request.seconds` carries `.`
+error[E0769]: this text is not valid for this function: a series name is `[a-z][a-z0-9_]*`, and `http.request.seconds` carries `.`
   --> case.nvs:8:23
 %A
-error[E0769]: this literal is not one this member can read: a series name starts with `a`-`z`, and `_queue_depth` starts with `_`
+error[E0769]: this text is not valid for this function: a series name starts with `a`-`z`, and `_queue_depth` starts with `_`
   --> case.nvs:9:21
 %A
 error: aborting due to 3 errors

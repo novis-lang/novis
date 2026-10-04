@@ -28,25 +28,25 @@ Core\Response::setHeader("X-Blog", "1");
 --EXPECT--
 
 --EXPECTF-ERROR--
-error[E0842]: `Core\Response::setStatus` changes the response, and a `Core\Html::later` closure cannot do that
+error[E0842]: `Core\Response::setStatus` changes the response, and a callable passed to `Core\Html::later` cannot do that
   --> case.nvs:7:5
 %A
-error[E0842]: `Core\Response::setHeader` changes the response, and a `Core\Html::later` closure cannot do that
+error[E0842]: `Core\Response::setHeader` changes the response, and a callable passed to `Core\Html::later` cannot do that
   --> case.nvs:8:5
 %A
-error[E0842]: `Core\Response::redirect` changes the response, and a `Core\Html::later` closure cannot do that
+error[E0842]: `Core\Response::redirect` changes the response, and a callable passed to `Core\Html::later` cannot do that
   --> case.nvs:9:5
 %A
-error[E0842]: `Core\Response::addCookie` changes the response, and a `Core\Html::later` closure cannot do that
+error[E0842]: `Core\Response::addCookie` changes the response, and a callable passed to `Core\Html::later` cannot do that
    --> case.nvs:10:5
 %A
-error[E0842]: `Core\Response::text` changes the response, and a `Core\Html::later` closure cannot do that
+error[E0842]: `Core\Response::text` changes the response, and a callable passed to `Core\Html::later` cannot do that
    --> case.nvs:11:5
 %A
-error[E0842]: `Core\Session::regenerate` changes the response, and a `Core\Html::later` closure cannot do that
+error[E0842]: `Core\Session::regenerate` changes the response, and a callable passed to `Core\Html::later` cannot do that
    --> case.nvs:12:5
 %A
-error[E0842]: `Core\Response::json` changes the response, and a `Core\Html::later` closure cannot do that
+error[E0842]: `Core\Response::json` changes the response, and a callable passed to `Core\Html::later` cannot do that
    --> case.nvs:17:34
 %A
 error: aborting due to 7 errors

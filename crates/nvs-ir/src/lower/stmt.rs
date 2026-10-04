@@ -445,7 +445,7 @@ impl<'a> Lowering<'a> {
             // and releases it here. Worth lowering at all only because § 2
             // names it — the statement is a no-op with an allocation in it,
             // and the checker has already reported anything wrong inside.
-            ExprKind::ObjectLiteral(_) => {
+            ExprKind::AnonObject(_) => {
                 let (v, ty) = self.lower_expr(e, None, env, cur);
                 if ty.is_refcounted() {
                     self.emit_release(*cur, v);
@@ -476,7 +476,7 @@ impl<'a> Lowering<'a> {
             // value discarded — `$a[$i++];`, `$obj->prop;`, `$x;`, `1 + 2;`,
             // a discarded `match`. PHP runs one of these for its effects and
             // so does this, which is the same rule the `isset`, `empty` and
-            // `ObjectLiteral` arms above already spell out one shape at a
+            // `AnonObject` arms above already spell out one shape at a
             // time; those stay because each carries an accounting note of its
             // own, not because this could not cover them.
             //

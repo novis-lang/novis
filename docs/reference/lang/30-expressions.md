@@ -580,7 +580,7 @@ one:x 6 15
 callable $f = function (int $x): int { return $x + 1; };
 ```
 ```output
-anonymous `function` literals are not supported
+anonymous `function` expressions are not supported
 ```
 
 # Arrays in expressions

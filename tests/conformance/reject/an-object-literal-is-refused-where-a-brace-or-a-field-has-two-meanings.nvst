@@ -32,13 +32,13 @@ Point $typed = {x: 1, y: "two"};
 --EXPECT--
 
 --EXPECTF-ERROR--
-error[E0117]: an object literal here is ambiguous with a block
+error[E0117]: an anonymous object here is ambiguous with a block
 %A
-error[E0117]: an object literal here is ambiguous with a block
+error[E0117]: an anonymous object here is ambiguous with a block
 %A
 error[E0134]: a local declaration cannot be typed with a bare shape
 %A
-error[E0494]: the field `x` is written twice in this object literal
+error[E0494]: the field `x` is written twice in this anonymous object
 %A
 error[E0401]: expected `{x: int, y: int}`, found `{x: int}`
 %A

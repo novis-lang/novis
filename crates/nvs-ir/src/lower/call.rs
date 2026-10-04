@@ -511,7 +511,7 @@ impl<'a> Lowering<'a> {
     ///
     /// `written` is the object literal the call site passed, or `None` for a
     /// bag omitted entirely. This is why an options argument has to be a
-    /// literal at the call site (`nvs_types` reports `E_OPTIONS_NOT_A_LITERAL`
+    /// literal at the call site (`nvs_types` reports `E_OPTIONS_NOT_AN_ANON_OBJECT`
     /// for anything else): the flattening is per-option and static, so there
     /// is nothing to read a variable's fields out of. Nothing below this line
     /// — not `nvs-codegen`, not the helper convention a `Core` member is
@@ -544,14 +544,14 @@ impl<'a> Lowering<'a> {
     ) {
         let fields: Vec<(String, &Expr)> = match written {
             Some(expr) => match &expr.kind {
-                ExprKind::ObjectLiteral(fields) => fields
+                ExprKind::AnonObject(fields) => fields
                     .iter()
                     .map(|field| (span_text(self.src, field.name).to_owned(), &field.value))
                     .collect(),
                 other => panic!(
                     "nvs-ir: an options argument lowered from {other:?} rather than an object \
                      literal — nvs_types::check_program is trusted to have reported \
-                     E_OPTIONS_NOT_A_LITERAL for anything else"
+                     E_OPTIONS_NOT_AN_ANON_OBJECT for anything else"
                 ),
             },
             None => Vec::new(),
@@ -851,7 +851,7 @@ impl<'a> Lowering<'a> {
     ) -> (ValueId, Ty) {
         let list = match args {
             CallArgs::List(list) => list,
-            CallArgs::FirstClassCallable => {
+            CallArgs::MethodRef => {
                 let (closure, closure_ty) = self.lower_expr(callee, None, env, cur);
                 if closure_ty.is_refcounted() && self.aliasing_read(callee) {
                     self.emit_retain(*cur, closure);
@@ -1055,7 +1055,7 @@ impl<'a> Lowering<'a> {
     }
 
     /// `$fn->bindTo($obj)`, `$fn->bind($obj)` and `$fn->call($obj, ...)` —
-    /// `nvs_types`' `ExprInfo::ClosureRebind`.
+    /// `nvs_types`' `ExprInfo::CallableRebind`.
     ///
     /// All three emit [`Helper::BindClosure`] on the closure and the first
     /// argument, and `bind`/`bindTo` give its result. `call` then calls that
@@ -1082,7 +1082,7 @@ impl<'a> Lowering<'a> {
         let CallArgs::List(list) = args else {
             panic!(
                 "nvs-ir: a closure rebind reached lowering with {args:?} where a written \
-                 argument list belongs — nvs_types records `ExprInfo::ClosureRebind` only \
+                 argument list belongs — nvs_types records `ExprInfo::CallableRebind` only \
                  for a list"
             );
         };

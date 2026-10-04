@@ -51,9 +51,9 @@ error[E0320]: `is_int` is not a function that exists
 %A
 error[E0303]: `resource` is not declared
 %A
-error[E0418]: a string is not callable in Novis; take a reference with first-class callable syntax instead
+error[E0418]: a string is not callable in Novis. Use a method reference instead
 %A
-error[E0419]: an array is not callable in Novis; take a reference with first-class callable syntax instead
+error[E0419]: an array is not callable in Novis. Use a method reference instead
 %A
 error[E0482]: `string` cannot be subscripted
 %A

@@ -1637,8 +1637,8 @@ impl<'a> Lowering<'a> {
         let members: Vec<LiteralAtom> = atoms
             .iter()
             .map(|id| match types.get(*id) {
-                CheckedTy::StringLiteral(text) => Some(LiteralAtom::Str(text.clone())),
-                CheckedTy::IntLiteral(value) => Some(LiteralAtom::Int(*value)),
+                CheckedTy::SingleValueString(text) => Some(LiteralAtom::Str(text.clone())),
+                CheckedTy::SingleValueInt(value) => Some(LiteralAtom::Int(*value)),
                 // `rule:types/grammar`'s two `bool` singletons — one value each, so a
                 // closed set of exactly the kind § 5 tests, and the reason
                 // `$m as true` is `as bool` plus a membership test rather than

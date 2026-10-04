@@ -28,7 +28,7 @@ var $crossed = Core\Db::open({
 --EXPECT--
 
 --EXPECTF-ERROR--
-error[E0454]: `host` is not a key of the form this literal writes
+error[E0454]: `host` is not a key of the form this object uses
 %A
 error[E0401]: expected `Core\Db\Driver::MySql|Core\Db\Driver::MariaDb|Core\Db\Driver::Postgres|Core\Db\Driver::SqlServer`, found `Core\Db\Driver::Sqlite`
 %A

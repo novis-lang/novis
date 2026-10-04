@@ -27,19 +27,19 @@ callable $g = $c->get(...);
 callable $h = Core\Str::length(...);
 echo "unreached\n";
 --EXPECTF-ERROR--
-error[E0740]: `new` has no first-class callable form
+error[E0740]: `new` cannot be used as a method reference
    --> %s:12:10
    |
 12 | Box $b = new Box(...);
    |          ^^^^^^^^^^^^ `Box` is constructed here, not called
-   = help: `rule:types/callable-values` gives the `(...)` spelling to a member — `Class::method(...)`, `$obj->method(...)`, `self::method(...)` — and a constructor is not one. Write the closure out: `fn (): T => new T(…)`
+   = help: the `(...)` syntax works on a method: `Class::method(...)`, `$obj->method(...)` or `self::method(...)`. A constructor is not a method. Write an anonymous function instead: `fn (): T => new T(…)`
 
-error[E0732]: `get(...)` names no closure through a `mixed` receiver
+error[E0732]: `get(...)` cannot be a method reference on a `mixed` value
    --> %s:18:15
    |
 18 | callable $f = $m->get(...);
-   |               ^^^^^^^^^^^^ a closure value is named here
-   = help: `rule:types/erased-member-access` defers a *call* through a `mixed` to the receiver's runtime class, but a closure value carries its callee with it and there is no class here to read one off — call the member directly (`$m->get(…)`), or narrow the receiver first with `is` or `as ClassName`
+   |               ^^^^^^^^^^^^ a method reference is made here
+   = help: a call on a `mixed` value finds its method when the program runs. A method reference needs the class when the program compiles, and there is no class here. Call the method directly (`$m->get(…)`), or narrow the value first with `is` or `as ClassName`
 
 error: aborting due to 2 errors
 To read what a code means and how to fix it, run `nvs agent show <code>`.

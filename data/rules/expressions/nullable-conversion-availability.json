@@ -15,6 +15,6 @@
   "guardedBy": [
     "tests/conformance/lang/the-nullable-conversion-table-is-closed-at-both-ends.nvst",
     "tests/conformance/reject/a-written-class-name-outside-the-hierarchy-is-refused-under-the-nullable-conversion-too.nvst",
-    "crates/nvs-types/tests/literal_types.rs"
+    "crates/nvs-types/tests/single_value_types.rs"
   ]
 }

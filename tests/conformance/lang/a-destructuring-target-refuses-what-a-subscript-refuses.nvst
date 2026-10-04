@@ -38,7 +38,7 @@ error[E0483]: a destructuring leaf cannot bind by reference
    |
 11 | [inout int $aliased] = $pair;
    |  ^^^^^^^^^^^^^^^^^^ this would alias the element it was read from
-   = help: drop the `inout` — the leaf is a copy, exactly as an array literal's element is; to share one mutable cell, put it in an object (`rule:types/implicit-capture`)
+   = help: drop the `inout` — the leaf is a copy, exactly as an element of an array written with `[...]` is; to share one mutable cell, put it in an object (`rule:types/implicit-capture`)
 
 error[E0482]: cannot destructure `int`
    --> %s:15:21

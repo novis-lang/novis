@@ -156,7 +156,7 @@ pub(crate) fn drain_closures(
 /// # Panics
 ///
 /// Panics naming the shape for a `fn` literal the checker recorded no
-/// [`ExprInfo::Closure`] for, and for a parameter with no declared type.
+/// [`ExprInfo::AnonFn`] for, and for a parameter with no declared type.
 ///
 /// The assert on an `inout $x` parameter is an internal-consistency check rather
 /// than a gap: `callable` carries no parameter list for a call site to read
@@ -199,7 +199,7 @@ pub(crate) fn lower_closure(
     let mut param_tys = vec![Ty::Object];
 
     // The captures first, so a parameter of the same name — which shadows one,
-    // per `nvs_types::expr::calls::check_fn_literal` — overwrites it rather than the
+    // per `nvs_types::expr::calls::check_anon_fn` — overwrites it rather than the
     // other way round.
     for (name, ty) in captures {
         let (v, _) = low.emit(
@@ -1049,7 +1049,7 @@ fn thunk_class(
 /// A parameter that wrote its type is read off that annotation, exactly as a
 /// declaration's is. One that left it out took its type from the position the
 /// literal was written in (`rule:types/anonymous-function-parameter-inference`), and
-/// `nvs_types::expr::calls::check_fn_literal` recorded the answer under the
+/// `nvs_types::expr::calls::check_anon_fn` recorded the answer under the
 /// parameter's own name — the only span an unannotated parameter has. The
 /// checker refuses the literal outright where it could not answer, so an
 /// unrecorded one here is a bug in that pass rather than a program.

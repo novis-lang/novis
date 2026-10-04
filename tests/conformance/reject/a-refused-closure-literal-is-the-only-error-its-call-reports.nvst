@@ -8,7 +8,7 @@ echo Core\Str::join($labels, ', '), "\n";
 --EXPECT--
 
 --EXPECTF-ERROR--
-error[E0222]: anonymous `function` literals are not supported
+error[E0222]: anonymous `function` expressions are not supported
 %A
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.

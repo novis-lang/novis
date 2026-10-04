@@ -366,7 +366,7 @@ const IP_OPTIONS: &[CoreOption] = &[CoreOption {
 }];
 
 /// `4|6` — `rule:types/single-value-types`'s integer literal type, twice.
-const IP_VERSION: &[CoreTy] = &[CoreTy::IntLiteral(4), CoreTy::IntLiteral(6)];
+const IP_VERSION: &[CoreTy] = &[CoreTy::SingleValueInt(4), CoreTy::SingleValueInt(6)];
 
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::symbols`].

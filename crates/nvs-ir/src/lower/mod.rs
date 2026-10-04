@@ -71,10 +71,10 @@
 use nvs_diagnostics::{SourceFile, SourceId, Span, code};
 use nvs_render::Source;
 use nvs_syntax::ast::{
-    ArrayItem, AssignOp, BinaryOp, Block, CallArgs, CatchArm, CatchClause, ClassMemberKind,
-    DestructureElement, DestructureTarget, Expr, ExprKind, FnBody, FnExpr, ForInit, ForeachBinding,
-    ForeachBindingTy, IncDecOp, MatchArm, MemberName, MethodMember, Modifier, NamespaceDecl,
-    NewTarget, ObjectLiteralField, SpawnOption, SpawnOptionKey, Stmt, StmtKind, StringPart,
+    AnonObjectField, ArrayItem, AssignOp, BinaryOp, Block, CallArgs, CatchArm, CatchClause,
+    ClassMemberKind, DestructureElement, DestructureTarget, Expr, ExprKind, FnBody, FnExpr,
+    ForInit, ForeachBinding, ForeachBindingTy, IncDecOp, MatchArm, MemberName, MethodMember,
+    Modifier, NamespaceDecl, NewTarget, SpawnOption, SpawnOptionKey, Stmt, StmtKind, StringPart,
     SwitchCase, TestOperand, Type, TypeAtom, TypeKind, UnaryOp as AstUnaryOp,
 };
 use nvs_types::EnumTable;
@@ -3251,7 +3251,7 @@ impl<'a> Lowering<'a> {
         // body still needs. Asked before the syntactic judgment because a bare
         // name is not one of its shapes, and only the checker's record tells
         // this one from the `E0319` every other bare name is.
-        if matches!(self.exprs.lookup(e.span), Some(ExprInfo::ClosureSelf)) {
+        if matches!(self.exprs.lookup(e.span), Some(ExprInfo::AnonFnSelf)) {
             return true;
         }
         if !is_aliasing_read(&e.kind) {
@@ -3488,8 +3488,8 @@ pub(crate) fn lower_decl_type(
         // it erases to a string, an int or an enum tag is exactly the question
         // the checker answered, so it takes the `declared_ty` shortcut above
         // or it is a bug.
-        TypeKind::Atom(TypeAtom::StringLiteral(_)) => Ty::Str,
-        TypeKind::Atom(TypeAtom::IntLiteral(_)) => Ty::Int,
+        TypeKind::Atom(TypeAtom::SingleValueString(_)) => Ty::Str,
+        TypeKind::Atom(TypeAtom::SingleValueInt(_)) => Ty::Int,
         // `rule:types/grammar`'s two `bool` singletons, which `nvs_types::ty::Ty::True`
         // records are that same rule read on `bool`'s two values — so they
         // erase to `bool`'s representation exactly as the two atoms above
@@ -3979,8 +3979,8 @@ pub(crate) fn erase_checked_ty(id: TypeId, checked_types: &TypeInterner) -> Ty {
         // payload with, so the singleton-ness stops at this boundary and
         // nothing below it learns a new type -- which is the whole of what
         // that section promises.
-        CheckedTy::StringLiteral(_) => Ty::Str,
-        CheckedTy::IntLiteral(_) => Ty::Int,
+        CheckedTy::SingleValueString(_) => Ty::Str,
+        CheckedTy::SingleValueInt(_) => Ty::Int,
         // `true` and `false` are the same rule on `bool`'s two values (ADR
         // 0007 § 3's atoms, read by `nvs_types::ty::Ty::True`), so they erase
         // to `bool`. The union arm below then folds `true|false` back to one

@@ -20,12 +20,12 @@ error[E0401]: expected `int`, found `string`
 6 | callable $fact = fn fact(int $n): int => $n <= 1 ? 1 : $n * fact("no");
   |                                                                  ^^^^ this is `string`
 
-error[E0809]: this closure names 2 parameter(s), and this call passes 1
+error[E0809]: this anonymous function names 2 parameter(s), and this call passes 1
    --> %s:12:61
    |
 12 | callable $join = fn join(int $n, string $s): string => $s . join($n);
    |                                                             ^^^^^^^^ expected 2, found 1
-   = help: a closure calling itself by its own name passes exactly the parameters it declares — the signature being checked is the one written right here, so there is no wider type for a shorter list to be matched against
+   = help: an anonymous function that calls itself by its own name passes exactly the parameters it declares. Its signature is the one written right here, so there is no wider type to match a shorter list against
 
 error: aborting due to 2 errors
 To read what a code means and how to fix it, run `nvs agent show <code>`.

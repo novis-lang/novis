@@ -56,7 +56,7 @@ error[E0792]: `Limits::RELAY` has no compile-time value to inline
    |
 20 | #[{code: Limits::RELAY}]
    |          ^^^^^^^^^^^^^ this constant's declaration folds to no value
-   = help: `rule:classes/no-free-functions-or-constants` inlines a class constant at every use site, so its value has to have a constant form — a literal, or an array literal of them. Another class's constant, an enum case and `Foo::class` are the three this compiler cannot yet fold into one, written on their own or nested inside a container: write the value out here, or move it to a `static` member the class initializes
+   = help: a class constant is copied into every place that uses it, so its value must be known when the program compiles. Write it as a number, a string, or an array of them. This compiler cannot yet do that for another class's constant, an enum case or `Foo::class`, alone or inside an array. Write the value out here, or move it to a `static` property that the class sets
 
 error[E0731]: this attribute satisfies the retrieved shape, but holds a value with no compile-time form
    --> case.nvs:20:10
@@ -65,7 +65,7 @@ error[E0731]: this attribute satisfies the retrieved shape, but holds a value wi
    |          ^^^^^^^^^^^^^ no constant form
    = help: `rule:attributes/retrieval-folds-while-checking` replaces the retrieval with the payload itself, so every value in it has to be materializable — a class constant, `Foo::class` and an enum case all are, so what is left is a constant whose own declaration folds to nothing (`E0792`): write the value out here, or give that constant a foldable one
 
-error[E0728]: `Twice::constructor` carries 2 attached literals satisfying this shape
+error[E0728]: `Twice::constructor` has 2 attribute payloads that match this shape
    --> case.nvs:30:21
    |
 30 | ?Route $ambiguous = Core\Attributes::get<Route>(Twice::constructor(...));
@@ -77,14 +77,14 @@ error[E0729]: `Core\Attributes::get` retrieves a shape, and `int` is not one
    |
 33 | ?int $scalar = Core\Attributes::get<int>(Twice::constructor(...));
    |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `int` written here
-   = help: `rule:attributes/structural-retrieval`: retrieval is structural — an attached literal is an answer exactly when it satisfies `T` under `rule:types/shape-type`'s width subtyping, so `T` is an inline `{...}` or a `type` alias naming one
+   = help: `rule:attributes/structural-retrieval`: retrieval matches by shape. An attribute's payload object matches exactly when it satisfies `T` under `rule:types/shape-type`'s width subtyping, so `T` is an inline `{...}` or a `type` alias naming one
 
 error[E0730]: a `Core\Attributes` retrieval names no declaration
    --> case.nvs:38:48
    |
 38 | ?Route $computed = Core\Attributes::get<Route>($fn);
    |                                                ^^^ this is not a declaration reference
-   = help: `rule:attributes/structural-retrieval`: the target is written as a first-class-callable reference and inspected where it is written — `Foo::bar(...)` for a method, and `Foo::constructor(...)` for the class itself, plus a literal member name for one of its properties or parameters
+   = help: `rule:attributes/structural-retrieval`: the target is a method reference, and it is read where it is written: `Foo::bar(...)` for a method, and `Foo::constructor(...)` for the class itself, plus a property or parameter name written in quotes
 
 error[E0798]: a `Core\Attributes` retrieval names `$path`, which `Twice` does not declare
    --> case.nvs:49:75
