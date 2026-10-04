@@ -1,15 +1,11 @@
 {
-  "state": "**Goal `goal-closeout`: Stage 4, building the user's answers.** Four of the seven answers are built and their questions deleted: `Core\\Server` carries no request environment, reference cards are held to the plain voice (gap owned by M10), `nvs.toml` gets directive completion, and captured output is the sink's carrier. `Core\\Out::capture` and a `spawn script` result's `output` are now built by `crate::out::carried` in `crates/nvs-stdlib/src/out.rs` as `Ctx::carrier`'s class, and both are typed `Core\\Html\\Markup|Core\\Cli\\Text` (`rule:security/capture-answers-the-carrier`).\n\n`bun nv owners --closes goal-closeout` names 3 gaps. The user has answered the image question in the goal prose: **image shows**. That gap can now be built: write the result into the module doc, then delete the gap and its question. The other two gaps are the closure rebind and the handle-relative writes. When `no question waits for the user` and the owners check are the only red ones and every gap is closed, the goal is `DONE`.",
+  "state": "**Goal `goal-closeout`: Stage 4, building the user's answers.** Five of the seven answers are built and their questions deleted: `Core\\Server` carries no request environment, reference cards are held to the plain voice (gap owned by M10), `nvs.toml` gets directive completion, captured output is the sink's carrier (`rule:security/capture-answers-the-carrier`), and a completion file's image shows in VS Code's hover (recorded in the module doc of `crates/nvs-lsp/src/completion_files.rs`).\n\n`bun nv owners --closes goal-closeout` names 2 gaps: the closure rebind and the handle-relative writes. Each is a whole session. When `no question waits for the user` and the owners check are the only red ones and every gap is closed, the goal is `DONE`.",
   "next": {
     "stage": 4,
     "title": "finished in place, the answers built",
     "files": [],
-    "note": ". The first item is a doc-only slice. The second item is the largest answer and fills a session alone. They do not share one file set.",
+    "note": "the closure rebind fills a session alone; the handle-relative writes are a separate file set for the session after.",
     "items": [
-      {
-        "done": false,
-        "text": "**The completion-file image is checked** (answer: \"image shows\", in the goal prose's question *Does a completion file's image show in an editor hover?*). Write into the module doc at `crates/nvs-lsp/src/completion_files.rs:1` what the user saw: the hover shows the image, and the server sends a relative link as an absolute `file:` URI under the completion file's folder. Delete `data/gaps/nvs-lsp/completion-file-images-are-not-checked-in-an-editor.json` and the question."
-      },
       {
         "done": false,
         "text": "**Closure rebind** (answer 1: same class or a subclass, checked at run time, no scope argument; `rule:types/callable-absorbs-closure`, `rule:statements/a-closure-binds-this-only-where-it-uses-it`). The checker arm is at `crates/nvs-types/src/expr/calls.rs:111`, which reports `E0477` for every `callable` receiver today. The closure's `$this` capture is at `crates/nvs-ir/src/lower/closure.rs:214`. Delete gap `a-callable-has-no-bind-bindto-or-call` and its question."
