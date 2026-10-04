@@ -1,0 +1,47 @@
+<?nvs
+// Answers each request with a shop's product page, which uses a session, a database, a check of a product code, an HTML list, JSON and a cache.
+// scaling: kind serve
+// scaling: start 64
+// scaling: max 4096
+// scaling: expect linear
+
+class Shop {
+    #[Core\Route(path: "/", method: Core\Http\Method::Get, name: "Shop::index")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function index(): string {
+        return "products";
+    }
+}
+
+// The session counts the pages this visitor opened.
+Core\Session::start();
+int $views = Core\Session::get("views") as ?int ?? 0;
+Core\Session::set("views", $views + 1);
+
+// The page writes 20 products to the database and reads them back in price order.
+var $db = Core\Db::connect("shop");
+$db->execute("create table products (id integer primary key, code text not null, price int not null)", []);
+uint $i = 0;
+while ($i < 20) {
+    $db->execute("insert into products (code, price) values (?, ?)", ["TEA-" . $i, (100 + $i * 7) as int]);
+    $i = $i + 1;
+}
+var $rows = $db->query("select code, price from products order by price", []);
+
+// Each product code is checked, rendered as one list item, and kept for the JSON part of the page.
+var $cache = Core\Cache::local();
+array<Core\Html\Markup> $items = [];
+array<mixed> $products = [];
+foreach ($rows as var $row) {
+    string $code = $row->get("code") as string;
+    int $price = $row->get("price") as int;
+    if (Core\Validate::isAscii($code)) {
+        $cache->put("price:" . $code, $price);
+        $items[] = html`<li>{$code}: {$price}</li>`;
+        $products[] = { code: $code, price: $cache->get("price:" . $code) as int };
+    }
+}
+
+Core\Html\Markup $list = Core\Html::join($items, "\n" as Core\Html\Markup);
+echo Core\Html::toSource($list, "the product list"), "\n";
+echo Core\Json::encode($products), "\n";

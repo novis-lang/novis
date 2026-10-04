@@ -1,0 +1,18 @@
+# The `shop` database is kept in memory. It is deleted when the request ends.
+[db.shop]
+driver = "sqlite"
+path = ":memory:"
+
+# The program may open the `shop` database.
+[capabilities.db]
+connect = ["shop"]
+
+# The session is kept in the Redis server on this computer at port 16379.
+[capabilities.cache]
+shared = true
+
+[session]
+backend = "shared"
+
+[cache.shared]
+url = "redis://127.0.0.1:16379"
