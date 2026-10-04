@@ -168,7 +168,8 @@
       "PowerShell(target/covws/x86_64-pc-windows-msvc/debug/nvs.exe:*)",
       "PowerShell(./target/covws/x86_64-pc-windows-msvc/debug/nvs.exe:*)",
       "PowerShell(Remove-Item .agent-tmp/:*)",
-      "Bash(bun test:*)"
+      "Bash(bun test:*)",
+      "Bash(target/covws/x86_64-pc-windows-msvc/debug/nvs:*)"
     ]
   }
 }
