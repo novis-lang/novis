@@ -1,0 +1,24 @@
+<?nvs
+// Shows how a page builds two of its parts at the same time with `Core\Html::later`.
+
+// The program sends a request to itself and prints the page it gets back.
+// Inside that request, `Core\Test::request` throws an error, so the `catch` block runs.
+try {
+    var $page = Core\Test::request(Core\Http\Method::Get, "/");
+    echo $page->body();
+} catch (RuntimeError $insideTheRequest) {
+    // Each call starts its closure and returns a placeholder at once.
+    // The two closures run at the same time, so the page waits about 30 ms, not 50 ms.
+    Core\Html\Markup $posts = Core\Html::later(fn(): Core\Html\Markup => {
+        Core\Time::sleep(30ms);
+        return html`<p>3 new blog posts</p>`;
+    });
+    Core\Html\Markup $offers = Core\Html::later(fn(): Core\Html\Markup => {
+        Core\Time::sleep(20ms);
+        return html`<p>2 offers in the shop</p>`;
+    });
+
+    // Write each placeholder where its part belongs.
+    // Before the page is sent, the output of each closure replaces its placeholder.
+    echo html`<h1>Welcome back</h1>`, "\n", $posts, "\n", $offers, "\n";
+}

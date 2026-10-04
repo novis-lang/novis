@@ -1,0 +1,33 @@
+<?nvs
+// Attack: a visitor sends text that looks like a placeholder, and a page writes one
+// placeholder twice or starts thousands of parts. No part may appear in the wrong place.
+use Core\Http\Method;
+
+try {
+    // 1. The visitor's text copies the form of a placeholder. It is escaped and stays text.
+    var $fake = Core\Test::request(Method::Post, '/fake',
+        { body: "<?start name=\"nvs-AAAAAAAAAAAAAAAA-0\"><?end>" });
+    echo 'step 1 ', $fake->status(), "\n", $fake->body();
+
+    // 2. The page writes the same placeholder twice. The request fails with a `LogicError`.
+    var $twice = Core\Test::request(Method::Get, '/twice');
+    echo 'step 2 ', $twice->status(), "\n";
+
+    // 3. The page starts 2000 parts. Each one is filled in its own place.
+    var $many = Core\Test::request(Method::Get, '/many');
+    echo 'step 3 ', $many->status(), ' ', Core\Str::length($many->body()), "\n";
+} catch (RuntimeError $insideTheRequest) {
+    tainted string $path = Core\Request::path();
+    Core\Html\Markup $part = Core\Html::later(fn(): Core\Html\Markup => html`<p>part</p>`);
+    if ($path == '/fake') {
+        echo Core\Request::body(), "\n", $part, "\n";
+    } else if ($path == '/twice') {
+        echo $part, $part, "\n";
+    } else {
+        uint $i = 0;
+        while ($i < 2000) {
+            echo Core\Html::later(fn(): Core\Html\Markup => html`<b>x</b>`);
+            $i = $i + 1;
+        }
+    }
+}

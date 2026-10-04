@@ -1,0 +1,17 @@
+<?nvs
+// Shows what a page contains when one of its `later` parts throws an error.
+
+// The program sends a request to itself and prints the status and the page.
+// Inside that request, `Core\Test::request` throws an error, so the `catch` block runs.
+try {
+    var $page = Core\Test::request(Core\Http\Method::Get, "/shop/garden-chair");
+    echo $page->status(), "\n", $page->body();
+} catch (RuntimeError $insideTheRequest) {
+    // The closure throws an error, so the page shows the `error` markup in its place.
+    Core\Html\Markup $reviews = Core\Html::later(fn(): void => {
+        throw new RuntimeError("the review service is down");
+    }, {error: html`<p>Reviews are not available right now.</p>`});
+
+    // The rest of the page is sent as normal, and the status is still 200.
+    echo html`<h1>Garden chair</h1>`, "\n", html`<p>Price: 49 EUR</p>`, "\n", $reviews, "\n";
+}

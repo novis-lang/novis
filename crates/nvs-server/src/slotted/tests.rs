@@ -157,6 +157,7 @@ fn a_slotted_route_sends_its_shell_while_a_later_is_still_parked() {
     );
 }
 
+// covers: Core\Html::later
 #[test]
 fn fills_arrive_in_the_order_their_later_finished() {
     let answer = slotted(|| {
@@ -427,6 +428,7 @@ fn a_slotted_response_carries_no_content_length_and_turns_off_proxy_buffering() 
     );
 }
 
+// covers: Core\Response::slotted
 #[test]
 fn slotted_from_a_route_attribute_and_from_the_call_are_the_same() {
     let by_route = served_page(
