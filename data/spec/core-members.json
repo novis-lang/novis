@@ -769,7 +769,7 @@
       "rows": [
         [
           "`abs`",
-          "`abs(int\\|float\\|decimal $n): int\\|float\\|decimal`",
+          "`abs(T $n): T`, with `T` one of `int\\|float\\|decimal`",
           "`abs`",
           "neutral"
         ],
@@ -1969,8 +1969,8 @@
         ],
         [
           "`Core\\Program`",
-          "`implementing<T>()`, and `implementingWith<I, T>(string $member = \"\")` — the same enumeration with one attribute retrieval joined per class, each row holding the instance and its matching payload or null",
-          "[0061](../decisions/0061.md), [0212](../decisions/0212.md)"
+          "`implementing<T>()`, and `implementingWith<I, T>(string $member = \"\")` — the same enumeration with one attribute retrieval joined per class, each row holding the instance and its matching payload or null — and `constructors<T, C>()`, the same classes in the same order, each row holding the class name and a `make` closure typed `C` that builds it",
+          "[0061](../decisions/0061.md), [0212](../decisions/0212.md), [0253](../decisions/0253.md)"
         ],
         [
           "`Core\\Router`",
@@ -1994,7 +1994,17 @@
         ],
         [
           "`Core\\Test`",
-          "the assertion roster — `assertSame`/`assertEquals<T>`/`assertEqualsDeep`, `assertTrue`, `assertNull`, `assertCount`, `assertContains`, `assertThrows`, `assertDoesNotThrow`, `expectFailure` — plus `double<T>`/`partial<T>`, `assertCalled`/`assertNeverCalled`, `advance`, `scriptAnswers`, `assertCompletes`, `assertMatchesInline` and `request(Http\\Method $method, string $path, {headers?: array<string>, body?: string\\|bytes, mount?: string} $options): Core\\Test\\Response` — one in-process request against the program's own `#[Route]` table. Every one is subject-first and generic where it compares",
+          "the assertions, each ending in a `{message?: string}` bag: `assertSame<T>(T $actual, T $expected)`, `assertEquals<T>(T $actual, T $expected)`, `assertEqualsDeep<T>(T $actual, T $expected)`, `assertTrue(bool $actual)`, `assertNull(mixed $actual)`, `assertCount<T>(array<T> $actual, uint $expected)`, `assertContains<T>(array<T> $actual, T $expected)`, `assertMatchesInline(mixed $actual, string $expected)`, `assertThrows(callable(): mixed $body, string $expected)`, `assertDoesNotThrow(callable(): mixed $body)` and `assertCompletes(callable(): mixed $body, {within: Time\\Duration} $settings)`; `expectFailure(callable(): mixed $body): void`, which passes when `$body` fails an assertion. Doubles: `double<T>(object $answers): T`, `partial<T>(T $real, object $answers): T`, `assertCalled(object $double, method $method, {times?: uint, with?: array<mixed>, message?: string})` and `assertNeverCalled(object $double, method $method, {message?: string})`. The clock and the `Core\\Cli` prompts: `advance(Time\\Duration $by): void` and `scriptAnswers(array<string> $answers): void`. The program's own routes: `request(Http\\Method $method, string $path, {headers?: array<string>, body?: string\\|bytes, mount?: string, captures?: array<string>}): Core\\Test\\Response` — one in-process request against the `#[Route]` table — and `serverUrl(): ?string`. Outbound calls: `answerHttp(string $url, uint $status, {json?: mixed, body?: string\\|bytes, headers?: array<string\\|array<string>>, tls?: Http\\TlsInfo}): void`, `tlsSession({version?, cipher?, verified?, subject?, issuer?, expiry?}): Http\\TlsInfo`, `sentHttp(): array<Core\\Test\\SentRequest>`, `answerSocket(string $url, array<string\\|bytes> $frames, {protocol?: string}): void` and `sentSocket(): array<Socket\\Message>`. Every assertion is subject-first and generic where it compares",
+          "[0079](../decisions/0079.md)"
+        ],
+        [
+          "`Core\\Test\\Response`",
+          "what `Core\\Test::request` returns: `status(): uint`, `body(): string`, `header(string $name): ?string`, `headers(): array<array<string>>`, `cookies(): array<string>`, `json({maxDepth?: uint}): mixed` and `jsonAs<T>({maxDepth?: uint}): T`, the last two reading the body as `Core\\Request::json` and `::jsonAs` do",
+          "[0079](../decisions/0079.md)"
+        ],
+        [
+          "`Core\\Test\\SentRequest`",
+          "one outbound call `Core\\Test::sentHttp` recorded: `method(): Http\\Method`, `url(): string`, `header(string $name): ?string` and `body(): bytes`",
           "[0079](../decisions/0079.md)"
         ]
       ]
@@ -2012,7 +2022,7 @@
       "rows": [
         [
           "`Core\\Http\\Client`",
-          "`get`, `post`, `put`, `patch`, `delete`, `head`, plus `request(Core\\Http\\Method, …)` for a verb chosen at run time and `stream(Core\\Http\\Method, …)` for a body read as it arrives — each over `string \\| Core\\Http\\Target`, and there is no `Core\\Http\\Request` class. `Core\\Http::allowUrl` is the SSRF launderer, and the `Target` it answers carries every approved address. Replaces all ~30 `curl_*` functions and their handle. One trailing `Core\\Http\\Options` shape — the bounds `{deadline?, connectTimeout?, idle?, maxDuration?}`, the retry keys `{retryAttempts?, retryBackoff?, retryIdempotencyKey?}`, `{headers?, followRedirects?}`, at most one body of `{json?, form?, body? + contentType?, multipart?}`, and the connection keys `{identity?, connectTo?, redirectToHttp?, tlsCa?, tlsPin?, tlsVerifyHost?, tlsVerify?, tlsMinVersion?}` — with **no spelling for an unbounded wait**: `deadline` covers every attempt and every hop, `idle` and `maxDuration` bound a streamed body, retry is jittered, and two body keys, a body on `get`, or `post`/`patch` with `retryAttempts` and no `retryIdempotencyKey`, are compile errors. A reply answers `status`, `text`, `bytes`, `header`, `headers`, `jsonAs<T>` and `tls`, all of it `tainted`; a `Core\\Http\\Stream` answers the head and then `events`, `lines`, `chunks` or `saveTo` — one of them, once. `Http\\Part::file`/`::bytes` are a body sent without being held, `Http\\Identity::read` is a client certificate, and `Core\\Test::answerHttp`/`::sentHttp` answer outbound calls from a table so a test needs no network",
+          "`get`, `post`, `put`, `patch`, `delete`, `head`, plus `request(Core\\Http\\Method, …)` for a verb chosen at run time and `stream(Core\\Http\\Method, …)` for a body read as it arrives — each over `string \\| Core\\Http\\Target`, and there is no `Core\\Http\\Request` class. `Core\\Http::allowUrl` is the SSRF launderer, and the `Target` it answers carries every approved address. `Core\\Http::methodName(Core\\Http\\Method): string` answers a case's wire token (`GET`), for an `Allow` header or a log line. Replaces all ~30 `curl_*` functions and their handle. One trailing `Core\\Http\\Options` shape — the bounds `{deadline?, connectTimeout?, idle?, maxDuration?}`, the retry keys `{retryAttempts?, retryBackoff?, retryIdempotencyKey?}`, `{headers?, followRedirects?}`, at most one body of `{json?, form?, body? + contentType?, multipart?}`, and the connection keys `{identity?, connectTo?, redirectToHttp?, tlsCa?, tlsPin?, tlsVerifyHost?, tlsVerify?, tlsMinVersion?}` — with **no spelling for an unbounded wait**: `deadline` covers every attempt and every hop, `idle` and `maxDuration` bound a streamed body, retry is jittered, and two body keys, a body on `get`, or `post`/`patch` with `retryAttempts` and no `retryIdempotencyKey`, are compile errors. A reply answers `status`, `text`, `bytes`, `header`, `headers`, `jsonAs<T>` and `tls`, all of it `tainted`; a `Core\\Http\\Stream` answers the head and then `events`, `lines`, `chunks` or `saveTo` — one of them, once. `Http\\Part::file`/`::bytes` are a body sent without being held, `Http\\Identity::read` is a client certificate, and `Core\\Test::answerHttp`/`::sentHttp` answer outbound calls from a table so a test needs no network",
           "[0058](../decisions/0058.md), [0074](../decisions/0074.md), [0180](../decisions/0180.md)"
         ],
         [
