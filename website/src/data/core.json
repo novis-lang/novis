@@ -14053,7 +14053,7 @@
       "name": "Core\\Http\\Client",
       "section": "16. Network, data and crypto",
       "summary": "",
-      "surface": "`get`, `post`, `put`, `patch`, `delete`, `head`, plus `request(Core\\Http\\Method, …)` for a verb chosen at run time and `stream(Core\\Http\\Method, …)` for a body read as it arrives — each over `string | Core\\Http\\Target`, and there is no `Core\\Http\\Request` class. `Core\\Http::allowUrl` is the SSRF launderer, and the `Target` it answers carries every approved address. Replaces all ~30 `curl_*` functions and their handle. One trailing `Core\\Http\\Options` shape — the bounds `{deadline?, connectTimeout?, idle?, maxDuration?}`, the retry keys `{retryAttempts?, retryBackoff?, retryIdempotencyKey?}`, `{headers?, followRedirects?}`, at most one body of `{json?, form?, body? + contentType?, multipart?}`, and the connection keys `{identity?, connectTo?, redirectToHttp?, tlsCa?, tlsPin?, tlsVerifyHost?, tlsVerify?, tlsMinVersion?}` — with **no spelling for an unbounded wait**: `deadline` covers every attempt and every hop, `idle` and `maxDuration` bound a streamed body, retry is jittered, and two body keys, a body on `get`, or `post`/`patch` with `retryAttempts` and no `retryIdempotencyKey`, are compile errors. A reply answers `status`, `text`, `bytes`, `header`, `headers`, `jsonAs<T>` and `tls`, all of it `tainted`; a `Core\\Http\\Stream` answers the head and then `events`, `lines`, `chunks` or `saveTo` — one of them, once. `Http\\Part::file`/`::bytes` are a body sent without being held, `Http\\Identity::read` is a client certificate, and `Core\\Test::answerHttp`/`::sentHttp` answer outbound calls from a table so a test needs no network",
+      "surface": "`get`, `post`, `put`, `patch`, `delete`, `head`, plus `request(Core\\Http\\Method, …)` for a verb chosen at run time and `stream(Core\\Http\\Method, …)` for a body read as it arrives — each over `string | Core\\Http\\Target`, and there is no `Core\\Http\\Request` class. `Core\\Http::allowUrl` is the SSRF launderer, and the `Target` it answers carries every approved address. `Core\\Http::methodName(Core\\Http\\Method): string` answers a case's wire token (`GET`), for an `Allow` header or a log line. Replaces all ~30 `curl_*` functions and their handle. One trailing `Core\\Http\\Options` shape — the bounds `{deadline?, connectTimeout?, idle?, maxDuration?}`, the retry keys `{retryAttempts?, retryBackoff?, retryIdempotencyKey?}`, `{headers?, followRedirects?}`, at most one body of `{json?, form?, body? + contentType?, multipart?}`, and the connection keys `{identity?, connectTo?, redirectToHttp?, tlsCa?, tlsPin?, tlsVerifyHost?, tlsVerify?, tlsMinVersion?}` — with **no spelling for an unbounded wait**: `deadline` covers every attempt and every hop, `idle` and `maxDuration` bound a streamed body, retry is jittered, and two body keys, a body on `get`, or `post`/`patch` with `retryAttempts` and no `retryIdempotencyKey`, are compile errors. A reply answers `status`, `text`, `bytes`, `header`, `headers`, `jsonAs<T>` and `tls`, all of it `tainted`; a `Core\\Http\\Stream` answers the head and then `events`, `lines`, `chunks` or `saveTo` — one of them, once. `Http\\Part::file`/`::bytes` are a body sent without being held, `Http\\Identity::read` is a client certificate, and `Core\\Test::answerHttp`/`::sentHttp` answer outbound calls from a table so a test needs no network",
       "adrs": [
         "0058",
         "0074",
@@ -15994,7 +15994,7 @@
       "slug": "http-client",
       "url": "/reference/core/http-client/",
       "summaryHtml": "",
-      "surfaceHtml": "<code>get</code>, <code>post</code>, <code>put</code>, <code>patch</code>, <code>delete</code>, <code>head</code>, plus <code>request(Core\\Http\\Method, …)</code> for a verb chosen at run time and <code>stream(Core\\Http\\Method, …)</code> for a body read as it arrives — each over <code>string | Core\\Http\\Target</code>, and there is no <code>Core\\Http\\Request</code> class. <code>Core\\Http::allowUrl</code> is the SSRF launderer, and the <code>Target</code> it answers carries every approved address. Replaces all ~30 <code>curl_*</code> functions and their handle. One trailing <code>Core\\Http\\Options</code> shape — the bounds <code>{deadline?, connectTimeout?, idle?, maxDuration?}</code>, the retry keys <code>{retryAttempts?, retryBackoff?, retryIdempotencyKey?}</code>, <code>{headers?, followRedirects?}</code>, at most one body of <code>{json?, form?, body? + contentType?, multipart?}</code>, and the connection keys <code>{identity?, connectTo?, redirectToHttp?, tlsCa?, tlsPin?, tlsVerifyHost?, tlsVerify?, tlsMinVersion?}</code> — with <strong>no spelling for an unbounded wait</strong>: <code>deadline</code> covers every attempt and every hop, <code>idle</code> and <code>maxDuration</code> bound a streamed body, retry is jittered, and two body keys, a body on <code>get</code>, or <code>post</code>/<code>patch</code> with <code>retryAttempts</code> and no <code>retryIdempotencyKey</code>, are compile errors. A reply answers <code>status</code>, <code>text</code>, <code>bytes</code>, <code>header</code>, <code>headers</code>, <code>jsonAs&lt;T&gt;</code> and <code>tls</code>, all of it <code>tainted</code>; a <code>Core\\Http\\Stream</code> answers the head and then <code>events</code>, <code>lines</code>, <code>chunks</code> or <code>saveTo</code> — one of them, once. <code>Http\\Part::file</code>/<code>::bytes</code> are a body sent without being held, <code>Http\\Identity::read</code> is a client certificate, and <code>Core\\Test::answerHttp</code>/<code>::sentHttp</code> answer outbound calls from a table so a test needs no network"
+      "surfaceHtml": "<code>get</code>, <code>post</code>, <code>put</code>, <code>patch</code>, <code>delete</code>, <code>head</code>, plus <code>request(Core\\Http\\Method, …)</code> for a verb chosen at run time and <code>stream(Core\\Http\\Method, …)</code> for a body read as it arrives — each over <code>string | Core\\Http\\Target</code>, and there is no <code>Core\\Http\\Request</code> class. <code>Core\\Http::allowUrl</code> is the SSRF launderer, and the <code>Target</code> it answers carries every approved address. <code>Core\\Http::methodName(Core\\Http\\Method): string</code> answers a case's wire token (<code>GET</code>), for an <code>Allow</code> header or a log line. Replaces all ~30 <code>curl_*</code> functions and their handle. One trailing <code>Core\\Http\\Options</code> shape — the bounds <code>{deadline?, connectTimeout?, idle?, maxDuration?}</code>, the retry keys <code>{retryAttempts?, retryBackoff?, retryIdempotencyKey?}</code>, <code>{headers?, followRedirects?}</code>, at most one body of <code>{json?, form?, body? + contentType?, multipart?}</code>, and the connection keys <code>{identity?, connectTo?, redirectToHttp?, tlsCa?, tlsPin?, tlsVerifyHost?, tlsVerify?, tlsMinVersion?}</code> — with <strong>no spelling for an unbounded wait</strong>: <code>deadline</code> covers every attempt and every hop, <code>idle</code> and <code>maxDuration</code> bound a streamed body, retry is jittered, and two body keys, a body on <code>get</code>, or <code>post</code>/<code>patch</code> with <code>retryAttempts</code> and no <code>retryIdempotencyKey</code>, are compile errors. A reply answers <code>status</code>, <code>text</code>, <code>bytes</code>, <code>header</code>, <code>headers</code>, <code>jsonAs&lt;T&gt;</code> and <code>tls</code>, all of it <code>tainted</code>; a <code>Core\\Http\\Stream</code> answers the head and then <code>events</code>, <code>lines</code>, <code>chunks</code> or <code>saveTo</code> — one of them, once. <code>Http\\Part::file</code>/<code>::bytes</code> are a body sent without being held, <code>Http\\Identity::read</code> is a client certificate, and <code>Core\\Test::answerHttp</code>/<code>::sentHttp</code> answer outbound calls from a table so a test needs no network"
     },
     {
       "id": "Http.Event",
@@ -25246,7 +25246,7 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "run(string $path, array<string> $argv): Core\\Process\\Result",
+          "signature": "run(string $path, array<string> $argv, {cwd?: string, env?: array<string>, timeout?: Core\\Time\\Duration}): Core\\Process\\Result",
           "params": [
             {
               "kind": "param",
@@ -25265,7 +25265,20 @@
               "variadic": false
             }
           ],
-          "options": [],
+          "options": [
+            {
+              "name": "cwd",
+              "type": "string"
+            },
+            {
+              "name": "env",
+              "type": "array<string>"
+            },
+            {
+              "name": "timeout",
+              "type": "Core\\Time\\Duration"
+            }
+          ],
           "returnType": "Core\\Process\\Result",
           "replaces": "",
           "notes": "",
@@ -25283,17 +25296,33 @@
               {
                 "name": "argv",
                 "descHtml": "The arguments, one in each element: <code>[&quot;-n&quot;, &quot;1&quot;, $host]</code>. An element with a space, a quote or a <code>;</code> in it is still one argument, on every platform."
+              },
+              {
+                "name": "cwd",
+                "descHtml": "The folder the program starts in, as an absolute path or a string literal relative to this file. Without it, the program starts in the same folder as this program."
+              },
+              {
+                "name": "env",
+                "descHtml": "The environment variables of the program, as name =&gt; value. This replaces all of them, so a variable that is not in the array is not set. Without it, the program gets the same variables as this program. A <code>secret</code> value must be revealed first."
+              },
+              {
+                "name": "timeout",
+                "descHtml": "The longest time the program may run, counted from the start. When it passes, the program is stopped and a <code>TimeoutError</code> is thrown."
               }
             ],
             "returnHtml": "A <code>Core\\Process\\Result</code> with the exit code and everything the program wrote to its output and to its error output. The program cannot write to this program's own output, so the two never mix.",
             "errors": [
               {
                 "error": "RuntimeError",
-                "descHtml": "<code>process.exec</code> does not allow this program, or it is a <code>.bat</code>, <code>.cmd</code> or <code>.ps1</code> file. Those are not allowed on any platform, because Windows starts them through a shell. The error is also thrown when the program writes more than <code>[limits] max_output</code> in total. Then the program is stopped and nothing is returned."
+                "descHtml": "<code>process.exec</code> does not allow this program, or it is a <code>.bat</code>, <code>.cmd</code> or <code>.ps1</code> file. Those are not allowed on any platform, because Windows starts them through a shell. The error is also thrown when the program writes more than <code>[limits] max_output</code> in total. Then the program is stopped and nothing is returned. It is also thrown when <code>cwd</code> is a relative path, when an <code>env</code> name is empty or has a <code>=</code> in it, or when <code>timeout</code> is zero or shorter."
+              },
+              {
+                "error": "TimeoutError",
+                "descHtml": "The program was still running when <code>timeout</code> passed. The program is stopped and nothing is returned."
               },
               {
                 "error": "IOError",
-                "descHtml": "The program could not be started or waited for. For example, nothing is at the path, or the file is not a program."
+                "descHtml": "The program could not be started or waited for. For example, nothing is at the path, the file is not a program, or the <code>cwd</code> folder does not exist."
               }
             ]
           },
@@ -25307,7 +25336,7 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "spawn(string $path, array<string> $argv): Core\\Process\\Handle",
+          "signature": "spawn(string $path, array<string> $argv, {cwd?: string, env?: array<string>, timeout?: Core\\Time\\Duration}): Core\\Process\\Handle",
           "params": [
             {
               "kind": "param",
@@ -25326,7 +25355,20 @@
               "variadic": false
             }
           ],
-          "options": [],
+          "options": [
+            {
+              "name": "cwd",
+              "type": "string"
+            },
+            {
+              "name": "env",
+              "type": "array<string>"
+            },
+            {
+              "name": "timeout",
+              "type": "Core\\Time\\Duration"
+            }
+          ],
           "returnType": "Core\\Process\\Handle",
           "replaces": "",
           "notes": "",
@@ -25344,17 +25386,29 @@
               {
                 "name": "argv",
                 "descHtml": "The arguments, one in each element. An element with a space, a quote or a <code>;</code> in it is still one argument, on every platform."
+              },
+              {
+                "name": "cwd",
+                "descHtml": "The folder the program starts in, as an absolute path or a string literal relative to this file. Without it, the program starts in the same folder as this program."
+              },
+              {
+                "name": "env",
+                "descHtml": "The environment variables of the program, as name =&gt; value. This replaces all of them, so a variable that is not in the array is not set. Without it, the program gets the same variables as this program. A <code>secret</code> value must be revealed first."
+              },
+              {
+                "name": "timeout",
+                "descHtml": "The longest time the program may run, counted from the start. When it passes, the program is stopped and a <code>TimeoutError</code> is thrown."
               }
             ],
             "returnHtml": "A <code>Core\\Process\\Handle</code> for the running program. Other requests keep running while this one waits on the handle. The program is stopped when the request that started it ends.",
             "errors": [
               {
                 "error": "RuntimeError",
-                "descHtml": "<code>process.exec</code> does not allow this program, or it is a <code>.bat</code>, <code>.cmd</code> or <code>.ps1</code> file. Those are not allowed on any platform, because Windows starts them through a shell."
+                "descHtml": "<code>process.exec</code> does not allow this program, or it is a <code>.bat</code>, <code>.cmd</code> or <code>.ps1</code> file. Those are not allowed on any platform, because Windows starts them through a shell. It is also thrown when <code>cwd</code> is a relative path, when an <code>env</code> name is empty or has a <code>=</code> in it, or when <code>timeout</code> is zero or shorter."
               },
               {
                 "error": "IOError",
-                "descHtml": "The program could not be started. For example, nothing is at the path, or the file is not a program."
+                "descHtml": "The program could not be started. For example, nothing is at the path, the file is not a program, or the <code>cwd</code> folder does not exist."
               }
             ]
           },
@@ -25401,6 +25455,10 @@
             "returnHtml": "The next part of the output, as <code>bytes</code>, up to 64 KiB. A part is whatever has arrived: it can be less than one line or several lines. At the end of the output the result is <code>null</code>, and every later call also returns <code>null</code>. Use <code>as string</code> to convert a part to text.",
             "errors": [
               {
+                "error": "TimeoutError",
+                "descHtml": "The <code>timeout</code> given to <code>spawn</code> has passed. The program is stopped, and every later call except <code>kill</code> throws this error too."
+              },
+              {
                 "error": "IOError",
                 "descHtml": "The operating system could not read the output. The output is then closed, so the next call returns <code>null</code>."
               }
@@ -25430,6 +25488,10 @@
             "shortHtml": "Waits until the program writes to its standard error, and returns what it wrote. Programs write their error messages and warnings there. It works like <code>readStdout</code>, and the two outputs are never mixed.",
             "returnHtml": "The next part of the error output, as <code>bytes</code>, up to 64 KiB. At the end of the error output the result is <code>null</code>, and every later call also returns <code>null</code>. Use <code>as string</code> to convert a part to text.",
             "errors": [
+              {
+                "error": "TimeoutError",
+                "descHtml": "The <code>timeout</code> given to <code>spawn</code> has passed. The program is stopped, and every later call except <code>kill</code> throws this error too."
+              },
               {
                 "error": "IOError",
                 "descHtml": "The operating system could not read the error output. The error output is then closed, so the next call returns <code>null</code>."
@@ -25476,6 +25538,10 @@
             "returnHtml": "Nothing. The input stays open, so you can call <code>writeStdin</code> again. <code>wait</code> closes the input, and then the program sees the end of it.",
             "errors": [
               {
+                "error": "TimeoutError",
+                "descHtml": "The <code>timeout</code> given to <code>spawn</code> has passed. The program is stopped, and every later call except <code>kill</code> throws this error too."
+              },
+              {
                 "error": "IOError",
                 "descHtml": "The operating system could not send the data. This happens most often when the program has already ended, or after <code>wait</code>."
               }
@@ -25508,6 +25574,10 @@
               {
                 "error": "RuntimeError",
                 "descHtml": "The output that was not read yet is larger than <code>[limits] max_output</code>. The program is then stopped."
+              },
+              {
+                "error": "TimeoutError",
+                "descHtml": "The <code>timeout</code> given to <code>spawn</code> has passed. The program is stopped, and every later call except <code>kill</code> throws this error too."
               },
               {
                 "error": "IOError",
@@ -25652,10 +25722,11 @@
       "name": "Core\\Program",
       "section": "13. Compiler-facing surfaces",
       "summary": "",
-      "surface": "`implementing<T>()`, and `implementingWith<I, T>(string $member = \"\")` — the same enumeration with one attribute retrieval joined per class, each row holding the instance and its matching payload or null",
+      "surface": "`implementing<T>()`, and `implementingWith<I, T>(string $member = \"\")` — the same enumeration with one attribute retrieval joined per class, each row holding the instance and its matching payload or null — and `constructors<T, C>()`, the same classes in the same order, each row holding the class name and a `make` closure typed `C` that builds it",
       "adrs": [
         "0061",
-        "0212"
+        "0212",
+        "0253"
       ],
       "enums": [],
       "constants": [],
@@ -25783,7 +25854,7 @@
       "slug": "program",
       "url": "/reference/core/program/",
       "summaryHtml": "",
-      "surfaceHtml": "<code>implementing&lt;T&gt;()</code>, and <code>implementingWith&lt;I, T&gt;(string $member = &quot;&quot;)</code> — the same enumeration with one attribute retrieval joined per class, each row holding the instance and its matching payload or null"
+      "surfaceHtml": "<code>implementing&lt;T&gt;()</code>, and <code>implementingWith&lt;I, T&gt;(string $member = &quot;&quot;)</code> — the same enumeration with one attribute retrieval joined per class, each row holding the instance and its matching payload or null — and <code>constructors&lt;T, C&gt;()</code>, the same classes in the same order, each row holding the class name and a <code>make</code> closure typed <code>C</code> that builds it"
     },
     {
       "id": "Queue",
@@ -32200,6 +32271,36 @@
           "slug": "isdraining",
           "url": "/reference/core/server/isdraining/",
           "examples": "core/Server/isDraining"
+        },
+        {
+          "id": "Server.traceId",
+          "name": "traceId",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "traceId(): string",
+          "params": [],
+          "options": [],
+          "returnType": "string",
+          "replaces": "",
+          "notes": "",
+          "qualifier": "",
+          "section": "15. Request-facing: `Core\\Server`, `Core\\Request`, `Core\\Response`, `Core\\Session`, `Core\\Env`, `Core\\Cap`, `Core\\Cli`",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "Returns the id of the current request. Every request has one, and the server writes the same id into its log lines.",
+            "returnHtml": "32 lower-case hexadecimal characters. If the request came with a <code>traceparent</code> header, the id is the one in that header.",
+            "errors": [
+              {
+                "error": "LogicError",
+                "descHtml": "The program is not answering a request, such as a command-line program or a test."
+              }
+            ]
+          },
+          "slug": "traceid",
+          "url": "/reference/core/server/traceid/",
+          "examples": "core/Server/traceId"
         }
       ],
       "unparsed": [],
@@ -36538,7 +36639,7 @@
       "name": "Core\\Test",
       "section": "13. Compiler-facing surfaces",
       "summary": "",
-      "surface": "the assertion roster — `assertSame`/`assertEquals<T>`/`assertEqualsDeep`, `assertTrue`, `assertNull`, `assertCount`, `assertContains`, `assertThrows`, `assertDoesNotThrow`, `expectFailure` — plus `double<T>`/`partial<T>`, `assertCalled`/`assertNeverCalled`, `advance`, `scriptAnswers`, `assertCompletes`, `assertMatchesInline` and `request(Http\\Method $method, string $path, {headers?: array<string>, body?: string|bytes, mount?: string} $options): Core\\Test\\Response` — one in-process request against the program's own `#[Route]` table. Every one is subject-first and generic where it compares",
+      "surface": "the assertions, each ending in a `{message?: string}` bag: `assertSame<T>(T $actual, T $expected)`, `assertEquals<T>(T $actual, T $expected)`, `assertEqualsDeep<T>(T $actual, T $expected)`, `assertTrue(bool $actual)`, `assertNull(mixed $actual)`, `assertCount<T>(array<T> $actual, uint $expected)`, `assertContains<T>(array<T> $actual, T $expected)`, `assertMatchesInline(mixed $actual, string $expected)`, `assertThrows(callable(): mixed $body, string $expected)`, `assertDoesNotThrow(callable(): mixed $body)` and `assertCompletes(callable(): mixed $body, {within: Time\\Duration} $settings)`; `expectFailure(callable(): mixed $body): void`, which passes when `$body` fails an assertion. Doubles: `double<T>(object $answers): T`, `partial<T>(T $real, object $answers): T`, `assertCalled(object $double, method $method, {times?: uint, with?: array<mixed>, message?: string})` and `assertNeverCalled(object $double, method $method, {message?: string})`. The clock and the `Core\\Cli` prompts: `advance(Time\\Duration $by): void` and `scriptAnswers(array<string> $answers): void`. The program's own routes: `request(Http\\Method $method, string $path, {headers?: array<string>, body?: string|bytes, mount?: string, captures?: array<string>}): Core\\Test\\Response` — one in-process request against the `#[Route]` table — and `serverUrl(): ?string`. Outbound calls: `answerHttp(string $url, uint $status, {json?: mixed, body?: string|bytes, headers?: array<string|array<string>>, tls?: Http\\TlsInfo}): void`, `tlsSession({version?, cipher?, verified?, subject?, issuer?, expiry?}): Http\\TlsInfo`, `sentHttp(): array<Core\\Test\\SentRequest>`, `answerSocket(string $url, array<string|bytes> $frames, {protocol?: string}): void` and `sentSocket(): array<Socket\\Message>`. Every assertion is subject-first and generic where it compares",
       "adrs": [
         "0079"
       ],
@@ -38052,15 +38153,17 @@
       "slug": "test",
       "url": "/reference/core/test/",
       "summaryHtml": "",
-      "surfaceHtml": "the assertion roster — <code>assertSame</code>/<code>assertEquals&lt;T&gt;</code>/<code>assertEqualsDeep</code>, <code>assertTrue</code>, <code>assertNull</code>, <code>assertCount</code>, <code>assertContains</code>, <code>assertThrows</code>, <code>assertDoesNotThrow</code>, <code>expectFailure</code> — plus <code>double&lt;T&gt;</code>/<code>partial&lt;T&gt;</code>, <code>assertCalled</code>/<code>assertNeverCalled</code>, <code>advance</code>, <code>scriptAnswers</code>, <code>assertCompletes</code>, <code>assertMatchesInline</code> and <code>request(Http\\Method $method, string $path, {headers?: array&lt;string&gt;, body?: string|bytes, mount?: string} $options): Core\\Test\\Response</code> — one in-process request against the program's own <code>#[Route]</code> table. Every one is subject-first and generic where it compares"
+      "surfaceHtml": "the assertions, each ending in a <code>{message?: string}</code> bag: <code>assertSame&lt;T&gt;(T $actual, T $expected)</code>, <code>assertEquals&lt;T&gt;(T $actual, T $expected)</code>, <code>assertEqualsDeep&lt;T&gt;(T $actual, T $expected)</code>, <code>assertTrue(bool $actual)</code>, <code>assertNull(mixed $actual)</code>, <code>assertCount&lt;T&gt;(array&lt;T&gt; $actual, uint $expected)</code>, <code>assertContains&lt;T&gt;(array&lt;T&gt; $actual, T $expected)</code>, <code>assertMatchesInline(mixed $actual, string $expected)</code>, <code>assertThrows(callable(): mixed $body, string $expected)</code>, <code>assertDoesNotThrow(callable(): mixed $body)</code> and <code>assertCompletes(callable(): mixed $body, {within: Time\\Duration} $settings)</code>; <code>expectFailure(callable(): mixed $body): void</code>, which passes when <code>$body</code> fails an assertion. Doubles: <code>double&lt;T&gt;(object $answers): T</code>, <code>partial&lt;T&gt;(T $real, object $answers): T</code>, <code>assertCalled(object $double, method $method, {times?: uint, with?: array&lt;mixed&gt;, message?: string})</code> and <code>assertNeverCalled(object $double, method $method, {message?: string})</code>. The clock and the <code>Core\\Cli</code> prompts: <code>advance(Time\\Duration $by): void</code> and <code>scriptAnswers(array&lt;string&gt; $answers): void</code>. The program's own routes: <code>request(Http\\Method $method, string $path, {headers?: array&lt;string&gt;, body?: string|bytes, mount?: string, captures?: array&lt;string&gt;}): Core\\Test\\Response</code> — one in-process request against the <code>#[Route]</code> table — and <code>serverUrl(): ?string</code>. Outbound calls: <code>answerHttp(string $url, uint $status, {json?: mixed, body?: string|bytes, headers?: array&lt;string|array&lt;string&gt;&gt;, tls?: Http\\TlsInfo}): void</code>, <code>tlsSession({version?, cipher?, verified?, subject?, issuer?, expiry?}): Http\\TlsInfo</code>, <code>sentHttp(): array&lt;Core\\Test\\SentRequest&gt;</code>, <code>answerSocket(string $url, array&lt;string|bytes&gt; $frames, {protocol?: string}): void</code> and <code>sentSocket(): array&lt;Socket\\Message&gt;</code>. Every assertion is subject-first and generic where it compares"
     },
     {
       "id": "Test.Response",
       "name": "Core\\Test\\Response",
-      "section": "",
-      "summary": "The answer to one request that `Core\\Test::request` sent to your own program. `status()` returns the status code, `header()` and `headers()` return the headers, `cookies()` returns the cookies the program set, and `body()`, `json()` and `jsonAs()` return the body. You cannot create one yourself.",
-      "surface": "",
-      "adrs": [],
+      "section": "13. Compiler-facing surfaces",
+      "summary": "",
+      "surface": "what `Core\\Test::request` returns: `status(): uint`, `body(): string`, `header(string $name): ?string`, `headers(): array<array<string>>`, `cookies(): array<string>`, `json({maxDepth?: uint}): mixed` and `jsonAs<T>({maxDepth?: uint}): T`, the last two reading the body as `Core\\Request::json` and `::jsonAs` do",
+      "adrs": [
+        "0079"
+      ],
       "enums": [],
       "constants": [],
       "members": [
@@ -38077,7 +38180,7 @@
           "replaces": "",
           "notes": "",
           "qualifier": "",
-          "section": "",
+          "section": "13. Compiler-facing surfaces",
           "implemented": true,
           "notesHtml": "",
           "doc": {
@@ -38101,7 +38204,7 @@
           "replaces": "",
           "notes": "",
           "qualifier": "",
-          "section": "",
+          "section": "13. Compiler-facing surfaces",
           "implemented": true,
           "notesHtml": "",
           "doc": {
@@ -38134,7 +38237,7 @@
           "replaces": "",
           "notes": "",
           "qualifier": "",
-          "section": "",
+          "section": "13. Compiler-facing surfaces",
           "implemented": true,
           "notesHtml": "",
           "doc": {
@@ -38170,7 +38273,7 @@
           "replaces": "",
           "notes": "",
           "qualifier": "",
-          "section": "",
+          "section": "13. Compiler-facing surfaces",
           "implemented": true,
           "notesHtml": "",
           "doc": {
@@ -38194,7 +38297,7 @@
           "replaces": "",
           "notes": "",
           "qualifier": "",
-          "section": "",
+          "section": "13. Compiler-facing surfaces",
           "implemented": true,
           "notesHtml": "",
           "doc": {
@@ -38223,7 +38326,7 @@
           "replaces": "",
           "notes": "",
           "qualifier": "",
-          "section": "",
+          "section": "13. Compiler-facing surfaces",
           "implemented": true,
           "notesHtml": "",
           "doc": {
@@ -38268,7 +38371,7 @@
           "replaces": "",
           "notes": "",
           "qualifier": "",
-          "section": "",
+          "section": "13. Compiler-facing surfaces",
           "implemented": true,
           "notesHtml": "",
           "doc": {
@@ -38304,16 +38407,18 @@
       "implemented": true,
       "slug": "test-response",
       "url": "/reference/core/test-response/",
-      "summaryHtml": "<p>The answer to one request that <code>Core\\Test::request</code> sent to your own program. <code>status()</code> returns the status code, <code>header()</code> and <code>headers()</code> return the headers, <code>cookies()</code> returns the cookies the program set, and <code>body()</code>, <code>json()</code> and <code>jsonAs()</code> return the body. You cannot create one yourself.</p>",
-      "surfaceHtml": ""
+      "summaryHtml": "",
+      "surfaceHtml": "what <code>Core\\Test::request</code> returns: <code>status(): uint</code>, <code>body(): string</code>, <code>header(string $name): ?string</code>, <code>headers(): array&lt;array&lt;string&gt;&gt;</code>, <code>cookies(): array&lt;string&gt;</code>, <code>json({maxDepth?: uint}): mixed</code> and <code>jsonAs&lt;T&gt;({maxDepth?: uint}): T</code>, the last two reading the body as <code>Core\\Request::json</code> and <code>::jsonAs</code> do"
     },
     {
       "id": "Test.SentRequest",
       "name": "Core\\Test\\SentRequest",
-      "section": "",
-      "summary": "One HTTP request your program sent to a fake web service in a test. `Core\\Test::sentHttp` returns a list of them. `method()`, `url()`, `header()` and `body()` return what the program sent. You cannot create one yourself.",
-      "surface": "",
-      "adrs": [],
+      "section": "13. Compiler-facing surfaces",
+      "summary": "",
+      "surface": "one outbound call `Core\\Test::sentHttp` recorded: `method(): Http\\Method`, `url(): string`, `header(string $name): ?string` and `body(): bytes`",
+      "adrs": [
+        "0079"
+      ],
       "enums": [],
       "constants": [],
       "members": [
@@ -38330,7 +38435,7 @@
           "replaces": "",
           "notes": "",
           "qualifier": "",
-          "section": "",
+          "section": "13. Compiler-facing surfaces",
           "implemented": true,
           "notesHtml": "",
           "doc": {
@@ -38354,7 +38459,7 @@
           "replaces": "",
           "notes": "",
           "qualifier": "",
-          "section": "",
+          "section": "13. Compiler-facing surfaces",
           "implemented": true,
           "notesHtml": "",
           "doc": {
@@ -38387,7 +38492,7 @@
           "replaces": "",
           "notes": "",
           "qualifier": "",
-          "section": "",
+          "section": "13. Compiler-facing surfaces",
           "implemented": true,
           "notesHtml": "",
           "doc": {
@@ -38417,7 +38522,7 @@
           "replaces": "",
           "notes": "",
           "qualifier": "",
-          "section": "",
+          "section": "13. Compiler-facing surfaces",
           "implemented": true,
           "notesHtml": "",
           "doc": {
@@ -38433,8 +38538,8 @@
       "implemented": true,
       "slug": "test-sentrequest",
       "url": "/reference/core/test-sentrequest/",
-      "summaryHtml": "<p>One HTTP request your program sent to a fake web service in a test. <code>Core\\Test::sentHttp</code> returns a list of them. <code>method()</code>, <code>url()</code>, <code>header()</code> and <code>body()</code> return what the program sent. You cannot create one yourself.</p>",
-      "surfaceHtml": ""
+      "summaryHtml": "",
+      "surfaceHtml": "one outbound call <code>Core\\Test::sentHttp</code> recorded: <code>method(): Http\\Method</code>, <code>url(): string</code>, <code>header(string $name): ?string</code> and <code>body(): bytes</code>"
     },
     {
       "id": "Time",

@@ -1,5 +1,5 @@
 {
-  "state": "**Side goal `website-overhaul` is reached: all six stages are on disk and every check in its record passes.**\n\nNo goal record in this tree names `bun nv ci-green` any more, so the floor that failed the sweep after session 0027 is gone. `bun nv verify --doc` is green, and `bun nv owners --closes side/website-overhaul` names no gap. This session reports `DONE`, and the run's sweep ends on `SIDE GOAL GREEN`.\n\n`main` has moved three commits past this branch's base since the last rebase. The user rebases once more when landing the branch by hand.\n\nFor the user's review before the branch lands: the six standout features on the home page (`website/src/content/docs/index.mdx`) are a proposal, and so are four renamed sidebar titles in `website/astro.config.ts`: \"HTML is escaped for you\", \"Null is checked when you compile\", \"One request cannot change another\" and \"Where Novis is weaker\". `sponsoring.mdx`, `impressum.md` and `datenschutz.md` were not reviewed, because they are in the user's own voice.",
+  "state": "**Side goal `website-overhaul` is reached: all six stages are on disk and every check in its record passes.**\n\nThe sweep after session 0030 failed only `site --check reference`: a `main` rebase had brought `Core\\Server::traceId` and other surface changes into the tree after `website/src/data/core.json` was last rendered. `core.json` is re-rendered from the pipeline binary, and `bun nv site --check` passes all nine parts. `bun nv verify --doc` and `bun nv owners --closes side/website-overhaul` were green last session, and this session touched only generated data.\n\n`main` has moved past this branch's base since the last rebase. The user rebases once more when landing the branch by hand, and re-runs `bun nv render --website` after that rebase.\n\nFor the user's review before the branch lands: the six standout features on the home page (`website/src/content/docs/index.mdx`) are a proposal, and so are four renamed sidebar titles in `website/astro.config.ts`: \"HTML is escaped for you\", \"Null is checked when you compile\", \"One request cannot change another\" and \"Where Novis is weaker\". `sponsoring.mdx`, `impressum.md` and `datenschutz.md` were not reviewed, because they are in the user's own voice.",
   "next": {
     "stage": 6,
     "title": "In-Depth, the home page and the last links",
@@ -9,11 +9,11 @@
     "items": [
       {
         "done": true,
-        "text": "**Report `DONE`**: every check passes and no work is left. The user lands the branch by hand after the run ends, with the steps `SIDE GOAL GREEN` prints. Specified by `docs/agent/goals/side/website-overhaul.md` § Standing decisions, \"No review stop\". Anchors: `website/src/content/docs/index.mdx:1`"
+        "text": "**The Reference data is current against the pipeline binary** — `website/src/data/core.json:1`, re-rendered for `rule:testing/examples-live-in-the-repository`."
       }
     ]
   },
   "backlog": [
-    "`.claude/settings.json` still allows `bun nv ci-green`, which no longer exists. A person removes it, because it is a harness file (`data/goals/goal-closeout.handoff.json`)."
+    "None. The goal is reached; the user reviews the branch before it lands."
   ]
 }
