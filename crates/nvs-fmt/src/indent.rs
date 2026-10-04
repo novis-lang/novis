@@ -53,10 +53,10 @@
 //! # What it spends
 //!
 //! One [`NodePath`](nvs_syntax::NodePath) per line that opens with whitespace,
-//! built and dropped inside the call. The index scan behind it is linear in the
-//! file's nodes, so placing every line of a file is quadratic in it; a
-//! formatter is a per-file command-line pass and nothing here runs on the
-//! request path (`rule:tooling/fmt-is-never-a-diagnostic`).
+//! built and dropped inside the call. The index lookup behind it is a binary
+//! search, so a line costs the logarithm of the file's nodes plus its depth,
+//! and [`Indent::opening_of`] adds one such lookup per enclosing body. Nothing
+//! here runs on the request path (`rule:tooling/fmt-is-never-a-diagnostic`).
 
 use nvs_diagnostics::BytePos;
 use nvs_syntax::{IndexNode, SyntaxIndex, Trivia, TriviaKind};

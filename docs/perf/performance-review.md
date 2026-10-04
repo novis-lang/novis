@@ -316,7 +316,7 @@ every open buffer into a new source map per call (`document.rs:229`, `:324-327`)
 **Read:** indent placement, the printer, brace and space placement, and the syntax index under them.
 
 **Found:** every lookup into the syntax index scans all nodes, once per line and per candidate byte
-([`a-syntax-index-lookup-scans-every-node`](../../data/gaps/nvs-syntax/a-syntax-index-lookup-scans-every-node.json)),
+(fixed: `SyntaxIndex::at` and `children_of` are binary searches, and `fmt/classes.nvs` is flat),
 and a line's indent recurses once per enclosing body
 ([`opening-of-recurses-per-enclosing-body`](../../data/gaps/nvs-fmt/opening-of-recurses-per-enclosing-body.json)).
 These are the likely cause of `fmt/classes.nvs` growing.

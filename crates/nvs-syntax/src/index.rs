@@ -43,8 +43,9 @@
 //!
 //! # What it spends
 //!
-//! One entry per statement, expression and member — a kind, a 12-byte span and
-//! a parent id — plus the [`crate::walk::Node`] tree it is flattened from,
+//! One entry per statement, expression and member — a kind, a 12-byte span, a
+//! parent id and the id where its subtree ends — plus the
+//! [`crate::walk::Node`] tree it is flattened from,
 //! which is built and dropped inside [`SyntaxIndex::of_stmts`]. Both are
 //! O(nodes in the file) and neither is cached: the index is rebuilt per
 //! analysis, as its rule requires. If
@@ -103,6 +104,11 @@ impl NodePath {
 pub struct SyntaxIndex {
     /// Pre-order, so a node always precedes everything it contains.
     entries: Vec<Entry>,
+    /// Whether the entries' starts never decrease, which is what the
+    /// logarithmic lookups need. The walk emits source order, so this holds
+    /// for every tree it builds; a tree that broke it would be answered by a
+    /// scan, slowly and still correctly.
+    ordered: bool,
 }
 
 /// One node's row: what it is, where it is, and what contains it.
@@ -111,6 +117,8 @@ struct Entry {
     kind: &'static str,
     span: Span,
     parent: Option<usize>,
+    /// One past the last entry of this node's subtree, so the next sibling's id.
+    end: usize,
 }
 
 impl SyntaxIndex {
@@ -119,8 +127,13 @@ impl SyntaxIndex {
     pub fn of_stmts(stmts: &[Stmt]) -> Self {
         let mut index = Self {
             entries: Vec::new(),
+            ordered: true,
         };
         index.push_all(&walk::of_stmts(stmts), None);
+        index.ordered = index
+            .entries
+            .windows(2)
+            .all(|pair| pair[0].span.start <= pair[1].span.start);
         index
     }
 
@@ -134,11 +147,7 @@ impl SyntaxIndex {
     /// overlap.
     #[must_use]
     pub fn at(&self, offset: BytePos) -> NodePath {
-        let Some(innermost) = self
-            .entries
-            .iter()
-            .rposition(|entry| entry.span.start <= offset && offset < entry.span.end)
-        else {
+        let Some(innermost) = self.innermost(offset) else {
             return NodePath::default();
         };
         let mut nodes = Vec::new();
@@ -169,21 +178,67 @@ impl SyntaxIndex {
     /// the caller is asking about a node this index really has.
     #[must_use]
     pub fn children_of(&self, node: IndexNode) -> Vec<IndexNode> {
-        let Some(parent) = self
-            .entries
-            .iter()
-            .position(|entry| entry.kind == node.kind && entry.span == node.span)
-        else {
+        let Some(parent) = self.find(node) else {
             return Vec::new();
         };
-        self.entries
-            .iter()
-            .filter(|entry| entry.parent == Some(parent))
-            .map(|entry| IndexNode {
+        let mut children = Vec::new();
+        let mut child = parent + 1;
+        while child < self.entries[parent].end {
+            let entry = self.entries[child];
+            children.push(IndexNode {
                 kind: entry.kind,
                 span: entry.span,
-            })
-            .collect()
+            });
+            child = entry.end;
+        }
+        children
+    }
+
+    /// The id of the last entry containing `offset`.
+    ///
+    /// Ordered entries are searched for the last one starting at or before the
+    /// offset. The innermost containing node is that entry or one of its
+    /// ancestors: any entry after the innermost node's subtree starts at or past
+    /// its end, and so past the offset. Climbing the parents to the first one
+    /// that contains the offset therefore finds it, in O(log n + depth).
+    fn innermost(&self, offset: BytePos) -> Option<usize> {
+        if !self.ordered {
+            return self
+                .entries
+                .iter()
+                .rposition(|entry| entry.span.start <= offset && offset < entry.span.end);
+        }
+        let after = self
+            .entries
+            .partition_point(|entry| entry.span.start <= offset);
+        let mut next = after.checked_sub(1);
+        while let Some(id) = next {
+            let entry = self.entries[id];
+            if offset < entry.span.end && entry.span.start < entry.span.end {
+                return Some(id);
+            }
+            next = entry.parent;
+        }
+        None
+    }
+
+    /// The id of the first entry that is `node`, kind and span both.
+    ///
+    /// Ordered entries that start where `node` does are one contiguous run,
+    /// found by binary search; it is as long as the nodes sharing that start.
+    fn find(&self, node: IndexNode) -> Option<usize> {
+        let is_node = |entry: &Entry| entry.kind == node.kind && entry.span == node.span;
+        if !self.ordered {
+            return self.entries.iter().position(is_node);
+        }
+        let from = self
+            .entries
+            .partition_point(|entry| entry.span.start < node.span.start);
+        self.entries[from..]
+            .iter()
+            .take_while(|entry| entry.span.start == node.span.start)
+            .position(is_node)
+            .map(|at| from + at)
     }
 
     /// How many nodes the file has.
@@ -206,8 +261,10 @@ impl SyntaxIndex {
                 kind: node.kind,
                 span: node.span,
                 parent,
+                end: id + 1,
             });
             self.push_all(&node.children, Some(id));
+            self.entries[id].end = self.entries.len();
         }
     }
 }
@@ -345,6 +402,52 @@ mod tests {
                 entry.kind,
                 index.entries[parent].kind,
             );
+        }
+    }
+
+    #[test]
+    fn the_search_answers_what_a_scan_of_every_entry_answers() {
+        // The binary search and the climb are an optimisation of a scan, so
+        // they must agree with it at every byte of a real tree, the gaps
+        // between nodes and the bytes past the end included.
+        let source = "<?nvs
+            class C {
+                public int $n = 1 + 2;
+                public function m(array<string> $xs): void {
+                    foreach ($xs as string $x) { echo $x, match ($x) { \"a\" => 1, default => 2 }; }
+                }
+            }
+            enum E: int { A = 1, B = 2 }
+            echo (new C())->m([]);";
+        let (index, _) = index_of(source, "class");
+        assert!(index.ordered, "the walk emits source order");
+        let len = u32::try_from(source.len()).expect("a test fixture is small");
+        for offset in 0..len + 2 {
+            let scanned = index
+                .entries
+                .iter()
+                .rposition(|e| e.span.start <= offset && offset < e.span.end);
+            assert_eq!(index.innermost(offset), scanned, "at byte {offset}");
+            let Some(id) = scanned else { continue };
+            let node = super::IndexNode {
+                kind: index.entries[id].kind,
+                span: index.entries[id].span,
+            };
+            let first = index
+                .entries
+                .iter()
+                .position(|e| e.kind == node.kind && e.span == node.span);
+            assert_eq!(index.find(node), first, "the node at byte {offset}");
+            let children: Vec<super::IndexNode> = index
+                .entries
+                .iter()
+                .filter(|e| e.parent == first)
+                .map(|e| super::IndexNode {
+                    kind: e.kind,
+                    span: e.span,
+                })
+                .collect();
+            assert_eq!(index.children_of(node), children, "at byte {offset}");
         }
     }
 

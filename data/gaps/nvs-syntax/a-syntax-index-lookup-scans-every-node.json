@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-syntax/src/index.rs",
-  "title": "`SyntaxIndex::at` scans every node of the file, and the formatter calls it once per line and per candidate byte.",
-  "text": "`SyntaxIndex::at` (`crates/nvs-syntax/src/index.rs:136-140`) is an `rposition` over every entry. `crates/nvs-fmt/src/indent.rs:123` calls it for each line that opens with whitespace (`print.rs:218`), and the review found `crates/nvs-fmt/src/brace.rs:134-145` and `crates/nvs-fmt/src/space.rs:122-128` calling it for candidate bytes too, so formatting a file is O(lines × nodes). `indent.rs:55-59` states the quadratic cost as accepted; the goal's base rule makes it a defect, and it is the likely cause of `benches/scaling/fmt/classes.nvs` growing. Entries sorted by start with a nesting stack, or a binary search per lookup, make it O(log n). `children_of` (`index.rs:171-186`) scans every node twice per `match` line and has the same fix.",
-  "goal": "performance-pass"
-}
