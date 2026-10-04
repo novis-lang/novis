@@ -578,6 +578,7 @@ fn helper_name(h: Helper) -> &'static str {
         Helper::ToArrayOfOrNull => "to_array_of_or_null",
         Helper::EchoStr => "echo_str",
         Helper::EchoValue => "echo_value",
+        Helper::EchoMarkup => "echo_markup",
         Helper::Exit => "exit",
         Helper::LiteralMismatch => "literal_mismatch",
         Helper::CloneOperandNotAnObject => "clone_not_an_object",

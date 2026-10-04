@@ -2871,6 +2871,22 @@ crate::nvs_helper! {
 }
 
 crate::nvs_helper! {
+    /// `nvs_ir::Helper::EchoMarkup` — one piece of a markup literal written at
+    /// `echo`, which is the bytes of a `Core\Html\Markup` nobody built.
+    ///
+    /// [`nvs_echo_value`] writes a `Markup` raw under the HTML sink and
+    /// substitutes it under every other one, and this asks the same question of
+    /// the sink alone, because the piece no longer has a class to ask. Under
+    /// the HTML sink a segment is what the author wrote and a hole was escaped
+    /// on the way in, so escaping either here would escape it twice.
+    fn nvs_echo_markup(ctx, args: [1]) {
+        let raw = if ctx.carrier() == crate::CARRIER_HTML_MARKUP { Raw::Yes } else { Raw::No };
+        write_rendered(ctx, "nvs_echo_markup", args[0], raw)?;
+        Ok(Value::null())
+    }
+}
+
+crate::nvs_helper! {
     /// `nvs_ir::Helper::Exit` — records the process status `exit`/`exit(n)`
     /// named, then ends the request.
     ///
@@ -3121,6 +3137,7 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
         ("nvs_decimal_to_string", address(nvs_decimal_to_string)),
         ("nvs_echo_str", address(nvs_echo_str)),
         ("nvs_echo_value", address(nvs_echo_value)),
+        ("nvs_echo_markup", address(nvs_echo_markup)),
         ("nvs_exit", address(nvs_exit)),
         ("nvs_literal_mismatch", address(nvs_literal_mismatch)),
         (

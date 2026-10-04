@@ -2451,6 +2451,16 @@ pub enum Helper {
     /// [`Self::EchoStr`] is; the operand stays the caller's, and a non-aliasing
     /// one is released by the same `owned_temporaries` sweep.
     EchoValue,
+    /// One piece of a markup literal written at `echo` — a segment's bytes or
+    /// a hole's escaped ones, already [`crate::ty::Ty::Str`].
+    ///
+    /// The pieces are the bytes of a `Core\Html\Markup` that is never built
+    /// (`rule:core-classes/html-literal`), so the sink treats them as it
+    /// treats that carrier: the HTML sink writes them unchanged, and every
+    /// other sink substitutes them as [`Self::EchoValue`] substitutes a
+    /// `Markup`. [`Self::EchoStr`] would escape them a second time under the
+    /// HTML sink. Defines no value, exactly as [`Self::EchoStr`] does.
+    EchoMarkup,
     /// `exit`/`exit(...)`: record the process status its one
     /// [`crate::ty::Ty::Int`] argument names, then end the request.
     ///

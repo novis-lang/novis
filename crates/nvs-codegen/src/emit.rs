@@ -4038,6 +4038,7 @@ fn helper_symbol(helper: Helper) -> Result<&'static str, CodegenError> {
         Helper::StrTruthy => "nvs_str_truthy",
         Helper::EchoStr => "nvs_echo_str",
         Helper::EchoValue => "nvs_echo_value",
+        Helper::EchoMarkup => "nvs_echo_markup",
         Helper::Exit => "nvs_exit",
         Helper::LiteralMismatch => "nvs_literal_mismatch",
         Helper::CloneOperandNotAnObject => "nvs_clone_not_an_object",

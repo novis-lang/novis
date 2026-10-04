@@ -43,7 +43,7 @@ fn writes(source: &str) -> usize {
         matches!(
             kind,
             InstKind::HelperCall {
-                helper: Helper::EchoStr,
+                helper: Helper::EchoMarkup,
                 ..
             }
         )

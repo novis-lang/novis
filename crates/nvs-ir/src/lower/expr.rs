@@ -816,9 +816,10 @@ impl<'a> Lowering<'a> {
                 }
                 StringPart::Expr(e) => self.lower_markup_hole(e, env, cur),
             };
-            // Every piece is fresh and has exactly one use, the write below.
+            // Every piece is fresh and has exactly one use, the write below,
+            // which writes it as the `Markup` it would have been part of.
             self.own_temporary(piece);
-            self.emit_write(Helper::EchoStr, piece, env, *cur);
+            self.emit_write(Helper::EchoMarkup, piece, env, *cur);
             self.release_temporaries_since(mark, *cur);
         }
     }
