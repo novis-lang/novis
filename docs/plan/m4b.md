@@ -1,17 +1,13 @@
 # M4B — Minimal `nvs-lsp`, syntax highlighting and the VS Code extension (~3 weeks)
 
-**Carried by goals `resilient-tree`, `lsp-server` and `editor` — after the parity program, before everything else.** It was pulled ahead
-of M10 to get Novis into an editor early, and it was placed behind goals `core-depth` through `server` for the same reason it was
+**It was pulled ahead of M10 to get Novis into an editor early**, and it was placed behind the server
+and the databases for the same reason it was
 placed behind M4: completion, hover and diagnostics written against a language that cannot open a file
 or reach a
 database are written twice, and every `.lspt` case authored in the meantime is authored against a surface
-about to change. It runs as **four chain goals** —
-[resilient-tree](../agent/goals/resilient-tree.md), [surface](../agent/goals/surface.md),
-[lsp-server](../agent/goals/lsp-server.md) and [editor](../agent/goals/editor.md) — which are
-the item list's one home; goal `surface` is M1's two unfinished front-end items, pulled in because the grammar
-must colour their surface.
+about to change.
 
-**One assertion in *Verify* re-anchors.** `hyper` and its five dependencies came in at goal `server` and one of
+**One assertion in *Verify* re-anchors.** `hyper` and its five dependencies came in with the server and one of
 them is `tokio`, so what `crates/nvs-runtime/tests/manifest_policy.rs` checks is the property that
 assertion was reaching for: no manifest of ours names an async runtime, no crate of ours depends on one,
 and the graph's single route to a scheduler crate compiles `sync` alone. The claim is about a *runtime*,
@@ -31,8 +27,7 @@ losslessness `nvs fmt` needs at M10; recovery becomes explicit (`MemberName::Mis
 it at the cursor". There is **no second parser and no second tree**: `nvs check`/`nvs run` are that same
 parse followed by "refuse if anything was reported", which is what they already do.
 
-**The `trivia` half of that paragraph is built**, in
-[goal `doc-comments`](../agent/goals/doc-comments.md):
+**The `trivia` half of that paragraph is built**:
 `rule:tooling/doc-comment-is-three-slashes` needs a doc comment to survive
 lexing, which is the same one edit to `skip_trivia`, so the `Trivia` vector
 (`crates/nvs-syntax/src/token.rs:43`, read back at `crates/nvs-syntax/src/lexer.rs:171`), its

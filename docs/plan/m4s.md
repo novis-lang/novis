@@ -1,6 +1,6 @@
 # M4S — The `Core` API contract and its pure half (~5 weeks)
 
-**Carried by goal `core-depth` — the first milestone of the parity program.** §§ 1–12 are registered
+§§ 1–12 are registered
 whole: the ratchet `crates/nvs-stdlib/tests/spec-members-outstanding.txt` holds no keys, which is the
 condition that file's own header states for it. What the parity program keeps adding is depth — cases per
 member — and `bun nv gaps` is the live worklist for that.

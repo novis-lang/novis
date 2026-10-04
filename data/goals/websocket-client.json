@@ -1,9 +1,0 @@
-{
-  "title": "a program holds a WebSocket to another server, opened like an outbound call and closed with the task that opened it",
-  "milestone": "M8",
-  "files": [],
-  "context": {},
-  "stages": [],
-  "checks": [],
-  "env": {}
-}

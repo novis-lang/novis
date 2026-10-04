@@ -171,7 +171,7 @@
       "argv": [
         "bun",
         "-e",
-        "const fs=require('fs');const c=JSON.parse(fs.readFileSync('data/chain.json','utf8'));const i=c.goals.indexOf('goal-closeout');if(i!==0){console.log('goals still in front of goal-closeout: '+i);process.exit(1)}const left=fs.readdirSync('docs/agent/goals').filter(f=>f!=='README.md'&&!(f.endsWith('.md')&&c.goals.includes(f.slice(0,-3))));if(left.length){console.log('left in docs/agent/goals: '+left.join(', '));process.exit(1)}console.log('the chain starts at goal-closeout and no older goal is left')"
+        "const fs=require('fs');const c=JSON.parse(fs.readFileSync('data/chain.json','utf8'));const i=c.goals.indexOf('goal-closeout');if(i!==0){console.log('goals still in front of goal-closeout: '+i);process.exit(1)}const on=f=>c.goals.includes(f.replace(/(\\.handoff)?\\.(md|json)$/,''));const left=[...fs.readdirSync('docs/agent/goals').filter(f=>f.endsWith('.md')&&f!=='README.md'),...fs.readdirSync('data/goals').filter(f=>f.endsWith('.json'))].filter(f=>!on(f));if(left.length){console.log('left in docs/agent/goals: '+left.join(', '));process.exit(1)}console.log('the chain starts at goal-closeout and no older goal is left')"
       ],
       "want": [
         "the chain starts at goal-closeout and no older goal is left"

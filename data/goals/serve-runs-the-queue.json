@@ -1,9 +1,0 @@
-{
-  "title": "`nvs serve` runs the queue's workers, and the drain stops them",
-  "milestone": "M7",
-  "files": [],
-  "context": {},
-  "stages": [],
-  "checks": [],
-  "env": {}
-}

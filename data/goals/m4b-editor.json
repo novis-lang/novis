@@ -1,9 +1,0 @@
-{
-  "title": "the extension is tested in a real editor host and built by CI",
-  "milestone": "M4B",
-  "files": [],
-  "context": {},
-  "stages": [],
-  "checks": [],
-  "env": {}
-}

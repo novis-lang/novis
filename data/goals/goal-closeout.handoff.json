@@ -1,33 +1,31 @@
 {
-  "state": "**Goal `goal-closeout`, Stage 5 (deletion becomes the rule) is done; Stage 6 (the one-time deletion) is next.** The goal switch deletes the goal it leaves (`leaveGoal` in `tools/nv/lib/chain.ts`), and no floor is carried, so the status row's percentage counts every check of the goal's record. `bun nv chain --check` fails on a Markdown file naming a goal that is neither on the chain nor a side goal (`goneCitations` in `tools/nv/cmd/chain.ts`); goal prose under `docs/agent/goals/` and the records under `docs/decisions/` are exempt. `docs/agent/session-prompt.md` and `docs/agent/coordinator.md` name the duty to move a goal-prose decision home before `DONE`.\n\n`walkedGoals` stays until Stage 6, because `tools/nv/cmd/audit.ts` and `tools/nv/cmd/plan.ts` read it.\n\n`bun nv owners --closes goal-closeout` names 7 gaps, and each one waits on a question in the goal prose's § *Questions for the user at the goal end*. Do not build the closure rebind, the environment, the zip walk, the captured-output type, directive completion, card voice or completion images before the answers. **No session stops on `BLOCKED` while Stage 6 is open.**",
+  "state": "**Goal `goal-closeout`, Stage 6 (the one-time deletion) is mostly done.** The 184 goals that were in front of `goal-closeout` are deleted: their prose, records and handoff records. `data/chain.json`'s `goals` starts at `goal-closeout`. Every link the deletion broke is repaired (`bun nv links` is clean). Every plain-text citation of a deleted goal is rewritten or dropped, so `bun nv chain --check` reports no gone goal. The goals README's table holds only the goals on the chain. M10's record says `ongoing`, because no chain goal carries it and 20 gaps are still tagged to it.\n\n`walkedGoals` in `tools/nv/lib/chain.ts` is still there. It now always returns an empty map, because no goal is in front of the live one.\n\n`bun nv owners --closes goal-closeout` names 7 gaps, and each one waits on a question in the goal prose's § *Questions for the user at the goal end*. Do not build the closure rebind, the environment, the zip walk, the captured-output type, directive completion, card voice or completion images before the answers.",
   "next": {
     "stage": 6,
     "title": "the old goals are deleted",
     "files": [
-      "data/chain.json",
-      "docs/agent/goals/",
-      "data/goals/",
       "tools/nv/lib/chain.ts",
       "tools/nv/cmd/audit.ts",
-      "tools/nv/cmd/plan.ts"
+      "tools/nv/cmd/plan.ts",
+      "tools/nv/cmd/chain.ts"
     ],
     "items": [
       {
         "done": false,
-        "text": "**Delete the 184 goals in front of `goal-closeout`** — their prose, records and handoff records, and their slugs from `data/chain.json`, in one commit; `bun nv chain --move/--remove` refuse a goal in front of the live one, so the deletion edits the chain record directly. Move any decision only that prose holds to its home first (`docs/agent/goal-decisions.md`). `rule:tooling/the-chain-names-its-live-goal`, anchored at `tools/nv/lib/chain.ts:101`."
+        "text": "**`walkedGoals` goes**: the function at `tools/nv/lib/chain.ts:115` and the header sentence at `tools/nv/lib/chain.ts:6`. Its readers are `tools/nv/cmd/audit.ts:282`, `tools/nv/cmd/plan.ts:222` (`pastState`: a milestone is complete when no chain goal carries it and no register tags it) and `tools/nv/cmd/plan.ts:325` (`stale`). The `walked` closure in `tools/nv/cmd/chain.ts:135` goes too. Update their tests under `tools/nv/test/`. `rule:tooling/the-chain-names-its-live-goal`."
       },
       {
         "done": false,
-        "text": "**Fix the citations the deletion leaves** — `bun nv chain --check` then names about 70 places that cite a deleted goal by slug: `docs/implementation-plan.md`, `docs/plan/m*.md`, `docs/reference/findings.md`, `docs/agent/loop-authoring.md` and a few playbook bullets. Each sentence names the rule or module doc instead. `rule:tooling/the-chain-names-its-live-goal`, anchored at `tools/nv/cmd/chain.ts:76`."
+        "text": "**A tool whose only job was a deleted goal goes**: `tools/nv/cmd/ci-green.ts` and `tools/nv/test/ci-green.test.ts` served goal `ci-green`'s check. Delete them if nothing else calls them; `grep -rn ci-green tools/` first. Goal prose § *Stage 6*, anchored at `tools/nv/cmd/ci-green.ts:1`."
       },
       {
         "done": false,
-        "text": "**`walkedGoals` goes** — `tools/nv/lib/chain.ts:115` and its header at `tools/nv/lib/chain.ts:6`, its readers at `tools/nv/cmd/audit.ts:282`, `tools/nv/cmd/plan.ts:222` and `tools/nv/cmd/plan.ts:325`, and its test at `tools/nv/test/chain.test.ts:76`. `rule:tooling/the-chain-names-its-live-goal`."
+        "text": "**Then the only red checks are Stage 4's**, which wait on the user. Per the goal's standing decision *One stop, at the end*, the session that finds `no question waits for the user` the only red check writes `BLOCKED` and names § *Questions for the user at the goal end*. `docs/agent/goals/goal-closeout.md:1`."
       }
     ]
   },
   "backlog": [
-    "Stage 4's red checks wait on the user's answers to the 7 questions in `docs/agent/goals/goal-closeout.md`; the session that finds them the only red ones writes `BLOCKED` and names that section.",
-    "`tools/nv/test/records.test.ts:25` and `tools/nv/test/import.test.ts:210` still use a stage titled `floor` as fixture data; it is harmless, and renaming it is optional."
+    "`bun nv chain --check` notes `deprecated-and-todo`'s prose still carries TODO markers; that goal's author owns it (`docs/agent/goals/deprecated-and-todo.md`).",
+    "The goal record's stage 6 check `the-chain-starts-at-goal-closeout` now also counts stray `data/goals/*.json`, and skips the `side/` folders (`data/goals/goal-closeout.json`)."
   ]
 }

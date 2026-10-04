@@ -11,7 +11,7 @@
 
 > **Status:** **M4's loop goal is reached** — every check in its acceptance list passes, so the
 > language surface is closed and nothing a CLI program reaches for panics below the front end. **The
-> parity program is closed too**: goals `core-depth` through `server` landed PHP core feature parity, all five SQL drivers,
+> parity program is closed too**: it landed PHP core feature parity, all five SQL drivers,
 > concurrency, governance and the server, and the loop has walked past them — *Open now* below says
 > what it is walking through instead. Dependencies: `regex` + `fancy-regex` and `jiff` are named by
 > the user; the rest the loop picks under `rule:packaging/a-c-dependency-answers-two-questions`.
@@ -100,7 +100,7 @@ somebody has already followed.
 | done | [M7](plan/m7.md) | Built-in HTTP server (~4 weeks) | ~2 |
 | done | [M8](plan/m8.md) | Stdlib and databases (~16 weeks) | ~6.5 |
 | goals `ext-design`, `ext-host`, `ext-compiler`, `ext-grants`, `ext-tooling`, `ext-image`, `ext-image-analysis`, `ext-intl` | [M9](plan/m9.md) | Extension system, and the `nvs:ext@1.0.0` world it freezes (not yet sized) | not estimated |
-| goals `agent-surface`, `workspace-index`, `editor-surfaces`, `fmt`, `template-format` | [M10](plan/m10.md) | Developer tooling and IDE integration (~14 weeks; scope shifted by `rule:ide/every-feature-is-staged-behind-its-dependency`, net change undetermined) | ~8 |
+| ongoing | [M10](plan/m10.md) | Developer tooling and IDE integration (~14 weeks; scope shifted by `rule:ide/every-feature-is-staged-behind-its-dependency`, net change undetermined) | ~8 |
 | backlog 3 | [M11](plan/m11.md) | PHP transpiler (~10 weeks) | ~3 |
 | ongoing | [M12](plan/m12.md) | Optimising JIT tier (ongoing) | measurement-bound |
 | backlog 4 | [M15](plan/m15.md) | Packages, the registry and the supply chain (~8 weeks) | ~3 + a calendar floor |
@@ -108,56 +108,22 @@ somebody has already followed.
 | backlog 6 | [M17](plan/m17.md) | Document components: the image second wave, `nvs/pdf` and `nvs/spreadsheet` (not yet sized) | not estimated |
 
 **One milestone is not one block of schedule, which is why the cell holds a list.** M8's work is spread
-across a row of goals and M7's across another, M4's remaining refusals are goal `m4-refusals`'s, and the
-goals tagged `post-parity` in the chain land in no milestone at all. A single number per milestone could
-say none of that, and a chain number could say it only until something was inserted ahead of it. **So the goal is the unit of schedule and the milestone the unit of identity: say
-"goal `parses`", never "in M7".** A cell naming a goal means that milestone still has work scheduled — `done` is
-the only thing that means finished.
-
-**Goals `core-depth` through `server` are one program, not five independent milestones: PHP core feature parity.** Everything a
-program written in PHP reaches for without loading an extension, plus every planned SQL driver, plus the
-concurrency, governance and server the capability-bearing half of `Core` cannot exist without. It is
-scheduled as one continuous unattended run — see *The parity program* below, and
-[docs/agent/goals/README.md](agent/goals/README.md) for where those six sit in the chain. PHP's
-optional extensions (`gd`, `intl`, `imap`, and the rest of the list in
-[02-php-migration.md](spec/02-php-migration.md)) are explicitly not part of it and stay with M9.
+across a row of goals, and the goals tagged `post-parity` in the chain land in no milestone at all. A
+single number per milestone could say none of that, and a chain number could say it only until something
+was inserted ahead of it. **So the goal is the unit of schedule and the milestone the unit of identity:
+say "goal `<slug>`", never "in M7".** A cell naming a goal means that milestone still has work
+scheduled — `done` is the only thing that means finished. PHP's optional extensions (`gd`, `intl`,
+`imap`, and the rest of the list in [02-php-migration.md](spec/02-php-migration.md)) are M9's.
 
 Each row is a file under [docs/plan/](plan/). `bun nv plan --show M8` prints one
 without you needing to know that, and `--show M8:verify` prints only its acceptance paragraph.
 The decisions those milestones sit inside, the architecture and the verification strategy are
 [docs/plan/design.md](plan/design.md).
 
-## The parity program
-
-Goals `core-depth` through `server`, in that order, are the run that takes Novis from "a usable CLI language" to "everything PHP
-does out of the box, and the four databases it does it against". The order inside the program is a
-dependency chain rather than a preference: `Core`'s pure half is what everything else is written against;
-the reactor is what a socket, a driver and a listener all need; capabilities are what every
-capability-bearing member is gated on; the capability-bearing half of `Core` and the databases sit on both;
-and the server sits on all of them.
-
-| Loop goal | Milestone | Lands |
-|---|---|---|
-| [core-depth](agent/goals/core-depth.md) | M4S tail | `Core` §§ 1–13 depth, `autoload`, the compile-time attribute passes, OpenAPI |
-| [concurrency](agent/goals/concurrency.md) | M5 | the reactor and its parking streams, the scheduler, `spawn`/`await`, `Core\Task`, isolates, `Core\Serialize` |
-| [governance](agent/goals/governance.md) | M6 | the config tree, capability enforcement, limits, the artifact cache, `nvs build --compile` |
-| [core-part-ii](agent/goals/core-part-ii.md) | M8, non-database | `Core\IO`, crypto, `Process`, `Cli`, `Cache`, `RateLimit`, `Log`, `Http\Client`, `Reflect` |
-| [database](agent/goals/database.md) | M8, database | `Core\Db`, five drivers, the pool, the type map, `Core\Queue` |
-| [server](agent/goals/server.md) | M7 | `nvs serve`, the request-facing `Core` classes, mounts, uploads, `Core\Session`, the control socket |
-
-**The program's own stop condition is `bun nv migration` reporting 100% classified** —
-every one of the oracle build's **1167 functions and 255 types** accounted for as a `member`, `language`
-or `dropped` row, every `member` row's member registered, and every one of them carrying a conformance
-case. It was 25% when the program was scheduled. A count of conformance cases is a proxy for parity; a
-table that enumerates the source of truth is not.
-
-**The oracle build gained `mysqli`, `pgsql`, `sqlite3`, `fileinfo` and `zip`**, which is why that
-inventory is 1167 rather than the 925 the program was first sized against. It is a better program for
-it: 236 of the
-new names are the three APIs `rule:core-classes/db-one-api` exists to replace, so *"one API replaces
-`PDO`, `mysqli`, `pgsql` and `sqlite3`"* stops being an assertion about four APIs and becomes an audit of
-236 functions, each with a row saying what became of it. The floors in each goal were re-derived against
-the new denominator in the same commit.
+**PHP core feature parity is measured by `bun nv migration` reporting 100% classified**: every function
+and type of the oracle build accounted for as a `member`, `language` or `dropped` row, every `member`
+row's member registered, and every one of them carrying a conformance case. A count of conformance cases
+is a proxy for parity; a table that enumerates the source of truth is not.
 
 **The two columns are not the same unit.** The parenthesised weeks are the original estimate, written for
 a human team before any code existed; **Loop-days** is what this project's unattended loop actually spends,
