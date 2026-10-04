@@ -616,6 +616,10 @@ fn name_granted(list: &[String], name: &str) -> bool {
     list.iter().any(|entry| entry == name)
 }
 
+fn path_granted(list: &[String], path: &Path) -> bool {
+    list.iter().any(|root| path.starts_with(Path::new(root)))
+}
+
 fn endpoint_granted(list: &[String], endpoint: std::net::SocketAddr) -> bool {
     list.iter().any(|entry| {
         entry.parse::<std::net::SocketAddr>().is_ok_and(|granted| {
@@ -644,11 +648,26 @@ impl Capabilities {
             (Grant::These(list), Scope::Endpoint(endpoint)) => endpoint_granted(list, endpoint),
             (Grant::These(list), Scope::Name(name)) => name_granted(list, name),
             (Grant::These(list), Scope::Path(path)) => {
-                let Some(path) = resolved(path, files) else {
-                    return false;
-                };
-                list.iter().any(|root| path.starts_with(Path::new(root)))
+                resolved(path, files).is_some_and(|path| path_granted(list, &path))
             }
+        }
+    }
+
+    /// [`allows`](Self::allows) for a path that is already resolved, compared as it is written.
+    ///
+    /// A write door resolves its path once, asks this about the result, and opens that same result
+    /// without following a link (`rule:security/writes-open-beneath-a-handle`). Resolving it a
+    /// second time here could give a different path than the one the door opens, if a link
+    /// changed in between.
+    #[must_use]
+    pub fn allows_resolved(&self, cap: Cap, path: &Path) -> bool {
+        let Some(setting) = cap.grant(self) else {
+            return false;
+        };
+        match grant_for(cap, setting) {
+            Grant::Nothing => false,
+            Grant::Everything => true,
+            Grant::These(list) => path_granted(list, path),
         }
     }
 

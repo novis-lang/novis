@@ -582,7 +582,9 @@ pub enum Access {
 /// deliberate: `open_read` is the whole-file read every `Core\IO` reader shares, and this is the one
 /// a `Core\IO\File` handle comes out of. A writing open **creates** the path it names, which
 /// [`write()`]'s own doc calls a reason to keep the create on the door's side — it is on this side
-/// too, because the `require` below runs before the `OpenOptions` does anything at all.
+/// too, because the check below runs before anything is opened. A writing access opens the path
+/// [`resolve_write`] checked, through [`crate::beneath`], so no link planted after the check is
+/// followed.
 ///
 /// A descriptor this answers with is a descriptor already checked: nothing downstream asks the
 /// capability question again, which is why `Core\IO\File`'s own members declare no capability of
@@ -599,25 +601,23 @@ pub fn open(ctx: &Ctx, path: &Path, access: Access, member: &str) -> Result<File
     if matches!(access, Access::Read | Access::ReadWrite) {
         require(ctx, Cap::FsRead, Scope::Path(path), member)?;
     }
-    if matches!(access, Access::Write | Access::Append | Access::ReadWrite) {
-        require(ctx, Cap::FsWrite, Scope::Path(path), member)?;
+    if access == Access::Read {
+        nvs_footprint::file(path);
+        return std::fs::File::open(path).map_err(|err| io_failure(member, path, &err));
     }
-    if matches!(access, Access::Read | Access::ReadWrite) {
+    let at = resolve_write(ctx, path, member)?;
+    if access == Access::ReadWrite {
         nvs_footprint::file(path);
     }
-    let mut options = std::fs::OpenOptions::new();
-    match access {
-        Access::Read => options.read(true),
-        Access::Write => options.write(true).create(true).truncate(true),
-        Access::Append => options.append(true).create(true),
-        // No `truncate`: a read-write handle that emptied the file before its
+    let mode = match access {
+        Access::Write => crate::beneath::Mode::Truncate,
+        Access::Append => crate::beneath::Mode::Append,
+        // No truncate: a read-write handle that emptied the file before its
         // holder had read a byte is `fopen`'s `w+`, and the mode a program
         // reaches for when it wants both is the one that keeps what is there.
-        Access::ReadWrite => options.read(true).write(true).create(true),
+        Access::Read | Access::ReadWrite => crate::beneath::Mode::ReadWrite,
     };
-    options
-        .open(path)
-        .map_err(|err| io_failure(member, path, &err))
+    crate::beneath::open_file(&at, mode).map_err(|err| io_failure(member, path, &err))
 }
 
 /// § 2's streaming-write door: a handle on `path`, ready to become the whole of its content, once
@@ -641,17 +641,52 @@ pub fn open(ctx: &Ctx, path: &Path, access: Access, member: &str) -> Result<File
 /// `path`, checked before anything is created for [`write()`]'s reason. [`io_failure`]'s `IOError`
 /// when the create itself fails — including `AlreadyExists`, which is what a refused overwrite is.
 pub fn create(ctx: &Ctx, path: &Path, overwrite: bool, member: &str) -> Result<File, Fault> {
-    require(ctx, Cap::FsWrite, Scope::Path(path), member)?;
-    let mut options = std::fs::OpenOptions::new();
-    options.write(true);
-    if overwrite {
-        options.create(true).truncate(true);
-    } else {
-        options.create_new(true);
+    let at = resolve_write(ctx, path, member)?;
+    crate::beneath::create_file(&at, overwrite).map_err(|err| io_failure(member, path, &err))
+}
+
+/// The write doors' check: `path` resolved once, and [`Cap::FsWrite`] asked about that resolved
+/// path as it is written, which is the path the caller then opens with [`crate::beneath`].
+///
+/// **One resolution, and the open follows no link** (`rule:security/writes-open-beneath-a-handle`).
+/// [`require`] resolves the path inside the grant check, and a door that then opened the path by
+/// name would resolve it a second time. A folder replaced by a link between the two would be
+/// followed outside the grant. Here the check and the open use the same resolved path, and a link
+/// planted after the check fails the open.
+///
+/// # Errors
+///
+/// [`relative_refusal`]'s `RuntimeError` for a path with no root, and [`require`]'s `RuntimeError`
+/// when the grant does not cover the resolved path. When no ancestor of `path` resolves at all,
+/// [`require`]'s answer on `path` decides: its denial when the grant does not cover it, or an
+/// `IOError` when it does, because then there is nothing to open.
+fn resolve_write(ctx: &Ctx, path: &Path, member: &str) -> Result<PathBuf, Fault> {
+    relative_refusal(path, member)?;
+    let Some(at) = nvs_config::capability::resolved(path, &nvs_config::resolve::Disk) else {
+        require(ctx, Cap::FsWrite, Scope::Path(path), member)?;
+        let err = std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            "no ancestor of this path could be resolved",
+        );
+        return Err(io_failure(member, path, &err));
+    };
+    let allowed = ctx.grants_allow(Cap::FsWrite)
+        && ctx.config().is_some_and(|config| {
+            config
+                .snapshot()
+                .config
+                .capabilities
+                .as_ref()
+                .is_some_and(|caps| caps.allows_resolved(Cap::FsWrite, &at))
+        });
+    if !allowed {
+        return Err(Fault::thrown(denial(
+            Cap::FsWrite,
+            Scope::Path(path),
+            member,
+        )));
     }
-    options
-        .open(path)
-        .map_err(|err| io_failure(member, path, &err))
+    Ok(at)
 }
 
 /// § 2's write door: `bytes` become the whole content of `path`, once [`Cap::FsWrite`] has been
@@ -667,8 +702,10 @@ pub fn create(ctx: &Ctx, path: &Path, overwrite: bool, member: &str) -> Result<F
 /// [`require`]'s catchable `RuntimeError` when the configuration does not grant `fs.write` for
 /// `path`, or [`io_failure`]'s `IOError` when the write itself fails.
 pub fn write(ctx: &Ctx, path: &Path, bytes: &[u8], member: &str) -> Result<(), Fault> {
-    require(ctx, Cap::FsWrite, Scope::Path(path), member)?;
-    std::fs::write(path, bytes).map_err(|err| io_failure(member, path, &err))
+    let at = resolve_write(ctx, path, member)?;
+    crate::beneath::create_file(&at, true)
+        .and_then(|mut file| std::io::Write::write_all(&mut file, bytes))
+        .map_err(|err| io_failure(member, path, &err))
 }
 
 /// § 2's copy door: `to` becomes a duplicate of `from`, once [`Cap::FsRead`] has been shown to cover
@@ -779,16 +816,12 @@ pub fn rename(ctx: &Ctx, from: &Path, to: &Path, member: &str) -> Result<(), Fau
 ///
 /// [`require`]'s catchable `RuntimeError` when the configuration does not grant `fs.write` for
 /// `path`, checked before anything is created for [`write()`]'s reason, or [`io_failure`]'s
-/// `IOError` when the creation itself fails — an empty path, a component that exists and is not a
-/// directory, or a permission the process lacks. The empty path is refused here because
-/// `create_dir_all` answers `Ok` for it and no directory exists afterwards.
+/// `IOError` when the creation itself fails — a component that exists and is not a directory, a
+/// folder replaced by a link after the check, or a permission the process lacks. The levels are
+/// created from the root down by [`crate::beneath::create_dirs`], for [`resolve_write`]'s reason.
 pub fn create_dir(ctx: &Ctx, path: &Path, member: &str) -> Result<(), Fault> {
-    require(ctx, Cap::FsWrite, Scope::Path(path), member)?;
-    if path.as_os_str().is_empty() {
-        let err = std::io::Error::from(std::io::ErrorKind::NotFound);
-        return Err(io_failure(member, path, &err));
-    }
-    std::fs::create_dir_all(path).map_err(|err| io_failure(member, path, &err))
+    let at = resolve_write(ctx, path, member)?;
+    crate::beneath::create_dirs(&at).map_err(|err| io_failure(member, path, &err))
 }
 
 /// The two ends of a [`copy`] or a [`rename`], as the one path [`io_failure`] names.

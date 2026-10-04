@@ -1,0 +1,14 @@
+{
+  "title": "A write opens its resolved path one level at a time from the root, following no link, so the grant it checked is the path it writes",
+  "status": "shipped",
+  "because": [
+    "0264"
+  ],
+  "seeAlso": [
+    "security/path-scope-canonicalise-then-prefix",
+    "security/capability-check-at-the-door"
+  ],
+  "guardedBy": [
+    "crates/nvs-runtime/src/beneath.rs"
+  ]
+}

@@ -247,6 +247,11 @@ windows-sys = { version = "0.61", features = [
     # at install and removing it at uninstall are a key write and a key delete.
     # `crates/nvs-cli/src/service.rs` is the one caller.
     "Win32_System_Registry",
+    # `NtCreateFile` with a root handle: `rule:security/writes-open-beneath-a-handle`'s walk opens
+    # each level of a write's path from the handle above it, and `CreateFileW` has no parameter for
+    # the folder a name is relative to. `crates/nvs-runtime/src/beneath.rs` is the one caller.
+    "Wdk_Foundation",
+    "Wdk_Storage_FileSystem",
     # `EVENTLOG_ERROR_TYPE` and its siblings: the `TypesSupported` value that subkey carries names
     # the record types the event viewer will render, so a source registered without them shows an
     # administrator nothing. `crates/nvs-cli/src/service.rs` is the one caller.

@@ -51,14 +51,16 @@
 //! the filesystem was never asked about. The file itself is created
 //! exclusively: an entry whose name is already taken refuses rather than
 //! overwriting, because what is already there may be a link somebody else wrote
-//! and following it is the escape this paragraph exists to stop.
+//! and following it is the escape this paragraph exists to stop. A link planted
+//! after a level's comparison is refused by the door that creates the next
+//! level or the file, which opens every level from the handle above it and
+//! follows no link (`rule:security/writes-open-beneath-a-handle`).
 //!
 //! **That order costs time quadratic in a folder's depth, so the depth is
-//! bounded.** Resolving a level walks every level above it, and a walk relative
-//! to the handle of the level above is not something the capability layer can
-//! check. So the reader refuses a name nesting more than [`MAX_FOLDERS`]
-//! folders, which makes one entry's cost a constant and an archive's linear in
-//! its size.
+//! bounded.** Resolving a level walks every level above it, and so does each
+//! door's own walk from the root. So the reader refuses a name nesting more
+//! than [`MAX_FOLDERS`] folders, which makes one entry's cost a constant and an
+//! archive's linear in its size.
 //!
 //! **An extraction that refuses part way leaves what it had already written**,
 //! and says so rather than pretending to unwind. The refusals that are about

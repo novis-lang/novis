@@ -1,23 +1,21 @@
 {
-  "state": "**Goal `goal-closeout`: Stage 4, building the user's answers.** Answer 1 is built: `bind`, `bindTo` and `call` work on a `callable` receiver, and `rule:types/callable-absorbs-closure` states the decision (same class or a subclass, tested at run time, no scope argument). Its gap and its question are deleted. The runtime half is `bind_closure` in `crates/nvs-runtime/src/closure.rs`, which reads the class from the `this` slot's `field_classes` entry that `lower_closure` writes.\n\n`bun nv owners --closes goal-closeout` names 1 gap: the handle-relative writes (`crates/nvs-stdlib/src/zip.rs`). It is a whole session or more. When it is closed and `no question waits for the user` and the owners check are the only red checks, the goal is `DONE`.",
+  "state": "**Goal `goal-closeout`: Stage 4, building the user's answers.** Answer 2 is mostly built: `rule:security/writes-open-beneath-a-handle` (ADR 0264) is shipped. `capability::create`, `write`, `create_dir` and the writing modes of `open` resolve the path once (`resolve_write`), check the grant on that resolved path as written (`Capabilities::allows_resolved` in `nvs-config`), and open it through `crates/nvs-runtime/src/beneath.rs`, which walks from the root one level at a time and follows no link. The Windows half uses `NtCreateFile` with a root handle and refuses a name-surrogate reparse point. The tests pass on Windows (with a junction) and on Linux in WSL. The zip gap and the goal's question are deleted.\n\nStage 2 is green again: `lang:expressions/closures-fn`'s `about.md` was over its word limit after the closure-rebind slice.\n\n`bun nv owners --closes goal-closeout` names 1 gap: `copy-and-rename-open-their-destination-by-path`. When it is closed, and the owners check and `no question waits for the user` are the only red checks, the goal is `DONE`.",
   "next": {
     "stage": 4,
     "title": "finished in place, the answers built",
     "files": [
       "crates/nvs-runtime/src/capability.rs",
-      "crates/nvs-stdlib/src/zip.rs",
-      "crates/nvs-stdlib/src/io.rs",
-      "crates/nvs-stdlib/src/storage.rs"
+      "crates/nvs-runtime/src/beneath.rs"
     ],
     "items": [
       {
         "done": false,
-        "text": "**Handle-relative writes under every write door** (answer 2 in the goal's § *Questions for the user at the goal end*: `Core\\Zip::extract` and every `Core\\IO` write, with one decision record; read the next free ADR number right before writing it). The grant is checked once on the destination, and each level is opened from the handle above it without following a link: `openat`/`mkdirat` with `O_NOFOLLOW` on Unix, `NtCreateFile` with a root handle on Windows. Doors: `capability::create` at `crates/nvs-runtime/src/capability.rs:643`, `capability::write` at `crates/nvs-runtime/src/capability.rs:669`, `capability::create_dir` at `crates/nvs-runtime/src/capability.rs:785`. Callers: `place` at `crates/nvs-stdlib/src/zip.rs:839` and the extract loop at `crates/nvs-stdlib/src/zip.rs:1107`, `crates/nvs-stdlib/src/io.rs:3053`, `crates/nvs-stdlib/src/storage.rs:500`. Delete gap `zip-extraction-creates-a-file-by-path-after-resolving-its-folder` and its question when it lands."
+        "text": "**Copy and rename under the walk** (`rule:security/writes-open-beneath-a-handle`, gap `copy-and-rename-open-their-destination-by-path`). `capability::copy` at `crates/nvs-runtime/src/capability.rs:739` resolves the destination through `resolve_write` and copies into a `beneath::open_file` handle (`crates/nvs-runtime/src/beneath.rs:53`) with `Mode::Truncate`; keep the `same_file` check and copy the source's permissions. `capability::rename` at `crates/nvs-runtime/src/capability.rs:793` needs a relative rename: add a `beneath::rename` that walks both parents (`sys::child` at `crates/nvs-runtime/src/beneath.rs:128` and `crates/nvs-runtime/src/beneath.rs:273`) and calls `renameat` on Unix, or `SetFileInformationByHandle` with `FileRenameInformationEx` and the destination folder's handle as `RootDirectory` on Windows. Add one test each that plants a junction or link where a destination folder was. Delete the gap when both land, and widen the rule fragment's list of doors."
       }
     ]
   },
   "backlog": [
-    "Close the goal once that gap is gone: `bun nv verify --doc`, `bun nv owners --closes goal-closeout`, then `DONE` (the session prompt's step 6).",
-    "`call` on a `callable(...)` signature gives `mixed`, not the signature's return type; a typed `call` would need the checker to record the return type for `lower_closure_rebind` (`crates/nvs-ir/src/lower/call.rs`). Nothing owes it."
+    "The Linux half of `beneath.rs` is built and tested in WSL but not linted there; CI's Linux clippy is the first lint of it.",
+    "A volume mount point inside a granted tree is refused on Windows by the walk (ADR 0264 § *Revisiting*)."
   ]
 }

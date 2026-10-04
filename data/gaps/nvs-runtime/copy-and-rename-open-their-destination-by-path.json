@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-runtime/src/capability.rs",
+  "title": "`capability::copy` and `capability::rename` still open their destination by path after the grant check, so a folder replaced by a link in between is followed.",
+  "text": "`rule:security/writes-open-beneath-a-handle` covers `create`, `write`, `create_dir` and the writing modes of `open`. The copy door calls `std::fs::copy` and the rename door `std::fs::rename` on the paths as given. Bringing them under the walk needs the destination resolved once through `resolve_write`, a copy into a `beneath::open_file` handle, and a relative rename: `renameat` on Unix and `FileRenameInformation` with a root handle on Windows.",
+  "goal": "goal-closeout"
+}

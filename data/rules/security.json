@@ -28,6 +28,7 @@
     "security/longest-prefix-wins",
     "security/an-unmatched-namespace-holds-the-application",
     "security/path-scope-canonicalise-then-prefix",
+    "security/writes-open-beneath-a-handle",
     "security/denial-is-a-runtime-error",
     "security/optional-capability-degrades",
     "security/no-runtime-grant",

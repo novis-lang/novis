@@ -1,0 +1,10 @@
+{
+  "title": "A write door opens the path it checked one level at a time from a handle, following no link",
+  "status": "accepted",
+  "scope": "how the `fs.write` doors open the path after the grant check. The copy and rename doors come under the same\nwalk; they need a relative copy and a relative rename, and are built after the others. Every read door is left as it is\nand is not decided here.",
+  "dependsOn": [
+    "0118",
+    "0104"
+  ],
+  "validatedBy": "`crates/nvs-runtime/src/beneath.rs`'s tests, which plant a link and a junction where a folder was."
+}

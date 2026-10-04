@@ -207,6 +207,7 @@ mod abi;
 mod alloc;
 pub mod arith;
 pub mod array;
+mod beneath;
 pub mod budget;
 pub mod capability;
 pub mod closure;

@@ -3,7 +3,7 @@
 
 # Security and isolation
 
-*17 of 89 rules below are **designed** rather than shipped, and are marked where they appear.*
+*17 of 90 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="security-isolate-shares-nothing"></a>
 
@@ -595,6 +595,32 @@ so both sides are spelled by one resolution. A root left as typed could not matc
 argument wherever a directory above it is a symlink, as `/tmp` and `/var` are on macOS.
 
 <sub>See also [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope), [`security/a-path-is-not-a-url`](security.md#security-a-path-is-not-a-url), [`security/script-spawn-capability`](security.md#security-script-spawn-capability), [`errors/path-component-refusals`](errors.md#errors-path-component-refusals). Decided in [0118](../decisions/0118.md), [0104](../decisions/0104.md).</sub>
+
+<a id="security-writes-open-beneath-a-handle"></a>
+
+## A write opens its resolved path one level at a time from the root, following no link, so the grant it checked is the path it writes
+
+`rule:security/writes-open-beneath-a-handle`
+
+A write door resolves its path once, checks the grant on that resolved path as it is written, and
+opens it one level at a time from the root, each level from the handle of the one above it, following
+no link. Checking a path and then opening it by name resolves it twice, and a folder replaced by a link
+between the two is followed outside the grant. A resolved path names no link, so a link the walk meets
+was planted after the check, and the write fails with an `IOError` and touches nothing beneath it.
+
+The doors are `capability::create`, `capability::write`, `capability::create_dir` and the writing
+modes of `capability::open`, and `Core\IO`'s writes, `Core\Storage::put` and `Core\Zip::extract` reach
+the filesystem through them. A
+missing folder is created by the same walk, one level at a time. On Unix a level is `openat` or
+`mkdirat` with `O_NOFOLLOW`; on Windows it is `NtCreateFile` with the folder above as its root, and a
+level whose reparse tag is a name surrogate — a symbolic link or a junction — is refused. A reparse
+point that is not a name surrogate, such as a cloud placeholder, is a real folder and is walked.
+
+A link that already exists when the door is called is unchanged in meaning: the resolution follows it,
+the grant is checked on its target, and the walk opens the target. Only a link that appears between the
+check and the open is refused.
+
+<sub>See also [`security/path-scope-canonicalise-then-prefix`](security.md#security-path-scope-canonicalise-then-prefix), [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door). Decided in [0264](../decisions/0264.md).</sub>
 
 <a id="security-denial-is-a-runtime-error"></a>
 
