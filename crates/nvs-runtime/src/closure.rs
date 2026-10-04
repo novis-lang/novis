@@ -911,3 +911,94 @@ fn invoke_address(closure: Value) -> Result<*const u8, Fault> {
         ))
     })
 }
+
+/// A Rust function a closure value can run as its body: what
+/// [`native_closure`] builds a `callable` from.
+pub trait NativeBody: 'static {
+    /// Runs on the context of the call, each time the closure is called.
+    fn run(ctx: &mut Ctx);
+}
+
+/// A closure that declares no parameters and runs `B::run` when called — a
+/// `callable` written in Rust, for a caller with no compiled code to take one
+/// from: a crate whose tests register work on `Core\Task::afterResponse`'s
+/// queue, which takes only a closure, and forbid the `unsafe` building one by
+/// hand takes.
+///
+/// **One class table per body type and thread, built at the first call and
+/// leaked**, because a descriptor's address is its identity and has to outlive
+/// every value made from it. What that holds is bounded by the body types in
+/// the binary and never grows with calls.
+pub fn native_closure<B: NativeBody>() -> Value {
+    use std::any::TypeId;
+    use std::cell::RefCell;
+    use std::collections::HashMap;
+
+    use crate::object::{ClassId, ClassTable, MethodRow};
+
+    thread_local! {
+        static TABLES: RefCell<HashMap<TypeId, (&'static ClassTable, ClassId)>> =
+            RefCell::new(HashMap::new());
+    }
+    let (table, id) = TABLES.with(|tables| {
+        *tables
+            .borrow_mut()
+            .entry(TypeId::of::<B>())
+            .or_insert_with(|| {
+                let mut table = ClassTable::new();
+                let id = table.define("{closure}", &["arity", "params"], &[]);
+                let invoke: NvsFn = invoke_native::<B>;
+                table.set_methods(
+                    id,
+                    vec![MethodRow {
+                        name: CLOSURE_INVOKE.to_owned(),
+                        code: invoke as *const u8,
+                        arity: 0,
+                        param_tags: 0,
+                        param_names: Vec::new(),
+                        param_types: Vec::new(),
+                        public: true,
+                        protected: false,
+                        native: false,
+                    }],
+                );
+                table.set_closure(id);
+                (&*Box::leak(Box::new(table)), id)
+            })
+    });
+    #[expect(
+        unsafe_code,
+        reason = "the table is leaked, so the descriptor outlives every \
+                  instance made from it — `NvsObj::new`'s whole obligation"
+    )]
+    // SAFETY: as the reason says.
+    let object = unsafe { NvsObj::new(table.desc(id)) };
+    object.set_field(CLOSURE_ARITY_SLOT, Value::int(0));
+    object.set_field(CLOSURE_PARAM_TAGS_SLOT, Value::int(0));
+    Value::object(object)
+}
+
+/// [`native_closure`]'s `invoke`: the callee side of [`call_closure`]'s
+/// contract, which releases the one reference it is handed — the receiver,
+/// since the closure declares no parameters — and answers `null`.
+#[expect(
+    unsafe_code,
+    reason = "`call_closure` passes the live context of the call, one live value \
+              this callee owes a release, and the address of a live `Value` for \
+              the result; none is expressible in the signature compiled code is \
+              called through"
+)]
+unsafe extern "C" fn invoke_native<B: NativeBody>(
+    ctx: *mut Ctx,
+    args: *const Value,
+    out: *mut Value,
+) -> i32 {
+    // SAFETY: as the reason above says; nothing else uses the context while
+    // the call runs.
+    unsafe {
+        B::run(&mut *ctx);
+        (*args).release();
+        *out = Value::null();
+    }
+    OK
+}

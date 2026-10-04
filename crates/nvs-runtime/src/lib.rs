@@ -289,8 +289,8 @@ pub use array::{
 };
 pub use closure::{
     CLOSURE_ARITY_SLOT, CLOSURE_INVOKE, CLOSURE_PARAM_NAMES, CLOSURE_PARAM_NAMES_SLOT,
-    CLOSURE_PARAM_TAG_ANY, CLOSURE_PARAM_TAGS_SLOT, call_closure, closure_arity,
-    closure_param_names,
+    CLOSURE_PARAM_TAG_ANY, CLOSURE_PARAM_TAGS_SLOT, NativeBody, call_closure, closure_arity,
+    closure_param_names, native_closure,
 };
 pub use ctx::{
     AnswerTable, AnsweredTls, AssertionOutcome, BodyNeed, BodySource, CARRIER_CLI_TEXT,
