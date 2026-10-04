@@ -1,6 +1,0 @@
-{
-  "module": "website/config/novis.tmLanguage.json",
-  "title": "The website highlights Novis with a small hand-written grammar, and nothing renders it from the editor's.",
-  "text": "Goal `tooling-overhaul` decided that the website's `tmLanguage` is rendered from the editor's grammar, unless the difference is deliberate and the reason is written down (`docs/agent/goals/tooling-overhaul.md:650`). `website/config/novis.tmLanguage.json` is a few kilobytes and has been edited by one commit, while `editors/vscode/syntaxes/nvs.tmLanguage.json` is several times its size, and `website/astro.config.ts:27` reads the website copy. No reason for the difference is written anywhere. Closing this renders the website grammar from the editor's with `bun nv render --website`, or writes the reason both files stay into `website/README.md`.",
-  "goal": "goal-closeout"
-}
