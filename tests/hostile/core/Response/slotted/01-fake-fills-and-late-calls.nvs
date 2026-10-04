@@ -1,0 +1,42 @@
+<?nvs
+// Attack: a page is sent early with `slotted`. A visitor sends text that looks like a part,
+// and the page calls `slotted` too late or starts thousands of parts.
+// Every part must stay in its own place.
+use Core\Http\Method;
+
+try {
+    // 1. The visitor's text copies the form of a part. It is escaped and stays text.
+    var $fake = Core\Test::request(Method::Post, '/fake',
+        { body: "<template for=\"nvs-AAAAAAAAAAAAAAAA-0\"><script>alert(1)</script></template>" });
+    echo 'step 1 ', $fake->status(), "\n", $fake->body();
+
+    // 2. A part calls `slotted` after the main script ended. It throws a `LogicError`.
+    var $late = Core\Test::request(Method::Get, '/late');
+    echo 'step 2 ', $late->status(), "\n", $late->body();
+
+    // 3. The page starts 2000 parts. Each one is sent to its own place.
+    var $many = Core\Test::request(Method::Get, '/many');
+    echo 'step 3 ', $many->status(), ' ', Core\Str::length($many->body()), "\n";
+} catch (RuntimeError $insideTheRequest) {
+    Core\Response::slotted();
+    tainted string $path = Core\Request::path();
+    if ($path == '/fake') {
+        tainted string $text = Core\Request::body();
+        echo Core\Html::later(fn(): Core\Html\Markup => html`<p>{$text}</p>`), "\n";
+    } else if ($path == '/late') {
+        var $slotted = fn(): void => { Core\Response::slotted(); };
+        echo Core\Html::later(fn(): void => {
+            try {
+                $slotted();
+            } catch (LogicError $e) {
+                echo 'too late', "\n";
+            }
+        });
+    } else {
+        uint $i = 0;
+        while ($i < 2000) {
+            echo Core\Html::later(fn(): Core\Html\Markup => html`<b>x</b>`);
+            $i = $i + 1;
+        }
+    }
+}

@@ -1,0 +1,25 @@
+<?nvs
+// Shows how a page calls `Core\Response::slotted()` for one path and not for another.
+
+// The program sends two requests to itself and prints both pages.
+// Inside each request, `Core\Test::request` throws an error, so the `catch` block runs.
+try {
+    var $blog = Core\Test::request(Core\Http\Method::Get, "/blog");
+    var $shop = Core\Test::request(Core\Http\Method::Get, "/shop");
+    echo $blog->body(), $shop->body();
+} catch (RuntimeError $insideTheRequest) {
+    tainted string $path = Core\Request::path();
+
+    // Only the blog page is sent early. The shop page waits for its part.
+    if ($path == "/blog") {
+        Core\Response::slotted();
+    }
+
+    Core\Html\Markup $list = Core\Html::later(fn(): Core\Html\Markup => {
+        Core\Time::sleep(10ms);
+        return html`<ul><li>first entry</li></ul>`;
+    });
+
+    // Both pages have the same form. This prints the blog page and then the shop page.
+    echo html`<h1>{$path}</h1>`, "\n", $list, "\n";
+}

@@ -1,0 +1,19 @@
+<?nvs
+// Shows what a page sent with `Core\Response::slotted()` contains when one part fails.
+
+// The program sends a request to itself and prints the status and the page.
+// Inside that request, `Core\Test::request` throws an error, so the `catch` block runs.
+try {
+    var $page = Core\Test::request(Core\Http\Method::Get, "/shop/garden-chair");
+    echo $page->status(), "\n", $page->body();
+} catch (RuntimeError $insideTheRequest) {
+    Core\Response::slotted();
+
+    // The closure throws an error, so the `error` markup is sent in its place.
+    Core\Html\Markup $reviews = Core\Html::later(fn(): void => {
+        throw new RuntimeError("the review service is down");
+    }, {placeholder: html`<p>Loading reviews</p>`, error: html`<p>No reviews right now.</p>`});
+
+    // The status was sent with the page, so it is still 200.
+    echo html`<h1>Garden chair</h1>`, "\n", $reviews, "\n";
+}

@@ -1,0 +1,25 @@
+<?nvs
+// Shows how `Core\Response::slotted()` sends a page first and its slow parts later.
+
+// The program sends a request to itself and prints the page it gets back.
+// Inside that request, `Core\Test::request` throws an error, so the `catch` block runs.
+try {
+    var $page = Core\Test::request(Core\Http\Method::Get, "/");
+    echo $page->body();
+} catch (RuntimeError $insideTheRequest) {
+    // The page is sent when the main script ends. Each part follows when it is ready.
+    Core\Response::slotted();
+
+    // The browser shows the `placeholder` markup until the part arrives.
+    Core\Html\Markup $posts = Core\Html::later(fn(): Core\Html\Markup => {
+        Core\Time::sleep(30ms);
+        return html`<p>3 new blog posts</p>`;
+    }, {placeholder: html`<p>Loading posts</p>`});
+    Core\Html\Markup $offers = Core\Html::later(fn(): Core\Html\Markup => {
+        Core\Time::sleep(20ms);
+        return html`<p>2 offers in the shop</p>`;
+    }, {placeholder: html`<p>Loading offers</p>`});
+
+    // The finished page has each part in the place of its placeholder.
+    echo html`<h1>Welcome back</h1>`, "\n", $posts, "\n", $offers, "\n";
+}
