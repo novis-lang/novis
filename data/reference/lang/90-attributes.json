@@ -1,7 +1,7 @@
 {
   "slug": "attributes",
   "title": "Attributes, routes, commands and derived codecs",
-  "summary": "`#[...]` metadata as shape literals, how it is read back, and the names the compiler acts on — JSON codecs, the route table, the command table, and program enumeration",
+  "summary": "`#[...]` metadata as anonymous objects, how it is read back, and the names the compiler acts on — JSON codecs, the route table, the command table, and program enumeration",
   "keywords": [
     "attribute",
     "#[...]",

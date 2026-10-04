@@ -1,10 +1,10 @@
 {
-  "summary": "HTML as a page writes it — the ``html`…` `` literal, `Core\\Html\\Markup`, escaping, sanitizing and parsing",
+  "summary": "HTML as a page writes it — the ``html`…` `` template, `Core\\Html\\Markup`, escaping, sanitizing and parsing",
   "keywords": [
     "html",
     "markup",
     "template",
-    "template literal",
+    "html template",
     "page",
     "view",
     "render",

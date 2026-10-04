@@ -8006,7 +8006,7 @@ Fills the placeholders in `$template` with `$arguments` and returns the text. Th
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$template` | `string` (sink) | The template. It must be trusted text, so a tainted string is not allowed. When the template is a literal, its placeholders are checked when the program compiles. |
+| `$template` | `string` (sink) | The template. It must be trusted text, so a tainted string is not allowed. When the template is written directly in the code, its placeholders are checked when the program compiles. |
 | `...$arguments` | `mixed` | The values for the placeholders, in order, or by position with `%1$s`. Every value must be used by at least one placeholder. |
 
 **Returns** `string` — The filled-in text. A width or a precision counts characters, as `Core\Str::length` does. `%f` always writes `.` before the decimals.
@@ -9121,14 +9121,14 @@ none: 0
 Core\Attributes::get<T>(callable $target, string $member = ""): ?T
 ```
 
-Answers the one attribute attached to `$target` — or to its member `$member` — whose literal structurally satisfies the shape `T` written at the call site, resolved in `nvs check` so that the call is replaced by its answer and nothing runs.
+Returns the one attribute on `$target`, or on its member `$member`, whose payload object matches the shape `T` written at the call site. `nvs check` finds it and replaces the call with the result, so nothing runs.
 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$target` | `callable` | The declaration whose attributes are read — a class or function reference. |
 | `$member` | `string` (default `""`, neutral) | The name of a member of `$target` to read instead of `$target` itself; the empty string, which is the default, means the target. |
 
-**Returns** `?T` — The matching attribute's payload literal as `T`, or `null` when none satisfies `T`; more than one is a compile error naming `all<T>` as the fix. Matching is width subtyping, so the empty shape `{}` is satisfied by every attached literal: a marker type with no fields asks for any attribute at all, and beside a second attribute it is that compile error rather than the marker.
+**Returns** `?T` — The payload object of the matching attribute, as `T`. The result is `null` when no attribute matches `T`. When more than one matches, the code does not compile, and the error names `all<T>` as the fix. A payload matches when it has at least the fields of `T`. So the empty shape `{}` matches every attribute, and a marker type with no fields gives that compile error when the target has a second attribute.
 
 <a id="core-core-attributes-all"></a>
 #### `Core\Attributes::all`
@@ -9137,14 +9137,14 @@ Answers the one attribute attached to `$target` — or to its member `$member` �
 Core\Attributes::all<T>(callable $target, string $member = ""): array<T>
 ```
 
-Answers every attribute attached to `$target` — or to its member `$member` — whose literal structurally satisfies the shape `T` written at the call site, resolved in `nvs check` so that the call is replaced by its answer and nothing runs.
+Returns every attribute on `$target`, or on its member `$member`, whose payload object matches the shape `T` written at the call site. `nvs check` finds them and replaces the call with the result, so nothing runs.
 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$target` | `callable` | The declaration whose attributes are read — a class or function reference. |
 | `$member` | `string` (default `""`, neutral) | The name of a member of `$target` to read instead of `$target` itself; the empty string, which is the default, means the target. |
 
-**Returns** `array<T>` — An `array<T>` of the matching payload literals in declaration order, empty when none satisfies `T`. Matching is width subtyping, so the empty shape `{}` answers every attached literal rather than the markers among them.
+**Returns** `array<T>` — An `array<T>` of the matching payload objects, in the order they are declared. It is empty when no attribute matches `T`. A payload matches when it has at least the fields of `T`, so the empty shape `{}` matches every attribute.
 
 <a id="core-core-math"></a>
 ### `Core\Math`
@@ -10254,7 +10254,7 @@ Reads `$text` as an integer of any magnitude, in the radix asked for — the tex
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$text` | `string` (neutral) | The whole text to read: an optional `-` or `+`, then digits, and nothing else. No leading-garbage rule, and no `_` separators — those are an integer literal's spelling rather than a `string`'s. |
+| `$text` | `string` (neutral) | The whole text to read: an optional `-` or `+`, then digits, and nothing else. Text before the number is not skipped. `_` separators are not allowed: you can use them only in a number written directly in the code. |
 | `{radix: …}` | `uint` (default `10`) | The base the digits are written in, 2 to 36 with `a`-`z` as the digits past `9`; 10 when the option is omitted. |
 
 **Returns** `Core\BigInt` — A `BigInt` equal to the number `$text` spells.
@@ -10618,7 +10618,7 @@ a\.b\*c\?
 | [`Core\Regex::replace`](#core-core-regex-replace) | `replace(string $subject, Core\Regex\Pattern\|string $pattern, string $replacement, {limit?: uint}): string` |
 | [`Core\Regex::replaceWith`](#core-core-regex-replacewith) | `replaceWith(string $subject, Core\Regex\Pattern\|string $pattern, callable(Core\Regex\Match): string $fn, {limit?: uint}): string` |
 | [`Core\Regex::split`](#core-core-regex-split) | `split(string $subject, Core\Regex\Pattern\|string $pattern, {limit?: int, keepEmpty?: bool}): array<string>` |
-| [`Core\Regex::quote`](#core-core-regex-quote) | `quote(string $literal): string` |
+| [`Core\Regex::quote`](#core-core-regex-quote) | `quote(string $text): string` |
 
 <a id="core-core-regex-compile"></a>
 #### `Core\Regex::compile`
@@ -10760,14 +10760,14 @@ Splits `$subject` at every match of `$pattern`, and returns the pieces as an arr
 #### `Core\Regex::quote`
 
 ```nvs skip
-Core\Regex::quote(string $literal): string
+Core\Regex::quote(string $text): string
 ```
 
-Puts a `\` before every character that has a special meaning in a pattern. The result is a pattern that matches `$literal` exactly. A `tainted` text is allowed here, and the result can be used as a pattern.
+Puts a `\` before every character that has a special meaning in a pattern. The result is a pattern that matches `$text` exactly. A `tainted` text is allowed here, and the result can be used as a pattern.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$literal` | `string` (launder) | The text to match exactly. |
+| `$text` | `string` (launder) | The text to match exactly. |
 
 **Returns** `string` — The escaped pattern. A text with no special characters is returned unchanged. The escaped characters are not the same as PHP's `preg_quote`: `&` and `~` are escaped here, and `!`, `:`, `<`, `=`, `>` and `/` are not.
 
@@ -10962,7 +10962,7 @@ invalid
 Core\Json::encode(mixed $value, {pretty?: bool, escapeUnicode?: bool}): string
 ```
 
-Serializes `$value` as JSON text — scalars, arrays, shape literals and instances of classes carrying `#[Json\Derive]` — on one line unless `pretty` is set.
+Serializes `$value` as JSON text. It can be a scalar, an array, an anonymous object or an instance of a class with `#[Json\Derive]`. The text is on one line unless `pretty` is set.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -10990,7 +10990,7 @@ Parses the JSON text `$json` into a value, as `json_decode` does with `$associat
 
 **Returns** `mixed` — The decoded value: `null`, `bool`, `int`, `float`, `string`, or an array; a JSON object is always a string-keyed array, never an object.
 
-**Throws** `ParseError` — `$json` is not a valid JSON document, nests deeper than `maxDepth`, or holds an integer literal too large for `int`; the one issue it carries has an empty path.; `LogicError` — `maxDepth` is `0` or above `1024`.
+**Throws** `ParseError` — `$json` is not a valid JSON document, nests deeper than `maxDepth`, or contains a whole number too large for `int`; the one issue it carries has an empty path.; `LogicError` — `maxDepth` is `0` or above `1024`.
 
 <a id="core-core-json-decodeas"></a>
 #### `Core\Json::decodeAs`
@@ -11008,7 +11008,7 @@ Parses the JSON object `$json` into an instance of `T`, a class carrying `#[Json
 
 **Returns** `T` — A new `T` built from the document's fields, or — for an `array<C>` — one new `C` per element, in the document's own order.
 
-**Throws** `ParseError` — `$json` is not a valid JSON document, nests deeper than `maxDepth`, holds an integer literal too large for `int`, is not an object at the top level (an array, for an `array<C>`), or has fields that are missing or of the wrong type — every failed field is one issue on the error, at its own path, and the message counts them. A list stops at its first bad element, and each of its paths carries that element's position.; `LogicError` — `T` has no JSON codec because it does not carry `#[Json\Derive]`, or `maxDepth` is `0` or above `1024`.; `RecursionError` — The call stack is full before the last object is created. This can happen when a class contains itself and the document nests very deeply.
+**Throws** `ParseError` — `$json` is not a valid JSON document, nests deeper than `maxDepth`, contains a whole number too large for `int`, is not an object at the top level (an array, for an `array<C>`), or has fields that are missing or of the wrong type — every failed field is one issue on the error, at its own path, and the message counts them. A list stops at its first bad element, and each of its paths carries that element's position.; `LogicError` — `T` has no JSON codec because it does not carry `#[Json\Derive]`, or `maxDepth` is `0` or above `1024`.; `RecursionError` — The call stack is full before the last object is created. This can happen when a class contains itself and the document nests very deeply.
 
 <a id="core-core-json-isvalid"></a>
 #### `Core\Json::isValid`
@@ -11023,7 +11023,7 @@ Tells whether `$json` is a document `decode` would accept at the default depth o
 |---|---|---|
 | `$json` | `string` (neutral) | The JSON text to check. |
 
-**Returns** `bool` — `true` when `$json` parses; `false` for malformed text, nesting past `512`, or an integer literal too large for `int`.
+**Returns** `bool` — `true` when `$json` parses; `false` for malformed text, nesting past `512`, or a whole number too large for `int`.
 
 <a id="core-core-encoding"></a>
 ### `Core\Encoding`
@@ -11510,7 +11510,7 @@ Writes `$values` as the octets `$format` describes, as `pack` does, over a close
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$format` | `string` (sink) | The format string — an intrinsic and a sink, so a literal — where each code may be followed by a count or `*`: how many arguments a numeric field takes, and how many octets wide a buffer field is. |
+| `$format` | `string` (sink) | The format string. It must be written directly in the code. Each code may be followed by a count or `*`: how many arguments a numeric field takes, and how many octets wide a buffer field is. |
 | `...$values` | `mixed` | The values written, one per numeric field and one buffer per buffer field; an integer field takes an `int` or a `uint`, a float field a `float`, and nothing is converted. |
 
 **Returns** `bytes` — The packed buffer.
@@ -11776,7 +11776,7 @@ Returns the full path of the folder that contains this source file. The compiler
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$join` | `?string` (default `null`, neutral) | A relative path written as a string literal, such as `'data'`. It is added to the folder. A variable or a full path does not compile. Use `Core\Path::join(Core\Path::thisDir(), $part)` for a part the program builds. |
+| `$join` | `?string` (default `null`, neutral) | A relative path, written directly in the code as a string such as `'data'`. It is added to the folder. A variable or a full path does not compile. Use `Core\Path::join(Core\Path::thisDir(), $part)` for a part the program builds. |
 
 **Returns** `string` — The full path of the folder, with `$join` added when you give one, and with its `.` and `..` parts removed.
 
@@ -11872,7 +11872,7 @@ The whole content of a file, as text — `file_get_contents`. Needs the `fs.read
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$path` | `string` (sink) | The file to read. A relative path must be a string literal, and is joined to the folder of the file that contains it. |
+| `$path` | `string` (sink) | The file to read. A relative path must be a string written directly in the code. It is joined to the folder of the file that contains it. |
 
 **Returns** `string` — The file's content as a `string`, with nothing stripped. The content must be UTF-8 text; `readText` reads a file written in another charset.
 
@@ -11889,7 +11889,7 @@ Replaces a file's whole content, creating it if it does not exist — `file_put_
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$path` | `string` (sink) | The file to write. A relative path must be a string literal, and is joined to the folder of the file that contains it. |
+| `$path` | `string` (sink) | The file to write. A relative path must be a string written directly in the code. It is joined to the folder of the file that contains it. |
 | `$content` | `string` (neutral) | The bytes to write. They become the file's entire content; `append` is the member that adds to what is already there. |
 
 **Returns** `void` — Nothing. A refusal throws rather than answering `false`, so a caller that ignores the result has not ignored a failure.
@@ -11907,7 +11907,7 @@ Adds to the end of a file, creating it if it is not there — `file_put_contents
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$path` | `string` (sink) | The file to add to. A relative path must be a string literal, and is joined to the folder of the file that contains it. |
+| `$path` | `string` (sink) | The file to add to. A relative path must be a string written directly in the code. It is joined to the folder of the file that contains it. |
 | `$content` | `string` (neutral) | The bytes to add. Whatever the file already holds is kept and these follow it; the end is found by the operating system at the write, not read beforehand. |
 
 **Returns** `void` — Nothing. A refusal throws rather than answering `false`, so a caller that ignores the result has not ignored a failure.
@@ -11945,7 +11945,7 @@ Reports whether anything is at `$path` — `file_exists`, and true for a directo
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$path` | `string` (sink) | The name to look for. A relative path must be a string literal, and is joined to the folder of the file that contains it. |
+| `$path` | `string` (sink) | The name to look for. A relative path must be a string written directly in the code. It is joined to the folder of the file that contains it. |
 
 **Returns** `bool` — `true` if the name resolves to something, `false` if it resolves to nothing. Absence is an answer here and not a failure, which is what separates this from `size`.
 
@@ -11962,7 +11962,7 @@ Reports whether `$path` names a regular file — `is_file`. Symbolic links are f
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$path` | `string` (sink) | The name to ask about. A relative path must be a string literal, and is joined to the folder of the file that contains it. |
+| `$path` | `string` (sink) | The name to ask about. A relative path must be a string written directly in the code. It is joined to the folder of the file that contains it. |
 
 **Returns** `bool` — `true` for a regular file, `false` for a directory, for anything else the operating system holds at that name, and for a name that is not there at all. Absence answers `false` here rather than throwing, because the question is what kind of thing is at the name and *nothing* is a complete answer to it.
 
@@ -11979,7 +11979,7 @@ Reports whether `$path` names a directory — `is_dir`. Symbolic links are follo
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$path` | `string` (sink) | The name to ask about. A relative path must be a string literal, and is joined to the folder of the file that contains it. |
+| `$path` | `string` (sink) | The name to ask about. A relative path must be a string written directly in the code. It is joined to the folder of the file that contains it. |
 
 **Returns** `bool` — `true` for a directory, `false` for a file, for anything else, and for a name that is not there. With `isFile` it partitions what `exists` answers `true` for into the two kinds this class has separate members for, and a name can satisfy neither.
 
@@ -11996,7 +11996,7 @@ Whether this process could read what is at `$path` right now — `is_readable`. 
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$path` | `string` (sink) | The file or directory to ask about. A relative path must be a string literal, and is joined to the folder of the file that contains it. |
+| `$path` | `string` (sink) | The file or directory to ask about. A relative path must be a string written directly in the code. It is joined to the folder of the file that contains it. |
 
 **Returns** `bool` — `true` if the operating system would allow a read, `false` if it would not — including for a name that is not there. The answer is about the instant it was asked and nothing holds it still, so a read that follows it can still fail.
 
@@ -12013,7 +12013,7 @@ Whether this process could write what is at `$path` right now — `is_writable`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$path` | `string` (sink) | The file or directory to ask about. A relative path must be a string literal, and is joined to the folder of the file that contains it. |
+| `$path` | `string` (sink) | The file or directory to ask about. A relative path must be a string written directly in the code. It is joined to the folder of the file that contains it. |
 
 **Returns** `bool` — `true` if the operating system would allow a write, `false` if it would not — including for a name that is not there. A snapshot, exactly as `isReadable` is.
 
@@ -12030,7 +12030,7 @@ The size of the file at `$path` in bytes, as the operating system reports it —
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$path` | `string` (sink) | The file to measure. A relative path must be a string literal, and is joined to the folder of the file that contains it. |
+| `$path` | `string` (sink) | The file to measure. A relative path must be a string written directly in the code. It is joined to the folder of the file that contains it. |
 
 **Returns** `uint` — The byte count as a `uint`. For a text file this is bytes and not characters — a `string`'s own length is `Core\Str::length`, which counts what § 1 says it counts.
 
@@ -12047,7 +12047,7 @@ When the file at `$path` was last written, as a `Core\Time\Instant` — `filemti
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$path` | `string` (sink) | The file or directory to ask about. A relative path must be a string literal, and is joined to the folder of the file that contains it. |
+| `$path` | `string` (sink) | The file or directory to ask about. A relative path must be a string written directly in the code. It is joined to the folder of the file that contains it. |
 
 **Returns** `Core\Time\Instant` — The modification time as an absolute point on the timeline, with no zone of its own — `->in($zone)` is what gives it a calendar.
 
@@ -12064,7 +12064,7 @@ Everything one `stat` answers about `$path`, as a `Core\IO\Metadata` — `stat`,
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$path` | `string` (sink) | The file or directory to measure. A relative path must be a string literal, and is joined to the folder of the file that contains it. |
+| `$path` | `string` (sink) | The file or directory to measure. A relative path must be a string written directly in the code. It is joined to the folder of the file that contains it. |
 
 **Returns** `Core\IO\Metadata` — A `Core\IO\Metadata` — a snapshot, not a live view: it answers about the moment the call was made, and says nothing about the file afterwards.
 
@@ -12215,7 +12215,7 @@ The absolute path `$path` resolves to, with every `.`, `..` and symbolic link fo
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$path` | `string` (sink) | The name to resolve. A relative path must be a string literal, and is joined to the folder of the file that contains it. Every component must exist, including the last one. |
+| `$path` | `string` (sink) | The name to resolve. A relative path must be a string written directly in the code. It is joined to the folder of the file that contains it. Every component must exist, including the last one. |
 
 **Returns** `string` — The resolved absolute path. Passing the answer back in resolves to itself, so the result is a fixed point and a program may compare two of them for equality — which is the one use this member has that `Core\Path::normalize` cannot serve, since two different spellings of one file normalize differently and canonicalize the same.
 
@@ -12233,7 +12233,7 @@ Resolves `$path` against `$base` and then **proves** the answer is still under i
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$base` | `string` (sink) | The directory the answer must stay under. It has to exist, since containment is proved against its canonical spelling. |
-| `$path` | `string` (launder) | The name to resolve against `$base` — the untrusted half, which is the whole point of the member. A relative `$path` is joined to `$base`, also when it is written as a literal: it is not joined to the folder of the file that calls `within`. An absolute path is no escape hatch: it is resolved and then fails the same containment check. |
+| `$path` | `string` (launder) | The name to resolve against `$base` — the untrusted half, which is the whole point of the member. A relative `$path` is joined to `$base`, also when it is written directly in the code. It is not joined to the folder of the file that calls `within`. An absolute path is no escape hatch: it is resolved and then fails the same containment check. |
 
 **Returns** `string` — The resolved absolute path, as a plain `string`. Every `..`, every symlink and every separator is already gone, so what the caller holds is a name the operating system agrees with rather than one it still has to be trusted about.
 
@@ -12250,7 +12250,7 @@ The whole content of a file, decoded from the charset it is written in — `file
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$path` | `string` (sink) | The file to read. A relative path must be a string literal, and is joined to the folder of the file that contains it. |
+| `$path` | `string` (sink) | The file to read. A relative path must be a string written directly in the code. It is joined to the folder of the file that contains it. |
 | `{charset: …}` | `Core\Charset` (default `Core\Charset::Utf8`) | The encoding the file's octets are in. `Core\Charset::Utf8` when it is not given, which is the decode that is the identity on text already written the way Novis spells it. |
 
 **Returns** `string` — The file's content as a `string`, converted from `$charset` — never with a replacement character in it, because a conversion that cannot be exact throws instead.
@@ -12268,7 +12268,7 @@ Every line of a file, without its terminator — `file()` and the `fgets` loop t
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$path` | `string` (sink) | The file to read. A relative path must be a string literal, and is joined to the folder of the file that contains it. |
+| `$path` | `string` (sink) | The file to read. A relative path must be a string written directly in the code. It is joined to the folder of the file that contains it. |
 
 **Returns** `Core\IO\Lines` — An `Iterable<string>` a `foreach` walks in file order, and walks again as often as it is asked. `\n`, `\r\n` and a lone `\r` each end a line; a trailing terminator does not open an empty last one, and an empty file has no lines at all.
 
@@ -12285,7 +12285,7 @@ Opens a file and answers the handle every later read and write goes through — 
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$path` | `string` (sink) | The file to open. A relative path must be a string literal, and is joined to the folder of the file that contains it. |
+| `$path` | `string` (sink) | The file to open. A relative path must be a string written directly in the code. It is joined to the folder of the file that contains it. |
 | `$mode` | `Core\IO\FileMode` | What the handle may do, as a `Core\IO\FileMode` case. |
 
 **Returns** `Core\IO\File` — An open `Core\IO\File`. It is closed by `close`, and by the end of the request if the program never calls it.
@@ -12548,9 +12548,9 @@ Runs the program at `$path` with the arguments in `$argv`, and waits until it en
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$path` | `string` (sink) | The program to start, as an absolute path. A relative path must be a string literal, and is joined to the folder of the file that contains it. `PATH` is not searched, so `ls` means a file named `ls` in that folder. |
+| `$path` | `string` (sink) | The program to start, as an absolute path. A relative path must be a string written directly in the code. It is joined to the folder of the file that contains it. `PATH` is not searched, so `ls` means a file named `ls` in that folder. |
 | `$argv` | `array<string>` | The arguments, one in each element: `["-n", "1", $host]`. An element with a space, a quote or a `;` in it is still one argument, on every platform. |
-| `{cwd: …}` | `string` (default `null`, sink) | The folder the program starts in, as an absolute path or a string literal relative to this file. Without it, the program starts in the same folder as this program. |
+| `{cwd: …}` | `string` (default `null`, sink) | The folder the program starts in, as an absolute path. A relative path must be written directly in the code, and is joined to the folder of this file. Without it, the program starts in the same folder as this program. |
 | `{env: …}` | `array<string>` (default `null`) | The environment variables of the program, as name => value. This replaces all of them, so a variable that is not in the array is not set. Without it, the program gets the same variables as this program. A `secret` value must be revealed first. |
 | `{timeout: …}` | `Core\Time\Duration` (default `null`) | The longest time the program may run, counted from the start. When it passes, the program is stopped and a `TimeoutError` is thrown. |
 
@@ -12571,7 +12571,7 @@ Starts the program at `$path` with the arguments in `$argv`, and returns at once
 |---|---|---|
 | `$path` | `string` (sink) | The program to start, as an absolute path or a path relative to the working directory. `PATH` is not searched. |
 | `$argv` | `array<string>` | The arguments, one in each element. An element with a space, a quote or a `;` in it is still one argument, on every platform. |
-| `{cwd: …}` | `string` (default `null`, sink) | The folder the program starts in, as an absolute path or a string literal relative to this file. Without it, the program starts in the same folder as this program. |
+| `{cwd: …}` | `string` (default `null`, sink) | The folder the program starts in, as an absolute path. A relative path must be written directly in the code, and is joined to the folder of this file. Without it, the program starts in the same folder as this program. |
 | `{env: …}` | `array<string>` (default `null`) | The environment variables of the program, as name => value. This replaces all of them, so a variable that is not in the array is not set. Without it, the program gets the same variables as this program. A `secret` value must be revealed first. |
 | `{timeout: …}` | `Core\Time\Duration` (default `null`) | The longest time the program may run, counted from the start. When it passes, the program is stopped and a `TimeoutError` is thrown. |
 
@@ -12848,7 +12848,7 @@ Reads an ISO-8601 / RFC 3339 timestamp that carries its own offset — `2024-03-
 Core\Time::parse(string $text, string $format, Core\Time\Zone $zone): Core\Time\DateTime
 ```
 
-Reads a civil date and time through a CLDR pattern and places it in `$zone`, replacing `DateTime::createFromFormat` and `strptime`; a `$format` written as a literal is read while checking, so a malformed one is `E0769` rather than a throw. A field the pattern does not name is left at the start of its range.
+Reads a civil date and time through a CLDR pattern and places it in `$zone`, replacing `DateTime::createFromFormat` and `strptime`. A `$format` written directly in the code is checked when the program compiles, and a malformed one is error `E0769`. A field the pattern does not name is left at the start of its range.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -12858,7 +12858,7 @@ Reads a civil date and time through a CLDR pattern and places it in `$zone`, rep
 
 **Returns** `Core\Time\DateTime` — The `DateTime` in `$zone`.
 
-**Throws** `LogicError` — `$format` does not compile — a field letter outside the implemented subset, an unterminated quote — or names a zone or offset field, which `$zone` already answers. Only the first half is `E0769` for a written literal: a zonal field is a pattern the grammar reads perfectly well and a rule of this member's own, so it throws however `$format` arrived.; `ParseError` — `$text` does not match `$format`: a literal that differs, a field with no digits, trailing text, or fields that together are not a real civil time. It is also thrown for a time outside `-9999-01-02T01:59:59Z..=9999-12-30T22:00:00Z`.
+**Throws** `LogicError` — `$format` does not compile — a field letter outside the implemented subset, an unterminated quote — or names a zone or offset field, which `$zone` already answers. For a `$format` written directly in the code, only the first half is `E0769`: a zonal field is a pattern the grammar reads perfectly well and a rule of this member's own, so it throws however `$format` arrived.; `ParseError` — `$text` does not match `$format`: fixed text that differs, a field with no digits, trailing text, or fields that together are not a real civil time. It is also thrown for a time outside `-9999-01-02T01:59:59Z..=9999-12-30T22:00:00Z`.
 
 <a id="core-core-time-at"></a>
 #### `Core\Time::at`
@@ -13164,7 +13164,7 @@ Renders the civil date and time through a CLDR pattern — `yyyy-MM-dd HH:mm:ss`
 
 **Returns** `string` — The rendered text.
 
-**Throws** `LogicError` — `$pattern` does not compile — a field letter outside the implemented subset, or an unterminated quote. A `$pattern` written as a literal is read while checking and refused there as `E0769`, so only a computed one reaches this throw; `Date::format` and `TimeOfDay::format` read the same patterns and are not checked that way, so a bad literal throws there.
+**Throws** `LogicError` — `$pattern` does not compile — a field letter outside the implemented subset, or an unterminated quote. A `$pattern` written directly in the code is checked when the program compiles, and an error there is `E0769`. So only a computed `$pattern` reaches this throw. `Date::format` and `TimeOfDay::format` read the same patterns but are not checked when the program compiles. There, a bad pattern written in the code also throws.
 
 <a id="core-core-time-datetime-plus"></a>
 #### `Core\Time\DateTime->plus`
@@ -13800,7 +13800,7 @@ not a duration literal
 Core\Time\Duration::nanoseconds(int $n): Core\Time\Duration
 ```
 
-Builds a `Duration` of exactly `$n` nanoseconds — the computed-count form of the duration literal, and the member a literal such as `30s` itself reaches a value through.
+Builds a `Duration` of exactly `$n` nanoseconds, for a count computed at run time. A duration written directly in the code, such as `30s`, also uses this method.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -13815,7 +13815,7 @@ Builds a `Duration` of exactly `$n` nanoseconds — the computed-count form of t
 Core\Time\Duration::microseconds(int $n): Core\Time\Duration
 ```
 
-Builds a `Duration` of `$n` microseconds, for a count computed at run time; a constant one is a duration literal.
+Builds a `Duration` of `$n` microseconds, for a count computed at run time. For a fixed count, write the duration directly, such as `500us`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -13832,7 +13832,7 @@ Builds a `Duration` of `$n` microseconds, for a count computed at run time; a co
 Core\Time\Duration::milliseconds(int $n): Core\Time\Duration
 ```
 
-Builds a `Duration` of `$n` milliseconds, for a count computed at run time; a constant one is a duration literal such as `250ms`.
+Builds a `Duration` of `$n` milliseconds, for a count computed at run time. For a fixed count, write the duration directly, such as `250ms`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -13849,7 +13849,7 @@ Builds a `Duration` of `$n` milliseconds, for a count computed at run time; a co
 Core\Time\Duration::seconds(int $n): Core\Time\Duration
 ```
 
-Builds a `Duration` of `$n` seconds, for a count computed at run time; a constant one is written as the literal `30s`.
+Builds a `Duration` of `$n` seconds, for a count computed at run time. For a fixed count, write the duration directly, such as `30s`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -13866,7 +13866,7 @@ Builds a `Duration` of `$n` seconds, for a count computed at run time; a constan
 Core\Time\Duration::minutes(int $n): Core\Time\Duration
 ```
 
-Builds a `Duration` of `$n` minutes, for a count computed at run time; a constant one is a duration literal such as `1h30m`.
+Builds a `Duration` of `$n` minutes, for a count computed at run time. For a fixed count, write the duration directly, such as `1h30m`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -13883,7 +13883,7 @@ Builds a `Duration` of `$n` minutes, for a count computed at run time; a constan
 Core\Time\Duration::hours(int $n): Core\Time\Duration
 ```
 
-Builds a `Duration` of `$n` hours — exact hours of 3600 seconds, which is how `Time::now()->plus(72h)` differs from a calendar step of three days. A constant count is the literal `72h`.
+Builds a `Duration` of `$n` hours — exact hours of 3600 seconds, which is how `Time::now()->plus(72h)` differs from a calendar step of three days. For a fixed count, write the duration directly, such as `72h`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -13900,7 +13900,7 @@ Builds a `Duration` of `$n` hours — exact hours of 3600 seconds, which is how 
 Core\Time\Duration::days(int $n): Core\Time\Duration
 ```
 
-Builds a `Duration` of `$n` days of exactly 24 hours each — never a calendar day, which `DateTime::plus($n, Unit::Day)` is. A constant count is the literal `30d`.
+Builds a `Duration` of `$n` days of exactly 24 hours each — never a calendar day, which `DateTime::plus($n, Unit::Day)` is. For a fixed count, write the duration directly, such as `30d`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -13934,15 +13934,15 @@ Builds a `Duration` of `$n` weeks of exactly seven 24-hour days each — never a
 Core\Time\Duration::parse(string $text): Core\Time\Duration
 ```
 
-Reads the duration literal grammar — `30s`, `1h30m`, `7d` — at run time, through the one implementation the lexer uses for the source literal: the typed form of `strtotime` for an exact offset arriving in a config value or a flag. It accepts nothing else, so a `tainted` value comes out laundered.
+Reads a duration such as `30s`, `1h30m` or `7d` from text at run time. It uses the same syntax as a duration written in the code. Use it for an exact offset that comes from a config value or a flag. It accepts nothing else, so a `tainted` value comes out laundered.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$text` | `string` (neutral) | The text to read, in the duration literal grammar. |
+| `$text` | `string` (neutral) | The text to read, written the same way as a duration in the code. |
 
-**Returns** `Core\Time\Duration` — The `Duration` the text spells.
+**Returns** `Core\Time\Duration` — The `Duration` the text describes.
 
-**Throws** `ParseError` — `$text` is not a duration literal — an unknown or repeated unit, a missing count, trailing text — or spells more than a `Duration` can hold. A `$text` written as a literal is read by this same grammar while checking and refused there as `E0769`, so only a computed one reaches this throw.
+**Throws** `ParseError` — `$text` is not a valid duration. It has an unknown or repeated unit, a missing count or extra text, or it is longer than a `Duration` can hold. A `$text` written directly in the code is checked when the program compiles, and an error there is `E0769`. Only a computed `$text` reaches this throw.
 
 <a id="core-core-time-duration-tonanoseconds"></a>
 #### `Core\Time\Duration->toNanoseconds`
@@ -14074,9 +14074,9 @@ Orders two durations by length and sign, as `Comparable` requires, so a shorter 
 $duration->toString(): string
 ```
 
-Renders the receiver in the duration literal grammar — `1h30m`, `250ms` — as `Stringable` requires, so the text round-trips through `Duration::parse`.
+Writes the receiver as text in the same syntax as a duration in the code, such as `1h30m` or `250ms`. `Stringable` requires this method, and `Duration::parse` reads the text back to the same value.
 
-**Returns** `string` — The literal spelling of the receiver.
+**Returns** `string` — The receiver written as a duration, such as `1h30m`.
 
 <a id="core-core-time-zone"></a>
 ### `Core\Time\Zone`
@@ -15858,12 +15858,12 @@ Builds the link to the route named `$name`. Each value in `$params` fills the ca
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$name` | `string` | The route's name as its `#[Route]` declared it; a literal is resolved against the route table while compiling, and an unknown literal is a compile error. |
-| `$params` | `array<mixed>` | The path's captures by name, plus any query parameters; a literal key that is neither a capture nor a declared `#[Query]` parameter is a compile error. |
+| `$name` | `string` | The route's name, as its `#[Route]` declares it. A name written directly in the code is checked when the program compiles, and an unknown name is a compile error. |
+| `$params` | `array<mixed>` | The path's captures by name, plus any query parameters. A key written directly in the code must be a capture or a declared `#[Query]` parameter. Any other key is a compile error. |
 
 **Returns** `string` — The path, for example `/users/42?page=2`. An optional `{name?}` capture is left out when `$params` has no value for it. The `/` characters in a `{name...}` capture stay as they are.
 
-**Throws** `RuntimeError` — When `$name` is not written as a literal string. When `$params` has no value for a capture that the path needs. When a value cannot be written as text. When a value is `.` or `..`, or a `{name...}` value has one of them between its `/` characters, because a browser would move that link to another path.
+**Throws** `RuntimeError` — When `$name` is not a string written directly in the code. When `$params` has no value for a capture that the path needs. When a value cannot be written as text. When a value is `.` or `..`, or a `{name...}` value has one of them between its `/` characters, because a browser would move that link to another path.
 
 <a id="core-core-router-urlabsolute"></a>
 #### `Core\Router::urlAbsolute`
@@ -15876,8 +15876,8 @@ Builds the same link as `url`, with the origin of your site in front. The origin
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$name` | `string` | The route's name as its `#[Route]` declared it; a literal is resolved against the route table while compiling, and an unknown literal is a compile error. |
-| `$params` | `array<mixed>` | The path's captures by name, plus any query parameters; a literal key that is neither a capture nor a declared `#[Query]` parameter is a compile error. |
+| `$name` | `string` | The route's name, as its `#[Route]` declares it. A name written directly in the code is checked when the program compiles, and an unknown name is a compile error. |
+| `$params` | `array<mixed>` | The path's captures by name, plus any query parameters. A key written directly in the code must be a capture or a declared `#[Query]` parameter. Any other key is a compile error. |
 
 **Returns** `string` — The full URL, for example `https://example.test/users/42?page=2`. There is exactly one `/` between the origin and the path.
 
@@ -15894,8 +15894,8 @@ Builds the same link as `url`, with a signature in the `_sig` query parameter at
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$name` | `string` (sink) | The route's name as its `#[Route]` declared it; a literal is resolved against the route table while compiling, and an unknown literal is a compile error. |
-| `$params` | `array<mixed>` | The path's captures by name, plus any query parameters; a literal key that is neither a capture nor a declared `#[Query]` parameter is a compile error. |
+| `$name` | `string` (sink) | The route's name, as its `#[Route]` declares it. A name written directly in the code is checked when the program compiles, and an unknown name is a compile error. |
+| `$params` | `array<mixed>` | The path's captures by name, plus any query parameters. A key written directly in the code must be a capture or a declared `#[Query]` parameter. Any other key is a compile error. |
 | `$settings` | `{keys: array<secret bytes>, until: ?Core\Time\Instant}` | The keys and the time when the link stops working. Both are required. Keys: `keys` (array<secret bytes>) The keys, newest first. `$keys[0]` signs the link. The older keys are there so that `signedRoute` still accepts links made before you changed the key. A signature made by `Core\Signature` or `$uri->sign` is not accepted here, even with the same keys.; `until` (?Core\Time\Instant) When the link stops working. It is part of the signature, so nobody can change it. `null` means the link never stops working. You must write `null` yourself, because anybody who has such a link can use it forever. |
 
 **Returns** `string` — The link from `url` with `_sig=…` at the end, for example `/users/42?page=2&_sig=…`. The same name, values, keys and end time always give the same link. The signature adds about `4/3 × (name + params + 40)` characters.
@@ -16253,7 +16253,7 @@ Turns a value into `bytes` that `decode()` can read back. The value can be a num
 
 **Returns** `bytes` — The bytes. If `$value` is `tainted`, the bytes are also `tainted`.
 
-**Throws** `LogicError` — `$value` contains a closure, an open file or connection, or an object with a `secret` property. It is also thrown when arrays and objects are nested more than 256 levels deep.
+**Throws** `LogicError` — `$value` contains a callable, an open file or connection, or an object with a `secret` property. It is also thrown when arrays and objects are nested more than 256 levels deep.
 
 <a id="core-core-serialize-decode"></a>
 #### `Core\Serialize::decode`
@@ -16790,12 +16790,12 @@ Asserts some entry of `$actual` is `$expected` under strict identity — the que
 Core\Test::assertMatchesInline(mixed $actual, string $expected, {message?: string}): void
 ```
 
-Asserts that `$actual`, rendered as `Core\Debug::render` renders it, is exactly `$expected` — an inline snapshot, whose expectation is a literal in the test's own source rather than a file beside it.
+Asserts that `$actual`, rendered as `Core\Debug::render` renders it, is exactly `$expected`. This is an inline snapshot: the expected text is a string written in the test itself, not a file beside it.
 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$actual` | `mixed` | The value to render; a `secret` property inside it renders redacted, so a snapshot cannot become where a secret is committed. |
-| `$expected` | `string` (neutral) | The rendering this value is expected to have, written inline; `nvs test --update` writes it here for you, replacing this literal and nothing else in the file. |
+| `$expected` | `string` (neutral) | The rendering this value is expected to have, written inline; `nvs test --update` writes it here for you. It replaces this string and nothing else in the file. |
 | `{message: …}` | `string` (default `null`, neutral) | A prefix written in front of the failure's own diagnosis; the default is none. |
 
 **Returns** `void` — Nothing; the assertion is recorded as held in the test's ledger.
@@ -16813,7 +16813,7 @@ Runs `$body` and asserts it throws `$expected` or a subclass of it, as PHPUnit's
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$body` | `callable(): mixed` | The closure to run; a value it returns is released. |
+| `$body` | `callable(): mixed` | The function to run; a value it returns is released. |
 | `$expected` | `string` (neutral) | The fully-qualified class name, as `ParseError::class` folds to; the thrown class or any ancestor of it matches. |
 | `{message: …}` | `string` (default `null`, neutral) | A prefix written in front of the failure's own diagnosis; the default is none. |
 
@@ -16832,7 +16832,7 @@ Runs `$body` and asserts it returns without throwing — the way out of the rule
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$body` | `callable(): mixed` | The closure to run; a value it returns is released. |
+| `$body` | `callable(): mixed` | The function to run; a value it returns is released. |
 | `{message: …}` | `string` (default `null`, neutral) | A prefix written in front of the failure's own diagnosis; the default is none. |
 
 **Returns** `void` — Nothing; the assertion is recorded as held in the test's ledger. A `FATAL` or an exit from the body is nobody's assertion to judge and propagates unchanged.
@@ -17011,11 +17011,11 @@ Every frame the program under test has sent over a scripted socket, oldest first
 Core\Test::double<T>(object $answers): T
 ```
 
-A stand-in for `T` built from a shape of closures, one per method, which **is** a `T` and may be passed wherever one is taken.
+A stand-in for `T` built from an object of functions, one per method. It **is** a `T` and may be passed wherever one is taken.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$answers` | `object` | One field per method of `T`, named as the method is and holding the closure that answers it. A field `T` declares no method for, and a method of `T` the shape leaves out, are each refused where the call is written. |
+| `$answers` | `object` | One field per method of `T`, with the same name as the method. Each field has the function that answers that method. A field for a method that `T` does not declare does not compile. A method of `T` that has no field does not compile either. |
 
 **Returns** `T` — The double, typed as `T`. It records every call made to it, which `Core\Test::assertCalled` reads afterwards, and no class the author never wrote appears in a backtrace.
 
@@ -17035,7 +17035,7 @@ A stand-in for `T` that answers the methods `$answers` names and delegates every
 | `$real` | `T` | The implementation the un-overridden methods are forwarded to, receiver and arguments unchanged. |
 | `$answers` | `object` | One field per method being overridden, named as the method is. A field `T` declares no method for is refused where the call is written; unlike `double`, a method left out is not, that being what `$real` is for. |
 
-**Returns** `T` — The partial, typed as `T`. Every call is recorded whether the closure or `$real` answered it.
+**Returns** `T` — The partial, typed as `T`. Every call is recorded, whether the function in `$answers` or `$real` answered it.
 
 **Throws** `LogicError` — `double`'s ceiling, for the same reason and with the same two counts.
 
@@ -17091,7 +17091,7 @@ Runs `$body` with the test's clock advanced by `$settings.within`, and asserts t
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$body` | `callable(): mixed` | The work to run. It is called once, on the test's own task, and whatever it answers is dropped. |
-| `$settings` | `{within: Core\Time\Duration}` | The budget, written as a literal because there is no duration this member could pick for a caller. Keys: `within` (Core\Time\Duration) How far the virtual clock moves before `$body` runs, so a retry, a backoff or a timeout inside it elapses at once. `Core\Test::advance` moves the same clock, and the move is permanent: the test reads the advanced clock from here on. |
+| `$settings` | `{within: Core\Time\Duration}` | The time budget. You must always give it, because no default duration fits every caller. Keys: `within` (Core\Time\Duration) How far the virtual clock moves before `$body` runs, so a retry, a backoff or a timeout inside it elapses at once. `Core\Test::advance` moves the same clock, and the move is permanent: the test reads the advanced clock from here on. |
 | `{message: …}` | `string` (default `null`, neutral) | Prefixed to the failure, as on every other assertion. |
 
 **Returns** `void` — Nothing. A `$body` that returned having left a task of its own still running throws, naming the budget it overran — `rule:testing/task-tree-and-virtual-clock`, read at the one moment it means anything.
@@ -17361,15 +17361,15 @@ deadline hit
 Core\Task::all({name: callable(): T, ...} $tasks, {limit?: uint, deadline?: Core\Time\Duration}): S
 ```
 
-Runs every closure in the `$tasks` shape at the same time, and waits until all of them have finished. The result is a shape with the same field names, and each field has the type its closure returns.
+Runs every function in the `$tasks` object at the same time, and waits until all of them have finished. The result is an object with the same field names, and each field has the type its function returns.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$tasks` | `{name: callable(): T, ...}` | A shape whose fields are closures with no parameters, written as `fn` literals in the call. A variable of type `callable` in a field does not compile. |
+| `$tasks` | `{name: callable(): T, ...}` | An object whose fields are anonymous functions with no parameters, such as `{a: fn (): int => 1}`. Write them directly in the call. A variable of type `callable` in a field does not compile. |
 | `{limit: …}` | `uint` (default `null`) | The most tasks that run at the same time. The other tasks wait until one finishes. Without it, every task starts at once. |
 | `{deadline: …}` | `Core\Time\Duration` (default `null`) | The time limit for the whole call, not for each task. Without it, the request's `[limits] wall_time` setting is the limit. |
 
-**Returns** `S` — A shape with the value each closure returned. No task is still running when the call returns. If a task throws an error, the other tasks are stopped, and the call throws that same error.
+**Returns** `S` — An object with the value each function returned. No task is still running when the call returns. If a task throws an error, the other tasks are stopped, and the call throws that same error.
 
 **Throws** `LogicError` — When `limit` is `0`. No task could start, so the call could never finish.; `TimeoutError` — When `deadline` runs out before every task has finished. Every task is stopped first, and the call waits until they have stopped.
 
@@ -17404,10 +17404,10 @@ Runs `$fn` after the response is sent, so the client does not wait for it. Use i
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$fn` | `callable(): mixed` | The closure to run. It takes no arguments, and its return value is ignored. An error it throws is written to the log, and no `catch` in the request sees it. |
-| `{deadline: …}` | `Core\Time\Duration` (default `null`) | The longest time the closure may run. Without it, the `[deferred] deadline` setting is the limit. The request's `[limits] wall_time` does not apply here, but its other `[limits]` settings do. |
+| `$fn` | `callable(): mixed` | The function to run. It takes no arguments, and its return value is ignored. An error it throws is written to the log, and no `catch` in the request sees it. |
+| `{deadline: …}` | `Core\Time\Duration` (default `null`) | The longest time `$fn` may run. Without it, the `[deferred] deadline` setting is the limit. The request's `[limits] wall_time` does not apply here, but its other `[limits]` settings do. |
 
-**Returns** `void` — Nothing. The closures run one at a time, in the order you added them. They do not run if the request ends with an uncaught error, an `exit` or a fatal error.
+**Returns** `void` — Nothing. The functions run one at a time, in the order you added them. They do not run if the request ends with an uncaught error, an `exit` or a fatal error.
 
 **Throws** `RuntimeError` — When the call is made inside a task that `Core\Task::all`, `Core\Task::map` or `afterResponse` started. Only the request itself may call it, so return the work to the request and call `afterResponse` there.
 
@@ -19497,7 +19497,7 @@ Sends the HTML page `$body` and adds the header `Content-Type: text/html; charse
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$body` | `Core\Html\Markup` | The page to send. It is a `Core\Html\Markup`, which is HTML that is already safe: an `html` literal escaped the values in its `{...}`, or `Core\Html::escape` made it. It is sent as it is and nothing is escaped again. A `string` does not compile. |
+| `$body` | `Core\Html\Markup` | The page to send. It is a `Core\Html\Markup`, which is HTML that is already safe: an html template, ``html`…` ``, escaped the values in its `{...}`, or `Core\Html::escape` made it. It is sent as it is and nothing is escaped again. A `string` does not compile. |
 
 **Returns** `void` — Nothing. Using this and `echo` in one response does not compile.
 
@@ -19768,7 +19768,7 @@ Saves a value under one key in the session of this request. If the key already h
 
 **Returns** `void` — Nothing. The session is saved to the store once, when the request ends.
 
-**Throws** `RuntimeError` — This request has not called `start()`, or it called `destroy()`. There is no session to save into.; `LogicError` — `$value` cannot be saved: it is a closure or a resource, or it contains one.; `ParseError` — As `get()`, because `set()` reads the whole session first.
+**Throws** `RuntimeError` — This request has not called `start()`, or it called `destroy()`. There is no session to save into.; `LogicError` — `$value` cannot be saved: it is a callable or a resource, or it contains one.; `ParseError` — As `get()`, because `set()` reads the whole session first.
 
 <a id="core-core-session-remove"></a>
 #### `Core\Session::remove`
@@ -19887,7 +19887,7 @@ Turns this request into a WebSocket connection that runs `$entry`. The connectio
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$entry` | `string` (sink) | What the connection runs: the path of a file, the same as `spawn script` takes, or a static method written `Chat::run(...)`. A closure is not allowed, because the connection shares no values with the request. |
+| `$entry` | `string` (sink) | What the connection runs: the path of a file, the same as `spawn script` takes, or a static method written `Chat::run(...)`. An anonymous function is not allowed, because the connection shares no values with the request. |
 | `$args` | `mixed` (default `null`) | The values the connection starts with. They are copied into the connection. For a method, each value goes to the parameter with the same name. A `tainted` value is still `tainted` in the connection. |
 
 **Returns** `void` — Nothing. The call prepares the connection, and it starts when the request ends.
@@ -20098,7 +20098,7 @@ Answers this request with an event stream running `$entry` as a root isolate —
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$entry` | `string` (sink) | What the stream runs: a file path, resolved and root-checked exactly as `spawn script`'s operand is, or a static method written `Feed::run(...)`. Never a closure — an isolate shares nothing but compiled code, so a capture would cross the boundary the isolate exists to be. |
+| `$entry` | `string` (sink) | What the stream runs: a file path, resolved and root-checked exactly as `spawn script`'s operand is, or a static method written `Feed::run(...)`. It cannot be an anonymous function, because an anonymous function can capture variables, and an isolate shares nothing but compiled code. |
 | `$args` | `mixed` (default `null`) | The values the stream starts with, bound to the entry's parameters by name. They cross by the graph copy an isolate boundary already uses, so what arrives is a value and never a shared reference; a `secret` may not cross and a `tainted` value stays `tainted` on the other side. |
 
 **Returns** `void` — Nothing. Calling it opens the stream — this is not a response value a handler hands back, because nothing interprets a handler's return.
@@ -20258,7 +20258,7 @@ work done: 1000 items, no limit reached
 Core\Fatal::onLimit(callable(array<string>): mixed $handler): void
 ```
 
-Registers the closure this request runs when a resource limit stops it — memory, CPU time, output, wall time, script depth or call-stack depth. It runs out of a slice of the request's budget reserved for it, once and never twice, and it is the only thing that observes a `FATAL` a `catch` never sees.
+Registers the callable this request runs when a resource limit stops it — memory, CPU time, output, wall time, script depth or call-stack depth. It runs out of a slice of the request's budget reserved for it, once and never twice, and it is the only thing that observes a `FATAL` a `catch` never sees.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -20273,7 +20273,7 @@ Registers the closure this request runs when a resource limit stops it — memor
 Core\Fatal::onUncaughtThrow(callable(Throwable): mixed $handler): void
 ```
 
-Registers the closure this request runs when a throw reaches the top of it with nothing left to catch it. It runs out of the request's ordinary remaining budget, once and never twice, and it is handed the exception itself.
+Registers the callable this request runs when a throw reaches the top of it with nothing left to catch it. It runs out of the request's ordinary remaining budget, once and never twice, and it is handed the exception itself.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -20303,7 +20303,7 @@ Writes one log record — the same record, through the same writer, the engine i
 |---|---|---|
 | `$level` | `Core\Log\Level` | How loud the record is. `Core\Log\Level`'s five cases carry their own syslog severities. |
 | `$message` | `string` (neutral) | What happened, as one plain sentence. A `tainted` value is accepted here — a log record is data and recording untrusted input is the point — while a `secret` one is refused, which is the rule for every message a human reads. |
-| `$fields` | `array<mixed>` (default `[]`) | Structured context, written as a `fields` object beside the message rather than pasted into it. Omitted from the record entirely when it is empty, so an ordinary call costs no key. Nothing a bag can hold makes a write fail: a value the format has no spelling for — `bytes`, a closure, a cycle — is rendered as what it is rather than refused. |
+| `$fields` | `array<mixed>` (default `[]`) | Structured context, written as a `fields` object beside the message rather than pasted into it. Omitted from the record entirely when it is empty, so an ordinary call costs no key. Nothing in `fields` makes a write fail. A value the format cannot write, such as `bytes`, a callable or a cycle, is written as text that says what it is. |
 
 **Returns** `void` — Nothing. A record that cannot be written is dropped rather than retried: the log is not the program's storage.
 
@@ -21765,14 +21765,14 @@ Runs `$fn` as a separate task and returns a placeholder. Write the placeholder w
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$fn` | `callable(): mixed` | The closure to run. It takes no arguments. Its output is what it echoes, followed by the `Core\Html\Markup` it returns, if any. |
+| `$fn` | `callable(): mixed` | The function to run. It takes no arguments. Its output is what it echoes, followed by the `Core\Html\Markup` it returns, if any. |
 | `{placeholder: …}` | `Core\Html\Markup` (default `null`) | The markup the page shows until the output is ready. The default is empty. |
 | `{error: …}` | `Core\Html\Markup` (default `null`) | The markup shown instead of the output when `$fn` throws an error or runs past its `deadline`. The default is empty. |
 | `{deadline: …}` | `Core\Time\Duration` (default `null`) | The longest time `$fn` may run. Without it, only the request's own limits apply. |
 
 **Returns** `Core\Html\Markup` — A `Core\Html\Markup` placeholder. Outside an HTML response, `$fn` runs at once and the result is its output.
 
-**Throws** `LogicError` — When the page writes the same placeholder twice. A placeholder that the page never writes is not an error: its closure does not run, and a warning is logged.
+**Throws** `LogicError` — When the page writes the same placeholder twice. A placeholder that the page never writes is not an error: its `$fn` does not run, and a warning is logged.
 
 <a id="core-core-html-tosource"></a>
 #### `Core\Html::toSource`
@@ -22420,7 +22420,7 @@ The names an archive carries, in the order its central directory lists them — 
 |---|---|---|
 | `$archive` | `bytes` (neutral) | The archive's octets. Only its central directory is read, so listing a large archive costs its entry count rather than its size. |
 
-**Returns** `array<tainted string>` — One `tainted string` per entry. A name is tainted whatever the archive's own type was, for the reason a claim out of a verified token is: the name was written by whoever built the archive, and a literal archive in a test is no safer than a downloaded one.
+**Returns** `array<tainted string>` — One `tainted string` per entry. A name is always tainted, whatever the archive's own type was. The name was written by whoever built the archive. An archive written directly in a test is no safer than a downloaded one.
 
 **Throws** `ParseError` — `$archive` is not a well-formed zip archive, or it carries an entry naming an absolute path, traversing out of the archive with a `..` component, nesting more than 64 folders, repeating a name, or marked as a symlink. Never an `IOError`: a hostile archive and a failing disk are different questions.
 
@@ -23390,7 +23390,7 @@ A body, or one field of a multipart body, read from the file at `$path` while th
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$path` | `string` (sink) | The file to send. A relative path must be a string literal, and is joined to the folder of the file that contains it. |
+| `$path` | `string` (sink) | The file to send. A relative path must be a string written directly in the code. It is joined to the folder of the file that contains it. |
 | `{filename: …}` | `string` (default `null`, neutral) | The name the other end is told, defaulting to the path's last component. |
 | `{contentType: …}` | `string` (default `null`, neutral) | The media type this part is sent under. Omitted, a multipart field is sent as `application/octet-stream` and a whole body under the call's own `contentType`. |
 
@@ -23439,7 +23439,7 @@ Opens a TCP connection to `$host` on `$port`, parking on the runtime's reactor w
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$host` | `string` (sink) | A hostname or an address literal. It is checked against the grant before it is resolved, and the one address it resolves to is what the connection is made to. |
+| `$host` | `string` (sink) | A hostname or an IP address. It is checked against the grant before it is resolved, and the one address it resolves to is what the connection is made to. |
 | `$port` | `uint` | The port to connect to, 1 to 65535. |
 | `$within` | `Core\Time\Duration` | How long the handshake may take. The bound is lifted once the connection is up, so a later read takes whatever bound its own caller names. |
 
@@ -23458,12 +23458,12 @@ Binds a listening TCP socket to `$address` on `$port`. Needs `net.listen` for th
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$address` | `string` (sink) | An address literal — `127.0.0.1`, `::1`, `0.0.0.0`. Not a hostname: the grant is matched against one endpoint, and a name resolving to two could not be the one an operator named. |
+| `$address` | `string` (sink) | An IP address, such as `127.0.0.1`, `::1` or `0.0.0.0`. Not a hostname: the grant is matched against one endpoint, and a name resolving to two could not be the one an operator named. |
 | `$port` | `uint` | The port to bind, or `0` to let the operating system pick one — which `Core\Net\Listener::port` then reports. |
 
 **Returns** `Core\Net\Listener` — A bound `Core\Net\Listener`, closed with this request if the program does not close it first.
 
-**Throws** `RuntimeError` — The configuration does not grant `net.listen` for this endpoint, `$address` is not an address literal, or `$port` is not a port.; `IOError` — The operating system refused the bind — the port is taken, or the address is not one of this host's.
+**Throws** `RuntimeError` — The configuration does not grant `net.listen` for this endpoint, `$address` is not an IP address, or `$port` is not a port.; `IOError` — The operating system refused the bind — the port is taken, or the address is not one of this host's.
 
 <a id="core-core-net-binddatagram"></a>
 #### `Core\Net::bindDatagram`
@@ -23476,12 +23476,12 @@ Binds a datagram socket to `$address` on `$port`. Needs `net.listen` for that ex
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$address` | `string` (sink) | An address literal — `127.0.0.1`, `::1`, `0.0.0.0`. Not a hostname, for `Core\Net::listen`'s reason: a grant names one endpoint. |
+| `$address` | `string` (sink) | An IP address, such as `127.0.0.1`, `::1` or `0.0.0.0`. Not a hostname, for `Core\Net::listen`'s reason: a grant names one endpoint. |
 | `$port` | `uint` | The port to bind, or `0` to let the operating system pick one — which `Core\Net\Datagram::port` then reports. |
 
 **Returns** `Core\Net\Datagram` — A bound `Core\Net\Datagram`, closed with this request if the program does not close it first.
 
-**Throws** `RuntimeError` — The configuration does not grant `net.listen` for this endpoint, `$address` is not an address literal, or `$port` is not a port.; `IOError` — The operating system refused the bind — the port is taken, or the address is not one of this host's.
+**Throws** `RuntimeError` — The configuration does not grant `net.listen` for this endpoint, `$address` is not an IP address, or `$port` is not a port.; `IOError` — The operating system refused the bind — the port is taken, or the address is not one of this host's.
 
 <a id="core-core-net-connectlocal"></a>
 #### `Core\Net::connectLocal`
@@ -23655,7 +23655,7 @@ Sends one datagram to `$host` on `$port` and answers how many octets went. Needs
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$host` | `string` (sink) | A hostname or an address literal. It is checked against the grant before it is resolved, and the datagram goes to the one address it resolved to. |
+| `$host` | `string` (sink) | A hostname or an IP address. It is checked against the grant before it is resolved, and the datagram goes to the one address it resolved to. |
 | `$port` | `uint` | The port to send to, 1 to 65535. |
 | `$payload` | `bytes` (neutral) | The octets of one message. There is no partial send: a message too large for the path is refused rather than split. |
 | `$within` | `Core\Time\Duration` | How long to wait for the socket to take the message. It bounds this call alone. |
@@ -23739,7 +23739,7 @@ $message->host(): string
 
 The address this datagram came from, written out — `127.0.0.1`, `::1`. A plain `string`, so it can be handed straight back to `send`, which asks the grant and the address policy about it exactly as it would about any other address.
 
-**Returns** `string` — An address literal, never a hostname: nothing here is resolved backwards.
+**Returns** `string` — An IP address, never a hostname: nothing here is resolved backwards.
 
 <a id="core-core-net-datagram-message-port"></a>
 #### `Core\Net\Datagram\Message->port`
@@ -23943,12 +23943,12 @@ Copies `$value` into the store under `$key`, replacing whatever was there — a 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$key` | `string` (neutral) | The name to store under; `tainted` is admitted, since no byte of it reaches any answer. |
-| `$value` | `mixed` | The value to copy in. A closure and a `secret` may not cross, exactly as at the isolate boundary. |
+| `$value` | `mixed` | The value to copy in. It cannot be a callable or a `secret`, the same as for a value sent to an isolate. |
 | `{ttl: …}` | `Core\Time\Duration` (default `null`) | How long the entry stays readable, counted from this call. Omitted, it stays until the tier's cap forgets it or another `put` replaces it. A lifetime that has already run out forgets whatever was under the key and stores nothing. |
 
 **Returns** `void` — Nothing. A successful `put` is still no promise that a later `get` answers — see `Core\Cache::local`.
 
-**Throws** `LogicError` — The value cannot cross: it is or holds a closure, or an object with a `secret` property that was not revealed.; `IOError` — On the shared tier only: the store cannot be reached or refused the write. The local tier has nothing to be unreachable.
+**Throws** `LogicError` — The value cannot cross: it is or contains a callable, or an object with a `secret` property that was not revealed.; `IOError` — On the shared tier only: the store cannot be reached or refused the write. The local tier has nothing to be unreachable.
 
 <a id="core-core-cache-store-get"></a>
 #### `Core\Cache\Store->get`
@@ -24179,7 +24179,7 @@ Adds to a counter, fixing `$name` to a counter on its first use — the replacem
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$name` | `string` (sink) | The series name, `[a-z][a-z0-9_]*`. A literal outside that grammar is a compile error, and a `tainted` name is refused wherever it was written. |
+| `$name` | `string` (sink) | The series name, `[a-z][a-z0-9_]*`. A name written directly in the code that does not match this pattern does not compile. A `tainted` name does not compile either. |
 | `{by: …}` | `uint` (default `1`) | How much to add; one by default, and never negative, since a counter that went backwards would read as a process restart. |
 | `{labels: …}` | `array<string>` (default `[]`) | The label values this series is written under, keyed by label name. A `tainted` or `secret` value is refused: label by an enum case, an `as`-converted scalar or a route name. |
 
@@ -24198,7 +24198,7 @@ Records one observation into a histogram, fixing `$name` to a histogram on its f
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$name` | `string` (sink) | The series name, `[a-z][a-z0-9_]*`. A literal outside that grammar is a compile error, and a `tainted` name is refused wherever it was written. |
+| `$name` | `string` (sink) | The series name, `[a-z][a-z0-9_]*`. A name written directly in the code that does not match this pattern does not compile. A `tainted` name does not compile either. |
 | `$value` | `float` | The observation, in the series' own unit — seconds for a `_seconds` name, bytes for a `_bytes` one. |
 | `{labels: …}` | `array<string>` (default `[]`) | The label values this series is written under, keyed by label name. A `tainted` or `secret` value is refused: label by an enum case, an `as`-converted scalar or a route name. |
 
@@ -24217,7 +24217,7 @@ Sets a gauge to `$value`, fixing `$name` to a gauge on its first use — a level
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$name` | `string` (sink) | The series name, `[a-z][a-z0-9_]*`. A literal outside that grammar is a compile error, and a `tainted` name is refused wherever it was written. |
+| `$name` | `string` (sink) | The series name, `[a-z][a-z0-9_]*`. A name written directly in the code that does not match this pattern does not compile. A `tainted` name does not compile either. |
 | `$value` | `float` | What the gauge now reads. The last write before a scrape is the one reported. |
 | `{labels: …}` | `array<string>` (default `[]`) | The label values this series is written under, keyed by label name. A `tainted` or `secret` value is refused: label by an enum case, an `as`-converted scalar or a route name. |
 
@@ -24389,7 +24389,7 @@ The value of the class constant `$name`, under exactly the visibility ordinary c
 
 **Returns** `mixed` — The folded value: a `string`, `int`, `bool` or `float`, whichever the declaration's right-hand side is.
 
-**Throws** `RuntimeError` — `$name` names a constant this call site may not reach — a reflective read has the visibility ordinary code has; or one whose declared type carries `secret`, which is refused at every site, because the `mixed` this answers with carries no qualifier and the value would reach the next sink unmarked.; `LogicError` — The class declares and inherits no constant of that name; or the declaration's value is not one of the four literals Novis folds, which `hasValue` reports ahead of the call. Both are mistakes in the program rather than privilege questions, which is what separates them from the refusals above.
+**Throws** `RuntimeError` — `$name` names a constant this call site may not reach — a reflective read has the visibility ordinary code has; or one whose declared type carries `secret`, which is refused at every site, because the `mixed` this answers with carries no qualifier and the value would reach the next sink unmarked.; `LogicError` — The class declares and inherits no constant of that name. Or the constant's value is not a `string`, `int`, `bool` or `float` written directly in the code: `hasValue` checks this before the call. Both are mistakes in the program, not permission problems, and that is how they differ from the errors above.
 
 <a id="core-core-reflect-classinfo-hasmethod"></a>
 #### `Core\Reflect\ClassInfo->hasMethod`
@@ -24664,7 +24664,7 @@ $constantInfo->hasValue(): bool
 
 Whether the constant's declared value is one Novis folds at compile time, and so one `Core\Reflect\ClassInfo::constant` can hand back.
 
-**Returns** `bool` — `true` for a `string`, `int`, `bool` or `float` literal — `false` for an `array` or object constant, and for an integer no `int` holds. Novis folds a constant that *is* a literal and runs no second constant-expression evaluator, so this reports a stated bound rather than an unknown, and it is `false` for exactly the constants the checker also refuses in type position.
+**Returns** `bool` — `true` for a `string`, `int`, `bool` or `float` written directly in the code. `false` for an `array` or object constant, and for an integer too large for `int`. Novis reads a constant only when its value is written directly in the code, and it does not evaluate other expressions. So this is `false` for exactly the constants that are also not allowed in type position.
 
 <a id="core-core-reflect-attributeinfo"></a>
 ### `Core\Reflect\AttributeInfo`
@@ -24688,7 +24688,7 @@ $attributeInfo->name(): string
 
 The `type` alias the named form gave the attribute, as it is written.
 
-**Returns** `string` — The written name, or the **empty string** for the bare `#[{...}]` form. Unresolved on purpose: the name checks the literal where it is written and is never how a caller asks for one, so a resolved name here would report the checker's answer to a question nobody asked.
+**Returns** `string` — The written name, or the **empty string** for the bare `#[{...}]` form. The name is not resolved. It is used to check the payload object where it is written, and a caller never uses it to find an attribute.
 
 <a id="core-core-reflect-attributeinfo-target"></a>
 #### `Core\Reflect\AttributeInfo->target`
@@ -24736,9 +24736,9 @@ One payload field's value, folded at compile time.
 |---|---|---|
 | `$name` | `string` (neutral) | The field's own name, as `fields` answers it. |
 
-**Returns** `mixed` — The value as a `string`, `int`, `bool` or `float` — the four a payload's literal folds to.
+**Returns** `mixed` — The value as a `string`, `int`, `bool` or `float`. These are the four types a payload field can have here.
 
-**Throws** `LogicError` — The attribute's payload has no field of that name, so the ask is a mistake rather than an absence to report — `fields` is the list that cannot be wrong. Or the field's value is one Novis does not fold into a description: a class constant, an enum case or `Foo::class`, each of which resolves through the namespace the attribute was *written* in, plus the literals `Core\Reflect\ConstantInfo` reports the same way. `Core\Attributes::get` reads all of those, at compile time and by shape.
+**Throws** `LogicError` — The attribute's payload has no field of that name, so the ask is a mistake rather than an absence to report — `fields` is the list that cannot be wrong. Or the field's value is one Novis does not fold into a description: a class constant, an enum case or `Foo::class`, each of which resolves through the namespace the attribute was *written* in, plus the values that `Core\Reflect\ConstantInfo` also cannot read. `Core\Attributes::get` reads all of those, at compile time and by shape.
 
 <a id="core-core-reflect-enuminfo"></a>
 ### `Core\Reflect\EnumInfo`
@@ -24966,7 +24966,7 @@ Opens a connection to a server the program itself names, for the case a `[db.<na
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$settings` | `{driver: Core\Db\Driver::MySql\|Core\Db\Driver::MariaDb\|Core\Db\Driver::Postgres\|Core\Db\Driver::SqlServer, host: string, port?: uint, database: tainted string, user: tainted string, password: secret tainted string, tls?: Core\Db\Tls, timeZone?: Core\Time\Zone, timeout?: Core\Time\Duration, statementCache?: uint}\|{driver: Core\Db\Driver::Sqlite, path: string, timeZone?: Core\Time\Zone, timeout?: Core\Time\Duration}` | Everything the connection is made of. It is one of two shapes and the `driver` decides which: four of the five backends take a host, and SQLite takes a file path instead. Keys: `driver` (Driver) Which backend this is, and so which of the two shapes the rest of the literal has to be.; `host` (string) The server to open, and the name its certificate is checked against. It is a sink with no launderer: no check on a string can establish that a host is safe to send a credential to.; `port` (uint) The port to open. Left out, the driver's own — 5432 for PostgreSQL, 3306 for MySQL and MariaDB.; `database` (tainted string) The database or schema to attach to. `tainted` is accepted: it is a length-prefixed protocol field and never parsed text.; `user` (tainted string) The role to log in as, accepted `tainted` for the same reason.; `password` (secret tainted string) The role's password. It is `secret`, so it cannot reach a log line, a message or a trace.; `tls` (Tls) How much of the certificate is checked. Only `VerifyFull` runs, and it is what an absent key means; the weaker three are refused.; `timeZone` (Core\Time\Zone) The zone a column with no zone of its own is read in, and the one the server is told to use. UTC where it is absent.; `timeout` (Core\Time\Duration) How long the handshake may take, resolution and TLS included.; `statementCache` (uint) How many prepared statements this connection may keep on the server. `0` turns the cache off.; `path` (string) SQLite's file, in place of a host. It is a path sink, and reaching it needs `fs.read` and `fs.write` as well. |
+| `$settings` | `{driver: Core\Db\Driver::MySql\|Core\Db\Driver::MariaDb\|Core\Db\Driver::Postgres\|Core\Db\Driver::SqlServer, host: string, port?: uint, database: tainted string, user: tainted string, password: secret tainted string, tls?: Core\Db\Tls, timeZone?: Core\Time\Zone, timeout?: Core\Time\Duration, statementCache?: uint}\|{driver: Core\Db\Driver::Sqlite, path: string, timeZone?: Core\Time\Zone, timeout?: Core\Time\Duration}` | Everything the connection is made of. It is one of two shapes and the `driver` decides which: four of the five backends take a host, and SQLite takes a file path instead. Keys: `driver` (Driver) Which backend this is, and so which of the two shapes the rest of the object has to be.; `host` (string) The server to open, and the name its certificate is checked against. It is a sink with no launderer: no check on a string can establish that a host is safe to send a credential to.; `port` (uint) The port to open. Left out, the driver's own — 5432 for PostgreSQL, 3306 for MySQL and MariaDB.; `database` (tainted string) The database or schema to attach to. `tainted` is accepted: it is a length-prefixed protocol field and never parsed text.; `user` (tainted string) The role to log in as, accepted `tainted` for the same reason.; `password` (secret tainted string) The role's password. It is `secret`, so it cannot reach a log line, a message or a trace.; `tls` (Tls) How much of the certificate is checked. Only `VerifyFull` runs, and it is what an absent key means; the weaker three are refused.; `timeZone` (Core\Time\Zone) The zone a column with no zone of its own is read in, and the one the server is told to use. UTC where it is absent.; `timeout` (Core\Time\Duration) How long the handshake may take, resolution and TLS included.; `statementCache` (uint) How many prepared statements this connection may keep on the server. `0` turns the cache off.; `path` (string) SQLite's file, in place of a host. It is a path sink, and reaching it needs `fs.read` and `fs.write` as well. |
 | `{shared: …}` | `bool` (default `true`) | Whether this call may answer with the connection an earlier one opened from the same settings. `false` opens a dedicated connection instead. |
 
 **Returns** `Core\Db\Connection` — A `Core\Db\Connection`, closed when the request ends. Two calls with settings that agree in every field answer the same object unless `shared` is `false`.
@@ -25154,11 +25154,11 @@ Runs `$fn` inside a transaction and answers whatever it answered: returning comm
 | `$fn` | `callable(Core\Db\Transaction): T` | The work. It is handed a `Core\Db\Transaction`, which has the same query surface the connection has, and may declare that parameter or no parameter at all. |
 | `{isolation: …}` | `Core\Db\Isolation` (default `null`) | What this transaction may see of the work running beside it. Left out, it runs at the level the server was configured with. A nested call may not ask for one at all — the level belongs to the whole transaction, not to a savepoint inside it. |
 | `{readOnly: …}` | `bool` (default `false`) | Refuses writes for the length of the transaction, which lets the server plan for a reader. False by default, and a nested call may not ask for it for the reason `isolation` may not. |
-| `{retries: …}` | `uint` (default `0`) | How many times a deadlock or a serialization failure the commit reports may re-run `$fn`, outermost transactions only. Zero by default, because a closure with side effects should not be re-run without being asked for; nothing else is ever retried, there is no wait between attempts, and a conflict a statement inside `$fn` raised is thrown rather than re-run. |
+| `{retries: …}` | `uint` (default `0`) | How many times a deadlock or a serialization failure the commit reports may re-run `$fn`, outermost transactions only. Zero by default, because a callable with side effects should run again only when you ask for it. Nothing else is ever retried, there is no wait between attempts, and a conflict a statement inside `$fn` raised is thrown rather than re-run. |
 
 **Returns** `T` — What `$fn` returned, after the commit. A nested call on the same connection is a savepoint, so a function that wraps its own writes stays callable from inside a caller's transaction.
 
-**Throws** `Core\Db\RolledBack` — `$fn` called `rollBack`. It travels out of this call whether or not anything inside caught it, because the decision is a flag on the transaction and not the exception's own journey.; `LogicError` — A statement inside the closure was refused for the way it was written, the transaction was reached after the call that owned it returned, or a nested call asked for its own `isolation` or `readOnly`.; `Core\Db\DbError` — The server refused the `BEGIN`, or refused the `COMMIT` after the closure returned — a serialization failure or a deferred constraint. The work is not committed either way.; `IOError` — The connection failed while the transaction was open, which leaves it unusable for the rest of the request.
+**Throws** `Core\Db\RolledBack` — `$fn` called `rollBack`. It travels out of this call whether or not anything inside caught it, because the decision is a flag on the transaction and not the exception's own journey.; `LogicError` — A statement inside `$fn` was not allowed because of the way it was written, the transaction was reached after the call that owned it returned, or a nested call asked for its own `isolation` or `readOnly`.; `Core\Db\DbError` — The server refused the `BEGIN`, or refused the `COMMIT` after `$fn` returned — a serialization failure or a deferred constraint. The work is not committed either way.; `IOError` — The connection failed while the transaction was open, which leaves it unusable for the rest of the request.
 
 <a id="core-core-db-connection-close"></a>
 #### `Core\Db\Connection->close`
@@ -25352,11 +25352,11 @@ Runs `$fn` inside a transaction and answers whatever it answered: returning comm
 | `$fn` | `callable(Core\Db\Transaction): T` | The work. It is handed a `Core\Db\Transaction`, which has the same query surface the connection has, and may declare that parameter or no parameter at all. |
 | `{isolation: …}` | `Core\Db\Isolation` (default `null`) | What this transaction may see of the work running beside it. Left out, it runs at the level the server was configured with. A nested call may not ask for one at all — the level belongs to the whole transaction, not to a savepoint inside it. |
 | `{readOnly: …}` | `bool` (default `false`) | Refuses writes for the length of the transaction, which lets the server plan for a reader. False by default, and a nested call may not ask for it for the reason `isolation` may not. |
-| `{retries: …}` | `uint` (default `0`) | How many times a deadlock or a serialization failure the commit reports may re-run `$fn`, outermost transactions only. Zero by default, because a closure with side effects should not be re-run without being asked for; nothing else is ever retried, there is no wait between attempts, and a conflict a statement inside `$fn` raised is thrown rather than re-run. |
+| `{retries: …}` | `uint` (default `0`) | How many times a deadlock or a serialization failure the commit reports may re-run `$fn`, outermost transactions only. Zero by default, because a callable with side effects should run again only when you ask for it. Nothing else is ever retried, there is no wait between attempts, and a conflict a statement inside `$fn` raised is thrown rather than re-run. |
 
 **Returns** `T` — What `$fn` returned, after the commit. A nested call on the same connection is a savepoint, so a function that wraps its own writes stays callable from inside a caller's transaction.
 
-**Throws** `Core\Db\RolledBack` — `$fn` called `rollBack`. It travels out of this call whether or not anything inside caught it, because the decision is a flag on the transaction and not the exception's own journey.; `LogicError` — A statement inside the closure was refused for the way it was written, the transaction was reached after the call that owned it returned, or a nested call asked for its own `isolation` or `readOnly`.; `Core\Db\DbError` — The server refused the `BEGIN`, or refused the `COMMIT` after the closure returned — a serialization failure or a deferred constraint. The work is not committed either way.; `IOError` — The connection failed while the transaction was open, which leaves it unusable for the rest of the request.
+**Throws** `Core\Db\RolledBack` — `$fn` called `rollBack`. It travels out of this call whether or not anything inside caught it, because the decision is a flag on the transaction and not the exception's own journey.; `LogicError` — A statement inside `$fn` was not allowed because of the way it was written, the transaction was reached after the call that owned it returned, or a nested call asked for its own `isolation` or `readOnly`.; `Core\Db\DbError` — The server refused the `BEGIN`, or refused the `COMMIT` after `$fn` returned — a serialization failure or a deferred constraint. The work is not committed either way.; `IOError` — The connection failed while the transaction was open, which leaves it unusable for the rest of the request.
 
 <a id="core-core-db-transaction-rollback"></a>
 #### `Core\Db\Transaction->rollBack`
@@ -26010,7 +26010,7 @@ Adds a job that runs `$script` in the background. The job is a row in the databa
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$script` | `string` (sink) | The path of the file a worker runs, written the way `spawn script` writes one. A relative path starts at the folder of the file that calls `push`. It is a file, not a class or a closure, so the job has no captured variables. |
+| `$script` | `string` (sink) | The path of the file a worker runs, written the way `spawn script` writes one. A relative path starts at the folder of the file that calls `push`. It is a file, not a class or a function, so the job has no captured variables. |
 | `{args: …}` | `mixed` (default `(omitted)`) | The data the job receives. It is copied into the row and decoded into the types the job declares. It is never passed by reference, because the worker usually runs in another process. |
 | `{queue: …}` | `string` (default `"default"`, neutral) | The name of the queue the job goes in. Each worker takes jobs from the queues it is configured for, so you can keep slow work and fast work apart. |
 | `{runAt: …}` | `Core\Time\Instant` (default `null`) | The earliest time a worker may start the job. The default is now. |
@@ -26517,7 +26517,7 @@ What a value is, once its static type is gone — ten cases, one per representat
 | `Core\Reflect\TypeKind::Text` | A `string`, which is UTF-8 by the language's own guarantee; what `is_string` asked. |
 | `Core\Reflect\TypeKind::Bytes` | A `bytes` value — the same heap shape as `Text` without the UTF-8 promise, and the distinction PHP's one string type could not make. |
 | `Core\Reflect\TypeKind::Array` | An `array<T>`; what `is_array`, `is_iterable` and `is_countable` between them asked. |
-| `Core\Reflect\TypeKind::Object` | A class instance, a closure included — a closure is an ordinary object here, so there is no `Callable` case to disagree with it. |
+| `Core\Reflect\TypeKind::Object` | A class instance. A callable is also an object here, so there is no `Callable` case. |
 
 <a id="enum-core-io-filemode"></a>
 #### `Core\IO\FileMode`
@@ -26560,7 +26560,7 @@ How a script ended, as `Core\Script\ExitReport::reason()` returns it. A `FATAL` 
 <a id="enum-core-db-driver"></a>
 #### `Core\Db\Driver`
 
-Which backend a connection speaks to. It is what a `Core\Db::open` settings literal names first, and naming it is what decides which of the two shapes the rest of that literal has to be — a server takes a `host`, SQLite takes a `path`.
+Which database a connection uses. It is the first field of the settings object that `Core\Db::open` takes. It decides which of the two shapes the rest of that object has: a server needs a `host`, and SQLite needs a `path`.
 
 | Case | Meaning |
 |---|---|
@@ -26573,7 +26573,7 @@ Which backend a connection speaks to. It is what a `Core\Db::open` settings lite
 <a id="enum-core-db-tls"></a>
 #### `Core\Db\Tls`
 
-How much of a server's identity a TCP connection establishes before it sends a credential. `VerifyFull` is what every connection does and what a settings literal that names nothing gets; the weaker three are refused rather than honoured, because a connection that verified less than it promised is the hole this enum exists to close.
+How much of a server's identity a TCP connection establishes before it sends a credential. `VerifyFull` is what every connection does and what a settings object that names nothing gets; the weaker three are refused rather than honoured, because a connection that verified less than it promised is the hole this enum exists to close.
 
 | Case | Meaning |
 |---|---|
@@ -26585,7 +26585,7 @@ How much of a server's identity a TCP connection establishes before it sends a c
 <a id="enum-core-db-isolation"></a>
 #### `Core\Db\Isolation`
 
-What a transaction is allowed to see of the work running beside it — the `isolation` option `transaction` takes, and the connection's own level when it is absent. A driver that cannot offer the level asked for throws rather than running the closure at a weaker one.
+What a transaction is allowed to see of the work running beside it — the `isolation` option `transaction` takes, and the connection's own level when it is absent. A driver that cannot offer the requested level throws an error. It does not run `$fn` at a weaker level.
 
 | Case | Meaning |
 |---|---|

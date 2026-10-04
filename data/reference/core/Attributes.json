@@ -1,5 +1,5 @@
 {
-  "summary": "reads the shape-literal attributes attached to a class, a method, a property or a parameter — structurally, by the shape they satisfy, at compile time",
+  "summary": "reads the attributes attached to a class, a method, a property or a parameter — each one an anonymous object, read by the shape it satisfies, at compile time",
   "keywords": [
     "ReflectionAttribute",
     "getAttributes",
@@ -8,6 +8,6 @@
     "metadata",
     "annotation",
     "#[...]",
-    "shape literal"
+    "anonymous object"
   ]
 }

@@ -3227,7 +3227,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Answers the one attribute attached to <code>$target</code> — or to its member <code>$member</code> — whose literal structurally satisfies the shape <code>T</code> written at the call site, resolved in <code>nvs check</code> so that the call is replaced by its answer and nothing runs.",
+            "shortHtml": "Returns the one attribute on <code>$target</code>, or on its member <code>$member</code>, whose payload object matches the shape <code>T</code> written at the call site. <code>nvs check</code> finds it and replaces the call with the result, so nothing runs.",
             "params": [
               {
                 "name": "target",
@@ -3238,7 +3238,7 @@
                 "descHtml": "The name of a member of <code>$target</code> to read instead of <code>$target</code> itself; the empty string, which is the default, means the target."
               }
             ],
-            "returnHtml": "The matching attribute's payload literal as <code>T</code>, or <code>null</code> when none satisfies <code>T</code>; more than one is a compile error naming <code>all&lt;T&gt;</code> as the fix. Matching is width subtyping, so the empty shape <code>{}</code> is satisfied by every attached literal: a marker type with no fields asks for any attribute at all, and beside a second attribute it is that compile error rather than the marker."
+            "returnHtml": "The payload object of the matching attribute, as <code>T</code>. The result is <code>null</code> when no attribute matches <code>T</code>. When more than one matches, the code does not compile, and the error names <code>all&lt;T&gt;</code> as the fix. A payload matches when it has at least the fields of <code>T</code>. So the empty shape <code>{}</code> matches every attribute, and a marker type with no fields gives that compile error when the target has a second attribute."
           },
           "slug": "get",
           "url": "/reference/core/attributes/get/",
@@ -3278,7 +3278,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Answers every attribute attached to <code>$target</code> — or to its member <code>$member</code> — whose literal structurally satisfies the shape <code>T</code> written at the call site, resolved in <code>nvs check</code> so that the call is replaced by its answer and nothing runs.",
+            "shortHtml": "Returns every attribute on <code>$target</code>, or on its member <code>$member</code>, whose payload object matches the shape <code>T</code> written at the call site. <code>nvs check</code> finds them and replaces the call with the result, so nothing runs.",
             "params": [
               {
                 "name": "target",
@@ -3289,7 +3289,7 @@
                 "descHtml": "The name of a member of <code>$target</code> to read instead of <code>$target</code> itself; the empty string, which is the default, means the target."
               }
             ],
-            "returnHtml": "An <code>array&lt;T&gt;</code> of the matching payload literals in declaration order, empty when none satisfies <code>T</code>. Matching is width subtyping, so the empty shape <code>{}</code> answers every attached literal rather than the markers among them."
+            "returnHtml": "An <code>array&lt;T&gt;</code> of the matching payload objects, in the order they are declared. It is empty when no attribute matches <code>T</code>. A payload matches when it has at least the fields of <code>T</code>, so the empty shape <code>{}</code> matches every attribute."
           },
           "slug": "all",
           "url": "/reference/core/attributes/all/",
@@ -3428,7 +3428,7 @@
             "params": [
               {
                 "name": "text",
-                "descHtml": "The whole text to read: an optional <code>-</code> or <code>+</code>, then digits, and nothing else. No leading-garbage rule, and no <code>_</code> separators — those are an integer literal's spelling rather than a <code>string</code>'s."
+                "descHtml": "The whole text to read: an optional <code>-</code> or <code>+</code>, then digits, and nothing else. Text before the number is not skipped. <code>_</code> separators are not allowed: you can use them only in a number written directly in the code."
               },
               {
                 "name": "radix",
@@ -4973,7 +4973,7 @@
             "params": [
               {
                 "name": "format",
-                "descHtml": "The format string — an intrinsic and a sink, so a literal — where each code may be followed by a count or <code>*</code>: how many arguments a numeric field takes, and how many octets wide a buffer field is."
+                "descHtml": "The format string. It must be written directly in the code. Each code may be followed by a count or <code>*</code>: how many arguments a numeric field takes, and how many octets wide a buffer field is."
               },
               {
                 "name": "values",
@@ -5287,7 +5287,7 @@
               },
               {
                 "name": "value",
-                "descHtml": "The value to copy in. A closure and a <code>secret</code> may not cross, exactly as at the isolate boundary."
+                "descHtml": "The value to copy in. It cannot be a callable or a <code>secret</code>, the same as for a value sent to an isolate."
               },
               {
                 "name": "ttl",
@@ -5298,7 +5298,7 @@
             "errors": [
               {
                 "error": "LogicError",
-                "descHtml": "The value cannot cross: it is or holds a closure, or an object with a <code>secret</code> property that was not revealed."
+                "descHtml": "The value cannot cross: it is or contains a callable, or an object with a <code>secret</code> property that was not revealed."
               },
               {
                 "error": "IOError",
@@ -9085,7 +9085,7 @@
                   {
                     "key": "driver",
                     "type": "Driver",
-                    "descHtml": "Which backend this is, and so which of the two shapes the rest of the literal has to be."
+                    "descHtml": "Which backend this is, and so which of the two shapes the rest of the object has to be."
                   },
                   {
                     "key": "host",
@@ -9857,7 +9857,7 @@
               },
               {
                 "name": "retries",
-                "descHtml": "How many times a deadlock or a serialization failure the commit reports may re-run <code>$fn</code>, outermost transactions only. Zero by default, because a closure with side effects should not be re-run without being asked for; nothing else is ever retried, there is no wait between attempts, and a conflict a statement inside <code>$fn</code> raised is thrown rather than re-run."
+                "descHtml": "How many times a deadlock or a serialization failure the commit reports may re-run <code>$fn</code>, outermost transactions only. Zero by default, because a callable with side effects should run again only when you ask for it. Nothing else is ever retried, there is no wait between attempts, and a conflict a statement inside <code>$fn</code> raised is thrown rather than re-run."
               }
             ],
             "returnHtml": "What <code>$fn</code> returned, after the commit. A nested call on the same connection is a savepoint, so a function that wraps its own writes stays callable from inside a caller's transaction.",
@@ -9868,11 +9868,11 @@
               },
               {
                 "error": "LogicError",
-                "descHtml": "A statement inside the closure was refused for the way it was written, the transaction was reached after the call that owned it returned, or a nested call asked for its own <code>isolation</code> or <code>readOnly</code>."
+                "descHtml": "A statement inside <code>$fn</code> was not allowed because of the way it was written, the transaction was reached after the call that owned it returned, or a nested call asked for its own <code>isolation</code> or <code>readOnly</code>."
               },
               {
                 "error": "Core\\Db\\DbError",
-                "descHtml": "The server refused the <code>BEGIN</code>, or refused the <code>COMMIT</code> after the closure returned — a serialization failure or a deferred constraint. The work is not committed either way."
+                "descHtml": "The server refused the <code>BEGIN</code>, or refused the <code>COMMIT</code> after <code>$fn</code> returned — a serialization failure or a deferred constraint. The work is not committed either way."
               },
               {
                 "error": "IOError",
@@ -11699,7 +11699,7 @@
               },
               {
                 "name": "retries",
-                "descHtml": "How many times a deadlock or a serialization failure the commit reports may re-run <code>$fn</code>, outermost transactions only. Zero by default, because a closure with side effects should not be re-run without being asked for; nothing else is ever retried, there is no wait between attempts, and a conflict a statement inside <code>$fn</code> raised is thrown rather than re-run."
+                "descHtml": "How many times a deadlock or a serialization failure the commit reports may re-run <code>$fn</code>, outermost transactions only. Zero by default, because a callable with side effects should run again only when you ask for it. Nothing else is ever retried, there is no wait between attempts, and a conflict a statement inside <code>$fn</code> raised is thrown rather than re-run."
               }
             ],
             "returnHtml": "What <code>$fn</code> returned, after the commit. A nested call on the same connection is a savepoint, so a function that wraps its own writes stays callable from inside a caller's transaction.",
@@ -11710,11 +11710,11 @@
               },
               {
                 "error": "LogicError",
-                "descHtml": "A statement inside the closure was refused for the way it was written, the transaction was reached after the call that owned it returned, or a nested call asked for its own <code>isolation</code> or <code>readOnly</code>."
+                "descHtml": "A statement inside <code>$fn</code> was not allowed because of the way it was written, the transaction was reached after the call that owned it returned, or a nested call asked for its own <code>isolation</code> or <code>readOnly</code>."
               },
               {
                 "error": "Core\\Db\\DbError",
-                "descHtml": "The server refused the <code>BEGIN</code>, or refused the <code>COMMIT</code> after the closure returned — a serialization failure or a deferred constraint. The work is not committed either way."
+                "descHtml": "The server refused the <code>BEGIN</code>, or refused the <code>COMMIT</code> after <code>$fn</code> returned — a serialization failure or a deferred constraint. The work is not committed either way."
               },
               {
                 "error": "IOError",
@@ -13157,7 +13157,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Registers the closure this request runs when a resource limit stops it — memory, CPU time, output, wall time, script depth or call-stack depth. It runs out of a slice of the request's budget reserved for it, once and never twice, and it is the only thing that observes a <code>FATAL</code> a <code>catch</code> never sees.",
+            "shortHtml": "Registers the callable this request runs when a resource limit stops it — memory, CPU time, output, wall time, script depth or call-stack depth. It runs out of a slice of the request's budget reserved for it, once and never twice, and it is the only thing that observes a <code>FATAL</code> a <code>catch</code> never sees.",
             "params": [
               {
                 "name": "handler",
@@ -13196,7 +13196,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Registers the closure this request runs when a throw reaches the top of it with nothing left to catch it. It runs out of the request's ordinary remaining budget, once and never twice, and it is handed the exception itself.",
+            "shortHtml": "Registers the callable this request runs when a throw reaches the top of it with nothing left to catch it. It runs out of the request's ordinary remaining budget, once and never twice, and it is handed the exception itself.",
             "params": [
               {
                 "name": "handler",
@@ -13802,6 +13802,76 @@
           "slug": "join",
           "url": "/reference/core/html/join/",
           "examples": "core/Html/join"
+        },
+        {
+          "id": "Html.later",
+          "name": "later",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "later(callable(): mixed $fn, {placeholder?: Core\\Html\\Markup, error?: Core\\Html\\Markup, deadline?: Core\\Time\\Duration}): Core\\Html\\Markup",
+          "params": [
+            {
+              "kind": "param",
+              "name": "fn",
+              "type": "callable(): mixed",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [
+            {
+              "name": "placeholder",
+              "type": "Core\\Html\\Markup"
+            },
+            {
+              "name": "error",
+              "type": "Core\\Html\\Markup"
+            },
+            {
+              "name": "deadline",
+              "type": "Core\\Time\\Duration"
+            }
+          ],
+          "returnType": "Core\\Html\\Markup",
+          "replaces": "",
+          "notes": "",
+          "qualifier": "",
+          "section": "17. Documents and formats",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "Runs <code>$fn</code> as a separate task and returns a placeholder. Write the placeholder where the output belongs. When the page is finished, the output of <code>$fn</code> replaces the placeholder. Several <code>later</code> calls run at the same time.",
+            "params": [
+              {
+                "name": "fn",
+                "descHtml": "The function to run. It takes no arguments. Its output is what it echoes, followed by the <code>Core\\Html\\Markup</code> it returns, if any."
+              },
+              {
+                "name": "placeholder",
+                "descHtml": "The markup the page shows until the output is ready. The default is empty."
+              },
+              {
+                "name": "error",
+                "descHtml": "The markup shown instead of the output when <code>$fn</code> throws an error or runs past its <code>deadline</code>. The default is empty."
+              },
+              {
+                "name": "deadline",
+                "descHtml": "The longest time <code>$fn</code> may run. Without it, only the request's own limits apply."
+              }
+            ],
+            "returnHtml": "A <code>Core\\Html\\Markup</code> placeholder. Outside an HTML response, <code>$fn</code> runs at once and the result is its output.",
+            "errors": [
+              {
+                "error": "LogicError",
+                "descHtml": "When the page writes the same placeholder twice. A placeholder that the page never writes is not an error: its <code>$fn</code> does not run, and a warning is logged."
+              }
+            ]
+          },
+          "slug": "later",
+          "url": "/reference/core/html/later/",
+          "examples": "core/Html/later"
         },
         {
           "id": "Html.toSource",
@@ -16210,7 +16280,7 @@
             "params": [
               {
                 "name": "path",
-                "descHtml": "The file to send. A relative path must be a string literal, and is joined to the folder of the file that contains it."
+                "descHtml": "The file to send. A relative path must be a string written directly in the code. It is joined to the folder of the file that contains it."
               },
               {
                 "name": "filename",
@@ -17332,7 +17402,7 @@
             "params": [
               {
                 "name": "path",
-                "descHtml": "The file to read. A relative path must be a string literal, and is joined to the folder of the file that contains it."
+                "descHtml": "The file to read. A relative path must be a string written directly in the code. It is joined to the folder of the file that contains it."
               }
             ],
             "returnHtml": "The file's content as a <code>string</code>, with nothing stripped. The content must be UTF-8 text; <code>readText</code> reads a file written in another charset.",
@@ -17389,7 +17459,7 @@
             "params": [
               {
                 "name": "path",
-                "descHtml": "The file to write. A relative path must be a string literal, and is joined to the folder of the file that contains it."
+                "descHtml": "The file to write. A relative path must be a string written directly in the code. It is joined to the folder of the file that contains it."
               },
               {
                 "name": "content",
@@ -17450,7 +17520,7 @@
             "params": [
               {
                 "name": "path",
-                "descHtml": "The file to add to. A relative path must be a string literal, and is joined to the folder of the file that contains it."
+                "descHtml": "The file to add to. A relative path must be a string written directly in the code. It is joined to the folder of the file that contains it."
               },
               {
                 "name": "content",
@@ -17581,7 +17651,7 @@
             "params": [
               {
                 "name": "path",
-                "descHtml": "The name to look for. A relative path must be a string literal, and is joined to the folder of the file that contains it."
+                "descHtml": "The name to look for. A relative path must be a string written directly in the code. It is joined to the folder of the file that contains it."
               }
             ],
             "returnHtml": "<code>true</code> if the name resolves to something, <code>false</code> if it resolves to nothing. Absence is an answer here and not a failure, which is what separates this from <code>size</code>.",
@@ -17630,7 +17700,7 @@
             "params": [
               {
                 "name": "path",
-                "descHtml": "The name to ask about. A relative path must be a string literal, and is joined to the folder of the file that contains it."
+                "descHtml": "The name to ask about. A relative path must be a string written directly in the code. It is joined to the folder of the file that contains it."
               }
             ],
             "returnHtml": "<code>true</code> for a regular file, <code>false</code> for a directory, for anything else the operating system holds at that name, and for a name that is not there at all. Absence answers <code>false</code> here rather than throwing, because the question is what kind of thing is at the name and <em>nothing</em> is a complete answer to it.",
@@ -17679,7 +17749,7 @@
             "params": [
               {
                 "name": "path",
-                "descHtml": "The name to ask about. A relative path must be a string literal, and is joined to the folder of the file that contains it."
+                "descHtml": "The name to ask about. A relative path must be a string written directly in the code. It is joined to the folder of the file that contains it."
               }
             ],
             "returnHtml": "<code>true</code> for a directory, <code>false</code> for a file, for anything else, and for a name that is not there. With <code>isFile</code> it partitions what <code>exists</code> answers <code>true</code> for into the two kinds this class has separate members for, and a name can satisfy neither.",
@@ -17728,7 +17798,7 @@
             "params": [
               {
                 "name": "path",
-                "descHtml": "The file or directory to ask about. A relative path must be a string literal, and is joined to the folder of the file that contains it."
+                "descHtml": "The file or directory to ask about. A relative path must be a string written directly in the code. It is joined to the folder of the file that contains it."
               }
             ],
             "returnHtml": "<code>true</code> if the operating system would allow a read, <code>false</code> if it would not — including for a name that is not there. The answer is about the instant it was asked and nothing holds it still, so a read that follows it can still fail.",
@@ -17773,7 +17843,7 @@
             "params": [
               {
                 "name": "path",
-                "descHtml": "The file or directory to ask about. A relative path must be a string literal, and is joined to the folder of the file that contains it."
+                "descHtml": "The file or directory to ask about. A relative path must be a string written directly in the code. It is joined to the folder of the file that contains it."
               }
             ],
             "returnHtml": "<code>true</code> if the operating system would allow a write, <code>false</code> if it would not — including for a name that is not there. A snapshot, exactly as <code>isReadable</code> is.",
@@ -17818,7 +17888,7 @@
             "params": [
               {
                 "name": "path",
-                "descHtml": "The file to measure. A relative path must be a string literal, and is joined to the folder of the file that contains it."
+                "descHtml": "The file to measure. A relative path must be a string written directly in the code. It is joined to the folder of the file that contains it."
               }
             ],
             "returnHtml": "The byte count as a <code>uint</code>. For a text file this is bytes and not characters — a <code>string</code>'s own length is <code>Core\\Str::length</code>, which counts what § 1 says it counts.",
@@ -17867,7 +17937,7 @@
             "params": [
               {
                 "name": "path",
-                "descHtml": "The file or directory to ask about. A relative path must be a string literal, and is joined to the folder of the file that contains it."
+                "descHtml": "The file or directory to ask about. A relative path must be a string written directly in the code. It is joined to the folder of the file that contains it."
               }
             ],
             "returnHtml": "The modification time as an absolute point on the timeline, with no zone of its own — <code>-&gt;in($zone)</code> is what gives it a calendar.",
@@ -17916,7 +17986,7 @@
             "params": [
               {
                 "name": "path",
-                "descHtml": "The file or directory to measure. A relative path must be a string literal, and is joined to the folder of the file that contains it."
+                "descHtml": "The file or directory to measure. A relative path must be a string written directly in the code. It is joined to the folder of the file that contains it."
               }
             ],
             "returnHtml": "A <code>Core\\IO\\Metadata</code> — a snapshot, not a live view: it answers about the moment the call was made, and says nothing about the file afterwards.",
@@ -18366,7 +18436,7 @@
             "params": [
               {
                 "name": "path",
-                "descHtml": "The name to resolve. A relative path must be a string literal, and is joined to the folder of the file that contains it. Every component must exist, including the last one."
+                "descHtml": "The name to resolve. A relative path must be a string written directly in the code. It is joined to the folder of the file that contains it. Every component must exist, including the last one."
               }
             ],
             "returnHtml": "The resolved absolute path. Passing the answer back in resolves to itself, so the result is a fixed point and a program may compare two of them for equality — which is the one use this member has that <code>Core\\Path::normalize</code> cannot serve, since two different spellings of one file normalize differently and canonicalize the same.",
@@ -18427,7 +18497,7 @@
               },
               {
                 "name": "path",
-                "descHtml": "The name to resolve against <code>$base</code> — the untrusted half, which is the whole point of the member. A relative <code>$path</code> is joined to <code>$base</code>, also when it is written as a literal: it is not joined to the folder of the file that calls <code>within</code>. An absolute path is no escape hatch: it is resolved and then fails the same containment check."
+                "descHtml": "The name to resolve against <code>$base</code> — the untrusted half, which is the whole point of the member. A relative <code>$path</code> is joined to <code>$base</code>, also when it is written directly in the code. It is not joined to the folder of the file that calls <code>within</code>. An absolute path is no escape hatch: it is resolved and then fails the same containment check."
               }
             ],
             "returnHtml": "The resolved absolute path, as a plain <code>string</code>. Every <code>..</code>, every symlink and every separator is already gone, so what the caller holds is a name the operating system agrees with rather than one it still has to be trusted about.",
@@ -18481,7 +18551,7 @@
             "params": [
               {
                 "name": "path",
-                "descHtml": "The file to read. A relative path must be a string literal, and is joined to the folder of the file that contains it."
+                "descHtml": "The file to read. A relative path must be a string written directly in the code. It is joined to the folder of the file that contains it."
               },
               {
                 "name": "charset",
@@ -18534,7 +18604,7 @@
             "params": [
               {
                 "name": "path",
-                "descHtml": "The file to read. A relative path must be a string literal, and is joined to the folder of the file that contains it."
+                "descHtml": "The file to read. A relative path must be a string written directly in the code. It is joined to the folder of the file that contains it."
               }
             ],
             "returnHtml": "An <code>Iterable&lt;string&gt;</code> a <code>foreach</code> walks in file order, and walks again as often as it is asked. <code>\\n</code>, <code>\\r\\n</code> and a lone <code>\\r</code> each end a line; a trailing terminator does not open an empty last one, and an empty file has no lines at all.",
@@ -18591,7 +18661,7 @@
             "params": [
               {
                 "name": "path",
-                "descHtml": "The file to open. A relative path must be a string literal, and is joined to the folder of the file that contains it."
+                "descHtml": "The file to open. A relative path must be a string written directly in the code. It is joined to the folder of the file that contains it."
               },
               {
                 "name": "mode",
@@ -19203,7 +19273,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Serializes <code>$value</code> as JSON text — scalars, arrays, shape literals and instances of classes carrying <code>#[Json\\Derive]</code> — on one line unless <code>pretty</code> is set.",
+            "shortHtml": "Serializes <code>$value</code> as JSON text. It can be a scalar, an array, an anonymous object or an instance of a class with <code>#[Json\\Derive]</code>. The text is on one line unless <code>pretty</code> is set.",
             "params": [
               {
                 "name": "value",
@@ -19276,7 +19346,7 @@
             "errors": [
               {
                 "error": "ParseError",
-                "descHtml": "<code>$json</code> is not a valid JSON document, nests deeper than <code>maxDepth</code>, or holds an integer literal too large for <code>int</code>; the one issue it carries has an empty path."
+                "descHtml": "<code>$json</code> is not a valid JSON document, nests deeper than <code>maxDepth</code>, or contains a whole number too large for <code>int</code>; the one issue it carries has an empty path."
               },
               {
                 "error": "LogicError",
@@ -19334,7 +19404,7 @@
             "errors": [
               {
                 "error": "ParseError",
-                "descHtml": "<code>$json</code> is not a valid JSON document, nests deeper than <code>maxDepth</code>, holds an integer literal too large for <code>int</code>, is not an object at the top level (an array, for an <code>array&lt;C&gt;</code>), or has fields that are missing or of the wrong type — every failed field is one issue on the error, at its own path, and the message counts them. A list stops at its first bad element, and each of its paths carries that element's position."
+                "descHtml": "<code>$json</code> is not a valid JSON document, nests deeper than <code>maxDepth</code>, contains a whole number too large for <code>int</code>, is not an object at the top level (an array, for an <code>array&lt;C&gt;</code>), or has fields that are missing or of the wrong type — every failed field is one issue on the error, at its own path, and the message counts them. A list stops at its first bad element, and each of its paths carries that element's position."
               },
               {
                 "error": "LogicError",
@@ -19383,7 +19453,7 @@
                 "descHtml": "The JSON text to check."
               }
             ],
-            "returnHtml": "<code>true</code> when <code>$json</code> parses; <code>false</code> for malformed text, nesting past <code>512</code>, or an integer literal too large for <code>int</code>."
+            "returnHtml": "<code>true</code> when <code>$json</code> parses; <code>false</code> for malformed text, nesting past <code>512</code>, or a whole number too large for <code>int</code>."
           },
           "slug": "isvalid",
           "url": "/reference/core/json/isvalid/",
@@ -20269,7 +20339,7 @@
               },
               {
                 "name": "fields",
-                "descHtml": "Structured context, written as a <code>fields</code> object beside the message rather than pasted into it. Omitted from the record entirely when it is empty, so an ordinary call costs no key. Nothing a bag can hold makes a write fail: a value the format has no spelling for — <code>bytes</code>, a closure, a cycle — is rendered as what it is rather than refused."
+                "descHtml": "Structured context, written as a <code>fields</code> object beside the message rather than pasted into it. Omitted from the record entirely when it is empty, so an ordinary call costs no key. Nothing in <code>fields</code> makes a write fail. A value the format cannot write, such as <code>bytes</code>, a callable or a cycle, is written as text that says what it is."
               }
             ],
             "returnHtml": "Nothing. A record that cannot be written is dropped rather than retried: the log is not the program's storage."
@@ -22404,7 +22474,7 @@
             "params": [
               {
                 "name": "name",
-                "descHtml": "The series name, <code>[a-z][a-z0-9_]*</code>. A literal outside that grammar is a compile error, and a <code>tainted</code> name is refused wherever it was written."
+                "descHtml": "The series name, <code>[a-z][a-z0-9_]*</code>. A name written directly in the code that does not match this pattern does not compile. A <code>tainted</code> name does not compile either."
               },
               {
                 "name": "by",
@@ -22470,7 +22540,7 @@
             "params": [
               {
                 "name": "name",
-                "descHtml": "The series name, <code>[a-z][a-z0-9_]*</code>. A literal outside that grammar is a compile error, and a <code>tainted</code> name is refused wherever it was written."
+                "descHtml": "The series name, <code>[a-z][a-z0-9_]*</code>. A name written directly in the code that does not match this pattern does not compile. A <code>tainted</code> name does not compile either."
               },
               {
                 "name": "value",
@@ -22536,7 +22606,7 @@
             "params": [
               {
                 "name": "name",
-                "descHtml": "The series name, <code>[a-z][a-z0-9_]*</code>. A literal outside that grammar is a compile error, and a <code>tainted</code> name is refused wherever it was written."
+                "descHtml": "The series name, <code>[a-z][a-z0-9_]*</code>. A name written directly in the code that does not match this pattern does not compile. A <code>tainted</code> name does not compile either."
               },
               {
                 "name": "value",
@@ -22721,7 +22791,7 @@
             "params": [
               {
                 "name": "host",
-                "descHtml": "A hostname or an address literal. It is checked against the grant before it is resolved, and the one address it resolves to is what the connection is made to."
+                "descHtml": "A hostname or an IP address. It is checked against the grant before it is resolved, and the one address it resolves to is what the connection is made to."
               },
               {
                 "name": "port",
@@ -22790,7 +22860,7 @@
             "params": [
               {
                 "name": "address",
-                "descHtml": "An address literal — <code>127.0.0.1</code>, <code>::1</code>, <code>0.0.0.0</code>. Not a hostname: the grant is matched against one endpoint, and a name resolving to two could not be the one an operator named."
+                "descHtml": "An IP address, such as <code>127.0.0.1</code>, <code>::1</code> or <code>0.0.0.0</code>. Not a hostname: the grant is matched against one endpoint, and a name resolving to two could not be the one an operator named."
               },
               {
                 "name": "port",
@@ -22801,7 +22871,7 @@
             "errors": [
               {
                 "error": "RuntimeError",
-                "descHtml": "The configuration does not grant <code>net.listen</code> for this endpoint, <code>$address</code> is not an address literal, or <code>$port</code> is not a port."
+                "descHtml": "The configuration does not grant <code>net.listen</code> for this endpoint, <code>$address</code> is not an IP address, or <code>$port</code> is not a port."
               },
               {
                 "error": "IOError",
@@ -22851,7 +22921,7 @@
             "params": [
               {
                 "name": "address",
-                "descHtml": "An address literal — <code>127.0.0.1</code>, <code>::1</code>, <code>0.0.0.0</code>. Not a hostname, for <code>Core\\Net::listen</code>'s reason: a grant names one endpoint."
+                "descHtml": "An IP address, such as <code>127.0.0.1</code>, <code>::1</code> or <code>0.0.0.0</code>. Not a hostname, for <code>Core\\Net::listen</code>'s reason: a grant names one endpoint."
               },
               {
                 "name": "port",
@@ -22862,7 +22932,7 @@
             "errors": [
               {
                 "error": "RuntimeError",
-                "descHtml": "The configuration does not grant <code>net.listen</code> for this endpoint, <code>$address</code> is not an address literal, or <code>$port</code> is not a port."
+                "descHtml": "The configuration does not grant <code>net.listen</code> for this endpoint, <code>$address</code> is not an IP address, or <code>$port</code> is not a port."
               },
               {
                 "error": "IOError",
@@ -23060,7 +23130,7 @@
             "params": [
               {
                 "name": "host",
-                "descHtml": "A hostname or an address literal. It is checked against the grant before it is resolved, and the datagram goes to the one address it resolved to."
+                "descHtml": "A hostname or an IP address. It is checked against the grant before it is resolved, and the datagram goes to the one address it resolved to."
               },
               {
                 "name": "port",
@@ -23284,7 +23354,7 @@
           "notesHtml": "",
           "doc": {
             "shortHtml": "The address this datagram came from, written out — <code>127.0.0.1</code>, <code>::1</code>. A plain <code>string</code>, so it can be handed straight back to <code>send</code>, which asks the grant and the address policy about it exactly as it would about any other address.",
-            "returnHtml": "An address literal, never a hostname: nothing here is resolved backwards."
+            "returnHtml": "An IP address, never a hostname: nothing here is resolved backwards."
           },
           "slug": "host",
           "url": "/reference/core/net-datagram-message/host/",
@@ -25205,7 +25275,7 @@
             "params": [
               {
                 "name": "join",
-                "descHtml": "A relative path written as a string literal, such as <code>'data'</code>. It is added to the folder. A variable or a full path does not compile. Use <code>Core\\Path::join(Core\\Path::thisDir(), $part)</code> for a part the program builds."
+                "descHtml": "A relative path, written directly in the code as a string such as <code>'data'</code>. It is added to the folder. A variable or a full path does not compile. Use <code>Core\\Path::join(Core\\Path::thisDir(), $part)</code> for a part the program builds."
               }
             ],
             "returnHtml": "The full path of the folder, with <code>$join</code> added when you give one, and with its <code>.</code> and <code>..</code> parts removed.",
@@ -25291,7 +25361,7 @@
             "params": [
               {
                 "name": "path",
-                "descHtml": "The program to start, as an absolute path. A relative path must be a string literal, and is joined to the folder of the file that contains it. <code>PATH</code> is not searched, so <code>ls</code> means a file named <code>ls</code> in that folder."
+                "descHtml": "The program to start, as an absolute path. A relative path must be a string written directly in the code. It is joined to the folder of the file that contains it. <code>PATH</code> is not searched, so <code>ls</code> means a file named <code>ls</code> in that folder."
               },
               {
                 "name": "argv",
@@ -25299,7 +25369,7 @@
               },
               {
                 "name": "cwd",
-                "descHtml": "The folder the program starts in, as an absolute path or a string literal relative to this file. Without it, the program starts in the same folder as this program."
+                "descHtml": "The folder the program starts in, as an absolute path. A relative path must be written directly in the code, and is joined to the folder of this file. Without it, the program starts in the same folder as this program."
               },
               {
                 "name": "env",
@@ -25389,7 +25459,7 @@
               },
               {
                 "name": "cwd",
-                "descHtml": "The folder the program starts in, as an absolute path or a string literal relative to this file. Without it, the program starts in the same folder as this program."
+                "descHtml": "The folder the program starts in, as an absolute path. A relative path must be written directly in the code, and is joined to the folder of this file. Without it, the program starts in the same folder as this program."
               },
               {
                 "name": "env",
@@ -25945,7 +26015,7 @@
             "params": [
               {
                 "name": "script",
-                "descHtml": "The path of the file a worker runs, written the way <code>spawn script</code> writes one. A relative path starts at the folder of the file that calls <code>push</code>. It is a file, not a class or a closure, so the job has no captured variables."
+                "descHtml": "The path of the file a worker runs, written the way <code>spawn script</code> writes one. A relative path starts at the folder of the file that calls <code>push</code>. It is a file, not a class or a function, so the job has no captured variables."
               },
               {
                 "name": "args",
@@ -27573,7 +27643,7 @@
           "notesHtml": "",
           "doc": {
             "shortHtml": "The <code>type</code> alias the named form gave the attribute, as it is written.",
-            "returnHtml": "The written name, or the <strong>empty string</strong> for the bare <code>#[{...}]</code> form. Unresolved on purpose: the name checks the literal where it is written and is never how a caller asks for one, so a resolved name here would report the checker's answer to a question nobody asked."
+            "returnHtml": "The written name, or the <strong>empty string</strong> for the bare <code>#[{...}]</code> form. The name is not resolved. It is used to check the payload object where it is written, and a caller never uses it to find an attribute."
           },
           "slug": "name",
           "url": "/reference/core/reflect-attributeinfo/name/",
@@ -27684,11 +27754,11 @@
                 "descHtml": "The field's own name, as <code>fields</code> answers it."
               }
             ],
-            "returnHtml": "The value as a <code>string</code>, <code>int</code>, <code>bool</code> or <code>float</code> — the four a payload's literal folds to.",
+            "returnHtml": "The value as a <code>string</code>, <code>int</code>, <code>bool</code> or <code>float</code>. These are the four types a payload field can have here.",
             "errors": [
               {
                 "error": "LogicError",
-                "descHtml": "The attribute's payload has no field of that name, so the ask is a mistake rather than an absence to report — <code>fields</code> is the list that cannot be wrong. Or the field's value is one Novis does not fold into a description: a class constant, an enum case or <code>Foo::class</code>, each of which resolves through the namespace the attribute was <em>written</em> in, plus the literals <code>Core\\Reflect\\ConstantInfo</code> reports the same way. <code>Core\\Attributes::get</code> reads all of those, at compile time and by shape."
+                "descHtml": "The attribute's payload has no field of that name, so the ask is a mistake rather than an absence to report — <code>fields</code> is the list that cannot be wrong. Or the field's value is one Novis does not fold into a description: a class constant, an enum case or <code>Foo::class</code>, each of which resolves through the namespace the attribute was <em>written</em> in, plus the values that <code>Core\\Reflect\\ConstantInfo</code> also cannot read. <code>Core\\Attributes::get</code> reads all of those, at compile time and by shape."
               }
             ]
           },
@@ -27914,7 +27984,7 @@
               },
               {
                 "error": "LogicError",
-                "descHtml": "The class declares and inherits no constant of that name; or the declaration's value is not one of the four literals Novis folds, which <code>hasValue</code> reports ahead of the call. Both are mistakes in the program rather than privilege questions, which is what separates them from the refusals above."
+                "descHtml": "The class declares and inherits no constant of that name. Or the constant's value is not a <code>string</code>, <code>int</code>, <code>bool</code> or <code>float</code> written directly in the code: <code>hasValue</code> checks this before the call. Both are mistakes in the program, not permission problems, and that is how they differ from the errors above."
               }
             ]
           },
@@ -28325,7 +28395,7 @@
           "notesHtml": "",
           "doc": {
             "shortHtml": "Whether the constant's declared value is one Novis folds at compile time, and so one <code>Core\\Reflect\\ClassInfo::constant</code> can hand back.",
-            "returnHtml": "<code>true</code> for a <code>string</code>, <code>int</code>, <code>bool</code> or <code>float</code> literal — <code>false</code> for an <code>array</code> or object constant, and for an integer no <code>int</code> holds. Novis folds a constant that <em>is</em> a literal and runs no second constant-expression evaluator, so this reports a stated bound rather than an unknown, and it is <code>false</code> for exactly the constants the checker also refuses in type position."
+            "returnHtml": "<code>true</code> for a <code>string</code>, <code>int</code>, <code>bool</code> or <code>float</code> written directly in the code. <code>false</code> for an <code>array</code> or object constant, and for an integer too large for <code>int</code>. Novis reads a constant only when its value is written directly in the code, and it does not evaluate other expressions. So this is <code>false</code> for exactly the constants that are also not allowed in type position."
           },
           "slug": "hasvalue",
           "url": "/reference/core/reflect-constantinfo/hasvalue/",
@@ -29287,11 +29357,11 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "quote(string $literal): string",
+          "signature": "quote(string $text): string",
           "params": [
             {
               "kind": "param",
-              "name": "literal",
+              "name": "text",
               "type": "string",
               "default": null,
               "optional": false,
@@ -29307,10 +29377,10 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Puts a <code>\\</code> before every character that has a special meaning in a pattern. The result is a pattern that matches <code>$literal</code> exactly. A <code>tainted</code> text is allowed here, and the result can be used as a pattern.",
+            "shortHtml": "Puts a <code>\\</code> before every character that has a special meaning in a pattern. The result is a pattern that matches <code>$text</code> exactly. A <code>tainted</code> text is allowed here, and the result can be used as a pattern.",
             "params": [
               {
-                "name": "literal",
+                "name": "text",
                 "descHtml": "The text to match exactly."
               }
             ],
@@ -30660,7 +30730,7 @@
             "params": [
               {
                 "name": "body",
-                "descHtml": "The page to send. It is a <code>Core\\Html\\Markup</code>, which is HTML that is already safe: an <code>html</code> literal escaped the values in its <code>{...}</code>, or <code>Core\\Html::escape</code> made it. It is sent as it is and nothing is escaped again. A <code>string</code> does not compile."
+                "descHtml": "The page to send. It is a <code>Core\\Html\\Markup</code>, which is HTML that is already safe: an html template, `<code>html</code>…<code> </code><code>, escaped the values in its </code>{...}<code>, or </code>Core\\Html::escape<code> made it. It is sent as it is and nothing is escaped again. A </code>string` does not compile."
               }
             ],
             "returnHtml": "Nothing. Using this and <code>echo</code> in one response does not compile."
@@ -30954,6 +31024,36 @@
           "examples": "core/Response/setStatus"
         },
         {
+          "id": "Response.slotted",
+          "name": "slotted",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "slotted(): void",
+          "params": [],
+          "options": [],
+          "returnType": "void",
+          "replaces": "",
+          "notes": "",
+          "qualifier": "",
+          "section": "15. Request-facing: `Core\\Server`, `Core\\Request`, `Core\\Response`, `Core\\Session`, `Core\\Env`, `Core\\Cap`, `Core\\Cli`",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "Sends the page as soon as the main script ends. Each <code>Core\\Html::later</code> part follows when it is ready. A route with <code>slotted: true</code> does the same for every request.",
+            "returnHtml": "Nothing. Calling it twice is the same as calling it once.",
+            "errors": [
+              {
+                "error": "LogicError",
+                "descHtml": "The main script has already ended. This is the case in a <code>Core\\Html::later</code> function and in <code>Core\\Task::afterResponse</code> work."
+              }
+            ]
+          },
+          "slug": "slotted",
+          "url": "/reference/core/response/slotted/",
+          "examples": "core/Response/slotted"
+        },
+        {
           "id": "Response.setHeader",
           "name": "setHeader",
           "static": true,
@@ -31224,11 +31324,11 @@
                 "descHtml": "The part to send, as a <code>string</code> or as <code>bytes</code>. It is sent exactly as it is. An empty part sends nothing and is not an error. A <code>tainted</code> value is allowed, as it is for <code>Core\\Response::text</code>."
               }
             ],
-            "returnHtml": "Nothing. When this method returns, the part has been given to the connection.",
+            "returnHtml": "Nothing. When this method returns, the part has been given to the connection. If the client has gone, this method returns at once and the part is thrown away. The client has gone when it closed the connection, or when it did not read a part before the server's send timeout. Your request still runs to its end.",
             "errors": [
               {
                 "error": "RuntimeError",
-                "descHtml": "The client stopped reading. It closed the connection, or it did not read this part before the server's send timeout. The stream is then closed."
+                "descHtml": "The part is larger than the server allows for one part. Nothing is sent, and you can still send smaller parts."
               }
             ]
           },
@@ -31295,18 +31395,18 @@
             "params": [
               {
                 "name": "name",
-                "descHtml": "The route's name as its <code>#[Route]</code> declared it; a literal is resolved against the route table while compiling, and an unknown literal is a compile error."
+                "descHtml": "The route's name, as its <code>#[Route]</code> declares it. A name written directly in the code is checked when the program compiles, and an unknown name is a compile error."
               },
               {
                 "name": "params",
-                "descHtml": "The path's captures by name, plus any query parameters; a literal key that is neither a capture nor a declared <code>#[Query]</code> parameter is a compile error."
+                "descHtml": "The path's captures by name, plus any query parameters. A key written directly in the code must be a capture or a declared <code>#[Query]</code> parameter. Any other key is a compile error."
               }
             ],
             "returnHtml": "The path, for example <code>/users/42?page=2</code>. An optional <code>{name?}</code> capture is left out when <code>$params</code> has no value for it. The <code>/</code> characters in a <code>{name...}</code> capture stay as they are.",
             "errors": [
               {
                 "error": "RuntimeError",
-                "descHtml": "When <code>$name</code> is not written as a literal string. When <code>$params</code> has no value for a capture that the path needs. When a value cannot be written as text. When a value is <code>.</code> or <code>..</code>, or a <code>{name...}</code> value has one of them between its <code>/</code> characters, because a browser would move that link to another path."
+                "descHtml": "When <code>$name</code> is not a string written directly in the code. When <code>$params</code> has no value for a capture that the path needs. When a value cannot be written as text. When a value is <code>.</code> or <code>..</code>, or a <code>{name...}</code> value has one of them between its <code>/</code> characters, because a browser would move that link to another path."
               }
             ]
           },
@@ -31352,11 +31452,11 @@
             "params": [
               {
                 "name": "name",
-                "descHtml": "The route's name as its <code>#[Route]</code> declared it; a literal is resolved against the route table while compiling, and an unknown literal is a compile error."
+                "descHtml": "The route's name, as its <code>#[Route]</code> declares it. A name written directly in the code is checked when the program compiles, and an unknown name is a compile error."
               },
               {
                 "name": "params",
-                "descHtml": "The path's captures by name, plus any query parameters; a literal key that is neither a capture nor a declared <code>#[Query]</code> parameter is a compile error."
+                "descHtml": "The path's captures by name, plus any query parameters. A key written directly in the code must be a capture or a declared <code>#[Query]</code> parameter. Any other key is a compile error."
               }
             ],
             "returnHtml": "The full URL, for example <code>https://example.test/users/42?page=2</code>. There is exactly one <code>/</code> between the origin and the path.",
@@ -31417,11 +31517,11 @@
             "params": [
               {
                 "name": "name",
-                "descHtml": "The route's name as its <code>#[Route]</code> declared it; a literal is resolved against the route table while compiling, and an unknown literal is a compile error."
+                "descHtml": "The route's name, as its <code>#[Route]</code> declares it. A name written directly in the code is checked when the program compiles, and an unknown name is a compile error."
               },
               {
                 "name": "params",
-                "descHtml": "The path's captures by name, plus any query parameters; a literal key that is neither a capture nor a declared <code>#[Query]</code> parameter is a compile error."
+                "descHtml": "The path's captures by name, plus any query parameters. A key written directly in the code must be a capture or a declared <code>#[Query]</code> parameter. Any other key is a compile error."
               },
               {
                 "name": "settings",
@@ -32177,7 +32277,7 @@
             "errors": [
               {
                 "error": "LogicError",
-                "descHtml": "<code>$value</code> contains a closure, an open file or connection, or an object with a <code>secret</code> property. It is also thrown when arrays and objects are nested more than 256 levels deep."
+                "descHtml": "<code>$value</code> contains a callable, an open file or connection, or an object with a <code>secret</code> property. It is also thrown when arrays and objects are nested more than 256 levels deep."
               }
             ]
           },
@@ -32475,7 +32575,7 @@
               },
               {
                 "error": "LogicError",
-                "descHtml": "<code>$value</code> cannot be saved: it is a closure or a resource, or it contains one."
+                "descHtml": "<code>$value</code> cannot be saved: it is a callable or a resource, or it contains one."
               },
               {
                 "error": "ParseError",
@@ -33187,7 +33287,7 @@
             "params": [
               {
                 "name": "entry",
-                "descHtml": "What the connection runs: the path of a file, the same as <code>spawn script</code> takes, or a static method written <code>Chat::run(...)</code>. A closure is not allowed, because the connection shares no values with the request."
+                "descHtml": "What the connection runs: the path of a file, the same as <code>spawn script</code> takes, or a static method written <code>Chat::run(...)</code>. An anonymous function is not allowed, because the connection shares no values with the request."
               },
               {
                 "name": "args",
@@ -33545,7 +33645,7 @@
             "params": [
               {
                 "name": "entry",
-                "descHtml": "What the stream runs: a file path, resolved and root-checked exactly as <code>spawn script</code>'s operand is, or a static method written <code>Feed::run(...)</code>. Never a closure — an isolate shares nothing but compiled code, so a capture would cross the boundary the isolate exists to be."
+                "descHtml": "What the stream runs: a file path, resolved and root-checked exactly as <code>spawn script</code>'s operand is, or a static method written <code>Feed::run(...)</code>. It cannot be an anonymous function, because an anonymous function can capture variables, and an isolate shares nothing but compiled code."
               },
               {
                 "name": "args",
@@ -36235,7 +36335,7 @@
             "params": [
               {
                 "name": "template",
-                "descHtml": "The template. It must be trusted text, so a tainted string is not allowed. When the template is a literal, its placeholders are checked when the program compiles."
+                "descHtml": "The template. It must be trusted text, so a tainted string is not allowed. When the template is written directly in the code, its placeholders are checked when the program compiles."
               },
               {
                 "name": "arguments",
@@ -36382,11 +36482,11 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Runs every closure in the <code>$tasks</code> shape at the same time, and waits until all of them have finished. The result is a shape with the same field names, and each field has the type its closure returns.",
+            "shortHtml": "Runs every function in the <code>$tasks</code> object at the same time, and waits until all of them have finished. The result is an object with the same field names, and each field has the type its function returns.",
             "params": [
               {
                 "name": "tasks",
-                "descHtml": "A shape whose fields are closures with no parameters, written as <code>fn</code> literals in the call. A variable of type <code>callable</code> in a field does not compile."
+                "descHtml": "An object whose fields are anonymous functions with no parameters, such as <code>{a: fn (): int =&gt; 1}</code>. Write them directly in the call. A variable of type <code>callable</code> in a field does not compile."
               },
               {
                 "name": "limit",
@@ -36397,7 +36497,7 @@
                 "descHtml": "The time limit for the whole call, not for each task. Without it, the request's <code>[limits] wall_time</code> setting is the limit."
               }
             ],
-            "returnHtml": "A shape with the value each closure returned. No task is still running when the call returns. If a task throws an error, the other tasks are stopped, and the call throws that same error.",
+            "returnHtml": "An object with the value each function returned. No task is still running when the call returns. If a task throws an error, the other tasks are stopped, and the call throws that same error.",
             "errors": [
               {
                 "error": "LogicError",
@@ -36526,14 +36626,14 @@
             "params": [
               {
                 "name": "fn",
-                "descHtml": "The closure to run. It takes no arguments, and its return value is ignored. An error it throws is written to the log, and no <code>catch</code> in the request sees it."
+                "descHtml": "The function to run. It takes no arguments, and its return value is ignored. An error it throws is written to the log, and no <code>catch</code> in the request sees it."
               },
               {
                 "name": "deadline",
-                "descHtml": "The longest time the closure may run. Without it, the <code>[deferred] deadline</code> setting is the limit. The request's <code>[limits] wall_time</code> does not apply here, but its other <code>[limits]</code> settings do."
+                "descHtml": "The longest time <code>$fn</code> may run. Without it, the <code>[deferred] deadline</code> setting is the limit. The request's <code>[limits] wall_time</code> does not apply here, but its other <code>[limits]</code> settings do."
               }
             ],
-            "returnHtml": "Nothing. The closures run one at a time, in the order you added them. They do not run if the request ends with an uncaught error, an <code>exit</code> or a fatal error.",
+            "returnHtml": "Nothing. The functions run one at a time, in the order you added them. They do not run if the request ends with an uncaught error, an <code>exit</code> or a fatal error.",
             "errors": [
               {
                 "error": "RuntimeError",
@@ -37131,7 +37231,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Asserts that <code>$actual</code>, rendered as <code>Core\\Debug::render</code> renders it, is exactly <code>$expected</code> — an inline snapshot, whose expectation is a literal in the test's own source rather than a file beside it.",
+            "shortHtml": "Asserts that <code>$actual</code>, rendered as <code>Core\\Debug::render</code> renders it, is exactly <code>$expected</code>. This is an inline snapshot: the expected text is a string written in the test itself, not a file beside it.",
             "params": [
               {
                 "name": "actual",
@@ -37139,7 +37239,7 @@
               },
               {
                 "name": "expected",
-                "descHtml": "The rendering this value is expected to have, written inline; <code>nvs test --update</code> writes it here for you, replacing this literal and nothing else in the file."
+                "descHtml": "The rendering this value is expected to have, written inline; <code>nvs test --update</code> writes it here for you. It replaces this string and nothing else in the file."
               },
               {
                 "name": "message",
@@ -37201,7 +37301,7 @@
             "params": [
               {
                 "name": "body",
-                "descHtml": "The closure to run; a value it returns is released."
+                "descHtml": "The function to run; a value it returns is released."
               },
               {
                 "name": "expected",
@@ -37259,7 +37359,7 @@
             "params": [
               {
                 "name": "body",
-                "descHtml": "The closure to run; a value it returns is released."
+                "descHtml": "The function to run; a value it returns is released."
               },
               {
                 "name": "message",
@@ -37834,11 +37934,11 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "A stand-in for <code>T</code> built from a shape of closures, one per method, which <strong>is</strong> a <code>T</code> and may be passed wherever one is taken.",
+            "shortHtml": "A stand-in for <code>T</code> built from an object of functions, one per method. It <strong>is</strong> a <code>T</code> and may be passed wherever one is taken.",
             "params": [
               {
                 "name": "answers",
-                "descHtml": "One field per method of <code>T</code>, named as the method is and holding the closure that answers it. A field <code>T</code> declares no method for, and a method of <code>T</code> the shape leaves out, are each refused where the call is written."
+                "descHtml": "One field per method of <code>T</code>, with the same name as the method. Each field has the function that answers that method. A field for a method that <code>T</code> does not declare does not compile. A method of <code>T</code> that has no field does not compile either."
               }
             ],
             "returnHtml": "The double, typed as <code>T</code>. It records every call made to it, which <code>Core\\Test::assertCalled</code> reads afterwards, and no class the author never wrote appears in a backtrace.",
@@ -37898,7 +37998,7 @@
                 "descHtml": "One field per method being overridden, named as the method is. A field <code>T</code> declares no method for is refused where the call is written; unlike <code>double</code>, a method left out is not, that being what <code>$real</code> is for."
               }
             ],
-            "returnHtml": "The partial, typed as <code>T</code>. Every call is recorded whether the closure or <code>$real</code> answered it.",
+            "returnHtml": "The partial, typed as <code>T</code>. Every call is recorded, whether the function in <code>$answers</code> or <code>$real</code> answered it.",
             "errors": [
               {
                 "error": "LogicError",
@@ -38113,7 +38213,7 @@
               },
               {
                 "name": "settings",
-                "descHtml": "The budget, written as a literal because there is no duration this member could pick for a caller.",
+                "descHtml": "The time budget. You must always give it, because no default duration fits every caller.",
                 "shape": [
                   {
                     "key": "within",
@@ -38869,7 +38969,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Reads a civil date and time through a CLDR pattern and places it in <code>$zone</code>, replacing <code>DateTime::createFromFormat</code> and <code>strptime</code>; a <code>$format</code> written as a literal is read while checking, so a malformed one is <code>E0769</code> rather than a throw. A field the pattern does not name is left at the start of its range.",
+            "shortHtml": "Reads a civil date and time through a CLDR pattern and places it in <code>$zone</code>, replacing <code>DateTime::createFromFormat</code> and <code>strptime</code>. A <code>$format</code> written directly in the code is checked when the program compiles, and a malformed one is error <code>E0769</code>. A field the pattern does not name is left at the start of its range.",
             "params": [
               {
                 "name": "text",
@@ -38888,11 +38988,11 @@
             "errors": [
               {
                 "error": "LogicError",
-                "descHtml": "<code>$format</code> does not compile — a field letter outside the implemented subset, an unterminated quote — or names a zone or offset field, which <code>$zone</code> already answers. Only the first half is <code>E0769</code> for a written literal: a zonal field is a pattern the grammar reads perfectly well and a rule of this member's own, so it throws however <code>$format</code> arrived."
+                "descHtml": "<code>$format</code> does not compile — a field letter outside the implemented subset, an unterminated quote — or names a zone or offset field, which <code>$zone</code> already answers. For a <code>$format</code> written directly in the code, only the first half is <code>E0769</code>: a zonal field is a pattern the grammar reads perfectly well and a rule of this member's own, so it throws however <code>$format</code> arrived."
               },
               {
                 "error": "ParseError",
-                "descHtml": "<code>$text</code> does not match <code>$format</code>: a literal that differs, a field with no digits, trailing text, or fields that together are not a real civil time. It is also thrown for a time outside <code>-9999-01-02T01:59:59Z..=9999-12-30T22:00:00Z</code>."
+                "descHtml": "<code>$text</code> does not match <code>$format</code>: fixed text that differs, a field with no digits, trailing text, or fields that together are not a real civil time. It is also thrown for a time outside <code>-9999-01-02T01:59:59Z..=9999-12-30T22:00:00Z</code>."
               }
             ]
           },
@@ -39420,7 +39520,7 @@
             "errors": [
               {
                 "error": "LogicError",
-                "descHtml": "<code>$pattern</code> does not compile — a field letter outside the implemented subset, or an unterminated quote. A <code>$pattern</code> written as a literal is read while checking and refused there as <code>E0769</code>, so only a computed one reaches this throw; <code>Date::format</code> and <code>TimeOfDay::format</code> read the same patterns and are not checked that way, so a bad literal throws there."
+                "descHtml": "<code>$pattern</code> does not compile — a field letter outside the implemented subset, or an unterminated quote. A <code>$pattern</code> written directly in the code is checked when the program compiles, and an error there is <code>E0769</code>. So only a computed <code>$pattern</code> reaches this throw. <code>Date::format</code> and <code>TimeOfDay::format</code> read the same patterns but are not checked when the program compiles. There, a bad pattern written in the code also throws."
               }
             ]
           },
@@ -40127,7 +40227,7 @@
           "implemented": true,
           "notesHtml": "plus <code>nanoseconds</code>, <code>microseconds</code>, <code>milliseconds</code>, <code>minutes</code>, <code>hours</code>, <code>days</code>, <code>weeks</code> — for a <strong>computed</strong> count; a literal one is <code>rule:types/duration</code>'s <code>30s</code>",
           "doc": {
-            "shortHtml": "Builds a <code>Duration</code> of <code>$n</code> seconds, for a count computed at run time; a constant one is written as the literal <code>30s</code>.",
+            "shortHtml": "Builds a <code>Duration</code> of <code>$n</code> seconds, for a count computed at run time. For a fixed count, write the duration directly, such as <code>30s</code>.",
             "params": [
               {
                 "name": "n",
@@ -40172,18 +40272,18 @@
           "implemented": true,
           "notesHtml": "the run-time form of that same literal grammar, one implementation for both. Throws on anything it does not accept, so it <strong>launders</strong> a <code>tainted</code> config value",
           "doc": {
-            "shortHtml": "Reads the duration literal grammar — <code>30s</code>, <code>1h30m</code>, <code>7d</code> — at run time, through the one implementation the lexer uses for the source literal: the typed form of <code>strtotime</code> for an exact offset arriving in a config value or a flag. It accepts nothing else, so a <code>tainted</code> value comes out laundered.",
+            "shortHtml": "Reads a duration such as <code>30s</code>, <code>1h30m</code> or <code>7d</code> from text at run time. It uses the same syntax as a duration written in the code. Use it for an exact offset that comes from a config value or a flag. It accepts nothing else, so a <code>tainted</code> value comes out laundered.",
             "params": [
               {
                 "name": "text",
-                "descHtml": "The text to read, in the duration literal grammar."
+                "descHtml": "The text to read, written the same way as a duration in the code."
               }
             ],
-            "returnHtml": "The <code>Duration</code> the text spells.",
+            "returnHtml": "The <code>Duration</code> the text describes.",
             "errors": [
               {
                 "error": "ParseError",
-                "descHtml": "<code>$text</code> is not a duration literal — an unknown or repeated unit, a missing count, trailing text — or spells more than a <code>Duration</code> can hold. A <code>$text</code> written as a literal is read by this same grammar while checking and refused there as <code>E0769</code>, so only a computed one reaches this throw."
+                "descHtml": "<code>$text</code> is not a valid duration. It has an unknown or repeated unit, a missing count or extra text, or it is longer than a <code>Duration</code> can hold. A <code>$text</code> written directly in the code is checked when the program compiles, and an error there is <code>E0769</code>. Only a computed <code>$text</code> reaches this throw."
               }
             ]
           },
@@ -40407,7 +40507,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Builds a <code>Duration</code> of exactly <code>$n</code> nanoseconds — the computed-count form of the duration literal, and the member a literal such as <code>30s</code> itself reaches a value through.",
+            "shortHtml": "Builds a <code>Duration</code> of exactly <code>$n</code> nanoseconds, for a count computed at run time. A duration written directly in the code, such as <code>30s</code>, also uses this method.",
             "params": [
               {
                 "name": "n",
@@ -40447,7 +40547,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Builds a <code>Duration</code> of <code>$n</code> microseconds, for a count computed at run time; a constant one is a duration literal.",
+            "shortHtml": "Builds a <code>Duration</code> of <code>$n</code> microseconds, for a count computed at run time. For a fixed count, write the duration directly, such as <code>500us</code>.",
             "params": [
               {
                 "name": "n",
@@ -40493,7 +40593,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Builds a <code>Duration</code> of <code>$n</code> milliseconds, for a count computed at run time; a constant one is a duration literal such as <code>250ms</code>.",
+            "shortHtml": "Builds a <code>Duration</code> of <code>$n</code> milliseconds, for a count computed at run time. For a fixed count, write the duration directly, such as <code>250ms</code>.",
             "params": [
               {
                 "name": "n",
@@ -40539,7 +40639,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Builds a <code>Duration</code> of <code>$n</code> minutes, for a count computed at run time; a constant one is a duration literal such as <code>1h30m</code>.",
+            "shortHtml": "Builds a <code>Duration</code> of <code>$n</code> minutes, for a count computed at run time. For a fixed count, write the duration directly, such as <code>1h30m</code>.",
             "params": [
               {
                 "name": "n",
@@ -40585,7 +40685,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Builds a <code>Duration</code> of <code>$n</code> hours — exact hours of 3600 seconds, which is how <code>Time::now()-&gt;plus(72h)</code> differs from a calendar step of three days. A constant count is the literal <code>72h</code>.",
+            "shortHtml": "Builds a <code>Duration</code> of <code>$n</code> hours — exact hours of 3600 seconds, which is how <code>Time::now()-&gt;plus(72h)</code> differs from a calendar step of three days. For a fixed count, write the duration directly, such as <code>72h</code>.",
             "params": [
               {
                 "name": "n",
@@ -40631,7 +40731,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Builds a <code>Duration</code> of <code>$n</code> days of exactly 24 hours each — never a calendar day, which <code>DateTime::plus($n, Unit::Day)</code> is. A constant count is the literal <code>30d</code>.",
+            "shortHtml": "Builds a <code>Duration</code> of <code>$n</code> days of exactly 24 hours each — never a calendar day, which <code>DateTime::plus($n, Unit::Day)</code> is. For a fixed count, write the duration directly, such as <code>30d</code>.",
             "params": [
               {
                 "name": "n",
@@ -40827,8 +40927,8 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Renders the receiver in the duration literal grammar — <code>1h30m</code>, <code>250ms</code> — as <code>Stringable</code> requires, so the text round-trips through <code>Duration::parse</code>.",
-            "returnHtml": "The literal spelling of the receiver."
+            "shortHtml": "Writes the receiver as text in the same syntax as a duration in the code, such as <code>1h30m</code> or <code>250ms</code>. <code>Stringable</code> requires this method, and <code>Duration::parse</code> reads the text back to the same value.",
+            "returnHtml": "The receiver written as a duration, such as <code>1h30m</code>."
           },
           "slug": "tostring",
           "url": "/reference/core/time-duration/tostring/",
@@ -44340,7 +44440,7 @@
                 "descHtml": "The archive's octets. Only its central directory is read, so listing a large archive costs its entry count rather than its size."
               }
             ],
-            "returnHtml": "One <code>tainted string</code> per entry. A name is tainted whatever the archive's own type was, for the reason a claim out of a verified token is: the name was written by whoever built the archive, and a literal archive in a test is no safer than a downloaded one.",
+            "returnHtml": "One <code>tainted string</code> per entry. A name is always tainted, whatever the archive's own type was. The name was written by whoever built the archive. An archive written directly in a test is no safer than a downloaded one.",
             "errors": [
               {
                 "error": "ParseError",

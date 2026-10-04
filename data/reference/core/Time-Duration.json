@@ -1,12 +1,11 @@
 {
-  "summary": "an exact, signed span of nanoseconds — the duration literal `1h30m` as a value",
+  "summary": "an exact, signed span of nanoseconds — a duration written like `1h30m` is a value of this class",
   "keywords": [
     "DateInterval",
     "sleep",
     "usleep",
     "hrtime",
     "strtotime(\"+3 days\")",
-    "duration literal",
     "1h30m",
     "250ms",
     "nanoseconds",

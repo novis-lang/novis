@@ -355,6 +355,22 @@
           "key": "limits.memory_high_water",
           "class": "System",
           "apply": "Reload"
+        },
+        {
+          "id": "directive:limits.cancel_on_disconnect",
+          "title": "limits.cancel_on_disconnect",
+          "examples": "config/limits-cancel_on_disconnect",
+          "key": "limits.cancel_on_disconnect",
+          "class": "System",
+          "apply": "Reload"
+        },
+        {
+          "id": "directive:limits.disconnect_grace",
+          "title": "limits.disconnect_grace",
+          "examples": "config/limits-disconnect_grace",
+          "key": "limits.disconnect_grace",
+          "class": "System",
+          "apply": "Reload"
         }
       ]
     },
