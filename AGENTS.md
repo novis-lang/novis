@@ -271,7 +271,7 @@ Every session runs the same five steps, in this order, and **stops**:
    next one touches files already loaded, *and* you are under 120k with the previous one committed. Stop at
    the first slice that fails either test.** Context is the binding budget here, not the clock: an agent
    degrades well before its window is full, so the ceiling is a fixed **200k** for a loop session and
-   **250k** for an interactive session and for each subagent any session starts (rule 12). **This
+   **250k** for an interactive session and for each subagent it starts (rule 12). **This
    paragraph is the cap's only home** — every other file points here rather than restating a number.
 
    **The gate is the budget, not a count of slices.** A session pays a fixed cost — orienting, verifying,
