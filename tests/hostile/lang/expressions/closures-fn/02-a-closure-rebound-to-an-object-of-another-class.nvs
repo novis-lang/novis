@@ -1,0 +1,88 @@
+<?nvs
+// Attack: a closure that reads `$this` is bound to objects of other classes.
+// The closure must never read those objects. Every attempt below should
+// throw an error, and the closure should still work afterwards.
+// hostile: timeout-ms 20000
+// covers: lang:expressions/closures-fn
+
+class Account
+{
+    public int $balance;
+
+    public function constructor(int $balance)
+    {
+        $this->balance = $balance;
+    }
+
+    public function reader(): callable
+    {
+        return fn (): int => $this->balance * 2;
+    }
+}
+
+class Premium extends Account
+{
+    public int $bonus = 5;
+
+    public function bonusReader(): callable
+    {
+        return fn (): int => $this->bonus;
+    }
+}
+
+// A class whose first property is text, where `Account` has a number.
+class Label
+{
+    public string $text = 'not a number';
+}
+
+callable $read = (new Account(21))->reader();
+int $refused = 0;
+
+// 1. An object of an unrelated class, many times.
+int $attempt = 0;
+while ($attempt < 20000) {
+    try {
+        $read->bindTo(new Label());
+    } catch (LogicError $first) {
+        $refused = $refused + 1;
+    }
+    $attempt = $attempt + 1;
+}
+
+// 2. The same through `call`, which would run the closure at once.
+try {
+    echo $read->call(new Label()), "\n";
+} catch (LogicError $second) {
+    $refused = $refused + 1;
+}
+
+// 3. A closure written in a subclass, bound to an object of the parent class.
+// The parent object has no `$bonus` property.
+callable $bonus = (new Premium(1))->bonusReader();
+try {
+    echo $bonus->bind(new Account(3))(), "\n";
+} catch (LogicError $third) {
+    $refused = $refused + 1;
+}
+
+// 4. `null`, for a closure that needs `$this`.
+try {
+    $read->bindTo(null);
+} catch (LogicError $fourth) {
+    $refused = $refused + 1;
+}
+
+echo $refused, "\n";
+
+// A subclass is allowed, and many copies are made and freed.
+int $sum = 0;
+$attempt = 0;
+while ($attempt < 20000) {
+    callable $copy = $read->bindTo(new Premium($attempt % 10));
+    $sum = $sum + ($copy() as int);
+    $attempt = $attempt + 1;
+}
+
+echo $sum, ' ', $read() as int, "\n";
+echo "still standing\n";

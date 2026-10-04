@@ -78,6 +78,9 @@ pub(crate) fn infer_method_call(
     if let MemberName::Variable(e) | MemberName::Expr(e) = method {
         report_computed_member_name(e.span, COMPUTED_METHOD_HELP, env);
     }
+    if let Some(ty) = infer_closure_rebind(expr, receiver_ty, method, args, live, scope, ctx, env) {
+        return nullsafe_result(nullsafe, object_ty, ty, env);
+    }
     let resolved = match (class_qname_of(receiver_ty, env.interner), method) {
         (Some(qname), MemberName::Ident(name_span)) => {
             let name = span_text(env.src, *name_span).to_owned();
@@ -1575,6 +1578,96 @@ pub(crate) fn report_args_with_no_parameter_list(
 /// `__call` to fall back on either (`rule:classes/property-observer`), so every one of them is refused
 /// where it is written rather than reaching `nvs-ir` with no resolved target.
 ///
+/// `$fn->bindTo($obj)`, `$fn->bind($obj)` and `$fn->call($obj, ...)` on a
+/// `callable` receiver — `rule:types/callable-absorbs-closure`'s three builtin
+/// operations, or [`None`] for any other call.
+///
+/// `bind` and `bindTo` take one `?object` and give the receiver's own type
+/// back. `call` takes the same first argument and passes the rest to the
+/// closure, so it gives `mixed`, as a call through bare `callable` does. No
+/// scope argument is accepted (`E_ARITY_MISMATCH`): a scope would open another
+/// class's `private` members. Whether the object fits the body is a run-time
+/// test, `nvs_runtime::closure::bind_closure`, because `callable` does not say
+/// whether a closure uses `$this`.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the four-part checking context every function in this module \
+              threads, plus the call and the three parts of it this reads"
+)]
+fn infer_closure_rebind(
+    expr: &Expr,
+    receiver_ty: TypeId,
+    method: &MemberName,
+    args: &CallArgs,
+    live: &mut FxHashSet<String>,
+    scope: &LocalScope,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) -> Option<TypeId> {
+    let MemberName::Ident(name_span) = method else {
+        return None;
+    };
+    if !matches!(
+        env.interner.get(receiver_ty),
+        Ty::Callable | Ty::CallableSig { .. }
+    ) {
+        return None;
+    }
+    let call = match span_text(env.src, *name_span) {
+        "bind" | "bindTo" => false,
+        "call" => true,
+        _ => return None,
+    };
+    let CallArgs::List(list) = args else {
+        return None;
+    };
+    report_args_with_no_parameter_list(args, NoParameterList::Callable, env);
+    let object = env.interner.object();
+    let null = env.interner.null();
+    let this_ty = env.interner.make_union([object, null]);
+    let fits = if call {
+        !list.is_empty() && !list[0].spread
+    } else {
+        list.len() == 1 && !list[0].spread
+    };
+    if !fits {
+        let (expected, help) = if call {
+            (
+                "at least 1",
+                "the first argument is the new `$this` of the closure. The arguments after it \
+                 are passed to the closure",
+            )
+        } else {
+            (
+                "1",
+                "the one argument is the new `$this` of the closure. A second argument for the \
+                 scope is not allowed",
+            )
+        };
+        env.diags.report(
+            Diagnostic::error(
+                code::E_ARITY_MISMATCH,
+                format!("expected {expected} argument(s), found {}", list.len()),
+            )
+            .with_primary(expr.span, "called here")
+            .with_help(help),
+        );
+    }
+    for (i, arg) in list.iter().enumerate() {
+        let expected = (i == 0 && !arg.spread).then_some(this_ty);
+        check_expr(&arg.value, expected, live, scope, ctx, env);
+    }
+    if fits {
+        env.exprs
+            .record(expr.span, ExprInfo::ClosureRebind { call });
+    }
+    Some(if call {
+        env.interner.mixed()
+    } else {
+        receiver_ty
+    })
+}
+
 /// `mixed` is deliberately **not** here: `rule:types/conversion` makes it the one
 /// unchecked position and `rule:types/erased-member-access` defers it to a run-time answer, which
 /// is [`crate::expr`]'s own next slice rather than a refusal.

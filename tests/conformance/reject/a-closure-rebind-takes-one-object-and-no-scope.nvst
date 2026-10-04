@@ -1,0 +1,29 @@
+--TEST--
+`bindTo` and `bind` take exactly one object, `call` at least one, and none of them takes PHP's scope argument — `rule:types/callable-absorbs-closure`
+--FILE--
+<?nvs
+class Box {
+    private int $secret = 1;
+}
+
+callable $peek = fn (): int => 0;
+
+// PHP's second argument opens another class's private members. It does not compile.
+callable $open = $peek->bindTo(new Box(), Box::class);
+
+// The first argument is the new `$this`, so it must be an object or `null`.
+callable $wrong = $peek->bind(5);
+
+// `call` needs the object first.
+mixed $none = $peek->call();
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0402]: expected 1 argument(s), found 2
+%A
+error[E0401]: expected `null|object`, found `int`
+%A
+error[E0402]: expected at least 1 argument(s), found 0
+%A
+error: aborting due to 3 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

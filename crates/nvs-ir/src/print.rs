@@ -610,5 +610,6 @@ fn helper_name(h: Helper) -> &'static str {
         Helper::CallClosureProven => "call_closure_proven",
         Helper::CallClosureArray => "call_closure_array",
         Helper::CallErasedMethod => "call_erased_method",
+        Helper::BindClosure => "bind_closure",
     }
 }

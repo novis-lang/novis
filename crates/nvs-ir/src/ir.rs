@@ -2896,6 +2896,18 @@ pub enum Helper {
     /// catchable, all carrying `rule:errors/propagation`'s error edge, plus the callee's own
     /// throw travelling back as `Fault::Pending`.
     CallErasedMethod,
+    /// `$fn->bindTo($obj)` and `$fn->bind($obj)` —
+    /// `rule:types/callable-absorbs-closure`'s rebind, and the first half of
+    /// `$fn->call($obj, ...)`, whose second half is
+    /// [`CallClosure`](Self::CallClosure) on what this returns.
+    ///
+    /// `args[0]` is the closure and `args[1]` the new `$this`, both borrowed.
+    /// The result is a fresh closure reference: the same object for a closure
+    /// that does not use `$this`, a copy holding the new `$this` for one that
+    /// does. `nvs_runtime::closure::bind_closure` owns the class test, and its
+    /// `LogicError` for an object the body was not checked against is this
+    /// row's error edge.
+    BindClosure,
 }
 
 /// A binary arithmetic or comparison operator, already resolved to a single

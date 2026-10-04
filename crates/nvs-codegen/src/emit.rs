@@ -4070,6 +4070,7 @@ fn helper_symbol(helper: Helper) -> Result<&'static str, CodegenError> {
         Helper::CallClosureProven => "nvs_call_closure_proven",
         Helper::CallClosureArray => "nvs_call_closure_array",
         Helper::CallErasedMethod => "nvs_call_erased_method",
+        Helper::BindClosure => "nvs_closure_bind",
         Helper::BytesTruthy => "nvs_bytes_truthy",
         Helper::ArrayTruthy => "nvs_array_truthy",
         Helper::ValueTruthy => "nvs_value_truthy",

@@ -1053,6 +1053,95 @@ impl<'a> Lowering<'a> {
         self.release_temporaries_since(mark, *cur);
         self.close_nullsafe(guard, v, ty, env, cur)
     }
+
+    /// `$fn->bindTo($obj)`, `$fn->bind($obj)` and `$fn->call($obj, ...)` —
+    /// `nvs_types`' `ExprInfo::ClosureRebind`.
+    ///
+    /// All three emit [`Helper::BindClosure`] on the closure and the first
+    /// argument, and `bind`/`bindTo` give its result. `call` then calls that
+    /// result with the rest of the arguments, exactly as
+    /// [`Self::lower_closure_call`]'s dynamic path calls a closure, and the
+    /// bound copy is a temporary this frame frees after the call.
+    ///
+    /// The receiver stays tagged ([`ReceiverProof::Erased`]): the helper tests
+    /// that it is a closure, so a `?->` needs only the `null` test.
+    ///
+    /// # Panics
+    ///
+    /// Panics for the first-class-callable sentinel, for which `nvs_types`
+    /// records nothing, and for an empty list, which it refuses as `E0402`.
+    pub(crate) fn lower_closure_rebind(
+        &mut self,
+        object: &Expr,
+        nullsafe: bool,
+        call: bool,
+        args: &CallArgs,
+        env: &mut Env,
+        cur: &mut BlockId,
+    ) -> (ValueId, Ty) {
+        let CallArgs::List(list) = args else {
+            panic!(
+                "nvs-ir: a closure rebind reached lowering with {args:?} where a written \
+                 argument list belongs — nvs_types records `ExprInfo::ClosureRebind` only \
+                 for a list"
+            );
+        };
+        let (this_arg, rest) = list.split_first().unwrap_or_else(|| {
+            panic!(
+                "nvs-ir: a closure rebind reached lowering with no argument — nvs_types \
+                 refuses that as E0402"
+            )
+        });
+        let mark = self.temporaries_mark();
+        let (closure, closure_ty, guard) =
+            self.open_nullsafe(object, nullsafe, ReceiverProof::Erased, env, cur);
+        let aliasing = self.aliasing_read(object);
+        self.account_for_arg(closure, closure_ty, ArgOwnership::Borrowed, aliasing, *cur);
+        let (this_v, this_ty) = self.lower_expr(&this_arg.value, None, env, cur);
+        let aliasing = self.aliasing_read(&this_arg.value);
+        self.account_for_arg(this_v, this_ty, ArgOwnership::Borrowed, aliasing, *cur);
+        let (bound, bound_ty) = self.emit_fallible(
+            *cur,
+            Ty::Object,
+            InstKind::HelperCall {
+                helper: Helper::BindClosure,
+                args: vec![closure, this_v],
+            },
+            env,
+        );
+        if !call {
+            self.release_temporaries_since(mark, *cur);
+            return self.close_nullsafe(guard, bound, bound_ty, env, cur);
+        }
+        self.account_for_arg(bound, bound_ty, ArgOwnership::Borrowed, false, *cur);
+        let mut values = vec![bound];
+        let helper = if rest.iter().any(|arg| arg.spread) {
+            let rest: Vec<&nvs_syntax::ast::Arg> = rest.iter().collect();
+            let array = self.lower_args_as_array(&rest, None, env, cur);
+            self.account_for_arg(array, Ty::Array, ArgOwnership::Borrowed, false, *cur);
+            values.push(array);
+            Helper::CallClosureArray
+        } else {
+            for arg in rest {
+                let (v, ty) = self.lower_expr(&arg.value, None, env, cur);
+                let aliasing = self.aliasing_read(&arg.value);
+                self.account_for_arg(v, ty, ArgOwnership::Borrowed, aliasing, *cur);
+                values.push(v);
+            }
+            Helper::CallClosure
+        };
+        let (v, ty) = self.emit_fallible(
+            *cur,
+            Ty::Tagged,
+            InstKind::HelperCall {
+                helper,
+                args: values,
+            },
+            env,
+        );
+        self.release_temporaries_since(mark, *cur);
+        self.close_nullsafe(guard, v, ty, env, cur)
+    }
     /// Records `v` as a reference this frame owns and nothing else can find —
     /// see [`Self::owned_temporaries`], which owns the whole protocol.
     pub(crate) fn own_temporary(&mut self, v: ValueId) {

@@ -172,7 +172,7 @@
     "lang:expressions/calls": "f48b263308e48fa2"
   },
   "syntax/functions/closures.mdx": {
-    "lang:expressions/closures-fn": "b238dbacf4feabb3"
+    "lang:expressions/closures-fn": "6c75da10b6e2740f"
   },
   "syntax/functions/declaring.mdx": {
     "lang:types/void-never-self-static": "656a82389884795e"

@@ -39,6 +39,11 @@ pub(crate) struct PendingClosure {
     pub(crate) captures: Vec<(String, Ty)>,
     /// What the body produces.
     pub(crate) ret: Ty,
+    /// The label of the class the body's `$this` was checked against, or
+    /// `None` for a closure that does not use `$this`. It becomes the `this`
+    /// slot's [`crate::ir::Class::field_classes`] entry, which is what
+    /// `nvs_runtime::closure::bind_closure` tests a new `$this` against.
+    pub(crate) this_class: Option<String>,
     /// Where the literal was written. The key `nvs_types::ExprTypeTable`
     /// recorded this closure's `callable(...)` conformance under, and the only
     /// one both sides hold: the class label above is this crate's own name for
@@ -179,6 +184,7 @@ pub(crate) fn lower_closure(
         fn_expr,
         captures,
         ret,
+        this_class,
         span,
     } = pending;
     let label = format!("{class}::{FN_INVOKE}");
@@ -312,7 +318,21 @@ pub(crate) fn lower_closure(
             // And for the same reason again: a capture's type was written on
             // the variable it closes over, not on a property declaration.
             field_types: Vec::new(),
-            field_classes: Vec::new(),
+            // Only the `this` slot names a class: the one a rebind's new
+            // `$this` must be an instance of, because the body reads it at
+            // that class's layout. Every other slot is `None`, and a closure
+            // that does not use `$this` leaves the list empty.
+            field_classes: match this_class {
+                Some(label) => [None, None]
+                    .into_iter()
+                    .chain(
+                        captures
+                            .iter()
+                            .map(|(n, _)| (n == "this").then(|| vec![label.clone()])),
+                    )
+                    .collect(),
+                None => Vec::new(),
+            },
             // The marker `rule:types/callable-is-a-closure`'s `$x is callable`
             // walks for — see `super::CLOSURE_MARKER` — and one more per
             // written signature this literal satisfies, which is the same walk

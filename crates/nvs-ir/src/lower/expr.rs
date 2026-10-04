@@ -2891,6 +2891,15 @@ impl<'a> Lowering<'a> {
         let class = class.clone();
         let ret = erase_checked_ty(*return_ty, self.checked_types);
         let names: Vec<String> = captures.iter().map(|(n, _)| n.clone()).collect();
+        // The class a rebind's new `$this` is tested against — see
+        // `PendingClosure::this_class`.
+        let this_class = captures
+            .iter()
+            .find(|(n, _)| n == "this")
+            .and_then(|(_, ty)| match self.checked_types.get(*ty) {
+                CheckedTy::Class(name, _) => Some(name.to_string()),
+                _ => None,
+            });
         let (obj, _) = self.emit_fallible(
             *cur,
             Ty::Object,
@@ -2945,6 +2954,7 @@ impl<'a> Lowering<'a> {
             fn_expr: fn_expr.clone(),
             captures: captured,
             ret,
+            this_class,
             span: expr.span,
         });
         (obj, Ty::Object)
@@ -3975,6 +3985,12 @@ impl<'a> Lowering<'a> {
         if let Some(ExprInfo::ErasedCall { name }) = self.exprs.lookup(expr.span) {
             let name = name.clone();
             return self.lower_erased_method_call(object, nullsafe, &name, args, env, cur);
+        }
+        // `rule:types/callable-absorbs-closure`'s `bind`, `bindTo` and `call`,
+        // which no class declares, so no `ExprInfo::Call` names them.
+        if let Some(ExprInfo::ClosureRebind { call }) = self.exprs.lookup(expr.span) {
+            let call = *call;
+            return self.lower_closure_rebind(object, nullsafe, call, args, env, cur);
         }
         // `rule:types/callable-is-a-closure`'s `$obj->method(...)`, which names the member rather
         // than calling it. Taken before the resolved arm for the erased one's

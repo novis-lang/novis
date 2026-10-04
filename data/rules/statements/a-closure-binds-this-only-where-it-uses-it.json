@@ -10,6 +10,7 @@
     "statements/static-is-a-member-modifier"
   ],
   "guardedBy": [
-    "tests/conformance/class/a-closure-returned-from-a-method-keeps-this.nvst"
+    "tests/conformance/class/a-closure-returned-from-a-method-keeps-this.nvst",
+    "tests/conformance/closures/bind-bindto-and-call-rebind-this-to-the-same-class-or-a-subclass.nvst"
   ]
 }

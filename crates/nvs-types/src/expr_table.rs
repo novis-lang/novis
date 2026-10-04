@@ -582,6 +582,16 @@ pub enum ExprInfo {
         /// The member name written at the call site.
         name: String,
     },
+    /// `$fn->bindTo($obj)`, `$fn->bind($obj)` or `$fn->call($obj, ...)` on a
+    /// `callable` receiver — `rule:types/callable-absorbs-closure`'s three
+    /// builtin operations, which no class declares, so no [`ResolvedCall`]
+    /// names them. `nvs-ir` lowers each to `nvs_ir::Helper::BindClosure`, and
+    /// `call` then calls what that returns with the rest of the arguments.
+    ClosureRebind {
+        /// `true` for `call`, `false` for `bind` and `bindTo`, which are the
+        /// same operation under two names.
+        call: bool,
+    },
     /// A resolved property access (`$obj->prop`) whose receiver statically
     /// resolved to a known declaring class — a shape receiver and a
     /// plain-`object` one both record [`ExprInfo::ShapeProperty`] instead,

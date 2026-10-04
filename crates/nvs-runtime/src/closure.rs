@@ -403,6 +403,109 @@ crate::nvs_helper! {
     }
 }
 
+/// The field a closure that uses `$this` stores it under. `nvs_ir::lower`'s
+/// capture list names it, and [`bind_closure`] finds it by this name because
+/// a capture has no fixed slot.
+pub const CLOSURE_THIS_FIELD: &str = "this";
+
+crate::nvs_helper! {
+    /// `nvs_ir::Helper::BindClosure` — `$fn->bindTo($obj)` and `$fn->bind($obj)`,
+    /// and the first half of `$fn->call($obj, ...)`. [`bind_closure`] is the
+    /// whole operation.
+    fn nvs_closure_bind(_ctx, args: [2]) {
+        bind_closure(args[0], args[1])
+    }
+}
+
+/// `rule:types/callable-absorbs-closure`'s rebind: `closure` with `$this`
+/// replaced by `this`, as a fresh reference the caller owns.
+///
+/// A closure whose body does not use `$this` has no [`CLOSURE_THIS_FIELD`]
+/// (`rule:statements/a-closure-binds-this-only-where-it-uses-it`), so it comes
+/// back unchanged, one more reference to the same object, whatever `this` is.
+///
+/// One that does is copied with [`crate::object::nvs_object_clone`], and the
+/// copy's `this` slot takes the new object. The compiled body reads `$this` at
+/// the layout of the class it was checked against, and that class is the
+/// slot's one entry in [`ClassDesc::field_classes`]. So the new object must
+/// conform to it, which a subclass does because its slots extend its parent's.
+/// Anything else, `null` among them, throws a `LogicError` and copies nothing:
+/// reading an unrelated class at that layout would be a memory-safety hole.
+///
+/// **Cost:** one class test by name and one closure copy per rebind, freed like
+/// any object. A `$this`-free closure pays only the field lookup.
+///
+/// # Errors
+///
+/// The `LogicError` above, and [`require_closure`]'s for a receiver that is
+/// not a closure.
+pub fn bind_closure(closure: Value, this: Value) -> Result<Value, Fault> {
+    require_closure(closure)?;
+    let ptr = closure
+        .obj_ptr()
+        .ok_or_else(|| Fault::fatal("internal error: a closure reached a rebind untagged"))?;
+    #[expect(
+        unsafe_code,
+        reason = "`require_closure` just read this object's descriptor, and the \
+                  caller owns a reference to the object for this whole call"
+    )]
+    let desc: &ClassDesc = unsafe { &*NvsObj::class_of(ptr) };
+    let Some(slot) = desc.field_slot(CLOSURE_THIS_FIELD, 2) else {
+        #[expect(
+            unsafe_code,
+            reason = "the caller's reference keeps the object live, and the \
+                      retain is the reference the returned value owns"
+        )]
+        unsafe {
+            closure.retain();
+        }
+        return Ok(closure);
+    };
+    let admitted = desc.field_classes(slot).unwrap_or(&[]);
+    let refused = match this.obj_ptr() {
+        Some(target) if !target.is_null() => {
+            #[expect(
+                unsafe_code,
+                reason = "the caller owns a reference to this value, so the \
+                          object is live and its descriptor is too"
+            )]
+            let class = unsafe { &*NvsObj::class_of(target) };
+            if admitted.iter().any(|label| class.conforms_to_name(label)) {
+                None
+            } else {
+                Some(format!("an object of class `{}`", class.name()))
+            }
+        }
+        _ => Some(match this.tag() {
+            Some(Tag::Null) => "`null`".to_owned(),
+            Some(tag) => format!("a value of type `{}`", tag.describe()),
+            None => "a malformed value".to_owned(),
+        }),
+    };
+    if let Some(given) = refused {
+        let wanted = admitted.first().map_or("its own class", String::as_str);
+        return Err(Fault::thrown_as(
+            crate::ThrownClass::Logic,
+            format!(
+                "this closure uses `$this`, so it can only be bound to an object of class \
+                 `{wanted}` or a subclass of it. The argument is {given}"
+            ),
+        ));
+    }
+    #[expect(
+        unsafe_code,
+        reason = "the caller's reference keeps the closure live for the copy, \
+                  and `this` is live for the retain the copy's slot takes over"
+    )]
+    let copy = unsafe {
+        let copy = NvsObj::from_raw(crate::object::nvs_object_clone(ptr));
+        this.retain();
+        copy
+    };
+    copy.set_field(slot, this);
+    Ok(Value::object(copy))
+}
+
 /// [`call_closure`] under the one check a *program* can reach, shared by the
 /// two helpers compiled Novis code calls a closure through.
 ///

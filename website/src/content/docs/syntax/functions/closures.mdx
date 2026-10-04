@@ -26,6 +26,16 @@ A closure can use the variables around it. It copies each one when the closure i
 - Inside a method, a closure can use `$this`.
 - To use a method as a closure, wrap it: `fn(string $s): int => Core\Str::length($s)`.
 
+## A new `$this`
+
+`$fn->bindTo($obj)` returns a copy of the closure that uses `$obj` as `$this`. `$fn->bind($obj)`
+is the same method. `$fn->call($obj, ...)` makes the copy and calls it with the other arguments.
+
+- The object must be of the class the closure was written in, or of a subclass. Any other object,
+  and `null`, throws a `LogicError`.
+- A closure that does not use `$this` is returned unchanged.
+- There is no second argument for a scope. It does not compile.
+
 ## Do and don't
 
 - Do keep a closure short. Write a method when it needs many lines.

@@ -6,7 +6,7 @@
     "0027",
     "0007"
   ],
-  "divergesFromPhp": "there is no `Closure` type, no `Closure::fromCallable`, and no `call_user_func`/`call_user_func_array`",
+  "divergesFromPhp": "there is no `Closure` type, no `Closure::fromCallable`, and no `call_user_func`/`call_user_func_array`; `bind`, `bindTo` and `call` take no scope argument and throw for an object outside the closure's own class",
   "seeAlso": [
     "types/callable-is-a-closure",
     "types/closure-literal",
@@ -14,6 +14,8 @@
   ],
   "guardedBy": [
     "crates/nvs-types/tests/callable.rs",
-    "crates/nvs-syntax/src/parser/tests/expr.rs"
+    "crates/nvs-syntax/src/parser/tests/expr.rs",
+    "tests/conformance/closures/bind-bindto-and-call-rebind-this-to-the-same-class-or-a-subclass.nvst",
+    "tests/conformance/reject/a-closure-rebind-takes-one-object-and-no-scope.nvst"
   ]
 }
