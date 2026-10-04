@@ -1,0 +1,40 @@
+<?nvs
+// This program downloads a web page and prints the title and address of every link on it.
+class Scraper {
+    // Prints each `a` element under `$node` that has an `href`, and looks inside every child.
+    public static function links(Core\Xml\Node $node): void {
+        foreach ($node->children() as Core\Xml\Node $child) {
+            if ($child->kind() != Core\Xml\NodeKind::Element) {
+                continue;
+            }
+            array<tainted string> $attributes = $child->attributes();
+            if ($child->name() == "a" && Core\Arr::hasKey($attributes, "href")) {
+                echo Scraper::text($child), ": ", $attributes["href"], "\n";
+            }
+            Scraper::links($child);
+        }
+    }
+
+    // Returns all the text under `$node`, without the tags.
+    public static function text(Core\Xml\Node $node): tainted string {
+        tainted string $text = $node->text();
+        foreach ($node->children() as Core\Xml\Node $child) {
+            $text = $text . Scraper::text($child);
+        }
+        return $text;
+    }
+}
+
+// `Core\Test::answerHttp` gives a fixed reply for this address, so the program runs without
+// a network. Delete this call to download the real page.
+Core\Test::answerHttp("https://news.example.com/", 200, {
+    body: '<h1>News</h1><ul><li><a href="/rain">Rain on Monday</a></li><li><a href="/fair">The town fair</a></li></ul>',
+});
+
+Core\Http\Response $response = Core\Http\Client::get("https://news.example.com/");
+if ($response->status() != 200) {
+    echo "The server answered with the status ", $response->status(), "\n";
+} else {
+    // `Core\Html::parse` reads the HTML text into a tree of elements.
+    Scraper::links(Core\Html::parse($response->text()));
+}

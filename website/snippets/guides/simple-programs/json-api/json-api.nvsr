@@ -1,0 +1,6 @@
+--METHOD--
+GET
+--PATH--
+/products/2
+--HEADERS--
+host: localhost:8000

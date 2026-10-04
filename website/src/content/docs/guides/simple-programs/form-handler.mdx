@@ -1,0 +1,34 @@
+---
+title: A form handler
+covers: []
+description: Read a contact form, check the email address, and return an HTML page.
+---
+
+import Snippet from '@components/Snippet.astro'
+
+This program receives a contact form. It checks the email address and returns a short HTML page.
+
+<Snippet src="guides/simple-programs/form-handler/form-handler.nvs" />
+
+The output above is the answer to a form with the name `Ada <L>`, the email `ada@example.com` and
+the message `Hello`. The `<` and `>` in the name are shown as text, not as HTML.
+
+Start the server with `nvs serve form-handler.nvs`. Then send a form with this command:
+
+```sh
+curl -d "name=Ada&email=ada@example.com&message=Hello" http://127.0.0.1:8000/contact
+```
+
+## How it works
+
+`Core\Request::postAs<Contact>()` reads the form fields into a `Contact` object. Each field of
+the class reads the form field with the same name.
+
+Text from a form is `tainted string`, because it comes from outside the program. Code that uses a
+tainted value as a plain `string` does not compile.
+
+`Core\Validate::isEmail` returns `true` when the text is a valid email address. If it is not, the
+program sets the status 422 and returns a message.
+
+An `html` literal escapes every value you put into it. A visitor cannot add their own HTML or
+JavaScript to the page.

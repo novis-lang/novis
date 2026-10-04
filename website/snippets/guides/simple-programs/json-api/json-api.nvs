@@ -1,0 +1,40 @@
+<?nvs
+// This program is a small JSON API. It returns one product, found by its number.
+#[Core\Json\Derive]
+class Product {
+    public uint $id;
+    public string $name;
+    public float $price;
+
+    public function constructor(uint $id, string $name, float $price) {
+        $this->id = $id;
+        $this->name = $name;
+        $this->price = $price;
+    }
+}
+
+class Products {
+    // The route connects a request like `GET /products/2` to this method.
+    #[Core\Route(path: "/products/{id}", method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public static function show(uint $id): void {
+        array<Product> $all = [new Product(1, "Fig", 3.5), new Product(2, "Apple", 0.4)];
+        foreach ($all as Product $product) {
+            if ($product->id == $id) {
+                Core\Response::json($product);
+                return;
+            }
+        }
+        Core\Response::setStatus(404);
+        Core\Response::json({error: "no such product"});
+    }
+}
+
+// `Core\Request::route()` returns the route that matches the request, or `null`.
+?Core\Router\Match $matched = Core\Request::route();
+if ($matched == null) {
+    Core\Response::setStatus(404);
+    Core\Response::json({error: "not found"});
+} else {
+    Products::show($matched->param("id") as uint);
+}

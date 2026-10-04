@@ -1,0 +1,27 @@
+<?nvs
+// This program reads a contact form, checks it, and returns an HTML page.
+#[Core\Json\Derive]
+class Contact {
+    public tainted string $name;
+    public tainted string $email;
+    public tainted string $message;
+
+    public function constructor(tainted string $name, tainted string $email, tainted string $message) {
+        $this->name = $name;
+        $this->email = $email;
+        $this->message = $message;
+    }
+}
+
+// `postAs` fills a `Contact` from the form fields with the same names.
+// Text from a form is `tainted`, because it comes from outside the program.
+Contact $form = Core\Request::postAs<Contact>();
+
+if (!Core\Validate::isEmail($form->email)) {
+    Core\Response::setStatus(422);
+    echo html`<p>Please enter a valid email address.</p>`, "\n";
+} else {
+    // An `html` literal escapes each value, so a `<` in the name is shown as text.
+    tainted string $name = $form->name;
+    echo html`<p>Thank you, {$name}. We will answer soon.</p>`, "\n";
+}

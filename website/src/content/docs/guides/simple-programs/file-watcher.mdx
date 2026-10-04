@@ -1,0 +1,34 @@
+---
+title: A file watcher
+covers: []
+description: Check a file again and again, and print a line each time it changes.
+---
+
+import Snippet from '@components/Snippet.astro'
+
+This program checks a file at a fixed interval. When the file has changed, it prints the new
+content.
+
+<Snippet src="guides/simple-programs/file-watcher/file-watcher.nvs" />
+
+The program reads and writes files, so it needs this `nvs.toml` in the same folder:
+
+```toml
+[capabilities.fs]
+read = true
+write = true
+```
+
+Run it with `nvs run file-watcher.nvs`.
+
+## How it works
+
+`Core\IO::modifiedAt` returns the time of the last change to a file, as a `Core\Time\Instant`. The
+`Watcher` object keeps the time it saw last. `compareTo` returns `0` when two times are equal, so
+`changed()` returns `false` until the time is different.
+
+`Core\Time::sleep` waits before each check. A short wait finds a change sooner, but the program
+reads the file system more often.
+
+To watch your own file, replace the path and the `for` loop with `while (true)`. Remove the lines
+that write the file. Stop the program with Ctrl+C.

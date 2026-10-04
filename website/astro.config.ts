@@ -155,6 +155,18 @@ export default defineConfig({
                 { label: '10. A web application', link: '/guides/tour/10-web-app/' },
               ],
             },
+            {
+              label: 'Simple programs',
+              items: [
+                { label: 'Overview', link: '/guides/simple-programs/' },
+                { label: 'A CSV report', link: '/guides/simple-programs/csv-report/' },
+                { label: 'A JSON API', link: '/guides/simple-programs/json-api/' },
+                { label: 'A file watcher', link: '/guides/simple-programs/file-watcher/' },
+                { label: 'A web scraper', link: '/guides/simple-programs/scraper/' },
+                { label: 'A form handler', link: '/guides/simple-programs/form-handler/' },
+                { label: 'A scheduled job', link: '/guides/simple-programs/scheduled-job/' },
+              ],
+            },
           ],
         },
         {

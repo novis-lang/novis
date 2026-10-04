@@ -1,0 +1,28 @@
+<?nvs
+// This program deletes old log files and keeps the newest three. The server runs it every night.
+class Cleanup {
+    // Deletes all but the newest `$keep` files in `$dir`, and returns the names it deleted.
+    public static function run(string $dir, uint $keep): array<string> {
+        // The names start with the date, so sorting them puts the oldest first.
+        array<string> $names = Core\Arr::sort(Core\IO::list($dir));
+        array<string> $deleted = [];
+        for (uint $i = 0; $i + $keep < Core\Arr::count($names); $i++) {
+            Core\IO::remove(Core\Path::join($dir, $names[$i]));
+            $deleted[] = $names[$i];
+        }
+        return $deleted;
+    }
+}
+
+// The program writes five log files first, so that it runs as it is.
+string $dir = Core\Path::join(Core\IO::temporaryDir(), "logs");
+Core\IO::makeDir($dir);
+array<string> $days = ["2026-09-28", "2026-09-29", "2026-09-30", "2026-10-01", "2026-10-02"];
+foreach ($days as string $day) {
+    Core\IO::write(Core\Path::join($dir, $day . ".log"), "...\n");
+}
+
+foreach (Cleanup::run($dir, 3) as string $name) {
+    echo "deleted ", $name, "\n";
+}
+echo "kept ", Core\Arr::count(Core\IO::list($dir)), " files\n";

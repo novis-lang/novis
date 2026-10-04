@@ -1,0 +1,35 @@
+---
+title: A JSON API
+covers: []
+description: Return a product as JSON, found by the number in the address.
+---
+
+import Snippet from '@components/Snippet.astro'
+
+This program answers requests like `GET /products/2`. It returns the product with that number as
+JSON. If there is no such product, it returns the status 404.
+
+<Snippet src="guides/simple-programs/json-api/json-api.nvs" />
+
+The output above is the answer to `GET /products/2`.
+
+Start the server with `nvs serve json-api.nvs`. Then open `http://127.0.0.1:8000/products/2` in
+your browser, or run this command:
+
+```sh
+curl http://127.0.0.1:8000/products/2
+```
+
+## How it works
+
+`#[Core\Route]` connects the path `/products/{id}` to the method `Products::show`. `{id}` is a
+part of the path that can change. `Core\Request::route()` returns the route that matches the
+request, or `null` when no route matches.
+
+`$matched->param("id")` returns the number from the path. `as uint` converts it to a whole number
+that is not negative.
+
+`#[Core\Json\Derive]` lets Novis turn a `Product` into JSON. `Core\Response::json` sends the JSON
+text as the response.
+
+`#[Core\Access]` says who may call the route. `Core\Audience::Public` means everyone may call it.

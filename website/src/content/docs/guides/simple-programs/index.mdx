@@ -1,0 +1,23 @@
+---
+title: Simple programs
+covers: []
+description: Six small programs in one file each, from a CSV report to a job that runs every night.
+---
+
+Each page here shows one complete program in one file. You can copy it, run it, and change it for
+your own work. The output is shown below each program.
+
+- [A CSV report](/guides/simple-programs/csv-report/) reads a file of sales and prints a total for
+  each product.
+- [A JSON API](/guides/simple-programs/json-api/) returns a product as JSON for a request like
+  `GET /products/2`.
+- [A file watcher](/guides/simple-programs/file-watcher/) prints a line each time a file changes.
+- [A web scraper](/guides/simple-programs/scraper/) downloads a page and lists its links.
+- [A form handler](/guides/simple-programs/form-handler/) reads a contact form and returns an
+  HTML page.
+- [A scheduled job](/guides/simple-programs/scheduled-job/) deletes old log files every night.
+
+A Novis program may only do what its configuration allows. A program that reads or writes files
+needs an `nvs.toml` file in the same folder. Each page shows that file when the program needs one.
+
+If you are new to Novis, start with [A Tour of Novis](/guides/tour/) first.
