@@ -22,15 +22,19 @@ so it passes. But `Core\Task::map` over 300 labels stops the request at the defa
 can run about 250 tasks at once. The ladder stays at 128 tasks or fewer. Where the megabyte goes is
 not checked yet.
 
-**A POST body the program does not read can lose the response.** With a program that never calls
-`Core\Request::body`, a keep-alive POST of 16 KB or more ended with the server closing the
-connection, and the client read no response. A program that reads the body answers every size up to
-1 MB. Whether the server sent a response that the close then discarded is not checked yet.
+**A POST body the program does not read can lose the response.** Checked over a raw socket
+against `nvs serve` on a program that only echoes `ok` and never calls `Core\Request::body`. Up to
+8 KB the connection stays open, and a request pipelined behind the POST is answered. From 16 KB the
+POST is answered and the server then closes the connection, so the pipelined request gets nothing.
+At 512 KB, 6 of 20 POSTs got a clean close and no response at all; at 64 KB and below, 20 of 20
+were answered. So the server closes before its response is sent when much of the body is unread.
+Where the close is decided is not checked yet.
 
-**A request with more than about 100 headers is not answered on a kept-alive connection.** At 128
-headers each request cost as much as a new connection, and at 1024 headers the server closed the
-connection with no response. The `request/headers` ladder stays at 96 headers or fewer. The limit and
-its status code are not checked yet.
+**A request with 100 or more header lines gets `431 Request Header Fields Too Large`.** Checked
+over a raw socket: 96 headers plus `Host` are answered, 100 plus `Host` get the 431 and a close. That
+is a limit with a correct status, not a lost response. No limit is set under `crates/` (a grep for
+`max_headers` finds none), so it is the HTTP layer's default. The `request/headers` ladder stays at
+96 headers.
 
 ## What got better
 
