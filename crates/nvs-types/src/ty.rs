@@ -108,7 +108,7 @@ pub enum Ty {
     Void,
     /// `never` — return-position only.
     Never,
-    /// `true` — `rule:types/grammar`'s atom, and `bool`'s half of `rule:types/literal-types`: the
+    /// `true` — `rule:types/grammar`'s atom, and `bool`'s half of `rule:types/single-value-types`: the
     /// type inhabited by exactly one value, which is what
     /// [`Self::StringLiteral`] generalises to `string`'s. It is placed the
     /// same way ([`crate::expr::literals::placed_literal`]) — a `true`
@@ -119,7 +119,7 @@ pub enum Ty {
     True,
     /// `false` — [`Self::True`]'s other half, in every respect.
     False,
-    /// `"a"` — `rule:types/literal-types`: the type inhabited by exactly one string, the
+    /// `"a"` — `rule:types/single-value-types`: the type inhabited by exactly one string, the
     /// generalisation of [`Self::True`]/[`Self::False`] from `bool`'s two
     /// values to `string`'s.
     ///
@@ -131,17 +131,17 @@ pub enum Ty {
     /// structural over that value, which is exactly the singleton-ness the
     /// type claims.
     ///
-    /// `rule:types/literal-types`: no runtime representation of its own — it erases to
+    /// `rule:types/single-value-types`: no runtime representation of its own — it erases to
     /// [`Self::String`] at the `nvs-ir` boundary
     /// (`nvs_ir::lower::erase_checked_ty`), and the singleton-ness is enforced
     /// entirely by the checker wherever the static type is known.
     StringLiteral(String),
-    /// `1`, `-1` — `rule:types/literal-types`'s `int` counterpart of
+    /// `1`, `-1` — `rule:types/single-value-types`'s `int` counterpart of
     /// [`Self::StringLiteral`], erasing to [`Self::Int`] the same way.
     ///
     /// `i64`, so the value is always one an `int` can hold: a magnitude past
     /// `int`'s range is diagnosed where the atom is lowered rather than
-    /// widened to `uint` here, because `rule:types/literal-types` gives the atom one base
+    /// widened to `uint` here, because `rule:types/single-value-types` gives the atom one base
     /// type and a second one would make `1`'s meaning depend on its
     /// neighbours. There is deliberately no `float` counterpart (§ 7).
     IntLiteral(i64),
@@ -831,7 +831,7 @@ impl TypeInterner {
         self.intern(Ty::Iterable)
     }
 
-    /// Interns `rule:types/literal-types`'s string literal type — see
+    /// Interns `rule:types/single-value-types`'s string literal type — see
     /// [`Ty::StringLiteral`], which owns why `value` is the cooked string
     /// rather than the source text.
     #[must_use]
@@ -839,7 +839,7 @@ impl TypeInterner {
         self.intern(Ty::StringLiteral(value.into()))
     }
 
-    /// Interns `rule:types/literal-types`'s int literal type.
+    /// Interns `rule:types/single-value-types`'s int literal type.
     #[must_use]
     pub fn int_literal(&mut self, value: i64) -> TypeId {
         self.intern(Ty::IntLiteral(value))
@@ -858,7 +858,7 @@ impl TypeInterner {
         self.intern(Ty::EnumCase(qname, backing, case.into()))
     }
 
-    /// The type `rule:types/literal-types`'s first four rows widen `id` to: a literal type's
+    /// The type `rule:types/single-value-types`'s first four rows widen `id` to: a literal type's
     /// base type, an enum-case type's enum, and anything else unchanged.
     ///
     /// The checker-side counterpart of `nvs_ir::lower::erase_checked_ty`'s
@@ -871,7 +871,7 @@ impl TypeInterner {
             Ty::StringLiteral(_) => self.string(),
             Ty::IntLiteral(_) => self.int(),
             // `rule:types/grammar`'s two `bool` singletons are literal types under
-            // `rule:types/literal-types`'s own reading of them (see [`Ty::True`]), so they
+            // `rule:types/single-value-types`'s own reading of them (see [`Ty::True`]), so they
             // widen here rather than anywhere of their own — which is what
             // makes `bool $b = $x as true;` an ordinary assignment.
             Ty::True | Ty::False => self.bool_ty(),
@@ -1053,7 +1053,7 @@ impl TypeInterner {
 
 /// Renders a [`Ty::StringLiteral`]'s cooked value back as the double-quoted
 /// literal a program would write it as — what a diagnostic naming the accepted
-/// set has to print (`rule:types/literal-types`).
+/// set has to print (`rule:types/single-value-types`).
 ///
 /// Only the four characters that would end or re-open the literal are escaped.
 /// This is a *rendering* for a message, not a round-trip through
@@ -1196,7 +1196,7 @@ mod tests {
         assert_eq!(i.describe(u), "int|float");
     }
 
-    /// `rule:types/literal-types`: a diagnostic names the accepted set by printing the type
+    /// `rule:types/single-value-types`: a diagnostic names the accepted set by printing the type
     /// itself, so each atom has to render as the source spelling it came from.
     #[test]
     fn describe_renders_adr_0047s_three_atoms() {

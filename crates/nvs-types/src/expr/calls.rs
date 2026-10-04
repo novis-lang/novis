@@ -520,7 +520,7 @@ pub(crate) fn infer_static_call(
         crate::retrieval::fold_retrieval(expr, &name, &written, args, ctx, env);
         return sig.map_or_else(|| env.interner.mixed(), |s| s.return_ty);
     }
-    // `rule:programs/path-literals-resolve-from-their-file`'s `thisFile` and
+    // `rule:programs/relative-paths-resolve-from-their-file`'s `thisFile` and
     // `thisDir`, replaced by the path of the file that wrote them — the arm
     // above's reasoning, for a fold whose answer is a path. A source with no
     // file records nothing here, and the `ExprInfo::Call` below lowers the
@@ -2137,7 +2137,7 @@ pub(crate) fn check_new_target(
 ///
 /// The type handed back is [`Ty::CallableSig`](crate::ty::Ty::CallableSig),
 /// built from the parameters' types and the return type computed below, which
-/// is what `rule:types/callable-literal-inference` asks for: a literal written
+/// is what `rule:types/anonymous-function-parameter-inference` asks for: a literal written
 /// where a signature is expected satisfies it through
 /// `rule:types/callable-variance`, rather than arriving as the lattice top and
 /// being refused against every signature under it.
@@ -2146,7 +2146,7 @@ pub(crate) fn check_new_target(
 /// parameter is written with one: `nvs_syntax`'s `parse_param` is
 /// `rule:types/declaration`'s declare-every-parameter rule and has no closure
 /// exemption yet, so [`lower_optional_type`]'s `mixed` is unreachable from
-/// source here. `rule:types/callable-literal-inference`'s other half — an
+/// source here. `rule:types/anonymous-function-parameter-inference`'s other half — an
 /// unannotated parameter taking its type from the position the literal is
 /// written in — is what removes that requirement, and needs the expected type
 /// threaded in from the call site rather than anything this function computes.
@@ -2223,7 +2223,7 @@ pub(crate) fn check_fn_literal(
     // The same ids the body checks against become the signature answered at the
     // end, so the type a call site reads and the type the body was checked
     // under cannot drift apart.
-    // `rule:types/callable-literal-inference`: a parameter the literal left
+    // `rule:types/anonymous-function-parameter-inference`: a parameter the literal left
     // unannotated takes its type from the position the literal is written in,
     // and a written signature is the only position that has one to give — bare
     // `callable` is the top of the lattice and names no parameter. So this list
@@ -2361,7 +2361,7 @@ pub(crate) fn check_fn_literal(
 /// The type an unannotated closure parameter binds — the `index`th of
 /// `from_position`, which is the expected type's own parameter list and is
 /// empty where the position expects no written signature
-/// (`rule:types/callable-literal-inference`).
+/// (`rule:types/anonymous-function-parameter-inference`).
 ///
 /// A parameter past that list's end has nothing to take. It is answered
 /// `mixed` after the refusal rather than dropped, so the body around it is

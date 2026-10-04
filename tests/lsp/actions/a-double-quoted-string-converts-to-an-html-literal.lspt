@@ -1,5 +1,5 @@
 --TEST--
-a double-quoted string offers the html literal that prints the same text, keeping its `$name` hole and writing `\"` as `"`, under its own refactor kind, `rule:ide/a-string-converts-to-an-html-literal`
+a double-quoted string offers the html literal that prints the same text, keeping its `$name` hole and writing `\"` as `"`, under its own refactor kind, `rule:ide/a-string-converts-to-an-html-template`
 --FILE--
 <?nvs
 var $name = "world";

@@ -152,7 +152,7 @@ one thing M4B built nothing to protect.
 
 <a id="ide-ast-json-schema-is-frozen"></a>
 
-## `nvs ast --json` has a frozen node schema, is resilient by default, and its only type-dependent field is a `secret` literal's placeholder  *(designed — not yet in the compiler)*
+## `nvs ast --json` has a frozen node schema, is resilient by default, and its only type-dependent field is a `secret` string literal's placeholder  *(designed — not yet in the compiler)*
 
 `rule:ide/ast-json-schema-is-frozen`
 
@@ -332,17 +332,17 @@ class-name argument names, and the absolute path a path argument names and wheth
 `definition` (the declaring span anywhere in the resolved `require`/`autoload` graph, the string of `as
 class<T>` and a class-name argument included); `completion` (keywords by position, members off a resolved
 receiver including `Core` classes, enum cases after `Type::`, in-scope variables, inside a `require` or
-`autoload` path literal or a path argument the entries of the directory its text reaches, inside an
+`autoload` path string or a path argument the entries of the directory its text reaches, inside an
 `autoload` prefix the namespaces the workspace declares, inside the string of `as class<T>` the classes
 that are a `T`, and inside a class-name argument the classes the program declares — no workspace symbol
 search); `semanticTokens/full`; `documentSymbol`; and three that are projections of data the tree already
 holds rather than features built on it — `selectionRange` (the index's ancestor list is the response),
 `foldingRange` (the same walk plus comment blocks out of the trivia layer) and `documentLink` (the
-resolved path literal of a `require`, each `autoload` root and `discover` glob, which name the directory
+resolved path string of a `require`, each `autoload` root and `discover` glob, which name the directory
 each resolves to and list, an `autoload` prefix, which names the first of its roots that exists, and a
 path argument, which names the file or directory the checker resolved it to). A path argument is a string
 literal at a parameter the registry marks `CoreTy::Path`, at one a program marks `#[Core\Path]`, or at a
-`Core` shape field with the same mark ([`programs/path-literals-resolve-from-their-file`](programs.md#programs-path-literals-resolve-from-their-file)); a
+`Core` shape field with the same mark ([`programs/relative-paths-resolve-from-their-file`](programs.md#programs-relative-paths-resolve-from-their-file)); a
 class-name argument is one at a parameter marked `CoreTy::ClassName`. The mark is read off the call the
 checker resolved, so a literal at any other parameter is ordinary text.
 M4B's non-standard request is `nvs/redactions`
@@ -544,7 +544,7 @@ added to the extension's frozen roster under that roster's own rule: a name is a
 
 <a id="ide-a-code-action-ships-only-a-fix-a-diagnostic-already-knows"></a>
 
-## A quick fix ships only where its replacement text is already in a diagnostic's suggestions, and the one action the server computes for itself is the html-literal rewrite  *(designed — not yet in the compiler)*
+## A quick fix ships only where its replacement text is already in a diagnostic's suggestions, and the one action the server computes for itself is the html-template rewrite  *(designed — not yet in the compiler)*
 
 `rule:ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`
 
@@ -565,14 +565,14 @@ where it raises `E0303`, so the provider's translation is what it was, and the s
 nothing of its own.
 
 One code action is not a fix and has no diagnostic behind it: the rewrite of a string or a `.` chain as
-an html literal ([`ide/a-string-converts-to-an-html-literal`](ide.md#ide-a-string-converts-to-an-html-literal)). Nothing about the string is wrong,
+an html template ([`ide/a-string-converts-to-an-html-template`](ide.md#ide-a-string-converts-to-an-html-template)). Nothing about the string is wrong,
 so there is no diagnostic to carry it, and the server computes it from the expression under the cursor
 alone, with no type or module question. It is the only such action, it is filed under its own
 `refactor.rewrite.htmlLiteral` kind, and it is never under `source.fixAll.nvs` or `quickfix`, because
 applying it changes what the line prints. Any further action the server computes for itself is still
 M10's.
 
-<sub>See also [`core-api/identifier-casing`](core-api.md#core-api-identifier-casing), [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed), [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic), [`ide/narrow-an-annotation-to-its-literal`](ide.md#ide-narrow-an-annotation-to-its-literal), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency), [`ide/a-string-converts-to-an-html-literal`](ide.md#ide-a-string-converts-to-an-html-literal). Decided in [0099](../decisions/0099.md), [0040](../decisions/0040.md), [0201](../decisions/0201.md), [0259](../decisions/0259.md).</sub>
+<sub>See also [`core-api/identifier-casing`](core-api.md#core-api-identifier-casing), [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed), [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic), [`ide/narrow-an-annotation-to-its-literal`](ide.md#ide-narrow-an-annotation-to-its-literal), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency), [`ide/a-string-converts-to-an-html-template`](ide.md#ide-a-string-converts-to-an-html-template). Decided in [0099](../decisions/0099.md), [0040](../decisions/0040.md), [0201](../decisions/0201.md), [0259](../decisions/0259.md).</sub>
 
 <a id="ide-a-quick-fix-is-a-diagnostics-own-suggestion"></a>
 
@@ -606,21 +606,21 @@ write one over another. `W1022`'s likely grouping is one ([`expressions/misread-
 and the parentheses that keep the current meaning beside it are not.
 
 A rewrite with no diagnostic behind it is not an inspection. The one there is, a string converted to
-an html literal ([`ide/a-string-converts-to-an-html-literal`](ide.md#ide-a-string-converts-to-an-html-literal)), is offered beside the quick fixes
+an html template ([`ide/a-string-converts-to-an-html-template`](ide.md#ide-a-string-converts-to-an-html-template)), is offered beside the quick fixes
 under its own `refactor.rewrite.htmlLiteral` kind and never under `source.fixAll.nvs`, since it
 changes what the line prints.
 
-<sub>See also [`ide/the-tree-survives-a-syntax-error`](ide.md#ide-the-tree-survives-a-syntax-error), [`ide/the-first-server-answers-a-closed-list`](ide.md#ide-the-first-server-answers-a-closed-list), [`routing/a-quick-fix-writes-a-derived-path`](routing.md#routing-a-quick-fix-writes-a-derived-path), [`core-api/identifier-casing`](core-api.md#core-api-identifier-casing), [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`statements/require-is-the-only-inclusion-construct`](statements.md#statements-require-is-the-only-inclusion-construct), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic), [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed), [`ide/a-code-action-writes-only-what-is-already-determined`](ide.md#ide-a-code-action-writes-only-what-is-already-determined), [`expressions/misread-grouping-warns`](expressions.md#expressions-misread-grouping-warns), [`ide/a-string-converts-to-an-html-literal`](ide.md#ide-a-string-converts-to-an-html-literal). Decided in [0040](../decisions/0040.md), [0039](../decisions/0039.md), [0099](../decisions/0099.md), [0258](../decisions/0258.md), [0259](../decisions/0259.md).</sub>
+<sub>See also [`ide/the-tree-survives-a-syntax-error`](ide.md#ide-the-tree-survives-a-syntax-error), [`ide/the-first-server-answers-a-closed-list`](ide.md#ide-the-first-server-answers-a-closed-list), [`routing/a-quick-fix-writes-a-derived-path`](routing.md#routing-a-quick-fix-writes-a-derived-path), [`core-api/identifier-casing`](core-api.md#core-api-identifier-casing), [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`statements/require-is-the-only-inclusion-construct`](statements.md#statements-require-is-the-only-inclusion-construct), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic), [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed), [`ide/a-code-action-writes-only-what-is-already-determined`](ide.md#ide-a-code-action-writes-only-what-is-already-determined), [`expressions/misread-grouping-warns`](expressions.md#expressions-misread-grouping-warns), [`ide/a-string-converts-to-an-html-template`](ide.md#ide-a-string-converts-to-an-html-template). Decided in [0040](../decisions/0040.md), [0039](../decisions/0039.md), [0099](../decisions/0099.md), [0258](../decisions/0258.md), [0259](../decisions/0259.md).</sub>
 
-<a id="ide-a-string-converts-to-an-html-literal"></a>
+<a id="ide-a-string-converts-to-an-html-template"></a>
 
-## A string or a `.` chain of strings and values converts to the html literal that prints the same text, as a code action the server computes and an editor only applies
+## A string or a `.` chain of strings and values converts to the html template that prints the same text, as a code action the server computes and an editor only applies
 
-`rule:ide/a-string-converts-to-an-html-literal`
+`rule:ide/a-string-converts-to-an-html-template`
 
 A cursor on a string, or a selection covering one exactly, is offered **Convert to html literal**, a
 code action of kind `refactor.rewrite.htmlLiteral` that replaces the string with the ``html`…` ``
-literal printing the same text ([`core-classes/html-literal`](core-classes.md#core-classes-html-literal)). On an operand of a `.` chain the
+template printing the same text ([`core-classes/html-template`](core-classes.md#core-classes-html-template)). On an operand of a `.` chain the
 whole chain converts, since half a chain converted is a `Core\Html\Markup` concatenated with a string.
 
 ```nvs
@@ -628,7 +628,7 @@ echo "<b>" . $name . "</b> is " . Core\Str::upper("here") . '!';
 echo html`<b>{$name}</b> is <?= Core\Str::upper("here") ?>!`;
 ```
 
-| Written | In the literal |
+| Written | In the template |
 |---|---|
 | a double-quoted string | its text and its `$name` and `{$…}` holes as written, `\"` as `"`, every escape both grammars share kept |
 | a single-quoted string | its text, with each `$` that would open a hole written `\$` |
@@ -637,21 +637,21 @@ echo html`<b>{$name}</b> is <?= Core\Str::upper("here") ?>!`;
 | any other chain operand | a `<?= … ?>` hole |
 
 It is not offered on a heredoc or nowdoc, whose body is dedented by its closing label; on an html
-literal, a template region or an attribute's argument; at an array key, a subscript, a `case` label, a
+template, a template region or an attribute's argument; at an array key, a subscript, a `case` label, a
 `match` condition, a constant's value or the path of a `require`, `use` or `autoload`; or on a chain
 with a comment between its operands, which the rewrite would drop. Whether the result type-checks is
 not asked: the preview is the review.
 
-Before it is offered, the literal written is parsed back, and its segments must cook to the original
+Before it is offered, the template written is parsed back, and its segments must cook to the original
 text and its holes must be the original expressions, in order — so a string the conversion cannot
 write exactly is offered nothing rather than something else. The server computes it from the
 expression alone, so every client gets the same edit, and the VS Code command
 `nvs.convertToHtmlLiteral` only asks the editor to apply the action by its kind. It is never under
-`source.fixAll.nvs`: a plain string echoed is escaped as text and a literal's segments are markup, so
+`source.fixAll.nvs`: a plain string echoed is escaped as text and a template's segments are markup, so
 applying it changes what the line prints, which is why it is a refactor and not a fix
 ([`ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`](ide.md#ide-a-code-action-ships-only-a-fix-a-diagnostic-already-knows)).
 
-<sub>See also [`core-classes/html-literal`](core-classes.md#core-classes-html-literal), [`ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`](ide.md#ide-a-code-action-ships-only-a-fix-a-diagnostic-already-knows), [`ide/a-quick-fix-is-a-diagnostics-own-suggestion`](ide.md#ide-a-quick-fix-is-a-diagnostics-own-suggestion), [`ide/the-index-answers-the-cursor`](ide.md#ide-the-index-answers-the-cursor). Decided in [0259](../decisions/0259.md).</sub>
+<sub>See also [`core-classes/html-template`](core-classes.md#core-classes-html-template), [`ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`](ide.md#ide-a-code-action-ships-only-a-fix-a-diagnostic-already-knows), [`ide/a-quick-fix-is-a-diagnostics-own-suggestion`](ide.md#ide-a-quick-fix-is-a-diagnostics-own-suggestion), [`ide/the-index-answers-the-cursor`](ide.md#ide-the-index-answers-the-cursor). Decided in [0259](../decisions/0259.md).</sub>
 
 <a id="ide-an-undeclared-name-offers-its-import"></a>
 
@@ -818,7 +818,7 @@ initializer, and the file it produces still checks clean.
 `rule:ide/narrowest-means-narrowest-base-type`
 
 The synthesized element type is the canonical union of the element types, **each widened to its base**:
-the same widening [`types/literal-types`](types.md#types-literal-types) already performs at a placement, and the same union
+the same widening [`types/single-value-types`](types.md#types-single-value-types) already performs at a placement, and the same union
 canonicalisation the type table uses everywhere. So `['retry' => 1, 'depth' => 3]` yields `array<int>`
 and never `array<1|3>`, which would be narrower and would refuse the next write made to it. An enum case
 widens to its enum by the same call.
@@ -836,7 +836,7 @@ The unit tests are the list: a homogeneous nest at three levels, a heterogeneous
 canonical union, an integer literal widening to `int`, an enum case widening to its enum, `[]` yielding no
 offer, and a literal past depth 32 yielding no offer.
 
-<sub>See also [`ide/narrow-an-annotation-to-its-literal`](ide.md#ide-narrow-an-annotation-to-its-literal), [`types/literal-types`](types.md#types-literal-types), [`types/enum-case-type`](types.md#types-enum-case-type), [`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`types/arrays`](types.md#types-arrays). Decided in [0114](../decisions/0114.md), [0047](../decisions/0047.md), [0007](../decisions/0007.md).</sub>
+<sub>See also [`ide/narrow-an-annotation-to-its-literal`](ide.md#ide-narrow-an-annotation-to-its-literal), [`types/single-value-types`](types.md#types-single-value-types), [`types/enum-case-type`](types.md#types-enum-case-type), [`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`types/arrays`](types.md#types-arrays). Decided in [0114](../decisions/0114.md), [0047](../decisions/0047.md), [0007](../decisions/0007.md).</sub>
 
 <a id="ide-the-action-answers-from-the-literal-or-not-at-all"></a>
 
@@ -942,8 +942,8 @@ gets wrong: the dual-mode lexer's openers `<?nvs`, `<?php`, `<?=` and `?>`, with
 highlighted as HTML; heredoc and nowdoc, with interpolation only in the former; type annotations everywhere
 the grammar allows one, including the inline shape `{x: int}` ([`types/object-top`](types.md#types-object-top)); the qualifiers
 `tainted` and `secret`, and `decimal` as a scalar keyword ([`types/decimal`](types.md#types-decimal)); `spawn`, `spawn script`,
-`autoload`, `type`, `by`-delegation, property hooks and their `get`/`set` bodies; duration literals
-([`types/duration-literal`](types.md#types-duration-literal)); `#[...]` attributes distinguished from a `#` comment; and nothing Novis
+`autoload`, `type`, `by`-delegation, property hooks and their `get`/`set` bodies; durations
+([`types/duration`](types.md#types-duration)); `#[...]` attributes distinguished from a `#` comment; and nothing Novis
 rejects ([`ide/rejected-syntax-gets-no-colour`](ide.md#ide-rejected-syntax-gets-no-colour)). Its test needs no editor: `vscode-textmate` plus
 `vscode-oniguruma` tokenize a fixture and a snapshot freezes the scope of every span.
 
@@ -951,7 +951,7 @@ rejects ([`ide/rejected-syntax-gets-no-colour`](ide.md#ide-rejected-syntax-gets-
 ([`ide/semantic-tokens-carry-the-qualifiers`](ide.md#ide-semantic-tokens-carry-the-qualifiers)). Its test is a `.lspt` case per token type, plus the
 extension-host run confirming the client's legend matches the server's.
 
-<sub>See also [`ide/rejected-syntax-gets-no-colour`](ide.md#ide-rejected-syntax-gets-no-colour), [`ide/semantic-tokens-carry-the-qualifiers`](ide.md#ide-semantic-tokens-carry-the-qualifiers), [`ide/novis-ships-names-not-colours`](ide.md#ide-novis-ships-names-not-colours), [`ide/case-files-have-their-own-grammar`](ide.md#ide-case-files-have-their-own-grammar), [`types/object-top`](types.md#types-object-top), [`types/duration-literal`](types.md#types-duration-literal), [`types/decimal`](types.md#types-decimal), [`tooling/doc-comment-is-three-slashes`](tooling.md#tooling-doc-comment-is-three-slashes), [`ide/the-first-server-answers-a-closed-list`](ide.md#ide-the-first-server-answers-a-closed-list). Decided in [0099](../decisions/0099.md), [0040](../decisions/0040.md).</sub>
+<sub>See also [`ide/rejected-syntax-gets-no-colour`](ide.md#ide-rejected-syntax-gets-no-colour), [`ide/semantic-tokens-carry-the-qualifiers`](ide.md#ide-semantic-tokens-carry-the-qualifiers), [`ide/novis-ships-names-not-colours`](ide.md#ide-novis-ships-names-not-colours), [`ide/case-files-have-their-own-grammar`](ide.md#ide-case-files-have-their-own-grammar), [`types/object-top`](types.md#types-object-top), [`types/duration`](types.md#types-duration), [`types/decimal`](types.md#types-decimal), [`tooling/doc-comment-is-three-slashes`](tooling.md#tooling-doc-comment-is-three-slashes), [`ide/the-first-server-answers-a-closed-list`](ide.md#ide-the-first-server-answers-a-closed-list). Decided in [0099](../decisions/0099.md), [0040](../decisions/0040.md).</sub>
 
 <a id="ide-rejected-syntax-gets-no-colour"></a>
 
@@ -1084,8 +1084,8 @@ string converted with `as class<T>`, which completes as the classes the program 
 `T`, read through the hierarchy walk the checker answers that question with; a string argument at a
 parameter the registry marks as a class name, which completes as the classes the program declares, and
 as the ones that are a `Throwable` where the member expects an error; a string argument at a parameter
-whose declared type is a union of string literal types ([`types/literal-types`](types.md#types-literal-types)), which completes as
-those literals, read off the parameter types the checker records on the call it resolved; `#[Api]` fields and
+whose declared type is a set of allowed string values ([`types/single-value-types`](types.md#types-single-value-types)), which completes as
+those values, read off the parameter types the checker records on the call it resolved; `#[Api]` fields and
 every attribute's anonymous object, whose shape is a declared type; and enum cases, members off a resolved receiver
 and in-scope variables, which are the same rule and not an exception to it.
 
@@ -1208,7 +1208,7 @@ built and dropped with the answer.
 
 <a id="ide-completion-is-asked-where-a-spelling-ends"></a>
 
-## A trigger character opens a list only where it finished `->`, `::`, `\`, `$` or `<?`, or opened or extended a `require` or `autoload` literal, the string of `as class<T>`, a string argument at a path or class-name parameter or one at a parameter a completion file names, and `$`, a lone `:` and `<?` each narrow what is offered
+## A trigger character opens a list only where it finished `->`, `::`, `\`, `$` or `<?`, or opened or extended a `require` or `autoload` path string, the string of `as class<T>`, a string argument at a path or class-name parameter or one at a parameter a completion file names, and `$`, a lone `:` and `<?` each narrow what is offered
 
 `rule:ide/completion-is-asked-where-a-spelling-ends`
 
@@ -1219,7 +1219,7 @@ whole spelling. Each of them is also an operator's character, and an editor asks
 answering `$a >` or `Core\Str:` with whatever the position offers opens a list nobody asked for. `-` is
 not a trigger, because it finishes nothing. A quote and `/` open and extend a literal the compiler reads
 as a path or a name, and a request one of them raised is answered only where the cursor is inside one: a
-`require` or `autoload` path literal, an `autoload` prefix, the string converted with `as class<T>`, or a
+`require` or `autoload` path string, an `autoload` prefix, the string converted with `as class<T>`, or a
 string argument at a path or class-name parameter. A quote opens one and a `/` starts a path's next
 segment. A quote also opens a string argument at a parameter a completion file names
 ([`ide/completion-files-offer-values-at-named-parameters`](ide.md#ide-completion-files-offer-values-at-named-parameters)), and inside one `.`, `/` and `:` start
@@ -1409,7 +1409,7 @@ publishes validation only for documents opened as HTML. Emmet would take `emmet.
 mapping `nvs` to `html`, which turns it on in the Novis half as well, so the extension contributes
 neither; a user who wants Emmet in a template sets that mapping themselves.
 
-**A markup literal's body is a region too.** ``html`…` `` ([`core-classes/html-literal`](core-classes.md#core-classes-html-literal)) is markup
+**An html template's body is a region too.** ``html`…` `` ([`core-classes/html-template`](core-classes.md#core-classes-html-template)) is markup
 written in expression position rather than at file scope, so it gets the same services on the same
 terms — the holes are Novis and the segments are HTML, which is the boundary the lexer already knows.
 

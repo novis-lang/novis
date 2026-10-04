@@ -1353,7 +1353,7 @@ fn walk_expr(expr: &Expr, src: &SourceFile, ctx: &Ctx<'_>, env: &mut Env<'_>) {
                 } else if matches!(text, "__FILE__" | "__DIR__") {
                     "there are no magic constants: `Core\\Path::thisFile()` is the path of this \
                      file and `Core\\Path::thisDir()` its folder, both written in while compiling \
-                     (`rule:programs/path-literals-resolve-from-their-file`)"
+                     (`rule:programs/relative-paths-resolve-from-their-file`)"
                         .to_owned()
                 } else {
                     "`rule:statements/storage-that-outlives-a-call`: a constant always belongs to a class, so there is no \

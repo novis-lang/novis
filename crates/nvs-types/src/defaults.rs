@@ -73,7 +73,7 @@
 //!
 //! A class constant is also only as wide as [`crate::consts`] folds it: an
 //! integer whose magnitude no `int` holds has no folded value at all
-//! (`rule:types/literal-types`), so `uint $n = Limits::MAX;` above `i64::MAX` is refused
+//! (`rule:types/single-value-types`), so `uint $n = Limits::MAX;` above `i64::MAX` is refused
 //! here even though the literal `= 18446744073709551615` is accepted.
 //!
 //! **A `decimal` literal folds to [`ConstArg::Decimal`]** at a parameter
@@ -569,7 +569,7 @@ fn decimal_const(negated: bool, mantissa: u128, scale: u8) -> ConstArg {
 /// own position in its own diagnostic.
 ///
 /// **A union is read one level deep**, because a default is an ordinary
-/// assignment written in a declaration and `rule:types/literal-types`'s
+/// assignment written in a declaration and `rule:types/single-value-types`'s
 /// placement rule already reads one there: `?string $label = "plain"` places
 /// the literal against the `string` member, and `"read"|"write" $mode = "read"`
 /// against the member that is that very word. The atom grid is asked about the
@@ -668,7 +668,7 @@ fn literal_atom_default(
             env.src, *span,
         ))),
         // A literal type is the one value it names, so the literal that is that
-        // value is the only constant it has — `rule:types/literal-types`. What
+        // value is the only constant it has — `rule:types/single-value-types`. What
         // the slot receives is the base type's constant, since a literal type
         // has no representation of its own.
         (Ty::StringLiteral(want), ExprKind::Str(span)) if !negated => {

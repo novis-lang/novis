@@ -9,7 +9,7 @@
     "tooling/echo-always-has-a-sink",
     "tooling/terminal-output-is-a-sink",
     "tooling/text-is-the-one-raw-path",
-    "tooling/an-escape-in-a-literal-is-a-compile-error",
+    "tooling/an-escape-in-source-text-is-a-compile-error",
     "tooling/styling-is-a-value-not-a-grammar",
     "tooling/the-terminal-profile-resolves-once",
     "tooling/display-width-measures-what-the-sink-writes",

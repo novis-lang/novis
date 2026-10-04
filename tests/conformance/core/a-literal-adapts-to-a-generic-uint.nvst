@@ -1,5 +1,5 @@
 --TEST--
-A literal beside a generic parameter takes the type the bindings gave that parameter, in either argument order -- `rule:types/conversion` and `rule:types/arithmetic`, `rule:types/literal-types`, `rule:types/arithmetic`
+A literal beside a generic parameter takes the type the bindings gave that parameter, in either argument order -- `rule:types/conversion` and `rule:types/arithmetic`, `rule:types/single-value-types`, `rule:types/arithmetic`
 --FILE--
 <?nvs
 // findings.md's D33. A generic call binds its type variables before it checks
@@ -26,7 +26,7 @@ echo "a uint parameter places an integer literal in either order\n";
 
 // The rule is placement, not a `uint` special case, so every other position a
 // literal takes its type from reaches a generic parameter too: `rule:types/arithmetic`'s
-// fractional literal at `decimal`, `rule:types/literal-types`'s string atom, and `rule:types/grammar`
+// fractional literal at `decimal`, `rule:types/single-value-types`'s string atom, and `rule:types/grammar`
 // 's two `bool` singletons.
 decimal $d = 1.50;
 Core\Test::assertSame($d, 1.50);

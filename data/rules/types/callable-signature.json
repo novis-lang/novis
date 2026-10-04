@@ -11,7 +11,7 @@
   "seeAlso": [
     "types/callable-arity",
     "types/callable-variance",
-    "types/callable-literal-inference",
+    "types/anonymous-function-parameter-inference",
     "types/callable-values"
   ],
   "guardedBy": [

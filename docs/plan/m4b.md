@@ -71,7 +71,7 @@ instant a file opens, before the server exists: the dual-mode `<?nvs`/`<?php`/`<
 inline HTML outside them, heredoc and nowdoc with interpolation only in the former, type annotations in
 every slot the grammar allows one including `rule:types/object-top`'s inline shapes, the `tainted`/`secret` qualifiers
 and `decimal`, Novis's own keywords (`spawn`, `spawn script`, `autoload`, `type`, `by`, property hooks),
-`rule:types/duration-literal`'s duration literals, and `#[...]` attributes told apart from `#` comments — and **nothing Novis
+`rule:types/duration`'s duration literals, and `#[...]` attributes told apart from `#` comments — and **nothing Novis
 rejects may be coloured as valid** (`===`, legacy casts, `|>`, the alternative colon syntax). Then
 **semantic tokens** colour what a regex structurally cannot know: `defaultLibrary` on a `Core` class,
 enum members, type aliases, and two modifiers of Novis's own — **`tainted` and `secret`** — so a qualified

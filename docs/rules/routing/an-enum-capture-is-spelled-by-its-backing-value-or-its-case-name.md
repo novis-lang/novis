@@ -8,7 +8,7 @@ written in the enum body:
 - Every admitted case's value written — the segment is that integer, parsed as the enum's backing
   type.
 - Any admitted case's value counted on from the one before it (`rule:enums/declaration`) — the whole
-  subset is spelled by case name, compared byte for byte and case-sensitively, as a literal segment
+  subset is spelled by case name, compared byte for byte and case-sensitively, as a fixed segment
   is (`rule:classes/names-resolve-case-sensitively`).
 
 The choice is per subset and never per case, because a subset mixing the two would put an integer and

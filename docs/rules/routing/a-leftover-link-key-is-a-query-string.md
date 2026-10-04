@@ -5,7 +5,7 @@ link is still the launderer's (`rule:security/launderers-are-sink-named`) — a 
 laundered spelling, where `url(…) . "?page=" . $n` is the concatenation the launderer exists to prevent
 and re-taints the result.
 
-The refusal half is the same sentence. A literal key that is neither a capture nor one of the route's
+The refusal half is the same sentence. A key written in the `$params` array literal that is neither a capture nor one of the route's
 declared `#[Query]` parameters (`rule:routing/a-query-parameter-is-declared-like-a-capture`) is a
 **compile error**, in the same shape as the unknown-name and missing-capture errors, so a typo cannot
 silently ship as a query parameter. The declared type says what a query *value* arrives at; it does not

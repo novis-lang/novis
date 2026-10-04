@@ -414,18 +414,18 @@ There is no dedicated literal token: `"…" as bytes` covers the valid-UTF-8 cas
 
 <sub>See also [`types/string-is-utf8`](types.md#types-string-is-utf8), [`types/conversion`](types.md#types-conversion), [`types/grammar`](types.md#types-grammar). Decided in [0009](../decisions/0009.md), [0007](../decisions/0007.md), [0006](../decisions/0006.md), [0012](../decisions/0012.md).</sub>
 
-<a id="types-duration-literal"></a>
+<a id="types-duration"></a>
 
 ## `1h30m` is a `Core\Time\Duration` constant, in one grammar shared by source, `parse` and `nvs.toml`
 
-`rule:types/duration-literal`
+`rule:types/duration`
 
 ```
 duration := ( DEC_INT unit )+
 unit     := ns | us | ms | s | m | h | d | w
 ```
 
-- **One token.** `1h30m` lexes as a single duration literal, maximal munch, not as three tokens.
+- **One token.** `1h30m` lexes as a single duration token, maximal munch, not as three tokens.
 - **Units strictly descend and may not repeat.** `1h30m` is accepted; `30m1h` and `1h1h` are lexer
   errors naming this rule, so there is exactly one spelling of any given constant.
 - **Only after a plain decimal integer** — never after `0x…`, `0b…`, a float or an exponent, so `0x1d`
@@ -436,12 +436,13 @@ unit     := ns | us | ms | s | m | h | d | w
   `Duration` at all.
 
 The type is `Core\Time\Duration`, always — the suffix *is* the type, with nothing
-untyped-until-placed about it ([`types/numeric-literal-placement`](types.md#types-numeric-literal-placement)). A literal is a compile-time
-constant folded to a single nanosecond count and emitted into the constant pool, so `{timeout: 30s}`
-allocates nothing at run time and a literal beyond `Duration`'s range is a compile error, not a wrap.
+untyped-until-placed about it ([`types/numeric-literal-placement`](types.md#types-numeric-literal-placement)). A duration written this way is
+a compile-time constant folded to a single nanosecond count and emitted into the constant pool, so
+`{timeout: 30s}` allocates nothing at run time and a duration beyond `Duration`'s range is a compile
+error, not a wrap.
 
 `1h + 30m` does not compile — there is no operator overloading; write `1h30m` or `$a->plus($b)`. So
-does `1h30m as int`; write `->toSeconds()`. `$n s` is not a literal; a computed count is
+does `1h30m as int`; write `->toSeconds()`. `$n s` is not a duration; a computed count is
 `Duration::seconds($n)`.
 
 **One grammar, three places, one parser**: source, `Duration::parse($s)` at run time, and a `"30s"` in
@@ -452,16 +453,17 @@ positive value out of it.
 
 <sub>See also [`types/numeric-literal-placement`](types.md#types-numeric-literal-placement), [`types/integer-literals`](types.md#types-integer-literals). Decided in [0070](../decisions/0070.md), [0046](../decisions/0046.md), [0057](../decisions/0057.md), [0062](../decisions/0062.md), [0039](../decisions/0039.md).</sub>
 
-<a id="types-literal-types"></a>
+<a id="types-single-value-types"></a>
 
-## A `string` or `int` literal is its own type, and a union of them is a closed set
+## A `string` or `int` value in type position is a single-value type, and a union of them is a set of allowed values
 
-`rule:types/literal-types`
+`rule:types/single-value-types`
 
-A `string` literal and an `int` literal are each their own type — the singleton type inhabited by that
-exact value — parsed only in type position, the way `array<T>` is. `"a"|"b"|"c"` and `1|2|3` are
-ordinary unions of those atoms, canonicalised like any other, and `?"a"` is sugar for `"a"|null`. They
-are usable at every binding site ([`types/declaration`](types.md#types-declaration)), with no special case.
+A `string` or `int` value written in type position is a **single-value type** — the type whose only
+value is exactly that one — parsed only in type position, the way `array<T>` is. `"a"|"b"|"c"` and
+`1|2|3` are ordinary unions of those atoms, canonicalised like any other, and each is **a set of allowed
+values**; `?"a"` is sugar for `"a"|null`. They are usable at every binding site
+([`types/declaration`](types.md#types-declaration)), with no special case.
 
 ```php
 function setMode("a"|"b"|"c" $mode) { … }   // the set is the type
@@ -471,14 +473,14 @@ Assignability and conversion:
 
 | direction | behaviour |
 |---|---|
-| a literal type → its base type, and a literal union → its base type | **total, free** — a strict widening, the same representation |
-| base type or `mixed` → a literal or literal-union type | **checked.** Throws unless the value equals one of the named literals |
-| a wider literal union → a narrower one | needs a guard or a checked `as` — ordinary narrowing ([`types/narrowing`](types.md#types-narrowing)) |
+| a single-value type → its base type, and a set of allowed values → its base type | **total, free** — a strict widening, the same representation |
+| base type or `mixed` → a single-value type or a set of allowed values | **checked.** Throws unless the value equals one of the named values |
+| a wider set of allowed values → a narrower one | needs a guard or a checked `as` — ordinary narrowing ([`types/narrowing`](types.md#types-narrowing)) |
 
-**Zero additional runtime representation.** A literal type shares its base type's tag and payload
-exactly; the singleton-ness is enforced by the checker wherever the static type is known. The only
-place it costs anything is where a value arrives through `mixed` or an isolate boundary, and the
-checked conversion runs a membership test against the small, closed, compile-time-known set.
+**Zero additional runtime representation.** A single-value type shares its base type's tag and payload
+exactly; that only the one value is allowed is enforced by the checker wherever the static type is
+known. The only place it costs anything is where a value arrives through `mixed` or an isolate boundary,
+and the checked conversion runs a membership test against the small, closed, compile-time-known set.
 
 A failed conversion names the accepted set, generated from the type: ``` `"z"` is not one of `"a"`,
 `"b"`, `"c"` ``` (`E0469`). That is a **compile** error where the operand settles the question by
@@ -486,15 +488,15 @@ itself — the target a closed set, the operand naming one value — and otherwi
 conversion answered at run time. A `tainted` or `secret` value needs the same laundering it would need
 to leave `mixed` for any other typed binding; neither qualifier gets a rule of its own here.
 
-Two limits are deliberate: **no `float` literal type**, because float equality is imprecise enough
-that a singleton `0.1` is a footgun; and **no wildcard matching** over constant or case names, since
-the whole point is that the accepted set is spelled out.
+Two limits are deliberate: **no `float` single-value type**, because float equality is imprecise enough
+that a type allowing only `0.1` is a footgun; and **no wildcard matching** over constant or case names,
+since the whole point is that the accepted set is spelled out.
 
 <sub>See also [`types/constant-in-type-position`](types.md#types-constant-in-type-position), [`types/enum-case-type`](types.md#types-enum-case-type), [`types/conversion`](types.md#types-conversion), [`types/narrowing`](types.md#types-narrowing). Decided in [0047](../decisions/0047.md), [0007](../decisions/0007.md), [0024](../decisions/0024.md), [0033](../decisions/0033.md), [0066](../decisions/0066.md).</sub>
 
 <a id="types-constant-in-type-position"></a>
 
-## A scalar class constant used as a type folds to its own literal type
+## A scalar class constant used as a type folds to the single-value type of its own value
 
 `rule:types/constant-in-type-position`
 
@@ -511,7 +513,7 @@ function handle(Foo::TYPE_A|Foo::TYPE_B $type) { … }   // exactly "a"|"b"
 ```
 
 This is safe precisely because a scalar `const` is not a distinct nominal type: `Foo::TYPE_A`
-genuinely *is* the string `"a"`, so folding it to that literal type changes nothing a caller could
+genuinely *is* the string `"a"`, so folding it to that single-value type changes nothing a caller could
 observe — passing the bare `"a"` is exactly as valid.
 
 A constant backed by a non-scalar type — an `array`, an object, a `float` — is **not eligible**, and
@@ -519,7 +521,7 @@ using one this way is a diagnostic naming the eligible types. An enum case is no
 for the opposite reason: it carries its enum's nominal type and stays a narrowed view of it
 ([`types/enum-case-type`](types.md#types-enum-case-type)).
 
-<sub>See also [`types/literal-types`](types.md#types-literal-types), [`types/enum-case-type`](types.md#types-enum-case-type). Decided in [0047](../decisions/0047.md), [0046](../decisions/0046.md).</sub>
+<sub>See also [`types/single-value-types`](types.md#types-single-value-types), [`types/enum-case-type`](types.md#types-enum-case-type). Decided in [0047](../decisions/0047.md), [0046](../decisions/0046.md).</sub>
 
 <a id="types-enum-case-type"></a>
 
@@ -539,7 +541,7 @@ function grant(Mode::Read|Mode::Write $m) { … }   // accepts only those two ca
 Folding it to the cases' backing integers would let a caller satisfy the parameter with a bare `int`,
 which is exactly the hole a checked `int → Mode` conversion closes
 ([`enums/closed-integer-type`](enums.md#enums-closed-integer-type)). An enum-case type is therefore its own atom kind, never unified by
-canonicalisation with an int literal type that happens to share a case's value, because the two carry
+canonicalisation with an `int` single-value type that happens to share a case's value, because the two carry
 different runtime tags.
 
 A case-subset union may name cases of more than one enum, or mix case atoms with unrelated atoms,
@@ -549,11 +551,11 @@ further-restricted form of the existing enum conversion, not a new kind
 ([`types/conversion`](types.md#types-conversion)). `E0470` names the accepted cases.
 
 A binding is narrowed to a case-subset type **through `as` and nowhere else**: `$m == Mode::Read` does
-not narrow `$m` in the branch it guards ([`types/narrowing`](types.md#types-narrowing)). Like a literal type, this costs
+not narrow `$m` in the branch it guards ([`types/narrowing`](types.md#types-narrowing)). Like a single-value type, this costs
 nothing at runtime — it shares the enum's existing zero-byte representation
 ([`enums/representation`](enums.md#enums-representation)).
 
-<sub>See also [`types/literal-types`](types.md#types-literal-types), [`types/conversion`](types.md#types-conversion), [`types/narrowing`](types.md#types-narrowing). Decided in [0047](../decisions/0047.md), [0010](../decisions/0010.md), [0007](../decisions/0007.md).</sub>
+<sub>See also [`types/single-value-types`](types.md#types-single-value-types), [`types/conversion`](types.md#types-conversion), [`types/narrowing`](types.md#types-narrowing). Decided in [0047](../decisions/0047.md), [0010](../decisions/0010.md), [0007](../decisions/0007.md).</sub>
 
 <a id="types-arrays"></a>
 
@@ -881,7 +883,7 @@ if ($m is int) {
 | an array | `$x is array`, `$x is array<int>` |
 | a shape | `$x is {x: int, y: int}` |
 | `iterable`, `callable`, a callable signature | `$x is iterable`, `$x is callable` |
-| a literal type | `$x is 5`, `$x is 'yay'`, `$x is true` |
+| a single-value type | `$x is 5`, `$x is 'yay'`, `$x is true` |
 | a class constant or an enum case | `$x is Mode::Read`, `$x is Limits::MAX` |
 | an enum | `$x is Rank` |
 | `mixed` | `$x is mixed` — always `true`, the wildcard |
@@ -896,7 +898,7 @@ apart — a case that reached `mixed` carries an enum tag, so it is told apart f
 from another enum's case of the same value and backing. Every other row is one tag comparison, or the descriptor walk
 the class-test instruction performs.
 
-There is no float literal type to test against ([`types/literal-types`](types.md#types-literal-types)), so `$x is 3.14` is
+There is no `float` single-value type to test against ([`types/single-value-types`](types.md#types-single-value-types)), so `$x is 3.14` is
 refused by that rule and not by this one.
 
 ## The value arm
@@ -951,7 +953,7 @@ migration spelling. `string` and `bytes` are separate the same way
 `is` is simply the first spelling that makes them reachable from a mechanical rewrite of PHP source.
 What that rewrite does with PHP's own class-test operator is [`php-migration/one-type-test`](php-migration.md#php-migration-one-type-test)'s.
 
-<sub>See also [`types/narrowing`](types.md#types-narrowing), [`types/conversion`](types.md#types-conversion), [`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`types/literal-types`](types.md#types-literal-types), [`types/class-reference-sites`](types.md#types-class-reference-sites), [`php-migration/one-type-test`](php-migration.md#php-migration-one-type-test). Decided in [0150](../decisions/0150.md), [0192](../decisions/0192.md), [0261](../decisions/0261.md).</sub>
+<sub>See also [`types/narrowing`](types.md#types-narrowing), [`types/conversion`](types.md#types-conversion), [`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`types/single-value-types`](types.md#types-single-value-types), [`types/class-reference-sites`](types.md#types-class-reference-sites), [`php-migration/one-type-test`](php-migration.md#php-migration-one-type-test). Decided in [0150](../decisions/0150.md), [0192](../decisions/0192.md), [0261](../decisions/0261.md).</sub>
 
 <a id="types-narrowing"></a>
 
@@ -960,7 +962,7 @@ What that rewrite does with PHP's own class-test operator is [`php-migration/one
 `rule:types/narrowing`
 
 Narrowing is flow-sensitive and **branch-local**, and there are four spellings of it: `is`, a
-`== null` test, a comparison against a literal-typed value, and `match (true)`. A `switch (true)`
+`== null` test, a comparison against a value of a single-value type, and `match (true)`. A `switch (true)`
 narrows per arm the same way. A write inside a narrowed block widens the binding again, because the
 narrowing described the value that was there, not the slot.
 
@@ -1013,7 +1015,7 @@ This is the whole conversion surface:
 | `float` → `int` / `uint` | integral and in range, or throws. Rounding is `Core\Math::floor`/`ceil`/`round`, said out loud |
 | `string` → `int` / `uint` / `float` | the whole string must be an exact numeric literal, or throws. No leading-garbage rule, no `0` |
 | anything → `string` | total for scalars; an object needs `Stringable`, or it throws |
-| `array<T>` → `array<U>` | every element must satisfy `U`, or be an `int` or `uint` where `U` is `float`, at any depth; an O(n) walk, one tag test per element. Where every element already satisfies `U`, the result shares the one copy-on-write buffer. Where an `int` or `uint` element meets a `float`, the result is a new array of the operand's size with that element converted, exact or throwing above 2^53. An element type naming a class, an enum, a literal type or a union is refused where it is written, `array<mixed>` being the way round it |
+| `array<T>` → `array<U>` | every element must satisfy `U`, or be an `int` or `uint` where `U` is `float`, at any depth; an O(n) walk, one tag test per element. Where every element already satisfies `U`, the result shares the one copy-on-write buffer. Where an `int` or `uint` element meets a `float`, the result is a new array of the operand's size with that element converted, exact or throwing above 2^53. An element type naming a class, an enum, a single-value type or a union is refused where it is written, `array<mixed>` being the way round it |
 | `int` / `uint` → `decimal` | always exact — both fit in 96 bits |
 | `decimal` → `int` / `uint` | integral and in range, or throws. Rounding is `Core\Decimal::floor`/`ceil`/`round` |
 | `float` → `decimal` | the shortest decimal that round-trips to that `float` — `0.1 as decimal` is `0.1` |
@@ -1025,7 +1027,7 @@ This is the whole conversion surface:
 | `EnumName` → its backing `int`/`uint` | total and free — the same representation, reinterpreted |
 | backing type / `mixed` → `EnumName` | checked. Throws unless the value equals some case's value |
 | `EnumName` → a different `EnumName` | **rejected**, even through `as`, whatever backs them; converting is a `match` naming every case |
-| base type / `mixed` → a literal or literal-union type | checked against the named set ([`types/literal-types`](types.md#types-literal-types)) |
+| base type / `mixed` → a single-value type or a set of allowed values | checked against the named set ([`types/single-value-types`](types.md#types-single-value-types)) |
 | an enum / `mixed` → a case-subset type | checked against the named cases ([`types/enum-case-type`](types.md#types-enum-case-type)) |
 | `string` / `class<U>` → `class<T>` | the name must be `T` or a class that is one, or it throws. `Foo::class` is decided at compile time, and `class<T>` → `string` is total — the descriptor's own name, not the annotation's |
 | `string` / `property<U>` → `property<T>` | the name must be one of `T`'s public declared properties, or it throws. A written-out name is decided at compile time, and `property<T>` → `string` is total |
@@ -1187,7 +1189,7 @@ rather than by a namespace path — `Ns\Order\Meta` is also the spelling of a cl
 
 `rule:types/callable-values`
 
-`callable` is satisfied by exactly two kinds of value: an anonymous function — a `fn` literal — and a
+`callable` is satisfied by exactly two kinds of value: an anonymous function (`fn (...) => ...`) and a
 method reference — `Core\Str::length(...)`, `$user->getName(...)`, `self::helper(...)` (early-bound),
 `static::helper(...)` (late-bound). A method reference names a member, and the checker records the
 resolved target. Both make the same kind of value, a callable.
@@ -1234,7 +1236,7 @@ return-type inference, which this language does not do. `static fn` is diagnosed
 anonymous function.
 
 This removes a second spelling rather than adding a capability: a method reference and the
-expression-bodied literal already produce exactly the value a block-bodied anonymous function does
+expression-bodied anonymous function already produce exactly the value a block-bodied anonymous function does
 ([`types/callable-values`](types.md#types-callable-values)). Capture is never written ([`types/implicit-capture`](types.md#types-implicit-capture)), and an
 anonymous function that needs to call itself carries a self-name instead
 ([`types/anonymous-function-self-name`](types.md#types-anonymous-function-self-name)).
@@ -1265,13 +1267,13 @@ Every callable type is assignable to it, calling through one keeps the dynamic p
 per-argument tag check, and nothing existing changes meaning. Narrowing is opt-in. Where a call
 reaches a callable whose type names its parameters, the arguments are proven at compile time and the
 per-argument tag check is **not emitted**; the metadata stays on every callable, because bare `callable`
-still needs it and an anonymous function does not know at its literal which kind of site will call it.
+still needs it and an anonymous function does not know where it is written which kind of site will call it.
 
 The two binding-site variants that stood in for this — a callback-return parameter and a shape of
-callbacks — are retired, and the restriction that a shape's every field be a *written* `fn` literal
+callbacks — are retired, and the restriction that a shape's every field be a *written* anonymous function
 goes with them, because a `callable(): T`-typed variable now carries what the field needs.
 
-<sub>See also [`types/callable-arity`](types.md#types-callable-arity), [`types/callable-variance`](types.md#types-callable-variance), [`types/callable-literal-inference`](types.md#types-callable-literal-inference), [`types/callable-values`](types.md#types-callable-values). Decided in [0136](../decisions/0136.md), [0007](../decisions/0007.md), [0031](../decisions/0031.md), [0027](../decisions/0027.md), [0015](../decisions/0015.md).</sub>
+<sub>See also [`types/callable-arity`](types.md#types-callable-arity), [`types/callable-variance`](types.md#types-callable-variance), [`types/anonymous-function-parameter-inference`](types.md#types-anonymous-function-parameter-inference), [`types/callable-values`](types.md#types-callable-values). Decided in [0136](../decisions/0136.md), [0007](../decisions/0007.md), [0031](../decisions/0031.md), [0027](../decisions/0027.md), [0015](../decisions/0015.md).</sub>
 
 <a id="types-callable-arity"></a>
 
@@ -1332,15 +1334,15 @@ everywhere, which is the whole reason such a helper is written.
 
 <sub>See also [`types/callable-signature`](types.md#types-callable-signature), [`types/callable-arity`](types.md#types-callable-arity), [`types/arrays`](types.md#types-arrays). Decided in [0136](../decisions/0136.md), [0007](../decisions/0007.md).</sub>
 
-<a id="types-callable-literal-inference"></a>
+<a id="types-anonymous-function-parameter-inference"></a>
 
-## An unannotated `fn` parameter takes its type from the position the literal is written in
+## An unannotated `fn` parameter takes its type from the position the anonymous function is written in
 
-`rule:types/callable-literal-inference`
+`rule:types/anonymous-function-parameter-inference`
 
 Where an anonymous function appears in a position whose expected type is a callable type, each parameter
-the literal does not annotate takes its type from the corresponding position of that type. A
-parameter the literal *does* annotate is checked against it under [`types/callable-variance`](types.md#types-callable-variance), and
+the anonymous function does not annotate takes its type from the corresponding position of that type. A
+parameter it *does* annotate is checked against it under [`types/callable-variance`](types.md#types-callable-variance), and
 wins where it is wider.
 
 ```php
@@ -1349,7 +1351,7 @@ Core\Arr::map($users, fn($u) => $u->name);    // $u : User, U : string ⇒ array
 ```
 
 A type variable binds from the argument the signature names first, and the substituted parameter type
-is then the expected type pushed into the literal. So the common callback gets *more* checking than a
+is then the expected type pushed into the anonymous function. So the common callback gets *more* checking than a
 dynamic one while writing *less*: `$u->name` stops being an erased-receiver fetch
 ([`types/erased-member-access`](types.md#types-erased-member-access)) and becomes a field proven present.
 
@@ -1406,7 +1408,7 @@ $result = $fn(...$args);   // replaces call_user_func_array($fn, $args)
 `rule:types/implicit-capture`
 
 An anonymous function captures exactly the outer variables its body reads, snapshotted **by value**
-at the point the literal is evaluated. There is no syntax to opt a variable in or out, and no
+at the point the anonymous function is evaluated. There is no syntax to opt a variable in or out, and no
 by-reference capture: `use ($y)` and `use (&$y)` are both diagnostics, the second with its own wording
 where the intent was mutation visible outside the anonymous function. `$this` is captured like any
 other binding when the body names it.
@@ -1445,15 +1447,15 @@ $fact = fn factorial($n) => $n <= 1 ? 1 : $n * factorial($n - 1);
 `factorial` is visible **only inside that anonymous function's own body**. It is not a capture — it
 is not among the outer variables the body reads — not a second declared name reachable from anywhere
 else, and not a runtime slot: it resolves the way a method resolves `self::`, entirely at compile
-time, with no cost at literals that do not use it. It composes with both body shapes and is not a
+time, with no cost at anonymous functions that do not use it. It composes with both body shapes and is not a
 third anonymous-function form.
 
 **A call written through that name is checked against the anonymous function's own signature**, the
 way [`types/callable-signature`](types.md#types-callable-signature) checks a call through a written `callable(int): string`: each
 argument is held to the parameter it fills, the count is exact, and the call answers the declared
-return type rather than `mixed`. There is no value to be opaque here — the literal being checked is
-the one right there — so the per-argument tag check a call through bare `callable` pays is not what a
-recursive call is finally held to. A literal that declares no return type is checking its body to
+return type rather than `mixed`. There is no value to be opaque here — the anonymous function being
+checked is the one right there — so the per-argument tag check a call through bare `callable` pays is not what a
+recursive call is finally held to. An anonymous function that declares no return type is checking its body to
 find out, and a self-call there answers `mixed`; its parameter list has no such half-measure, being
 complete before the body is entered.
 
@@ -1499,8 +1501,8 @@ $box   = {count: 0};
 
 Each anonymous object's precise type is a private, compiler-synthesized class with exactly the fields
 written, each field's type inferred from its initializer. That class has **no methods**, no
-`implements`, no inheritance and no user-reachable name; it needs no constructor, because the literal
-assigns every field it declares; and it is an **ordinary object** in every other respect — reference
+`implements`, no inheritance and no user-reachable name; it needs no constructor, because the anonymous
+object assigns every field it declares; and it is an **ordinary object** in every other respect — reference
 semantics, `clone`, `serialize` and an isolate crossing all work on it through the existing uniform
 mechanism, because it has real declared properties. Field names are ordinary property names, so the
 `camelCase` and no-leading-underscore rules apply unchanged.

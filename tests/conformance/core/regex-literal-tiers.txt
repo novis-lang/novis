@@ -1,7 +1,7 @@
 # Every literal pattern the regex conformance suite hands a `Core\Regex` member, and
 # the engine tier it compiles on — `refused` for the malformed ones the suite writes on
 # purpose. A tier is a property of the pattern text alone
-# (`rule:core-classes/regex-literal-tiering`), so a routing change that moves a pattern
+# (`rule:core-classes/regex-compile-time-tiering`), so a routing change that moves a pattern
 # between the two engines changes a line here instead of quietly changing what a request
 # runs on.
 #

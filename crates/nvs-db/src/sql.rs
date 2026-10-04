@@ -55,7 +55,7 @@
 //! comment with no closing delimiter makes the scan read every byte after it as
 //! being inside it, so what [`rewrite`] binds is what fits inside an opening
 //! delimiter rather than what was written — and it refuses rather than send a
-//! statement bound against that. `rule:core-classes/db-literal-query-checking`
+//! statement bound against that. `rule:core-classes/db-compile-time-query-checking`
 //! asks for the same refusal while compiling a literal query, and that one can
 //! be made only because this one is made here. A `--` or `#` comment opens
 //! nothing and ends at the end of the text legitimately.
@@ -703,7 +703,7 @@ pub fn holds_a_second_statement(sql: &str, dialect: Dialect) -> bool {
 }
 
 /// Whether `sql` opens a region it never closes —
-/// `rule:core-classes/db-literal-query-checking`'s "an unterminated string
+/// `rule:core-classes/db-compile-time-query-checking`'s "an unterminated string
 /// literal", as the question [`rewrite`] answers by refusing, asked of a text
 /// with no arguments written beside it.
 ///

@@ -1,5 +1,5 @@
-A path is a literal string beginning at the root, validated while checking, whose segments are
-literals or captures:
+A path is a string literal beginning at the root, validated while checking, whose segments are
+fixed segments or captures:
 
 - **`{name}`** captures one whole segment.
 - **`{name?}`** captures one whole segment **or none**. Last position only, at most once, never in
@@ -8,7 +8,7 @@ literals or captures:
   without one is a compile error naming both. `/posts/` does not match `/posts/{page?}`: an empty
   final segment is not an absent one (`rule:errors/ambiguous-input-refused`).
 - **`{name...}`** captures every remaining segment as one `tainted string`, last position only.
-- Everything else is a literal segment, compared byte for byte and case-sensitively
+- Everything else is a fixed segment, compared byte for byte and case-sensitively
   (`rule:classes/names-resolve-case-sensitively`).
 
 A capture is a whole segment: `/u{id}` and `/{id}.json` are refused, not partially matched. Every

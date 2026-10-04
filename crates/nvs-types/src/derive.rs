@@ -506,7 +506,7 @@ pub const ACCESS: &str = r"Core\Access";
 /// contradictions.
 pub const API: &str = r"Core\Api";
 
-/// `#[Core\Path]` — `rule:programs/path-literals-resolve-from-their-file`'s
+/// `#[Core\Path]` — `rule:programs/relative-paths-resolve-from-their-file`'s
 /// per-parameter marker, on a `string` parameter of a method, and it carries
 /// nothing: what it says is the parameter's own
 /// [`ParamText::Path`](nvs_stdlib::registry::ParamText::Path), the mark a
@@ -1732,7 +1732,7 @@ fn reachable(
 /// which file declared what first.
 fn db_reachable(ty: TypeId, interner: &crate::ty::TypeInterner) -> bool {
     match interner.get(ty) {
-        // § 9's scalar rows, plus `rule:types/literal-types`'s three singleton refinements of
+        // § 9's scalar rows, plus `rule:types/single-value-types`'s three singleton refinements of
         // them. `tainted` is not a distinction a column makes — § 6 makes
         // every text column tainted on the way out.
         Ty::Null
@@ -1799,7 +1799,7 @@ fn json_reachable(
     exprs: &crate::expr_table::ExprTypeTable,
 ) -> bool {
     match interner.get(ty) {
-        // The scalars, plus `rule:types/literal-types`'s three singleton refinements of them:
+        // The scalars, plus `rule:types/single-value-types`'s three singleton refinements of them:
         // each erases to a scalar and is exactly as spellable on the wire.
         Ty::Null
         | Ty::Bool

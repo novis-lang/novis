@@ -1,5 +1,5 @@
 --TEST--
-`Core\Path::fromCwd` joins a relative path to the working directory and normalizes it, returns an absolute path normalized, and agrees with `Core\Path::join` over the same directory — `rule:programs/path-literals-resolve-from-their-file`
+`Core\Path::fromCwd` joins a relative path to the working directory and normalizes it, returns an absolute path normalized, and agrees with `Core\Path::join` over the same directory — `rule:programs/relative-paths-resolve-from-their-file`
 --FILE--
 <?nvs
 // The working directory itself is absolute.

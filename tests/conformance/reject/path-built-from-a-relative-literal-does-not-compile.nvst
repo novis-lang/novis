@@ -1,5 +1,5 @@
 --TEST--
-a path argument that starts with a relative literal and adds a value built while the program runs is relative on every run, so it does not compile and the help names `Core\Path::thisDir` — `rule:programs/path-literals-resolve-from-their-file`
+a path argument that starts with a relative literal and adds a value built while the program runs is relative on every run, so it does not compile and the help names `Core\Path::thisDir` — `rule:programs/relative-paths-resolve-from-their-file`
 --FILE--
 <?nvs
 // The literal is joined to nothing: the whole path is built while the program runs.

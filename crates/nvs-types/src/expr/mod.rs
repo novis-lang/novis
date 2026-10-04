@@ -285,7 +285,7 @@ pub(crate) fn infer(
         ExprKind::Bool(value) => infer_bool_literal(*value, expected, env),
         ExprKind::Int(span) => infer_int_literal(*span, expr.span, expected, env),
         ExprKind::Float(span) => infer_float_literal(*span, expr.span, expected, env),
-        // `rule:types/duration-literal`: a duration literal is `Core\Time\Duration` and nothing
+        // `rule:types/duration`: a duration literal is `Core\Time\Duration` and nothing
         // places it — the suffix *is* the type, unlike `rule:types/decimal`'s fractional
         // literal just above. The lexer has already run the grammar and
         // reported anything wrong, so there is nothing left to check here.

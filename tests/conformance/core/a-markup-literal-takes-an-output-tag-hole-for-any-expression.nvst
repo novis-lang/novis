@@ -1,5 +1,5 @@
 --TEST--
-`<?= expr ?>` inside a markup literal is a hole that takes any expression, escaped by the same rule as `{$…}`, and `{Name::…}` stays text — `rule:core-classes/html-literal`, ADR 0202
+`<?= expr ?>` inside a markup literal is a hole that takes any expression, escaped by the same rule as `{$…}`, and `{Name::…}` stays text — `rule:core-classes/html-template`, ADR 0202
 --FILE--
 <?nvs
 class App {

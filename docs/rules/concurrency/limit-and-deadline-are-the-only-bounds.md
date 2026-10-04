@@ -6,7 +6,7 @@
 default to unbounded.
 
 **`deadline: Duration`** bounds the whole call, not each child, and is written as a duration
-literal. It is a timer on the core's reactor, so it fires when the core is handed back — a child
+like `30s`. It is a timer on the core's reactor, so it fires when the core is handed back — a child
 waits or ends. **A child that never waits is bounded the way its request is**: by the request's
 `[limits] cpu_time`, which the watchdog raises on the request tree's safepoint word and every child
 polls. A group gets no stop of its own, because it would bound a child more tightly than its request

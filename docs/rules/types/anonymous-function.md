@@ -12,7 +12,7 @@ return-type inference, which this language does not do. `static fn` is diagnosed
 anonymous function.
 
 This removes a second spelling rather than adding a capability: a method reference and the
-expression-bodied literal already produce exactly the value a block-bodied anonymous function does
+expression-bodied anonymous function already produce exactly the value a block-bodied anonymous function does
 (`rule:types/callable-values`). Capture is never written (`rule:types/implicit-capture`), and an
 anonymous function that needs to call itself carries a self-name instead
 (`rule:types/anonymous-function-self-name`).

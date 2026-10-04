@@ -15,7 +15,7 @@ where it raises `E0303`, so the provider's translation is what it was, and the s
 nothing of its own.
 
 One code action is not a fix and has no diagnostic behind it: the rewrite of a string or a `.` chain as
-an html literal (`rule:ide/a-string-converts-to-an-html-literal`). Nothing about the string is wrong,
+an html template (`rule:ide/a-string-converts-to-an-html-template`). Nothing about the string is wrong,
 so there is no diagnostic to carry it, and the server computes it from the expression under the cursor
 alone, with no type or module question. It is the only such action, it is filed under its own
 `refactor.rewrite.htmlLiteral` kind, and it is never under `source.fixAll.nvs` or `quickfix`, because

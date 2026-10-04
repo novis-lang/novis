@@ -1,5 +1,5 @@
-Where two routes of one verb both match a path, the more literal one wins, segment by segment: a
-literal beats a `{name}`, which beats a `{name?}`, which beats a `{name...}`. `/users/new` and
+Where two routes of one verb both match a path, the one with more fixed segments wins, segment by
+segment: a fixed segment beats a `{name}`, which beats a `{name?}`, which beats a `{name...}`. `/users/new` and
 `/users/{id}` coexist with no ordering rule to remember, and moving a declaration between files
 cannot change which route answers. That is what makes the table order-independent at all, and it is
 why two routes with the same verb and the same shape are refused rather than ordered

@@ -225,7 +225,7 @@
       ]
     },
     "type": {
-      "comment": "One type expression, wherever a region has already established that a type is what stands here — rule:types/grammar, in the order it resolves. The reserved table is offered before the name, so a scalar atom, `array`, a qualifier and `self` keep the colour they carry everywhere else; the literals are offered before it too, because rule:types/literal-types makes `'ok'|'err'` a type and the `ok` inside those quotes is not a name. What is left is a name, which in a type position is the one thing a regex can be sure of.",
+      "comment": "One type expression, wherever a region has already established that a type is what stands here — rule:types/grammar, in the order it resolves. The reserved table is offered before the name, so a scalar atom, `array`, a qualifier and `self` keep the colour they carry everywhere else; the literals are offered before it too, because rule:types/single-value-types makes `'ok'|'err'` a type and the `ok` inside those quotes is not a name. What is left is a name, which in a type position is the one thing a regex can be sure of.",
       "patterns": [
         { "include": "#shape-type" },
         { "include": "#type-parens" },
@@ -257,7 +257,7 @@
       "patterns": [{ "include": "#type" }]
     },
     "numbers": {
-      "comment": "A duration is offered before the number it opens with, because rule:types/duration-literal makes `1h30m` one token rather than three and a grammar that colours `1h` alone says the opposite. The chain of optional groups is that rule's whole grammar: the units are lower case, strictly descending and each at most once, so `30m1h`, `1h1h` and `30S` are refused by the pattern itself and colour as the plain integer they start with — rule:ide/rejected-syntax-gets-no-colour, applied to a literal the lexer will report. The trailing guard is what forces the run to be consumed whole, and the leading one keeps `0x1d`'s `1d` and `1.5s`'s `5s` from being read as durations inside a literal that is not one.",
+      "comment": "A duration is offered before the number it opens with, because rule:types/duration makes `1h30m` one token rather than three and a grammar that colours `1h` alone says the opposite. The chain of optional groups is that rule's whole grammar: the units are lower case, strictly descending and each at most once, so `30m1h`, `1h1h` and `30S` are refused by the pattern itself and colour as the plain integer they start with — rule:ide/rejected-syntax-gets-no-colour, applied to a literal the lexer will report. The trailing guard is what forces the run to be consumed whole, and the leading one keeps `0x1d`'s `1d` and `1.5s`'s `5s` from being read as durations inside a literal that is not one.",
       "patterns": [
         {
           "name": "constant.numeric.nvs",
@@ -308,7 +308,7 @@
       ]
     },
     "markup-literal": {
-      "comment": "``html`…` `` (rule:core-classes/html-literal), lexed by crates/nvs-syntax/src/lexer.rs as a double-quoted string's body with the delimiter swapped, so its body carries the same escapes and the same `{$…}` and `$name` slots — plus the one slot a string does not have, `<?= … ?>`, which holds any expression. The prefix and the backtick are one token there, so the pattern requires them together; a backtick in the body is `\\``. The body is coloured as a string rather than handed to the HTML grammar: the literal is not yet a region the server answers (crates/nvs-lsp/src/regions.rs, known gap `nvs-lsp/markup-literals-body-is-not-a`), and when it becomes one the HTML services follow that answer rather than this pattern.",
+      "comment": "``html`…` `` (rule:core-classes/html-template), lexed by crates/nvs-syntax/src/lexer.rs as a double-quoted string's body with the delimiter swapped, so its body carries the same escapes and the same `{$…}` and `$name` slots — plus the one slot a string does not have, `<?= … ?>`, which holds any expression. The prefix and the backtick are one token there, so the pattern requires them together; a backtick in the body is `\\``. The body is coloured as a string rather than handed to the HTML grammar: the literal is not yet a region the server answers (crates/nvs-lsp/src/regions.rs, known gap `nvs-lsp/markup-literals-body-is-not-a`), and when it becomes one the HTML services follow that answer rather than this pattern.",
       "name": "string.quoted.other.markup.nvs",
       "begin": "(html`)",
       "beginCaptures": { "1": { "name": "punctuation.definition.string.begin.nvs" } },

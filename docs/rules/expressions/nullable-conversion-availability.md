@@ -4,7 +4,7 @@ error everywhere else:
 | operand → target | `as ?T` |
 |---|---|
 | any row the conversion table defines | **available**; `null` where the row throws |
-| into a literal or enum-case type | **available** — the non-throwing twin of a checked conversion |
+| into a single-value or enum-case type | **available** — the non-throwing twin of a checked conversion |
 | from `mixed` | **available**; every target has a checked path from `mixed` |
 | a conversion that **cannot fail** (`$i as ?int`, `$i as ?string`) | **compile error** (`E0709`), naming `as T` |
 | no conversion exists at all (`array<int> as ?int`) | **compile error** (`E0708`) |

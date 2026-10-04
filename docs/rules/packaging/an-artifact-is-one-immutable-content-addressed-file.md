@@ -6,8 +6,8 @@ The on-disk artifact cache is a fan-out directory of immutable files, one per co
 
 where `key = BLAKE3(content_hash ‖ env_hash)` and `content_hash` is BLAKE3 over every file the program
 reached, each as its name, its text and its folder. The name is there because a diagnostic and a
-throw's frame print it. The folder is there because a relative path literal compiles to an absolute
-path joined to it (`rule:programs/path-literals-resolve-from-their-file`), so the same file in another
+throw's frame print it. The folder is there because a relative path given as a string literal compiles to an absolute
+path joined to it (`rule:programs/relative-paths-resolve-from-their-file`), so the same file in another
 folder is another program. The content hash is computed once per unit and shared with the in-memory
 `UnitKey`, so a unit's bytes cross BLAKE3 one time however many caches it lands in. `env_hash` is the single environment digest of
 `rule:config/the-extension-set-is-in-every-unit-key` — target triple, CPU feature bitset, compiler

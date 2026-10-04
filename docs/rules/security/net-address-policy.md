@@ -5,7 +5,7 @@ real endpoint URLs.
 
 Denied by default: loopback, the private ranges, **link-local**, unspecified, and every IPv6 form that
 carries one of them in its low 32 bits — IPv4-mapped (`::ffff:0:0/96`), IPv4-compatible (`::/96`) and
-the NAT64 well-known prefix (`64:ff9b::/96`), each of which reaches the address it carries. An operator grants an exception as an **IP address literal** beside the connect
+the NAT64 well-known prefix (`64:ff9b::/96`), each of which reaches the address it carries. An operator grants an exception as an **IP address written out** beside the connect
 grant. Three things it is not, each a widening this refuses: not a hostname, because the policy is
 asked of a resolved address and a name would except whatever it resolved to afterwards; not a range,
 because an operator writing a whole `/8` hands back most of the table without naming a host; and not

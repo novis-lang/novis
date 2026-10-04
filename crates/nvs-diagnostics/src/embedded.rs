@@ -198,7 +198,7 @@ pub fn is_dir(path: &Path) -> bool {
 /// executable. `None` for a path outside the payload's root, which is every
 /// path in an ordinary `nvs`.
 ///
-/// `rule:programs/path-literals-resolve-from-their-file` joins a relative path
+/// `rule:programs/relative-paths-resolve-from-their-file` joins a relative path
 /// literal to the folder of the file that wrote it, and inside a bundle that
 /// folder is synthetic: `app.exe/src` is a directory of the payload and
 /// nothing on disk. This answers that rule's question for a bundle. A literal

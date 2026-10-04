@@ -630,7 +630,7 @@ pub fn analyse_file(documents: &Documents, path: &Path, version: i32) -> Option<
         // diagnostics alone.
         //
         // No grants are passed, which is the one place this front end is
-        // deliberately not `nvs check`'s: `rule:core-classes/db-literal-query-checking`'s
+        // deliberately not `nvs check`'s: `rule:core-classes/db-compile-time-query-checking`'s
         // check-time question is asked of a `--config` the editor never
         // names, and answering it against whichever `nvs.toml` this machine
         // happens to resolve would put a diagnostic on a line for a reason

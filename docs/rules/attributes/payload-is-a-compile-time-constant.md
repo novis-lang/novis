@@ -7,7 +7,7 @@ The admitted list is **closed**. An expression kind the grammar grows is refused
 it belongs in a constant pool, which is why this is its own walk over every attach site rather than a
 row added to the pass that folds an enum case's value (`rule:enums/closed-integer-type`).
 
-Two things follow with no rule of their own. The literal resolves once, at compile time, so there is no
+Two things follow with no rule of their own. The payload resolves once, at compile time, so there is no
 "evaluate this attribute's arguments" step at declaration time. And no `tainted` value can reach a
 payload, because a tainted value has no compile-time-constant source at all; a `secret` class constant
 can, and is refused there as a sink (`E0727`).

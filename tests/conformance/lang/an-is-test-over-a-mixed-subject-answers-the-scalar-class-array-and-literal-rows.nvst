@@ -1,5 +1,5 @@
 --TEST--
-A `mixed` subject answers `is T` in both directions for every scalar, `object`, class, interface, `array`, `array<T>`, literal, class-constant and enum-case row of the table, and for `mixed` itself — `rule:types/type-test`, `rule:types/uint`, `rule:types/literal-types`, `rule:types/enum-case-type`
+A `mixed` subject answers `is T` in both directions for every scalar, `object`, class, interface, `array`, `array<T>`, literal, class-constant and enum-case row of the table, and for `mixed` itself — `rule:types/type-test`, `rule:types/uint`, `rule:types/single-value-types`, `rule:types/enum-case-type`
 --FILE--
 <?nvs
 // `rule:types/type-test`'s table under "What may appear on the right", swept
@@ -105,7 +105,7 @@ $rows = $rows + Row::both("interface", $animal is Named, $rock is Named);
 $rows = $rows + Row::both("array", $ints is array, $string is array);
 $rows = $rows + Row::both("array<int>", $ints is array<int>, $strings is array<int>);
 
-// `rule:types/literal-types`: a literal is its own type, so the row is a tag
+// `rule:types/single-value-types`: a literal is its own type, so the row is a tag
 // comparison with a payload compare behind it. `true` is a type here and not
 // a value — `$x is true` is this row, `$x == true` is not.
 $rows = $rows + Row::both("literal int", $five is 5, $int is 5);

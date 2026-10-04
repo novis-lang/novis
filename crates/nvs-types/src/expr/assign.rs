@@ -11,7 +11,7 @@
 //! [`is_assignable`]'s own doc comment owns that rule and why `rule:types/arrays`'s
 //! copy-on-write value semantics make it sound where an aliasing language
 //! could not. A qualifier widens but never narrows across it — see
-//! [`super::quals`]. `rule:types/literal-types` adds the last amendment: a literal type, an
+//! [`super::quals`]. `rule:types/single-value-types` adds the last amendment: a literal type, an
 //! enum-case type, and any union of them widen to their base for free, which
 //! [`is_assignable`] answers by one recursion through
 //! [`TypeInterner::literal_base`] rather than by four table rows of its own.
@@ -44,7 +44,7 @@ use super::*;
 /// class receiver's own property types against a shape target. `rule:security/taint-propagation`
 /// and `rule:security/secret-propagation` add one more: a same-base `string`/`bytes` value widens
 /// freely on its `tainted`/`secret` axes (see the qualifier check just above
-/// [`shape_satisfied`]'s call), never narrows. `rule:types/literal-types` adds the last:
+/// [`shape_satisfied`]'s call), never narrows. `rule:types/single-value-types` adds the last:
 /// `"a" → string`, `Mode::Read → Mode`, and each of those over a union, are
 /// free — see the widening step below for why one recursion states all four
 /// rows and why the reverse direction needs no rule to refuse it. `rule:types/conversion`'s own amendment is the last: `int`/`uint` widen into a `float`
@@ -152,7 +152,7 @@ fn assignable(
     if matches!(interner.get(from), Ty::Mixed) {
         return false;
     }
-    // `rule:types/literal-types`'s first four rows, all at once. `literal_base` widens a
+    // `rule:types/single-value-types`'s first four rows, all at once. `literal_base` widens a
     // literal atom to its base, an enum-case atom to its enum, and a union
     // member-wise — so `"a"|"b" → string` and `Mode::Read|Mode::Write → Mode`
     // fall out of the same call the two atom rows do, and the recursion then
@@ -449,7 +449,7 @@ pub(crate) fn shape_satisfied(
     signatures: &SignatureTable,
 ) -> bool {
     // Cloned rather than borrowed: [`is_assignable`] needs the interner
-    // mutably for `rule:types/literal-types`'s widening step, and a shape's field list is
+    // mutably for `rule:types/single-value-types`'s widening step, and a shape's field list is
     // read while it recurses. A shape type is a handful of fields and this
     // path runs once per shape-typed assignment.
     match interner.get(from).clone() {
@@ -1507,7 +1507,7 @@ pub(crate) fn note_write(expr: &Expr, scope: &LocalScope, env: &Env<'_>) {
 /// The callable lattice alone, asked of [`is_assignable`] directly — the rest
 /// of the relation is exercised through compiled programs under
 /// `crates/nvs-types/tests/`, but a signature is not yet a type any expression
-/// *has* (`rule:types/callable-literal-inference` is what gives a `fn` literal
+/// *has* (`rule:types/anonymous-function-parameter-inference` is what gives a `fn` literal
 /// one), so these rows have no source spelling to reach them by.
 #[cfg(test)]
 mod tests {

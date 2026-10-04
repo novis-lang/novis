@@ -1,5 +1,5 @@
 {
-  "title": "An unannotated `fn` parameter takes its type from the position the literal is written in",
+  "title": "An unannotated `fn` parameter takes its type from the position the anonymous function is written in",
   "status": "shipped",
   "because": [
     "0136",

@@ -177,7 +177,7 @@ fn an_implements_entry_carries_its_type_arguments_and_its_delegation() {
     assert!(decl.implements[2].type_args.is_empty());
 }
 
-// --- `rule:types/literal-types`: literal and enum-case type atoms -------------------------
+// --- `rule:types/single-value-types`: literal and enum-case type atoms -------------------------
 
 /// Parses `<ty>` in the one type position an expression test can reach —
 /// a conversion's target — and returns it with the source text its span

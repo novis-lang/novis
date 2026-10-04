@@ -1,6 +1,6 @@
 `Core\Http\Client` has no spelling for "wait forever". Every bound in `Core\Http\Options` —
 `deadline`, `connectTimeout`, `retryBackoff` — is a `Duration`, which has no infinite value
-(`rule:types/duration-literal`); there is no `deadline: null` and no `0` meaning unbounded; and a
+(`rule:types/duration`); there is no `deadline: null` and no `0` meaning unbounded; and a
 call that omits the field inherits `[http.client] deadline` (shipped `30s`) or `connect_timeout`
 (shipped `5s`) rather than removing the bound. An unbounded outbound call is therefore not
 something a program can express, the same way a shell string is not something `Core\Process` can

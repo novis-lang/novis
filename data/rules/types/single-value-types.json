@@ -1,5 +1,5 @@
 {
-  "title": "A `string` or `int` literal is its own type, and a union of them is a closed set",
+  "title": "A `string` or `int` value in type position is a single-value type, and a union of them is a set of allowed values",
   "status": "shipped",
   "because": [
     "0047",

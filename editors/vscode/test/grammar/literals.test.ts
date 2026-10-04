@@ -1,13 +1,13 @@
 // Numbers, and the durations that share their opening digits.
 //
-// `rule:types/duration-literal` is one grammar with four properties a regex can carry: a duration is
+// `rule:types/duration` is one grammar with four properties a regex can carry: a duration is
 // one token however many units it names, its units are lower case, they descend strictly and none
 // repeats. The last three are why the spellings the lexer rejects are here beside the ones it takes —
 // `30m1h` and `30S` are diagnostics, and `rule:ide/rejected-syntax-gets-no-colour` is what stops the
 // editor confirming them as constants before the server says otherwise.
 //
 // `0x1d` and `1.5s` are the two shapes that hide a unit inside a literal that is not a duration at
-// all: `rule:types/duration-literal` reaches only a plain decimal integer.
+// all: `rule:types/duration` reaches only a plain decimal integer.
 
 import * as assert from "node:assert/strict";
 import { readFileSync } from "node:fs";

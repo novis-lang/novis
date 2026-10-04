@@ -1,8 +1,8 @@
 --TEST--
-A folded intrinsic and its runtime twin answer the same value, for each of `rule:expressions/intrinsic-list-is-closed`'s four reached grammars (`rule:expressions/intrinsic-list-is-closed`, `rule:expressions/intrinsic-literals` and `rule:expressions/preparation-preserves-behaviour`)
+A folded intrinsic and its runtime twin answer the same value, for each of `rule:expressions/intrinsic-list-is-closed`'s four reached grammars (`rule:expressions/intrinsic-list-is-closed`, `rule:expressions/intrinsic-constant-arguments` and `rule:expressions/preparation-preserves-behaviour`)
 --FILE--
 <?nvs
-// `rule:expressions/intrinsic-literals`'s intrinsic literal folding, asserted rather than described.
+// `rule:expressions/intrinsic-constant-arguments`'s intrinsic literal folding, asserted rather than described.
 //
 // Four of § 1's closed list, each reached twice: once with a literal argument,
 // which the compiler validates and prepares while checking, and once through a
@@ -26,7 +26,7 @@ var $runtimeDate = $when->format($datePattern);
 echo $foldedDate == $runtimeDate ? $foldedDate : "diverged", "\n";
 
 // `Core\Regex::compile` — the pattern's syntax and its engine tier
-// (`rule:core-classes/regex-literal-tiering`) are decided while checking, and the compiled program is what
+// (`rule:core-classes/regex-compile-time-tiering`) are decided while checking, and the compiled program is what
 // the prepared form carries.
 // `compile` is the row, not `matches`: § 1's list is closed and names the
 // member that *reads* the pattern, so the handle is what each path builds and

@@ -1,7 +1,7 @@
 Unlike `tainted`, **nothing in Novis grants `secret` ambiently.** The five host accessors are why
 `tainted` can attach itself automatically — every one is a named, enumerable place untrusted data
 enters (`rule:security/tainted-sources`). There is no equivalent list for secrecy: an environment
-read, a session value, a database row and a source literal all look identical to the type checker
+read, a session value, a database row and a string literal all look identical to the type checker
 whether or not their content happens to be a credential.
 
 `secret` therefore appears only where a developer spells it on a declaration — a parameter, return

@@ -1182,7 +1182,7 @@ nvs_runtime::nvs_helper! {
     /// a request is being answered. The working directory is read first, so a
     /// request throws whatever the argument is, and that throw is what makes
     /// the row's `Qual::Launder` safe: request data never reaches the answer.
-    /// `rule:programs/path-literals-resolve-from-their-file` owns why nothing
+    /// `rule:programs/relative-paths-resolve-from-their-file` owns why nothing
     /// else resolves against that directory.
     ///
     /// The join is this module's grammar: the directory's text and the

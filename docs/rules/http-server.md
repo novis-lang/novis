@@ -386,7 +386,7 @@ A request may **select** an entry point from a set enumerated before it arrived;
 
 This is the rule the rest of the server is built to keep. FastCGI's vulnerability class is not "many entry points" but "a URL-derived path": the `SCRIPT_FILENAME`/`PATH_INFO`/`cgi.fix_pathinfo` family exists because a web server computes a path from the request and hands it to a runtime that trusts it. A design that enumerates its entry points ahead of time is immune at any number of them.
 
-So every path the server can execute is known at boot, printed by `nvs info --config`, and fixed until a reload. That is what makes [`http-server/a-mount-table-expands-at-boot`](http-server.md#http-server-a-mount-table-expands-at-boot)'s wildcards safe: a glob expanded against the disk at boot yields a literal table, whereas the same glob evaluated per request would be `cgi.fix_pathinfo` with a different spelling. A path carrying a dot-segment or an encoded separator is refused before any mount is selected ([`errors/path-component-refusals`](errors.md#errors-path-component-refusals)).
+So every path the server can execute is known at boot, printed by `nvs info --config`, and fixed until a reload. That is what makes [`http-server/a-mount-table-expands-at-boot`](http-server.md#http-server-a-mount-table-expands-at-boot)'s wildcards safe: a glob expanded against the disk at boot yields a fixed table, whereas the same glob evaluated per request would be `cgi.fix_pathinfo` with a different spelling. A path carrying a dot-segment or an encoded separator is refused before any mount is selected ([`errors/path-component-refusals`](errors.md#errors-path-component-refusals)).
 
 <sub>See also [`http-server/a-mount-table-expands-at-boot`](http-server.md#http-server-a-mount-table-expands-at-boot), [`security/a-path-is-not-a-url`](security.md#security-a-path-is-not-a-url), [`errors/path-component-refusals`](errors.md#errors-path-component-refusals). Decided in [0097](../decisions/0097.md), [0095](../decisions/0095.md).</sub>
 
@@ -930,7 +930,7 @@ What this trades is stated rather than implied: **the resource this design can e
 
 `Core\Http\Client` has no spelling for "wait forever". Every bound in `Core\Http\Options` —
 `deadline`, `connectTimeout`, `retryBackoff` — is a `Duration`, which has no infinite value
-([`types/duration-literal`](types.md#types-duration-literal)); there is no `deadline: null` and no `0` meaning unbounded; and a
+([`types/duration`](types.md#types-duration)); there is no `deadline: null` and no `0` meaning unbounded; and a
 call that omits the field inherits `[http.client] deadline` (shipped `30s`) or `connect_timeout`
 (shipped `5s`) rather than removing the bound. An unbounded outbound call is therefore not
 something a program can express, the same way a shell string is not something `Core\Process` can
@@ -946,7 +946,7 @@ Expiry throws `TimeoutError`, never a falsy return ([`core-api/failure-throws`](
 deadline it reports is the one that covers the whole call
 ([`http-server/one-deadline-covers-the-whole-call`](http-server.md#http-server-one-deadline-covers-the-whole-call)).
 
-<sub>See also [`http-server/one-deadline-covers-the-whole-call`](http-server.md#http-server-one-deadline-covers-the-whole-call), [`http-server/retry-is-opt-in-jittered-and-closed`](http-server.md#http-server-retry-is-opt-in-jittered-and-closed), [`types/duration-literal`](types.md#types-duration-literal), [`core-api/failure-throws`](core-api.md#core-api-failure-throws), [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only). Decided in [0074](../decisions/0074.md).</sub>
+<sub>See also [`http-server/one-deadline-covers-the-whole-call`](http-server.md#http-server-one-deadline-covers-the-whole-call), [`http-server/retry-is-opt-in-jittered-and-closed`](http-server.md#http-server-retry-is-opt-in-jittered-and-closed), [`types/duration`](types.md#types-duration), [`core-api/failure-throws`](core-api.md#core-api-failure-throws), [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only). Decided in [0074](../decisions/0074.md).</sub>
 
 <a id="http-server-an-outbound-request-carries-one-body"></a>
 
@@ -1132,8 +1132,8 @@ and it lives in the capability rather than the client
 Every address a name resolves to is checked against [`security/net-address-policy`](security.md#security-net-address-policy), and **one denied
 address refuses the whole host**, naming it. A name that answers both a public address and one the policy
 denies is what a rebinding attack looks like from the resolver's side, so the denied answer is not
-quietly dropped from the set and the rest used; `net.internal`'s exceptions still apply per address. An
-IP literal, and a `connectTo` value ([`http-server/an-outbound-call-names-its-address-only-under-a-grant`](http-server.md#http-server-an-outbound-call-names-its-address-only-under-a-grant)),
+quietly dropped from the set and the rest used; `net.internal`'s exceptions still apply per address. A
+URL whose host is an IP address, and a `connectTo` value ([`http-server/an-outbound-call-names-its-address-only-under-a-grant`](http-server.md#http-server-an-outbound-call-names-its-address-only-under-a-grant)),
 are a set of one.
 
 `Core\Http\Target` carries **the approved set**, in the resolver's order and at most eight of it, and
@@ -1160,7 +1160,7 @@ the address check back on the core after it.
 `rule:http-server/an-outbound-call-names-its-address-only-under-a-grant`
 
 A call may name the address it connects to with `connectTo: string`, and only where a `net.connect_to`
-grant lists the URL's host. The value is an IP literal; the call connects there instead of resolving the
+grant lists the URL's host. The value is an IP address; the call connects there instead of resolving the
 host, and the certificate is still checked against the host the URL named.
 
 The option widens nothing, and that is what makes it grantable. The address is judged by
@@ -1536,7 +1536,7 @@ sets it is choosing to have `idle` end a *dead* peer rather than a quiet one. A 
 answered regardless — that is the protocol, not a policy.
 
 Every bound is a `Duration` or a `uint` of bytes, and neither type has an infinite value
-([`types/duration-literal`](types.md#types-duration-literal), [`core-api/units-are-types`](core-api.md#core-api-units-are-types)). There is no `null` and no `0` meaning
+([`types/duration`](types.md#types-duration), [`core-api/units-are-types`](core-api.md#core-api-units-are-types)). There is no `null` and no `0` meaning
 unbounded, so an outbound socket that waits forever is not something a program can express — the guarantee
 comes from the absence of a spelling, exactly as it does for a call
 ([`http-server/no-spelling-for-an-unbounded-wait`](http-server.md#http-server-no-spelling-for-an-unbounded-wait)). Expiry throws `TimeoutError`

@@ -8,7 +8,7 @@
   ],
   "seeAlso": [
     "ide/narrow-an-annotation-to-its-literal",
-    "types/literal-types",
+    "types/single-value-types",
     "types/enum-case-type",
     "types/unions-and-mixed",
     "types/arrays"

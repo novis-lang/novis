@@ -319,7 +319,7 @@
 //! attachments whose `when` the call's other arguments meet. A parameter with
 //! no value that applies is ordinary text, so the quote opens no list there.
 //! A parameter whose declared type is made only of string literal types, with
-//! or without `null` (`rule:types/literal-types`), is offered each literal as an item of kind
+//! or without `null` (`rule:types/single-value-types`), is offered each literal as an item of kind
 //! `value`, after the values the files give it ([`named_values`]). A literal a
 //! file also lists is offered once, as the file's value, which may carry a
 //! label and documentation the type does not.
@@ -1157,7 +1157,7 @@ fn option_keys(cursor: &Cursor<'_>, written: usize, options: &[CoreOption]) -> V
 /// before it is a directory, resolved against the directory of the document,
 /// which is the base a `require`, an `autoload` root and a relative path
 /// argument all resolve against (`rule:programs/autoload`,
-/// `rule:programs/path-literals-resolve-from-their-file`). An absolute text
+/// `rule:programs/relative-paths-resolve-from-their-file`). An absolute text
 /// replaces that base, so it lists the directory it names. What comes after
 /// the separator is the segment the client filters by, and each item replaces
 /// exactly that segment. A directory is offered with a `/` after it and opens

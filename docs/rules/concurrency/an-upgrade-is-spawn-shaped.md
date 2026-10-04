@@ -4,7 +4,7 @@ method written `Chat::run(...)` whose parameters `args:` binds to **by name**. W
 is decided syntactically at the call site (`rule:security/isolate-shares-nothing`).
 
 It is never a callable. A capture would carry state across the boundary the isolate exists to create,
-so an `fn` literal or a `callable`-typed variable here is a compile error that names the method form
+so an anonymous function or a `callable`-typed variable here is a compile error that names the method form
 instead. Naming compiled code is also what makes a connection participate in the artifact cache, hot
 reload, grants, limits, coverage and tracing with no special case in any of them.
 

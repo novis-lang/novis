@@ -25,5 +25,5 @@ existing one arriving somewhere useful.
 
 **A regex constraint is not among the admitted types and never will be.** An application-authored
 pattern over the request path runs before any rate limiting, which makes catastrophic backtracking an
-unauthenticated denial of service; a closed set is spelled as a union of literal types or a subset of
+unauthenticated denial of service; a closed set is spelled as a set of allowed values or a subset of
 an enum's cases instead.

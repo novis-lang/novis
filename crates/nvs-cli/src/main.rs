@@ -1920,7 +1920,7 @@ fn front_end(path: &std::path::Path) -> Result<Checked, ExitCode> {
 }
 
 /// [`front_end`] with the deployment's `[capabilities]` block in front of it —
-/// `rule:core-classes/db-literal-query-checking`'s check-time question, asked of the `nvs.toml` this machine
+/// `rule:core-classes/db-compile-time-query-checking`'s check-time question, asked of the `nvs.toml` this machine
 /// resolves.
 ///
 /// `config` is the `--config` list when the caller wants that question asked and
@@ -2238,7 +2238,7 @@ fn names_an_undeclared_type(diagnostic: &nvs_diagnostics::Diagnostic) -> bool {
 /// `autoload`'s literals are written against (§ 1).
 ///
 /// This is the one front end that reads the configuration
-/// ([`front_end_granted`]), so `nvs check` answers `rule:core-classes/db-literal-query-checking`'s question
+/// ([`front_end_granted`]), so `nvs check` answers `rule:core-classes/db-compile-time-query-checking`'s question
 /// about a literal `Core\Db::open` host and reports a `nvs.toml` that does not
 /// resolve as the configuration error it is.
 ///

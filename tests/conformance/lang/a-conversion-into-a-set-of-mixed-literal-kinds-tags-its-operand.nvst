@@ -1,5 +1,5 @@
 --TEST--
-A closed set whose members share no one representation erases to a tagged value, so the operand is widened and the membership test runs on tags — `rule:types/literal-types`
+A closed set whose members share no one representation erases to a tagged value, so the operand is widened and the membership test runs on tags — `rule:types/single-value-types`
 --FILE--
 <?nvs
 class Pick {

@@ -5,7 +5,7 @@ concatenated with tainted text is the original bug with an extra word in it.
 
 The shape is the project's standing escape-hatch form — rare, greppable, and carrying a written
 reason at the site rather than a silent cast, the same shape `rule:core-classes/secret-reveal` takes.
-`$reason` is a source literal and an empty one is refused: a reason that can be computed is a reason
+`$reason` must be a string literal written at the call, and an empty one is refused: a reason that can be computed is a reason
 nobody wrote.
 
 Its legitimate callers are the ones that need the bytes and not the guarantee — caching a rendered

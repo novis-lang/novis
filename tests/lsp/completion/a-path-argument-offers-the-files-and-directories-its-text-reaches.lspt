@@ -1,5 +1,5 @@
 --TEST--
-inside a string literal at a `Core` member's path parameter the list is what the directory its text reaches holds, resolved against the document's own directory as the compiler resolves the literal: each directory with a `/` after it and every file, whatever its extension, and no name that starts with a `.` — `rule:programs/path-literals-resolve-from-their-file`
+inside a string literal at a `Core` member's path parameter the list is what the directory its text reaches holds, resolved against the document's own directory as the compiler resolves the literal: each directory with a `/` after it and every file, whatever its extension, and no name that starts with a `.` — `rule:programs/relative-paths-resolve-from-their-file`
 --FILE--
 <?nvs
 echo Core\IO::read('data/<|>');

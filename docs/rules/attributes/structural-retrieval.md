@@ -4,8 +4,8 @@ function Core\Attributes::all<T>(callable $target, string $member = ""): array<T
 ```
 
 `T` is a shape type — an inline `{...}`, or a `type` alias naming one. Retrieval is **structural**:
-every attached literal satisfying `T` under width subtyping is an answer, whether it was written bare
-or under a name, and whatever that name was. An attach-time name checks the literal where it is
+every attached payload object satisfying `T` under width subtyping is an answer, whether it was written
+bare or under a name, and whatever that name was. An attach-time name checks the payload object where it is
 written and is never part of how a caller asks for it, so there is no namespace of attribute-kind names
 for unrelated libraries to collide in.
 

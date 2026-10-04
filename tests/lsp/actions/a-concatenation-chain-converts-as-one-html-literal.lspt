@@ -1,5 +1,5 @@
 --TEST--
-a cursor on any operand of a `.` chain converts the whole chain: a variable becomes a `{$…}` hole, any other value a `<?= … ?>` hole, and each string its own text, `rule:ide/a-string-converts-to-an-html-literal`
+a cursor on any operand of a `.` chain converts the whole chain: a variable becomes a `{$…}` hole, any other value a `<?= … ?>` hole, and each string its own text, `rule:ide/a-string-converts-to-an-html-template`
 --FILE--
 <?nvs
 var $name = "world";

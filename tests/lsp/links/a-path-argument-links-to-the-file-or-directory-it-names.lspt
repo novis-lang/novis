@@ -1,5 +1,5 @@
 --TEST--
-a string literal at a path parameter links to the file or directory the compiler resolved it to, against the document's own directory; one that names nothing on disk and one at a parameter that is not a path are no link — `rule:programs/path-literals-resolve-from-their-file`
+a string literal at a path parameter links to the file or directory the compiler resolved it to, against the document's own directory; one that names nothing on disk and one at a parameter that is not a path are no link — `rule:programs/relative-paths-resolve-from-their-file`
 --FILE--
 <?nvs
 echo Core\IO::read('data/config.json');

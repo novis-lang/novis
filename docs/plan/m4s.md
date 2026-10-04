@@ -20,14 +20,14 @@ contract. `crates/nvs-stdlib` starts here — the Tier 0 crate
 `rule:packaging/three-tiers` already names, and the workspace manifest already
 declares; `Core\Regex` binds the engine `rule:core-classes/regex-two-tiers`
 picks, and `Core\Time`'s `format`/`parse` (CLDR patterns), `Core\Time\Duration::parse` and
-`Core\Str::format` land as `rule:expressions/intrinsic-literals` intrinsics with the
+`Core\Str::format` land as `rule:expressions/intrinsic-constant-arguments` intrinsics with the
 compile-time half wired into `nvs-types` — and, per
 `rule:security/every-grammar-is-a-sink`, all three grammars are
 `tainted` **sinks** alongside `Core\Regex`'s pattern. **`nvs-stdlib`'s member registry gains a per-parameter
 qualifier classification here**, with an unclassified `string`/`bytes` parameter refusing `tainted` and that
 crate's own test suite failing on any member that ships without one (§ 2 of the same ADR); the pass that
 marks the existing rows is part of building §§ 1–12 rather than a separate slice. `Duration::parse` shares its grammar and its implementation with
-M1's duration literal (`rule:types/duration-literal`), so build the literal first and this is
+M1's duration literal (`rule:types/duration`), so build the literal first and this is
 the same parser reached from a second entry point. `Core\Str`'s
 unit is `rule:types/string-is-utf8`'s grapheme cluster, decided and seamed in
 `nvs_stdlib::granularity`; the **lazily cached count** that ADR's *Consequences* names is still owed and

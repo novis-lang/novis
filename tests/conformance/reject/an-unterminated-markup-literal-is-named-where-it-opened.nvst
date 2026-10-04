@@ -1,5 +1,5 @@
 --TEST--
-An unterminated markup literal is `E0002`, named at the backtick that opened it rather than at the end of the file — `rule:core-classes/html-literal`
+An unterminated markup literal is `E0002`, named at the backtick that opened it rather than at the end of the file — `rule:core-classes/html-template`
 --FILE--
 <?nvs
 // The literal adds no diagnostic of its own: `E0002` is the code an

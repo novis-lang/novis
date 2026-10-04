@@ -1,5 +1,5 @@
 --TEST--
-`Core\Command::run` converts a union-of-literals argument to the word itself, because the word *is* the value that type admits — `rule:tooling/commands-are-compiled`, `rule:types/literal-types`
+`Core\Command::run` converts a union-of-literals argument to the word itself, because the word *is* the value that type admits — `rule:tooling/commands-are-compiled`, `rule:types/single-value-types`
 --FILE--
 <?nvs
 // § 6's "a matched value's type comes from the parameter", for the type that

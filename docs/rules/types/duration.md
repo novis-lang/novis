@@ -3,7 +3,7 @@ duration := ( DEC_INT unit )+
 unit     := ns | us | ms | s | m | h | d | w
 ```
 
-- **One token.** `1h30m` lexes as a single duration literal, maximal munch, not as three tokens.
+- **One token.** `1h30m` lexes as a single duration token, maximal munch, not as three tokens.
 - **Units strictly descend and may not repeat.** `1h30m` is accepted; `30m1h` and `1h1h` are lexer
   errors naming this rule, so there is exactly one spelling of any given constant.
 - **Only after a plain decimal integer** — never after `0x…`, `0b…`, a float or an exponent, so `0x1d`
@@ -14,12 +14,13 @@ unit     := ns | us | ms | s | m | h | d | w
   `Duration` at all.
 
 The type is `Core\Time\Duration`, always — the suffix *is* the type, with nothing
-untyped-until-placed about it (`rule:types/numeric-literal-placement`). A literal is a compile-time
-constant folded to a single nanosecond count and emitted into the constant pool, so `{timeout: 30s}`
-allocates nothing at run time and a literal beyond `Duration`'s range is a compile error, not a wrap.
+untyped-until-placed about it (`rule:types/numeric-literal-placement`). A duration written this way is
+a compile-time constant folded to a single nanosecond count and emitted into the constant pool, so
+`{timeout: 30s}` allocates nothing at run time and a duration beyond `Duration`'s range is a compile
+error, not a wrap.
 
 `1h + 30m` does not compile — there is no operator overloading; write `1h30m` or `$a->plus($b)`. So
-does `1h30m as int`; write `->toSeconds()`. `$n s` is not a literal; a computed count is
+does `1h30m as int`; write `->toSeconds()`. `$n s` is not a duration; a computed count is
 `Duration::seconds($n)`.
 
 **One grammar, three places, one parser**: source, `Duration::parse($s)` at run time, and a `"30s"` in

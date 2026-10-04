@@ -1366,7 +1366,7 @@ fn walk_expr(expr: &Expr, src: &SourceFile, out: &mut Harvest) {
             // arm still worth statically pulling in) — that generality isn't
             // needed yet, so this stops at the top-level path expression.
         }
-        // `rule:core-classes/html-literal`'s markup literal carries the same
+        // `rule:core-classes/html-template`'s markup literal carries the same
         // parts an interpolated string does, and a hole in either is an
         // ordinary expression.
         ExprKind::Interpolated(parts) | ExprKind::Markup(parts) => {

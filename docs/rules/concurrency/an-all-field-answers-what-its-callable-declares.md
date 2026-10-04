@@ -10,6 +10,6 @@ all: an array, a scalar or a field holding something that cannot be called, each
 ordinary type mismatch.
 
 `rule:types/callable-signature` is what made this possible, and the restriction it replaces is worth
-naming: until a `callable` carried a signature, the type existed only at the written literal, so a
+naming: until a `callable` carried a signature, the type existed only at the written anonymous function, so a
 framework storing callables in a variable could not use `all` at all. It can now, and it pays only
 for the signatures it declines to write.

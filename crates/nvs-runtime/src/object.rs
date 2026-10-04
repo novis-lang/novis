@@ -257,7 +257,7 @@
 //!
 //! # Decision: an immortal instance is on no list at all
 //!
-//! `rule:core-classes/html-literal` folds a hole-free `` html`…` `` into a
+//! `rule:core-classes/html-template` folds a hole-free `` html`…` `` into a
 //! `Core\Html\Markup` the compiled unit carries in its own data section,
 //! exactly as [`crate::string`]'s § *An immortal string* already carries a
 //! string literal. [`immortal_object_bytes`] is the header such a constant is
@@ -5288,7 +5288,7 @@ mod tests {
         words
     }
 
-    /// `rule:core-classes/html-literal`'s folded literal, from the side this
+    /// `rule:core-classes/html-template`'s folded literal, from the side this
     /// crate owns: an immortal instance costs nothing to retain or release, is
     /// never freed however many times it is released, and — the half that keeps
     /// the plain `Cell` sound — is never *written*.

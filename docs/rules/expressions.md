@@ -175,7 +175,7 @@ strict reading:
 | `array<T>` | the same length, the same keys in the same order, and every value equal by this table, recursively |
 | class instance | the same object ([`expressions/object-identity-equality`](expressions.md#expressions-object-identity-equality)) |
 | enum case | the underlying integers are equal |
-| `callable` | the same callable — two `fn` literals with identical bodies are two callables |
+| `callable` | the same callable — two anonymous functions with identical bodies are two callables |
 | `mixed`, a union | resolved at run time ([`expressions/mixed-equality`](expressions.md#expressions-mixed-equality)) |
 
 The array recursion terminates: an array is a copy-on-write value rather than a reference, so it
@@ -255,7 +255,7 @@ if ($s == ($n as string)) { }   // convert once, deliberately, then compare
 Disjointness, not identity of types, is the test, so ordinary code still compiles: the same type; any
 pairing of `int`, `uint`, `float` and `decimal`, which are **one numeric domain**; `?T` against `null`
 or against `T`, which is the null test and narrows; a union against any type one member can hold; a
-literal or enum-case type against its base; `mixed` against anything; a class against itself or an
+single-value or enum-case type against its base; `mixed` against anything; a class against itself or an
 ancestor.
 
 Refused: a non-nullable type against `null`; `string` against `bytes`; an enum against its underlying
@@ -287,11 +287,11 @@ for truth, and [`expressions/truthy-positions`](expressions.md#expressions-truth
 
 <sub>See also [`expressions/one-equality-operator`](expressions.md#expressions-one-equality-operator), [`expressions/disjoint-comparison-refused`](expressions.md#expressions-disjoint-comparison-refused), [`expressions/equality-semantics`](expressions.md#expressions-equality-semantics). Decided in [0090](../decisions/0090.md), [0035](../decisions/0035.md).</sub>
 
-<a id="expressions-intrinsic-literals"></a>
+<a id="expressions-intrinsic-constant-arguments"></a>
 
-## A literal argument to an intrinsic `Core` call is validated while checking and prepared into the artifact
+## A constant argument to an intrinsic `Core` call is validated while checking and prepared into the artifact
 
-`rule:expressions/intrinsic-literals`
+`rule:expressions/intrinsic-constant-arguments`
 
 A short, closed roster of `Core` methods takes an argument that is really a small program — a regex
 pattern, a URI, a date format, a duration, a format string, a SQL placeholder list. When that
@@ -304,17 +304,17 @@ member's leading argument. The compiled artifact itself belongs to the core that
 what keeps an automaton or a pattern's field list out of a store shared between requests, and it is
 what a runtime cache keyed only on what a program *wrote* can then hold for the life of that core.
 
-A malformed constant is a diagnostic pointing at the exact offset inside the literal. The check on
+A malformed constant is a diagnostic pointing at the exact offset inside the string literal. The check on
 `Core\Str::format`'s placeholders also counts and types them against the argument list, which turns a
 whole family of `printf`-shaped bugs into compile errors.
 
 "Constant" is the existing definition — a literal, a class constant, or an expression over them. No
 new notion is introduced, and **nothing is refused for being dynamic**: an argument that does not
 qualify compiles to an ordinary runtime call with ordinary runtime validation. The early error, the
-static tier report and the preparation are what the literal form buys, and they are a reason to
+static tier report and the preparation are what a constant argument buys, and they are a reason to
 prefer it.
 
-This adds no syntax. It is a property of a call whose arguments happen to be literals.
+This adds no syntax. It is a property of a call whose arguments happen to be constants.
 
 <sub>See also [`expressions/intrinsic-list-is-closed`](expressions.md#expressions-intrinsic-list-is-closed), [`expressions/preparation-preserves-behaviour`](expressions.md#expressions-preparation-preserves-behaviour). Decided in [0057](../decisions/0057.md), [0046](../decisions/0046.md), [0042](../decisions/0042.md).</sub>
 
@@ -336,7 +336,7 @@ that runs over it stay one artefact rather than two lists to keep in step.
 A closed set is what makes [`expressions/preparation-preserves-behaviour`](expressions.md#expressions-preparation-preserves-behaviour) enforceable: every row
 can be tested against its runtime twin, because the rows are enumerable.
 
-<sub>See also [`expressions/intrinsic-literals`](expressions.md#expressions-intrinsic-literals), [`expressions/preparation-preserves-behaviour`](expressions.md#expressions-preparation-preserves-behaviour). Decided in [0057](../decisions/0057.md), [0063](../decisions/0063.md).</sub>
+<sub>See also [`expressions/intrinsic-constant-arguments`](expressions.md#expressions-intrinsic-constant-arguments), [`expressions/preparation-preserves-behaviour`](expressions.md#expressions-preparation-preserves-behaviour). Decided in [0057](../decisions/0057.md), [0063](../decisions/0063.md).</sub>
 
 <a id="expressions-bracket-destructuring"></a>
 
@@ -427,7 +427,7 @@ error everywhere else:
 | operand → target | `as ?T` |
 |---|---|
 | any row the conversion table defines | **available**; `null` where the row throws |
-| into a literal or enum-case type | **available** — the non-throwing twin of a checked conversion |
+| into a single-value or enum-case type | **available** — the non-throwing twin of a checked conversion |
 | from `mixed` | **available**; every target has a checked path from `mixed` |
 | a conversion that **cannot fail** (`$i as ?int`, `$i as ?string`) | **compile error** (`E0709`), naming `as T` |
 | no conversion exists at all (`array<int> as ?int`) | **compile error** (`E0708`) |
@@ -526,7 +526,7 @@ cost only the members that read it pay; a member on it whose argument was not a 
 zero word rather than a shorter argument list.
 
 A **live object is never what crosses**. A compiled pattern belongs to the core that built it, so what
-travels for a regex literal is the engine tier it settled in and the runtime spends the compile. That
+travels for a pattern given as a string literal is the engine tier it settled in and the runtime spends the compile. That
 bound is what keeps this rule's first paragraph true across the boundary: the prepared path hands the
 runtime path an earlier answer to a question it would have asked itself, never a different
 implementation of it.
@@ -535,7 +535,7 @@ One observable difference is named rather than denied: a fully folded call is no
 per-call probe does not fire for it. A *prepared* call — the common case — is still a call and probes
 normally, and the enclosing statement's probe is unaffected either way.
 
-<sub>See also [`expressions/intrinsic-literals`](expressions.md#expressions-intrinsic-literals), [`expressions/intrinsic-list-is-closed`](expressions.md#expressions-intrinsic-list-is-closed). Decided in [0057](../decisions/0057.md), [0042](../decisions/0042.md), [0018](../decisions/0018.md), [0189](../decisions/0189.md).</sub>
+<sub>See also [`expressions/intrinsic-constant-arguments`](expressions.md#expressions-intrinsic-constant-arguments), [`expressions/intrinsic-list-is-closed`](expressions.md#expressions-intrinsic-list-is-closed). Decided in [0057](../decisions/0057.md), [0042](../decisions/0042.md), [0018](../decisions/0018.md), [0189](../decisions/0189.md).</sub>
 
 <a id="expressions-pipeline-substitution"></a>
 

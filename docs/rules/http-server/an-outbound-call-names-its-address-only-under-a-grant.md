@@ -1,5 +1,5 @@
 A call may name the address it connects to with `connectTo: string`, and only where a `net.connect_to`
-grant lists the URL's host. The value is an IP literal; the call connects there instead of resolving the
+grant lists the URL's host. The value is an IP address; the call connects there instead of resolving the
 host, and the certificate is still checked against the host the URL named.
 
 The option widens nothing, and that is what makes it grantable. The address is judged by

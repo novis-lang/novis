@@ -836,7 +836,7 @@ pub(crate) const DRIVER_NAME: &str = r"Core\Db\Driver";
 ///
 /// **The cases are what make `Db\Settings` a discriminated union**, and they
 /// are the whole of the mechanism: `rule:core-api/shape-arms-are-disjoint` selects an arm by asking which
-/// one accepts the literal, and `rule:types/literal-types`'s enum-case types make
+/// one accepts the literal, and `rule:types/single-value-types`'s enum-case types make
 /// `Driver::Sqlite` and the other four disjoint sets. No field is declared to
 /// be a discriminant, here or anywhere.
 ///

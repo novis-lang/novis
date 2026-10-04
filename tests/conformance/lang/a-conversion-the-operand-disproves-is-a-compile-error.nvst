@@ -1,5 +1,5 @@
 --TEST--
-A checked `as` whose operand already names a value outside the target set does not compile, and the diagnostic generates the accepted set from the type — `rule:types/literal-types`
+A checked `as` whose operand already names a value outside the target set does not compile, and the diagnostic generates the accepted set from the type — `rule:types/single-value-types`
 --FILE--
 <?nvs
 // § 4's two checked rows run at run time only where the operand's own type

@@ -9,7 +9,7 @@ path parameters from the handler's own parameters, by declared type, which is th
 already makes; query parameters from `#[Query]` parameters, a default making one optional; the
 response body from the declared return type; required-ness from definite initialization and
 parameter defaults, decided rather than guessed; nullability from `?T` and nothing else; an
-enumeration from a closed enum's cases or a literal-type union; the summary and description from
+enumeration from a closed enum's cases or a set of allowed values; the summary and description from
 the declaration's doc comment — first sentence, then the rest. What the types cannot say comes
 from `#[Api]` (`rule:attributes/api-adds-and-cannot-contradict`), which may add and may not
 contradict.

@@ -3,7 +3,7 @@
 //!
 //! The whole of it: nested `array<T>`, DNF unions and intersections, the
 //! `?T` sugar, `tainted`/`secret` qualifiers (`rule:security/tainted-qualifier`, `rule:security/secret-qualifier`), ADR
-//! 0036 § 3's inline `{name: T}` shape, `rule:types/literal-types`'s literal and enum-case
+//! 0036 § 3's inline `{name: T}` shape, `rule:types/single-value-types`'s literal and enum-case
 //! atoms, and `decimal` (`rule:types/decimal`). A `>>` closing two nested generics is
 //! split back into two `>` closes here rather than in the lexer — see
 //! [`Parser::expect_type_close_angle`].
@@ -91,7 +91,7 @@ impl<'src, 'd> Parser<'src, 'd> {
         self.at_contextual("property") && matches!(self.peek_at(1).kind, TokenKind::Lt)
     }
 
-    /// `-1` — `rule:types/literal-types`'s one type atom that needs two tokens to
+    /// `-1` — `rule:types/single-value-types`'s one type atom that needs two tokens to
     /// recognise, which is why it is asked here rather than in
     /// [`Self::token_starts_type`]. A bare `-` never starts a type on its
     /// own: routing every statement-initial `-$x;` through
@@ -136,7 +136,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                 | TokenKind::Question
                 | TokenKind::LParen
                 | TokenKind::LBrace
-                // `rule:types/literal-types`'s two literal atoms. A statement that merely
+                // `rule:types/single-value-types`'s two literal atoms. A statement that merely
                 // *starts* with one (`1 + 2;`, `"x" . $y;`) is no longer a
                 // free ride to the expression path, but it still gets there:
                 // `parse_stmt_maybe_local_decl` trial-parses the type and
@@ -144,7 +144,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                 | TokenKind::IntLiteral
                 | TokenKind::SingleQuotedString
                 | TokenKind::DoubleQuoteOpen
-                // Not a type — but `rule:types/literal-types`'s diagnostic is worth more
+                // Not a type — but `rule:types/single-value-types`'s diagnostic is worth more
                 // than the "expected a type" this would otherwise get.
                 | TokenKind::FloatLiteral
         )
@@ -573,7 +573,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                     span,
                 }
             }
-            // `rule:types/literal-types`'s literal atoms, the generalisation of the `true`
+            // `rule:types/single-value-types`'s literal atoms, the generalisation of the `true`
             // and `false` atoms just above from `bool`'s two values to every
             // `string` and `int`.
             TokenKind::SingleQuotedString => {
@@ -619,7 +619,7 @@ impl<'src, 'd> Parser<'src, 'd> {
         }
     }
 
-    /// A double-quoted `"a"` in type position — `rule:types/literal-types`'s string literal
+    /// A double-quoted `"a"` in type position — `rule:types/single-value-types`'s string literal
     /// atom, spelled the way the ADR spells it. The body is read with the
     /// ordinary [`Self::parse_string_body`] so escapes lex identically to a
     /// value position's, and an interpolated one is refused: a type has no
@@ -638,7 +638,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                 .with_primary(span, "this type names one exact string")
                 .with_help(
                     "write the string out — a type is resolved at compile time, so there is \
-                     nothing to interpolate from (`rule:types/literal-types`)",
+                     nothing to interpolate from (`rule:types/single-value-types`)",
                 ),
             );
         }
@@ -648,7 +648,7 @@ impl<'src, 'd> Parser<'src, 'd> {
         }
     }
 
-    /// `rule:types/literal-types`: there is no `float` literal type, deferred until
+    /// `rule:types/single-value-types`: there is no `float` literal type, deferred until
     /// floating-point equality has a real answer. Diagnosed by name rather
     /// than left to `error_expected("a type")`, since the reason a reader
     /// needs is "not this type, on purpose" and not "unparseable here".
@@ -661,7 +661,7 @@ impl<'src, 'd> Parser<'src, 'd> {
             .with_primary(span, "only `string` and `int` literals name a type")
             .with_help(
                 "use `float` and guard the value, or name the accepted set with `int` \
-                 literals (`rule:types/literal-types`)",
+                 literals (`rule:types/single-value-types`)",
             ),
         );
         Type {

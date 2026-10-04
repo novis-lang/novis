@@ -292,7 +292,7 @@ fn narrowing_never_changes_the_declared_type_of_the_binding() {
     assert!(refuses_nullable_receiver(&read_after), "{read_after:?}");
 }
 
-/// Wraps `body` in a method taking a `"read"|"write"`, the shape `rule:types/literal-types`'s
+/// Wraps `body` in a method taking a `"read"|"write"`, the shape `rule:types/single-value-types`'s
 /// guard row is about, and declares a `"read"`-typed local it can only be
 /// assigned to where the comparison narrowed it.
 fn check_with_mode(body: &str) -> Diagnostics {
@@ -305,7 +305,7 @@ fn refuses_mismatch(diags: &Diagnostics) -> bool {
     diags.iter().any(|d| d.code == Some(code::E_TYPE_MISMATCH))
 }
 
-/// `rule:types/literal-types`'s guard row, and the `!=` spelling of the same edge.
+/// `rule:types/single-value-types`'s guard row, and the `!=` spelling of the same edge.
 #[test]
 fn a_comparison_against_a_literal_narrows_its_subject() {
     let eq = check_with_mode("if ($mode == \"read\") {\n  \"read\" $only = $mode;\n}\n");

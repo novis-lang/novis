@@ -93,7 +93,7 @@ fn check_arg_list(
         (0..list.len()).map(ArgSlot::Param).collect()
     };
     check_inout_markers(list, &slots, &sig, env);
-    // `rule:programs/path-literals-resolve-from-their-file`: a relative literal
+    // `rule:programs/relative-paths-resolve-from-their-file`: a relative literal
     // at a path parameter is recorded as the absolute path it names. It reads
     // only the written text and the slot, so it runs before the argument types
     // are known. See [`crate::paths`].
@@ -1430,7 +1430,7 @@ pub(crate) fn check_inout_arg(
 /// A `fn` literal at a parameter written in variables is the other, and it is
 /// checked inside the binding pass, in a round of its own, because it is the
 /// one argument that both *takes* a binding and *gives* one.
-/// `rule:types/callable-literal-inference` types `$u` in
+/// `rule:types/anonymous-function-parameter-inference` types `$u` in
 /// `Core\Arr::map($users, fn($u) => $u->name)` from the substituted parameter,
 /// so that check cannot run until `T` is bound; the signature the literal then
 /// reports is what binds `U`, so it has to run before
@@ -1480,7 +1480,7 @@ pub(crate) fn check_generic_args(
         // assignability alone does not.
         let declared = declared_for(slots[index], &sig, env.interner);
         // A `fn` literal at a parameter still written in variables is left for
-        // the pass below: `rule:types/callable-literal-inference` gives its
+        // the pass below: `rule:types/anonymous-function-parameter-inference` gives its
         // unannotated parameters the types of the position it stands in, and
         // that position says `callable(T, string): U` until the other
         // arguments have bound `T`. Checked here it would take those types

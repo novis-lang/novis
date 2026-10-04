@@ -1,5 +1,5 @@
 --TEST--
-A markup literal written straight at `echo` in an HTTP request writes its segments as they are and escapes each hole once, the same bytes the literal gives through a `Markup` variable -- `rule:core-classes/html-literal`, `rule:core-classes/html-auto-escape`
+A markup literal written straight at `echo` in an HTTP request writes its segments as they are and escapes each hole once, the same bytes the literal gives through a `Markup` variable -- `rule:core-classes/html-template`, `rule:core-classes/html-auto-escape`
 --FILE--
 <?nvs
 // The program sends a request to itself. Inside that request the call below

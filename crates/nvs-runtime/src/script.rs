@@ -416,7 +416,7 @@ fn published_slot() -> MutexGuard<'static, Option<SharedResolver>> {
 /// compiles.
 ///
 /// A relative path is refused rather than looked up in the working directory
-/// (`rule:programs/path-literals-resolve-from-their-file`). Every caller hands
+/// (`rule:programs/relative-paths-resolve-from-their-file`). Every caller hands
 /// over an absolute path — the compiler joined a literal to its file's folder,
 /// a door refused a relative value the program built, and the configuration
 /// joined `[[schedule]] script` and `[log] handler` to their file's folder — so
@@ -639,7 +639,7 @@ mod tests {
 
     #[test]
     fn a_relative_path_is_refused_before_the_grant_and_the_resolver_are_asked() {
-        // `rule:programs/path-literals-resolve-from-their-file`: every caller
+        // `rule:programs/relative-paths-resolve-from-their-file`: every caller
         // hands over an absolute path, so a relative one is a defect upstream
         // and is never looked up in the working directory. The context grants
         // everything and the resolver would answer, so the path alone is what

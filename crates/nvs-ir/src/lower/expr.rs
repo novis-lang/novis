@@ -184,7 +184,7 @@ impl<'a> Lowering<'a> {
             // `Self::bind_local`'s doc comment for why a value produced here
             // never needs a retain of its own, only whatever consumes it.
             // A relative path at a path parameter is the absolute path the
-            // checker joined it to (`rule:programs/path-literals-resolve-from-their-file`):
+            // checker joined it to (`rule:programs/relative-paths-resolve-from-their-file`):
             // the same constant, with different bytes, and nothing at run time.
             ExprKind::Str(span) => {
                 let s = match self.exprs.path_literal(*span) {
@@ -211,7 +211,7 @@ impl<'a> Lowering<'a> {
                 );
                 self.lower_interpolated_parts(parts, expr.span, env, cur)
             }
-            // The same parts under a different rule: `rule:core-classes/html-literal`
+            // The same parts under a different rule: `rule:core-classes/html-template`
             // trusts every segment and escapes every hole, and what it denotes
             // is a carrier rather than a `string`. It reaches here whatever its
             // body holds, a hole-free one included — `nvs_syntax`'s parser
@@ -309,7 +309,7 @@ impl<'a> Lowering<'a> {
                 // `Core\Path::thisFile` and `thisDir`, which the checker
                 // replaced with the path of the file that wrote them, under
                 // the call's span in the table a path literal uses
-                // (`rule:programs/path-literals-resolve-from-their-file`).
+                // (`rule:programs/relative-paths-resolve-from-their-file`).
                 if let Some(path) = self.exprs.path_literal(expr.span) {
                     return self.emit(*cur, Ty::Str, InstKind::ConstStr(path.to_owned()));
                 }
@@ -720,7 +720,7 @@ impl<'a> Lowering<'a> {
     /// way the write itself is [`Self::emit_write`]'s.
     ///
     /// A ``html`…` `` operand takes neither path and becomes no value at all:
-    /// `rule:core-classes/html-literal`'s sink position is a write per piece,
+    /// `rule:core-classes/html-template`'s sink position is a write per piece,
     /// which is [`Self::echo_markup_parts`].
     ///
     /// An operand `concat_operand` reports as non-aliasing (a literal, a
@@ -788,7 +788,7 @@ impl<'a> Lowering<'a> {
             raise_site: None,
         });
     }
-    /// `echo html`…`;` — `rule:core-classes/html-literal`'s **sink** position,
+    /// `echo html`…`;` — `rule:core-classes/html-template`'s **sink** position,
     /// which is a run of writes with no carrier built at all.
     ///
     /// Each piece is written as it is produced: a segment's bytes, then a
@@ -1969,7 +1969,7 @@ impl<'a> Lowering<'a> {
     /// [`Self::reinterpret_enum_to_backing`] relabels the subject once above
     /// the chain and each label as it is lowered, exactly as
     /// [`Self::lower_binary`] relabels a written `==` between two cases and
-    /// `Self::lower_literal_membership` `rule:types/literal-types`'s chain — `nvs-codegen`'s
+    /// `Self::lower_literal_membership` `rule:types/single-value-types`'s chain — `nvs-codegen`'s
     /// `BinOp` table is `Ty::Int`/`Ty::Uint`/`Ty::Bool` and carries no
     /// `Ty::Enum` row at all. The relabelling is free (no machine instruction)
     /// and feeds the comparisons alone: the subject's own value is what the
@@ -2018,7 +2018,7 @@ impl<'a> Lowering<'a> {
         // An enum subject is compared one representation down, on the integer
         // its cases *are* — the free `Reinterpret` of `rule:types/conversion` row 1,
         // which `Self::lower_binary` already makes for a written `==` between
-        // two cases and `Self::lower_literal_membership` for `rule:types/literal-types`'s
+        // two cases and `Self::lower_literal_membership` for `rule:types/single-value-types`'s
         // chain, `nvs-codegen`'s `BinOp` table carrying no `Ty::Enum` row.
         // It is made once, above the chain, and feeds the comparisons alone:
         // `subj_v` stays the value the release below reads, and each label
@@ -2307,7 +2307,7 @@ impl<'a> Lowering<'a> {
         (v, Ty::Str)
     }
     /// Lowers `ExprKind::Markup`'s parts into the one `Core\Html\Markup` they
-    /// denote — `rule:core-classes/html-literal`'s **value** position, which is
+    /// denote — `rule:core-classes/html-template`'s **value** position, which is
     /// the literal assigned, returned or put in an array rather than written
     /// straight to a sink.
     ///
@@ -2406,7 +2406,7 @@ impl<'a> Lowering<'a> {
     /// Lowers one of a markup literal's holes to the bytes it contributes.
     ///
     /// **A hole already holding a `Core\Html\Markup` is spliced raw and every
-    /// other hole is escaped** (`rule:core-classes/html-literal`), which is the
+    /// other hole is escaped** (`rule:core-classes/html-template`), which is the
     /// one question here. It cannot be asked of the [`Ty`]s: a carrier and a
     /// `rule:classes/stringable` object both erase to [`Ty::Object`]. So
     /// `nvs_types::expr::literals::infer_markup_literal` records the hole's
@@ -2689,7 +2689,7 @@ impl<'a> Lowering<'a> {
         self.emit(*cur, Ty::Float, InstKind::ConstFloat(n))
     }
 
-    /// `rule:types/duration-literal`: the grammar is resolved while compiling, so what
+    /// `rule:types/duration`: the grammar is resolved while compiling, so what
     /// reaches the IR is one folded nanosecond count. The value it
     /// becomes is built by the *same* `Core` member a written
     /// `Duration::nanoseconds($n)` calls — `nvs_stdlib::time`'s
@@ -3560,7 +3560,7 @@ impl<'a> Lowering<'a> {
     /// to, and `$params` is lowered exactly as `lower_static_call`'s `Core`
     /// branch would have lowered it. So this is not a fold — the call is still
     /// made, because percent-encoding a run-time value is run-time work — it is
-    /// `rule:expressions/intrinsic-literals`'s *preparation*, with the lookup and the path's grammar
+    /// `rule:expressions/intrinsic-constant-arguments`'s *preparation*, with the lookup and the path's grammar
     /// paid once at compile time.
     ///
     /// `$params` is borrowed like every other `Core` argument
@@ -6501,7 +6501,7 @@ enum TestShape {
     /// One tag comparison, and a payload compare behind it. A literal type
     /// names a single value, so the tag only says the payload word is
     /// readable at this representation and the compare says whether it is
-    /// that value — `rule:types/literal-types`' two halves, over the atom
+    /// that value — `rule:types/single-value-types`' two halves, over the atom
     /// `as` already reduces the same type to.
     ///
     /// `rule:types/enum-case-type`'s case is this row too, one representation

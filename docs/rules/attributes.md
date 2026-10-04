@@ -48,7 +48,7 @@ class UserController {
 Two forms carry one payload between them, and both take named fields — there is no positional form.
 The **bare** `#[{...}]` names no shape and is checked only as a well-formed anonymous object. The
 **named** `#[Name(...)]` requires `Name` to resolve, through the ordinary namespace and `use` scope, to
-a `type` alias whose right-hand side is a shape type; the literal is then checked against it by the
+a `type` alias whose right-hand side is a shape type; the payload object is then checked against it by the
 width subtyping every shape-typed position already uses.
 
 The name may be written `Owner::Name`, an alias declared as a member of an interface, class or enum
@@ -87,7 +87,7 @@ The admitted list is **closed**. An expression kind the grammar grows is refused
 it belongs in a constant pool, which is why this is its own walk over every attach site rather than a
 row added to the pass that folds an enum case's value ([`enums/closed-integer-type`](enums.md#enums-closed-integer-type)).
 
-Two things follow with no rule of their own. The literal resolves once, at compile time, so there is no
+Two things follow with no rule of their own. The payload resolves once, at compile time, so there is no
 "evaluate this attribute's arguments" step at declaration time. And no `tainted` value can reach a
 payload, because a tainted value has no compile-time-constant source at all; a `secret` class constant
 can, and is refused there as a sink (`E0727`).
@@ -110,7 +110,7 @@ public function show(): Response { … }
 ```
 
 Nothing about attaching one attribute is aware of how many others share its site. There is no arity
-check and no deduplication, so attaching the identical literal twice keeps both copies and `all<T>`
+check and no deduplication, so attaching the identical payload object twice keeps both copies and `all<T>`
 answers with both, in attach order: `count(all<T>(...))` counts attachments, never distinct payloads.
 
 Ambiguity is entirely retrieval's problem ([`attributes/retrieval-folds-while-checking`](attributes.md#attributes-retrieval-folds-while-checking)). A rule
@@ -152,8 +152,8 @@ function Core\Attributes::all<T>(callable $target, string $member = ""): array<T
 ```
 
 `T` is a shape type — an inline `{...}`, or a `type` alias naming one. Retrieval is **structural**:
-every attached literal satisfying `T` under width subtyping is an answer, whether it was written bare
-or under a name, and whatever that name was. An attach-time name checks the literal where it is
+every attached payload object satisfying `T` under width subtyping is an answer, whether it was written
+bare or under a name, and whatever that name was. An attach-time name checks the payload object where it is
 written and is never part of how a caller asks for it, so there is no namespace of attribute-kind names
 for unrelated libraries to collide in.
 

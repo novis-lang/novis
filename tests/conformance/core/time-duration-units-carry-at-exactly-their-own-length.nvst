@@ -1,8 +1,8 @@
 --TEST--
-Spec § 4: each `Core\Time\Duration` unit is a fixed length (`rule:types/duration-literal`), asserted at both sides of every carry and at both sides of the type's own range
+Spec § 4: each `Core\Time\Duration` unit is a fixed length (`rule:types/duration`), asserted at both sides of every carry and at both sides of the type's own range
 --FILE--
 <?nvs
-// Each unit is a fixed number of nanoseconds (`rule:types/duration-literal`), and the place
+// Each unit is a fixed number of nanoseconds (`rule:types/duration`), and the place
 // that number is observable is where the rendering carries: one count below
 // the next unit's length still renders in its own unit, and the count that
 // reaches it renders as one of the next. Both sides of all seven carries.

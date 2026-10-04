@@ -1,8 +1,8 @@
 Every address a name resolves to is checked against `rule:security/net-address-policy`, and **one denied
 address refuses the whole host**, naming it. A name that answers both a public address and one the policy
 denies is what a rebinding attack looks like from the resolver's side, so the denied answer is not
-quietly dropped from the set and the rest used; `net.internal`'s exceptions still apply per address. An
-IP literal, and a `connectTo` value (`rule:http-server/an-outbound-call-names-its-address-only-under-a-grant`),
+quietly dropped from the set and the rest used; `net.internal`'s exceptions still apply per address. A
+URL whose host is an IP address, and a `connectTo` value (`rule:http-server/an-outbound-call-names-its-address-only-under-a-grant`),
 are a set of one.
 
 `Core\Http\Target` carries **the approved set**, in the resolver's order and at most eight of it, and

@@ -1,5 +1,5 @@
 --TEST--
-a duration unit has one spelling, and it is lower case — `rule:types/duration-literal` over `rule:classes/reserved-spellings-are-lower-case`
+a duration unit has one spelling, and it is lower case — `rule:types/duration` over `rule:classes/reserved-spellings-are-lower-case`
 --FILE--
 <?nvs
 var $shouted = 30S;

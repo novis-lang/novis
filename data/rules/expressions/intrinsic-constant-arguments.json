@@ -1,12 +1,12 @@
 {
-  "title": "A literal argument to an intrinsic `Core` call is validated while checking and prepared into the artifact",
+  "title": "A constant argument to an intrinsic `Core` call is validated while checking and prepared into the artifact",
   "status": "shipped",
   "because": [
     "0057",
     "0046",
     "0042"
   ],
-  "divergesFromPhp": "a malformed pattern, URI, duration or format string is a compile error at the offset inside the literal, rather than a throw on the first request that reaches the call",
+  "divergesFromPhp": "a malformed pattern, URI, duration or format string is a compile error at the offset inside the string literal, rather than a throw on the first request that reaches the call",
   "seeAlso": [
     "expressions/intrinsic-list-is-closed",
     "expressions/preparation-preserves-behaviour"

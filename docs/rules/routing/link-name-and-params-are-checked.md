@@ -2,10 +2,10 @@
 and the compiler resolves the call against the whole program's table after every file has been
 walked — the route may be declared in a file the scan reaches later.
 
-Two failures are compile errors, reported at the argument: **a literal `$name` no `#[Route]`
-declares**, and **a `$params` literal that does not cover the route's captures** — every `{name}` and
-`{name...}` the path writes needs a key of that name, and only a `{name?}` may be left out, whose
-whole segment is then dropped. A literal key that is neither a capture nor one of the route's declared
+Two failures are compile errors, reported at the argument: **a `$name` given as a string literal that
+no `#[Route]` declares**, and **a `$params` array literal that does not cover the route's captures** —
+every `{name}` and `{name...}` the path writes needs a key of that name, and only a `{name?}` may be
+left out, whose whole segment is then dropped. A key in that array literal that is neither a capture nor one of the route's declared
 `#[Query]` parameters is refused in the same shape, so a typo cannot silently become a query
 parameter. A **computed** `$name` throws instead, and a computed `$params` is not checked at all —
 there are no keys to read.

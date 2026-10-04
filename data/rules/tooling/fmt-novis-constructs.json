@@ -1,5 +1,5 @@
 {
-  "title": "Every construct PER never saw — qualifiers, `lateinit`, `fn` anonymous functions, `match`, anonymous objects, shape types, enum cases, markup literals, a `?>` on its own line — has exactly one layout",
+  "title": "Every construct PER never saw — qualifiers, `lateinit`, `fn` anonymous functions, `match`, anonymous objects, shape types, enum cases, html templates, a `?>` on its own line — has exactly one layout",
   "status": "shipped",
   "because": [
     "0039",
@@ -15,7 +15,7 @@
     "types/anonymous-object",
     "types/shape-type",
     "enums/declaration",
-    "core-classes/html-literal"
+    "core-classes/html-template"
   ],
   "guardedBy": [
     "crates/nvs-fmt/tests/novis_constructs.rs",

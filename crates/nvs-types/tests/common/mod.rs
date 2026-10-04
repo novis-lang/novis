@@ -266,7 +266,7 @@ pub(crate) fn check_declarations_only(src: &str) -> Diagnostics {
 }
 
 /// [`check_src`] with a deployment's `[capabilities]` block in front of the
-/// checker — `rule:core-classes/db-literal-query-checking`'s "read at boot on the machine that compiles",
+/// checker — `rule:core-classes/db-compile-time-query-checking`'s "read at boot on the machine that compiles",
 /// which is the only input to a check that is not the program.
 ///
 /// `None` is what every other fixture passes and is *not* an empty grant set;

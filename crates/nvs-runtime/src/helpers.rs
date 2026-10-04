@@ -625,7 +625,7 @@ crate::nvs_helper! {
 /// same refusal — made here only because the tags are where it first became
 /// answerable.
 ///
-/// An enum case is deliberately *not* one of those pairs: `rule:types/literal-types` spends
+/// An enum case is deliberately *not* one of those pairs: `rule:types/single-value-types` spends
 /// no representation on one, so behind a `mixed` it is the `int` or `uint` its
 /// cases are, and it orders as one. The static spelling still refuses it
 /// (`E0715`), which is where an author is told to say `as int` out loud.
@@ -2906,7 +2906,7 @@ crate::nvs_helper! {
 }
 
 /// One operand of a failed
-/// `rule:types/literal-types`
+/// `rule:types/single-value-types`
 /// membership test, rendered the way § 6's compile-time sibling renders it:
 /// a `string` double-quoted, an integer bare. Only the representations a
 /// closed literal set can name reach this — `nvs-codegen` boxed the operand
@@ -2933,7 +2933,7 @@ fn rendered_operand(value: Value) -> String {
 }
 
 crate::nvs_helper! {
-    /// `nvs_ir::Helper::LiteralMismatch` — `rule:types/literal-types`'s membership test
+    /// `nvs_ir::Helper::LiteralMismatch` — `rule:types/single-value-types`'s membership test
     /// having missed every literal its target names, which § 4 makes a throw.
     ///
     /// **Never returns `Ok`.** The comparison chain that calls it already

@@ -1,5 +1,5 @@
 An anonymous function captures exactly the outer variables its body reads, snapshotted **by value**
-at the point the literal is evaluated. There is no syntax to opt a variable in or out, and no
+at the point the anonymous function is evaluated. There is no syntax to opt a variable in or out, and no
 by-reference capture: `use ($y)` and `use (&$y)` are both diagnostics, the second with its own wording
 where the intent was mutation visible outside the anonymous function. `$this` is captured like any
 other binding when the body names it.

@@ -857,7 +857,7 @@ nvs_runtime::nvs_helper! {
                 args[0].tag_byte()
             ))
         })?;
-        // `rule:programs/path-literals-resolve-from-their-file`: a relative
+        // `rule:programs/relative-paths-resolve-from-their-file`: a relative
         // literal arrives joined to its file's folder, so a relative path here
         // was built while the program ran, and nothing resolves it from the
         // working directory.

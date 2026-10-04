@@ -25,7 +25,7 @@ $claim('a typed callback runs and returns its declared type', $labelled == 'n=7'
 // `rule:types/callable-arity`: `Core\Arr::map` offers every callback
 // ($value, $key) and a callback may declare fewer, matched from the left.
 // Neither literal writes a parameter type — the position names them
-// (`rule:types/callable-literal-inference`).
+// (`rule:types/anonymous-function-parameter-inference`).
 array<int> $scores = ['ana' => 2, 'bo' => 3];
 array<int> $doubled = Core\Arr::map($scores, fn ($v) => $v * 2);
 array<string> $named = Core\Arr::map($scores, fn ($v, $k) => $k . $v);

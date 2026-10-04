@@ -1,4 +1,4 @@
-A `require` with a literal path resolves, and the resolved real path is then compared component-wise
+A `require` whose path is a string literal resolves, and the resolved real path is then compared component-wise
 against the path as written. A component that differs **only** in case is
 `E_REQUIRE_PATH_CASE_MISMATCH`. So `require 'mailer.nvs';` against a file named `Mailer.nvs` is an
 error on Windows and macOS, where it would otherwise have compiled, and it was already

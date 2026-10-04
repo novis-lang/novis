@@ -1,5 +1,5 @@
 {
-  "title": "A trigger character opens a list only where it finished `->`, `::`, `\\`, `$` or `<?`, or opened or extended a `require` or `autoload` literal, the string of `as class<T>`, a string argument at a path or class-name parameter or one at a parameter a completion file names, and `$`, a lone `:` and `<?` each narrow what is offered",
+  "title": "A trigger character opens a list only where it finished `->`, `::`, `\\`, `$` or `<?`, or opened or extended a `require` or `autoload` path string, the string of `as class<T>`, a string argument at a path or class-name parameter or one at a parameter a completion file names, and `$`, a lone `:` and `<?` each narrow what is offered",
   "status": "shipped",
   "because": [
     "0193",

@@ -1,9 +1,9 @@
 --TEST--
-A comparison against a written literal narrows its subject to that literal's own type — `rule:types/literal-types`
+A comparison against a written literal narrows its subject to that literal's own type — `rule:types/single-value-types`
 --FILE--
 <?nvs
 // covers: lang:types/narrowing
-// `rule:types/literal-types`'s guard row: a wider literal union reaches a narrower one
+// `rule:types/single-value-types`'s guard row: a wider literal union reaches a narrower one
 // through a guard, and `==` is that guard's simplest spelling. Every `$only`
 // below is declared at the *narrow* type, so it compiles only where the
 // comparison proved it.

@@ -47,7 +47,7 @@ echo $title;
 #[test]
 fn a_markup_literal_body_is_byte_identical_after_formatting() {
     // The body of a markup literal is the same bytes in a second spelling
-    // (`rule:core-classes/html-literal`), including across the `{$…}` holes
+    // (`rule:core-classes/html-template`), including across the `{$…}` holes
     // that make it more than a string, so the ragged lines inside one survive
     // exactly as the text region's do.
     let source = "\

@@ -1,5 +1,5 @@
 --TEST--
-duration units strictly descend and may not repeat — `rule:types/duration-literal`
+duration units strictly descend and may not repeat — `rule:types/duration`
 --FILE--
 <?nvs
 var $backwards = 30m1h;

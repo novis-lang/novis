@@ -1,6 +1,6 @@
 //! The one refactor this server computes: a string, or a `.` chain of
 //! strings and values, rewritten as the ``html`…` `` literal that prints the
-//! same bytes (`rule:ide/a-string-converts-to-an-html-literal`).
+//! same bytes (`rule:ide/a-string-converts-to-an-html-template`).
 //!
 //! Every other code action is a diagnostic's own suggestion
 //! (`rule:ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`).

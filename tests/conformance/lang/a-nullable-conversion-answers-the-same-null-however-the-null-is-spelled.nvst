@@ -1,5 +1,5 @@
 --TEST--
-`as ?T`'s `null` is one type written three ways — `?(A|B)`, `?A|B` and `A|B|null` — and the three answer the same value on every operand, `rule:expressions/nullable-conversion` over `rule:expressions/nullable-conversion-availability` row 2 and `rule:types/literal-types`'s membership chain
+`as ?T`'s `null` is one type written three ways — `?(A|B)`, `?A|B` and `A|B|null` — and the three answer the same value on every operand, `rule:expressions/nullable-conversion` over `rule:expressions/nullable-conversion-availability` row 2 and `rule:types/single-value-types`'s membership chain
 --FILE--
 <?nvs
 enum Mode: int {

@@ -43,7 +43,7 @@
 //! # One parse, two entry points
 //!
 //! The spec makes `format` an
-//! `rule:expressions/intrinsic-literals`
+//! `rule:expressions/intrinsic-constant-arguments`
 //! intrinsic: a **literal** template has its placeholder count and types
 //! checked while compiling. That ADR's § 4 is why the checker does not get a
 //! parser of its own — [`Pieces`] is the one walk over the grammar, [`format`]

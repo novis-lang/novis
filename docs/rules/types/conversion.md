@@ -12,7 +12,7 @@ This is the whole conversion surface:
 | `float` → `int` / `uint` | integral and in range, or throws. Rounding is `Core\Math::floor`/`ceil`/`round`, said out loud |
 | `string` → `int` / `uint` / `float` | the whole string must be an exact numeric literal, or throws. No leading-garbage rule, no `0` |
 | anything → `string` | total for scalars; an object needs `Stringable`, or it throws |
-| `array<T>` → `array<U>` | every element must satisfy `U`, or be an `int` or `uint` where `U` is `float`, at any depth; an O(n) walk, one tag test per element. Where every element already satisfies `U`, the result shares the one copy-on-write buffer. Where an `int` or `uint` element meets a `float`, the result is a new array of the operand's size with that element converted, exact or throwing above 2^53. An element type naming a class, an enum, a literal type or a union is refused where it is written, `array<mixed>` being the way round it |
+| `array<T>` → `array<U>` | every element must satisfy `U`, or be an `int` or `uint` where `U` is `float`, at any depth; an O(n) walk, one tag test per element. Where every element already satisfies `U`, the result shares the one copy-on-write buffer. Where an `int` or `uint` element meets a `float`, the result is a new array of the operand's size with that element converted, exact or throwing above 2^53. An element type naming a class, an enum, a single-value type or a union is refused where it is written, `array<mixed>` being the way round it |
 | `int` / `uint` → `decimal` | always exact — both fit in 96 bits |
 | `decimal` → `int` / `uint` | integral and in range, or throws. Rounding is `Core\Decimal::floor`/`ceil`/`round` |
 | `float` → `decimal` | the shortest decimal that round-trips to that `float` — `0.1 as decimal` is `0.1` |
@@ -24,7 +24,7 @@ This is the whole conversion surface:
 | `EnumName` → its backing `int`/`uint` | total and free — the same representation, reinterpreted |
 | backing type / `mixed` → `EnumName` | checked. Throws unless the value equals some case's value |
 | `EnumName` → a different `EnumName` | **rejected**, even through `as`, whatever backs them; converting is a `match` naming every case |
-| base type / `mixed` → a literal or literal-union type | checked against the named set (`rule:types/literal-types`) |
+| base type / `mixed` → a single-value type or a set of allowed values | checked against the named set (`rule:types/single-value-types`) |
 | an enum / `mixed` → a case-subset type | checked against the named cases (`rule:types/enum-case-type`) |
 | `string` / `class<U>` → `class<T>` | the name must be `T` or a class that is one, or it throws. `Foo::class` is decided at compile time, and `class<T>` → `string` is total — the descriptor's own name, not the annotation's |
 | `string` / `property<U>` → `property<T>` | the name must be one of `T`'s public declared properties, or it throws. A written-out name is decided at compile time, and `property<T>` → `string` is total |

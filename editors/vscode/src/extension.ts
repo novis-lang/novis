@@ -146,7 +146,7 @@ export async function activate(context: ExtensionContext): Promise<Surface> {
     // download is `install.ts` from end to end, and this only says what happened and restarts.
     commands.registerCommand("nvs.downloadBinary", () => downloadBinary(context)),
     commands.registerCommand("nvs.openReleases", () => env.openExternal(Uri.parse(RELEASE_PAGE))),
-    // The conversion is the server's code action (`rule:ide/a-string-converts-to-an-html-literal`),
+    // The conversion is the server's code action (`rule:ide/a-string-converts-to-an-html-template`),
     // so this command only asks the editor to apply it, filtered by its exact kind. A second
     // client gets the same action from the server and needs nothing written here.
     commands.registerCommand("nvs.convertToHtmlLiteral", () =>

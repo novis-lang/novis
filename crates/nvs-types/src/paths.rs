@@ -1,4 +1,4 @@
-//! `rule:programs/path-literals-resolve-from-their-file`: a relative string
+//! `rule:programs/relative-paths-resolve-from-their-file`: a relative string
 //! literal passed to a path parameter names a file beside the source file that
 //! wrote it, and the compiler writes the absolute path in its place.
 //!
@@ -295,7 +295,7 @@ fn report_join(join: &Expr, env: &mut Env<'_>) {
         .with_primary(join.span, "not a relative string literal")
         .with_help(
             "the folder is joined while compiling \
-             (`rule:programs/path-literals-resolve-from-their-file`): write a relative literal \
+             (`rule:programs/relative-paths-resolve-from-their-file`): write a relative literal \
              such as `'data'`, or `Core\\Path::join(Core\\Path::thisDir(), $part)` for a path \
              the program builds",
         ),
@@ -483,7 +483,7 @@ fn check_method(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<'_>) {
             .with_primary(attr.span, "a path is a `string`")
             .with_help(
                 "`#[Core\\Path]` says a string literal passed here is a file path \
-                 (`rule:programs/path-literals-resolve-from-their-file`): declare the parameter \
+                 (`rule:programs/relative-paths-resolve-from-their-file`): declare the parameter \
                  `string` or `?string`, or delete the marker",
             ),
         );
@@ -505,7 +505,7 @@ fn report_stray(groups: &[AttributeGroup], site: &str, ctx: &Ctx<'_>, env: &mut 
             .with_primary(attr.span, "nothing is passed here")
             .with_help(
                 "`#[Core\\Path]` marks a method parameter that takes a file path \
-                 (`rule:programs/path-literals-resolve-from-their-file`): move it to that \
+                 (`rule:programs/relative-paths-resolve-from-their-file`): move it to that \
                  parameter, or delete it",
             ),
         );

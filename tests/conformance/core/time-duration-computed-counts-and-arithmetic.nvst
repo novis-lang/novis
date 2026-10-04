@@ -3,7 +3,7 @@ Spec § 4: `Core\Time\Duration`'s eight constructors are for a computed count, a
 --FILE--
 <?nvs
 // The eight constructors exist for a count that is not known while compiling;
-// a constant one is `rule:types/duration-literal`'s literal, and the two agree exactly.
+// a constant one is `rule:types/duration`'s literal, and the two agree exactly.
 var $n = 2;
 echo Core\Time\Duration::nanoseconds($n)->toNanoseconds() as string, "|\n";
 echo Core\Time\Duration::microseconds($n)->toNanoseconds() as string, "|\n";
@@ -29,7 +29,7 @@ echo $base->toSeconds() as string, "|", $longer->toSeconds() as string, "|\n";
 echo $longer->minus(45m)->toString(), "|\n";
 echo $base->multipliedBy(3)->toString(), "|\n";
 
-// `rule:types/duration-literal`: `-7d` does not parse, so a backwards step is `minus` or
+// `rule:types/duration`: `-7d` does not parse, so a backwards step is `minus` or
 // `negated` — and a negative duration renders with the sign the grammar
 // itself has no spelling for.
 echo (0s)->minus(90m)->toString(), "|\n";
@@ -47,7 +47,7 @@ try {
     echo Core\Str::contains($e->message, "longer than") as string, "|\n";
 }
 
-// `rule:types/duration-literal`: `parse` throws on anything the grammar does not accept, which
+// `rule:types/duration`: `parse` throws on anything the grammar does not accept, which
 // is what makes it a launderer for a config string. Behind a binding, because
 // `rule:expressions/intrinsic-list-is-closed` folds this member's literal argument: written inline, the same
 // text is a compile error rather than the throw this asks for.

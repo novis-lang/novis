@@ -31,7 +31,7 @@
 //! against a `string` that silently changes length and alphabet under `+= 1`.
 //!
 //! `as` is here too, as the conversion's *operand* rule
-//! ([`reject_enum_to_enum_conversion`], and `rule:types/literal-types`'s
+//! ([`reject_enum_to_enum_conversion`], and `rule:types/single-value-types`'s
 //! [`reject_impossible_literal_conversion`] for a conversion whose operand
 //! already names a value the target's closed set does not contain), plus
 //! `rule:expressions/nullable-conversion-availability`'s target rule for `as ?T`
@@ -67,7 +67,7 @@ use super::*;
 /// [`check_expr`] would run here would reject every conversion that does any
 /// work.
 ///
-/// `rule:types/literal-types` adds the string literal to that same branch, for the same
+/// `rule:types/single-value-types` adds the string literal to that same branch, for the same
 /// reason one step further on: `"a" as "a"|"b"` is a conversion the target
 /// *statically satisfies*, and without the placement the operand would be a
 /// plain `string` converting into the set at run time. What the placement
@@ -651,7 +651,7 @@ fn equality_domain(ty: &Ty) -> Option<EqDomain<'_>> {
             EqDomain::Str
         }
         Ty::Bytes | Ty::TaintedBytes | Ty::SecretBytes | Ty::SecretTaintedBytes => EqDomain::Bytes,
-        // `rule:types/literal-types` gives a literal type its base's representation exactly,
+        // `rule:types/single-value-types` gives a literal type its base's representation exactly,
         // so it lands in its base's domain and nothing more: `$mode == "z"`
         // where `$mode` is `"a"|"b"` compares two strings and is answered at
         // run time. Refusing it because the two literal *sets* do not overlap
@@ -1539,7 +1539,7 @@ pub(crate) fn report_int_uint(span: Span, env: &mut Env<'_>) {
 /// **An object** takes `E_TYPE_MISMATCH`: Novis has no operator overloading, so
 /// there is no arithmetic an object can take part in — and the first place a
 /// program reaches for one is
-/// `rule:types/duration-literal`'s `-7d`, which
+/// `rule:types/duration`'s `-7d`, which
 /// that ADR refuses outright in favour of `->minus(7d)`. Left unchecked it
 /// reaches `nvs-codegen`, which panics naming the representation; a
 /// diagnostic naming the operator is what the author needs.
@@ -1667,7 +1667,7 @@ pub(crate) fn reject_increment_on_non_numeric(ty: TypeId, span: Span, env: &mut 
 }
 
 /// `rule:expressions/nullable-conversion-availability`'s
-/// class row, which is **absolute**: `as` converts between the types `rule:types/conversion` tabulates and `rule:types/literal-types`'s literal and enum-case types, and none of those
+/// class row, which is **absolute**: `as` converts between the types `rule:types/conversion` tabulates and `rule:types/single-value-types`'s literal and enum-case types, and none of those
 /// is a class. `$obj as ?SomeClass` asks class membership, which `is`
 /// plus `rule:types/unions-and-mixed`'s narrowing already answers; `$s as ?Core\Uri` asks for a
 /// parse, which is that class's own `tryParse` (§ 3a).
@@ -2104,7 +2104,7 @@ const ARRAY_ELEMENT_TAG_LEVELS: usize = u64::BITS as usize / 4;
 /// * An **enum** erases to its backing integer, so a tag would admit any
 ///   integer as a case — where `rule:types/conversion`'s own `mixed → EnumName` row
 ///   throws for a value no case names.
-/// * A **literal type** or a **union** (`rule:types/literal-types`'s closed sets,
+/// * A **literal type** or a **union** (`rule:types/single-value-types`'s closed sets,
 ///   `?T`, `int|string`) admits some values of its representation and not
 ///   others, which is again more than a tag says. `mixed` is not in that list
 ///   and is accepted: it is `rule:types/grammar`'s one unchecked position, so an
@@ -2343,7 +2343,7 @@ fn conversion_row_exists(from: ConvKind, to: ConvKind) -> bool {
         // `rule:types/conversion`'s O(n) element row.
         (Array, Array) => true,
         // Two spellings of one representation — a literal type and its base,
-        // `secret bytes` and `bytes`. `rule:types/literal-types` and `rule:security/secret-qualifier` both make
+        // `secret bytes` and `bytes`. `rule:types/single-value-types` and `rule:security/secret-qualifier` both make
         // these free, and the qualifier rule that runs after this one
         // ([`super::quals`]) is what decides the result's own qualifiers. The
         // `bool` and `string` pairs are already true two rows up, so naming
@@ -2474,7 +2474,7 @@ pub(crate) fn reject_enum_to_enum_conversion(
     );
 }
 
-/// `rule:types/literal-types`: a
+/// `rule:types/single-value-types`: a
 /// checked `as` into a closed set of literals or enum cases, whose operand
 /// names one value and that value is not in the set — `"z" as "a"|"b"`,
 /// `Mode::Admin as Mode::Read|Mode::Write`. Nothing about it is conditional at

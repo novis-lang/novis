@@ -1,5 +1,5 @@
 {
-  "title": "A shape's arms are pairwise disjoint, so exactly one accepts a written literal and no field is declared a discriminant",
+  "title": "A shape's arms are pairwise disjoint, so exactly one accepts a written anonymous object and no field is declared a discriminant",
   "status": "shipped",
   "because": [
     "0135",
@@ -9,7 +9,7 @@
   "seeAlso": [
     "core-api/shape-parameter",
     "core-api/shape-reuses-the-option-diagnostics",
-    "types/literal-types",
+    "types/single-value-types",
     "types/enum-case-type"
   ],
   "guardedBy": [

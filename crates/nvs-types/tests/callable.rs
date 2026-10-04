@@ -99,7 +99,7 @@ fn calling_a_closure_value_is_unaffected() {
     assert!(!diags.has_errors(), "{diags:?}");
 }
 
-// `rule:types/callable-literal-inference`: a `fn` literal answers its own
+// `rule:types/anonymous-function-parameter-inference`: a `fn` literal answers its own
 // written signature, which is what gives every row of
 // `rule:types/callable-arity` and `rule:types/callable-variance` a source
 // spelling to be reached by.
@@ -189,7 +189,7 @@ fn a_closure_of_higher_arity_than_the_type_is_refused() {
     );
 }
 
-// `rule:types/callable-literal-inference`: a parameter the literal did not
+// `rule:types/anonymous-function-parameter-inference`: a parameter the literal did not
 // annotate takes its type from the position the literal is written in, and a
 // position with no signature to give is named rather than guessed at.
 
@@ -230,7 +230,7 @@ fn an_unannotated_parameter_past_the_signatures_end_is_refused() {
     );
 }
 
-// `rule:types/callable-literal-inference`: a parameter the literal wrote for
+// `rule:types/anonymous-function-parameter-inference`: a parameter the literal wrote for
 // itself is checked against the position rather than taking it, so
 // `rule:types/callable-variance` decides it — each spelling annotating one
 // parameter beside an inferred one, which is what makes it the *literal's*

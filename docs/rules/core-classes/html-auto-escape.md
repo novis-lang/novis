@@ -10,17 +10,17 @@ declaration. Security ranks above simplicity, and an omitted escape call is the 
 real-world XSS root cause, so the priority is spent explicitly rather than holding the no-magic line
 for its own sake. It is one of only two such exceptions.
 
-`Markup` is a small value type, peer to `string` the way `bytes` is. A **source-literal** string
+`Markup` is a small value type, peer to `string` the way `bytes` is. A **string literal**
 converted with `as Markup` is trusted — it is exactly what the developer wrote. A runtime-computed or
 `tainted` string can never become `Markup` that way, which closes the obvious bypass.
 `Markup + Markup` is `Markup`, so composing trusted fragments stays cheap; `.` has no row for a
 carrier, and a mixed `$markup + "x"` is refused rather than escaped, because `+` is not a sink.
 
-**In expression position the ordinary spelling is a markup literal**, not the lift and the operator:
+**In expression position the ordinary spelling is an html template**, not the lift and the operator:
 ``html`<span>posted by </span>{$name}` `` is a `Markup` whose segments carry the same trust `as Markup`
-grants a literal token and whose holes are escaped by this rule
-(`rule:core-classes/html-literal`), which is also where `Core\Html::join` composes a list of fragments.
-`as Markup` and `+` keep their meaning and become the narrow forms — a literal already held in an
+grants a string literal and whose holes are escaped by this rule
+(`rule:core-classes/html-template`), which is also where `Core\Html::join` composes a list of fragments.
+`as Markup` and `+` keep their meaning and become the narrow forms — a string literal already held in an
 initializer, and two computed carriers.
 
 **A placeholder from `Core\Html::later` is a `Markup` the runtime makes**, whose bytes the developer

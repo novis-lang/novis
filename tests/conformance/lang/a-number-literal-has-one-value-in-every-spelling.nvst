@@ -1,5 +1,5 @@
 --TEST--
-Every spelling a number literal has lands on the same value, a leading zero is decimal rather than octal, and a unit after the digits is a duration instead — `rule:types/literal-types` and `rule:types/duration-literal`
+Every spelling a number literal has lands on the same value, a leading zero is decimal rather than octal, and a unit after the digits is a duration instead — `rule:types/single-value-types` and `rule:types/duration`
 --FILE--
 <?nvs
 // covers: lang:types/literals

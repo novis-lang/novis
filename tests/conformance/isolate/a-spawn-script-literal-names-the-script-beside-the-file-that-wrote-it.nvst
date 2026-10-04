@@ -1,5 +1,5 @@
 --TEST--
-`spawn script 'child.nvs'` runs the `child.nvs` beside the file that contains the spawn, whatever the working directory is, and a relative path built while the program runs throws a `RuntimeError` before any child starts — `rule:programs/path-literals-resolve-from-their-file`
+`spawn script 'child.nvs'` runs the `child.nvs` beside the file that contains the spawn, whatever the working directory is, and a relative path built while the program runs throws a `RuntimeError` before any child starts — `rule:programs/relative-paths-resolve-from-their-file`
 --FILE nvs.toml--
 [capabilities.script]
 spawn = true

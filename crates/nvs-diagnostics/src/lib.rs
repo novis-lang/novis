@@ -153,7 +153,7 @@ pub mod code {
         "The file is not valid UTF-8 text. Save it again with the UTF-8 encoding.",
     );
     /// A duration literal that does not follow
-    /// `rule:types/duration-literal`'s grammar —
+    /// `rule:types/duration`'s grammar —
     /// out of order, a repeated unit, a fractional count, or longer than
     /// `Core\Time\Duration` can hold. A unit written in the wrong case is a
     /// spelling rather than a shape, and is `E_RESERVED_SPELLING_CASE`.
@@ -182,7 +182,7 @@ pub mod code {
          Delete this `<?nvs` tag.",
     );
     /// A `<?nvs` open tag inside a markup literal, whose body is one expression
-    /// and has no code mode to enter (`rule:core-classes/html-literal`); the
+    /// and has no code mode to enter (`rule:core-classes/html-template`); the
     /// output tag `<?= … ?>` is the hole a literal has.
     pub const E_CODE_BLOCK_IN_MARKUP: Code = Code::new("E0010").card(
         "A markup literal cannot contain a `<?nvs` code block. \
@@ -311,14 +311,14 @@ pub mod code {
         "A field name in an object literal cannot be computed from an expression. Write each \
          field name directly, for example `{name: value}`.",
     );
-    /// A `float` literal in type position — `rule:types/literal-types` defers float literal
+    /// A `float` literal in type position — `rule:types/single-value-types` defers float literal
     /// types until floating-point equality has a real answer, so `0.1` names
     /// no type the way `1` and `"a"` do.
     pub const E_FLOAT_LITERAL_TYPE: Code = Code::new("E0120").card(
         "A `float` value such as `0.1` cannot be used as a type. Use the type `float` and check \
          the value in your code. Or use `int` values as the type, such as `1|2|3`.",
     );
-    /// An interpolated string in type position — `"a"` is `rule:types/literal-types`'s
+    /// An interpolated string in type position — `"a"` is `rule:types/single-value-types`'s
     /// singleton type, and a type has no scope to interpolate a variable
     /// from.
     pub const E_INTERPOLATION_IN_TYPE: Code = Code::new("E0121").card(
@@ -1671,7 +1671,7 @@ pub mod code {
          number.",
     );
     // `E0457` (`E_LITERAL_TYPE_UNCHECKED`) is **retired**, not reused.
-    // `rule:types/literal-types`'s
+    // `rule:types/single-value-types`'s
     // atoms intern as real types (`nvs_types::lower::lower_atom`), so there
     // is nothing left for it to refuse.
     /// A `Core` **instance** member written as a static call —
@@ -1770,7 +1770,7 @@ pub mod code {
         "A class constant used as a type must have a `string` or `int` value. This constant has \
          another kind of value, so write its base type instead.",
     );
-    /// `"z" as "a"|"b"` — `rule:types/literal-types`: a checked conversion into a closed set
+    /// `"z" as "a"|"b"` — `rule:types/single-value-types`: a checked conversion into a closed set
     /// of literals whose operand already names a value the set does not
     /// contain, so it would compile and then throw on every execution. The
     /// accepted set in the message is generated from the target type, never
@@ -2370,7 +2370,7 @@ pub mod code {
     /// correct spelling gives on a deployment that granted nothing: the branch
     /// simply never runs, on every machine, and nothing at run time can tell
     /// the two apart. That is `E0798`'s reasoning one class over, and it is why
-    /// only a *written* name is refused — a computed one keeps `rule:expressions/intrinsic-literals`'s
+    /// only a *written* name is refused — a computed one keeps `rule:expressions/intrinsic-constant-arguments`'s
     /// rule that nothing is refused for being dynamic, and answers `false` at
     /// run time. In this band rather than the types one because what it checks
     /// is a capability name, which is `nvs_config::capability::Cap`'s roster and
@@ -2396,7 +2396,7 @@ pub mod code {
     );
 
     /// A **written** `Core\Db::open` host that the compiling machine's
-    /// `db.open` grant does not cover — `rule:core-classes/db-literal-query-checking`'s second sentence, and
+    /// `db.open` grant does not cover — `rule:core-classes/db-compile-time-query-checking`'s second sentence, and
     /// the only capability question asked before a program runs.
     ///
     /// It refuses nothing `nvs_runtime::capability::require` would have
@@ -4778,7 +4778,7 @@ pub mod code {
     );
 
     /// `fn ($n) => …` written where nothing says what `$n` holds —
-    /// `rule:types/callable-literal-inference`.
+    /// `rule:types/anonymous-function-parameter-inference`.
     ///
     /// A closure literal's parameter may leave its type out, and then takes it
     /// from the position the literal is written in. Only a written
@@ -5254,7 +5254,7 @@ pub mod code {
     /// method — on a class, a property, a method itself, or a parameter whose
     /// declared type is not `string` or `?string`.
     ///
-    /// `rule:programs/path-literals-resolve-from-their-file`'s marker means one
+    /// `rule:programs/relative-paths-resolve-from-their-file`'s marker means one
     /// thing: a string literal passed to this parameter is a path, joined to
     /// the folder of the file that wrote it. Anywhere else there is no
     /// argument for it to resolve, so it is refused for the reason
@@ -5269,7 +5269,7 @@ pub mod code {
     /// A `Core\Path::thisDir($join)` whose `$join` is not a relative string
     /// literal — a variable, a constant, a concatenation or an absolute path.
     ///
-    /// `rule:programs/path-literals-resolve-from-their-file`'s fold replaces
+    /// `rule:programs/relative-paths-resolve-from-their-file`'s fold replaces
     /// the call with a path while compiling, so its argument has to be known
     /// then. A value built at run time has a member that joins it already,
     /// and the help names it rather than letting the fold quietly fall back to
@@ -5312,7 +5312,7 @@ pub mod code {
     /// A path argument that starts with a relative string literal and adds a
     /// value built at run time — `'data/' . $name` or `"data/{$name}"`.
     ///
-    /// `rule:programs/path-literals-resolve-from-their-file` joins only a
+    /// `rule:programs/relative-paths-resolve-from-their-file` joins only a
     /// whole literal to the folder of its file. A path built this way stays
     /// relative when the program runs, and every path door throws for a
     /// relative path, so the call can never succeed. The help names
@@ -5481,7 +5481,7 @@ pub mod code {
     );
     /// `{` directly followed by a class path — `{Page::TITLE}`,
     /// `{Money::format($c)}` — inside a markup literal
-    /// (`rule:core-classes/html-literal`). A brace hole begins with `$`, so
+    /// (`rule:core-classes/html-template`). A brace hole begins with `$`, so
     /// this is text and is written to the page as written; the shape is a
     /// template habit, and a page that prints `{Page::TITLE}` is a program
     /// that runs and ships the wrong string. A warning rather than a refusal

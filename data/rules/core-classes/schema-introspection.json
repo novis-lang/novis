@@ -8,7 +8,7 @@
   ],
   "seeAlso": [
     "core-classes/schema-is-a-value",
-    "core-classes/db-literal-query-checking",
+    "core-classes/db-compile-time-query-checking",
     "core-classes/schema-converges"
   ],
   "guardedBy": [

@@ -280,7 +280,7 @@ pub enum CoreTy {
     Blob(Qual),
     /// A `string` parameter whose text is a **file path**, carrying its
     /// classification — [`Self::Text`] with one more fact, which is
-    /// [`ParamText::Path`]'s: `rule:programs/path-literals-resolve-from-their-file`
+    /// [`ParamText::Path`]'s: `rule:programs/relative-paths-resolve-from-their-file`
     /// resolves a relative literal written here against the directory of the
     /// file that wrote it, and an editor offers file names at it.
     ///
@@ -542,7 +542,7 @@ pub enum CoreTy {
     /// [`Self::Callable`] leaves to `nvs_runtime::call_closure`'s per-argument
     /// tag test, and `nvs_types::expr::calls`' `check_fn_literal` fills an
     /// unannotated `fn($u) => …`'s parameter from it —
-    /// `rule:types/callable-literal-inference`.
+    /// `rule:types/anonymous-function-parameter-inference`.
     ///
     /// **It nests, and a variable inside it is the member's own.** `T` here is
     /// bound by whatever argument position writes it — the subject's
@@ -649,7 +649,7 @@ pub enum CoreTy {
     /// therefore goes on the arm that can hold it, which is also where a union
     /// wanting [`Qual::Launder`] writes one.
     Union(&'static [CoreTy]),
-    /// **One `int` literal** — `rule:types/literal-types`'s integer atom, whose only use is inside a [`Self::Union`] that
+    /// **One `int` literal** — `rule:types/single-value-types`'s integer atom, whose only use is inside a [`Self::Union`] that
     /// spells out a closed set of numbers.
     ///
     /// The same relationship to [`Self::Int`] that [`Self::EnumCase`] has to
@@ -1425,7 +1425,7 @@ impl CoreTy {
 ///
 /// Read by two consumers. The type checker resolves a relative string literal
 /// written at a [`Self::Path`] parameter against the directory of the file
-/// that wrote it (`rule:programs/path-literals-resolve-from-their-file`). An
+/// that wrote it (`rule:programs/relative-paths-resolve-from-their-file`). An
 /// editor offers file names at a [`Self::Path`] parameter and class names at a
 /// [`Self::ClassName`] one. A `Core` row states it with [`CoreTy::Path`] or
 /// [`CoreTy::ClassName`]; a user method states [`Self::Path`] with the
@@ -4542,7 +4542,7 @@ mod tests {
     #[test]
     fn a_shapes_arms_are_pairwise_disjoint() {
         /// The values a type admits, as atoms, or `None` for a type that is
-        /// not a closed set of them. `rule:types/literal-types`'s enum-case types are what
+        /// not a closed set of them. `rule:types/single-value-types`'s enum-case types are what
         /// separate real arms, so this stays deliberately small: anything
         /// wider is simply not a proof, and the pair must be separated by a
         /// required key instead.

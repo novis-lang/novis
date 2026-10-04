@@ -1,9 +1,9 @@
 --TEST--
-A property default, a parameter default and a class constant each place a written literal against the member of a union it inhabits, and a literal-union position takes the word it names — `rule:types/literal-types`
+A property default, a parameter default and a class constant each place a written literal against the member of a union it inhabits, and a literal-union position takes the word it names — `rule:types/single-value-types`
 --FILE--
 <?nvs
 // covers: lang:types/properties-and-constants
-// `rule:types/literal-types`: a literal is the type of the value it names, and
+// `rule:types/single-value-types`: a literal is the type of the value it names, and
 // a position that admits that value accepts the literal. A default is an
 // ordinary assignment written in a declaration, so the same placement holds at
 // a property's, at a parameter's and at a class constant's — a union is read

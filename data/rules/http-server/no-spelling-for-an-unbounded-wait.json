@@ -8,7 +8,7 @@
   "seeAlso": [
     "http-server/one-deadline-covers-the-whole-call",
     "http-server/retry-is-opt-in-jittered-and-closed",
-    "types/duration-literal",
+    "types/duration",
     "core-api/failure-throws",
     "core-classes/process-is-argv-only"
   ],

@@ -42,7 +42,7 @@ costs nothing.
 [`attributes/inert-metadata`](attributes.md#attributes-inert-metadata) alias, attached the ordinary way, with one difference: the compiler
 acts on it only when the name **resolves** to `Core\Route`. It sits on
 [`core-classes/derive-attribute`](core-classes.md#core-classes-derive-attribute)'s closed list of compiler-recognized attributes and is matched
-nominally, so a userland `type Route = {...};` and a framework's own `Route`-shaped literal declare
+nominally, so a userland `type Route = {...};` and a framework's own `Route`-shaped anonymous object declare
 no route however they are spelled.
 
 - **`method` is an enum case**, the same `Core\Http\Method` that `Core\Request::method` answers,
@@ -66,12 +66,12 @@ A `#[Route]` method also carries an `#[Access]` ([`attributes/access-is-a-requir
 
 <a id="routing-path-grammar"></a>
 
-## A path is literal segments and three capture forms, each capture a whole segment naming a parameter
+## A path is fixed segments and three capture forms, each capture a whole segment naming a parameter
 
 `rule:routing/path-grammar`
 
-A path is a literal string beginning at the root, validated while checking, whose segments are
-literals or captures:
+A path is a string literal beginning at the root, validated while checking, whose segments are
+fixed segments or captures:
 
 - **`{name}`** captures one whole segment.
 - **`{name?}`** captures one whole segment **or none**. Last position only, at most once, never in
@@ -80,7 +80,7 @@ literals or captures:
   without one is a compile error naming both. `/posts/` does not match `/posts/{page?}`: an empty
   final segment is not an absent one ([`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused)).
 - **`{name...}`** captures every remaining segment as one `tainted string`, last position only.
-- Everything else is a literal segment, compared byte for byte and case-sensitively
+- Everything else is a fixed segment, compared byte for byte and case-sensitively
   ([`classes/names-resolve-case-sensitively`](classes.md#classes-names-resolve-case-sensitively)).
 
 A capture is a whole segment: `/u{id}` and `/{id}.json` are refused, not partially matched. Every
@@ -128,12 +128,12 @@ one `#[Access]` for both, and the CSRF check is still per verb from that one dec
 
 <a id="routing-precedence-is-structural"></a>
 
-## Precedence is structural — a literal beats a capture beats an optional beats a catch-all — never declaration order
+## Precedence is structural — a fixed segment beats a capture beats an optional beats a catch-all — never declaration order
 
 `rule:routing/precedence-is-structural`
 
-Where two routes of one verb both match a path, the more literal one wins, segment by segment: a
-literal beats a `{name}`, which beats a `{name?}`, which beats a `{name...}`. `/users/new` and
+Where two routes of one verb both match a path, the one with more fixed segments wins, segment by
+segment: a fixed segment beats a `{name}`, which beats a `{name?}`, which beats a `{name...}`. `/users/new` and
 `/users/{id}` coexist with no ordering rule to remember, and moving a declaration between files
 cannot change which route answers. That is what makes the table order-independent at all, and it is
 why two routes with the same verb and the same shape are refused rather than ordered
@@ -151,12 +151,12 @@ structure, and a matcher is free to compute the same answer by ranking rows.
 
 <a id="routing-a-capture-narrows-to-a-closed-set"></a>
 
-## A capture narrows to a closed set with a literal-union or enum-subset type, never with a regex
+## A capture narrows to a closed set with a set of allowed values or an enum-subset type, never with a regex
 
 `rule:routing/a-capture-narrows-to-a-closed-set`
 
-A capture's type may be a **union of `string` or `int` literal types**, or a **subset of an enum's
-cases** ([`types/literal-types`](types.md#types-literal-types)), beside the scalar and enum types a capture already converts to.
+A capture's type may be a **set of allowed `string` or `int` values**, or a **subset of an enum's
+cases** ([`types/single-value-types`](types.md#types-single-value-types)), beside the scalar and enum types a capture already converts to.
 `show("en"|"de"|"fr" $lang)` narrows the segment to a closed set with no grammar of its own: `/fr/docs/intro`
 matches, `/xx/docs/intro` does not and falls through to a `404` by the failed-conversion rule
 ([`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type)) rather than reaching the handler. The narrowing
@@ -170,12 +170,12 @@ any rate limiting, so catastrophic backtracking is a denial of service open to a
 client, which is priority 1 spent to buy priority 4 ([`programs/memory-priority`](programs.md#programs-memory-priority)). A shape a type
 cannot express — a `[a-z0-9-]+` slug — stays a `Core\Validate` check inside the handler, answering `400`.
 
-`Core\Router::url` builds a link for every member of the set and refuses a literal value outside it at
+`Core\Router::url` builds a link for every member of the set and refuses a value written outside it at
 compile time; a computed value is substituted and encoded. Which text an enum case is spelled by — in
 a segment, in a link and in the generated document alike — is
 [`routing/an-enum-capture-is-spelled-by-its-backing-value-or-its-case-name`](routing.md#routing-an-enum-capture-is-spelled-by-its-backing-value-or-its-case-name).
 
-<sub>See also [`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type), [`types/literal-types`](types.md#types-literal-types), [`core-classes/validate-has-no-type-predicates`](core-classes.md#core-classes-validate-has-no-type-predicates), [`programs/memory-priority`](programs.md#programs-memory-priority), [`routing/a-leftover-link-key-is-a-query-string`](routing.md#routing-a-leftover-link-key-is-a-query-string), [`routing/path-grammar`](routing.md#routing-path-grammar), [`routing/api-document-is-generated-from-the-route-table`](routing.md#routing-api-document-is-generated-from-the-route-table). Decided in [0102](../decisions/0102.md), [0077](../decisions/0077.md), [0047](../decisions/0047.md), [0075](../decisions/0075.md), [0186](../decisions/0186.md).</sub>
+<sub>See also [`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type), [`types/single-value-types`](types.md#types-single-value-types), [`core-classes/validate-has-no-type-predicates`](core-classes.md#core-classes-validate-has-no-type-predicates), [`programs/memory-priority`](programs.md#programs-memory-priority), [`routing/a-leftover-link-key-is-a-query-string`](routing.md#routing-a-leftover-link-key-is-a-query-string), [`routing/path-grammar`](routing.md#routing-path-grammar), [`routing/api-document-is-generated-from-the-route-table`](routing.md#routing-api-document-is-generated-from-the-route-table). Decided in [0102](../decisions/0102.md), [0077](../decisions/0077.md), [0047](../decisions/0047.md), [0075](../decisions/0075.md), [0186](../decisions/0186.md).</sub>
 
 <a id="routing-an-enum-capture-is-spelled-by-its-backing-value-or-its-case-name"></a>
 
@@ -193,7 +193,7 @@ written in the enum body:
 - Every admitted case's value written — the segment is that integer, parsed as the enum's backing
   type.
 - Any admitted case's value counted on from the one before it ([`enums/declaration`](enums.md#enums-declaration)) — the whole
-  subset is spelled by case name, compared byte for byte and case-sensitively, as a literal segment
+  subset is spelled by case name, compared byte for byte and case-sensitively, as a fixed segment
   is ([`classes/names-resolve-case-sensitively`](classes.md#classes-names-resolve-case-sensitively)).
 
 The choice is per subset and never per case, because a subset mixing the two would put an integer and
@@ -330,7 +330,7 @@ where `url()` would have two answers and no ground to prefer one.
 **The duplicate-*route* rule is untouched.** Two attributes sharing both `path` and `method` remain
 an error however they are grouped, so nothing enters through the door a shared name opens. The name
 is written on each line rather than inherited from the first: the attributes are independent
-literals, and an inheritance rule would make their order matter, which the route table's precedence
+payload objects, and an inheritance rule would make their order matter, which the route table's precedence
 rules exist to avoid.
 
 <sub>See also [`routing/a-shared-name-is-one-endpoint-everywhere`](routing.md#routing-a-shared-name-is-one-endpoint-everywhere), [`routing/no-wildcard-verb`](routing.md#routing-no-wildcard-verb), [`attributes/repeatable`](attributes.md#attributes-repeatable), [`routing/route-attribute`](routing.md#routing-route-attribute), [`routing/routes-are-compiled-not-registered`](routing.md#routing-routes-are-compiled-not-registered). Decided in [0110](../decisions/0110.md), [0077](../decisions/0077.md), [0046](../decisions/0046.md).</sub>
@@ -537,7 +537,7 @@ from the request target.
 
 <a id="routing-link-name-and-params-are-checked"></a>
 
-## `Core\Router::url` is a launderer whose literal name and `$params` are checked against the compiled table
+## `Core\Router::url` is a launderer whose `$name` and `$params`, when written in the code, are checked against the compiled table
 
 `rule:routing/link-name-and-params-are-checked`
 
@@ -545,10 +545,10 @@ from the request target.
 and the compiler resolves the call against the whole program's table after every file has been
 walked — the route may be declared in a file the scan reaches later.
 
-Two failures are compile errors, reported at the argument: **a literal `$name` no `#[Route]`
-declares**, and **a `$params` literal that does not cover the route's captures** — every `{name}` and
-`{name...}` the path writes needs a key of that name, and only a `{name?}` may be left out, whose
-whole segment is then dropped. A literal key that is neither a capture nor one of the route's declared
+Two failures are compile errors, reported at the argument: **a `$name` given as a string literal that
+no `#[Route]` declares**, and **a `$params` array literal that does not cover the route's captures** —
+every `{name}` and `{name...}` the path writes needs a key of that name, and only a `{name?}` may be
+left out, whose whole segment is then dropped. A key in that array literal that is neither a capture nor one of the route's declared
 `#[Query]` parameters is refused in the same shape, so a typo cannot silently become a query
 parameter. A **computed** `$name` throws instead, and a computed `$params` is not checked at all —
 there are no keys to read.
@@ -600,7 +600,7 @@ link is still the launderer's ([`security/launderers-are-sink-named`](security.m
 laundered spelling, where `url(…) . "?page=" . $n` is the concatenation the launderer exists to prevent
 and re-taints the result.
 
-The refusal half is the same sentence. A literal key that is neither a capture nor one of the route's
+The refusal half is the same sentence. A key written in the `$params` array literal that is neither a capture nor one of the route's
 declared `#[Query]` parameters ([`routing/a-query-parameter-is-declared-like-a-capture`](routing.md#routing-a-query-parameter-is-declared-like-a-capture)) is a
 **compile error**, in the same shape as the unknown-name and missing-capture errors, so a typo cannot
 silently ship as a query parameter. The declared type says what a query *value* arrives at; it does not
@@ -719,7 +719,7 @@ path parameters from the handler's own parameters, by declared type, which is th
 already makes; query parameters from `#[Query]` parameters, a default making one optional; the
 response body from the declared return type; required-ness from definite initialization and
 parameter defaults, decided rather than guessed; nullability from `?T` and nothing else; an
-enumeration from a closed enum's cases or a literal-type union; the summary and description from
+enumeration from a closed enum's cases or a set of allowed values; the summary and description from
 the declaration's doc comment — first sentence, then the rest. What the types cannot say comes
 from `#[Api]` ([`attributes/api-adds-and-cannot-contradict`](attributes.md#attributes-api-adds-and-cannot-contradict)), which may add and may not
 contradict.

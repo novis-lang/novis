@@ -4,7 +4,7 @@
 //! value, and one that is no value at a `strict` parameter is warned on
 //! (`rule:ide/completion-files-offer-values-at-named-parameters`). A parameter typed as a union of
 //! string literals offers its members with no file, and merged with a file's values
-//! (`rule:types/literal-types`).
+//! (`rule:types/single-value-types`).
 //!
 //! Each test writes a workspace of its own under cargo's scratch folder in `target/` and deletes it
 //! when it ends, as `tests/completion_files.rs` does.

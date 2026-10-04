@@ -9,7 +9,7 @@ autoload 'Acme\Csv'  from './acme-csv-0.3.0/src';
 ```
 
 The application `require`s that file once. **That is the entire integration.** Name resolution is
-exactly `rule:programs/autoload`'s — literal paths relative to the declaring file, no runtime loader
+exactly `rule:programs/autoload`'s — paths written as string literals, relative to the declaring file, no runtime loader
 (`rule:programs/no-runtime-autoload`), no walk-up search, no new invalidation edge — and the compiler
 learns nothing about packages in order to resolve a name. The proof is structural: `nvs-syntax` and
 `nvs-types` gain no package-aware code path for name resolution at all.

@@ -1,5 +1,5 @@
 Narrowing is flow-sensitive and **branch-local**, and there are four spellings of it: `is`, a
-`== null` test, a comparison against a literal-typed value, and `match (true)`. A `switch (true)`
+`== null` test, a comparison against a value of a single-value type, and `match (true)`. A `switch (true)`
 narrows per arm the same way. A write inside a narrowed block widens the binding again, because the
 narrowing described the value that was there, not the slot.
 

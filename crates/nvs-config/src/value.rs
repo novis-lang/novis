@@ -2,7 +2,7 @@
 //!
 //! § 5 gives `Core\Config::set` a `string` value in both directions and then says the registry
 //! parses it "with the same parser the boot path uses" — the shape
-//! `rule:expressions/intrinsic-literals` already establishes, where a
+//! `rule:expressions/intrinsic-constant-arguments` already establishes, where a
 //! prepared and a runtime path cannot diverge because there is one implementation. So a `512M` a
 //! ceiling refuses at boot is refused identically by a `set` at request time, and neither path can
 //! grow its own idea of what `M` means.

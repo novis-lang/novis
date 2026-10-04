@@ -1,4 +1,4 @@
-//! `rule:programs/path-literals-resolve-from-their-file`: which string
+//! `rule:programs/relative-paths-resolve-from-their-file`: which string
 //! literals the checker resolves, against which folder, and where
 //! `#[Core\Path]` may be written.
 

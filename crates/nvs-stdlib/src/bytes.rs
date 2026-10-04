@@ -88,7 +88,7 @@
 //!
 //! # `pack`'s format is a closed grammar, and every code has one meaning
 //!
-//! § 7 says `pack` replaces PHP's, and makes its format string an `rule:expressions/intrinsic-literals`
+//! § 7 says `pack` replaces PHP's, and makes its format string an `rule:expressions/intrinsic-constant-arguments`
 //! intrinsic and a sink — but it does not write the code table, so that is
 //! settled here. PHP's is taken as the starting point and **narrowed to the
 //! codes that name a wire format outright**, because a format string is a
@@ -1457,7 +1457,7 @@ nvs_runtime::nvs_helper! {
     ///
     /// **Two classifications are still owed**, both named by spec § 7 and
     /// neither invented here: the format is an
-    /// `rule:expressions/intrinsic-literals`
+    /// `rule:expressions/intrinsic-constant-arguments`
     /// intrinsic, so a *literal* format should have its field count checked
     /// against the argument list at compile time rather than at the call —
     /// exactly as `Core\Str::format`'s template still owes; and it is a
@@ -1700,7 +1700,7 @@ nvs_runtime::nvs_helper! {
     /// parser must not swallow (AGENTS.md's priority 1). A header read off a
     /// longer buffer is `Core\Bytes::slice` and then this, or a trailing `a*`.
     ///
-    /// The format is an `rule:expressions/intrinsic-literals` intrinsic and a sink for the same reasons
+    /// The format is an `rule:expressions/intrinsic-constant-arguments` intrinsic and a sink for the same reasons
     /// [`nvs_core_bytes_pack`]'s is, and both classifications are owed there.
     fn nvs_core_bytes_unpack(_ctx, args: [2]) {
         let subject = raw(&args[0], "unpack", "the subject")?;

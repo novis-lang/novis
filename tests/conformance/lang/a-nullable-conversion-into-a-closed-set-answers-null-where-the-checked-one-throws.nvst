@@ -1,5 +1,5 @@
 --TEST--
-`as ?T` into a literal, enum-case or whole-enum target answers `null` on exactly the values `as T` throws on, and coerces no more than it does — `rule:expressions/nullable-conversion-availability` row 2, over `rule:types/literal-types`'s membership chain and `rule:types/conversion`'s two enum rows
+`as ?T` into a literal, enum-case or whole-enum target answers `null` on exactly the values `as T` throws on, and coerces no more than it does — `rule:expressions/nullable-conversion-availability` row 2, over `rule:types/single-value-types`'s membership chain and `rule:types/conversion`'s two enum rows
 --FILE--
 <?nvs
 enum Mode: int {
@@ -9,7 +9,7 @@ enum Mode: int {
 }
 
 final class Twin {
-    // `rule:types/literal-types`'s chain with the throw at the far end: the shape `as T`
+    // `rule:types/single-value-types`'s chain with the throw at the far end: the shape `as T`
     // has had since that section landed.
     public static function checkedMode(mixed $m): string {
         try {
@@ -49,7 +49,7 @@ final class Twin {
         return "null";
     }
 
-    // `rule:types/literal-types`'s string literals. A `mixed` operand is tested on its own
+    // `rule:types/single-value-types`'s string literals. A `mixed` operand is tested on its own
     // runtime tag with no conversion in front of it, in both spellings, which
     // is what keeps a `mixed` holding `1` out of a set naming `"1"`.
     public static function checkedText(mixed $m): string {

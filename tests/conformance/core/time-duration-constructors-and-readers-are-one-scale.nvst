@@ -1,9 +1,9 @@
 --TEST--
-Spec § 4: `Core\Time\Duration`'s eight constructors, its four readers and its `toString` are one nanosecond scale, and the sign is a rendering the grammar does not read (`rule:types/duration-literal`)
+Spec § 4: `Core\Time\Duration`'s eight constructors, its four readers and its `toString` are one nanosecond scale, and the sign is a rendering the grammar does not read (`rule:types/duration`)
 --FILE--
 <?nvs
 // covers: Core\Time\Duration::toNanoseconds, Core\Time\Duration::toMicroseconds, Core\Time\Duration::toMilliseconds, Core\Time\Duration::toSeconds, Core\Time\Duration::toString
-// A `Duration` is one `i64` count of nanoseconds and nothing else (`rule:types/duration-literal`
+// A `Duration` is one `i64` count of nanoseconds and nothing else (`rule:types/duration`
 // ), so every constructor, every `to…` reader and the rendering are the
 // same scale seen from a different unit. Each block below asserts that by
 // counting agreements over a whole table rather than reading one off a line:
@@ -14,7 +14,7 @@ Spec § 4: `Core\Time\Duration`'s eight constructors, its four readers and its `
 // table is the widest one all eight constructors share.
 array<int> $counts = [0, 1, -1, 2, -2, 7, 60, -60, 1000, -1000, 15250, -15250];
 
-// `rule:types/duration-literal`: the suffix *is* the type, so the eight computed constructors
+// `rule:types/duration`: the suffix *is* the type, so the eight computed constructors
 // and the eight literal units are one table of lengths. `ctor($c)` is the
 // one-unit literal multiplied by the count, for every unit and every count.
 int $a = 0;
@@ -76,7 +76,7 @@ for (; $g < 13; $g = $g + 1) {
 echo "remainder shorter than its unit: ", $inside as string, "/39\n";
 echo "remainder never crosses zero: ", $sameSide as string, "/39\n";
 
-// `multipliedBy` is iterated `plus` in both directions — `rule:types/duration-literal` makes a
+// `multipliedBy` is iterated `plus` in both directions — `rule:types/duration` makes a
 // backwards step `minus` or `negated`, so the negative factors are folded the
 // only way the type offers — and negation commutes with it.
 array<Core\Time\Duration> $bases = [1ns, 500ms, 1s, 90m, 3d, 1w];
@@ -119,7 +119,7 @@ for (; $u < 6; $u = $u + 1) {
 }
 echo "negation and the two unit factors: ", $identities as string, "/24\n";
 
-// `rule:types/duration-literal`: `parse` and `toString` are the same grammar, so a value's
+// `rule:types/duration`: `parse` and `toString` are the same grammar, so a value's
 // magnitude always reads back. Its *sign* does not: `toString` writes a
 // leading `-` because showing a negative duration beats refusing to, and the
 // grammar has no spelling for one, so the negative half of this table renders

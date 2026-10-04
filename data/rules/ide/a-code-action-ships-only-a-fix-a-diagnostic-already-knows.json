@@ -1,5 +1,5 @@
 {
-  "title": "A quick fix ships only where its replacement text is already in a diagnostic's suggestions, and the one action the server computes for itself is the html-literal rewrite",
+  "title": "A quick fix ships only where its replacement text is already in a diagnostic's suggestions, and the one action the server computes for itself is the html-template rewrite",
   "status": "designed",
   "because": [
     "0099",
@@ -14,7 +14,7 @@
     "tooling/fmt-is-never-a-diagnostic",
     "ide/narrow-an-annotation-to-its-literal",
     "ide/every-feature-is-staged-behind-its-dependency",
-    "ide/a-string-converts-to-an-html-literal"
+    "ide/a-string-converts-to-an-html-template"
   ],
   "guardedBy": []
 }

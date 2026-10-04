@@ -63,7 +63,7 @@
 //!   there is "no configuration was read" rather than an empty grant set.**
 //!   [`crate::Env::grants`] is what this pass reads and
 //!   [`crate::check::check_program_granted`] is how a caller fills it, so
-//!   `rule:core-classes/db-literal-query-checking`'s literal `Db::open` host
+//!   `rule:core-classes/db-compile-time-query-checking`'s literal `Db::open` host
 //!   is answered while compiling on a machine that resolved a tree. Handed
 //!   `None`, this pass says nothing about a host at all — the door is still
 //!   `nvs_runtime::capability::require` and § 4 holds either way. Which
@@ -127,7 +127,7 @@ enum Grammar {
     Uri,
     /// `nvs_stdlib::cldr`'s pattern letters.
     DateFormat,
-    /// `rule:types/duration-literal`'s `30s`/`1h30m` grammar.
+    /// `rule:types/duration`'s `30s`/`1h30m` grammar.
     Duration,
     /// `Core\Str::format`'s `printf` template, which is the one grammar that
     /// is also checked *against the call's other arguments*.
@@ -368,7 +368,7 @@ const INTRINSICS: &[Intrinsic] = &[
         restriction: None,
         grammar: Grammar::Template,
     },
-    // `rule:core-classes/db-literal-query-checking`'s members, on both classes that declare them: § 7's
+    // `rule:core-classes/db-compile-time-query-checking`'s members, on both classes that declare them: § 7's
     // `Core\Db\Transaction` forwards the interface to its connection, so the
     // same statement written inside a transaction is the same check. The rows
     // are nominal against the *declaring* class, so the receiver is not counted
@@ -605,7 +605,7 @@ pub(crate) fn check_call(
                 Err(message) => report_malformed(span, &message, env),
             }
         }
-        // `rule:core-classes/regex-literal-tiering`'s compile-time fact, both halves of it: the pattern is
+        // `rule:core-classes/regex-compile-time-tiering`'s compile-time fact, both halves of it: the pattern is
         // offered to the same two engines the first call would have offered it
         // to, and the tier it landed in is written down where `nvs-ir` reads
         // it back. The tier is settleable here for the reason
@@ -631,7 +631,7 @@ pub(crate) fn check_call(
                 report_malformed(span, &message, env);
             }
         }
-        // `rule:types/duration-literal`'s three places that must agree already share one parser,
+        // `rule:types/duration`'s three places that must agree already share one parser,
         // and it lives in `nvs-syntax` because the lexer is one of the three.
         // So this arm reaches no validator of its own: the function below is
         // the same call `nvs_core_time_duration_parse` makes and the same one

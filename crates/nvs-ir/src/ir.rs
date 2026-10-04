@@ -662,7 +662,7 @@ pub enum InstKind {
     /// data section, its class word and its one text slot both relocations
     /// (`nvs_runtime::immortal_object_bytes`), so the literal costs nothing per
     /// execution where the lift it replaces costs an object per evaluation —
-    /// `rule:core-classes/html-literal`'s *What it costs to run*.
+    /// `rule:core-classes/html-template`'s *What it costs to run*.
     ///
     /// [`Ty::Object`], and a fresh value on the same terms
     /// [`InstKind::ConstStr`] is one: the reference it starts with is implicit,
@@ -2455,7 +2455,7 @@ pub enum Helper {
     /// a hole's escaped ones, already [`crate::ty::Ty::Str`].
     ///
     /// The pieces are the bytes of a `Core\Html\Markup` that is never built
-    /// (`rule:core-classes/html-literal`), so the sink treats them as it
+    /// (`rule:core-classes/html-template`), so the sink treats them as it
     /// treats that carrier: the HTML sink writes them unchanged, and every
     /// other sink substitutes them as [`Self::EchoValue`] substitutes a
     /// `Markup`. [`Self::EchoStr`] would escape them a second time under the
@@ -2479,7 +2479,7 @@ pub enum Helper {
     /// error edge.
     Exit,
     /// The throw at the end of
-    /// `rule:types/literal-types`'s membership test: the operand reached none of the literals its
+    /// `rule:types/single-value-types`'s membership test: the operand reached none of the literals its
     /// target names, so the checked `as` § 4 describes fails.
     ///
     /// Two arguments — the operand, which the message renders, and a

@@ -1,12 +1,12 @@
 {
-  "title": "A string or a `.` chain of strings and values converts to the html literal that prints the same text, as a code action the server computes and an editor only applies",
+  "title": "A string or a `.` chain of strings and values converts to the html template that prints the same text, as a code action the server computes and an editor only applies",
   "status": "shipped",
   "because": [
     "0259"
   ],
-  "divergesFromPhp": "PHP has no markup literal, so there is nothing to convert to; an editor's string-to-template intention there is text logic in the editor",
+  "divergesFromPhp": "PHP has no html template, so there is nothing to convert to; an editor's string-to-template intention there is text logic in the editor",
   "seeAlso": [
-    "core-classes/html-literal",
+    "core-classes/html-template",
     "ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows",
     "ide/a-quick-fix-is-a-diagnostics-own-suggestion",
     "ide/the-index-answers-the-cursor"

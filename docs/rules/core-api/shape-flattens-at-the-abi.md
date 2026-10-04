@@ -4,7 +4,7 @@ skipped. Where two arms declare the same name it occupies one slot whose type is
 declarations, which is what lets a discriminant arrive as one value the helper switches on. The options bag
 expands through the same function, and a bag is the one-arm, all-optional case of it.
 
-Every slot the written literal does not fill passes a constant — the field's own default where it has one,
+Every slot the written anonymous object does not fill passes a constant — the field's own default where it has one,
 and a null otherwise. The helper reads its discriminant first and then reads only the slots that arm
 declares, which the type check has already guaranteed are filled. So **no runtime representation of a shape
 ever exists** and no helper learns a second calling convention.

@@ -1909,7 +1909,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             names: &["script"],
             params: &[
                 // A **path**, so a relative literal is joined to the folder of the file that wrote
-                // the call (`rule:programs/path-literals-resolve-from-their-file`), and the row
+                // the call (`rule:programs/relative-paths-resolve-from-their-file`), and the row
                 // stores the absolute path a worker in any folder runs.
                 //
                 // A **sink**, and for `rule:core-classes/process-is-argv-only`'s reason rather than `rule:security/tainted-qualifier`'s usual one: the argument
@@ -3326,7 +3326,7 @@ nvs_runtime::nvs_helper! {
                 ))
             })?
             .to_owned();
-        // `rule:programs/path-literals-resolve-from-their-file`: a relative literal arrives joined
+        // `rule:programs/relative-paths-resolve-from-their-file`: a relative literal arrives joined
         // to its file's folder, so a relative script here was built while the program ran. It
         // throws before any other argument is read, and the row only ever stores an absolute path.
         if let Some(message) =
@@ -7333,7 +7333,7 @@ mod tests {
         answered
     }
 
-    /// `rule:programs/path-literals-resolve-from-their-file`: the row a `push` writes holds the
+    /// `rule:programs/relative-paths-resolve-from-their-file`: the row a `push` writes holds the
     /// script exactly as the call passed it, and the compiler has made a literal absolute, so a
     /// worker started in any folder runs the same file.
     ///
@@ -7383,7 +7383,7 @@ mod tests {
         );
     }
 
-    /// `rule:programs/path-literals-resolve-from-their-file`: a relative script built while the
+    /// `rule:programs/relative-paths-resolve-from-their-file`: a relative script built while the
     /// program ran throws a `RuntimeError` at the push, before the configuration is read.
     ///
     /// The context has no configuration at all, so a push that read it first would throw a

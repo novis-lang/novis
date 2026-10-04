@@ -925,7 +925,7 @@ pub enum ExprInfo {
     /// Never recorded for an ordinary `Class::CONST`, whose value travels in
     /// [`ExprInfo::ClassConst`] instead.
     /// The enum and the case are carried beside the value for
-    /// [`ExprInfo::TypeTest`]'s reason a second time: `rule:types/literal-types`'s guard
+    /// [`ExprInfo::TypeTest`]'s reason a second time: `rule:types/single-value-types`'s guard
     /// row narrows a local to the case's own `Ty::EnumCase`, and *which* case
     /// a written `Mode::Read` names is a question about the namespace and the
     /// imports of the site that wrote it — context
@@ -1956,7 +1956,7 @@ impl ExprTypeTable {
     }
 
     /// Records the absolute path the relative string literal at `span` names —
-    /// `rule:programs/path-literals-resolve-from-their-file`, decided by
+    /// `rule:programs/relative-paths-resolve-from-their-file`, decided by
     /// [`crate::paths`] at the one place that sees both the literal and the
     /// parameter it fills.
     pub(crate) fn record_path_literal(&mut self, span: Span, path: String) {

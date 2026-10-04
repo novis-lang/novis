@@ -1,5 +1,5 @@
 --TEST--
-A path typed on the command line reaches `Core\IO::read` through `Core\Path::fromCwd`, whose answer is a `string` without `tainted`, and the `fs` grant still bounds the file it names — `rule:security/launderers-are-sink-named`, `rule:programs/path-literals-resolve-from-their-file`
+A path typed on the command line reaches `Core\IO::read` through `Core\Path::fromCwd`, whose answer is a `string` without `tainted`, and the `fs` grant still bounds the file it names — `rule:security/launderers-are-sink-named`, `rule:programs/relative-paths-resolve-from-their-file`
 --ARGS--
 notes/report.txt
 ../outside.txt

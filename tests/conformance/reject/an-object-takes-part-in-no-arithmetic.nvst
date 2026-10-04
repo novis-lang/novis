@@ -1,5 +1,5 @@
 --TEST--
-`-7d` does not mean a backwards duration; Novis has no operator overloading — `rule:types/duration-literal`
+`-7d` does not mean a backwards duration; Novis has no operator overloading — `rule:types/duration`
 --FILE--
 <?nvs
 var $back = -7d;

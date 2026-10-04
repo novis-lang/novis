@@ -3,7 +3,7 @@ builder produces: `information_schema` for MySQL, MariaDB and SQL Server, `pg_ca
 PostgreSQL, and `sqlite_master` with the table and index pragmas for SQLite.
 
 There is **no DDL parser, at any tier, in any form** — not "just for the CLI", not "best-effort", not
-"just for `CREATE TABLE`". `rule:core-classes/db-literal-query-checking` already refuses to maintain
+"just for `CREATE TABLE`". `rule:core-classes/db-compile-time-query-checking` already refuses to maintain
 four vendors' query grammars, and that reasoning does not weaken for DDL, where the dialects diverge
 more rather than less.
 

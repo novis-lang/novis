@@ -24,8 +24,8 @@
 //!
 //! # Tiering happens while checking for a literal, at the first call otherwise
 //!
-//! `rule:core-classes/regex-literal-tiering` makes a **literal** pattern's tier a compile-time fact, over
-//! `rule:expressions/intrinsic-literals`'s
+//! `rule:core-classes/regex-compile-time-tiering` makes a **literal** pattern's tier a compile-time fact, over
+//! `rule:expressions/intrinsic-constant-arguments`'s
 //! literal-folding mechanism: `nvs_types::intrinsics` runs [`validate`] on the
 //! literal, refuses a malformed one as a compile error, and records the tier it
 //! landed in. An assembled pattern takes the run-time path in [`compiled`]:
@@ -1199,8 +1199,8 @@ fn backtracking(pattern: &str, spelled: &str, budget: usize) -> Result<Compiled,
 }
 
 /// Which tier `pattern` compiles on, or the refusal — for a caller that wants
-/// `rule:core-classes/regex-literal-tiering`'s compile-time fact and not the automaton —
-/// `rule:expressions/intrinsic-literals`'s fold,
+/// `rule:core-classes/regex-compile-time-tiering`'s compile-time fact and not the automaton —
+/// `rule:expressions/intrinsic-constant-arguments`'s fold,
 /// which reads a **literal** pattern while checking and reports § 3's
 /// diagnostic instead of the throw [`compiled`] would have made.
 ///

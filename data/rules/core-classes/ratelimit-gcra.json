@@ -11,7 +11,7 @@
     "core-classes/ratelimit-two-members",
     "core-classes/ratelimit-unreachable-store-throws",
     "core-classes/secret-reveal",
-    "types/duration-literal"
+    "types/duration"
   ],
   "guardedBy": [
     "tests/conformance/core/ratelimit-decision-readers-agree-with-the-sweep.nvst",

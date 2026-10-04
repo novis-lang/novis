@@ -6,7 +6,7 @@
     "0099",
     "0040"
   ],
-  "validatedBy": "the unit tests in `crates/nvs-lsp/src/html_literal.rs`,\n`the_html_literal_refactor_has_its_own_kind_and_is_never_in_a_fix_all` in `crates/nvs-lsp/tests/actions.rs`,\nand the `.lspt` cases under `tests/lsp/actions/` that name `rule:ide/a-string-converts-to-an-html-literal`.",
+  "validatedBy": "the unit tests in `crates/nvs-lsp/src/html_literal.rs`,\n`the_html_literal_refactor_has_its_own_kind_and_is_never_in_a_fix_all` in `crates/nvs-lsp/tests/actions.rs`,\nand the `.lspt` cases under `tests/lsp/actions/` that name `rule:ide/a-string-converts-to-an-html-template`.",
   "summary": {
     "group": "tooling",
     "headline": "The editor converts a string to an html literal",

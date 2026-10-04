@@ -1,5 +1,5 @@
 --TEST--
-A `match (true)` and a `switch (true)` narrow their subject per arm, under exactly what the arm's own label proves — `rule:types/unions-and-mixed`, `rule:types/literal-types`
+A `match (true)` and a `switch (true)` narrow their subject per arm, under exactly what the arm's own label proves — `rule:types/unions-and-mixed`, `rule:types/single-value-types`
 --FILE--
 <?nvs
 // covers: lang:types/narrowing
@@ -37,7 +37,7 @@ echo match (true) {
     default => "none",
 }, "\n";
 
-// `rule:types/literal-types`'s guard row under the same subject: the comparison proves the
+// `rule:types/single-value-types`'s guard row under the same subject: the comparison proves the
 // literal's own type, so the `string` member of the union is reachable.
 string|int $mode = "read";
 echo match (true) {

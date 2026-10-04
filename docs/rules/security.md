@@ -20,7 +20,7 @@ config overlay. Open resources are not shared and cannot be passed.
 
 The operand is decided syntactically at the spawn site — a `string` expression, or a
 `Class::method(...)` reference written there — and nothing else. A `callable` variable is refused,
-because whether *it* captures is not known statically; an `fn` literal is refused with a diagnostic
+because whether *it* captures is not known statically; an anonymous function is refused with a diagnostic
 naming the method form.
 
 The isolate joins `spawn` and `spawn worker` rather than introducing a second concurrency vocabulary:
@@ -443,7 +443,7 @@ thing an attacker edits to gain a permission.
 
 A field on each member row was the obvious shape and is rejected for two reasons, in this order.
 **"What can this runtime do to my machine" should be one screen of one file**; spread across dozens of
-class literals in dozens of modules it is dozens of greps and a judgement about whether you found them
+class definitions in dozens of modules it is dozens of greps and a judgement about whether you found them
 all, which is precisely the question a security review is trying not to have to make. And a field that
 is empty on the overwhelming majority of rows documents nothing while being maintained everywhere.
 
@@ -780,7 +780,7 @@ real endpoint URLs.
 
 Denied by default: loopback, the private ranges, **link-local**, unspecified, and every IPv6 form that
 carries one of them in its low 32 bits — IPv4-mapped (`::ffff:0:0/96`), IPv4-compatible (`::/96`) and
-the NAT64 well-known prefix (`64:ff9b::/96`), each of which reaches the address it carries. An operator grants an exception as an **IP address literal** beside the connect
+the NAT64 well-known prefix (`64:ff9b::/96`), each of which reaches the address it carries. An operator grants an exception as an **IP address written out** beside the connect
 grant. Three things it is not, each a widening this refuses: not a hostname, because the policy is
 asked of a resolved address and a name would except whatever it resolved to afterwards; not a range,
 because an operator writing a whole `/8` hands back most of the table without naming a host; and not
@@ -1005,14 +1005,14 @@ grammar surface doubles as the roster.
 
 **No launderer is added for any of them, deliberately.** A grammar is written by the program, not
 received by it, so the fix at a failing call site is to use a literal — which is folded at compile time
-for all four ([`expressions/intrinsic-literals`](expressions.md#expressions-intrinsic-literals)) — or, for a genuinely dynamic template drawn from
+for all four ([`expressions/intrinsic-constant-arguments`](expressions.md#expressions-intrinsic-constant-arguments)) — or, for a genuinely dynamic template drawn from
 a translation catalogue, [`security/assert-trusted`](security.md#security-assert-trusted) with its written reason.
 
 A regex quoting member remains the one exception on the roster, because a regex is the one grammar
 that routinely needs a runtime value *inside* it rather than *as* it
 ([`security/regex-pattern-is-a-sink`](security.md#security-regex-pattern-is-a-sink)).
 
-<sub>See also [`security/sink-predicate`](security.md#security-sink-predicate), [`security/regex-pattern-is-a-sink`](security.md#security-regex-pattern-is-a-sink), [`security/assert-trusted`](security.md#security-assert-trusted), [`expressions/intrinsic-literals`](expressions.md#expressions-intrinsic-literals). Decided in [0088](../decisions/0088.md), [0063](../decisions/0063.md), [0057](../decisions/0057.md), [0056](../decisions/0056.md).</sub>
+<sub>See also [`security/sink-predicate`](security.md#security-sink-predicate), [`security/regex-pattern-is-a-sink`](security.md#security-regex-pattern-is-a-sink), [`security/assert-trusted`](security.md#security-assert-trusted), [`expressions/intrinsic-constant-arguments`](expressions.md#expressions-intrinsic-constant-arguments). Decided in [0088](../decisions/0088.md), [0063](../decisions/0063.md), [0057](../decisions/0057.md), [0056](../decisions/0056.md).</sub>
 
 <a id="security-regex-pattern-is-a-sink"></a>
 
@@ -1049,7 +1049,7 @@ position where that is visible.
 
 The plain form covers URLs the program itself authored — a literal, a configuration value, a composed
 path — and a literal is additionally validated while checking
-([`expressions/intrinsic-literals`](expressions.md#expressions-intrinsic-literals)). A URL that genuinely came from outside goes through the
+([`expressions/intrinsic-constant-arguments`](expressions.md#expressions-intrinsic-constant-arguments)). A URL that genuinely came from outside goes through the
 laundering member that also **pins** the address it resolved to, so the check and the connection
 cannot disagree about which host was approved.
 
@@ -1057,7 +1057,7 @@ Refusing at the call site is only half of it: the address is judged again at run
 capability's own policy ([`security/net-address-policy`](security.md#security-net-address-policy)), because a hardcoded hostname can still
 resolve into a private range.
 
-<sub>See also [`security/net-address-policy`](security.md#security-net-address-policy), [`security/the-policy-lives-in-the-capability`](security.md#security-the-policy-lives-in-the-capability), [`security/sink-predicate`](security.md#security-sink-predicate), [`expressions/intrinsic-literals`](expressions.md#expressions-intrinsic-literals). Decided in [0058](../decisions/0058.md), [0024](../decisions/0024.md), [0088](../decisions/0088.md).</sub>
+<sub>See also [`security/net-address-policy`](security.md#security-net-address-policy), [`security/the-policy-lives-in-the-capability`](security.md#security-the-policy-lives-in-the-capability), [`security/sink-predicate`](security.md#security-sink-predicate), [`expressions/intrinsic-constant-arguments`](expressions.md#expressions-intrinsic-constant-arguments). Decided in [0058](../decisions/0058.md), [0024](../decisions/0024.md), [0088](../decisions/0088.md).</sub>
 
 <a id="security-metric-label-refuses-tainted"></a>
 
@@ -1214,10 +1214,10 @@ existing one arriving somewhere useful.
 
 **A regex constraint is not among the admitted types and never will be.** An application-authored
 pattern over the request path runs before any rate limiting, which makes catastrophic backtracking an
-unauthenticated denial of service; a closed set is spelled as a union of literal types or a subset of
+unauthenticated denial of service; a closed set is spelled as a set of allowed values or a subset of
 an enum's cases instead.
 
-<sub>See also [`security/taint-propagation`](security.md#security-taint-propagation), [`security/access-is-checked-for-presence-not-meaning`](security.md#security-access-is-checked-for-presence-not-meaning), [`types/literal-types`](types.md#types-literal-types). Decided in [0077](../decisions/0077.md), [0024](../decisions/0024.md), [0102](../decisions/0102.md), [0160](../decisions/0160.md).</sub>
+<sub>See also [`security/taint-propagation`](security.md#security-taint-propagation), [`security/access-is-checked-for-presence-not-meaning`](security.md#security-access-is-checked-for-presence-not-meaning), [`types/single-value-types`](types.md#types-single-value-types). Decided in [0077](../decisions/0077.md), [0024](../decisions/0024.md), [0102](../decisions/0102.md), [0160](../decisions/0160.md).</sub>
 
 <a id="security-derived-codec-qualifiers"></a>
 
@@ -1370,7 +1370,7 @@ without needing a third combined concept.
 Unlike `tainted`, **nothing in Novis grants `secret` ambiently.** The five host accessors are why
 `tainted` can attach itself automatically — every one is a named, enumerable place untrusted data
 enters ([`security/tainted-sources`](security.md#security-tainted-sources)). There is no equivalent list for secrecy: an environment
-read, a session value, a database row and a source literal all look identical to the type checker
+read, a session value, a database row and a string literal all look identical to the type checker
 whether or not their content happens to be a credential.
 
 `secret` therefore appears only where a developer spells it on a declaration — a parameter, return

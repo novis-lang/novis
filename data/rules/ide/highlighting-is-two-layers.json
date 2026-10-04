@@ -12,7 +12,7 @@
     "ide/novis-ships-names-not-colours",
     "ide/case-files-have-their-own-grammar",
     "types/object-top",
-    "types/duration-literal",
+    "types/duration",
     "types/decimal",
     "tooling/doc-comment-is-three-slashes",
     "ide/the-first-server-answers-a-closed-list"

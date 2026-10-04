@@ -10,7 +10,7 @@
     "security/net-address-policy",
     "security/the-policy-lives-in-the-capability",
     "security/sink-predicate",
-    "expressions/intrinsic-literals"
+    "expressions/intrinsic-constant-arguments"
   ],
   "guardedBy": [
     "tests/conformance/core/every-client-member-refuses-a-tainted-url.nvst",

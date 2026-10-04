@@ -15,7 +15,7 @@
     "php-migration/a-readonly-property-declares-no-default",
     "php-migration/no-partial-application",
     "php-migration/a-session-id-the-store-did-not-issue-is-rejected",
-    "types/duration-literal"
+    "types/duration"
   ],
   "guardedBy": []
 }

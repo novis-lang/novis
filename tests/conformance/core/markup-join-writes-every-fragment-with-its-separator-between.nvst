@@ -1,5 +1,5 @@
 --TEST--
-`Core\Html::join` writes its parts in order with the separator between each pair and nowhere else, and the answer is a `Markup` — `rule:core-classes/html-literal`
+`Core\Html::join` writes its parts in order with the separator between each pair and nowhere else, and the answer is a `Markup` — `rule:core-classes/html-template`
 --FILE--
 <?nvs
 // The list form of `Markup + Markup`: a page composed from fragments writes

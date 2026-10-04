@@ -679,7 +679,7 @@ ambiguous with a block
 
 Each of these is parsed only so the diagnostic can name the replacement: `eval` (use `require` or `spawn script`), `extract` (destructure or index), `settype` (`as` into a new binding), `compact` and every other PHP free function (a `Core` member — `Core\Str::length($s)`), `$$name` and `${expr}`, `list(…)`, `(int)` casts, `@`, `=&`, `die` (`exit`), `include`/`require_once` (`require`), `yield` used as a value, and `self`/`static`/`parent` outside a class — the last of those at each of the four sites that resolve a class side, a constant, a static property, a static call and `new`.
 
-PHP's backticks are the one entry not parsed at all. There is no shell-execution form for a diagnostic to name a replacement for — `Core\Process::run` takes a path and an argv array, never a command line (`rule:core-classes/process-is-argv-only`) — and the character itself is the delimiter of ``html`…` `` (`rule:core-classes/html-literal`), so a backtick with no prefix in front of it is `E0001` from the lexer. The literal itself is the types chapter's `Markup: the html template literal`.
+PHP's backticks are the one entry not parsed at all. There is no shell-execution form for a diagnostic to name a replacement for — `Core\Process::run` takes a path and an argv array, never a command line (`rule:core-classes/process-is-argv-only`) — and the character itself is the delimiter of ``html`…` `` (`rule:core-classes/html-template`), so a backtick with no prefix in front of it is `E0001` from the lexer. The literal itself is the types chapter's `Markup: the html template literal`.
 
 ```nvs error
 <?nvs

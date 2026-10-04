@@ -1,5 +1,5 @@
 --TEST--
-a malformed literal URL at an outbound `Core\Http\Client` member or `Core\Http::allowUrl` is refused while checking, and the same text behind a variable is not (`rule:security/outbound-url-is-a-sink` and `rule:expressions/intrinsic-literals`)
+a malformed literal URL at an outbound `Core\Http\Client` member or `Core\Http::allowUrl` is refused while checking, and the same text behind a variable is not (`rule:security/outbound-url-is-a-sink` and `rule:expressions/intrinsic-constant-arguments`)
 --FILE--
 <?nvs
 // The URL grammar is `Core\Uri::parse`'s, so the refusal is its sentence. Each

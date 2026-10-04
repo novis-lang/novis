@@ -1,9 +1,9 @@
 --TEST--
-A two-case union admits neither a case outside it nor a value typed as the whole enum, at an argument, at a declaration, after an `||` of two comparisons and at the checked conversion itself (`rule:types/literal-types`, `rule:types/narrowing`)
+A two-case union admits neither a case outside it nor a value typed as the whole enum, at an argument, at a declaration, after an `||` of two comparisons and at the checked conversion itself (`rule:types/single-value-types`, `rule:types/narrowing`)
 --FILE--
 <?nvs
 // covers: lang:enums/a-union-of-cases-is-a-narrower-type
-// `rule:types/literal-types`'s third row makes a wider value reach a narrower
+// `rule:types/single-value-types`'s third row makes a wider value reach a narrower
 // union through a guard or a checked `as`, and every line below is a way of
 // arriving without one. The `||` is the one worth pinning: a single `==`
 // narrows its subject to that case's own type, so a reader expects two of them

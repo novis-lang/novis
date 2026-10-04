@@ -1,5 +1,5 @@
 --TEST--
-a quoted attribute in a template region is markup and not a string expression, so it is offered no html-literal conversion, `rule:ide/a-string-converts-to-an-html-literal`
+a quoted attribute in a template region is markup and not a string expression, so it is offered no html-literal conversion, `rule:ide/a-string-converts-to-an-html-template`
 --FILE--
 <?nvs
 var $name = "world";

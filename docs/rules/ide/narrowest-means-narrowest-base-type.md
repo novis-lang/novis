@@ -1,5 +1,5 @@
 The synthesized element type is the canonical union of the element types, **each widened to its base**:
-the same widening `rule:types/literal-types` already performs at a placement, and the same union
+the same widening `rule:types/single-value-types` already performs at a placement, and the same union
 canonicalisation the type table uses everywhere. So `['retry' => 1, 'depth' => 3]` yields `array<int>`
 and never `array<1|3>`, which would be narrower and would refuse the next write made to it. An enum case
 widens to its enum by the same call.

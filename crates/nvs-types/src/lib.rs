@@ -357,7 +357,7 @@ pub(crate) struct FnSelf {
     /// against, the closure being written *being* the signature. Unlike `ret`
     /// this is never a stand-in: a parameter is annotated or takes its type
     /// from the position the literal is written in
-    /// (`rule:types/callable-literal-inference`), so the list is a fact before
+    /// (`rule:types/anonymous-function-parameter-inference`), so the list is a fact before
     /// the body is checked.
     pub params: Vec<crate::ty::TypeId>,
     /// The declared return type, or `mixed`.
@@ -402,7 +402,7 @@ pub(crate) struct Env<'a> {
     /// [`crate::retrieval::AttributeTable`].
     pub attributes: &'a crate::retrieval::AttributeTable<'a>,
     /// The `[capabilities]` block of the configuration the *compiling* machine
-    /// read, or `None` where nothing read one — `rule:core-classes/db-literal-query-checking`'s "`nvs.toml` is read at boot on the machine that compiles",
+    /// read, or `None` where nothing read one — `rule:core-classes/db-compile-time-query-checking`'s "`nvs.toml` is read at boot on the machine that compiles",
     /// which is the only thing in front of this pass that is not the program.
     ///
     /// **`None` says nothing rather than denying**, and

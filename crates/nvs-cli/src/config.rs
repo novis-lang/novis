@@ -515,7 +515,7 @@ fn boot_in(
     Ok((snapshot, resolved.origins))
 }
 
-/// The `[capabilities]` block the machine that is **compiling** reads — `rule:core-classes/db-literal-query-checking`'s second sentence, which is what makes a literal `Core\Db::open` host
+/// The `[capabilities]` block the machine that is **compiling** reads — `rule:core-classes/db-compile-time-query-checking`'s second sentence, which is what makes a literal `Core\Db::open` host
 /// matching no `db.open` grant a check-time diagnostic rather than only a
 /// refusal at the door.
 ///

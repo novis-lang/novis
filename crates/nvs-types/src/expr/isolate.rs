@@ -241,7 +241,7 @@ fn check_entry(path: &Expr, live: &mut Live, scope: &LocalScope, ctx: &Ctx<'_>, 
     let ty = check_expr(path, None, live, scope, ctx, env);
     entry_operand(path, ty, "`spawn script`", env);
     // The path form is a path position
-    // (`rule:programs/path-literals-resolve-from-their-file`): a relative
+    // (`rule:programs/relative-paths-resolve-from-their-file`): a relative
     // literal names a script beside this file. A method reference is not a
     // string literal, so this records nothing for it.
     crate::paths::resolve_literal(path, env);

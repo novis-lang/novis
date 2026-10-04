@@ -5,7 +5,7 @@
 //! with `nvs_stdlib::registry::CoreTy::Path` or `CoreTy::ClassName`, a user
 //! method states a path with `#[Core\Path]` on the parameter, and a field of a
 //! `Core` shape carries it on `nvs_types::CoreShapeField::text`
-//! (`rule:programs/path-literals-resolve-from-their-file`). The checker keeps
+//! (`rule:programs/relative-paths-resolve-from-their-file`). The checker keeps
 //! the parameter's mark on the call it resolved
 //! (`nvs_types::ResolvedCall::param_text`), so this module reads that and
 //! decides nothing of its own: a literal at a parameter that carries no mark is
@@ -32,7 +32,7 @@
 //! and the text of every other argument that is one string literal, which a
 //! `when` compares, and the string literal types the parameter's declared type
 //! lists, read off `nvs_types::ResolvedCall::param_tys` so a literal union is
-//! offered with no file at all (`rule:types/literal-types`).
+//! offered with no file at all (`rule:types/single-value-types`).
 //! [`named_in_document`] names every such literal the
 //! document writes, which the diagnostics read a completion file's `strict`
 //! against.

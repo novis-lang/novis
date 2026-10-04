@@ -1,5 +1,5 @@
 --TEST--
-A hole already holding a `Core\Html\Markup` is spliced raw, which is `Markup + Markup` written in interpolation syntax — `rule:core-classes/html-literal`
+A hole already holding a `Core\Html\Markup` is spliced raw, which is `Markup + Markup` written in interpolation syntax — `rule:core-classes/html-template`
 --FILE--
 <?nvs
 // A hole holding a carrier is spliced as it stands: the fragment passed

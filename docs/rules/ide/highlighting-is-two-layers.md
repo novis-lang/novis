@@ -7,8 +7,8 @@ gets wrong: the dual-mode lexer's openers `<?nvs`, `<?php`, `<?=` and `?>`, with
 highlighted as HTML; heredoc and nowdoc, with interpolation only in the former; type annotations everywhere
 the grammar allows one, including the inline shape `{x: int}` (`rule:types/object-top`); the qualifiers
 `tainted` and `secret`, and `decimal` as a scalar keyword (`rule:types/decimal`); `spawn`, `spawn script`,
-`autoload`, `type`, `by`-delegation, property hooks and their `get`/`set` bodies; duration literals
-(`rule:types/duration-literal`); `#[...]` attributes distinguished from a `#` comment; and nothing Novis
+`autoload`, `type`, `by`-delegation, property hooks and their `get`/`set` bodies; durations
+(`rule:types/duration`); `#[...]` attributes distinguished from a `#` comment; and nothing Novis
 rejects (`rule:ide/rejected-syntax-gets-no-colour`). Its test needs no editor: `vscode-textmate` plus
 `vscode-oniguruma` tokenize a fixture and a snapshot freezes the scope of every span.
 

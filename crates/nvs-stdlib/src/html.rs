@@ -72,7 +72,7 @@
 //! # Every door onto a `Markup`, and the sink that needs none
 //!
 //! [`MARKUP`] is registered *and* reachable: every way
-//! `rule:core-classes/html-auto-escape` and `rule:core-classes/html-literal`
+//! `rule:core-classes/html-auto-escape` and `rule:core-classes/html-template`
 //! give a program to obtain one is here — [`MARKUP_SYMBOL`] for `as Markup` on
 //! a source literal, [`MARKUP_CONCAT_SYMBOL`] for `Markup + Markup`,
 //! [`nvs_core_html_join`] for a list of fragments and one separator, the escape
@@ -311,7 +311,7 @@ pub const MARKUP_SYMBOL: &str = "nvs_core_html_markup";
 /// that took its operands from anywhere.
 pub const MARKUP_CONCAT_SYMBOL: &str = "nvs_core_html_markup_concat";
 
-/// The symbol a markup literal's hole lowers to — `rule:core-classes/html-literal`'s
+/// The symbol a markup literal's hole lowers to — `rule:core-classes/html-template`'s
 /// escape, answering the escaped **bytes** where [`nvs_core_html_escape`]
 /// answers a carrier.
 ///
@@ -327,7 +327,7 @@ pub const MARKUP_CONCAT_SYMBOL: &str = "nvs_core_html_markup_concat";
 pub const ESCAPE_TEXT_SYMBOL: &str = "nvs_core_html_escape_text";
 
 /// The symbol a markup literal's `Markup`-holding hole lowers to — the raw
-/// splice `rule:core-classes/html-literal` grants it, answering the carrier's
+/// splice `rule:core-classes/html-template` grants it, answering the carrier's
 /// own bytes.
 ///
 /// Row-less for [`ESCAPE_TEXT_SYMBOL`]'s reason, and narrower than
@@ -704,7 +704,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// A markup literal's hole, escaped — `rule:core-classes/html-literal`'s
+    /// A markup literal's hole, escaped — `rule:core-classes/html-template`'s
     /// hole rule, and the whole of what [`ESCAPE_TEXT_SYMBOL`] does.
     ///
     /// The same transform `Core\Html::escape` runs, answering the bytes it
@@ -722,7 +722,7 @@ nvs_runtime::nvs_helper! {
     /// A markup literal's `Markup`-holding hole, spliced raw — the whole of
     /// what [`MARKUP_TEXT_SYMBOL`] does.
     ///
-    /// **Nothing is escaped**, which is `rule:core-classes/html-literal`'s rule
+    /// **Nothing is escaped**, which is `rule:core-classes/html-template`'s rule
     /// rather than an omission: a hole already holding a carrier is
     /// `Markup + Markup` written in interpolation syntax, and escaping a
     /// fragment that passed whichever rule made it a `Markup` would corrupt the
@@ -832,7 +832,7 @@ nvs_runtime::nvs_helper! {
 
 nvs_runtime::nvs_helper! {
     /// `Core\Html::join(array<Core\Html\Markup> $parts, Core\Html\Markup $separator): Core\Html\Markup`
-    /// — `rule:core-classes/html-literal`'s composition over a list.
+    /// — `rule:core-classes/html-template`'s composition over a list.
     ///
     /// **Nothing is escaped and nothing is trusted here**, which is the rule
     /// rather than an omission, and it is [`nvs_core_html_markup_concat`]'s
@@ -2128,7 +2128,7 @@ mod tests {
         }
     }
 
-    /// `rule:core-classes/html-literal`'s "it neither trusts nor escapes
+    /// `rule:core-classes/html-template`'s "it neither trusts nor escapes
     /// anything", in the five characters that would show it: every part and
     /// the separator arrive as carriers, so each one's bytes come back exactly
     /// as they were written.

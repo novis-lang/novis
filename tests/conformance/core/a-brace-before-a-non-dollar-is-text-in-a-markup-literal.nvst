@@ -1,5 +1,5 @@
 --TEST--
-Only `{$` opens a hole in a markup literal, so a `<style>` block's braces and a `{` before anything else are text — `rule:core-classes/html-literal`
+Only `{$` opens a hole in a markup literal, so a `<style>` block's braces and a `{` before anything else are text — `rule:core-classes/html-template`
 --FILE--
 <?nvs
 // The hole grammar is the double-quoted string's and nothing is added to it,

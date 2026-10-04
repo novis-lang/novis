@@ -181,7 +181,7 @@ pub enum TypeAtom {
     True,
     /// `false`, the type inhabited by exactly the literal `false`.
     False,
-    /// `"a"` — the type inhabited by exactly that one string, `rule:types/literal-types`:
+    /// `"a"` — the type inhabited by exactly that one string, `rule:types/single-value-types`:
     /// the generalisation of [`Self::True`]/[`Self::False`] from `bool`'s two
     /// values to `string`'s. The span covers the whole literal, quotes
     /// included, exactly as [`ExprKind::Str`]'s does, so one decoder serves
@@ -189,7 +189,7 @@ pub enum TypeAtom {
     /// a type has nothing to interpolate from.
     StringLiteral(Span),
     /// `1`, `-1` — the type inhabited by exactly that one integer,
-    /// `rule:types/literal-types`. The span covers a leading `-` when one was written.
+    /// `rule:types/single-value-types`. The span covers a leading `-` when one was written.
     /// There is deliberately no `float` counterpart (§ 7).
     IntLiteral(Span),
     /// `Foo::BAR` in type position — `rule:types/constant-in-type-position` and `rule:types/enum-case-type`. The [`Name`] is the
@@ -639,7 +639,7 @@ pub struct WrittenModifier {
 /// written without it is reported where it is written, `ty` staying `None` so
 /// the parameter is still a node. A **closure literal's** parameter may leave
 /// the type out and take it from the position the literal appears in
-/// (`rule:types/callable-literal-inference`), which is the one `None` nothing
+/// (`rule:types/anonymous-function-parameter-inference`), which is the one `None` nothing
 /// was reported for.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Param {
@@ -894,7 +894,7 @@ pub enum ExprKind {
     /// A float literal; the digits are cooked later.
     Float(Span),
     /// A duration literal — `30s`, `1h30m`
-    /// (`rule:types/duration-literal`).
+    /// (`rule:types/duration`).
     ///
     /// A span like every other literal, cooked by
     /// [`crate::duration::parse`] wherever the value is wanted. The lexer has
@@ -903,14 +903,14 @@ pub enum ExprKind {
     ///
     /// Its type is `Core\Time\Duration` and nothing places it, unlike
     /// `rule:types/decimal`'s fractional
-    /// literal — the suffix *is* the type (`rule:types/duration-literal`).
+    /// literal — the suffix *is* the type (`rule:types/duration`).
     Duration(Span),
     /// A single-quoted string, or a double-quoted/heredoc/nowdoc string with
     /// no interpolation in it — both are plain literal text, uncooked.
     Str(Span),
     /// A double-quoted string or heredoc with at least one interpolation site.
     Interpolated(Vec<StringPart>),
-    /// ``html`…` `` — a markup literal (`rule:core-classes/html-literal`).
+    /// ``html`…` `` — a markup literal (`rule:core-classes/html-template`).
     ///
     /// The same [`StringPart`] vector [`Interpolated`](Self::Interpolated)
     /// carries, and for the same reason: a segment is literal text and a hole

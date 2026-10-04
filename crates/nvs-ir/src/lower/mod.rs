@@ -3483,7 +3483,7 @@ pub(crate) fn lower_decl_type(
         TypeKind::Atom(TypeAtom::Void) => Ty::Void,
         TypeKind::Atom(TypeAtom::String) => Ty::Str,
         TypeKind::Atom(TypeAtom::Bytes) => Ty::Bytes,
-        // `rule:types/literal-types` again, for the one annotation shape that can be
+        // `rule:types/single-value-types` again, for the one annotation shape that can be
         // answered without resolution. `TypeAtom::Member(..)` cannot: whether
         // it erases to a string, an int or an enum tag is exactly the question
         // the checker answered, so it takes the `declared_ty` shortcut above
@@ -3562,7 +3562,7 @@ pub(crate) fn lower_decl_type(
         // — see `Ty::Tagged`. Reached only for an annotation the checker never
         // visited; everything it did visit takes the `declared_ty` shortcut
         // above and goes through `erase_checked_ty`, which is the *narrower*
-        // answer since `rule:types/literal-types`'s fold lives there: it folds `"a"|"b"`
+        // answer since `rule:types/single-value-types`'s fold lives there: it folds `"a"|"b"`
         // back to the one representation its members share, which needs the
         // resolved members and so cannot be answered from the AST alone. An
         // intersection folds the same way there and is tagged here for a
@@ -3876,7 +3876,7 @@ pub(crate) fn written_class_label(call: &nvs_types::expr_table::ResolvedCall) ->
 ///
 /// Every row of the checker's type answers here, so nothing this function is
 /// asked has to be asked as a question: a union folds by erasing each member
-/// (`rule:types/literal-types`'s "zero additional runtime representation"),
+/// (`rule:types/single-value-types`'s "zero additional runtime representation"),
 /// and a member that once had no row is what made that fold an [`Option`].
 ///
 /// # Panics
@@ -3907,7 +3907,7 @@ pub(crate) fn erase_checked_ty(id: TypeId, checked_types: &TypeInterner) -> Ty {
         CheckedTy::Bytes => Ty::Bytes,
         // `rule:security/tainted-qualifier` and `rule:security/secret-qualifier`: `tainted` and `secret` are two
         // independent bits on the *checker's* type and add **zero** runtime
-        // representation, exactly as `rule:types/literal-types`'s literal types do above. So
+        // representation, exactly as `rule:types/single-value-types`'s literal types do above. So
         // every qualified atom erases to the base it shares a tag and an
         // allocation with, and everything below this boundary sees a plain
         // `string` or `bytes`.
@@ -3974,7 +3974,7 @@ pub(crate) fn erase_checked_ty(id: TypeId, checked_types: &TypeInterner) -> Ty {
         // "record it where the type still existed" the erased member access one
         // arm above already relies on.
         CheckedTy::PropertyKey(_) => Ty::Str,
-        // `rule:types/literal-types`: a literal type and an enum-case type add **zero**
+        // `rule:types/single-value-types`: a literal type and an enum-case type add **zero**
         // runtime representation. Each erases to the base it shares a tag and
         // payload with, so the singleton-ness stops at this boundary and
         // nothing below it learns a new type -- which is the whole of what
@@ -4002,7 +4002,7 @@ pub(crate) fn erase_checked_ty(id: TypeId, checked_types: &TypeInterner) -> Ty {
         // `Union([Null, T])` — the checker has no separate nullable type — so
         // the two arms below are the whole of `rule:expressions/nullable-conversion`'s representation.
         CheckedTy::Null => Ty::Null,
-        // `rule:types/literal-types` again, and the whole of what it means: there is no
+        // `rule:types/single-value-types` again, and the whole of what it means: there is no
         // second representation, so a union whose members all erase to one
         // `Ty` **is** that `Ty`. `"a"|"b"` is a `Ty::Str`, `1|2` a `Ty::Int`
         // and `Mode::Read|Mode::Write` the enum's own tag — the erasure the
@@ -4104,7 +4104,7 @@ pub(crate) fn erase_checked_ty(id: TypeId, checked_types: &TypeInterner) -> Ty {
 ///
 /// Shared by the union and intersection arms of [`erase_checked_ty`]: both ask
 /// the same question — how many representations does this position hold — and
-/// `rule:types/literal-types`'s "there is no second representation" is what makes the answer
+/// `rule:types/single-value-types`'s "there is no second representation" is what makes the answer
 /// a fold rather than a case analysis.
 fn shared_erasure(members: &[TypeId], checked_types: &TypeInterner) -> Ty {
     let mut shared: Option<Ty> = None;

@@ -5,7 +5,7 @@
 // and the second leaves one running on purpose, which § 16 fails and names.
 //
 // The child path is a literal, so it names the file beside this one
-// (`rule:programs/path-literals-resolve-from-their-file`).
+// (`rule:programs/relative-paths-resolve-from-their-file`).
 // `crates/nvs-cli/src/runner.rs`'s own tests are the only reader of this file.
 use Core\Task;
 use Core\Test;

@@ -159,7 +159,7 @@ all: an array, a scalar or a field holding something that cannot be called, each
 ordinary type mismatch.
 
 [`types/callable-signature`](types.md#types-callable-signature) is what made this possible, and the restriction it replaces is worth
-naming: until a `callable` carried a signature, the type existed only at the written literal, so a
+naming: until a `callable` carried a signature, the type existed only at the written anonymous function, so a
 framework storing callables in a variable could not use `all` at all. It can now, and it pays only
 for the signatures it declines to write.
 
@@ -200,7 +200,7 @@ cannot carry a per-element type. Each refuses the other's subject rather than co
 default to unbounded.
 
 **`deadline: Duration`** bounds the whole call, not each child, and is written as a duration
-literal. It is a timer on the core's reactor, so it fires when the core is handed back — a child
+like `30s`. It is a timer on the core's reactor, so it fires when the core is handed back — a child
 waits or ends. **A child that never waits is bounded the way its request is**: by the request's
 `[limits] cpu_time`, which the watchdog raises on the request tree's safepoint word and every child
 polls. A group gets no stop of its own, because it would bound a child more tightly than its request
@@ -214,7 +214,7 @@ heterogeneous shape its answer would be a union the caller must discriminate, wh
 cast in practice. The homogeneous case that is actually wanted, hedging one request across two
 replicas, has a name reserved for it so it cannot arrive twice.
 
-<sub>See also [`core-api/options-bag`](core-api.md#core-api-options-bag), [`types/duration-literal`](types.md#types-duration-literal), [`core-classes/db-one-api`](core-classes.md#core-classes-db-one-api). Decided in [0072](../decisions/0072.md).</sub>
+<sub>See also [`core-api/options-bag`](core-api.md#core-api-options-bag), [`types/duration`](types.md#types-duration), [`core-classes/db-one-api`](core-classes.md#core-classes-db-one-api). Decided in [0072](../decisions/0072.md).</sub>
 
 <a id="concurrency-nothing-is-still-running-when-a-call-returns"></a>
 
@@ -724,7 +724,7 @@ method written `Chat::run(...)` whose parameters `args:` binds to **by name**. W
 is decided syntactically at the call site ([`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing)).
 
 It is never a callable. A capture would carry state across the boundary the isolate exists to create,
-so an `fn` literal or a `callable`-typed variable here is a compile error that names the method form
+so an anonymous function or a `callable`-typed variable here is a compile error that names the method form
 instead. Naming compiled code is also what makes a connection participate in the artifact cache, hot
 reload, grants, limits, coverage and tracing with no special case in any of them.
 

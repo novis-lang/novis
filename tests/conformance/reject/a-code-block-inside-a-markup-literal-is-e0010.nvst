@@ -1,5 +1,5 @@
 --TEST--
-A `<?nvs` tag inside a markup literal is `E0010`, reported once per tag with the two replacements named, and is then text — `rule:core-classes/html-literal`, ADR 0202
+A `<?nvs` tag inside a markup literal is `E0010`, reported once per tag with the two replacements named, and is then text — `rule:core-classes/html-template`, ADR 0202
 --FILE--
 <?nvs
 echo html`<ul><?nvs echo 1; ?><li></li><?nvs ?></ul>`;

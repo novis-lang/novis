@@ -4,5 +4,5 @@ never "seconds here and microseconds there"; a byte size is a `uint` count of by
 PHP's `sleep`/`usleep`/`time_nanosleep` split is a units bug waiting for a refactor to find it, and a
 signature that takes an `int` cannot tell a caller which scale it wanted. A `Duration` takes the question
 out of the call site: it is constructed from the unit it is written in (`Duration::seconds`), it parses
-from a written grammar (`rule:types/duration-literal`), and every member taking a timeout takes exactly
+from a written grammar (`rule:types/duration`), and every member taking a timeout takes exactly
 that type. The cost is one construction at each call site that would otherwise have passed a bare integer.

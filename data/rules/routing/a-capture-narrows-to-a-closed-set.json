@@ -1,5 +1,5 @@
 {
-  "title": "A capture narrows to a closed set with a literal-union or enum-subset type, never with a regex",
+  "title": "A capture narrows to a closed set with a set of allowed values or an enum-subset type, never with a regex",
   "status": "shipped",
   "because": [
     "0102",
@@ -11,7 +11,7 @@
   "divergesFromPhp": "there is no `->where('lang', 'en|de|fr')`; the constraint is the parameter's type, and a regex on a route is refused outright",
   "seeAlso": [
     "security/route-capture-is-laundered-by-its-type",
-    "types/literal-types",
+    "types/single-value-types",
     "core-classes/validate-has-no-type-predicates",
     "programs/memory-priority",
     "routing/a-leftover-link-key-is-a-query-string",

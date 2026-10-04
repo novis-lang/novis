@@ -1,5 +1,5 @@
 --TEST--
-A markup literal with no holes carries exactly the bytes `as Core\Html\Markup` would lift from the same source text — `rule:core-classes/html-literal`
+A markup literal with no holes carries exactly the bytes `as Core\Html\Markup` would lift from the same source text — `rule:core-classes/html-template`
 --FILE--
 <?nvs
 // The two spellings of a trusted fragment answer the same carrier over the

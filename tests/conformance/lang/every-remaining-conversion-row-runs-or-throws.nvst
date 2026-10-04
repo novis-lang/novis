@@ -11,7 +11,7 @@ Every `rule:types/conversion` row between `int`, `uint` and `float` is asserted 
 // column rather than printing plausibly on its own.
 //
 // The operand is a parameter throughout: an operand whose own type already
-// names the value is refused where it is written (`rule:types/literal-types`), so a bound
+// names the value is refused where it is written (`rule:types/single-value-types`), so a bound
 // this table is about has to arrive at run time to be a throw at all.
 class Row {
     public static function iToU(int $i): string {

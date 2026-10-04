@@ -157,7 +157,7 @@ mod crypto;
 mod csrf;
 mod csv;
 mod cursor;
-// `pub` for [`db::check`]'s three refusals, which are `rule:core-classes/db-literal-query-checking`'s half of
+// `pub` for [`db::check`]'s three refusals, which are `rule:core-classes/db-compile-time-query-checking`'s half of
 // the intrinsic pass and the only things `nvs-types` reads here — for `cap`'s
 // reason exactly: the checker's refusal holds no second copy of a grammar this
 // crate already owns.
@@ -260,7 +260,7 @@ mod zip;
 /// the home of the `Core` contract.
 pub use nvs_runtime::{CodecElement, CodecField, CodecTy, EnumCases, FieldDefault};
 
-/// `rule:core-classes/html-literal`'s folded constant needs a `Core` class's
+/// `rule:core-classes/html-template`'s folded constant needs a `Core` class's
 /// descriptor address while it is being compiled, and `instance` is where the
 /// process's one table lives. Re-exported rather than moved, so the roster
 /// stays beside the table it reads.
@@ -343,7 +343,7 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
         // members for the same reason those two are: `rule:core-classes/html-auto-escape`'s
         // lift is `as` on a source literal, § 5's `Markup + Markup` and ADR
         // 0086 § 2's `Text + Text` are an operator, and
-        // `rule:core-classes/html-literal`'s pair is a markup literal's segment
+        // `rule:core-classes/html-template`'s pair is a markup literal's segment
         // and hole. Each is reachable only from the lowering of the construct
         // that spells it, which is what a row would undo — `html`'s and
         // `cli`'s own module docs own why.
@@ -548,7 +548,7 @@ mod tests {
                 + router::link::SYMBOLS.len()
                 // `rule:security/isolate-shares-nothing`'s `spawn script` — in its two entry forms, which
                 // are two symbols and one construct — and `await`, `rule:core-classes/html-auto-escape`'s `as Markup` and `Markup + Markup`, `rule:tooling/styling-is-a-value-not-a-grammar`'s
-                // `Text + Text`, and `rule:core-classes/html-literal`'s markup
+                // `Text + Text`, and `rule:core-classes/html-template`'s markup
                 // literal, whose segment and hole are a second pair behind one
                 // construct: eight symbols behind six constructs, each syntax
                 // rather than a call, so none of them has a row either — see

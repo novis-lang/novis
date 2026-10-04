@@ -1,5 +1,5 @@
 //! `nvs check` with the machine's own configuration in front of it —
-//! `rule:core-classes/db-literal-query-checking`'s check-time question and the
+//! `rule:core-classes/db-compile-time-query-checking`'s check-time question and the
 //! configuration error that outranks it.
 //!
 //! Through the built binary rather than by calling `front_end_granted`, for the
@@ -63,7 +63,7 @@ fn shown(out: &Output) -> String {
 
 #[test]
 fn nvs_check_reports_an_open_host_no_grant_covers() {
-    // `rule:core-classes/db-literal-query-checking`: `nvs.toml` is read at boot on the machine that compiles, so
+    // `rule:core-classes/db-compile-time-query-checking`: `nvs.toml` is read at boot on the machine that compiles, so
     // both halves of `db.open`'s question — the grant and the host — are facts
     // before the program runs. The grant here covers a different host, which is
     // what makes this a walk of the list rather than a check that one is

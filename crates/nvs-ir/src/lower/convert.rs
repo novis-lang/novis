@@ -49,7 +49,7 @@ impl<'a> Lowering<'a> {
     /// case names" itself, and cannot: the case set lives on the enum's
     /// declaration, which [`Ty::Enum`] has already erased to a backing type by
     /// the time this runs. [`Self::lower_conversion`] emits it instead — the
-    /// same membership chain `rule:types/literal-types`'s closed set gets, built from every
+    /// same membership chain `rule:types/single-value-types`'s closed set gets, built from every
     /// case of the declaration ([`Self::closed_literal_set`]) — and it is this
     /// function's only caller, so the two halves cannot come apart.
     ///
@@ -75,7 +75,7 @@ impl<'a> Lowering<'a> {
             // took, and the second release of the pair corrupts the heap. One
             // retain makes the free row honour the contract every other row
             // already does. `$s as string` is one spelling of it, and
-            // `rule:types/literal-types`'s erasure makes `$s as "a"|"b"` another.
+            // `rule:types/single-value-types`'s erasure makes `$s as "a"|"b"` another.
             if to.is_refcounted() && self.aliasing_read(operand) {
                 self.emit_retain(cur, v);
             }
@@ -135,7 +135,7 @@ impl<'a> Lowering<'a> {
             // it is `Ty::Tagged` and the value keeps the payload it already
             // has under a tag — one `InstKind::Tag`, the same instruction
             // `Self::coerce` emits where a *declaration* is the wider side.
-            // `rule:types/literal-types`'s heterogeneous set is the shape that needs it
+            // `rule:types/single-value-types`'s heterogeneous set is the shape that needs it
             // (`$s as 1|"a"`: the set is closed, its members share no one
             // representation, so the whole target erases to a tagged value
             // and the membership test below runs on tags), and `as mixed` is
@@ -442,7 +442,7 @@ impl<'a> Lowering<'a> {
             Ty::Bytes => Helper::ToBytesOrNull,
             other => panic!(
                 "nvs-ir lowers `rule:expressions/nullable-conversion`'s `as ?T` for the checked scalar targets and for \
-                 `bytes`, and through `Self::lower_nullable_membership` for `rule:types/literal-types`'s literal \
+                 `bytes`, and through `Self::lower_nullable_membership` for `rule:types/single-value-types`'s literal \
                  and enum-case ones — got `{from:?} as ?{other:?}`. Both of § 3's refusals are \
                  `nvs_types`' now (`E0709` for a row that cannot fail, `E0708` for a pair naming \
                  no row), so what reaches here is a row that exists, can fail, and has no `?` \
@@ -697,7 +697,7 @@ impl<'a> Lowering<'a> {
         // doing nothing at all.
         //
         // Every `as ?T` that reaches here is a row of `rule:types/conversion`'s table or
-        // one of `rule:types/literal-types`'s types. A **class** target never does: `rule:expressions/nullable-conversion-availability`'s class row is absolute, so `nvs_types` has already refused it
+        // one of `rule:types/single-value-types`'s types. A **class** target never does: `rule:expressions/nullable-conversion-availability`'s class row is absolute, so `nvs_types` has already refused it
         // with `E0473`, so nothing about a class reaches this function.
         match nullable_target(ty) {
             Some(target) => {
@@ -905,7 +905,7 @@ impl<'a> Lowering<'a> {
                 let Some(accepted) = self.closed_literal_set(ty, inner, from) else {
                     return self.convert(v, from, to, inner, env, *cur);
                 };
-                // `rule:types/literal-types`'s membership test, on whichever side of
+                // `rule:types/single-value-types`'s membership test, on whichever side of
                 // the base conversion still holds the value the author
                 // wrote. A `Ty::Tagged` operand into a **literal** set is
                 // tested **first**, against its own runtime tag:
@@ -1497,7 +1497,7 @@ impl<'a> Lowering<'a> {
 
     /// The closed set of literals an `expr as T` has to test its operand
     /// against at run time —
-    /// `rule:types/literal-types`'s
+    /// `rule:types/single-value-types`'s
     /// "the only place either type costs anything at runtime" — or `None`
     /// where this conversion is one of § 4's ordinary rows.
     ///
@@ -1740,7 +1740,7 @@ impl<'a> Lowering<'a> {
     /// that ADR's *5* already uses for `$m as int`, emitting no machine
     /// instruction at all. Every comparison over an enum goes through it,
     /// because `nvs-codegen`'s `BinOp` table is `Ty::Int`/`Ty::Uint`/`Ty::Bool`
-    /// and carries no `Ty::Enum` row: `rule:types/literal-types`'s membership chain, and
+    /// and carries no `Ty::Enum` row: `rule:types/single-value-types`'s membership chain, and
     /// `rule:expressions/disjoint-comparison-refused`'s `==` between two cases of one enum.
     ///
     /// Nothing is released or retained around it: an enum is a scalar, so the
@@ -1787,7 +1787,7 @@ impl<'a> Lowering<'a> {
     ///   already *is* one, holding exactly the value the chain just proved it
     ///   holds. Converting first would run `Helper::TaggedToString` and let a
     ///   `mixed` holding `1` satisfy a set naming `"1"`, which is the coercion
-    ///   `rule:types/literal-types` refuses.
+    ///   `rule:types/single-value-types` refuses.
     /// * Everything else converts to the target's own base first — an
     ///   **enum** target included, `rule:types/conversion` wording that row as "exactly
     ///   the shape `as uint` already has for untrusted input" — and a row
@@ -1864,7 +1864,7 @@ impl<'a> Lowering<'a> {
         (merged, Ty::Tagged)
     }
 
-    /// `rule:types/literal-types`'s
+    /// `rule:types/single-value-types`'s
     /// membership test: a chain of equality comparisons, each branching
     /// straight to the one block where the conversion succeeded, with the
     /// throw at the far end where every one of them missed.
@@ -2047,7 +2047,7 @@ pub(crate) fn sorted_enum_cases(info: &nvs_types::EnumInfo) -> Vec<(&str, nvs_ty
 }
 
 /// The closed set of values a checked `as` into an
-/// `rule:types/literal-types` literal
+/// `rule:types/single-value-types` literal
 /// type accepts — see [`Lowering::closed_literal_set`], which is the only
 /// thing that builds one, and [`Lowering::lower_literal_membership`], which is
 /// the only thing that consumes it.
@@ -2116,7 +2116,7 @@ pub(crate) fn literal_constant(atom: &LiteralAtom) -> (InstKind, Ty) {
 /// they share none — [`erase_checked_ty`]'s own `CheckedTy::Union` fold, over
 /// an atom list rather than over an interned union.
 ///
-/// The `?T` half of `rule:types/literal-types`'s "zero additional runtime representation"
+/// The `?T` half of `rule:types/single-value-types`'s "zero additional runtime representation"
 /// needs this separately because `T|null` is the union that *is* interned, and
 /// folding that one would answer [`Ty::Tagged`] for every target: `null` and
 /// `Ty::Str` are two representations, not one.

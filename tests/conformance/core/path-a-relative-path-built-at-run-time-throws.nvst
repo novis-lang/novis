@@ -1,5 +1,5 @@
 --TEST--
-a relative path that reaches a `Core` door at run time throws a `RuntimeError` naming the path and both ways to make it absolute, before any grant is asked, and `Core\Path::fromCwd` or `Core\Path::join` makes it one the door accepts — `rule:programs/path-literals-resolve-from-their-file`
+a relative path that reaches a `Core` door at run time throws a `RuntimeError` naming the path and both ways to make it absolute, before any grant is asked, and `Core\Path::fromCwd` or `Core\Path::join` makes it one the door accepts — `rule:programs/relative-paths-resolve-from-their-file`
 --FILE--
 <?nvs
 // covers: lang:programs/file-paths-a-literal-starts-at-the-folder-of-its-file

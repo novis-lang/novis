@@ -1,5 +1,5 @@
 --TEST--
-A closure parameter written without a type takes it from the position the literal stands in, and its body is checked against what it took — `rule:types/callable-literal-inference`, `rule:types/callable-arity`
+A closure parameter written without a type takes it from the position the literal stands in, and its body is checked against what it took — `rule:types/anonymous-function-parameter-inference`, `rule:types/callable-arity`
 --FILE--
 <?nvs
 class User {
@@ -7,7 +7,7 @@ class User {
     public function constructor(string $name) { $this->name = $name; }
 }
 
-// `rule:types/callable-literal-inference`: nothing annotates `$n`, so it is
+// `rule:types/anonymous-function-parameter-inference`: nothing annotates `$n`, so it is
 // the `int` the written signature names — and `$n * 2` is the assertion, since
 // `mixed` has no arithmetic to reach.
 callable(int): int $twice = fn ($n): int => $n * 2;

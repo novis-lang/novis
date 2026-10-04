@@ -475,7 +475,7 @@ fn an_operator_exception_names_one_address_and_widens_nothing_else() {
 /// Whether `caps` grants `cap` for `host`, asked in **both** spellings and asserted to agree.
 ///
 /// `allows_host` is what a `nvs check` pass asks and `allows` is what a running request asks
-/// (`rule:core-classes/db-literal-query-checking` and § 3), and a check that disagreed with the run it
+/// (`rule:core-classes/db-compile-time-query-checking` and § 3), and a check that disagreed with the run it
 /// precedes is the one failure `rule:expressions/preparation-preserves-behaviour` forbids outright. Every wildcard case below goes through
 /// here rather than through either half, so a wildcard read by one caller and not the other fails.
 fn grants_host(caps: &Capabilities, cap: Cap, host: &str, disk: &Disk) -> bool {

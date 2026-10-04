@@ -96,7 +96,7 @@ array<string> $empty = [];
 
 // Eight kinds, none of them `null`: a user object, a closure, `bytes`, a
 // container of containers, an anonymous shape, a `Core` instance built from
-// `rule:types/duration-literal`'s duration literal, an enum case, and a `?T` binding that is
+// `rule:types/duration`'s duration literal, an enum case, and a `?T` binding that is
 // holding one. Every one must be refused by all four spellings.
 array<mixed> $values = [
     $card, $closure, $binary, $nested, $shape, $duration, Suit::Clubs, $present,

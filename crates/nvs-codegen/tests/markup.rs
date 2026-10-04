@@ -9,7 +9,7 @@ use common::*;
 use nvs_ir::ir::{Helper, InstKind};
 
 /// How many of the whole lowered program's instructions `matching` accepts —
-/// the cost half of `rule:core-classes/html-literal` is a claim about what is
+/// the cost half of `rule:core-classes/html-template` is a claim about what is
 /// emitted, so these read the IR rather than the output.
 fn count_insts(source: &str, matching: impl Fn(&InstKind) -> bool) -> usize {
     lower(source)
@@ -129,7 +129,7 @@ fn a_markup_literal_returned_from_a_function_does_build_one() {
 
 #[test]
 fn a_hole_holding_a_carrier_is_spliced_raw_and_the_literal_still_builds_one() {
-    // `rule:core-classes/html-literal`: a hole already holding a `Markup` is
+    // `rule:core-classes/html-template`: a hole already holding a `Markup` is
     // `Markup + Markup` written in interpolation syntax, so its markup reaches
     // the page as markup — and the composition is still one carrier, not one
     // per fragment.
@@ -155,7 +155,7 @@ echo Core\Html::toSource($m, "the test reads back the bytes the literal built");
     assert_eq!(output_of(source), "<b>a`b</b> {not a hole} &amp; \t");
 }
 
-/// `rule:core-classes/html-literal`'s *What it costs to run*, first half: a
+/// `rule:core-classes/html-template`'s *What it costs to run*, first half: a
 /// literal with no hole in it is constant-pool data, so it is one
 /// `InstKind::ConstMarkup` and no lift at all — where the same literal with a
 /// hole is the join and the carrier the tests above count.

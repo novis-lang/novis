@@ -1,9 +1,9 @@
 --TEST--
-A union of enum cases is a type at every binding site, widens to its enum for free, and is entered by a checked conversion that throws or answers `null` (`rule:types/literal-types`, `rule:enums/closed-integer-type`)
+A union of enum cases is a type at every binding site, widens to its enum for free, and is entered by a checked conversion that throws or answers `null` (`rule:types/single-value-types`, `rule:enums/closed-integer-type`)
 --FILE--
 <?nvs
 // covers: lang:enums/a-union-of-cases-is-a-narrower-type
-// `rule:types/literal-types` makes `E::A|E::B` an ordinary union of two atoms,
+// `rule:types/single-value-types` makes `E::A|E::B` an ordinary union of two atoms,
 // so the claim worth pinning is that it is ordinary *everywhere*: the sweep
 // below writes one two-case type at a variable, a parameter, a property, a
 // return type, an `array<T>` element and a `foreach` binding, and asserts the

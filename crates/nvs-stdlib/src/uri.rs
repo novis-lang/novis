@@ -1463,7 +1463,7 @@ fn port_out_of_range(member: &str) -> Fault {
 
 /// Whether `text` is a URI reference `Core\Uri::parse` would answer for, for
 /// a caller that wants the refusal and not the object —
-/// `rule:expressions/intrinsic-literals`'s fold,
+/// `rule:expressions/intrinsic-constant-arguments`'s fold,
 /// which reads a **literal** URI while checking and reports § 3's diagnostic
 /// instead of the throw [`nvs_core_uri_parse`] would have made.
 ///

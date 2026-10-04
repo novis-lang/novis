@@ -27,7 +27,7 @@ if ($m is int) {
 | an array | `$x is array`, `$x is array<int>` |
 | a shape | `$x is {x: int, y: int}` |
 | `iterable`, `callable`, a callable signature | `$x is iterable`, `$x is callable` |
-| a literal type | `$x is 5`, `$x is 'yay'`, `$x is true` |
+| a single-value type | `$x is 5`, `$x is 'yay'`, `$x is true` |
 | a class constant or an enum case | `$x is Mode::Read`, `$x is Limits::MAX` |
 | an enum | `$x is Rank` |
 | `mixed` | `$x is mixed` — always `true`, the wildcard |
@@ -42,7 +42,7 @@ apart — a case that reached `mixed` carries an enum tag, so it is told apart f
 from another enum's case of the same value and backing. Every other row is one tag comparison, or the descriptor walk
 the class-test instruction performs.
 
-There is no float literal type to test against (`rule:types/literal-types`), so `$x is 3.14` is
+There is no `float` single-value type to test against (`rule:types/single-value-types`), so `$x is 3.14` is
 refused by that rule and not by this one.
 
 ## The value arm

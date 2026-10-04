@@ -1,5 +1,5 @@
 {
-  "title": "A literal query is checked while compiling, and no vendor's SQL grammar is ever parsed",
+  "title": "A query given as a string literal is checked while compiling, and no vendor's SQL grammar is ever parsed",
   "status": "shipped",
   "because": [
     "0067",
@@ -9,7 +9,7 @@
   "seeAlso": [
     "core-classes/db-parameters",
     "core-classes/schema-introspection",
-    "expressions/intrinsic-literals"
+    "expressions/intrinsic-constant-arguments"
   ],
   "guardedBy": [
     "tests/conformance/core/db-stream-is-checked-while-compiling-like-every-other-statement.nvst",

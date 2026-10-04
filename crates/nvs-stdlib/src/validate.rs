@@ -85,7 +85,7 @@
 //!
 //! Omitting `version` accepts either family; `{version: 4}` and
 //! `{version: 6}` accept exactly one. The option is
-//! `rule:types/literal-types`'s
+//! `rule:types/single-value-types`'s
 //! literal union rather than an `int`, so `{version: 5}` does not compile —
 //! spec § 12 names this as the reason `isIpV4`/`isIpV6` are *gone* rather than
 //! being two more member names. It is the registry's first union-typed option,
@@ -365,7 +365,7 @@ const IP_OPTIONS: &[CoreOption] = &[CoreOption {
     default: Const::Null,
 }];
 
-/// `4|6` — `rule:types/literal-types`'s integer literal type, twice.
+/// `4|6` — `rule:types/single-value-types`'s integer literal type, twice.
 const IP_VERSION: &[CoreTy] = &[CoreTy::IntLiteral(4), CoreTy::IntLiteral(6)];
 
 /// The address of one of *this* module's symbols, or `None` for a symbol that

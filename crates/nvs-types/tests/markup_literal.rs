@@ -1,4 +1,4 @@
-//! `rule:core-classes/html-literal`: what ``html`…` `` types as, and what one of its holes admits.
+//! `rule:core-classes/html-template`: what ``html`…` `` types as, and what one of its holes admits.
 //!
 //! The literal's own lexing and parsing are `nvs-syntax`'s tests; these are the
 //! two questions the checker answers — the node's type, and the three

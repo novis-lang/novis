@@ -10,7 +10,7 @@ publishes validation only for documents opened as HTML. Emmet would take `emmet.
 mapping `nvs` to `html`, which turns it on in the Novis half as well, so the extension contributes
 neither; a user who wants Emmet in a template sets that mapping themselves.
 
-**A markup literal's body is a region too.** ``html`…` `` (`rule:core-classes/html-literal`) is markup
+**An html template's body is a region too.** ``html`…` `` (`rule:core-classes/html-template`) is markup
 written in expression position rather than at file scope, so it gets the same services on the same
 terms — the holes are Novis and the segments are HTML, which is the boundary the lexer already knows.
 

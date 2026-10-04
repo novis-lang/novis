@@ -639,7 +639,7 @@ pub(crate) fn entry_program(
     let Some(path) = entry.as_text() else {
         return method_program(ctx, entry, args, member);
     };
-    // `rule:programs/path-literals-resolve-from-their-file`, as at `spawn
+    // `rule:programs/relative-paths-resolve-from-their-file`, as at `spawn
     // script`: a relative literal arrives joined to its file's folder, so a
     // relative path here was built while the program ran.
     if let Some(message) =
@@ -1806,7 +1806,7 @@ mod tests {
         release_crossed(path);
     }
 
-    /// `rule:programs/path-literals-resolve-from-their-file` at the upgrade: a
+    /// `rule:programs/relative-paths-resolve-from-their-file` at the upgrade: a
     /// relative literal is joined to its file's folder while compiling, so a
     /// relative path that arrives here was built while the program ran. It
     /// throws, with a resolver installed that would have answered it and a

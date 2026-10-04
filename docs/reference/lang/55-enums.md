@@ -236,7 +236,7 @@ value typed as the whole enum, is a compile error. A whole-enum value enters the
 `as E::A|E::B`, which throws when the value is not one of them. A single `==` narrows its subject to
 that one case's type; two comparisons joined by `||` do not narrow to the pair, so a set of two is
 entered by the conversion alone.
-<!-- src: `rule:types/literal-types` -->
+<!-- src: `rule:types/single-value-types` -->
 
 ```nvs
 <?nvs

@@ -1714,7 +1714,7 @@
       "section": "Dates and times",
       "php": "date_interval_create_from_date_string",
       "outcome": "dropped",
-      "novis": "the relative-expression grammar does not exist; `Core\\Time\\Duration::parse` reads the exact-duration subset (`rule:types/duration-literal`)"
+      "novis": "the relative-expression grammar does not exist; `Core\\Time\\Duration::parse` reads the exact-duration subset (`rule:types/duration`)"
     },
     {
       "section": "Dates and times",
@@ -2398,7 +2398,7 @@
       "section": "Runtime configuration, the environment and the process",
       "php": "ini_parse_quantity",
       "outcome": "dropped",
-      "novis": "a size or a duration is its own literal (`rule:types/duration-literal`), so there is no quantity string for a program to parse; a directive's value string is read by `Core\\Config::set` itself, with the parser the boot path uses (`rule:config/ini-set-is-core-config-set`)"
+      "novis": "a size or a duration is its own literal (`rule:types/duration`), so there is no quantity string for a program to parse; a directive's value string is read by `Core\\Config::set` itself, with the parser the boot path uses (`rule:config/ini-set-is-core-config-set`)"
     },
     {
       "section": "Runtime configuration, the environment and the process",
@@ -3022,7 +3022,7 @@
       "section": "Manipulation, directories and links",
       "php": "chdir",
       "outcome": "dropped",
-      "novis": "the working directory is process-global too, and nothing resolves a path against it. A relative string literal at a path parameter is joined to the folder of the file that wrote it; a path built at run time is made absolute with `Core\\Path::join` (`rule:programs/path-literals-resolve-from-their-file`)"
+      "novis": "the working directory is process-global too, and nothing resolves a path against it. A relative string literal at a path parameter is joined to the folder of the file that wrote it; a path built at run time is made absolute with `Core\\Path::join` (`rule:programs/relative-paths-resolve-from-their-file`)"
     },
     {
       "section": "Manipulation, directories and links",
@@ -3382,7 +3382,7 @@
       "section": "Hashing, passwords and identifiers",
       "php": "hash_hmac_algos",
       "outcome": "dropped",
-      "novis": "`StrongDigest` is that list, and `Core\\Hash::hmac` declares it (`rule:types/literal-types`)"
+      "novis": "`StrongDigest` is that list, and `Core\\Hash::hmac` declares it (`rule:types/single-value-types`)"
     },
     {
       "section": "Hashing, passwords and identifiers",
@@ -5470,7 +5470,7 @@
       "section": "The program describing itself",
       "php": "define",
       "outcome": "dropped",
-      "novis": "a runtime constant table. A constant is a class member (`rule:classes/no-free-functions-or-constants`), known where it is used and foldable there (`rule:expressions/intrinsic-literals`)"
+      "novis": "a runtime constant table. A constant is a class member (`rule:classes/no-free-functions-or-constants`), known where it is used and foldable there (`rule:expressions/intrinsic-constant-arguments`)"
     },
     {
       "section": "The program describing itself",

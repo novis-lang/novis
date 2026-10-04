@@ -1,8 +1,8 @@
 --TEST--
-A comparison against an enum case narrows its subject to that case's own type, on whichever edge the comparison proves it — `rule:types/literal-types`, `rule:types/unions-and-mixed`
+A comparison against an enum case narrows its subject to that case's own type, on whichever edge the comparison proves it — `rule:types/single-value-types`, `rule:types/unions-and-mixed`
 --FILE--
 <?nvs
-// `rule:types/literal-types`'s guard row, over the third of the three spellings
+// `rule:types/single-value-types`'s guard row, over the third of the three spellings
 // `nvs_types::locals::literal_residue` admits. A written case is not a
 // literal that cooks to a value with no context — which enum `Read` belongs
 // to is a question about the writing site's namespace and imports — so the

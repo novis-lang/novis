@@ -1,5 +1,5 @@
 --TEST--
-A list of markup literals built in a loop composes with `Core\Html::join`, and the joined result splices into another literal without being escaped again — `rule:core-classes/html-literal`
+A list of markup literals built in a loop composes with `Core\Html::join`, and the joined result splices into another literal without being escaped again — `rule:core-classes/html-template`
 --FILE--
 <?nvs
 // The shape a page is actually written in: one literal per row, a list built

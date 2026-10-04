@@ -6,9 +6,9 @@ Core\Metrics::gauge(string $name, float $value, {labels?: array<string, string>}
 
 `increment` for a counter, `observe` for a histogram, `gauge` for a point-in-time value — three
 verbs for three kinds, rather than one `record` with a kind enum, because the kind is a property of
-the series and not of the call (`rule:observability/a-name-is-fixed-to-one-kind`). A literal
-`$name` is validated at compile time against `[a-z][a-z0-9_]*`, by the same call-site literal
-inspection `rule:security/secret-sinks-refuse` performs.
+the series and not of the call (`rule:observability/a-name-is-fixed-to-one-kind`). A `$name` given
+as a string literal is validated at compile time against `[a-z][a-z0-9_]*`, by the same inspection
+of string literals at the call site that `rule:security/secret-sinks-refuse` performs.
 
 The `labels` value position is a sink: `rule:security/metric-label-refuses-tainted` is the rule a
 user id, a tenant name or an error message runs into, and `secret` is refused there too.

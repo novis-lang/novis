@@ -692,7 +692,7 @@ fn fn_expr_self_name_for_recursion() {
 
 #[test]
 fn a_closure_parameter_may_omit_its_type() {
-    // `rule:types/callable-literal-inference`: the omission parses, and the
+    // `rule:types/anonymous-function-parameter-inference`: the omission parses, and the
     // type comes from the position the literal is written in. A parameter
     // beside it may still name one.
     let (e, diags) = parse_with_diags("fn ($x, int $y) => $x");
@@ -817,7 +817,7 @@ fn double_quoted_string_with_interpolation() {
 fn a_markup_literal_without_holes_stays_a_markup_node() {
     // Unlike a quoted string, a hole-free body does not collapse to
     // `ExprKind::Str`: the node, not the part count, is what says
-    // `Core\Html\Markup` (`rule:core-classes/html-literal`).
+    // `Core\Html\Markup` (`rule:core-classes/html-template`).
     let e = parse_ok("html`<hr>`");
     let ExprKind::Markup(parts) = e.kind else {
         panic!("expected a markup literal: {e:?}");
@@ -845,7 +845,7 @@ fn a_markup_hole_is_a_strings_hole() {
 fn a_tag_hole_is_the_same_part_as_a_brace_hole_and_takes_a_static_call() {
     // What differs between the two holes is decided in the lexer; by here a
     // `<?= … ?>` is one more `StringPart::Expr`, so nothing downstream learns a
-    // second kind of hole (`rule:core-classes/html-literal`).
+    // second kind of hole (`rule:core-classes/html-template`).
     let e = parse_ok("html`<td><?= Money::format($c) ?></td>`");
     let ExprKind::Markup(parts) = e.kind else {
         panic!("expected a markup literal: {e:?}");

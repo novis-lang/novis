@@ -1,5 +1,5 @@
 --TEST--
-A single-quoted literal has exactly two escapes and interpolates nothing, a double-quoted one's escape set agrees row for row with the code points written out, and a brace reaches the whole expression grammar while a bare `$a[k]` stops after one level — `rule:types/literal-types`
+A single-quoted literal has exactly two escapes and interpolates nothing, a double-quoted one's escape set agrees row for row with the code points written out, and a brace reaches the whole expression grammar while a bare `$a[k]` stops after one level — `rule:types/single-value-types`
 --FILE--
 <?nvs
 // covers: lang:types/literals

@@ -36,7 +36,7 @@
 //! plain variable, an `is` one over the same, or a comparison of one
 //! against a written literal, installs one entry for the branch it proves —
 //! the latter two on the edge where the test holds alone, `rule:types/narrowing`'s
-//! true-edge rule and `rule:types/literal-types`'s guard row — and the branch's end
+//! true-edge rule and `rule:types/single-value-types`'s guard row — and the branch's end
 //! restores what was there before — **unless a write already
 //! removed it**, in which case the write wins and nothing is put back (see
 //! [`Narrowing`], which records what it installed so it can tell the two
@@ -76,7 +76,7 @@
 //! that reaches a class as readily as a scalar, and [`type_test_residue`] owns
 //! which edge proves it. **A literal
 //! comparison narrows to the literal's own type**, an enum case included,
-//! which costs nothing below the checker at all: `rule:types/literal-types` gives a literal
+//! which costs nothing below the checker at all: `rule:types/single-value-types` gives a literal
 //! type and an enum-case type their base's representation exactly, so the read
 //! is the same one either way.
 //!
@@ -422,7 +422,7 @@ fn null_test(cond: &Expr) -> Option<(Span, bool)> {
 /// a value can inhabit; see [`type_test_residue`] for why the false edge
 /// proves nothing. **A
 /// comparison against a written literal proves that literal's own type** —
-/// `rule:types/literal-types`'s guard row, and [`literal_residue`] owns which spellings
+/// `rule:types/single-value-types`'s guard row, and [`literal_residue`] owns which spellings
 /// reach it.
 ///
 /// This used to be restricted to a single-class residue, because `nvs-ir`
@@ -551,7 +551,7 @@ fn type_test(cond: &Expr) -> Option<(Span, Span, bool)> {
 /// The local a comparison against a written literal narrows on the branch
 /// where it evaluates to `when`, and the literal type it proves.
 ///
-/// `rule:types/literal-types`'s own
+/// `rule:types/single-value-types`'s own
 /// row: a wider literal union reaches a narrower one through a guard, and `==`
 /// is that guard's simplest spelling. `==` proves the literal where it holds
 /// and `!=` where it does not, which is the same edge written two ways.
@@ -598,7 +598,7 @@ pub(crate) fn literal_residue(
             env.interner
                 .int_literal(i64::from_str_radix(&digits, radix).ok()?)
         }
-        // `rule:types/literal-types`'s guard row over an enum: `$m == Mode::Read` proves the
+        // `rule:types/single-value-types`'s guard row over an enum: `$m == Mode::Read` proves the
         // case's own type, which is `Ty::EnumCase` rather than the enum. The
         // enum and the case are read back off
         // [`crate::expr_table::ExprInfo::EnumCase`], recorded when the operand

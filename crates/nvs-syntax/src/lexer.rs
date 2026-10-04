@@ -20,7 +20,7 @@
 //! delimiter swapped: the same segments, the same `{$` holes counting brace
 //! depth, the same escapes. The lexer scans for the closing backtick and for
 //! `{$`, and for nothing else — it learns no HTML
-//! (`rule:core-classes/html-literal`).
+//! (`rule:core-classes/html-template`).
 //!
 //! # What the lexer does not do
 //!
@@ -58,7 +58,7 @@ enum Mode {
         /// `}` at all — a closure literal inside `{$…}` has its own braces.
         brace_depth: u32,
         /// True for a frame opened by `<?=` inside a markup literal
-        /// (`rule:core-classes/html-literal`): it closes on `?>` and on nothing
+        /// (`rule:core-classes/html-template`): it closes on `?>` and on nothing
         /// else, so a `}` inside it is an ordinary [`TokenKind::RBrace`]
         /// whatever the depth.
         tag_hole: bool,
@@ -70,7 +70,7 @@ enum Mode {
     /// [`TokenKind::MarkupClose`]. This is [`Mode::DoubleQuoted`] with the
     /// delimiter swapped and nothing else changed: the segments, the `{$`
     /// holes and the escapes are a double-quoted string's
-    /// (`rule:core-classes/html-literal`).
+    /// (`rule:core-classes/html-template`).
     Markup { start: BytePos },
     /// Inside a heredoc/nowdoc body, between its open and close delimiters.
     /// `interpolation` is false for a nowdoc (`<<<'LABEL'`).
@@ -742,7 +742,7 @@ impl<'a> Lexer<'a> {
         self.push(kind, span);
     }
 
-    /// A numeric literal, and — `rule:types/duration-literal` — the duration literal that shares its opening digits.
+    /// A numeric literal, and — `rule:types/duration` — the duration literal that shares its opening digits.
     ///
     /// A duration is reached only from a **plain decimal** integer: the
     /// `0x`/`0o`/`0b` forms return before this point, so `0x1d` stays one hex
@@ -878,7 +878,7 @@ impl<'a> Lexer<'a> {
 
         // A fractional count needs no rule of its own: the candidate is sliced
         // from the number's first byte, so `1.5s` reaches `duration::parse`
-        // with its `.` intact and `rule:types/duration-literal`'s refusal is the grammar's.
+        // with its `.` intact and `rule:types/duration`'s refusal is the grammar's.
         let span = self.mk_span(start, end);
         self.pos = end;
         match duration::parse(candidate) {
@@ -1388,7 +1388,7 @@ impl<'a> Lexer<'a> {
         // What ends the body is all that separates the three: one character
         // for `"…"` and ``html`…` ``, a label line for a heredoc/nowdoc. The
         // scan itself -- segments, `{$` holes, simple `$name`, escapes -- is
-        // one scan, which is the whole of `rule:core-classes/html-literal`'s
+        // one scan, which is the whole of `rule:core-classes/html-template`'s
         // lexing.
         let (delimiter, interpolation, label) = match self.modes.last() {
             Some(Mode::DoubleQuoted { .. }) => (
@@ -1427,7 +1427,7 @@ impl<'a> Lexer<'a> {
             // The output tag a page already uses opens a hole in a markup
             // literal too, and the hole takes any expression, so a constant or
             // a static call needs no local to reach the page
-            // (`rule:core-classes/html-literal`). A string keeps `{$` alone.
+            // (`rule:core-classes/html-template`). A string keeps `{$` alone.
             if is_markup && self.starts_with("<?=") {
                 let start = self.pos;
                 self.pos += 3;
@@ -1484,7 +1484,7 @@ impl<'a> Lexer<'a> {
                     // the page prints `{Page::TITLE}` as written — the one
                     // template habit that runs and ships the wrong string.
                     // Said once, at the brace, and the bytes stay text
-                    // (`rule:core-classes/html-literal`).
+                    // (`rule:core-classes/html-template`).
                     let span = self.mk_span(self.pos, self.pos + len);
                     let inner = &self.text[self.pos as usize + 1..(self.pos + len) as usize];
                     let inner = inner.strip_suffix('}').unwrap_or(inner);
@@ -1972,7 +1972,7 @@ mod tests {
     #[test]
     fn a_trailing_m_is_not_a_decimal_literal_suffix() {
         // `rule:types/numeric-literal-placement` and its *Alternatives rejected*: Novis has no literal
-        // suffix at all, so `19.99m` is not one decimal token. `rule:types/duration-literal`
+        // suffix at all, so `19.99m` is not one decimal token. `rule:types/duration`
         // decides which *kind* of refusal it gets: a duration is recognised
         // only after a plain decimal integer, and a fractional count is that
         // ADR's own named lexer error (`1.5s`, its § 4), so `19.99m` is
@@ -2048,7 +2048,7 @@ mod tests {
         );
     }
 
-    /// `rule:types/duration-literal`: one token per literal, maximal munch, and the units in
+    /// `rule:types/duration`: one token per literal, maximal munch, and the units in
     /// descending order.
     #[test]
     fn duration_literal_shapes() {
@@ -2066,7 +2066,7 @@ mod tests {
         );
     }
 
-    /// The two shapes `rule:types/duration-literal` protects: `0x1d` stays one hex literal
+    /// The two shapes `rule:types/duration` protects: `0x1d` stays one hex literal
     /// because the `0x` form returns before the duration production is
     /// reached, and `3 d` is two tokens because whitespace ends the candidate.
     #[test]
@@ -2091,7 +2091,7 @@ mod tests {
         );
     }
 
-    /// Every refusal `rule:types/duration-literal` makes about a literal's
+    /// Every refusal `rule:types/duration` makes about a literal's
     /// *shape* reaches the lexer, and each produces one error rather than a
     /// cascade — the grammar itself is tested in [`crate::duration`], so what
     /// this holds is that the lexer *reaches* it. There is nothing left to lex,
@@ -2141,7 +2141,7 @@ mod tests {
         );
     }
 
-    /// The case of a unit is the one thing `rule:types/duration-literal` refuses that leaves a
+    /// The case of a unit is the one thing `rule:types/duration` refuses that leaves a
     /// literal behind: the shape is a duration and only its spelling is wrong,
     /// so the token is the one that was written and the error names the
     /// lower-case form for `rule:tooling/fmt-normalizes-only-reserved-spellings` to write.
@@ -2158,7 +2158,7 @@ mod tests {
         );
     }
 
-    /// `rule:types/duration-literal` keeps the sign out of the literal, so the parser never has
+    /// `rule:types/duration` keeps the sign out of the literal, so the parser never has
     /// to decide whether the `-` in `$a -7d` is binary — it is always its own
     /// token, and `nvs_types` refuses the arithmetic that results.
     #[test]
@@ -2383,7 +2383,7 @@ mod tests {
     fn a_markup_literal_lexes_as_parts_the_way_a_double_quoted_string_does() {
         // The same shape a `"…"` produces with the delimiter swapped: segments
         // and `{$` holes, and nothing in the lexer that knows what a tag is
-        // (`rule:core-classes/html-literal`).
+        // (`rule:core-classes/html-template`).
         assert_eq!(
             kinds_ok("<?nvs echo html`<span>posted by </span>{$name}`;"),
             vec![
@@ -2510,7 +2510,7 @@ mod tests {
     fn an_output_tag_opens_a_hole_that_takes_any_expression_in_a_markup_literal() {
         // `<?=` is the second hole a markup literal has, and the expression in
         // it may begin with anything — here a class name — where a brace hole
-        // has to begin with `$` (`rule:core-classes/html-literal`).
+        // has to begin with `$` (`rule:core-classes/html-template`).
         assert_eq!(
             kinds_ok("<?nvs html`<p><?= App::VERSION ?></p>`;"),
             vec![
@@ -2564,7 +2564,7 @@ mod tests {
     #[test]
     fn an_output_tag_in_a_double_quoted_string_is_text() {
         // A string is not a page: `<?=` opens nothing there, and PHP's own
-        // reading of the bytes is kept (`rule:core-classes/html-literal`).
+        // reading of the bytes is kept (`rule:core-classes/html-template`).
         assert_eq!(
             kinds_ok("<?nvs \"<?= $x ?>\";"),
             vec![
@@ -2612,7 +2612,7 @@ mod tests {
     fn an_unterminated_markup_literal_reports_e0002_at_the_delimiter_that_opened_it() {
         // The code an unterminated string, heredoc and interpolation already
         // carry -- the literal adds no diagnostic of its own
-        // (`rule:core-classes/html-literal`).
+        // (`rule:core-classes/html-template`).
         let src = "<?nvs echo html`<p>hello";
         let (kinds, diags) = kinds(src);
         assert_eq!(

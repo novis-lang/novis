@@ -105,7 +105,7 @@ pub fn require_as(
     }
 }
 
-/// `rule:programs/path-literals-resolve-from-their-file`'s run-time half: a path that does not
+/// `rule:programs/relative-paths-resolve-from-their-file`'s run-time half: a path that does not
 /// start at a root throws before any grant is asked about it.
 ///
 /// Nothing resolves a path against the process's working directory. Under `nvs serve` that
@@ -1788,7 +1788,7 @@ mod tests {
         assert_eq!(message.lines().count(), 1, "{message}");
     }
 
-    /// `rule:programs/path-literals-resolve-from-their-file`'s run-time half: a relative path throws
+    /// `rule:programs/relative-paths-resolve-from-their-file`'s run-time half: a relative path throws
     /// at every path door before a grant is read, and the message names the path and both ways to
     /// make it absolute. A path that starts at a root reaches the grant check instead.
     // covers: lang:programs/file-paths-a-literal-starts-at-the-folder-of-its-file

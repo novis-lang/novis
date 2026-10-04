@@ -24678,7 +24678,7 @@
       "id": "Path",
       "name": "Core\\Path",
       "section": "8. `Core\\Path`",
-      "summary": "Pure string algebra over paths. **No member touches the disk**, so none needs a capability, and every member\nbut `fromCwd` is constant-foldable. Everything that reads or writes is `Core\\IO` (§ 14) — that split is the\npoint. `fromCwd` reads the process's working directory, and throws while a request is being answered\n(`rule:programs/path-literals-resolve-from-their-file`).",
+      "summary": "Pure string algebra over paths. **No member touches the disk**, so none needs a capability, and every member\nbut `fromCwd` is constant-foldable. Everything that reads or writes is `Core\\IO` (§ 14) — that split is the\npoint. `fromCwd` reads the process's working directory, and throws while a request is being answered\n(`rule:programs/relative-paths-resolve-from-their-file`).",
       "surface": "",
       "adrs": [],
       "enums": [],
@@ -25225,7 +25225,7 @@
       "implemented": true,
       "slug": "path",
       "url": "/reference/core/path/",
-      "summaryHtml": "<p>Pure string algebra over paths. <strong>No member touches the disk</strong>, so none needs a capability, and every member but <code>fromCwd</code> is constant-foldable. Everything that reads or writes is <code>Core\\IO</code> (§ 14) — that split is the point. <code>fromCwd</code> reads the process's working directory, and throws while a request is being answered (<code>rule:programs/path-literals-resolve-from-their-file</code>).</p>",
+      "summaryHtml": "<p>Pure string algebra over paths. <strong>No member touches the disk</strong>, so none needs a capability, and every member but <code>fromCwd</code> is constant-foldable. Everything that reads or writes is <code>Core\\IO</code> (§ 14) — that split is the point. <code>fromCwd</code> reads the process's working directory, and throws while a request is being answered (<code>rule:programs/relative-paths-resolve-from-their-file</code>).</p>",
       "surfaceHtml": ""
     },
     {
@@ -38545,7 +38545,7 @@
       "id": "Time",
       "name": "Core\\Time",
       "section": "4. `Core\\Time`",
-      "summary": "PHP has ~40 `date_*` procedural functions that are aliases of `DateTime` methods, *and* a\n`DateTime`/`DateTimeImmutable` mutable/immutable pair. Both duplications are gone (R17, R20): there are\nobjects only, and every one is immutable. There is **no ambient timezone** — no process default, no\nper-request default — so a `Zone` is an explicit argument at every instant↔calendar conversion.\n\n**Two arithmetics, and the type says which one you get.** An `Instant` moves by a `Duration`, which is an\nexact count of nanoseconds; a `DateTime` moves by a count of a `Unit`, which is a calendar step that a DST\nboundary or a short month can make longer or shorter than its nominal length. `Time::now()->plus(72h)` and\n`Time::now()->in($zone)->plus(3, Unit::Day)` are different operations, and PHP's `\"+3 days\"` is ambiguous\nbetween them. There is no relative-expression string anywhere in this class: everything `strtotime` spells\nis a typed call, and `rule:types/duration-literal`'s `72h`/`30d` literal is what keeps them\nshort.",
+      "summary": "PHP has ~40 `date_*` procedural functions that are aliases of `DateTime` methods, *and* a\n`DateTime`/`DateTimeImmutable` mutable/immutable pair. Both duplications are gone (R17, R20): there are\nobjects only, and every one is immutable. There is **no ambient timezone** — no process default, no\nper-request default — so a `Zone` is an explicit argument at every instant↔calendar conversion.\n\n**Two arithmetics, and the type says which one you get.** An `Instant` moves by a `Duration`, which is an\nexact count of nanoseconds; a `DateTime` moves by a count of a `Unit`, which is a calendar step that a DST\nboundary or a short month can make longer or shorter than its nominal length. `Time::now()->plus(72h)` and\n`Time::now()->in($zone)->plus(3, Unit::Day)` are different operations, and PHP's `\"+3 days\"` is ambiguous\nbetween them. There is no relative-expression string anywhere in this class: everything `strtotime` spells\nis a typed call, and `rule:types/duration`'s `72h`/`30d` literal is what keeps them\nshort.",
       "surface": "",
       "adrs": [],
       "enums": [
@@ -39019,7 +39019,7 @@
       "implemented": true,
       "slug": "time",
       "url": "/reference/core/time/",
-      "summaryHtml": "<p>PHP has ~40 <code>date_<em></code> procedural functions that are aliases of <code>DateTime</code> methods, </em>and* a <code>DateTime</code>/<code>DateTimeImmutable</code> mutable/immutable pair. Both duplications are gone (R17, R20): there are objects only, and every one is immutable. There is <strong>no ambient timezone</strong> — no process default, no per-request default — so a <code>Zone</code> is an explicit argument at every instant↔calendar conversion.</p>\n<p><strong>Two arithmetics, and the type says which one you get.</strong> An <code>Instant</code> moves by a <code>Duration</code>, which is an exact count of nanoseconds; a <code>DateTime</code> moves by a count of a <code>Unit</code>, which is a calendar step that a DST boundary or a short month can make longer or shorter than its nominal length. <code>Time::now()-&gt;plus(72h)</code> and <code>Time::now()-&gt;in($zone)-&gt;plus(3, Unit::Day)</code> are different operations, and PHP's <code>&quot;+3 days&quot;</code> is ambiguous between them. There is no relative-expression string anywhere in this class: everything <code>strtotime</code> spells is a typed call, and <code>rule:types/duration-literal</code>'s <code>72h</code>/<code>30d</code> literal is what keeps them short.</p>",
+      "summaryHtml": "<p>PHP has ~40 <code>date_<em></code> procedural functions that are aliases of <code>DateTime</code> methods, </em>and* a <code>DateTime</code>/<code>DateTimeImmutable</code> mutable/immutable pair. Both duplications are gone (R17, R20): there are objects only, and every one is immutable. There is <strong>no ambient timezone</strong> — no process default, no per-request default — so a <code>Zone</code> is an explicit argument at every instant↔calendar conversion.</p>\n<p><strong>Two arithmetics, and the type says which one you get.</strong> An <code>Instant</code> moves by a <code>Duration</code>, which is an exact count of nanoseconds; a <code>DateTime</code> moves by a count of a <code>Unit</code>, which is a calendar step that a DST boundary or a short month can make longer or shorter than its nominal length. <code>Time::now()-&gt;plus(72h)</code> and <code>Time::now()-&gt;in($zone)-&gt;plus(3, Unit::Day)</code> are different operations, and PHP's <code>&quot;+3 days&quot;</code> is ambiguous between them. There is no relative-expression string anywhere in this class: everything <code>strtotime</code> spells is a typed call, and <code>rule:types/duration</code>'s <code>72h</code>/<code>30d</code> literal is what keeps them short.</p>",
       "surfaceHtml": ""
     },
     {
@@ -39403,11 +39403,11 @@
           "options": [],
           "returnType": "string",
           "replaces": "",
-          "notes": "`rule:expressions/intrinsic-literals` intrinsic, CLDR patterns. Replaces `date`, `gmdate`, `idate`, `strftime`, `date_format`",
+          "notes": "`rule:expressions/intrinsic-constant-arguments` intrinsic, CLDR patterns. Replaces `date`, `gmdate`, `idate`, `strftime`, `date_format`",
           "qualifier": "",
           "section": "4. `Core\\Time`",
           "implemented": true,
-          "notesHtml": "<code>rule:expressions/intrinsic-literals</code> intrinsic, CLDR patterns. Replaces <code>date</code>, <code>gmdate</code>, <code>idate</code>, <code>strftime</code>, <code>date_format</code>",
+          "notesHtml": "<code>rule:expressions/intrinsic-constant-arguments</code> intrinsic, CLDR patterns. Replaces <code>date</code>, <code>gmdate</code>, <code>idate</code>, <code>strftime</code>, <code>date_format</code>",
           "doc": {
             "shortHtml": "Renders the civil date and time through a CLDR pattern — <code>yyyy-MM-dd HH:mm:ss</code>, <code>EEEE, d MMMM yyyy</code> — replacing <code>date</code>, <code>gmdate</code>, <code>idate</code>, <code>strftime</code> and <code>date_format</code>; names render in CLDR's root locale, since there is no <code>setlocale</code>.",
             "params": [
@@ -40121,11 +40121,11 @@
           "options": [],
           "returnType": "Duration",
           "replaces": "",
-          "notes": "plus `nanoseconds`, `microseconds`, `milliseconds`, `minutes`, `hours`, `days`, `weeks` — for a **computed** count; a literal one is `rule:types/duration-literal`'s `30s`",
+          "notes": "plus `nanoseconds`, `microseconds`, `milliseconds`, `minutes`, `hours`, `days`, `weeks` — for a **computed** count; a literal one is `rule:types/duration`'s `30s`",
           "qualifier": "",
           "section": "4. `Core\\Time`",
           "implemented": true,
-          "notesHtml": "plus <code>nanoseconds</code>, <code>microseconds</code>, <code>milliseconds</code>, <code>minutes</code>, <code>hours</code>, <code>days</code>, <code>weeks</code> — for a <strong>computed</strong> count; a literal one is <code>rule:types/duration-literal</code>'s <code>30s</code>",
+          "notesHtml": "plus <code>nanoseconds</code>, <code>microseconds</code>, <code>milliseconds</code>, <code>minutes</code>, <code>hours</code>, <code>days</code>, <code>weeks</code> — for a <strong>computed</strong> count; a literal one is <code>rule:types/duration</code>'s <code>30s</code>",
           "doc": {
             "shortHtml": "Builds a <code>Duration</code> of <code>$n</code> seconds, for a count computed at run time; a constant one is written as the literal <code>30s</code>.",
             "params": [

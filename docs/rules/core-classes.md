@@ -119,7 +119,7 @@ timeout. It is one options bag, `{cwd?: string, env?: array<string>, timeout?: D
 `Core\Process::run` and `::spawn` both take it, because there is no reason for one of them to take a
 working directory the other does not.
 
-`cwd` is a path position: a relative literal is joined to the folder of the file that wrote it, and a
+`cwd` is a path position: a relative path given as a string literal is joined to the folder of the file that wrote it, and a
 relative value built at run time is refused, because the server's own working directory names a
 different place depending on how it was started. It needs no capability of its own — the child is the
 program `process.exec` approved, and it can change its own folder the moment it runs.
@@ -303,16 +303,16 @@ constant `crates/nvs-stdlib/src/regex.rs` states. `false` does not spell an unbo
 reads as that same constant, because a pattern allowed to backtrack forever is the hang this rule
 exists to stop.
 
-<sub>See also [`core-classes/regex-literal-tiering`](core-classes.md#core-classes-regex-literal-tiering), [`core-classes/regex-syntax`](core-classes.md#core-classes-regex-syntax), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder). Decided in [0056](../decisions/0056.md), [0005](../decisions/0005.md), [0020](../decisions/0020.md).</sub>
+<sub>See also [`core-classes/regex-compile-time-tiering`](core-classes.md#core-classes-regex-compile-time-tiering), [`core-classes/regex-syntax`](core-classes.md#core-classes-regex-syntax), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder). Decided in [0056](../decisions/0056.md), [0005](../decisions/0005.md), [0020](../decisions/0020.md).</sub>
 
-<a id="core-classes-regex-literal-tiering"></a>
+<a id="core-classes-regex-compile-time-tiering"></a>
 
-## A literal pattern is validated and tiered while checking, and a malformed one is a compile error
+## A pattern given as a string literal is validated and tiered while checking, and a malformed one is a compile error
 
-`rule:core-classes/regex-literal-tiering`
+`rule:core-classes/regex-compile-time-tiering`
 
-A literal pattern argument is validated and compiled while checking, under
-[`expressions/intrinsic-literals`](expressions.md#expressions-intrinsic-literals), and the tier it landed in is written down where later stages
+A pattern argument given as a string literal is validated and compiled while checking, under
+[`expressions/intrinsic-constant-arguments`](expressions.md#expressions-intrinsic-constant-arguments), and the tier it landed in is written down where later stages
 read it back. The tier is settleable there because it is a property of the pattern text alone —
 decided by which engine's parser refused a construct — so a checking run and a request cannot
 disagree about it.
@@ -325,12 +325,12 @@ respectively silent, a warning, or a compile-time error, so a deployment running
 high-volume code can know no request can be made to backtrack at all.
 
 A pattern assembled at run time is compiled at run time and gets the same tiering and the same
-budget, with none of the three benefits. That is a reason to write patterns as literals, stated here
+budget, with none of the three benefits. That is a reason to write patterns as string literals, stated here
 rather than discovered.
 
 The third consequence is not built: there is no `[regex]` block, so `deny` cannot be written yet.
 
-<sub>See also [`core-classes/regex-two-tiers`](core-classes.md#core-classes-regex-two-tiers), [`expressions/intrinsic-literals`](expressions.md#expressions-intrinsic-literals), [`expressions/intrinsic-list-is-closed`](expressions.md#expressions-intrinsic-list-is-closed). Decided in [0056](../decisions/0056.md), [0057](../decisions/0057.md), [0005](../decisions/0005.md).</sub>
+<sub>See also [`core-classes/regex-two-tiers`](core-classes.md#core-classes-regex-two-tiers), [`expressions/intrinsic-constant-arguments`](expressions.md#expressions-intrinsic-constant-arguments), [`expressions/intrinsic-list-is-closed`](expressions.md#expressions-intrinsic-list-is-closed). Decided in [0056](../decisions/0056.md), [0057](../decisions/0057.md), [0005](../decisions/0005.md).</sub>
 
 <a id="core-classes-regex-syntax"></a>
 
@@ -371,17 +371,17 @@ declaration. Security ranks above simplicity, and an omitted escape call is the 
 real-world XSS root cause, so the priority is spent explicitly rather than holding the no-magic line
 for its own sake. It is one of only two such exceptions.
 
-`Markup` is a small value type, peer to `string` the way `bytes` is. A **source-literal** string
+`Markup` is a small value type, peer to `string` the way `bytes` is. A **string literal**
 converted with `as Markup` is trusted — it is exactly what the developer wrote. A runtime-computed or
 `tainted` string can never become `Markup` that way, which closes the obvious bypass.
 `Markup + Markup` is `Markup`, so composing trusted fragments stays cheap; `.` has no row for a
 carrier, and a mixed `$markup + "x"` is refused rather than escaped, because `+` is not a sink.
 
-**In expression position the ordinary spelling is a markup literal**, not the lift and the operator:
+**In expression position the ordinary spelling is an html template**, not the lift and the operator:
 ``html`<span>posted by </span>{$name}` `` is a `Markup` whose segments carry the same trust `as Markup`
-grants a literal token and whose holes are escaped by this rule
-([`core-classes/html-literal`](core-classes.md#core-classes-html-literal)), which is also where `Core\Html::join` composes a list of fragments.
-`as Markup` and `+` keep their meaning and become the narrow forms — a literal already held in an
+grants a string literal and whose holes are escaped by this rule
+([`core-classes/html-template`](core-classes.md#core-classes-html-template)), which is also where `Core\Html::join` composes a list of fragments.
+`as Markup` and `+` keep their meaning and become the narrow forms — a string literal already held in an
 initializer, and two computed carriers.
 
 **A placeholder from `Core\Html::later` is a `Markup` the runtime makes**, whose bytes the developer
@@ -389,16 +389,17 @@ never writes ([`core-classes/html-later`](core-classes.md#core-classes-html-late
 escaped visitor string can contain, so it composes with `+`, `Core\Html::join` and a partial like any
 other fragment, and `Markup` keeps its one slot.
 
-<sub>See also [`core-classes/html-literal`](core-classes.md#core-classes-html-literal), [`core-classes/html-later`](core-classes.md#core-classes-html-later), [`core-classes/html-escape-answers-markup`](core-classes.md#core-classes-html-escape-answers-markup), [`core-classes/html-to-source`](core-classes.md#core-classes-html-to-source), [`core-classes/html-sanitize`](core-classes.md#core-classes-html-sanitize), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0024](../decisions/0024.md), [0133](../decisions/0133.md), [0087](../decisions/0087.md), [0088](../decisions/0088.md), [0086](../decisions/0086.md), [0169](../decisions/0169.md), [0266](../decisions/0266.md).</sub>
+<sub>See also [`core-classes/html-template`](core-classes.md#core-classes-html-template), [`core-classes/html-later`](core-classes.md#core-classes-html-later), [`core-classes/html-escape-answers-markup`](core-classes.md#core-classes-html-escape-answers-markup), [`core-classes/html-to-source`](core-classes.md#core-classes-html-to-source), [`core-classes/html-sanitize`](core-classes.md#core-classes-html-sanitize), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0024](../decisions/0024.md), [0133](../decisions/0133.md), [0087](../decisions/0087.md), [0088](../decisions/0088.md), [0086](../decisions/0086.md), [0169](../decisions/0169.md), [0266](../decisions/0266.md).</sub>
 
-<a id="core-classes-html-literal"></a>
+<a id="core-classes-html-template"></a>
 
 ## ``html`…` `` is a `Core\Html\Markup` whose segments are trusted and whose holes are escaped
 
-`rule:core-classes/html-literal`
+`rule:core-classes/html-template`
 
-``html`…` `` is an expression of type `Core\Html\Markup` whose literal segments are trusted because the
-author wrote them, and whose `{$…}` holes are escaped through `Core\Html::escape` and spliced.
+An **html template**, ``html`…` ``, is an expression of type `Core\Html\Markup` whose text segments are
+trusted because the author wrote them, and whose `{$…}` holes are escaped through `Core\Html::escape`
+and spliced.
 
 ```nvs
 tainted string $name = $row->get("name");
@@ -410,14 +411,14 @@ Core\Html\Markup $badge = html`<span class="badge">new</span>`;
 That is the whole rule, and it is the rule `<?= ?>` already follows
 ([`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape)). A segment is always source and a hole is always escaped, so
 nothing here turns computed text into trusted markup — the bypass `as Core\Html\Markup` closes by
-admitting only a literal token stays closed by construction. A hole already holding a `Markup` is
+admitting only a string literal stays closed by construction. A hole already holding a `Markup` is
 spliced raw, which is `Markup + Markup` written in interpolation syntax.
 
 **Backticks, and a named prefix.** HTML is full of `"`, so a double-quoted form would put a backslash in
 front of every attribute; the backtick is free because Novis has no shell-execution form
-([`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only)). A literal backtick in the body is `` \` ``. The prefix is a
-name rather than a bare delimiter so that a second carrier, if one ever earns a literal, can say which
-sink it means.
+([`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only)). A backtick in the body is written `` \` ``. The prefix is a
+name rather than a bare delimiter so that a second carrier, if one ever earns a template form, can say
+which sink it means.
 
 **Two holes: `{$…}` as in a string, and `<?= … ?>` as in a page.** The first is a double-quoted
 string's interpolation grammar, both halves of it and nothing added: `{$` opens a hole whose body is a
@@ -425,45 +426,44 @@ string's interpolation grammar, both halves of it and nothing added: `{$` opens 
 close it early — `{$u->fullName()}`, `{$row["name"]}` and `{$a + $b}` are all holes — and a bare `$name`
 interpolates in PHP's simple syntax, `$name`, `$name->prop` one level, `$name[offset]`. A brace hole
 must begin with `$`, so `{Money::format($c)}` is text exactly as it is in a double-quoted string, and
-every other `{` is text, so a `<style>` block's braces need no escape; `\{` writes a literal brace.
+every other `{` is text, so a `<style>` block's braces need no escape; `\{` writes a plain brace.
 A brace directly before a class path — `{Page::TITLE}`, `{Money::format($c)}` — is the one text a
 page prints that was almost never meant, so it is warned about where it is written, `W1012`, with the
 help naming `<?= Page::TITLE ?>` and `\{`; the bytes stay text, and a double-quoted string, where the
 habit is PHP's own, says nothing.
 The second is the output tag a page already uses: `<?= expr ?>` opens a hole that takes **any**
-expression and closes on the first `?>` outside a nested string or literal, so a constant, a static
-call and a nested literal reach the page without a local — `<?= App::VERSION ?>`,
+expression and closes on the first `?>` outside a nested string or template, so a constant, a static
+call and a nested template reach the page without a local — `<?= App::VERSION ?>`,
 `<?= Money::format($c) ?>`, `<?= $on ? html`<b>on</b>` : html`<i>off</i>` ?>` — and a `}` inside it
 is an ordinary brace. Both holes are escaped by the same rule;
 the tag differs from the brace only in what it lets in. A double-quoted string takes no `<?=`: a
-string is not a page, and PHP prints one as text. A `<?nvs` tag inside a literal is `E0010`, since a
-literal is one expression and a loop around markup is code mode outside it.
+string is not a page, and PHP prints one as text. A `<?nvs` tag inside a template is `E0010`, since a
+template is one expression and a loop around markup is code mode outside it.
 
 A `secret` value in either hole is refused where it is written ([`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse)); a
-`tainted` one is accepted, because the sink never distinguishes the two. An unterminated literal or hole
+`tainted` one is accepted, because the sink never distinguishes the two. An unterminated template or hole
 is `E0002`, the code that already covers an unterminated string, heredoc and interpolation. `E0010` is
-the one diagnostic this rule adds, for the code block a literal cannot hold.
+the one diagnostic this rule adds, for the code block a template cannot hold.
 
 **The compiler learns no HTML.** Segments are opaque bytes and only `{$`, `<?=`, `<?nvs` and the closing
-delimiter are scanned for, so there is no tag tracking, no balance requirement and no rule about where a literal may
-begin or end — ``html`<table>` `` and ``html`</table>` `` are both ordinary literals, which is what lets
-a page be composed from fragments. It follows that a hole in a position element-text escaping does not
-cover — an unquoted attribute, a URL-valued one, a `<script>` body — is accepted and produces exactly
-what `<?= ?>` produces there. That is the sink's blind spot, identical in both spellings, and it is not
-this rule's to close.
+delimiter are scanned for, so there is no tag tracking, no balance requirement and no rule about where a
+template may begin or end — ``html`<table>` `` and ``html`</table>` `` are both ordinary templates, which
+is what lets a page be composed from fragments. It follows that a hole in a position element-text
+escaping does not cover — an unquoted attribute, a URL-valued one, a `<script>` body — is accepted and
+produces exactly what `<?= ?>` produces there. That is the sink's blind spot, identical in both
+spellings, and it is not this rule's to close.
 
-**What it costs to run.** A literal with no holes is a compile-time constant folded into the constant
-pool, as a duration literal is ([`types/duration-literal`](types.md#types-duration-literal)), so it allocates nothing per execution
-where `as Core\Html\Markup` allocates one object per lift. A literal with holes in a sink position
-lowers to a run of writes — segment, escaped hole, segment — with no carrier materialised, since a value
-born and consumed at one sink is unobservable. In value position it is one `Markup` holding the joined
-bytes.
+**What it costs to run.** A template with no holes is a compile-time constant folded into the constant
+pool, as a duration is ([`types/duration`](types.md#types-duration)), so it allocates nothing per execution where
+`as Core\Html\Markup` allocates one object per lift. A template with holes in a sink position lowers to
+a run of writes — segment, escaped hole, segment — with no carrier materialised, since a value born and
+consumed at one sink is unobservable. In value position it is one `Markup` holding the joined bytes.
 
 `Core\Html::join(array<Core\Html\Markup> $parts, Core\Html\Markup $separator): Core\Html\Markup`
 concatenates a list of fragments; every element is already a carrier, so it neither trusts nor escapes
 anything.
 
-**A carrier earns a literal form when its content is authored as text.** HTML markup is — `<span>` is
+**A carrier earns a template form when its content is authored as text.** HTML markup is — `<span>` is
 bytes a developer types. Terminal styling is not, by decision
 ([`tooling/styling-is-a-value-not-a-grammar`](tooling.md#tooling-styling-is-a-value-not-a-grammar)), so `Core\Cli\Text` gets no matching form: its
 segments could only ever be plain text, which needs no trust, because
@@ -471,7 +471,7 @@ segments could only ever be plain text, which needs no trust, because
 string is already accepted everywhere the carrier is. A third carrier is measured against that
 predicate rather than against the count.
 
-<sub>See also [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape), [`core-classes/html-escape-answers-markup`](core-classes.md#core-classes-html-escape-answers-markup), [`types/duration-literal`](types.md#types-duration-literal), [`tooling/styling-is-a-value-not-a-grammar`](tooling.md#tooling-styling-is-a-value-not-a-grammar). Decided in [0169](../decisions/0169.md), [0202](../decisions/0202.md), [0213](../decisions/0213.md).</sub>
+<sub>See also [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape), [`core-classes/html-escape-answers-markup`](core-classes.md#core-classes-html-escape-answers-markup), [`types/duration`](types.md#types-duration), [`tooling/styling-is-a-value-not-a-grammar`](tooling.md#tooling-styling-is-a-value-not-a-grammar). Decided in [0169](../decisions/0169.md), [0202](../decisions/0202.md), [0213](../decisions/0213.md).</sub>
 
 <a id="core-classes-html-later"></a>
 
@@ -547,7 +547,7 @@ concatenated with tainted text is the original bug with an extra word in it.
 
 The shape is the project's standing escape-hatch form — rare, greppable, and carrying a written
 reason at the site rather than a silent cast, the same shape [`core-classes/secret-reveal`](core-classes.md#core-classes-secret-reveal) takes.
-`$reason` is a source literal and an empty one is refused: a reason that can be computed is a reason
+`$reason` must be a string literal written at the call, and an empty one is refused: a reason that can be computed is a reason
 nobody wrote.
 
 Its legitimate callers are the ones that need the bytes and not the guarantee — caching a rendered
@@ -906,7 +906,7 @@ only in `timeout` gets its own connection rather than silently inheriting the fi
 a rollback or holds session-scoped state off the shared connection.
 
 `Db\Settings` is a discriminated union over enum-case types rather than one loose shape: SQLite takes
-a `path` and has no `host`, so a `host` on a SQLite settings literal is a compile error rather than a
+a `path` and has no `host`, so a `host` on a SQLite settings object is a compile error rather than a
 silently ignored field.
 
 A connection is released by the runtime at request teardown — the job a destructor would have done,
@@ -953,7 +953,7 @@ value.
 **`LOCAL INFILE` is off**, with no option to enable it — a server that asks the client to send it a
 file gets nothing. **TLS defaults to `VerifyFull`** on a TCP connection; PHP's `pdo_pgsql` defaults to
 `sslmode=prefer`, which silently connects in plaintext when the server says so, and a settings
-literal naming a weaker mode does not compile. **The connection charset is forced to UTF-8**
+object naming a weaker mode does not compile. **The connection charset is forced to UTF-8**
 (`utf8mb4` on MySQL and MariaDB), so text columns arrive as valid UTF-8 and
 [`types/string-is-utf8`](types.md#types-string-is-utf8)'s guarantee holds by construction rather than by hope.
 
@@ -1123,15 +1123,16 @@ caller branch. Expansion changes the statement's arity, so the statement cache k
 
 <sub>See also [`core-classes/db-one-api`](core-classes.md#core-classes-db-one-api), [`core-classes/db-statement-members`](core-classes.md#core-classes-db-statement-members). Decided in [0067](../decisions/0067.md), [0007](../decisions/0007.md), [0024](../decisions/0024.md).</sub>
 
-<a id="core-classes-db-literal-query-checking"></a>
+<a id="core-classes-db-compile-time-query-checking"></a>
 
-## A literal query is checked while compiling, and no vendor's SQL grammar is ever parsed
+## A query given as a string literal is checked while compiling, and no vendor's SQL grammar is ever parsed
 
-`rule:core-classes/db-literal-query-checking`
+`rule:core-classes/db-compile-time-query-checking`
 
-A literal SQL argument is validated while checking, under the closed intrinsic-literal list:
-placeholder count against a literal params array, positional-versus-named consistency, an
-unterminated string literal, and a refused second statement. A literal `Db::open` host matching no
+A SQL argument given as a string literal is validated while checking, under the closed list of
+intrinsic calls ([`expressions/intrinsic-list-is-closed`](expressions.md#expressions-intrinsic-list-is-closed)): placeholder count against a params
+array literal, positional-versus-named consistency, an unterminated string literal, and a refused
+second statement. A `Db::open` host given as a string literal and matching no
 `db.open` grant is likewise a check-time diagnostic, since configuration is read at boot on the
 machine that compiles.
 
@@ -1143,7 +1144,7 @@ parsing the `CREATE TABLE` a server prints.
 What this costs is that a column name typo survives to run time. What it buys is that the compiler
 never has to be right about a dialect it does not own.
 
-<sub>See also [`core-classes/db-parameters`](core-classes.md#core-classes-db-parameters), [`core-classes/schema-introspection`](core-classes.md#core-classes-schema-introspection), [`expressions/intrinsic-literals`](expressions.md#expressions-intrinsic-literals). Decided in [0067](../decisions/0067.md), [0057](../decisions/0057.md), [0145](../decisions/0145.md).</sub>
+<sub>See also [`core-classes/db-parameters`](core-classes.md#core-classes-db-parameters), [`core-classes/schema-introspection`](core-classes.md#core-classes-schema-introspection), [`expressions/intrinsic-constant-arguments`](expressions.md#expressions-intrinsic-constant-arguments). Decided in [0067](../decisions/0067.md), [0057](../decisions/0057.md), [0145](../decisions/0145.md).</sub>
 
 <a id="core-classes-db-column-types"></a>
 
@@ -1447,7 +1448,7 @@ builder produces: `information_schema` for MySQL, MariaDB and SQL Server, `pg_ca
 PostgreSQL, and `sqlite_master` with the table and index pragmas for SQLite.
 
 There is **no DDL parser, at any tier, in any form** — not "just for the CLI", not "best-effort", not
-"just for `CREATE TABLE`". [`core-classes/db-literal-query-checking`](core-classes.md#core-classes-db-literal-query-checking) already refuses to maintain
+"just for `CREATE TABLE`". [`core-classes/db-compile-time-query-checking`](core-classes.md#core-classes-db-compile-time-query-checking) already refuses to maintain
 four vendors' query grammars, and that reasoning does not weaken for DDL, where the dialects diverge
 more rather than less.
 
@@ -1457,7 +1458,7 @@ anyway, and the introspector must exist for the diff regardless — so a parser 
 worse implementation of a job already done. Offline `.sql` input, if it is ever wanted, is a separate
 tool with its own decision.
 
-<sub>See also [`core-classes/schema-is-a-value`](core-classes.md#core-classes-schema-is-a-value), [`core-classes/db-literal-query-checking`](core-classes.md#core-classes-db-literal-query-checking), [`core-classes/schema-converges`](core-classes.md#core-classes-schema-converges). Decided in [0145](../decisions/0145.md), [0067](../decisions/0067.md), [0051](../decisions/0051.md).</sub>
+<sub>See also [`core-classes/schema-is-a-value`](core-classes.md#core-classes-schema-is-a-value), [`core-classes/db-compile-time-query-checking`](core-classes.md#core-classes-db-compile-time-query-checking), [`core-classes/schema-converges`](core-classes.md#core-classes-schema-converges). Decided in [0145](../decisions/0145.md), [0067](../decisions/0067.md), [0051](../decisions/0051.md).</sub>
 
 <a id="core-classes-schema-plan"></a>
 
@@ -1561,7 +1562,7 @@ as the backstop for a descriptor built by hand, which no call site named.
 **A compiler-recognized attribute is matched nominally.** The compiler acts on an attribute only when
 its name *resolves*, through the ordinary namespace and `use` rules, to one of a closed `Core`-owned
 list. So `#[Core\Json\Derive]` and a `use`d `#[Derive]` are one attribute reached two ways, while a
-userland `type Derive = {};` is not it no matter how it is spelled, and a bare `#[{...}]` literal
+userland `type Derive = {};` is not it no matter how it is spelled, and a bare `#[{...}]` payload object
 never triggers one because it resolves to no name at all. An import binds a whole short name and is
 never a namespace prefix, so `use Core\Json;` followed by `#[Json\Derive]` names nothing.
 
@@ -1777,7 +1778,7 @@ nature and the store's protocol is length-prefixed, so a key cannot reshape a co
 TTL. The in-process tier is an existing crate; the shared tier is a small script of our own, an
 algorithm over our own state.
 
-<sub>See also [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members), [`core-classes/ratelimit-unreachable-store-throws`](core-classes.md#core-classes-ratelimit-unreachable-store-throws), [`core-classes/secret-reveal`](core-classes.md#core-classes-secret-reveal), [`types/duration-literal`](types.md#types-duration-literal). Decided in [0075](../decisions/0075.md), [0063](../decisions/0063.md), [0024](../decisions/0024.md), [0033](../decisions/0033.md).</sub>
+<sub>See also [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members), [`core-classes/ratelimit-unreachable-store-throws`](core-classes.md#core-classes-ratelimit-unreachable-store-throws), [`core-classes/secret-reveal`](core-classes.md#core-classes-secret-reveal), [`types/duration`](types.md#types-duration). Decided in [0075](../decisions/0075.md), [0063](../decisions/0063.md), [0024](../decisions/0024.md), [0033](../decisions/0033.md).</sub>
 
 <a id="core-classes-ratelimit-unreachable-store-throws"></a>
 

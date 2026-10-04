@@ -1048,7 +1048,7 @@ fn thunk_class(
 ///
 /// A parameter that wrote its type is read off that annotation, exactly as a
 /// declaration's is. One that left it out took its type from the position the
-/// literal was written in (`rule:types/callable-literal-inference`), and
+/// literal was written in (`rule:types/anonymous-function-parameter-inference`), and
 /// `nvs_types::expr::calls::check_fn_literal` recorded the answer under the
 /// parameter's own name — the only span an unannotated parameter has. The
 /// checker refuses the literal outright where it could not answer, so an
@@ -1067,7 +1067,7 @@ fn closure_param_ty(
         None => {
             let id = exprs.declared_ty(p.name).unwrap_or_else(|| {
                 panic!(
-                    "`rule:types/callable-literal-inference`: an unannotated closure parameter \
+                    "`rule:types/anonymous-function-parameter-inference`: an unannotated closure parameter \
                      carries the type the checker inferred for it, recorded under its name"
                 )
             });

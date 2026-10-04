@@ -1,5 +1,5 @@
 --TEST--
-`true` and `false` are `bool`'s literal types: an `as` into one tests membership and widening back to `bool` is free — `rule:types/grammar` and `rule:types/literal-types`
+`true` and `false` are `bool`'s literal types: an `as` into one tests membership and widening back to `bool` is free — `rule:types/grammar` and `rule:types/single-value-types`
 --FILE--
 <?nvs
 class Flag {

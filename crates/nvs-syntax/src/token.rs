@@ -128,7 +128,7 @@ pub enum TokenKind {
     /// A floating-point literal, including an exponent (`1e10`, `1.5e-3`).
     FloatLiteral,
     /// A duration literal — `30s`, `1h30m`, `500ms`
-    /// (`rule:types/duration-literal`).
+    /// (`rule:types/duration`).
     ///
     /// **One token, maximal munch**: `1h30m` is this, not three tokens. The
     /// lexer has already checked the whole grammar
@@ -173,7 +173,7 @@ pub enum TokenKind {
     ComplexInterpClose,
 
     /// Opens a markup literal: the prefix and the delimiter together,
-    /// `` html` `` (`rule:core-classes/html-literal`). Between this and
+    /// `` html` `` (`rule:core-classes/html-template`). Between this and
     /// [`MarkupClose`](Self::MarkupClose) the lexer is in a double-quoted
     /// string's body mode with the delimiter swapped — the same
     /// [`StringPart`](Self::StringPart) runs and the same
@@ -190,7 +190,7 @@ pub enum TokenKind {
     /// [`MarkupEchoClose`](Self::MarkupEchoClose). Unlike
     /// [`ComplexInterpOpen`](Self::ComplexInterpOpen) the expression may begin
     /// with anything, which is what puts a constant or a static call in a page
-    /// without a local (`rule:core-classes/html-literal`).
+    /// without a local (`rule:core-classes/html-template`).
     MarkupEchoOpen,
     /// Closes a `<?= … ?>` hole: the `?>`. Inside the hole `}` is a brace like
     /// any other, and nothing but this token ends it.

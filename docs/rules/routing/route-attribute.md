@@ -2,7 +2,7 @@
 `rule:attributes/inert-metadata` alias, attached the ordinary way, with one difference: the compiler
 acts on it only when the name **resolves** to `Core\Route`. It sits on
 `rule:core-classes/derive-attribute`'s closed list of compiler-recognized attributes and is matched
-nominally, so a userland `type Route = {...};` and a framework's own `Route`-shaped literal declare
+nominally, so a userland `type Route = {...};` and a framework's own `Route`-shaped anonymous object declare
 no route however they are spelled.
 
 - **`method` is an enum case**, the same `Core\Http\Method` that `Core\Request::method` answers,

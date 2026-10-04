@@ -1,5 +1,5 @@
 --TEST--
-Core\Str::format throws for every argument-mismatch PHP's printf family hides, on the runtime path `rule:expressions/intrinsic-literals` leaves to it
+Core\Str::format throws for every argument-mismatch PHP's printf family hides, on the runtime path `rule:expressions/intrinsic-constant-arguments` leaves to it
 --FILE--
 <?nvs
 // Every template below is read out of a variable rather than written at the

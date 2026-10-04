@@ -1,5 +1,5 @@
 --TEST--
-`Core\Html::join` escapes nothing, so an escaped fragment is written once and a trusted one is written raw — `rule:core-classes/html-literal`, `rule:security/launderer-answers-a-carrier`
+`Core\Html::join` escapes nothing, so an escaped fragment is written once and a trusted one is written raw — `rule:core-classes/html-template`, `rule:security/launderer-answers-a-carrier`
 --FILE--
 <?nvs
 // Every part is already a carrier, so each one passed whichever rule made it

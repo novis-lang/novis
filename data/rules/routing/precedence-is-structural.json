@@ -1,5 +1,5 @@
 {
-  "title": "Precedence is structural — a literal beats a capture beats an optional beats a catch-all — never declaration order",
+  "title": "Precedence is structural — a fixed segment beats a capture beats an optional beats a catch-all — never declaration order",
   "status": "shipped",
   "because": [
     "0077",

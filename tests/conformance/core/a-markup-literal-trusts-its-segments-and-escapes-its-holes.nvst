@@ -1,5 +1,5 @@
 --TEST--
-A markup literal's segments are written as the author typed them and every hole goes through the escape — `rule:core-classes/html-literal`
+A markup literal's segments are written as the author typed them and every hole goes through the escape — `rule:core-classes/html-template`
 --FILE--
 <?nvs
 // The whole rule in one line: the segment is source, so its `&` stands; the

@@ -22,7 +22,7 @@ cost only the members that read it pay; a member on it whose argument was not a 
 zero word rather than a shorter argument list.
 
 A **live object is never what crosses**. A compiled pattern belongs to the core that built it, so what
-travels for a regex literal is the engine tier it settled in and the runtime spends the compile. That
+travels for a pattern given as a string literal is the engine tier it settled in and the runtime spends the compile. That
 bound is what keeps this rule's first paragraph true across the boundary: the prepared path hands the
 runtime path an earlier answer to a question it would have asked itself, never a different
 implementation of it.

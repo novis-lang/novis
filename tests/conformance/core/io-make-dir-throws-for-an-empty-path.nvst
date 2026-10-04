@@ -1,5 +1,5 @@
 --TEST--
-Core\IO::makeDir and Core\IO::isDir throw a `RuntimeError` for an empty path, because an empty path does not start at a root, and makeDir still accepts a directory that is already there — `rule:programs/path-literals-resolve-from-their-file`, `rule:security/capability-check-at-the-door`
+Core\IO::makeDir and Core\IO::isDir throw a `RuntimeError` for an empty path, because an empty path does not start at a root, and makeDir still accepts a directory that is already there — `rule:programs/relative-paths-resolve-from-their-file`, `rule:security/capability-check-at-the-door`
 --FILE--
 <?nvs
 // The contract is that the directory exists after the call. An empty path

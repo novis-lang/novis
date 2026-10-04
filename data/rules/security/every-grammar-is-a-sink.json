@@ -11,7 +11,7 @@
     "security/sink-predicate",
     "security/regex-pattern-is-a-sink",
     "security/assert-trusted",
-    "expressions/intrinsic-literals"
+    "expressions/intrinsic-constant-arguments"
   ],
   "guardedBy": [
     "tests/conformance/reject/every-grammar-sink-refuses-a-tainted-argument.nvst",

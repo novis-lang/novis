@@ -1115,7 +1115,7 @@
         [
           "`format`",
           "`$d->format(string $pattern): string`",
-          "`rule:expressions/intrinsic-literals` intrinsic, CLDR patterns. Replaces `date`, `gmdate`, `idate`, `strftime`, `date_format`"
+          "`rule:expressions/intrinsic-constant-arguments` intrinsic, CLDR patterns. Replaces `date`, `gmdate`, `idate`, `strftime`, `date_format`"
         ],
         [
           "`plus` / `minus`",
@@ -1189,7 +1189,7 @@
         [
           "`Duration::seconds`",
           "`seconds(int $n): Duration`",
-          "plus `nanoseconds`, `microseconds`, `milliseconds`, `minutes`, `hours`, `days`, `weeks` — for a **computed** count; a literal one is `rule:types/duration-literal`'s `30s`"
+          "plus `nanoseconds`, `microseconds`, `milliseconds`, `minutes`, `hours`, `days`, `weeks` — for a **computed** count; a literal one is `rule:types/duration`'s `30s`"
         ],
         [
           "`Duration::parse`",

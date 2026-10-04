@@ -5,7 +5,7 @@ grammar surface doubles as the roster.
 
 **No launderer is added for any of them, deliberately.** A grammar is written by the program, not
 received by it, so the fix at a failing call site is to use a literal — which is folded at compile time
-for all four (`rule:expressions/intrinsic-literals`) — or, for a genuinely dynamic template drawn from
+for all four (`rule:expressions/intrinsic-constant-arguments`) — or, for a genuinely dynamic template drawn from
 a translation catalogue, `rule:security/assert-trusted` with its written reason.
 
 A regex quoting member remains the one exception on the roster, because a regex is the one grammar

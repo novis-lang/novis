@@ -20,7 +20,7 @@
 //!   is a namespace and has no declaration to jump to, so the link is its
 //!   ctrl-click, and a hover lists every root (`crate::hover`).
 //! - **An argument at a path parameter links to the file or directory it
-//!   names** (`rule:programs/path-literals-resolve-from-their-file`). The
+//!   names** (`rule:programs/relative-paths-resolve-from-their-file`). The
 //!   checker joined a relative literal to the folder of its file and kept the
 //!   result (`nvs_types::ExprTypeTable::path_literal`), and an absolute
 //!   literal names itself; [`crate::arguments::target`] reads the two. Unlike

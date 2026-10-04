@@ -6,7 +6,7 @@ proves for every pair of arms that some field they both declare has non-overlapp
 requires a key the other does not declare at all.
 
 Nothing declares a discriminant field. A settings shape separates its arms because the enum-case types
-(`rule:types/literal-types`) on its driver field make one driver and the rest disjoint sets, and
+(`rule:types/single-value-types`) on its driver field make one driver and the rest disjoint sets, and
 disjointness is all arm selection ever needed. A rule naming a discriminant would be a second, weaker way
 of saying the same thing, and it would have nothing to say about a future union separated by a required key
 instead of by a value.

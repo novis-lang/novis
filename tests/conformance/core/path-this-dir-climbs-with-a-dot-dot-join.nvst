@@ -1,5 +1,5 @@
 --TEST--
-`Core\Path::thisDir('..')` is the folder above, and `thisFile` and `thisDir` give the same path in a method, in a loop and at the top of the file — `rule:programs/path-literals-resolve-from-their-file`
+`Core\Path::thisDir('..')` is the folder above, and `thisFile` and `thisDir` give the same path in a method, in a loop and at the top of the file — `rule:programs/relative-paths-resolve-from-their-file`
 --FILE--
 <?nvs
 class Shop {

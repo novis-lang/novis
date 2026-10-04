@@ -8,7 +8,7 @@
     "0189"
   ],
   "seeAlso": [
-    "expressions/intrinsic-literals",
+    "expressions/intrinsic-constant-arguments",
     "expressions/intrinsic-list-is-closed"
   ],
   "guardedBy": [

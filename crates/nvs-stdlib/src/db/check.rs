@@ -13,7 +13,7 @@
 //! this module and not on a database connection.
 
 /// Whether every region a literal query opens is one it also closes —
-/// `rule:core-classes/db-literal-query-checking`'s "an unterminated string
+/// `rule:core-classes/db-compile-time-query-checking`'s "an unterminated string
 /// literal", over [`nvs_db::sql::holds_an_unterminated_region`].
 ///
 /// A fact about the text alone, like [`check_single_statement`]'s, so it is

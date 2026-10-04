@@ -1,5 +1,5 @@
 --TEST--
-every CLDR field letter Core\Time's three format members implement renders exactly what the PHP date() letter it replaces renders, and the four composition identities the pattern grammar holds are held by PHP's grammar too (spec § 4, `rule:core-api/tier-placement`, `rule:expressions/intrinsic-literals`)
+every CLDR field letter Core\Time's three format members implement renders exactly what the PHP date() letter it replaces renders, and the four composition identities the pattern grammar holds are held by PHP's grammar too (spec § 4, `rule:core-api/tier-placement`, `rule:expressions/intrinsic-constant-arguments`)
 --FILE--
 <?nvs
 // The roster case for the pattern grammar. `Core\Time\DateTime::format`,
@@ -15,7 +15,7 @@ every CLDR field letter Core\Time's three format members implement renders exact
 // CLDR patterns and the oracle sweeps an index-parallel array of `date()`
 // ones, printing the CLDR spelling as the label on both sides so a mismatched
 // row names itself. The table has to be a variable rather than a literal at
-// each call: `rule:expressions/intrinsic-literals` folds a *literal* pattern while checking, so a swept
+// each call: `rule:expressions/intrinsic-constant-arguments` folds a *literal* pattern while checking, so a swept
 // table is also the only spelling that reaches the runtime parser
 // `cldr.rs`'s *Known gaps* 1 describes.
 //

@@ -1,5 +1,5 @@
 --TEST--
-`Core\Test::assertNull` asks "is the tag null", not "is this falsy": every falsy value that is not `null` fails, so does every truthy one, and three spellings of `null` hold — `rule:testing/assertions-are-typed`, `rule:expressions/truthy-table`, `rule:types/literal-types`
+`Core\Test::assertNull` asks "is the tag null", not "is this falsy": every falsy value that is not `null` fails, so does every truthy one, and three spellings of `null` hold — `rule:testing/assertions-are-typed`, `rule:expressions/truthy-table`, `rule:types/single-value-types`
 --FILE--
 <?nvs
 // `assertNull`'s parameter is `mixed` (`rule:types/conversion`'s one unchecked position),
@@ -131,7 +131,7 @@ foreach ($every as mixed $subject) {
 echo "agreed=", $agreed, "/18\n";
 
 // 5. What the report can and cannot tell apart. `int` 0, `uint` 0, `float` 0.0
-// and an enum case backed by `0` all render as `0`, because `rule:types/literal-types` spends
+// and an enum case backed by `0` all render as `0`, because `rule:types/single-value-types` spends
 // no representation on hiding a case's integer and the reporter has only the
 // tag -- so the *message* is not what distinguishes these rows, the count above
 // is. `-0.0` and `"0"` do print distinguishably.

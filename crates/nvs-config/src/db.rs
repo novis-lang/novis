@@ -119,7 +119,7 @@ pub fn canonicalize(
 /// does for a `[db]` path.
 ///
 /// A disk's objects are opened through the same doors as any other path, and those doors refuse a
-/// relative one (`rule:programs/path-literals-resolve-from-their-file`), so a root left relative
+/// relative one (`rule:programs/relative-paths-resolve-from-their-file`), so a root left relative
 /// would make every object on the disk unreachable. Like a `path`, it is arithmetic on a string and
 /// cannot fail: whether the directory exists is the disk's own question, asked when it is used.
 pub fn canonicalize_storage(

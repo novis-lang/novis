@@ -19,8 +19,8 @@ The on-disk artifact cache is a fan-out directory of immutable files, one per co
 
 where `key = BLAKE3(content_hash ‖ env_hash)` and `content_hash` is BLAKE3 over every file the program
 reached, each as its name, its text and its folder. The name is there because a diagnostic and a
-throw's frame print it. The folder is there because a relative path literal compiles to an absolute
-path joined to it ([`programs/path-literals-resolve-from-their-file`](programs.md#programs-path-literals-resolve-from-their-file)), so the same file in another
+throw's frame print it. The folder is there because a relative path given as a string literal compiles to an absolute
+path joined to it ([`programs/relative-paths-resolve-from-their-file`](programs.md#programs-relative-paths-resolve-from-their-file)), so the same file in another
 folder is another program. The content hash is computed once per unit and shared with the in-memory
 `UnitKey`, so a unit's bytes cross BLAKE3 one time however many caches it lands in. `env_hash` is the single environment digest of
 [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key) — target triple, CPU feature bitset, compiler
@@ -848,7 +848,7 @@ autoload 'Acme\Csv'  from './acme-csv-0.3.0/src';
 ```
 
 The application `require`s that file once. **That is the entire integration.** Name resolution is
-exactly [`programs/autoload`](programs.md#programs-autoload)'s — literal paths relative to the declaring file, no runtime loader
+exactly [`programs/autoload`](programs.md#programs-autoload)'s — paths written as string literals, relative to the declaring file, no runtime loader
 ([`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload)), no walk-up search, no new invalidation edge — and the compiler
 learns nothing about packages in order to resolve a name. The proof is structural: `nvs-syntax` and
 `nvs-types` gain no package-aware code path for name resolution at all.

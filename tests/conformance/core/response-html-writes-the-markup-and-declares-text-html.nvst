@@ -21,7 +21,7 @@ echo "\n";
 Core\Response::html(Core\Html::escape("<p>hello & welcome</p>"));
 echo "\n";
 
-// A literal's hole is escaped once, where `rule:core-classes/html-literal`
+// A literal's hole is escaped once, where `rule:core-classes/html-template`
 // escapes it, and this member does not escape it a second time — which is the
 // failure the carrier exists to make unwritable, since escaping is not
 // idempotent.

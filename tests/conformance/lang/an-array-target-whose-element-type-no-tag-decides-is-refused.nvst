@@ -1,5 +1,5 @@
 --TEST--
-An `array<U>` conversion target whose `U` no runtime tag decides is refused where it is written, because the element walk compares tags and nothing wider — `rule:types/conversion`, with `rule:types/conversion` and `rule:types/literal-types` naming two of the types it cannot check
+An `array<U>` conversion target whose `U` no runtime tag decides is refused where it is written, because the element walk compares tags and nothing wider — `rule:types/conversion`, with `rule:types/conversion` and `rule:types/single-value-types` naming two of the types it cannot check
 --FILE--
 <?nvs
 class Cell {

@@ -91,7 +91,7 @@
 //!
 //! **One table for the whole process, not one per core**, because an identity
 //! compiled code has to *write down* cannot be per-thread.
-//! `rule:core-classes/html-literal` folds a hole-free `` html`…` `` into a
+//! `rule:core-classes/html-template` folds a hole-free `` html`…` `` into a
 //! `Core\Html\Markup` constant in the compiled unit's own data section, and the
 //! class word of that constant is written once, while compiling, into bytes
 //! every core then reads — so a second core's descriptor would be a second
@@ -507,7 +507,7 @@ fn descriptor(class: &CoreClass) -> *const ClassDesc {
 ///
 /// Two sites write one of these addresses into a unit. A hole-free `` html`…` ``
 /// folds to a `Core\Html\Markup` constant in the unit's constant pool
-/// (`rule:core-classes/html-literal`), and the class word of that constant is
+/// (`rule:core-classes/html-template`), and the class word of that constant is
 /// one of them; and `$v is Core\Time\Date` tests against the class's own
 /// address, which is the identity comparison [`is_instance`] makes from this
 /// side. Both are written once while compiling and read by every core
@@ -875,7 +875,7 @@ mod tests {
     /// This is the half a per-thread table would fail while still passing the
     /// test above: a compiled unit writes `Core\Html\Markup`'s address into a
     /// data section once, while compiling, and every core reads those same
-    /// bytes (`rule:core-classes/html-literal`). An address is carried across
+    /// bytes (`rule:core-classes/html-template`). An address is carried across
     /// as a `usize` because a raw pointer is not `Send`, which is the whole
     /// property under test stated in the type system.
     #[test]

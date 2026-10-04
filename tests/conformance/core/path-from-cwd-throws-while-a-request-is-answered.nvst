@@ -1,5 +1,5 @@
 --TEST--
-`Core\Path::fromCwd` throws a `RuntimeError` while a request is being answered, for a relative path and an absolute one alike, because a server's working directory is not the app's — `rule:programs/path-literals-resolve-from-their-file`
+`Core\Path::fromCwd` throws a `RuntimeError` while a request is being answered, for a relative path and an absolute one alike, because a server's working directory is not the app's — `rule:programs/relative-paths-resolve-from-their-file`
 --GET--
 file=report.txt
 --FILE--

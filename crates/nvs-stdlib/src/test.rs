@@ -3433,7 +3433,7 @@ nvs_runtime::nvs_helper! {
     /// the one position that admits every type, and a `?T` parameter would
     /// refuse the `string` half of the very question this member asks about a
     /// union. What it costs is that a subject whose declared type cannot hold
-    /// `null` at all still compiles — a mistake `rule:types/literal-types`'s literal types
+    /// `null` at all still compiles — a mistake `rule:types/single-value-types`'s literal types
     /// would have to be extended to `null` to catch, which is not this
     /// member's to decide.
     fn nvs_core_test_assert_null(ctx, args: [2]) {

@@ -10,7 +10,7 @@ only in `timeout` gets its own connection rather than silently inheriting the fi
 a rollback or holds session-scoped state off the shared connection.
 
 `Db\Settings` is a discriminated union over enum-case types rather than one loose shape: SQLite takes
-a `path` and has no `host`, so a `host` on a SQLite settings literal is a compile error rather than a
+a `path` and has no `host`, so a `host` on a SQLite settings object is a compile error rather than a
 silently ignored field.
 
 A connection is released by the runtime at request teardown — the job a destructor would have done,

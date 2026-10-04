@@ -1497,7 +1497,7 @@ impl Cache {
 /// length, so no two file sets can hash alike by running together. A file *renamed* moves the key,
 /// because a diagnostic's path and a throw's frame name it. A file *moved* moves the key too: a
 /// relative path literal compiles to an absolute path joined to the file's folder
-/// (`rule:programs/path-literals-resolve-from-their-file`), so the folder is a compile input like
+/// (`rule:programs/relative-paths-resolve-from-their-file`), so the folder is a compile input like
 /// the text. The folder is [`nvs_types::paths::base_folder`]'s, the exact one the join used — inside
 /// a bundled executable, the folder beside it.
 pub(crate) fn program_digest(files: &[nvs_types::ProgramFile<'_>]) -> Digest {

@@ -8,8 +8,8 @@
   "seeAlso": [
     "core-api/units-are-types",
     "enums/closed-integer-type",
-    "types/literal-types",
-    "expressions/intrinsic-literals"
+    "types/single-value-types",
+    "expressions/intrinsic-constant-arguments"
   ],
   "guardedBy": [
     "crates/nvs-stdlib/src/registry.rs",

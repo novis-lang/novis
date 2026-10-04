@@ -12,10 +12,10 @@
 //! their complaints reported here, once per literal, so a malformed escape is
 //! a diagnostic rather than a lowering-time surprise.
 //!
-//! `rule:types/literal-types` add a fourth rule of the same shape, and
+//! `rule:types/single-value-types` add a fourth rule of the same shape, and
 //! [`placed_literal`] is all of it: a `string` or `int` literal types as its
 //! own singleton exactly where the position names that singleton, and as its
-//! plain base everywhere else. That is what `rule:types/literal-types`'s *Verification* M2 row
+//! plain base everywhere else. That is what `rule:types/single-value-types`'s *Verification* M2 row
 //! asks for — without it nothing a caller writes ever satisfies a literal type
 //! except through an `as` — and it is why § 4's free-widening rows in
 //! [`super::assign`] are the only other half needed: every other position
@@ -37,7 +37,7 @@
 
 use super::*;
 
-/// `rule:types/literal-types`'s producer half: the literal atom `expected` names that this
+/// `rule:types/single-value-types`'s producer half: the literal atom `expected` names that this
 /// literal *is*, or `None` where the position names none — in which case the
 /// caller returns the base type, exactly as it did before this ADR.
 ///
@@ -65,7 +65,7 @@ pub(crate) fn placed_literal(
     }
 }
 
-/// [`placed_literal`] for `rule:types/literal-types`'s string atom.
+/// [`placed_literal`] for `rule:types/single-value-types`'s string atom.
 ///
 /// Two passes on purpose: the first asks the cheap question — does this
 /// position name a string literal type at all — and only then is the literal
@@ -87,7 +87,7 @@ fn placed_string_literal(span: Span, expected: Option<TypeId>, env: &Env<'_>) ->
 }
 
 /// [`placed_literal`] for `rule:types/grammar`'s two `bool` singletons, which
-/// [`Ty::True`] records are `rule:types/literal-types`'s rule read on `bool`'s two values.
+/// [`Ty::True`] records are `rule:types/single-value-types`'s rule read on `bool`'s two values.
 ///
 /// One pass, unlike [`placed_string_literal`]: the value is the token itself,
 /// already decoded by the parser, so there is nothing to cook and no reason to
@@ -101,7 +101,7 @@ fn placed_bool_literal(value: bool, expected: Option<TypeId>, env: &Env<'_>) -> 
 /// `true`/`false` — [`super::infer`]'s `ExprKind::Bool` arm.
 ///
 /// A bare `bool` everywhere but a position that names this exact value, which
-/// is `rule:types/literal-types`'s placement rule and the reason `var $b = true;` still
+/// is `rule:types/single-value-types`'s placement rule and the reason `var $b = true;` still
 /// infers `bool` rather than a type only `true` could ever satisfy.
 pub(crate) fn infer_bool_literal(
     value: bool,
@@ -115,7 +115,7 @@ pub(crate) fn infer_bool_literal(
 /// the question [`super::args::check_generic_args`] asks about an argument it
 /// had no parameter type for yet, and which that function's docs answer for.
 ///
-/// The literals of this module's four rules, the negation `rule:types/literal-types` makes
+/// The literals of this module's four rules, the negation `rule:types/single-value-types` makes
 /// one atom with its operand ([`negated_literal_expectation`]), and `rule:types/arrays`'s array literal, whose elements are checked against the target's `T`
 /// rather than inferred and compared afterwards ([`check_array_literal`]) —
 /// so `[7, 7]` at a generic `array<uint>` is as unplaced as the `7` in it,
@@ -201,9 +201,9 @@ pub(crate) fn literal_self_type(expr: &Expr, env: &mut Env<'_>) -> Option<TypeId
 }
 
 /// The expectation a `-e` operand inherits, and `None` for every other unary
-/// operator — which is what [`super::infer`]'s arm passed before `rule:types/literal-types`.
+/// operator — which is what [`super::infer`]'s arm passed before `rule:types/single-value-types`.
 ///
-/// `rule:types/literal-types`'s int literal atom carries its own sign, so `-1` is *one*
+/// `rule:types/single-value-types`'s int literal atom carries its own sign, so `-1` is *one*
 /// atom in type position; a `-1` expression is a negation wrapping the bare
 /// digit run `1`. Placing the operand against the negated value is what lets
 /// the two meet, and [`negated_literal_result`] puts the sign back on. Without
@@ -260,7 +260,7 @@ pub(crate) fn negated_literal_expectation(
     None
 }
 
-/// The type `-e` has when its operand took `rule:types/literal-types`'s int literal type —
+/// The type `-e` has when its operand took `rule:types/single-value-types`'s int literal type —
 /// the literal of the negated value, so `-1` placed at the type `-1` stays
 /// that type rather than widening to `int` at the operator. Any other operand
 /// type, and any other operator, is returned unchanged.
@@ -409,7 +409,7 @@ pub(crate) fn infer_int_literal(
     let wants_uint = expected.is_some_and(|id| wants_uint_placement(id, env.interner));
     let (radix, digits) = int_literal_digits(env.src, span);
     let parsed = u64::from_str_radix(&digits, radix);
-    // `rule:types/literal-types`, ahead of `uint`'s placement below because no position
+    // `rule:types/single-value-types`, ahead of `uint`'s placement below because no position
     // names both: a literal type is a singleton, and `uint` is not one. The
     // digit run is never negative here — a leading `-` is the wrapping
     // `ExprKind::Unary` [`negated_literal_expectation`] handles.
@@ -505,7 +505,7 @@ pub(crate) fn infer_str_literal(span: Span, expected: Option<TypeId>, env: &mut 
         let run_escapes = !crate::string_lit::heredoc_is_nowdoc(raw);
         check_heredoc_run_issues(&shape.indent, shape.body, true, true, run_escapes, env);
     }
-    // `rule:types/literal-types`, after the escape grammar has had its say: a literal that
+    // `rule:types/single-value-types`, after the escape grammar has had its say: a literal that
     // does not survive its own text has no singleton to be, and reporting the
     // malformed escape once is what this arm is for.
     placed_string_literal(span, expected, env).unwrap_or_else(|| env.interner.string())
@@ -586,7 +586,7 @@ pub(crate) fn infer_interpolated(
 /// ``html`<span>{$name}</span>` `` — [`super::infer`]'s `ExprKind::Markup` arm.
 ///
 /// The type is `Core\Html\Markup` whatever the body holds, because the node is
-/// what says so (`rule:core-classes/html-literal`): a hole-free literal is
+/// what says so (`rule:core-classes/html-template`): a hole-free literal is
 /// still a carrier, not the `string` a quoted literal of the same text would
 /// be.
 ///

@@ -1,8 +1,8 @@
 --TEST--
-`rule:types/duration-literal`: `toString` and `parse` are one grammar over every duration the grammar can spell, and a negative one is refused by name rather than read back
+`rule:types/duration`: `toString` and `parse` are one grammar over every duration the grammar can spell, and a negative one is refused by name rather than read back
 --FILE--
 <?nvs
-// `rule:types/duration-literal`'s round trip, asserted by counting rather than read off a
+// `rule:types/duration`'s round trip, asserted by counting rather than read off a
 // line: every rendering below is handed straight back to `parse`, and what
 // is checked is that all seven agree with the value they came from. A
 // member that rendered one of them plausibly but not exactly fails here

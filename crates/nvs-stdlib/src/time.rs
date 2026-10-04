@@ -1,7 +1,7 @@
 //! [docs/spec/01-core-library.md](/docs/spec/01-core-library.md)
 //! § 4 — `Core\Time` and the types it answers with, one module because they
 //! are one domain: `Duration` (the type
-//! `rule:types/duration-literal`'s `30s`/`1h30m`
+//! `rule:types/duration`'s `30s`/`1h30m`
 //! literal is), `Instant`, `Zone` and `DateTime`. The pattern grammar
 //! `DateTime::format` and `Time::parse` share is [`crate::cldr`], which is a
 //! grammar of its own and so a module of its own.
@@ -37,7 +37,7 @@
 //!
 //! The grammar `Duration::parse` accepts and `toString` emits is
 //! [`nvs_syntax::duration`], which the lexer calls for the source literal and
-//! `nvs.toml` will call for a duration-valued directive. `rule:types/duration-literal` requires
+//! `nvs.toml` will call for a duration-valued directive. `rule:types/duration` requires
 //! the three to share one implementation, and that module's own docs own why
 //! it sits in the syntax crate rather than this one.
 //!
@@ -50,7 +50,7 @@
 //! full ±9999-year range rather than the ~1677-2262 one a single `i64` of
 //! nanoseconds would; a `DateTime` holds three, an `Instant`'s two plus a
 //! `Zone`'s one, and [`DATETIME`] owns why that rather than seven civil
-//! fields. A duration *literal* spends an allocation too: `rule:types/duration-literal`'s constant-pool folding wants an *immortal* value with no allocation at
+//! fields. A duration *literal* spends an allocation too: `rule:types/duration`'s constant-pool folding wants an *immortal* value with no allocation at
 //! all, which is the same thing `nvs_runtime`'s own gap 3 owes a string
 //! literal, so both close together rather than one growing a mechanism the
 //! other does not use. Until then `30s` is one
@@ -99,7 +99,7 @@
 //!
 //! # A written pattern is prepared, an assembled one is not
 //!
-//! `$d->format` and `Core\Time::parse` are `rule:expressions/intrinsic-literals`'s
+//! `$d->format` and `Core\Time::parse` are `rule:expressions/intrinsic-constant-arguments`'s
 //! intrinsics: a pattern written as a literal is compiled while checking, so a
 //! malformed one is a diagnostic rather than a throw, and the call carries
 //! [`crate::cldr::PREPARED_PATTERN`] as
@@ -181,7 +181,7 @@ pub const FROM_NANOS_SYMBOL: &str = "nvs_core_time_duration_nanoseconds";
 /// length of.
 ///
 /// The eight `Duration::seconds`-shaped constructors are for a **computed**
-/// count; a constant one is `rule:types/duration-literal`'s literal, and the two produce the same
+/// count; a constant one is `rule:types/duration`'s literal, and the two produce the same
 /// value through this class's one slot.
 pub const DURATION: CoreClass = CoreClass {
     name: DURATION_NAME,
@@ -782,7 +782,7 @@ fn scaled(args: &[Value], member: &str, length: i64) -> Result<Value, Fault> {
 nvs_runtime::nvs_helper! {
     /// `Core\Time\Duration::nanoseconds(int $n): Duration`.
     ///
-    /// Also where a **literal** lands: `rule:types/duration-literal` folds `1h30m` to its
+    /// Also where a **literal** lands: `rule:types/duration` folds `1h30m` to its
     /// nanosecond count while compiling, and `nvs-ir` emits one call to this
     /// with that constant — so the literal and the constructor cannot produce
     /// different values.
@@ -828,7 +828,7 @@ nvs_runtime::nvs_helper! {
 
 nvs_runtime::nvs_helper! {
     /// `Core\Time\Duration::days(int $n): Duration` — exactly 24 hours per
-    /// day, never a calendar day (`rule:types/duration-literal`). A calendar step is
+    /// day, never a calendar day (`rule:types/duration`). A calendar step is
     /// `DateTime::plus($n, Unit::Day)`, which is a different type's member for
     /// exactly this reason.
     fn nvs_core_time_duration_days(_ctx, args: [1]) {
@@ -845,7 +845,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Time\Duration::parse(string $text): Duration` — `rule:types/duration-literal`'s
+    /// `Core\Time\Duration::parse(string $text): Duration` — `rule:types/duration`'s
     /// run-time entry point into the *same* grammar the lexer reads, so
     /// `Duration::parse("1h30m")` and the literal `1h30m` are one value.
     ///
@@ -913,7 +913,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `$d->minus(Duration $other): Duration` — the spelling `rule:types/duration-literal`
+    /// `$d->minus(Duration $other): Duration` — the spelling `rule:types/duration`
     /// gives a backwards step, since `-7d` does not parse.
     fn nvs_core_time_duration_minus(_ctx, args: [2]) {
         let left = nanos_of(args, 0, "minus")?;
@@ -968,11 +968,11 @@ nvs_runtime::nvs_helper! {
 nvs_runtime::nvs_helper! {
     /// `$d->toString(): string` — `Stringable`'s member
     /// (`rule:classes/no-magic-methods`),
-    /// emitting `rule:types/duration-literal`'s grammar so that a value round-trips through
+    /// emitting `rule:types/duration`'s grammar so that a value round-trips through
     /// `parse` — over the durations that grammar can spell, which is the
     /// non-negative ones. This member is total and a negative duration is
     /// reachable through `minus` and `negated`, so it renders one with a
-    /// leading `-` that `rule:types/duration-literal` has `parse` refuse by name.
+    /// leading `-` that `rule:types/duration` has `parse` refuse by name.
     fn nvs_core_time_duration_to_string(_ctx, args: [1]) {
         let nanos = nanos_of(args, 0, "toString")?;
         Ok(duration::render_with(nanos, |text| {

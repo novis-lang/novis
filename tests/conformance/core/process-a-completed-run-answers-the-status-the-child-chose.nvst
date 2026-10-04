@@ -23,7 +23,7 @@
 // starts at the drive's root and nothing is there, so the operating system
 // answers `IOError`. On Unix `C:\Windows\System32\cmd.exe` starts at no root, so
 // `Core\Process::run` throws the `RuntimeError` every relative path gets
-// (`rule:programs/path-literals-resolve-from-their-file`) before it reads a
+// (`rule:programs/relative-paths-resolve-from-their-file`) before it reads a
 // grant. `IOError` is a `RuntimeError`, so the Windows block's one clause
 // catches both.
 

@@ -9,7 +9,7 @@
   "divergesFromPhp": "`echo \"\\e[31m\"` prints `␛[31m` rather than turning the text red, on a pipe and a terminal alike; colour is `Core\\Cli\\Text`",
   "seeAlso": [
     "tooling/text-is-the-one-raw-path",
-    "tooling/an-escape-in-a-literal-is-a-compile-error",
+    "tooling/an-escape-in-source-text-is-a-compile-error",
     "tooling/echo-always-has-a-sink",
     "core-classes/html-auto-escape",
     "security/secret-sinks-refuse",

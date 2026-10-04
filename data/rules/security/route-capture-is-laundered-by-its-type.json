@@ -10,7 +10,7 @@
   "seeAlso": [
     "security/taint-propagation",
     "security/access-is-checked-for-presence-not-meaning",
-    "types/literal-types"
+    "types/single-value-types"
   ],
   "guardedBy": [
     "tests/conformance/core/a-route-capture-is-the-value-the-match-converted-not-the-segment-text.nvst",

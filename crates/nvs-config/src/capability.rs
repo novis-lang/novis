@@ -677,7 +677,7 @@ impl Capabilities {
     /// [`Scope::Host`] never reaches [`Files`] — a hostname is matched against the grant list and
     /// nothing is canonicalized — so demanding one is demanding a parameter the answer does not
     /// depend on. The compiler is the caller that has none:
-    /// `rule:core-classes/db-literal-query-checking` has `nvs check` refuse a **literal**
+    /// `rule:core-classes/db-compile-time-query-checking` has `nvs check` refuse a **literal**
     /// `Core\Db::open` host no `db.open` grant covers, and a checking pass has no request, no
     /// resolver and no reason to grow one. Both spellings share this list walk, so a run and a
     /// check cannot disagree about which hosts are granted.

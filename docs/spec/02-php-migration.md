@@ -398,7 +398,7 @@ dropped outright (`rule:core-api/tier-placement`).
 | `date_diff` | member | `Core\Time\DateTime::difference` in whole units, or `Core\Time\Instant::since` for an exact `Duration`. There is no `DateInterval` |
 | `date_format` | member | `Core\Time\DateTime::format` |
 | `date_get_last_errors` | dropped | a parse failure throws rather than recording itself (R4) |
-| `date_interval_create_from_date_string` | dropped | the relative-expression grammar does not exist; `Core\Time\Duration::parse` reads the exact-duration subset (`rule:types/duration-literal`) |
+| `date_interval_create_from_date_string` | dropped | the relative-expression grammar does not exist; `Core\Time\Duration::parse` reads the exact-duration subset (`rule:types/duration`) |
 | `date_interval_format` | dropped | a `Duration` is `Stringable` in that same literal grammar, so it round-trips through `parse` and needs no second one |
 | `date_isodate_set` | member | `Core\Time\DateTime::with` |
 | `date_modify` | member | `Core\Time\DateTime::plus` / `Core\Time\DateTime::minus`, or `Core\Time\DateTime::next` for a weekday |
@@ -566,7 +566,7 @@ how this runtime is built.
 | `ini_alter` | member | `Core\Config::set` — `ini_alter` is PHP's own alias for `ini_set` |
 | `ini_restore` | member | `Core\Config::restore` |
 | `ini_get_all` | member | `Core\Config::all`, string keys to string values, never PHP's per-directive `global_value`/`local_value`/`access` array (R11) |
-| `ini_parse_quantity` | dropped | a size or a duration is its own literal (`rule:types/duration-literal`), so there is no quantity string for a program to parse; a directive's value string is read by `Core\Config::set` itself, with the parser the boot path uses (`rule:config/ini-set-is-core-config-set`) |
+| `ini_parse_quantity` | dropped | a size or a duration is its own literal (`rule:types/duration`), so there is no quantity string for a program to parse; a directive's value string is read by `Core\Config::set` itself, with the parser the boot path uses (`rule:config/ini-set-is-core-config-set`) |
 | `get_cfg_var` | member | `Core\Config::get`. PHP's split between the file's value and the active one does not exist — the snapshot is the value (`rule:config/the-config-is-an-immutable-snapshot`) |
 | `php_ini_loaded_file` | dropped | there is no INI file. The configuration is a tree of TOML files, and which one set a directive is what `nvs config dump --origin` reports (`rule:config/check-and-dump-audit-the-tree-offline`) rather than something a request reads |
 | `php_ini_scanned_files` | dropped | same — the tree's shape is the operator's to audit, not a request's to introspect |
@@ -707,7 +707,7 @@ context have nothing left to be.
 | `chown` | dropped | same, and ownership additionally requires a privilege the runtime declines to hold |
 | `chgrp` | dropped | same |
 | `umask` | dropped | it mutates **process-global** state, so one request's call changes every core's writes — unsound for the same reason `putenv` and `setlocale` are gone |
-| `chdir` | dropped | the working directory is process-global too, and nothing resolves a path against it. A relative string literal at a path parameter is joined to the folder of the file that wrote it; a path built at run time is made absolute with `Core\Path::join` (`rule:programs/path-literals-resolve-from-their-file`) |
+| `chdir` | dropped | the working directory is process-global too, and nothing resolves a path against it. A relative string literal at a path parameter is joined to the folder of the file that wrote it; a path built at run time is made absolute with `Core\Path::join` (`rule:programs/relative-paths-resolve-from-their-file`) |
 | `getcwd` | member | `Core\Path::fromCwd('.')`, in a command-line program, where the working directory is the one its user started it from. It throws while a request is answered, because a server's working directory is not the app's |
 | `is_uploaded_file` | dropped | there is no temporary file to interrogate: an upload is never written to one. `Core\Request::files` yields the parts, and a part is a part by construction (`rule:http-server/an-upload-is-received-only-through-files`) |
 | `move_uploaded_file` | member | `Core\IO::writeStream`, given a part from `Core\Request::files` — the part goes to its destination directly, and a write that fails mid-stream removes the partial file (`rule:core-classes/io-write-stream`) |
@@ -800,7 +800,7 @@ roster of kinds — each algorithm an enum case a call names, and none of them d
 |---|---|---|
 | `hash` | member | `Core\Hash::of`, whose second argument is a `Digest` case rather than an algorithm name (R11) — a misspelling is a compile error and not a runtime `false` |
 | `hash_algos` | dropped | the roster *is* the `Digest` enum, which the compiler already holds. A list built at run time exists to be searched for a name, which is the failure this removes |
-| `hash_hmac_algos` | dropped | `StrongDigest` is that list, and `Core\Hash::hmac` declares it (`rule:types/literal-types`) |
+| `hash_hmac_algos` | dropped | `StrongDigest` is that list, and `Core\Hash::hmac` declares it (`rule:types/single-value-types`) |
 | `hash_hmac` | member | `Core\Hash::hmac`, whose key is `secret bytes` (`rule:security/secret-qualifier`) and whose digest cannot be a broken one |
 | `hash_equals` | member | `Core\Hash::equals`, constant-time |
 | `hash_init` | member | `Core\Hash::stream` |
@@ -1389,7 +1389,7 @@ deployment: a program reads the one key it needs through `Core\Config::get`, and
 
 | PHP | Outcome | Novis |
 |---|---|---|
-| `define` | dropped | a runtime constant table. A constant is a class member (`rule:classes/no-free-functions-or-constants`), known where it is used and foldable there (`rule:expressions/intrinsic-literals`) |
+| `define` | dropped | a runtime constant table. A constant is a class member (`rule:classes/no-free-functions-or-constants`), known where it is used and foldable there (`rule:expressions/intrinsic-constant-arguments`) |
 | `defined` | dropped | asks whether that table has a key |
 | `constant` | dropped | reads it by a string name — the dynamic lookup that makes the other three necessary |
 | `get_defined_constants` | dropped | enumerates it |

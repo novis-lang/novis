@@ -91,7 +91,7 @@ const ATOMS: &[&str] = &[
     "false",
     "iterable",
     "callable",
-    // `rule:types/literal-types`'s literal types, `rule:types/object-top`'s shape, and a plain class name.
+    // `rule:types/single-value-types`'s literal types, `rule:types/object-top`'s shape, and a plain class name.
     "\"a\"",
     "7",
     "{a: int}",

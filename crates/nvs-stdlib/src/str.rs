@@ -3935,7 +3935,7 @@ nvs_runtime::nvs_helper! {
     /// receives an array here, empty rather than absent.
     ///
     /// The template grammar, every refusal and the one thing still owed
-    /// (`rule:expressions/intrinsic-literals`'s compile-time check of a *literal* template) are
+    /// (`rule:expressions/intrinsic-constant-arguments`'s compile-time check of a *literal* template) are
     /// [`crate::format`]'s, which is the whole of this member.
     fn nvs_core_str_format(_ctx, args: [2]) {
         let template = text(&args[0], "format", "the template")?;

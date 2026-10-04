@@ -6,7 +6,7 @@
     "0063"
   ],
   "seeAlso": [
-    "expressions/intrinsic-literals",
+    "expressions/intrinsic-constant-arguments",
     "expressions/preparation-preserves-behaviour"
   ],
   "guardedBy": [

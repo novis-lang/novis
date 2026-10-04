@@ -322,7 +322,7 @@ fn lower_property_key(inner: &Type, depth: u32, ctx: &Ctx<'_>, env: &mut Env<'_>
     env.interner.mixed()
 }
 
-/// `rule:types/literal-types`'s `int` literal atom.
+/// `rule:types/single-value-types`'s `int` literal atom.
 ///
 /// The atom's span covers a leading `-` when one was written
 /// ([`TypeAtom::IntLiteral`]), so the sign is split off here and the digits go
@@ -359,7 +359,7 @@ fn lower_int_literal_type(lit: Span, env: &mut Env<'_>) -> TypeId {
                 )
                 .with_primary(lit, "outside `int`'s range")
                 .with_help(
-                    "`rule:types/literal-types`'s literal atom is an `int` literal, so the value has to be \
+                    "`rule:types/single-value-types`'s literal atom is an `int` literal, so the value has to be \
                      one an `int` can hold",
                 ),
             );

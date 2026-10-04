@@ -341,7 +341,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             // Only `$base` is a path parameter. `$path` is relative to
             // `$base` by design, so a literal written there is not joined to
             // the calling file's folder
-            // (`rule:programs/path-literals-resolve-from-their-file`): it is
+            // (`rule:programs/relative-paths-resolve-from-their-file`): it is
             // text, and the body joins it to `$base`.
             params: &[CoreTy::Path(Qual::Sink), CoreTy::Text(Qual::Launder)],
             defaults: &[],

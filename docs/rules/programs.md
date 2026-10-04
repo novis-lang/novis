@@ -15,7 +15,7 @@ Novis is for web applications — not a segment, not a vertical, not a trust pos
 Novis is choosing it to build the web application they were going to build anyway, and what they get
 for it is `tainted` and `secret` checked while compiling rather than scanned afterwards; every
 request, job and connection an isolate with an enforceable memory, CPU and time budget; a
-dependency's authority declared and narrowed rather than ambient; `decimal`, duration literals and an
+dependency's authority declared and narrowed rather than ambient; `decimal`, durations written like `30s` and an
 always-valid-UTF-8 `string`; and a reload that swaps a pointer instead of restarting a worker.
 
 **Running code the operator did not write is where those properties pay most, and that is a benefit
@@ -201,7 +201,7 @@ function Core\Program::implementingWith<I, T>(string $member = ""): array<{insta
 in one expansion: one row per class the enumeration would instantiate, in its order, each carrying the
 instance and what `Core\Attributes::get<T>` answers for that class's own `$member` — the class itself for
 an empty name, its method for a method name, its property or constructor parameter otherwise, so a
-promoted parameter is read once. `attribute` is the one attached literal satisfying `T`, or `null`.
+promoted parameter is read once. `attribute` is the one attached payload object satisfying `T`, or `null`.
 
 `I` is an interface or a class, selected exactly as `implementing<I>` selects it.
 
@@ -212,7 +212,7 @@ compiler holds both lists at the same moment, and the join is one retrieval fold
 about what a retrieval target may be changes, and no reflection table reaches the compiled unit.
 
 The retrieval's refusals are this member's, each naming the class it was made on: a `$member` some
-implementor does not declare is `E0798`, two matching literals on one class are `E0728`, and a `T` that
+implementor does not declare is `E0798`, two matching payload objects on one class are `E0728`, and a `T` that
 is not a shape is `E0729`. A `$member` that is not a string literal names no roster, and every row's
 `attribute` is `null`, as the retrieval's computed member folds. The enumeration's own two refusals
 hold unchanged.
@@ -383,7 +383,7 @@ Files reached by `require` are unaffected and may declare anything. The cost is 
 
 `rule:programs/path-case`
 
-A `require` with a literal path resolves, and the resolved real path is then compared component-wise
+A `require` whose path is a string literal resolves, and the resolved real path is then compared component-wise
 against the path as written. A component that differs **only** in case is
 `E_REQUIRE_PATH_CASE_MISMATCH`. So `require 'mailer.nvs';` against a file named `Mailer.nvs` is an
 error on Windows and macOS, where it would otherwise have compiled, and it was already
@@ -405,15 +405,15 @@ Three properties keep the check honest:
 
 <sub>See also [`programs/autoload`](programs.md#programs-autoload). Decided in [0062](../decisions/0062.md), [0021](../decisions/0021.md).</sub>
 
-<a id="programs-path-literals-resolve-from-their-file"></a>
+<a id="programs-relative-paths-resolve-from-their-file"></a>
 
-## A relative path literal at a path parameter names a file beside the source file that wrote it, and a relative path built at run time throws
+## A relative path given as a string literal at a path parameter names a file beside the source file that wrote it, and a relative path built at run time throws
 
-`rule:programs/path-literals-resolve-from-their-file`
+`rule:programs/relative-paths-resolve-from-their-file`
 
 A relative string literal passed to a path parameter is joined to the folder of the source file that
 contains it, while compiling, the way `require` resolves its path. The program runs with the absolute
-path in the literal's place, so `Core\IO::read('data/x.json')` reads the same file from a terminal,
+path in the string's place, so `Core\IO::read('data/x.json')` reads the same file from a terminal,
 under `nvs serve` and as a service.
 
 ```nvs
@@ -434,9 +434,9 @@ text and are not marked, and neither is `Core\IO::within`'s `$path`, which names
 and is allowed only on a parameter whose type is a `string`, alone or with `null` (`E0836`
 elsewhere). A default value of such a parameter resolves against the file that declares it.
 
-**A literal** is a plain string literal written as the argument itself. A class constant, a
-concatenation of literals and a variable are values built while the program runs. A path argument
-that starts with a relative literal and adds more — `'data/' . $name` or `"data/{$name}"` — is
+**A string literal** here is one written as the argument itself. A class constant, a
+concatenation of string literals and a variable are values built while the program runs. A path
+argument that starts with a relative string literal and adds more — `'data/' . $name` or `"data/{$name}"` — is
 relative on every run, so it does not compile (`E0840`); `Core\Path::thisDir('data') . '/' . $name`
 builds it from the file's folder. A single letter, which a `:` could turn into a drive, and a
 heredoc are left to the run-time check. The join is
@@ -447,7 +447,7 @@ bundled executable the file's folder maps to the same folder beside the executab
 
 **A program names its own file and folder with `Core\Path::thisFile()` and `Core\Path::thisDir()`.**
 The compiler replaces each call with the absolute path of the file that contains it, or that file's
-folder, from the same folder a literal is joined to, and the program runs a string constant.
+folder, from the same folder a string literal is joined to, and the program runs a string constant.
 `thisDir($join)` adds a relative string literal to the folder, lexically; any other `$join` does not
 compile (`E0837`), and `Core\Path::join(Core\Path::thisDir(), $part)` joins a path the program
 builds. There are no magic constants: `__FILE__` and `__DIR__` stay `E0319`.
@@ -459,7 +459,7 @@ program holds, and `Core\Path::fromCwd` joins a path typed on a command line to 
 app's. Its answer is a plain `string` without `tainted`, so a path from `Core\Cli::arguments` reaches
 a path door through it ([`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named) states the exception). The resolver an isolate's script goes through refuses a relative path the same way, for a
 spawn, a queued job, a scheduled entry and a log handler alike. With every path absolute at the check, a relative grant in `nvs.toml`, which resolves against
-that file's folder, names the same files as a literal in a program beside it.
+that file's folder, names the same files as a string literal in a program beside it.
 
 <sub>See also [`programs/path-case`](programs.md#programs-path-case), [`security/path-scope-canonicalise-then-prefix`](security.md#security-path-scope-canonicalise-then-prefix), [`config/a-relative-path-resolves-against-the-file-it-is-written-in`](config.md#config-a-relative-path-resolves-against-the-file-it-is-written-in). Decided in [0241](../decisions/0241.md), [0245](../decisions/0245.md), [0248](../decisions/0248.md), [0249](../decisions/0249.md).</sub>
 

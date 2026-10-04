@@ -1973,7 +1973,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     }
 
     /// A closure literal's parameter list, the one list where a parameter may
-    /// leave its type out (`rule:types/callable-literal-inference`) and take it
+    /// leave its type out (`rule:types/anonymous-function-parameter-inference`) and take it
     /// from the position the literal is written in. Nothing else in the
     /// language stands in such a position, so every other list keeps the
     /// refusal.
@@ -2591,7 +2591,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     }
 
     /// `` html`<span>{$name}</span>` `` — the string body with the backtick as
-    /// its closer (`rule:core-classes/html-literal`).
+    /// its closer (`rule:core-classes/html-template`).
     ///
     /// It does not collapse a hole-free body the way a quoted string does: the
     /// node is what says `Core\Html\Markup`, so ``html`<hr>` `` must stay an
@@ -2626,7 +2626,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                 }
                 // The same part as a brace hole: what differs is only which
                 // expressions the lexer let through, and by here that is
-                // decided (`rule:core-classes/html-literal`).
+                // decided (`rule:core-classes/html-template`).
                 TokenKind::MarkupEchoOpen => {
                     self.bump();
                     let e = self.parse_expr();

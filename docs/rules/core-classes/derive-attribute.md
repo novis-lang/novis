@@ -15,7 +15,7 @@ as the backstop for a descriptor built by hand, which no call site named.
 **A compiler-recognized attribute is matched nominally.** The compiler acts on an attribute only when
 its name *resolves*, through the ordinary namespace and `use` rules, to one of a closed `Core`-owned
 list. So `#[Core\Json\Derive]` and a `use`d `#[Derive]` are one attribute reached two ways, while a
-userland `type Derive = {};` is not it no matter how it is spelled, and a bare `#[{...}]` literal
+userland `type Derive = {};` is not it no matter how it is spelled, and a bare `#[{...}]` payload object
 never triggers one because it resolves to no name at all. An import binds a whole short name and is
 never a namespace prefix, so `use Core\Json;` followed by `#[Json\Derive]` names nothing.
 

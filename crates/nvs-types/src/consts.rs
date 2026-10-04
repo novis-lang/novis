@@ -390,7 +390,7 @@ pub(crate) fn fold_expr(value: &Expr, src: &SourceFile) -> ConstValue {
 /// An integer literal's value as an `int`, in whatever radix it was written —
 /// [`crate::expr::int_literal_digits`]'s job, reused so this never grows a
 /// second integer grammar. `None` for a magnitude no `int` holds, which the
-/// caller records as ineligible: `rule:types/literal-types`'s atom is an `int` literal, so a
+/// caller records as ineligible: `rule:types/single-value-types`'s atom is an `int` literal, so a
 /// value outside `int` has no literal type to be.
 fn int_value(span: nvs_diagnostics::Span, negated: bool, src: &SourceFile) -> Option<i64> {
     let (radix, digits) = crate::expr::int_literal_digits(src, span);

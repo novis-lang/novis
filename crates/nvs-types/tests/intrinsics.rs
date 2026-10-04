@@ -1,4 +1,4 @@
-//! `rule:expressions/intrinsic-literals`'s intrinsic folding, at the call site: the closed list of `Core`
+//! `rule:expressions/intrinsic-constant-arguments`'s intrinsic folding, at the call site: the closed list of `Core`
 //! members whose literal argument the checker reads, and what it says about
 //! one it cannot.
 //!
@@ -338,7 +338,7 @@ fn a_literal_regex_pattern_is_prepared_while_checking() {
 
 #[test]
 fn a_literal_patterns_tier_is_settled_while_checking() {
-    // `rule:core-classes/regex-literal-tiering`'s second effect, and the half the test above deliberately
+    // `rule:core-classes/regex-compile-time-tiering`'s second effect, and the half the test above deliberately
     // stops short of: *prepared* is not enough on its own, because a fold that
     // throws the automaton away leaves the first call to re-decide which
     // engine runs — and the tier is what decides whether § 2's step budget is
@@ -396,7 +396,7 @@ const TIER_RECORD_HEADER: &str = "\
 # Every literal pattern the regex conformance suite hands a `Core\\Regex` member, and
 # the engine tier it compiles on — `refused` for the malformed ones the suite writes on
 # purpose. A tier is a property of the pattern text alone
-# (`rule:core-classes/regex-literal-tiering`), so a routing change that moves a pattern
+# (`rule:core-classes/regex-compile-time-tiering`), so a routing change that moves a pattern
 # between the two engines changes a line here instead of quietly changing what a request
 # runs on.
 #
@@ -520,7 +520,7 @@ fn tier_of(literal: &str) -> &'static str {
 /// `StaticCall`'s children are its class expression and then its arguments in
 /// order, a written member name being a name rather than a node. An argument
 /// that is not a plain `Str` is left alone — § 2 of
-/// `rule:core-classes/regex-literal-tiering` refuses nothing for being dynamic,
+/// `rule:core-classes/regex-compile-time-tiering` refuses nothing for being dynamic,
 /// and a pattern assembled at run time has no tier to record.
 fn patterns_of(body: &str, case: &Path, into: &mut BTreeMap<String, &'static str>) -> usize {
     let mut map = nvs_diagnostics::SourceMap::new();
@@ -599,7 +599,7 @@ fn pattern_calls_in_text(body: &str) -> usize {
 
 #[test]
 fn every_literal_regex_pattern_in_the_suite_has_its_tier_recorded() {
-    // ADR 0056's M8 line, and `rule:core-classes/regex-literal-tiering`'s second
+    // ADR 0056's M8 line, and `rule:core-classes/regex-compile-time-tiering`'s second
     // paragraph is what makes it possible: a tier is settled by the pattern text
     // alone, so writing it down beside the pattern is a claim a later run either
     // reproduces or has changed the engines under. The record is committed for
@@ -782,7 +782,7 @@ fn a_literal_uri_is_validated_while_checking() {
 #[test]
 fn a_literal_duration_is_validated_while_checking() {
     // § 1's row 4, and the one grammar whose parser was already shared by
-    // three callers before this pass was a fourth: `rule:types/duration-literal` puts it in
+    // three callers before this pass was a fourth: `rule:types/duration` puts it in
     // `nvs-syntax` so the lexer's `1h30m`, `Core\Time\Duration::parse` and an
     // `nvs.toml` directive cannot drift apart. So each refusal below is
     // literally the diagnostic the *lexer* gives the same text.
@@ -818,7 +818,7 @@ fn a_literal_duration_is_validated_while_checking() {
         "a duration wider than the type holds: {wide:?}"
     );
 
-    // And what stays silent: the two spellings § 1 of `rule:types/duration-literal` opens with, the
+    // And what stays silent: the two spellings § 1 of `rule:types/duration` opens with, the
     // sub-second units, and a computed text, which is § 2's rule.
     let fine = check_call(
         "    string $t = \"30m1h\";\n    \
@@ -952,7 +952,7 @@ fn query(sql: &str, params: &str) -> Diagnostics {
 
 #[test]
 fn a_placeholder_count_mismatch_on_a_literal_is_a_diagnostic() {
-    // `rule:core-classes/db-literal-query-checking`'s first clause, in both directions. The refusal is the
+    // `rule:core-classes/db-compile-time-query-checking`'s first clause, in both directions. The refusal is the
     // rewriter's own — `nvs_stdlib::db::check_literal_query` runs the one the
     // request would have run — so this is the `LogicError` the first call would
     // have thrown, moved to `nvs check`.
@@ -998,7 +998,7 @@ fn a_placeholder_count_mismatch_on_a_literal_is_a_diagnostic() {
 
 #[test]
 fn an_unterminated_literal_in_a_query_is_a_diagnostic() {
-    // `rule:core-classes/db-literal-query-checking`'s "an unterminated string
+    // `rule:core-classes/db-compile-time-query-checking`'s "an unterminated string
     // literal". The rewriter refuses the same text when a request runs it, so
     // this is that `LogicError` moved to `nvs check`.
     let open = query("\"select id from t where a = 'x\"", "[]");
@@ -1145,7 +1145,7 @@ fn open(host: &str, grants: Option<&Capabilities>) -> Diagnostics {
 
 #[test]
 fn an_open_host_matching_no_grant_is_a_diagnostic() {
-    // `rule:core-classes/db-literal-query-checking`'s second sentence. The host is a literal and the grant is
+    // `rule:core-classes/db-compile-time-query-checking`'s second sentence. The host is a literal and the grant is
     // this machine's, so both halves of `db.open`'s question are facts before
     // the program runs — and the answer is the one
     // `nvs_runtime::capability::require` would have given, moved earlier per

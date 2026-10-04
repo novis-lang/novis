@@ -1,5 +1,5 @@
 --TEST--
-An unterminated string literal in a literal query is refused where it is written — `rule:core-classes/db-literal-query-checking`, ADR 0067 § 10
+An unterminated string literal in a literal query is refused where it is written — `rule:core-classes/db-compile-time-query-checking`, ADR 0067 § 10
 --FILE--
 <?nvs
 // The `'x` opens a string literal the text never closes, so the scan that
@@ -7,7 +7,7 @@ An unterminated string literal in a literal query is refused where it is written
 // the statement binds is what fits inside an opening quote rather than what
 // was written. `nvs_db::sql`'s rewriter — the one the request itself would
 // have run — refuses that text, which is what lets
-// `rule:core-classes/db-literal-query-checking` make the same refusal here.
+// `rule:core-classes/db-compile-time-query-checking` make the same refusal here.
 //
 // It is a fact about the literal alone, so the params array beside it is never
 // read: the `?` that looks like a placeholder is inside the open literal and

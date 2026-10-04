@@ -2,7 +2,7 @@ Novis is for web applications — not a segment, not a vertical, not a trust pos
 Novis is choosing it to build the web application they were going to build anyway, and what they get
 for it is `tainted` and `secret` checked while compiling rather than scanned afterwards; every
 request, job and connection an isolate with an enforceable memory, CPU and time budget; a
-dependency's authority declared and narrowed rather than ambient; `decimal`, duration literals and an
+dependency's authority declared and narrowed rather than ambient; `decimal`, durations written like `30s` and an
 always-valid-UTF-8 `string`; and a reload that swaps a pointer instead of restarting a worker.
 
 **Running code the operator did not write is where those properties pay most, and that is a benefit

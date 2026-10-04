@@ -15,7 +15,7 @@
     "programs/autoload",
     "programs/one-declaration-per-autoloaded-file",
     "programs/path-case",
-    "programs/path-literals-resolve-from-their-file",
+    "programs/relative-paths-resolve-from-their-file",
     "programs/program-id",
     "programs/bundle-trust-domain",
     "programs/first-party-framework",

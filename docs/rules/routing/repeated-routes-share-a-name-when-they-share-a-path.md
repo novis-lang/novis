@@ -18,5 +18,5 @@ where `url()` would have two answers and no ground to prefer one.
 **The duplicate-*route* rule is untouched.** Two attributes sharing both `path` and `method` remain
 an error however they are grouped, so nothing enters through the door a shared name opens. The name
 is written on each line rather than inherited from the first: the attributes are independent
-literals, and an inheritance rule would make their order matter, which the route table's precedence
+payload objects, and an inheritance rule would make their order matter, which the route table's precedence
 rules exist to avoid.

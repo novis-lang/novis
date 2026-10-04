@@ -209,7 +209,7 @@
 //!
 //! # A written pattern is compiled once per core, an assembled one per call
 //!
-//! `rule:expressions/intrinsic-literals` makes `Core\Time\DateTime::format` and
+//! `rule:expressions/intrinsic-constant-arguments` makes `Core\Time\DateTime::format` and
 //! `Core\Time::parse` intrinsics: a pattern written as a literal is compiled by
 //! [`validate`] *while checking*, so a malformed one is a diagnostic pointing
 //! at the letter rather than the throw [`compile`] answers an assembled one
@@ -804,7 +804,7 @@ pub(crate) fn compile(pattern: &str) -> Result<Vec<Piece>, String> {
 
 /// Whether `pattern` is one [`compile`] can read, for a caller that wants the
 /// refusal and not the pieces —
-/// `rule:expressions/intrinsic-literals`'s fold,
+/// `rule:expressions/intrinsic-constant-arguments`'s fold,
 /// which reads a *literal* pattern while checking and reports § 3's diagnostic
 /// instead of the throw the runtime would have made.
 ///

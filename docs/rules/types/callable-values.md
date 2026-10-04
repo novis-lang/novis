@@ -1,4 +1,4 @@
-`callable` is satisfied by exactly two kinds of value: an anonymous function — a `fn` literal — and a
+`callable` is satisfied by exactly two kinds of value: an anonymous function (`fn (...) => ...`) and a
 method reference — `Core\Str::length(...)`, `$user->getName(...)`, `self::helper(...)` (early-bound),
 `static::helper(...)` (late-bound). A method reference names a member, and the checker records the
 resolved target. Both make the same kind of value, a callable.

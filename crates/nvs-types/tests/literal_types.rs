@@ -1,4 +1,4 @@
-//! Literal and enum-case types — `rule:types/literal-types`, `rule:types/constant-in-type-position` and `rule:types/enum-case-type`, at the point each atom becomes a real type and a value of one
+//! Literal and enum-case types — `rule:types/single-value-types`, `rule:types/constant-in-type-position` and `rule:types/enum-case-type`, at the point each atom becomes a real type and a value of one
 //! becomes writable.
 //!
 //! Three halves are pinned here: *what an atom interns to* (§§ 1-3), § 4's
@@ -214,7 +214,7 @@ fn a_literal_type_widens_to_its_base() {
     assert_eq!(types.interner.literal_base(one), int);
 }
 
-/// § 4's producer half: a literal expression takes `rule:types/literal-types`'s singleton
+/// § 4's producer half: a literal expression takes `rule:types/single-value-types`'s singleton
 /// type from the position it lands in, so writing the value out is what
 /// satisfies the type — the step without which nothing but an `as` ever could.
 #[test]

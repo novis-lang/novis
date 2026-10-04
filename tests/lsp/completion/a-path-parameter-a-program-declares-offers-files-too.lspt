@@ -1,5 +1,5 @@
 --TEST--
-a parameter a program marks with `#[Core\Path]` is a path parameter like a `Core` member's, so a string literal written for it is offered the entries of the directory its text reaches — `rule:programs/path-literals-resolve-from-their-file`
+a parameter a program marks with `#[Core\Path]` is a path parameter like a `Core` member's, so a string literal written for it is offered the entries of the directory its text reaches — `rule:programs/relative-paths-resolve-from-their-file`
 --FILE--
 <?nvs
 class Loader {

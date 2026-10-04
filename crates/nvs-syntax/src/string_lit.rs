@@ -107,7 +107,7 @@ pub fn cook_double_quoted_text(src: &SourceFile, span: Span) -> (String, Vec<Coo
 
 /// The two escapes a markup literal adds to the double-quoted grammar, and the
 /// whole of what it adds: `` \` `` for a backtick in the body, and `\{` for the
-/// one case that wants a literal `{$` (`rule:core-classes/html-literal`).
+/// one case that wants a literal `{$` (`rule:core-classes/html-template`).
 ///
 /// Neither can be a row of the shared table: in a double-quoted string both are
 /// an unknown escape, which PHP passes through as the two characters written,
@@ -119,7 +119,7 @@ const MARKUP_ESCAPES: &[char] = &['`', '{'];
 /// [`MARKUP_ESCAPES`].
 ///
 /// A segment is trusted bytes and nothing about it is escaped *for* HTML here:
-/// `rule:core-classes/html-literal` trusts a segment because the author wrote
+/// `rule:core-classes/html-template` trusts a segment because the author wrote
 /// it, so what runs over one is the same source-escape grammar every other
 /// literal's text runs, and `<` stays `<`.
 #[must_use]

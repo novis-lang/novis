@@ -121,7 +121,7 @@ pub struct MethodSig {
     /// deliberately not carried: no registry row writes one there, and the
     /// checker asks this question of a whole argument.
     pub param_quals: Vec<Option<Qual>>,
-    /// What each parameter's text names, positionally — `rule:programs/path-literals-resolve-from-their-file`'s
+    /// What each parameter's text names, positionally — `rule:programs/relative-paths-resolve-from-their-file`'s
     /// mark, read through [`Self::text_at`]. **Empty** means every parameter is
     /// [`ParamText::Plain`], which is the answer for every signature that
     /// marks nothing.
@@ -1511,7 +1511,7 @@ fn resolve_property_rec(
 /// [`ConstSig::ty`] owns why this is a fallback rather than a diagnostic — an
 /// unannotated `const` parses, so a read of one still has to answer something,
 /// and the value's own type is the closest thing to a declaration the source
-/// contains. A `string` constant answers `string` rather than `rule:types/literal-types`'s
+/// contains. A `string` constant answers `string` rather than `rule:types/single-value-types`'s
 /// literal type: § 2's literal-type fold is what a use in *type* position
 /// gets, and a read is an ordinary expression.
 fn folded_const_ty(qname: &QName, name: &str, env: &mut Env<'_>) -> TypeId {

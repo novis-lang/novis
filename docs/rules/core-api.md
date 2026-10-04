@@ -625,17 +625,17 @@ rather than two. Member access on a value that has no members is refused where i
 A member never takes a mode as a string or as an integer constant. There is no `fopen($p, "r+b")`, no
 `hash("sha256", …)`, no `MB_CASE_TITLE`. A mode is an enum ([`enums/closed-integer-type`](enums.md#enums-closed-integer-type)), always, and
 where a member accepts only some of an enum's cases it declares that closed subset in the signature
-([`types/literal-types`](types.md#types-literal-types)) so an unsafe case is a compile error naming the reason.
+([`types/single-value-types`](types.md#types-single-value-types)) so an unsafe case is a compile error naming the reason.
 
 A **grammar** is not a mode string and is not covered. A regex pattern, a `printf` template, a CLDR date
 pattern and a `pack` format each express something no enum can, and all four are compile-time-checked
-intrinsics ([`expressions/intrinsic-literals`](expressions.md#expressions-intrinsic-literals)). There are exactly four, and the list is closed.
+intrinsics ([`expressions/intrinsic-constant-arguments`](expressions.md#expressions-intrinsic-constant-arguments)). There are exactly four, and the list is closed.
 
 The gain is that every mode is typo-proof, completable in an editor and exhaustively matchable. The cost is
 one enum declaration per mode family, which is also what makes them documentable one case at a time
 ([`core-api/reference-card`](core-api.md#core-api-reference-card)).
 
-<sub>See also [`core-api/units-are-types`](core-api.md#core-api-units-are-types), [`enums/closed-integer-type`](enums.md#enums-closed-integer-type), [`types/literal-types`](types.md#types-literal-types), [`expressions/intrinsic-literals`](expressions.md#expressions-intrinsic-literals). Decided in [0063](../decisions/0063.md).</sub>
+<sub>See also [`core-api/units-are-types`](core-api.md#core-api-units-are-types), [`enums/closed-integer-type`](enums.md#enums-closed-integer-type), [`types/single-value-types`](types.md#types-single-value-types), [`expressions/intrinsic-constant-arguments`](expressions.md#expressions-intrinsic-constant-arguments). Decided in [0063](../decisions/0063.md).</sub>
 
 <a id="core-api-units-are-types"></a>
 
@@ -649,10 +649,10 @@ never "seconds here and microseconds there"; a byte size is a `uint` count of by
 PHP's `sleep`/`usleep`/`time_nanosleep` split is a units bug waiting for a refactor to find it, and a
 signature that takes an `int` cannot tell a caller which scale it wanted. A `Duration` takes the question
 out of the call site: it is constructed from the unit it is written in (`Duration::seconds`), it parses
-from a written grammar ([`types/duration-literal`](types.md#types-duration-literal)), and every member taking a timeout takes exactly
+from a written grammar ([`types/duration`](types.md#types-duration)), and every member taking a timeout takes exactly
 that type. The cost is one construction at each call site that would otherwise have passed a bare integer.
 
-<sub>See also [`core-api/no-mode-strings`](core-api.md#core-api-no-mode-strings), [`types/duration-literal`](types.md#types-duration-literal). Decided in [0063](../decisions/0063.md).</sub>
+<sub>See also [`core-api/no-mode-strings`](core-api.md#core-api-no-mode-strings), [`types/duration`](types.md#types-duration). Decided in [0063](../decisions/0063.md).</sub>
 
 <a id="core-api-no-encoding-argument"></a>
 
@@ -970,7 +970,7 @@ unnamed, omittable in full — which are worth enforcing by a type rather than r
 
 <a id="core-api-shape-arms-are-disjoint"></a>
 
-## A shape's arms are pairwise disjoint, so exactly one accepts a written literal and no field is declared a discriminant
+## A shape's arms are pairwise disjoint, so exactly one accepts a written anonymous object and no field is declared a discriminant
 
 `rule:core-api/shape-arms-are-disjoint`
 
@@ -982,7 +982,7 @@ proves for every pair of arms that some field they both declare has non-overlapp
 requires a key the other does not declare at all.
 
 Nothing declares a discriminant field. A settings shape separates its arms because the enum-case types
-([`types/literal-types`](types.md#types-literal-types)) on its driver field make one driver and the rest disjoint sets, and
+([`types/single-value-types`](types.md#types-single-value-types)) on its driver field make one driver and the rest disjoint sets, and
 disjointness is all arm selection ever needed. A rule naming a discriminant would be a second, weaker way
 of saying the same thing, and it would have nothing to say about a future union separated by a required key
 instead of by a value.
@@ -990,7 +990,7 @@ instead of by a value.
 What a caller sees is that a key belonging to the arm the other values did not select is refused where it
 is written, naming the arm's own key set rather than the merged one.
 
-<sub>See also [`core-api/shape-parameter`](core-api.md#core-api-shape-parameter), [`core-api/shape-reuses-the-option-diagnostics`](core-api.md#core-api-shape-reuses-the-option-diagnostics), [`types/literal-types`](types.md#types-literal-types), [`types/enum-case-type`](types.md#types-enum-case-type). Decided in [0135](../decisions/0135.md), [0047](../decisions/0047.md), [0067](../decisions/0067.md).</sub>
+<sub>See also [`core-api/shape-parameter`](core-api.md#core-api-shape-parameter), [`core-api/shape-reuses-the-option-diagnostics`](core-api.md#core-api-shape-reuses-the-option-diagnostics), [`types/single-value-types`](types.md#types-single-value-types), [`types/enum-case-type`](types.md#types-enum-case-type). Decided in [0135](../decisions/0135.md), [0047](../decisions/0047.md), [0067](../decisions/0067.md).</sub>
 
 <a id="core-api-one-checked-shape-type"></a>
 
@@ -1025,7 +1025,7 @@ skipped. Where two arms declare the same name it occupies one slot whose type is
 declarations, which is what lets a discriminant arrive as one value the helper switches on. The options bag
 expands through the same function, and a bag is the one-arm, all-optional case of it.
 
-Every slot the written literal does not fill passes a constant — the field's own default where it has one,
+Every slot the written anonymous object does not fill passes a constant — the field's own default where it has one,
 and a null otherwise. The helper reads its discriminant first and then reads only the slots that arm
 declares, which the type check has already guaranteed are filled. So **no runtime representation of a shape
 ever exists** and no helper learns a second calling convention.
@@ -1050,7 +1050,7 @@ A shape key reuses the options bag's two diagnostics, widened from "option" to "
 that is not a written anonymous object, and a key the member does not declare. No new diagnostic code is
 introduced.
 
-A **missing required key** needs no code of its own, because an incomplete literal genuinely *is* a value of
+A **missing required key** needs no code of its own, because an incomplete anonymous object genuinely *is* a value of
 the wrong type and the ordinary argument-type mismatch already reports it, naming the parameter. The
 asymmetry is not an accident: an *extra* key is the one that needed a code, precisely because a shape type's
 width subtyping ([`types/shape-type`](types.md#types-shape-type)) would otherwise have accepted it.

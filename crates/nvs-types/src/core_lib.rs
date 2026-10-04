@@ -709,7 +709,7 @@ fn lower(ty: &CoreTy, interner: &mut TypeInterner) -> TypeId {
             let null = interner.null();
             interner.make_union([null, inner])
         }
-        // `rule:types/literal-types`'s integer atom, which the interner already has: the
+        // `rule:types/single-value-types`'s integer atom, which the interner already has: the
         // registry variant exists only so a row can *write* one, and there is
         // nothing to translate beyond the value itself.
         CoreTy::IntLiteral(value) => interner.int_literal(*value),
@@ -2446,7 +2446,7 @@ mod tests {
     /// A written callback signature lowers to the interned type it spells, at
     /// the member's own variables — and substitutes field-wise rather than
     /// collapsing, which is the whole of what
-    /// `rule:types/callable-literal-inference` needs from a `Core` row: the
+    /// `rule:types/anonymous-function-parameter-inference` needs from a `Core` row: the
     /// expected type an unannotated `fn` parameter reads is this one with the
     /// call's bindings already applied.
     #[test]
@@ -2534,7 +2534,7 @@ mod tests {
         )]);
         assert_eq!(sig.params[1], expected);
         // A literal is its own type, not the `int` it erases to — the whole
-        // point of `rule:types/literal-types` at this position.
+        // point of `rule:types/single-value-types` at this position.
         let int = interner.int();
         assert_ne!(version, int);
     }

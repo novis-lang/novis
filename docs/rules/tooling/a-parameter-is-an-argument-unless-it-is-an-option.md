@@ -10,7 +10,7 @@ converts it exactly as it converts a written word.
 **A matched value's type comes from the parameter.** `uint $retries` is converted during matching
 and, because a checked conversion launders (`rule:security/route-capture-is-laundered-by-its-type`),
 arrives **unqualified**; `string $target` arrives `tainted`. An enum converts by its case name, a
-union of literals by its word (`rule:routing/a-capture-narrows-to-a-closed-set`), and a non-numeric
+set of allowed values by its word (`rule:routing/a-capture-narrows-to-a-closed-set`), and a non-numeric
 `--retries` is a usage error rather than a crash. This is the route capture's rule applied unchanged
 — no new laundering rule exists for the command line. An `#[Option]` written outside a `#[Command]`
 method supplies nothing, because there is no table for it to be a row of.

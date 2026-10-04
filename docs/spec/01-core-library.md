@@ -182,7 +182,7 @@ equivalent to pass it.
 | `fromCodePoints` | `fromCodePoints(array<uint> $codePoints): string` | `implode(array_map("mb_chr", …))` | neutral |
 | `format` | `format(string $template, mixed ...$arguments): string` | `sprintf`, `vsprintf`, `printf`, `vprintf`, `fprintf`, `vfprintf` | **sink** (template) |
 
-`format` is an `rule:expressions/intrinsic-literals` intrinsic: a literal template has its
+`format` is an `rule:expressions/intrinsic-constant-arguments` intrinsic: a literal template has its
 placeholder count and types checked against the argument list at compile time, which turns PHP's
 `printf`-argument-mismatch bug family into a diagnostic. Its template grammar is **`printf`'s**, kept
 deliberately — a closed conversion list (`%s %d %u %f %e %g %x %X %o %b %%`) with `printf`'s flag, width,
@@ -193,7 +193,7 @@ sinks**, because a grammar is an instruction rather than data
 (`rule:security/sink-predicate` and `rule:security/every-grammar-is-a-sink`): a tainted `format`
 template hands an attacker `%2$s` and `%999999999d`. The *arguments* stay contagious, and none of the four
 gets a launderer except `Regex::quote` — a grammar is written by the program, so the fix at a rejected call
-site is a literal, which `rule:expressions/intrinsic-literals` already folds.
+site is a literal, which `rule:expressions/intrinsic-constant-arguments` already folds.
 
 `ucwords` and title casing are **not** here — word segmentation is locale-dependent and belongs to intl;
 the mechanical rewrite for an ASCII-ish name is
@@ -446,7 +446,7 @@ exact count of nanoseconds; a `DateTime` moves by a count of a `Unit`, which is 
 boundary or a short month can make longer or shorter than its nominal length. `Time::now()->plus(72h)` and
 `Time::now()->in($zone)->plus(3, Unit::Day)` are different operations, and PHP's `"+3 days"` is ambiguous
 between them. There is no relative-expression string anywhere in this class: everything `strtotime` spells
-is a typed call, and `rule:types/duration-literal`'s `72h`/`30d` literal is what keeps them
+is a typed call, and `rule:types/duration`'s `72h`/`30d` literal is what keeps them
 short.
 
 ### Entry points on `Core\Time`
@@ -461,7 +461,7 @@ short.
 | `parse` | `parse(string $text, string $format, Zone $zone): DateTime` | `DateTime::createFromFormat`, `strptime` | |
 | `at` | `at(int $year, uint $month, uint $day, Zone $zone, {hour?, minute?, second?, nanos?}): DateTime` | `mktime`, `gmmktime`, `DateTime::setDate` | neutral |
 
-`Core\Time::parse` is an `rule:expressions/intrinsic-literals` intrinsic — a literal format
+`Core\Time::parse` is an `rule:expressions/intrinsic-constant-arguments` intrinsic — a literal format
 string is validated and its plan prepared at compile time. **A CLDR pattern is a `tainted` sink** wherever
 one is taken — `Time::parse`'s `$format` and every `format(string $pattern)` below — because it is one of
 R11's four grammars, per `Core\Str::format`'s note in § 1; the `$text` being parsed is data and stays
@@ -507,7 +507,7 @@ what `Duration::parse` takes. "Next monday" is not a value a config file supplie
 
 | Member | Signature | Notes |
 |---|---|---|
-| `format` | `$d->format(string $pattern): string` | `rule:expressions/intrinsic-literals` intrinsic, CLDR patterns. Replaces `date`, `gmdate`, `idate`, `strftime`, `date_format` |
+| `format` | `$d->format(string $pattern): string` | `rule:expressions/intrinsic-constant-arguments` intrinsic, CLDR patterns. Replaces `date`, `gmdate`, `idate`, `strftime`, `date_format` |
 | `plus` / `minus` | `$d->plus(int $count, Unit $unit): DateTime` | calendar arithmetic: adding `1, Unit::Month` lands on the same day-of-month, clamped to the month's length, and crossing a DST boundary is a 23- or 25-hour day. Replaces `date_add`, `date_sub`, `modify`, `strtotime`'s relative half |
 | `next` / `previous` | `$d->next(Weekday $w): DateTime` | the nearest strictly later (earlier) day with that weekday, time-of-day preserved. Replaces `strtotime("next monday")` |
 | `with` | `$d->with({year?, month?, day?, hour?, minute?, second?, nanos?}): DateTime` | replaces `setDate`, `setTime`, `setISODate` |
@@ -529,7 +529,7 @@ because constructing an invalid date throws.
 
 | Member | Signature | Notes |
 |---|---|---|
-| `Duration::seconds` | `seconds(int $n): Duration` | plus `nanoseconds`, `microseconds`, `milliseconds`, `minutes`, `hours`, `days`, `weeks` — for a **computed** count; a literal one is `rule:types/duration-literal`'s `30s` |
+| `Duration::seconds` | `seconds(int $n): Duration` | plus `nanoseconds`, `microseconds`, `milliseconds`, `minutes`, `hours`, `days`, `weeks` — for a **computed** count; a literal one is `rule:types/duration`'s `30s` |
 | `Duration::parse` | `parse(string $text): Duration` | the run-time form of that same literal grammar, one implementation for both. Throws on anything it does not accept, so it **launders** a `tainted` config value |
 | `$d->toSeconds` | `$d->toSeconds(): int` | plus `toMilliseconds`, `toMicroseconds`, `toNanoseconds` |
 | `$d->plus` / `minus` / `multipliedBy` / `negated` | `$d->plus(Duration $d): Duration` / `$d->minus(Duration $d): Duration` / `$d->multipliedBy(int $factor): Duration` / `$d->negated(): Duration` | `Duration` is `Comparable` and `Stringable`, emitting the literal grammar so it round-trips through `parse` |
@@ -646,7 +646,7 @@ only inside `Core\Mail`, which is the one thing that ever needed it.
 names wherever the operation is the same: `length`, `at`, `slice`, `indexOf`, `compare`, `contains`,
 `startsWith`, `endsWith`, `join(array<bytes> $parts, bytes $separator = "")`, `fill`, `repeat`, plus
 `pack(string $format, mixed ...$values)` and `unpack(bytes $b, string $format): array<mixed>` (replacing
-`pack`/`unpack`, with the format string an `rule:expressions/intrinsic-literals` intrinsic and, on both members, a **sink** — it is one
+`pack`/`unpack`, with the format string an `rule:expressions/intrinsic-constant-arguments` intrinsic and, on both members, a **sink** — it is one
 of R11's four grammars, per `Core\Str::format` above). The three predicates are what magic-byte
 sniffing needs, and `join` rather than a `concat` of its own keeps R6's pairing with `Core\Str`. There is
 no `bytes` literal — see [00-overview § 5](00-overview.md).
@@ -676,7 +676,7 @@ cases it converts itself rather than delegating.
 Pure string algebra over paths. **No member touches the disk**, so none needs a capability, and every member
 but `fromCwd` is constant-foldable. Everything that reads or writes is `Core\IO` (§ 14) — that split is the
 point. `fromCwd` reads the process's working directory, and throws while a request is being answered
-(`rule:programs/path-literals-resolve-from-their-file`).
+(`rule:programs/relative-paths-resolve-from-their-file`).
 
 | Member | Signature | Replaces | Q |
 |---|---|---|---|
@@ -822,7 +822,7 @@ milliseconds and random inside one — the property that makes it the right prim
 identifier, since a `v7` handed to a stranger tells them when the row was created.
 
 `Digest` carries every algorithm including `Md5`, `Sha1` and `Crc32`, because checksum interop genuinely
-needs them. `StrongDigest` is the closed subset (`rule:types/literal-types`)
+needs them. `StrongDigest` is the closed subset (`rule:types/single-value-types`)
 that the HMAC and signature members declare, so `Hash::hmac($m, $k, Digest::Md5)` is a compile error naming
 the reason. Password hashing takes no algorithm argument at all and is in § 16.
 
@@ -881,7 +881,7 @@ input opens two streams.
 | `$uri->sign` | `$uri->sign({keys: array<secret bytes>, until: ?Time\Instant} $settings): Uri` | nothing — Laravel's `URL::signedRoute`, Symfony's `UriSigner` | |
 | `$uri->verifySignature` | `$uri->verifySignature(array<secret bytes> $keys): void` | nothing | neutral |
 
-`Uri::parse` is an `rule:expressions/intrinsic-literals` intrinsic. Note what is **not** here: `Core\Uri` never decides whether a URL
+`Uri::parse` is an `rule:expressions/intrinsic-constant-arguments` intrinsic. Note what is **not** here: `Core\Uri` never decides whether a URL
 may be *fetched* — that is `Core\Http::allowUrl` in § 16, the SSRF launderer
 (`rule:http-server/allow-url-pins-the-address`).
 
@@ -962,7 +962,7 @@ launders anything.**
 Three members that were here are gone as duplicates, each with a one-line rewrite: `isUrl` is
 `Uri::tryParse($s)?->scheme() != null`, `oneOf($value, $allowed)` is `Arr::contains($allowed, $value)` — the same operation with
 PHP's argument order, which R10 exists to stop — and `isIpV4`/`isIpV6` are `{version: 4}`/`{version: 6}`,
-a closed literal set (`rule:types/literal-types`) rather than two more names.
+a closed literal set (`rule:types/single-value-types`) rather than two more names.
 
 **There is no `isInteger`, `isFloat` or `isBoolean`**: each is `$s as ?int`/`?float`/`?bool != null`
 (`rule:expressions/nullable-conversion`), and R17 forbids the second spelling. Every
@@ -1323,7 +1323,7 @@ ErrorKind  { UniqueViolation, ForeignKeyViolation, NotNullViolation, CheckViolat
              SerializationFailure, ConnectionLost, Timeout, Syntax, Permission, Other }
 ```
 
-`Db\Settings` is a discriminated union over `rule:types/literal-types`'s
+`Db\Settings` is a discriminated union over `rule:types/single-value-types`'s
 enum-case types — a `host` on a SQLite literal is a compile error:
 
 ```

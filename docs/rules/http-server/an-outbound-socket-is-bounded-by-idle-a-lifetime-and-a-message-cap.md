@@ -16,7 +16,7 @@ sets it is choosing to have `idle` end a *dead* peer rather than a quiet one. A 
 answered regardless — that is the protocol, not a policy.
 
 Every bound is a `Duration` or a `uint` of bytes, and neither type has an infinite value
-(`rule:types/duration-literal`, `rule:core-api/units-are-types`). There is no `null` and no `0` meaning
+(`rule:types/duration`, `rule:core-api/units-are-types`). There is no `null` and no `0` meaning
 unbounded, so an outbound socket that waits forever is not something a program can express — the guarantee
 comes from the absence of a spelling, exactly as it does for a call
 (`rule:http-server/no-spelling-for-an-unbounded-wait`). Expiry throws `TimeoutError`

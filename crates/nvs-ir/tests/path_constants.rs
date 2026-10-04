@@ -1,4 +1,4 @@
-//! `rule:programs/path-literals-resolve-from-their-file`'s `Core\Path::thisFile`
+//! `rule:programs/relative-paths-resolve-from-their-file`'s `Core\Path::thisFile`
 //! and `thisDir`, lowered: each call is the string constant the checker folded
 //! it to, and no instruction calls either member's symbol.
 //!

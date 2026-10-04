@@ -6,7 +6,7 @@ Core\Validate::isEmail, isDomain, isIp and isMac answer what filter_var's FILTER
 // validators only, each named after a *format*, none of them a launderer.
 // `filter_var`'s validate half is therefore the twin for exactly these four
 // members, and the two flag-selected IP families are the `{version:}` option
-// rather than two more member names (spec § 12; `rule:types/literal-types`'s closed literal set).
+// rather than two more member names (spec § 12; `rule:types/single-value-types`'s closed literal set).
 //
 // PHP's answer is a value-or-`false`, which is the fourth of the four failure
 // spellings `rule:core-api/shape-rules` replaces with a `bool` here; the twin below compares

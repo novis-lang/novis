@@ -158,7 +158,7 @@ fn a_fix_all_applies_the_grouping_that_keeps_the_meaning_and_never_the_alternati
 }
 
 /// The one action with no diagnostic behind it
-/// (`rule:ide/a-string-converts-to-an-html-literal`): it changes what the line
+/// (`rule:ide/a-string-converts-to-an-html-template`): it changes what the line
 /// prints, so it is offered beside the quick fixes under its own kind and never
 /// in a fix-all, which a save would run.
 #[test]

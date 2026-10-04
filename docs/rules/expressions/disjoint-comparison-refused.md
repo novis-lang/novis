@@ -12,7 +12,7 @@ if ($s == ($n as string)) { }   // convert once, deliberately, then compare
 Disjointness, not identity of types, is the test, so ordinary code still compiles: the same type; any
 pairing of `int`, `uint`, `float` and `decimal`, which are **one numeric domain**; `?T` against `null`
 or against `T`, which is the null test and narrows; a union against any type one member can hold; a
-literal or enum-case type against its base; `mixed` against anything; a class against itself or an
+single-value or enum-case type against its base; `mixed` against anything; a class against itself or an
 ancestor.
 
 Refused: a non-nullable type against `null`; `string` against `bytes`; an enum against its underlying

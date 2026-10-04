@@ -7,7 +7,7 @@ config overlay. Open resources are not shared and cannot be passed.
 
 The operand is decided syntactically at the spawn site — a `string` expression, or a
 `Class::method(...)` reference written there — and nothing else. A `callable` variable is refused,
-because whether *it* captures is not known statically; an `fn` literal is refused with a diagnostic
+because whether *it* captures is not known statically; an anonymous function is refused with a diagnostic
 naming the method form.
 
 The isolate joins `spawn` and `spawn worker` rather than introducing a second concurrency vocabulary:

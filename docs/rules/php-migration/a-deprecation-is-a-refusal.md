@@ -15,8 +15,8 @@ PHP 8.6 lands as four of these and one non-adoption: no `return` leaves a `final
 (`rule:php-migration/a-readonly-property-declares-no-default`), and partial application is not
 adopted (`rule:php-migration/no-partial-application`); beside them, one session rule with no off
 switch (`rule:php-migration/a-session-id-the-store-did-not-issue-is-rejected`). The rest of 8.6 asks
-nothing: `clamp` is `Core\Math::clamp`, `Time\Duration` is `Core\Time\Duration` under its own
-literals (`rule:types/duration-literal`), `Io\Poll` has no landing spot because readiness is
+nothing: `clamp` is `Core\Math::clamp`, `Time\Duration` is `Core\Time\Duration`, written
+like `1h30m` (`rule:types/duration`), `Io\Poll` has no landing spot because readiness is
 runtime-internal and user code gets structured concurrency, and nearly every other deprecation names
 surface Novis never shipped. Three of the four refusals rewrite mechanically under `nvs convert`;
 `return` in `finally` is the one it can only point at.

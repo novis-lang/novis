@@ -1,8 +1,8 @@
 --TEST--
-A literal statement handed to `stream` is validated while checking, exactly as `query`'s is: the placeholders are counted against the literal parameter array before the program is ever run — `rule:core-classes/db-statement-members` and `rule:core-classes/db-literal-query-checking`, `rule:expressions/intrinsic-list-is-closed`
+A literal statement handed to `stream` is validated while checking, exactly as `query`'s is: the placeholders are counted against the literal parameter array before the program is ever run — `rule:core-classes/db-statement-members` and `rule:core-classes/db-compile-time-query-checking`, `rule:expressions/intrinsic-list-is-closed`
 --FILE--
 <?nvs
-// `rule:core-classes/db-literal-query-checking` validates a *literal* SQL argument during checking — the
+// `rule:core-classes/db-compile-time-query-checking` validates a *literal* SQL argument during checking — the
 // placeholder count against a literal params array — and § 4 gives `stream` the
 // same statement and the same binding rule `query` has. So the check follows the
 // rule rather than the member: a mistake that `query` finds at compile time is

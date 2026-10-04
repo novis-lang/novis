@@ -16,8 +16,8 @@ Every callable type is assignable to it, calling through one keeps the dynamic p
 per-argument tag check, and nothing existing changes meaning. Narrowing is opt-in. Where a call
 reaches a callable whose type names its parameters, the arguments are proven at compile time and the
 per-argument tag check is **not emitted**; the metadata stays on every callable, because bare `callable`
-still needs it and an anonymous function does not know at its literal which kind of site will call it.
+still needs it and an anonymous function does not know where it is written which kind of site will call it.
 
 The two binding-site variants that stood in for this — a callback-return parameter and a shape of
-callbacks — are retired, and the restriction that a shape's every field be a *written* `fn` literal
+callbacks — are retired, and the restriction that a shape's every field be a *written* anonymous function
 goes with them, because a `callable(): T`-typed variable now carries what the field needs.

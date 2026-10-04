@@ -19,7 +19,7 @@
 //!
 //! A settled answer **folds** instead: the expression's type is `true` or
 //! `false` rather than `bool`, with no diagnostic and no warning
-//! (`rule:types/literal-types` is what makes those types sayable). Both folds
+//! (`rule:types/single-value-types` is what makes those types sayable). Both folds
 //! are deliberately one-sided, in [`always_holds`]'s and
 //! [`never_holds`]'s directions: what neither proves types as plain `bool` and
 //! is answered at run time, which is never wrong — only, at worst, a run-time

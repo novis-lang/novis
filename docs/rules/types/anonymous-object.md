@@ -5,8 +5,8 @@ $box   = {count: 0};
 
 Each anonymous object's precise type is a private, compiler-synthesized class with exactly the fields
 written, each field's type inferred from its initializer. That class has **no methods**, no
-`implements`, no inheritance and no user-reachable name; it needs no constructor, because the literal
-assigns every field it declares; and it is an **ordinary object** in every other respect — reference
+`implements`, no inheritance and no user-reachable name; it needs no constructor, because the anonymous
+object assigns every field it declares; and it is an **ordinary object** in every other respect — reference
 semantics, `clone`, `serialize` and an isolate crossing all work on it through the existing uniform
 mechanism, because it has real declared properties. Field names are ordinary property names, so the
 `camelCase` and no-leading-underscore rules apply unchanged.

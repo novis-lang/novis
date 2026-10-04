@@ -7,7 +7,7 @@
     "0007"
   ],
   "seeAlso": [
-    "types/literal-types",
+    "types/single-value-types",
     "types/conversion",
     "types/narrowing"
   ],

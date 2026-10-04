@@ -1,5 +1,5 @@
 --TEST--
-`#[Core\Path]` on a parameter that is not a `string`, or on a declaration that takes no argument, is refused rather than ignored, and on a `string` or `?string` parameter it is accepted — `rule:programs/path-literals-resolve-from-their-file`
+`#[Core\Path]` on a parameter that is not a `string`, or on a declaration that takes no argument, is refused rather than ignored, and on a `string` or `?string` parameter it is accepted — `rule:programs/relative-paths-resolve-from-their-file`
 --FILE--
 <?nvs
 // covers: lang:programs/file-paths-a-literal-starts-at-the-folder-of-its-file

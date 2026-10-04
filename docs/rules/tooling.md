@@ -196,7 +196,7 @@ is the sink's named launderer, performing exactly this table, for the program th
 neutralized form as a value. A `secret` value is refused outright with no carrier bypass
 ([`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse)), because substitution does nothing for confidentiality.
 
-<sub>See also [`tooling/text-is-the-one-raw-path`](tooling.md#tooling-text-is-the-one-raw-path), [`tooling/an-escape-in-a-literal-is-a-compile-error`](tooling.md#tooling-an-escape-in-a-literal-is-a-compile-error), [`tooling/echo-always-has-a-sink`](tooling.md#tooling-echo-always-has-a-sink), [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape), [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`security/bidi-predicate`](security.md#security-bidi-predicate), [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named). Decided in [0086](../decisions/0086.md), [0024](../decisions/0024.md), [0087](../decisions/0087.md).</sub>
+<sub>See also [`tooling/text-is-the-one-raw-path`](tooling.md#tooling-text-is-the-one-raw-path), [`tooling/an-escape-in-source-text-is-a-compile-error`](tooling.md#tooling-an-escape-in-source-text-is-a-compile-error), [`tooling/echo-always-has-a-sink`](tooling.md#tooling-echo-always-has-a-sink), [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape), [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`security/bidi-predicate`](security.md#security-bidi-predicate), [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named). Decided in [0086](../decisions/0086.md), [0024](../decisions/0024.md), [0087](../decisions/0087.md).</sub>
 
 <a id="tooling-text-is-the-one-raw-path"></a>
 
@@ -221,19 +221,19 @@ not worth making while `echo` writes standard output and nothing else can observ
 
 <sub>See also [`tooling/terminal-output-is-a-sink`](tooling.md#tooling-terminal-output-is-a-sink), [`tooling/styling-is-a-value-not-a-grammar`](tooling.md#tooling-styling-is-a-value-not-a-grammar), [`core-classes/html-escape-answers-markup`](core-classes.md#core-classes-html-escape-answers-markup), [`security/capture-answers-the-carrier`](security.md#security-capture-answers-the-carrier). Decided in [0086](../decisions/0086.md), [0088](../decisions/0088.md).</sub>
 
-<a id="tooling-an-escape-in-a-literal-is-a-compile-error"></a>
+<a id="tooling-an-escape-in-source-text-is-a-compile-error"></a>
 
-## An `ESC` in a source literal is a compile error that names `Core\Cli\Text`  *(designed — not yet in the compiler)*
+## An `ESC` in a string literal in the source is a compile error that names `Core\Cli\Text`  *(designed — not yet in the compiler)*
 
-`rule:tooling/an-escape-in-a-literal-is-a-compile-error`
+`rule:tooling/an-escape-in-source-text-is-a-compile-error`
 
-An `ESC` byte in a source literal is a compile error naming the site and the fix: *raw terminal
+An `ESC` byte in a string literal in the source is a compile error naming the site and the fix: *raw terminal
 escapes are not how output is styled — use `Core\Cli\Text`.*
 
 This is what keeps [`tooling/terminal-output-is-a-sink`](tooling.md#tooling-terminal-output-is-a-sink) from being a trap. A program whose
-literals hold no `ESC` — every program that does not hand-roll colour — is byte-identical with the
-sink in place, and the one program that would be surprised by `␛[31m` on its screen is told at compile
-time, at the exact line. With the literal case closed, the only way to meet the substitution at run
+string literals hold no `ESC` — every program that does not hand-roll colour — is byte-identical with
+the sink in place, and the one program that would be surprised by `␛[31m` on its screen is told at
+compile time, at the exact line. With the written case closed, the only way to meet the substitution at run
 time is to print a **computed** escape sequence, which is the attack the sink exists to neutralize.
 The diagnostic names `Cli\Text` so that a developer who wants colour finds the one raw path
 ([`tooling/text-is-the-one-raw-path`](tooling.md#tooling-text-is-the-one-raw-path)) instead of concluding that colour does not work.
@@ -520,7 +520,7 @@ converts it exactly as it converts a written word.
 **A matched value's type comes from the parameter.** `uint $retries` is converted during matching
 and, because a checked conversion launders ([`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type)),
 arrives **unqualified**; `string $target` arrives `tainted`. An enum converts by its case name, a
-union of literals by its word ([`routing/a-capture-narrows-to-a-closed-set`](routing.md#routing-a-capture-narrows-to-a-closed-set)), and a non-numeric
+set of allowed values by its word ([`routing/a-capture-narrows-to-a-closed-set`](routing.md#routing-a-capture-narrows-to-a-closed-set)), and a non-numeric
 `--retries` is a usage error rather than a crash. This is the route capture's rule applied unchanged
 — no new laundering rule exists for the command line. An `#[Option]` written outside a `#[Command]`
 method supplies nothing, because there is no table for it to be a row of.
@@ -699,7 +699,7 @@ position is not observable and a member's is.
 
 <a id="tooling-fmt-novis-constructs"></a>
 
-## Every construct PER never saw — qualifiers, `lateinit`, `fn` anonymous functions, `match`, anonymous objects, shape types, enum cases, markup literals, a `?>` on its own line — has exactly one layout
+## Every construct PER never saw — qualifiers, `lateinit`, `fn` anonymous functions, `match`, anonymous objects, shape types, enum cases, html templates, a `?>` on its own line — has exactly one layout
 
 `rule:tooling/fmt-novis-constructs`
 
@@ -719,9 +719,9 @@ Each construct with no PER precedent has one layout, chosen once:
   lines it is one field per line, indented one level, with a trailing comma. An empty one has no inside
   to space and stays `{}`.
 - Enum cases are one per line when the author wrote them that way, with a trailing comma when multi-line.
-- A markup literal's body is never touched — not reflowed, not re-indented, not re-quoted — exactly as a
+- An html template's body is never touched — not reflowed, not re-indented, not re-quoted — exactly as a
   heredoc body and an inline-HTML region are not ([`tooling/fmt-quotes`](tooling.md#tooling-fmt-quotes),
-  [`core-classes/html-literal`](core-classes.md#core-classes-html-literal)). Only its surroundings are laid out, so the bytes between the
+  [`core-classes/html-template`](core-classes.md#core-classes-html-template)). Only its surroundings are laid out, so the bytes between the
   backticks survive formatting unchanged and `nvs fmt` stays idempotent over a template.
 - A `?>` that begins its line is indented to the depth of the block it sits in — the column a statement
   there would start at — so the markup after it can start from the code around it
@@ -733,7 +733,7 @@ Each construct with no PER precedent has one layout, chosen once:
 Several of these have exactly one contributor and no convention to defer to. Changing one later is a
 breaking rewrite of every formatted file, the same cost class casing already accepted.
 
-<sub>See also [`tooling/fmt-base-style-is-per`](tooling.md#tooling-fmt-base-style-is-per), [`tooling/fmt-trailing-commas`](tooling.md#tooling-fmt-trailing-commas), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`types/anonymous-function`](types.md#types-anonymous-function), [`types/anonymous-object`](types.md#types-anonymous-object), [`types/shape-type`](types.md#types-shape-type), [`enums/declaration`](enums.md#enums-declaration), [`core-classes/html-literal`](core-classes.md#core-classes-html-literal). Decided in [0039](../decisions/0039.md), [0169](../decisions/0169.md), [0173](../decisions/0173.md).</sub>
+<sub>See also [`tooling/fmt-base-style-is-per`](tooling.md#tooling-fmt-base-style-is-per), [`tooling/fmt-trailing-commas`](tooling.md#tooling-fmt-trailing-commas), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`types/anonymous-function`](types.md#types-anonymous-function), [`types/anonymous-object`](types.md#types-anonymous-object), [`types/shape-type`](types.md#types-shape-type), [`enums/declaration`](enums.md#enums-declaration), [`core-classes/html-template`](core-classes.md#core-classes-html-template). Decided in [0039](../decisions/0039.md), [0169](../decisions/0169.md), [0173](../decisions/0173.md).</sub>
 
 <a id="tooling-fmt-normalizes-only-reserved-spellings"></a>
 
@@ -743,17 +743,17 @@ breaking rewrite of every formatted file, the same cost class casing already acc
 
 `nvs fmt` normalizes a mis-cased reserved spelling to its lower-case form only where that mis-cased
 spelling has no other legal meaning. Two qualify, and each already carries the diagnostic that names the
-fix: a duration literal's unit, `5Min` → `5min` ([`types/duration-literal`](types.md#types-duration-literal)), and the open tag,
+fix: a duration's unit, `5Min` → `5min` ([`types/duration`](types.md#types-duration)), and the open tag,
 `<?NVS` → `<?nvs` ([`classes/reserved-spellings-are-lower-case`](classes.md#classes-reserved-spellings-are-lower-case)).
 
 Both spellings are errors, and that is how `nvs fmt` reaches them rather than what stops it: the
 formatter refuses a file for an error it does not itself rewrite, not for reporting one at all. A
 mis-cased reserved spelling leaves a whole tree behind it — the lexer read the tag or the duration
-literal it was handed, and `E_RESERVED_SPELLING_CASE`'s primary span is exactly the bytes to
+it was handed, and `E_RESERVED_SPELLING_CASE`'s primary span is exactly the bytes to
 lower-case — so the file is formatted and the spelling goes out in its one form. The alternative,
 leaving the rewrite to an editor's code action and having `nvs fmt` refuse the file, would make this
 rule name two rewrites nothing performs. What the formatter does not promise is that the result
-compiles: a literal that is mis-cased *and* out of order comes back lower-cased and still refused,
+compiles: a duration that is mis-cased *and* out of order comes back lower-cased and still refused,
 by the diagnostic that was always its own.
 
 The criterion is what generalizes, not the list. A keyword never qualifies: `IF` and `ECHO` are legal
@@ -765,7 +765,7 @@ single-file walk — that rename is an editor's workspace-wide code action. A du
 can be nothing else, which is why they and only they are here. Normalizing PHP's case-insensitive
 reserved words is the converter's job, where the input is known to be PHP.
 
-<sub>See also [`types/duration-literal`](types.md#types-duration-literal), [`classes/reserved-spellings-are-lower-case`](classes.md#classes-reserved-spellings-are-lower-case), [`core-api/casing-checks-the-leading-character`](core-api.md#core-api-casing-checks-the-leading-character), [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic), [`tooling/convert-one-table-two-modes`](tooling.md#tooling-convert-one-table-two-modes), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency). Decided in [0039](../decisions/0039.md).</sub>
+<sub>See also [`types/duration`](types.md#types-duration), [`classes/reserved-spellings-are-lower-case`](classes.md#classes-reserved-spellings-are-lower-case), [`core-api/casing-checks-the-leading-character`](core-api.md#core-api-casing-checks-the-leading-character), [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic), [`tooling/convert-one-table-two-modes`](tooling.md#tooling-convert-one-table-two-modes), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency). Decided in [0039](../decisions/0039.md).</sub>
 
 <a id="tooling-fmt-never-inserts-visibility"></a>
 

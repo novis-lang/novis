@@ -1,5 +1,5 @@
 //! The one template habit a markup literal warns about: `{Page::TITLE}`, a
-//! brace directly before a class path, which `rule:core-classes/html-literal`
+//! brace directly before a class path, which `rule:core-classes/html-template`
 //! keeps as text and which a page then prints as written. The literal's
 //! typing is `nvs-types`'s `markup_literal.rs`; what is held here is the
 //! lexer's warning — where it points, what it names, and every brace it stays

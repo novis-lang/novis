@@ -5,7 +5,7 @@ whole spelling. Each of them is also an operator's character, and an editor asks
 answering `$a >` or `Core\Str:` with whatever the position offers opens a list nobody asked for. `-` is
 not a trigger, because it finishes nothing. A quote and `/` open and extend a literal the compiler reads
 as a path or a name, and a request one of them raised is answered only where the cursor is inside one: a
-`require` or `autoload` path literal, an `autoload` prefix, the string converted with `as class<T>`, or a
+`require` or `autoload` path string, an `autoload` prefix, the string converted with `as class<T>`, or a
 string argument at a path or class-name parameter. A quote opens one and a `/` starts a path's next
 segment. A quote also opens a string argument at a parameter a completion file names
 (`rule:ide/completion-files-offer-values-at-named-parameters`), and inside one `.`, `/` and `:` start

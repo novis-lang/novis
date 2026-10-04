@@ -1,6 +1,7 @@
-A literal SQL argument is validated while checking, under the closed intrinsic-literal list:
-placeholder count against a literal params array, positional-versus-named consistency, an
-unterminated string literal, and a refused second statement. A literal `Db::open` host matching no
+A SQL argument given as a string literal is validated while checking, under the closed list of
+intrinsic calls (`rule:expressions/intrinsic-list-is-closed`): placeholder count against a params
+array literal, positional-versus-named consistency, an unterminated string literal, and a refused
+second statement. A `Db::open` host given as a string literal and matching no
 `db.open` grant is likewise a check-time diagnostic, since configuration is read at boot on the
 machine that compiles.
 

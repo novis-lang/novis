@@ -1,5 +1,5 @@
 --TEST--
-the `path` field of the `Db\Settings` shape is a path, so a string literal written for it in the `{...}` argument is offered the entries of the directory its text reaches, and the `driver` field beside it is not — `rule:programs/path-literals-resolve-from-their-file`
+the `path` field of the `Db\Settings` shape is a path, so a string literal written for it in the `{...}` argument is offered the entries of the directory its text reaches, and the `driver` field beside it is not — `rule:programs/relative-paths-resolve-from-their-file`
 --FILE--
 <?nvs
 var $db = Core\Db::open({driver: Core\Db\Driver::Sqlite, path: 'db/<|>'});

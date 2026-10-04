@@ -1,5 +1,5 @@
 {
-  "title": "A literal pattern is validated and tiered while checking, and a malformed one is a compile error",
+  "title": "A pattern given as a string literal is validated and tiered while checking, and a malformed one is a compile error",
   "status": "shipped",
   "because": [
     "0056",
@@ -8,7 +8,7 @@
   ],
   "seeAlso": [
     "core-classes/regex-two-tiers",
-    "expressions/intrinsic-literals",
+    "expressions/intrinsic-constant-arguments",
     "expressions/intrinsic-list-is-closed"
   ],
   "guardedBy": [

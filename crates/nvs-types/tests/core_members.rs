@@ -122,7 +122,7 @@ fn a_core_union_parameter_takes_either_member_and_nothing_else() {
 /// checker.
 ///
 /// The unannotated spelling is the one the written signature buys
-/// (`rule:types/callable-literal-inference`): `$n` takes `int` from the
+/// (`rule:types/anonymous-function-parameter-inference`): `$n` takes `int` from the
 /// substituted parameter, which is only substituted because the literal is
 /// checked after the subject bound `T`.
 #[test]

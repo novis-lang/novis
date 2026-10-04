@@ -1,5 +1,5 @@
 --TEST--
-`rule:types/duration-literal`: `1h30m`, `Duration::parse("1h30m")` and `toString()` are one grammar with one meaning
+`rule:types/duration`: `1h30m`, `Duration::parse("1h30m")` and `toString()` are one grammar with one meaning
 --FILE--
 <?nvs
 // § 2: the suffix *is* the type, so nothing places a duration literal the way

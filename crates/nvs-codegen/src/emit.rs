@@ -570,7 +570,7 @@ impl Emitter<'_, '_> {
                 let value = self.join_tagged(tag, bits);
                 self.define(inst, value)?;
             }
-            // `rule:core-classes/html-literal`'s folded literal: a whole
+            // `rule:core-classes/html-template`'s folded literal: a whole
             // `Core\Html\Markup` in the data section, which costs the one
             // address a string literal costs and no call at all.
             InstKind::ConstMarkup(text) => {
@@ -1228,7 +1228,7 @@ impl Emitter<'_, '_> {
     /// A hole-free markup literal: the whole `Core\Html\Markup` in the unit's
     /// data section, at the cost of the two relocations that make it one.
     ///
-    /// `rule:core-classes/html-literal` promises this shape allocates nothing
+    /// `rule:core-classes/html-template` promises this shape allocates nothing
     /// per execution, and an instance is only as immortal as what its slots
     /// point at — so the text is [`Self::immortal_str_data`]'s own constant and
     /// the object points at that. [`nvs_runtime::immortal_object_bytes`] writes
@@ -1440,7 +1440,7 @@ impl Emitter<'_, '_> {
             // answered for a `string`, a `bytes`, an `array<T>`, an object, an
             // enum case (through `Reinterpret` to its backing integer, in
             // `nvs-ir`, at every site that compares one — a written `==`,
-            // `rule:types/literal-types`'s membership chain, and a `match` or a `switch`
+            // `rule:types/single-value-types`'s membership chain, and a `match` or a `switch`
             // label chain) and `null`; ordering is refused where it is *written*
             // for every representation that is not a number or a `bool`
             // (`E0715`, and `E0411` for the object family), and `decimal`'s own

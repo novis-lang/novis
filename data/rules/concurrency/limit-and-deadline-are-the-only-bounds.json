@@ -7,7 +7,7 @@
   "divergesFromPhp": "a wait is bounded by an option on the call rather than by `set_time_limit`, `default_socket_timeout` or an ini setting read from somewhere else",
   "seeAlso": [
     "core-api/options-bag",
-    "types/duration-literal",
+    "types/duration",
     "core-classes/db-one-api"
   ],
   "guardedBy": [

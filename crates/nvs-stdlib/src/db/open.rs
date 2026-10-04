@@ -929,7 +929,7 @@ nvs_runtime::nvs_helper! {
 /// and a `path` written in a program resolves against the program file that
 /// wrote it: `Db\Settings`' `path` is a path field, so the compiler joins a
 /// relative literal to that file's folder
-/// (`rule:programs/path-literals-resolve-from-their-file`). A path the program
+/// (`rule:programs/relative-paths-resolve-from-their-file`). A path the program
 /// built at run time arrives here as it was built, and a relative one is
 /// refused by the capability check below, as at every other door. The grant
 /// list is where an operator bounds what is left.

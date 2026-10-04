@@ -22,7 +22,7 @@
     "ide/the-request-set-is-closed",
     "ide/a-code-action-writes-only-what-is-already-determined",
     "expressions/misread-grouping-warns",
-    "ide/a-string-converts-to-an-html-literal"
+    "ide/a-string-converts-to-an-html-template"
   ],
   "guardedBy": []
 }

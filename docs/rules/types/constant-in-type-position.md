@@ -11,7 +11,7 @@ function handle(Foo::TYPE_A|Foo::TYPE_B $type) { … }   // exactly "a"|"b"
 ```
 
 This is safe precisely because a scalar `const` is not a distinct nominal type: `Foo::TYPE_A`
-genuinely *is* the string `"a"`, so folding it to that literal type changes nothing a caller could
+genuinely *is* the string `"a"`, so folding it to that single-value type changes nothing a caller could
 observe — passing the bare `"a"` is exactly as valid.
 
 A constant backed by a non-scalar type — an `array`, an object, a `float` — is **not eligible**, and

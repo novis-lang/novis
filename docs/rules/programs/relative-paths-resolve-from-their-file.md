@@ -1,6 +1,6 @@
 A relative string literal passed to a path parameter is joined to the folder of the source file that
 contains it, while compiling, the way `require` resolves its path. The program runs with the absolute
-path in the literal's place, so `Core\IO::read('data/x.json')` reads the same file from a terminal,
+path in the string's place, so `Core\IO::read('data/x.json')` reads the same file from a terminal,
 under `nvs serve` and as a service.
 
 ```nvs
@@ -21,9 +21,9 @@ text and are not marked, and neither is `Core\IO::within`'s `$path`, which names
 and is allowed only on a parameter whose type is a `string`, alone or with `null` (`E0836`
 elsewhere). A default value of such a parameter resolves against the file that declares it.
 
-**A literal** is a plain string literal written as the argument itself. A class constant, a
-concatenation of literals and a variable are values built while the program runs. A path argument
-that starts with a relative literal and adds more — `'data/' . $name` or `"data/{$name}"` — is
+**A string literal** here is one written as the argument itself. A class constant, a
+concatenation of string literals and a variable are values built while the program runs. A path
+argument that starts with a relative string literal and adds more — `'data/' . $name` or `"data/{$name}"` — is
 relative on every run, so it does not compile (`E0840`); `Core\Path::thisDir('data') . '/' . $name`
 builds it from the file's folder. A single letter, which a `:` could turn into a drive, and a
 heredoc are left to the run-time check. The join is
@@ -34,7 +34,7 @@ bundled executable the file's folder maps to the same folder beside the executab
 
 **A program names its own file and folder with `Core\Path::thisFile()` and `Core\Path::thisDir()`.**
 The compiler replaces each call with the absolute path of the file that contains it, or that file's
-folder, from the same folder a literal is joined to, and the program runs a string constant.
+folder, from the same folder a string literal is joined to, and the program runs a string constant.
 `thisDir($join)` adds a relative string literal to the folder, lexically; any other `$join` does not
 compile (`E0837`), and `Core\Path::join(Core\Path::thisDir(), $part)` joins a path the program
 builds. There are no magic constants: `__FILE__` and `__DIR__` stay `E0319`.
@@ -46,4 +46,4 @@ program holds, and `Core\Path::fromCwd` joins a path typed on a command line to 
 app's. Its answer is a plain `string` without `tainted`, so a path from `Core\Cli::arguments` reaches
 a path door through it (`rule:security/launderers-are-sink-named` states the exception). The resolver an isolate's script goes through refuses a relative path the same way, for a
 spawn, a queued job, a scheduled entry and a log handler alike. With every path absolute at the check, a relative grant in `nvs.toml`, which resolves against
-that file's folder, names the same files as a literal in a program beside it.
+that file's folder, names the same files as a string literal in a program beside it.

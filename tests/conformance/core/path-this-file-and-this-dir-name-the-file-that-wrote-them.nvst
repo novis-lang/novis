@@ -1,5 +1,5 @@
 --TEST--
-`Core\Path::thisFile` and `thisDir` name the file that contains the call and its folder, and `thisDir`'s join agrees with `Core\Path::join` over that folder — `rule:programs/path-literals-resolve-from-their-file`
+`Core\Path::thisFile` and `thisDir` name the file that contains the call and its folder, and `thisDir`'s join agrees with `Core\Path::join` over that folder — `rule:programs/relative-paths-resolve-from-their-file`
 --FILE--
 <?nvs
 // The full path changes from machine to machine, so this prints only what is

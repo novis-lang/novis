@@ -8,7 +8,7 @@
   ],
   "divergesFromPhp": "there is no modifier that asks for backtracking, and `preg_*`'s silent `false` on a backtrack limit is a catchable throw here",
   "seeAlso": [
-    "core-classes/regex-literal-tiering",
+    "core-classes/regex-compile-time-tiering",
     "core-classes/regex-syntax",
     "errors/escalation-ladder"
   ],

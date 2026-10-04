@@ -136,7 +136,7 @@ fn a_program_loaded_from_the_cache_prints_what_the_compiled_one_printed() {
 /// One program, the same name and the same text, in two folders: each run
 /// prints the path its own folder gives, because a relative path literal
 /// compiles to an absolute path joined to the file's folder
-/// (`rule:programs/path-literals-resolve-from-their-file`). Each is run as
+/// (`rule:programs/relative-paths-resolve-from-their-file`). Each is run as
 /// `nvs run main.nvs` from inside its folder, so the name a diagnostic prints
 /// is the same for both and only the folder tells the two compiles apart.
 // covers: tools:cli/the-compile-cache

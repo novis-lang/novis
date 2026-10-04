@@ -3,7 +3,7 @@ timeout. It is one options bag, `{cwd?: string, env?: array<string>, timeout?: D
 `Core\Process::run` and `::spawn` both take it, because there is no reason for one of them to take a
 working directory the other does not.
 
-`cwd` is a path position: a relative literal is joined to the folder of the file that wrote it, and a
+`cwd` is a path position: a relative path given as a string literal is joined to the folder of the file that wrote it, and a
 relative value built at run time is refused, because the server's own working directory names a
 different place depending on how it was started. It needs no capability of its own — the child is the
 program `process.exec` approved, and it can change its own folder the moment it runs.

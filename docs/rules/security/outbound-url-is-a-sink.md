@@ -5,7 +5,7 @@ position where that is visible.
 
 The plain form covers URLs the program itself authored — a literal, a configuration value, a composed
 path — and a literal is additionally validated while checking
-(`rule:expressions/intrinsic-literals`). A URL that genuinely came from outside goes through the
+(`rule:expressions/intrinsic-constant-arguments`). A URL that genuinely came from outside goes through the
 laundering member that also **pins** the address it resolved to, so the check and the connection
 cannot disagree about which host was approved.
 

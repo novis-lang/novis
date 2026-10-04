@@ -1,5 +1,5 @@
 --TEST--
-`Core\Html::join` over an empty list answers markup that writes nothing, and the separator reaches the output only where there is a pair — `rule:core-classes/html-literal`
+`Core\Html::join` over an empty list answers markup that writes nothing, and the separator reaches the output only where there is a pair — `rule:core-classes/html-template`
 --FILE--
 <?nvs
 // The boundary the walk has to get right on its own: with no part to write

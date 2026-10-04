@@ -2615,7 +2615,7 @@ pub fn class_desc_symbol(label: &str) -> String {
 /// [`class_desc_symbol`]'s name and at the address this process leaked it at.
 ///
 /// A hole-free `` html`…` `` folds to a `Core\Html\Markup` constant in the
-/// unit's own data section (`rule:core-classes/html-literal`), and the class
+/// unit's own data section (`rule:core-classes/html-template`), and the class
 /// word of that constant is a relocation like any other — but against a
 /// descriptor `nvs_stdlib` owns for the whole process rather than one this unit
 /// built, so [`Classes`] holds no row for it and the symbol is an import the
@@ -2712,7 +2712,7 @@ mod tests {
         )
     }
 
-    /// `rule:core-classes/html-literal`'s folded constant names a descriptor no
+    /// `rule:core-classes/html-template`'s folded constant names a descriptor no
     /// unit builds, so the two ends that resolve one both answer for it out of
     /// [`core_desc_symbols`]: a unit declaring no class at all still resolves
     /// the carrier, and [`Classes::desc`] is the door that stays shut.

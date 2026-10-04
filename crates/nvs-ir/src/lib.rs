@@ -462,7 +462,7 @@
 //!     reconcile [`ty::Ty::Tagged`] and emit nothing that can fail; a
 //!     conversion carrying `rule:errors/propagation`'s error edge does not belong in one.
 //!
-//! 11. **`rule:types/literal-types`, `rule:types/conversion` and `rule:types/conversion`'s scalar rows all run
+//! 11. **`rule:types/single-value-types`, `rule:types/conversion` and `rule:types/conversion`'s scalar rows all run
 //!     whole, a `mixed` source included, and so do § 2's
 //!     *non-scalar* rows.** A union whose members all erase to one representation
 //!     is that representation ([`lower::erase_checked_ty`]), so `"a"|"b"` is a

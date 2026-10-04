@@ -14,9 +14,9 @@ Each construct with no PER precedent has one layout, chosen once:
   lines it is one field per line, indented one level, with a trailing comma. An empty one has no inside
   to space and stays `{}`.
 - Enum cases are one per line when the author wrote them that way, with a trailing comma when multi-line.
-- A markup literal's body is never touched — not reflowed, not re-indented, not re-quoted — exactly as a
+- An html template's body is never touched — not reflowed, not re-indented, not re-quoted — exactly as a
   heredoc body and an inline-HTML region are not (`rule:tooling/fmt-quotes`,
-  `rule:core-classes/html-literal`). Only its surroundings are laid out, so the bytes between the
+  `rule:core-classes/html-template`). Only its surroundings are laid out, so the bytes between the
   backticks survive formatting unchanged and `nvs fmt` stays idempotent over a template.
 - A `?>` that begins its line is indented to the depth of the block it sits in — the column a statement
   there would start at — so the markup after it can start from the code around it
