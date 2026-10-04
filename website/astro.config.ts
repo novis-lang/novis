@@ -23,9 +23,9 @@ const core = JSON.parse(fs.readFileSync('./src/data/core.json', 'utf8')) as {
   }[]
 }
 
-// Custom syntax highlighting for Novis code fences (```novis / ```nvs).
+// Syntax highlighting for Novis code fences (```novis / ```nvs). `npm run sync:render` writes this
+// file from the editors' grammar.
 const novisGrammar = JSON.parse(fs.readFileSync('./config/novis.tmLanguage.json', 'utf8'))
-novisGrammar.aliases = ['novis', 'nvs']
 
 // A chapter cut into one section has no section pages, so it is one sidebar link
 // rather than a group holding a single child.

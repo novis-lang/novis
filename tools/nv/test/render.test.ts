@@ -11,6 +11,7 @@ import { recordFiles, SCHEMA_DIR } from "../lib/store.ts";
 import { recordSchemas, renderRecordSchemas } from "../renderers/record-schemas.ts";
 import { RECORDS } from "../schema/index.ts";
 import { isDraft, PAGES_DIR as CORE_DIR, parseSignature, websiteCore } from "../renderers/website-core.ts";
+import { EDITOR_GRAMMAR, renderWebsiteGrammar } from "../renderers/website-grammar.ts";
 import { PAGES_DIR, renderWebsiteRules, websiteRules } from "../renderers/website-rules.ts";
 import { scratch, type Scratch } from "./scratch.ts";
 
@@ -26,6 +27,17 @@ describe("render", () => {
   test("fill replaces every name and refuses a missing one", () => {
     expect(fill("{{a}} and {{ b }}", { a: "1", b: "2" })).toBe("1 and 2");
     expect(() => fill("{{gone}}", {})).toThrow("{{gone}}");
+  });
+
+  test("the website grammar is the editors' grammar opened in code mode, with no comments", () => {
+    const editor = JSON.parse(readFileSync(join(ROOT, EDITOR_GRAMMAR), "utf8"));
+    const site = JSON.parse(renderWebsiteGrammar(readFileSync(join(ROOT, EDITOR_GRAMMAR), "utf8")).text);
+    expect(site.scopeName).toBe(editor.scopeName);
+    expect(site.aliases).toEqual(["novis", "nvs"]);
+    expect(site.patterns).toContainEqual({ include: "#code" });
+    expect(Object.keys(site.repository)).toEqual(Object.keys(editor.repository));
+    expect(site.comment).toBe(MARKER);
+    expect(JSON.stringify(site.repository)).not.toContain('"comment"');
   });
 
   test("the marker goes first, or right after front matter", () => {

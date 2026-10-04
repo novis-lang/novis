@@ -41,6 +41,7 @@ wherever it kept a component.
 | `src/content/docs/docs/rules/**` | tool | regenerated on every `sync:render`, except the handwritten hub at `index.mdx` — a rule's prose lives in `../docs/rules/`, where the rule is |
 | `config/rule-sections.mjs` | human | where each chapter is cut into pages — the one thing about the rulebook the repository does not own |
 | `src/data/core.json`, `src/data/rules.json` | tool | regenerated on every sync |
+| `config/novis.tmLanguage.json` | tool | rendered from the editors' grammar on every sync — edit `../editors/vscode/syntaxes/nvs.tmLanguage.json` |
 | `src/data/core-changelog.json` | human | per-member changelog entries |
 | `src/content/docs/docs/core/**.mdx` | **per page** | tool-owned (regenerated every `sync:render`) while `novis.draft: true`; remove the flag to take ownership — then yours: lead text, description, parameter docs, errors, tips, `<SeeAlso ids={…}>` |
 | `src/content/claims/*.md` | human | one file per "Why Novis?" claim; add a file, the page updates |
@@ -77,7 +78,10 @@ human-owned one stays until a human deletes it.
    and survives every sync once the page's `draft` flag is removed.
 
 Novis code blocks get syntax highlighting from `config/novis.tmLanguage.json`
-(languages `novis` / `nvs` in fenced code blocks).
+(languages `novis` / `nvs` in fenced code blocks). `sync:render` writes it from the editors'
+grammar at `../editors/vscode/syntaxes/nvs.tmLanguage.json`
+(`../tools/nv/renderers/website-grammar.ts`). The one difference is the top level: a fence is a
+snippet with no `<?nvs`, so it starts in code mode where a file starts in text mode.
 
 ## How the rulebook works
 
