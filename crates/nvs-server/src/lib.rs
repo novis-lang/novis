@@ -148,6 +148,7 @@ pub mod route;
 pub mod schedule;
 pub mod secure;
 pub mod serve;
+pub mod slotted;
 pub mod socket;
 pub mod statics;
 pub mod trace;

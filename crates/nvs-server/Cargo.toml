@@ -92,6 +92,11 @@ nvs-diagnostics.workspace = true
 # needed only to *read the record back* in the case that pins the two halves together. Not a new
 # crate in the graph: `nvs-runtime`, `nvs-host` and `nvs-config` all already rest on it.
 nvs-render.workspace = true
+# Test-only: `src/slotted/`'s case recomputes the script hashes the policy names from the two
+# files, so a script edited without its hash fails a test. Not new crates in the graph:
+# `nvs-host` already rests on both.
+sha2.workspace = true
+base64.workspace = true
 
 # This crate inherits the workspace lint policy unchanged, `unsafe_code =
 # "forbid"` included. That is a decision and not an omission: the obvious way to

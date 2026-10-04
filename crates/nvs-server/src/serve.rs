@@ -1569,7 +1569,10 @@ where
         // connection's a streamed body meets — a peer that stops reading, and a
         // chunk larger than the connection may hold — and nothing else in
         // `crate::bounds` is a request's to be held inside.
-        let opening = stream::BodySlot::new(send_timeout, bounds.message);
+        // `crate::slotted`'s scripts ride the same cell, which is how a
+        // slotted page reaches the wire.
+        let opening = stream::BodySlot::new(send_timeout, bounds.message)
+            .with_scripts(crate::slotted::SCRIPTS);
         let mut answered = match handler(request, origin) {
             // Already an answer: a mount table's `404`, or a file this server is
             // sending rather than running. Nothing is started for it, so the
@@ -1936,6 +1939,15 @@ where
         // one place where policy reaches it rather than two.
         policy.secure.fill(answered.headers_mut(), scheme);
         crossing.fill(answered.headers_mut());
+        // After the policy is complete, so a policy from either source is the
+        // one that learns the slotted page's two script hashes.
+        if answered
+            .extensions()
+            .get::<crate::slotted::Slotted>()
+            .is_some()
+        {
+            crate::slotted::allow_scripts(answered.headers_mut());
+        }
         // After the policy and before the answer goes back, so that what is
         // counted is the response this connection actually writes — including
         // one the `101` or an event stream replaced the request's own with. A
@@ -2237,6 +2249,15 @@ fn streamed(head: stream::Opened, cut: DrainCut) -> Response<Answer> {
     response
         .headers_mut()
         .insert(header::CONTENT_TYPE, content_type);
+    // `rule:core-classes/html-later`: a proxy that buffers would hold the shell
+    // back until the last fill, which is the one thing slotting is for.
+    if head.slotted {
+        response.headers_mut().insert(
+            HeaderName::from_static("x-accel-buffering"),
+            HeaderValue::from_static("no"),
+        );
+        response.extensions_mut().insert(crate::slotted::Slotted);
+    }
     overrides(&mut response, head.headers);
     response
 }
@@ -2831,7 +2852,7 @@ impl Drop for Served {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use crate::admit::Ceiling;
     use nvs_config::Capacity;
@@ -6588,6 +6609,58 @@ mod tests {
             2,
             "a slot or after-response work made the response slotted after the main script ended"
         );
+    }
+
+    /// Serves one `GET /page`, matched against `route` where there is one, whose
+    /// program is `page`. `read` is the client: it gets the socket after the
+    /// request is written, and the server's admission valve.
+    ///
+    /// `crate::slotted`'s cases, which need the response-stream cell a served
+    /// request is offered and nothing else of the connection.
+    pub(crate) fn served_page(
+        page: impl Fn(&mut Ctx) + 'static,
+        route: Option<nvs_runtime::routes::Route>,
+        read: impl FnOnce(TcpStream, Arc<Admission>) -> String + Send + 'static,
+    ) -> String {
+        let listener = NvsListener::bind("127.0.0.1:0".parse().expect("a literal address"))
+            .expect("the OS refused a port");
+        let addr = listener
+            .local_addr()
+            .expect("a bound listener had no address");
+        let serving = wide_open();
+        let admission = Arc::clone(&serving.admission);
+        let routes = route.map(|route| nvs_runtime::routes::Routes::new(vec![route]));
+        let page = Rc::new(page);
+        let handler = Rc::new(move |request: Request<Incoming>, _origin: Origin| {
+            let mut inbound = nvs_runtime::Inbound::new(
+                request.method().as_str(),
+                request.uri().path(),
+                request.uri().query().unwrap_or(""),
+            );
+            if let Some(matched) = routes
+                .as_ref()
+                .and_then(|routes| routes.match_request("GET", request.uri().path()))
+            {
+                inbound.set_route(matched);
+            }
+            let page = Rc::clone(&page);
+            let program: Program = Box::new(move |ctx: &mut Ctx, _args| {
+                page(ctx);
+                Value::null()
+            });
+            Reply::Run(
+                Isolate::new(program, Value::null(), Output::Capture).answering(inbound),
+                None,
+            )
+        });
+        let client = std::thread::spawn(move || {
+            let mut socket = TcpStream::connect(addr).expect("the loopback refused a connection");
+            socket
+                .write_all(b"GET /page HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")
+                .expect("the write failed");
+            read(socket, admission)
+        });
+        served_under(listener, &handler, client, serving)
     }
 
     /// A request that carried no body leaves the carrier with none to read —
