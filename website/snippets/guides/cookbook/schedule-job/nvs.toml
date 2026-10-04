@@ -1,0 +1,10 @@
+# `nvs serve` runs the job every Monday at 7:00.
+[[schedule]]
+name = "weekly-report"
+cron = "0 7 * * 1"
+script = "schedule-job.nvs"
+scope = "host"
+
+# The server may only start scripts in this folder.
+[capabilities.script]
+spawn = ["."]

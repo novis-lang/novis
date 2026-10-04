@@ -1,0 +1,8 @@
+# The `guests` database is kept in memory. It is deleted when the program ends.
+[db.guests]
+driver = "sqlite"
+path = ":memory:"
+
+# The program may open the `guests` database.
+[capabilities.db]
+connect = ["guests"]

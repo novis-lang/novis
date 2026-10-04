@@ -1,0 +1,19 @@
+<?nvs
+// This program calls a weather API and reads its JSON reply.
+
+// `Core\Test::answerHttp` gives a fixed reply for this address, so the program runs without
+// a network. Delete this call to call the real API.
+Core\Test::answerHttp("https://weather.example.com/today?city=Vienna", 200, {
+    body: '{"city":"Vienna","celsius":18}',
+    headers: ["Content-Type" => "application/json"],
+});
+
+// `deadline` is the longest time the request may take.
+Core\Http\Response $response = Core\Http\Client::get("https://weather.example.com/today?city=Vienna", {deadline: 5s});
+if ($response->status() != 200) {
+    echo "The weather service returned the status ", $response->status(), "\n";
+} else {
+    // `jsonAs` reads the body into a shape with named fields. This prints `Vienna: 18 °C`.
+    var $today = $response->jsonAs<tainted {city: string, celsius: int}>();
+    echo $today->city, ": ", $today->celsius, " °C\n";
+}

@@ -1,0 +1,30 @@
+---
+title: Schedule a job
+covers: []
+description: Run a program at a fixed time, for example every Monday morning.
+---
+
+import Snippet from '@components/Snippet.astro'
+
+This program counts last week's orders. The server runs it every Monday at 7:00.
+
+<Snippet src="guides/cookbook/schedule-job/schedule-job.nvs" />
+
+The `nvs.toml` in the same folder sets the time:
+
+```toml
+[[schedule]]
+name = "weekly-report"
+cron = "0 7 * * 1"
+script = "schedule-job.nvs"
+scope = "host"
+
+[capabilities.script]
+spawn = ["."]
+```
+
+`nvs serve` reads this file and runs the job at that time. `0 7 * * 1` means minute 0 of hour 7,
+on day 1 of the week, which is Monday. To run the job once by hand, use `nvs run schedule-job.nvs`.
+
+[A scheduled job](/guides/simple-programs/scheduled-job/) is a longer example. Read
+[schedule](/reference/config/schedule/) for every setting of a `[[schedule]]` entry.

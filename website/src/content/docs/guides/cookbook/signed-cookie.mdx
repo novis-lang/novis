@@ -1,0 +1,20 @@
+---
+title: Keep a value in a cookie
+covers: []
+description: Store a value in a cookie that the client cannot read or change.
+---
+
+import Snippet from '@components/Snippet.astro'
+
+A cookie is sent to the client and comes back with the next request. This program encrypts a value
+for a cookie and reads it back.
+
+<Snippet src="guides/cookbook/signed-cookie/signed-cookie.nvs" />
+
+`Core\SignedCookie::seal` encrypts the value with the first key in the list. `open` returns the value. If the
+client changed the cookie, `open` throws a `RuntimeError`.
+
+To send the cookie, use `Core\Response::addCookie`.
+
+Read [Core\SignedCookie](/reference/core/signedcookie/) for how to change keys without breaking
+the cookies that clients already have.

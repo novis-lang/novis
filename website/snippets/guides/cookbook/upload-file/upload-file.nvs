@@ -1,0 +1,12 @@
+<?nvs
+// This program saves an uploaded file in a folder.
+string $folder = Core\Path::join(Core\IO::temporaryDir(), "uploads");
+Core\IO::makeDir($folder);
+
+foreach (Core\Request::files() as Core\Request\Part $part) {
+    // The client chose the file name, so the program uses its own name.
+    string $path = Core\Path::join($folder, Core\Uuid::v4() . ".txt");
+    // `saveTo` writes the file. It keeps only a small part of it in memory at a time.
+    $part->saveTo($path, {max: 1000000});
+    echo "saved ", $part->filename(), ", ", Core\IO::size($path), " bytes\n";
+}

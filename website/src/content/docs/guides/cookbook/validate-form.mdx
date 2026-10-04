@@ -1,0 +1,22 @@
+---
+title: Validate a form
+covers: []
+description: Check each field of a contact form and list the fields that are not valid.
+---
+
+import Snippet from '@components/Snippet.astro'
+
+This program reads a contact form. It checks each field and lists every field that is not valid.
+
+<Snippet src="guides/cookbook/validate-form/validate-form.nvs" />
+
+The output above is for the form `name=Ada&email=ada.example.com&message=Hello`. The email has no
+`@`, and the message is too short.
+
+`Core\Request::postAs` reads the form fields into a `Contact`. A form field that is missing
+throws a `ParseError`, as on [Read a JSON body](/guides/cookbook/read-json-body/).
+
+`ContactForm::problems` returns all the problems at once. The user can then fix every field in one
+step. `Core\Validate` has more checks, for example `isDomain` and `isIp`.
+
+Read [Core\Validate](/reference/core/validate/) for every check.

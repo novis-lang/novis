@@ -1,0 +1,21 @@
+---
+title: Cache a slow result
+covers: []
+description: Compute a value once, keep it for one hour, and reuse it.
+---
+
+import Snippet from '@components/Snippet.astro'
+
+Some values are slow to get, for example an exchange rate from another service. This program
+computes the value once and reads it from a cache after that.
+
+<Snippet src="guides/cookbook/cache-value/cache-value.nvs" />
+
+`$cache->get` returns `null` when the key is not in the cache. The method then computes the value
+and writes it with `put`. `ttl` is how long the value stays. After one hour, the next call
+computes it again.
+
+`Core\Cache::local` is a cache on one CPU core of one server. For a cache that all your servers
+share, use `Core\Cache::shared`.
+
+Read [Core\Cache](/reference/core/cache/) for the three kinds of cache.

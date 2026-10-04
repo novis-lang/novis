@@ -1,0 +1,23 @@
+---
+title: Call an HTTP API
+covers: []
+description: Send a request to another server and read its JSON reply.
+---
+
+import Snippet from '@components/Snippet.astro'
+
+This program asks a weather service for today's temperature and prints it.
+
+<Snippet src="guides/cookbook/call-http-api/call-http-api.nvs" />
+
+`Core\Test::answerHttp` gives a fixed reply, so the program runs without a network. Delete that
+call to send the request to the real server.
+
+`Core\Http\Client::get` sends a `GET` request and returns a `Core\Http\Response`. Check
+`status()` before you read the body. `jsonAs` reads the JSON body into the shape between `<` and
+`>`. The reply comes from another server, so the shape is `tainted`.
+
+`deadline` is the longest time the request may take. Set it on every request, so a slow service
+does not make your own page slow.
+
+Read [Core\Http\Client](/reference/core/http-client/) for `post`, `put` and the other methods.

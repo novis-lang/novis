@@ -167,6 +167,22 @@ export default defineConfig({
                 { label: 'A scheduled job', link: '/guides/simple-programs/scheduled-job/' },
               ],
             },
+            {
+              label: 'Cookbook',
+              items: [
+                { label: 'Overview', link: '/guides/cookbook/' },
+                { label: 'Read a JSON body', link: '/guides/cookbook/read-json-body/' },
+                { label: 'Validate a form', link: '/guides/cookbook/validate-form/' },
+                { label: 'Page through database rows', link: '/guides/cookbook/page-db-rows/' },
+                { label: 'Save an uploaded file', link: '/guides/cookbook/upload-file/' },
+                { label: 'Call an HTTP API', link: '/guides/cookbook/call-http-api/' },
+                { label: 'Send a signed link', link: '/guides/cookbook/signed-url/' },
+                { label: 'Store a password', link: '/guides/cookbook/hash-password/' },
+                { label: 'Keep a value in a cookie', link: '/guides/cookbook/signed-cookie/' },
+                { label: 'Cache a slow result', link: '/guides/cookbook/cache-value/' },
+                { label: 'Schedule a job', link: '/guides/cookbook/schedule-job/' },
+              ],
+            },
           ],
         },
         {

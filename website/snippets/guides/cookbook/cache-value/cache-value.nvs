@@ -1,0 +1,23 @@
+<?nvs
+// This program saves a slow result in a cache, so the next call is fast.
+class Rates {
+    // Returns the exchange rate. Only the first call in one hour computes it.
+    public static function euroToDollar(): float {
+        var $cache = Core\Cache::local();
+        var $saved = $cache->get("eur-usd");
+        if ($saved != null) {
+            echo "from the cache\n";
+            return $saved as float;
+        }
+        echo "computed\n";
+        // A real program would call a slow service here.
+        float $rate = 1.08;
+        // `ttl` is how long the value stays in the cache.
+        $cache->put("eur-usd", $rate, {ttl: 1h});
+        return $rate;
+    }
+}
+
+// The first call prints `computed`. The second call prints `from the cache`.
+echo Rates::euroToDollar(), "\n";
+echo Rates::euroToDollar(), "\n";

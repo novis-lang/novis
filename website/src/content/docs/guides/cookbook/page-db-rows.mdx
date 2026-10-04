@@ -1,0 +1,31 @@
+---
+title: Page through database rows
+covers: []
+description: Read the rows of a table a few at a time, one page per request.
+---
+
+import Snippet from '@components/Snippet.astro'
+
+A table can have more rows than one page should show. This program reads one page of three rows.
+
+<Snippet src="guides/cookbook/page-db-rows/page-db-rows.nvs" />
+
+The `nvs.toml` in the same folder names the database and allows the program to open it:
+
+```toml
+[db.guests]
+driver = "sqlite"
+path = ":memory:"
+
+[capabilities.db]
+connect = ["guests"]
+```
+
+`limit ? offset ?` in the query reads `$size` rows after skipping the rows of the pages before.
+The `?` marks are filled from the array in the same order. Never put a value into the SQL text
+yourself.
+
+The query has `order by id`. Without an order, the database may return the rows in a different
+order each time, and a row can appear on two pages.
+
+Read [Core\Db](/reference/core/db/) for how to connect to a database.

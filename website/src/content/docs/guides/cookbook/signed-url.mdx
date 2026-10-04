@@ -1,0 +1,21 @@
+---
+title: Send a signed link
+covers: []
+description: Make a download link that stops working after one hour, and check it.
+---
+
+import Snippet from '@components/Snippet.astro'
+
+You can send a link by email that only works for a short time. This program makes such a link and
+checks it.
+
+<Snippet src="guides/cookbook/signed-url/signed-url.nvs" />
+
+`sign` adds a `_sig` parameter to the address. The signature covers the whole address and the
+time in `until`. `verifySignature` throws a `RuntimeError` when any part of the link was changed,
+or when the time is over.
+
+Use the same keys to sign and to check. A real server reads them from its configuration, so a
+link still works after the server restarts.
+
+Read [Core\Uri](/reference/core/uri/) for `sign` and `verifySignature`.
