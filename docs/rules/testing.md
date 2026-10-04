@@ -202,7 +202,7 @@ descends, because a test may be written above the fixture that supplies it.
 
 `rule:testing/data-rows`
 
-`#[TestWith(...)]` carries a shape literal that the checker matches against the method's parameters
+`#[TestWith(...)]` carries an anonymous object that the checker matches against the method's parameters
 **by name and by type**. It is the one test marker that may repeat on a declaration, and each row is
 its own separately reported case, labelled `method#N` in the order the rows are written — so a row
 that fails is reported alone rather than stopping the rows after it, and a skip is stated per row,
@@ -222,15 +222,15 @@ is the order the call is made in, and are released when that call returns.
 
 <a id="testing-doubles"></a>
 
-## A double is a shape of closures, structurally checked against an interface
+## A double is a shape of callables, structurally checked against an interface
 
 `rule:testing/doubles`
 
-A double is a shape of closures, structurally checked against an interface:
+A double is a shape of callables, structurally checked against an interface:
 `Core\Test::double<Clock>({now: fn(): Instant => ...})` **is** a `Clock` and may be passed wherever
 one is taken. A method the interface does not declare, a method of it the double leaves
 unimplemented, and an answer that cannot stand in for the method it names are each a compile error.
-The third is [`types/callable-arity`](types.md#types-callable-arity) and [`types/callable-variance`](types.md#types-callable-variance) asked of a closure and
+The third is [`types/callable-arity`](types.md#types-callable-arity) and [`types/callable-variance`](types.md#types-callable-variance) asked of a callable and
 nothing more: a field may declare fewer parameters than the method and accept wider ones, and is
 refused only where it would turn away what a call site passes or hand back something that call site
 was never promised. `Core\Test::partial<T>($real, {...})` overrides named methods and delegates the
@@ -723,7 +723,7 @@ Freezing the output instead is refused: every one of these programs is written t
 nobody can predict, and a suite whose expectations must be maintained is a suite that gets weakened
 until it passes.
 
-<sub>See also [`testing/feature-proofs`](testing.md#testing-feature-proofs), [`testing/a-failing-proof-is-fixed-or-recorded`](testing.md#testing-a-failing-proof-is-fixed-or-recorded), [`testing/capability-closure-test`](testing.md#testing-capability-closure-test). Decided in [0134](../decisions/0134.md), [0244](../decisions/0244.md).</sub>
+<sub>See also [`testing/feature-proofs`](testing.md#testing-feature-proofs), [`testing/a-failing-proof-is-fixed-or-recorded`](testing.md#testing-a-failing-proof-is-fixed-or-recorded), [`testing/capability-completeness-test`](testing.md#testing-capability-completeness-test). Decided in [0134](../decisions/0134.md), [0244](../decisions/0244.md).</sub>
 
 <a id="testing-feature-proofs"></a>
 
@@ -826,11 +826,11 @@ exists to prevent. A skip is for a proof that *cannot exist*, never for one that
 
 <sub>See also [`testing/feature-proofs`](testing.md#testing-feature-proofs), [`testing/hostile-case-contract`](testing.md#testing-hostile-case-contract), [`testing/one-slice-is-one-feature`](testing.md#testing-one-slice-is-one-feature). Decided in [0134](../decisions/0134.md).</sub>
 
-<a id="testing-capability-closure-test"></a>
+<a id="testing-capability-completeness-test"></a>
 
 ## Every member of a capability-bearing class declares a capability or declares none, and there is no allowlist
 
-`rule:testing/capability-closure-test`
+`rule:testing/capability-completeness-test`
 
 A class is **capability-bearing** when any of its members has a row in the capability table. For
 such a class **every member owes exactly one row**, and a member that genuinely needs no
@@ -844,7 +844,7 @@ whole *set*, and a set with a growable exception list makes no claim at all. Dec
 costs what declaring a real capability costs, is reviewed in the same table beside its reason, and
 grants nothing, because no row grants anything.
 
-A second closure test covers the other half: nothing in the standard library reaches the operating
+A second completeness test covers the other half: nothing in the standard library reaches the operating
 system except through a door. Neither test subsumes the other — one catches a member that goes
 through a door undeclared, the other a member that reaches the OS with no door at all.
 

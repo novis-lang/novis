@@ -769,7 +769,7 @@ fn check_answer_signatures(
             continue;
         }
         // Bare `callable` carries no parameter list to compare
-        // (`rule:types/callable-is-a-closure`), and that is the accepted case
+        // (`rule:types/callable-values`), and that is the accepted case
         // rather than a refusal: the field promises a closure and nothing more,
         // which is what `nvs_runtime::closure` checks a tag at a time.
         if matches!(env.interner.get(*field), Ty::Callable) {

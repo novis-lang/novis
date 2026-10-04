@@ -1,5 +1,5 @@
 After the subject come the required arguments in dataflow order, and then **at most one** trailing optional
-shape literal — an object literal (`rule:types/object-top`) declared as a `type` alias. There are no `bool`
+anonymous object (`rule:types/object-top`) whose shape is declared as a `type` alias. There are no `bool`
 flag parameters, no `int` bitmasks, and no positional optional tail longer than one.
 
 The bag is the home of every optional knob because it is named, order-free and structurally checked, and a

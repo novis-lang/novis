@@ -1,5 +1,5 @@
 --TEST--
-A closure whose expression body is a call to a `void` method compiles and runs the call, called directly, captured over an outer value and handed to `Core\Script::onExit` — `rule:types/closure-literal`
+A closure whose expression body is a call to a `void` method compiles and runs the call, called directly, captured over an outer value and handed to `Core\Script::onExit` — `rule:types/anonymous-function`
 --FILE--
 <?nvs
 // The expression body is an implicit `return`, and a `void` call has no value

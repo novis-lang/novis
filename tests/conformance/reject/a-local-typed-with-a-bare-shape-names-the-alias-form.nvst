@@ -1,5 +1,5 @@
 --TEST--
-a local declaration typed with a bare inline shape is refused naming the `type` alias form, while a block a variable happens to follow is left alone — `rule:types/shape-type`, `rule:types/object-literal`
+a local declaration typed with a bare inline shape is refused naming the `type` alias form, while a block a variable happens to follow is left alone — `rule:types/shape-type`, `rule:types/anonymous-object`
 --FILE--
 <?nvs
 // `rule:types/shape-type`: a shape is a type expression, so every declaration
@@ -29,7 +29,7 @@ Point $p = {x: 1};
 echo $p->x, "\n";
 
 // A discarded object literal keeps the parenthesize refusal: no variable
-// follows the `}`, so this tell answers no and `rule:types/object-literal`'s
+// follows the `}`, so this tell answers no and `rule:types/anonymous-object`'s
 // own error is still what an author reads.
 {x: 1};
 --EXPECT--

@@ -8,10 +8,10 @@
     "0211",
     "0231"
   ],
-  "divergesFromPhp": "`self::m()` and `parent::m()` inside a closure set the called class to the class the closure is written in, where PHP forwards the enclosing method's called class; `self::m()` in a method body on an `abstract static` `m` runs the subclass's body, where PHP throws",
+  "divergesFromPhp": "`self::m()` and `parent::m()` inside an anonymous function set the called class to the class the anonymous function is written in, where PHP forwards the enclosing method's called class; `self::m()` in a method body on an `abstract static` `m` runs the subclass's body, where PHP throws",
   "seeAlso": [
     "statements/no-function-static-and-no-global",
-    "statements/a-closure-binds-this-only-where-it-uses-it",
+    "statements/an-anonymous-function-captures-this-only-where-it-uses-it",
     "statements/storage-that-outlives-a-call"
   ],
   "guardedBy": [

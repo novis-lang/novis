@@ -125,7 +125,7 @@ impl<'a> Lowering<'a> {
     /// PHP's own. A closure takes the second message rather than the first:
     /// [`InstKind::TagIs`] compares one tag byte, and a closure carries the
     /// object tag every other instance does
-    /// (`rule:types/callable-is-a-closure`), so what refuses it is the
+    /// (`rule:types/callable-values`), so what refuses it is the
     /// `Throwable` test below.
     ///
     /// **What it spends** (`rule:programs/memory-priority`): one tag compare

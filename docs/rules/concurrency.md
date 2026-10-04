@@ -36,7 +36,7 @@ and no handle to leak, so a task tree is bounded by the same accounting a reques
 `rule:concurrency/a-child-belongs-to-the-calling-task`
 
 Every task starts as a child of the task that started it. There is no unparented task and no way to
-write one: a group's closures are children of the calling task, a served connection is a child of
+write one: a group's callables run as children of the calling task, a served connection is a child of
 the task accepting on that core, a scheduled fire is a child of the ticker's task, and a `spawn
 script` isolate is a child of the frame that spawned it.
 
@@ -152,7 +152,7 @@ field whose callable declares none — bare `callable`, the top of the lattice �
 only that field: every other one still carries the type it declared.
 
 The field's type is read off the *argument's type*, not off the expression written at the call, so
-where the closure came from stopped mattering. A literal, a first-class callable, a parameter and a
+where the callable came from stopped mattering. An anonymous function, a method reference, a parameter and a
 variable holding the whole shape are all equally good, and a shape assembled somewhere else and
 passed in is too. What the parameter still refuses is a value that is not a shape of callables at
 all: an array, a scalar or a field holding something that cannot be called, each reported as the
@@ -160,10 +160,10 @@ ordinary type mismatch.
 
 [`types/callable-signature`](types.md#types-callable-signature) is what made this possible, and the restriction it replaces is worth
 naming: until a `callable` carried a signature, the type existed only at the written literal, so a
-framework storing closures in a variable could not use `all` at all. It can now, and it pays only
+framework storing callables in a variable could not use `all` at all. It can now, and it pays only
 for the signatures it declines to write.
 
-<sub>See also [`types/callable-signature`](types.md#types-callable-signature), [`types/closure-literal`](types.md#types-closure-literal), [`types/callable-absorbs-closure`](types.md#types-callable-absorbs-closure). Decided in [0072](../decisions/0072.md), [0114](../decisions/0114.md), [0136](../decisions/0136.md).</sub>
+<sub>See also [`types/callable-signature`](types.md#types-callable-signature), [`types/anonymous-function`](types.md#types-anonymous-function), [`types/callable-is-the-only-function-type`](types.md#types-callable-is-the-only-function-type). Decided in [0072](../decisions/0072.md), [0114](../decisions/0114.md), [0136](../decisions/0136.md).</sub>
 
 <a id="concurrency-map-preserves-keys-and-order"></a>
 
@@ -181,7 +181,7 @@ Completion order is a scheduling detail and is never observable in the answer.
 
 `map` and [`concurrency/all-answers-a-typed-shape`](concurrency.md#concurrency-all-answers-a-typed-shape) are two members because they are two jobs — a
 fixed set of differently-typed things, and one operation over many same-typed things — and not two
-spellings of one. A shape literal cannot express "one per element of a runtime array", and an array
+spellings of one. An anonymous object cannot express "one per element of a runtime array", and an array
 cannot carry a per-element type. Each refuses the other's subject rather than coercing it.
 
 <sub>See also [`core-api/subject-first`](core-api.md#core-api-subject-first), [`core-api/callback-receives-value-and-key`](core-api.md#core-api-callback-receives-value-and-key). Decided in [0072](../decisions/0072.md).</sub>
@@ -335,7 +335,7 @@ owns.
 
 `rule:concurrency/only-the-request-registers-deferred-work`
 
-Only the request's own task may register deferred work. A `Core\Task` child and a deferred closure
+Only the request's own task may register deferred work. A `Core\Task` child and a deferred callable
 are each born sealed, and a registration made on one is refused with a `RuntimeError` at the call
 site — while there is still a request to decide what to do about it — rather than accepted and then
 dropped when that child ends.
@@ -345,7 +345,7 @@ defer hands the work back to the request that started it; that is what the refus
 it buys is that no registration is ever silently lost.
 
 **Deferred work may not defer more.** That is the same rule read once more rather than a second one:
-a deferred closure runs as a child, on a sealed context, like every other child. A queue able to
+a deferred callable runs as a child, on a sealed context, like every other child. A queue able to
 extend itself is a tree that never leaves flight, and the whole argument for
 [`concurrency/after-response-outlives-the-connection`](concurrency.md#concurrency-after-response-outlives-the-connection) is that the tree outlives the connection
 only a little.
@@ -358,17 +358,17 @@ only a little.
 
 `rule:concurrency/deferred-work-cannot-write-the-response`
 
-The response is on the wire before deferred work runs, so **the closure may not touch it**. A write
+The response is on the wire before deferred work runs, so **the deferred callable may not touch it**. A write
 to `Core\Response` is a compile-time diagnostic where the call is statically visible and a throw
 otherwise. `Core\Request`, `Core\Server` and `Core\Session` stay readable — it is still the same
 tree, and the request's own values are still there to read.
 
-An uncaught throw inside the closure goes through the escalation ladder to the log, carrying the
+An uncaught throw inside the deferred callable goes through the escalation ladder to the log, carrying the
 scheduling request's trace id. **The request's `onUncaughtThrow` handler does not fire**: it was
 request-local and that request's own execution is over. There is no response left for the throw to
 affect, so the log is the whole of what it can reach.
 
-`all` and `map` compose inside deferred work with no special case, because a deferred closure is an
+`all` and `map` compose inside deferred work with no special case, because a deferred callable runs as an
 ordinary task.
 
 <sub>See also [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`errors/on-uncaught-throw`](errors.md#errors-on-uncaught-throw), [`security/response-body-is-one-typed-member`](security.md#security-response-body-is-one-typed-member). Decided in [0072](../decisions/0072.md).</sub>
@@ -387,7 +387,7 @@ deadline       = "30s"    # Runtime  — the default a call inherits when it nam
 
 **`max_concurrent` is `System`.** It bounds how much a core holds after responses are on the wire,
 which is a host-sizing decision and not a request-local one, so a request cannot raise it. Note that
-it counts **trees**, not registrations: one request with ten deferred closures is one.
+it counts **trees**, not registrations: one request with ten deferred callables is one.
 
 **`deadline` is `Runtime`** — an ordinary per-request default a call may name its own value for,
 bounded like every other limit by the tree's remaining budget.
@@ -714,7 +714,7 @@ wider ([`errors/escalation-ladder`](errors.md#errors-escalation-ladder)), and th
 
 <a id="concurrency-an-upgrade-is-spawn-shaped"></a>
 
-## An upgrade names compiled code — a file or a static method — and never a closure
+## An upgrade names compiled code — a file or a static method — and never a callable
 
 `rule:concurrency/an-upgrade-is-spawn-shaped`
 
@@ -723,7 +723,7 @@ nothing else: a file path, resolved and root-checked exactly as that construct's
 method written `Chat::run(...)` whose parameters `args:` binds to **by name**. Which of the two it is
 is decided syntactically at the call site ([`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing)).
 
-It is never a closure. A capture would carry state across the boundary the isolate exists to create,
+It is never a callable. A capture would carry state across the boundary the isolate exists to create,
 so an `fn` literal or a `callable`-typed variable here is a compile error that names the method form
 instead. Naming compiled code is also what makes a connection participate in the artifact cache, hot
 reload, grants, limits, coverage and tracing with no special case in any of them.
@@ -1099,7 +1099,7 @@ the one table in the runtime that grows without bound.
 
 `rule:concurrency/a-job-names-a-file`
 
-A job names a script file — not a class, not a closure, not a static method. It is the third
+A job names a script file — not a class, not a callable, not a static method. It is the third
 construct to take that shape, after `spawn script` and a connection upgrade, and the reason it takes
 the *narrowest* of the three is the row: a job's target is stored as data and claimed by any host in
 the fleet, possibly after a redeploy, and a string in a table can hold a path but not a method

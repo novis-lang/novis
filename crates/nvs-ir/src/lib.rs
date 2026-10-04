@@ -30,7 +30,7 @@
 //!   interpolation, `new`, static/instance/`Core` calls, property and
 //!   array-element read and write, array literals including an explicit
 //!   `key =>` and `$a[] =` append, `&&`/`||`/`!` and the ternary/elvis
-//!   operator, `rule:expressions/truthy-positions`'s truthy conversion, `rule:types/closure-literal` closure literals,
+//!   operator, `rule:expressions/truthy-positions`'s truthy conversion, `rule:types/anonymous-function` closure literals,
 //!   `is`, `??`, the literal `null`, `rule:types/conversion`'s scalar conversion
 //!   rows — free, total and checked alike — and `rule:expressions/nullable-conversion`'s non-throwing
 //!   `as ?T` over the checked numeric targets and over its § 3 parse roster.
@@ -338,7 +338,7 @@
 //!    is checked against travels on the closure object.** The call is one [`ir::Helper::CallClosure`]
 //!    — `nvs_runtime::call_closure`, the same entry point native `Core` code
 //!    reaches a callback through, so there is one body and not a second
-//!    convention beside it ([`lower::Lowering::lower_closure_call`]). `rule:types/closure-self-name`'s self-name lowers too, and lowers to nothing: the closure it names
+//!    convention beside it ([`lower::Lowering::lower_closure_call`]). `rule:types/anonymous-function-self-name`'s self-name lowers too, and lowers to nothing: the closure it names
 //!    is the invoke's own receiver, already bound under
 //!    [`lower::closure::FN_SELF`], so the recursive call is the same
 //!    `CallClosure` with that binding as its callee and the environment class
@@ -350,7 +350,7 @@
 //!    in the emitted call and a spread's is not — and a `name:` one is refused
 //!    where it is written (`E0712`), § 1 leaving no parameter for a name to
 //!    fill at either end. The first-class-callable sentinel is the one
-//!    `$f(...)` that makes no call: `rule:types/callable-is-a-closure` gives
+//!    `$f(...)` that makes no call: `rule:types/callable-values` gives
 //!    `callable` a single inhabitant, so the site answers the closure `$f`
 //!    already holds — PHP's own answer, retained once so the value leaves as a
 //!    fresh owner. A `callable` carries

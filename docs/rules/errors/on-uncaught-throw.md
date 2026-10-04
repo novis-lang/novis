@@ -1,4 +1,4 @@
-`Core\Fatal::onUncaughtThrow(closure(Throwable): void $handler): void` fires when an ordinary
+`Core\Fatal::onUncaughtThrow(callable(Throwable): void $handler): void` fires when an ordinary
 `THROWN` propagates through every frame uncaught and reaches the isolate or request root.
 
 It needs no reserve of its own: execution was healthy until this point, so the request's ordinary

@@ -128,7 +128,7 @@
 //!
 //! The variables offered are the innermost body's own and only its own. An
 //! enclosing body's are not in scope: a closure captures by value
-//! (`rule:types/closure-literal`) and a file-scope local is unreachable from a
+//! (`rule:types/anonymous-function`) and a file-scope local is unreachable from a
 //! function, so a name taken from the body outside would be one the checker
 //! refuses where it was offered.
 //!

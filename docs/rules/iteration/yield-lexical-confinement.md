@@ -1,5 +1,5 @@
 `yield` is confined to the generator's own body. A helper function called from a generator cannot
-yield into it, and neither can a closure written inside one — a closure has its own body, so a
+yield into it, and neither can an anonymous function written inside one — an anonymous function has its own body, so a
 `yield` there does not make the enclosing method a generator; it is refused.
 
 Where PHP would delegate to a helper, Novis writes the loop out:

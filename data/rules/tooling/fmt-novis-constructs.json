@@ -1,5 +1,5 @@
 {
-  "title": "Every construct PER never saw — qualifiers, `lateinit`, `fn` closures, `match`, object literals, shape types, enum cases, markup literals, a `?>` on its own line — has exactly one layout",
+  "title": "Every construct PER never saw — qualifiers, `lateinit`, `fn` anonymous functions, `match`, anonymous objects, shape types, enum cases, markup literals, a `?>` on its own line — has exactly one layout",
   "status": "shipped",
   "because": [
     "0039",
@@ -11,8 +11,8 @@
     "tooling/fmt-trailing-commas",
     "security/tainted-qualifier",
     "security/secret-qualifier",
-    "types/closure-literal",
-    "types/object-literal",
+    "types/anonymous-function",
+    "types/anonymous-object",
     "types/shape-type",
     "enums/declaration",
     "core-classes/html-literal"

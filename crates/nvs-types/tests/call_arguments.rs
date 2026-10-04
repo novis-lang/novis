@@ -221,7 +221,7 @@ fn a_spread_argument_is_checked_against_the_tail_element_type() {
 
 #[test]
 fn a_named_argument_through_a_callable_is_refused() {
-    // `rule:types/closure-literal` gives `callable` no parameter list, so there is no
+    // `rule:types/anonymous-function` gives `callable` no parameter list, so there is no
     // parameter for the name to fill — and nothing below has one either: a
     // closure value records its arity and its parameter tags, never their
     // names. `nvs_types::expr::calls::report_args_with_no_parameter_list`

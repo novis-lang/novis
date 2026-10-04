@@ -9,4 +9,4 @@ questions: the type parser reaches that `&` first, and consuming it as an inters
 the site above it nothing to report but a malformed intersection.
 
 The already-refused spellings keep their own codes and gain the new word in their help text: `$a = &$b` is
-`E0701`, a closure parameter `E0493`, a generator's `E0492`.
+`E0701`, an anonymous function parameter `E0493`, a generator's `E0492`.

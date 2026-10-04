@@ -15,7 +15,7 @@ the stream is not a terminal**, so a piped run produces clean output instead of 
 sequences. A handle that outlives its region is dead: painting through it is a `LogicError`, because
 two regions on one cursor is the state this rule exists to make unreachable.
 
-This is the scoped-closure shape `Out::capture` and `Db::transaction`
+This is the scoped-callable shape `Out::capture` and `Db::transaction`
 (`rule:core-classes/db-transactions`) already use, and scoping is what makes restoration enforceable
 (`rule:tooling/the-terminal-is-restored-on-every-exit-path`): a region has an end, and the runtime is
 at that end on every path including a throw. Cursor primitives — `moveUp`, `clearLine`,

@@ -22,7 +22,7 @@ sink it means.
 
 **Two holes: `{$…}` as in a string, and `<?= … ?>` as in a page.** The first is a double-quoted
 string's interpolation grammar, both halves of it and nothing added: `{$` opens a hole whose body is a
-**full expression** closed by the matching `}`, with brace depth counted so a closure inside one does not
+**full expression** closed by the matching `}`, with brace depth counted so an anonymous function inside one does not
 close it early — `{$u->fullName()}`, `{$row["name"]}` and `{$a + $b}` are all holes — and a bare `$name`
 interpolates in PHP's simple syntax, `$name`, `$name->prop` one level, `$name[offset]`. A brace hole
 must begin with `$`, so `{Money::format($c)}` is text exactly as it is in a double-quoted string, and

@@ -963,7 +963,7 @@ tell a form from a JSON object by looking at an `array<string, string>`.
 
 **Two body keys, a body on `get` or `head`, and `contentType` without `body` are compile-time
 diagnostics**, each naming the key. Both halves of the question are in front of the checker: the bag is a
-compile-time-constant shape literal ([`core-api/shape-rules`](core-api.md#core-api-shape-rules) R2) and the verb is the member's own
+compile-time-constant anonymous object ([`core-api/shape-rules`](core-api.md#core-api-shape-rules) R2) and the verb is the member's own
 name, which is exactly why the missing idempotency key is a diagnostic too
 ([`http-server/a-non-idempotent-retry-needs-an-idempotency-key`](http-server.md#http-server-a-non-idempotent-retry-needs-an-idempotency-key)). Where the verb is dynamic, the same
 two checks throw before the first attempt.
@@ -1071,7 +1071,7 @@ retried at all without a key ([`http-server/a-non-idempotent-retry-needs-an-idem
 convention every payment API already implements, and the difference between a retried request
 and a card charged twice.
 
-Because the options bag is a compile-time-constant shape literal ([`core-api/shape-rules`](core-api.md#core-api-shape-rules)
+Because the options bag is a compile-time-constant anonymous object ([`core-api/shape-rules`](core-api.md#core-api-shape-rules)
 R2) and the verb is the member's own name (`Client::post`), both halves are statically known at
 an ordinary call site, and a `post` that asks for retries without the key is a **diagnostic**
 naming the field. It is the verb that decides, asked of every member rather than of one.
@@ -1643,7 +1643,7 @@ The runtime is one single-threaded scheduler pinned per core, and a request neve
 
 **Filesystem calls, name resolution, and waiting on a child process go to the blocking pool**; the reactor thread issues no call that can block on external state. The pool is **bounded at twice the core count**, per worker, and never grows with requests served. The handoff costs microseconds against operations that cost milliseconds, and what it avoids is an entire core idle for the same interval.
 
-The bound is stated because the default it replaces is not: an unbounded pool of threads that each reserve a stack is a footprint that grows with a workload's blocking fan-out rather than with its concurrency. What the pool spends, per [`programs/memory-priority`](programs.md#programs-memory-priority): at most that many OS thread stacks per worker, resident only in what a job touches, plus one boxed closure per job in flight.
+The bound is stated because the default it replaces is not: an unbounded pool of threads that each reserve a stack is a footprint that grows with a workload's blocking fan-out rather than with its concurrency. What the pool spends, per [`programs/memory-priority`](programs.md#programs-memory-priority): at most that many OS thread stacks per worker, resident only in what a job touches, plus one boxed Rust `FnOnce` per job in flight.
 
 <sub>See also [`concurrency/the-reactor-reports-readiness`](concurrency.md#concurrency-the-reactor-reports-readiness), [`concurrency/the-parking-contract`](concurrency.md#concurrency-the-parking-contract), [`concurrency/try-the-syscall-then-park`](concurrency.md#concurrency-try-the-syscall-then-park), [`http-server/a-requests-blast-radius-is-bounded-at-four-tiers`](http-server.md#http-server-a-requests-blast-radius-is-bounded-at-four-tiers), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0106](../decisions/0106.md), [0072](../decisions/0072.md), [0004](../decisions/0004.md), [0115](../decisions/0115.md).</sub>
 

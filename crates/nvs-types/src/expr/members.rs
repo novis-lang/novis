@@ -1805,7 +1805,7 @@ pub(crate) fn report_core_instance_member(
 /// enclosing frame's `$this` for a non-static target and panics when there is
 /// none, naming this function's absence as the cause.
 ///
-/// `rule:types/callable-is-a-closure`'s first-class callable `C::m(...)` is not one of those frames —
+/// `rule:types/callable-values`'s first-class callable `C::m(...)` is not one of those frames —
 /// it records a `CallableRef` and, as `Core\Attributes::get<T>`'s argument, is
 /// folded while checking — so the call site excludes it rather than this
 /// function testing for it.

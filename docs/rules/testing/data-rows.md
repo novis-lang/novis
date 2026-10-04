@@ -1,4 +1,4 @@
-`#[TestWith(...)]` carries a shape literal that the checker matches against the method's parameters
+`#[TestWith(...)]` carries an anonymous object that the checker matches against the method's parameters
 **by name and by type**. It is the one test marker that may repeat on a declaration, and each row is
 its own separately reported case, labelled `method#N` in the order the rows are written — so a row
 that fails is reported alone rather than stopping the rows after it, and a skip is stated per row,

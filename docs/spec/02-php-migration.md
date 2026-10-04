@@ -179,7 +179,7 @@ Novis actually has.
 | `utf8_encode` | member | `Core\Encoding::decodeText` with `Charset::Latin1`; deprecated in PHP itself |
 | `vfprintf` | member | `Core\Str::format` with `...$args` into `$file->write` |
 | `vprintf` | member | `echo Core\Str::format(…, ...$args)` |
-| `vsprintf` | member | `Core\Str::format(…, ...$args)` — argument unpacking replaces the `v` family (`rule:types/closure-literal`) |
+| `vsprintf` | member | `Core\Str::format(…, ...$args)` — argument unpacking replaces the `v` family (`rule:types/anonymous-function`) |
 | `wordwrap` | member | `Core\Str::wrap` |
 
 ## Arrays
@@ -533,7 +533,7 @@ almost every predicate below a question the checker has already answered.
 | `intval` | language | `$x as int`, or `$x as ?int` where PHP relied on `0` for a failure |
 | `is_array` | member | `Core\Reflect::typeOf` — meaningful only on a `mixed` |
 | `is_bool` | member | `Core\Reflect::typeOf` |
-| `is_callable` | member | `Core\Reflect::typeOf`; `callable` is closures only (`rule:types/callable-is-a-closure`) |
+| `is_callable` | member | `Core\Reflect::typeOf`; `callable` is closures only (`rule:types/callable-values`) |
 | `is_countable` | member | `Core\Reflect::typeOf` |
 | `is_double` | member | `Core\Reflect::typeOf` |
 | `is_float` | member | `Core\Reflect::typeOf` |
@@ -912,7 +912,7 @@ question the compiler has already answered or one member of `Core\Reflect`
 ([01 § 13](01-core-library.md)), and never a lookup that can load a file as a side effect.
 
 The rest divides in two. The **dynamic-call** family is the language: a `callable` is closures only
-(`rule:types/callable-is-a-closure`) and a closure is called by writing the call, a
+(`rule:types/callable-values`) and a closure is called by writing the call, a
 variadic parameter is the list `func_get_args` reconstructed, and no static call takes a target assembled
 at run time. The **dumping** family is one diagnostic record with three renderings
 (`rule:errors/diagnostic-record`), which is `Core\Debug`.
@@ -956,7 +956,7 @@ identify.
 | `spl_autoload_call` | dropped | there is no moment at which a name is declared but not yet resolved |
 | `spl_autoload` | dropped | the default loader, which is the `include`-path search `autoload`'s literal paths replace |
 | `spl_autoload_extensions` | dropped | same — `autoload` names paths, so there is no extension list to guess a filename from |
-| `call_user_func` | language | `$f(...)`. A `callable` is closures only (`rule:types/callable-is-a-closure`), and a closure is invoked by writing the call; the `"Class::method"` string form has no spelling at all |
+| `call_user_func` | language | `$f(...)`. A `callable` is closures only (`rule:types/callable-values`), and a closure is invoked by writing the call; the `"Class::method"` string form has no spelling at all |
 | `call_user_func_array` | language | `$f(...$args)`, argument unpacking |
 | `forward_static_call` | dropped | it exists to forward late static binding through a call whose target is a string. A static call's target is a name the compiler resolves, and the binding is `static::` written directly |
 | `forward_static_call_array` | dropped | the same, with unpacking |
@@ -1182,7 +1182,7 @@ being a switch.
 | `xml_set_notation_decl_handler` | dropped | a DTD notation declaration, which is only interesting to a parser that acts on the DTD. This one does not |
 | `xml_set_unparsed_entity_decl_handler` | dropped | it announces an entity naming an external file, so that the program can go and read it. Nothing here resolves one |
 | `xml_set_external_entity_ref_handler` | dropped | the XXE hook itself: PHP hands the program a system id and asks it to fetch and parse what it names. There is no such door (section lead) |
-| `xml_set_object` | dropped | it rebinds every string-named handler onto a method of an object — a workaround for callables that are strings, which Novis does not have (`rule:types/closure-literal`) |
+| `xml_set_object` | dropped | it rebinds every string-named handler onto a method of an object — a workaround for callables that are strings, which Novis does not have (`rule:types/anonymous-function`) |
 | `xml_get_error_code` | dropped | a failed parse throws (`rule:core-api/shape-rules`), so there is no code left on a parser to read afterwards |
 | `xml_error_string` | dropped | the message arrives on the throw. A code-to-string table is what one diagnostic record with three renderings replaces (`rule:errors/diagnostic-record`) |
 | `xml_get_current_line_number` | member | position belongs to the event and to the failure, not to an implicit *current* state: the reader reports where the event it just yielded came from, and a parse failure carries the same on the throw |
@@ -1408,7 +1408,7 @@ deployment: a program reads the one key it needs through `Core\Config::get`, and
 | `highlight_string` | dropped | the same over a string. Highlighting is the editor's (`rule:ide/one-server-two-thin-clients`); a program that renders code renders text, through `Core\Html::escape` |
 | `show_source` | dropped | `highlight_file`'s alias |
 | `version_compare` | dropped | its ordering is PHP's own — `pl` above everything, `RC` below release, `beta` folded in by a string scan — and it is a resolver's rule rather than a string operation. Versions are resolved while building (`rule:packaging/a-package-is-its-digest`), where a pin is a digest and a range is a maximum |
-| `clone` | language | the `clone` keyword, unchanged — PHP's shallow, single-level copy (`rule:classes/two-copy-depths`). The function spelling exists so that cloning can be passed as a callable, and a callable here is a closure (`rule:types/closure-literal`) |
+| `clone` | language | the `clone` keyword, unchanged — PHP's shallow, single-level copy (`rule:classes/two-copy-depths`). The function spelling exists so that cloning can be passed as a callable, and a callable here is a closure (`rule:types/anonymous-function`) |
 | `pack` | member | `Core\Bytes::pack` ([01 § 7](01-core-library.md)), whose format string is a template rather than a mode string, so R11 does not reach it |
 | `unpack` | member | `Core\Bytes::unpack`, which names its fields the same way |
 | `parse_ini_file` | dropped | Novis's own configuration is TOML, read by the runtime rather than by the program (`rule:config/the-file-is-nvs-toml-and-it-is-toml`); `Core\Config` is the request-local view of it. Parsing somebody else's `.ini` is an ordinary parse, and a package's |

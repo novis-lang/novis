@@ -1,5 +1,5 @@
 {
-  "title": "A double is a shape of closures, structurally checked against an interface",
+  "title": "A double is a shape of callables, structurally checked against an interface",
   "status": "shipped",
   "because": [
     "0079",

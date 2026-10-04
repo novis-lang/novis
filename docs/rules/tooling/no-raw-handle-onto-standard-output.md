@@ -7,7 +7,7 @@ alone, the reading half being neither a sink nor a second spelling of anything. 
 rather than hidden: a program cannot emit byte-exact binary on its standard output, and one whose
 output is bytes names a file.
 
-The same closure keeps four more things out of `Core\Cli`. Cursor primitives, per
+The same reasoning keeps four more things out of `Core\Cli`. Cursor primitives, per
 `rule:tooling/in-place-output-is-a-scoped-live-region`. Reading the clipboard, setting the window
 title, or any other `OSC` capability — offering them would re-open, as a feature, the exact channel
 the sink closes. Spinners and table rendering, which are pure text composition over `Str::format` and

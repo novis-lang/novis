@@ -7,7 +7,7 @@ The list, by where each is stated: array keys are always `string` (`rule:types/a
 type fixed, `settype()` rejected (`rule:types/declaration`); `(int)"abc"` is refused as syntax, `"abc"
 as int` throws and `"abc" as ?int` is `null` (`rule:types/no-legacy-cast`, `rule:types/conversion`);
 integer overflow, a fractional value where an integer is wanted, and an `int` too wide for a `float`
-all throw (`rule:types/arithmetic`); a return type is mandatory on every function, method and closure,
+all throw (`rule:types/arithmetic`); a return type is mandatory on every function, method and block-bodied anonymous function,
 `void` or `never` stated when there is no value (`rule:types/declaration`); absent storage never reads
 as a zero value (`rule:php-migration/absent-storage-is-never-a-zero-value`); a declared type answers
 `->` before the program runs

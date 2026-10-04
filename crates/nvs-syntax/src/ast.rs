@@ -502,7 +502,7 @@ pub struct ArrayItem {
     pub span: Span,
 }
 
-/// One `name: value` field of an [`ExprKind::ObjectLiteral`] — `rule:types/object-literal`.
+/// One `name: value` field of an [`ExprKind::ObjectLiteral`] — `rule:types/anonymous-object`.
 /// Unlike [`ArrayItem`], there is no shorthand, no spread and no computed
 /// key: every field name is a static identifier, full stop.
 #[derive(Clone, Debug, PartialEq)]
@@ -539,7 +539,7 @@ pub struct AttributeGroup {
 /// One attribute inside an [`AttributeGroup`] — `rule:attributes/attach-sites-and-forms`'s two forms,
 /// `Name(field: value, ...)` and a bare `{field: value, ...}`.
 ///
-/// Both attach the *same* thing: `rule:types/object-literal`'s anonymous object literal. The named form is sugar for a name
+/// Both attach the *same* thing: `rule:types/anonymous-object`'s anonymous object literal. The named form is sugar for a name
 /// immediately followed by that literal, so the payload is
 /// [`ObjectLiteralField`]s in either case rather than a [`CallArgs`] list —
 /// an attribute payload has no positional argument, no shorthand and no
@@ -693,7 +693,7 @@ impl Param {
     }
 }
 
-/// The body of an `fn` closure literal (`rule:types/closure-literal`): an expression with an
+/// The body of an `fn` closure literal (`rule:types/anonymous-function`): an expression with an
 /// implicit return, or a block requiring an explicit `return`.
 #[derive(Clone, Debug, PartialEq)]
 pub enum FnBody {
@@ -704,14 +704,14 @@ pub enum FnBody {
 }
 
 /// `fn [name] (...): T => expr` or `fn [name] (...): T => { ... }`, optionally
-/// `static` — the one closure literal `rule:types/closure-literal` keeps. There is no `use`
+/// `static` — the one closure literal `rule:types/anonymous-function` keeps. There is no `use`
 /// clause: every outer variable the body reads is captured automatically, by
 /// value (`rule:types/implicit-capture`). `name` is the optional self-name for recursion
-/// (`rule:types/closure-self-name`), resolvable only inside this closure's own body.
+/// (`rule:types/anonymous-function-self-name`), resolvable only inside this closure's own body.
 #[derive(Clone, Debug, PartialEq)]
 pub struct FnExpr {
     /// Whether declared `static` (no `$this` binding) — rejected with a
-    /// diagnostic per `rule:statements/a-closure-binds-this-only-where-it-uses-it`, but still parsed so the caller can build the node and keep going.
+    /// diagnostic per `rule:statements/an-anonymous-function-captures-this-only-where-it-uses-it`, but still parsed so the caller can build the node and keep going.
     pub is_static: bool,
     /// The optional self-name, visible only inside `body`.
     pub name: Option<Span>,
@@ -1109,7 +1109,7 @@ pub enum ExprKind {
     /// `clone expr`
     Clone(Box<Expr>),
     /// `fn (...) => expr` or `fn (...) => { ... }` — the one closure literal
-    /// (`rule:types/closure-literal`).
+    /// (`rule:types/anonymous-function`).
     Fn(FnExpr),
     /// `match (subject) { ... }`
     Match {
@@ -1177,7 +1177,7 @@ pub enum ExprKind {
     /// than discarded in favour of the inner expression — only so its span
     /// covers the parentheses; it carries no other meaning.
     Paren(Box<Expr>),
-    /// `{name: value, ...}` — `rule:types/object-literal`: an anonymous, methodless object
+    /// `{name: value, ...}` — `rule:types/anonymous-object`: an anonymous, methodless object
     /// literal. May be empty (`{a: 1}`'s fields are the common case, but
     /// `{}` is not rejected here). The two positions where `{` already means
     /// a block (a bare statement, an arrow-bodied `fn`'s body) never reach
@@ -1993,7 +1993,7 @@ pub struct TypeAliasDecl {
 /// buried inside one is refused where it is *checked*, not here.
 ///
 /// It never descends into a nested `fn` body, because a closure appears only
-/// as an *expression* and this walk visits none — so `rule:types/closure-literal`'s closures
+/// as an *expression* and this walk visits none — so `rule:types/anonymous-function`'s closures
 /// cannot make their enclosing method a generator, which is exactly `rule:iteration/generators`'s "`yield` is lexically confined to the generator's own body".
 #[must_use]
 pub fn is_generator_body(body: &Block) -> bool {

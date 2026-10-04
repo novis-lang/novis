@@ -1,5 +1,5 @@
 {
-  "title": "`fn` is the only closure literal, with an expression body or a block body",
+  "title": "`fn` is the only way to write an anonymous function, with an expression body or a block body",
   "status": "shipped",
   "because": [
     "0031",
@@ -9,8 +9,8 @@
   "divergesFromPhp": "`function (...) {...}` and `function (...) use (...) {...}` do not parse at all; `fn` gains the block body PHP's arrow form never had",
   "seeAlso": [
     "types/implicit-capture",
-    "types/closure-self-name",
-    "types/callable-is-a-closure"
+    "types/anonymous-function-self-name",
+    "types/callable-values"
   ],
   "guardedBy": [
     "tests/conformance/lang/a-closure-is-called-through-the-variable-holding-it.nvst",

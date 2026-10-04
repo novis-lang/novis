@@ -11,7 +11,7 @@ var $y = 19.99 as decimal;       // `as` supplies one: decimal, exact
 ```
 
 **A union holding `decimal` is a `decimal` position for a literal its other members do not accept.**
-`?decimal $rate = 3;`, `decimal|string $label = 7.25;` and the `?decimal` field of a shape literal
+`?decimal $rate = 3;`, `decimal|string $label = 7.25;` and the `?decimal` field of an anonymous object
 place the literal at `decimal`, exact, at every position a plain `decimal` does. A union that already
 accepts the literal's own type keeps it: `int|decimal` places `3` at `int`, and `float|decimal` places
 `3` and `1.5` at `float`. Only a literal is placed; an `int` variable at `?decimal` is still a mismatch.

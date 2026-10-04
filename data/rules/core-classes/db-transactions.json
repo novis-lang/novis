@@ -1,5 +1,5 @@
 {
-  "title": "A transaction is a closure, and `Transaction` is a `Queryable` rather than a second query surface",
+  "title": "A transaction is a callable, and `Transaction` is a `Queryable` rather than a second query surface",
   "status": "shipped",
   "because": [
     "0067",

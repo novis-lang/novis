@@ -1,5 +1,5 @@
 --TEST--
-A PHP `function (…) use (…) { … }` literal and an `fn` parameter with no type and no parameter to take one from are refused, each with its own code — `rule:types/callable-is-a-closure`
+A PHP `function (…) use (…) { … }` literal and an `fn` parameter with no type and no parameter to take one from are refused, each with its own code — `rule:types/callable-values`
 --FILE--
 <?nvs
 // covers: tools:php-differences/closures-and-callables

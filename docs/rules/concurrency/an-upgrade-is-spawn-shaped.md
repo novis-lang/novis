@@ -3,7 +3,7 @@ nothing else: a file path, resolved and root-checked exactly as that construct's
 method written `Chat::run(...)` whose parameters `args:` binds to **by name**. Which of the two it is
 is decided syntactically at the call site (`rule:security/isolate-shares-nothing`).
 
-It is never a closure. A capture would carry state across the boundary the isolate exists to create,
+It is never a callable. A capture would carry state across the boundary the isolate exists to create,
 so an `fn` literal or a `callable`-typed variable here is a compile error that names the method form
 instead. Naming compiled code is also what makes a connection participate in the artifact cache, hot
 reload, grants, limits, coverage and tracing with no special case in any of them.

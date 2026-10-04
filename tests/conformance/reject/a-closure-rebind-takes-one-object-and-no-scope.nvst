@@ -1,5 +1,5 @@
 --TEST--
-`bindTo` and `bind` take exactly one object, `call` at least one, and none of them takes PHP's scope argument — `rule:types/callable-absorbs-closure`
+`bindTo` and `bind` take exactly one object, `call` at least one, and none of them takes PHP's scope argument — `rule:types/callable-is-the-only-function-type`
 --FILE--
 <?nvs
 class Box {

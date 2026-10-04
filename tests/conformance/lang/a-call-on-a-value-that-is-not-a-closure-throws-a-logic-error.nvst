@@ -1,5 +1,5 @@
 --TEST--
-`$f(...)` on a `mixed` or `?callable` callee that is not a closure throws a catchable `LogicError` naming what it is — `rule:types/callable-is-a-closure`
+`$f(...)` on a `mixed` or `?callable` callee that is not a closure throws a catchable `LogicError` naming what it is — `rule:types/callable-values`
 --FILE--
 <?nvs
 // covers: lang:expressions/closures-fn

@@ -1,4 +1,4 @@
-//! `rule:types/closure-literal`'s closures as compiled objects: the method table, captured values, arity, and a throw out of one.
+//! `rule:types/anonymous-function`'s closures as compiled objects: the method table, captured values, arity, and a throw out of one.
 //!
 //! See `tests/common/mod.rs` for the shared fixtures and for why these go
 //! through the real pipeline.
@@ -9,7 +9,7 @@ use common::*;
 
 #[test]
 fn a_closure_is_reachable_through_the_method_table() {
-    // `rule:types/closure-literal` end to end: `Core\Arr::filter` is native Rust and reaches the
+    // `rule:types/anonymous-function` end to end: `Core\Arr::filter` is native Rust and reaches the
     // closure through `nvs_runtime::call_closure`, which resolves
     // `nvs_runtime::CLOSURE_INVOKE` against the receiver's descriptor — so
     // this fails the moment `nvs-ir`'s label for that method and the
@@ -114,7 +114,7 @@ array<mixed> $mixed = [\"a\", \"b\", 3];
 
 #[test]
 fn a_mismatched_argument_throws_a_logic_error_out_of_the_core_member_that_called_it() {
-    // `rule:types/closure-literal`: a `callable` carries no parameter list, so nothing above
+    // `rule:types/anonymous-function`: a `callable` carries no parameter list, so nothing above
     // the call site saw what this closure requires and
     // `nvs_runtime::call_closure` is the only thing that can refuse the
     // argument. Caught as `LogicError` specifically, which is the half
@@ -155,7 +155,7 @@ fn an_int_argument_widens_into_a_float_parameter_and_is_refused_past_two_to_the_
     // `int` to a closure whose parameter is declared `float`, and
     // `nvs_runtime::call_closure` converts it in place because no checker saw
     // this call site to insert it — a `callable` carries no parameter list
-    // (`rule:types/closure-literal`).
+    // (`rule:types/anonymous-function`).
     //
     // `Core\Json::encode` is the assertion rather than an `echo` of the
     // number: it renders a `float` with a trailing `.0`, so an `int` that

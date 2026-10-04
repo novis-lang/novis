@@ -1,5 +1,5 @@
 --TEST--
-Every method of a double answers from its own closure, arguments and all, and two doubles of one interface answer apart — `rule:testing/doubles`, `rule:types/closure-literal`
+Every method of a double answers from its own closure, arguments and all, and two doubles of one interface answer apart — `rule:testing/doubles`, `rule:types/anonymous-function`
 --FILE--
 <?nvs
 // covers: Core\Test::double, Core\Test::partial

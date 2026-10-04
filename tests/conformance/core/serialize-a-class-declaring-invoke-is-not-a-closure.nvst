@@ -1,5 +1,5 @@
 --TEST--
-What the copy boundary refuses is a closure, not a method name: a class declaring its own `invoke` crosses and comes back whole, while a closure literal is still refused — `rule:classes/graph-copy` and `rule:types/callable-is-a-closure`
+What the copy boundary refuses is a closure, not a method name: a class declaring its own `invoke` crosses and comes back whole, while a closure literal is still refused — `rule:classes/graph-copy` and `rule:types/callable-values`
 --FILE--
 <?nvs
 // § 2's refusal is about what a value *is*. A closure captures a heap and a

@@ -1,5 +1,5 @@
 //! A call's target: which member `$obj->m()`, `C::m()` and `new C()` resolve
-//! to, and `rule:types/callable-is-a-closure`'s rule that only a closure is ever callable.
+//! to, and `rule:types/callable-values`'s rule that only a closure is ever callable.
 //!
 //! Resolution is what this module owns; whether the *arguments* fit is
 //! [`super::args`]. A call that does not statically resolve to a known
@@ -16,7 +16,7 @@
 //! (see [`crate::expr_table`]), and it always carries the *declaring* class
 //! rather than the receiver's.
 //!
-//! **`rule:types/callable-is-a-closure` (`callable` is closures only)** lives here:
+//! **`rule:types/callable-values` (`callable` is closures only)** lives here:
 //! [`report_non_callable_value_if_applicable`] gives a bare string or
 //! `[$obj, 'method']`-shaped array literal a targeted diagnostic naming the
 //! first-class-callable-syntax replacement wherever `callable` is the expected
@@ -25,7 +25,7 @@
 //! `$obj(...)` for any `$obj` whose static type is a resolved class — Novis has
 //! no `__invoke`, so no class ever makes `()` mean anything else.
 //! [`check_fn_literal`] is the other half of the same ADR pair: a closure
-//! literal's body is checked like any other body, and it owns `rule:types/closure-literal`'s
+//! literal's body is checked like any other body, and it owns `rule:types/anonymous-function`'s
 //! capture rule and the one shape it refuses (a block body with no declared
 //! return type).
 //!
@@ -176,7 +176,7 @@ pub(crate) fn infer_method_call(
             env.exprs.record(expr.span, ExprInfo::ErasedCall { name });
         }
     }
-    // `rule:types/callable-is-a-closure`: `$obj->method(...)` (first-class callable syntax) names a
+    // `rule:types/callable-values`: `$obj->method(...)` (first-class callable syntax) names a
     // `Closure` value, not the method's return type — the sentinel
     // `CallArgs::FirstClassCallable` marks exactly this shape, ahead of the
     // ordinary-call typing below. The target is still recorded, as
@@ -493,7 +493,7 @@ pub(crate) fn infer_static_call(
     // See [`infer_method_call`]: first-class callable syntax names a `Closure`,
     // not the resolved method's return type, and records `CallableRef` rather
     // than `Call` for the same span. `static_class` is set here exactly as it
-    // is for a call — `rule:types/callable-is-a-closure` keeps `static::helper(...)` late-bound.
+    // is for a call — `rule:types/callable-values` keeps `static::helper(...)` late-bound.
     if matches!(args, CallArgs::FirstClassCallable) {
         if let (Some((qname, name, _)), Some(sig)) = (&resolved, &sig)
             && !reject_unforwardable_first_class_callable(qname, name, sig, expr.span, env)
@@ -1025,14 +1025,14 @@ fn first_class_callable_type(sig: &MethodSig, env: &mut Env<'_>) -> TypeId {
 /// Refuses `new C(...)` — the first-class callable sentinel written on `new`
 /// (`E_FIRST_CLASS_CALLABLE_NEW`).
 ///
-/// `rule:types/callable-is-a-closure` keeps the spelling for *members*, and a constructor is not
+/// `rule:types/callable-values` keeps the spelling for *members*, and a constructor is not
 /// one: the closure it builds carries a callee, and `new` names a class. PHP
 /// refuses the same expression, so this is the compatible answer as well as
 /// the only one with a meaning. Reported ahead of everything else `new`
 /// checks, and reported rather than left to `nvs-ir`, which would otherwise
 /// reach `lower_call_args` with a sentinel where an argument list belongs —
 /// this is the one shape that got a resolved `new` there at all.
-/// `rule:types/callable-is-a-closure`'s `(...)` over a member a `callable` cannot forward to —
+/// `rule:types/callable-values`'s `(...)` over a member a `callable` cannot forward to —
 /// `E_FIRST_CLASS_CALLABLE_UNFORWARDABLE`, whose own docs own the rule.
 /// Answers `true` when it refused, which is when nothing is recorded: the
 /// pipeline stops at the first error, so `nvs-ir` never looks for the entry.
@@ -1064,7 +1064,7 @@ fn reject_unforwardable_first_class_callable(
         )
         .with_primary(span, format!("this names a member declaring {offending}"))
         .with_help(
-            "`rule:types/callable-absorbs-closure` gives `callable` no parameter list, so a call through one cannot \
+            "`rule:types/callable-is-the-only-function-type` gives `callable` no parameter list, so a call through one cannot \
              stage a by-reference cell or collect a variadic tail — the callee would read \
              the slot at the wrong representation. Write the closure out over the \
              arguments the caller does pass"
@@ -1144,7 +1144,7 @@ fn report_first_class_callable_new(
         )
         .with_primary(span, format!("{named} is constructed here, not called"))
         .with_help(
-            "`rule:types/callable-is-a-closure` gives the `(...)` spelling to a member — `Class::method(...)`, \
+            "`rule:types/callable-values` gives the `(...)` spelling to a member — `Class::method(...)`, \
              `$obj->method(...)`, `self::method(...)` — and a constructor is not one. Write the \
              closure out: `fn (): T => new T(…)`"
                 .to_owned(),
@@ -1353,7 +1353,7 @@ pub(crate) fn report_non_callable_value_if_applicable(expr: &Expr, env: &mut Env
     }
 }
 
-/// `rule:types/callable-is-a-closure`: `$x(...)` is refused whenever `$x`'s static type can
+/// `rule:types/callable-values`: `$x(...)` is refused whenever `$x`'s static type can
 /// never be a closure. A class is one such type — Novis has no `__invoke`, so
 /// no class ever makes `()` mean anything else, regardless of what methods it
 /// declares — and so is every scalar, text, array, enum and shape type, which
@@ -1385,7 +1385,7 @@ pub(crate) fn report_call_on_non_callable(callee_ty: TypeId, span: Span, env: &m
         )
         .with_primary(span, "called with `(...)` here")
         .with_help(
-            "only a closure is callable (`rule:types/callable-is-a-closure`): write an `fn` \
+            "only a closure is callable (`rule:types/callable-values`): write an `fn` \
              literal, or take a reference with first-class callable syntax — \
              `Class::method(...)` or `$obj->method(...)`. A string holding a function's name \
              is not one",
@@ -1427,7 +1427,7 @@ fn never_a_closure(ty: TypeId, interner: &crate::ty::TypeInterner) -> bool {
     }
 }
 
-/// `$m->method(...)` — `rule:types/callable-is-a-closure`'s first-class callable spelling on a `mixed`
+/// `$m->method(...)` — `rule:types/callable-values`'s first-class callable spelling on a `mixed`
 /// receiver, which is the one shape of that receiver's deferral that has no
 /// run-time answer.
 ///
@@ -1464,7 +1464,7 @@ fn report_first_class_callable_on_erased_receiver(span: Span, name: &str, env: &
 /// are one.
 #[derive(Clone, Copy)]
 pub(crate) enum NoParameterList {
-    /// `$fn(...)` — `rule:types/closure-literal`'s opaque `callable`.
+    /// `$fn(...)` — `rule:types/anonymous-function`'s opaque `callable`.
     Callable,
     /// `$m->method(...)` on a `mixed` receiver — `rule:types/erased-member-access`'s deferral, whose
     /// callee is whatever the receiver's runtime class answers.
@@ -1512,7 +1512,7 @@ pub(crate) fn report_args_with_no_parameter_list(
     };
     let inout_help = match callee {
         NoParameterList::Callable => {
-            "`rule:types/closure-literal` keeps `callable` opaque and § 4 refuses an `inout` closure parameter \
+            "`rule:types/anonymous-function` keeps `callable` opaque and § 4 refuses an `inout` closure parameter \
              outright, so nothing this call reaches can bind one — drop the `inout`"
         }
         NoParameterList::ErasedReceiver => {
@@ -1524,7 +1524,7 @@ pub(crate) fn report_args_with_no_parameter_list(
     };
     let name_help = match callee {
         NoParameterList::Callable => {
-            "`rule:types/closure-literal`: `callable` is one opaque type whatever closure the variable holds, so \
+            "`rule:types/anonymous-function`: `callable` is one opaque type whatever closure the variable holds, so \
              neither this call site nor the closure it reaches carries a parameter name to fill \
              — pass the argument positionally"
         }
@@ -1587,7 +1587,7 @@ pub(crate) fn report_args_with_no_parameter_list(
 /// where it is written rather than reaching `nvs-ir` with no resolved target.
 ///
 /// `$fn->bindTo($obj)`, `$fn->bind($obj)` and `$fn->call($obj, ...)` on a
-/// `callable` receiver — `rule:types/callable-absorbs-closure`'s three builtin
+/// `callable` receiver — `rule:types/callable-is-the-only-function-type`'s three builtin
 /// operations, or [`None`] for any other call.
 ///
 /// `bind` and `bindTo` take one `?object` and give the receiver's own type
@@ -1874,7 +1874,7 @@ pub(crate) fn check_call_through_signature(
 }
 
 /// `fact($n - 1)` inside `fn fact(int $n): int` — the recursive call
-/// `rule:types/closure-self-name` admits, checked against the parameter list of
+/// `rule:types/anonymous-function-self-name` admits, checked against the parameter list of
 /// the very closure being written.
 ///
 /// The self-name is not a value of the opaque `callable` type, so there is no
@@ -1917,7 +1917,7 @@ pub(crate) fn check_self_name_args(
 enum Signature<'a> {
     /// The callee's own `callable(T, U): R` type.
     Written(&'a [TypeId]),
-    /// `rule:types/closure-self-name`'s self-name: the closure being written.
+    /// `rule:types/anonymous-function-self-name`'s self-name: the closure being written.
     SelfName(&'a [TypeId]),
 }
 
@@ -2115,7 +2115,7 @@ pub(crate) fn check_new_target(
     }
 }
 
-/// `rule:types/closure-literal`'s
+/// `rule:types/anonymous-function`'s
 /// `fn` closure literal.
 ///
 /// Three things happen here, and only the first is ordinary type-checking:
@@ -2128,7 +2128,7 @@ pub(crate) fn check_new_target(
 ///   as a local ([`Captures`]), which is what makes the recorded capture set
 ///   "exactly the outer variables its body reads" (§ 2) rather than the whole
 ///   enclosing frame. `$this` is in that set like any other name, which is
-///   `rule:statements/a-closure-binds-this-only-where-it-uses-it`'s bind-`$this`-only-where-used rule with no code of its own.
+///   `rule:statements/an-anonymous-function-captures-this-only-where-it-uses-it`'s bind-`$this`-only-where-used rule with no code of its own.
 /// * The literal's own [`ExprInfo::Closure`] entry is recorded — the
 ///   synthesized class its captures lower into, and that capture set — because
 ///   no type carries either of them.
@@ -2163,7 +2163,7 @@ pub(crate) fn check_new_target(
 ///
 /// # The self-name resolves, and is not a binding
 ///
-/// `rule:types/closure-self-name`'s optional self-name is bound for this body alone, in
+/// `rule:types/anonymous-function-self-name`'s optional self-name is bound for this body alone, in
 /// [`Env::fn_self`], and it is **not** a local holding the closure. It is
 /// legal in exactly one position — the callee of a call written inside this
 /// body — where [`super::infer`]'s `ExprKind::Call` arm resolves it to *this*
@@ -2390,7 +2390,7 @@ fn infer_param_type(
     env.interner.mixed()
 }
 
-/// `rule:types/callable-absorbs-closure`'s opaque `callable`, as a refusal: a closure declares no `inout $x`
+/// `rule:types/callable-is-the-only-function-type`'s opaque `callable`, as a refusal: a closure declares no `inout $x`
 /// parameter.
 ///
 /// A by-reference parameter is a contract between a *call site* and a
@@ -2414,7 +2414,7 @@ fn report_by_reference_parameter(param: &nvs_syntax::ast::Param, env: &mut Env<'
         )
         .with_primary(param.name, "declared `inout` here")
         .with_help(
-            "`rule:types/callable-absorbs-closure`: a closure's type is `callable`, which carries no parameter list, so \
+            "`rule:types/callable-is-the-only-function-type`: a closure's type is `callable`, which carries no parameter list, so \
              no call site knows to stage a cell — take the value and `return` the result, or \
              pass an object, whose fields a closure shares by capturing it",
         ),

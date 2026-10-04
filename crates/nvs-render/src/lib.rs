@@ -350,7 +350,7 @@ pub enum Node {
         case: String,
     },
     /// A closure, by the signature it declares — never a body, and never
-    /// captured state (`rule:types/closure-literal`).
+    /// captured state (`rule:types/anonymous-function`).
     Closure {
         /// How many parameters it declares.
         parameters: usize,

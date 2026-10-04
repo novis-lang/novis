@@ -215,7 +215,7 @@ pub(crate) fn carried(ctx: &nvs_runtime::Ctx, captured: &[u8]) -> Value {
 /// How to name what a `through` closure answered, or `None` where it answered
 /// `carrier`, the class [`carried`] built for this sink.
 ///
-/// A `callable` is opaque as to signature (`rule:types/closure-literal`),
+/// A `callable` is opaque as to signature (`rule:types/anonymous-function`),
 /// so nothing static stands between `{through:}` and this check — which is why
 /// it asks about the **class** and not merely about objecthood. A foreign
 /// object, or the other sink's carrier, would make the member's registered

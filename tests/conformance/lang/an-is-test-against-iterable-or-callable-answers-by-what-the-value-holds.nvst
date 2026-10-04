@@ -1,11 +1,11 @@
 --TEST--
-An `is iterable` test answers for an array and for a class reaching either iteration interface, `is callable` for a closure and for nothing else, and a written signature by the closure's own declared one — rule:types/type-test, rule:iteration/two-interfaces, rule:types/callable-is-a-closure, rule:types/callable-signature
+An `is iterable` test answers for an array and for a class reaching either iteration interface, `is callable` for a closure and for nothing else, and a written signature by the closure's own declared one — rule:types/type-test, rule:iteration/two-interfaces, rule:types/callable-values, rule:types/callable-signature
 --FILE--
 <?nvs
 // `rule:types/type-test`: neither row asks anything about the declared type.
 // `iterable` holds what `rule:iteration/foreach-subjects` accepts — an array,
 // an `Iterable` and an `Iterator` — and `callable` holds
-// `rule:types/callable-is-a-closure`'s one shape of value, so every subject
+// `rule:types/callable-values`'s one shape of value, so every subject
 // below reaches the test as a `mixed`.
 class Steps implements Iterator<int> {
     private uint $at = 0;

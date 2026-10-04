@@ -1,5 +1,5 @@
 --TEST--
-`bindTo`, `bind` and `call` give a closure a new `$this` of its own class or a subclass, and a closure that does not use `$this` comes back unchanged — `rule:types/callable-absorbs-closure`, `rule:statements/a-closure-binds-this-only-where-it-uses-it`
+`bindTo`, `bind` and `call` give a closure a new `$this` of its own class or a subclass, and a closure that does not use `$this` comes back unchanged — `rule:types/callable-is-the-only-function-type`, `rule:statements/an-anonymous-function-captures-this-only-where-it-uses-it`
 --FILE--
 <?nvs
 class Counter {

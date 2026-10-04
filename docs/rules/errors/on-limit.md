@@ -1,4 +1,4 @@
-`Core\Fatal::onLimit(closure(LimitReport): void $handler): void` fires only for a resource-limit
+`Core\Fatal::onLimit(callable(LimitReport): void $handler): void` fires only for a resource-limit
 `FATAL` — memory, CPU time, `max_output`, wall time, `max_script_depth` and call-stack depth. An
 internal panic never reaches it (`rule:errors/panics-bypass-user-code`).
 

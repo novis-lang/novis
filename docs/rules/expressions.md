@@ -175,7 +175,7 @@ strict reading:
 | `array<T>` | the same length, the same keys in the same order, and every value equal by this table, recursively |
 | class instance | the same object ([`expressions/object-identity-equality`](expressions.md#expressions-object-identity-equality)) |
 | enum case | the underlying integers are equal |
-| `callable` | the same closure — two `fn` literals with identical bodies are two closures |
+| `callable` | the same callable — two `fn` literals with identical bodies are two callables |
 | `mixed`, a union | resolved at run time ([`expressions/mixed-equality`](expressions.md#expressions-mixed-equality)) |
 
 The array recursion terminates: an array is a copy-on-write value rather than a reference, so it
@@ -559,10 +559,10 @@ that is not already a call or an access is written parenthesized: `$n |> ($_ * 2
 Because the result is the tree the nested spelling produces, every later pass — name resolution, the
 type checker, taint and `secret`, literal folding, lowering, codegen — sees a node it already handles.
 Nothing about the `Core` roster, scalar methods or any security property changes: `$userTemplate |>
-Str::format($_, $n)` is refused for the same reason the nested call is. There is no closure allocated
+Str::format($_, $n)` is refused for the same reason the nested call is. There is no callable allocated
 and no dynamic dispatch.
 
-<sub>See also [`expressions/pipeline-hole-once`](expressions.md#expressions-pipeline-hole-once), [`expressions/pipeline-precedence`](expressions.md#expressions-pipeline-precedence), [`expressions/first-class-callable-syntax`](expressions.md#expressions-first-class-callable-syntax). Decided in [0098](../decisions/0098.md), [0011](../decisions/0011.md), [0027](../decisions/0027.md), [0063](../decisions/0063.md).</sub>
+<sub>See also [`expressions/pipeline-hole-once`](expressions.md#expressions-pipeline-hole-once), [`expressions/pipeline-precedence`](expressions.md#expressions-pipeline-precedence), [`expressions/method-reference`](expressions.md#expressions-method-reference). Decided in [0098](../decisions/0098.md), [0011](../decisions/0011.md), [0027](../decisions/0027.md), [0063](../decisions/0063.md).</sub>
 
 <a id="expressions-pipeline-precedence"></a>
 
@@ -601,7 +601,7 @@ enforceable, and `crates/nvs-diagnostics/src/lib.rs` is the registry that alloca
 
 | code | when | what it says |
 |---|---|---|
-| `E0129` | a right side of `\|>` contains no `$_` | names the shape (`Str::trim($_)`) and, when the right side is first-class callable syntax or a closure value, adds that this `\|>` substitutes a hole rather than applying a callable |
+| `E0129` | a right side of `\|>` contains no `$_` | names the shape (`Str::trim($_)`) and, when the right side is a method reference or a callable, adds that this `\|>` substitutes a hole rather than applying a callable |
 | `E0130` | `$_` appears more than once on one right side | names binding the value to a local instead |
 | `E0131` | `$_` appears anywhere outside the right side of a `\|>` | says the hole has no meaning there |
 
@@ -748,13 +748,14 @@ zero on the happy path ([`errors/throw-is-not-slower`](errors.md#errors-throw-is
 
 <sub>See also [`expressions/catch-expression`](expressions.md#expressions-catch-expression), [`expressions/catch-result-type`](expressions.md#expressions-catch-result-type), [`errors/propagation`](errors.md#errors-propagation), [`errors/throw-is-not-slower`](errors.md#errors-throw-is-not-slower). Decided in [0119](../decisions/0119.md), [0002](../decisions/0002.md).</sub>
 
-<a id="expressions-first-class-callable-syntax"></a>
+<a id="expressions-method-reference"></a>
 
-## `Name(...)` is the only spelling that takes a reference to a declared member
+## A method reference, `Name(...)`, is the only spelling that takes a reference to a declared member
 
-`rule:expressions/first-class-callable-syntax`
+`rule:expressions/method-reference`
 
-`Name(...)` is the only way to take a reference to a declared method or function member:
+A method reference, `Name(...)`, is the only way to take a reference to a declared method or function
+member:
 `Core\Str::length(...)`, `$user->getName(...)`, `self::helper(...)` (early-bound) and
 `static::helper(...)` (late-bound). There is no second reference-taking spelling — no `::ref` form,
 and no reuse of `::class`, which stays a class-name-to-string operator unrelated to producing a
@@ -763,9 +764,9 @@ callable value.
 Every spelling above resolves a member at the reference itself rather than at call time, and the
 checker records that resolved target under a variant that cannot be mistaken for an ordinary call.
 Two shapes are refused for having no member to resolve: `new C(...)`, because `new` names a class and
-this syntax builds a closure carrying a callee rather than an allocation — write `fn (): C => new C(…)`,
-which also says which arguments the construction takes; and `$m->method(...)` on a `mixed` receiver,
-because a closure value outlives the site and there is no class present to read a callee off.
+a method reference builds a callable carrying a callee rather than an allocation — write
+`fn (): C => new C(…)`, which also says which arguments the construction takes; and
+`$m->method(...)` on a `mixed` receiver, because a callable outlives the site and there is no class present to read a callee off.
 
 A `callable` may carry its signature. The resolvability this rule is after comes from the reference at
 the value's creation site rather than from the static type, so it holds whether or not the slot being

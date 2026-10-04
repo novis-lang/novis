@@ -1,5 +1,5 @@
 A shape key reuses the options bag's two diagnostics, widened from "option" to "shape key": an argument
-that is not a written shape literal, and a key the member does not declare. No new diagnostic code is
+that is not a written anonymous object, and a key the member does not declare. No new diagnostic code is
 introduced.
 
 A **missing required key** needs no code of its own, because an incomplete literal genuinely *is* a value of

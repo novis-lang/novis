@@ -1,5 +1,5 @@
 --TEST--
-A closure calling itself by its self-name has its arguments checked against the parameters that closure declares, where they are written — `rule:types/closure-self-name`, `rule:types/callable-signature`
+A closure calling itself by its self-name has its arguments checked against the parameters that closure declares, where they are written — `rule:types/anonymous-function-self-name`, `rule:types/callable-signature`
 --FILE--
 <?nvs
 // The self-name is not a value of the opaque `callable` type — it is the

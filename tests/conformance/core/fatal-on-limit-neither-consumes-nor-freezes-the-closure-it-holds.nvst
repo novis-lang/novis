@@ -1,8 +1,8 @@
 --TEST--
-A closure `Core\Fatal::onLimit` holds is still an ordinary `callable` the program may call and pass on — `rule:errors/on-limit`, `rule:types/callable-absorbs-closure`
+A closure `Core\Fatal::onLimit` holds is still an ordinary `callable` the program may call and pass on — `rule:errors/on-limit`, `rule:types/callable-is-the-only-function-type`
 --FILE--
 <?nvs
-// `rule:types/callable-absorbs-closure` gives the language one closure type, and registering one as a
+// `rule:types/callable-is-the-only-function-type` gives the language one closure type, and registering one as a
 // tier-1 handler is a *use* of it rather than a conversion into something else.
 // The boundary this asks about is ownership: the context takes a reference of
 // its own (`Ctx::set_limit_handler`), so a registration that moved the closure

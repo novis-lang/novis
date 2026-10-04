@@ -424,7 +424,7 @@ impl<'a> Lowering<'a> {
                     self.lower_unloaded_require(path, env, cur);
                 }
             }
-            // `rule:types/object-literal`'s parenthesized reading, and every other one.
+            // `rule:types/anonymous-object`'s parenthesized reading, and every other one.
             // `nvs_syntax`'s `parse_statement_inner` commits a
             // statement-initial `{` to a *block*, so a discarded shape
             // literal has to be written `({a: 1});` — which arrives here

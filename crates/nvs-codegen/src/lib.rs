@@ -1493,7 +1493,7 @@ impl Classes {
             }
         }
         let id = self.table.define(&class.label, &class.fields, &parents);
-        // `rule:types/callable-is-a-closure`'s bit, carried down rather than
+        // `rule:types/callable-values`'s bit, carried down rather than
         // recomputed: `nvs_runtime::ClassDesc::is_closure` is what decides
         // whether a value may be called as a `callable` and whether
         // `rule:classes/graph-copy`'s walk refuses it, and the `invoke` in the
@@ -1728,7 +1728,7 @@ struct Signatures {
     /// arity belongs to the call site rather than to their own declaration:
     /// `nvs_runtime::nvs_call_closure` and `nvs_call_closure_proven`, which are
     /// `nvs_ir::Helper::CallClosure` and `CallClosureProven` — the dynamic and
-    /// the checked spellings of `rule:types/closure-literal`'s `$fn(...)`.
+    /// the checked spellings of `rule:types/anonymous-function`'s `$fn(...)`.
     /// Every other helper's arity is a literal in its `nvs_helper!` expansion,
     /// so no count crosses the boundary at all.
     helper_variadic: Signature,

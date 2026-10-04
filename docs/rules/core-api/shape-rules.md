@@ -5,7 +5,7 @@ surface of ~450 members is only learnable if the eleventh member is predictable 
 | # | The rule |
 |---|---|
 | R1 | The subject is parameter 1, always (`rule:core-api/subject-first`) |
-| R2 | Then required arguments in dataflow order, then at most one trailing optional shape literal (`rule:core-api/options-bag`), every parameter callable by name (`rule:core-api/parameters-are-callable-by-name`) |
+| R2 | Then required arguments in dataflow order, then at most one trailing optional anonymous object (`rule:core-api/options-bag`), every parameter callable by name (`rule:core-api/parameters-are-callable-by-name`) |
 | R3 | Nothing mutates and nothing takes a reference (`rule:core-api/nothing-mutates`) |
 | R4 | Failure throws; absence is `?T` (`rule:core-api/failure-throws`) |
 | R5 | A fixed verb lexicon, and a closed ban list (`rule:core-api/verb-lexicon`) |

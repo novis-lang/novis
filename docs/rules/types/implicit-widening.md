@@ -1,5 +1,5 @@
 Implicit conversion happens in exactly one place: an `int` or `uint` **widening into a `float`
-position** — an argument, a return, an assignment, a field of an object literal, an element of an
+position** — an argument, a return, an assignment, a field of an anonymous object, an element of an
 array literal, or the far side of an arithmetic operator. A position whose type is a union holding
 `float` is a `float` position for an `int` or `uint` value the union does not name, and a union value
 such as a `?int` converts by its run-time tag. It never reaches the field of a shape value

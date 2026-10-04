@@ -1,4 +1,4 @@
-//! Calling an `rule:types/closure-literal`
+//! Calling an `rule:types/anonymous-function`
 //! closure value from native code.
 //!
 //! A closure is an ordinary Novis object whose class declares exactly one
@@ -24,7 +24,7 @@
 //!
 //! # Why the parameter types are checked here, of all places
 //!
-//! `rule:types/closure-literal`
+//! `rule:types/anonymous-function`
 //! gives `callable` no parameter list, so **no checker can compare a call site
 //! against the body it will reach**, and the compiled `invoke` reads argument
 //! slot *i* at its own declared representation. Hand it a mismatch and the
@@ -40,7 +40,7 @@
 //! [`check_param_tags`] compares one against each argument on the way in —
 //! throwing the [`crate::ThrownClass::Logic`] `LogicError` [`nvs_call_closure`]
 //! answers a bad arity with. It sits in [`call_closure`] because that is the
-//! one path *both* callers take, a `Core` member's callback and `rule:types/closure-literal`'s
+//! one path *both* callers take, a `Core` member's callback and `rule:types/anonymous-function`'s
 //! `$fn(...)` alike; putting it in either caller would leave the other one
 //! holding the hole. What it costs, and the one argument it converts rather
 //! than compares — `rule:types/conversion`'s `int`-into-`float` widening, which no checker
@@ -181,7 +181,7 @@ pub(crate) enum TagCheck {
 /// anything is retained or passed.
 /// [`Fault::Fatal`] when `closure` is not a closure value at all, or declares
 /// more parameters than the caller has to offer — both engine faults: the
-/// checker only admits an `rule:types/callable-is-a-closure` closure value where a `callable` is
+/// checker only admits an `rule:types/callable-values` closure value where a `callable` is
 /// expected, and no `Core` member offers fewer than the spec says it does.
 pub fn call_closure(ctx: &mut Ctx, closure: Value, args: &[Value]) -> Result<Value, Fault> {
     call_closure_with(ctx, closure, args, TagCheck::Required)
@@ -247,7 +247,7 @@ fn call_closure_with(
     })
 }
 
-/// `nvs_ir::Helper::CallClosure` — `rule:types/closure-literal`'s `$fn(...)`, which is compiled
+/// `nvs_ir::Helper::CallClosure` — `rule:types/anonymous-function`'s `$fn(...)`, which is compiled
 /// code's own way into [`call_closure`]. `args[0]` is the closure and
 /// `args[1..argc]` the arguments it was called with, in written order.
 ///
@@ -265,7 +265,7 @@ fn call_closure_with(
 /// the catchable `LogicError` below rather than the engine fault
 /// [`call_closure`] answers a native caller with: a `callable` carries no
 /// parameter list for the checker to count against
-/// (`rule:types/closure-literal`), so a program can reach it, and a program-reachable failure is a
+/// (`rule:types/anonymous-function`), so a program can reach it, and a program-reachable failure is a
 /// throw (`rule:errors/propagation`).
 ///
 /// # Safety
@@ -353,7 +353,7 @@ fn closure_call_body(ctx: &mut Ctx, args: &[Value], tags: TagCheck) -> Result<Va
 }
 
 crate::nvs_helper! {
-    /// `nvs_ir::Helper::CallClosureArray` — `rule:types/closure-literal`'s `$fn(...)` where the
+    /// `nvs_ir::Helper::CallClosureArray` — `rule:types/anonymous-function`'s `$fn(...)` where the
     /// call site wrote a `...` argument, so how many arguments there are is the
     /// spread subject's own run-time length rather than the site's own count.
     ///
@@ -417,11 +417,11 @@ crate::nvs_helper! {
     }
 }
 
-/// `rule:types/callable-absorbs-closure`'s rebind: `closure` with `$this`
+/// `rule:types/callable-is-the-only-function-type`'s rebind: `closure` with `$this`
 /// replaced by `this`, as a fresh reference the caller owns.
 ///
 /// A closure whose body does not use `$this` has no [`CLOSURE_THIS_FIELD`]
-/// (`rule:statements/a-closure-binds-this-only-where-it-uses-it`), so it comes
+/// (`rule:statements/an-anonymous-function-captures-this-only-where-it-uses-it`), so it comes
 /// back unchanged, one more reference to the same object, whatever `this` is.
 ///
 /// One that does is copied with [`crate::object::nvs_object_clone`], and the
@@ -512,7 +512,7 @@ pub fn bind_closure(closure: Value, this: Value) -> Result<Value, Fault> {
 /// A native caller has no arity mistake to make — a `Core` member offers every
 /// argument the spec says it does, so [`call_closure`] answers it with an
 /// engine fault. An Novis call site's list is whatever was written there, and
-/// `rule:types/closure-literal`
+/// `rule:types/anonymous-function`
 /// gives the checker no parameter list to count it against, so too few is
 /// program-reachable and therefore a throw
 /// (`rule:errors/propagation`).
@@ -546,7 +546,7 @@ fn call_closure_from_nvs(
     call_closure_with(ctx, closure, passed, tags)
 }
 
-/// `rule:types/callable-is-a-closure`'s run-time half: a compiled `$f(...)`
+/// `rule:types/callable-values`'s run-time half: a compiled `$f(...)`
 /// whose callee is not a closure throws a `LogicError` naming what it is.
 ///
 /// # Errors
@@ -740,14 +740,14 @@ pub fn closure_param_names(closure: Value) -> Result<Option<Vec<String>>, Fault>
 /// checker can make — over the nibble `word` that callee recorded, naming it
 /// `callee` in whatever it has to report.
 ///
-/// `rule:types/closure-literal`
+/// `rule:types/anonymous-function`
 /// gives `callable` no parameter list, so a call site has nothing to compare
 /// against and the compiled `invoke` reads argument slot *i* at its own
 /// declared representation — an `int` handed to a `string` parameter is
 /// dereferenced as an `NvsStr` pointer. This is the one place that can still
 /// tell, because the closure object carries what the literal declared
 /// (`nvs_ir::lower`'s `FN_PARAM_TAGS`), and it is on the path *both* callers
-/// take: a `Core` member's callback and `rule:types/closure-literal`'s `$fn(...)` alike.
+/// take: a `Core` member's callback and `rule:types/anonymous-function`'s `$fn(...)` alike.
 ///
 /// **It is the erased *method* call's check too**, which is why it takes a
 /// word rather than a closure object. A `mixed` receiver defers the same
@@ -832,7 +832,7 @@ pub(crate) fn check_param_tags(callee: &str, word: u64, args: &mut [Value]) -> R
             // an `int` or `uint` arriving at a `float` parameter widens under
             // that ADR's 2^53 rule instead of being refused. It is applied
             // here because no checker saw this call site to insert it — a
-            // `callable` has no parameter list (`rule:types/closure-literal`) — and out of
+            // `callable` has no parameter list (`rule:types/anonymous-function`) — and out of
             // `crate::helpers`'s own row, so the boundary is the same one a
             // written `as float` lands on.
             // `tests/conformance/core/arr-a-callback-float-parameter-widens-an-int-and-stops-at-2-53.nvst`
@@ -871,7 +871,7 @@ pub(crate) fn check_param_tags(callee: &str, word: u64, args: &mut [Value]) -> R
 /// [`ClassDesc::is_closure()`] bit, not the `invoke` in its method table: an
 /// ordinary class may declare that name, and calling into one would jump
 /// through a method the caller never type-checked against
-/// `rule:types/callable-is-a-closure`'s literal. The method lookup that
+/// `rule:types/callable-values`'s literal. The method lookup that
 /// follows the bit can therefore only fail on a descriptor built wrong, which
 /// is why it reports an internal error rather than a mismatch.
 fn invoke_address(closure: Value) -> Result<*const u8, Fault> {

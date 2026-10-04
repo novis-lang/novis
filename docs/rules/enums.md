@@ -103,7 +103,7 @@ nothing further to carry.
 
 Materialized into a tagged value — a `mixed`, an `array<mixed>` element, an erased parameter — a
 case takes an **enum tag of its own**, one per backing type: `EnumInt` over an `int` payload and
-`EnumUint` over a `uint` one. A condition, a type test, a closure parameter's check and a declared
+`EnumUint` over a `uint` one. A condition, a type test, an anonymous function parameter's check and a declared
 slot's write check read that tag, so a case in a `mixed` is always truthy ([`enums/truthiness`](enums.md#enums-truthiness)),
 `is int` is `false` for it and `is` an enum is `false` for a plain integer. Every reader that only
 decodes the value — printing, conversion, comparison, `===`, serialization — reads it as its backing

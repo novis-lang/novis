@@ -96,7 +96,7 @@
 //!   `parser/stmt.rs`'s `Parser::at_shape_typed_local`: a braced run that opens like a field list
 //!   *and* a variable after the matched `}`. That is what leaves a block a variable happens to follow
 //!   (`{ echo 1; } $x = 1;`) with its ordinary parse, and a discarded object literal with
-//!   `rule:types/object-literal`'s own refusal.
+//!   `rule:types/anonymous-object`'s own refusal.
 
 pub mod ast;
 mod casing;

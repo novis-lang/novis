@@ -1,8 +1,8 @@
 --TEST--
-A closure `Core\Signal::onShutdown` holds is still an ordinary `callable` the program may call and pass on — `rule:core-api/tier-roster`, `rule:types/callable-absorbs-closure`
+A closure `Core\Signal::onShutdown` holds is still an ordinary `callable` the program may call and pass on — `rule:core-api/tier-roster`, `rule:types/callable-is-the-only-function-type`
 --FILE--
 <?nvs
-// `rule:types/callable-absorbs-closure` gives the language one closure type, and
+// `rule:types/callable-is-the-only-function-type` gives the language one closure type, and
 // registering one as a shutdown handler is a *use* of it rather than a
 // conversion into something else. The boundary this asks about is ownership:
 // the context takes a reference of its own, so a registration that moved the

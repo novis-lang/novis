@@ -118,7 +118,7 @@
 //! cases that partition [`nvs_runtime::Tag`]'s value-carrying half answer the
 //! whole family in one call and a `match` with no `default` is exhaustive.
 //! That is also why the cases stop where the *representations* do. `Callable`
-//! is not one, because `rule:types/closure-literal` makes a closure an ordinary object and a case
+//! is not one, because `rule:types/anonymous-function` makes a closure an ordinary object and a case
 //! for it would be a second case one value satisfies; `Numeric` is not one,
 //! because `is_numeric` asks about a `string`'s **contents** and that is
 //! `Core\Validate`'s question, not this member's; and `Iterable` and

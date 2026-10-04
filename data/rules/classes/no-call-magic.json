@@ -10,7 +10,7 @@
   "seeAlso": [
     "classes/no-magic-methods",
     "classes/no-dynamic-properties",
-    "types/callable-is-a-closure"
+    "types/callable-values"
   ],
   "guardedBy": [
     "tests/conformance/class/an-unknown-method-is-a-compile-error.nvst",

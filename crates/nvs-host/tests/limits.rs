@@ -282,7 +282,7 @@ fn closure_of(invoke: nvs_runtime::NvsFn) -> Value {
 
 /// A closure declaring one parameter of any representation, which is what a
 /// handler written to § 1's `closure(LimitReport)` signature is: `callable`
-/// carries no parameter list (`rule:types/closure-literal`), so the nibble a written `fn`
+/// carries no parameter list (`rule:types/anonymous-function`), so the nibble a written `fn`
 /// literal would record is the only thing `call_closure` checks against.
 fn closure_taking_the_report(invoke: nvs_runtime::NvsFn) -> Value {
     closure_taking(invoke, 1)

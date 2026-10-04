@@ -833,7 +833,7 @@ fn check_expr(expr: &Expr, src: &SourceFile, diags: &mut Diagnostics) {
         ExprKind::Await(inner) => check_expr(inner, src, diags),
         ExprKind::Require { path } => check_expr(path, src, diags),
         ExprKind::ObjectLiteral(fields) => {
-            // `rule:types/object-literal`: a literal's field names are ordinary property
+            // `rule:types/anonymous-object`: a literal's field names are ordinary property
             // names, so `rule:core-api/identifier-casing`'s camelCase rule applies unchanged — reuse
             // the same check an ordinary class property declaration gets,
             // even though this field carries no `$` sigil to strip.
@@ -1008,7 +1008,7 @@ mod tests {
 
     #[test]
     fn a_correctly_cased_object_literal_field_is_clean() {
-        // `rule:types/object-literal`: field names are ordinary property names.
+        // `rule:types/anonymous-object`: field names are ordinary property names.
         let diags = check("<?nvs\n$o = {userId: 1};\n");
         assert!(diags.is_empty(), "{diags:?}");
     }

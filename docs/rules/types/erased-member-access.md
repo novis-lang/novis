@@ -13,8 +13,8 @@ For all three:
   *real*, concrete declared type, throwing on a mismatch. A write through an erased view can **never
   create a field**.
 - **Call:** a call through an erased receiver is dispatched on the value's own descriptor when it
-  runs. What cannot be deferred is refused: taking a *closure* off an erased receiver has no class
-  present to read a callee from (`rule:types/callable-is-a-closure`).
+  runs. What cannot be deferred is refused: taking a *method reference* off an erased receiver has no class
+  present to read a callee from (`rule:types/callable-values`).
 
 Both throws are ordinary `Throwable`s propagated by checked return (`rule:errors/propagation`), never
 routed through the fatal escalation ladder (`rule:errors/escalation-ladder`). Per-property hooks and a

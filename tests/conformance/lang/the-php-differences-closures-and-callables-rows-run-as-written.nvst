@@ -1,5 +1,5 @@
 --TEST--
-Every Novis spelling in the closures-and-callables table of the PHP-differences chapter compiles and runs — `rule:types/callable-is-a-closure`
+Every Novis spelling in the closures-and-callables table of the PHP-differences chapter compiles and runs — `rule:types/callable-values`
 --FILE--
 <?nvs
 // covers: tools:php-differences/closures-and-callables

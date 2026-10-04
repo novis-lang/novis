@@ -1,5 +1,5 @@
 --TEST--
-A PHP `function` literal passed to a generic Core call reports its own refusal and nothing else: neither the argument nor the call's inferred result type reports a mismatch — `rule:types/closure-literal`
+A PHP `function` literal passed to a generic Core call reports its own refusal and nothing else: neither the argument nor the call's inferred result type reports a mismatch — `rule:types/anonymous-function`
 --FILE--
 <?nvs
 array<int> $prices = [1, 2];

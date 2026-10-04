@@ -705,7 +705,7 @@ ordering's implicit property walk by `Comparable` ([`classes/comparable`](classe
 `__call`/`__callStatic` ([`classes/no-call-magic`](classes.md#classes-no-call-magic)), `__destruct`
 ([`classes/no-destructors`](classes.md#classes-no-destructors)), `__clone` and the four serialization hooks
 ([`classes/two-copy-depths`](classes.md#classes-two-copy-depths)), `__isset`/`__unset` ([`classes/unset-is-refused-on-a-property`](classes.md#classes-unset-is-refused-on-a-property)),
-`__debugInfo` ([`classes/no-debug-hook`](classes.md#classes-no-debug-hook)), `__invoke` ([`types/callable-is-a-closure`](types.md#types-callable-is-a-closure)) and
+`__debugInfo` ([`classes/no-debug-hook`](classes.md#classes-no-debug-hook)), `__invoke` ([`types/callable-values`](types.md#types-callable-values)) and
 `__set_state`, whose reconstruct-from-generated-code use is answered by the closed round trip instead.
 
 Every one of those names is refused where it is *written*: the method-casing rule allows no leading
@@ -738,7 +738,7 @@ name and argument list, or a `match` keyed by name — visible in the class body
 every other call. What that costs is real: a proxy or a fluent facade generated from `__call` has no
 mechanical translation and needs a human to write the surface out.
 
-<sub>See also [`classes/no-magic-methods`](classes.md#classes-no-magic-methods), [`classes/no-dynamic-properties`](classes.md#classes-no-dynamic-properties), [`types/callable-is-a-closure`](types.md#types-callable-is-a-closure). Decided in [0014](../decisions/0014.md), [0029](../decisions/0029.md), [0011](../decisions/0011.md).</sub>
+<sub>See also [`classes/no-magic-methods`](classes.md#classes-no-magic-methods), [`classes/no-dynamic-properties`](classes.md#classes-no-dynamic-properties), [`types/callable-values`](types.md#types-callable-values). Decided in [0014](../decisions/0014.md), [0029](../decisions/0029.md), [0011](../decisions/0011.md).</sub>
 
 <a id="classes-no-destructors"></a>
 
@@ -849,7 +849,7 @@ properties pointing at one nested object still point at one object on the other 
 terminates instead of recursing. It never runs a constructor, and no hook fires: the shape that
 crosses is the class's own declared properties, every time.
 
-It refuses what has no meaning on the other side, naming the offending value and its path: a closure,
+It refuses what has no meaning on the other side, naming the offending value and its path: a callable,
 which captures a heap and a scope; an `inout` binding, which aliases a specific frame; and an object
 holding a host handle. Declared types make most of that a compile-time refusal at the copy site; the
 run-time check is what a `mixed` carrying one of them needs. An object whose class the receiving side
@@ -859,7 +859,7 @@ One walk serves both carriers — arena-to-arena at the isolate boundary, and by
 `Core\Serialize` — so a rule added to it reaches both or neither. Two implementations that agree today
 is the failure that costs.
 
-<sub>See also [`classes/two-copy-depths`](classes.md#classes-two-copy-depths), [`classes/serialize-is-a-closed-format`](classes.md#classes-serialize-is-a-closed-format), [`classes/clone-is-shallow`](classes.md#classes-clone-is-shallow), [`types/callable-is-a-closure`](types.md#types-callable-is-a-closure), [`statements/inout-is-the-by-reference-spelling`](statements.md#statements-inout-is-the-by-reference-spelling). Decided in [0023](../decisions/0023.md), [0006](../decisions/0006.md), [0024](../decisions/0024.md).</sub>
+<sub>See also [`classes/two-copy-depths`](classes.md#classes-two-copy-depths), [`classes/serialize-is-a-closed-format`](classes.md#classes-serialize-is-a-closed-format), [`classes/clone-is-shallow`](classes.md#classes-clone-is-shallow), [`types/callable-values`](types.md#types-callable-values), [`statements/inout-is-the-by-reference-spelling`](statements.md#statements-inout-is-the-by-reference-spelling). Decided in [0023](../decisions/0023.md), [0006](../decisions/0006.md), [0024](../decisions/0024.md).</sub>
 
 <a id="classes-serialize-is-a-closed-format"></a>
 

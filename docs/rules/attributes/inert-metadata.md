@@ -1,5 +1,5 @@
 `#[Name(field: value, ...)]`, or the bare `#[{field: value, ...}]`, attaches an anonymous object
-literal to a declaration. It is the same literal an ordinary shape-typed binding takes rather than a
+to a declaration. It is the same value an ordinary shape-typed binding takes rather than a
 new kind of value, and **no class is declared, instantiated or invoked for it**: an attribute is inert
 data from the moment it is parsed.
 

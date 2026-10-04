@@ -1,5 +1,5 @@
 Every task starts as a child of the task that started it. There is no unparented task and no way to
-write one: a group's closures are children of the calling task, a served connection is a child of
+write one: a group's callables run as children of the calling task, a served connection is a child of
 the task accepting on that core, a scheduled fire is a child of the ticker's task, and a `spawn
 script` isolate is a child of the frame that spawned it.
 

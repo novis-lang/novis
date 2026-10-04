@@ -7,7 +7,7 @@ enforceable, and `crates/nvs-diagnostics/src/lib.rs` is the registry that alloca
 
 | code | when | what it says |
 |---|---|---|
-| `E0129` | a right side of `\|>` contains no `$_` | names the shape (`Str::trim($_)`) and, when the right side is first-class callable syntax or a closure value, adds that this `\|>` substitutes a hole rather than applying a callable |
+| `E0129` | a right side of `\|>` contains no `$_` | names the shape (`Str::trim($_)`) and, when the right side is a method reference or a callable, adds that this `\|>` substitutes a hole rather than applying a callable |
 | `E0130` | `$_` appears more than once on one right side | names binding the value to a local instead |
 | `E0131` | `$_` appears anywhere outside the right side of a `\|>` | says the hole has no meaning there |
 

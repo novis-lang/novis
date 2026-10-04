@@ -1,5 +1,5 @@
 {
-  "title": "An attribute is a shape literal on a declaration, and nothing is ever declared or instantiated for it",
+  "title": "An attribute is an anonymous object on a declaration, and nothing is ever declared or instantiated for it",
   "status": "shipped",
   "because": [
     "0046",

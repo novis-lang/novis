@@ -1,5 +1,5 @@
 --TEST--
-Every outer value a closure reads is the copy that was there where the closure was written, whichever shape held it, and an object captured that way is still the caller's own — `rule:types/implicit-capture`, `rule:types/closure-literal`
+Every outer value a closure reads is the copy that was there where the closure was written, whichever shape held it, and an object captured that way is still the caller's own — `rule:types/implicit-capture`, `rule:types/anonymous-function`
 --FILE--
 <?nvs
 // covers: lang:expressions/closures-fn

@@ -398,7 +398,7 @@ pub(crate) fn check_foreach_key(
     }
 }
 
-/// `rule:types/callable-is-a-closure`/§ 3: a bare string or `[$obj, 'method']`-shaped array
+/// `rule:types/callable-values`/§ 3: a bare string or `[$obj, 'method']`-shaped array
 /// literal reaching a `callable`-typed position gets a targeted diagnostic
 /// naming the first-class-callable-syntax replacement, rather than the
 /// generic `E_TYPE_MISMATCH` [`is_assignable`] would otherwise report for

@@ -17,7 +17,7 @@ satisfying the shape's declared type by ordinary assignability. No new compariso
   `{w: float}` or `{w: ?float}`, `{w: array<int>}` does not satisfy `{w: array<float>}`, and a class
   with an `int $w` property does not satisfy `{w: float}` either; `{w: int|float}` accepts both,
   because `int` is one of its members.
-- **An object literal placed at a declared shape** takes each field the declaration names at the
+- **An anonymous object placed at a declared shape** takes each field the declaration names at the
   declared type, when its value fits it: `{w: 2}` and `{w: $count}` at `{w: float}` are `{w: float}`,
   and the literal stores `2.0`. An array literal in a field is placed the same way, so `{xs: [1, 2]}`
   at `{xs: array<float>}` stores two floats (`rule:types/arrays`). A field the declaration does not

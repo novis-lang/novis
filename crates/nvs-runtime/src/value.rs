@@ -62,7 +62,7 @@ pub enum Tag {
     /// A class instance; the payload is an [`ObjHeader`] pointer and the value
     /// owns one reference to it.
     ///
-    /// A `rule:types/callable-is-a-closure` closure is one of these — one field
+    /// A `rule:types/callable-values` closure is one of these — one field
     /// per capture, one `invoke` method — so it needs no tag of its own;
     /// `nvs_ir::lower::lower_closure` owns that decision and says why it reuses
     /// the object machinery rather than adding a second heap shape, and

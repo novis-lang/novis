@@ -275,7 +275,7 @@ fn every_capability_entry_names_a_member() {
     }
 }
 
-/// `rule:testing/capability-closure-test`'s closure, and it has no exception list to read: a member of a capability-bearing
+/// `rule:testing/capability-completeness-test`'s closure, and it has no exception list to read: a member of a capability-bearing
 /// class that genuinely needs none declares `None` in `registry::CAPABILITIES`, in the same table
 /// under the same review as one that needs `fs.read`.
 ///
@@ -288,7 +288,7 @@ fn every_capability_entry_names_a_member() {
 /// is the one home for a member's reason.
 #[test]
 fn every_capability_bearing_member_declares_its_capability() {
-    // `rule:testing/capability-closure-test`'s direction: not "does every entry name a member" — that is
+    // `rule:testing/capability-completeness-test`'s direction: not "does every entry name a member" — that is
     // `every_capability_entry_names_a_member` above — but "does every member of a class that reaches
     // the operating system at all say so". A class is capability-bearing when any one of its members
     // is declared, because that is the evidence that the class is a door and not a calculator.

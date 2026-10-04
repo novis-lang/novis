@@ -1,5 +1,5 @@
 --TEST--
-A call through a `mixed` receiver defers to the receiver's runtime class, and refuses the three spellings that deferral cannot express — `rule:types/conversion`, `rule:types/erased-member-access`, `rule:types/callable-is-a-closure`
+A call through a `mixed` receiver defers to the receiver's runtime class, and refuses the three spellings that deferral cannot express — `rule:types/conversion`, `rule:types/erased-member-access`, `rule:types/callable-values`
 --FILE--
 <?nvs
 final class Box {
@@ -29,7 +29,7 @@ $m->value(n: 1);
 int $n = 1;
 $m->value(inout $n);
 
-// `rule:types/callable-is-a-closure`'s first-class callable spelling makes no call at all: it names a
+// `rule:types/callable-values`'s first-class callable spelling makes no call at all: it names a
 // closure value, which carries its callee with it, and there is no class here
 // to read one off.
 $m->value(...);

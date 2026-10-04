@@ -8,7 +8,7 @@
   ],
   "seeAlso": [
     "types/callable-signature",
-    "types/closure-literal",
+    "types/anonymous-function",
     "types/erased-member-access"
   ],
   "guardedBy": [

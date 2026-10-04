@@ -49,7 +49,7 @@ impl<'a> Lowering<'a> {
     /// call site.
     ///
     /// The first-class callable sentinel panics too, and its roster is closed:
-    /// `rule:types/callable-is-a-closure`'s member spellings record
+    /// `rule:types/callable-values`'s member spellings record
     /// `nvs_types::expr_table::ExprInfo::CallableRef` rather than `Call`, so
     /// [`super::expr`]'s call arms never dispatch here for one, and the shapes
     /// that name no member are diagnostics where they are written
@@ -94,7 +94,7 @@ impl<'a> Lowering<'a> {
                 "nvs-ir: a resolved call/`new` reached argument lowering with \
                  {args:?} where a written argument list belongs — this crate trusts \
                  nvs_types::check_program to have settled every other shape. The \
-                 roster is closed: `rule:types/callable-is-a-closure`'s `Class::method(...)` and \
+                 roster is closed: `rule:types/callable-values`'s `Class::method(...)` and \
                  `$obj->method(...)` record `ExprInfo::CallableRef` and never reach \
                  this function, `$m->method(...)` on a `mixed` receiver is `E0732`, \
                  and `new C(...)` is `E0740`"
@@ -377,7 +377,7 @@ impl<'a> Lowering<'a> {
     /// there) and a call through a `callable` that wrote a `...`
     /// ([`Self::lower_closure_call`], where it is the whole argument list).
     /// `expected` is the element type to widen each written-out entry into, and
-    /// is `None` at the second site: `rule:types/closure-literal` gives `callable` no parameter
+    /// is `None` at the second site: `rule:types/anonymous-function` gives `callable` no parameter
     /// list, so there is nothing to widen towards.
     ///
     /// The returned array is a **fresh producer** and is left accounted to
@@ -743,7 +743,7 @@ impl<'a> Lowering<'a> {
         self.emit(cur, ty, kind)
     }
 
-    /// An `rule:types/object-literal`
+    /// An `rule:types/anonymous-object`
     /// shape value, materialized from a constant rather than from a written
     /// literal — `rule:attributes/retrieval-folds-while-checking`'s fold is the one producer.
     ///
@@ -792,7 +792,7 @@ impl<'a> Lowering<'a> {
         (obj, Ty::Object)
     }
     /// `$fn(...)` —
-    /// `rule:types/closure-literal`'s
+    /// `rule:types/anonymous-function`'s
     /// closure, called through the variable holding it.
     ///
     /// One [`Helper::CallClosure`], with the closure at `args[0]` and its
@@ -826,7 +826,7 @@ impl<'a> Lowering<'a> {
     /// # `$f(...)`
     ///
     /// The first-class-callable sentinel makes no call at all.
-    /// `rule:types/callable-is-a-closure` gives `callable` exactly one
+    /// `rule:types/callable-values` gives `callable` exactly one
     /// inhabitant, a closure, so `$f(...)` already names the value a reference
     /// to `$f` would have to produce and the answer is that closure itself —
     /// which is also PHP's, pinned by
@@ -838,7 +838,7 @@ impl<'a> Lowering<'a> {
     ///
     /// # Panics
     ///
-    /// Panics for a `name:` argument — `rule:types/closure-literal` gives
+    /// Panics for a `name:` argument — `rule:types/anonymous-function` gives
     /// `callable` no parameter list, so there is no parameter for a name to fill
     /// and `nvs_types` refuses one where it is written (`E0712`).
     pub(crate) fn lower_closure_call(
@@ -990,7 +990,7 @@ impl<'a> Lowering<'a> {
     /// Panics naming any shape `nvs_types` is trusted to have settled first: a
     /// `name:` argument (`E0712`) and an `inout` one (`E0714`), neither of
     /// which the deferral can express, and the first-class-callable sentinel,
-    /// which is `rule:types/callable-is-a-closure`'s `$m->method(...)` and names a closure *value*
+    /// which is `rule:types/callable-values`'s `$m->method(...)` and names a closure *value*
     /// rather than making a call — refused where it is written (`E0732`),
     /// because a closure carries its callee and the deferral has none to
     /// carry. No program constructs any of the three, so each is an engine
@@ -1008,7 +1008,7 @@ impl<'a> Lowering<'a> {
             panic!(
                 "nvs-ir: a call through a `mixed` receiver reached lowering with \
                  {args:?} where a written argument list belongs — `ExprInfo::ErasedCall` \
-                 is recorded only for the non-sentinel branch, `rule:types/callable-is-a-closure`'s \
+                 is recorded only for the non-sentinel branch, `rule:types/callable-values`'s \
                  `$m->method(...)` being refused where it is written (`E0732`), so no \
                  program constructs this"
             );

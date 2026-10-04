@@ -1,5 +1,5 @@
 --TEST--
-A closure parameter naming a class is checked against the argument's own ancestry at the closure's entry, so an unrelated class refuses by name while a subclass, an interface and every erased spelling accept — `rule:types/conversion`, `rule:types/closure-literal`
+A closure parameter naming a class is checked against the argument's own ancestry at the closure's entry, so an unrelated class refuses by name while a subclass, an interface and every erased spelling accept — `rule:types/conversion`, `rule:types/anonymous-function`
 --FILE--
 <?nvs
 // The depth claim is *a bound asserted on both sides*, over the one argument
@@ -25,7 +25,7 @@ A closure parameter naming a class is checked against the argument's own ancestr
 // `Core\Out::capture`'s `{through:}` is the vehicle for the first half because
 // it is the one `Core` member that hands a callback an object — its own
 // `Core\Cli\Text` carrier (spec § 12). A `callable` is opaque as to signature
-// (`rule:types/closure-literal`), so nothing static stands between the option and what the
+// (`rule:types/anonymous-function`), so nothing static stands between the option and what the
 // closure declares, and these two checks are the whole of what stands there at
 // run time.
 final class Marker {

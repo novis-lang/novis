@@ -1,5 +1,5 @@
 --TEST--
-An `rule:types/object-literal` object literal writing one field name twice is `E0494` where it is written, at every depth and once per repeat, while the same braces spelling an `rule:core-api/shape-rules` R2 options bag keeps its own `E0304`
+An `rule:types/anonymous-object` object literal writing one field name twice is `E0494` where it is written, at every depth and once per repeat, while the same braces spelling an `rule:core-api/shape-rules` R2 options bag keeps its own `E0304`
 --FILE--
 <?nvs
 // A shape's fields are a set: `{a: int}` names one slot, so the second `a`

@@ -1086,7 +1086,7 @@ parameter the registry marks as a class name, which completes as the classes the
 as the ones that are a `Throwable` where the member expects an error; a string argument at a parameter
 whose declared type is a union of string literal types ([`types/literal-types`](types.md#types-literal-types)), which completes as
 those literals, read off the parameter types the checker records on the call it resolved; `#[Api]` fields and
-every attribute's shape literal, which is a declared type; and enum cases, members off a resolved receiver
+every attribute's anonymous object, whose shape is a declared type; and enum cases, members off a resolved receiver
 and in-scope variables, which are the same rule and not an exception to it.
 
 What it refuses has no subject rather than being declined: ORM columns (a codec's fields are declared
@@ -2066,7 +2066,7 @@ stderr and, for anything a user should see, `window/logMessage`, and `nvs-lsp` d
 `println!`/`print!` appears nowhere in `crates/` outside `nvs-cli`, whose whole job is terminal
 output, so this is an invariant to keep rather than one to establish, and it is kept by a test over
 every crate the server links rather than by care. The server links the type checker, so `nvs-stdlib`
-and `nvs-runtime` beneath it are in that closure, and the runtime does write to stdout: it is where a
+and `nvs-runtime` beneath it are in that dependency set, and the runtime does write to stdout: it is where a
 program's `echo` goes under `nvs run`. That is not an exception, because it is a sink a caller wires
 into a `Ctx` and the server builds no `Ctx` at all — so the test exempts the sink's own
 implementation and separately checks that nothing under the server wires one.

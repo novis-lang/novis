@@ -14,5 +14,5 @@ that is not already a call or an access is written parenthesized: `$n |> ($_ * 2
 Because the result is the tree the nested spelling produces, every later pass — name resolution, the
 type checker, taint and `secret`, literal folding, lowering, codegen — sees a node it already handles.
 Nothing about the `Core` roster, scalar methods or any security property changes: `$userTemplate |>
-Str::format($_, $n)` is refused for the same reason the nested call is. There is no closure allocated
+Str::format($_, $n)` is refused for the same reason the nested call is. There is no callable allocated
 and no dynamic dispatch.

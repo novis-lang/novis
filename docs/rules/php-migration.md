@@ -20,7 +20,7 @@ The list, by where each is stated: array keys are always `string` ([`types/array
 type fixed, `settype()` rejected ([`types/declaration`](types.md#types-declaration)); `(int)"abc"` is refused as syntax, `"abc"
 as int` throws and `"abc" as ?int` is `null` ([`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`types/conversion`](types.md#types-conversion));
 integer overflow, a fractional value where an integer is wanted, and an `int` too wide for a `float`
-all throw ([`types/arithmetic`](types.md#types-arithmetic)); a return type is mandatory on every function, method and closure,
+all throw ([`types/arithmetic`](types.md#types-arithmetic)); a return type is mandatory on every function, method and block-bodied anonymous function,
 `void` or `never` stated when there is no value ([`types/declaration`](types.md#types-declaration)); absent storage never reads
 as a zero value ([`php-migration/absent-storage-is-never-a-zero-value`](php-migration.md#php-migration-absent-storage-is-never-a-zero-value)); a declared type answers
 `->` before the program runs
@@ -205,14 +205,14 @@ a `const`.
 
 <a id="php-migration-no-partial-application"></a>
 
-## Partial function application is not adopted; the closure literal already spells it
+## Partial function application is not adopted; an anonymous function already spells it
 
 `rule:php-migration/no-partial-application`
 
 `f(?, $x)` and every application-with-holes shape do not parse. The value it would produce is
-exactly what the callable machinery reduced to one shape ([`types/callable-is-a-closure`](types.md#types-callable-is-a-closure)), and
-the closure literal already spells every partial application: `fn($a) => f($a, $x)`
-([`types/closure-literal`](types.md#types-closure-literal)). A second closure-producing spelling, for no capability `fn` lacks,
+exactly what the callable machinery reduced to one shape ([`types/callable-values`](types.md#types-callable-values)), and
+an anonymous function already spells every partial application: `fn($a) => f($a, $x)`
+([`types/anonymous-function`](types.md#types-anonymous-function)). A second callable-producing spelling, for no capability `fn` lacks,
 is what was rejected.
 
 `nvs convert` rewrites a PHP 8.6 `?` placeholder into that wrapper mechanically — each `?` becomes a
@@ -223,7 +223,7 @@ diagnostic ([`expressions/pipeline-hole-once`](expressions.md#expressions-pipeli
 This reopens only on conversion pressure — widespread `?` placeholders in real conversion targets —
 at which point the wrapper either suffices or measurably bloats output.
 
-<sub>See also [`types/closure-literal`](types.md#types-closure-literal), [`types/callable-is-a-closure`](types.md#types-callable-is-a-closure), [`expressions/first-class-callable-syntax`](expressions.md#expressions-first-class-callable-syntax), [`expressions/pipeline-substitution`](expressions.md#expressions-pipeline-substitution), [`expressions/pipeline-hole-once`](expressions.md#expressions-pipeline-hole-once), [`php-migration/a-deprecation-is-a-refusal`](php-migration.md#php-migration-a-deprecation-is-a-refusal). Decided in [0124](../decisions/0124.md), [0027](../decisions/0027.md), [0031](../decisions/0031.md).</sub>
+<sub>See also [`types/anonymous-function`](types.md#types-anonymous-function), [`types/callable-values`](types.md#types-callable-values), [`expressions/method-reference`](expressions.md#expressions-method-reference), [`expressions/pipeline-substitution`](expressions.md#expressions-pipeline-substitution), [`expressions/pipeline-hole-once`](expressions.md#expressions-pipeline-hole-once), [`php-migration/a-deprecation-is-a-refusal`](php-migration.md#php-migration-a-deprecation-is-a-refusal). Decided in [0124](../decisions/0124.md), [0027](../decisions/0027.md), [0031](../decisions/0031.md).</sub>
 
 <a id="php-migration-let-and-is-are-reserved"></a>
 

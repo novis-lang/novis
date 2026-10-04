@@ -11,12 +11,12 @@ The **return type is mandatory** — `callable(int)` with no return says strictl
 any other return position. **No parameter names**: `callable(int $x): string` does not parse, because
 a name in the type would imply calling through the value by name, which nothing supports.
 
-Bare `callable` remains the **top of the callable lattice** — a closure whose signature is unknown.
+Bare `callable` remains the **top of the callable lattice** — a callable whose signature is unknown.
 Every callable type is assignable to it, calling through one keeps the dynamic path and its
 per-argument tag check, and nothing existing changes meaning. Narrowing is opt-in. Where a call
 reaches a callable whose type names its parameters, the arguments are proven at compile time and the
-per-argument tag check is **not emitted**; the metadata stays on every closure object, because bare
-`callable` still needs it and a closure does not know at its literal which kind of site will call it.
+per-argument tag check is **not emitted**; the metadata stays on every callable, because bare `callable`
+still needs it and an anonymous function does not know at its literal which kind of site will call it.
 
 The two binding-site variants that stood in for this — a callback-return parameter and a shape of
 callbacks — are retired, and the restriction that a shape's every field be a *written* `fn` literal

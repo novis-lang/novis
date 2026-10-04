@@ -161,7 +161,7 @@ surface of ~450 members is only learnable if the eleventh member is predictable 
 | # | The rule |
 |---|---|
 | R1 | The subject is parameter 1, always ([`core-api/subject-first`](core-api.md#core-api-subject-first)) |
-| R2 | Then required arguments in dataflow order, then at most one trailing optional shape literal ([`core-api/options-bag`](core-api.md#core-api-options-bag)), every parameter callable by name ([`core-api/parameters-are-callable-by-name`](core-api.md#core-api-parameters-are-callable-by-name)) |
+| R2 | Then required arguments in dataflow order, then at most one trailing optional anonymous object ([`core-api/options-bag`](core-api.md#core-api-options-bag)), every parameter callable by name ([`core-api/parameters-are-callable-by-name`](core-api.md#core-api-parameters-are-callable-by-name)) |
 | R3 | Nothing mutates and nothing takes a reference ([`core-api/nothing-mutates`](core-api.md#core-api-nothing-mutates)) |
 | R4 | Failure throws; absence is `?T` ([`core-api/failure-throws`](core-api.md#core-api-failure-throws)) |
 | R5 | A fixed verb lexicon, and a closed ban list ([`core-api/verb-lexicon`](core-api.md#core-api-verb-lexicon)) |
@@ -460,7 +460,7 @@ class's declared properties. There is no magic hook.
 **Structural** encoding of a class's public properties is refused. It makes the public shape an implicit
 wire contract that a rename breaks with no diagnostic, and it needs an opt-out mechanism, which is a magic
 hook under another name. A written attribute is not that: the participation is visible at the declaration,
-and a `secret` property is refused there rather than silently omitted from the output. An inline shape
+and a `secret` property is refused there rather than silently omitted from the output. An anonymous object
 ([`types/object-top`](types.md#types-object-top)) is the one value that needs neither, because it has no declaration to carry
 either — it encodes as an object keyed by its field names.
 
@@ -697,16 +697,16 @@ does not.
 
 `rule:core-api/callback-receives-value-and-key`
 
-A callback a `Core` member invokes always receives `($value, $key)`, in that order, and a closure may
-declare fewer parameters than the call site passes ([`types/callable-arity`](types.md#types-callable-arity)). A closure wanting only
+A callback a `Core` member invokes always receives `($value, $key)`, in that order, and a callable may
+declare fewer parameters than the call site passes ([`types/callable-arity`](types.md#types-callable-arity)). A callable wanting only
 the value writes one parameter and never sees the key.
 
 This kills the whole `ARRAY_FILTER_USE_KEY`/`ARRAY_FILTER_USE_BOTH` flag family, which exists in PHP only
 because its callbacks have a fixed arity, and it removes the need for `map`/`mapWithKey` pairs that would
 otherwise violate [`core-api/one-name-one-signature`](core-api.md#core-api-one-name-one-signature). The order is value-first because that is the
-argument almost every callback uses, so the common closure is `fn($v)` with nothing to skip.
+argument almost every callback uses, so the common callback is `fn($v)` with nothing to skip.
 
-<sub>See also [`core-api/no-mode-strings`](core-api.md#core-api-no-mode-strings), [`types/callable-arity`](types.md#types-callable-arity), [`types/callable-is-a-closure`](types.md#types-callable-is-a-closure). Decided in [0063](../decisions/0063.md).</sub>
+<sub>See also [`core-api/no-mode-strings`](core-api.md#core-api-no-mode-strings), [`types/callable-arity`](types.md#types-callable-arity), [`types/callable-values`](types.md#types-callable-values). Decided in [0063](../decisions/0063.md).</sub>
 
 <a id="core-api-parameters-are-callable-by-name"></a>
 
@@ -732,12 +732,12 @@ and the helper ABI is untouched.
 
 <a id="core-api-options-bag"></a>
 
-## A member's optional knobs are one trailing shape literal, never a flag or a bitmask
+## A member's optional knobs are one trailing anonymous object, never a flag or a bitmask
 
 `rule:core-api/options-bag`
 
 After the subject come the required arguments in dataflow order, and then **at most one** trailing optional
-shape literal — an object literal ([`types/object-top`](types.md#types-object-top)) declared as a `type` alias. There are no `bool`
+anonymous object ([`types/object-top`](types.md#types-object-top)) whose shape is declared as a `type` alias. There are no `bool`
 flag parameters, no `int` bitmasks, and no positional optional tail longer than one.
 
 The bag is the home of every optional knob because it is named, order-free and structurally checked, and a
@@ -974,7 +974,7 @@ unnamed, omittable in full — which are worth enforcing by a type rather than r
 
 `rule:core-api/shape-arms-are-disjoint`
 
-A written shape literal is checked by asking which arm accepts it, where an arm accepts when the literal's
+A written anonymous object is checked by asking which arm accepts it, where an arm accepts when the object's
 keys are exactly that arm's required keys plus any subset of its optional ones, each value assignable to
 its field's declared type. **Exactly one arm accepts.** Zero accepting is the call site's error; two
 accepting is a registry bug rather than a program's, so it is refused statically — a build-time check
@@ -1047,7 +1047,7 @@ A qualifier classification lands on the **field**, not the parameter
 `rule:core-api/shape-reuses-the-option-diagnostics`
 
 A shape key reuses the options bag's two diagnostics, widened from "option" to "shape key": an argument
-that is not a written shape literal, and a key the member does not declare. No new diagnostic code is
+that is not a written anonymous object, and a key the member does not declare. No new diagnostic code is
 introduced.
 
 A **missing required key** needs no code of its own, because an incomplete literal genuinely *is* a value of
@@ -1309,7 +1309,7 @@ name is accounted for individually rather than by category:
 2. **Dead or dying in PHP itself** — `ereg*`, `mysql_*`, `mcrypt`, `create_function`, `each`,
    `money_format`, `utf8_encode`, `strptime`, `get_browser`.
 3. **Already closed by another rule** — about 120 functions whose removal follows from declared types, from
-   closures being the only callable, from the closed doors, from the escalation ladder
+   anonymous functions and method references being the only callables, from the closed doors, from the escalation ladder
    ([`errors/escalation-ladder`](errors.md#errors-escalation-ladder)), from having no superglobals
    ([`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables)), or from having no cross-request ambient state.
 4. **Structurally wrong here** — the internal array pointer, because a mutable cursor inside a

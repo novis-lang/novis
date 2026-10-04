@@ -1,4 +1,4 @@
-//! `rule:types/closure-literal`'s closure literals, lowered to an object of a synthesized class with one field per capture.
+//! `rule:types/anonymous-function`'s closure literals, lowered to an object of a synthesized class with one field per capture.
 //!
 //! Part of [`super`]'s one `impl Lowering`, split across this directory so a
 //! session editing one area does not carry the rest in context. The methods
@@ -115,7 +115,7 @@ pub(crate) fn drain_closures(
 }
 
 /// Lowers one `fn` literal's body to the `invoke` method of its own
-/// captured-environment class — `rule:types/closure-literal`/§ 2.
+/// captured-environment class — `rule:types/anonymous-function`/§ 2.
 ///
 /// # The representation
 ///
@@ -160,12 +160,12 @@ pub(crate) fn drain_closures(
 ///
 /// The assert on an `inout $x` parameter is an internal-consistency check rather
 /// than a gap: `callable` carries no parameter list for a call site to read
-/// (`rule:types/callable-absorbs-closure`), so `nvs_types::expr::calls` refuses one as `E0493` and
+/// (`rule:types/callable-is-the-only-function-type`), so `nvs_types::expr::calls` refuses one as `E0493` and
 /// nothing that reaches here declares one.
 ///
 /// # Returns
 ///
-/// The environment class first, then one per `rule:types/object-literal` shape literal the
+/// The environment class first, then one per `rule:types/anonymous-object` shape literal the
 /// body wrote — [`Lowering::shapes`], which has nowhere else to travel.
 pub(crate) fn lower_closure(
     pending: &PendingClosure,
@@ -251,7 +251,7 @@ pub(crate) fn lower_closure(
     }
 
     match &fn_expr.body {
-        // An expression body is an implicit `return` (`rule:types/closure-literal`), lowered
+        // An expression body is an implicit `return` (`rule:types/anonymous-function`), lowered
         // through the same path `StmtKind::Return` uses: retain if the value
         // is a borrowed read, release the frame's locals, return. A body that
         // is a `void` call, as in `fn (): void => Log::write($line)`, has no
@@ -276,7 +276,7 @@ pub(crate) fn lower_closure(
     }
 
     let more = std::mem::take(&mut low.closures);
-    // `rule:types/callable-is-a-closure`'s `(...)` written inside a closure body has the same nowhere
+    // `rule:types/callable-values`'s `(...)` written inside a closure body has the same nowhere
     // else to go — see `Lowering::callables`.
     let more_callables = std::mem::take(&mut low.callables);
     // A shape literal written *inside* a closure body synthesizes its class
@@ -333,7 +333,7 @@ pub(crate) fn lower_closure(
                     .collect(),
                 None => Vec::new(),
             },
-            // The marker `rule:types/callable-is-a-closure`'s `$x is callable`
+            // The marker `rule:types/callable-values`'s `$x is callable`
             // walks for — see `super::CLOSURE_MARKER` — and one more per
             // written signature this literal satisfies, which is the same walk
             // one step more specific. The checker decided the second set,
@@ -518,7 +518,7 @@ fn check_param_class(
 /// The reserved field an **instance** first-class callable's object holds its
 /// target's receiver under — `$obj->method(...)` and the `self::method(...)`
 /// spelling of a non-`static` member alike
-/// (`rule:types/callable-is-a-closure`).
+/// (`rule:types/callable-values`).
 ///
 /// Absent from a static target's class, which has nothing to remember: its
 /// called class is a compile-time constant the thunk materializes for itself.
@@ -559,7 +559,7 @@ pub(crate) struct PendingCallable {
 /// `(...)` named, or build one class, which is what each row's `make` of
 /// `rule:programs/constructors` does.
 pub(crate) enum ThunkTarget {
-    /// `rule:types/callable-is-a-closure`'s forwarding call.
+    /// `rule:types/callable-values`'s forwarding call.
     Forward {
         /// The member the `(...)` named.
         call: ResolvedCall,
@@ -583,12 +583,12 @@ pub(crate) enum ThunkTarget {
 }
 
 /// Lowers one first-class callable to the `invoke` method of a class
-/// synthesized for that one site — `rule:types/callable-is-a-closure`, on top of
+/// synthesized for that one site — `rule:types/callable-values`, on top of
 /// [`lower_closure`]'s representation and adding nothing to it.
 ///
 /// # Why a thunk rather than another call shape
 ///
-/// `rule:types/closure-literal` makes `callable` the only closure type, so the *value* a
+/// `rule:types/anonymous-function` makes `callable` the only closure type, so the *value* a
 /// `(...)` produces has to be the same object every `fn` literal produces:
 /// [`FN_ARITY`], [`FN_PARAM_TAGS`], and one `invoke` the runtime reaches
 /// through the method table. Given that, the cheapest correct body for that

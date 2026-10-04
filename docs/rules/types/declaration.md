@@ -1,7 +1,7 @@
 Every binding site carries a type, and only a local and a `foreach` binding may take theirs with `var`
 rather than writing it. PHP's existing slots become mandatory — parameter, return (`void` and `never`
-included), property, promoted constructor parameter, class constant, closure parameter and closure
-return, `catch`, enum backing type — and four positions PHP has no slot for get one: a local at its
+included), property, promoted constructor parameter, class constant, anonymous function parameter and
+anonymous function return, `catch`, enum backing type — and four positions PHP has no slot for get one: a local at its
 declaration, a `foreach` key and value, a `for` header's init clause
 (`rule:iteration/for-init-clause`), and a destructuring target. A local, a `for` init declaration and
 a `foreach` key or value may write `var` instead, which takes the type from the expression that fills
@@ -11,9 +11,9 @@ The return slot is owed by every declaration a caller reads, an abstract method 
 member included, and **the constructor is the one exception**: it answers with the instance rather
 than with a value, which is why a valued `return` in one is refused, so it writes no return type and
 a written `: void` there is accepted while saying nothing the declaration did not. An
-expression-bodied closure is the other place the slot may stand empty, and for the opposite reason —
+expression-bodied anonymous function is the other place the slot may stand empty, and for the opposite reason —
 its body is a single expression, which is its own answer, while a block-bodied one owes the
-annotation like any method (`rule:types/closure-literal`).
+annotation like any method (`rule:types/anonymous-function`).
 
 A binding is declared **once**. A later assignment is bare, and is legal only where the name is
 already declared in the enclosing function; re-declaring a live name is a diagnostic naming the first

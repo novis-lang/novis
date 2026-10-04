@@ -1,5 +1,5 @@
 --TEST--
-An `int` or `uint` argument widens into a closure's `float` parameter, and is refused past 2^53 — `rule:types/conversion` and `rule:types/arithmetic`, `rule:types/closure-literal`
+An `int` or `uint` argument widens into a closure's `float` parameter, and is refused past 2^53 — `rule:types/conversion` and `rule:types/arithmetic`, `rule:types/anonymous-function`
 --FILE--
 <?nvs
 // `rule:types/conversion`: an `int` or `uint` in a `float` position is the one implicit

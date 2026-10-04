@@ -1,5 +1,5 @@
 What each `Core` member needs is declared once, in one table: a class, a member, and an optional
-capability. **The table is never read at run time.** It is audit data — the closure test reads it, and
+capability. **The table is never read at run time.** It is audit data — the completeness test reads it, and
 the metadata command renders it as a roster of its own, which is how any renderer that wants a
 member's capability beside its card gets one (`rule:tooling/one-json-several-renderers`; the join is
 on `(class, member)` at render time). Enforcement is the doors

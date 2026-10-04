@@ -20,7 +20,7 @@
 //! | [`exception`] | `throw`, `try`/`catch`, the landing blocks, the synthesized `Throwable` constructor |
 //! | [`generator`] | `rule:iteration/generators`'s state machine — the frame, the spills, the synthesized methods |
 //! | [`call`] | argument ownership, options-bag flattening, an `inout $x` argument staged and written back |
-//! | [`closure`] | `rule:types/closure-literal` closure literals and their captured-environment class |
+//! | [`closure`] | `rule:types/anonymous-function` closure literals and their captured-environment class |
 //!
 //! # Control flow (`if`/`while`)
 //!
@@ -1805,12 +1805,12 @@ pub(crate) struct Lowering<'a> {
     /// `advance()` — `None` for every other function there is. See
     /// [`lower_generator`], which owns the whole transform.
     generator: Option<GenFrame>,
-    /// Every `rule:types/closure-literal` `fn` literal met in this body so far, in source order,
+    /// Every `rule:types/anonymous-function` `fn` literal met in this body so far, in source order,
     /// each awaiting a function of its own — see [`lower_closure`]. Drained
     /// by whichever entry point built this frame, since a
     /// [`crate::ir::Function`] has nowhere to carry a second one.
     closures: Vec<PendingClosure>,
-    /// Every `rule:types/callable-is-a-closure` first-class callable met in this body so far, in
+    /// Every `rule:types/callable-values` first-class callable met in this body so far, in
     /// source order, each awaiting the forwarding thunk that gives it the one
     /// closure representation there is — see [`lower_callable`]. Travels out
     /// beside [`Self::closures`], for that field's reason.
@@ -1819,7 +1819,7 @@ pub(crate) struct Lowering<'a> {
     /// because a `Function` is keyed on its label across the whole compiled
     /// unit and two files may each write `Foo::bar(...)`.
     callables: Vec<PendingCallable>,
-    /// One synthesized class per distinct `rule:types/object-literal` shape literal this
+    /// One synthesized class per distinct `rule:types/anonymous-object` shape literal this
     /// body writes — see [`Lowering::lower_object_literal`], which builds
     /// them, and [`shape_class_label`], which names them.
     ///
@@ -2115,7 +2115,7 @@ impl<'a> Lowering<'a> {
             // $secret}` literal is `nvs_stdlib::debug`'s own known gap rather
             // than a bit this could set.
             secret_fields: vec![false; field_count],
-            // `rule:types/object-literal` gives a shape literal no visibility keyword to write
+            // `rule:types/anonymous-object` gives a shape literal no visibility keyword to write
             // and no class to be private to: every slot was written by the
             // literal that built it and every one is readable, which is the one
             // answer `Core\Reflect`'s walk can give a shape — and none is
@@ -2132,7 +2132,7 @@ impl<'a> Lowering<'a> {
             // not an omission.
             constants: Vec::new(),
             attributes: Vec::new(),
-            // `rule:types/object-literal`: a shape literal's class has no methods, no
+            // `rule:types/anonymous-object`: a shape literal's class has no methods, no
             // supertypes and no `implements`, it carries no attribute, and
             // every one of its slots is written by the literal that built it
             // — so there is nothing for a codec, a constructor arity or a
@@ -3244,7 +3244,7 @@ impl<'a> Lowering<'a> {
         if self.staged(e.span).is_some() {
             return true;
         }
-        // `rule:types/closure-self-name`'s self-name reads the invoke's own receiver, a binding
+        // `rule:types/anonymous-function-self-name`'s self-name reads the invoke's own receiver, a binding
         // this frame's `Env` holds for the whole body — so a call through it
         // borrows exactly as `$f(...)` borrows the local `$f`, and answering
         // `false` here would have the call release a receiver the rest of the
@@ -3509,7 +3509,7 @@ pub(crate) fn lower_decl_type(
         // takes whenever the checker visited it, for what the argument costs
         // and where the set it erases went.
         TypeKind::Atom(TypeAtom::PropertyKey(_)) => Ty::Str,
-        // `rule:types/callable-absorbs-closure`'s one closure type. Its *representation* is an object
+        // `rule:types/callable-is-the-only-function-type`'s one closure type. Its *representation* is an object
         // — see the `ExprKind::Fn` arm of `Lowering::lower_expr`, which
         // synthesizes one class per literal to hold the captured environment
         // — so it erases here exactly the way a class name does.
@@ -3538,7 +3538,7 @@ pub(crate) fn lower_decl_type(
         TypeKind::Atom(
             TypeAtom::TaintedBytes | TypeAtom::SecretBytes | TypeAtom::SecretTaintedBytes,
         ) => Ty::Bytes,
-        // `rule:types/object-literal`'s shape is an ordinary refcounted
+        // `rule:types/anonymous-object`'s shape is an ordinary refcounted
         // instance with no methods and no name, so its representation is the
         // object pointer a class already is — see [`erase_checked_ty`]'s arm
         // for what the erasure drops and why no site below this boundary wants
@@ -3626,7 +3626,7 @@ fn shape_fills(
     }
 }
 
-/// The label the class synthesized for an `rule:types/object-literal` shape literal carries
+/// The label the class synthesized for an `rule:types/anonymous-object` shape literal carries
 /// — `$shape{x,y}` for `{x: 1, y: 2}`, from the field names **already
 /// sorted**.
 ///
@@ -3923,7 +3923,7 @@ pub(crate) fn erase_checked_ty(id: TypeId, checked_types: &TypeInterner) -> Ty {
         CheckedTy::TaintedBytes | CheckedTy::SecretBytes | CheckedTy::SecretTaintedBytes => {
             Ty::Bytes
         }
-        // A shape joins them: `rule:types/object-literal` makes a shape value an ordinary
+        // A shape joins them: `rule:types/anonymous-object` makes a shape value an ordinary
         // refcounted instance with no methods and no name of its own, so its
         // representation is the object pointer a class already has. What the
         // erasure drops is the field list, and nothing below this boundary
@@ -4159,12 +4159,12 @@ pub(crate) fn is_aliasing_read(kind: &ExprKind) -> bool {
     )
 }
 
-/// The one method an `rule:types/closure-literal`
+/// The one method an `rule:types/anonymous-function`
 /// closure's environment class answers, as the method table spells it.
 pub(crate) const FN_INVOKE: &str = "invoke";
 
 /// The label every closure's environment class conforms to, and that no class a
-/// program declares does: `rule:types/callable-is-a-closure` makes `callable` a
+/// program declares does: `rule:types/callable-values` makes `callable` a
 /// question about one shape of value, and a `conforms` edge is the one thing a
 /// descriptor already carries that answers it — so `$x is callable` is the
 /// descriptor walk [`crate::ir::InstKind::ClassTest`] emits rather than a
@@ -4206,7 +4206,7 @@ pub(crate) const FN_ARITY: &str = "fn#arity";
 ///
 /// # Why the object carries it
 ///
-/// `rule:types/closure-literal`
+/// `rule:types/anonymous-function`
 /// gives `callable` no parameter list, so **no checker can compare a call site
 /// against the body it will reach** — and the compiled `invoke` reads argument
 /// slot *i* at its own declared representation, which turns a mismatch into an
@@ -4465,7 +4465,7 @@ fn array_element_tags(id: TypeId, checked_types: &TypeInterner) -> Option<u64> {
     None
 }
 
-/// One lowered body, plus everything the `rule:types/closure-literal` closures inside it
+/// One lowered body, plus everything the `rule:types/anonymous-function` closures inside it
 /// synthesized.
 ///
 /// A closure literal is an *expression*, so it is met in the middle of

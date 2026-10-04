@@ -583,7 +583,7 @@ pub struct ClassDesc {
     /// one pointer per class, once per process, not per instance.
     unwind: *const u8,
     /// Whether an instance of this class is a
-    /// `rule:types/callable-is-a-closure` closure — its
+    /// `rule:types/callable-values` closure — its
     /// [`crate::closure::CLOSURE_INVOKE`] the compiled body of a closure
     /// literal and its fields that literal's captures — rather than an object
     /// of a class a program declared.
@@ -1349,7 +1349,7 @@ impl ClassDesc {
     }
 
     /// Whether this class is the one an
-    /// `rule:types/object-literal` shape
+    /// `rule:types/anonymous-object` shape
     /// literal constructs, rather than one a `class` declaration named.
     ///
     /// Read off the label `nvs_ir::lower::shape_class_label` mints —

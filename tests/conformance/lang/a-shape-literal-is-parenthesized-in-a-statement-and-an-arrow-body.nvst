@@ -1,8 +1,8 @@
 --TEST--
-A shape literal returned from an arrow body and one discarded as a statement are both written parenthesized — `rule:types/object-literal`
+A shape literal returned from an arrow body and one discarded as a statement are both written parenthesized — `rule:types/anonymous-object`
 --FILE--
 <?nvs
-// `rule:types/object-literal`: the parser commits a statement-initial `{` to a block, and a
+// `rule:types/anonymous-object`: the parser commits a statement-initial `{` to a block, and a
 // `{` straight after `=>` to a block body, so both positions spell a shape
 // literal `({...})`. That is the same fix JavaScript uses for the same
 // ambiguity, and it is the whole of it — nothing else about the literal

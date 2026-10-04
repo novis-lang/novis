@@ -156,7 +156,7 @@ iterative teardown.
 
 `rule:errors/on-limit`
 
-`Core\Fatal::onLimit(closure(LimitReport): void $handler): void` fires only for a resource-limit
+`Core\Fatal::onLimit(callable(LimitReport): void $handler): void` fires only for a resource-limit
 `FATAL` — memory, CPU time, `max_output`, wall time, `max_script_depth` and call-stack depth. An
 internal panic never reaches it ([`errors/panics-bypass-user-code`](errors.md#errors-panics-bypass-user-code)).
 
@@ -250,7 +250,7 @@ produced a line.
 
 `rule:errors/on-uncaught-throw`
 
-`Core\Fatal::onUncaughtThrow(closure(Throwable): void $handler): void` fires when an ordinary
+`Core\Fatal::onUncaughtThrow(callable(Throwable): void $handler): void` fires when an ordinary
 `THROWN` propagates through every frame uncaught and reaches the isolate or request root.
 
 It needs no reserve of its own: execution was healthy until this point, so the request's ordinary
@@ -374,7 +374,7 @@ The envelope carries `ts`, `level`, `message`, `request_id`, `trace_id`/`span_id
 active, `source`, `count`, and `fields` ([`errors/log-fields`](errors.md#errors-log-fields)). A node is a Scalar tagged with
 its Novis type — so `"1"` and `1` are never confusable, which is the one thing `print_r` cannot do —
 or a Sequence, a Map, an Object with its *declared* properties, an Enum case named rather than
-numbered, a Closure's signature without its body or captures, a Redacted, an Elided, a Cycle
+numbered, a Callable's signature without its body or captures, a Redacted, an Elided, a Cycle
 carrying the identity of the node it repeats, or a Span over a source range.
 
 **The model is content, not presentation.** It carries no colour, no indentation, no width and no

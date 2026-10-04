@@ -1,8 +1,8 @@
 --TEST--
-A `callable` naming a `void` member runs it and answers `null`, over a static target, an instance one and a `Core` member alike — `rule:types/callable-is-a-closure`, `rule:types/closure-literal` and `rule:types/implicit-capture`
+A `callable` naming a `void` member runs it and answers `null`, over a static target, an instance one and a `Core` member alike — `rule:types/callable-values`, `rule:types/anonymous-function` and `rule:types/implicit-capture`
 --FILE--
 <?nvs
-// `rule:types/closure-literal` makes `callable` the only closure type, so a `void` member's
+// `rule:types/anonymous-function` makes `callable` the only closure type, so a `void` member's
 // `(...)` produces the same object every other one produces and is called the
 // same way. What it hands *back* is the question this case asks. A `void`
 // frame returns nothing at all, so the caller reads the null its own out slot

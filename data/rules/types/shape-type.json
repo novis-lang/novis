@@ -11,7 +11,7 @@
     "0238"
   ],
   "seeAlso": [
-    "types/object-literal",
+    "types/anonymous-object",
     "types/object-top",
     "types/type-alias",
     "types/erased-member-access"

@@ -1,5 +1,5 @@
 --TEST--
-Core\Json::encode spells an `rule:types/object-top` shape as a JSON object keyed by its own field names, in the sorted order its synthesized class carries, and still refuses a declared class inside one — `rule:types/object-literal`, `rule:core-classes/derive-generates-what-is-missing`
+Core\Json::encode spells an `rule:types/object-top` shape as a JSON object keyed by its own field names, in the sorted order its synthesized class carries, and still refuses a declared class inside one — `rule:types/anonymous-object`, `rule:core-classes/derive-generates-what-is-missing`
 --FILE--
 <?nvs
 use Core\Json;
@@ -8,7 +8,7 @@ use Core\Json;
 // on, so there is nothing to opt in and its fields *are* the document.
 echo Json::encode({order: 7}), "\n";
 
-// `rule:types/object-literal`: the synthesized class is named for its field names alone,
+// `rule:types/anonymous-object`: the synthesized class is named for its field names alone,
 // already sorted, and the slots are in that order — so two literals that write
 // the same fields in different orders are one class and one key order. Both
 // lines below are the same document, which is what makes a shape's encoding

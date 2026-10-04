@@ -14,7 +14,7 @@ class UserController {
 ```
 
 Two forms carry one payload between them, and both take named fields — there is no positional form.
-The **bare** `#[{...}]` names no shape and is checked only as a well-formed object literal. The
+The **bare** `#[{...}]` names no shape and is checked only as a well-formed anonymous object. The
 **named** `#[Name(...)]` requires `Name` to resolve, through the ordinary namespace and `use` scope, to
 a `type` alias whose right-hand side is a shape type; the literal is then checked against it by the
 width subtyping every shape-typed position already uses.

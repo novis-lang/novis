@@ -1,10 +1,10 @@
 --TEST--
-`Core\Out::capture` accepts exactly one of the answers a `through` closure can give and names what each of the others was — spec § 12, `rule:security/capture-answers-the-carrier` and `rule:types/closure-literal`
+`Core\Out::capture` accepts exactly one of the answers a `through` closure can give and names what each of the others was — spec § 12, `rule:security/capture-answers-the-carrier` and `rule:types/anonymous-function`
 --FILE--
 <?nvs
 // `rule:security/capture-answers-the-carrier` makes `capture` answer the sink's *carrier*, and § 12's
 // `{through:}` a transform over it. A `callable` is opaque as to signature
-// (`rule:types/closure-literal`), so nothing static stands between that option and what the
+// (`rule:types/anonymous-function`), so nothing static stands between that option and what the
 // closure actually answers: this check is the whole of the guarantee behind
 // the member's declared `Core\Cli\Text` return, and it is `Core\Out`'s only
 // refusal.

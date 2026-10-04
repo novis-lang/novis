@@ -10,6 +10,6 @@ whole *set*, and a set with a growable exception list makes no claim at all. Dec
 costs what declaring a real capability costs, is reviewed in the same table beside its reason, and
 grants nothing, because no row grants anything.
 
-A second closure test covers the other half: nothing in the standard library reaches the operating
+A second completeness test covers the other half: nothing in the standard library reaches the operating
 system except through a door. Neither test subsumes the other — one catches a member that goes
 through a door undeclared, the other a member that reaches the OS with no door at all.

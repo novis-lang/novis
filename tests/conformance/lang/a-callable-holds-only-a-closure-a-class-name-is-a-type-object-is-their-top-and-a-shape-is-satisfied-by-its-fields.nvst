@@ -1,5 +1,5 @@
 --TEST--
-A `callable` holds a closure and answers `mixed`, a class, interface and enum name each stand where a type stands, `object` gives the class back through `is` and `as`, a `class<T>` comes from `as` and serves its three sites, and a shape is satisfied by the fields a value carries (`rule:types/callable-is-a-closure`, `rule:types/object-top`, `rule:types/class-reference-sites`, `rule:types/shape-type`)
+A `callable` holds a closure and answers `mixed`, a class, interface and enum name each stand where a type stands, `object` gives the class back through `is` and `as`, a `class<T>` comes from `as` and serves its three sites, and a shape is satisfied by the fields a value carries (`rule:types/callable-values`, `rule:types/object-top`, `rule:types/class-reference-sites`, `rule:types/shape-type`)
 --FILE--
 <?nvs
 // covers: lang:types/callable-classes-object-shapes
@@ -29,7 +29,7 @@ class Dog extends Animal {
     }
 }
 
-// `rule:types/callable-is-a-closure`: a closure written with `fn` is what a
+// `rule:types/callable-values`: a closure written with `fn` is what a
 // `callable` holds, and a call through the value answers `mixed`, so the
 // result is converted where it is used.
 callable $twice = fn(int $x): int => $x * 2;

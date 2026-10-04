@@ -1,4 +1,4 @@
-A written shape literal is checked by asking which arm accepts it, where an arm accepts when the literal's
+A written anonymous object is checked by asking which arm accepts it, where an arm accepts when the object's
 keys are exactly that arm's required keys plus any subset of its optional ones, each value assignable to
 its field's declared type. **Exactly one arm accepts.** Zero accepting is the call site's error; two
 accepting is a registry bug rather than a program's, so it is refused statically — a build-time check

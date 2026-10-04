@@ -1,5 +1,5 @@
 --TEST--
-`$f(...)` over a `callable` answers the very closure `$f` already holds rather than wrapping it, at every shape the callee can take — `rule:types/callable-is-a-closure`
+`$f(...)` over a `callable` answers the very closure `$f` already holds rather than wrapping it, at every shape the callee can take — `rule:types/callable-values`
 --FILE--
 <?nvs
 // `callable` has exactly one inhabitant, so `$f(...)` already names a closure

@@ -692,7 +692,7 @@ enum Cursor {
     /// and whether this array's keys made it a JSON array rather than a JSON
     /// object.
     Entries { next: usize, at: usize, list: bool },
-    /// An `rule:types/object-literal` shape's slots, written under each field's
+    /// An `rule:types/anonymous-object` shape's slots, written under each field's
     /// own name.
     Shape { next: usize, at: usize },
     /// A declared class's derived codec fields, by position in
@@ -1228,7 +1228,7 @@ impl Stack {
     /// for: participation in a wire format is written, never inferred.
     ///
     /// Two instances are not declared classes and answer before either is
-    /// read. An `rule:types/object-literal` shape encodes as a JSON object
+    /// read. An `rule:types/anonymous-object` shape encodes as a JSON object
     /// keyed by its own field names, and a `Core\Time\Instant` as the RFC 3339
     /// string this module's § *A value type crosses as text* fixes it at;
     /// neither is an exception to the rule above, because neither has a
@@ -1257,7 +1257,7 @@ impl Stack {
         }
         let (_, desc) =
             described(value).ok_or_else(|| refuse("a `Tag::Object` value is always an object"))?;
-        // `rule:types/object-literal`'s shape, before the codec is read: a shape is a bag of
+        // `rule:types/anonymous-object`'s shape, before the codec is read: a shape is a bag of
         // named fields with no declaration to hang `#[Json\Derive]` on, so the
         // refusal below has nothing to ask it for — `rule:core-classes/derive-generates-what-is-missing`. Its slots are
         // walked the way an array's entries are, each value spelled by its own
@@ -2656,7 +2656,7 @@ unsafe fn decode_fields(
 /// One shape's decoded fields written into a fresh instance of its class — the
 /// half a derived class gets by running its own constructor.
 ///
-/// A shape class declares none: `rule:types/object-literal` gives a shape
+/// A shape class declares none: `rule:types/anonymous-object` gives a shape
 /// literal no constructor to write, so the class `nvs-ir` synthesizes lays its
 /// slots out in the shape's sorted field-name order and every writer fills them
 /// one at a time. That order is why a shape's

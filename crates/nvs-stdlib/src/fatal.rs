@@ -24,7 +24,7 @@
 //! still armed while another request runs on the same core.
 //!
 //! **The row is `callable` whatever the report is.** § 1 spells the parameter
-//! `closure(LimitReport): void`, but `rule:types/callable-absorbs-closure` makes `callable` the only
+//! `closure(LimitReport): void`, but `rule:types/callable-is-the-only-function-type` makes `callable` the only
 //! closure type there is and it says nothing about what a closure takes, so
 //! what the handler is *handed* is decided at the call rather than here. It is
 //! an array with a `limit` key naming the limit that stopped the request, and

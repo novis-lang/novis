@@ -5,7 +5,7 @@ ordering's implicit property walk by `Comparable` (`rule:classes/comparable`) â€
 `__call`/`__callStatic` (`rule:classes/no-call-magic`), `__destruct`
 (`rule:classes/no-destructors`), `__clone` and the four serialization hooks
 (`rule:classes/two-copy-depths`), `__isset`/`__unset` (`rule:classes/unset-is-refused-on-a-property`),
-`__debugInfo` (`rule:classes/no-debug-hook`), `__invoke` (`rule:types/callable-is-a-closure`) and
+`__debugInfo` (`rule:classes/no-debug-hook`), `__invoke` (`rule:types/callable-values`) and
 `__set_state`, whose reconstruct-from-generated-code use is answered by the closed round trip instead.
 
 Every one of those names is refused where it is *written*: the method-casing rule allows no leading

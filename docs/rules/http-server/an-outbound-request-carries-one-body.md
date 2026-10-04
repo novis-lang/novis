@@ -7,7 +7,7 @@ tell a form from a JSON object by looking at an `array<string, string>`.
 
 **Two body keys, a body on `get` or `head`, and `contentType` without `body` are compile-time
 diagnostics**, each naming the key. Both halves of the question are in front of the checker: the bag is a
-compile-time-constant shape literal (`rule:core-api/shape-rules` R2) and the verb is the member's own
+compile-time-constant anonymous object (`rule:core-api/shape-rules` R2) and the verb is the member's own
 name, which is exactly why the missing idempotency key is a diagnostic too
 (`rule:http-server/a-non-idempotent-retry-needs-an-idempotency-key`). Where the verb is dynamic, the same
 two checks throw before the first attempt.

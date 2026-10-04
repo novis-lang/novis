@@ -270,7 +270,7 @@ the one below — request framing is a security-critical parser.
 require full-range `i64`. Tags: `null | bool | int(i64) | uint(u64) | float(f64) | string | array | object |
 enum-int | enum-uint | decimal | bytes` (`rule:enums/representation` owns the two enum tags), beside the never-written storage state a property slot carries
 (`rule:classes/an-unwritten-property-read-throws`). There is no `closure` or `resource` tag: a closure is an
-ordinary object (`rule:types/callable-is-a-closure`) and an engine-owned handle is a `Core` class holding a
+ordinary object (`rule:types/callable-values`) and an engine-owned handle is a `Core` class holding a
 key into its own context's table, so neither buys a second heap shape or a second release path.
 `uint` is a tag, not a wider slot, so it costs nothing here; the type system
 that demands it is `rule:types/declaration`, which also owns the array element-type stamp

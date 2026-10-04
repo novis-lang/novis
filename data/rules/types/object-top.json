@@ -7,7 +7,7 @@
   ],
   "seeAlso": [
     "types/shape-type",
-    "types/object-literal",
+    "types/anonymous-object",
     "types/erased-member-access"
   ],
   "guardedBy": [

@@ -10,7 +10,7 @@
 
 // The member answers what was *written*, not what was computed: the closure's
 // own return value is released and never reaches the caller. A `callable` is
-// opaque as to signature (`rule:types/closure-literal`), so a body that returns a `string` is an
+// opaque as to signature (`rule:types/anonymous-function`), so a body that returns a `string` is an
 // ordinary argument here rather than a type error.
 echo "[", Core\Out::capture(fn (): string => { echo "written"; return "computed"; }), "]\n";
 

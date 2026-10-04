@@ -10,7 +10,7 @@
     "classes/two-copy-depths",
     "classes/serialize-is-a-closed-format",
     "classes/clone-is-shallow",
-    "types/callable-is-a-closure",
+    "types/callable-values",
     "statements/inout-is-the-by-reference-spelling"
   ],
   "guardedBy": [

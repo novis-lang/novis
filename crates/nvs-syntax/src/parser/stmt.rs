@@ -231,7 +231,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                 if let Some(close) = self.at_shape_typed_local() {
                     self.parse_shape_typed_local_refusal(close)
                 } else if self.at_object_literal_in_block_position() {
-                    // `rule:types/object-literal`: a statement-initial `{` already means a
+                    // `rule:types/anonymous-object`: a statement-initial `{` already means a
                     // block — a discarded object-literal statement needs
                     // `({...});` instead.
                     let expr = self.parse_object_literal_needs_parens();

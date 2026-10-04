@@ -23,7 +23,7 @@ parameter the registry marks as a class name, which completes as the classes the
 as the ones that are a `Throwable` where the member expects an error; a string argument at a parameter
 whose declared type is a union of string literal types (`rule:types/literal-types`), which completes as
 those literals, read off the parameter types the checker records on the call it resolved; `#[Api]` fields and
-every attribute's shape literal, which is a declared type; and enum cases, members off a resolved receiver
+every attribute's anonymous object, whose shape is a declared type; and enum cases, members off a resolved receiver
 and in-scope variables, which are the same rule and not an exception to it.
 
 What it refuses has no subject rather than being declined: ORM columns (a codec's fields are declared

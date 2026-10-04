@@ -199,7 +199,7 @@ struct Intrinsic {
     /// `rule:core-api/shape-flattens-at-the-abi`'s merged ABI does not answer this and is not what this addresses:
     /// that flattening is `nvs_ir::lower`'s, and it happens to an argument
     /// already checked. Here the shape is still one written literal, so the
-    /// address is a field *name* — `rule:types/object-literal` makes [`ExprKind::ObjectLiteral`] the only spelling a shape argument
+    /// address is a field *name* — `rule:types/anonymous-object` makes [`ExprKind::ObjectLiteral`] the only spelling a shape argument
     /// has, and it carries no shorthand, no spread and no computed key for the
     /// match to fall through.
     ///

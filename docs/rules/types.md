@@ -11,8 +11,8 @@
 
 Every binding site carries a type, and only a local and a `foreach` binding may take theirs with `var`
 rather than writing it. PHP's existing slots become mandatory — parameter, return (`void` and `never`
-included), property, promoted constructor parameter, class constant, closure parameter and closure
-return, `catch`, enum backing type — and four positions PHP has no slot for get one: a local at its
+included), property, promoted constructor parameter, class constant, anonymous function parameter and
+anonymous function return, `catch`, enum backing type — and four positions PHP has no slot for get one: a local at its
 declaration, a `foreach` key and value, a `for` header's init clause
 ([`iteration/for-init-clause`](iteration.md#iteration-for-init-clause)), and a destructuring target. A local, a `for` init declaration and
 a `foreach` key or value may write `var` instead, which takes the type from the expression that fills
@@ -22,9 +22,9 @@ The return slot is owed by every declaration a caller reads, an abstract method 
 member included, and **the constructor is the one exception**: it answers with the instance rather
 than with a value, which is why a valued `return` in one is refused, so it writes no return type and
 a written `: void` there is accepted while saying nothing the declaration did not. An
-expression-bodied closure is the other place the slot may stand empty, and for the opposite reason —
+expression-bodied anonymous function is the other place the slot may stand empty, and for the opposite reason —
 its body is a single expression, which is its own answer, while a block-bodied one owes the
-annotation like any method ([`types/closure-literal`](types.md#types-closure-literal)).
+annotation like any method ([`types/anonymous-function`](types.md#types-anonymous-function)).
 
 A binding is declared **once**. A later assignment is bare, and is legal only where the name is
 already declared in the enclosing function; re-declaring a live name is a diagnostic naming the first
@@ -177,7 +177,7 @@ var $y = 19.99 as decimal;       // `as` supplies one: decimal, exact
 ```
 
 **A union holding `decimal` is a `decimal` position for a literal its other members do not accept.**
-`?decimal $rate = 3;`, `decimal|string $label = 7.25;` and the `?decimal` field of a shape literal
+`?decimal $rate = 3;`, `decimal|string $label = 7.25;` and the `?decimal` field of an anonymous object
 place the literal at `decimal`, exact, at every position a plain `decimal` does. A union that already
 accepts the literal's own type keeps it: `int|decimal` places `3` at `int`, and `float|decimal` places
 `3` and `1.5` at `float`. Only a literal is placed; an `int` variable at `?decimal` is still a mismatch.
@@ -276,7 +276,7 @@ size-computation bug. Code that wants unbounded magnitude declares `float`, or c
 `rule:types/implicit-widening`
 
 Implicit conversion happens in exactly one place: an `int` or `uint` **widening into a `float`
-position** — an argument, a return, an assignment, a field of an object literal, an element of an
+position** — an argument, a return, an assignment, a field of an anonymous object, an element of an
 array literal, or the far side of an arithmetic operator. A position whose type is a union holding
 `float` is a `float` position for an `int` or `uint` value the union does not name, and a union value
 such as a `?int` converts by its run-time tag. It never reaches the field of a shape value
@@ -1077,7 +1077,7 @@ before it parses.
 
 `type Name = TypeExpr;` declares a compile-time-only synonym for a type expression, written either at
 file and namespace scope alongside `use` and `namespace` or as a member of a class, interface or enum
-body ([`types/class-scoped-alias`](types.md#types-class-scoped-alias)) — never inside a method body, a block or a closure body, where
+body ([`types/class-scoped-alias`](types.md#types-class-scoped-alias)) — never inside a method body, a block or an anonymous function's body, where
 it is `E0233` by name like any other declaration written where control flow can reach it.
 
 ```php
@@ -1181,46 +1181,46 @@ rather than by a namespace path — `Ns\Order\Meta` is also the spelling of a cl
 
 <sub>See also [`types/type-alias`](types.md#types-type-alias), [`types/alias-is-never-a-bare-class`](types.md#types-alias-is-never-a-bare-class), [`types/shape-type`](types.md#types-shape-type). Decided in [0190](../decisions/0190.md).</sub>
 
-<a id="types-callable-is-a-closure"></a>
+<a id="types-callable-values"></a>
 
-## `callable` is satisfied by a closure and by nothing else, and no object is callable
+## `callable` is satisfied by an anonymous function or a method reference and by nothing else, and no object is callable
 
-`rule:types/callable-is-a-closure`
+`rule:types/callable-values`
 
-`callable` is satisfied by exactly one shape of value: a closure. That means a `fn` literal, or a
-first-class-callable-syntax reference — `Core\Str::length(...)`, `$user->getName(...)`,
-`self::helper(...)` (early-bound), `static::helper(...)` (late-bound). Each of those names a member,
-and the checker records the resolved target.
+`callable` is satisfied by exactly two kinds of value: an anonymous function — a `fn` literal — and a
+method reference — `Core\Str::length(...)`, `$user->getName(...)`, `self::helper(...)` (early-bound),
+`static::helper(...)` (late-bound). A method reference names a member, and the checker records the
+resolved target. Both make the same kind of value, a callable.
 
 PHP's other three spellings are refused where they are written, each with a diagnostic naming the
 replacement: a bare name string (`'strlen'`), a `"Class::method"` string, and a `[$obj, 'method']`
 array. Two further refusals fall out of the same rule: `new C(...)` is `E0740`, because `new` names a
-class rather than a callee, and `$m->method(...)` on a `mixed` receiver is `E0732`, because a closure
-value outlives the site and there is no class present to read a callee off
+class rather than a callee, and `$m->method(...)` on a `mixed` receiver is `E0732`, because a callable
+outlives the site and there is no class present to read a callee off
 ([`types/erased-member-access`](types.md#types-erased-member-access)).
 
-**There is no `__invoke`.** `$obj(...)` is a diagnostic whenever `$obj` is not itself a closure,
+**There is no `__invoke`.** `$obj(...)` is a diagnostic whenever `$obj` is not itself a callable,
 whatever methods the object's class declares; a method literally named `__invoke` parses as an
 ordinary method with no special meaning. `()` therefore stays one thing rather than a second operator
 any class can opt into.
 
-A callee the checker cannot prove is a closure — one typed `mixed`, or a `?callable` that holds
-`null` — is checked when the call runs. A value that is not a closure throws a catchable `LogicError`
+A callee the checker cannot prove is a callable — one typed `mixed`, or a `?callable` that holds
+`null` — is checked when the call runs. A value that is not a callable throws a catchable `LogicError`
 naming what it is, the class the same call throws for an argument of the wrong type.
 
 The rule is the same at every position typed `callable` — a parameter, a property, a return type, a
-stdlib signature: the argument must already be a closure by the time it arrives, never a string, an
+stdlib signature: the argument must already be a callable by the time it arrives, never a string, an
 array, or an object the checker would have to interpret.
 
-<sub>See also [`types/closure-literal`](types.md#types-closure-literal), [`types/callable-absorbs-closure`](types.md#types-callable-absorbs-closure), [`types/callable-signature`](types.md#types-callable-signature). Decided in [0027](../decisions/0027.md), [0031](../decisions/0031.md), [0007](../decisions/0007.md), [0014](../decisions/0014.md), [0136](../decisions/0136.md).</sub>
+<sub>See also [`types/anonymous-function`](types.md#types-anonymous-function), [`types/callable-is-the-only-function-type`](types.md#types-callable-is-the-only-function-type), [`types/callable-signature`](types.md#types-callable-signature). Decided in [0027](../decisions/0027.md), [0031](../decisions/0031.md), [0007](../decisions/0007.md), [0014](../decisions/0014.md), [0136](../decisions/0136.md).</sub>
 
-<a id="types-closure-literal"></a>
+<a id="types-anonymous-function"></a>
 
-## `fn` is the only closure literal, with an expression body or a block body
+## `fn` is the only way to write an anonymous function, with an expression body or a block body
 
-`rule:types/closure-literal`
+`rule:types/anonymous-function`
 
-`fn` is the only closure literal, in two body shapes:
+`fn` is the only way to write an anonymous function, in two body shapes:
 
 ```php
 fn($x) => $x + 1                            // expression body, implicit return
@@ -1231,14 +1231,15 @@ fn(int $x): int => $x + 1                   // typed either way
 `function (...) {...}` and `function (...) use (...) {...}` do not parse; the diagnostic names `fn`.
 A block-bodied `fn` still declares its return type (`E0450`) — inferring one would be whole-body
 return-type inference, which this language does not do. `static fn` is diagnosed as a `function`
-closure.
+anonymous function.
 
-This removes a second spelling rather than adding a capability: first-class callable syntax and the
-expression-bodied literal already produce exactly the value a block-bodied closure does
-([`types/callable-is-a-closure`](types.md#types-callable-is-a-closure)). Capture is never written ([`types/implicit-capture`](types.md#types-implicit-capture)), and a
-closure that needs to call itself carries a self-name instead ([`types/closure-self-name`](types.md#types-closure-self-name)).
+This removes a second spelling rather than adding a capability: a method reference and the
+expression-bodied literal already produce exactly the value a block-bodied anonymous function does
+([`types/callable-values`](types.md#types-callable-values)). Capture is never written ([`types/implicit-capture`](types.md#types-implicit-capture)), and an
+anonymous function that needs to call itself carries a self-name instead
+([`types/anonymous-function-self-name`](types.md#types-anonymous-function-self-name)).
 
-<sub>See also [`types/implicit-capture`](types.md#types-implicit-capture), [`types/closure-self-name`](types.md#types-closure-self-name), [`types/callable-is-a-closure`](types.md#types-callable-is-a-closure). Decided in [0031](../decisions/0031.md), [0027](../decisions/0027.md), [0015](../decisions/0015.md).</sub>
+<sub>See also [`types/implicit-capture`](types.md#types-implicit-capture), [`types/anonymous-function-self-name`](types.md#types-anonymous-function-self-name), [`types/callable-values`](types.md#types-callable-values). Decided in [0031](../decisions/0031.md), [0027](../decisions/0027.md), [0015](../decisions/0015.md).</sub>
 
 <a id="types-callable-signature"></a>
 
@@ -1259,26 +1260,26 @@ The **return type is mandatory** — `callable(int)` with no return says strictl
 any other return position. **No parameter names**: `callable(int $x): string` does not parse, because
 a name in the type would imply calling through the value by name, which nothing supports.
 
-Bare `callable` remains the **top of the callable lattice** — a closure whose signature is unknown.
+Bare `callable` remains the **top of the callable lattice** — a callable whose signature is unknown.
 Every callable type is assignable to it, calling through one keeps the dynamic path and its
 per-argument tag check, and nothing existing changes meaning. Narrowing is opt-in. Where a call
 reaches a callable whose type names its parameters, the arguments are proven at compile time and the
-per-argument tag check is **not emitted**; the metadata stays on every closure object, because bare
-`callable` still needs it and a closure does not know at its literal which kind of site will call it.
+per-argument tag check is **not emitted**; the metadata stays on every callable, because bare `callable`
+still needs it and an anonymous function does not know at its literal which kind of site will call it.
 
 The two binding-site variants that stood in for this — a callback-return parameter and a shape of
 callbacks — are retired, and the restriction that a shape's every field be a *written* `fn` literal
 goes with them, because a `callable(): T`-typed variable now carries what the field needs.
 
-<sub>See also [`types/callable-arity`](types.md#types-callable-arity), [`types/callable-variance`](types.md#types-callable-variance), [`types/callable-literal-inference`](types.md#types-callable-literal-inference), [`types/callable-is-a-closure`](types.md#types-callable-is-a-closure). Decided in [0136](../decisions/0136.md), [0007](../decisions/0007.md), [0031](../decisions/0031.md), [0027](../decisions/0027.md), [0015](../decisions/0015.md).</sub>
+<sub>See also [`types/callable-arity`](types.md#types-callable-arity), [`types/callable-variance`](types.md#types-callable-variance), [`types/callable-literal-inference`](types.md#types-callable-literal-inference), [`types/callable-values`](types.md#types-callable-values). Decided in [0136](../decisions/0136.md), [0007](../decisions/0007.md), [0031](../decisions/0031.md), [0027](../decisions/0027.md), [0015](../decisions/0015.md).</sub>
 
 <a id="types-callable-arity"></a>
 
-## A closure satisfies a callable type when its arity is at most the type's, matched from the left
+## A callable satisfies a callable type when its arity is at most the type's, matched from the left
 
 `rule:types/callable-arity`
 
-A closure of arity *n* satisfies `callable(T₁..Tₘ): R` when **`n ≤ m`**, and only the first *n*
+A callable of arity *n* satisfies `callable(T₁..Tₘ): R` when **`n ≤ m`**, and only the first *n*
 parameter types are compared. An arity greater than *m* is refused where it is written.
 
 ```php
@@ -1290,8 +1291,8 @@ Core\Arr::map($users, fn($u, $k, $x) => …);              // refused
 ```
 
 A **call** through such a type passes *m* arguments, not *n*: what the value holds is the type's
-business and not the call site's, and the runtime hands that closure only the leading arguments it
-declares. A site passing fewer would leave one of the closure's own parameters unfilled, which is a
+business and not the call site's, and the runtime hands that callable only the leading arguments it
+declares. A site passing fewer would leave one of the callable's own parameters unfilled, which is a
 fault below the language rather than a throw, so it is refused where it is written (`E0809`).
 
 This is not tolerance invented for convenience: the runtime already hands a callee only the arguments
@@ -1337,7 +1338,7 @@ everywhere, which is the whole reason such a helper is written.
 
 `rule:types/callable-literal-inference`
 
-Where a closure literal appears in a position whose expected type is a callable type, each parameter
+Where an anonymous function appears in a position whose expected type is a callable type, each parameter
 the literal does not annotate takes its type from the corresponding position of that type. A
 parameter the literal *does* annotate is checked against it under [`types/callable-variance`](types.md#types-callable-variance), and
 wins where it is wider.
@@ -1353,39 +1354,40 @@ dynamic one while writing *less*: `$u->name` stops being an erased-receiver fetc
 ([`types/erased-member-access`](types.md#types-erased-member-access)) and becomes a field proven present.
 
 A block-bodied `fn` still declares its own return type; inferring one under an expected type is
-whole-body return-type inference and is not part of this ([`types/closure-literal`](types.md#types-closure-literal)).
+whole-body return-type inference and is not part of this ([`types/anonymous-function`](types.md#types-anonymous-function)).
 
-<sub>See also [`types/callable-signature`](types.md#types-callable-signature), [`types/closure-literal`](types.md#types-closure-literal), [`types/erased-member-access`](types.md#types-erased-member-access). Decided in [0136](../decisions/0136.md), [0036](../decisions/0036.md), [0031](../decisions/0031.md).</sub>
+<sub>See also [`types/callable-signature`](types.md#types-callable-signature), [`types/anonymous-function`](types.md#types-anonymous-function), [`types/erased-member-access`](types.md#types-erased-member-access). Decided in [0136](../decisions/0136.md), [0036](../decisions/0036.md), [0031](../decisions/0031.md).</sub>
 
-<a id="types-callable-absorbs-closure"></a>
+<a id="types-callable-is-the-only-function-type"></a>
 
-## `callable` is the only closure type name, and a callable value is invoked directly
+## `callable` is the only type name for a function value, and a callable is invoked directly
 
-`rule:types/callable-absorbs-closure`
+`rule:types/callable-is-the-only-function-type`
 
-`callable` is the only type name for a closure value. `Closure` is not a type in Novis, and naming it
-is a diagnostic. This is a rename rather than a behaviour change: after
-[`types/callable-is-a-closure`](types.md#types-callable-is-a-closure) narrowed which values satisfy `callable`, the two names had
-identical membership, and `callable` reads more accurately for a value that captures nothing at all,
-such as a reference to a static method.
+`callable` is the only type name for a value made by an anonymous function or a method reference.
+PHP's `Closure` is not a type in Novis, and naming it is a diagnostic that says to write `callable`.
+This is a rename rather than a behaviour change: after [`types/callable-values`](types.md#types-callable-values) narrowed which
+values satisfy `callable`, the two names had identical membership, and `callable` reads more
+accurately for a value that captures nothing at all, such as a reference to a static method.
 
 `bind`, `bindTo` and `call` still exist, called with the same method-call syntax, now as builtin
 operations on an opaque type rather than inherited methods of a base class a program could name in an
 `is` test or extend. `Closure::fromCallable` is dropped, because after that narrowing there is
 nothing left for it to normalise away from.
 
-A rebind gives `$this` an object of the class the closure's body was checked against, or of a
-subclass of it, and nothing else. `$fn->bindTo($obj)` and `$fn->bind($obj)` are one operation under
-two names: they take exactly one `?object` and return a closure of the receiver's own type.
+A rebind gives `$this` an object of the class the anonymous function's body was checked against, or
+of a subclass of it, and nothing else. `$fn->bindTo($obj)` and `$fn->bind($obj)` are one operation
+under two names: they take exactly one `?object` and return a callable of the receiver's own type.
 `$fn->call($obj, ...$args)` rebinds the same way and calls the result, and its type is `mixed`. A
-closure that does not use `$this` comes back unchanged
-([`statements/a-closure-binds-this-only-where-it-uses-it`](statements.md#statements-a-closure-binds-this-only-where-it-uses-it)). One that does is copied with the new
-`$this`, and an object of any other class, or `null`, throws a `LogicError`. The test is made when the
-call runs, because `callable` does not say whether a closure uses `$this`. It is the line between a
-rebind and a memory-safety hole: the compiled body reads `$this` at its own class's layout. PHP's
-scope argument does not compile (`E0402`), because a scope opens another class's `private` members.
-A static check was weighed and left out: it would need a part of the `callable` type, naming whether
-and where the closure uses `$this`, that every assignment and comparison of callables then carries.
+callable that does not use `$this` comes back unchanged
+([`statements/an-anonymous-function-captures-this-only-where-it-uses-it`](statements.md#statements-an-anonymous-function-captures-this-only-where-it-uses-it)). One that does is copied
+with the new `$this`, and an object of any other class, or `null`, throws a `LogicError`. The test is
+made when the call runs, because `callable` does not say whether a callable uses `$this`. It is the
+line between a rebind and a memory-safety hole: the compiled body reads `$this` at its own class's
+layout. PHP's scope argument does not compile (`E0402`), because a scope opens another class's
+`private` members. A static check was weighed and left out: it would need a part of the `callable`
+type, naming whether and where the callable uses `$this`, that every assignment and comparison of
+callables then carries.
 
 `call_user_func` and `call_user_func_array` are dropped with it. Every `callable` value supports
 direct invocation, which is what they existed to route around:
@@ -1395,24 +1397,25 @@ $result = $fn($arg);       // replaces call_user_func($fn, $arg)
 $result = $fn(...$args);   // replaces call_user_func_array($fn, $args)
 ```
 
-<sub>See also [`types/callable-is-a-closure`](types.md#types-callable-is-a-closure), [`types/closure-literal`](types.md#types-closure-literal), [`types/grammar`](types.md#types-grammar). Decided in [0031](../decisions/0031.md), [0027](../decisions/0027.md), [0007](../decisions/0007.md).</sub>
+<sub>See also [`types/callable-values`](types.md#types-callable-values), [`types/anonymous-function`](types.md#types-anonymous-function), [`types/grammar`](types.md#types-grammar). Decided in [0031](../decisions/0031.md), [0027](../decisions/0027.md), [0007](../decisions/0007.md).</sub>
 
 <a id="types-implicit-capture"></a>
 
-## A closure captures by value exactly the outer names its body reads, and there is no `use` clause
+## An anonymous function captures by value exactly the outer names its body reads, and there is no `use` clause
 
 `rule:types/implicit-capture`
 
-A closure captures exactly the outer variables its body reads, snapshotted **by value** at the point
-the literal is evaluated. There is no syntax to opt a variable in or out, and no by-reference capture:
-`use ($y)` and `use (&$y)` are both diagnostics, the second with its own wording where the intent was
-mutation visible outside the closure. `$this` is captured like any other binding when the body names
-it.
+An anonymous function captures exactly the outer variables its body reads, snapshotted **by value**
+at the point the literal is evaluated. There is no syntax to opt a variable in or out, and no
+by-reference capture: `use ($y)` and `use (&$y)` are both diagnostics, the second with its own wording
+where the intent was mutation visible outside the anonymous function. `$this` is captured like any
+other binding when the body names it.
 
 Dropping `use (&$y)` has one real consequence, and it is deliberate: **sharing one mutable cell
-between two independent closures** has no builtin replacement. It is written in user code with an
+between two independent callables** has no builtin replacement. It is written in user code with an
 ordinary object, because capturing an object by value still shares the same heap object — only
-rebinding a bare scalar or a copy-on-write `array<T>` local from inside a closure is actually lost.
+rebinding a bare scalar or a copy-on-write `array<T>` local from inside an anonymous function is
+actually lost.
 
 ```php
 class Counter { public int $value = 0; }
@@ -1421,44 +1424,46 @@ $increment = fn() => $count->value++;   // both capture $count by value...
 $get       = fn() => $count->value;     // ...but $count is a heap object, so they share it
 ```
 
-There is no `Core\Ref<T>` or boxed-cell builtin for this, and an anonymous object literal
-([`types/object-literal`](types.md#types-object-literal)) is the lightweight way to write the carrier.
+There is no `Core\Ref<T>` or boxed-cell builtin for this, and an anonymous object
+([`types/anonymous-object`](types.md#types-anonymous-object)) is the lightweight way to write the carrier.
 
-<sub>See also [`types/closure-literal`](types.md#types-closure-literal), [`types/closure-self-name`](types.md#types-closure-self-name), [`types/object-literal`](types.md#types-object-literal). Decided in [0031](../decisions/0031.md), [0008](../decisions/0008.md).</sub>
+<sub>See also [`types/anonymous-function`](types.md#types-anonymous-function), [`types/anonymous-function-self-name`](types.md#types-anonymous-function-self-name), [`types/anonymous-object`](types.md#types-anonymous-object). Decided in [0031](../decisions/0031.md), [0008](../decisions/0008.md).</sub>
 
-<a id="types-closure-self-name"></a>
+<a id="types-anonymous-function-self-name"></a>
 
-## A closure may carry a self-name, visible only inside its own body
+## An anonymous function may carry a self-name, visible only inside its own body
 
-`rule:types/closure-self-name`
+`rule:types/anonymous-function-self-name`
 
-A closure that needs to call itself may carry an optional name between `fn` and its parameter list:
+An anonymous function that needs to call itself may carry an optional name between `fn` and its
+parameter list:
 
 ```php
 $fact = fn factorial($n) => $n <= 1 ? 1 : $n * factorial($n - 1);
 ```
 
-`factorial` is visible **only inside that closure's own body**. It is not a capture — it is not among
-the outer variables the body reads — not a second declared name reachable from anywhere else, and not
-a runtime slot: it resolves the way a method resolves `self::`, entirely at compile time, with no cost
-at literals that do not use it. It composes with both body shapes and is not a third closure form.
+`factorial` is visible **only inside that anonymous function's own body**. It is not a capture — it
+is not among the outer variables the body reads — not a second declared name reachable from anywhere
+else, and not a runtime slot: it resolves the way a method resolves `self::`, entirely at compile
+time, with no cost at literals that do not use it. It composes with both body shapes and is not a
+third anonymous-function form.
 
-**A call written through that name is checked against the closure's own signature**, the way
-[`types/callable-signature`](types.md#types-callable-signature) checks a call through a written `callable(int): string`: each argument
-is held to the parameter it fills, the count is exact, and the call answers the declared return type
-rather than `mixed`. There is no value to be opaque here — the literal being checked is the one right
-there — so the per-argument tag check a call through bare `callable` pays is not what a recursive call
-is finally held to. A literal that declares no return type is checking its body to find out, and a
-self-call there answers `mixed`; its parameter list has no such half-measure, being complete before the
-body is entered.
+**A call written through that name is checked against the anonymous function's own signature**, the
+way [`types/callable-signature`](types.md#types-callable-signature) checks a call through a written `callable(int): string`: each
+argument is held to the parameter it fills, the count is exact, and the call answers the declared
+return type rather than `mixed`. There is no value to be opaque here — the literal being checked is
+the one right there — so the per-argument tag check a call through bare `callable` pays is not what a
+recursive call is finally held to. A literal that declares no return type is checking its body to
+find out, and a self-call there answers `mixed`; its parameter list has no such half-measure, being
+complete before the body is entered.
 
 It does not reopen "every callable is a declared class member": that rule bars a free, globally
 callable function existing outside a class, and this name is unreachable from anywhere but its own
 body — the same status as a parameter name. A recursive helper that *is* reusable elsewhere still
-belongs on a class as a named method; the self-name covers only the case where the sole reason a
-closure would need a name is to call itself.
+belongs on a class as a named method; the self-name covers only the case where the sole reason an
+anonymous function would need a name is to call itself.
 
-<sub>See also [`types/closure-literal`](types.md#types-closure-literal), [`types/implicit-capture`](types.md#types-implicit-capture), [`types/callable-signature`](types.md#types-callable-signature). Decided in [0031](../decisions/0031.md), [0011](../decisions/0011.md).</sub>
+<sub>See also [`types/anonymous-function`](types.md#types-anonymous-function), [`types/implicit-capture`](types.md#types-implicit-capture), [`types/callable-signature`](types.md#types-callable-signature). Decided in [0031](../decisions/0031.md), [0011](../decisions/0011.md).</sub>
 
 <a id="types-object-top"></a>
 
@@ -1467,7 +1472,7 @@ closure would need a name is to call itself.
 `rule:types/object-top`
 
 `object` is the opaque supertype of every class type — a named declared class, and the anonymous class
-an object literal synthesizes ([`types/object-literal`](types.md#types-object-literal)). `object <: mixed`, and every class type
+an anonymous object synthesizes ([`types/anonymous-object`](types.md#types-anonymous-object)). `object <: mixed`, and every class type
 `<: object`.
 
 `object` carries no field or method information statically. It is to the class hierarchy what `mixed`
@@ -1479,20 +1484,20 @@ Because `object` names no class, it is not a conversion target — `as object` w
 meant is refused, and a member reached through an `object`-typed receiver is answered at run time
 ([`types/erased-member-access`](types.md#types-erased-member-access)).
 
-<sub>See also [`types/shape-type`](types.md#types-shape-type), [`types/object-literal`](types.md#types-object-literal), [`types/erased-member-access`](types.md#types-erased-member-access). Decided in [0036](../decisions/0036.md), [0007](../decisions/0007.md).</sub>
+<sub>See also [`types/shape-type`](types.md#types-shape-type), [`types/anonymous-object`](types.md#types-anonymous-object), [`types/erased-member-access`](types.md#types-erased-member-access). Decided in [0036](../decisions/0036.md), [0007](../decisions/0007.md).</sub>
 
-<a id="types-object-literal"></a>
+<a id="types-anonymous-object"></a>
 
 ## `{name: value}` builds an anonymous, methodless object and nothing more
 
-`rule:types/object-literal`
+`rule:types/anonymous-object`
 
 ```php
 $point = {x: 1, y: 2};
 $box   = {count: 0};
 ```
 
-Each occurrence's precise type is a private, compiler-synthesized class with exactly the fields
+Each anonymous object's precise type is a private, compiler-synthesized class with exactly the fields
 written, each field's type inferred from its initializer. That class has **no methods**, no
 `implements`, no inheritance and no user-reachable name; it needs no constructor, because the literal
 assigns every field it declares; and it is an **ordinary object** in every other respect — reference
@@ -1505,8 +1510,8 @@ field is written `name: value` — and no computed key `{[$expr]: 1}`. Every fie
 identifier, and a repeated one is refused.
 
 One grammar wrinkle: a `{` immediately after `=>` starts a block body
-([`types/closure-literal`](types.md#types-closure-literal)), and a statement-initial `{` starts a block, so returning or discarding
-a literal directly takes parentheses — `fn() => ({a: 1, b: 2})`. Both are closed call sites, not an
+([`types/anonymous-function`](types.md#types-anonymous-function)), and a statement-initial `{` starts a block, so returning or
+discarding an anonymous object directly takes parentheses — `fn() => ({a: 1, b: 2})`. Both are closed call sites, not an
 open-ended ambiguity.
 
 Nothing hooks a synthesized class: no `Comparable`, no property observer, no method body to write one
@@ -1539,7 +1544,7 @@ satisfying the shape's declared type by ordinary assignability. No new compariso
   `{w: float}` or `{w: ?float}`, `{w: array<int>}` does not satisfy `{w: array<float>}`, and a class
   with an `int $w` property does not satisfy `{w: float}` either; `{w: int|float}` accepts both,
   because `int` is one of its members.
-- **An object literal placed at a declared shape** takes each field the declaration names at the
+- **An anonymous object placed at a declared shape** takes each field the declaration names at the
   declared type, when its value fits it: `{w: 2}` and `{w: $count}` at `{w: float}` are `{w: float}`,
   and the literal stores `2.0`. An array literal in a field is placed the same way, so `{xs: [1, 2]}`
   at `{xs: array<float>}` stores two floats ([`types/arrays`](types.md#types-arrays)). A field the declaration does not
@@ -1573,7 +1578,7 @@ The read is deliberately **not** widened to `?T`: optionality and nullability ar
 ([`core-api/required-optional-and-nullable`](core-api.md#core-api-required-optional-and-nullable)), and one language does not answer "the key may be
 absent" two different ways in two containers.
 
-<sub>See also [`types/object-literal`](types.md#types-object-literal), [`types/object-top`](types.md#types-object-top), [`types/type-alias`](types.md#types-type-alias), [`types/erased-member-access`](types.md#types-erased-member-access). Decided in [0036](../decisions/0036.md), [0015](../decisions/0015.md), [0007](../decisions/0007.md), [0013](../decisions/0013.md), [0157](../decisions/0157.md), [0236](../decisions/0236.md), [0238](../decisions/0238.md).</sub>
+<sub>See also [`types/anonymous-object`](types.md#types-anonymous-object), [`types/object-top`](types.md#types-object-top), [`types/type-alias`](types.md#types-type-alias), [`types/erased-member-access`](types.md#types-erased-member-access). Decided in [0036](../decisions/0036.md), [0015](../decisions/0015.md), [0007](../decisions/0007.md), [0013](../decisions/0013.md), [0157](../decisions/0157.md), [0236](../decisions/0236.md), [0238](../decisions/0238.md).</sub>
 
 <a id="types-erased-member-access"></a>
 
@@ -1596,8 +1601,8 @@ For all three:
   *real*, concrete declared type, throwing on a mismatch. A write through an erased view can **never
   create a field**.
 - **Call:** a call through an erased receiver is dispatched on the value's own descriptor when it
-  runs. What cannot be deferred is refused: taking a *closure* off an erased receiver has no class
-  present to read a callee from ([`types/callable-is-a-closure`](types.md#types-callable-is-a-closure)).
+  runs. What cannot be deferred is refused: taking a *method reference* off an erased receiver has no class
+  present to read a callee from ([`types/callable-values`](types.md#types-callable-values)).
 
 Both throws are ordinary `Throwable`s propagated by checked return ([`errors/propagation`](errors.md#errors-propagation)), never
 routed through the fatal escalation ladder ([`errors/escalation-ladder`](errors.md#errors-escalation-ladder)). Per-property hooks and a

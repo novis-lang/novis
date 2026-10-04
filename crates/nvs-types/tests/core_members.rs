@@ -199,7 +199,7 @@ fn map_binds_its_result_from_a_callable_typed_variable() {
     assert!(refused.has_errors(), "{refused:?}");
 }
 
-/// `rule:expressions/first-class-callable-syntax`'s reference carries the
+/// `rule:expressions/method-reference`'s reference carries the
 /// member's own signature, so it binds `U` from `Core\Str::length`'s declared
 /// `uint` and satisfies the parameter for the same reason a literal wrapping
 /// the same call would. The reference is the spelling that has no body to read

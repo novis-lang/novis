@@ -1,5 +1,5 @@
 `object` is the opaque supertype of every class type — a named declared class, and the anonymous class
-an object literal synthesizes (`rule:types/object-literal`). `object <: mixed`, and every class type
+an anonymous object synthesizes (`rule:types/anonymous-object`). `object <: mixed`, and every class type
 `<: object`.
 
 `object` carries no field or method information statically. It is to the class hierarchy what `mixed`

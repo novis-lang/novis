@@ -12,7 +12,7 @@
     "types/callable-arity",
     "types/callable-variance",
     "types/callable-literal-inference",
-    "types/callable-is-a-closure"
+    "types/callable-values"
   ],
   "guardedBy": [
     "tests/conformance/lang/a-call-through-a-written-signature-is-checked-where-it-is-written.nvst",

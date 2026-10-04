@@ -1,4 +1,4 @@
-//! `rule:types/closure-literal`'s closure literal: what a body captures, and what its declared return type has to be.
+//! `rule:types/anonymous-function`'s closure literal: what a body captures, and what its declared return type has to be.
 //!
 //! Moved out of `nvs_types::check`'s inline `mod tests`; every test keeps its
 //! own name and body. See `tests/common/mod.rs` for the shared fixtures.
@@ -28,7 +28,7 @@ fn a_closure_parameter_shadows_an_outer_local_rather_than_capturing_it() {
     assert!(captures.is_empty(), "{captures:?}");
 }
 
-/// `rule:statements/a-closure-binds-this-only-where-it-uses-it`'s "a closure binds `$this` only where the body uses it"
+/// `rule:statements/an-anonymous-function-captures-this-only-where-it-uses-it`'s "a closure binds `$this` only where the body uses it"
 /// falls out of § 2's capture rule with no code of its own: `$this` is an
 /// ordinary name in the enclosing scope.
 #[test]

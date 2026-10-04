@@ -28,7 +28,7 @@ pub(crate) fn check_in_method(body: &str) -> Diagnostics {
 }
 
 /// Like [`check_src`], but hands back the typed-expression table too —
-/// what a closure fixture asserts on, since `rule:types/callable-absorbs-closure`'s `callable`
+/// what a closure fixture asserts on, since `rule:types/callable-is-the-only-function-type`'s `callable`
 /// carries none of what was resolved.
 pub(crate) fn check_src_table(src: &str) -> (Diagnostics, ExprTypeTable) {
     let mut map = SourceMap::new();

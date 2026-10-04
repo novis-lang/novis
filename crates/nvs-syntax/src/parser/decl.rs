@@ -168,7 +168,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     /// One attribute — `rule:attributes/attach-sites-and-forms`'s named `Name(field: value, ...)` or bare
     /// `{field: value, ...}`. Both carry the same payload, so the
     /// parenthesized list is parsed by the very function that parses an
-    /// `rule:types/object-literal` object literal's fields: an attribute payload is that
+    /// `rule:types/anonymous-object` object literal's fields: an attribute payload is that
     /// literal written without its braces, not an argument list, so a
     /// positional argument is "expected a field name" where it is written
     /// rather than something a later pass has to refuse.

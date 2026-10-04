@@ -1,11 +1,11 @@
 {
-  "title": "A closure binds `$this` only when its body names it, so `static fn` has nothing left to assert",
+  "title": "An anonymous function captures `$this` only when its body names it, so `static fn` has nothing left to assert",
   "status": "shipped",
   "because": [
     "0008",
     "0031"
   ],
-  "divergesFromPhp": "a closure that never names `$this` is unbound, and `bindTo()`/`bind()` on it return an equivalent closure rather than rebinding anything",
+  "divergesFromPhp": "an anonymous function that never names `$this` is unbound, and `bindTo()`/`bind()` on it return an equivalent callable rather than rebinding anything",
   "seeAlso": [
     "statements/static-is-a-member-modifier"
   ],

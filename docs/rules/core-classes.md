@@ -421,7 +421,7 @@ sink it means.
 
 **Two holes: `{$…}` as in a string, and `<?= … ?>` as in a page.** The first is a double-quoted
 string's interpolation grammar, both halves of it and nothing added: `{$` opens a hole whose body is a
-**full expression** closed by the matching `}`, with brace depth counted so a closure inside one does not
+**full expression** closed by the matching `}`, with brace depth counted so an anonymous function inside one does not
 close it early — `{$u->fullName()}`, `{$row["name"]}` and `{$a + $b}` are all holes — and a bare `$name`
 interpolates in PHP's simple syntax, `$name`, `$name->prop` one level, `$name[offset]`. A brace hole
 must begin with `$`, so `{Money::format($c)}` is text exactly as it is in a double-quoted string, and
@@ -505,7 +505,7 @@ nowhere cancels its task with a `Warn`; one written twice throws `LogicError`.
 ([`security/isolate-budget-is-the-trees`](security.md#security-isolate-budget-is-the-trees)), and a breach fails the request as it would without
 `later`; on a slotted route, where the head is already out, every unfilled slot shows `error` and the
 response ends. A task that throws or passes its own `deadline` shows `error` too, and the page keeps the
-status the main script set. **A `later` closure cannot change the response head**: a status, a header,
+status the main script set. **A `later` callable cannot change the response head**: a status, a header,
 a redirect, a body method, a cookie or a session regeneration inside one throws `LogicError`, and is a
 compile error where the checker sees it. Outside an HTML response `later` runs `fn` in place and
 returns its output.
@@ -1232,12 +1232,12 @@ statement.
 
 <a id="core-classes-db-transactions"></a>
 
-## A transaction is a closure, and `Transaction` is a `Queryable` rather than a second query surface
+## A transaction is a callable, and `Transaction` is a `Queryable` rather than a second query surface
 
 `rule:core-classes/db-transactions`
 
 `$db->transaction($fn, {isolation?, readOnly?, retries?})` is the only transaction spelling. The
-closure form is forced: with no destructors, an object-scoped transaction has no point at which to
+callable form is forced: with no destructors, an object-scoped transaction has no point at which to
 roll back. A normal return commits, a throw rolls back and propagates, and a failed commit throws
 `DbError`.
 
@@ -1253,8 +1253,8 @@ the owning frame acts on the flag, not on catching the signal.
 
 Nesting on one connection issues `SAVEPOINT` and `ROLLBACK TO SAVEPOINT`, which removes the reason
 `commit()`, `rollBack()` on the connection and `inTransaction()` each existed. `{retries: n}` re-runs
-the closure on deadlock and serialization failure only, outermost transactions only, and defaults to
-`0` because re-running a closure that sends mail is worse than surfacing the conflict.
+the callable on deadlock and serialization failure only, outermost transactions only, and defaults to
+`0` because re-running a callable that sends mail is worse than surfacing the conflict.
 
 <sub>See also [`core-classes/db-error`](core-classes.md#core-classes-db-error), [`core-classes/db-statement-members`](core-classes.md#core-classes-db-statement-members), [`errors/propagation`](errors.md#errors-propagation). Decided in [0067](../decisions/0067.md), [0028](../decisions/0028.md), [0043](../decisions/0043.md), [0002](../decisions/0002.md).</sub>
 
@@ -1649,8 +1649,8 @@ with no effect is a mistake rather than a no-op.
 `#[Db\Derive]` is one-directional. The row codec declares a read only; a write is an explicit
 statement plus bound parameters, and generating an `INSERT` is the ORM already settled against. The
 graph-copy operation gets no derive either: it handles every object with no per-class opt-in and is
-not a declared wire contract at all. An anonymous shape encodes with no attribute, because a shape
-literal has no declaration to carry one and no identity a property list could only guess at — its
+not a declared wire contract at all. An anonymous object encodes with no attribute, because an
+anonymous object has no declaration to carry one and no identity a property list could only guess at — its
 encoding is structural, keyed on its field names alone. And there is **no validation**: a derived
 codec checks types and presence, not that an email looks like one.
 
@@ -1662,7 +1662,7 @@ per field, and paid on the encoding side by a refcount pair per level of the doc
 member runs. Footprint is O(derived classes in compiled code), not O(objects) and not O(requests), and
 a program that neither carries the attribute nor writes a half pays nothing at all, including no pass.
 
-<sub>See also [`core-classes/derive-attribute`](core-classes.md#core-classes-derive-attribute), [`core-classes/derive-field-list`](core-classes.md#core-classes-derive-field-list), [`types/object-literal`](types.md#types-object-literal), [`types/shape-type`](types.md#types-shape-type). Decided in [0071](../decisions/0071.md), [0023](../decisions/0023.md), [0029](../decisions/0029.md), [0042](../decisions/0042.md), [0063](../decisions/0063.md).</sub>
+<sub>See also [`core-classes/derive-attribute`](core-classes.md#core-classes-derive-attribute), [`core-classes/derive-field-list`](core-classes.md#core-classes-derive-field-list), [`types/anonymous-object`](types.md#types-anonymous-object), [`types/shape-type`](types.md#types-shape-type). Decided in [0071](../decisions/0071.md), [0023](../decisions/0023.md), [0029](../decisions/0029.md), [0042](../decisions/0042.md), [0063](../decisions/0063.md).</sub>
 
 <a id="core-classes-queue-storage-is-a-table"></a>
 

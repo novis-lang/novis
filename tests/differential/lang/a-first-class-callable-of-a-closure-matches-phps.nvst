@@ -6,7 +6,7 @@ PHP answers a first-class callable of a closure with that same closure, and so d
 // `Closure` hands back the same object rather than a wrapper around it, so the
 // identity test is the row that matters and the arithmetic beside it is only
 // there to show the answer is still callable. Novis has no second reading
-// available — `rule:types/callable-is-a-closure` leaves `callable` one
+// available — `rule:types/callable-values` leaves `callable` one
 // inhabitant — but the wording of that agreement is PHP's.
 class C {
     public int $base = 10;

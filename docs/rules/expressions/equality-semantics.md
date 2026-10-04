@@ -12,7 +12,7 @@ strict reading:
 | `array<T>` | the same length, the same keys in the same order, and every value equal by this table, recursively |
 | class instance | the same object (`rule:expressions/object-identity-equality`) |
 | enum case | the underlying integers are equal |
-| `callable` | the same closure — two `fn` literals with identical bodies are two closures |
+| `callable` | the same callable — two `fn` literals with identical bodies are two callables |
 | `mixed`, a union | resolved at run time (`rule:expressions/mixed-equality`) |
 
 The array recursion terminates: an array is a copy-on-write value rather than a reference, so it

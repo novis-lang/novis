@@ -5,8 +5,8 @@ A top-level statement in a file declaring a namespace runs under that namespace'
 method body in the same file would. **File-scope code is not exempt**, and it must not be: an
 exemption would be a one-line bypass of the whole system. A file with no namespace declaration is in
 the global namespace, which is the application, so an entry point is unrestricted up to the operator's
-ceiling. A closure carries the namespace it was **declared** in, not the one that calls it, so a
-closure written in the application and invoked from a package runs under the application's authority.
+ceiling. An anonymous function carries the namespace it was **declared** in, not the one that calls it, so
+one written in the application and invoked from a package runs under the application's authority.
 A `use` import transfers nothing: authority is a property of where code *is*, never of what it names.
 
 Keying on the namespace is what closes the override hole — a file overriding one class of a dependency

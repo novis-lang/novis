@@ -393,7 +393,7 @@ fn a_new_target_followed_by_a_comparison_is_still_a_comparison() {
 
 #[test]
 fn object_literal_parses_as_a_primary_expression() {
-    // `rule:types/object-literal`.
+    // `rule:types/anonymous-object`.
     let e = parse_ok("{x: 1, y: 2}");
     let ExprKind::ObjectLiteral(fields) = e.kind else {
         panic!("expected an object literal: {e:?}");
@@ -412,7 +412,7 @@ fn object_literal_parses_as_a_primary_expression() {
 
 #[test]
 fn object_literal_rejects_shorthand_and_computed_key() {
-    // `rule:types/object-literal`: every field is `name: value` — no shorthand, no
+    // `rule:types/anonymous-object`: every field is `name: value` — no shorthand, no
     // computed key.
     let (_, diags) = parse_with_diags("$o = {x};");
     assert!(
@@ -433,8 +433,8 @@ fn object_literal_rejects_shorthand_and_computed_key() {
 
 #[test]
 fn object_literal_needs_parens_in_an_arrow_body() {
-    // `rule:types/object-literal`: `fn() => {...}` already means a block body per
-    // `rule:types/closure-literal` — returning a literal needs `fn() => ({...})` instead.
+    // `rule:types/anonymous-object`: `fn() => {...}` already means a block body per
+    // `rule:types/anonymous-function` — returning a literal needs `fn() => ({...})` instead.
     let (_, diags) = parse_with_diags("$f = fn() => {x: 1, y: 2};");
     assert!(
         diags
@@ -474,7 +474,7 @@ fn object_literal_needs_parens_in_an_arrow_body() {
 
 #[test]
 fn object_literal_needs_parens_as_a_bare_statement() {
-    // `rule:types/object-literal`: a statement-initial `{` already means a block —
+    // `rule:types/anonymous-object`: a statement-initial `{` already means a block —
     // a discarded literal needs `({...});` instead.
     let (_, diags) = parse_stmt_with_diags("{x: 1, y: 2};");
     assert!(
@@ -598,7 +598,7 @@ fn match_expression() {
 
 #[test]
 fn function_closure_with_use_by_ref_is_rejected() {
-    // `rule:types/closure-literal`/§ 2: `function` closures don't exist at all, and a
+    // `rule:types/anonymous-function`/§ 2: `function` closures don't exist at all, and a
     // `use (&$y)` clause gets its own, more specific diagnostic on top.
     let (e, diags) = parse_with_diags("function (int $x) use (&$y): int { return $x + $y; }");
     assert!(matches!(e.kind, ExprKind::Error(_)));

@@ -8,7 +8,7 @@
   "seeAlso": [
     "core-api/no-mode-strings",
     "types/callable-arity",
-    "types/callable-is-a-closure"
+    "types/callable-values"
   ],
   "guardedBy": [
     "tests/conformance/core/arr-map-and-filter.nvst",

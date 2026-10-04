@@ -7,8 +7,8 @@ with no effect is a mistake rather than a no-op.
 `#[Db\Derive]` is one-directional. The row codec declares a read only; a write is an explicit
 statement plus bound parameters, and generating an `INSERT` is the ORM already settled against. The
 graph-copy operation gets no derive either: it handles every object with no per-class opt-in and is
-not a declared wire contract at all. An anonymous shape encodes with no attribute, because a shape
-literal has no declaration to carry one and no identity a property list could only guess at — its
+not a declared wire contract at all. An anonymous object encodes with no attribute, because an
+anonymous object has no declaration to carry one and no identity a property list could only guess at — its
 encoding is structural, keyed on its field names alone. And there is **no validation**: a derived
 codec checks types and presence, not that an email looks like one.
 

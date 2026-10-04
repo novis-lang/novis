@@ -426,7 +426,7 @@ pub enum ExprInfo {
     /// [`nvs_syntax::ast::ExprKind::StaticCall`] whose receiver/class side
     /// resolved to a known signature.
     Call(ResolvedCall),
-    /// `Foo::bar(...)` / `$obj->method(...)` — `rule:types/callable-is-a-closure`'s first-class
+    /// `Foo::bar(...)` / `$obj->method(...)` — `rule:types/callable-values`'s first-class
     /// callable syntax, which *names* the resolved member rather than calling
     /// it, and whose value is a closure over it.
     ///
@@ -451,11 +451,11 @@ pub enum ExprInfo {
     /// `ResolvedCall::arg_slots` is empty here and means nothing: `(...)` is a
     /// sentinel, not an argument list, so there are no written arguments to
     /// map. Every other field is the one an ordinary call would carry,
-    /// [`ResolvedCall::static_class`] included — `rule:types/callable-is-a-closure` makes
+    /// [`ResolvedCall::static_class`] included — `rule:types/callable-values` makes
     /// `static::helper(...)` late-bound exactly as `static::helper()` is.
     CallableRef(ResolvedCall),
     /// A bare name in callee position that is
-    /// `rule:types/closure-self-name`'s self-name — `fact` inside `fn fact(int $n): int => … fact($n - 1)`.
+    /// `rule:types/anonymous-function-self-name`'s self-name — `fact` inside `fn fact(int $n): int => … fact($n - 1)`.
     ///
     /// Recorded on the **callee's** span, not the call's, because it is the
     /// resolution of that name and nothing else: the call around it is the
@@ -553,7 +553,7 @@ pub enum ExprInfo {
     /// reference has nothing to do with. [`crate::expr::calls`]'s
     /// static-call refusal is where that is reported.
     ///
-    /// Known gap: `$cls::f(...)` written as `rule:types/callable-is-a-closure`'s first-class callable
+    /// Known gap: `$cls::f(...)` written as `rule:types/callable-values`'s first-class callable
     /// records [`ExprInfo::CallableRef`] like any other class side, so the
     /// closure it names is `T`'s method rather than the implementor's. The
     /// same fallback-versus-override question as above, at a site that has no
@@ -583,7 +583,7 @@ pub enum ExprInfo {
         name: String,
     },
     /// `$fn->bindTo($obj)`, `$fn->bind($obj)` or `$fn->call($obj, ...)` on a
-    /// `callable` receiver — `rule:types/callable-absorbs-closure`'s three
+    /// `callable` receiver — `rule:types/callable-is-the-only-function-type`'s three
     /// builtin operations, which no class declares, so no [`ResolvedCall`]
     /// names them. `nvs-ir` lowers each to `nvs_ir::Helper::BindClosure`, and
     /// `call` then calls what that returns with the rest of the arguments.
@@ -1199,11 +1199,11 @@ pub enum ExprInfo {
         /// second question. [`crate::links`]' `spellings` is where they meet.
         spellings: Vec<EnumSpelling>,
     },
-    /// An `rule:types/closure-literal`
+    /// An `rule:types/anonymous-function`
     /// `fn` closure literal, keyed by the literal's own span.
     ///
     /// A closure's *type* is [`crate::ty::Ty::Callable`] and says nothing
-    /// about it — `rule:types/callable-absorbs-closure` keeps that type opaque, and `rule:types/callable-is-a-closure` already
+    /// about it — `rule:types/callable-is-the-only-function-type` keeps that type opaque, and `rule:types/callable-values` already
     /// fixed what may satisfy it. So everything lowering one needs is here
     /// instead: the class label `nvs-ir` synthesizes the closure's captured
     /// environment as, the outer bindings that environment holds, and the
@@ -1221,7 +1221,7 @@ pub enum ExprInfo {
         class: String,
         /// Every outer binding the body reads or writes, in first-touch
         /// order — the field order of the class above. `$this` appears here
-        /// under the name `this`, which is `rule:statements/a-closure-binds-this-only-where-it-uses-it`'s "a closure binds
+        /// under the name `this`, which is `rule:statements/an-anonymous-function-captures-this-only-where-it-uses-it`'s "a closure binds
         /// `$this` only where the body uses it" falling straight out of § 2's
         /// capture rule rather than needing a rule of its own.
         captures: Vec<(String, TypeId)>,
@@ -1492,7 +1492,7 @@ impl ExprTypeTable {
     /// Iterated rather than looked up: which of the bodies covering an offset
     /// a name belongs to is the consumer's question — a closure's body is
     /// inside a method's and shares none of its bindings
-    /// (`rule:types/closure-literal`'s capture is by value), so a reader walks
+    /// (`rule:types/anonymous-function`'s capture is by value), so a reader walks
     /// from the innermost outward and stops at the first body that declares
     /// the name it is after.
     pub fn local_scopes(&self) -> impl Iterator<Item = (Span, &[LocalBinding])> {
@@ -1522,7 +1522,7 @@ impl ExprTypeTable {
 
     /// Records that the expression at `span` evaluates to a closure whose
     /// signature the checker interned as `sig` — a `fn` literal, or one of
-    /// `rule:types/callable-is-a-closure`'s first-class-callable spellings,
+    /// `rule:types/callable-values`'s first-class-callable spellings,
     /// those being the only expressions that make one.
     ///
     /// Keyed by the literal rather than by the class `nvs-ir` synthesizes for
@@ -2509,7 +2509,7 @@ mod tests {
         assert_eq!(call.param_tys.len(), 1);
     }
 
-    /// `rule:types/callable-is-a-closure`'s first-class callable syntax names the member rather than
+    /// `rule:types/callable-values`'s first-class callable syntax names the member rather than
     /// calling it, so the same resolved facts are recorded under a variant a
     /// consumer cannot mistake for a call — see [`ExprInfo::CallableRef`].
     #[test]
@@ -2532,7 +2532,7 @@ mod tests {
     }
 
     /// The other half of the same rule: an explicitly named class *sets* the
-    /// called class, so `rule:types/callable-is-a-closure`'s "late-bound, exactly like
+    /// called class, so `rule:types/callable-values`'s "late-bound, exactly like
     /// `static::class`" survives the reference.
     #[test]
     fn a_named_class_first_class_callable_records_its_static_class() {

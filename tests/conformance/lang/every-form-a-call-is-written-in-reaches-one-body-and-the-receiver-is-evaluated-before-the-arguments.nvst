@@ -1,5 +1,5 @@
 --TEST--
-Every form a call is written in reaches one body with one argument list, whichever spelling the arguments take, and a call site evaluates its receiver before them — `rule:core-api/parameters-are-callable-by-name`, `rule:types/callable-is-a-closure`
+Every form a call is written in reaches one body with one argument list, whichever spelling the arguments take, and a call site evaluates its receiver before them — `rule:core-api/parameters-are-callable-by-name`, `rule:types/callable-values`
 --FILE--
 <?nvs
 // covers: lang:expressions/calls

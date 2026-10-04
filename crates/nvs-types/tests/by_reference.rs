@@ -247,7 +247,7 @@ T::keep(inout $n);
         "{diags:?}"
     );
 
-    // Through a `callable` it can never be right: `rule:types/callable-absorbs-closure` refuses the
+    // Through a `callable` it can never be right: `rule:types/callable-is-the-only-function-type` refuses the
     // declaration end outright, so nothing the call reaches can bind one.
     let diags = check_src(
         "<?nvs

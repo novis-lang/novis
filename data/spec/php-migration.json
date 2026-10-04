@@ -658,7 +658,7 @@
       "section": "Strings",
       "php": "vsprintf",
       "outcome": "member",
-      "novis": "`Core\\Str::format(…, ...$args)` — argument unpacking replaces the `v` family (`rule:types/closure-literal`)"
+      "novis": "`Core\\Str::format(…, ...$args)` — argument unpacking replaces the `v` family (`rule:types/anonymous-function`)"
     },
     {
       "section": "Strings",
@@ -2272,7 +2272,7 @@
       "section": "Types and conversions",
       "php": "is_callable",
       "outcome": "member",
-      "novis": "`Core\\Reflect::typeOf`; `callable` is closures only (`rule:types/callable-is-a-closure`)"
+      "novis": "`Core\\Reflect::typeOf`; `callable` is closures only (`rule:types/callable-values`)"
     },
     {
       "section": "Types and conversions",
@@ -4066,7 +4066,7 @@
       "section": "Reflection and the class API",
       "php": "call_user_func",
       "outcome": "language",
-      "novis": "`$f(...)`. A `callable` is closures only (`rule:types/callable-is-a-closure`), and a closure is invoked by writing the call; the `\"Class::method\"` string form has no spelling at all"
+      "novis": "`$f(...)`. A `callable` is closures only (`rule:types/callable-values`), and a closure is invoked by writing the call; the `\"Class::method\"` string form has no spelling at all"
     },
     {
       "section": "Reflection and the class API",
@@ -4762,7 +4762,7 @@
       "section": "XML",
       "php": "xml_set_object",
       "outcome": "dropped",
-      "novis": "it rebinds every string-named handler onto a method of an object — a workaround for callables that are strings, which Novis does not have (`rule:types/closure-literal`)"
+      "novis": "it rebinds every string-named handler onto a method of an object — a workaround for callables that are strings, which Novis does not have (`rule:types/anonymous-function`)"
     },
     {
       "section": "XML",
@@ -5584,7 +5584,7 @@
       "section": "The program describing itself",
       "php": "clone",
       "outcome": "language",
-      "novis": "the `clone` keyword, unchanged — PHP's shallow, single-level copy (`rule:classes/two-copy-depths`). The function spelling exists so that cloning can be passed as a callable, and a callable here is a closure (`rule:types/closure-literal`)"
+      "novis": "the `clone` keyword, unchanged — PHP's shallow, single-level copy (`rule:classes/two-copy-depths`). The function spelling exists so that cloning can be passed as a callable, and a callable here is a closure (`rule:types/anonymous-function`)"
     },
     {
       "section": "The program describing itself",

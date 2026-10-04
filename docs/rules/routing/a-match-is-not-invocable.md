@@ -6,7 +6,7 @@ routing is not a forcing case for that deferral, and typed `callable` would not 
 `switch`, for three independent reasons.
 
 Routes do not share a signature: `show(uint $id)`, `index()` and `blog(uint $y, uint $m, string $slug)`
-cannot inhabit one `handler` field, and pre-binding the converted parameters into a zero-argument closure
+cannot inhabit one `handler` field, and pre-binding the converted parameters into a zero-argument callable
 is dispatch. Handlers have no common return type, and a `callable(): Response` would force one, which is
 a framework opinion `Core` refuses to hold. And the boundary ground survives regardless: invoking would
 be dispatch, which the table refuses on its own account

@@ -652,7 +652,7 @@ fn value_ordering(left: Value, right: Value) -> Result<Option<std::cmp::Ordering
 /// Shared by every refusal a tag-dispatched row makes — [`no_ordering`] and
 /// [`no_arithmetic`] — so that "a `string` against an `array<T>`" reads the
 /// same whichever operator asked. A closure renders as `object` because it *is*
-/// one (`rule:types/callable-is-a-closure`), and the fallback covers the tags
+/// one (`rule:types/callable-values`), and the fallback covers the tags
 /// no source value carries.
 fn tag_name(value: Value) -> &'static str {
     match value.tag() {
@@ -1692,7 +1692,7 @@ pub fn to_float(value: Value) -> Option<f64> {
 /// reach it through a lowered `as`.
 ///
 /// `crate::closure::check_param_tags` is that caller: a `callable` carries no
-/// parameter list (`rule:types/closure-literal`), so no checker ever saw the call site and
+/// parameter list (`rule:types/anonymous-function`), so no checker ever saw the call site and
 /// nothing inserted the widening conversion the declared `float` earns. It is
 /// applied there instead, out of the same [`row`] set every written `as float`
 /// goes through, so the 2^53 boundary cannot drift between the two spellings.

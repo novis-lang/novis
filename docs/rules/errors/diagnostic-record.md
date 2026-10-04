@@ -5,7 +5,7 @@ The envelope carries `ts`, `level`, `message`, `request_id`, `trace_id`/`span_id
 active, `source`, `count`, and `fields` (`rule:errors/log-fields`). A node is a Scalar tagged with
 its Novis type — so `"1"` and `1` are never confusable, which is the one thing `print_r` cannot do —
 or a Sequence, a Map, an Object with its *declared* properties, an Enum case named rather than
-numbered, a Closure's signature without its body or captures, a Redacted, an Elided, a Cycle
+numbered, a Callable's signature without its body or captures, a Redacted, an Elided, a Cycle
 carrying the identity of the node it repeats, or a Span over a source range.
 
 **The model is content, not presentation.** It carries no colour, no indentation, no width and no

@@ -1,4 +1,4 @@
-A closure of arity *n* satisfies `callable(T₁..Tₘ): R` when **`n ≤ m`**, and only the first *n*
+A callable of arity *n* satisfies `callable(T₁..Tₘ): R` when **`n ≤ m`**, and only the first *n*
 parameter types are compared. An arity greater than *m* is refused where it is written.
 
 ```php
@@ -10,8 +10,8 @@ Core\Arr::map($users, fn($u, $k, $x) => …);              // refused
 ```
 
 A **call** through such a type passes *m* arguments, not *n*: what the value holds is the type's
-business and not the call site's, and the runtime hands that closure only the leading arguments it
-declares. A site passing fewer would leave one of the closure's own parameters unfilled, which is a
+business and not the call site's, and the runtime hands that callable only the leading arguments it
+declares. A site passing fewer would leave one of the callable's own parameters unfilled, which is a
 fault below the language rather than a throw, so it is refused where it is written (`E0809`).
 
 This is not tolerance invented for convenience: the runtime already hands a callee only the arguments

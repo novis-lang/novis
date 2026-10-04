@@ -1,5 +1,5 @@
 --TEST--
-`new C(...)` is `E0740` and `$m->method(...)` on a `mixed` receiver is `E0732`, never a panic — `rule:types/callable-is-a-closure` gives the `(...)` spelling to a member, so the two shapes that name no member are refused where they are written
+`new C(...)` is `E0740` and `$m->method(...)` on a `mixed` receiver is `E0732`, never a panic — `rule:types/callable-values` gives the `(...)` spelling to a member, so the two shapes that name no member are refused where they are written
 --FILE--
 <?nvs
 final class Box {
@@ -7,7 +7,7 @@ final class Box {
     public function constructor(int $n) { $this->n = $n; }
     public function get(): int { return $this->n; }
 }
-// `rule:types/callable-is-a-closure`'s kept list is a list of *members*, and a constructor is
+// `rule:types/callable-values`'s kept list is a list of *members*, and a constructor is
 // not one: `new` names a class, and the closure this syntax builds
 // carries a callee rather than an allocation. PHP refuses the same
 // expression, so refusing it is the compatible answer as well as the
@@ -19,7 +19,7 @@ Box $b = new Box(...);
 // closure value outlives the site and carries its callee with it.
 mixed $m = new Box(1);
 callable $f = $m->get(...);
-// The control: both spellings `rule:types/callable-is-a-closure` keeps resolve a member, so
+// The control: both spellings `rule:types/callable-values` keeps resolve a member, so
 // neither refusal fires on these two and the expectation carries no
 // diagnostic for either line.
 Box $c = new Box(2);
@@ -32,7 +32,7 @@ error[E0740]: `new` has no first-class callable form
    |
 12 | Box $b = new Box(...);
    |          ^^^^^^^^^^^^ `Box` is constructed here, not called
-   = help: `rule:types/callable-is-a-closure` gives the `(...)` spelling to a member — `Class::method(...)`, `$obj->method(...)`, `self::method(...)` — and a constructor is not one. Write the closure out: `fn (): T => new T(…)`
+   = help: `rule:types/callable-values` gives the `(...)` spelling to a member — `Class::method(...)`, `$obj->method(...)`, `self::method(...)` — and a constructor is not one. Write the closure out: `fn (): T => new T(…)`
 
 error[E0732]: `get(...)` names no closure through a `mixed` receiver
    --> %s:18:15

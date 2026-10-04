@@ -1,5 +1,5 @@
 {
-  "title": "An upgrade names compiled code — a file or a static method — and never a closure",
+  "title": "An upgrade names compiled code — a file or a static method — and never a callable",
   "status": "shipped",
   "because": [
     "0083",
@@ -10,7 +10,7 @@
     "0024",
     "0077"
   ],
-  "divergesFromPhp": "there is no handler object and no closure to hand a socket to; the entry is named at the call site the way a spawned script names one, and its arguments are copied rather than shared",
+  "divergesFromPhp": "there is no handler object and no callable to hand a socket to; the entry is named at the call site the way a spawned script names one, and its arguments are copied rather than shared",
   "seeAlso": [
     "security/isolate-shares-nothing",
     "classes/graph-copy",

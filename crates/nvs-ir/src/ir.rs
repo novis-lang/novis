@@ -2797,14 +2797,14 @@ pub enum Helper {
     /// which is the ordering AGENTS.md states.
     SecretEq,
     /// `$fn(...)` —
-    /// `rule:types/closure-literal`'s
+    /// `rule:types/anonymous-function`'s
     /// closure, called through the variable holding it. `args[0]` is the
     /// closure object and `args[1..]` its arguments in written order.
     ///
     /// **The one variadic [`Helper`]**, and the reason the row exists at all
     /// rather than this being an [`InstKind::Call`]: there is no resolved
     /// target to name. `callable` carries no parameter list
-    /// (`rule:types/closure-literal`), so the checker types the call `mixed` and cannot say which
+    /// (`rule:types/anonymous-function`), so the checker types the call `mixed` and cannot say which
     /// function a variable holds; what answers both questions is the closure
     /// object itself, whose class declares the one `invoke`
     /// `nvs_runtime::call_closure` reaches through. That helper is the same
@@ -2907,7 +2907,7 @@ pub enum Helper {
     /// throw travelling back as `Fault::Pending`.
     CallErasedMethod,
     /// `$fn->bindTo($obj)` and `$fn->bind($obj)` —
-    /// `rule:types/callable-absorbs-closure`'s rebind, and the first half of
+    /// `rule:types/callable-is-the-only-function-type`'s rebind, and the first half of
     /// `$fn->call($obj, ...)`, whose second half is
     /// [`CallClosure`](Self::CallClosure) on what this returns.
     ///

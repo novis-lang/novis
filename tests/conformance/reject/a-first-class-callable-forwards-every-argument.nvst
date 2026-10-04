@@ -1,8 +1,8 @@
 --TEST--
-A first-class callable over a member declaring `inout` or a variadic tail is refused — `rule:types/callable-absorbs-closure` gives `callable` no parameter list, so nothing at the call could stage a cell or collect a tail
+A first-class callable over a member declaring `inout` or a variadic tail is refused — `rule:types/callable-is-the-only-function-type` gives `callable` no parameter list, so nothing at the call could stage a cell or collect a tail
 --FILE--
 <?nvs
-// `rule:types/callable-is-a-closure` gives the `(...)` spelling to a member, and `rule:types/callable-absorbs-closure`
+// `rule:types/callable-values` gives the `(...)` spelling to a member, and `rule:types/callable-is-the-only-function-type`
 // gives the `callable` it produces no parameter list. So a call through one
 // passes what it was written with: there is no site that could know to hand
 // `bump` an address rather than an `int`, and the callee reads that slot at

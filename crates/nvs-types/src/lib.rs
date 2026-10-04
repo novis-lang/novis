@@ -105,7 +105,7 @@
 //!   [`expr::operators`] records
 //!   [`expr_table::ExprInfo::SecretEquality`] at the comparison, and `nvs-ir`
 //!   picks the helper off that entry's presence alone.
-//! - **`rule:types/callable-is-a-closure`'s `callable` is a value shape**, so a
+//! - **`rule:types/callable-values`'s `callable` is a value shape**, so a
 //!   bare string or an `[$obj, 'method']` array where one is expected gets a
 //!   targeted diagnostic, `$obj(...)` is refused for any resolved-class
 //!   `$obj`, and first-class callable syntax (`$obj->method(...)`,
@@ -336,7 +336,7 @@ pub(crate) struct Ctx<'a> {
     pub in_closure: bool,
 }
 
-/// `rule:types/closure-self-name`'s
+/// `rule:types/anonymous-function-self-name`'s
 /// optional self-name, resolved: what a bare call written inside the closure's
 /// own body has to spell to mean *this* closure, and what such a call answers
 /// with.
@@ -485,7 +485,7 @@ pub(crate) struct Env<'a> {
     /// recorded their fields. See [`crate::derive::check_decode_sites`].
     pub decode_sites: &'a mut Vec<crate::derive::DecodeSite>,
     pub diags: &'a mut nvs_diagnostics::Diagnostics,
-    /// How many `rule:types/closure-literal` `fn` closure literals this run has checked so far —
+    /// How many `rule:types/anonymous-function` `fn` closure literals this run has checked so far —
     /// the suffix that makes each one's synthesized environment class label
     /// unique. One counter for the whole run rather than one per body,
     /// because a closure nested inside another closure has no enclosing
@@ -502,7 +502,7 @@ pub(crate) struct Env<'a> {
     /// regardless, so nothing reaches a human less checked. An ordinary
     /// `mixed` value never moves the count.
     pub refused_exprs: u32,
-    /// `rule:types/closure-self-name`'s self-name, for the `fn` literal whose body is being checked —
+    /// `rule:types/anonymous-function-self-name`'s self-name, for the `fn` literal whose body is being checked —
     /// `None` outside one, and `None` again inside a nested literal that
     /// declares no name of its own.
     ///
@@ -519,7 +519,7 @@ pub(crate) struct Env<'a> {
     /// is why this is a stack of kinds and not a pair of counters.
     ///
     /// Maintained by [`crate::locals`] as it walks a body, and saved/emptied/
-    /// restored across an `rule:types/closure-literal` closure literal's body, which no enclosing
+    /// restored across an `rule:types/anonymous-function` closure literal's body, which no enclosing
     /// loop reaches into: a `break` written in one has nothing outside the
     /// closure to leave.
     pub exit_targets: Vec<bool>,

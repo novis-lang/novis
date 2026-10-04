@@ -293,20 +293,20 @@ pub mod code {
     /// commits to a block — an expression-bodied `fn() => {...}`, or a bare
     /// statement-initial `{...}` — needs the same parenthesize-to-force-
     /// expression fix JavaScript uses for the identical ambiguity; see
-    /// `rule:types/object-literal`.
+    /// `rule:types/anonymous-object`.
     pub const E_OBJECT_LITERAL_NEEDS_PARENS: Code = Code::new("E0117").card(
         "An object literal in this position is read as a block of code. This happens after \
          `fn() =>` and at the start of a statement. Put parentheses around it: \
          `({name: value})`.",
     );
     /// `{x}` — an object literal has no shorthand; every field is written
-    /// `name: value`. See `rule:types/object-literal`.
+    /// `name: value`. See `rule:types/anonymous-object`.
     pub const E_OBJECT_LITERAL_SHORTHAND: Code = Code::new("E0118").card(
         "An object literal has no short form for a field. Write each field as `name: value`. \
          For example, write `{x: $x}`, not `{x}`.",
     );
     /// `{[$expr]: value}` — an object literal has no computed/dynamic key;
-    /// every field name is a static identifier. See `rule:types/object-literal`.
+    /// every field name is a static identifier. See `rule:types/anonymous-object`.
     pub const E_OBJECT_LITERAL_COMPUTED_KEY: Code = Code::new("E0119").card(
         "A field name in an object literal cannot be computed from an expression. Write each \
          field name directly, for example `{name: value}`.",
@@ -591,7 +591,7 @@ pub mod code {
          time it is reached.",
     );
     /// An anonymous `function (...) { ... }` literal, with or without a
-    /// `use` clause: `fn` is the only closure literal — see `rule:types/closure-literal`.
+    /// `use` clause: `fn` is the only closure literal — see `rule:types/anonymous-function`.
     pub const E_FUNCTION_CLOSURE_UNSUPPORTED: Code = Code::new("E0222").card(
         "An anonymous `function (...) { ... }` is not allowed. `fn` is the only way to write a \
          closure. Write `fn(...) => expr` for one expression, or `fn(...) => { ... }` for a \
@@ -718,7 +718,7 @@ pub mod code {
     /// `rule:classes/no-dynamic-properties` keeps its runtime-throw half for the two ways a name
     /// genuinely arrives late — a reflection-based get/set, and `rule:types/erased-member-access`'s
     /// erased receiver, where the name *is* written out and only the class
-    /// behind the handle is unknown. Neither needs this spelling, and `rule:types/object-literal` already refuses its literal-side twin, the computed shape key
+    /// behind the handle is unknown. Neither needs this spelling, and `rule:types/anonymous-object` already refuses its literal-side twin, the computed shape key
     /// `{[$expr]: 1}`.
     ///
     /// `rule:types/property-key-access` carves out the one exception and moves the report with it:
@@ -831,7 +831,7 @@ pub mod code {
     /// expression position, with no name for the static class table to hold —
     /// the same refusal a conditionally declared class gets, for the same
     /// reason. The rewrite is a named class in the same file, or a closure
-    /// (`rule:types/closure-literal`).
+    /// (`rule:types/anonymous-function`).
     pub const E_ANONYMOUS_CLASS_UNSUPPORTED: Code = Code::new("E0244").card(
         "An anonymous class, `new class { ... }`, is not allowed. Declare a named class in the \
          same file and create it with `new`. If the class has only one method, use a closure.",
@@ -1325,20 +1325,20 @@ pub mod code {
     /// A string passed (or convertible without laundering) where `callable`
     /// is the declared type — PHP's bare-name/`"Class::method"` callable
     /// spellings are both rejected in favor of first-class callable syntax.
-    /// See `rule:types/callable-is-a-closure`.
+    /// See `rule:types/callable-values`.
     pub const E_CALLABLE_STRING_UNSUPPORTED: Code = Code::new("E0418").card(
         "A string cannot be called as a function, even if it contains the name of one. Write \
          `Class::method(...)` or `$obj->method(...)` to get a callable.",
     );
     /// A `[$obj, 'method']`-shaped array passed where `callable` is the
-    /// declared type. See `rule:types/callable-is-a-closure`.
+    /// declared type. See `rule:types/callable-values`.
     pub const E_CALLABLE_ARRAY_UNSUPPORTED: Code = Code::new("E0419").card(
         "An array such as `[$obj, 'method']` cannot be called as a function. Write \
          `$obj->method(...)` to get a callable.",
     );
     /// `$obj(...)` where `$obj`'s static type is not `callable` — Novis has no
     /// `__invoke`, so no class ever makes `()` mean anything else. See
-    /// `rule:types/callable-is-a-closure`.
+    /// `rule:types/callable-values`.
     pub const E_NOT_CALLABLE: Code = Code::new("E0420").card(
         "Only a closure can be called with `(...)`, and this value is not one. Write an `fn` \
          closure, or get a callable with `Class::method(...)` or `$obj->method(...)`. An object \
@@ -1562,7 +1562,7 @@ pub mod code {
          Write `foreach ($items as string $v)`, or loop over an array.",
     );
     /// A `yield` in a body that is not a generator's own — at file scope, or
-    /// inside an `rule:types/closure-literal` closure. `rule:iteration/generators` confines `yield` lexically to
+    /// inside an `rule:types/anonymous-function` closure. `rule:iteration/generators` confines `yield` lexically to
     /// the generator's own body, which is the stated price of lowering to a
     /// state machine rather than to a coroutine.
     pub const E_YIELD_OUTSIDE_GENERATOR: Code = Code::new("E0445").card(
@@ -1599,7 +1599,7 @@ pub mod code {
         "This class does not have a method that one of its interfaces requires. Add the method to \
          the class, or give the method a default body in the interface.",
     );
-    /// A block-bodied `fn` closure literal (`rule:types/closure-literal`) with no declared
+    /// A block-bodied `fn` closure literal (`rule:types/anonymous-function`) with no declared
     /// return type. An expression body *is* its own answer, so it needs no
     /// annotation; a block body would need whole-body return-type inference,
     /// which `rule:types/declaration`'s "nothing is untyped, and no type ever changes by
@@ -2089,7 +2089,7 @@ pub mod code {
     /// A `fn` closure literal declaring an `inout $x` parameter.
     ///
     /// A by-reference parameter is a contract between a call site and a
-    /// declaration, and a closure's type is `callable` — `rule:types/callable-absorbs-closure` keeps it
+    /// declaration, and a closure's type is `callable` — `rule:types/callable-is-the-only-function-type` keeps it
     /// opaque, carrying no parameter list at all, so no call site can know to
     /// stage a cell. The closure may also outlive every frame in scope where
     /// it was written.
@@ -2097,7 +2097,7 @@ pub mod code {
         "A closure written with `fn` cannot have an `inout` parameter. Take the value as an \
          ordinary parameter and `return` the result, or pass an object and change its properties.",
     );
-    /// An `rule:types/object-literal` object literal writing one field name twice —
+    /// An `rule:types/anonymous-object` object literal writing one field name twice —
     /// `{a: 1, a: 2}`.
     ///
     /// A shape's fields are a set: the type `{a: int}` names one slot `a`,
@@ -3234,7 +3234,7 @@ pub mod code {
 
     /// A `name:` argument at a call through a `callable`.
     ///
-    /// `rule:types/closure-literal` gives `callable` no parameter list — it is one opaque type
+    /// `rule:types/anonymous-function` gives `callable` no parameter list — it is one opaque type
     /// whatever closure a variable holds — so there is no parameter for a name
     /// to fill, at the site or below it: a closure value records its arity and
     /// its parameter *tags*, never their names, so nothing at run time could
@@ -3589,7 +3589,7 @@ pub mod code {
     /// Every other erased receiver takes [`E_METHOD_ON_ERASED_RECEIVER`] for
     /// the whole call; `mixed` is `rule:types/conversion`'s one unchecked position and
     /// defers instead, so a *call* through it dispatches on the receiver's
-    /// runtime class. This spelling does not call at all: `rule:types/callable-is-a-closure` makes it a
+    /// runtime class. This spelling does not call at all: `rule:types/callable-values` makes it a
     /// closure **value**, which carries the callee's arity and parameter tags
     /// in the value itself (`nvs_runtime::closure`), and there is no class
     /// here to read either off — the receiver's descriptor answers a call it
@@ -3726,7 +3726,7 @@ pub mod code {
     );
     /// The first-class callable spelling written on `new`: `new C(...)`.
     ///
-    /// `rule:types/callable-is-a-closure`'s kept list is a list of *members* — `Class::method(...)`,
+    /// `rule:types/callable-values`'s kept list is a list of *members* — `Class::method(...)`,
     /// `$obj->method(...)`, `self`/`static`/`parent::method(...)` — and a
     /// constructor is not one of them: `new` names a class, and the closure
     /// this syntax builds carries a callee, not an allocation. PHP refuses it
@@ -4509,10 +4509,10 @@ pub mod code {
          value out directly, as a literal or an array of literals.",
     );
 
-    /// `rule:types/callable-is-a-closure`'s `(...)` naming a member whose parameter list a
+    /// `rule:types/callable-values`'s `(...)` naming a member whose parameter list a
     /// `callable` cannot carry — one declared `inout $x`, or a variadic tail.
     ///
-    /// `rule:types/callable-absorbs-closure` gives `callable` no parameter list, so a call *through* one passes
+    /// `rule:types/callable-is-the-only-function-type` gives `callable` no parameter list, so a call *through* one passes
     /// what it was written with and nothing else: there is no site that could
     /// know to stage a by-reference cell, and none that could know to collect
     /// a tail into the one array the callee reads that slot as. Both are
@@ -5148,7 +5148,7 @@ pub mod code {
     /// asks what a field holds, since the declared parameter is `object`.
     ///
     /// A field typed bare `callable` is accepted: it carries no parameter list
-    /// to compare (`rule:types/callable-is-a-closure`), and the call it stands
+    /// to compare (`rule:types/callable-values`), and the call it stands
     /// in for is checked one argument at a time by `nvs_runtime::closure`.
     pub const E_DOUBLE_METHOD_SIGNATURE: Code = Code::new("E0828").card(
         "The closure for this method of the test double does not fit the method's declaration. \

@@ -32,7 +32,7 @@ what the wasm component tier is for.
 
 <a id="security-isolate-values-cross-by-copy"></a>
 
-## A value crosses an isolate boundary as one graph copy, and a closure, an alias or a host handle does not cross at all
+## A value crosses an isolate boundary as one graph copy, and a callable, an alias or a host handle does not cross at all
 
 `rule:security/isolate-values-cross-by-copy`
 
@@ -40,7 +40,7 @@ Arguments in and the result out are **deep-copied, or moved when the refcount is
 mechanism and identical restrictions as `spawn worker`. It is a *graph* copy, not a tree copy: shared
 substructure stays shared and cycles terminate, so `$a['self'] = $a` crosses instead of hanging.
 
-Three things cannot cross. A **closure** captures a heap and a scope; an **`inout` binding** is an
+Three things cannot cross. A **callable** captures a heap and a scope; an **`inout` binding** is an
 alias; an object holding a **host handle** — an open file, a socket, a child process — is owned by
 this process. None of the three has a meaning in another heap. The idiom is to pass what *identifies*
 a resource, not the resource: a DSN, a path, a credential reference, and the child opens its own. An
@@ -404,7 +404,7 @@ reviews are expected to catch. This one puts it *in* the effect, where omitting 
 performing the effect. The friction is the point: the door is where the check, the path rule and the
 diagnostic already are.
 
-<sub>See also [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope), [`security/capability-declaration-is-one-table`](security.md#security-capability-declaration-is-one-table), [`security/denial-is-a-runtime-error`](security.md#security-denial-is-a-runtime-error), [`testing/capability-closure-test`](testing.md#testing-capability-closure-test). Decided in [0118](../decisions/0118.md), [0005](../decisions/0005.md), [0112](../decisions/0112.md).</sub>
+<sub>See also [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope), [`security/capability-declaration-is-one-table`](security.md#security-capability-declaration-is-one-table), [`security/denial-is-a-runtime-error`](security.md#security-denial-is-a-runtime-error), [`testing/capability-completeness-test`](testing.md#testing-capability-completeness-test). Decided in [0118](../decisions/0118.md), [0005](../decisions/0005.md), [0112](../decisions/0112.md).</sub>
 
 <a id="security-capability-question-is-grant-and-scope"></a>
 
@@ -434,7 +434,7 @@ capability is not a promise about any one argument; the scope is asked every tim
 `rule:security/capability-declaration-is-one-table`
 
 What each `Core` member needs is declared once, in one table: a class, a member, and an optional
-capability. **The table is never read at run time.** It is audit data — the closure test reads it, and
+capability. **The table is never read at run time.** It is audit data — the completeness test reads it, and
 the metadata command renders it as a roster of its own, which is how any renderer that wants a
 member's capability beside its card gets one ([`tooling/one-json-several-renderers`](tooling.md#tooling-one-json-several-renderers); the join is
 on `(class, member)` at render time). Enforcement is the doors
@@ -450,7 +450,7 @@ is empty on the overwhelming majority of rows documents nothing while being main
 The locality it gives up is bought back mechanically: a test fails on an entry naming a class or
 member that does not exist, and another fails on a member that owes an entry and has none.
 
-<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`testing/capability-closure-test`](testing.md#testing-capability-closure-test), [`security/capability-roster-is-closed`](security.md#security-capability-roster-is-closed). Decided in [0118](../decisions/0118.md), [0117](../decisions/0117.md), [0063](../decisions/0063.md).</sub>
+<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`testing/capability-completeness-test`](testing.md#testing-capability-completeness-test), [`security/capability-roster-is-closed`](security.md#security-capability-roster-is-closed). Decided in [0118](../decisions/0118.md), [0117](../decisions/0117.md), [0063](../decisions/0063.md).</sub>
 
 <a id="security-capability-roster-is-closed"></a>
 
@@ -489,8 +489,8 @@ A top-level statement in a file declaring a namespace runs under that namespace'
 method body in the same file would. **File-scope code is not exempt**, and it must not be: an
 exemption would be a one-line bypass of the whole system. A file with no namespace declaration is in
 the global namespace, which is the application, so an entry point is unrestricted up to the operator's
-ceiling. A closure carries the namespace it was **declared** in, not the one that calls it, so a
-closure written in the application and invoked from a package runs under the application's authority.
+ceiling. An anonymous function carries the namespace it was **declared** in, not the one that calls it, so
+one written in the application and invoked from a package runs under the application's authority.
 A `use` import transfers nothing: authority is a property of where code *is*, never of what it names.
 
 Keying on the namespace is what closes the override hole — a file overriding one class of a dependency
@@ -990,7 +990,7 @@ out with at least that reach. The two directions are deliberately asymmetric: th
 whether to *set* the qualifier on a result reaches further than the narrowing that decides whether to
 *admit* an argument, because reaching too far over-taints in the first case and leaks in the second.
 
-<sub>See also [`security/sink-predicate`](security.md#security-sink-predicate), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`testing/capability-closure-test`](testing.md#testing-capability-closure-test). Decided in [0088](../decisions/0088.md), [0024](../decisions/0024.md).</sub>
+<sub>See also [`security/sink-predicate`](security.md#security-sink-predicate), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`testing/capability-completeness-test`](testing.md#testing-capability-completeness-test). Decided in [0088](../decisions/0088.md), [0024](../decisions/0024.md).</sub>
 
 <a id="security-every-grammar-is-a-sink"></a>
 
@@ -1447,7 +1447,7 @@ serialization to bytes and every crossing into a task, a worker or an isolate �
 new distinction between "crossing to a live isolate" and "externalizing to bytes."
 
 The refusal has two halves because the walk cannot see everything. At run time the walk refuses a
-`secret`-typed property alongside the closures, aliases and host handles it already refuses
+`secret`-typed property alongside the callables, aliases and host handles it already refuses
 ([`security/isolate-values-cross-by-copy`](security.md#security-isolate-values-cross-by-copy)). The half a run-time walk cannot see is refused earlier,
 by reading a call's **written arguments** while checking; the three spawn forms hand that check their
 own argument list rather than growing a second rule.

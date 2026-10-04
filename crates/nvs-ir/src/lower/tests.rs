@@ -2708,7 +2708,7 @@ class G {
     assert_snapshot!(print_program(&p, map.file(file)));
 }
 
-/// `rule:types/closure-literal`'s `fn` literal, lowered: the literal site allocates the
+/// `rule:types/anonymous-function`'s `fn` literal, lowered: the literal site allocates the
 /// captured-environment object and stores a *retained* snapshot of each
 /// capture into it, and the body becomes that class's one `invoke`, which
 /// reads every capture back out of parameter 0. See `lower_closure`,
@@ -2959,7 +2959,7 @@ fn a_spread_argument_through_a_callable_becomes_one_array() {
     assert_snapshot!(print_function(&f, map.file(file)));
 }
 
-/// The whole path in one fixture: an `rule:types/closure-literal` `fn` literal bound to a
+/// The whole path in one fixture: an `rule:types/anonymous-function` `fn` literal bound to a
 /// local, then *called* through the variable holding it — which is what
 /// `examples/callable.nvs`'s `direct` line runs.
 ///
@@ -3244,7 +3244,7 @@ fn an_uncatchable_status_leaves_a_try_through_a_block_that_releases_the_locals()
 /// source declares — `nvs_hir::errors`' exception tree, with the
 /// synthesized constructor of every class in it that declares state of its
 /// own, `nvs_hir::interfaces`' global interfaces, and
-/// `rule:types/callable-is-a-closure`'s closure marker — the `hello.nvs`
+/// `rule:types/callable-values`'s closure marker — the `hello.nvs`
 /// shape. Nothing in the file references any of them and they are emitted
 /// anyway: a descriptor has to exist before `$x is Stringable` or
 /// `$x is callable` has anything to test against, and a class implementing

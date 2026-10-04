@@ -941,7 +941,7 @@ pub(crate) fn check_heredoc_run_issues(
     }
 }
 
-/// `{a: 1, b: $x}` — `rule:types/object-literal`'s object literal, whose type is the
+/// `{a: 1, b: $x}` — `rule:types/anonymous-object`'s object literal, whose type is the
 /// exact-fields shape of its own fields.
 ///
 /// Where the position declares a shape (`rule:types/shape-type`), a field the

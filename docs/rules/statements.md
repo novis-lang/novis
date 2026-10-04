@@ -277,20 +277,22 @@ it to (`E0831`). A `static::` read of a constant with no scalar value — an `ar
 — is refused, because the called class's table carries `string`, `int`, `uint`, `bool` and `float`
 and nothing else (`E0832`); `self::` and the class name still inline such a constant.
 
-A closure body is a frame of its own and carries no called class, so `static::` in any form inside one
-is refused (`E0834`). `self::m()` and `parent::m()` inside one call the class the closure is written in,
+An anonymous function's body is a frame of its own and carries no called class, so `static::` in any
+form inside one is refused (`E0834`). `self::m()` and `parent::m()` inside one call the class the
+anonymous function is written in,
 as a written class name would: a static method reached that way reads that class as `static`, whichever
 subclass the enclosing method was called on. An instance method reached that way is called on the
-closure's `$this`, which the call captures, and reads `$this`'s class as `static` as it does everywhere.
-PHP keeps the enclosing method's called class in the closure and forwards it.
+anonymous function's `$this`, which the call captures, and reads `$this`'s class as `static` as it
+does everywhere. PHP keeps the enclosing method's called class in the anonymous function and forwards
+it.
 
 A site that sets the called class leaves no late binding to reach an override, so a call from one to an
 `abstract static` method is refused where it is written (`E0835`) unless the class it names, or a class
 or interface above it, declares the method with a body. That is `Page::title()` on the abstract class
-that declares `title`, and `self::title()` inside a closure in `Page`'s methods. `self::`, `static::` and
+that declares `title`, and `self::title()` inside an anonymous function in `Page`'s methods. `self::`, `static::` and
 `parent::` in a method body forward the called class and are not refused, so an inherited static method
 calling `self::title()` runs the subclass's body. PHP throws at run time for every `self::` call to an
-abstract method, in a method body as well as in a closure, and accepts only `static::`.
+abstract method, in a method body as well as in an anonymous function, and accepts only `static::`.
 
 A `static` member declares its type like every other member — `public static int $n = 0;` — and a body
 declaring `static` as its return type may not return the declaring class, since a subclass call site is
@@ -300,7 +302,7 @@ The keyword therefore has one meaning per position: a modifier before a member, 
 expression. Nothing about it depends on whether it appears inside a function body, because inside a
 function body it is not a declaration at all — see [`statements/no-function-static-and-no-global`](statements.md#statements-no-function-static-and-no-global).
 
-<sub>See also [`statements/no-function-static-and-no-global`](statements.md#statements-no-function-static-and-no-global), [`statements/a-closure-binds-this-only-where-it-uses-it`](statements.md#statements-a-closure-binds-this-only-where-it-uses-it), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call). Decided in [0008](../decisions/0008.md), [0007](../decisions/0007.md), [0144](../decisions/0144.md), [0211](../decisions/0211.md), [0231](../decisions/0231.md).</sub>
+<sub>See also [`statements/no-function-static-and-no-global`](statements.md#statements-no-function-static-and-no-global), [`statements/an-anonymous-function-captures-this-only-where-it-uses-it`](statements.md#statements-an-anonymous-function-captures-this-only-where-it-uses-it), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call). Decided in [0008](../decisions/0008.md), [0007](../decisions/0007.md), [0144](../decisions/0144.md), [0211](../decisions/0211.md), [0231](../decisions/0231.md).</sub>
 
 <a id="statements-no-function-static-and-no-global"></a>
 
@@ -428,24 +430,24 @@ than naming the source.
 
 <sub>See also [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call). Decided in [0012](../decisions/0012.md), [0008](../decisions/0008.md), [0007](../decisions/0007.md).</sub>
 
-<a id="statements-a-closure-binds-this-only-where-it-uses-it"></a>
+<a id="statements-an-anonymous-function-captures-this-only-where-it-uses-it"></a>
 
-## A closure binds `$this` only when its body names it, so `static fn` has nothing left to assert
+## An anonymous function captures `$this` only when its body names it, so `static fn` has nothing left to assert
 
-`rule:statements/a-closure-binds-this-only-where-it-uses-it`
+`rule:statements/an-anonymous-function-captures-this-only-where-it-uses-it`
 
-A closure binds `$this` only when its body uses it, decided by the compiler. `static function () {}` and
-`static fn() => …` are refused: *`static` is not a closure modifier; a closure captures `$this` only if it
-uses it, so drop the keyword.*
+An anonymous function captures `$this` only when its body uses it, decided by the compiler.
+`static function () {}` and `static fn() => …` are refused with `E0210`, which says that `static` is
+not a modifier an anonymous function takes and that the keyword can simply be dropped.
 
-`static fn` is an **assertion** that a closure does not capture `$this`, and there is no assertion syntax
-here — everything else in the language is a declaration the compiler enforces. The property it asserted is
-obtained by making it true instead.
+`static fn` is an **assertion** that an anonymous function does not capture `$this`, and there is no
+assertion syntax here — everything else in the language is a declaration the compiler enforces. The
+property it asserted is obtained by making it true instead.
 
-The effect is the one the keyword existed to produce: a closure that never mentions `$this` cannot extend
-the enclosing object's lifetime. The cost is the corner — a `$this`-free closure built inside a method and
-then bound to a *different* object gets a closure that ignores the binding, because `bindTo()` and `bind()`
-return an equivalent closure rather than rebinding anything.
+The effect is the one the keyword existed to produce: a callable that never mentions `$this` cannot
+extend the enclosing object's lifetime. The cost is the corner — a `$this`-free anonymous function
+built inside a method and then bound to a *different* object gives a callable that ignores the
+binding, because `bindTo()` and `bind()` return an equivalent callable rather than rebinding anything.
 
 <sub>See also [`statements/static-is-a-member-modifier`](statements.md#statements-static-is-a-member-modifier). Decided in [0008](../decisions/0008.md), [0031](../decisions/0031.md).</sub>
 
@@ -471,7 +473,7 @@ The word names the mechanism. A parameter is copy-in/copy-back through a cell th
 gets the cell's address, and the value is copied back after the call returns — a callee that throws is the
 one path that does not reach the write-back, so a caller sees no partial write. A `foreach` value binding
 is the other mechanism, pushing each assignment through to the array element as it happens. Neither is an
-alias. Which declarations may carry one is unchanged: a closure may not, and a generator may not.
+alias. Which declarations may carry one is unchanged: an anonymous function may not, and a generator may not.
 
 <sub>See also [`statements/inout-is-written-at-the-call`](statements.md#statements-inout-is-written-at-the-call), [`statements/ampersand-is-not-a-by-reference-marker`](statements.md#statements-ampersand-is-not-a-by-reference-marker), [`statements/an-inout-argument-is-a-local`](statements.md#statements-an-inout-argument-is-a-local). Decided in [0107](../decisions/0107.md), [0031](../decisions/0031.md), [0053](../decisions/0053.md).</sub>
 
@@ -551,7 +553,7 @@ questions: the type parser reaches that `&` first, and consuming it as an inters
 the site above it nothing to report but a malformed intersection.
 
 The already-refused spellings keep their own codes and gain the new word in their help text: `$a = &$b` is
-`E0701`, a closure parameter `E0493`, a generator's `E0492`.
+`E0701`, an anonymous function parameter `E0493`, a generator's `E0492`.
 
 <sub>See also [`statements/inout-is-the-by-reference-spelling`](statements.md#statements-inout-is-the-by-reference-spelling), [`statements/inout-is-written-at-the-call`](statements.md#statements-inout-is-written-at-the-call). Decided in [0107](../decisions/0107.md), [0031](../decisions/0031.md), [0045](../decisions/0045.md), [0034](../decisions/0034.md).</sub>
 

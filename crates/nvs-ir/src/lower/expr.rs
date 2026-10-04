@@ -616,7 +616,7 @@ impl<'a> Lowering<'a> {
             ExprKind::Call { callee, args } => {
                 self.lower_closure_call(expr, callee, args, env, cur)
             }
-            // `rule:types/closure-self-name`'s self-name — `fact` inside
+            // `rule:types/anonymous-function-self-name`'s self-name — `fact` inside
             // `fn fact(int $n): int => … fact($n - 1)`. The closure it names is
             // the frame's own receiver, which `closure::lower_closure` bound
             // under `FN_SELF` at entry, so this is a lookup and never a load:
@@ -630,7 +630,7 @@ impl<'a> Lowering<'a> {
                 *env.get(closure::FN_SELF).unwrap_or_else(|| {
                     panic!(
                         "nvs-ir: `ExprInfo::ClosureSelf` outside a closure body — \
-                         nvs_types::expr::calls::check_fn_literal binds `rule:types/closure-self-name`'s \
+                         nvs_types::expr::calls::check_fn_literal binds `rule:types/anonymous-function-self-name`'s \
                          self-name for one body, whose invoke binds `FN_SELF` at entry"
                     )
                 })
@@ -2862,7 +2862,7 @@ impl<'a> Lowering<'a> {
     /// itself: `target` may be `self`/`static`/`parent`, which this
     /// crate has no enclosing-class context to resolve on its own
     /// (see `lower_decl_type`'s doc comment).
-    /// `rule:types/closure-literal`'s `fn` literal. Evaluating one allocates its
+    /// `rule:types/anonymous-function`'s `fn` literal. Evaluating one allocates its
     /// captured-environment object and stores a snapshot of every
     /// captured binding into it — "by value at the point the closure
     /// literal is evaluated" (§ 2), which is exactly what a field
@@ -2916,7 +2916,7 @@ impl<'a> Lowering<'a> {
         self.emit_field_set(*cur, obj, class.clone(), FN_ARITY.to_owned(), arity_v);
         // The declared parameter types are readable here and nowhere below
         // this crate — `callable` carries no parameter list for a call site to
-        // compare against (`rule:types/closure-literal`), so the object is what carries them
+        // compare against (`rule:types/anonymous-function`), so the object is what carries them
         // to the one caller that can act on them. See `FN_PARAM_TAGS`.
         let tags = param_tags_word(fn_expr, self.exprs, self.checked_types);
         let (tags_v, _) = self.emit(*cur, Ty::Int, InstKind::ConstInt(tags));
@@ -2961,13 +2961,13 @@ impl<'a> Lowering<'a> {
         (obj, Ty::Object)
     }
 
-    /// `rule:types/callable-is-a-closure`'s `Class::method(...)` / `$obj->method(...)`, which *names* the
+    /// `rule:types/callable-values`'s `Class::method(...)` / `$obj->method(...)`, which *names* the
     /// resolved member rather than calling it and whose value is a closure
     /// over it.
     ///
     /// The object this builds is byte-for-byte the one a `fn` literal builds
     /// — [`FN_ARITY`], [`FN_PARAM_TAGS`], and an `invoke` in the method table
-    /// — because `rule:types/closure-literal` makes `callable` the only closure type, so a
+    /// — because `rule:types/anonymous-function` makes `callable` the only closure type, so a
     /// native `Core` member handed one of these cannot tell it apart from a
     /// written closure and has nothing new to learn. The body behind that
     /// `invoke` is the forwarding thunk `lower_callable` builds, which owns
@@ -2983,7 +2983,7 @@ impl<'a> Lowering<'a> {
     /// The arity written into the object is the target's **whole** parameter
     /// list. A member with a trailing default is therefore reachable through
     /// its own name and not through a `callable` that omits the argument:
-    /// `callable` carries no parameter list for a call site to read (`rule:types/callable-absorbs-closure`), so the defaults a caller would materialize are ones no caller
+    /// `callable` carries no parameter list for a call site to read (`rule:types/callable-is-the-only-function-type`), so the defaults a caller would materialize are ones no caller
     /// can see. That is a refusal at run time by `nvs_runtime::call_closure`,
     /// where every other arity mismatch through a `callable` is reported.
     ///
@@ -3987,13 +3987,13 @@ impl<'a> Lowering<'a> {
             let name = name.clone();
             return self.lower_erased_method_call(object, nullsafe, &name, args, env, cur);
         }
-        // `rule:types/callable-absorbs-closure`'s `bind`, `bindTo` and `call`,
+        // `rule:types/callable-is-the-only-function-type`'s `bind`, `bindTo` and `call`,
         // which no class declares, so no `ExprInfo::Call` names them.
         if let Some(ExprInfo::ClosureRebind { call }) = self.exprs.lookup(expr.span) {
             let call = *call;
             return self.lower_closure_rebind(object, nullsafe, call, args, env, cur);
         }
-        // `rule:types/callable-is-a-closure`'s `$obj->method(...)`, which names the member rather
+        // `rule:types/callable-values`'s `$obj->method(...)`, which names the member rather
         // than calling it. Taken before the resolved arm for the erased one's
         // reason: it is the *variant* that selects it, and both carry the
         // same `ResolvedCall`.
@@ -4011,7 +4011,7 @@ impl<'a> Lowering<'a> {
                  `ExprInfo::ErasedCall` and lowered above; a receiver that does name \
                  a class and calls a member it has not got is `E0405` there too, \
                  `Core` included, since the registry is the whole roster of `Core` \
-                 (`nvs_types::core_lib`). `rule:types/callable-is-a-closure`'s \
+                 (`nvs_types::core_lib`). `rule:types/callable-values`'s \
                  `$obj->method(...)` records `ExprInfo::CallableRef` instead, because \
                  it names the member rather than calling it, and is answered by \
                  `Lowering::lower_callable_ref` above",
@@ -4237,7 +4237,7 @@ impl<'a> Lowering<'a> {
         env: &mut Env,
         cur: &mut BlockId,
     ) -> (ValueId, Ty) {
-        // `rule:types/callable-is-a-closure`'s `Class::method(...)` — as for an instance call, the
+        // `rule:types/callable-values`'s `Class::method(...)` — as for an instance call, the
         // variant is what selects this and the resolved facts are the same.
         if let Some(ExprInfo::CallableRef(call)) = self.exprs.lookup(expr.span) {
             let call = call.clone();
@@ -4253,7 +4253,7 @@ impl<'a> Lowering<'a> {
             panic!(
                 "nvs-ir: a static call at {:?} has no resolved target recorded in the \
                  typed-expression table — did this program pass \
-                 nvs_types::check_program with the same table? `rule:types/callable-is-a-closure`'s \
+                 nvs_types::check_program with the same table? `rule:types/callable-values`'s \
                  `Class::method(...)` records `ExprInfo::CallableRef` rather than \
                  `Call` — it names the member rather than calling it, and is answered \
                  by `Lowering::lower_callable_ref` above",
@@ -4913,7 +4913,7 @@ impl<'a> Lowering<'a> {
         *cur = written;
     }
 
-    /// `{x: 1, y: 2}` — `rule:types/object-literal`'s anonymous object literal, which is an ordinary instance of a
+    /// `{x: 1, y: 2}` — `rule:types/anonymous-object`'s anonymous object literal, which is an ordinary instance of a
     /// class this function invents: one [`InstKind::New`] with no constructor,
     /// then one [`InstKind::FieldSet`] per field.
     ///
@@ -6627,7 +6627,7 @@ fn test_shape(
                 TestShape::Class("Iterator".to_owned()),
             ]));
         }
-        // `rule:types/callable-is-a-closure`: a closure satisfies `callable`
+        // `rule:types/callable-values`: a closure satisfies `callable`
         // and no other value does, so the question is whether the subject is an
         // object of one of the environment classes `super::closure`
         // synthesizes — which is what the marker edge on each of them says.

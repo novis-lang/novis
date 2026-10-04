@@ -4,7 +4,7 @@ A `fn` literal may not declare an `inout $x` parameter, in either body form — 
 <?nvs
 // A by-reference parameter is a contract between a *call site* and a
 // declaration: the site stages the cell, hands over its address and copies
-// back afterwards. A closure's type is `callable` and nothing else (`rule:types/callable-absorbs-closure`
+// back afterwards. A closure's type is `callable` and nothing else (`rule:types/callable-is-the-only-function-type`
 // ), so it carries no parameter list for a site to read and no site can
 // know to stage anything — and § 2's by-value capture lets the closure outlive
 // every frame in scope where it was written, so naming a cell would not make

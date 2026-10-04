@@ -415,7 +415,7 @@ struct Env<'a> {
     /// `E0319` skip a name in here rather than reporting the cascade.
     refused_toplevel: FxHashSet<String>,
     /// The self-name of the `fn` literal whose body is being walked
-    /// (`rule:types/closure-self-name`), or `None` outside one.
+    /// (`rule:types/anonymous-function-self-name`), or `None` outside one.
     ///
     /// Set to *this* closure's own name on entering its body and restored
     /// afterwards, so it is `None` again inside a nested literal that declares
@@ -1143,7 +1143,7 @@ fn walk_expr(expr: &Expr, src: &SourceFile, ctx: &Ctx<'_>, env: &mut Env<'_>) {
             match &callee.kind {
                 ExprKind::ConstFetch(name) => {
                     let text = name_text(src, name);
-                    // `rule:types/closure-self-name`: inside `fn fact(...) => … fact(…)`, the
+                    // `rule:types/anonymous-function-self-name`: inside `fn fact(...) => … fact(…)`, the
                     // callee is this closure and not a free function. Only in
                     // callee position — the name resolves the way `self::`
                     // does, so it is not a value and a bare `fact` below is
@@ -1282,7 +1282,7 @@ fn walk_expr(expr: &Expr, src: &SourceFile, ctx: &Ctx<'_>, env: &mut Env<'_>) {
                     e!(default);
                 }
             }
-            // `rule:types/closure-self-name`'s self-name covers this body and no other — a
+            // `rule:types/anonymous-function-self-name`'s self-name covers this body and no other — a
             // default above is outside it, and a nested literal replaces it
             // rather than inheriting it. See `Env::fn_self`.
             let outer = std::mem::replace(

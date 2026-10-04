@@ -14,4 +14,4 @@ The word names the mechanism. A parameter is copy-in/copy-back through a cell th
 gets the cell's address, and the value is copied back after the call returns — a callee that throws is the
 one path that does not reach the write-back, so a caller sees no partial write. A `foreach` value binding
 is the other mechanism, pushing each assignment through to the array element as it happens. Neither is an
-alias. Which declarations may carry one is unchanged: a closure may not, and a generator may not.
+alias. Which declarations may carry one is unchanged: an anonymous function may not, and a generator may not.

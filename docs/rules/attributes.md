@@ -5,12 +5,12 @@
 
 <a id="attributes-inert-metadata"></a>
 
-## An attribute is a shape literal on a declaration, and nothing is ever declared or instantiated for it
+## An attribute is an anonymous object on a declaration, and nothing is ever declared or instantiated for it
 
 `rule:attributes/inert-metadata`
 
 `#[Name(field: value, ...)]`, or the bare `#[{field: value, ...}]`, attaches an anonymous object
-literal to a declaration. It is the same literal an ordinary shape-typed binding takes rather than a
+to a declaration. It is the same value an ordinary shape-typed binding takes rather than a
 new kind of value, and **no class is declared, instantiated or invoked for it**: an attribute is inert
 data from the moment it is parsed.
 
@@ -46,7 +46,7 @@ class UserController {
 ```
 
 Two forms carry one payload between them, and both take named fields — there is no positional form.
-The **bare** `#[{...}]` names no shape and is checked only as a well-formed object literal. The
+The **bare** `#[{...}]` names no shape and is checked only as a well-formed anonymous object. The
 **named** `#[Name(...)]` requires `Name` to resolve, through the ordinary namespace and `use` scope, to
 a `type` alias whose right-hand side is a shape type; the literal is then checked against it by the
 width subtyping every shape-typed position already uses.
@@ -215,7 +215,7 @@ does not declare, a `tags` or `security` entry that is not a string, and an `#[A
 carrying no `#[Route]`. One `#[Api]` describes the operation however many `#[Route]` attributes the
 method carries.
 
-It is compiler-recognized, matched by name rather than structurally, so a userland shape literal that
+It is compiler-recognized, matched by name rather than structurally, so a userland anonymous object that
 happens to look like one is not one ([`attributes/attach-sites-and-forms`](attributes.md#attributes-attach-sites-and-forms)).
 
 A `security` name is carried uninterpreted rather than compared: nothing in the compiler or in

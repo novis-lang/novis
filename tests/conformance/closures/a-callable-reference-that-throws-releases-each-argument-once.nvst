@@ -1,5 +1,5 @@
 --TEST--
-A call through `Class::method(...)` whose target throws releases each argument exactly once, so the caller's strings, array and object are intact after a thousand caught throws, as they are after a direct call — `rule:types/closure-literal`
+A call through `Class::method(...)` whose target throws releases each argument exactly once, so the caller's strings, array and object are intact after a thousand caught throws, as they are after a direct call — `rule:types/anonymous-function`
 --FILE--
 <?nvs
 final class Refuse {

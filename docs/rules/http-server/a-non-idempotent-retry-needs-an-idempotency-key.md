@@ -3,7 +3,7 @@
 convention every payment API already implements, and the difference between a retried request
 and a card charged twice.
 
-Because the options bag is a compile-time-constant shape literal (`rule:core-api/shape-rules`
+Because the options bag is a compile-time-constant anonymous object (`rule:core-api/shape-rules`
 R2) and the verb is the member's own name (`Client::post`), both halves are statically known at
 an ordinary call site, and a `post` that asks for retries without the key is a **diagnostic**
 naming the field. It is the verb that decides, asked of every member rather than of one.

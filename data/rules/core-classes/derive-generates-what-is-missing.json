@@ -11,7 +11,7 @@
   "seeAlso": [
     "core-classes/derive-attribute",
     "core-classes/derive-field-list",
-    "types/object-literal",
+    "types/anonymous-object",
     "types/shape-type"
   ],
   "guardedBy": [

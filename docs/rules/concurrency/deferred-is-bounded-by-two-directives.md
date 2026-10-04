@@ -6,7 +6,7 @@ deadline       = "30s"    # Runtime  — the default a call inherits when it nam
 
 **`max_concurrent` is `System`.** It bounds how much a core holds after responses are on the wire,
 which is a host-sizing decision and not a request-local one, so a request cannot raise it. Note that
-it counts **trees**, not registrations: one request with ten deferred closures is one.
+it counts **trees**, not registrations: one request with ten deferred callables is one.
 
 **`deadline` is `Runtime`** — an ordinary per-request default a call may name its own value for,
 bounded like every other limit by the tree's remaining budget.

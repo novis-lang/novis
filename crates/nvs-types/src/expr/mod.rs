@@ -21,7 +21,7 @@
 //! |---|---|
 //! | [`args`] | a call's arguments, its options bag, its type arguments |
 //! | [`assign`] | `rule:types/unions-and-mixed`'s assignability, and the positions applying it |
-//! | [`calls`] | which member a call resolves to; `rule:types/callable-is-a-closure`'s `callable` |
+//! | [`calls`] | which member a call resolves to; `rule:types/callable-values`'s `callable` |
 //! | [`isolate`] | `rule:security/isolate-shares-nothing`'s `spawn script` and `await`, and what each types as |
 //! | [`iteration`] | `rule:iteration/two-interfaces`'s `foreach` sources and `yield` forms |
 //! | [`literals`] | how a literal takes its type from its position |
@@ -157,7 +157,7 @@ pub(crate) fn check_expr(
     {
         // A written signature is a callable position like the bare type is
         // (`rule:types/callable-signature`), so a value that is not a closure
-        // at all gets `rule:types/callable-is-a-closure`'s own refusal at
+        // at all gets `rule:types/callable-values`'s own refusal at
         // either spelling rather than a bare mismatch at one of them.
         let wants_callable = matches!(
             env.interner.get(expected_id),
@@ -514,7 +514,7 @@ pub(crate) fn infer(
             against,
         } => infer_type_test(expr, inner, against, live, scope, ctx, env),
         ExprKind::Call { callee, args } => {
-            // `rule:types/closure-self-name`'s self-name, resolved before the callee is checked
+            // `rule:types/anonymous-function-self-name`'s self-name, resolved before the callee is checked
             // as an expression: it is a name this closure's body binds and not
             // a value, so `check_expr` has nothing to say about it and would
             // answer `mixed` for an unknown constant instead.

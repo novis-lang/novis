@@ -473,7 +473,7 @@ pub enum CoreTy {
     Object,
     /// `array<T>`, whose element type is the wrapped one.
     Array(&'static CoreTy),
-    /// `callable` — `rule:types/callable-absorbs-closure`'s one closure type,
+    /// `callable` — `rule:types/callable-is-the-only-function-type`'s one closure type,
     /// and the **top** of `rule:types/callable-signature`'s lattice: it says
     /// nothing about the parameters or the result of the closure that
     /// satisfies it, so a call through one is checked argument by argument at
@@ -2475,7 +2475,7 @@ pub const CLASSES: &[CoreClass] = &[
 /// classified, and the ones classified as reaching nothing. Both used to look
 /// alike from here — a member simply absent from the table — so the second kind
 /// lived on a frozen allowlist beside the closure test, where growing it by one
-/// entry was the move `rule:testing/capability-closure-test` forbids and the only move a sibling like
+/// entry was the move `rule:testing/capability-completeness-test` forbids and the only move a sibling like
 /// `Core\RateLimit::shed` left. Declaring `None` costs a would-be exemption
 /// exactly what a declaration costs, in the same table under the same review,
 /// and buys a total claim in place of an "all but a list" one: every member of a

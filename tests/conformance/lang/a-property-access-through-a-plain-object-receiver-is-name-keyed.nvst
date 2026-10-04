@@ -63,7 +63,7 @@ object $erased = $point;
 echo $erased->x, " ", $erased->label, "\n";
 
 // The write lands on the value itself, not on a copy — a shape is an
-// ordinary refcounted instance (`rule:types/object-literal`) and `object` erases only the
+// ordinary refcounted instance (`rule:types/anonymous-object`) and `object` erases only the
 // static view of it.
 $erased->label = "wrote";
 echo $point->label, "\n";

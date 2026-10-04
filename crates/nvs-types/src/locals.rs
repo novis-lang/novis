@@ -135,7 +135,7 @@ pub(crate) struct LocalInfo {
 
 /// One function/method/closure body's local variables — a single table for
 /// the whole body, since declaration is function-scoped (`rule:types/declaration`), not
-/// block-scoped. A closure gets a fresh one of its own: `rule:types/closure-literal`'s capture is
+/// block-scoped. A closure gets a fresh one of its own: `rule:types/anonymous-function`'s capture is
 /// by value, never a shared binding, so an outer name reaches the body
 /// through [`Captures`] rather than through `by_name`.
 #[derive(Debug, Default)]
@@ -258,7 +258,7 @@ impl LocalScope {
     /// side effect: this question is asked by
     /// `crate::expr::calls::infer_static_call` about a call that never
     /// mentions `$this`, and answering it must not make a closure capture one
-    /// it does not use (`rule:statements/a-closure-binds-this-only-where-it-uses-it`).
+    /// it does not use (`rule:statements/an-anonymous-function-captures-this-only-where-it-uses-it`).
     pub(crate) fn holds_receiver(&self) -> bool {
         self.by_name.contains_key("this")
             || self

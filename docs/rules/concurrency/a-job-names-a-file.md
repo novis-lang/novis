@@ -1,4 +1,4 @@
-A job names a script file — not a class, not a closure, not a static method. It is the third
+A job names a script file — not a class, not a callable, not a static method. It is the third
 construct to take that shape, after `spawn script` and a connection upgrade, and the reason it takes
 the *narrowest* of the three is the row: a job's target is stored as data and claimed by any host in
 the fleet, possibly after a redeploy, and a string in a table can hold a path but not a method

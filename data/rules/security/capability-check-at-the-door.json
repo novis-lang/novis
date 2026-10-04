@@ -11,7 +11,7 @@
     "security/capability-question-is-grant-and-scope",
     "security/capability-declaration-is-one-table",
     "security/denial-is-a-runtime-error",
-    "testing/capability-closure-test"
+    "testing/capability-completeness-test"
   ],
   "guardedBy": [
     "crates/nvs-stdlib/tests/capability.rs",

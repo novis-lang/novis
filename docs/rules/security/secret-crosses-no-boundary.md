@@ -3,7 +3,7 @@ serialization to bytes and every crossing into a task, a worker or an isolate â€
 new distinction between "crossing to a live isolate" and "externalizing to bytes."
 
 The refusal has two halves because the walk cannot see everything. At run time the walk refuses a
-`secret`-typed property alongside the closures, aliases and host handles it already refuses
+`secret`-typed property alongside the callables, aliases and host handles it already refuses
 (`rule:security/isolate-values-cross-by-copy`). The half a run-time walk cannot see is refused earlier,
 by reading a call's **written arguments** while checking; the three spawn forms hand that check their
 own argument list rather than growing a second rule.

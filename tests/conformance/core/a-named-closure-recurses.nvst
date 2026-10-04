@@ -1,5 +1,5 @@
 --TEST--
-A `fn` literal's optional self-name calls the closure it names, from that closure's own body and nowhere else — `rule:types/closure-self-name`, `rule:types/callable-is-a-closure`
+A `fn` literal's optional self-name calls the closure it names, from that closure's own body and nowhere else — `rule:types/anonymous-function-self-name`, `rule:types/callable-values`
 --FILE--
 <?nvs
 // § 3's worked example: an expression body calling itself. The name is

@@ -1,9 +1,9 @@
 --TEST--
-`rule:types/conversion`'s one implicit widening reaches a `callable` parameter, exactly and only up to 2^53, for an `int` and a `uint` alike — `rule:types/conversion` and `rule:types/arithmetic`, `rule:types/closure-literal`
+`rule:types/conversion`'s one implicit widening reaches a `callable` parameter, exactly and only up to 2^53, for an `int` and a `uint` alike — `rule:types/conversion` and `rule:types/arithmetic`, `rule:types/anonymous-function`
 --FILE--
 <?nvs
 // The depth claim is *a bound asserted on both sides*. A `callable` has no
-// parameter list (`rule:types/closure-literal`), so no checker ever saw this call site to
+// parameter list (`rule:types/anonymous-function`), so no checker ever saw this call site to
 // insert a conversion into it; the widening is applied by the runtime's own
 // argument check (`nvs_runtime::closure`), out of the same helper a written
 // `as float` lands on. That makes two things worth pinning at once: that the

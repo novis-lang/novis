@@ -8,8 +8,8 @@
   ],
   "seeAlso": [
     "types/callable-signature",
-    "types/closure-literal",
-    "types/callable-absorbs-closure"
+    "types/anonymous-function",
+    "types/callable-is-the-only-function-type"
   ],
   "guardedBy": [
     "tests/conformance/core/a-task-all-field-answers-what-its-own-callable-declares.nvst",

@@ -24,7 +24,7 @@ nowhere cancels its task with a `Warn`; one written twice throws `LogicError`.
 (`rule:security/isolate-budget-is-the-trees`), and a breach fails the request as it would without
 `later`; on a slotted route, where the head is already out, every unfilled slot shows `error` and the
 response ends. A task that throws or passes its own `deadline` shows `error` too, and the page keeps the
-status the main script set. **A `later` closure cannot change the response head**: a status, a header,
+status the main script set. **A `later` callable cannot change the response head**: a status, a header,
 a redirect, a body method, a cookie or a session regeneration inside one throws `LogicError`, and is a
 compile error where the checker sees it. Outside an HTML response `later` runs `fn` in place and
 returns its output.

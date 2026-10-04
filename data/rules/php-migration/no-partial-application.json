@@ -1,5 +1,5 @@
 {
-  "title": "Partial function application is not adopted; the closure literal already spells it",
+  "title": "Partial function application is not adopted; an anonymous function already spells it",
   "status": "shipped",
   "because": [
     "0124",
@@ -8,9 +8,9 @@
   ],
   "divergesFromPhp": "PHP 8.6's `f(?, $x)` does not parse; write `fn($a) => f($a, $x)`",
   "seeAlso": [
-    "types/closure-literal",
-    "types/callable-is-a-closure",
-    "expressions/first-class-callable-syntax",
+    "types/anonymous-function",
+    "types/callable-values",
+    "expressions/method-reference",
     "expressions/pipeline-substitution",
     "expressions/pipeline-hole-once",
     "php-migration/a-deprecation-is-a-refusal"

@@ -1,5 +1,5 @@
 Every comma-separated list that spans more than one line gets a trailing comma after its last element:
-call arguments, parameter lists, array literals, shape-type fields, object literals, `match` arm lists
+call arguments, parameter lists, array literals, shape-type fields, anonymous objects, `match` arm lists
 including the `default` arm, and multi-line enum-case lists. A list kept on one line never gets one.
 
 The test that decides it is where the **closing delimiter** sits: the comma is there when a line break

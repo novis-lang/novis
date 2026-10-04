@@ -1,9 +1,9 @@
 --TEST--
-`Class::method(...)` and `$obj->method(...)` build an ordinary `callable`, over a static target, an instance one, an overridden one and a `Core` member alike — `rule:types/callable-is-a-closure`, `rule:types/closure-literal` and `rule:types/implicit-capture`
+`Class::method(...)` and `$obj->method(...)` build an ordinary `callable`, over a static target, an instance one, an overridden one and a `Core` member alike — `rule:types/callable-values`, `rule:types/anonymous-function` and `rule:types/implicit-capture`
 --FILE--
 <?nvs
-// `rule:types/callable-is-a-closure`: the `(...)` names the member rather than calling it, and its
-// value is a closure over it. `rule:types/closure-literal` makes `callable` the only closure
+// `rule:types/callable-values`: the `(...)` names the member rather than calling it, and its
+// value is a closure over it. `rule:types/anonymous-function` makes `callable` the only closure
 // type, so what these produce is the same object a `fn` literal produces.
 interface Shape {
     public function area(): int;

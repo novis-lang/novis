@@ -1,5 +1,5 @@
 `$db->transaction($fn, {isolation?, readOnly?, retries?})` is the only transaction spelling. The
-closure form is forced: with no destructors, an object-scoped transaction has no point at which to
+callable form is forced: with no destructors, an object-scoped transaction has no point at which to
 roll back. A normal return commits, a throw rolls back and propagates, and a failed commit throws
 `DbError`.
 
@@ -15,5 +15,5 @@ the owning frame acts on the flag, not on catching the signal.
 
 Nesting on one connection issues `SAVEPOINT` and `ROLLBACK TO SAVEPOINT`, which removes the reason
 `commit()`, `rollBack()` on the connection and `inTransaction()` each existed. `{retries: n}` re-runs
-the closure on deadlock and serialization failure only, outermost transactions only, and defaults to
-`0` because re-running a closure that sends mail is worse than surfacing the conflict.
+the callable on deadlock and serialization failure only, outermost transactions only, and defaults to
+`0` because re-running a callable that sends mail is worse than surfacing the conflict.

@@ -1,5 +1,5 @@
 --TEST--
-An assignment in value position answers the value written even where a re-read would answer something else — an `rule:classes/property-hooks` `set` hook and an `rule:types/object-literal` shape field
+An assignment in value position answers the value written even where a re-read would answer something else — an `rule:classes/property-hooks` `set` hook and an `rule:types/anonymous-object` shape field
 --FILE--
 <?nvs
 // A `set` hook is a call (`rule:classes/property-hooks`), so the property does not hold what
@@ -21,7 +21,7 @@ Tag $tag = new Tag();
 string $written = ($tag->label = "hi");
 echo $written, " ", $tag->label, "\n";
 
-// `rule:types/object-literal`'s anonymous shape: the field write is name-keyed and the
+// `rule:types/anonymous-object`'s anonymous shape: the field write is name-keyed and the
 // answer is the same value, with the shape holding its own owner of it.
 var $shape = {title: "one"};
 string $now = ($shape->title = "two");

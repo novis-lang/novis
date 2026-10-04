@@ -1,10 +1,10 @@
 {
-  "title": "`Core\\Program::constructors<T, C>()` lists the enumeration's classes with one closure each, typed by `C`, and it expands while compiling",
+  "title": "`Core\\Program::constructors<T, C>()` lists the enumeration's classes with one callable each, typed by `C`, and it expands while compiling",
   "status": "shipped",
   "because": [
     "0253"
   ],
-  "divergesFromPhp": "a plugin factory list is a compile-time array literal of closures, not `new $className(...$args)` over discovered names",
+  "divergesFromPhp": "a plugin factory list is a compile-time array literal of callables, not `new $className(...$args)` over discovered names",
   "seeAlso": [
     "programs/implementing",
     "programs/implementing-with",

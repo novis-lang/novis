@@ -1,4 +1,4 @@
-Whether an expression, a call-argument list, an array, object or shape literal, a `match` arm list or an
+Whether an expression, a call-argument list, an array literal, an anonymous object, a `match` arm list or an
 enum-case list spans one line or several is the author's choice, and `nvs fmt` preserves it exactly. It
 normalizes what surrounds that choice — the indentation of continuation lines, spacing, and brace
 placement — and nothing inside it. A hand-wrapped multi-line call is never collapsed onto one line; a long

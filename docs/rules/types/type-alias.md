@@ -1,6 +1,6 @@
 `type Name = TypeExpr;` declares a compile-time-only synonym for a type expression, written either at
 file and namespace scope alongside `use` and `namespace` or as a member of a class, interface or enum
-body (`rule:types/class-scoped-alias`) — never inside a method body, a block or a closure body, where
+body (`rule:types/class-scoped-alias`) — never inside a method body, a block or an anonymous function's body, where
 it is `E0233` by name like any other declaration written where control flow can reach it.
 
 ```php

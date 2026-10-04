@@ -8,11 +8,11 @@
 //! `and`/`or`/`xor` are caught at the bottom of the chain rather than parsed,
 //! since `&&`/`||` are the only logical connectives Novis keeps (`rule:expressions/no-keyword-logical-operators`).
 //!
-//! Beyond the operators: `match`, closures and arrow functions (`rule:types/closure-literal`'s one
+//! Beyond the operators: `match`, closures and arrow functions (`rule:types/anonymous-function`'s one
 //! literal, `fn`, plus the `function` forms it refuses), generators
 //! (`yield`/`yield from`), named arguments, spread, nullsafe, first-class
 //! callable syntax, `require` (an expression, not a statement — `rule:statements/require-is-the-only-inclusion-construct`),
-//! `spawn script … with(…)`, `rule:types/object-literal`'s `{a: 1}` object literal, and the
+//! `spawn script … with(…)`, `rule:types/anonymous-object`'s `{a: 1}` object literal, and the
 //! interpolated-string bodies the lexer hands back in parts.
 //!
 //! Several PHP spellings are parsed here only to be diagnosed, and they are
@@ -1621,7 +1621,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     }
 
     // ========================================================================
-    // Object literals (`rule:types/object-literal`)
+    // Object literals (`rule:types/anonymous-object`)
     // ========================================================================
 
     /// Whether `{` at the current position looks like the start of an
@@ -1652,7 +1652,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                 "an object literal here is ambiguous with a block",
             )
             .with_primary(span, "`{` already means a block in this position")
-            .with_help("wrap it in parentheses: `({...})` (`rule:types/object-literal`)"),
+            .with_help("wrap it in parentheses: `({...})` (`rule:types/anonymous-object`)"),
         );
         Expr {
             span,
@@ -1660,7 +1660,7 @@ impl<'src, 'd> Parser<'src, 'd> {
         }
     }
 
-    /// `{name: value, ...}` as a primary expression — `rule:types/object-literal`. No
+    /// `{name: value, ...}` as a primary expression — `rule:types/anonymous-object`. No
     /// shorthand (`{x}`) and no computed key (`{[expr]: value}`); either is
     /// diagnosed in place and the field is dropped rather than aborting the
     /// whole literal, so one bad field doesn't hide problems with the rest.
@@ -1814,7 +1814,7 @@ impl<'src, 'd> Parser<'src, 'd> {
             .with_primary(start.to(class), "this class has no name to be known by")
             .with_help(
                 "declare a named class in the same file and write `new That(…)`, or use a \
-                 closure where the class is one method (`rule:types/closure-literal`)",
+                 closure where the class is one method (`rule:types/anonymous-function`)",
             ),
         );
         let args = if self.at(TokenKind::LParen) {
@@ -2066,7 +2066,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     }
 
     /// `function (...) { ... }` / `function (...) use (...) { ... }`: not a
-    /// spelling Novis keeps at all (`rule:types/closure-literal`) — `fn` covers both a block
+    /// spelling Novis keeps at all (`rule:types/anonymous-function`) — `fn` covers both a block
     /// and an expression body, so there is nothing left for a second
     /// literal to do. Recovers by parsing the whole shape (params, an
     /// optional `use` clause, an optional return type, the block) so the
@@ -2155,7 +2155,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     }
 
     /// `fn [name] (...): T => expr` or `fn [name] (...): T => { ... }` — the
-    /// one closure literal (`rule:types/closure-literal`). `name` is an optional self-name
+    /// one closure literal (`rule:types/anonymous-function`). `name` is an optional self-name
     /// for recursion (§ 3); a stray `use (...)` clause is still accepted
     /// for recovery and diagnosed the same way the rejected `function`
     /// literal is.
@@ -2181,7 +2181,7 @@ impl<'src, 'd> Parser<'src, 'd> {
         self.expect(TokenKind::FatArrow, "`=>`");
         let body = if self.at(TokenKind::LBrace) {
             if self.at_object_literal_in_block_position() {
-                // `rule:types/object-literal`: `{` here already means a block body — an
+                // `rule:types/anonymous-object`: `{` here already means a block body — an
                 // object literal needs `fn() => ({...})` instead.
                 FnBody::Expr(Box::new(self.parse_object_literal_needs_parens()))
             } else {

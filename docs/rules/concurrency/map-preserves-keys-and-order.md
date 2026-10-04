@@ -8,5 +8,5 @@ Completion order is a scheduling detail and is never observable in the answer.
 
 `map` and `rule:concurrency/all-answers-a-typed-shape` are two members because they are two jobs — a
 fixed set of differently-typed things, and one operation over many same-typed things — and not two
-spellings of one. A shape literal cannot express "one per element of a runtime array", and an array
+spellings of one. An anonymous object cannot express "one per element of a runtime array", and an array
 cannot carry a per-element type. Each refuses the other's subject rather than coercing it.

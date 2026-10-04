@@ -36,7 +36,7 @@
     "testing/roster-is-derived",
     "testing/proof-attribution",
     "testing/a-failing-proof-is-fixed-or-recorded",
-    "testing/capability-closure-test",
+    "testing/capability-completeness-test",
     "testing/attribution-is-diffed-in-ci",
     "testing/debug-mode-directive",
     "testing/debug-probes",

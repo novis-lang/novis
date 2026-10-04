@@ -640,7 +640,7 @@ fn shape_descriptor(name: &str) -> *const ClassDesc {
     let table = *SHAPES.get_or_init(|| {
         let mut table = ClassTable::new();
         for (shape, fields) in SHAPE_ROSTER {
-            // No parents, and no methods: `rule:types/object-literal` makes a shape value an
+            // No parents, and no methods: `rule:types/anonymous-object` makes a shape value an
             // anonymous *methodless* instance, so there is nothing to inherit
             // and nothing to dispatch.
             table.define(*shape, fields, &[]);

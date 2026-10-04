@@ -14,7 +14,7 @@ does not declare, a `tags` or `security` entry that is not a string, and an `#[A
 carrying no `#[Route]`. One `#[Api]` describes the operation however many `#[Route]` attributes the
 method carries.
 
-It is compiler-recognized, matched by name rather than structurally, so a userland shape literal that
+It is compiler-recognized, matched by name rather than structurally, so a userland anonymous object that
 happens to look like one is not one (`rule:attributes/attach-sites-and-forms`).
 
 A `security` name is carried uninterpreted rather than compared: nothing in the compiler or in

@@ -875,7 +875,7 @@ no point in the fetch, resolve, verify or compile pipeline at which a package's 
 first time a line of a dependency runs is when your program calls it.
 
 Most of this was already true — there is no `eval` ([`security/no-eval`](security.md#security-no-eval)), attributes are inert
-shape literals, the only compiler-recognised attributes are a closed `Core`-owned list, and there is
+anonymous objects, the only compiler-recognised attributes are a closed `Core`-owned list, and there is
 no macro expander for a package to hook. This rule adds the one thing that was missing, *no build
 lifecycle, ever*, and thereby closes the category: the entire post-install attack class has nowhere
 to execute.

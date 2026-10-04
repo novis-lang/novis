@@ -1117,7 +1117,7 @@ fn both_attach_forms_carry_one_object_literal_payload() {
     assert!(listless.fields.is_empty());
 }
 
-/// An attribute payload is `rule:types/object-literal`'s literal without its braces, so it
+/// An attribute payload is `rule:types/anonymous-object`'s literal without its braces, so it
 /// takes that literal's rules rather than an argument list's: a positional
 /// value has no field name to be, in either form.
 #[test]

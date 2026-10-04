@@ -331,7 +331,7 @@ alone, the reading half being neither a sink nor a second spelling of anything. 
 rather than hidden: a program cannot emit byte-exact binary on its standard output, and one whose
 output is bytes names a file.
 
-The same closure keeps four more things out of `Core\Cli`. Cursor primitives, per
+The same reasoning keeps four more things out of `Core\Cli`. Cursor primitives, per
 [`tooling/in-place-output-is-a-scoped-live-region`](tooling.md#tooling-in-place-output-is-a-scoped-live-region). Reading the clipboard, setting the window
 title, or any other `OSC` capability — offering them would re-open, as a feature, the exact channel
 the sink closes. Spinners and table rendering, which are pure text composition over `Str::format` and
@@ -383,7 +383,7 @@ the stream is not a terminal**, so a piped run produces clean output instead of 
 sequences. A handle that outlives its region is dead: painting through it is a `LogicError`, because
 two regions on one cursor is the state this rule exists to make unreachable.
 
-This is the scoped-closure shape `Out::capture` and `Db::transaction`
+This is the scoped-callable shape `Out::capture` and `Db::transaction`
 ([`core-classes/db-transactions`](core-classes.md#core-classes-db-transactions)) already use, and scoping is what makes restoration enforceable
 ([`tooling/the-terminal-is-restored-on-every-exit-path`](tooling.md#tooling-the-terminal-is-restored-on-every-exit-path)): a region has an end, and the runtime is
 at that end on every path including a throw. Cursor primitives — `moveUp`, `clearLine`,
@@ -611,7 +611,7 @@ supplied: a formatter that changes meaning is not a formatter ([`core-api/writte
 
 `rule:tooling/fmt-never-reflows`
 
-Whether an expression, a call-argument list, an array, object or shape literal, a `match` arm list or an
+Whether an expression, a call-argument list, an array literal, an anonymous object, a `match` arm list or an
 enum-case list spans one line or several is the author's choice, and `nvs fmt` preserves it exactly. It
 normalizes what surrounds that choice — the indentation of continuation lines, spacing, and brace
 placement — and nothing inside it. A hand-wrapped multi-line call is never collapsed onto one line; a long
@@ -661,7 +661,7 @@ byte-for-byte after formatting, which undercuts the point of having one canonica
 `rule:tooling/fmt-trailing-commas`
 
 Every comma-separated list that spans more than one line gets a trailing comma after its last element:
-call arguments, parameter lists, array literals, shape-type fields, object literals, `match` arm lists
+call arguments, parameter lists, array literals, shape-type fields, anonymous objects, `match` arm lists
 including the `default` arm, and multi-line enum-case lists. A list kept on one line never gets one.
 
 The test that decides it is where the **closing delimiter** sits: the comma is there when a line break
@@ -699,7 +699,7 @@ position is not observable and a member's is.
 
 <a id="tooling-fmt-novis-constructs"></a>
 
-## Every construct PER never saw — qualifiers, `lateinit`, `fn` closures, `match`, object literals, shape types, enum cases, markup literals, a `?>` on its own line — has exactly one layout
+## Every construct PER never saw — qualifiers, `lateinit`, `fn` anonymous functions, `match`, anonymous objects, shape types, enum cases, markup literals, a `?>` on its own line — has exactly one layout
 
 `rule:tooling/fmt-novis-constructs`
 
@@ -710,12 +710,12 @@ Each construct with no PER precedent has one layout, chosen once:
   already fixes that order — a qualifier takes a scalar or a shape, and `?` wraps the qualified type
   rather than sitting inside it ([`security/tainted-qualifier`](security.md#security-tainted-qualifier)) — so this is only the spacing.
 - `lateinit` takes its place at the end of the modifier order ([`tooling/fmt-base-style-is-per`](tooling.md#tooling-fmt-base-style-is-per)).
-- An `fn` closure is an expression, so its body brace stays on the line of its parameter list, return
+- An `fn` anonymous function is an expression, so its body brace stays on the line of its parameter list, return
   type and `=>`, as PER already lays out an anonymous function: `fn(int $x): int => { return $x + 1; }`.
   With a multi-line body only the closing brace gets its own line.
 - A `match` expression puts each arm on its own line unless the whole arm list was written on one, and a
   multi-line list ends in a trailing comma.
-- An object literal or shape type on one line has one space inside each brace, `{ a: 1, b: 2 }`; across
+- An anonymous object or shape type on one line has one space inside each brace, `{ a: 1, b: 2 }`; across
   lines it is one field per line, indented one level, with a trailing comma. An empty one has no inside
   to space and stays `{}`.
 - Enum cases are one per line when the author wrote them that way, with a trailing comma when multi-line.
@@ -733,7 +733,7 @@ Each construct with no PER precedent has one layout, chosen once:
 Several of these have exactly one contributor and no convention to defer to. Changing one later is a
 breaking rewrite of every formatted file, the same cost class casing already accepted.
 
-<sub>See also [`tooling/fmt-base-style-is-per`](tooling.md#tooling-fmt-base-style-is-per), [`tooling/fmt-trailing-commas`](tooling.md#tooling-fmt-trailing-commas), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`types/closure-literal`](types.md#types-closure-literal), [`types/object-literal`](types.md#types-object-literal), [`types/shape-type`](types.md#types-shape-type), [`enums/declaration`](enums.md#enums-declaration), [`core-classes/html-literal`](core-classes.md#core-classes-html-literal). Decided in [0039](../decisions/0039.md), [0169](../decisions/0169.md), [0173](../decisions/0173.md).</sub>
+<sub>See also [`tooling/fmt-base-style-is-per`](tooling.md#tooling-fmt-base-style-is-per), [`tooling/fmt-trailing-commas`](tooling.md#tooling-fmt-trailing-commas), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`types/anonymous-function`](types.md#types-anonymous-function), [`types/anonymous-object`](types.md#types-anonymous-object), [`types/shape-type`](types.md#types-shape-type), [`enums/declaration`](enums.md#enums-declaration), [`core-classes/html-literal`](core-classes.md#core-classes-html-literal). Decided in [0039](../decisions/0039.md), [0169](../decisions/0169.md), [0173](../decisions/0173.md).</sub>
 
 <a id="tooling-fmt-normalizes-only-reserved-spellings"></a>
 

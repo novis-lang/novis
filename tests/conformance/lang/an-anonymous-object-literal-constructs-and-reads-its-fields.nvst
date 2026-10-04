@@ -1,8 +1,8 @@
 --TEST--
-An anonymous `{name: value}` literal builds a methodless object whose fields read back by name (`rule:types/object-literal` and `rule:types/erased-member-access`)
+An anonymous `{name: value}` literal builds a methodless object whose fields read back by name (`rule:types/anonymous-object` and `rule:types/erased-member-access`)
 --FILE--
 <?nvs
-// `rule:types/object-literal`: each literal's precise type is a compiler-synthesized class
+// `rule:types/anonymous-object`: each literal's precise type is a compiler-synthesized class
 // with exactly the fields written, each field's type inferred from its own
 // initializer. § 4: a field the shape names is proven present, so reading it
 // is a plain slot load that never throws.

@@ -32,7 +32,7 @@ rows whose owner is an item number, 31 to 35. An item's owner is the row it sits
 ## Panics and aborts (P)
 
 - [x] **P1** First-class callable syntax `Class::method(...)` / `$obj->method(...)` type-checks and
-      panics in `nvs-ir` (`lower/expr.rs:2870`, "records `ExprInfo::CallableRef` … no arm"). `rule:types/callable-is-a-closure`
+      panics in `nvs-ir` (`lower/expr.rs:2870`, "records `ExprInfo::CallableRef` … no arm"). `rule:types/callable-values`
       keeps the spelling. Works only as the argument of `Core\Attributes::get/all`, where it is
       folded at check time. *probes1 `fcc`, probes2 `fcc_case`* — it lowers to the same closure
       object a `fn` literal builds, over a forwarding thunk (`nvs_ir::lower::closure`'s
@@ -320,7 +320,7 @@ rows whose owner is an item number, 31 to 35. An item's owner is the row it sits
       retrieval's). `E0731` is left for a constant whose own declaration folds to nothing.
 - [x] **D22** `inout` accepts only a local: `M::bump(inout $a["k"])` is E0439, and the refusal is
       permanent — the `yet` is gone (`nvs_types::expr::args::check_inout_arg` owns why). *ref30*
-- [x] **D23** `rule:types/closure-self-name`'s named-closure recursion (`fn fact(int $n): int => … fact($n - 1)`)
+- [x] **D23** `rule:types/anonymous-function-self-name`'s named-closure recursion (`fn fact(int $n): int => … fact($n - 1)`)
       parses, but the recursive call resolves as a free function (E0320). *ref30*
 - [x] **D24** `1.0 / 0` answers `INF` without throwing; `rule:types/arithmetic`'s `/ 0` row is the integer one.
       *ref30*

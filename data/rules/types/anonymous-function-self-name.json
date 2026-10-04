@@ -1,12 +1,12 @@
 {
-  "title": "A closure may carry a self-name, visible only inside its own body",
+  "title": "An anonymous function may carry a self-name, visible only inside its own body",
   "status": "shipped",
   "because": [
     "0031",
     "0011"
   ],
   "seeAlso": [
-    "types/closure-literal",
+    "types/anonymous-function",
     "types/implicit-capture",
     "types/callable-signature"
   ],

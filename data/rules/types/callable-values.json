@@ -1,5 +1,5 @@
 {
-  "title": "`callable` is satisfied by a closure and by nothing else, and no object is callable",
+  "title": "`callable` is satisfied by an anonymous function or a method reference and by nothing else, and no object is callable",
   "status": "shipped",
   "because": [
     "0027",
@@ -10,8 +10,8 @@
   ],
   "divergesFromPhp": "PHP's bare-name string, `\"Class::method\"` string and `[$obj, 'method']` array are all refused, and `__invoke` has no meaning — `$obj(...)` is a diagnostic whatever the class declares",
   "seeAlso": [
-    "types/closure-literal",
-    "types/callable-absorbs-closure",
+    "types/anonymous-function",
+    "types/callable-is-the-only-function-type",
     "types/callable-signature"
   ],
   "guardedBy": [

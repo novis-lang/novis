@@ -31,6 +31,6 @@
     "expressions/catch-result-type",
     "expressions/bare-throwable-arm-warns",
     "expressions/catch-lowers-to-block-form",
-    "expressions/first-class-callable-syntax"
+    "expressions/method-reference"
   ]
 }

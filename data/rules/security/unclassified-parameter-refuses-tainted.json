@@ -8,7 +8,7 @@
   "seeAlso": [
     "security/sink-predicate",
     "security/tainted-qualifier",
-    "testing/capability-closure-test"
+    "testing/capability-completeness-test"
   ],
   "guardedBy": [
     "tests/conformance/core/a-contagious-parameter-taints-the-answer-and-a-neutral-one-does-not.nvst",

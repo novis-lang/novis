@@ -223,7 +223,7 @@ pub enum ConstArg {
         /// Its arguments, positional.
         args: Vec<ConstArg>,
     },
-    /// An `rule:types/object-literal`
+    /// An `rule:types/anonymous-object`
     /// shape value, its fields in the order they were written.
     ///
     /// Produced only by [`crate::attributes`], for `rule:attributes/retrieval-folds-while-checking`'s fold: a
