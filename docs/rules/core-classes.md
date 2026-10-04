@@ -3,7 +3,7 @@
 
 # The Core classes
 
-*21 of 86 rules below are **designed** rather than shipped, and are marked where they appear.*
+*22 of 87 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="core-classes-cli-arguments"></a>
 
@@ -384,7 +384,12 @@ grants a literal token and whose holes are escaped by this rule
 `as Markup` and `+` keep their meaning and become the narrow forms — a literal already held in an
 initializer, and two computed carriers.
 
-<sub>See also [`core-classes/html-literal`](core-classes.md#core-classes-html-literal), [`core-classes/html-escape-answers-markup`](core-classes.md#core-classes-html-escape-answers-markup), [`core-classes/html-to-source`](core-classes.md#core-classes-html-to-source), [`core-classes/html-sanitize`](core-classes.md#core-classes-html-sanitize), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0024](../decisions/0024.md), [0133](../decisions/0133.md), [0087](../decisions/0087.md), [0088](../decisions/0088.md), [0086](../decisions/0086.md), [0169](../decisions/0169.md).</sub>
+**A placeholder from `Core\Html::later` is a `Markup` the runtime makes**, whose bytes the developer
+never writes ([`core-classes/html-later`](core-classes.md#core-classes-html-later)). It carries a per-request token no author text and no
+escaped visitor string can contain, so it composes with `+`, `Core\Html::join` and a partial like any
+other fragment, and `Markup` keeps its one slot.
+
+<sub>See also [`core-classes/html-literal`](core-classes.md#core-classes-html-literal), [`core-classes/html-later`](core-classes.md#core-classes-html-later), [`core-classes/html-escape-answers-markup`](core-classes.md#core-classes-html-escape-answers-markup), [`core-classes/html-to-source`](core-classes.md#core-classes-html-to-source), [`core-classes/html-sanitize`](core-classes.md#core-classes-html-sanitize), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0024](../decisions/0024.md), [0133](../decisions/0133.md), [0087](../decisions/0087.md), [0088](../decisions/0088.md), [0086](../decisions/0086.md), [0169](../decisions/0169.md), [0266](../decisions/0266.md).</sub>
 
 <a id="core-classes-html-literal"></a>
 
@@ -467,6 +472,45 @@ string is already accepted everywhere the carrier is. A third carrier is measure
 predicate rather than against the count.
 
 <sub>See also [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape), [`core-classes/html-escape-answers-markup`](core-classes.md#core-classes-html-escape-answers-markup), [`types/duration-literal`](types.md#types-duration-literal), [`tooling/styling-is-a-value-not-a-grammar`](tooling.md#tooling-styling-is-a-value-not-a-grammar). Decided in [0169](../decisions/0169.md), [0202](../decisions/0202.md), [0213](../decisions/0213.md).</sub>
+
+<a id="core-classes-html-later"></a>
+
+## `Core\Html::later` runs a part of a page as a child of the request, and the route decides whether the page waits for it  *(designed — not yet in the compiler)*
+
+`rule:core-classes/html-later`
+
+`Core\Html::later(callable(): void|Markup $fn, {placeholder?, error?, deadline?}): Markup` starts `fn`
+at once as a task whose parent is the request, and returns a placeholder the page writes where the
+output belongs:
+
+```php
+<?= Core\Html::later(fn() => Comments::render($post->id),
+                     {placeholder: html`<p>Loading comments…</p>`}) ?>
+```
+
+The output is what `fn` echoes through the request's escaping sink, followed by the `Markup` it
+returns. **The route decides delivery, never the call**, so a component is written once:
+
+| route | the page goes out | each output |
+|---|---|---|
+| normal | once every `later` task has ended | replaces its placeholder in one pass over the body |
+| `#[Core\Route(…, slotted: true)]`, or `Core\Response::slotted()` before the main script ends | when the main script ends, placeholders in place | follows in the same response as a `<template for>` fill, in finishing order, with an inline polyfill sent once |
+
+The placeholder is `<?start name="nvs-<token>-<n>">…<?end>`, where `<token>` is 96 random bits drawn
+once per request. A visitor's string is escaped before the sink and an author cannot know the token, so
+only `later` can name a slot, and `Markup` needs no second slot to carry one. A placeholder written
+nowhere cancels its task with a `Warn`; one written twice throws `LogicError`.
+
+**`later` has no limit of its own.** Its tasks are charged to the request tree
+([`security/isolate-budget-is-the-trees`](security.md#security-isolate-budget-is-the-trees)), and a breach fails the request as it would without
+`later`; on a slotted route, where the head is already out, every unfilled slot shows `error` and the
+response ends. A task that throws or passes its own `deadline` shows `error` too, and the page keeps the
+status the main script set. **A `later` closure cannot change the response head**: a status, a header,
+a redirect, a body method, a cookie or a session regeneration inside one throws `LogicError`, and is a
+compile error where the checker sees it. Outside an HTML response `later` runs `fn` in place and
+returns its output.
+
+<sub>See also [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape), [`concurrency/nothing-is-still-running-when-a-call-returns`](concurrency.md#concurrency-nothing-is-still-running-when-a-call-returns), [`concurrency/after-response-outlives-the-connection`](concurrency.md#concurrency-after-response-outlives-the-connection), [`security/isolate-budget-is-the-trees`](security.md#security-isolate-budget-is-the-trees). Decided in [0266](../decisions/0266.md).</sub>
 
 <a id="core-classes-html-escape-answers-markup"></a>
 

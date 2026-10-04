@@ -9,6 +9,11 @@ four steps — cancel the siblings, wait for those cancellations, collect, retur
 | the deadline expires | every child is cancelled, the call waits, `TimeoutError` is thrown |
 | the calling task is cancelled | every child is cancelled and nothing is returned |
 
+**`Core\Html::later` is the one call that returns with its task running**, because that task's
+parent is the request and not the call (`rule:core-classes/html-later`). The guarantee holds one level
+up: the response does not end while a `later` task runs, and the request's own teardown cancels and
+waits for it exactly as the table above does for a child.
+
 This is the guarantee the rest of the roster is built on. It is what makes a group inside a database
 transaction safe to reason about: when the call returns, no child is still holding a row lock, and
 nothing can write to a slot the code after the `catch` has already read.

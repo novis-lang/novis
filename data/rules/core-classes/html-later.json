@@ -1,0 +1,15 @@
+{
+  "title": "`Core\\Html::later` runs a part of a page as a child of the request, and the route decides whether the page waits for it",
+  "status": "designed",
+  "because": [
+    "0266"
+  ],
+  "divergesFromPhp": "PHP has no way to run part of a page concurrently, and `flush` sends what is buffered in order rather than filling a placeholder later",
+  "seeAlso": [
+    "core-classes/html-auto-escape",
+    "concurrency/nothing-is-still-running-when-a-call-returns",
+    "concurrency/after-response-outlives-the-connection",
+    "security/isolate-budget-is-the-trees"
+  ],
+  "guardedBy": []
+}

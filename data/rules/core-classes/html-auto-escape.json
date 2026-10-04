@@ -7,11 +7,13 @@
     "0087",
     "0088",
     "0086",
-    "0169"
+    "0169",
+    "0266"
   ],
   "divergesFromPhp": "output is escaped by the sink rather than by a call the developer remembers, and a runtime-computed string can never become `Markup` through `as`",
   "seeAlso": [
     "core-classes/html-literal",
+    "core-classes/html-later",
     "core-classes/html-escape-answers-markup",
     "core-classes/html-to-source",
     "core-classes/html-sanitize",

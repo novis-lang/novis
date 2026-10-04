@@ -22,3 +22,8 @@ grants a literal token and whose holes are escaped by this rule
 (`rule:core-classes/html-literal`), which is also where `Core\Html::join` composes a list of fragments.
 `as Markup` and `+` keep their meaning and become the narrow forms — a literal already held in an
 initializer, and two computed carriers.
+
+**A placeholder from `Core\Html::later` is a `Markup` the runtime makes**, whose bytes the developer
+never writes (`rule:core-classes/html-later`). It carries a per-request token no author text and no
+escaped visitor string can contain, so it composes with `+`, `Core\Html::join` and a partial like any
+other fragment, and `Markup` keeps its one slot.

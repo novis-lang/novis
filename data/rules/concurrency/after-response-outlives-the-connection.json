@@ -1,15 +1,17 @@
 {
-  "title": "`Core\\Task::afterResponse` runs after the request's own frame returns, still charged to the request tree",
+  "title": "`Core\\Task::afterResponse` runs once the response is complete, still charged to the request tree",
   "status": "shipped",
   "because": [
     "0072",
-    "0006"
+    "0006",
+    "0266"
   ],
   "divergesFromPhp": "`fastcgi_finish_request` keeps the whole worker busy with no accounting, no cap and no deadline; this keeps the tree, and the tree is still bounded",
   "seeAlso": [
     "programs/memory-priority",
     "security/isolate-budget-is-the-trees",
-    "core-classes/temporary-dir-sweep"
+    "core-classes/temporary-dir-sweep",
+    "core-classes/html-later"
   ],
   "guardedBy": [
     "tests/conformance/core/task-after-response-runs.nvst",

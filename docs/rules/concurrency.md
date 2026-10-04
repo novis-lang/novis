@@ -233,6 +233,11 @@ four steps — cancel the siblings, wait for those cancellations, collect, retur
 | the deadline expires | every child is cancelled, the call waits, `TimeoutError` is thrown |
 | the calling task is cancelled | every child is cancelled and nothing is returned |
 
+**`Core\Html::later` is the one call that returns with its task running**, because that task's
+parent is the request and not the call ([`core-classes/html-later`](core-classes.md#core-classes-html-later)). The guarantee holds one level
+up: the response does not end while a `later` task runs, and the request's own teardown cancels and
+waits for it exactly as the table above does for a child.
+
 This is the guarantee the rest of the roster is built on. It is what makes a group inside a database
 transaction safe to reason about: when the call returns, no child is still holding a row lock, and
 nothing can write to a slot the code after the `catch` has already read.
@@ -241,7 +246,7 @@ It is bought at a stated price — [`concurrency/a-deadline-bounds-the-cancel-no
 it is why cancellation is the runtime's own teardown rather than anything a program participates in
 ([`concurrency/cancellation-runs-no-user-code`](concurrency.md#concurrency-cancellation-runs-no-user-code)).
 
-<sub>See also [`concurrency/cancellation-runs-no-user-code`](concurrency.md#concurrency-cancellation-runs-no-user-code), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`errors/log-write`](errors.md#errors-log-write). Decided in [0072](../decisions/0072.md).</sub>
+<sub>See also [`concurrency/cancellation-runs-no-user-code`](concurrency.md#concurrency-cancellation-runs-no-user-code), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`errors/log-write`](errors.md#errors-log-write), [`core-classes/html-later`](core-classes.md#core-classes-html-later). Decided in [0072](../decisions/0072.md), [0266](../decisions/0266.md).</sub>
 
 <a id="concurrency-cancellation-runs-no-user-code"></a>
 
@@ -292,7 +297,7 @@ on when the work stops being asked for; it is not a hard wall-clock guarantee on
 
 <a id="concurrency-after-response-outlives-the-connection"></a>
 
-## `Core\Task::afterResponse` runs after the request's own frame returns, still charged to the request tree
+## `Core\Task::afterResponse` runs once the response is complete, still charged to the request tree
 
 `rule:concurrency/after-response-outlives-the-connection`
 
@@ -304,11 +309,13 @@ Task::afterResponse(fn(): void => Receipts::send($order), {deadline: 30s});
 return $response;         // the client has its bytes; the receipt is still going out
 ```
 
-The trigger is **the request task's own frame returning**. Under a server that is the moment the
-response is fully written, the response being what the frame produced; under `nvs run`, which has no
-response at all, it is the end of the script. One rule, and the member means the same thing on every
-host. A request that ended by a throw, an `exit` or a `FATAL` runs none of it: that status is what
-the host is about to report, and script running over it would lose one of the two.
+The trigger is **the response being complete**: the request task's own frame has returned and every
+task `Core\Html::later` started has ended ([`core-classes/html-later`](core-classes.md#core-classes-html-later)). A request with no `later`
+call is complete when its frame returns. Under a server that is the moment the response is fully
+written, slots and all; under `nvs run`, which has no response at all, it is the end of the script.
+One rule, and the member means the same thing on every host. A request that ended by a throw, an
+`exit` or a `FATAL` runs none of it: that status is what the host is about to report, and script
+running over it would lose one of the two.
 
 **Memory, CPU and tasks stay charged to the request tree**, which is why this is affordable at all —
 the tree simply stays in flight a little longer than the connection does, and every limit but
@@ -320,7 +327,7 @@ with no record. Receipts, webhooks, cache warming and audit shipping are what it
 that *must* happen belongs in the transaction that made it necessary or in a store the application
 owns.
 
-<sub>See also [`programs/memory-priority`](programs.md#programs-memory-priority), [`security/isolate-budget-is-the-trees`](security.md#security-isolate-budget-is-the-trees), [`core-classes/temporary-dir-sweep`](core-classes.md#core-classes-temporary-dir-sweep). Decided in [0072](../decisions/0072.md), [0006](../decisions/0006.md).</sub>
+<sub>See also [`programs/memory-priority`](programs.md#programs-memory-priority), [`security/isolate-budget-is-the-trees`](security.md#security-isolate-budget-is-the-trees), [`core-classes/temporary-dir-sweep`](core-classes.md#core-classes-temporary-dir-sweep), [`core-classes/html-later`](core-classes.md#core-classes-html-later). Decided in [0072](../decisions/0072.md), [0006](../decisions/0006.md), [0266](../decisions/0266.md).</sub>
 
 <a id="concurrency-only-the-request-registers-deferred-work"></a>
 

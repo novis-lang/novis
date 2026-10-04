@@ -17,6 +17,7 @@
     "core-classes/regex-syntax",
     "core-classes/html-auto-escape",
     "core-classes/html-literal",
+    "core-classes/html-later",
     "core-classes/html-escape-answers-markup",
     "core-classes/html-to-source",
     "core-classes/html-sanitize",

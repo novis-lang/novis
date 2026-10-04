@@ -1,0 +1,14 @@
+{
+  "title": "`Core\\Html::later` runs a slow part of a page as a child of the request, and a slotted route sends the page before that part is ready",
+  "status": "accepted",
+  "scope": "the method `Core\\Html::later`, its placeholder and its per-request token, how a normal route assembles the page, the\nroute field `slotted` and `Core\\Response::slotted()`, the wire format of a slotted response, what a failed slot and a\nlimit breach show, and when after-response work runs once a response can outlive its frame. The polyfill's own text\nand its CSP hashes are named here and may get a record of their own; flushing before the main script ends, a slot in\n`<head>` and declarative shadow DOM are not decided here.",
+  "dependsOn": [
+    "0072",
+    "0006",
+    "0024",
+    "0169",
+    "0265",
+    "0004"
+  ],
+  "validatedBy": "the `later` cases under `tests/conformance/core/` and the slotted-delivery tests in `crates/nvs-server/src/serve.rs`, as each stage of goal `html-later` lands them."
+}

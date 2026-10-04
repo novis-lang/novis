@@ -7,10 +7,12 @@
 //! § 6 is written for a request: the connection ends, the request tree does
 //! not. `nvs run` has no response at all — it is a CLI invocation — so the
 //! section's trigger has to be stated as something both hosts share. **It is
-//! the request task's own frame returning.** Under a server that is the moment
-//! the response is fully written, because the response *is* what the request
-//! frame produced; under `nvs run` it is the end of the script. One rule, and
-//! nothing about the member's meaning changes with which host is running it.
+//! the response being complete: the request task's own frame has returned and
+//! every task `Core\Html::later` started has ended**
+//! (`rule:core-classes/html-later`). With no `later` call that is the frame
+//! returning. Under a server it is the moment the response is fully written;
+//! under `nvs run` it is the end of the script. One rule, and nothing about the
+//! member's meaning changes with which host is running it.
 //!
 //! **A request that did not return ordinarily runs none of it.** An uncaught
 //! throw, a [`crate::EXITED`] and an
