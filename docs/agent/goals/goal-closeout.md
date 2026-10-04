@@ -231,8 +231,9 @@ The check `no question waits for the user` fails while a line `- **Answer:** ope
   2. *Strike it unchecked.* The module doc says the image was never checked in an editor, and the
      text fallback is the bound. No work, but the docs then promise nothing about images.
 - **Recommendation** — 1. It is the only way to know, and it costs a few minutes.
-- **Answer:** 1. The user checks it in VS Code by hand. The result is written here as "image shows"
-  or "text only" when the user reports it, and a session builds from that.
+- **Answer:** 1, checked: **image shows.** The user hovered a value whose `documentation` has a
+  relative image link, in the release server and an installed VS Code. The hover showed the image. The
+  server sent the link as an absolute `file:` URI under the completion file's folder.
 
 ### May file writes walk from a folder handle instead of a path?
 
