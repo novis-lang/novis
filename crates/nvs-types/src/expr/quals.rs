@@ -21,7 +21,7 @@
 //! direction `mixed` never gets — but never narrows through assignment.
 //!
 //! The sinks reachable here are eleven, and the three below are the ones a
-//! conversion reaches. [`reject_non_literal_markup_conversion`]
+//! conversion reaches. [`reject_computed_markup_conversion`]
 //! is `rule:core-classes/html-auto-escape`'s one M2-scoped rule: `as Core\Html\Markup` accepts only a
 //! literal string token, `tainted` or not — the rest of § 5 (auto-escaping,
 //! `Markup + Markup`) waits on `Core\Html` actually existing.
@@ -375,8 +375,8 @@ pub(crate) fn apply_qualifier_conversion_rule(
 
 /// `rule:security/secret-sinks-refuse`: a `secret`-qualified value converted `as Core\Html\Markup`
 /// is refused with a diagnostic naming the qualifier specifically, ahead of
-/// [`reject_non_literal_markup_conversion`]'s generic "must be a literal"
-/// one — escaping (this ADR's whole reason for diverging from `tainted`'s
+/// [`reject_computed_markup_conversion`]'s generic "must be written in the
+/// code" one — escaping (this ADR's whole reason for diverging from `tainted`'s
 /// auto-escape default) neutralizes injection risk, not exposure, so it is
 /// the wrong tool here regardless of how the value was produced. In
 /// practice a `secret` value is never a literal token to begin with (nothing
@@ -415,14 +415,14 @@ pub(crate) fn reject_secret_markup_conversion(
     );
 }
 
-/// `rule:core-classes/html-auto-escape`: `as Core\Html\Markup` trusts only a source-literal string —
+/// `rule:core-classes/html-auto-escape`: `as Core\Html\Markup` trusts only a string literal —
 /// a `tainted` value, or any other runtime-computed one, can never become
 /// trusted markup this way, closing "compute the escape-defeating payload at
 /// runtime, then cast it." Scoped to a conversion whose target actually
 /// resolves to `Core\Html\Markup`; every other target is untouched. The rest
 /// of § 5 (auto-escaping a non-`Markup` interpolation, `Markup + Markup`)
 /// waits on `Core\Html` actually existing as a stdlib class.
-pub(crate) fn reject_non_literal_markup_conversion(
+pub(crate) fn reject_computed_markup_conversion(
     inner: &Expr,
     to: TypeId,
     span: Span,
@@ -439,18 +439,18 @@ pub(crate) fn reject_non_literal_markup_conversion(
     }
     env.diags.report(
         Diagnostic::error(
-            code::E_MARKUP_REQUIRES_LITERAL,
-            "only a source-literal string may be converted `as Markup`; a runtime-computed or \
-             `tainted` value can never become trusted markup this way",
+            code::E_MARKUP_NEEDS_WRITTEN_STRING,
+            "only a string written directly in the code can be converted `as Markup`. A \
+             computed or `tainted` value cannot become trusted markup this way",
         )
         .with_primary(span, "converted here")
-        .with_help("build markup from literal fragments, or escape via a `Core\\Html` helper"),
+        .with_help("build the markup from strings written in the code, or escape the value with a `Core\\Html` method"),
     );
 }
 
 /// Whether `expr` is a literal string token, unwrapping any enclosing
 /// parentheses — `("text")` is exactly as trusted as `"text"` for
-/// [`reject_non_literal_markup_conversion`]'s purposes.
+/// [`reject_computed_markup_conversion`]'s purposes.
 pub(crate) fn is_literal_string(expr: &Expr) -> bool {
     match &expr.kind {
         ExprKind::Str(_) => true,
@@ -611,7 +611,7 @@ pub(crate) fn contains_secret(ty: TypeId, interner: &TypeInterner) -> bool {
 /// containers lose it at different moments and the same test answers both.
 /// [`check_array_literal`](super::literals::check_array_literal) joins no
 /// element types, so `[$secret]` placed at an `array<mixed>` drops the bit at
-/// the bracket; [`check_object_literal`](super::literals::check_object_literal)
+/// the bracket; [`check_anon_object`](super::literals::check_anon_object)
 /// infers a field type and *keeps* it, so `{token: $secret}` drops it one step
 /// later, where the literal meets a field declared wider. Asking the position
 /// what it carries covers both, and accepts the spellings that keep it:
@@ -795,14 +795,14 @@ pub(crate) fn reject_secret_enqueued_argument(
     };
     for (arg, &slot) in list.iter().zip(slots) {
         // Slot 1 is the bag in `nvs_stdlib::queue`'s row, and a bag is written
-        // as an object literal or not written at all — a [`Ty::Shape`] is
+        // as an anonymous object or not written at all — a [`Ty::Shape`] is
         // never assignable to a [`Ty::CoreShape`], which is
         // [`super::args`]'s own fork — so there is no second spelling of the
         // payload for this walk to be missing.
         if slot != ArgSlot::Param(1) {
             continue;
         }
-        let ExprKind::ObjectLiteral(fields) = &arg.value.kind else {
+        let ExprKind::AnonObject(fields) = &arg.value.kind else {
             continue;
         };
         for field in fields {
@@ -821,7 +821,7 @@ pub(crate) fn reject_secret_enqueued_argument(
 
 /// [`reject_secret_enqueued_argument`]'s walk over one written payload: a
 /// binding that carries the qualifier, and the same question asked of every
-/// element of an array or object literal written inline, which is where the
+/// element of an array literal or anonymous object written inline, which is where the
 /// shape the rule exists for — one credential among public fields — is
 /// actually written.
 ///
@@ -844,7 +844,7 @@ fn reject_secret_enqueued_value(at: &Expr, scope: &LocalScope, env: &mut Env<'_>
                 reject_secret_enqueued_value(&item.value, scope, env);
             }
         }
-        ExprKind::ObjectLiteral(fields) => {
+        ExprKind::AnonObject(fields) => {
             for field in fields {
                 reject_secret_enqueued_value(&field.value, scope, env);
             }
@@ -855,7 +855,7 @@ fn reject_secret_enqueued_value(at: &Expr, scope: &LocalScope, env: &mut Env<'_>
 
 /// [`reject_secret_enqueued_argument`]'s one diagnostic, written once because
 /// the rule reaches it from two directions — a payload that carries the
-/// qualifier, and one element of a payload literal that does — and the author
+/// qualifier, and one element of a payload object that does — and the author
 /// is owed the same sentence either way.
 fn report_secret_enqueued(span: Span, env: &mut Env<'_>) {
     env.diags.report(

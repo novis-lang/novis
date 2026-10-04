@@ -13,7 +13,7 @@ use nvs_types::ExprTypeTable;
 /// Every path the checker resolved, sorted so a test can compare them.
 fn resolved(exprs: &ExprTypeTable) -> Vec<String> {
     let mut paths: Vec<String> = exprs
-        .path_literals()
+        .written_paths()
         .map(|(_, path)| path.to_owned())
         .collect();
     paths.sort();
@@ -30,11 +30,11 @@ fn count(diags: &Diagnostics, want: nvs_diagnostics::Code) -> usize {
     diags.iter().filter(|d| d.code == Some(want)).count()
 }
 
-/// A relative literal at a `Core\IO` path parameter becomes an absolute path
+/// A written relative path at a `Core\IO` path parameter becomes an absolute path
 /// under the folder of the file that wrote it. `.` and `..` are removed.
 // covers: lang:programs/file-paths-a-literal-starts-at-the-folder-of-its-file
 #[test]
-fn a_relative_literal_at_a_core_path_parameter_is_joined_to_its_file() {
+fn a_written_relative_path_at_a_core_path_parameter_is_joined_to_its_file() {
     let (diags, exprs) = check_program_table(&[(
         "joined.nvs",
         "<?nvs\necho Core\\IO::exists('./data/../data/x.json') ? 'y' : 'n';\n",
@@ -53,7 +53,7 @@ fn a_relative_literal_at_a_core_path_parameter_is_joined_to_its_file() {
 /// script` and the entry of both upgrades. A method entry is not a string
 /// literal, so it records nothing.
 #[test]
-fn a_relative_literal_naming_an_isolates_script_is_joined_to_its_file() {
+fn a_written_relative_path_naming_an_isolates_script_is_joined_to_its_file() {
     let (diags, exprs) = check_program_table(&[(
         "spawns.nvs",
         "<?nvs\nclass Chat {\n  public static function run(): void {}\n}\n\
@@ -79,7 +79,7 @@ fn a_relative_literal_naming_an_isolates_script_is_joined_to_its_file() {
 /// reads stores the absolute path. A variable is left alone and checked when
 /// the push runs.
 #[test]
-fn queue_push_script_literal_resolves_from_the_file_that_wrote_it() {
+fn queue_push_written_script_path_resolves_from_the_file_that_wrote_it() {
     let (diags, exprs) = check_program_table(&[(
         "pushes.nvs",
         "<?nvs\nCore\\Queue::push('jobs/../jobs/report.nvs');\n\
@@ -98,7 +98,7 @@ fn queue_push_script_literal_resolves_from_the_file_that_wrote_it() {
 /// A literal in a file reached through `require` is joined to *that* file's
 /// folder, not to the entry file's.
 #[test]
-fn a_literal_in_a_required_file_is_joined_to_that_files_folder() {
+fn a_written_path_in_a_required_file_is_joined_to_that_files_folder() {
     let (diags, exprs) = check_program_table(&[
         (
             "required.nvs",
@@ -129,7 +129,7 @@ fn a_literal_in_a_required_file_is_joined_to_that_files_folder() {
 /// at a path parameter is not resolved at all — including one that reaches a
 /// path parameter later through a variable.
 #[test]
-fn an_absolute_literal_and_a_variable_are_left_alone() {
+fn an_absolute_written_path_and_a_variable_are_left_alone() {
     let (diags, exprs) = check_program_table(&[(
         "absolute.nvs",
         "<?nvs\necho Core\\IO::exists('/srv/data/x.json') ? 'y' : 'n';\n\
@@ -169,12 +169,12 @@ fn a_source_with_no_file_resolves_nothing() {
     assert!(resolved(&exprs).is_empty());
 }
 
-/// A path argument that starts with a relative literal and adds a value built
+/// A path argument that starts with a written relative path and adds a value built
 /// at run time is relative when the program runs, so the call would always
 /// throw. A concatenation, an interpolated string and a user `#[Core\Path]`
 /// parameter each do not compile, at the literal that starts them.
 #[test]
-fn a_path_built_from_a_relative_literal_does_not_compile() {
+fn a_path_built_from_a_written_relative_path_does_not_compile() {
     let src = "<?nvs\nclass Store {\n  public static function load(#[Core\\Path] string $file): \
                string {\n    return $file;\n  }\n}\nstring $name = 'x';\n\
                echo Core\\IO::read('data/' . $name . '.txt');\n\
@@ -184,7 +184,7 @@ fn a_path_built_from_a_relative_literal_does_not_compile() {
     let (diags, exprs) = check_program_table(&[("built.nvs", src)]);
     let found: Vec<&str> = diags
         .iter()
-        .filter(|d| d.code == Some(code::E_PATH_BUILT_FROM_A_RELATIVE_LITERAL))
+        .filter(|d| d.code == Some(code::E_PATH_BUILT_FROM_A_WRITTEN_RELATIVE_PATH))
         .map(|d| {
             &src[d
                 .primary_span()
@@ -199,24 +199,24 @@ fn a_path_built_from_a_relative_literal_does_not_compile() {
     assert!(resolved(&exprs).is_empty(), "{:?}", resolved(&exprs));
 }
 
-/// A source with no file still reports a path built from a relative literal:
+/// A source with no file still reports a path built from a written relative path:
 /// the folder is unknown, but the path is relative at run time either way.
 #[test]
-fn a_path_built_from_a_relative_literal_does_not_compile_without_a_file() {
+fn a_path_built_from_a_written_relative_path_does_not_compile_without_a_file() {
     let (diags, _) = common::check_src_table(
         "<?nvs\nstring $name = 'x';\necho Core\\IO::read('data/' . $name);\n",
     );
     assert_eq!(
-        count(&diags, code::E_PATH_BUILT_FROM_A_RELATIVE_LITERAL),
+        count(&diags, code::E_PATH_BUILT_FROM_A_WRITTEN_RELATIVE_PATH),
         1,
         "{diags:?}"
     );
 }
 
-/// A path built from something other than a relative literal may be absolute
+/// A path built from something other than a written relative path may be absolute
 /// at run time, so it compiles: a variable first, `Core\Path::thisDir`, an
 /// absolute literal, a drive, a single letter that a drive may follow, an
-/// interpolated string that starts with a value, and a plain relative literal,
+/// interpolated string that starts with a value, and a plain written relative path,
 /// which is joined to its file. A parameter that is not a path is not checked.
 #[test]
 fn a_path_built_from_anything_else_compiles() {
@@ -347,11 +347,11 @@ fn this_dir_in_the_entry_and_in_a_required_file_name_one_folder_the_same_way() {
     );
 }
 
-/// A relative literal is joined to the folder as a path literal is, with `.`
+/// A written relative path is joined to the folder as a written path is, with `.`
 /// and `..` removed, and a named argument fills the same parameter.
 // covers: Core\Path::thisDir
 #[test]
-fn this_dir_joins_a_relative_literal() {
+fn this_dir_joins_a_written_relative_path() {
     let (diags, exprs) = check_program_table(&[(
         "this_dir_join.nvs",
         "<?nvs\necho Core\\Path::thisDir(), \"\\n\";\n\
@@ -376,7 +376,7 @@ fn this_dir_joins_a_relative_literal() {
 /// does not compile, and records nothing.
 // covers: Core\Path::thisDir
 #[test]
-fn this_dir_with_a_join_that_is_not_a_relative_literal_does_not_compile() {
+fn this_dir_with_a_join_that_is_not_a_written_relative_path_does_not_compile() {
     let (diags, exprs) = check_program_table(&[(
         "this_dir_reject.nvs",
         "<?nvs\nclass Shop {\n  public const string DATA = 'data';\n}\n\
@@ -388,7 +388,10 @@ fn this_dir_with_a_join_that_is_not_a_relative_literal_does_not_compile() {
          echo Core\\Path::thisDir(''), \"\\n\";\n",
     )]);
     assert_eq!(
-        count(&diags, code::E_PATH_THIS_DIR_JOIN_NOT_A_RELATIVE_LITERAL),
+        count(
+            &diags,
+            code::E_PATH_THIS_DIR_JOIN_NOT_A_WRITTEN_RELATIVE_PATH
+        ),
         5,
         "{diags:?}"
     );

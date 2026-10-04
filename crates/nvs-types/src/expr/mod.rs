@@ -43,8 +43,8 @@
 use nvs_diagnostics::{Diagnostic, SourceFile, Span, code};
 use nvs_hir::{ClassGraph, QName, SymbolKind};
 use nvs_syntax::ast::{
-    Arg, ArrayItem, AssignOp, BinaryOp, CallArgs, CatchArm, Expr, ExprKind, FnBody, FnExpr,
-    ForeachBinding, ForeachBindingTy, MemberName, NewTarget, ObjectLiteralField, StringPart, Type,
+    AnonObjectField, Arg, ArrayItem, AssignOp, BinaryOp, CallArgs, CatchArm, Expr, ExprKind,
+    FnBody, FnExpr, ForeachBinding, ForeachBindingTy, MemberName, NewTarget, StringPart, Type,
     TypeKind, UnaryOp,
 };
 use rustc_hash::FxHashSet;
@@ -85,7 +85,7 @@ pub(crate) use self::{
     assign::{check_return, is_assignable, note_float_widening_at, report_mismatch},
     iteration::{check_foreach_inout, check_foreach_key, check_foreach_value, foreach_source},
     literals::{
-        NoArrayType, check_array_key_type, check_object_literal, int_literal_digits,
+        NoArrayType, check_anon_object, check_array_key_type, int_literal_digits,
         synthesize_array_literal,
     },
     members::{
@@ -97,7 +97,7 @@ pub(crate) use self::{
 };
 
 /// Public because `nvs-ir` asks the same roster this crate does: a `Core` class
-/// name a downcast and a closure parameter's entry check can test a value
+/// name a downcast and an anonymous function parameter's entry check can test a value
 /// against is exactly the one `is` accepts, and one predicate answering
 /// both is what keeps the two passes from disagreeing about which names have a
 /// descriptor.
@@ -156,7 +156,7 @@ pub(crate) fn check_expr(
         && env.diags.error_count() == errors_before
     {
         // A written signature is a callable position like the bare type is
-        // (`rule:types/callable-signature`), so a value that is not a closure
+        // (`rule:types/callable-signature`), so a value that is not a callable
         // at all gets `rule:types/callable-values`'s own refusal at
         // either spelling rather than a bare mismatch at one of them.
         let wants_callable = matches!(
@@ -285,7 +285,7 @@ pub(crate) fn infer(
         ExprKind::Bool(value) => infer_bool_literal(*value, expected, env),
         ExprKind::Int(span) => infer_int_literal(*span, expr.span, expected, env),
         ExprKind::Float(span) => infer_float_literal(*span, expr.span, expected, env),
-        // `rule:types/duration`: a duration literal is `Core\Time\Duration` and nothing
+        // `rule:types/duration`: a duration like `1h30m` is `Core\Time\Duration` and nothing
         // places it — the suffix *is* the type, unlike `rule:types/decimal`'s fractional
         // literal just above. The lexer has already run the grammar and
         // reported anything wrong, so there is nothing left to check here.
@@ -294,7 +294,7 @@ pub(crate) fn infer(
             .class(QName::parse(nvs_stdlib::time::DURATION_NAME)),
         ExprKind::Str(span) => infer_str_literal(*span, expected, env),
         ExprKind::Interpolated(parts) => infer_interpolated(expr, parts, live, scope, ctx, env),
-        ExprKind::Markup(parts) => infer_markup_literal(parts, live, scope, ctx, env),
+        ExprKind::HtmlTemplate(parts) => infer_html_template(parts, live, scope, ctx, env),
         ExprKind::Variable(span) => {
             let name = strip_sigil(span_text(env.src, *span)).to_owned();
             let ty = check_read(&name, expr.span, live, scope, env);
@@ -315,9 +315,7 @@ pub(crate) fn infer(
         ExprKind::ArrayLiteral(items) => {
             check_array_literal(items, expected, live, scope, ctx, env)
         }
-        ExprKind::ObjectLiteral(fields) => {
-            check_object_literal(fields, expected, live, scope, ctx, env)
-        }
+        ExprKind::AnonObject(fields) => check_anon_object(fields, expected, live, scope, ctx, env),
         ExprKind::Unary { op, expr: inner } => {
             // `infer`, not `check_expr`: the operand inherits an *expectation*
             // rather than a position it has to satisfy, so a `-$n` under a
@@ -515,17 +513,17 @@ pub(crate) fn infer(
         } => infer_type_test(expr, inner, against, live, scope, ctx, env),
         ExprKind::Call { callee, args } => {
             // `rule:types/anonymous-function-self-name`'s self-name, resolved before the callee is checked
-            // as an expression: it is a name this closure's body binds and not
+            // as an expression: it is a name this anonymous function's body binds and not
             // a value, so `check_expr` has nothing to say about it and would
             // answer `mixed` for an unknown constant instead.
-            // `calls::check_fn_literal` owns the rule.
+            // `calls::check_anon_fn` owns the rule.
             if let ExprKind::ConstFetch(name) = &callee.kind
                 && let Some(fn_self) = &env.fn_self
                 && fn_self.name == span_text(env.src, name.span)
             {
                 let ret = fn_self.ret;
-                env.exprs.record(callee.span, ExprInfo::ClosureSelf);
-                // The closure being written is its own signature, so the
+                env.exprs.record(callee.span, ExprInfo::AnonFnSelf);
+                // The anonymous function being written is its own signature, so the
                 // arguments are held to its parameter list here rather than to
                 // `nvs_runtime::closure`'s tag at a time
                 // (`calls::check_self_name_args`). The three argument shapes it
@@ -535,7 +533,7 @@ pub(crate) fn infer(
                     check_args(args, live, scope, ctx, env);
                 }
                 report_args_with_no_parameter_list(args, NoParameterList::Callable, env);
-                if matches!(args, CallArgs::FirstClassCallable) {
+                if matches!(args, CallArgs::MethodRef) {
                     return env.interner.callable();
                 }
                 return ret;
@@ -545,7 +543,7 @@ pub(crate) fn infer(
             // its parameters, the arguments are proven here rather than a tag
             // at a time in `nvs_runtime::closure`. Ahead of `check_args`
             // because each argument is checked against the parameter it fills,
-            // which is also where an `fn` literal argument takes its own
+            // which is also where an anonymous function argument takes its own
             // parameter types from (`calls::check_call_through_signature`).
             if let Some(ret) =
                 check_call_through_signature(expr, callee_ty, args, live, scope, ctx, env)
@@ -554,7 +552,7 @@ pub(crate) fn infer(
             }
             check_args(args, live, scope, ctx, env);
             report_args_with_no_parameter_list(args, NoParameterList::Callable, env);
-            if matches!(args, CallArgs::FirstClassCallable) {
+            if matches!(args, CallArgs::MethodRef) {
                 return env.interner.callable();
             }
             report_call_on_non_callable(callee_ty, expr.span, env);
@@ -804,7 +802,7 @@ pub(crate) fn infer(
             reject_non_object_clone(ty, inner.span, env);
             ty
         }
-        ExprKind::Fn(fn_expr) => check_fn_literal(expr, fn_expr, expected, live, scope, ctx, env),
+        ExprKind::Fn(fn_expr) => check_anon_fn(expr, fn_expr, expected, live, scope, ctx, env),
         ExprKind::Match { subject, arms } => {
             let subject_ty = check_expr(subject, None, live, scope, ctx, env);
             // `rule:types/unions-and-mixed`'s fourth narrowing spelling: under `match (true)` a
@@ -859,7 +857,7 @@ pub(crate) fn infer(
         }
         // `rule:iteration/generators` first: a `yield` written where there is no generator
         // body to suspend is `E0445` wherever it stands, and that rule is
-        // reported by [`infer_yield`] — a closure inside a generator is the
+        // reported by [`infer_yield`] — an anonymous function inside a generator is the
         // case that makes the order matter, since its body is an expression
         // *and* is not the generator's own. The position question below is
         // only asked once there is a generator to ask it about.
@@ -1295,25 +1293,24 @@ pub(crate) fn report_class_keyword_outside_class(
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
 ) {
-    // `static` inside a closure body: the enclosing class exists, and still
-    // nothing in the closure's own frame names the class the call was made on
+    // `static` inside an anonymous function's body: the enclosing class exists,
+    // and still nothing in the function's own frame names the class the call was made on
     // — `nvs_ir::lower`'s `Lowering::lsb` panics on the spelling — so it is
     // refused here, at every site that asks this question. `self` and `parent`
     // name a class without that frame: a constant or `::class` read is folded,
     // and a `self::m()`/`parent::m()` call sets the called class to the class
-    // the closure is written in (`calls::called_class_set_at`).
-    if keyword == "static" && ctx.in_closure {
+    // the anonymous function is written in (`calls::called_class_set_at`).
+    if keyword == "static" && ctx.in_anon_fn {
         env.diags.report(
             Diagnostic::error(
-                code::E_STATIC_IN_CLOSURE,
-                "`static::` names no class inside a closure body",
+                code::E_STATIC_IN_ANON_FN,
+                "`static::` names no class inside an anonymous function",
             )
-            .with_primary(span, "inside a closure")
+            .with_primary(span, "inside an anonymous function")
             .with_help(
-                "`rule:statements/static-is-a-member-modifier`: the called class is what the enclosing \
-                 method's frame holds, and a closure is a frame of its own that carries \
-                 neither it nor a receiver — read the value into a variable before the \
-                 closure and use that",
+                "an anonymous function does not know which class the method was called on. \
+                 Read the value into a variable before the anonymous function, and use that \
+                 variable inside it",
             ),
         );
         return;

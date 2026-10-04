@@ -37,7 +37,7 @@
 //! `rule:expressions/nullable-conversion-availability`'s target rule for `as ?T`
 //! ([`check_class_target_conversion`]: every class target is refused, with no
 //! exceptions — § 3a's `tryParse` is the member that answers instead), plus
-//! the table's own closure ([`reject_unconvertible`]: § 2 is a *closed* list
+//! the table's own completeness ([`reject_unconvertible`]: § 2 is a *closed* list
 //! of rows, so a pair naming none of them has nothing to produce and nothing
 //! to throw, and a class target is decided by whether the two types share a
 //! value at all — [`reject_unrelated_class_conversion`]); what a
@@ -127,7 +127,7 @@ pub(crate) fn infer_conversion(
     }
     reject_enum_to_enum_conversion(inner_ty, result, expr.span, env);
     reject_secret_markup_conversion(inner_ty, result, expr.span, env);
-    reject_non_literal_markup_conversion(inner, result, expr.span, env);
+    reject_computed_markup_conversion(inner, result, expr.span, env);
     reject_impossible_literal_conversion(inner, inner_ty, result, expr.span, env);
     reject_impossible_class_reference_conversion(inner, result, expr.span, ctx, env);
     check_property_key_conversion(inner, ty, result, expr.span, env);
@@ -192,7 +192,7 @@ fn reject_impossible_class_reference_conversion(
             from_q
         }
         ExprKind::Str(text) => {
-            let Some(from_q) = class_literal_name(*text, &target_q, env) else {
+            let Some(from_q) = written_class_name_text(*text, &target_q, env) else {
                 return;
             };
             from_q
@@ -222,7 +222,7 @@ fn reject_impossible_class_reference_conversion(
 /// class name at all, or no declaration and no `autoload` entry answers it.
 /// `Core`'s classes and the reserved global ones are declared by no source
 /// file and pass through, as they do for `X::class`.
-fn class_literal_name(text: Span, target: &QName, env: &mut Env<'_>) -> Option<QName> {
+fn written_class_name_text(text: Span, target: &QName, env: &mut Env<'_>) -> Option<QName> {
     let cooked = crate::string_lit::cook_string_literal(env.src, text);
     let name = QName::from_literal(&cooked);
     if let Some(name) = &name
@@ -651,20 +651,20 @@ fn equality_domain(ty: &Ty) -> Option<EqDomain<'_>> {
             EqDomain::Str
         }
         Ty::Bytes | Ty::TaintedBytes | Ty::SecretBytes | Ty::SecretTaintedBytes => EqDomain::Bytes,
-        // `rule:types/single-value-types` gives a literal type its base's representation exactly,
+        // `rule:types/single-value-types` gives a single-value type its base's representation exactly,
         // so it lands in its base's domain and nothing more: `$mode == "z"`
         // where `$mode` is `"a"|"b"` compares two strings and is answered at
-        // run time. Refusing it because the two literal *sets* do not overlap
+        // run time. Refusing it because the two value *sets* do not overlap
         // would be a new row in `rule:expressions/disjoint-comparison-refused`'s table, not a consequence of
         // this one.
-        Ty::StringLiteral(_) => EqDomain::Str,
-        Ty::IntLiteral(_) => EqDomain::Numeric,
+        Ty::SingleValueString(_) => EqDomain::Str,
+        Ty::SingleValueInt(_) => EqDomain::Numeric,
         Ty::Array(_) => EqDomain::Array,
         Ty::ClassRef(_) => EqDomain::ClassRef,
         Ty::PropertyKey(_) => EqDomain::PropertyKey,
         Ty::Object | Ty::Class(..) | Ty::Shape(_) => EqDomain::Object,
-        // A written signature is a fact about how a closure may be *called*,
-        // never about which closures a position holds, so it shares the bare
+        // A written signature is a fact about how a callable may be *called*,
+        // never about which callables a position holds, so it shares the bare
         // type's domain: two callable values compare by identity either way,
         // and `rule:types/callable-signature` adds nothing a comparison could
         // read.
@@ -1063,9 +1063,9 @@ fn reject_unrowed_arithmetic_operand(
         // section, because the way to lift the other operand differs — one
         // escapes for HTML, the other substitutes control bytes for a terminal.
         EqDomain::Object if carrier_of(offender, env) == Some(crate::CORE_HTML_MARKUP_CLASS) => {
-            "`rule:core-classes/html-auto-escape` composes `Markup` with `Markup` and nothing else: lift the other \
-             operand with `as Markup` if it is a source literal, or escape it with \
-             `Core\\Html::escape(...)` — `+` is not a sink and will not escape it for you"
+            "`+` adds `Markup` only to `Markup`. Convert the other operand with `as Markup` if \
+             it is a string written directly in the code, or escape it with \
+             `Core\\Html::escape(...)`. `+` does not escape it for you"
         }
         EqDomain::Object if carrier_of(offender, env) == Some(crate::CORE_CLI_TEXT_CLASS) => {
             "`rule:tooling/styling-is-a-value-not-a-grammar` composes `Cli\\Text` with `Cli\\Text` and nothing else: lift the other \
@@ -1435,7 +1435,7 @@ fn reject_bitwise_operand(
 /// Whether one operand of a bitwise operator is refused outright — the
 /// predicate [`reject_bitwise_operand`]'s doc comment explains.
 fn bitwise_operand_is_refused(ty: &Ty) -> bool {
-    if matches!(ty, Ty::Int | Ty::Uint | Ty::IntLiteral(_)) {
+    if matches!(ty, Ty::Int | Ty::Uint | Ty::SingleValueInt(_)) {
         return false;
     }
     equality_domain(ty).is_some()
@@ -1856,7 +1856,7 @@ fn nullable_conversion_is_total(from: TypeId, to: TypeId, inner: TypeId, env: &E
         // *object* is the row's exception ("needs `Stringable`, or it throws")
         // and is left fallible here for that reason.
         (Bool | Int | Uint | Float | Decimal | Str | Null, Str) => true,
-        // One representation spelled two ways — a literal type and its base, a
+        // One representation spelled two ways — a single-value type and its base, a
         // `tainted`/`secret` value and its plain twin. The closed-value targets
         // returned above, so a same-kind pair left here converts nothing. The
         // `bool` pair is the `as bool` row two arms up rather than a missing
@@ -1873,7 +1873,7 @@ fn nullable_conversion_is_total(from: TypeId, to: TypeId, inner: TypeId, env: &E
 }
 
 /// Whether the target is one of `rule:expressions/nullable-conversion-availability` row 2's **closed** sets — a
-/// literal type, an enum case, or a whole enum — where the conversion is a
+/// single-value type, an enum case, or a whole enum — where the conversion is a
 /// membership test that a value of the right representation can still miss.
 /// Their base representation reads as free ([`conversion_kind`] folds
 /// `"a"` to `Str` and `Mode::Read` to `Enum`), so without this the row above
@@ -1881,8 +1881,8 @@ fn nullable_conversion_is_total(from: TypeId, to: TypeId, inner: TypeId, env: &E
 fn is_closed_value_target(to: TypeId, env: &Env<'_>) -> bool {
     matches!(
         env.interner.get(to),
-        Ty::IntLiteral(_)
-            | Ty::StringLiteral(_)
+        Ty::SingleValueInt(_)
+            | Ty::SingleValueString(_)
             | Ty::True
             | Ty::False
             | Ty::Enum(..)
@@ -1957,8 +1957,8 @@ fn reject_unconvertible(from: TypeId, to: TypeId, span: Span, env: &mut Env<'_>)
 ///   to one pointer representation, so the conversion runs nothing and the
 ///   check happens at the member access instead (`InstKind::SlotGet`).
 /// * **`Core\Html\Markup`**, which decides for itself: `rule:security/tainted-qualifier`'s
-///   `as Core\Html\Markup` is a source-literal `string` and has its own
-///   diagnostic (`E_MARKUP_REQUIRES_LITERAL`, in [`crate::expr::quals`])
+///   `as Core\Html\Markup` is a `string` literal and has its own
+///   diagnostic (`E_MARKUP_NEEDS_WRITTEN_STRING`, in [`crate::expr::quals`])
 ///   saying so. Exempted from the disjointness question exactly as
 ///   [`require_stringable_object`] exempts it, and for the same reason — the
 ///   owning rule is the rule, not this table. It is a *lift*, which is why it
@@ -2001,8 +2001,8 @@ fn reject_unrelated_class_conversion(from: TypeId, to: TypeId, span: Span, env: 
     };
     if qname.is_core() {
         // `rule:core-classes/html-auto-escape`'s `as Core\Html\Markup` is that section's own row and
-        // `crate::expr::quals` owns it end to end — a source-literal `string`
-        // and nothing else, `E_MARKUP_REQUIRES_LITERAL` for anything computed.
+        // `crate::expr::quals` owns it end to end — a `string` literal
+        // and nothing else, `E_MARKUP_NEEDS_WRITTEN_STRING` for anything computed.
         // It is a lift rather than a test, so it is the one `Core` target this
         // function decides nothing about.
         if qname.to_string() == crate::CORE_HTML_MARKUP_CLASS {
@@ -2087,7 +2087,7 @@ const ARRAY_ELEMENT_TAG_LEVELS: usize = u64::BITS as usize / 4;
 ///
 /// The row's whole content is "every element must satisfy `U`", checked once
 /// per element on the way through, and the check available at that point is
-/// the *same* one a closure parameter's entry check runs
+/// the *same* one an anonymous function parameter's entry check runs
 /// (`nvs_ir::lower::param_tag_nibble`): a tag, four bits wide, with no room
 /// for anything else. So the element types that convert are exactly the ones
 /// whose whole meaning is their tag — `bool`, `int`, `uint`, `float`,
@@ -2104,7 +2104,7 @@ const ARRAY_ELEMENT_TAG_LEVELS: usize = u64::BITS as usize / 4;
 /// * An **enum** erases to its backing integer, so a tag would admit any
 ///   integer as a case — where `rule:types/conversion`'s own `mixed → EnumName` row
 ///   throws for a value no case names.
-/// * A **literal type** or a **union** (`rule:types/single-value-types`'s closed sets,
+/// * A **single-value type** or a **union** (`rule:types/single-value-types`'s closed sets,
 ///   `?T`, `int|string`) admits some values of its representation and not
 ///   others, which is again more than a tag says. `mixed` is not in that list
 ///   and is accepted: it is `rule:types/grammar`'s one unchecked position, so an
@@ -2209,7 +2209,7 @@ enum ConvKind {
 fn conversion_kind(id: TypeId, interner: &TypeInterner) -> ConvKind {
     match interner.get(id) {
         Ty::Bool | Ty::True | Ty::False => ConvKind::Bool,
-        Ty::Int | Ty::IntLiteral(_) => ConvKind::Int,
+        Ty::Int | Ty::SingleValueInt(_) => ConvKind::Int,
         Ty::Uint => ConvKind::Uint,
         Ty::Float => ConvKind::Float,
         Ty::Decimal => ConvKind::Decimal,
@@ -2217,7 +2217,7 @@ fn conversion_kind(id: TypeId, interner: &TypeInterner) -> ConvKind {
         | Ty::TaintedString
         | Ty::SecretString
         | Ty::SecretTaintedString
-        | Ty::StringLiteral(_) => ConvKind::Str,
+        | Ty::SingleValueString(_) => ConvKind::Str,
         Ty::Bytes | Ty::TaintedBytes | Ty::SecretBytes | Ty::SecretTaintedBytes => ConvKind::Bytes,
         Ty::Null => ConvKind::Null,
         Ty::Void => ConvKind::Void,
@@ -2342,7 +2342,7 @@ fn conversion_row_exists(from: ConvKind, to: ConvKind) -> bool {
         (source, Enum(backing)) => conversion_row_exists(source, enum_backing_kind(backing)),
         // `rule:types/conversion`'s O(n) element row.
         (Array, Array) => true,
-        // Two spellings of one representation — a literal type and its base,
+        // Two spellings of one representation — a single-value type and its base,
         // `secret bytes` and `bytes`. `rule:types/single-value-types` and `rule:security/secret-qualifier` both make
         // these free, and the qualifier rule that runs after this one
         // ([`super::quals`]) is what decides the result's own qualifiers. The
@@ -2490,7 +2490,7 @@ pub(crate) fn reject_enum_to_enum_conversion(
 /// to compile.
 ///
 /// This is deliberately not [`types_are_disjoint`]'s business.
-/// `rule:expressions/disjoint-comparison-refused` puts a literal type in its base type's domain, so `$mode == "z"` stays
+/// `rule:expressions/disjoint-comparison-refused` puts a single-value type in its base type's domain, so `$mode == "z"` stays
 /// an ordinary run-time string comparison; what is refused here is a
 /// *conversion* that can only throw, which is a different question reaching a
 /// different answer.
@@ -2525,7 +2525,7 @@ fn reject_impossible_literal_conversion(
     let code = if cases_only {
         code::E_ENUM_CASE_SUBSET_MISMATCH
     } else {
-        code::E_LITERAL_TYPE_MISMATCH
+        code::E_SINGLE_VALUE_TYPE_MISMATCH
     };
     let named = env.interner.describe(operand);
     env.diags.report(
@@ -2554,7 +2554,7 @@ fn reject_impossible_literal_conversion(
 /// This does not fold an int literal into an enum case anywhere else: assigning
 /// `1` to a `Mode` stays refused, which is the hole § 3 keeps shut.
 fn int_literal_reaches_a_case(operand: TypeId, accepted: &[TypeId], env: &Env<'_>) -> bool {
-    let Ty::IntLiteral(value) = *env.interner.get(operand) else {
+    let Ty::SingleValueInt(value) = *env.interner.get(operand) else {
         return false;
     };
     accepted.iter().any(|id| {
@@ -2585,7 +2585,11 @@ fn closed_set_atoms(to: TypeId, interner: &TypeInterner) -> Option<Vec<TypeId>> 
         .all(|id| {
             matches!(
                 interner.get(*id),
-                Ty::StringLiteral(_) | Ty::IntLiteral(_) | Ty::EnumCase(..) | Ty::True | Ty::False
+                Ty::SingleValueString(_)
+                    | Ty::SingleValueInt(_)
+                    | Ty::EnumCase(..)
+                    | Ty::True
+                    | Ty::False
             )
         })
         .then_some(atoms)
@@ -2611,7 +2615,7 @@ fn conversion_operand_singleton(
 ) -> Option<TypeId> {
     if matches!(
         env.interner.get(inner_ty),
-        Ty::StringLiteral(_) | Ty::IntLiteral(_) | Ty::EnumCase(..) | Ty::True | Ty::False
+        Ty::SingleValueString(_) | Ty::SingleValueInt(_) | Ty::EnumCase(..) | Ty::True | Ty::False
     ) {
         return Some(inner_ty);
     }

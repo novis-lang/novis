@@ -220,7 +220,7 @@ pub(crate) fn bind(
         // nothing outside this arm has to know where it came from.
         //
         // The parameters stop at the shorter list, which is
-        // `rule:types/callable-arity`'s prefix match read at the binding pass: a closure
+        // `rule:types/callable-arity`'s prefix match read at the binding pass: an anonymous function
         // declaring fewer parameters than the position hands it binds from the
         // ones it wrote, and a position's surplus parameter binds nothing
         // rather than pairing with something else.
@@ -287,7 +287,7 @@ pub(crate) fn bind(
         // member order does not decide the answer.
         (Ty::Union(members), _) => members.iter().map(|member| (*member, actual)).collect(),
         // Neither a bag nor `rule:core-api/shape-parameter`'s shape parameter ever appears on the
-        // `actual` side — a call site writes an object literal, which infers to
+        // `actual` side — a call site writes an anonymous object, which infers to
         // a `Ty::Shape` — so the two arms below cover every pair that occurs,
         // and binding a declared key's type against a matching written field is
         // the same walk either way.
@@ -481,9 +481,9 @@ mod tests {
     }
 
     /// The shape a `Core` row spelling its callback's signature needs: both of
-    /// `map`'s variables bound out of the one closure argument, structurally.
+    /// `map`'s variables bound out of the one anonymous function argument, structurally.
     #[test]
-    fn a_written_callback_signature_binds_from_the_literals_own_signature() {
+    fn a_written_callback_signature_binds_from_the_anon_fns_own_signature() {
         let mut interner = TypeInterner::new();
         let t = interner.type_var("T");
         let u = interner.type_var("U");
@@ -499,11 +499,11 @@ mod tests {
     }
 
     /// `rule:types/callable-arity`'s prefix match, read at the binding pass: a
-    /// closure that declares fewer parameters than the position hands it binds
+    /// anonymous function that declares fewer parameters than the position hands it binds
     /// from the ones it wrote, and the surplus parameter binds nothing rather
     /// than pairing with the return type.
     #[test]
-    fn a_shorter_literal_binds_the_parameters_it_wrote_and_no_others() {
+    fn a_shorter_anon_fn_binds_the_parameters_it_wrote_and_no_others() {
         let mut interner = TypeInterner::new();
         let t = interner.type_var("T");
         let k = interner.type_var("K");

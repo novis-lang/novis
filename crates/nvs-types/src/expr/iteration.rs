@@ -400,7 +400,7 @@ pub(crate) fn check_foreach_key(
 
 /// `rule:types/callable-values`/§ 3: a bare string or `[$obj, 'method']`-shaped array
 /// literal reaching a `callable`-typed position gets a targeted diagnostic
-/// naming the first-class-callable-syntax replacement, rather than the
+/// naming the method-reference replacement, rather than the
 /// generic `E_TYPE_MISMATCH` [`is_assignable`] would otherwise report for
 /// the same expression. Returns whether it reported one, so the caller can
 /// skip its own generic check for this expression.
@@ -413,9 +413,8 @@ pub(crate) fn report_yield_outside_generator(span: Span, env: &mut Env<'_>) {
         )
         .with_primary(span, "this is not inside a generator")
         .with_help(
-            "`rule:iteration/generators` lowers a generator to a state machine rather than to a coroutine, \
-             which is what confines `yield` to the body it is written in — a closure, or a \
-             helper it calls, cannot yield into it",
+            "`yield` works only in the body of the generator itself. An anonymous function \
+             inside the generator, or a function the generator calls, cannot yield for it",
         ),
     );
 }

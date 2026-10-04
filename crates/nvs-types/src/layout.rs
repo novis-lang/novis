@@ -163,8 +163,8 @@ pub struct ClassLayout {
     /// [`Self::field_types`]' currency exactly: the text the declaration wrote
     /// with its whitespace collapsed, and the **empty string** for a parameter
     /// that wrote no type, which on a method is source
-    /// `nvs_syntax::check_declarations` has already refused — only a closure
-    /// literal may leave one out, and a closure declares no class member. The
+    /// `nvs_syntax::check_declarations` has already refused — only an anonymous
+    /// function may leave one out, and an anonymous function declares no class member. The
     /// list is the names' own length or empty, and
     /// empty reads there exactly as it reads for the names, which is why the
     /// two travel as one row rather than as a pair a reader would have to check

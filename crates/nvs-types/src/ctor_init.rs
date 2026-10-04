@@ -53,11 +53,11 @@
 //! unassigned, which is what `rule:classes/definite-property-initialization`'s
 //! "on every path" says it is.
 //!
-//! **A closure's body is not descended into**, and neither is an anonymous
+//! **An anonymous function's body is not descended into**, and neither is an anonymous
 //! class's: a body written inside an expression runs when it is *called*,
 //! which is not where it is written and need not be ever, so
 //! `$this->prop = ...` inside one is not an assignment the constructor made.
-//! A constructor that assigns a property only from a closure it stores is
+//! A constructor that assigns a property only from an anonymous function it stores is
 //! therefore refused, and `rule:classes/lateinit` is the spelling for a
 //! property that really is written after construction.
 //!
@@ -756,10 +756,10 @@ mod tests {
         );
     }
 
-    /// A closure's body runs when the closure is called, so storing one that
+    /// An anonymous function's body runs when the callable is called, so storing one that
     /// would assign `$count` is not assigning it — the module docs' bound.
     #[test]
-    fn a_constructor_assigning_only_inside_a_closure_body_is_diagnosed() {
+    fn a_constructor_assigning_only_inside_an_anon_fn_body_is_diagnosed() {
         let diags = check_src(
             "<?nvs\nclass Foo {\n  public int $count;\n  function constructor() {\n    var $later = fn (): int => $this->count = 1;\n  }\n}\n",
         );

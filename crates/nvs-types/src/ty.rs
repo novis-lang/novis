@@ -110,10 +110,10 @@ pub enum Ty {
     Never,
     /// `true` — `rule:types/grammar`'s atom, and `bool`'s half of `rule:types/single-value-types`: the
     /// type inhabited by exactly one value, which is what
-    /// [`Self::StringLiteral`] generalises to `string`'s. It is placed the
+    /// [`Self::SingleValueString`] generalises to `string`'s. It is placed the
     /// same way ([`crate::expr::literals::placed_literal`]) — a `true`
     /// expression is an ordinary [`Self::Bool`] unless the position names
-    /// this type — widens the same way ([`TypeInterner::literal_base`]), and
+    /// this type — widens the same way ([`TypeInterner::single_value_base`]), and
     /// erases the same way, to [`Self::Bool`]'s own representation
     /// (§ 5, `nvs_ir::lower::erase_checked_ty`).
     True,
@@ -135,26 +135,26 @@ pub enum Ty {
     /// [`Self::String`] at the `nvs-ir` boundary
     /// (`nvs_ir::lower::erase_checked_ty`), and the singleton-ness is enforced
     /// entirely by the checker wherever the static type is known.
-    StringLiteral(String),
+    SingleValueString(String),
     /// `1`, `-1` — `rule:types/single-value-types`'s `int` counterpart of
-    /// [`Self::StringLiteral`], erasing to [`Self::Int`] the same way.
+    /// [`Self::SingleValueString`], erasing to [`Self::Int`] the same way.
     ///
     /// `i64`, so the value is always one an `int` can hold: a magnitude past
     /// `int`'s range is diagnosed where the atom is lowered rather than
     /// widened to `uint` here, because `rule:types/single-value-types` gives the atom one base
     /// type and a second one would make `1`'s meaning depend on its
     /// neighbours. There is deliberately no `float` counterpart (§ 7).
-    IntLiteral(i64),
+    SingleValueInt(i64),
     /// `Mode::Read` — `rule:types/enum-case-type`: a subtype of the enum inhabited by exactly
     /// one of its cases, carrying the enum's `QName`, its backing type, and
     /// the case's own name.
     ///
-    /// Deliberately **not** [`Self::IntLiteral`] of the case's backing value,
+    /// Deliberately **not** [`Self::SingleValueInt`] of the case's backing value,
     /// which is the whole of § 3: folding it that way would let a bare `int`
     /// satisfy an enum-typed parameter, reopening the hole
     /// `rule:types/conversion` closed
     /// by making `int → Mode` a checked conversion. An enum-case type and an
-    /// int literal type that happen to share a value are never unified by
+    /// int single-value type that happen to share a value are never unified by
     /// canonicalisation, because they are not the same `Ty`.
     ///
     /// The backing type rides along for [`Self::Enum`]'s own reason — it is
@@ -176,7 +176,7 @@ pub enum Ty {
     /// A variant of its own rather than an option on [`Self::Callable`], for
     /// the reason [`nvs_syntax::ast::TypeAtom::CallableSig`] is an atom of its
     /// own: bare `callable` is the **top** of the callable lattice and goes on
-    /// meaning exactly what it meant — a closure whose signature is unknown,
+    /// meaning exactly what it meant — a callable whose signature is unknown,
     /// reached by a dynamic call whose arguments `nvs_runtime::closure` checks
     /// one tag at a time — while a written signature is checked where the call
     /// is written and pays nothing at run time. The two never collapse.
@@ -284,7 +284,7 @@ pub enum Ty {
     ///
     /// The second type in this enum no source text can spell (see
     /// [`Self::TypeVar`] for the first). A *value* of this type is still
-    /// written by hand — an `rule:types/object-top` object literal at the call site — but the
+    /// written by hand — an `rule:types/object-top` anonymous object at the call site — but the
     /// type itself is never written, which is why there is no `?` in the
     /// surface type grammar.
     ///
@@ -402,7 +402,7 @@ pub struct ShapeField {
 
 impl ShapeField {
     /// The field every shape but a written one is built from: nothing seeded by
-    /// [`crate::error_lib`], inferred from an object literal, or substituted
+    /// [`crate::error_lib`], inferred from an anonymous object, or substituted
     /// through a type variable has a `?` to carry, so those sites say which
     /// kind they mean once rather than repeating `required: true`.
     #[must_use]
@@ -459,7 +459,7 @@ pub struct CoreShapeField {
     /// What the field's text names — `nvs_stdlib::registry::CoreTy::param_text`
     /// of the row's own type. `Db\Settings`' `path` is
     /// [`ParamText::Path`](nvs_stdlib::registry::ParamText::Path), so a
-    /// relative literal written for it is resolved the way one written at a
+    /// written relative path written for it is resolved the way one written at a
     /// path parameter is (`crate::paths`).
     pub text: nvs_stdlib::registry::ParamText,
 }
@@ -630,8 +630,8 @@ impl TypeInterner {
             Ty::Never => "never".to_owned(),
             Ty::True => "true".to_owned(),
             Ty::False => "false".to_owned(),
-            Ty::StringLiteral(value) => quote_string_literal(value),
-            Ty::IntLiteral(value) => value.to_string(),
+            Ty::SingleValueString(value) => quote_string_literal(value),
+            Ty::SingleValueInt(value) => value.to_string(),
             Ty::EnumCase(q, _, case) => format!("{q}::{case}"),
             Ty::Iterable => "iterable".to_owned(),
             Ty::Callable => "callable".to_owned(),
@@ -831,22 +831,22 @@ impl TypeInterner {
         self.intern(Ty::Iterable)
     }
 
-    /// Interns `rule:types/single-value-types`'s string literal type — see
-    /// [`Ty::StringLiteral`], which owns why `value` is the cooked string
+    /// Interns `rule:types/single-value-types`'s string single-value type — see
+    /// [`Ty::SingleValueString`], which owns why `value` is the cooked string
     /// rather than the source text.
     #[must_use]
-    pub fn string_literal(&mut self, value: impl Into<String>) -> TypeId {
-        self.intern(Ty::StringLiteral(value.into()))
+    pub fn single_value_string(&mut self, value: impl Into<String>) -> TypeId {
+        self.intern(Ty::SingleValueString(value.into()))
     }
 
-    /// Interns `rule:types/single-value-types`'s int literal type.
+    /// Interns `rule:types/single-value-types`'s int single-value type.
     #[must_use]
-    pub fn int_literal(&mut self, value: i64) -> TypeId {
-        self.intern(Ty::IntLiteral(value))
+    pub fn single_value_int(&mut self, value: i64) -> TypeId {
+        self.intern(Ty::SingleValueInt(value))
     }
 
     /// Interns `rule:types/enum-case-type`'s enum-case type — see [`Ty::EnumCase`] for why
-    /// this is a type of its own rather than [`Self::int_literal`] of the
+    /// this is a type of its own rather than [`Self::single_value_int`] of the
     /// case's backing value.
     #[must_use]
     pub fn enum_case(
@@ -858,26 +858,27 @@ impl TypeInterner {
         self.intern(Ty::EnumCase(qname, backing, case.into()))
     }
 
-    /// The type `rule:types/single-value-types`'s first four rows widen `id` to: a literal type's
+    /// The type `rule:types/single-value-types`'s first four rows widen `id` to: a single-value type's
     /// base type, an enum-case type's enum, and anything else unchanged.
     ///
     /// The checker-side counterpart of `nvs_ir::lower::erase_checked_ty`'s
-    /// erasure — § 5 gives a literal type no representation of its own, so
+    /// erasure — § 5 gives a single-value type no representation of its own, so
     /// every question about what a value of one can *do* is a question about
     /// its base. A union is widened member-wise, which is what makes
     /// `"a"|"b"` widen to `string` rather than to itself.
-    pub fn literal_base(&mut self, id: TypeId) -> TypeId {
+    pub fn single_value_base(&mut self, id: TypeId) -> TypeId {
         match self.get(id).clone() {
-            Ty::StringLiteral(_) => self.string(),
-            Ty::IntLiteral(_) => self.int(),
-            // `rule:types/grammar`'s two `bool` singletons are literal types under
+            Ty::SingleValueString(_) => self.string(),
+            Ty::SingleValueInt(_) => self.int(),
+            // `rule:types/grammar`'s two `bool` singletons are single-value types under
             // `rule:types/single-value-types`'s own reading of them (see [`Ty::True`]), so they
             // widen here rather than anywhere of their own — which is what
             // makes `bool $b = $x as true;` an ordinary assignment.
             Ty::True | Ty::False => self.bool_ty(),
             Ty::EnumCase(q, backing, _) => self.enum_(q, backing),
             Ty::Union(members) => {
-                let widened: Vec<TypeId> = members.iter().map(|m| self.literal_base(*m)).collect();
+                let widened: Vec<TypeId> =
+                    members.iter().map(|m| self.single_value_base(*m)).collect();
                 self.make_union(widened)
             }
             _ => id,
@@ -1051,7 +1052,7 @@ impl TypeInterner {
     }
 }
 
-/// Renders a [`Ty::StringLiteral`]'s cooked value back as the double-quoted
+/// Renders a [`Ty::SingleValueString`]'s cooked value back as the double-quoted
 /// literal a program would write it as — what a diagnostic naming the accepted
 /// set has to print (`rule:types/single-value-types`).
 ///
@@ -1201,11 +1202,11 @@ mod tests {
     #[test]
     fn describe_renders_adr_0047s_three_atoms() {
         let mut i = TypeInterner::new();
-        let s = i.string_literal("a");
+        let s = i.single_value_string("a");
         assert_eq!(i.describe(s), "\"a\"");
-        let quoted = i.string_literal("say \"hi\"\n");
+        let quoted = i.single_value_string("say \"hi\"\n");
         assert_eq!(i.describe(quoted), "\"say \\\"hi\\\"\\n\"");
-        let n = i.int_literal(-1);
+        let n = i.single_value_int(-1);
         assert_eq!(i.describe(n), "-1");
         let case = i.enum_case(
             QName::parse("App\\Mode"),
@@ -1222,7 +1223,7 @@ mod tests {
     fn an_enum_case_type_never_interns_as_its_backing_value() {
         let mut i = TypeInterner::new();
         let case = i.enum_case(QName::parse("Mode"), crate::enums::EnumBacking::Int, "Read");
-        let zero = i.int_literal(0);
+        let zero = i.single_value_int(0);
         assert_ne!(case, zero);
     }
 

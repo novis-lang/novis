@@ -16,7 +16,7 @@
 //! [`placed_literal`] is all of it: a `string` or `int` literal types as its
 //! own singleton exactly where the position names that singleton, and as its
 //! plain base everywhere else. That is what `rule:types/single-value-types`'s *Verification* M2 row
-//! asks for — without it nothing a caller writes ever satisfies a literal type
+//! asks for — without it nothing a caller writes ever satisfies a single-value type
 //! except through an `as` — and it is why § 4's free-widening rows in
 //! [`super::assign`] are the only other half needed: every other position
 //! already sees the base. [`super::members`] applies the same helper to an
@@ -37,16 +37,16 @@
 
 use super::*;
 
-/// `rule:types/single-value-types`'s producer half: the literal atom `expected` names that this
+/// `rule:types/single-value-types`'s producer half: the single-value atom `expected` names that this
 /// literal *is*, or `None` where the position names none — in which case the
 /// caller returns the base type, exactly as it did before this ADR.
 ///
 /// `expected` is searched one level deep, the atom itself or the members of a
 /// union, which is the whole of it: `rule:types/grammar` canonicalizes a union flat,
-/// so there is no deeper level for a literal atom to hide in.
+/// so there is no deeper level for a single-value atom to hide in.
 ///
 /// `is_this_literal` is what makes this shared by three atom kinds — the two
-/// [`Ty::StringLiteral`]/[`Ty::IntLiteral`] callers below and
+/// [`Ty::SingleValueString`]/[`Ty::SingleValueInt`] callers below and
 /// [`super::members`]'s [`Ty::EnumCase`] one — since the only thing that
 /// differs between them is how a candidate atom is compared to the value in
 /// hand.
@@ -68,21 +68,21 @@ pub(crate) fn placed_literal(
 /// [`placed_literal`] for `rule:types/single-value-types`'s string atom.
 ///
 /// Two passes on purpose: the first asks the cheap question — does this
-/// position name a string literal type at all — and only then is the literal
+/// position name a single-value string type at all — and only then is the literal
 /// cooked. Cooking allocates a `String`, and the answer is `None` for very
 /// nearly every string literal in a program, so doing it unconditionally
 /// would spend an allocation per literal expression to learn nothing. The
-/// cooked value is what [`Ty::StringLiteral`] holds (see its own docs), so
+/// cooked value is what [`Ty::SingleValueString`] holds (see its own docs), so
 /// `"a\n"` and a literal `"a"` followed by a real newline place identically.
 fn placed_string_literal(span: Span, expected: Option<TypeId>, env: &Env<'_>) -> Option<TypeId> {
     placed_literal(expected, env.interner, |ty| {
-        matches!(ty, Ty::StringLiteral(_))
+        matches!(ty, Ty::SingleValueString(_))
     })?;
     let value = crate::string_lit::cook_string_literal(env.src, span);
     placed_literal(
         expected,
         env.interner,
-        |ty| matches!(ty, Ty::StringLiteral(v) if *v == value),
+        |ty| matches!(ty, Ty::SingleValueString(v) if *v == value),
     )
 }
 
@@ -124,7 +124,7 @@ pub(crate) fn infer_bool_literal(
 /// literal's own size, paid only at a generic call, and only where the first
 /// walk reported nothing.
 ///
-/// An object literal is *not* here, and cannot be: [`check_object_literal`]
+/// An anonymous object is *not* here, and cannot be: [`check_anon_object`]
 /// takes no expected type at all, so a second check would produce the same
 /// shape it produced the first time. Every other expression already has the
 /// type it will keep, so asking is free and answering `false` is exactly
@@ -189,12 +189,15 @@ pub(crate) fn literal_self_type(expr: &Expr, env: &mut Env<'_>) -> Option<TypeId
         ExprKind::Bool(false) => Some(env.interner.false_ty()),
         ExprKind::Str(span) => {
             let value = crate::string_lit::cook_string_literal(env.src, span);
-            Some(env.interner.string_literal(value))
+            Some(env.interner.single_value_string(value))
         }
         ExprKind::Int(span) => {
             let (radix, digits) = int_literal_digits(env.src, span);
             let magnitude = u64::from_str_radix(&digits, radix).ok()?;
-            Some(env.interner.int_literal(i64::try_from(magnitude).ok()?))
+            Some(
+                env.interner
+                    .single_value_int(i64::try_from(magnitude).ok()?),
+            )
         }
         _ => None,
     }
@@ -203,7 +206,7 @@ pub(crate) fn literal_self_type(expr: &Expr, env: &mut Env<'_>) -> Option<TypeId
 /// The expectation a `-e` operand inherits, and `None` for every other unary
 /// operator — which is what [`super::infer`]'s arm passed before `rule:types/single-value-types`.
 ///
-/// `rule:types/single-value-types`'s int literal atom carries its own sign, so `-1` is *one*
+/// `rule:types/single-value-types`'s int single-value atom carries its own sign, so `-1` is *one*
 /// atom in type position; a `-1` expression is a negation wrapping the bare
 /// digit run `1`. Placing the operand against the negated value is what lets
 /// the two meet, and [`negated_literal_result`] puts the sign back on. Without
@@ -216,7 +219,7 @@ pub(crate) fn literal_self_type(expr: &Expr, env: &mut Env<'_>) -> Option<TypeId
 /// `decimal` reached [`check_float_literal`] with no expectation at all and
 /// came out `float` — leaving a negative `decimal` constant writable only as
 /// `-19.99 as decimal` while the positive one needed nothing. `uint` and the
-/// literal types are deliberately not here: a negated value that the target
+/// single-value types are deliberately not here: a negated value that the target
 /// cannot hold is the refusal those targets exist for.
 ///
 /// A union naming `decimal` passes through too, but only to a numeric literal
@@ -240,12 +243,12 @@ pub(crate) fn negated_literal_expectation(
     if let Some(placed) = placed_literal(
         expected,
         interner,
-        |ty| matches!(ty, Ty::IntLiteral(v) if *v < 0),
+        |ty| matches!(ty, Ty::SingleValueInt(v) if *v < 0),
     ) {
-        let &Ty::IntLiteral(value) = interner.get(placed) else {
+        let &Ty::SingleValueInt(value) = interner.get(placed) else {
             return None;
         };
-        return Some(interner.int_literal(value.checked_neg()?));
+        return Some(interner.single_value_int(value.checked_neg()?));
     }
     let numeric_literal = matches!(
         operand.unparenthesized().kind,
@@ -260,7 +263,7 @@ pub(crate) fn negated_literal_expectation(
     None
 }
 
-/// The type `-e` has when its operand took `rule:types/single-value-types`'s int literal type —
+/// The type `-e` has when its operand took `rule:types/single-value-types`'s int single-value type —
 /// the literal of the negated value, so `-1` placed at the type `-1` stays
 /// that type rather than widening to `int` at the operator. Any other operand
 /// type, and any other operator, is returned unchanged.
@@ -272,12 +275,12 @@ pub(crate) fn negated_literal_result(
     if op != UnaryOp::Neg {
         return inner;
     }
-    let &Ty::IntLiteral(value) = interner.get(inner) else {
+    let &Ty::SingleValueInt(value) = interner.get(inner) else {
         return inner;
     };
     value
         .checked_neg()
-        .map_or(inner, |negated| interner.int_literal(negated))
+        .map_or(inner, |negated| interner.single_value_int(negated))
 }
 
 /// `rule:types/conversion`'s "a numeric literal is untyped until placed" applied to the
@@ -410,7 +413,7 @@ pub(crate) fn infer_int_literal(
     let (radix, digits) = int_literal_digits(env.src, span);
     let parsed = u64::from_str_radix(&digits, radix);
     // `rule:types/single-value-types`, ahead of `uint`'s placement below because no position
-    // names both: a literal type is a singleton, and `uint` is not one. The
+    // names both: a single-value type is a singleton, and `uint` is not one. The
     // digit run is never negative here — a leading `-` is the wrapping
     // `ExprKind::Unary` [`negated_literal_expectation`] handles.
     if let Ok(&magnitude) = parsed.as_ref()
@@ -418,7 +421,7 @@ pub(crate) fn infer_int_literal(
         && let Some(placed) = placed_literal(
             expected,
             env.interner,
-            |ty| matches!(ty, Ty::IntLiteral(v) if *v == value),
+            |ty| matches!(ty, Ty::SingleValueInt(v) if *v == value),
         )
     {
         return placed;
@@ -441,8 +444,8 @@ pub(crate) fn infer_int_literal(
             env.diags.report(
                 Diagnostic::error(
                     code::E_INT_LITERAL_OUT_OF_RANGE,
-                    "this integer literal is too large for `int`; it is only legal \
-                     where a `uint` is expected",
+                    "this number is too large for `int`. It is allowed only where a `uint` is \
+                     expected",
                 )
                 .with_primary(report_span, "does not fit `int`"),
             );
@@ -452,7 +455,7 @@ pub(crate) fn infer_int_literal(
             env.diags.report(
                 Diagnostic::error(
                     code::E_INT_LITERAL_OUT_OF_RANGE,
-                    "this integer literal is too large to represent in either `int` or `uint`",
+                    "this number is too large for both `int` and `uint`",
                 )
                 .with_primary(report_span, "too large for a 64-bit integer"),
             );
@@ -583,7 +586,7 @@ pub(crate) fn infer_interpolated(
     qualified_scalar(false, tainted, secret, env.interner)
 }
 
-/// ``html`<span>{$name}</span>` `` — [`super::infer`]'s `ExprKind::Markup` arm.
+/// ``html`<span>{$name}</span>` `` — [`super::infer`]'s `ExprKind::HtmlTemplate` arm.
 ///
 /// The type is `Core\Html\Markup` whatever the body holds, because the node is
 /// what says so (`rule:core-classes/html-template`): a hole-free literal is
@@ -600,7 +603,7 @@ pub(crate) fn infer_interpolated(
 /// (`rule:core-classes/html-auto-escape`). A `secret` hole is refused where it
 /// is written, because escaping does nothing for confidentiality
 /// (`rule:security/secret-sinks-refuse`).
-pub(crate) fn infer_markup_literal(
+pub(crate) fn infer_html_template(
     parts: &[StringPart],
     live: &mut Live,
     scope: &LocalScope,
@@ -678,7 +681,7 @@ pub(crate) fn wants_decimal(expected: Option<TypeId>, env: &Env<'_>) -> bool {
 /// That makes `?decimal` and `decimal|string` decimal positions for a literal,
 /// exactly as a plain `decimal` is, while a union that already accepts the
 /// literal keeps the type it takes today: `int|decimal` places `3` at `int`,
-/// and `float|decimal` places `3` and `1.5` at `float`. A unioned literal type
+/// and `float|decimal` places `3` and `1.5` at `float`. A unioned single-value type
 /// such as `1|decimal` is matched by [`placed_literal`] before this is asked.
 pub(crate) fn wants_decimal_in_union(
     expected: Option<TypeId>,
@@ -793,7 +796,7 @@ pub(crate) fn report_decimal_out_of_range(reason: &str, span: Span, env: &mut En
     env.diags.report(
         Diagnostic::error(
             code::E_DECIMAL_LITERAL_OUT_OF_RANGE,
-            format!("this literal does not fit `decimal`: it has {detail}"),
+            format!("this number does not fit `decimal`: it has {detail}"),
         )
         .with_primary(span, "outside `decimal`'s range")
         .with_help(
@@ -869,8 +872,8 @@ pub(crate) fn report_cook_issues(issues: Vec<crate::string_lit::CookIssue>, env:
                 env.diags.report(
                     Diagnostic::error(
                         code::E_STRING_LITERAL_INVALID_UTF8,
-                        "this string literal's `\\xHH`/octal byte escapes do not form valid \
-                         UTF-8 once assembled — `string` is guaranteed-valid UTF-8, see `rule:types/bytes`",
+                        "the `\\xHH` and octal escapes in this string do not form valid UTF-8. \
+                         A `string` is always valid UTF-8",
                     )
                     .with_primary(span, "not valid UTF-8"),
                 );
@@ -941,7 +944,7 @@ pub(crate) fn check_heredoc_run_issues(
     }
 }
 
-/// `{a: 1, b: $x}` — `rule:types/anonymous-object`'s object literal, whose type is the
+/// `{a: 1, b: $x}` — `rule:types/anonymous-object`'s anonymous object, whose type is the
 /// exact-fields shape of its own fields.
 ///
 /// Where the position declares a shape (`rule:types/shape-type`), a field the
@@ -963,8 +966,8 @@ pub(crate) fn check_heredoc_run_issues(
 /// own initializer is still checked, so its errors are reported in the same
 /// run, and only the repeat is dropped from the interned shape — which keeps
 /// what flows onward a genuine set rather than a shape no reader agrees on.
-pub(crate) fn check_object_literal(
-    fields: &[ObjectLiteralField],
+pub(crate) fn check_anon_object(
+    fields: &[AnonObjectField],
     expected: Option<TypeId>,
     live: &mut Live,
     scope: &LocalScope,
@@ -1028,7 +1031,7 @@ pub(crate) fn check_object_literal(
     env.interner.shape(out)
 }
 
-/// The shape an object literal's position declares: `expected` itself when it
+/// The shape an anonymous object's position declares: `expected` itself when it
 /// is a shape, the shape inside a `?{…}`, or the one shape member of a union.
 /// `None` for anything else, including a union with two shape members, where
 /// the literal keeps the types its own fields infer.
@@ -1061,7 +1064,7 @@ fn drops_qualifier(inferred: TypeId, declared: TypeId, env: &Env<'_>) -> bool {
 /// The type a *declared* shape gives the field named `name`, where the
 /// position declared a shape at all.
 ///
-/// [`check_object_literal`] checks the field's value against it, and
+/// [`check_anon_object`] checks the field's value against it, and
 /// `rule:security/secret-qualifier`'s container question asks it: a field
 /// the declared shape does not name has no declaration to carry a qualifier,
 /// which reads the same as no expectation at all.
@@ -1072,12 +1075,12 @@ fn declared_field_type(expected: Option<TypeId>, name: &str, env: &Env<'_>) -> O
     fields.iter().find(|field| field.name == name).map(|f| f.ty)
 }
 
-/// The `E0494` half of [`check_object_literal`], which owns why.
-fn report_duplicate_shape_field(field: &ObjectLiteralField, name: &str, env: &mut Env<'_>) {
+/// The `E0494` half of [`check_anon_object`], which owns why.
+fn report_duplicate_shape_field(field: &AnonObjectField, name: &str, env: &mut Env<'_>) {
     env.diags.report(
         Diagnostic::error(
             code::E_DUPLICATE_SHAPE_FIELD,
-            format!("the field `{name}` is written twice in this object literal"),
+            format!("the field `{name}` is written twice in this anonymous object"),
         )
         .with_primary(field.name, "already given a value above")
         .with_help(
@@ -1138,8 +1141,8 @@ pub(crate) fn check_array_literal(
             );
         }
         // The literal builds a new array, so each element can be converted
-        // where it is stored, as an object literal's field is
-        // ([`check_object_literal`]). The element type is recorded at the
+        // where it is stored, as an anonymous object's field is
+        // ([`check_anon_object`]). The element type is recorded at the
         // element's span, and `nvs_ir::lower` reads it back: it lowers a
         // number literal at that type and converts any other value to it, so
         // `1` and `$count` in an `array<float>` literal are stored as floats.

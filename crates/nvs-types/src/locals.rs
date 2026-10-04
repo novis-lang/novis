@@ -100,7 +100,7 @@
 //! **A type declaration reaching this walk is refused, not descended into.**
 //! [`crate::check::check_stmts`] matches `class`/`interface`/`enum` at file
 //! scope itself and never forwards one here, so arriving is proof of nesting
-//! — inside a method body, a property hook, a closure body, or a block at
+//! — inside a method body, a property hook, an anonymous function's body, or a block at
 //! file scope — and [`nested_declaration`] reports `E0233` on the spot.
 //! The decision is `docs/adr/README.md` § *Decisions taken at project start*:
 //! a name whose existence depends on control flow has no reading the static
@@ -133,15 +133,15 @@ pub(crate) struct LocalInfo {
     pub declared_span: Span,
 }
 
-/// One function/method/closure body's local variables — a single table for
+/// One function, method or anonymous function body's local variables — a single table for
 /// the whole body, since declaration is function-scoped (`rule:types/declaration`), not
-/// block-scoped. A closure gets a fresh one of its own: `rule:types/anonymous-function`'s capture is
+/// block-scoped. An anonymous function gets a fresh one of its own: `rule:types/anonymous-function`'s capture is
 /// by value, never a shared binding, so an outer name reaches the body
 /// through [`Captures`] rather than through `by_name`.
 #[derive(Debug, Default)]
 pub(crate) struct LocalScope {
     pub(crate) by_name: FxHashMap<String, LocalInfo>,
-    /// Set only for a closure body's own scope — see [`Captures`].
+    /// Set only for an anonymous function body's own scope — see [`Captures`].
     pub(crate) captures: Option<Captures>,
     /// What a dominating condition proved about a name on the path being
     /// checked right now — see the module docs' narrowing section.
@@ -170,14 +170,14 @@ pub(crate) struct LocalScope {
     var_initializers: FxHashMap<String, Span>,
 }
 
-/// The outer bindings a closure body may read, and the ones it actually did.
+/// The outer bindings an anonymous function's body may read, and the ones it actually did.
 ///
 /// `rule:types/implicit-capture`
 /// captures "exactly the outer variables its body reads," which is a fact
 /// about the body rather than about the enclosing scope — so `available`
 /// holds every name that *could* be captured, and `used` accumulates the ones
 /// a read or a write actually reached, in first-touch order. That order is
-/// what `nvs-ir` lays the closure object's fields out in, so it has to be
+/// what `nvs-ir` lays the callable object's fields out in, so it has to be
 /// deterministic; a set would not be.
 ///
 /// `used` is a [`RefCell`] because [`crate::expr::check_expr`] takes
@@ -189,9 +189,9 @@ pub(crate) struct LocalScope {
 /// from it.
 #[derive(Debug, Default)]
 pub(crate) struct Captures {
-    /// Every binding visible from the enclosing body at the `fn` literal —
-    /// its own locals plus, for a nested closure, whatever the enclosing
-    /// closure could itself capture.
+    /// Every binding visible from the enclosing body at the anonymous function —
+    /// its own locals plus, for a nested anonymous function, whatever the
+    /// enclosing one could itself capture.
     pub(crate) available: FxHashMap<String, TypeId>,
     /// The subset of `available` this body touched, in first-touch order.
     pub(crate) used: std::cell::RefCell<Vec<(String, TypeId)>>,
@@ -221,7 +221,7 @@ impl LocalScope {
     }
 
     /// The declared type `name` is readable and writable at in this body —
-    /// its own local, or, in a closure, an outer binding, which this call
+    /// its own local, or, in an anonymous function, an outer binding, which this call
     /// records as captured.
     ///
     /// The one lookup every read and every write goes through, so a name can
@@ -257,7 +257,7 @@ impl LocalScope {
     /// Deliberately *not* [`Self::declared_ty`], which records a capture as a
     /// side effect: this question is asked by
     /// `crate::expr::calls::infer_static_call` about a call that never
-    /// mentions `$this`, and answering it must not make a closure capture one
+    /// mentions `$this`, and answering it must not make an anonymous function capture one
     /// it does not use (`rule:statements/an-anonymous-function-captures-this-only-where-it-uses-it`).
     pub(crate) fn holds_receiver(&self) -> bool {
         self.by_name.contains_key("this")
@@ -314,7 +314,7 @@ impl LocalScope {
     }
 
     /// Records `name` as captured by this body without reading it — how a
-    /// *nested* closure's capture reaches the enclosing one, which has to
+    /// *nested* anonymous function's capture reaches the enclosing one, which has to
     /// capture it too in order to have it to hand on.
     pub(crate) fn note_capture(&self, name: &str) {
         if self.by_name.contains_key(name) {
@@ -323,7 +323,7 @@ impl LocalScope {
         self.declared_ty(name);
     }
 
-    /// Every name this body can see, for seeding a nested closure's
+    /// Every name this body can see, for seeding a nested anonymous function's
     /// [`Captures::available`].
     pub(crate) fn visible(&self) -> FxHashMap<String, TypeId> {
         let mut out: FxHashMap<String, TypeId> = self
@@ -334,7 +334,7 @@ impl LocalScope {
         for (name, info) in &self.by_name {
             out.insert(name.clone(), info.ty);
         }
-        // A closure written inside a `catch` arm may capture the arm's own
+        // An anonymous function written inside a `catch` arm may capture the arm's own
         // binding, which is a local of this body like any other for as long as
         // the arm lasts.
         for (name, info) in self.arm_bound.borrow().iter() {
@@ -422,7 +422,7 @@ fn null_test(cond: &Expr) -> Option<(Span, bool)> {
 /// a value can inhabit; see [`type_test_residue`] for why the false edge
 /// proves nothing. **A
 /// comparison against a written literal proves that literal's own type** —
-/// `rule:types/single-value-types`'s guard row, and [`literal_residue`] owns which spellings
+/// `rule:types/single-value-types`'s guard row, and [`single_value_residue`] owns which spellings
 /// reach it.
 ///
 /// This used to be restricted to a single-class residue, because `nvs-ir`
@@ -446,7 +446,7 @@ pub(crate) fn narrow(cond: &Expr, when: bool, scope: &LocalScope, env: &mut Env<
         Some(found) => Some(found),
         None => match type_test_residue(cond, when, scope, env) {
             Some(found) => Some(found),
-            None => literal_residue(cond, when, scope, env),
+            None => single_value_residue(cond, when, scope, env),
         },
     };
     let Some((name, residue)) = residue else {
@@ -549,10 +549,10 @@ fn type_test(cond: &Expr) -> Option<(Span, Span, bool)> {
 }
 
 /// The local a comparison against a written literal narrows on the branch
-/// where it evaluates to `when`, and the literal type it proves.
+/// where it evaluates to `when`, and the single-value type it proves.
 ///
 /// `rule:types/single-value-types`'s own
-/// row: a wider literal union reaches a narrower one through a guard, and `==`
+/// row: a wider set of allowed values reaches a narrower one through a guard, and `==`
 /// is that guard's simplest spelling. `==` proves the literal where it holds
 /// and `!=` where it does not, which is the same edge written two ways.
 ///
@@ -576,7 +576,7 @@ fn type_test(cond: &Expr) -> Option<(Span, Span, bool)> {
 /// The residue has to be a **subtype of what the local was declared**, so a
 /// comparison the declared type does not admit narrows nothing — it is a guard
 /// reaching one member of a union, never a re-declaration.
-pub(crate) fn literal_residue(
+pub(crate) fn single_value_residue(
     cond: &Expr,
     when: bool,
     scope: &LocalScope,
@@ -591,12 +591,12 @@ pub(crate) fn literal_residue(
     let residue = match &literal.kind {
         ExprKind::Str(span) => {
             let value = crate::string_lit::cook_string_literal(env.src, *span);
-            env.interner.string_literal(value)
+            env.interner.single_value_string(value)
         }
         ExprKind::Int(span) => {
             let (radix, digits) = int_literal_digits(env.src, *span);
             env.interner
-                .int_literal(i64::from_str_radix(&digits, radix).ok()?)
+                .single_value_int(i64::from_str_radix(&digits, radix).ok()?)
         }
         // `rule:types/single-value-types`'s guard row over an enum: `$m == Mode::Read` proves the
         // case's own type, which is `Ty::EnumCase` rather than the enum. The
@@ -968,7 +968,7 @@ fn check_exit_level(
         env.diags.report(
             Diagnostic::error(
                 code::E_BREAK_LEVEL,
-                format!("a `{keyword}` level must be an integer literal"),
+                format!("a `{keyword}` level must be a whole number written directly in the code"),
             )
             .with_primary(level.span, "this is computed at run time")
             .with_help(format!(
@@ -1770,7 +1770,7 @@ fn report_inout_leaf(span: Span, env: &mut Env<'_>) {
         )
         .with_primary(span, "this would alias the element it was read from")
         .with_help(
-            "drop the `inout` — the leaf is a copy, exactly as an array literal's element is; \
+            "drop the `inout` — the leaf is a copy, exactly as an element of an array written with `[...]` is; \
              to share one mutable cell, put it in an object (`rule:types/implicit-capture`)",
         ),
     );

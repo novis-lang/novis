@@ -38,11 +38,11 @@
 //! asks for. One walk over the grammar, two answers to what an unrun operand
 //! is worth.
 //!
-//! **A closure's body is not walked into** — `each_child_expr` stops at one,
+//! **An anonymous function's body is not walked into** — `each_child_expr` stops at one,
 //! and this pass never reaches one as a body of its own either, since it walks
-//! the methods a class declares. A read written inside a closure is checked by
+//! the methods a class declares. A read written inside an anonymous function is checked by
 //! nothing here and falls through to `rule:classes/lateinit`'s runtime throw,
-//! which is the sound direction: the closure runs when it is called, so no
+//! which is the sound direction: the anonymous function runs when it is called, so no
 //! walk of the method holding it can say what has been written by then.
 //!
 //! **Only a class's own `lateinit` properties are tracked**, the set
@@ -490,11 +490,11 @@ mod tests {
         );
     }
 
-    /// A closure's body is not this method's path: it runs when the closure is
+    /// An anonymous function's body is not this method's path: it runs when it is
     /// called, so nothing here can say what has been written by then and the
     /// read falls through to `rule:classes/lateinit`'s runtime throw.
     #[test]
-    fn a_read_inside_a_closure_body_is_not_checked() {
+    fn a_read_inside_an_anon_fn_body_is_not_checked() {
         let diags = check_src(
             "<?nvs\nclass Logger {}\nclass Widget {\n  public lateinit Logger $logger;\n  function boom(): void {\n    var $later = fn (): Logger => $this->logger;\n  }\n}\n",
         );

@@ -183,7 +183,7 @@ pub enum ArgConv {
     /// library carries, and it is on this arm by the same predicate a user
     /// class reaches it by rather than by being named.
     Parses(String),
-    /// § 3's union of literal types: the word each member admits, in the order
+    /// § 3's set of allowed values: the word each member admits, in the order
     /// the union declares them, and a usage error for anything else.
     ///
     /// The same set `nvs_runtime::routes::CaptureConv::OneOf` narrows a segment to,
@@ -265,9 +265,9 @@ fn conversion_of(ty: TypeId, env: &Env<'_>) -> ArgConv {
     match env.interner.get(ty) {
         // A parameter written with no type at all interns as `mixed` and has
         // already been reported for it; its text is the honest answer.
-        Ty::String | Ty::TaintedString | Ty::StringLiteral(_) | Ty::Mixed => ArgConv::Text,
+        Ty::String | Ty::TaintedString | Ty::SingleValueString(_) | Ty::Mixed => ArgConv::Text,
         Ty::Bool | Ty::True | Ty::False => ArgConv::Flag,
-        Ty::Int | Ty::IntLiteral(_) => ArgConv::Int,
+        Ty::Int | Ty::SingleValueInt(_) => ArgConv::Int,
         Ty::Uint => ArgConv::Uint,
         Ty::Decimal => ArgConv::Decimal,
         // Matched structurally, by the same predicate [`converts_from_string`]
@@ -275,7 +275,7 @@ fn conversion_of(ty: TypeId, env: &Env<'_>) -> ArgConv {
         // come to disagree about which classes § 6 means.
         Ty::Class(name, _) if reaches_parses(name, env) => ArgConv::Parses(name.to_string()),
         // § 3's two unions, told apart by what they are made of. A union of
-        // literal types is the words its members admit, by the same computation
+        // single-value types is the words its members admit, by the same computation
         // the route table's captures use; a union of *enum cases* is
         // [`subset_of`], which that function answers `None` for because the two
         // callers spell a case differently and `crate::routes::enum_capture` is
@@ -285,7 +285,7 @@ fn conversion_of(ty: TypeId, env: &Env<'_>) -> ArgConv {
         }
         // One case on its own, which is that subset written with one member —
         // the arrangement [`crate::routes::closed_set`] already gives a lone
-        // literal type.
+        // single-value type.
         Ty::EnumCase(..) => subset_of(ty, env),
         // The other closed set: an enum *names* its members, so the words come
         // off the declaration rather than off the type. [`ArgConv::Enum`] owns
@@ -800,7 +800,7 @@ fn written<'a>(
     attr: &'a Attribute,
     option: &str,
     env: &Env<'_>,
-) -> Option<&'a nvs_syntax::ast::ObjectLiteralField> {
+) -> Option<&'a nvs_syntax::ast::AnonObjectField> {
     attr.fields
         .iter()
         .find(|field| span_text(env.src, field.name) == option)
@@ -837,8 +837,8 @@ fn check_convertible(param: &Param, method: &str, ty: TypeId, env: &mut Env<'_>)
         .with_primary(param.span, "no conversion from an argument's text")
         .with_help(
             "an argument arrives as text and its type comes from the parameter, so an option \
-             declares `string`, `int`, `uint`, `decimal`, `bool`, an enum, a union of literal \
-             types, or a class implementing `Parses`",
+             declares `string`, `int`, `uint`, `decimal`, `bool`, an enum, a set of allowed \
+             values like `'a'|'b'`, or a class implementing `Parses`",
         ),
     );
 }
@@ -864,8 +864,8 @@ pub(crate) fn converts_from_string(ty: TypeId, env: &Env<'_>) -> bool {
         | Ty::Bool
         | Ty::True
         | Ty::False
-        | Ty::StringLiteral(_)
-        | Ty::IntLiteral(_)
+        | Ty::SingleValueString(_)
+        | Ty::SingleValueInt(_)
         | Ty::Enum(..)
         | Ty::EnumCase(..) => true,
         // A parameter written with no type at all interns as `mixed` and has
@@ -878,7 +878,7 @@ pub(crate) fn converts_from_string(ty: TypeId, env: &Env<'_>) -> bool {
         // `Core\Uuid` is admitted for what it declares, and so is any class
         // that declares the same thing.
         Ty::Class(name, _) => reaches_parses(name, env),
-        // § 3 admits a union of `string` or `int` literal types and a subset of
+        // § 3 admits a union of `string` or `int` single-value types and a subset of
         // **one** enum's cases, and nothing wider: a `string|int` would make the
         // conversion itself ambiguous, which is the question `rule:errors/ambiguous-input-refused` refuses
         // to answer by guessing, and cases of two different enums leave no enum
@@ -889,7 +889,7 @@ pub(crate) fn converts_from_string(ty: TypeId, env: &Env<'_>) -> bool {
             members.iter().all(|member| {
                 matches!(
                     env.interner.get(*member),
-                    Ty::StringLiteral(_) | Ty::IntLiteral(_)
+                    Ty::SingleValueString(_) | Ty::SingleValueInt(_)
                 )
             }) || crate::routes::admitted_cases(ty, env).is_some()
         }

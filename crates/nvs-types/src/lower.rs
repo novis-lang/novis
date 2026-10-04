@@ -52,7 +52,7 @@ pub(crate) fn lower_type(ty: &Type, ctx: &Ctx<'_>, env: &mut Env<'_>) -> TypeId 
 /// [`nvs_syntax::ast::ForeachBindingTy::Omitted`]'s own doc), defaulting to `mixed`.
 ///
 /// A plain `ty.map_or_else(|| env.interner.mixed(), |t| lower_type(t, ctx,
-/// env))` does not borrow-check: the two closures would each need their own
+/// env))` does not borrow-check: the two `|...|` arguments would each need their own
 /// exclusive borrow of `env` while both exist as arguments, before either
 /// runs — an ordinary `match` has no such restriction.
 pub(crate) fn lower_optional_type(ty: Option<&Type>, ctx: &Ctx<'_>, env: &mut Env<'_>) -> TypeId {
@@ -109,7 +109,7 @@ pub(crate) fn in_alias_site<'e, R>(
         current_hook: None,
         in_constructor: false,
         generator_elem: None,
-        in_closure: false,
+        in_anon_fn: false,
     };
     let files = env.files;
     let Some(file) = files.iter().find(|file| file.src.id() == span.file) else {
@@ -224,11 +224,11 @@ fn lower_atom(atom: &TypeAtom, span: Span, depth: u32, ctx: &Ctx<'_>, env: &mut 
         TypeAtom::StaticTy => resolve_special(span, "static", ctx, env),
         TypeAtom::Parent => resolve_parent(span, ctx, env),
         TypeAtom::Name(name, args) => resolve_name_type(name, args, span, depth, ctx, env),
-        TypeAtom::StringLiteral(lit) => {
+        TypeAtom::SingleValueString(lit) => {
             let value = crate::string_lit::cook_string_literal(env.src, *lit);
-            env.interner.string_literal(value)
+            env.interner.single_value_string(value)
         }
-        TypeAtom::IntLiteral(lit) => lower_int_literal_type(*lit, env),
+        TypeAtom::SingleValueInt(lit) => lower_int_single_value_type(*lit, env),
         TypeAtom::Member(name, member) => lower_member_type(name, *member, span, depth, ctx, env),
         _ => env.interner.mixed(),
     }
@@ -322,10 +322,10 @@ fn lower_property_key(inner: &Type, depth: u32, ctx: &Ctx<'_>, env: &mut Env<'_>
     env.interner.mixed()
 }
 
-/// `rule:types/single-value-types`'s `int` literal atom.
+/// `rule:types/single-value-types`'s `int` atom.
 ///
 /// The atom's span covers a leading `-` when one was written
-/// ([`TypeAtom::IntLiteral`]), so the sign is split off here and the digits go
+/// ([`TypeAtom::SingleValueInt`]), so the sign is split off here and the digits go
 /// through [`crate::expr::int_literal_digits`] — the one integer grammar, the
 /// same one an `enum` case value and a parameter default already read.
 ///
@@ -333,7 +333,7 @@ fn lower_property_key(inner: &Type, depth: u32, ctx: &Ctx<'_>, env: &mut Env<'_>
 /// diagnostic the identical mistake takes in a *value* position, and recovers
 /// as plain `int`: that is the base type the author meant, so nothing
 /// downstream meets a type it has no rule for.
-fn lower_int_literal_type(lit: Span, env: &mut Env<'_>) -> TypeId {
+fn lower_int_single_value_type(lit: Span, env: &mut Env<'_>) -> TypeId {
     let text = span_text(env.src, lit);
     let digits_text = text.strip_prefix('-').map(str::trim_start);
     let negated = digits_text.is_some();
@@ -350,17 +350,17 @@ fn lower_int_literal_type(lit: Span, env: &mut Env<'_>) -> TypeId {
             }
         });
     match value {
-        Some(value) => env.interner.int_literal(value),
+        Some(value) => env.interner.single_value_int(value),
         None => {
             env.diags.report(
                 Diagnostic::error(
                     code::E_INT_LITERAL_OUT_OF_RANGE,
-                    "this integer literal type names a value no `int` holds",
+                    "this single-value type is a number that does not fit in an `int`",
                 )
                 .with_primary(lit, "outside `int`'s range")
                 .with_help(
-                    "`rule:types/single-value-types`'s literal atom is an `int` literal, so the value has to be \
-                     one an `int` can hold",
+                    "`rule:types/single-value-types`: a number used as a type is an `int`, so the value has \
+                     to fit in an `int`",
                 ),
             );
             env.interner.int()
@@ -388,7 +388,7 @@ fn negate_magnitude(magnitude: u64) -> Option<i64> {
 /// `rule:types/enum-case-type`'s [`crate::ty::Ty::EnumCase`]: a narrowed
 /// subtype of the enum, never its backing value, so a bare `int` still cannot
 /// satisfy it. Anything else is `rule:types/constant-in-type-position`'s class
-/// constant, which folds to *its own literal type* — sugar, and safe precisely
+/// constant, which folds to *its own single-value type* — sugar, and safe precisely
 /// because a scalar `const` is not a distinct nominal type, so `Foo::TYPE_A`
 /// genuinely is the string `"a"`. The order decides only which of the three an
 /// unknown name is reported against.
@@ -540,7 +540,7 @@ fn report_expansion_has_no_member(
 /// the expression side.
 ///
 /// Both of § 2's mistakes are diagnosed at the *use*, not the declaration: a
-/// value with no literal type to fold to is `E_LITERAL_TYPE_NOT_CONST`, and a
+/// value with no single-value type to fold to is `E_SINGLE_VALUE_TYPE_NOT_CONST`, and a
 /// name nothing declares is `E_UNKNOWN_MEMBER`. Each recovers as `mixed`,
 /// since neither leaves a narrower type that could honestly be meant.
 fn lower_class_const_type(
@@ -551,10 +551,14 @@ fn lower_class_const_type(
 ) -> TypeId {
     if qname.is_core() {
         return match crate::core_lib::constant(qname, name, env.interner) {
-            Some((_, crate::defaults::ConstArg::Str(value))) => env.interner.string_literal(value),
-            Some((_, crate::defaults::ConstArg::Int(value))) => env.interner.int_literal(value),
+            Some((_, crate::defaults::ConstArg::Str(value))) => {
+                env.interner.single_value_string(value)
+            }
+            Some((_, crate::defaults::ConstArg::Int(value))) => {
+                env.interner.single_value_int(value)
+            }
             Some((_, crate::defaults::ConstArg::Uint(value))) => match i64::try_from(value) {
-                Ok(value) => env.interner.int_literal(value),
+                Ok(value) => env.interner.single_value_int(value),
                 Err(_) => report_not_const(span, qname, name, env),
             },
             Some(_) => report_not_const(span, qname, name, env),
@@ -570,15 +574,15 @@ fn lower_class_const_type(
     match env.consts.get(qname, name, env.graph) {
         Some(crate::consts::ConstValue::Str(value)) => {
             let value = value.clone();
-            env.interner.string_literal(value)
+            env.interner.single_value_string(value)
         }
         Some(crate::consts::ConstValue::Int(value)) => {
             let value = *value;
-            env.interner.int_literal(value)
+            env.interner.single_value_int(value)
         }
-        // `rule:types/constant-in-type-position`'s literal types are `string` and `int`; a `bool`,
+        // `rule:types/constant-in-type-position`'s single-value types are `string` and `int`; a `bool`,
         // `float` or `decimal` constant is folded (`crate::defaults` reads the
-        // value) but has no literal type to *be*, so it is the same mistake as
+        // value) but has no single-value type to *be*, so it is the same mistake as
         // an array constant here.
         Some(
             crate::consts::ConstValue::Bool(_)
@@ -667,13 +671,13 @@ fn supertypes_of(qname: &nvs_hir::QName, env: &Env<'_>) -> Vec<nvs_hir::QName> {
 fn report_not_const(span: Span, qname: &nvs_hir::QName, name: &str, env: &mut Env<'_>) -> TypeId {
     env.diags.report(
         Diagnostic::error(
-            code::E_LITERAL_TYPE_NOT_CONST,
+            code::E_SINGLE_VALUE_TYPE_NOT_CONST,
             format!("`{qname}::{name}` is not a `string` or `int` compile-time constant"),
         )
-        .with_primary(span, "no literal type to fold to")
+        .with_primary(span, "this value cannot be used as a type")
         .with_help(
-            "`rule:types/constant-in-type-position` folds a class constant used as a type to that value's own literal \
-             type, so only a `string` or `int` constant may be written here — write the base \
+            "`rule:types/constant-in-type-position` uses a class constant as a type that allows only the constant's value, \
+             so only a `string` or `int` constant may be written here — write the base \
              type instead",
         ),
     );
@@ -1014,7 +1018,7 @@ mod tests {
             current_hook: None,
             generator_elem: None,
             in_constructor: false,
-            in_closure: false,
+            in_anon_fn: false,
         };
         let signatures = crate::signatures::SignatureTable::new();
         let mut exprs = crate::expr_table::ExprTypeTable::new();
@@ -1047,7 +1051,7 @@ mod tests {
             json_sites: &mut Vec::new(),
             decode_sites: &mut Vec::new(),
             diags: &mut diags,
-            closure_seq: 0,
+            anon_fn_seq: 0,
             refused_exprs: 0,
             fn_self: None,
             exit_targets: Vec::new(),

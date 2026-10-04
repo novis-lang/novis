@@ -1,22 +1,22 @@
-//! Which closure literals satisfy a written `callable(...)` signature — the
+//! Which anonymous functions satisfy a written `callable(...)` signature — the
 //! table `rule:types/type-test`'s `$x is callable(int): string` is answered
 //! from.
 //!
-//! # What a closure carries at run time, and what it does not
+//! # What a callable carries at run time, and what it does not
 //!
-//! A closure carries no signature, and this pass gives it none.
+//! A callable carries no signature, and this pass gives it none.
 //! [`crate::ty::Ty::CallableSig`] is checked where the call is written, so the
 //! compiled object holds only what the *dynamic* call path reads: a parameter
 //! count and one tag nibble per parameter (`nvs_ir::lower`'s `FN_ARITY` and
 //! `FN_PARAM_TAGS`). A tag word has no room for a class, a return type or a
 //! union, so it cannot answer this question, and widening it would spend a
-//! word per closure on every program to answer a test most programs never
+//! word per callable on every program to answer a test most programs never
 //! write.
 //!
-//! What *does* name a closure's signature exactly is the class `nvs-ir`
-//! synthesizes for it: one per literal, so class identity decides the
+//! What *does* name an anonymous function's signature exactly is the class
+//! `nvs-ir` synthesizes for it: one per `fn` expression, so class identity decides the
 //! signature. The answer is therefore an ordinary supertype — one marker class
-//! per signature the program tests for, conformed to by every literal whose
+//! per signature the program tests for, conformed to by every anonymous function whose
 //! own signature is assignable to it, which makes the test the `callable`
 //! row's own shape: the descriptor walk `$x is C` already emits, with no
 //! field read and no second table. `nvs_ir::lower::CLOSURE_MARKER` is the same
@@ -24,20 +24,20 @@
 //!
 //! The relation is [`crate::expr::is_assignable`] and not a second reading of
 //! it, so `$f is callable(int): string` answers `true` for exactly the values
-//! a `callable(int): string` binding would accept — a closure declaring a
+//! a `callable(int): string` binding would accept — an anonymous function declaring a
 //! wider parameter or a narrower return included, those being the directions
 //! that rule makes sound.
 //!
 //! **What it spends** (`rule:programs/memory-priority`): nothing per request
 //! or per task. Per compiled unit, one field-less descriptor per tested
-//! signature, and one conformance edge per literal that satisfies one.
+//! signature, and one conformance edge per anonymous function that satisfies one.
 //!
 //! # Why it is one pass at the end
 //!
 //! [`crate::links`]' reason: an `is` in the entry file routinely tests a
-//! signature a closure in a later file satisfies, so a table filled as the
+//! signature an anonymous function in a later file satisfies, so a table filled as the
 //! walk descends would answer by source order. Both halves are already
-//! recorded by then — every literal that makes a closure through
+//! recorded by then — every anonymous function through
 //! [`crate::expr_table::ExprTypeTable::record_callable_value`], and every
 //! tested type through [`crate::expr_table::ExprInfo::TypeTest`].
 
@@ -47,7 +47,7 @@ use crate::expr_table::ExprTypeTable;
 use crate::signatures::SignatureTable;
 use crate::ty::{Ty, TypeId, TypeInterner};
 
-/// The label of the marker class every closure satisfying `sig` conforms to.
+/// The label of the marker class every callable satisfying `sig` conforms to.
 ///
 /// Rendered from the signature rather than numbered, on
 /// [`crate::derive::shape_class_label`]'s terms: `$` cannot start a Novis

@@ -31,11 +31,11 @@
 
 use nvs_diagnostics::{Diagnostic, Span, code};
 use nvs_syntax::ast::{
-    ArrayItem, Attribute, AttributeGroup, ClassMember, ClassMemberKind, EnumCase, Expr, ExprKind,
-    Name, ObjectLiteralField, Param, Type, TypeAtom, TypeKind, UnaryOp,
+    AnonObjectField, ArrayItem, Attribute, AttributeGroup, ClassMember, ClassMemberKind, EnumCase,
+    Expr, ExprKind, Name, Param, Type, TypeAtom, TypeKind, UnaryOp,
 };
 
-use crate::expr::{check_expr, check_object_literal, is_assignable, report_mismatch};
+use crate::expr::{check_anon_object, check_expr, is_assignable, report_mismatch};
 use crate::locals::{Live, LocalScope};
 use crate::ty::{Ty, TypeId};
 use crate::{Ctx, Env, span_text};
@@ -165,7 +165,7 @@ fn check_attribute(attr: &Attribute, ctx: &Ctx<'_>, env: &mut Env<'_>) {
     // so no binding can be read and none can be captured.
     let mut live = Live::default();
     let scope = LocalScope::new();
-    let actual = check_object_literal(&attr.fields, None, &mut live, &scope, ctx, env);
+    let actual = check_anon_object(&attr.fields, None, &mut live, &scope, ctx, env);
     if !is_assignable(actual, shape, env.interner, env.graph, env.signatures) {
         report_mismatch(attr.payload, shape, actual, env);
     }
@@ -282,7 +282,7 @@ impl Payload {
 /// then inferred at `uint`, where a payload nothing places gets the ordinary
 /// `E0429` for it.
 fn infer_fields(
-    fields: &[ObjectLiteralField],
+    fields: &[AnonObjectField],
     uint_magnitudes: bool,
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
@@ -329,7 +329,7 @@ fn exceeds_int(expr: &Expr, env: &Env<'_>) -> bool {
 pub(crate) fn check_roster(
     attribute: &str,
     options: &[(&str, crate::testing::OptionTy)],
-    fields: &[ObjectLiteralField],
+    fields: &[AnonObjectField],
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
 ) {
@@ -509,7 +509,7 @@ fn check_value(expr: &Expr, ctx: &Ctx<'_>, env: &mut Env<'_>) -> Payload {
     if is_constant(expr) {
         // `rule:security/secret-sinks-refuse`'s payload sink, asked of every value this walk reaches
         // and not only of a payload's top level: a `secret` constant nested
-        // inside an array or an object literal is folded into the same
+        // inside an array or an anonymous object is folded into the same
         // constant pool. It answers for a `Class::CONST` and for nothing
         // else — see [`crate::expr::reject_secret_attribute_constant`] for
         // why one expression kind is the whole of it.
@@ -528,7 +528,7 @@ fn check_value(expr: &Expr, ctx: &Ctx<'_>, env: &mut Env<'_>) -> Payload {
                     found = found.and(check_value(value, ctx, env));
                 }
             }
-            ExprKind::ObjectLiteral(fields) => {
+            ExprKind::AnonObject(fields) => {
                 for field in fields {
                     found = found.and(check_value(&field.value, ctx, env));
                 }
@@ -547,8 +547,8 @@ fn check_value(expr: &Expr, ctx: &Ctx<'_>, env: &mut Env<'_>) -> Payload {
         )
         .with_primary(expr.span, "this is computed when the program runs")
         .with_help(
-            "`rule:attributes/payload-is-a-compile-time-constant`: an attribute payload is a literal, a class constant or an enum \
-             case — it lives in the constant pool, so there is no point at which a variable, \
+            "`rule:attributes/payload-is-a-compile-time-constant`: an attribute payload is a value written directly in the code, a class constant or \
+             an enum case — it lives in the constant pool, so there is no point at which a variable, \
              a call or a `new` could be evaluated",
         ),
     );
@@ -583,7 +583,7 @@ pub(crate) fn is_constant(expr: &Expr) -> bool {
         // the one thing § 2 exists to refuse.
         | ExprKind::ClassNameConst { .. }
         | ExprKind::ArrayLiteral(_)
-        | ExprKind::ObjectLiteral(_) => true,
+        | ExprKind::AnonObject(_) => true,
         // An interpolated string reads a variable by definition, whatever it
         // interpolates, so it is not the `Str` row one syntax along.
         ExprKind::Paren(inner) => is_constant(inner),

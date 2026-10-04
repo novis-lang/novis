@@ -619,7 +619,7 @@ fn own_obligations(qname: &QName, env: &Env<'_>, out: &mut Vec<(QName, String)>)
 /// it.
 ///
 /// **What is compared is the argument's own inferred type**, which
-/// [`crate::expr::literals::check_object_literal`] interned from the fields as
+/// [`crate::expr::literals::check_anon_object`] interned from the fields as
 /// written — the declared parameter is `object`
 /// (`rule:types/object-top`), because the constraint this position really
 /// carries is the interface the *call site* wrote and no registry row can name
@@ -665,9 +665,9 @@ pub(crate) fn check_double_answers(
             )
             .with_primary(call_span, format!("`{interface}` written here"))
             .with_help(
-                "`rule:testing/doubles`: a shape of closures can answer an interface's declarations \
-                 and nothing else — a class also carries state and bodies of its own, which a \
-                 double neither holds nor runs",
+                "`rule:testing/doubles`: a double is an object whose fields are callables, so it can \
+                 replace an interface's methods and nothing else. A class also has its own state \
+                 and method bodies, and a double has neither",
             ),
         );
         return;
@@ -723,7 +723,7 @@ pub(crate) fn check_double_answers(
             )
             .with_primary(call_span, format!("this stands in for `{interface}`"))
             .with_help(format!(
-                "give the shape a `{name}:` field whose closure answers it, or build a \
+                "give the shape a `{name}:` field that is a callable for this method, or build a \
                  `Core\\Test::partial` and delegate it to a real implementation \
                  (`rule:testing/doubles`)"
             )),
@@ -752,7 +752,7 @@ pub(crate) fn check_double_answers(
 /// `rule:types/callable-arity`'s prefix arity and
 /// `rule:types/callable-variance`'s contravariant parameters and covariant
 /// return are what a double is held to, with no comparison of its own: a
-/// closure declaring fewer parameters than the method is accepted here for the
+/// callable declaring fewer parameters than the method is accepted here for the
 /// reason `nvs_runtime::closure` accepts it at the call.
 fn check_answer_signatures(
     interface: &QName,
@@ -770,7 +770,7 @@ fn check_answer_signatures(
         }
         // Bare `callable` carries no parameter list to compare
         // (`rule:types/callable-values`), and that is the accepted case
-        // rather than a refusal: the field promises a closure and nothing more,
+        // rather than a refusal: the field promises a callable and nothing more,
         // which is what `nvs_runtime::closure` checks a tag at a time.
         if matches!(env.interner.get(*field), Ty::Callable) {
             continue;
@@ -788,7 +788,7 @@ fn check_answer_signatures(
             )
             .with_primary(call_span, format!("`{declaring}::{name}` is `{wanted}`"))
             .with_help(format!(
-                "write the field as a closure the interface's own call sites can use: it may \
+                "write the field as a callable that the interface's own call sites can use: it may \
                  declare fewer parameters than `{name}`, but each one it does declare has to \
                  accept what they pass, and its result has to satisfy what they were promised \
                  (`rule:testing/doubles`)"

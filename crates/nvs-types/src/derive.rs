@@ -42,7 +42,7 @@
 use nvs_diagnostics::{Diagnostic, Diagnostics, Span, code};
 use nvs_hir::QName;
 use nvs_syntax::ast::{
-    Attribute, AttributeGroup, ClassDecl, ClassMemberKind, ExprKind, Modifier, ObjectLiteralField,
+    AnonObjectField, Attribute, AttributeGroup, ClassDecl, ClassMemberKind, ExprKind, Modifier,
     Param, PropertyMember,
 };
 
@@ -398,8 +398,8 @@ pub const ATTRIBUTE_DOCS: &[AttributeDoc] = &[
     AttributeDoc {
         name: PATH,
         fields: &[],
-        short: "Says that this parameter is a file path. A relative path written as a string \
-                literal in a call is joined to the folder of the file that contains the call.",
+        short: "Says that this parameter is a file path. A relative path written in quotes \
+                in a call is joined to the folder of the file that contains the call.",
         site: "a `string` parameter",
     },
 ];
@@ -1331,7 +1331,7 @@ pub(crate) fn reads_a_peers_octets(owner: &str) -> bool {
 /// `double` and `partial`, and nothing else.
 ///
 /// Keyed on the owner for [`hydrates_a_row`]'s reason, and what it separates is
-/// a door with no octets behind it at all: a double's fields are closures the
+/// a door with no octets behind it at all: a double's fields are callables the
 /// call site wrote, so nothing arrives from outside, no field receives a
 /// document and there is nothing to decode. Every deferred question the two
 /// rosters above raise would therefore be asked of a class nobody is
@@ -1748,8 +1748,8 @@ fn db_reachable(ty: TypeId, interner: &crate::ty::TypeInterner) -> bool {
         | Ty::Mixed
         | Ty::True
         | Ty::False
-        | Ty::StringLiteral(_)
-        | Ty::IntLiteral(_) => true,
+        | Ty::SingleValueString(_)
+        | Ty::SingleValueInt(_) => true,
         // `rule:core-classes/derive-field-list`'s enum, unchanged by the format: what travels is the
         // backing value, range-checked on the way back in.
         Ty::Enum(..) | Ty::EnumCase(..) => true,
@@ -1812,8 +1812,8 @@ fn json_reachable(
         | Ty::Mixed
         | Ty::True
         | Ty::False
-        | Ty::StringLiteral(_)
-        | Ty::IntLiteral(_) => true,
+        | Ty::SingleValueString(_)
+        | Ty::SingleValueInt(_) => true,
         // ADR 0010: an enum travels as its backing value, range-checked on
         // the way back in.
         Ty::Enum(..) | Ty::EnumCase(..) => true,
@@ -2339,7 +2339,7 @@ fn field_overrides(
             ("skip", ExprKind::Bool(value)) => out.skip = *value,
             ("name" | "skip", _) => report_field_arg(
                 field,
-                "`name` takes a `string` literal and `skip` a `bool` literal".to_owned(),
+                "`name` takes a string in quotes and `skip` takes `true` or `false`".to_owned(),
                 format,
                 env,
             ),
@@ -2355,7 +2355,7 @@ fn field_overrides(
 }
 
 /// One `E_DERIVE_FIELD_ATTRIBUTE`, at the offending field.
-fn report_field_arg(field: &ObjectLiteralField, why: String, format: Format, env: &mut Env<'_>) {
+fn report_field_arg(field: &AnonObjectField, why: String, format: Format, env: &mut Env<'_>) {
     let signature = format.field_signature();
     env.diags.report(
         Diagnostic::error(code::E_DERIVE_FIELD_ATTRIBUTE, why)
@@ -2388,7 +2388,7 @@ fn attribute_fields<'a>(
     want: &str,
     ctx: &Ctx<'_>,
     env: &Env<'_>,
-) -> &'a [ObjectLiteralField] {
+) -> &'a [AnonObjectField] {
     groups
         .iter()
         .flat_map(|group| &group.attributes)

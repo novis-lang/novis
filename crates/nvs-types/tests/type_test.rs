@@ -35,7 +35,7 @@ fn check_with_subjects(body: &str) -> Diagnostics {
 }
 
 /// The fold is observed through the binding it is assigned to: `true` and
-/// `false` are literal types of `bool` (`rule:types/single-value-types`), so a
+/// `false` are single-value types of `bool` (`rule:types/single-value-types`), so a
 /// `bool` answer where a `true` was folded is an ordinary type mismatch and a
 /// folded one is not.
 #[test]
@@ -118,7 +118,7 @@ fn is_against_void_or_never_is_e0811() {
 /// type at all (`rule:types/single-value-types`), and the parser says so where the
 /// literal is written. This operator claims no code for it.
 #[test]
-fn is_against_a_float_literal_reuses_the_literal_type_refusal_and_claims_no_new_code() {
+fn is_against_a_float_literal_reuses_the_single_value_type_refusal_and_claims_no_new_code() {
     let diags = check_src_allowing_parse_errors(&format!(
         "<?nvs\n{DECLS}class T {{\n  function m(mixed $m): void {{\n    bool $b = $m is \
          3.14;\n  }}\n}}\n"
@@ -126,7 +126,7 @@ fn is_against_a_float_literal_reuses_the_literal_type_refusal_and_claims_no_new_
     assert!(
         diags
             .iter()
-            .any(|d| d.code == Some(code::E_FLOAT_LITERAL_TYPE)),
+            .any(|d| d.code == Some(code::E_FLOAT_SINGLE_VALUE_TYPE)),
         "{diags:?}"
     );
     assert!(

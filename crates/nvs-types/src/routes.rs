@@ -540,7 +540,7 @@ impl RouteParam {
     /// Every segment this parameter admits, in the order the declaration gives
     /// them, or `None` where its declared type names no set at all.
     ///
-    /// [`Self::allowed`]'s literal union and [`Self::cases`]' enum subset are
+    /// [`Self::allowed`]'s set of allowed values and [`Self::cases`]' enum subset are
     /// never both filled ([`closed_set`] owns why), and this is the one question
     /// every reader of either asks: `crate::links`' refusal of a link outside
     /// the set, and `nvs_cli::openapi`'s `enum:` row. One function rather than
@@ -1067,11 +1067,11 @@ fn check_api_errors(api: &Attribute, ctx: &Ctx<'_>, env: &mut Env<'_>) -> Vec<Ap
     let mut recorded = Vec::with_capacity(items.len());
     for item in items {
         let entry = item.value.clone();
-        let ExprKind::ObjectLiteral(fields) = &entry.kind else {
+        let ExprKind::AnonObject(fields) = &entry.kind else {
             report_api(
                 "this `errors` entry is not a `{status, type}`".to_owned(),
                 entry.span,
-                "not a shape literal",
+                "not an anonymous object",
                 "§ 2 writes each entry as `{status: 404, type: Api\\NotFound::class}` — the two \
                  halves of one error response",
                 env,
@@ -1165,7 +1165,7 @@ fn check_api_errors(api: &Attribute, ctx: &Ctx<'_>, env: &mut Env<'_>) -> Vec<Ap
 /// carries is exactly the set of responses this walk agreed the handler could
 /// produce.
 fn check_error_type(
-    field: &nvs_syntax::ast::ObjectLiteralField,
+    field: &nvs_syntax::ast::AnonObjectField,
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
 ) -> Option<String> {
@@ -1229,11 +1229,11 @@ fn check_api_example(
 ) -> Option<ConstArg> {
     let field = written(api, EXAMPLE, env)?;
     let (value, span) = (field.value.clone(), field.span);
-    let ExprKind::ObjectLiteral(fields) = &value.kind else {
+    let ExprKind::AnonObject(fields) = &value.kind else {
         report_api(
-            "`example` is not a shape literal".to_owned(),
+            "`example` is not an anonymous object".to_owned(),
             span,
-            "not a shape literal",
+            "not an anonymous object",
             "§ 2's `example` is one instance of what the operation answers with, written \
              `{field: value, …}`",
             env,
@@ -1295,7 +1295,7 @@ fn check_api_example(
 /// that is not constant, and § 2 has four ways to be false without this one
 /// inventing a fifth.
 fn fold_example(
-    fields: &[nvs_syntax::ast::ObjectLiteralField],
+    fields: &[nvs_syntax::ast::AnonObjectField],
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
 ) -> Option<ConstArg> {
@@ -1638,11 +1638,11 @@ fn parse_path(path: &str) -> Result<Vec<Capture<'_>>, Refusal> {
 }
 
 /// One segment read as § 2's grammar: the capture it declares, `None` for a
-/// literal segment, or the clause saying what it is instead.
+/// fixed segment, or the clause saying what it is instead.
 ///
 /// A segment carrying a brace anywhere is held to being a capture *whole*.
 /// There is no escape and no partial form, which is the half of § 2 that keeps
-/// `{` an ordinary byte in a literal segment impossible rather than ambiguous:
+/// `{` an ordinary byte in a fixed segment impossible rather than ambiguous:
 /// a path meaning one of two things is refused rather than repaired
 /// (`rule:errors/ambiguous-input-refused`).
 fn capture_of(segment: &str) -> Result<Option<Capture<'_>>, Refusal> {
@@ -1654,7 +1654,7 @@ fn capture_of(segment: &str) -> Result<Option<Capture<'_>>, Refusal> {
         .and_then(|rest| rest.strip_suffix('}'))
     else {
         return Err(Refusal {
-            what: format!("has a segment `{segment}` that is neither a literal nor a capture"),
+            what: format!("has a segment `{segment}` that is neither fixed text nor a capture"),
             help: "a capture is a whole segment — `/users/{id}`, never `/users/u{id}` or \
                    `/users/{id}.json`",
         });
@@ -1831,8 +1831,8 @@ fn check_captures(
                 }
                 _ => {
                     "a segment is converted to the parameter's declared type, so a capture \
-                     binds `string`, `int`, `uint`, `decimal`, an enum, a union of literal \
-                     types, or a class implementing `Parses` — and never a regex \
+                     binds `string`, `int`, `uint`, `decimal`, an enum, a set of allowed \
+                     values like `'a'|'b'`, or a class implementing `Parses` — and never a regex \
                        (`rule:routing/a-capture-narrows-to-a-closed-set`)"
                 }
             }),
@@ -1852,7 +1852,7 @@ fn check_captures(
 /// contract says the text either parses or does not and never which texts do.
 /// What is left is § 5's other addition:
 ///
-/// - a **union of `string` or `int` literal types**, and a lone literal type,
+/// - a **union of `string` or `int` single-value types**, and a lone single-value type,
 ///   which is the same set written with one member;
 /// - an **enum-case subset**, which returns `None` here and is [`enum_capture`]'s
 ///   instead. Two callers, two answers: a route segment is spelled by
@@ -1862,8 +1862,8 @@ fn check_captures(
 ///   answers neither and the difference stays where each rule is stated.
 pub(crate) fn closed_set(ty: crate::ty::TypeId, env: &Env<'_>) -> Option<Vec<String>> {
     let one = |member: crate::ty::TypeId| match env.interner.get(member) {
-        crate::ty::Ty::StringLiteral(text) => Some(text.clone()),
-        crate::ty::Ty::IntLiteral(value) => Some(value.to_string()),
+        crate::ty::Ty::SingleValueString(text) => Some(text.clone()),
+        crate::ty::Ty::SingleValueInt(value) => Some(value.to_string()),
         _ => None,
     };
     match env.interner.get(ty) {
@@ -2058,7 +2058,7 @@ fn query_params(
                 .with_help(
                     "a query value arrives as text and its type comes from the parameter, so a \
                      `#[Query]` declares the same list a capture does (`rule:routing/a-query-parameter-is-declared-like-a-capture`): `string`, \
-                     `int`, `uint`, `decimal`, an enum, a union of literal types, or \
+                     `int`, `uint`, `decimal`, an enum, a set of allowed values like `'a'|'b'`, or \
                      a class implementing `Parses`",
                 ),
             );
@@ -2087,7 +2087,7 @@ fn written<'a>(
     attr: &'a Attribute,
     option: &str,
     env: &Env<'_>,
-) -> Option<&'a nvs_syntax::ast::ObjectLiteralField> {
+) -> Option<&'a nvs_syntax::ast::AnonObjectField> {
     attr.fields
         .iter()
         .find(|field| span_text(env.src, field.name) == option)
@@ -2197,7 +2197,7 @@ pub(crate) fn check_table(table: &RouteTable, diags: &mut Diagnostics) {
                 .with_help(
                     "§ 2 matches a path by shape, so two captures that differ only in name are \
                      one route — serve the second verb from its own `#[Route]`, or give the two \
-                     paths different literal segments",
+                     paths different fixed segments",
                 ),
             );
             routes.insert((row.verb.as_str(), shape(&row.path)), prior);

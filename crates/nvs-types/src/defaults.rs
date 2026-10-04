@@ -227,9 +227,9 @@ pub enum ConstArg {
     /// shape value, its fields in the order they were written.
     ///
     /// Produced only by [`crate::attributes`], for `rule:attributes/retrieval-folds-while-checking`'s fold: a
-    /// retrieval's answer *is* an attached literal, and § 5 replaces the call
+    /// retrieval's answer *is* an attribute's payload object, and § 5 replaces the call
     /// with that value rather than looking one up. There is no written
-    /// position that reaches this — a shape literal is an expression with a
+    /// position that reaches this — an anonymous object is an expression with a
     /// lowering of its own, so nothing else needs a constant form of one.
     Shape(Vec<(String, ConstArg)>),
     /// An `array<T>` value, each entry as its own already-resolved `string`
@@ -282,8 +282,8 @@ pub(crate) fn eval_param_default(
             .with_primary(expr.span, "not a constant of the declared type")
             .with_help(
                 "a default is evaluated once, at the call site that omits it — write a \
-                 `bool`/`int`/`uint`/`float`/`decimal`/`string` literal, optionally negated, an enum \
-                 case or another class's `const`",
+                 `bool`/`int`/`uint`/`float`/`decimal`/`string` value directly in the code, optionally \
+                 negated, an enum case or another class's `const`",
             ),
         );
     }
@@ -339,7 +339,7 @@ pub(crate) fn eval_property_default(
             .with_help(
                 "a property default is evaluated once, at compile time, and written into \
                  every fresh instance's slot — write a `bool`/`int`/`uint`/`float`/`string` \
-                 literal, optionally negated, `[]`, an enum case or another class's `const`; \
+                 value directly in the code, optionally negated, `[]`, an enum case or another class's `const`; \
                  anything else belongs in `constructor`",
             ),
         );
@@ -583,7 +583,7 @@ pub(crate) fn literal_default(
     declared: TypeId,
     env: &mut Env<'_>,
 ) -> Option<ConstArg> {
-    if let Some(value) = literal_atom_default(expr, declared, env, true) {
+    if let Some(value) = atom_default(expr, declared, env, true) {
         return Some(value);
     }
     let Ty::Union(members) = env.interner.get(declared).clone() else {
@@ -591,7 +591,7 @@ pub(crate) fn literal_default(
     };
     for widen in [false, true] {
         for member in &members {
-            if let Some(value) = literal_atom_default(expr, *member, env, widen) {
+            if let Some(value) = atom_default(expr, *member, env, widen) {
                 return Some(value);
             }
         }
@@ -605,12 +605,7 @@ pub(crate) fn literal_default(
 /// `widen` admits the one cross-type spelling in the grid — an integer literal
 /// at a `float` — and is `false` while a union is looking for the member the
 /// literal already is.
-fn literal_atom_default(
-    expr: &Expr,
-    declared: TypeId,
-    env: &mut Env<'_>,
-    widen: bool,
-) -> Option<ConstArg> {
+fn atom_default(expr: &Expr, declared: TypeId, env: &mut Env<'_>, widen: bool) -> Option<ConstArg> {
     let (negated, inner) = match &expr.kind {
         ExprKind::Unary {
             op: UnaryOp::Neg,
@@ -667,15 +662,15 @@ fn literal_atom_default(
         ) if !negated => Some(ConstArg::Str(crate::string_lit::cook_string_literal(
             env.src, *span,
         ))),
-        // A literal type is the one value it names, so the literal that is that
+        // A single-value type is the one value it names, so the literal that is that
         // value is the only constant it has — `rule:types/single-value-types`. What
-        // the slot receives is the base type's constant, since a literal type
+        // the slot receives is the base type's constant, since a single-value type
         // has no representation of its own.
-        (Ty::StringLiteral(want), ExprKind::Str(span)) if !negated => {
+        (Ty::SingleValueString(want), ExprKind::Str(span)) if !negated => {
             let value = crate::string_lit::cook_string_literal(env.src, *span);
             (value == want).then_some(ConstArg::Str(value))
         }
-        (Ty::IntLiteral(want), ExprKind::Int(span)) => int_magnitude(*span, env)
+        (Ty::SingleValueInt(want), ExprKind::Int(span)) => int_magnitude(*span, env)
             .and_then(|m| {
                 if negated {
                     negate_int(m)
@@ -793,7 +788,7 @@ fn fold_const_array(
     Some(ConstArg::Array(out))
 }
 
-/// One constant value with **no position to place it in**: the decoder `rule:attributes/retrieval-folds-while-checking`'s payload fold reaches, an attached literal being checked structurally
+/// One constant value with **no position to place it in**: the decoder `rule:attributes/retrieval-folds-while-checking`'s payload fold reaches, an attribute's payload object being checked structurally
 /// rather than declared. Reports nothing — each caller names its own position in
 /// its own diagnostic.
 ///
@@ -856,7 +851,7 @@ pub(crate) fn fold_constant_value(
             }
         }
         ExprKind::ArrayLiteral(items) if !negated => fold_const_array(items, None, ctx, env),
-        ExprKind::ObjectLiteral(fields) if !negated => {
+        ExprKind::AnonObject(fields) if !negated => {
             let mut out = Vec::with_capacity(fields.len());
             for field in fields {
                 out.push((

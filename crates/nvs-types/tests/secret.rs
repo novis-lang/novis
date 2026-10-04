@@ -323,7 +323,7 @@ fn a_secret_stored_into_an_array_element_is_refused_at_compile_time() {
 #[test]
 fn a_secret_stored_into_a_shape_field_is_refused_where_the_field_is_declared_wider() {
     // The other half of the same axis, losing the qualifier one step later: a
-    // shape literal *infers* its field types, so `{token: $token}` carries the
+    // anonymous object *infers* its field types, so `{token: $token}` carries the
     // bit until it meets a field declared wider than it.
     let refused = check_src(
         "<?nvs\n\

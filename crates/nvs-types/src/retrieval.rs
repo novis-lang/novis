@@ -4,7 +4,7 @@
 //! § 5 is what makes this a checker pass at all. A declaration's attached
 //! attributes are fixed by its source, and [`crate::attributes`] has already
 //! proved every payload value is a compile-time constant (§ 2), so the whole
-//! question — *which attached literals structurally satisfy `T`* — has an
+//! question — *which attribute payload objects structurally satisfy `T`* — has an
 //! answer before the program starts. The call is therefore **replaced** with
 //! that answer: a compiled-in `null` where nothing matches, the matched
 //! literal itself where exactly one does, and a compile-time diagnostic
@@ -15,7 +15,7 @@
 //!
 //! # Structural, not nominal
 //!
-//! § 4's rule is that retrieval matches on *shape*: an attached literal is an
+//! § 4's rule is that retrieval matches on *shape*: an attribute's payload object is an
 //! answer to `get<T>` exactly when it satisfies `T` under
 //! [`crate::expr::is_assignable`] — `rule:types/shape-type`'s width subtyping, the same
 //! test a shape-typed binding goes through — regardless of whether it was
@@ -30,7 +30,7 @@
 //! § 4 fixes four spellings and this pass inspects them **syntactically**,
 //! exactly as `rule:security/secret-sinks-refuse`'s sinks inspect a literal argument: the reference
 //! is never evaluated, so `Foo::bar(...)` here is a written name rather than a
-//! closure value. A method is its own first-class-callable reference; a class
+//! callable value. A method is its own method reference; a class
 //! is its `constructor`'s; a parameter is its method's reference plus
 //! `$member`; a property is its class's `constructor` reference plus
 //! `$member`.
@@ -81,7 +81,7 @@ use nvs_syntax::ast::{
 use rustc_hash::FxHashMap;
 
 use crate::defaults::ConstArg;
-use crate::expr::{check_object_literal, is_assignable, resolve_class_expr};
+use crate::expr::{check_anon_object, is_assignable, resolve_class_expr};
 use crate::expr_table::ExprInfo;
 use crate::locals::{Live, LocalScope};
 use crate::signatures::{resolve_method, resolve_property};
@@ -134,7 +134,7 @@ fn site_ctx(scope: &Scope) -> Ctx<'_> {
         current_class: Some(&scope.class),
         current_hook: None,
         in_constructor: false,
-        in_closure: false,
+        in_anon_fn: false,
         generator_elem: None,
     }
 }
@@ -318,8 +318,8 @@ pub(crate) fn fold_retrieval(
             )
             .with_primary(call.span, format!("`{found}` written here"))
             .with_help(
-                "`rule:attributes/structural-retrieval`: retrieval is structural — an attached literal is an answer \
-                 exactly when it satisfies `T` under `rule:types/shape-type`'s width subtyping, so `T` \
+                "`rule:attributes/structural-retrieval`: retrieval matches by shape. An attribute's payload object \
+                 matches exactly when it satisfies `T` under `rule:types/shape-type`'s width subtyping, so `T` \
                  is an inline `{...}` or a `type` alias naming one",
             ),
         );
@@ -337,10 +337,10 @@ pub(crate) fn fold_retrieval(
             )
             .with_primary(target.span, "this is not a declaration reference")
             .with_help(
-                "`rule:attributes/structural-retrieval`: the target is written as a first-class-callable reference and \
-                 inspected where it is written — `Foo::bar(...)` for a method, and \
-                 `Foo::constructor(...)` for the class itself, plus a literal member name for \
-                 one of its properties or parameters",
+                "`rule:attributes/structural-retrieval`: the target is a method reference, and it is read \
+                 where it is written: `Foo::bar(...)` for a method, and \
+                 `Foo::constructor(...)` for the class itself, plus a property or parameter name \
+                 written in quotes",
             ),
         );
         return;
@@ -402,7 +402,7 @@ pub(crate) fn fold_retrieval(
                 Diagnostic::error(
                     code::E_ATTRIBUTE_RETRIEVAL_AMBIGUOUS,
                     format!(
-                        "`{class}::{method}` carries {} attached literals satisfying this shape",
+                        "`{class}::{method}` has {} attribute payloads that match this shape",
                         matched.len()
                     ),
                 )
@@ -435,7 +435,7 @@ fn target_declaration(target: &Expr, ctx: &Ctx<'_>, env: &Env<'_>) -> Option<(QN
     let ExprKind::StaticCall {
         class,
         method: MemberName::Ident(name),
-        args: CallArgs::FirstClassCallable,
+        args: CallArgs::MethodRef,
         ..
     } = &target.kind
     else {
@@ -525,8 +525,7 @@ pub(crate) fn matching<'a>(sites: &[Site<'a>], want: TypeId, env: &mut Env<'a>) 
         let mut live = Live::default();
         let scope = LocalScope::new();
         let written = site_ctx(&table.scopes[site.scope]);
-        let actual =
-            check_object_literal(&site.attr.fields, None, &mut live, &scope, &written, env);
+        let actual = check_anon_object(&site.attr.fields, None, &mut live, &scope, &written, env);
         if is_assignable(actual, want, env.interner, env.graph, env.signatures) {
             matched.push(*site);
         }

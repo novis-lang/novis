@@ -521,7 +521,7 @@ fn a_subset_of_an_enums_cases_converts_by_the_same_words_the_whole_enum_does() {
     );
 
     // One case on its own is that subset written with one member, which is the
-    // arrangement a lone literal type already has beside a union of them.
+    // arrangement a lone single-value type already has beside a union of them.
     let (diags, exprs) = check_src_table(&src("Level::Quiet"));
     assert!(!diags.has_errors(), "{diags:?}");
     let emit = exprs.commands().named("emit").expect("the named command");

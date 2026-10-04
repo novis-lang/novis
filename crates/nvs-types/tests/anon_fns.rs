@@ -1,4 +1,4 @@
-//! `rule:types/anonymous-function`'s closure literal: what a body captures, and what its declared return type has to be.
+//! `rule:types/anonymous-function`'s anonymous functions: what a body captures, and what its declared return type has to be.
 //!
 //! Moved out of `nvs_types::check`'s inline `mod tests`; every test keeps its
 //! own name and body. See `tests/common/mod.rs` for the shared fixtures.
@@ -13,7 +13,7 @@ use nvs_diagnostics::code;
 /// which is the whole difference between this rule and snapshotting the
 /// enclosing frame.
 #[test]
-fn a_closure_captures_exactly_the_outer_names_its_body_reads() {
+fn an_anon_fn_captures_exactly_the_outer_names_its_body_reads() {
     let captures =
         captures_of("<?nvs\nint $a = 1;\nint $b = 2;\nvar $f = fn(int $n): int => $n + $a;\n");
     assert_eq!(captures, vec!["a".to_owned()]);
@@ -22,17 +22,17 @@ fn a_closure_captures_exactly_the_outer_names_its_body_reads() {
 /// A parameter shadows an outer local of the same name (`rule:types/declaration`'s
 /// declare-once rule is per body), so nothing is captured at all.
 #[test]
-fn a_closure_parameter_shadows_an_outer_local_rather_than_capturing_it() {
+fn an_anon_fn_parameter_shadows_an_outer_local_rather_than_capturing_it() {
     let captures =
         captures_of("<?nvs\nint $n = 1;\nvar $f = fn(int $n): int => $n + 1;\necho $n;\n");
     assert!(captures.is_empty(), "{captures:?}");
 }
 
-/// `rule:statements/an-anonymous-function-captures-this-only-where-it-uses-it`'s "a closure binds `$this` only where the body uses it"
+/// `rule:statements/an-anonymous-function-captures-this-only-where-it-uses-it`'s "an anonymous function captures `$this` only where the body uses it"
 /// falls out of § 2's capture rule with no code of its own: `$this` is an
 /// ordinary name in the enclosing scope.
 #[test]
-fn a_closure_that_names_this_captures_it_like_any_other_binding() {
+fn an_anon_fn_that_names_this_captures_it_like_any_other_binding() {
     let captures = captures_of(
         "<?nvs\nclass T {\n  public int $v = 1;\n  function m(): void {\n    \
          var $f = fn(): int => $this->v;\n  }\n}\n",
@@ -41,9 +41,9 @@ fn a_closure_that_names_this_captures_it_like_any_other_binding() {
 }
 
 /// The body is checked, not skipped — the whole point of the arm: a
-/// closure returning the wrong type is a diagnostic like any other.
+/// anonymous function returning the wrong type is a diagnostic like any other.
 #[test]
-fn a_closure_body_is_checked_against_its_declared_return_type() {
+fn an_anon_fn_body_is_checked_against_its_declared_return_type() {
     let diags = check_src("<?nvs\nvar $f = fn(int $n): int => \"nope\";\n");
     assert!(
         diags.iter().any(|d| d.code == Some(code::E_TYPE_MISMATCH)),
@@ -51,10 +51,10 @@ fn a_closure_body_is_checked_against_its_declared_return_type() {
     );
 }
 
-/// A name neither declared inside the closure nor visible outside it is
+/// A name neither declared inside the anonymous function nor visible outside it is
 /// undefined, exactly as in any other body.
 #[test]
-fn an_undeclared_name_in_a_closure_body_is_diagnosed() {
+fn an_undeclared_name_in_an_anon_fn_body_is_diagnosed() {
     let diags = check_src("<?nvs\nvar $f = fn(int $n): int => $n + $nope;\n");
     assert!(
         diags
@@ -67,7 +67,7 @@ fn an_undeclared_name_in_a_closure_body_is_diagnosed() {
 /// An expression body is its own answer, so it needs no annotation — the
 /// half `E0450` deliberately leaves alone.
 #[test]
-fn an_expression_bodied_closure_needs_no_declared_return_type() {
+fn an_expression_bodied_anon_fn_needs_no_declared_return_type() {
     let diags = check_src("<?nvs\nvar $f = fn(int $n) => $n + 1;\n");
     assert!(!diags.has_errors(), "{diags:?}");
 }
@@ -76,20 +76,20 @@ fn an_expression_bodied_closure_needs_no_declared_return_type() {
 /// 0007 does not ask the compiler to grow — so it must say what it
 /// returns.
 #[test]
-fn a_block_bodied_closure_without_a_declared_return_type_is_diagnosed() {
+fn a_block_bodied_anon_fn_without_a_declared_return_type_is_diagnosed() {
     let diags = check_src("<?nvs\nvar $f = fn(int $n) => { return $n + 1; };\n");
     assert!(
         diags
             .iter()
-            .any(|d| d.code == Some(code::E_CLOSURE_RETURN_TYPE_REQUIRED)),
+            .any(|d| d.code == Some(code::E_ANON_FN_RETURN_TYPE_REQUIRED)),
         "{diags:?}"
     );
 }
 
-/// `rule:iteration/generators` confines `yield` to the generator's own body — a closure
-/// written inside one is not that body.
+/// `rule:iteration/generators` confines `yield` to the generator's own body — an anonymous
+/// function written inside one is not that body.
 #[test]
-fn a_yield_inside_a_closure_in_a_generator_is_still_refused() {
+fn a_yield_inside_an_anon_fn_in_a_generator_is_still_refused() {
     let diags = check_src(
         "<?nvs\nclass T {\n  function m(): Iterator<int> {\n    \
          var $f = fn(): int => yield 1;\n    yield 2;\n  }\n}\n",
@@ -102,15 +102,15 @@ fn a_yield_inside_a_closure_in_a_generator_is_still_refused() {
     );
 }
 
-/// A closure nested in another closure captures through it: the outer one
+/// An anonymous function nested in another one captures through it: the outer one
 /// has to hold `$a` in order to have it to hand on.
 #[test]
-fn a_nested_closure_makes_the_enclosing_one_capture_too() {
+fn a_nested_anon_fn_makes_the_enclosing_one_capture_too() {
     let (diags, exprs) =
         check_src_table("<?nvs\nint $a = 1;\nvar $f = fn(): callable => fn(): int => $a;\n");
     assert!(!diags.has_errors(), "{diags:?}");
     let mut sets: Vec<Vec<String>> = exprs
-        .closures()
+        .anon_fns()
         .map(|(_, captures, _)| captures.iter().map(|(n, _)| n.clone()).collect())
         .collect();
     sets.sort();

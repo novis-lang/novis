@@ -1,5 +1,6 @@
 //! A call's target: which member `$obj->m()`, `C::m()` and `new C()` resolve
-//! to, and `rule:types/callable-values`'s rule that only a closure is ever callable.
+//! to, and `rule:types/callable-values`'s rule that only an anonymous function or a
+//! method reference is ever callable.
 //!
 //! Resolution is what this module owns; whether the *arguments* fit is
 //! [`super::args`]. A call that does not statically resolve to a known
@@ -16,16 +17,17 @@
 //! (see [`crate::expr_table`]), and it always carries the *declaring* class
 //! rather than the receiver's.
 //!
-//! **`rule:types/callable-values` (`callable` is closures only)** lives here:
+//! **`rule:types/callable-values` (a `callable` is an anonymous function or a
+//! method reference, nothing else)** lives here:
 //! [`report_non_callable_value_if_applicable`] gives a bare string or
 //! `[$obj, 'method']`-shaped array literal a targeted diagnostic naming the
-//! first-class-callable-syntax replacement wherever `callable` is the expected
+//! method-reference replacement wherever `callable` is the expected
 //! type, ahead of [`is_assignable`]'s generic mismatch (which would otherwise
 //! also fire for the same expression); [`report_call_on_non_callable`] refuses
 //! `$obj(...)` for any `$obj` whose static type is a resolved class — Novis has
 //! no `__invoke`, so no class ever makes `()` mean anything else.
-//! [`check_fn_literal`] is the other half of the same ADR pair: a closure
-//! literal's body is checked like any other body, and it owns `rule:types/anonymous-function`'s
+//! [`check_anon_fn`] is the other half of the same ADR pair: an anonymous
+//! function's body is checked like any other body, and it owns `rule:types/anonymous-function`'s
 //! capture rule and the one shape it refuses (a block body with no declared
 //! return type).
 //!
@@ -78,7 +80,8 @@ pub(crate) fn infer_method_call(
     if let MemberName::Variable(e) | MemberName::Expr(e) = method {
         report_computed_member_name(e.span, COMPUTED_METHOD_HELP, env);
     }
-    if let Some(ty) = infer_closure_rebind(expr, receiver_ty, method, args, live, scope, ctx, env) {
+    if let Some(ty) = infer_callable_rebind(expr, receiver_ty, method, args, live, scope, ctx, env)
+    {
         return nullsafe_result(nullsafe, object_ty, ty, env);
     }
     let resolved = match (class_qname_of(receiver_ty, env.interner), method) {
@@ -169,31 +172,31 @@ pub(crate) fn infer_method_call(
         && let MemberName::Ident(name_span) = method
     {
         let name = span_text(env.src, *name_span).to_owned();
-        if matches!(args, CallArgs::FirstClassCallable) {
-            report_first_class_callable_on_erased_receiver(expr.span, &name, env);
+        if matches!(args, CallArgs::MethodRef) {
+            report_method_ref_on_erased_receiver(expr.span, &name, env);
         } else {
             report_args_with_no_parameter_list(args, NoParameterList::ErasedReceiver, env);
             env.exprs.record(expr.span, ExprInfo::ErasedCall { name });
         }
     }
-    // `rule:types/callable-values`: `$obj->method(...)` (first-class callable syntax) names a
-    // `Closure` value, not the method's return type — the sentinel
-    // `CallArgs::FirstClassCallable` marks exactly this shape, ahead of the
+    // `rule:types/callable-values`: `$obj->method(...)` (a method reference) names a
+    // callable value, not the method's return type — the sentinel
+    // `CallArgs::MethodRef` marks exactly this shape, ahead of the
     // ordinary-call typing below. The target is still recorded, as
-    // `ExprInfo::CallableRef`: a closure carries its callee with it, so
+    // `ExprInfo::CallableRef`: a callable carries its callee with it, so
     // `nvs-ir` needs the same resolved facts a call needs. The erased and
     // `mixed` receivers are already refused above and reach this with
     // `resolved` at `None`, which records nothing.
-    if matches!(args, CallArgs::FirstClassCallable) {
+    if matches!(args, CallArgs::MethodRef) {
         if let (Some((qname, name, _)), Some(sig)) = (&resolved, &sig)
-            && !reject_unforwardable_first_class_callable(qname, name, sig, expr.span, env)
+            && !reject_unforwardable_method_ref(qname, name, sig, expr.span, env)
         {
             let mut call = resolved_call(qname.clone(), name.clone(), sig, slots, env.signatures);
             // The thunk calls the native member with the same leading enum
             // name a call would — see `nvs_stdlib::registry::WRITTEN_ENUM_MEMBERS`.
             call.written_enum = written_enum_of(qname, name, &written, type_args, expr.span, env);
             env.exprs.record(expr.span, ExprInfo::CallableRef(call));
-            let held = first_class_callable_type(sig, env);
+            let held = method_ref_type(sig, env);
             env.exprs.record_callable_value(expr.span, held);
             return held;
         }
@@ -345,8 +348,7 @@ pub(crate) fn infer_static_call(
                         if owner.is_core() {
                             report_core_instance_member(expr.span, owner, &name, env);
                         } else if through_class_ref
-                            || (!scope.holds_receiver()
-                                && !matches!(args, CallArgs::FirstClassCallable))
+                            || (!scope.holds_receiver() && !matches!(args, CallArgs::MethodRef))
                         {
                             // A `class<T>` class side takes the refusal
                             // unconditionally, and that is the same rule rather
@@ -362,8 +364,8 @@ pub(crate) fn infer_static_call(
                             report_instance_method_called_statically(expr.span, owner, &name, env);
                         } else if scope.holds_receiver() {
                             // The call, or the `(...)` reference, forwards
-                            // `$this`, so it reads it: inside a closure this
-                            // records the capture the closure's frame needs to
+                            // `$this`, so it reads it: inside an anonymous
+                            // function this records the capture its frame needs to
                             // have one to forward, and in a method body it
                             // records nothing.
                             let _ = scope.declared_ty("this");
@@ -374,7 +376,7 @@ pub(crate) fn infer_static_call(
             _ => None,
         };
     if let Some((owner, name, sig)) = &resolved
-        && !matches!(args, CallArgs::FirstClassCallable)
+        && !matches!(args, CallArgs::MethodRef)
     {
         reject_abstract_static_call(expr.span, class, owner, name, sig, ctx, env);
     }
@@ -490,19 +492,19 @@ pub(crate) fn infer_static_call(
         // there is left to read. See [`reject_secret_enqueued_argument`].
         reject_secret_enqueued_argument(owner, name, args, &slots, scope, env);
     }
-    // See [`infer_method_call`]: first-class callable syntax names a `Closure`,
+    // See [`infer_method_call`]: a method reference names a callable,
     // not the resolved method's return type, and records `CallableRef` rather
     // than `Call` for the same span. `static_class` is set here exactly as it
     // is for a call — `rule:types/callable-values` keeps `static::helper(...)` late-bound.
-    if matches!(args, CallArgs::FirstClassCallable) {
+    if matches!(args, CallArgs::MethodRef) {
         if let (Some((qname, name, _)), Some(sig)) = (&resolved, &sig)
-            && !reject_unforwardable_first_class_callable(qname, name, sig, expr.span, env)
+            && !reject_unforwardable_method_ref(qname, name, sig, expr.span, env)
         {
             let mut call = resolved_call(qname.clone(), name.clone(), sig, slots, env.signatures);
             call.static_class = called_class_set_at(class, ctx, env);
             call.written_enum = written_enum_of(qname, name, &written, type_args, expr.span, env);
             env.exprs.record(expr.span, ExprInfo::CallableRef(call));
-            let held = first_class_callable_type(sig, env);
+            let held = method_ref_type(sig, env);
             env.exprs.record_callable_value(expr.span, held);
             return held;
         }
@@ -552,7 +554,7 @@ pub(crate) fn infer_static_call(
         return sig.map_or_else(|| env.interner.mixed(), |s| s.return_ty);
     }
     // `rule:routing/link-name-and-params-are-checked`'s link, and the one fold that is *not* made here: the route
-    // a literal name asks for may be declared in a file § 5's scan has not
+    // a name written in the code asks for may be declared in a file § 5's scan has not
     // reached, so the site is only recorded and the lookup happens after the
     // whole walk. The `ExprInfo::Call` recorded below deliberately stands until
     // then — `crate::links` records over it, and a computed name keeps it. The
@@ -634,16 +636,17 @@ fn called_class_of(class: &Expr, ctx: &Ctx<'_>, env: &Env<'_>) -> Option<QName> 
 /// class of the frame it is written in.
 ///
 /// A written class name sets its own. `self::` and `parent::` forward, except
-/// inside a closure body: a closure is a frame of its own that holds no called
-/// class to forward, so both set the class the closure is written in
-/// (`rule:statements/static-is-a-member-modifier`). That is the lexical class
-/// for `parent::` as well — the parent is where the method is looked up, not
-/// the class the call is made on. `static::` in a closure is refused
+/// inside an anonymous function's body: an anonymous function is a frame of its
+/// own that holds no called class to forward, so both set the class it is
+/// written in (`rule:statements/static-is-a-member-modifier`). That is the
+/// lexical class for `parent::` as well — the parent is where the method is
+/// looked up, not the class the call is made on. `static::` in an anonymous
+/// function is refused
 /// (`E0834`), so it forwards here, in a method frame that holds a called class.
 fn called_class_set_at(class: &Expr, ctx: &Ctx<'_>, env: &Env<'_>) -> Option<QName> {
     match &class.kind {
         ExprKind::ConstFetch(_) => resolve_class_expr(class, ctx, env),
-        ExprKind::SelfExpr | ExprKind::ParentExpr if ctx.in_closure => ctx.current_class.cloned(),
+        ExprKind::SelfExpr | ExprKind::ParentExpr if ctx.in_anon_fn => ctx.current_class.cloned(),
         _ => None,
     }
 }
@@ -656,7 +659,7 @@ fn called_class_set_at(class: &Expr, ctx: &Ctx<'_>, env: &Env<'_>) -> Option<QNa
 /// subclass's override. So the call has a body to run only when the called
 /// class, or a class or interface above it, declares the method with one —
 /// the same chain the run-time dispatch walks. `self::`, `static::` and
-/// `parent::` outside a closure forward the called class and are not asked.
+/// `parent::` outside an anonymous function forward the called class and are not asked.
 /// A `Class::method(...)` reference is not a call and is not asked
 /// either: an attribute retrieval names an abstract method that way.
 fn reject_abstract_static_call(
@@ -677,12 +680,12 @@ fn reject_abstract_static_call(
     if declares_a_body(&called, name, env) {
         return;
     }
-    let in_closure = !matches!(class.kind, ExprKind::ConstFetch(_));
-    let (label, help) = if in_closure {
+    let in_anon_fn = !matches!(class.kind, ExprKind::ConstFetch(_));
+    let (label, help) = if in_anon_fn {
         (
-            format!("inside a closure, this calls `{called}` itself, not a subclass"),
-            "name a class that is not `abstract`, or call it with `static::` outside the closure \
-             and use the result inside it"
+            format!("inside an anonymous function, this calls `{called}` itself, not a subclass"),
+            "name a class that is not `abstract`, or call it with `static::` outside the \
+             anonymous function and use the result inside it"
                 .to_owned(),
         )
     } else {
@@ -761,7 +764,7 @@ pub(crate) fn infer_new(
         ctx,
         env,
     );
-    report_first_class_callable_new(args, target_qname.as_ref(), expr.span, env);
+    report_method_ref_new(args, target_qname.as_ref(), expr.span, env);
     let resolved = target_qname
         .clone()
         .and_then(|qname| resolve_method(&qname, "constructor", env.signatures, env.graph));
@@ -998,9 +1001,9 @@ fn constructor_accepts_everything(
 
 /// The type a `Name(...)` reference has: the member's own signature, spelled
 /// as `rule:types/callable-signature`'s callable type, so a reference
-/// satisfies a typed position exactly as the closure literal wrapping the same
-/// call would — `Core\Arr::map($xs, Core\Math::abs(...))` binds `U` from
-/// `abs`'s declared return type and needs no literal to read it out of.
+/// satisfies a typed position exactly as the anonymous function wrapping the
+/// same call would — `Core\Arr::map($xs, Core\Math::abs(...))` binds `U` from
+/// `abs`'s declared return type and needs no anonymous function to read it out of.
 ///
 /// **Every declared parameter, not just the required ones.** A member with an
 /// optional parameter can be handed one more argument than it needs, so the
@@ -1012,7 +1015,7 @@ fn constructor_accepts_everything(
 /// A bounded variable (`MethodSig::type_bounds`) is its bound here: no argument
 /// binds it at a reference, so `Core\Math::abs(...)` is
 /// `callable(int|float|decimal): int|float|decimal`.
-fn first_class_callable_type(sig: &MethodSig, env: &mut Env<'_>) -> TypeId {
+fn method_ref_type(sig: &MethodSig, env: &mut Env<'_>) -> TypeId {
     if sig.type_bounds.is_empty() {
         return env.interner.callable_sig(sig.params.clone(), sig.return_ty);
     }
@@ -1022,18 +1025,18 @@ fn first_class_callable_type(sig: &MethodSig, env: &mut Env<'_>) -> TypeId {
         .callable_sig(bounded.params.clone(), bounded.return_ty)
 }
 
-/// Refuses `new C(...)` — the first-class callable sentinel written on `new`
-/// (`E_FIRST_CLASS_CALLABLE_NEW`).
+/// Refuses `new C(...)` — the method-reference sentinel written on `new`
+/// (`E_METHOD_REF_NEW`).
 ///
 /// `rule:types/callable-values` keeps the spelling for *members*, and a constructor is not
-/// one: the closure it builds carries a callee, and `new` names a class. PHP
+/// one: the callable it builds carries a callee, and `new` names a class. PHP
 /// refuses the same expression, so this is the compatible answer as well as
 /// the only one with a meaning. Reported ahead of everything else `new`
 /// checks, and reported rather than left to `nvs-ir`, which would otherwise
 /// reach `lower_call_args` with a sentinel where an argument list belongs —
 /// this is the one shape that got a resolved `new` there at all.
 /// `rule:types/callable-values`'s `(...)` over a member a `callable` cannot forward to —
-/// `E_FIRST_CLASS_CALLABLE_UNFORWARDABLE`, whose own docs own the rule.
+/// `E_METHOD_REF_UNFORWARDABLE`, whose own docs own the rule.
 /// Answers `true` when it refused, which is when nothing is recorded: the
 /// pipeline stops at the first error, so `nvs-ir` never looks for the entry.
 ///
@@ -1043,7 +1046,7 @@ fn first_class_callable_type(sig: &MethodSig, env: &mut Env<'_>) -> TypeId {
 /// type confusion in the callee's own frame — it reads the slot at the
 /// declared representation, so an `inout` gets an `int` where an address
 /// belongs and a variadic tail gets an `int` where the collected array does.
-fn reject_unforwardable_first_class_callable(
+fn reject_unforwardable_method_ref(
     owner: &QName,
     name: &str,
     sig: &MethodSig,
@@ -1059,15 +1062,14 @@ fn reject_unforwardable_first_class_callable(
     };
     env.diags.report(
         Diagnostic::error(
-            code::E_FIRST_CLASS_CALLABLE_UNFORWARDABLE,
-            format!("`{owner}::{name}` has no first-class callable form"),
+            code::E_METHOD_REF_UNFORWARDABLE,
+            format!("`{owner}::{name}` cannot be used as a method reference"),
         )
-        .with_primary(span, format!("this names a member declaring {offending}"))
+        .with_primary(span, format!("this method declares {offending}"))
         .with_help(
-            "`rule:types/callable-is-the-only-function-type` gives `callable` no parameter list, so a call through one cannot \
-             stage a by-reference cell or collect a variadic tail — the callee would read \
-             the slot at the wrong representation. Write the closure out over the \
-             arguments the caller does pass"
+            "a `callable` has no parameter list. A call through it cannot pass a variable \
+             by reference or collect variadic arguments. Write an anonymous function that \
+             calls the method with the arguments you pass"
                 .to_owned(),
         ),
     );
@@ -1127,26 +1129,21 @@ fn note_method_ref_args(
     );
 }
 
-fn report_first_class_callable_new(
-    args: &CallArgs,
-    target: Option<&QName>,
-    span: Span,
-    env: &mut Env<'_>,
-) {
-    if !matches!(args, CallArgs::FirstClassCallable) {
+fn report_method_ref_new(args: &CallArgs, target: Option<&QName>, span: Span, env: &mut Env<'_>) {
+    if !matches!(args, CallArgs::MethodRef) {
         return;
     }
     let named = target.map_or_else(|| "this class".to_owned(), |q| format!("`{q}`"));
     env.diags.report(
         Diagnostic::error(
-            code::E_FIRST_CLASS_CALLABLE_NEW,
-            "`new` has no first-class callable form".to_owned(),
+            code::E_METHOD_REF_NEW,
+            "`new` cannot be used as a method reference".to_owned(),
         )
         .with_primary(span, format!("{named} is constructed here, not called"))
         .with_help(
-            "`rule:types/callable-values` gives the `(...)` spelling to a member — `Class::method(...)`, \
-             `$obj->method(...)`, `self::method(...)` — and a constructor is not one. Write the \
-             closure out: `fn (): T => new T(…)`"
+            "the `(...)` syntax works on a method: `Class::method(...)`, `$obj->method(...)` \
+             or `self::method(...)`. A constructor is not a method. Write an anonymous \
+             function instead: `fn (): T => new T(…)`"
                 .to_owned(),
         ),
     );
@@ -1329,8 +1326,7 @@ pub(crate) fn report_non_callable_value_if_applicable(expr: &Expr, env: &mut Env
             env.diags.report(
                 Diagnostic::error(
                     code::E_CALLABLE_STRING_UNSUPPORTED,
-                    "a string is not callable in Novis; take a reference with first-class \
-                     callable syntax instead",
+                    "a string is not callable in Novis. Use a method reference instead",
                 )
                 .with_primary(expr.span, "this string")
                 .with_help("e.g. `Class::method(...)` or `$obj->method(...)`"),
@@ -1341,8 +1337,7 @@ pub(crate) fn report_non_callable_value_if_applicable(expr: &Expr, env: &mut Env
             env.diags.report(
                 Diagnostic::error(
                     code::E_CALLABLE_ARRAY_UNSUPPORTED,
-                    "an array is not callable in Novis; take a reference with first-class \
-                     callable syntax instead",
+                    "an array is not callable in Novis. Use a method reference instead",
                 )
                 .with_primary(expr.span, "this array")
                 .with_help("e.g. `$obj->method(...)` instead of `[$obj, 'method']`"),
@@ -1354,12 +1349,12 @@ pub(crate) fn report_non_callable_value_if_applicable(expr: &Expr, env: &mut Env
 }
 
 /// `rule:types/callable-values`: `$x(...)` is refused whenever `$x`'s static type can
-/// never be a closure. A class is one such type — Novis has no `__invoke`, so
+/// never be a callable. A class is one such type — Novis has no `__invoke`, so
 /// no class ever makes `()` mean anything else, regardless of what methods it
 /// declares — and so is every scalar, text, array, enum and shape type, which
 /// is what refuses PHP's `$name = 'strlen'; $name($s)`. A `Ty::Mixed` callee
 /// (nothing statically known), an already-`Ty::Callable` one and a union with
-/// an arm that may be a closure are all left alone.
+/// an arm that may be a callable are all left alone.
 pub(crate) fn report_call_on_non_callable(callee_ty: TypeId, span: Span, env: &mut Env<'_>) {
     if let Ty::Class(qname, _) = env.interner.get(callee_ty).clone() {
         env.diags.report(
@@ -1374,7 +1369,7 @@ pub(crate) fn report_call_on_non_callable(callee_ty: TypeId, span: Span, env: &m
         );
         return;
     }
-    if !never_a_closure(callee_ty, env.interner) {
+    if !never_a_callable(callee_ty, env.interner) {
         return;
     }
     let described = env.interner.describe(callee_ty);
@@ -1385,19 +1380,18 @@ pub(crate) fn report_call_on_non_callable(callee_ty: TypeId, span: Span, env: &m
         )
         .with_primary(span, "called with `(...)` here")
         .with_help(
-            "only a closure is callable (`rule:types/callable-values`): write an `fn` \
-             literal, or take a reference with first-class callable syntax — \
-             `Class::method(...)` or `$obj->method(...)`. A string holding a function's name \
-             is not one",
+            "only an anonymous function or a method reference can be called. Write \
+             `fn (...) => ...`, or `Class::method(...)` or `$obj->method(...)`. A string \
+             with a function's name cannot be called",
         ),
     );
 }
 
-/// Whether no value of type `ty` is a closure: the types whose values are
+/// Whether no value of type `ty` is a callable: the types whose values are
 /// never objects, a class (no class is callable), and a union of nothing but
 /// those. Everything else — `mixed`, `object`, a type variable, `callable`
 /// itself — may hold one and answers `false`.
-fn never_a_closure(ty: TypeId, interner: &crate::ty::TypeInterner) -> bool {
+fn never_a_callable(ty: TypeId, interner: &crate::ty::TypeInterner) -> bool {
     match interner.get(ty) {
         Ty::Null
         | Ty::Bool
@@ -1415,41 +1409,41 @@ fn never_a_closure(ty: TypeId, interner: &crate::ty::TypeInterner) -> bool {
         | Ty::SecretBytes
         | Ty::SecretTaintedString
         | Ty::SecretTaintedBytes
-        | Ty::StringLiteral(_)
-        | Ty::IntLiteral(_)
+        | Ty::SingleValueString(_)
+        | Ty::SingleValueInt(_)
         | Ty::Array(_)
         | Ty::Enum(..)
         | Ty::EnumCase(..)
         | Ty::Shape(_)
         | Ty::Class(..) => true,
-        Ty::Union(arms) => arms.iter().all(|arm| never_a_closure(*arm, interner)),
+        Ty::Union(arms) => arms.iter().all(|arm| never_a_callable(*arm, interner)),
         _ => false,
     }
 }
 
-/// `$m->method(...)` — `rule:types/callable-values`'s first-class callable spelling on a `mixed`
+/// `$m->method(...)` — `rule:types/callable-values`'s method reference on a `mixed`
 /// receiver, which is the one shape of that receiver's deferral that has no
 /// run-time answer.
 ///
 /// A *call* through a `mixed` defers to the receiver's own descriptor, which
 /// is present at the call and marshals it. This spelling makes no call: it
-/// names a closure **value**, and a closure carries its callee's arity and
+/// names a callable **value**, and a callable carries its callee's arity and
 /// parameter tags in the value itself (`nvs_runtime::closure`), so building
 /// one here would mean reading a method row off a receiver for a value that
 /// outlives the site and may be called anywhere. That is a mechanism rather
 /// than a lowering, and no ADR asks for it — so the spelling is refused where
 /// it is written, and the two fixes that exist are what the help names.
-fn report_first_class_callable_on_erased_receiver(span: Span, name: &str, env: &mut Env<'_>) {
+fn report_method_ref_on_erased_receiver(span: Span, name: &str, env: &mut Env<'_>) {
     env.diags.report(
         Diagnostic::error(
-            code::E_FIRST_CLASS_CALLABLE_ERASED_RECEIVER,
-            format!("`{name}(...)` names no closure through a `mixed` receiver"),
+            code::E_METHOD_REF_ERASED_RECEIVER,
+            format!("`{name}(...)` cannot be a method reference on a `mixed` value"),
         )
-        .with_primary(span, "a closure value is named here")
+        .with_primary(span, "a method reference is made here")
         .with_help(format!(
-            "`rule:types/erased-member-access` defers a *call* through a `mixed` to the receiver's runtime class, but \
-             a closure value carries its callee with it and there is no class here to read one \
-             off — call the member directly (`$m->{name}(…)`), or narrow the receiver first with \
+            "a call on a `mixed` value finds its method when the program runs. A method \
+             reference needs the class when the program compiles, and there is no class here. \
+             Call the method directly (`$m->{name}(…)`), or narrow the value first with \
              `is` or `as ClassName`"
         )),
     );
@@ -1476,9 +1470,9 @@ pub(crate) enum NoParameterList {
 /// other end of the same rule): it may write neither a `name:` argument nor an
 /// `inout` marker.
 ///
-/// Through a `callable` the callee is one opaque type whatever closure the
+/// Through a `callable` the callee is one opaque type whatever function the
 /// variable holds, so this site has no parameter list to resolve a name
-/// against — and neither has the run time, a closure object recording its
+/// against — and neither has the run time, a callable object recording its
 /// arity and its parameter *tags* and never their names
 /// (`nvs_runtime::closure`). Through a `mixed` receiver the callee is not
 /// chosen until the call runs, and the method row that marshals it carries
@@ -1486,7 +1480,7 @@ pub(crate) enum NoParameterList {
 /// only because a `Closure` there carries its whole declaration.
 ///
 /// The `inout` marker is refused at both for one reason spelled two ways: no
-/// closure may declare such a parameter at all (`E_CLOSURE_INOUT_PARAM`), and
+/// anonymous function may declare such a parameter at all (`E_ANON_FN_INOUT_PARAM`), and
 /// an `inout` parameter list is packed and written back at the *call site*,
 /// which a call that learns its callee at run time cannot do — the same limit
 /// [`E_DELEGATE_MEMBER_NOT_FORWARDABLE`] names for `rule:classes/delegation-by-field`'s synthesized
@@ -1512,8 +1506,8 @@ pub(crate) fn report_args_with_no_parameter_list(
     };
     let inout_help = match callee {
         NoParameterList::Callable => {
-            "`rule:types/anonymous-function` keeps `callable` opaque and § 4 refuses an `inout` closure parameter \
-             outright, so nothing this call reaches can bind one — drop the `inout`"
+            "a `callable` has no parameter list, and an anonymous function cannot declare an \
+             `inout` parameter. So nothing this call reaches can take one. Remove the `inout`"
         }
         NoParameterList::ErasedReceiver => {
             "`rule:types/erased-member-access` defers this call to the receiver's runtime class, and an `inout` \
@@ -1524,9 +1518,8 @@ pub(crate) fn report_args_with_no_parameter_list(
     };
     let name_help = match callee {
         NoParameterList::Callable => {
-            "`rule:types/anonymous-function`: `callable` is one opaque type whatever closure the variable holds, so \
-             neither this call site nor the closure it reaches carries a parameter name to fill \
-             — pass the argument positionally"
+            "a `callable` has no parameter list, so this call does not know the parameter \
+             names of the function it reaches. Pass the argument by position"
         }
         NoParameterList::ErasedReceiver => {
             "`rule:types/erased-member-access`: the receiver's runtime class chooses the callee, and the method row \
@@ -1592,17 +1585,17 @@ pub(crate) fn report_args_with_no_parameter_list(
 ///
 /// `bind` and `bindTo` take one `?object` and give the receiver's own type
 /// back. `call` takes the same first argument and passes the rest to the
-/// closure, so it gives `mixed`, as a call through bare `callable` does. No
+/// callable, so it gives `mixed`, as a call through bare `callable` does. No
 /// scope argument is accepted (`E_ARITY_MISMATCH`): a scope would open another
 /// class's `private` members. Whether the object fits the body is a run-time
 /// test, `nvs_runtime::closure::bind_closure`, because `callable` does not say
-/// whether a closure uses `$this`.
+/// whether the function behind it uses `$this`.
 #[expect(
     clippy::too_many_arguments,
     reason = "the four-part checking context every function in this module \
               threads, plus the call and the three parts of it this reads"
 )]
-fn infer_closure_rebind(
+fn infer_callable_rebind(
     expr: &Expr,
     receiver_ty: TypeId,
     method: &MemberName,
@@ -1642,13 +1635,13 @@ fn infer_closure_rebind(
         let (expected, help) = if call {
             (
                 "at least 1",
-                "the first argument is the new `$this` of the closure. The arguments after it \
-                 are passed to the closure",
+                "the first argument is the new `$this` of the callable. The arguments after it \
+                 are passed to the callable",
             )
         } else {
             (
                 "1",
-                "the one argument is the new `$this` of the closure. A second argument for the \
+                "the one argument is the new `$this` of the callable. A second argument for the \
                  scope is not allowed",
             )
         };
@@ -1667,7 +1660,7 @@ fn infer_closure_rebind(
     }
     if fits {
         env.exprs
-            .record(expr.span, ExprInfo::ClosureRebind { call });
+            .record(expr.span, ExprInfo::CallableRebind { call });
     }
     Some(if call {
         env.interner.mixed()
@@ -1824,7 +1817,7 @@ pub(crate) fn check_args(
 /// Two argument shapes are handed back rather than answered here: a `name:` and
 /// an `inout` argument are refused where they are written by
 /// [`report_args_with_no_parameter_list`] — a signature names no parameter for a
-/// name to fill and a closure declares no `inout` parameter at all — and
+/// name to fill and an anonymous function declares no `inout` parameter at all — and
 /// reaching that refusal is why they are left to the caller.
 ///
 /// A `...` argument is answered but not proven. It makes the argument *count*
@@ -1875,19 +1868,19 @@ pub(crate) fn check_call_through_signature(
 
 /// `fact($n - 1)` inside `fn fact(int $n): int` — the recursive call
 /// `rule:types/anonymous-function-self-name` admits, checked against the parameter list of
-/// the very closure being written.
+/// the very anonymous function being written.
 ///
 /// The self-name is not a value of the opaque `callable` type, so there is no
-/// callee type to read a signature off; [`crate::FnSelf`] carries the literal's
+/// callee type to read a signature off; [`crate::FnSelf`] carries the function's
 /// own parameters instead, which is the same list the body is being checked
 /// under. The answer is [`crate::FnSelf::ret`] either way — this decides only
 /// whether the arguments were held to anything. [`None`] is an argument list a
 /// parameter list cannot be matched against at all — a `...`, whose count is the
 /// spread subject's own run-time length, and the `name:` and `inout` arguments
-/// a closure has nothing to fill — and the caller then checks the arguments
-/// with nothing to check them against.
+/// an anonymous function has nothing to fill — and the caller then checks the
+/// arguments with nothing to check them against.
 ///
-/// Nothing is recorded for `nvs-ir`: a self-name call still reaches the closure
+/// Nothing is recorded for `nvs-ir`: a self-name call still reaches the function
 /// through the ordinary dynamic path, so its per-argument tag check is what the
 /// arguments are finally passed under.
 pub(crate) fn check_self_name_args(
@@ -1917,7 +1910,7 @@ pub(crate) fn check_self_name_args(
 enum Signature<'a> {
     /// The callee's own `callable(T, U): R` type.
     Written(&'a [TypeId]),
-    /// `rule:types/anonymous-function-self-name`'s self-name: the closure being written.
+    /// `rule:types/anonymous-function-self-name`'s self-name: the anonymous function being written.
     SelfName(&'a [TypeId]),
 }
 
@@ -1931,7 +1924,7 @@ impl<'a> Signature<'a> {
 
 /// Each argument against the parameter it fills, and the count against the list
 /// — the half [`check_call_through_signature`] and [`check_self_name_args`]
-/// share, since a written signature and a closure literal's own parameters are
+/// share, since a written signature and an anonymous function's own parameters are
 /// the same list read off two different places.
 ///
 /// [`None`] is an argument shape no parameter list can be matched against, and
@@ -1979,15 +1972,15 @@ fn report_callable_call_arity(
     let (what, help) = match signature {
         Signature::Written(_) => (
             "this `callable`",
-            "a call through a written signature passes exactly the parameters the type names — \
-             the value may hold a closure declaring fewer, and the runtime hands that closure \
-             only the ones it declares",
+            "a call through a written signature passes exactly the parameters the type names. \
+             The value may be a callable that declares fewer, and it receives only the ones \
+             it declares",
         ),
         Signature::SelfName(_) => (
-            "this closure",
-            "a closure calling itself by its own name passes exactly the parameters it declares — \
-             the signature being checked is the one written right here, so there is no wider type \
-             for a shorter list to be matched against",
+            "this anonymous function",
+            "an anonymous function that calls itself by its own name passes exactly the \
+             parameters it declares. Its signature is the one written right here, so there is \
+             no wider type to match a shorter list against",
         ),
     };
     env.diags.report(
@@ -2115,13 +2108,12 @@ pub(crate) fn check_new_target(
     }
 }
 
-/// `rule:types/anonymous-function`'s
-/// `fn` closure literal.
+/// `rule:types/anonymous-function`'s `fn (...) => ...`: one anonymous function.
 ///
 /// Three things happen here, and only the first is ordinary type-checking:
 ///
-/// * The body is checked in a **fresh** [`LocalScope`] holding the closure's
-///   own parameters. `rule:types/declaration`'s declare-once rule is per body, so a
+/// * The body is checked in a **fresh** [`LocalScope`] holding the anonymous
+///   function's own parameters. `rule:types/declaration`'s declare-once rule is per body, so a
 ///   parameter named like an outer local shadows it rather than colliding
 ///   with it.
 /// * Every outer binding is offered to that scope as a *capture* rather than
@@ -2129,25 +2121,25 @@ pub(crate) fn check_new_target(
 ///   "exactly the outer variables its body reads" (§ 2) rather than the whole
 ///   enclosing frame. `$this` is in that set like any other name, which is
 ///   `rule:statements/an-anonymous-function-captures-this-only-where-it-uses-it`'s bind-`$this`-only-where-used rule with no code of its own.
-/// * The literal's own [`ExprInfo::Closure`] entry is recorded — the
+/// * The anonymous function's own [`ExprInfo::AnonFn`] entry is recorded — the
 ///   synthesized class its captures lower into, and that capture set — because
 ///   no type carries either of them.
 ///
-/// # The answer is the literal's own signature
+/// # The answer is the anonymous function's own signature
 ///
 /// The type handed back is [`Ty::CallableSig`](crate::ty::Ty::CallableSig),
 /// built from the parameters' types and the return type computed below, which
-/// is what `rule:types/anonymous-function-parameter-inference` asks for: a literal written
+/// is what `rule:types/anonymous-function-parameter-inference` asks for: an anonymous function written
 /// where a signature is expected satisfies it through
 /// `rule:types/callable-variance`, rather than arriving as the lattice top and
 /// being refused against every signature under it.
 ///
 /// Every parameter carries the type it was written with, because every
 /// parameter is written with one: `nvs_syntax`'s `parse_param` is
-/// `rule:types/declaration`'s declare-every-parameter rule and has no closure
+/// `rule:types/declaration`'s declare-every-parameter rule and has no anonymous-function
 /// exemption yet, so [`lower_optional_type`]'s `mixed` is unreachable from
 /// source here. `rule:types/anonymous-function-parameter-inference`'s other half — an
-/// unannotated parameter taking its type from the position the literal is
+/// unannotated parameter taking its type from the position the function is
 /// written in — is what removes that requirement, and needs the expected type
 /// threaded in from the call site rather than anything this function computes.
 ///
@@ -2158,16 +2150,16 @@ pub(crate) fn check_new_target(
 /// block body with none reports `E0450` and is checked against `void`.
 ///
 /// **`yield` is not a generator here.** The inner [`Ctx`] clears
-/// `generator_elem`, so a `yield` written inside a closure sitting in a
+/// `generator_elem`, so a `yield` written inside an anonymous function sitting in a
 /// generator's own body reports `E0445` — `rule:iteration/generators`'s lexical confinement.
 ///
 /// # The self-name resolves, and is not a binding
 ///
 /// `rule:types/anonymous-function-self-name`'s optional self-name is bound for this body alone, in
-/// [`Env::fn_self`], and it is **not** a local holding the closure. It is
+/// [`Env::fn_self`], and it is **not** a local holding the function. It is
 /// legal in exactly one position — the callee of a call written inside this
 /// body — where [`super::infer`]'s `ExprKind::Call` arm resolves it to *this*
-/// literal and records [`ExprInfo::ClosureSelf`] on the callee's span. A bare
+/// anonymous function and records [`ExprInfo::AnonFnSelf`] on the callee's span. A bare
 /// `fact` anywhere else stays `nvs_hir::members`' `E0319`, an unknown
 /// constant.
 ///
@@ -2175,28 +2167,28 @@ pub(crate) fn check_new_target(
 /// second declared name reachable from anywhere else, and not a runtime slot
 /// … it resolves the same way a method resolves `self::`". A local would be
 /// all three of the things it says the name is not — [`LocalScope`] would
-/// offer it to `isset`, to an assignment and to a nested closure's capture
+/// offer it to `isset`, to an assignment and to a nested anonymous function's capture
 /// set, and the environment class would need a field pointing at itself. What
 /// the call needs at run time is already to hand without any of that: the
 /// invoke's own receiver, which `nvs_ir::lower::closure`'s `FN_SELF` binds,
-/// so a literal that does not use its name costs nothing for having one.
+/// so an anonymous function that does not use its name costs nothing for having one.
 ///
-/// The reach follows from that receiver. A closure written *inside* this body
+/// The reach follows from that receiver. An anonymous function written *inside* this body
 /// has a receiver of its own, so this name is not visible in it — hence the
 /// save-and-replace below rather than a stack.
 ///
-/// **The call is checked against this literal's own signature**, which is the
+/// **The call is checked against this function's own signature**, which is the
 /// one place this differs from `$f(...)`. § 4's opacity is a property of the
-/// `callable` *type*, and the self-name is not a value of it: the literal being
+/// `callable` *type*, and the self-name is not a value of it: the function being
 /// checked is right here, so both halves of its signature are facts the checker
 /// holds. So [`FnSelf`] carries the parameter list
 /// [`check_self_name_args`] holds the arguments to, and the call answers the
-/// declared return type rather than `mixed`. A literal that declares no return
+/// declared return type rather than `mixed`. A function that declares no return
 /// type is checking its body to find out, so `FnSelf` takes `mixed` for that
 /// half and the recursion answers rather than being circular; the parameter
 /// list has no such half-measure, because it is complete before the body is
 /// entered.
-pub(crate) fn check_fn_literal(
+pub(crate) fn check_anon_fn(
     expr: &Expr,
     f: &FnExpr,
     expected: Option<TypeId>,
@@ -2205,8 +2197,8 @@ pub(crate) fn check_fn_literal(
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
 ) -> TypeId {
-    let seq = env.closure_seq;
-    env.closure_seq += 1;
+    let seq = env.anon_fn_seq;
+    env.anon_fn_seq += 1;
     // `$` cannot appear in an Novis identifier, so this label can never collide
     // with a declared class — the same guarantee `rule:iteration/generators`'s generator
     // state class relies on.
@@ -2223,8 +2215,8 @@ pub(crate) fn check_fn_literal(
     // The same ids the body checks against become the signature answered at the
     // end, so the type a call site reads and the type the body was checked
     // under cannot drift apart.
-    // `rule:types/anonymous-function-parameter-inference`: a parameter the literal left
-    // unannotated takes its type from the position the literal is written in,
+    // `rule:types/anonymous-function-parameter-inference`: a parameter the function left
+    // unannotated takes its type from the position the function is written in,
     // and a written signature is the only position that has one to give — bare
     // `callable` is the top of the lattice and names no parameter. So this list
     // is empty everywhere else, and [`infer_param_type`] names the parameter it
@@ -2266,13 +2258,13 @@ pub(crate) fn check_fn_literal(
         current_class: ctx.current_class,
         current_hook: ctx.current_hook,
         generator_elem: None,
-        // Not inherited even inside the constructor: a closure runs when it is
+        // Not inherited even inside the constructor: an anonymous function runs when it is
         // called, which this checker cannot bound, so a `readonly` write it
         // holds is not proven to happen during construction (`rule:classes/lateinit-restrictions`).
         in_constructor: false,
-        in_closure: true,
+        in_anon_fn: true,
     };
-    // A closure's body is its own function: an enclosing loop's `break`
+    // An anonymous function's body is its own function: an enclosing loop's `break`
     // targets are not reachable from inside it, so the two counters
     // `nvs_types::locals` keeps start again at zero and are put back
     // afterwards. Without this, `foreach (...) { $f = fn (): void => {
@@ -2298,8 +2290,8 @@ pub(crate) fn check_fn_literal(
             let ret = declared.unwrap_or_else(|| {
                 env.diags.report(
                     Diagnostic::error(
-                        code::E_CLOSURE_RETURN_TYPE_REQUIRED,
-                        "a block-bodied closure must declare its return type",
+                        code::E_ANON_FN_RETURN_TYPE_REQUIRED,
+                        "an anonymous function with a block body must declare its return type",
                     )
                     .with_primary(expr.span, "no `: T` on this `fn`")
                     .with_help(
@@ -2319,7 +2311,13 @@ pub(crate) fn check_fn_literal(
             // exits — the `E0450` above having already made the declared type a
             // fact rather than a stand-in.
             if let Some(written) = f.return_type.as_ref() {
-                crate::check::check_body_exits("the closure", block, ret, written.span, env);
+                crate::check::check_body_exits(
+                    "the anonymous function",
+                    block,
+                    ret,
+                    written.span,
+                    env,
+                );
             }
             ret
         }
@@ -2334,9 +2332,9 @@ pub(crate) fn check_fn_literal(
         .expect("installed just above and never removed")
         .used
         .into_inner();
-    // A capture the body reached through *this* closure's `available` set may
-    // have come from an enclosing closure's own capture set rather than from
-    // a real local — that closure has to capture it too in order to have it
+    // A capture the body reached through *this* function's `available` set may
+    // have come from an enclosing anonymous function's own capture set rather than
+    // from a real local — that function has to capture it too in order to have it
     // to hand on. Harmless when the enclosing scope is an ordinary body: it
     // has no `Captures` for this to record into.
     for (name, _) in &captures {
@@ -2344,28 +2342,28 @@ pub(crate) fn check_fn_literal(
     }
     env.exprs.record(
         expr.span,
-        ExprInfo::Closure {
+        ExprInfo::AnonFn {
             class,
             captures,
             return_ty,
         },
     );
-    // The literal's own type, and the one `crate::callables` reads back: which
-    // closures satisfy a written `callable(...)` is asked of the signature the
-    // checker gave each literal, not of the erased object.
+    // The function's own type, and the one `crate::callables` reads back: which
+    // callables satisfy a written `callable(...)` is asked of the signature the
+    // checker gave each anonymous function, not of the erased object.
     let sig = env.interner.callable_sig(params, return_ty);
     env.exprs.record_callable_value(expr.span, sig);
     sig
 }
 
-/// The type an unannotated closure parameter binds — the `index`th of
+/// The type an unannotated anonymous-function parameter binds — the `index`th of
 /// `from_position`, which is the expected type's own parameter list and is
 /// empty where the position expects no written signature
 /// (`rule:types/anonymous-function-parameter-inference`).
 ///
 /// A parameter past that list's end has nothing to take. It is answered
 /// `mixed` after the refusal rather than dropped, so the body around it is
-/// still checked and the literal still answers a signature of the arity it was
+/// still checked and the function still answers a signature of the arity it was
 /// written with.
 fn infer_param_type(
     name: Span,
@@ -2378,7 +2376,7 @@ fn infer_param_type(
     }
     env.diags.report(
         Diagnostic::error(
-            code::E_CLOSURE_PARAMETER_TYPE_NOT_INFERABLE,
+            code::E_ANON_FN_PARAMETER_TYPE_NOT_INFERABLE,
             "this parameter has no type, and no position to take one from",
         )
         .with_primary(name, "nothing here says what this parameter holds")
@@ -2390,15 +2388,15 @@ fn infer_param_type(
     env.interner.mixed()
 }
 
-/// `rule:types/callable-is-the-only-function-type`'s opaque `callable`, as a refusal: a closure declares no `inout $x`
+/// `rule:types/callable-is-the-only-function-type`'s opaque `callable`, as a refusal: an anonymous function declares no `inout $x`
 /// parameter.
 ///
 /// A by-reference parameter is a contract between a *call site* and a
 /// declaration — the site stages the cell, hands over its address and copies
-/// back afterwards (`nvs_ir::lower::call`). A closure's type is `callable` and
+/// back afterwards (`nvs_ir::lower::call`). An anonymous function's type is `callable` and
 /// nothing else (§ 4), carrying no parameter list for a site to read, so there
 /// is no site that could know to stage anything; and § 2's by-value capture
-/// lets a closure outlive every frame in scope where it was written, so even
+/// lets an anonymous function outlive every frame in scope where it was written, so even
 /// naming one would not make the cell outlast it. The by-reference half of § 2
 /// was removed for the same reason it is refused here.
 ///
@@ -2409,14 +2407,15 @@ fn report_by_reference_parameter(param: &nvs_syntax::ast::Param, env: &mut Env<'
     let name = span_text(env.src, param.name).to_owned();
     env.diags.report(
         Diagnostic::error(
-            code::E_CLOSURE_INOUT_PARAM,
-            format!("a closure cannot take `{name}` as `inout`"),
+            code::E_ANON_FN_INOUT_PARAM,
+            format!("an anonymous function cannot take `{name}` as `inout`"),
         )
         .with_primary(param.name, "declared `inout` here")
         .with_help(
-            "`rule:types/callable-is-the-only-function-type`: a closure's type is `callable`, which carries no parameter list, so \
-             no call site knows to stage a cell — take the value and `return` the result, or \
-             pass an object, whose fields a closure shares by capturing it",
+            "an anonymous function's type is `callable`, which has no parameter list. So no \
+             call site can pass a variable by reference. Take the value and `return` the \
+             result, or pass an object: an anonymous function that captures an object shares \
+             its fields",
         ),
     );
 }

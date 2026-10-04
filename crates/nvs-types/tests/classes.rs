@@ -811,10 +811,10 @@ fn a_string_becomes_a_class_reference_only_through_as() {
     );
 }
 
-/// The program the class-literal tests below share: a bootstrap that declares
+/// The program the written-class-name tests below share: a bootstrap that declares
 /// an `autoload` root, and a root holding an interface, two classes that
 /// implement it and one that does not. Nothing `require`s the root's files.
-const CLASS_LITERAL_ROOT: [(&str, &str); 5] = [
+const CLASS_NAME_ROOT: [(&str, &str); 5] = [
     ("Bootstrap.nvs", "<?nvs\nautoload 'Shop' from './src';\n"),
     (
         "src/Animal.nvs",
@@ -831,16 +831,16 @@ const CLASS_LITERAL_ROOT: [(&str, &str); 5] = [
     ("src/Rock.nvs", "<?nvs\nnamespace Shop;\nclass Rock {}\n"),
 ];
 
-/// [`CLASS_LITERAL_ROOT`] behind an entry file of the given name and body. The
+/// [`CLASS_NAME_ROOT`] behind an entry file of the given name and body. The
 /// entry is in `namespace Blog`, so a literal that resolved through the
 /// namespace would name `Blog\…` and fail.
-fn check_class_literals(
+fn check_written_class_names(
     entry: &str,
     body: &str,
 ) -> (nvs_diagnostics::Diagnostics, nvs_hir::Module) {
     let main = format!("<?nvs\nnamespace Blog;\nrequire './Bootstrap.nvs';\n{body}");
     let mut files = vec![(entry, main.as_str())];
-    files.extend(CLASS_LITERAL_ROOT);
+    files.extend(CLASS_NAME_ROOT);
     let (diags, _exprs, module) = check_program_module(&files);
     (diags, module)
 }
@@ -850,8 +850,8 @@ fn check_class_literals(
 /// compiling. Nothing `require`s `Shop\Dog`, so only the literal can have
 /// loaded it, and both spellings of the conversion compile.
 #[test]
-fn a_class_literal_conversion_names_a_class_that_can_be_loaded() {
-    let (diags, module) = check_class_literals(
+fn a_written_class_name_conversion_names_a_class_that_can_be_loaded() {
+    let (diags, module) = check_written_class_names(
         "class-literal-loads.nvs",
         "class<Shop\\Animal> $dog = 'Shop\\Dog' as class<Shop\\Animal>;\n\
          ?class<Shop\\Animal> $again = (\"Shop\\\\Dog\") as ?class<Shop\\Animal>;\n",
@@ -865,8 +865,8 @@ fn a_class_literal_conversion_names_a_class_that_can_be_loaded() {
 /// gets. A short name is not read through the namespace, a leading `\` is not
 /// a name, and neither is text with a space in it.
 #[test]
-fn a_class_literal_conversion_naming_an_unknown_class_does_not_compile() {
-    let (diags, _module) = check_class_literals(
+fn a_written_class_name_conversion_naming_an_unknown_class_does_not_compile() {
+    let (diags, _module) = check_written_class_names(
         "class-literal-unknown.nvs",
         "var $a = 'Shop\\Wolf' as class<Shop\\Animal>;\n\
          var $b = 'Shop\\Wolf' as ?class<Shop\\Animal>;\n\
@@ -886,8 +886,8 @@ fn a_class_literal_conversion_naming_an_unknown_class_does_not_compile() {
 /// gets. The `?` form is the same refusal, because a decided operand has no
 /// run-time failure for the `?` to turn into `null`.
 #[test]
-fn a_class_literal_conversion_naming_a_class_that_is_not_a_t_does_not_compile() {
-    let (diags, module) = check_class_literals(
+fn a_written_class_name_conversion_naming_a_class_that_is_not_a_t_does_not_compile() {
+    let (diags, module) = check_written_class_names(
         "class-literal-outside.nvs",
         "var $a = 'Shop\\Rock' as class<Shop\\Animal>;\n\
          var $b = 'Shop\\Rock' as ?class<Shop\\Animal>;\n\
@@ -912,7 +912,7 @@ fn a_class_literal_conversion_naming_a_class_that_is_not_a_t_does_not_compile() 
 /// is never loaded.
 #[test]
 fn a_class_string_built_at_run_time_still_sees_only_loaded_classes() {
-    let (diags, module) = check_class_literals(
+    let (diags, module) = check_written_class_names(
         "class-literal-run-time.nvs",
         "class Names { const BIRD = 'Shop\\Bird'; }\n\
          string $name = 'Shop\\Bird';\n\

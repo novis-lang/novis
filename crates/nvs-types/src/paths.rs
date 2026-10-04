@@ -33,9 +33,9 @@
 //! `nvs_runtime::capability::require`. The message there names
 //! `Core\Path::join` and `Core\Path::fromCwd`.
 //!
-//! A path built from a relative literal is the one run-time value whose
+//! A path built from a written relative path is the one run-time value whose
 //! refusal is certain while compiling, so it is `E0840` instead: the left end
-//! of a `.` chain is a relative literal (`'data/' . $name`), or an
+//! of a `.` chain is a written relative path (`'data/' . $name`), or an
 //! interpolated string starts with relative text (`"data/{$name}"`). Whatever
 //! the program adds, the path still starts relative, so the door throws on
 //! every run. Two starts are left to run time because the added text could
@@ -75,7 +75,7 @@
 //! `Core\Path::thisFile()` and `Core\Path::thisDir($join)` are replaced by
 //! [`fold_this`] with the path of the file that wrote them and its folder,
 //! from the same [`base_dir`] a literal is joined to, so a bundle answers the
-//! folder beside the executable. The answer goes into the path-literal table
+//! folder beside the executable. The answer goes into the written-path table
 //! under the call's own span, and `nvs-ir` lowers it to a string constant and
 //! no call. `$join` is a literal [`resolved`] accepts and nothing else
 //! (`E0837`): the fold happens while compiling, and a value built at run time
@@ -122,7 +122,7 @@ pub(crate) fn declared_text(params: &[Param], ctx: &Ctx<'_>, env: &Env<'_>) -> V
 
 /// A `#[Core\Path]` parameter's default, resolved the way an argument written
 /// at the call would be: the default is written in the declaring file, so a
-/// relative literal there names a file beside that file.
+/// written relative path there names a file beside that file.
 pub(crate) fn resolve_defaults(
     params: &[Param],
     text: &[ParamText],
@@ -165,8 +165,8 @@ pub(crate) fn resolve_args(list: &[Arg], slots: &[ArgSlot], sig: &MethodSig, env
 
 /// Records the absolute path a relative string literal at a path position
 /// names, under the literal's own span, where `nvs-ir` lowers it
-/// (`crate::ExprTypeTable::path_literal`). A literal that is already absolute
-/// records nothing. A path built from a relative literal is `E0840`
+/// (`crate::ExprTypeTable::written_path`). A literal that is already absolute
+/// records nothing. A path built from a written relative path is `E0840`
 /// ([`report_built`]), and anything else records nothing.
 pub(crate) fn resolve_literal(value: &Expr, env: &mut Env<'_>) {
     let value = value.unparenthesized();
@@ -176,11 +176,11 @@ pub(crate) fn resolve_literal(value: &Expr, env: &mut Env<'_>) {
     };
     let text = nvs_syntax::string_lit::cook_string_literal(env.src, span);
     if let Some(joined) = resolved(env.src, &text) {
-        env.exprs.record_path_literal(span, joined);
+        env.exprs.record_written_path(span, joined);
     }
 }
 
-/// `E0840`, at the relative literal that starts a path built while the
+/// `E0840`, at the written relative path that starts a path built while the
 /// program runs — the module doc's § *What is a literal*.
 ///
 /// The leftmost operand of a `.` chain is followed down, and an interpolated
@@ -219,7 +219,7 @@ fn report_built(value: &Expr, env: &mut Env<'_>) {
     }
     env.diags.report(
         Diagnostic::error(
-            code::E_PATH_BUILT_FROM_A_RELATIVE_LITERAL,
+            code::E_PATH_BUILT_FROM_A_WRITTEN_RELATIVE_PATH,
             "this path is relative when the program runs, so the call always throws an error",
         )
         .with_primary(
@@ -249,7 +249,7 @@ pub(crate) fn is_this(owner: &QName, member: &str) -> bool {
 }
 
 /// Records the path `Core\Path::thisFile()` or `Core\Path::thisDir($join)`
-/// names under the call's own span, in the table a path literal is recorded
+/// names under the call's own span, in the table a written path is recorded
 /// in, where `nvs-ir` lowers it to a string constant — the module doc's
 /// § *The file that wrote the call*.
 ///
@@ -280,7 +280,7 @@ pub(crate) fn fold_this(call: &Expr, member: &str, args: &CallArgs, env: &mut En
         }
     };
     if let Some(path) = path {
-        env.exprs.record_path_literal(call.span, path);
+        env.exprs.record_written_path(call.span, path);
     }
 }
 
@@ -289,14 +289,14 @@ fn report_join(join: &Expr, env: &mut Env<'_>) {
     let written = span_text(env.src, join.span).to_owned();
     env.diags.report(
         Diagnostic::error(
-            code::E_PATH_THIS_DIR_JOIN_NOT_A_RELATIVE_LITERAL,
-            format!("`Core\\Path::thisDir({written})` needs a relative path written as a literal"),
+            code::E_PATH_THIS_DIR_JOIN_NOT_A_WRITTEN_RELATIVE_PATH,
+            format!("`Core\\Path::thisDir({written})` needs a relative path written in quotes"),
         )
-        .with_primary(join.span, "not a relative string literal")
+        .with_primary(join.span, "not a relative path in quotes")
         .with_help(
             "the folder is joined while compiling \
-             (`rule:programs/relative-paths-resolve-from-their-file`): write a relative literal \
-             such as `'data'`, or `Core\\Path::join(Core\\Path::thisDir(), $part)` for a path \
+             (`rule:programs/relative-paths-resolve-from-their-file`): write a relative path \
+             in quotes, such as `'data'`, or `Core\\Path::join(Core\\Path::thisDir(), $part)` for a path \
              the program builds",
         ),
     );
@@ -331,7 +331,7 @@ pub fn resolved(src: &SourceFile, text: &str) -> Option<String> {
         .then(|| joined.to_string_lossy().into_owned())
 }
 
-/// The folder every relative literal in `src` is joined to, as text, or `None`
+/// The folder every written relative path in `src` is joined to, as text, or `None`
 /// for a source with no folder. A compiled program embeds paths built from
 /// it, so a cache of compiled programs keys on it beside the file's text: the
 /// same file in another folder compiles to other paths.
@@ -340,7 +340,7 @@ pub fn base_folder(src: &SourceFile) -> Option<String> {
     base_dir(src).map(|dir| dir.to_string_lossy().into_owned())
 }
 
-/// The folder a relative literal in `src` is joined to: the one that holds
+/// The folder a written relative path in `src` is joined to: the one that holds
 /// [`base_file`].
 fn base_dir(src: &SourceFile) -> Option<PathBuf> {
     base_file(src)?.parent().map(Path::to_path_buf)
@@ -482,7 +482,7 @@ fn check_method(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<'_>) {
             )
             .with_primary(attr.span, "a path is a `string`")
             .with_help(
-                "`#[Core\\Path]` says a string literal passed here is a file path \
+                "`#[Core\\Path]` says a string in quotes passed here is a file path \
                  (`rule:programs/relative-paths-resolve-from-their-file`): declare the parameter \
                  `string` or `?string`, or delete the marker",
             ),

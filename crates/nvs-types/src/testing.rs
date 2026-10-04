@@ -146,7 +146,7 @@
 use nvs_diagnostics::{Diagnostic, Span, code};
 use nvs_hir::QName;
 use nvs_syntax::ast::{
-    Attribute, AttributeGroup, ClassDecl, ClassMemberKind, MethodMember, ObjectLiteralField,
+    AnonObjectField, Attribute, AttributeGroup, ClassDecl, ClassMemberKind, MethodMember,
     Visibility,
 };
 
@@ -328,7 +328,7 @@ pub struct Fixture {
 /// into.
 struct RawRow {
     span: Span,
-    fields: Vec<ObjectLiteralField>,
+    fields: Vec<AnonObjectField>,
 }
 
 /// Every `#[Test]` and `#[Fixture]` method `decl` declares, recorded into
@@ -624,7 +624,7 @@ fn resolve_parameters(
                 report_row_field(
                     field.span,
                     format!(
-                        "the data row field `{name}` is not a `{want}` literal, which is what \
+                        "the data row field `{name}` is not a `{want}` value written directly in the code, which is what \
                          `{parameter}` is declared as"
                     ),
                     "`rule:testing/data-rows` matches a data row against the method's parameters by name \
@@ -1085,7 +1085,7 @@ fn report_shape(m: &MethodMember, method: &str, did: &str, help: &str, env: &mut
 /// cannot fold — an unknown option, a value of the wrong type, a value that
 /// is not constant at all — so a second diagnostic here would name one
 /// mistake twice. What it cannot fold it simply omits.
-fn fold_options(fields: &[ObjectLiteralField], env: &mut Env<'_>) -> Vec<(String, ConstArg)> {
+fn fold_options(fields: &[AnonObjectField], env: &mut Env<'_>) -> Vec<(String, ConstArg)> {
     let mut folded = Vec::with_capacity(fields.len());
     for field in fields {
         let name = span_text(env.src, field.name).to_owned();
@@ -1107,7 +1107,7 @@ fn fold_options(fields: &[ObjectLiteralField], env: &mut Env<'_>) -> Vec<(String
 /// Called only for a payload [`crate::attributes`] has already proved
 /// constant, for that module's own reason: the author is told about a value
 /// they wrote before they are told what it failed to satisfy.
-pub(crate) fn check_payload(fields: &[ObjectLiteralField], ctx: &Ctx<'_>, env: &mut Env<'_>) {
+pub(crate) fn check_payload(fields: &[AnonObjectField], ctx: &Ctx<'_>, env: &mut Env<'_>) {
     crate::attributes::check_roster("Test", OPTIONS, fields, ctx, env);
     check_retries_state_a_reason(fields, env);
 }
@@ -1122,7 +1122,7 @@ pub(crate) fn check_payload(fields: &[ObjectLiteralField], ctx: &Ctx<'_>, env: &
 /// sometimes the right engineering call and always a claim about the world,
 /// and the reason is what a reader of the attribute has in place of the run
 /// that produced it.
-fn check_retries_state_a_reason(fields: &[ObjectLiteralField], env: &mut Env<'_>) {
+fn check_retries_state_a_reason(fields: &[AnonObjectField], env: &mut Env<'_>) {
     let named = |option: &str| {
         fields
             .iter()

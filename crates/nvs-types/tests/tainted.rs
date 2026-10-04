@@ -137,7 +137,7 @@ fn converting_a_tainted_string_to_bytes_does_not_launder_it() {
 }
 
 #[test]
-fn converting_a_literal_string_to_markup_is_fine() {
+fn converting_a_written_string_to_markup_is_fine() {
     let diags = check_in_method("Core\\Html\\Markup $m = \"literal\" as Core\\Html\\Markup;\n");
     assert!(!diags.has_errors(), "{diags:?}");
 }
@@ -151,7 +151,7 @@ fn converting_a_tainted_string_to_markup_is_diagnosed() {
     assert!(
         diags
             .iter()
-            .any(|d| d.code == Some(code::E_MARKUP_REQUIRES_LITERAL)),
+            .any(|d| d.code == Some(code::E_MARKUP_NEEDS_WRITTEN_STRING)),
         "{diags:?}"
     );
 }
@@ -199,7 +199,7 @@ fn converting_a_runtime_computed_untainted_string_to_markup_is_still_diagnosed()
     assert!(
         diags
             .iter()
-            .any(|d| d.code == Some(code::E_MARKUP_REQUIRES_LITERAL)),
+            .any(|d| d.code == Some(code::E_MARKUP_NEEDS_WRITTEN_STRING)),
         "{diags:?}"
     );
 }
@@ -301,7 +301,7 @@ fn a_computed_to_source_reason_is_refused_at_the_call() {
     assert!(
         computed
             .iter()
-            .any(|d| d.code == Some(code::E_REASON_NOT_A_SOURCE_LITERAL)),
+            .any(|d| d.code == Some(code::E_REASON_NOT_WRITTEN_DIRECTLY)),
         "{computed:?}"
     );
 
@@ -316,7 +316,7 @@ fn a_computed_to_source_reason_is_refused_at_the_call() {
     assert!(
         joined
             .iter()
-            .any(|d| d.code == Some(code::E_REASON_NOT_A_SOURCE_LITERAL)),
+            .any(|d| d.code == Some(code::E_REASON_NOT_WRITTEN_DIRECTLY)),
         "{joined:?}"
     );
 
@@ -341,13 +341,13 @@ fn a_computed_to_source_reason_is_refused_at_the_call() {
     assert!(
         named
             .iter()
-            .any(|d| d.code == Some(code::E_REASON_NOT_A_SOURCE_LITERAL)),
+            .any(|d| d.code == Some(code::E_REASON_NOT_WRITTEN_DIRECTLY)),
         "{named:?}"
     );
 }
 
 #[test]
-fn a_const_reason_is_a_source_literal_and_compiles() {
+fn a_const_reason_is_written_in_the_code_and_compiles() {
     // The refusal above is "not in the source", not "not a string literal
     // token". A `const` folds, so the justification is still greppable and
     // still readable at the site — which is the shape a long reason wants, and

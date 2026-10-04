@@ -372,9 +372,9 @@ fn not_a_literal(span: Span, diags: &mut nvs_diagnostics::Diagnostics) -> Option
     diags.report(
         Diagnostic::error(
             code::E_ENUM_CASE_VALUE_NOT_LITERAL,
-            "an enum case's value must be an integer literal",
+            "an enum case's value must be a whole number written directly in the code",
         )
-        .with_primary(span, "not an integer literal")
+        .with_primary(span, "not a number like `42`")
         .with_help("`rule:enums/declaration`: a case is a compile-time integer constant"),
     );
     None

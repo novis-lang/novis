@@ -30,7 +30,7 @@
 //!
 //! `rule:programs/constructors`' `constructors<T, C>()` is the third member,
 //! and the one that lifts the second refusal: it builds nothing, so it lists
-//! the same classes with one closure each, and a constructor is refused only
+//! the same classes with one callable each, and a constructor is refused only
 //! where `C`'s parameters cannot call it (`E0839`), or where `C` is not a
 //! callable returning `T` (`E0838`).
 
@@ -154,8 +154,8 @@ pub(crate) fn expand_with(
             )
             .with_primary(call.span, format!("`{found}` written here"))
             .with_help(
-                "`rule:attributes/structural-retrieval`: retrieval is structural — an attached literal is an \
-                 answer exactly when it satisfies `T` under `rule:types/shape-type`'s width subtyping, so \
+                "`rule:attributes/structural-retrieval`: retrieval matches by shape. An attribute's payload \
+                 object matches exactly when it satisfies `T` under `rule:types/shape-type`'s width subtyping, so \
                  the second type argument is an inline `{...}` or a `type` alias naming one",
             ),
         );
@@ -227,13 +227,13 @@ pub(crate) fn expand_with(
                 env.diags.report(
                     Diagnostic::error(
                         code::E_ATTRIBUTE_RETRIEVAL_AMBIGUOUS,
-                        format!("`{class}::{method}` carries {count} attached literals satisfying this shape"),
+                        format!("`{class}::{method}` has {count} attribute payloads that match this shape"),
                     )
                     .with_primary(call.span, "each row's `attribute` holds at most one")
                     .with_help(format!(
                         "`rule:programs/implementing-with`: an attached-attribute list is static, so this is \
-                         decided here rather than by a test run — narrow the shape until one literal on \
-                         `{class}` satisfies it, or read that class with `Core\\Attributes::all<T>(…)`"
+                         decided here rather than by a test run — narrow the shape until only one payload on \
+                         `{class}` matches it, or read that class with `Core\\Attributes::all<T>(…)`"
                     )),
                 );
                 return env.interner.mixed();
@@ -267,7 +267,7 @@ pub(crate) fn expand_with(
 }
 
 /// `rule:programs/constructors`: [`expand`]'s list, each class beside the
-/// constructor its `make` closure calls, recorded as
+/// constructor its `make` callable calls, recorded as
 /// [`ExprInfo::ProgramConstructors`].
 ///
 /// `C` must be a `callable(...)` type naming its parameters, with a return
@@ -281,7 +281,7 @@ pub(crate) fn expand_with(
 ///
 /// Returns `array<{class: string, make: C}>`, refused or not, so a refusal is
 /// reported once rather than again by whatever reads the answer. The
-/// closures' own signature, `callable(<C's parameters>): T`, is recorded
+/// callables' own signature, `callable(<C's parameters>): T`, is recorded
 /// against the call's span so a `$f is callable(...)` test sees the classes
 /// `nvs-ir` builds for them.
 pub(crate) fn expand_constructors(
@@ -365,7 +365,7 @@ pub(crate) fn expand_constructors(
                     .with_help(format!(
                         "`rule:programs/constructors`: each row's `make` is \
                          `fn(<{shown}'s parameters>): {selector} => new {class}(<the same \
-                         arguments>)`, checked as that closure would be here — change \
+                         arguments>)`, checked as that anonymous function would be here — change \
                          `{class}`'s constructor, or the parameters `{shown}` names",
                     )),
                 );
@@ -449,8 +449,8 @@ fn constructor_fitting(
         let name = &sig.param_names[index];
         if sig.inout.get(index).copied().unwrap_or(false) {
             return Err(format!(
-                "`{owner}::constructor`'s `${name}` is `inout`, and a closure has no variable \
-                 to pass there"
+                "`{owner}::constructor`'s `${name}` is `inout`, and the `make` callable has no \
+                 variable to pass there"
             ));
         }
         let wanted = sig.params[index];
@@ -904,11 +904,11 @@ mod tests {
 
     /// `rule:programs/constructors`: the call records the list rather than a
     /// call, one resolved constructor per class, and `C`'s parameter list —
-    /// which is every closure's own, so `nvs-ir` builds one closure per class
+    /// which is every callable's own, so `nvs-ir` builds one callable per class
     /// from it.
     // covers: Core\Program::constructors
     #[test]
-    fn program_constructors_expands_to_one_typed_closure_per_class() {
+    fn program_constructors_expands_to_one_typed_callable_per_class() {
         let (exprs, span, diags) = check(
             "<?nvs\n\
              interface Module { public function tag(): string; }\n\

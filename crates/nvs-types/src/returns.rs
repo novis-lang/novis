@@ -71,9 +71,9 @@ pub(crate) fn for_each_valueless_return<F: FnMut(Span)>(stmts: &[Stmt], f: &mut 
 /// Every `return` written in `stmts`, in source order: its operand where it has
 /// one, and the statement's own span either way.
 ///
-/// A closure literal's body is *not* descended into: `fn` is an expression, so
+/// An anonymous function's body is *not* descended into: `fn` is an expression, so
 /// its returns belong to its own frame and are checked when
-/// `crate::expr::calls::check_fn_literal` checks that body. Nothing else here
+/// `crate::expr::calls::check_anon_fn` checks that body. Nothing else here
 /// walks expressions at all, which is what makes that free rather than a case
 /// to remember.
 fn for_each_return_stmt<F: FnMut(Option<&Expr>, Span)>(stmts: &[Stmt], f: &mut F) {

@@ -6,7 +6,7 @@
 //! [`crate::links`] — a `Core` call the compiler knows by name — and it
 //! differs from all three in what it does with the answer: those three
 //! *replace* the call, and this one leaves it exactly as written. § 3 is why:
-//! a literal pattern is **validated** always and **prepared** where there is
+//! a pattern written as a string literal is **validated** always and **prepared** where there is
 //! something to prepare, and neither is an evaluation. `$when->format("y")`
 //! still formats at run time, because the instant and the zone are runtime
 //! values.
@@ -199,7 +199,7 @@ struct Intrinsic {
     /// `rule:core-api/shape-flattens-at-the-abi`'s merged ABI does not answer this and is not what this addresses:
     /// that flattening is `nvs_ir::lower`'s, and it happens to an argument
     /// already checked. Here the shape is still one written literal, so the
-    /// address is a field *name* — `rule:types/anonymous-object` makes [`ExprKind::ObjectLiteral`] the only spelling a shape argument
+    /// address is a field *name* — `rule:types/anonymous-object` makes [`ExprKind::AnonObject`] the only spelling a shape argument
     /// has, and it carries no shorthand, no spread and no computed key for the
     /// match to fall through.
     ///
@@ -252,7 +252,7 @@ const INTRINSICS: &[Intrinsic] = &[
         restriction: None,
         grammar: Grammar::Uri,
     },
-    // `rule:security/outbound-url-is-a-sink`'s literal URL. Every member below
+    // `rule:security/outbound-url-is-a-sink`'s URL written as a string literal. Every member below
     // reaches `nvs_stdlib::http`'s `judged_host`, which refuses both of what
     // `Grammar::Uri` refuses — a text that is not a URI reference and a port
     // past `65535` — so a refusal here is one the call would have thrown.
@@ -674,7 +674,7 @@ pub(crate) fn check_call(
     }
 }
 
-/// A literal query, and the literal params array written beside it — [ADR 0067
+/// A query written as a string literal, and the params array literal written beside it — [ADR 0067
 /// § 10](/docs/decisions/0067.md)'s four clauses: an unterminated
 /// string literal, a refused second statement, placeholder count and
 /// positional-vs-named consistency.
@@ -879,7 +879,7 @@ fn may_be_number(ty: TypeId, env: &Env<'_>) -> bool {
         | Ty::Bool
         | Ty::True
         | Ty::False
-        | Ty::IntLiteral(_) => true,
+        | Ty::SingleValueInt(_) => true,
         // `rule:types/conversion`'s one unchecked position, and the two shapes standing
         // for a type this call site does not name: nothing is knowable here,
         // so nothing is refused.
@@ -922,13 +922,13 @@ fn report_malformed(span: nvs_diagnostics::Span, message: &str, env: &mut Env<'_
     env.diags.report(
         Diagnostic::error(
             code::E_INTRINSIC_LITERAL_MALFORMED,
-            format!("this literal is not one this member can read: {stated}"),
+            format!("this text is not valid for this function: {stated}"),
         )
         .with_primary(span, "read while compiling, because it is a constant")
         .with_help(
-            "the compiler reads a literal pattern with the same parser the runtime would have \
-             used, so this is the error the first call would have thrown — a computed argument \
-             is checked when it runs instead",
+            "a string written directly in the code is checked while compiling, with the same \
+             parser the program uses when it runs. The first call would throw this error. A \
+             computed string is checked when the program runs",
         ),
     );
 }
@@ -945,7 +945,7 @@ fn report_metric_name(span: nvs_diagnostics::Span, message: &str, env: &mut Env<
     env.diags.report(
         Diagnostic::error(
             code::E_INTRINSIC_LITERAL_MALFORMED,
-            format!("this literal is not one this member can read: {message}"),
+            format!("this text is not valid for this function: {message}"),
         )
         .with_primary(span, "read while compiling, because it is a constant")
         .with_help(
@@ -987,7 +987,7 @@ fn report_query(span: nvs_diagnostics::Span, message: &str, env: &mut Env<'_>) {
         )
         .with_primary(span, "read while compiling, because it is a constant")
         .with_help(
-            "the compiler binds a literal query with the same rewriter the request would have \
+            "the compiler binds a query written directly in the code with the same rewriter the request would have \
              used, so this is the `LogicError` the first call would have thrown — `?` and \
              `:name` are `rule:core-classes/db-parameters`'s two spellings and one statement uses one of them",
         ),
@@ -1043,7 +1043,7 @@ fn report_ungranted_queue(span: nvs_diagnostics::Span, queue: &str, env: &mut En
 }
 
 /// The expression a row addresses: the written argument itself, or the one
-/// field named inside the shape literal written there.
+/// field named inside the anonymous object written there.
 ///
 /// The two cases meet here rather than at each grammar's arm, so that
 /// everything below reads *one* expression and neither knows nor cares how
@@ -1057,7 +1057,7 @@ fn addressed<'a>(row: &Intrinsic, arg: &'a Expr, src: &SourceFile) -> Option<&'a
     let Some(name) = row.field else {
         return Some(arg);
     };
-    let ExprKind::ObjectLiteral(fields) = &arg.unparenthesized().kind else {
+    let ExprKind::AnonObject(fields) = &arg.unparenthesized().kind else {
         return None;
     };
     fields

@@ -9,7 +9,7 @@
 //!
 //! The two facts this file exists to hold are the ones § 3 turns on — an enum
 //! case is **not** an int literal of its backing value, and a class constant
-//! **is** its value's own literal type — because unifying either one reopens
+//! **is** its value's own single-value type — because unifying either one reopens
 //! `rule:types/conversion`'s hole.
 
 mod common;
@@ -18,10 +18,10 @@ use common::*;
 use nvs_diagnostics::code;
 use nvs_types::ty::Ty;
 
-/// § 1's two literal atoms: each interns to its own singleton type, holding
+/// § 1's two single-value atoms: each interns to its own singleton type, holding
 /// the value it names rather than the text it was written as.
 #[test]
-fn a_literal_type_atom_is_checked() {
+fn a_single_value_type_atom_is_checked() {
     let (diags, types) = check_src_declared(concat!(
         "<?nvs\n",
         "class T {\n",
@@ -31,21 +31,21 @@ fn a_literal_type_atom_is_checked() {
     assert!(!diags.has_errors(), "{diags:?}");
     assert_eq!(
         types.interner.get(types.of("\"a\"", "$s")),
-        &Ty::StringLiteral("a".to_owned())
+        &Ty::SingleValueString("a".to_owned())
     );
     assert_eq!(
         types.interner.get(types.of("1", "$one")),
-        &Ty::IntLiteral(1)
+        &Ty::SingleValueInt(1)
     );
     assert_eq!(
         types.interner.get(types.of("-1", "$neg")),
-        &Ty::IntLiteral(-1)
+        &Ty::SingleValueInt(-1)
     );
     // The one integer grammar, not a second one: a radix prefix reads here
     // exactly as it does in a value position.
     assert_eq!(
         types.interner.get(types.of("0x10", "$hex")),
-        &Ty::IntLiteral(16)
+        &Ty::SingleValueInt(16)
     );
 }
 
@@ -53,7 +53,7 @@ fn a_literal_type_atom_is_checked() {
 /// literals, and `?` sugar over one. Compared against a rebuilt union rather
 /// than a `describe` string, since a union orders its members by type id.
 #[test]
-fn a_union_of_literal_atoms_is_one_closed_set() {
+fn a_union_of_single_value_atoms_is_one_closed_set() {
     let (diags, mut types) = check_src_declared(concat!(
         "<?nvs\n",
         "class T {\n",
@@ -66,12 +66,12 @@ fn a_union_of_literal_atoms_is_one_closed_set() {
 
     let members: Vec<_> = ["a", "b", "c"]
         .into_iter()
-        .map(|v| types.interner.string_literal(v))
+        .map(|v| types.interner.single_value_string(v))
         .collect();
     let expected = types.interner.make_union(members);
     assert_eq!(mode, expected);
 
-    let x = types.interner.string_literal("x");
+    let x = types.interner.single_value_string("x");
     let null = types.interner.null();
     let expected = types.interner.make_union([x, null]);
     assert_eq!(maybe, expected);
@@ -79,7 +79,7 @@ fn a_union_of_literal_atoms_is_one_closed_set() {
 
 /// §§ 2-3's one atom with two meanings, told apart by what the name resolves
 /// to — and the fact that makes § 3 worth having: `Mode::Read` and the int
-/// literal type of its backing value `0` are **two** types, never one.
+/// single-value type of its backing value `0` are **two** types, never one.
 #[test]
 fn a_class_constant_folds_and_an_enum_case_narrows() {
     let (diags, mut types) = check_src_declared(concat!(
@@ -92,11 +92,11 @@ fn a_class_constant_folds_and_an_enum_case_narrows() {
     ));
     assert!(!diags.has_errors(), "{diags:?}");
 
-    // § 2: the constant is sugar for its value's own literal type, so it is
+    // § 2: the constant is sugar for its value's own single-value type, so it is
     // the *same* interned type as writing that value out.
-    let written = types.interner.string_literal("a");
+    let written = types.interner.single_value_string("a");
     assert_eq!(types.of("Foo::TYPE_A", "$c"), written);
-    let written = types.interner.int_literal(7);
+    let written = types.interner.single_value_int(7);
     assert_eq!(types.of("Foo::RANK", "$r"), written);
 
     // § 3: the case is a narrowed subtype of its enum, not its backing value.
@@ -108,7 +108,7 @@ fn a_class_constant_folds_and_an_enum_case_narrows() {
             "Read".to_owned()
         )
     );
-    let zero = types.interner.int_literal(0);
+    let zero = types.interner.single_value_int(0);
     assert_ne!(
         types.of("Mode::Read", "$m"),
         zero,
@@ -117,7 +117,7 @@ fn a_class_constant_folds_and_an_enum_case_narrows() {
 }
 
 /// § 3's case-subset union is its own type, and § 4's fourth row widens it to
-/// exactly its enum — the one row of that table `TypeInterner::literal_base`
+/// exactly its enum — the one row of that table `TypeInterner::single_value_base`
 /// already answers.
 #[test]
 fn a_case_subset_union_is_not_its_enum() {
@@ -132,10 +132,10 @@ fn a_case_subset_union_is_not_its_enum() {
     let subset = types.of("Mode::Read|Mode::Write", "$subset");
     let whole = types.of("Mode", "$whole");
     assert_ne!(subset, whole);
-    assert_eq!(types.interner.literal_base(subset), whole);
+    assert_eq!(types.interner.single_value_base(subset), whole);
 }
 
-/// § 2's eligibility rule: a constant whose value has no literal type to fold
+/// § 2's eligibility rule: a constant whose value has no single-value type to fold
 /// to is a diagnostic naming the eligible types, not a silent widening.
 #[test]
 fn an_ineligible_class_constant_in_type_position_is_diagnosed() {
@@ -149,7 +149,7 @@ fn an_ineligible_class_constant_in_type_position_is_diagnosed() {
     assert!(
         diags
             .iter()
-            .any(|d| d.code == Some(code::E_LITERAL_TYPE_NOT_CONST)),
+            .any(|d| d.code == Some(code::E_SINGLE_VALUE_TYPE_NOT_CONST)),
         "{diags:?}"
     );
 }
@@ -179,10 +179,10 @@ fn an_undeclared_constant_or_case_in_type_position_is_diagnosed() {
 }
 
 /// § 1's atom is an `int` literal, so a magnitude no `int` holds has no
-/// literal type to be — the same diagnostic the identical mistake takes in a
+/// single-value type to be — the same diagnostic the identical mistake takes in a
 /// value position.
 #[test]
-fn an_out_of_range_int_literal_type_is_diagnosed() {
+fn an_out_of_range_int_single_value_type_is_diagnosed() {
     let diags = check_src(concat!(
         "<?nvs\n",
         "class T { function m(99999999999999999999 $n): void {} }\n",
@@ -195,11 +195,11 @@ fn an_out_of_range_int_literal_type_is_diagnosed() {
     );
 }
 
-/// § 5's promise, from the checker's side: a literal type's base is what every
+/// § 5's promise, from the checker's side: a single-value type's base is what every
 /// question about representation is answered against, and a union widens
 /// member-wise rather than to itself.
 #[test]
-fn a_literal_type_widens_to_its_base() {
+fn a_single_value_type_widens_to_its_base() {
     let (diags, mut types) = check_src_declared(concat!(
         "<?nvs\n",
         "class T { function m(\"a\"|\"b\" $mode, 1 $one): void {} }\n",
@@ -207,18 +207,18 @@ fn a_literal_type_widens_to_its_base() {
     assert!(!diags.has_errors(), "{diags:?}");
     let mode = types.of("\"a\"|\"b\"", "$mode");
     let string = types.interner.string();
-    assert_eq!(types.interner.literal_base(mode), string);
+    assert_eq!(types.interner.single_value_base(mode), string);
 
     let one = types.of("1", "$one");
     let int = types.interner.int();
-    assert_eq!(types.interner.literal_base(one), int);
+    assert_eq!(types.interner.single_value_base(one), int);
 }
 
 /// § 4's producer half: a literal expression takes `rule:types/single-value-types`'s singleton
 /// type from the position it lands in, so writing the value out is what
 /// satisfies the type — the step without which nothing but an `as` ever could.
 #[test]
-fn a_literal_expression_satisfies_the_literal_type_its_position_names() {
+fn a_literal_expression_satisfies_the_single_value_type_its_position_names() {
     let diags = check_in_method(concat!(
         "    \"a\"|\"b\" $mode = \"a\";
 ",
@@ -257,11 +257,11 @@ fn a_literal_outside_the_named_set_is_a_mismatch() {
 }
 
 /// § 4's first three rows, through an assignment rather than through
-/// `literal_base` directly: a literal type and a literal union widen to their
+/// `single_value_base` directly: a single-value type and a set of allowed values widen to their
 /// base for free, and compose with everything already below that rule — a
 /// nullable base, and `rule:security/tainted-qualifier`'s `tainted` axis.
 #[test]
-fn a_literal_type_widens_to_its_base_for_free() {
+fn a_single_value_type_widens_to_its_base_for_free() {
     let diags = check_in_method(concat!(
         "    \"a\"|\"b\" $mode = \"a\";
 ",
@@ -282,10 +282,10 @@ fn a_literal_type_widens_to_its_base_for_free() {
 }
 
 /// And never the reverse — § 4's last row makes narrowing a checked `as`, so
-/// a base-typed value in a literal-typed position is a mismatch, not a
+/// a base-typed value in a single-value-typed position is a mismatch, not a
 /// silent membership test.
 #[test]
-fn a_base_type_does_not_narrow_to_a_literal_type_by_assignment() {
+fn a_base_type_does_not_narrow_to_a_single_value_type_by_assignment() {
     let diags = check_in_method(concat!(
         "    string $s = \"a\";
 ",
@@ -412,7 +412,7 @@ fn a_literal_conversion_the_operand_disproves_is_refused() {
         let diags = check_in_method(body);
         let reported = diags
             .iter()
-            .find(|d| d.code == Some(code::E_LITERAL_TYPE_MISMATCH))
+            .find(|d| d.code == Some(code::E_SINGLE_VALUE_TYPE_MISMATCH))
             .unwrap_or_else(|| panic!("{body}: {diags:?}"));
         assert!(
             reported
@@ -426,7 +426,7 @@ fn a_literal_conversion_the_operand_disproves_is_refused() {
     let diags = check_in_method("    \"a\"|\"b\" $mode = \"z\" as \"a\"|\"b\";\n");
     let reported = diags
         .iter()
-        .find(|d| d.code == Some(code::E_LITERAL_TYPE_MISMATCH))
+        .find(|d| d.code == Some(code::E_SINGLE_VALUE_TYPE_MISMATCH))
         .unwrap_or_else(|| panic!("{diags:?}"));
     assert!(
         reported.message.contains("`\"a\"`") && reported.message.contains("`\"b\"`"),
@@ -529,11 +529,11 @@ fn an_enum_case_conversion_the_operand_disproves_is_refused() {
     );
 }
 
-/// A literal type is usable at every binding site `rule:types/declaration` lists, not
+/// A single-value type is usable at every binding site `rule:types/declaration` lists, not
 /// only at a local — so the same free widening runs at a parameter and at a
 /// return.
 #[test]
-fn a_literal_type_is_assignable_at_a_parameter_and_a_return() {
+fn a_single_value_type_is_assignable_at_a_parameter_and_a_return() {
     let diags = check_src(concat!(
         "<?nvs
 ",

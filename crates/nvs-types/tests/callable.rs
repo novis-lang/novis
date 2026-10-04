@@ -37,7 +37,7 @@ fn an_array_callable_spelling_where_callable_is_expected_is_diagnosed() {
 }
 
 #[test]
-fn a_first_class_callable_reference_satisfies_a_callable_parameter() {
+fn a_method_ref_satisfies_a_callable_parameter() {
     let diags = check_src(
         "<?nvs\nclass T {\n  function run(callable $fn): void {}\n  function target(): void {}\n  function m(): void {\n    $this->run($this->target(...));\n  }\n}\n",
     );
@@ -56,10 +56,10 @@ fn calling_a_non_callable_object_is_diagnosed() {
 }
 
 /// PHP's variable function: the variable is a `string`, and no `string` is a
-/// closure, so the call is refused where it is written. So is a call on every
-/// other type whose values are never closures, and on a union of only those.
+/// callable, so the call is refused where it is written. So is a call on every
+/// other type whose values are never callables, and on a union of only those.
 #[test]
-fn calling_a_value_whose_type_is_never_a_closure_is_diagnosed() {
+fn calling_a_value_whose_type_is_never_a_callable_is_diagnosed() {
     for local in [
         "string $f = 'strlen';",
         "int $f = 7;",
@@ -77,10 +77,10 @@ fn calling_a_value_whose_type_is_never_a_closure_is_diagnosed() {
     }
 }
 
-/// A callee that may be a closure is left to the call: `mixed` holds anything,
-/// and a nullable `callable` is a closure on one of its arms.
+/// A callee that may be a callable is left to the call: `mixed` holds anything,
+/// and a nullable `callable` is a callable on one of its arms.
 #[test]
-fn calling_a_value_whose_type_may_be_a_closure_is_not_diagnosed() {
+fn calling_a_value_whose_type_may_be_a_callable_is_not_diagnosed() {
     for local in [
         "mixed $f = fn (string $s): uint => 1;",
         "?callable $f = fn (string $s): uint => 1;",
@@ -94,7 +94,7 @@ fn calling_a_value_whose_type_may_be_a_closure_is_not_diagnosed() {
 }
 
 #[test]
-fn calling_a_closure_value_is_unaffected() {
+fn calling_a_callable_value_is_unaffected() {
     let diags = check_in_method("callable $fn = fn(): int => 1;\n$fn();\n");
     assert!(!diags.has_errors(), "{diags:?}");
 }
@@ -105,7 +105,7 @@ fn calling_a_closure_value_is_unaffected() {
 // spelling to be reached by.
 
 #[test]
-fn a_fn_literal_satisfies_a_written_signature() {
+fn an_anon_fn_satisfies_a_written_signature() {
     let diags = check_in_method("callable(int): string $format = fn (int $n): string => \"n\";\n");
     assert!(!diags.has_errors(), "{diags:?}");
 }
@@ -172,14 +172,14 @@ fn a_callable_parameter_may_be_wider_than_the_slot_declares() {
 // parameter early fails here while still looking right on either line alone.
 
 #[test]
-fn a_closure_of_lower_arity_satisfies_a_wider_callable_type() {
+fn an_anon_fn_of_lower_arity_satisfies_a_wider_callable_type() {
     let diags =
         check_in_method("callable(int, string): string $format = fn (int $n): string => \"n\";\n");
     assert!(!diags.has_errors(), "{diags:?}");
 }
 
 #[test]
-fn a_closure_of_higher_arity_than_the_type_is_refused() {
+fn an_anon_fn_of_higher_arity_than_the_type_is_refused() {
     let diags = check_in_method(
         "callable(int): string $format = fn (int $n, string $k): string => \"n\";\n",
     );
@@ -214,7 +214,7 @@ fn an_unannotated_parameter_under_a_bare_callable_is_refused() {
     assert!(
         diags
             .iter()
-            .any(|d| d.code == Some(code::E_CLOSURE_PARAMETER_TYPE_NOT_INFERABLE)),
+            .any(|d| d.code == Some(code::E_ANON_FN_PARAMETER_TYPE_NOT_INFERABLE)),
         "{diags:?}"
     );
 }
@@ -225,7 +225,7 @@ fn an_unannotated_parameter_past_the_signatures_end_is_refused() {
     assert!(
         diags
             .iter()
-            .any(|d| d.code == Some(code::E_CLOSURE_PARAMETER_TYPE_NOT_INFERABLE)),
+            .any(|d| d.code == Some(code::E_ANON_FN_PARAMETER_TYPE_NOT_INFERABLE)),
         "{diags:?}"
     );
 }
@@ -268,7 +268,7 @@ fn a_block_bodied_fn_still_declares_its_return_type() {
     assert!(
         diags
             .iter()
-            .any(|d| d.code == Some(code::E_CLOSURE_RETURN_TYPE_REQUIRED)),
+            .any(|d| d.code == Some(code::E_ANON_FN_RETURN_TYPE_REQUIRED)),
         "{diags:?}"
     );
 }

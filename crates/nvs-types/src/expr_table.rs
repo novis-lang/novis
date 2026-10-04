@@ -156,7 +156,7 @@ pub struct ResolvedCall {
     pub has_body: bool,
     /// The called class the call site *sets*, resolved — `Some` for a static
     /// call written with an explicit class (`LeafRegistry::make()`) and for
-    /// `self::`/`parent::` inside a closure body, `None` for an instance call,
+    /// `self::`/`parent::` inside an anonymous function's body, `None` for an instance call,
     /// for `self::`/`static::`/`parent::` in a method body, and for `new`'s
     /// own constructor invocation.
     ///
@@ -165,9 +165,9 @@ pub struct ResolvedCall {
     /// binding needs both — the declaring class to know which code to call,
     /// and the called class because that is what `static` means inside it.
     /// In a method body `self::`/`parent::`/`static::` forward the frame's
-    /// called class, which is PHP's rule. A closure's frame holds no called
-    /// class, so there `self::` and `parent::` set the class the closure is
-    /// written in (`rule:statements/static-is-a-member-modifier`).
+    /// called class, which is PHP's rule. An anonymous function's frame holds no
+    /// called class, so there `self::` and `parent::` set the class the
+    /// anonymous function is written in (`rule:statements/static-is-a-member-modifier`).
     ///
     /// Recorded rather than left to `nvs-ir` for [`ExprInfo::TypeTest`]'s
     /// reason: resolving a bare `LeafRegistry` against the active namespace
@@ -249,8 +249,8 @@ pub struct ResolvedCall {
     /// [`Self::text_at`]. Empty when no parameter is marked.
     ///
     /// Recorded for an editor rather than for `nvs-ir`: the checker has
-    /// already resolved every path literal it applies to
-    /// (`Self::path_literal`'s table), and a language server holds the call
+    /// already resolved every written path it applies to
+    /// (`Self::written_path`'s table), and a language server holds the call
     /// site and no signature table, so it reads the mark here to offer file
     /// names at a path parameter and class names at a class-name one. An
     /// empty vector does not allocate, so a call to an unmarked method costs
@@ -328,7 +328,7 @@ pub struct ObserverCalls {
 /// would be the second copy that rule exists to refuse.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum UrlPiece {
-    /// A literal segment, `/` included — compared byte for byte at match time
+    /// A fixed segment, `/` included — compared byte for byte at match time
     /// (`rule:classes/names-resolve-case-sensitively`),
     /// so it is copied out exactly as declared.
     Literal(String),
@@ -426,9 +426,9 @@ pub enum ExprInfo {
     /// [`nvs_syntax::ast::ExprKind::StaticCall`] whose receiver/class side
     /// resolved to a known signature.
     Call(ResolvedCall),
-    /// `Foo::bar(...)` / `$obj->method(...)` — `rule:types/callable-values`'s first-class
-    /// callable syntax, which *names* the resolved member rather than calling
-    /// it, and whose value is a closure over it.
+    /// `Foo::bar(...)` / `$obj->method(...)` — `rule:types/callable-values`'s method
+    /// reference, which *names* the resolved member rather than calling it,
+    /// and whose value is a callable bound to it.
     ///
     /// Recorded *instead of* [`ExprInfo::Call`] for the same span, and
     /// carrying the same [`ResolvedCall`], because the two ends need exactly
@@ -440,12 +440,12 @@ pub enum ExprInfo {
     ///
     /// Only ever recorded when the member resolved. The three shapes that
     /// name no member are refused where they are written and record nothing:
-    /// a `mixed` receiver (`E_FIRST_CLASS_CALLABLE_ERASED_RECEIVER`, since a
-    /// closure carries its callee with it and `rule:types/erased-member-access`'s run-time
+    /// a `mixed` receiver (`E_METHOD_REF_ERASED_RECEIVER`, since a
+    /// callable carries its callee with it and `rule:types/erased-member-access`'s run-time
     /// dispatch has no callee to carry), an erased `object`/shape receiver
     /// (`E_METHOD_ON_ERASED_RECEIVER`), and an unresolved class expression,
     /// which `nvs_hir::members` has already reported. So a consumer that
-    /// finds no entry on a first-class-callable span is looking at a program
+    /// finds no entry on a method reference's span is looking at a program
     /// that did not compile.
     ///
     /// `ResolvedCall::arg_slots` is empty here and means nothing: `(...)` is a
@@ -463,16 +463,17 @@ pub enum ExprInfo {
     /// [`nvs_syntax::ast::ExprKind::Call`] carries an entry of its own only
     /// where the callee's type names its parameters
     /// ([`Self::CallThroughSignature`]), which a self-name does not: the name
-    /// resolves to the closure being written, not to a declared `callable`.
+    /// resolves to the anonymous function being written, not to a declared `callable`.
     ///
     /// Carries nothing. The value the name resolves to is the invoke's own
     /// receiver, which the consumer already holds — `nvs_ir::lower::closure`'s
-    /// `FN_SELF` — so a field naming the closure's class would be a second copy
-    /// of a fact the frame being lowered *is*. A consumer that finds this on a
-    /// span it is not lowering a closure body for is looking at a program that
+    /// `FN_SELF` — so a field naming the anonymous function's class would be a
+    /// second copy of a fact the frame being lowered *is*. A consumer that finds
+    /// this on a span it is not lowering an anonymous function's body for is
+    /// looking at a program that
     /// did not compile: the checker binds the name for one body only
-    /// ([`crate::expr::calls::check_fn_literal`]).
-    ClosureSelf,
+    /// ([`crate::expr::calls::check_anon_fn`]).
+    AnonFnSelf,
     /// `$f(...)` where `$f`'s type is `rule:types/callable-signature`'s written
     /// signature — the call site whose arguments are proven where they are
     /// written, recorded on the **call's** own span.
@@ -553,11 +554,11 @@ pub enum ExprInfo {
     /// reference has nothing to do with. [`crate::expr::calls`]'s
     /// static-call refusal is where that is reported.
     ///
-    /// Known gap: `$cls::f(...)` written as `rule:types/callable-values`'s first-class callable
+    /// Known gap: `$cls::f(...)` written as `rule:types/callable-values`'s method reference
     /// records [`ExprInfo::CallableRef`] like any other class side, so the
-    /// closure it names is `T`'s method rather than the implementor's. The
+    /// callable it names is `T`'s method rather than the implementor's. The
     /// same fallback-versus-override question as above, at a site that has no
-    /// descriptor to dispatch on once the closure has escaped.
+    /// descriptor to dispatch on once the callable has escaped.
     ClassRefCall(ResolvedCall),
     /// `$m->method(...)` on a **`mixed`** receiver — the one method call that
     /// resolves to no signature and is not refused where it is written.
@@ -587,7 +588,7 @@ pub enum ExprInfo {
     /// builtin operations, which no class declares, so no [`ResolvedCall`]
     /// names them. `nvs-ir` lowers each to `nvs_ir::Helper::BindClosure`, and
     /// `call` then calls what that returns with the rest of the arguments.
-    ClosureRebind {
+    CallableRebind {
         /// `true` for `call`, `false` for `bind` and `bindTo`, which are the
         /// same operation under two names.
         call: bool,
@@ -929,7 +930,7 @@ pub enum ExprInfo {
     /// row narrows a local to the case's own `Ty::EnumCase`, and *which* case
     /// a written `Mode::Read` names is a question about the namespace and the
     /// imports of the site that wrote it — context
-    /// [`crate::locals::literal_residue`] does not carry. The value alone
+    /// [`crate::locals::single_value_residue`] does not carry. The value alone
     /// cannot answer it: two cases of two enums may share one integer.
     EnumCase {
         /// The case's constant value, in its enum's backing type.
@@ -1037,7 +1038,7 @@ pub enum ExprInfo {
     /// [`nvs_ir`'s `Ty::Str`](/crates/nvs-ir/src/ty.rs) because a key
     /// *is* a name, and `nvs-ir` holds no class table to re-derive the set
     /// from. So the set travels here and § 2's two checked rows lower to the
-    /// same compile-time-known membership chain `rule:types/enum-case-type`'s literal union
+    /// same compile-time-known membership chain `rule:types/enum-case-type`'s set of allowed values
     /// already does — one `BinOp::Eq` per name, and a throw where every one of
     /// them missed.
     ///
@@ -1141,8 +1142,8 @@ pub enum ExprInfo {
     /// typed constructors, already answered.
     ///
     /// The enumeration's list, each class beside the constructor its `make`
-    /// closure calls. `nvs-ir` emits one `{class, make}` shape row per entry
-    /// into one array, and each `make` is a closure object of a class
+    /// callable calls. `nvs-ir` emits one `{class, make}` shape row per entry
+    /// into one array, and each `make` is a callable object of a class
     /// synthesized for it, whose `invoke` takes `params` and writes the `new`.
     /// Nothing is built until a `make` is called.
     ProgramConstructors {
@@ -1155,7 +1156,7 @@ pub enum ExprInfo {
         /// class declares no constructor, which the checker allows only for
         /// an empty `params`.
         ctors: Vec<Option<ResolvedCall>>,
-        /// `C`'s parameter types, left to right — every `make` closure's own
+        /// `C`'s parameter types, left to right — every `make` callable's own
         /// parameter list.
         params: Vec<TypeId>,
     },
@@ -1199,13 +1200,13 @@ pub enum ExprInfo {
         /// second question. [`crate::links`]' `spellings` is where they meet.
         spellings: Vec<EnumSpelling>,
     },
-    /// An `rule:types/anonymous-function`
-    /// `fn` closure literal, keyed by the literal's own span.
+    /// A `rule:types/anonymous-function` `fn` anonymous function, keyed by its
+    /// own span.
     ///
-    /// A closure's *type* is [`crate::ty::Ty::Callable`] and says nothing
+    /// Its *type* is [`crate::ty::Ty::Callable`] and says nothing
     /// about it — `rule:types/callable-is-the-only-function-type` keeps that type opaque, and `rule:types/callable-values` already
     /// fixed what may satisfy it. So everything lowering one needs is here
-    /// instead: the class label `nvs-ir` synthesizes the closure's captured
+    /// instead: the class label `nvs-ir` synthesizes the anonymous function's captured
     /// environment as, the outer bindings that environment holds, and the
     /// value the body produces.
     ///
@@ -1214,14 +1215,14 @@ pub enum ExprInfo {
     /// reads" (§ 2), which is a fact only the checker's own scope walk knows;
     /// and an expression body's return type is inferred from that body, which
     /// is the checker's job by definition.
-    Closure {
-        /// The label of the class `nvs-ir` synthesizes for this closure's
+    AnonFn {
+        /// The label of the class `nvs-ir` synthesizes for this anonymous function's
         /// captured environment. Contains a `$`, which no Novis identifier may,
         /// so it can never collide with a declared class.
         class: String,
         /// Every outer binding the body reads or writes, in first-touch
         /// order — the field order of the class above. `$this` appears here
-        /// under the name `this`, which is `rule:statements/an-anonymous-function-captures-this-only-where-it-uses-it`'s "a closure binds
+        /// under the name `this`, which is `rule:statements/an-anonymous-function-captures-this-only-where-it-uses-it`'s "an anonymous function binds
         /// `$this` only where the body uses it" falling straight out of § 2's
         /// capture rule rather than needing a rule of its own.
         captures: Vec<(String, TypeId)>,
@@ -1320,7 +1321,7 @@ pub struct ExprTypeTable {
     static_properties: FxHashMap<String, Vec<(String, Option<crate::defaults::ConstArg>)>>,
     to_string: FxHashMap<Span, ResolvedCall>,
     require_targets: FxHashMap<Span, nvs_diagnostics::SourceId>,
-    path_literals: FxHashMap<Span, String>,
+    written_paths: FxHashMap<Span, String>,
     prepared: FxHashMap<Span, Prepared>,
     delegations: Vec<Delegation>,
     locals: Vec<(Span, Vec<LocalBinding>)>,
@@ -1490,7 +1491,7 @@ impl ExprTypeTable {
     /// Every body's locals, with the span of the body that declared them.
     ///
     /// Iterated rather than looked up: which of the bodies covering an offset
-    /// a name belongs to is the consumer's question — a closure's body is
+    /// a name belongs to is the consumer's question — an anonymous function's body is
     /// inside a method's and shares none of its bindings
     /// (`rule:types/anonymous-function`'s capture is by value), so a reader walks
     /// from the innermost outward and stops at the first body that declares
@@ -1501,17 +1502,17 @@ impl ExprTypeTable {
             .map(|(body, locals)| (*body, locals.as_slice()))
     }
 
-    /// Every [`ExprInfo::Closure`] recorded this run, in the order the
-    /// checker met each `fn` literal — its environment class label, its
+    /// Every [`ExprInfo::AnonFn`] recorded this run, in the order the
+    /// checker met each anonymous function — its environment class label, its
     /// capture list and its return type.
     ///
     /// The one accessor here that iterates rather than looks a span up:
-    /// `nvs-ir` reaches a closure through the literal it is lowering, but a
-    /// test (and, later, anything that has to enumerate the synthesized
-    /// classes) has no span to start from.
-    pub fn closures(&self) -> impl Iterator<Item = (&str, &Vec<(String, TypeId)>, TypeId)> {
+    /// `nvs-ir` reaches an anonymous function through the expression it is
+    /// lowering, but a test (and, later, anything that has to enumerate the
+    /// synthesized classes) has no span to start from.
+    pub fn anon_fns(&self) -> impl Iterator<Item = (&str, &Vec<(String, TypeId)>, TypeId)> {
         self.entries.iter().filter_map(|info| match info {
-            ExprInfo::Closure {
+            ExprInfo::AnonFn {
                 class,
                 captures,
                 return_ty,
@@ -1520,20 +1521,20 @@ impl ExprTypeTable {
         })
     }
 
-    /// Records that the expression at `span` evaluates to a closure whose
-    /// signature the checker interned as `sig` — a `fn` literal, or one of
-    /// `rule:types/callable-values`'s first-class-callable spellings,
-    /// those being the only expressions that make one.
+    /// Records that the expression at `span` evaluates to a callable whose
+    /// signature the checker interned as `sig` — an anonymous function, or one
+    /// of `rule:types/callable-values`'s method references, those being the
+    /// only expressions that make one.
     ///
-    /// Keyed by the literal rather than by the class `nvs-ir` synthesizes for
-    /// it, because a first-class callable's class is that crate's own name for
+    /// Keyed by the expression rather than by the class `nvs-ir` synthesizes for
+    /// it, because a method reference's class is that crate's own name for
     /// a site and never reaches this one. `nvs-ir` is lowering the literal
     /// when it builds the class, so a span is the key both sides hold.
     pub(crate) fn record_callable_value(&mut self, span: Span, sig: TypeId) {
         self.callable_values.insert(span, sig);
     }
 
-    /// Every literal that makes a closure, beside the signature it makes one
+    /// Every expression that makes a callable, beside the signature it makes one
     /// of — [`crate::callables`]'s input, and the counterpart of
     /// [`Self::tested_types`].
     pub(crate) fn callable_values(&self) -> impl Iterator<Item = (Span, TypeId)> + '_ {
@@ -1542,7 +1543,7 @@ impl ExprTypeTable {
 
     /// Every type an `is`, or an `as` into a shape, in this program asks a
     /// value to hold at run time. Iterates for
-    /// [`Self::closures`]' reason: the question is about the program rather
+    /// [`Self::anon_fns`]' reason: the question is about the program rather
     /// than about one site, so there is no span to look up.
     pub(crate) fn tested_types(&self) -> impl Iterator<Item = TypeId> + '_ {
         self.entries.iter().filter_map(|info| match info {
@@ -1554,8 +1555,8 @@ impl ExprTypeTable {
     }
 
     /// Records [`crate::callables`]' answer for one written signature: the
-    /// marker class a test against it walks for, and the literals whose
-    /// closures conform to that marker.
+    /// marker class a test against it walks for, and the expressions whose
+    /// callables conform to that marker.
     pub(crate) fn record_callable_conformance(
         &mut self,
         sig: TypeId,
@@ -1592,9 +1593,9 @@ impl ExprTypeTable {
             .map(|(_, marker)| marker.as_str())
     }
 
-    /// The marker classes the closure made at `span` conforms to — the
-    /// supertypes `nvs-ir` gives that literal's synthesized class, beside the
-    /// one every closure carries.
+    /// The marker classes the callable made at `span` conforms to — the
+    /// supertypes `nvs-ir` gives that expression's synthesized class, beside the
+    /// one every callable carries.
     #[must_use]
     pub fn callable_markers_at(&self, span: Span) -> &[String] {
         self.callable_conformance
@@ -1959,8 +1960,8 @@ impl ExprTypeTable {
     /// `rule:programs/relative-paths-resolve-from-their-file`, decided by
     /// [`crate::paths`] at the one place that sees both the literal and the
     /// parameter it fills.
-    pub(crate) fn record_path_literal(&mut self, span: Span, path: String) {
-        self.path_literals.insert(span, path);
+    pub(crate) fn record_written_path(&mut self, span: Span, path: String) {
+        self.written_paths.insert(span, path);
     }
 
     /// The absolute path `nvs-ir` lowers the expression at `span` to, or
@@ -1969,15 +1970,15 @@ impl ExprTypeTable {
     /// (what `nvs_syntax::ast::ExprKind::Str` carries), and a
     /// `Core\Path::thisFile` or `thisDir` call, keyed by the call's span.
     #[must_use]
-    pub fn path_literal(&self, span: Span) -> Option<&str> {
-        self.path_literals.get(&span).map(String::as_str)
+    pub fn written_path(&self, span: Span) -> Option<&str> {
+        self.written_paths.get(&span).map(String::as_str)
     }
 
-    /// Every resolved path literal with the span it was written at, in no
+    /// Every resolved written path with the span it was written at, in no
     /// particular order — for a caller that wants to show them rather than
     /// lower one.
-    pub fn path_literals(&self) -> impl Iterator<Item = (Span, &str)> + '_ {
-        self.path_literals
+    pub fn written_paths(&self) -> impl Iterator<Item = (Span, &str)> + '_ {
+        self.written_paths
             .iter()
             .map(|(span, path)| (*span, path.as_str()))
     }
@@ -2509,11 +2510,11 @@ mod tests {
         assert_eq!(call.param_tys.len(), 1);
     }
 
-    /// `rule:types/callable-values`'s first-class callable syntax names the member rather than
+    /// `rule:types/callable-values`'s method reference names the member rather than
     /// calling it, so the same resolved facts are recorded under a variant a
     /// consumer cannot mistake for a call — see [`ExprInfo::CallableRef`].
     #[test]
-    fn a_static_first_class_callable_records_the_resolved_target() {
+    fn a_static_method_ref_records_the_resolved_target() {
         let (exprs, span) = check_and_find_expr_span(
             "<?nvs\nclass T {\n  static function make(int $x): int { return $x; }\n  function m(): callable {\n    return self::make(...);\n  }\n}\n",
         );
@@ -2535,7 +2536,7 @@ mod tests {
     /// called class, so `rule:types/callable-values`'s "late-bound, exactly like
     /// `static::class`" survives the reference.
     #[test]
-    fn a_named_class_first_class_callable_records_its_static_class() {
+    fn a_named_class_method_ref_records_its_static_class() {
         let (exprs, span) = check_and_find_expr_span(
             "<?nvs\nclass T {\n  static function make(): int { return 1; }\n  function m(): callable {\n    return T::make(...);\n  }\n}\n",
         );
@@ -2549,7 +2550,7 @@ mod tests {
     }
 
     #[test]
-    fn an_instance_first_class_callable_records_the_resolved_target() {
+    fn an_instance_method_ref_records_the_resolved_target() {
         let (exprs, span) = check_and_find_expr_span(
             "<?nvs\nclass T {\n  function a(int $x): int { return $x; }\n  function m(): callable {\n    return $this->a(...);\n  }\n}\n",
         );
@@ -2562,12 +2563,12 @@ mod tests {
     }
 
     /// `rule:types/type-test`'s `is callable(int): string` is answered by a
-    /// marker class the tested signature names and the closures that conform
-    /// to it, and the relation is `crate::expr::is_assignable`: this literal
+    /// marker class the tested signature names and the callables that conform
+    /// to it, and the relation is `crate::expr::is_assignable`: this anonymous function
     /// declares a *wider* parameter than the test asks for, which is the
     /// direction a callable conversion makes sound, so it conforms.
     #[test]
-    fn a_closure_conforms_to_the_marker_of_every_signature_it_satisfies() {
+    fn an_anon_fn_conforms_to_the_marker_of_every_signature_it_satisfies() {
         let (exprs, _span) = check_and_find_expr_span(
             "<?nvs\nclass T {\n  function m(mixed $v): bool {\n    return $v is callable(int): string;\n  }\n  function f(): callable {\n    return fn (mixed $n): string => \"x\";\n  }\n}\n",
         );
@@ -2581,11 +2582,11 @@ mod tests {
     }
 
     /// The other half of the same relation, and why the marker is recorded
-    /// whether or not anything satisfies it: a closure returning the wrong
+    /// whether or not anything satisfies it: an anonymous function returning the wrong
     /// type conforms to nothing, and the test still needs a descriptor to walk
     /// before it can answer `false`.
     #[test]
-    fn a_closure_whose_return_type_differs_conforms_to_no_marker() {
+    fn an_anon_fn_whose_return_type_differs_conforms_to_no_marker() {
         let (exprs, _span) = check_and_find_expr_span(
             "<?nvs\nclass T {\n  function m(mixed $v): bool {\n    return $v is callable(int): string;\n  }\n  function f(): callable {\n    return fn (int $n): int => $n;\n  }\n}\n",
         );
@@ -2596,12 +2597,12 @@ mod tests {
         assert_eq!(exprs.callable_conformance().count(), 0);
     }
 
-    /// A closure carries its callee with it, so the one receiver `rule:types/erased-member-access`
+    /// A callable carries its callee with it, so the one receiver `rule:types/erased-member-access`
     /// defers to run time has nothing to defer *to* — it is refused where it is
     /// written and records nothing, which is what makes "no entry on a
-    /// first-class-callable span" mean "this program did not compile".
+    /// method reference's span" mean "this program did not compile".
     #[test]
-    fn a_first_class_callable_on_a_mixed_receiver_records_nothing_and_is_refused() {
+    fn a_method_ref_on_a_mixed_receiver_records_nothing_and_is_refused() {
         let (exprs, span, diags) = check_fixture(
             "<?nvs\nclass T {\n  function m(mixed $o): callable {\n    return $o->a(...);\n  }\n}\n",
         );
@@ -2609,8 +2610,7 @@ mod tests {
         assert!(
             diags
                 .iter()
-                .any(|d| d.code
-                    == Some(nvs_diagnostics::code::E_FIRST_CLASS_CALLABLE_ERASED_RECEIVER)),
+                .any(|d| d.code == Some(nvs_diagnostics::code::E_METHOD_REF_ERASED_RECEIVER)),
             "{diags:?}"
         );
     }

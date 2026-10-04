@@ -11,10 +11,10 @@
 //! [`is_assignable`]'s own doc comment owns that rule and why `rule:types/arrays`'s
 //! copy-on-write value semantics make it sound where an aliasing language
 //! could not. A qualifier widens but never narrows across it — see
-//! [`super::quals`]. `rule:types/single-value-types` adds the last amendment: a literal type, an
+//! [`super::quals`]. `rule:types/single-value-types` adds the last amendment: a single-value type, an
 //! enum-case type, and any union of them widen to their base for free, which
 //! [`is_assignable`] answers by one recursion through
-//! [`TypeInterner::literal_base`] rather than by four table rows of its own.
+//! [`TypeInterner::single_value_base`] rather than by four table rows of its own.
 //! `rule:types/callable-signature` adds the last, and the first relation here
 //! that is not invariant: a written signature satisfies bare `callable`, and
 //! two signatures compare by `rule:types/callable-arity`'s prefix match with
@@ -120,7 +120,7 @@ pub(crate) fn note_float_widening_at(span: Span, from: TypeId, to: TypeId, env: 
     if !members.contains(&float) {
         return;
     }
-    let from = env.interner.literal_base(from);
+    let from = env.interner.single_value_base(from);
     let integer = |ty: &TypeId| matches!(env.interner.get(*ty), Ty::Int | Ty::Uint);
     let widens = match env.interner.get(from) {
         Ty::Union(from_members) => {
@@ -152,18 +152,18 @@ fn assignable(
     if matches!(interner.get(from), Ty::Mixed) {
         return false;
     }
-    // `rule:types/single-value-types`'s first four rows, all at once. `literal_base` widens a
-    // literal atom to its base, an enum-case atom to its enum, and a union
+    // `rule:types/single-value-types`'s first four rows, all at once. `single_value_base` widens a
+    // single-value atom to its base, an enum-case atom to its enum, and a union
     // member-wise — so `"a"|"b" → string` and `Mode::Read|Mode::Write → Mode`
     // fall out of the same call the two atom rows do, and the recursion then
     // composes each with every rule below it (`"a"` into `string|null`, into
-    // `tainted string`, into a `Stringable` target). `literal_base` is
+    // `tainted string`, into a `Stringable` target). `single_value_base` is
     // idempotent, so the recursion is one level deep.
     //
     // The reverse direction — `string → "a"` — needs no rule to refuse it:
     // nothing below widens a base type *down*, and § 4's last three rows make
     // that direction a checked `as`, never an assignment.
-    let widened = interner.literal_base(from);
+    let widened = interner.single_value_base(from);
     if widened != from && assignable(widened, to, widen, interner, graph, signatures) {
         return true;
     }
@@ -1547,7 +1547,7 @@ mod tests {
         assert!(!assignable(&mut i, top, sig));
     }
 
-    /// `rule:types/callable-arity`: `n ≤ m`, comparing the first `n`. A closure
+    /// `rule:types/callable-arity`: `n ≤ m`, comparing the first `n`. A callable
     /// declaring fewer parameters than the slot offers is the ordinary case,
     /// and one declaring more has no arguments to read.
     #[test]
@@ -1586,7 +1586,7 @@ mod tests {
         assert!(!assignable(&mut i, wider_return, slot));
         // And the narrower parameter, which is the other unsound direction:
         // the slot may be handed any `int`, not only the literal `1`.
-        let one = i.int_literal(1);
+        let one = i.single_value_int(1);
         let narrower_param = i.callable_sig(vec![one], string);
         assert!(!assignable(&mut i, narrower_param, slot));
     }

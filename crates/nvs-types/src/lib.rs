@@ -108,7 +108,7 @@
 //! - **`rule:types/callable-values`'s `callable` is a value shape**, so a
 //!   bare string or an `[$obj, 'method']` array where one is expected gets a
 //!   targeted diagnostic, `$obj(...)` is refused for any resolved-class
-//!   `$obj`, and first-class callable syntax (`$obj->method(...)`,
+//!   `$obj`, and method references (`$obj->method(...)`,
 //!   `Foo::bar(...)`) types as `callable` rather than as the referenced
 //!   method's own return type. [`expr`]'s own docs are the detail.
 //! - **A class's shape rules are one module each**: [`ctor_init`] for
@@ -316,8 +316,8 @@ pub(crate) struct Ctx<'a> {
     /// (`crate::expr::assign::check_write_target`).
     ///
     /// A `bool` rather than the method's name because that is the whole of
-    /// what any rule asks, and `false` in a closure body written inside the
-    /// constructor: a closure is called at a time this checker cannot bound,
+    /// what any rule asks, and `false` in an anonymous function's body written inside the
+    /// constructor: the callable is called at a time this checker cannot bound,
     /// so the write it holds is not proven to happen during construction.
     pub in_constructor: bool,
     /// The element type `T` of the `Iterator<T>` the enclosing body is a
@@ -328,21 +328,21 @@ pub(crate) struct Ctx<'a> {
     /// `check_method` is the only place it is ever set, from
     /// `nvs_syntax::ast::is_generator_body` plus the declared return type.
     pub generator_elem: Option<crate::ty::TypeId>,
-    /// Whether the body being checked is a closure's. A closure is lifted to
+    /// Whether the body being checked is an anonymous function's. One is lifted to
     /// a frame of its own that carries neither a receiver nor a called class,
     /// so `static::` has nothing to bind to inside one and is refused there
     /// (`E0834`, [`crate::expr::report_class_keyword_outside_class`]). Set
-    /// only where a closure literal's body is entered.
-    pub in_closure: bool,
+    /// only where an anonymous function's body is entered.
+    pub in_anon_fn: bool,
 }
 
 /// `rule:types/anonymous-function-self-name`'s
-/// optional self-name, resolved: what a bare call written inside the closure's
-/// own body has to spell to mean *this* closure, and what such a call answers
+/// optional self-name, resolved: what a bare call written inside the anonymous
+/// function's own body has to spell to mean *this* function, and what such a call answers
 /// with.
 ///
-/// Carries the signature itself rather than a `TypeId` for the closure,
-/// because there is none to carry: § 4 gives every closure the one opaque
+/// Carries the signature itself rather than a `TypeId` for the anonymous function,
+/// because there is none to carry: § 4 gives every anonymous function the one opaque
 /// `callable`, so the recursive call's own types can only come from what the
 /// literal declared. A literal that declared no return type gets `mixed` here —
 /// its body is mid-check, so its inferred type is not a fact yet, and `mixed`
@@ -354,7 +354,7 @@ pub(crate) struct FnSelf {
     pub name: String,
     /// The literal's own parameter types, in written order — what
     /// `rule:types/callable-signature` checks a recursive call's arguments
-    /// against, the closure being written *being* the signature. Unlike `ret`
+    /// against, the anonymous function being written *being* the signature. Unlike `ret`
     /// this is never a stand-in: a parameter is annotated or takes its type
     /// from the position the literal is written in
     /// (`rule:types/anonymous-function-parameter-inference`), so the list is a fact before
@@ -391,7 +391,7 @@ pub(crate) struct Env<'a> {
     /// Every declared class constant's folded compile-time value
     /// ([`consts::build_const_table`]) — read only where `rule:types/constant-in-type-position`'s
     /// `Foo::CONST` appears in *type* position and has to fold to its own
-    /// literal type. Built beside [`Self::enums`], and before
+    /// single-value type. Built beside [`Self::enums`], and before
     /// [`signatures::build_signatures`], for the same reason: an annotation
     /// interned during signature collection may be one of these.
     pub consts: &'a crate::consts::ConstTable,
@@ -485,12 +485,12 @@ pub(crate) struct Env<'a> {
     /// recorded their fields. See [`crate::derive::check_decode_sites`].
     pub decode_sites: &'a mut Vec<crate::derive::DecodeSite>,
     pub diags: &'a mut nvs_diagnostics::Diagnostics,
-    /// How many `rule:types/anonymous-function` `fn` closure literals this run has checked so far —
+    /// How many `rule:types/anonymous-function` `fn` anonymous functions this run has checked so far —
     /// the suffix that makes each one's synthesized environment class label
     /// unique. One counter for the whole run rather than one per body,
-    /// because a closure nested inside another closure has no enclosing
+    /// because an anonymous function nested inside another one has no enclosing
     /// declaration of its own to be numbered within.
-    pub closure_seq: u32,
+    pub anon_fn_seq: u32,
     /// How many `ExprKind::Error` nodes [`crate::expr::infer`] has typed so far
     /// in this file — an expression the parser already refused and reported.
     ///
@@ -502,14 +502,14 @@ pub(crate) struct Env<'a> {
     /// regardless, so nothing reaches a human less checked. An ordinary
     /// `mixed` value never moves the count.
     pub refused_exprs: u32,
-    /// `rule:types/anonymous-function-self-name`'s self-name, for the `fn` literal whose body is being checked —
-    /// `None` outside one, and `None` again inside a nested literal that
+    /// `rule:types/anonymous-function-self-name`'s self-name, for the anonymous function whose body is being checked —
+    /// `None` outside one, and `None` again inside a nested anonymous function that
     /// declares no name of its own.
     ///
-    /// Saved and restored across a closure body exactly as [`Self::exit_targets`]
+    /// Saved and restored across an anonymous function's body exactly as [`Self::exit_targets`]
     /// is, and for the same reason: § 3's name reaches one body and no other,
     /// which is the reach `nvs_ir::lower::closure`'s `FN_SELF` receiver has.
-    /// [`crate::expr::calls::check_fn_literal`] owns what it resolves to.
+    /// [`crate::expr::calls::check_anon_fn`] owns what it resolves to.
     pub fn_self: Option<FnSelf>,
     /// One entry per enclosing `break` target the statement being checked
     /// sits inside, outermost first: `true` for a loop, `false` for a
@@ -519,9 +519,9 @@ pub(crate) struct Env<'a> {
     /// is why this is a stack of kinds and not a pair of counters.
     ///
     /// Maintained by [`crate::locals`] as it walks a body, and saved/emptied/
-    /// restored across an `rule:types/anonymous-function` closure literal's body, which no enclosing
+    /// restored across an `rule:types/anonymous-function` anonymous function's body, which no enclosing
     /// loop reaches into: a `break` written in one has nothing outside the
-    /// closure to leave.
+    /// anonymous function to leave.
     pub exit_targets: Vec<bool>,
     /// Every subscript level of an assignment *target* this run has seen, by
     /// span, mapped to whether the assignment was a plain `=`.
@@ -570,7 +570,7 @@ pub(crate) struct Env<'a> {
     /// far: what has already written this response's body.
     ///
     /// Installed and put back per method body by [`crate::check`], exactly as
-    /// [`Self::exit_targets`] is across a closure and for the same reason — the
+    /// [`Self::exit_targets`] is across an anonymous function and for the same reason — the
     /// rule is about one body, and a second body's writers are not this one's.
     /// [`crate::response`] owns which bodies it is armed for.
     pub body_writers: crate::response::BodyWriters,
@@ -586,7 +586,7 @@ pub(crate) struct Env<'a> {
     ///
     /// Set and put back around a whole argument list by
     /// [`crate::expr::args::check_args_typed`], the way [`Self::exit_targets`]
-    /// is around a closure body: a container literal nested inside an argument
+    /// is around an anonymous function's body: a container literal nested inside an argument
     /// is still inside that argument, and the flag has to survive the recursion
     /// rather than be re-derived at each level.
     pub in_call_argument: bool,

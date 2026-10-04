@@ -68,7 +68,7 @@ fn a_class_instance_is_assignable_to_object() {
 }
 
 #[test]
-fn an_object_literal_is_assignable_to_object() {
+fn an_anon_object_is_assignable_to_object() {
     let diags = check_in_method("object $o = {x: 1};");
     assert!(!diags.has_errors(), "{diags:?}");
 }
@@ -83,7 +83,7 @@ fn a_scalar_is_not_assignable_to_object() {
 // plus ordinary field-type assignability.
 
 #[test]
-fn an_object_literal_with_exactly_the_shapes_fields_is_fine() {
+fn an_anon_object_with_exactly_the_shapes_fields_is_fine() {
     let diags = check_in_method("({x: int, y: int}) $p = {x: 1, y: 2};");
     assert!(!diags.has_errors(), "{diags:?}");
 }
@@ -107,7 +107,7 @@ fn a_source_missing_a_required_field_does_not() {
 // reader to diff out. Same code, because it is the same mistake.
 
 #[test]
-fn a_shape_literal_missing_a_required_key_names_the_key() {
+fn an_anon_object_missing_a_required_key_names_the_key() {
     let diags = check_in_method(r#"({age: int, name: string}) $p = {name: "x"};"#);
     let diag = diags
         .iter()
@@ -117,7 +117,7 @@ fn a_shape_literal_missing_a_required_key_names_the_key() {
 }
 
 #[test]
-fn a_shape_literal_missing_two_required_keys_names_both() {
+fn an_anon_object_missing_two_required_keys_names_both() {
     let diags = check_in_method("({x: int, y: int, z: int}) $p = {y: 2};");
     let diag = diags
         .iter()
@@ -200,7 +200,7 @@ fn a_class_missing_a_shapes_field_names_the_field() {
 }
 
 #[test]
-fn an_object_literal_with_a_mismatched_field_type_is_diagnosed() {
+fn an_anon_object_with_a_mismatched_field_type_is_diagnosed() {
     let diags = check_in_method(r#"({x: int}) $p = {x: "s"};"#);
     assert!(diags.iter().any(|d| d.code == Some(code::E_TYPE_MISMATCH)));
 }

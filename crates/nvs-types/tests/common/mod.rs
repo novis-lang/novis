@@ -28,7 +28,7 @@ pub(crate) fn check_in_method(body: &str) -> Diagnostics {
 }
 
 /// Like [`check_src`], but hands back the typed-expression table too —
-/// what a closure fixture asserts on, since `rule:types/callable-is-the-only-function-type`'s `callable`
+/// what an anonymous-function fixture asserts on, since `rule:types/callable-is-the-only-function-type`'s `callable`
 /// carries none of what was resolved.
 pub(crate) fn check_src_table(src: &str) -> (Diagnostics, ExprTypeTable) {
     let mut map = SourceMap::new();
@@ -206,14 +206,14 @@ impl DeclaredTypes {
     }
 }
 
-/// The capture names a fixture's one closure recorded, in order.
+/// The capture names a fixture's one anonymous function recorded, in order.
 pub(crate) fn captures_of(src: &str) -> Vec<String> {
     let (diags, exprs) = check_src_table(src);
     assert!(!diags.has_errors(), "{diags:?}");
     exprs
-        .closures()
+        .anon_fns()
         .next()
-        .expect("the fixture declares one closure")
+        .expect("the fixture declares one anonymous function")
         .1
         .iter()
         .map(|(name, _)| name.clone())

@@ -284,7 +284,7 @@ fn the_match_is_nominal_so_the_name_has_to_resolve_to_core_test() {
 
 // ------------------------------------------------------------------
 // `rule:testing/doubles` -- the structural check between a shape of
-// closures and the interface the call site wrote.
+// callables and the interface the call site wrote.
 // ------------------------------------------------------------------
 
 /// ADR 0079 § 10's worked example, at the checker: the shape answers every
@@ -418,7 +418,7 @@ fn a_double_of_anything_but_an_interface_is_refused() {
 /// A field naming a method the interface does declare is still held to that
 /// method's signature, in each of the three ways one can fail to answer it: a
 /// result the call site was not promised, a parameter it cannot pass, and a
-/// field that is no closure at all.
+/// field that is no callable at all.
 #[test]
 fn a_double_answering_a_method_it_cannot_stand_in_for_is_refused() {
     let clock = "<?nvs\ninterface Clock {\n  public function now(): int;\n}\n";
@@ -441,7 +441,7 @@ fn a_double_answering_a_method_it_cannot_stand_in_for_is_refused() {
 
     // A parameter the interface's own call sites pass and the answer refuses:
     // `advance` is handed an `int` by everything dispatching through `Ticker`,
-    // and a closure taking a `string` answers it in name only.
+    // and a callable taking a `string` answers it in name only.
     let ticker = "<?nvs\ninterface Ticker {\n  public function advance(int $by): int;\n}\n";
     refuses(&format!(
         "{ticker}Ticker $t = Core\\Test::double<Ticker>(\
@@ -463,7 +463,7 @@ fn a_double_answering_a_method_it_cannot_stand_in_for_is_refused() {
 /// `rule:types/callable-variance`'s contravariant parameters and covariant
 /// return.
 #[test]
-fn a_double_may_answer_with_a_wider_closure_than_the_method_declares() {
+fn a_double_may_answer_with_a_wider_callable_than_the_method_declares() {
     let ticker = "<?nvs\ninterface Ticker {\n  public function advance(int $by): mixed;\n}\n";
     for answer in [
         // Declares fewer parameters than the method — what the runtime already

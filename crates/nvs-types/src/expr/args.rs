@@ -93,7 +93,7 @@ fn check_arg_list(
         (0..list.len()).map(ArgSlot::Param).collect()
     };
     check_inout_markers(list, &slots, &sig, env);
-    // `rule:programs/relative-paths-resolve-from-their-file`: a relative literal
+    // `rule:programs/relative-paths-resolve-from-their-file`: a written relative path
     // at a path parameter is recorded as the absolute path it names. It reads
     // only the written text and the slot, so it runs before the argument types
     // are known. See [`crate::paths`].
@@ -515,7 +515,7 @@ fn parameter_names(sig: &MethodSig) -> String {
 /// [`check_options_arg`] instead.
 ///
 /// The fork exists because a bag is a *type* with no assignability rule: an
-/// `rule:types/object-top` object literal infers to a [`Ty::Shape`], and a shape is never
+/// `rule:types/object-top` anonymous object infers to a [`Ty::Shape`], and a shape is never
 /// assignable to a [`Ty::CoreShape`] — deliberately, since the two are checked
 /// by opposite rules (width subtyping accepts an unnamed extra field, an
 /// options bag refuses one). Routing the argument here rather than teaching
@@ -572,7 +572,7 @@ impl Admitted {
 ///
 /// The argument is inferred against the parameter's declared type exactly as
 /// anywhere else, because the expectation is what shapes an array literal and
-/// a closure literal; only the *comparison* is made against the narrowed
+/// an anonymous function; only the *comparison* is made against the narrowed
 /// type. So a genuine mismatch here still reads `expected string, found int`
 /// rather than naming a qualified type the member never declared. An argument
 /// that contains a node the parser already refused is not compared at all, as
@@ -650,7 +650,7 @@ pub(crate) fn carries_contagion(
 }
 
 /// `rule:core-api/shape-rules` R2's options bag at a call site: it must be written out as an
-/// object literal (or omitted, which never reaches here), every field must be
+/// anonymous object (or omitted, which never reaches here), every field must be
 /// an option the member declares, and each field's value must be assignable to
 /// that option's own declared type.
 ///
@@ -689,17 +689,17 @@ pub(crate) fn check_options_arg(
     env: &mut Env<'_>,
 ) -> TypeId {
     let options = &shape.fields;
-    let ExprKind::ObjectLiteral(fields) = &value.kind else {
+    let ExprKind::AnonObject(fields) = &value.kind else {
         // Walked anyway, so a local it reads is still marked live and its own
         // errors are still reported — the argument is wrong, not unwritten.
         infer(value, None, live, scope, ctx, env);
         let names = option_names(options);
         env.diags.report(
             Diagnostic::error(
-                code::E_OPTIONS_NOT_A_LITERAL,
+                code::E_OPTIONS_NOT_AN_ANON_OBJECT,
                 "an options argument must be written out as `{...}` at the call site",
             )
-            .with_primary(value.span, "not an option shape literal")
+            .with_primary(value.span, "not written as `{...}` here")
             .with_help(format!(
                 "the options are flattened into one argument each at the call, so they cannot \
                  come from a variable — write the ones you want inline: {names}"
@@ -720,7 +720,7 @@ pub(crate) fn check_options_arg(
             }
             _ => check_arg(&field.value, declared, live, scope, ctx, env),
         };
-        // A path field — `Db\Settings`' `path` — resolves a relative literal
+        // A path field — `Db\Settings`' `path` — resolves a written relative path
         // as a path parameter does. See [`crate::paths`].
         if slot.is_some_and(|option| option.text == nvs_stdlib::registry::ParamText::Path) {
             crate::paths::resolve_literal(&field.value, env);
@@ -787,7 +787,7 @@ fn check_shape_field(
     env: &mut Env<'_>,
 ) -> TypeId {
     // `infer` rather than `check_expr`, for [`check_arg_admitting_quals`]'
-    // reason: the expectation still shapes an array or a closure literal, and
+    // reason: the expectation still shapes an array literal or an anonymous function, and
     // the comparison is made here so that exactly one of the two branches
     // below reports the refusal.
     let actual = infer(value, Some(field.ty), live, scope, ctx, env);
@@ -879,7 +879,7 @@ fn merged_accepts(shape: &crate::ty::CoreShape, key: &WrittenKey<'_>, env: &mut 
         })
 }
 
-/// One key a call site wrote in an options or shape literal: its name, where it
+/// One key a call site wrote in an options object or anonymous object: its name, where it
 /// was written, and the type its value checked to.
 ///
 /// The type is what `rule:core-api/shape-arms-are-disjoint`'s arm selection needs and the reason the
@@ -988,10 +988,7 @@ fn report_against_arm(
                 env.diags.report(
                     Diagnostic::error(
                         code::E_UNKNOWN_OPTION,
-                        format!(
-                            "`{}` is not a key of the form this literal writes",
-                            key.name
-                        ),
+                        format!("`{}` is not a key of the form this object uses", key.name),
                     )
                     .with_primary(key.span, "not a key of this form")
                     .with_help(format!(
@@ -1071,11 +1068,11 @@ fn required_key_names(options: &[crate::ty::CoreShapeField]) -> String {
 /// no copy of either spelling, so a renamed option cannot leave the rule
 /// looking for a name no row writes.
 ///
-/// **Asked of every object literal in the call, not of the trailing argument.**
+/// **Asked of every anonymous object in the call, not of the trailing argument.**
 /// A bag written by name (`options: {...}`) is not last, and the alternative —
 /// re-deriving which argument filled the [`Ty::CoreShape`] parameter — is the
 /// slot mapping this function is deliberately not handed. The overreach that
-/// buys is an object literal at the *URL* position naming `retryAttempts`,
+/// buys is an anonymous object at the *URL* position naming `retryAttempts`,
 /// which is an `E_TYPE_MISMATCH` in the same breath.
 ///
 /// An omitted `retryAttempts` obliges nothing, and that is the registry's
@@ -1094,7 +1091,7 @@ pub(crate) fn reject_keyless_retry(
         return;
     };
     for arg in list {
-        let ExprKind::ObjectLiteral(fields) = &arg.value.kind else {
+        let ExprKind::AnonObject(fields) = &arg.value.kind else {
             continue;
         };
         let Some(asked) = fields
@@ -1151,7 +1148,7 @@ fn spelled_keys(keys: &[&str], conjunction: &str) -> String {
 /// **Reportable for [`reject_keyless_retry`]'s reason, and asked the same way.**
 /// The verb is the member's own name and `rule:core-api/shape-rules` R2 makes the bag a literal at
 /// the call site, so both halves are in hand while compiling; and the question
-/// is put to every object literal in the call rather than to the trailing
+/// is put to every anonymous object in the call rather than to the trailing
 /// argument, because a bag written by name is not last and re-deriving which
 /// argument filled the [`Ty::CoreShape`] parameter is a slot mapping this
 /// function is deliberately not handed.
@@ -1173,7 +1170,7 @@ pub(crate) fn reject_ill_formed_body(
         return;
     };
     for arg in list {
-        let ExprKind::ObjectLiteral(fields) = &arg.value.kind else {
+        let ExprKind::AnonObject(fields) = &arg.value.kind else {
             continue;
         };
         let mut bodies = Vec::new();
@@ -1458,7 +1455,7 @@ pub(crate) fn check_generic_args(
     // against, which is what the second round of binding may fall back on;
     // the third pass places them properly.
     let mut unplaced = vec![false; list.len()];
-    // The closure literals whose parameter types only the bindings can give,
+    // The anonymous functions whose parameter types only the bindings can give,
     // by argument index. Their entry in `arg_types` is a placeholder too, and
     // the pass between the binding and the substitution below is where they
     // are checked.
@@ -1607,7 +1604,7 @@ pub(crate) fn check_generic_args(
     (arg_types, Some(sig))
 }
 
-/// Whether this argument is a closure literal the bindings have to reach
+/// Whether this argument is an anonymous function the bindings have to reach
 /// before it can be checked: a `fn` written at a `rule:types/callable-signature`
 /// parameter that still mentions a variable.
 ///

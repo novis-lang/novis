@@ -3,7 +3,7 @@
 //! alongside [`crate::enums`], `crate::expr_table` and `crate::layout`.
 //!
 //! § 2 makes `Foo::TYPE_A` in *type* position sugar for the constant's own
-//! literal type, "exactly as long as that value is a `string` or `int`
+//! single-value type, "exactly as long as that value is a `string` or `int`
 //! compile-time constant". That is a question about the *value*, so it has to
 //! be answered before the first annotation is interned — which is why this is
 //! a pass of its own, running where [`crate::enums::build_enum_table`] runs
@@ -18,12 +18,12 @@
 //! holds values, and a value is all § 2 asks for.
 //!
 //! **A second reader asks for the value and not the type**, which is why the
-//! fold is one row wider than § 2's own literal types. [`crate::defaults`]
+//! fold is one row wider than § 2's own single-value types. [`crate::defaults`]
 //! resolves `public bool $on = Config::DEBUG;` through here — `rule:attributes/payload-is-a-compile-time-constant`'s
 //! constant set at a property default — and a `bool` or a `float` is as much
 //! a compile-time constant there as an `int` is, while neither is a *literal
 //! type* § 2 could make an annotation out of. So both are folded and both are
-//! [`crate::lower`]'s `E_LITERAL_TYPE_NOT_CONST` in type position, which is
+//! [`crate::lower`]'s `E_SINGLE_VALUE_TYPE_NOT_CONST` in type position, which is
 //! exactly what they were when they were [`ConstValue::Ineligible`].
 //!
 //! The one exception is a single **bit**, and that gap is why it is here.
@@ -37,7 +37,7 @@
 //! because a bit is all the sink asks for.
 //!
 //! **Ineligible is recorded, not dropped.** An `array` or object constant is
-//! a real declaration that simply has no literal type to fold to,
+//! a real declaration that simply has no single-value type to fold to,
 //! and telling that apart from a name nothing declares is what lets
 //! [`crate::lower`] report the right one of `rule:types/constant-in-type-position`'s two mistakes.
 
@@ -60,13 +60,13 @@ use crate::span_text;
 pub enum ConstValue {
     /// A `string` compile-time constant, already cooked by
     /// [`crate::string_lit::cook_string_literal`] — the value
-    /// [`crate::ty::Ty::StringLiteral`] holds.
+    /// [`crate::ty::Ty::SingleValueString`] holds.
     Str(String),
     /// An `int` compile-time constant, in `int`'s own range.
     Int(i64),
     /// A `bool` compile-time constant.
     ///
-    /// Not one of `rule:types/constant-in-type-position`'s two literal types, so it is `mixed` in type
+    /// Not one of `rule:types/constant-in-type-position`'s two single-value types, so it is `mixed` in type
     /// position exactly as [`Self::Ineligible`] is — it is folded because a
     /// *value* is what [`crate::defaults`] asks this table for, and `= true`
     /// is as much a compile-time constant there as `= 1` is.
@@ -391,7 +391,7 @@ pub(crate) fn fold_expr(value: &Expr, src: &SourceFile) -> ConstValue {
 /// [`crate::expr::int_literal_digits`]'s job, reused so this never grows a
 /// second integer grammar. `None` for a magnitude no `int` holds, which the
 /// caller records as ineligible: `rule:types/single-value-types`'s atom is an `int` literal, so a
-/// value outside `int` has no literal type to be.
+/// value outside `int` has no single-value type to be.
 fn int_value(span: nvs_diagnostics::Span, negated: bool, src: &SourceFile) -> Option<i64> {
     let (radix, digits) = crate::expr::int_literal_digits(src, span);
     let magnitude = u64::from_str_radix(&digits, radix).ok()?;

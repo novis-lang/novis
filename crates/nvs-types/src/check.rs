@@ -130,10 +130,10 @@ pub fn check_program_granted(
     // answer differently depending on source order.
     let attributes = crate::retrieval::build_attribute_table(files);
     // Threaded across the files rather than restarted at each: an `rule:types/anonymous-function`
-    // closure literal at file scope is labelled `Script$fn<n>`, with no
+    // anonymous function at file scope is labelled `Script$fn<n>`, with no
     // declaring class to disambiguate it, so a counter that restarted per
-    // file would give two files' first closures the same synthesized class.
-    let mut closure_seq = 0;
+    // file would give two files' first anonymous functions the same synthesized class.
+    let mut anon_fn_seq = 0;
     // `rule:routing/table-is-opt-in`'s rows accumulate across the files rather than per file:
     // `crate::routes::check_table` reports collisions between declarations,
     // and § 5's scan is what brings two files' routes into one program.
@@ -184,7 +184,7 @@ pub fn check_program_granted(
             json_sites: &mut json_sites,
             decode_sites: &mut decode_sites,
             diags: &mut *diags,
-            closure_seq,
+            anon_fn_seq,
             refused_exprs: 0,
             fn_self: None,
             exit_targets: Vec::new(),
@@ -213,7 +213,7 @@ pub fn check_program_granted(
             BytePos::try_from(file.src.text().len()).unwrap_or(BytePos::MAX),
         );
         record_locals(script, &mut frame.scope, &mut env);
-        closure_seq = env.closure_seq;
+        anon_fn_seq = env.anon_fn_seq;
     }
     crate::routes::check_table(&routes, diags);
     // `rule:tooling/commands-are-compiled`'s duplicate command name, over the same enumeration and for
@@ -239,7 +239,7 @@ pub fn check_program_granted(
     // asks the fields receiving it to declare the qualifier they receive.
     crate::derive::check_decode_sites(&decode_sites, &codec_sites, interner, diags);
     // `rule:types/type-test`'s `is callable(int): string` asks which of the
-    // program's closures satisfy a written signature, which is the same
+    // program's anonymous functions satisfy a written signature, which is the same
     // deferral one more time: the `is` and the literal it answers about need
     // not be in the same file. See `crate::callables`.
     crate::callables::resolve(exprs, interner, &module.graph, &signatures);
@@ -362,7 +362,7 @@ pub(crate) fn check_stmts(
                     current_hook: None,
                     generator_elem: None,
                     in_constructor: false,
-                    in_closure: false,
+                    in_anon_fn: false,
                 };
                 check_members(&decl.members, &ctx, env);
                 crate::attributes::check_declaration(
@@ -396,7 +396,7 @@ pub(crate) fn check_stmts(
                     current_hook: None,
                     generator_elem: None,
                     in_constructor: false,
-                    in_closure: false,
+                    in_anon_fn: false,
                 };
                 check_members(&decl.members, &ctx, env);
                 crate::attributes::check_declaration(
@@ -416,7 +416,7 @@ pub(crate) fn check_stmts(
                     current_hook: None,
                     generator_elem: None,
                     in_constructor: false,
-                    in_closure: false,
+                    in_anon_fn: false,
                 };
                 check_members(&decl.members, &ctx, env);
                 crate::attributes::check_declaration(
@@ -449,7 +449,7 @@ pub(crate) fn check_stmts(
                     current_hook: None,
                     generator_elem: None,
                     in_constructor: false,
-                    in_closure: false,
+                    in_anon_fn: false,
                 };
                 check_stmt(
                     stmt,
@@ -579,7 +579,7 @@ fn check_property_hooks(p: &nvs_syntax::ast::PropertyMember, ctx: &Ctx<'_>, env:
         // A hook body is not the constructor's, whichever accessor it is: ADR
         // 0014 § 1 makes it a member called on a built instance.
         in_constructor: false,
-        in_closure: false,
+        in_anon_fn: false,
     };
     for hook in hooks {
         env.exprs.record_method(
@@ -660,7 +660,7 @@ fn check_method(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<'_>) {
         current_hook: ctx.current_hook,
         generator_elem: ctx.generator_elem,
         in_constructor: span_text(env.src, m.name) == "constructor",
-        in_closure: false,
+        in_anon_fn: false,
     };
 
     let mut scope = LocalScope::new();
@@ -733,7 +733,7 @@ fn check_method(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<'_>) {
         current_hook: ctx.current_hook,
         generator_elem: Some(elem),
         in_constructor: ctx.in_constructor,
-        in_closure: ctx.in_closure,
+        in_anon_fn: ctx.in_anon_fn,
     };
     // A generator's body returns nothing: calling it produced the cursor, and
     // `rule:iteration/one-way-only` leaves no return value to retrieve. So the body is checked

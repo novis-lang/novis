@@ -238,7 +238,7 @@ fn one_route_shape_is_served_once_per_verb() {
     assert!(reported(&diags, code::E_DUPLICATE_ROUTE), "{diags:?}");
 
     // The same path under a different verb is a different route, and a
-    // different literal segment is a different shape — the two halves that
+    // different fixed segment is a different shape — the two halves that
     // stop this from being a rule about the path alone.
     let diags = check_src(&route_src(
         "  #[Route(path: \"/users/{id}\", method: Core\\Http\\Method::Get, name: \"a\")]\n  \
@@ -391,7 +391,7 @@ fn every_route_on_one_method_becomes_a_row_and_they_may_share_a_name() {
 
 #[test]
 fn a_path_begins_at_the_root_and_a_capture_is_a_whole_segment() {
-    // § 2: everything that is not a capture is a literal segment compared byte
+    // § 2: everything that is not a capture is a fixed segment compared byte
     // for byte, and a capture is a *whole* segment — there is no escape and no
     // partial form, so `u{id}` is one thing or the other and is neither.
     for path in [
@@ -683,7 +683,7 @@ fn a_path_capture_with_no_matching_method_parameter_is_a_diagnostic() {
 }
 
 #[test]
-fn an_unknown_literal_url_name_is_a_diagnostic() {
+fn an_unknown_written_url_name_is_a_diagnostic() {
     // § 4's first refusal, asked here rather than only in the reject case,
     // because it is the one link error that fires with no `$params` question
     // in front of it.
@@ -755,7 +755,7 @@ fn a_named_link_argument_is_folded_like_a_positional_one() {
 #[test]
 fn an_optional_capture_outside_the_last_position_is_a_diagnostic() {
     // `rule:routing/a-trailing-segment-may-be-absent`: `{name?}` matches a segment or none, and "or none" only
-    // has an answer where nothing follows it — a literal segment after one is
+    // has an answer where nothing follows it — a fixed segment after one is
     // as unreachable as another capture.
     for path in ["/posts/{page?}/comments", "/posts/{page?}/{id}"] {
         let diags = check_src(&route_src(&format!(

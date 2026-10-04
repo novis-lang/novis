@@ -629,7 +629,7 @@ fn lower(ty: &CoreTy, interner: &mut TypeInterner) -> TypeId {
         // callback's signature is the same `Ty::TypeVar` the member's other
         // parameters intern to — which is what lets `crate::generics`
         // substitute the call's own bindings through it and hand
-        // `crate::expr::calls`' `check_fn_literal` an expected type naming
+        // `crate::expr::calls`' `check_anon_fn` an expected type naming
         // `User` rather than `T`. `Ty::CallableSig` owns why this is a type
         // rather than a binding site like the two arms above it.
         CoreTy::CallableSig(params, ret) => {
@@ -712,7 +712,7 @@ fn lower(ty: &CoreTy, interner: &mut TypeInterner) -> TypeId {
         // `rule:types/single-value-types`'s integer atom, which the interner already has: the
         // registry variant exists only so a row can *write* one, and there is
         // nothing to translate beyond the value itself.
-        CoreTy::IntLiteral(value) => interner.int_literal(*value),
+        CoreTy::SingleValueInt(value) => interner.single_value_int(*value),
         // The registry's order is kept, not sorted: it is the order the bag
         // flattens into ABI arguments. `Ty::CoreShape` owns why.
         CoreTy::Options(options) => {
@@ -2501,8 +2501,8 @@ mod tests {
         assert_eq!(interner.describe(sig.return_ty), "string|null");
     }
 
-    /// `CoreTy::IntLiteral` inside an option's union interns to exactly the
-    /// two literal types a source-written `4|6` would — which is what makes
+    /// `CoreTy::SingleValueInt` inside an option's union interns to exactly the
+    /// two single-value types a source-written `4|6` would — which is what makes
     /// `Core\Validate::isIp($s, {version: 5})` an `E0401` naming `4|6` rather
     /// than an `int` argument the member has to re-check at run time.
     ///
@@ -2510,7 +2510,7 @@ mod tests {
     /// string on purpose: a union orders its members by type id, so seeding a
     /// member anywhere could otherwise flip `4|6` to `6|4`.
     #[test]
-    fn a_literal_union_option_interns_to_its_two_literals() {
+    fn a_value_set_option_interns_to_its_two_single_value_types() {
         let mut interner = TypeInterner::new();
         let mut table = SignatureTable::new();
         seed(&mut table, &mut interner);
@@ -2523,8 +2523,8 @@ mod tests {
         )
         .expect("Core\\Validate::isIp is registered");
 
-        let four = interner.int_literal(4);
-        let six = interner.int_literal(6);
+        let four = interner.single_value_int(4);
+        let six = interner.single_value_int(6);
         let version = interner.make_union([four, six]);
         let expected = interner.options(vec![(
             "version".to_owned(),

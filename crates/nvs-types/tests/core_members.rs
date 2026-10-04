@@ -126,7 +126,7 @@ fn a_core_union_parameter_takes_either_member_and_nothing_else() {
 /// substituted parameter, which is only substituted because the literal is
 /// checked after the subject bound `T`.
 #[test]
-fn map_binds_its_result_from_a_written_fn_literal() {
+fn map_binds_its_result_from_a_written_anon_fn() {
     let inferred = check_in_method(
         "array<int> $a = [1, 2];\n\
          array<string> $out = Core\\Arr::map($a, fn(int $n) => \"n\" . $n);\n\
@@ -141,8 +141,8 @@ fn map_binds_its_result_from_a_written_fn_literal() {
     );
     assert!(!unannotated.has_errors(), "{unannotated:?}");
 
-    // The declared-return spelling of the same closure binds identically —
-    // `ExprInfo::Closure`'s `return_ty` is the declared type where one is
+    // The declared-return spelling of the same anonymous function binds identically —
+    // `ExprInfo::AnonFn`'s `return_ty` is the declared type where one is
     // written and the inferred one where it is not.
     let declared = check_in_method(
         "array<int> $a = [1, 2];\n\
@@ -205,7 +205,7 @@ fn map_binds_its_result_from_a_callable_typed_variable() {
 /// the same call would. The reference is the spelling that has no body to read
 /// a return type out of, which is why it needed the signature to be a *type*.
 #[test]
-fn map_binds_its_result_from_a_first_class_callable_reference() {
+fn map_binds_its_result_from_a_method_ref() {
     let bound = check_in_method(
         "array<string> $a = [\"ab\", \"c\"];\n\
          array<uint> $out = Core\\Arr::map($a, Core\\Str::length(...));\n\
@@ -263,7 +263,7 @@ fn an_options_argument_that_is_not_a_literal_is_diagnosed() {
     assert!(
         diags
             .iter()
-            .any(|d| d.code == Some(code::E_OPTIONS_NOT_A_LITERAL)),
+            .any(|d| d.code == Some(code::E_OPTIONS_NOT_AN_ANON_OBJECT)),
         "{diags:?}"
     );
 }
@@ -320,7 +320,7 @@ fn a_post_retried_without_an_idempotency_key_is_a_compile_error() {
 /// still means `rule:types/object-top`'s anonymous object, width subtyping and all, so
 /// this change is scoped to the one parameter position it describes.
 #[test]
-fn an_object_literal_outside_an_options_position_is_still_a_shape() {
+fn an_anon_object_outside_an_options_position_is_still_a_shape() {
     let diags = check_in_method("var $point = {x: 1, y: 2};\necho $point->x;\n");
     assert!(!diags.has_errors(), "{diags:?}");
 }
@@ -395,7 +395,7 @@ fn an_unregistered_core_reference_is_still_trusted() {
 
 /// `rule:concurrency/all-answers-a-typed-shape`, and the whole reason `Core\Task::all` is worth having: the
 /// answer is a shape with the argument's own field names, each field typed as
-/// *that field's* closure returns.
+/// *that field's* callable returns.
 ///
 /// The positive half is what a uniform result could not pass — `array<mixed>`
 /// is not assignable to `array<int>` and neither is `mixed`, so a collapsed
@@ -428,7 +428,7 @@ fn a_task_all_binds_each_fields_own_type() {
 }
 
 /// `rule:concurrency/all-answers-a-typed-shape` where every field carries its
-/// own written signature: a `fn` literal and a first-class callable are the
+/// own written signature: an anonymous function and a method reference are the
 /// two spellings that declare one on the spot, and each field is typed by what
 /// that spelling returns rather than by what the shape as a whole holds.
 #[test]
@@ -490,7 +490,7 @@ fn task_all_binds_its_result_shape_from_callable_typed_variables() {
 /// A field declaring bare `callable` — the top of the lattice — has no result
 /// to read, so it answers `mixed` for itself alone while every sibling stays
 /// precise. That is what every other position pays for the same omission, and
-/// it replaces a compile error that cost a framework holding its closures in a
+/// it replaces a compile error that cost a framework holding its callables in a
 /// variable the whole member. What the parameter still refuses is a field that
 /// is no callable at all, and an argument that is no shape at all.
 #[test]
@@ -567,7 +567,7 @@ fn a_limit_and_deadline_options_shape_is_the_only_spelling() {
 /// `tests/conformance/core/db-open-refuses-a-tls-mode-weaker-than-verify-full.nvst`
 /// runs, and neither may cost a diagnostic here.
 #[test]
-fn a_host_on_a_sqlite_settings_literal_is_a_compile_error() {
+fn a_host_on_a_sqlite_settings_object_is_a_compile_error() {
     let file = check_in_method(
         "var $db = Core\\Db::open({driver: Core\\Db\\Driver::Sqlite, path: \"/srv/a.db\"});\n",
     );
@@ -602,7 +602,7 @@ fn a_host_on_a_sqlite_settings_literal_is_a_compile_error() {
 /// two arms declare differently — `rule:core-api/shape-arms-are-disjoint`'s disjointness, arriving at a
 /// call site as an ordinary type mismatch with nothing naming a discriminant.
 #[test]
-fn a_sqlite_driver_on_a_server_settings_literal_is_a_compile_error() {
+fn a_sqlite_driver_on_a_server_settings_object_is_a_compile_error() {
     let crossed = check_in_method(
         "var $db = Core\\Db::open({driver: Core\\Db\\Driver::Sqlite, host: \"db.test\", \
          database: \"shop\", user: \"app\", password: \"hunter2\"});\n",

@@ -833,7 +833,7 @@ pub fn build_signatures(
             json_sites: &mut placeholder_json_sites,
             decode_sites: &mut placeholder_decode_sites,
             diags: &mut *diags,
-            closure_seq: 0,
+            anon_fn_seq: 0,
             refused_exprs: 0,
             fn_self: None,
             exit_targets: Vec::new(),
@@ -957,7 +957,7 @@ fn collect_stmts(
                     current_hook: None,
                     generator_elem: None,
                     in_constructor: false,
-                    in_closure: false,
+                    in_anon_fn: false,
                 };
                 // Before the members: `rule:iteration/concrete-generic-implements`'s type arguments are part
                 // of the declaration's own shape, not of any one member's.
@@ -979,7 +979,7 @@ fn collect_stmts(
                     current_hook: None,
                     generator_elem: None,
                     in_constructor: false,
-                    in_closure: false,
+                    in_anon_fn: false,
                 };
                 collect_members(&decl.members, &qname, &ctx, table, env);
             }
@@ -992,7 +992,7 @@ fn collect_stmts(
                     current_hook: None,
                     generator_elem: None,
                     in_constructor: false,
-                    in_closure: false,
+                    in_anon_fn: false,
                 };
                 collect_members(&decl.members, &qname, &ctx, table, env);
             }
@@ -1512,7 +1512,7 @@ fn resolve_property_rec(
 /// unannotated `const` parses, so a read of one still has to answer something,
 /// and the value's own type is the closest thing to a declaration the source
 /// contains. A `string` constant answers `string` rather than `rule:types/single-value-types`'s
-/// literal type: § 2's literal-type fold is what a use in *type* position
+/// single-value type: § 2's single-value-type fold is what a use in *type* position
 /// gets, and a read is an ordinary expression.
 fn folded_const_ty(qname: &QName, name: &str, env: &mut Env<'_>) -> TypeId {
     let (consts, graph) = (env.consts, env.graph);
@@ -1632,7 +1632,7 @@ pub fn method_is_final(owner: &QName, name: &str, table: &SignatureTable) -> boo
 
 /// Whether a member declared at `level` on `owner` is reachable from code
 /// written inside `accessing` — `None` for file scope, a plain function, or a
-/// closure body that is not inside a class.
+/// anonymous function's body that is not inside a class.
 ///
 /// The question is asked of the **accessing** class and never of the
 /// receiver's static type: `$other->secret` inside `Secret`'s own method is

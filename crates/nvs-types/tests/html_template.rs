@@ -14,7 +14,7 @@ use nvs_diagnostics::code;
 /// body is still the carrier, where a quoted literal of the same text would be
 /// a `string`.
 #[test]
-fn a_markup_literal_types_as_core_html_markup() {
+fn an_html_template_types_as_core_html_markup() {
     let diags = check_in_method("Core\\Html\\Markup $m = html`<hr>`;\n");
     assert!(!diags.has_errors(), "{diags:?}");
 

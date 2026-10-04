@@ -40,9 +40,9 @@
 //! means `text/html`, and a body member written beside it wins the
 //! `Content-Type` it declared last.
 //!
-//! **The reach inside a handler is that handler's own body**, closures written
-//! in it included — an `fn` literal writes the same response, and
-//! [`crate::expr::calls::check_fn_literal`] checks its body inline, so the two
+//! **The reach inside a handler is that handler's own body**, anonymous functions
+//! written in it included — an anonymous function writes the same response, and
+//! [`crate::expr::calls::check_anon_fn`] checks its body inline, so the two
 //! writers meet here with nothing added. A helper *method* the handler calls is
 //! not seen: which bodies reach a handler is a whole-program question and this
 //! is a body-local rule, deliberately, for [`crate::links`]'s opposite reason —
@@ -64,7 +64,7 @@
 //! disagreement, and the two of them together are two writers of one body.
 //!
 //! **The same roster, widened by the head members, is what a
-//! `Core\Html::later` closure may not call** (`rule:core-classes/html-later`).
+//! callable passed to `Core\Html::later` may not call** (`rule:core-classes/html-later`).
 //! That refusal is armed by the `later` call rather than by a `#[Route]`
 //! handler, because the runtime throws `LogicError` for it on every host, so a
 //! `.nvst` case or a CLI program meets it too. See [`is_later`].
@@ -131,8 +131,8 @@ pub(crate) struct BodyWriters {
     pub(crate) in_later: bool,
 }
 
-/// The members that change the response head, which a `Core\Html::later`
-/// closure may not call: [`BODY_MEMBERS`], plus these.
+/// The members that change the response head, which a callable passed to
+/// `Core\Html::later` may not call: [`BODY_MEMBERS`], plus these.
 ///
 /// The same list as `nvs_stdlib::response::head_open`'s callers, plus
 /// `slotted`, whose `Ctx::make_slotted` throws in a slot because the main
@@ -150,12 +150,12 @@ const HEAD_MEMBERS: [(&str, &str); 6] = [
 /// Whether `qname::member` is `Core\Html::later`, whose argument list is
 /// checked with [`BodyWriters::in_later`] set.
 ///
-/// The whole list rather than the closure alone: the options beside it are
+/// The whole list rather than the callable alone: the options beside it are
 /// `Markup` values, so a head member written there is already a type error,
 /// and one flag over the list keeps the call site a single swap. The reach is
-/// lexical, like the body-writer rule's — a closure written in place, and the
-/// closures nested in it. A closure held in a variable, or a method the
-/// closure calls, is left to the run-time `LogicError`.
+/// lexical, like the body-writer rule's — an anonymous function written in place, and the
+/// anonymous functions nested in it. A callable held in a variable, or a method it
+/// calls, is left to the run-time `LogicError`.
 pub(crate) fn is_later(qname: &QName, member: &str) -> bool {
     qname.is_core()
         && qname.segments().len() == 2
@@ -164,7 +164,7 @@ pub(crate) fn is_later(qname: &QName, member: &str) -> bool {
 }
 
 /// A resolved `Core\Class::member(...)` call, refused when it changes the
-/// response head inside a `Core\Html::later` closure.
+/// response head inside a callable passed to `Core\Html::later`.
 pub(crate) fn reject_head_change_in_later(
     qname: &QName,
     member: &str,
@@ -186,8 +186,8 @@ pub(crate) fn reject_head_change_in_later(
         Diagnostic::error(
             code::E_LATER_CHANGES_THE_RESPONSE_HEAD,
             format!(
-                "`Core\\{class}::{member}` changes the response, and a `Core\\Html::later` \
-                 closure cannot do that"
+                "`Core\\{class}::{member}` changes the response, and a callable passed to \
+                 `Core\\Html::later` cannot do that"
             ),
         )
         .with_primary(span, "this call changes the response")

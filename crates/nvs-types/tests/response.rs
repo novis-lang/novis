@@ -67,7 +67,7 @@ fn mixing_echo_with_a_typed_body_member_is_a_compile_error() {
         assert!(refused(&diags), "{call}: {diags:?}");
     }
 
-    // A closure written in the handler writes the same response, and its body
+    // An anonymous function written in the handler writes the same response, and its body
     // is checked inline, so the two writers meet with nothing added for it.
     let diags = check_src(&handler(
         "    echo \"prelude\";\n    \

@@ -412,11 +412,11 @@ fn report_unfoldable_const(
         )
         .with_primary(expr.span, "this constant's declaration folds to no value")
         .with_help(
-            "`rule:classes/no-free-functions-or-constants` inlines a class constant at every use site, so its value has to have a \
-             constant form — a literal, or an array literal of them. Another class's \
-             constant, an enum case and `Foo::class` are the three this compiler cannot yet \
-             fold into one, written on their own or nested inside a container: write the value \
-             out here, or move it to a `static` member the class initializes",
+            "a class constant is copied into every place that uses it, so its value must be \
+             known when the program compiles. Write it as a number, a string, or an array of \
+             them. This compiler cannot yet do that for another class's constant, an enum \
+             case or `Foo::class`, alone or inside an array. Write the value out here, or \
+             move it to a `static` property that the class sets",
         ),
     );
 }
@@ -424,7 +424,7 @@ fn report_unfoldable_const(
 /// Whether a `Core` name is a class a value can be an instance of — the
 /// roster a downcast to a `Core` class is held to
 /// (`crate::expr::operators`), and the one `nvs-ir` reads to decide that a
-/// `Core` name a closure captured has a descriptor to point at.
+/// `Core` name an anonymous function captured has a descriptor to point at.
 ///
 /// Two families answer yes. A registered class with instances
 /// ([`crate::core_lib::has_instances`]) carries the descriptor
@@ -482,7 +482,7 @@ pub(crate) fn names_no_instance(ty: TypeId, interner: &TypeInterner) -> bool {
 /// `crate::expr::type_test`'s value arm folds on, and nothing else asks.
 ///
 /// Deliberately answered by listing the types that *cannot*: a scalar, an
-/// `array<T>`, an enum and the literal types that erase to one. Everything
+/// `array<T>`, an enum and the single-value types that erase to one. Everything
 /// else — `mixed`, `object`, a class, a shape, a `callable`, an `Iterable`, a
 /// type variable, an intersection — keeps the run-time test, so a type this
 /// pass has not thought about is never refused by accident.
@@ -508,8 +508,8 @@ pub(crate) fn can_hold_an_object(ty: TypeId, interner: &TypeInterner) -> bool {
         | Ty::SecretBytes
         | Ty::SecretTaintedString
         | Ty::SecretTaintedBytes
-        | Ty::StringLiteral(_)
-        | Ty::IntLiteral(_)
+        | Ty::SingleValueString(_)
+        | Ty::SingleValueInt(_)
         | Ty::Array(_)
         | Ty::Enum(..)
         | Ty::EnumCase(..) => false,
@@ -950,7 +950,7 @@ pub(crate) fn check_class_name_const(
     // `resolve_class_expr` answers `None` outside one, and the arm below
     // reports it with the same code every other unresolvable side takes.
     if matches!(class.kind, ExprKind::StaticExpr) && ctx.current_class.is_some() {
-        // The frame has to be the method's own: inside a closure body there is
+        // The frame has to be the method's own: inside an anonymous function's body there is
         // no called class to read, and `E0834` says so where it is written.
         super::report_class_keyword_outside_class("static", class.span, ctx, env);
         env.exprs.record(expr.span, ExprInfo::ClassNameOf);
@@ -1805,7 +1805,7 @@ pub(crate) fn report_core_instance_member(
 /// enclosing frame's `$this` for a non-static target and panics when there is
 /// none, naming this function's absence as the cause.
 ///
-/// `rule:types/callable-values`'s first-class callable `C::m(...)` is not one of those frames —
+/// `rule:types/callable-values`'s method reference `C::m(...)` is not one of those frames —
 /// it records a `CallableRef` and, as `Core\Attributes::get<T>`'s argument, is
 /// folded while checking — so the call site excludes it rather than this
 /// function testing for it.

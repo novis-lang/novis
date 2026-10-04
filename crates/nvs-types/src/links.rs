@@ -305,7 +305,7 @@ pub(crate) fn resolve(
                 )
                 .with_primary(site.name_span, "no route is named this")
                 .with_help(
-                    "`rule:routing/link-name-and-params-are-checked`: a literal name is checked against the compiled route \
+                    "`rule:routing/link-name-and-params-are-checked`: a name written in quotes is checked against the compiled route \
                      table — give the route a `name:` field of exactly this spelling, or \
                      correct the name written here",
                 ),

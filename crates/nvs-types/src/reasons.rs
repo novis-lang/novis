@@ -17,7 +17,7 @@
 //!   string, and the whole content of § 3 is that a human wrote this one — so
 //!   the rule cannot be one the runtime also makes, and lives here rather than
 //!   on that roster.
-//! * **A `const` is a source literal.** The test is that the argument *folds*,
+//! * **A `const` is written in the code.** The test is that the argument *folds*,
 //!   through the decoders every other compile-time read of a string uses, so
 //!   `const string WHY = "…";` passes and `$why` does not — see [`folded_str`],
 //!   which is the one place the two are joined. That is the shape the hatch
@@ -76,7 +76,7 @@ static REASONS: &[Reason] = &[Reason {
     at: 1,
 }];
 
-/// Refuses a written reason that is not a source literal — the hook both call
+/// Refuses a written reason that is not written directly in the code — the hook both call
 /// sites in [`crate::expr::calls`] reach beside [`crate::intrinsics::check_call`],
 /// after the target has resolved.
 pub(crate) fn check_call(
@@ -117,15 +117,15 @@ pub(crate) fn check_call(
     }
     env.diags.report(
         Diagnostic::error(
-            code::E_REASON_NOT_A_SOURCE_LITERAL,
-            format!("`{owner}::{member}`'s reason must be a source literal"),
+            code::E_REASON_NOT_WRITTEN_DIRECTLY,
+            format!("`{owner}::{member}`'s reason must be a string written directly in the code"),
         )
         .with_primary(span, "written here")
         .with_help(
             "`rule:core-classes/html-to-source`: this is an escape hatch, and what makes it safe is that it is rare, \
              greppable and carries a justification a reader can see — a reason that can be \
-             computed is a reason nobody wrote. A `const` holding the text is a source literal \
-             and compiles",
+             computed is a reason nobody wrote. A `const` that contains the text is also written \
+             directly in the code, so it compiles",
         ),
     );
 }
@@ -134,7 +134,7 @@ pub(crate) fn check_call(
 /// [`crate::intrinsics`] and [`crate::links`] both reach, **and** the class
 /// constant they do not.
 ///
-/// The second half is the whole of what "a `const` is a source literal" means,
+/// The second half is the whole of what "a `const` is written in the code" means,
 /// and it is [`crate::defaults::fold_const_reference`] rather than the
 /// signature-collection sibling: this runs in the checking pass, so the
 /// constant is in hand with the value a *read* of it would inline, which is

@@ -101,7 +101,7 @@
 //!
 //! Against that: no new checker or lowering machinery, one object of four slots
 //! per awaited child either way, and a result whose fields are read with the
-//! same two instructions a shape literal's already are. Simplicity of the
+//! same two instructions an anonymous object's already are. Simplicity of the
 //! language surface is priority 4 and the machinery a class would need buys
 //! nothing above it (`AGENTS.md` § *The priority ordering*).
 //!
@@ -267,7 +267,7 @@ fn entry_operand(path: &Expr, ty: TypeId, form: &str, env: &mut Env<'_>) {
 
     // `Ty::ShapeOfCallables` is a `Core` signature's spelling for "a shape of
     // callables answering this" (`crate::ty`), and `Ty::CallableSig` is a
-    // closure whose signature is written out, so all three are the same
+    // callable whose signature is written out, so all three are the same
     // operand as far as this rule is concerned — none of them is a name the
     // spawn site can see through, and a written signature says how the value
     // is called rather than where its code came from.
@@ -345,7 +345,7 @@ pub(crate) fn check_core_isolate_call(
 /// Whether the operand is `Class::method(...)` — the reference the ADR accepts,
 /// and not a call.
 ///
-/// [`CallArgs::FirstClassCallable`] is the parser's mark for the literal `(...)`
+/// [`CallArgs::MethodRef`] is the parser's mark for the literal `(...)`
 /// argument list, so this is the written shape and not a type test: a
 /// `Class::method()` with an empty argument list is an ordinary static call
 /// whose *result* is the operand, and it takes the path branch as any other
@@ -354,7 +354,7 @@ fn is_method_reference(path: &Expr) -> bool {
     matches!(
         &path.kind,
         ExprKind::StaticCall {
-            args: CallArgs::FirstClassCallable,
+            args: CallArgs::MethodRef,
             ..
         }
     )
@@ -380,11 +380,11 @@ fn refuse_entry(span: Span, path: &Expr, form: &str) -> Diagnostic {
         format!("a {form} entry is a path or a static method"),
     );
     if matches!(path.kind, ExprKind::Fn(_)) {
-        diag.with_primary(span, "this is an `fn` literal")
+        diag.with_primary(span, "this is an anonymous function")
             .with_help(
                 "give it a name: a `static` method, spawned as `Class::method(...)`. \
-                 An `fn` literal is refused because the same literal in `spawn worker` \
-                 captures its enclosing scope, and an isolate shares nothing but compiled code",
+                 An anonymous function is not allowed here. In `spawn worker` it would capture \
+                 the variables around it, and an isolate shares only compiled code",
             )
     } else {
         diag.with_primary(span, "this is a `callable`").with_help(
