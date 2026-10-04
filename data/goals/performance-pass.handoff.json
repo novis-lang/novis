@@ -1,22 +1,18 @@
 {
-  "state": "**Goal `performance-pass`, Stage 5 (the fixes).** Stage 4's review is whole (`docs/perf/performance-review.md`, ending in `## floor`). Old refusals have not been priced again yet.\n\n**The editor's per-edit floor is fixed.** `SymbolIndex::refresh` returns `Refreshed` and hands its analyses of open entries to `publish`, so an edit analyses the edited document once. The index keeps one read list per entry point (`SymbolIndex::reads`), and `unused_private` makes one pass over the occurrences: `bun nv scaling lsp/classes` is flat. What remains of the two editor gaps is narrowed into `nvs-lsp/a-request-analyses-an-unchanged-document-again` (a hover re-analyses the version an edit just analysed) and `nvs-lsp/a-hierarchy-lookup-scans-every-declaration`.\n\n**28 gap records owned by `performance-pass`.** Still red: `scaling --check` (`fmt/classes.nvs` and `numbers/bigint-mul.nvs` grow, `compiler/elseif.nvs` overflows the release stack between 700 and 1024 arms) and `owners --closes performance-pass`. `docs/perf/performance-pass.md` *Decisions for you* has one entry: a total deadline for the request head.",
+  "state": "**Goal `performance-pass`, Stage 5 (the fixes).** Stage 4's review is whole (`docs/perf/performance-review.md`, ending in `## floor`). Old refusals have not been priced again yet.\n\n**The syntax index is logarithmic.** `SyntaxIndex::at` binary-searches the last entry starting at or before the offset and climbs its parents; `children_of` finds its node by binary search and walks siblings by each entry's subtree end. A tree whose starts decrease falls back to the scan. `bun nv scaling fmt/classes` is flat.\n\n**27 gap records owned by `performance-pass`.** Still red: `scaling --check` (`numbers/bigint-mul.nvs` grows, `compiler/elseif.nvs` overflows the release stack between 700 and 1024 arms) and `owners --closes performance-pass`. `docs/perf/performance-pass.md` *Decisions for you* has one entry: a total deadline for the request head.",
   "next": {
     "stage": 5,
-    "title": "the fixes, the formatter's per-line floor",
+    "title": "the fixes, the formatter's indent recursion",
     "files": [
-      "crates/nvs-syntax/src/index.rs",
       "crates/nvs-fmt/src/indent.rs",
+      "crates/nvs-fmt/src/print.rs",
       "crates/nvs-fmt/src/brace.rs",
       "crates/nvs-fmt/src/space.rs"
     ],
     "items": [
       {
         "done": false,
-        "text": "**Make `SyntaxIndex::at` a logarithmic lookup** (`crates/nvs-syntax/src/index.rs:136`), and `children_of` (`crates/nvs-syntax/src/index.rs:171`) with it, then re-run `bun nv scaling fmt/classes` and close `data/gaps/nvs-syntax/a-syntax-index-lookup-scans-every-node.json`. Rule: the goal's base rule; `crates/nvs-fmt/src/indent.rs:55` states the quadratic cost as accepted and is rewritten with the fix."
-      },
-      {
-        "done": false,
-        "text": "**Cache each body's indent as the printer descends** instead of `opening_of` recursing per enclosing body (`crates/nvs-fmt/src/indent.rs:192`, callers `crates/nvs-fmt/src/brace.rs:109` and `crates/nvs-fmt/src/space.rs:231`), add the `fmt/depth.nvs` ladder the gap names, and close `data/gaps/nvs-fmt/opening-of-recurses-per-enclosing-body.json`."
+        "text": "**Cache each body's indent as the printer descends** instead of `opening_of` recursing per enclosing body (`crates/nvs-fmt/src/indent.rs:192`, callers `crates/nvs-fmt/src/brace.rs:109` and `crates/nvs-fmt/src/space.rs:231`), add the `fmt/depth.nvs` ladder the gap names, and close `data/gaps/nvs-fmt/opening-of-recurses-per-enclosing-body.json`. Each level is now a logarithmic lookup, so what is left is O(depth) per line and a stack that grows with nesting. Run the ladder first: if it is flat and does not overflow, close the gap with that figure instead of the cache. Rule: the goal's base rule."
       }
     ]
   },
