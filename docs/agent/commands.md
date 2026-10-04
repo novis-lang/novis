@@ -535,7 +535,7 @@ bun nv bench-load --in-flight 0                                  # the sweep wit
 
 **Three legs, three artifacts, and no arithmetic between them.** The first runs on this box with no
 containers and no proxy, drives `php-cgi -b` over FastCGI with a generator written into `tools/nv/cmd/bench.ts`, and
-is goal `server`'s acceptance check — so it must keep working where there is no Docker and no `wrk`. The second
+must keep working where there is no Docker and no `wrk`. The second
 is [`benches/proxied/`](../../benches/proxied/README.md), which owns every decision it makes: nginx in
 front of both peers because that is the only deployment either has, two compose files brought up one at a
 time, equal CPU budgets, and `oha` as the generator M7's *Verify* line actually names. Their inputs

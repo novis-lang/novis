@@ -87,8 +87,8 @@ unscoped one, which is about 30k of context before a session has read a line of 
 ### Write it per stage, not per goal
 
 A goal is a finite contained group of work; **a stage of one is finite again**, and the manifest is the
-place that distinction is worth money. Goal `lsp-server` runs twelve stages, and its stage 8 argues from ADR 0101's
-redaction sections — which say nothing at all to the session writing its stage 4. Measured before this
+place that distinction is worth money. A goal of twelve stages can have its stage 8 argue from a
+record's redaction sections, which say nothing at all to the session writing its stage 4. Measured before this
 existed: 13,120 of that goal's 17,746 B of sliced ADR text belonged to a stage either already landed or
 not yet open, and its whole pack was 71,627 B.
 
@@ -212,7 +212,7 @@ Three failure modes worth naming, all of which have happened here:
   would each have held the run on a backlog no session of theirs could clear. A check has to be
   something the goal's own work turns green. `bun nv chain --check` does not look for a chore, so this
   is the author's to catch while the goal is written, not the session's when the chain reaches it.
-- **A tag is not a build.** Goal `unowned-closures`'s gate was `unowned: 0` from the owners audit, and
+- **A tag is not a build.** One goal's gate was `unowned: 0` from the owners audit, and
   its stage 0 tagged every gap to the goal itself — which is what made the count zero, so the goal was
   reached with forty items tagged to it and none built. A gate over a register must ask what the
   goal's own tag cannot answer: `bun nv owners --closes <slug>` is red while any item names the goal.
@@ -261,8 +261,8 @@ opposite conclusion, and where the answer gets written down. A decision with no 
 **A goal that will open a record says so, and does not name the number.** A number is claimed by the
 file that lands, one above the highest in `docs/decisions/` — so a number written into a goal near the
 end of the chain is a number an earlier goal claims first, and the session that arrives finds it taken
-and frozen. Say *one new record and no other number*; the goal `editor-install` form — naming the record because it
-has already landed and this goal only implements it — is the other legitimate one.
+and frozen. Say *one new record and no other number*; naming the record because it
+has already landed and this goal only implements it is the other legitimate form.
 
 `bun nv chain --check` notes a queued goal with no § *Standing decisions* at all, which is
 the cheap half of this and the only half a tool can see. It cannot tell whether the section answers

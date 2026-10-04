@@ -1,5 +1,5 @@
 - **A type name a goal file hands you can already be taken at the crate root, and the collision only
-  shows up at the call site.** Goal `event-streams` names the response cell's halves `Emit` and
+  shows up at the call site.** A goal named the response cell's halves `Emit` and
   `Drain`, and `nvs_runtime::Drain` has been the server's drain bit all along, so re-exporting the
   new one flat would have put two types of that name in `crates/nvs-server/src/serve.rs`, which
   imports both. Keep such a pair inside its module and write `stream::Drain` at every call site

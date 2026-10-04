@@ -31,7 +31,7 @@ The docs are optimised for an agent that reads one file and starts working. Keep
   [docs/adr/README.md](../adr/README.md). Either way the rule it settles earns a fragment under
   [docs/rules/](../rules/), and [docs/ground-rules.md](../ground-rules.md) — one line per rule — is
   generated from it by `bun nv rules --render`, never written.
-- **Name a goal by its slug, never by its number.** Goal `parses`, never `goal 21` — here, in a `//!`
+- **Name a goal by its slug, never by its number.** Goal `<slug>`, never `goal 21` — here, in a `//!`
   header, in a commit message, in a test's owner column, and in a line a tool prints to a console.
   A goal's number is its **position** on the chain, so inserting anything in front of it renumbers
   it and every sentence naming the old number now names whichever goal moved into it, silently, in

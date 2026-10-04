@@ -1,5 +1,5 @@
 - **A goal record's `nvs-suite` check's `cases` are drafted names, and a case can be on disk under
-  the name its author chose.** Eight of goal `webcrypto`'s stage 4 paths read "not written yet"
+  the name its author chose.** Eight of one goal's stage paths read "not written yet"
   against green cases, because no check named the tree's own spellings —
   `crypto-public-key-round-trips-every-kind-through-every-encoding.nvst` is the check's
   `crypto-public-keys-read-raw-spki-and-jwk-and-write-them-back.nvst`. List the directory for that

@@ -307,8 +307,7 @@ const IS_VALID_DOC: MethodDoc = MethodDoc {
 
 A **class** carries a card of its own on the same terms: a `ClassDoc` with one `short` saying what the
 class is for, under the row's `doc` field, and `every_registry_row_carries_a_reference_card` fails a new
-class without one (the classes that landed before the field existed are listed in that test and drained
-by goal `core-class-cards`). The field docs on `MethodDoc`, `EnumDoc`, `ClassDoc` and `CoreConst::desc`
+class without one (the classes that landed before the field existed are listed in that test). The field docs on `MethodDoc`, `EnumDoc`, `ClassDoc` and `CoreConst::desc`
 in `registry.rs` are the rule; the three things they do not say are these. `params` is the row's `names` in order, then one entry per
 option of a trailing options bag under the option's own name
 (`a_documented_rows_param_docs_agree_with_its_names`), and `shape` is filled only for a fixed-key

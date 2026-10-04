@@ -26,7 +26,7 @@ rows whose owner is an item number, 31 to 35. An item's owner is the row it sits
 | Code — modifiers and attributes parsed and not enforced | U1, U2, U3, U4, U5, U6, U12, U14, P5 | item 33 |
 | Code — lowering and library gaps | P1, P4, D1, D7, D8, D10, D12, D16, D17, D21, D22, D23, D27, D33, D35, U21, M1 | item 34 |
 | Docs in the tree — cards, help texts, module docs, reference chapters | M10, D2, D3, D4, D6, D9, D20, D29, U13, M2, M3, M4, M6, M7, and § *Facts worth keeping* | item 35 |
-| Planned, and unchanged by this pass | U7, U8, U9 (goal `governance` items 11, 12, 17 — 11 and 17 widened to say so), U16 and D31 (goal `core-part-ii`), D11 (goal `server` item 19b), D28 (goal `governance` stage 5) | the goal named |
+| Planned, and unchanged by this pass | U7, U8, U9, U16, D31, D11 and D28 | each finding's own entry below |
 | Closed — the binary is right and the doc now says so | U10 (`rule:config/ownership-is-the-trust-boundary` states the `run`/`check`/`dump` exemption), U17 (`rule:types/grammar`: a bare `array` is `array<mixed>`), D13 (`rule:security/isolate-shares-nothing`: capture is the default), D18 (`rule:types/erased-member-access`), D19 (`rule:types/enum-case-type`: `as` is the only narrowing), D26 (`divergences.md`), D32 (a validator does not launder) | — |
 
 ## Panics and aborts (P)
@@ -131,7 +131,7 @@ rows whose owner is an item number, 31 to 35. An item's owner is the row it sits
       user to call it. No member returns `tainted` or `secret`; a value is qualified only where a
       declaration spells it. *types-probes* `Core\Secret` is registered —
       `crates/nvs-stdlib/src/secret.rs`'s `reveal` and `revealBytes`, the only rows that write
-      `Qual::Reveal`, brought forward from goal `core-part-ii` because every `rule:security/secret-sinks-refuse` refusal's help text
+      `Qual::Reveal`, brought forward because every `rule:security/secret-sinks-refuse` refusal's help text
       already named the call. The mark admits a `secret` argument and the answer drops the
       qualifier by not declaring it; `tainted` still crosses, so `reveal` launders one axis only.
 - [x] **U6** `#[Command]` accepts an instance method and an `int` return — `rule:tooling/commands-are-compiled` says static and

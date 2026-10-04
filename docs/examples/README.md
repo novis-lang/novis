@@ -129,8 +129,7 @@ before it writes anything, and nothing checks the words afterwards.
 `bun nv proofs --comments <file or directory> ...` counts the three bounds that rule states
 as numbers: the lines in a comment block, the words in a sentence, and a dash joining two sentences.
 It reads and never runs a program. `"comments": true` in the `all` override of `data/proofs/policy.json` makes
-it part of `--gate`; goal `plain-comments` writes that line once the programs that landed before the
-rule are inside the bounds.
+it part of `--gate`.
 
 ## Creating the `.out`
 
