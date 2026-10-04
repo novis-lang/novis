@@ -1,28 +1,33 @@
 {
-  "state": "**Side goal `website-overhaul`: stage 4 (Syntax) is closed. `bun nv site --check syntax` passes, and `syntax/index.mdx` links the first page of every group. Stage 5 (Install and Guides) is next.**\n\nSyntax has these groups, in sidebar order: Basics, Values and types, Operators, Control flow, Errors, Functions, Classes and objects, Programs and files, Concurrency, Attributes (4 pages) and Testing (2 pages). Snippets are under `website/snippets/syntax/<dir>/`. They are run with `nvs run`, so a `#[Test]` file prints nothing: its `.out` is empty, and the page shows the `nvs test` report as a `txt` block, copied from a real run.\n\n`site structure`, `stale`, `reference` and `syntax` pass. `snippets` and `prose` fail only on `index.mdx`, `install/*`, `sponsoring.mdx` and `in-depth/what-changed.mdx`, which stages 5 and 6 rewrite. `guides`, `apps` and `in-depth` are stubs in `tools/nv/cmd/site.ts` (`LATER`, line 66) that fail until their stage writes them.",
+  "state": "**Side goal `website-overhaul`: stage 5 (Install and Guides) is in progress. Install is done, and the Tour has its first step.**\n\nInstall has four pages: `install/index.mdx` (build from source, with Windows, Linux and macOS tabs), `hello-world.mdx`, `editor.mdx` (the VS Code extension, from `docs/reference/tools/40-editor.md`) and `server.mdx` (folders and permissions, from `docs/reference/tools/15-install.md`). Their snippets are under `website/snippets/install/`. Every Install page ends with a link to the Tour. Novis has no release yet, so the install page says so and builds from source.\n\nGuides has one section so far, \"A Tour of Novis\": `guides/tour/index.mdx` and `guides/tour/01-methods-and-types.mdx`, snippets under `website/snippets/guides/tour/`. Novis has no free functions (`E0215`), so every Tour snippet uses a class with `public static function`. A snippet must exit 0, so a compile error is shown as a `txt` block copied from a real `nvs check`.\n\n`site structure`, `stale`, `reference`, `syntax` and `--build` pass. `snippets` and `prose` fail only on `index.mdx`, `sponsoring.mdx` and `in-depth/what-changed.mdx`, which stage 6 rewrites. `guides`, `apps` and `in-depth` are stubs in `tools/nv/cmd/site.ts` (`LATER`, line 66).",
   "next": {
     "stage": 5,
     "title": "Install and Guides",
-    "files": [],
-    "note": "one file set: `website/src/content/docs/install/`, `website/src/content/docs/guides/`, `website/snippets/install/`, `website/astro.config.ts` and `tools/nv/cmd/site.ts`, read against `docs/reference/tools/`.",
+    "files": [
+      "website/src/content/docs/guides/",
+      "website/snippets/guides/",
+      "website/astro.config.ts",
+      "tools/nv/cmd/site.ts"
+    ],
     "items": [
       {
         "done": false,
-        "text": "**Install**: rewrite `/install/` (each platform, from `docs/reference/tools/15-install.md`) and Hello world with `<Snippet>`s in place of inline Novis fences, add an editor-extension page (from `docs/reference/tools/40-editor.md`) and a \"next: the Tour\" link. That clears the `snippets` and `prose` failures under `install/`. Specified by `docs/agent/goals/side/website-overhaul.md` § Stage 5 and `rule:testing/website-pages-are-stamped`. Anchors: `website/src/content/docs/install/index.mdx:1`, `website/src/content/docs/install/hello-world.mdx:12`, `docs/reference/tools/15-install.md:1`, `docs/reference/tools/40-editor.md:1`, `website/astro.config.ts:271`"
+        "text": "**`--check guides`**: write the `guides` part in `site.ts` (the eight sections in the goal's order, one page at least each, a snippet on every Simple program and Cookbook page, six Simple programs and ten Cookbook pages at least) and remove `guides` from `LATER`. Specified by `docs/agent/goals/side/website-overhaul.md` § Stage 5. Anchors: `tools/nv/cmd/site.ts:66`, `tools/nv/cmd/site.ts:329`, `website/astro.config.ts:121`"
       },
       {
         "done": false,
-        "text": "**`--check guides`**: write the `guides` part in `site.ts` (eight sections, one page at least each, a snippet on every Simple program and Cookbook page, at least six Simple programs and ten Cookbook pages) with its tests, and remove `guides` from `LATER`. Specified by `docs/agent/goals/side/website-overhaul.md` § Stage 5. Anchors: `tools/nv/cmd/site.ts:66`, `tools/nv/test/site.test.ts:1`"
+        "text": "**The Tour, steps 2 to 10**: about ten steps from Hello world to a running web app with `nvs serve`, each building on the last, each with a snippet and its `.out`. Step 1 is `website/src/content/docs/guides/tour/01-methods-and-types.mdx:1`. Specified by `docs/agent/goals/side/website-overhaul.md` § Stage 5. Anchors: `website/src/content/docs/guides/tour/index.mdx:1`, `website/astro.config.ts:121`"
       },
       {
         "done": false,
-        "text": "**Guides skeleton**: the eight sidebar sections in the goal's order under `website/astro.config.ts:123`, starting with \"A Tour of Novis\". Anchors: `website/astro.config.ts:123`, `website/src/content/docs/guides/index.mdx:1`"
+        "text": "**Why people pick Novis**: 10 to 14 candidate pages, one standout feature each, with a snippet and a link into Syntax or Reference, as the first Guides section. Specified by `docs/agent/goals/side/website-overhaul.md` § Stage 5. Anchors: `website/astro.config.ts:121`, `website/src/content/docs/guides/index.mdx:1`"
       }
     ]
   },
   "backlog": [
-    "Notes app in `apps/notes/` and `--check apps`: `docs/agent/goals/side/website-overhaul.md` § Stage 5.",
-    "\"Why people pick Novis\": 10 to 14 candidates, which the user curates when the goal lands. Same section.",
-    "Stage 6: In-Depth, the home page, `sponsoring.mdx`, `what-changed.mdx`: § Stage 6."
+    "Simple programs (six at least), How to use Novis, Cookbook (ten at least), Testing your app, Going to production: `docs/agent/goals/side/website-overhaul.md` § Stage 5.",
+    "Example app Notes in `apps/notes/`, its Guides page, and `--check apps`: same section.",
+    "`install/index.mdx` needs a download section when the first release exists (`.github/workflows/release.yml` builds `nvs-*` archives and `SHA256SUMS`).",
+    "Stage 6: In-Depth, the home page, `sponsoring.mdx`, `--check in-depth`: `docs/agent/goals/side/website-overhaul.md` § Stage 6."
   ]
 }
