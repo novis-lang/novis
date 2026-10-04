@@ -1,0 +1,41 @@
+--TEST--
+On a normal route each `Core\Html::later` output replaces its own placeholder in the page, whatever order the slots finish in, a nested `later` is filled in the same pass, and a slot that throws shows its `error` fragment while the page keeps its status -- `rule:core-classes/html-later`
+--FILE--
+<?nvs
+use Core\Html\Markup;
+
+// The program sends a request to itself. Inside that request the call below
+// throws an error, so the `catch` block is the page the request runs.
+try {
+    var $page = Core\Test::request(Core\Http\Method::Get, "/blog");
+    echo $page->status(), "\n";
+    echo $page->body();
+} catch (RuntimeError $inside) {
+    // The first slot sleeps longest, so it finishes last. Each output still
+    // appears where its placeholder was written.
+    Markup $slow = Core\Html::later(fn(): void => {
+        Core\Time::sleep(10ms);
+        echo html`<p>Blog posts</p>`;
+    });
+    Markup $fast = Core\Html::later(fn(): Markup => html`<p>Shop items</p>`);
+
+    // A `later` inside a `later` closure is filled in the same pass.
+    Markup $outer = Core\Html::later(fn(): void => {
+        echo html`<div>`, Core\Html::later(fn(): Markup => html`<p>Comments</p>`), html`</div>`;
+    });
+
+    // A slot that throws shows its `error` fragment.
+    Markup $broken = Core\Html::later(fn(): void => { throw new RuntimeError("down"); },
+                                      {error: html`<p>Unavailable</p>`});
+
+    echo html`<main>`, "\n", $slow, "\n", $fast, "\n", $outer, "\n", $broken, "\n";
+    echo html`</main>`, "\n";
+}
+--EXPECT--
+200
+<main>
+<p>Blog posts</p>
+<p>Shop items</p>
+<div><p>Comments</p></div>
+<p>Unavailable</p>
+</main>

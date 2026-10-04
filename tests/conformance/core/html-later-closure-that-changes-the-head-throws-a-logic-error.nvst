@@ -1,0 +1,30 @@
+--TEST--
+A `Core\Html::later` slot that calls a response-head method through a closure held in a variable throws `LogicError` at run time, the page keeps the status the main script set, and off a request `later` runs its closure in place -- `rule:core-classes/html-later`
+--FILE--
+<?nvs
+// The program sends a request to itself. Inside that request the call below
+// throws an error, so the `catch` block is the page the request runs.
+try {
+    var $page = Core\Test::request(Core\Http\Method::Get, "/blog");
+    echo $page->status(), "\n";
+    echo $page->body(), "\n";
+
+    // Off a request there is no page, so the closure runs at once and the
+    // result is its output.
+    echo Core\Html::later(fn(): void => { echo "Shop"; }), "\n";
+} catch (RuntimeError $inside) {
+    // The checker cannot see into `$notFound`, so the call compiles. In the
+    // slot it throws `LogicError`, and the status stays 200.
+    var $notFound = fn(): void => { Core\Response::setStatus(404); };
+    echo Core\Html::later(fn(): void => {
+        try {
+            $notFound();
+        } catch (LogicError $e) {
+            echo $e->message;
+        }
+    });
+}
+--EXPECT--
+200
+A `Core\Html::later` closure cannot call `Core\Response::setStatus`. Only the main script sets the status, the headers, the cookies and the body.
+Shop
