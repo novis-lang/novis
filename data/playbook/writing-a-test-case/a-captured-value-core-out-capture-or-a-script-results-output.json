@@ -1,0 +1,11 @@
+{
+  "lead": "A captured value — `Core\\Out::capture` or a script result's `output` — is typed `Core\\Html\\Markup|Core\\Cli\\Text`, and a method call on that union is `E0477`.",
+  "body": "The checker resolves a method only on a receiver that names one class, and the two carriers are two classes. Read the text with `$x as string`, which works on the union and gives the carried bytes, or narrow with `is`/`as Core\\Cli\\Text` first when the case needs a `Cli\\Text` method; `crates/nvs-stdlib/src/out.rs`'s `carried` is what builds either one.",
+  "files": [
+    "crates/nvs-stdlib/src/out.rs"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "crates/nvs-stdlib/src/out.rs:carried"
+  }
+}

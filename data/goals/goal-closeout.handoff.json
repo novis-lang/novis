@@ -1,28 +1,26 @@
 {
-  "state": "**Goal `goal-closeout`: Stage 4, building the user's answers.** The user answered all seven questions in the goal prose's § *Questions for the user at the goal end*. Three are built and their questions deleted: `Core\\Server` carries no request environment, reference cards are held to the plain voice (gap owned by M10), and `nvs.toml` gets directive completion. `nvs/directives` is the sixth Novis request (`rule:ide/the-request-set-is-closed`). It is answered by `crates/nvs-lsp/src/directives.rs` from `nvs_config::default_file()`, and `editors/vscode/src/directives.ts` is its one provider for files named `nvs.toml` (`rule:ide/the-extension-claims-nvs-only`).\n\n`bun nv owners --closes goal-closeout` names 4 gaps. One of them, `completion-file-images-are-not-checked-in-an-editor`, waits on the user's report from VS Code (\"image shows\" or \"text only\"). Its question stays open until that report is written under it, and no session can build it. When it is the only gap left, write `BLOCKED` and name that question.",
+  "state": "**Goal `goal-closeout`: Stage 4, building the user's answers.** Four of the seven answers are built and their questions deleted: `Core\\Server` carries no request environment, reference cards are held to the plain voice (gap owned by M10), `nvs.toml` gets directive completion, and captured output is the sink's carrier. `Core\\Out::capture` and a `spawn script` result's `output` are now built by `crate::out::carried` in `crates/nvs-stdlib/src/out.rs` as `Ctx::carrier`'s class, and both are typed `Core\\Html\\Markup|Core\\Cli\\Text` (`rule:security/capture-answers-the-carrier`).\n\n`bun nv owners --closes goal-closeout` names 3 gaps. The user has answered the image question in the goal prose: **image shows**. That gap can now be built: write the result into the module doc, then delete the gap and its question. The other two gaps are the closure rebind and the handle-relative writes. When `no question waits for the user` and the owners check are the only red ones and every gap is closed, the goal is `DONE`.",
   "next": {
     "stage": 4,
     "title": "finished in place, the answers built",
     "files": [],
-    "note": "one file set: the isolate result type, the script result builder and `Core\\Out::capture`.",
+    "note": ". The first item is a doc-only slice. The second item is the largest answer and fills a session alone. They do not share one file set.",
     "items": [
       {
         "done": false,
-        "text": "**The captured-output carrier** (answer 1: the sink's carrier at run time, `Core\\Html\\Markup|Core\\Cli\\Text` statically, for the isolate result and `Core\\Out::capture`). It is at `crates/nvs-types/src/expr/isolate.rs:593`, `crates/nvs-stdlib/src/script.rs:1326` and `crates/nvs-stdlib/src/out.rs:151`. `Ctx::carrier` picks the carrier, and `writes_raw` is at `crates/nvs-runtime/src/helpers.rs:2776`. Delete gap `an-isolate-result-output-is-typed-string` and its question."
+        "text": "**The completion-file image is checked** (answer: \"image shows\", in the goal prose's question *Does a completion file's image show in an editor hover?*). Write into the module doc at `crates/nvs-lsp/src/completion_files.rs:1` what the user saw: the hover shows the image, and the server sends a relative link as an absolute `file:` URI under the completion file's folder. Delete `data/gaps/nvs-lsp/completion-file-images-are-not-checked-in-an-editor.json` and the question."
       },
       {
         "done": false,
-        "text": "**Closure rebind** (answer 1: same class or a subclass, checked at run time, no scope argument). It is at `crates/nvs-types/src/expr/calls.rs:111` and `crates/nvs-ir/src/lower/closure.rs:214`. Delete gap `a-callable-has-no-bind-bindto-or-call` and its question."
+        "text": "**Closure rebind** (answer 1: same class or a subclass, checked at run time, no scope argument; `rule:types/callable-absorbs-closure`, `rule:statements/a-closure-binds-this-only-where-it-uses-it`). The checker arm is at `crates/nvs-types/src/expr/calls.rs:111`, which reports `E0477` for every `callable` receiver today. The closure's `$this` capture is at `crates/nvs-ir/src/lower/closure.rs:214`. Delete gap `a-callable-has-no-bind-bindto-or-call` and its question."
       },
       {
         "done": false,
-        "text": "**Handle-relative writes under every write door** (answer 2: `Core\\Zip::extract` and every `Core\\IO` write, with one decision record). It is at `crates/nvs-stdlib/src/zip.rs:839` and `crates/nvs-runtime/src/capability.rs:643`. The user allowed the record, so take the next free ADR number right before writing it."
+        "text": "**Handle-relative writes under every write door** (answer 2: `Core\\Zip::extract` and every `Core\\IO` write, with one decision record). `place` is at `crates/nvs-stdlib/src/zip.rs:839` and `capability::create` at `crates/nvs-runtime/src/capability.rs:643`. Delete gap `zip-extraction-creates-a-file-by-path-after-resolving-its-folder` and its question."
       }
     ]
   },
   "backlog": [
-    "The completion-file image question waits for the user's report (`docs/agent/goals/goal-closeout.md` § *Questions for the user at the goal end*).",
-    "`nvs/directives` offers nothing in a file `[[include]]` pulls in under another name, because the provider is chosen by the file name (`rule:ide/completion-offers-only-what-the-compiler-derived`).",
-    "The `nvs.toml` host test in `editors/vscode/test/host/surfaces.test.ts` has not run yet: `bun nv verify`'s `extension` step runs the headless suite, and `npm run test:host` in `editors/vscode` is the run that reaches it."
+    "`docs/spec/01-core-library.md:977` writes `capture`'s return as `Sink`. That is still true as a family name, so nothing is owed unless the spec table is rewritten."
   ]
 }
