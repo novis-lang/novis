@@ -79,6 +79,13 @@
 // O(in-flight) and never O(requests served). Every other size grows what is in flight, so its peak may
 // grow with it and is not judged.
 //
+// `fetch` is `run` with a server to download from. At each size the tool boots `nvs serve` of
+// `<name>/server.nvs`, kept beside the ladder, on a free port, names it to the ladder as
+// `http://127.0.0.1:<port>` in `FETCH_URL_ENV`, takes `run`'s counts and clock, and stops the server.
+// The size is the ladder's closing literal, so the program asks the server for the response it needs:
+// `http-client/response.nvs` downloads one body of that many bytes. The server is another process,
+// so its work is inside the clock and outside the counts. A `fetch` ladder is not run under callgrind.
+//
 // The counts are the same on every machine, so a bench gets the same verdict everywhere. The clock is
 // taken on the release binary unless `--nvs` names another, as `--record-perf` takes it.
 
@@ -259,7 +266,10 @@ const BENCH_BOUNDS: Bounds = { count: COUNT_BOUND, clock: CLOCK_BOUND };
 export const EXPECT: Record<string, number> = { constant: 0.15, linear: COUNT_BOUND, nlogn: 1.35, karatsuba: 1.7 };
 
 /** The kinds a ladder may declare. */
-export const KINDS = ["run", "compile", "lsp", "fmt", "serve"] as const;
+export const KINDS = ["run", "compile", "lsp", "fmt", "serve", "fetch"] as const;
+
+/** The variable a `fetch` ladder reads its server's address from. */
+export const FETCH_URL_ENV = "NVS_SCALING_URL";
 
 /** How far a `serve` ramp's peak memory may rise above the lowest peak it reached, as a fraction of that peak. */
 export const PEAK_SLACK = 0.25;
@@ -689,7 +699,36 @@ const serve = (what: string): Measure => ({
   ...(what === "requests" ? { judge: peakGrows } : {}),
 });
 
-const MEASURES: Record<string, Measure> = { run: RUN, compile: COMPILE, lsp: LSP, fmt: FMT };
+/** `body`, run while an `nvs serve` of the `fetch` ladder's `<name>/server.nvs` listens on a free port
+ * and `FETCH_URL_ENV` names it to every program `body` starts. */
+async function withServer<T>(bench: string, opts: Options, body: () => Promise<T>): Promise<T> {
+  const fixture = abs(bench.replace(/\.nvs$/, "/server.nvs"));
+  const port = await freePort();
+  const argv = [opts.nvs, "serve", fixture, "--listen", `127.0.0.1:${port}`];
+  const server = await Server.start(argv, port, dirname(fixture), { LLVM_PROFILE_FILE: DISCARD_PROFILE }).catch((e: unknown) => {
+    throw new PerfError(`\`nvs serve\` did not start on the server ${bench} fetches from: ${(e instanceof Error ? e.message : String(e)).trim().split(/\r?\n/)[0] ?? ""}`);
+  });
+  const before = process.env[FETCH_URL_ENV];
+  process.env[FETCH_URL_ENV] = `http://127.0.0.1:${port}`;
+  try {
+    return await body();
+  } finally {
+    if (before === undefined) delete process.env[FETCH_URL_ENV];
+    else process.env[FETCH_URL_ENV] = before;
+    await server.stop();
+  }
+}
+
+/** A program that downloads from the server beside it: `run`'s counts and clock, taken while that server listens. */
+const FETCH: Measure = {
+  keys: COUNTS,
+  rewrites: true,
+  take: (copy, bench, opts, size) => withServer(bench, opts, () => RUN.take(copy, bench, opts, size)),
+  clock: (copy, bench, opts, size) => withServer(bench, opts, () => RUN.clock(copy, bench, opts, size)),
+  callgrind: (_copy, bench) => Promise.reject(new PerfError(`${bench} could not be judged, and a \`fetch\` ladder is not run under callgrind`)),
+};
+
+const MEASURES: Record<string, Measure> = { run: RUN, compile: COMPILE, lsp: LSP, fmt: FMT, fetch: FETCH };
 
 /** One bench, ramped and judged. */
 async function rampOne(bench: string, opts: Options): Promise<Judged> {

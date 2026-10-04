@@ -29,7 +29,7 @@ echo Bench::run(1000), "\n";
 | `// scaling: start N` | the first size, and the literal in the closing line |
 | `// scaling: max N` | the largest size the ramp may reach; at least three doublings above `start` |
 | `// scaling: expect <class>` | the growth the work may have: `constant`, `linear`, `nlogn` or `karatsuba`. `quadratic` is never accepted |
-| `// scaling: kind <kind>` | what is measured: `run` (the default), `compile`, `lsp`, `fmt` or `serve` |
+| `// scaling: kind <kind>` | what is measured: `run` (the default), `compile`, `lsp`, `fmt`, `serve` or `fetch` |
 | `// scaling: size <what>` | a `serve` ladder's size: `requests` (the default), `headers`, `header-bytes`, `body-bytes`, `query` or `connections` |
 | `// scaling: proposal` | the ladder grows past its bound and the fix waits for a decision; it is reported, and does not fail |
 
@@ -42,7 +42,9 @@ file the same way for `nvs fmt`, and an `lsp` ladder prints a document that mark
 hover and references at the cursor. A `serve` ladder is the program every request runs, with no
 `Bench::run` and no closing literal: its `start` and `max` count what its `size` line names —
 requests served, or the headers, header bytes, body bytes or query parameters of each request, or
-open connections — and the tool serves the file with `nvs serve` and sends that load. A ladder that needs Unix
+open connections — and the tool serves the file with `nvs serve` and sends that load. A `fetch`
+ladder is a `run` ladder that downloads from a server: the tool serves `<name>/server.nvs` beside it
+and gives the program the server's address in the environment variable `NVS_SCALING_URL`. A ladder that needs Unix
 sockets declares `// requires: unix`, as a bench does. A folder's
 `nvs.toml` applies to every ladder in it, as in the bench tree.
 

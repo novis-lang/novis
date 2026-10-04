@@ -104,6 +104,7 @@ test("a serve ladder's size defaults to requests, belongs to serve alone, and sh
   expect(ladderOf(`${src}// scaling: size headers\n`)).toMatchObject({ size: "headers" });
   expect(ladderOf(`${src}// scaling: size cookies\n`)).toContain("not one of");
   expect(ladderOf(src.replace("kind serve", "kind run") + "// scaling: size headers\n")).toContain("`serve` ladder alone");
+  expect(ladderOf(src.replace("kind serve", "kind fetch"))).toMatchObject({ kind: "fetch", size: "" });
   expect(serveShape("requests", 64)).toEqual({ path: "/", shape: {}, requests: 64, concurrency: 1 });
   expect(serveShape("headers", 3).shape.headers).toEqual([["x-field-0", HEADER_VALUE], ["x-field-1", HEADER_VALUE], ["x-field-2", HEADER_VALUE]]);
   expect(serveShape("header-bytes", 5).shape.headers).toEqual([["x-field", "aaaaa"]]);
