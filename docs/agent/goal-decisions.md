@@ -52,7 +52,7 @@ goal promised and did not build is not here: it is a gap record under `data/gaps
   session that finds CI blocked by billing says so and stops, because whether the repository becomes
   public or gets a self-hosted runner is not its call. A failure that does not reproduce locally is
   still a failure, and a platform `cfg` that hides the symptom is not a fix. Applies at
-  `tools/nv/cmd/ci-green.ts` and `.github/workflows/`. From `ci-green`.
+  `.github/workflows/`. From `ci-green`.
 
 ## Goals with nothing to keep
 
