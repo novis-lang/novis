@@ -1,0 +1,24 @@
+<?nvs
+// This program throws an error for a task with an empty title, and catches it.
+class Task {
+    public string $title;
+
+    public function constructor(string $title) {
+        if ($title == "") {
+            // `throw` stops the method. The caller gets the error.
+            throw new LogicError("a task needs a title");
+        }
+        $this->title = $title;
+    }
+}
+
+array<string> $titles = ["Buy milk", ""];
+foreach ($titles as string $title) {
+    try {
+        var $task = new Task($title);
+        echo "added: ", $task->title, "\n";
+    } catch (LogicError $e) {
+        // `$e->message` is the text given to the error.
+        echo "not added: ", $e->message, "\n";
+    }
+}

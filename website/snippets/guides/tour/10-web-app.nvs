@@ -1,0 +1,31 @@
+<?nvs
+// This program is a small web application. `nvs serve` runs it once for each request.
+class Task {
+    public string $title;
+
+    public function constructor(string $title) {
+        $this->title = $title;
+    }
+}
+
+class Pages {
+    public static function list(array<Task> $tasks): Core\Html\Markup {
+        var $items = html``;
+        foreach ($tasks as Task $task) {
+            string $title = $task->title;
+            $items = $items + html`<li>{$title}</li>`;
+        }
+        return html`<h1>Tasks</h1><ul><?= $items ?></ul>`;
+    }
+}
+
+array<Task> $tasks = [new Task("Buy milk"), new Task("Call Ada")];
+
+// `Core\Request::path()` returns the path of the request, such as `/`.
+if (Core\Request::path() == "/") {
+    echo Pages::list($tasks), "\n";
+} else {
+    // Any other path gets the status 404.
+    Core\Response::setStatus(404);
+    echo html`<h1>Not found</h1>`, "\n";
+}

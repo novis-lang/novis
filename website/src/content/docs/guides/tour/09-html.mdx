@@ -1,0 +1,23 @@
+---
+title: "9. HTML"
+covers: []
+description: Write HTML with an html literal, which escapes every value you put into it.
+---
+
+import Snippet from '@components/Snippet.astro'
+
+A web application sends HTML. In Novis you write it as an `html` literal: HTML between backticks,
+with `html` in front.
+
+<Snippet src="guides/tour/09-html.nvs" />
+
+`{$title}` is a hole. The value of `$title` goes into the HTML there, and it is escaped first. The
+second title has `<b>` in it, and the page shows it as text. So a value from a user cannot add
+a tag or a script to your page.
+
+`<?= $items ?>` is a hole for any expression. `$items` has the type `Core\Html\Markup`, which is
+HTML already, so it goes in as it is. `+` joins two pieces of HTML.
+
+Read more in [Syntax: string operators](/syntax/operators/string-operators/).
+
+Next: [step 10, a web application](/guides/tour/10-web-app/).

@@ -1,0 +1,22 @@
+---
+title: "2. Arrays and loops"
+covers: []
+description: Keep a list of values in an array, add to it, and go through it with foreach.
+---
+
+import Snippet from '@components/Snippet.astro'
+
+From this step on, the Tour builds a small task list. The program keeps the titles of the tasks
+in an array:
+
+<Snippet src="guides/tour/02-arrays-and-loops.nvs" />
+
+`array<string>` is an array whose values are strings. `$titles[] = ...` adds a value at the end.
+
+`foreach` runs its body once for each value in the array. `Core\Arr::count` returns the number of
+values. Novis has many methods like it, and each one belongs to a class under `Core`.
+
+Read more in [Syntax: arrays](/syntax/values/arrays/) and
+[Syntax: foreach](/syntax/control-flow/foreach/).
+
+Next: [step 3, classes and objects](/guides/tour/03-classes-and-objects/).

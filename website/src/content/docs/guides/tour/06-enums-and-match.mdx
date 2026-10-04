@@ -1,0 +1,23 @@
+---
+title: "6. Enums and match"
+covers: []
+description: Give a value a fixed set of choices with an enum, and pick a result for each with match.
+---
+
+import Snippet from '@components/Snippet.astro'
+
+A task has a priority: low, normal or high. An enum is a type with a fixed list of values, so no
+other priority can exist:
+
+<Snippet src="guides/tour/06-enums-and-match.nvs" />
+
+`Priority::High` is one case of the enum. The constructor gives `$priority` the default
+`Priority::Normal`, so the second task does not name one.
+
+`match` compares the priority with each arm and returns the result of the arm that is equal. This
+`match` has an arm for every case, so it needs no `default`.
+
+Read more in [Syntax: enums](/syntax/values/enums/) and
+[Syntax: match](/syntax/control-flow/match/).
+
+Next: [step 7, JSON](/guides/tour/07-json/).

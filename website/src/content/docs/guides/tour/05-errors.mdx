@@ -1,0 +1,22 @@
+---
+title: "5. Errors"
+covers: []
+description: Throw an error when a value is wrong, and catch it where you can handle it.
+---
+
+import Snippet from '@components/Snippet.astro'
+
+A task with an empty title makes no sense. The constructor throws an error for it:
+
+<Snippet src="guides/tour/05-errors.nvs" />
+
+`throw` stops the method at once. The error goes to the caller, and then to its caller, until a
+`catch` clause takes it.
+
+`catch (LogicError $e)` takes errors of the class `LogicError`. The loop goes on with the next
+title. Without the `try`, the program stops at the first error and prints it.
+
+Read more in [Syntax: throw and catch](/syntax/errors/throw-and-catch/) and
+[Syntax: error types](/syntax/errors/error-types/).
+
+Next: [step 6, enums and match](/guides/tour/06-enums-and-match/).

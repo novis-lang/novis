@@ -1,0 +1,24 @@
+---
+title: "3. Classes and objects"
+covers: []
+description: Make each task an object, with properties and a method of its own.
+---
+
+import Snippet from '@components/Snippet.astro'
+
+A task has more than a title. This step makes each task an object of the class `Task`:
+
+<Snippet src="guides/tour/03-classes-and-objects.nvs" />
+
+Each property has a type. `$done` has the default value `false`, so a new task is not done.
+
+The method named `constructor` runs when you write `new Task("Buy milk")`. Inside a method,
+`$this` is the object the method was called on.
+
+`array<Task>` is an array of `Task` objects. `$tasks[0]->done = true` changes the first task, and
+the loop prints both.
+
+Read more in [Syntax: declaring a class](/syntax/classes/declaring/) and
+[Syntax: properties](/syntax/classes/properties/).
+
+Next: [step 4, values that may be missing](/guides/tour/04-null/).

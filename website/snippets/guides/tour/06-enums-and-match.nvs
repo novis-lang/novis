@@ -1,0 +1,27 @@
+<?nvs
+// This program gives each task a priority from an enum, and prints a label for it.
+enum Priority { Low, Normal, High }
+
+class Task {
+    public string $title;
+    public Priority $priority;
+
+    public function constructor(string $title, Priority $priority = Priority::Normal) {
+        $this->title = $title;
+        $this->priority = $priority;
+    }
+
+    public function line(): string {
+        // `match` returns the result of the arm that equals the priority.
+        string $label = match ($this->priority) {
+            Priority::High => "high",
+            Priority::Normal => "normal",
+            Priority::Low => "low",
+        };
+        return $this->title . " (" . $label . ")";
+    }
+}
+
+echo (new Task("Pay rent", Priority::High))->line(), "\n";
+echo (new Task("Buy milk"))->line(), "\n";
+echo (new Task("Sort photos", Priority::Low))->line(), "\n";

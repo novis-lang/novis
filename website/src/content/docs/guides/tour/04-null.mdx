@@ -1,0 +1,26 @@
+---
+title: "4. Values that may be missing"
+covers: []
+description: Use a nullable type for a value that may be missing, and give a default with ??.
+---
+
+import Snippet from '@components/Snippet.astro'
+
+Some values are not always there. A task may have a note or not, and a search may find no task.
+Novis writes this in the type:
+
+<Snippet src="guides/tour/04-null.nvs" />
+
+`?string` is a string or `null`. `?Task` is a `Task` or `null`. A variable of type `string` can
+never be `null`, so you only check the values whose type starts with `?`.
+
+`?->` reads a property only when the object is not `null`. Otherwise the result is `null`. `??`
+then gives the value on its right side.
+
+If you leave out the `?` in `?->`, the program does not compile. The compiler sees that `find`
+may return `null`.
+
+Read more in [Syntax: nullable types](/syntax/values/nullable/) and
+[Syntax: null coalescing](/syntax/operators/null-coalescing/).
+
+Next: [step 5, errors](/guides/tour/05-errors/).

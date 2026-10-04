@@ -1,0 +1,25 @@
+<?nvs
+// This program writes the task list as an HTML page with an `html` literal.
+class Task {
+    public string $title;
+    public bool $done = false;
+
+    public function constructor(string $title) {
+        $this->title = $title;
+    }
+}
+
+class Pages {
+    public static function list(array<Task> $tasks): Core\Html\Markup {
+        var $items = html``;
+        foreach ($tasks as Task $task) {
+            // `{$title}` is a hole. Its value is escaped, so `<` prints as `&lt;`.
+            string $title = $task->title;
+            $items = $items + html`<li>{$title}</li>`;
+        }
+        return html`<h1>Tasks</h1><ul><?= $items ?></ul>`;
+    }
+}
+
+array<Task> $tasks = [new Task("Buy milk"), new Task("Learn <b> tags")];
+echo Pages::list($tasks), "\n";

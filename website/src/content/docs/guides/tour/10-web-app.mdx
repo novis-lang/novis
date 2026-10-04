@@ -1,0 +1,29 @@
+---
+title: "10. A web application"
+covers: []
+description: Serve the task list as a web page with nvs serve.
+---
+
+import Snippet from '@components/Snippet.astro'
+
+The last step puts the task list on the web. Save this program as `app.nvs`:
+
+<Snippet src="guides/tour/10-web-app.nvs" />
+
+Start the server:
+
+```sh
+nvs serve app.nvs
+```
+
+Open `http://127.0.0.1:8000/` in your browser. The page shows the two tasks. Any other path, such
+as `/tasks`, shows "Not found" with the status 404.
+
+`nvs serve` runs the program once for each request. `Core\Request::path()` returns the path the
+browser asked for. Each request starts with its own memory, so one request never sees the data of
+another.
+
+The output above is the HTML for the path `/`.
+
+You have finished the Tour. To keep going, read [Syntax](/syntax/) to learn the language in
+order, or look up a class in [Reference](/reference/).

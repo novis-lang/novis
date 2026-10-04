@@ -1,0 +1,21 @@
+<?nvs
+// This program turns a list of tasks into JSON text, and reads JSON text back.
+#[Core\Json\Derive]
+class Task {
+    public string $title;
+    public bool $done;
+
+    public function constructor(string $title, bool $done) {
+        $this->title = $title;
+        $this->done = $done;
+    }
+}
+
+array<Task> $tasks = [new Task("Buy milk", true), new Task("Call Ada", false)];
+
+// `Core\Json::encode` gives the JSON text of a value.
+echo Core\Json::encode($tasks), "\n";
+
+// `Core\Json::decodeAs` reads JSON text into an object of the class you name.
+Task $task = Core\Json::decodeAs<Task>('{"title":"Water the plants","done":false}');
+echo $task->title, "\n";
