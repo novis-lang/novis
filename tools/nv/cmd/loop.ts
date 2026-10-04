@@ -40,13 +40,7 @@
 // narrowed sweep that passes ends on `GREEN` instead, since it has not asked the whole plan. Every sweep
 // records what it ran, and moves the store's tree past the change, green or red.
 //
-// `bun nv loop --owed` names the carried checks, the stages whose label says `floor`, that the change
-// since the store's tree reaches, and runs nothing: a check whose atom is new, red or owed, or holds a key
-// the change moved. A change made outside a run reaches the checks that read what it touched, and
-// `tools/git-hooks/pre-push` refuses a push while this names one. The goal's own checks and a
-// `memoize = false` check are never owed. `bun nv loop --settle` is the sweep over the carried checks
-// alone, every red collected, so it runs what `--owed` names and ends on `SETTLED` or `NOT GREEN`.
-//
+
 // `bun nv loop` with none of those modes is the run. Started by hand, with no `NOVIS_LOOP_RUN`, it is
 // `driver/respawn.ts`: it names the run and starts one turn after another, each its own process. A turn
 // is `bun nv loop` with that variable set: one session, its acceptance sweep and its ledger lines in
@@ -104,9 +98,8 @@
 // the run until `p` or deleting `.loop/pause` lifts it, or ends the run under `--no-hold`; the same verdict
 // twice across a hold ends it. `HOLD_KINDS` and `REPAIR_KINDS` say which is which.
 //
-// `--list` and `--goal` exit 0 when the plan is read, whether or not a check matches. `--run`,
-// `--goal-only` and `--settle` exit 0 when every check they reached is green and 1 when one is not, and
-// `--owed` exits 1 while it names a check. Each exits 2 on a
+// `--list` and `--goal` exit 0 when the plan is read, whether or not a check matches. `--run` and
+// `--goal-only` exit 0 when every check they reached is green and 1 when one is not. Each exits 2 on a
 // bad argument or when there is no live goal to read. A turn exits 75 when the run goes on and 0 when it
 // ends.
 
@@ -152,19 +145,19 @@ import { type Caps, DEFAULT_CAPS, Renderer } from "../driver/transcript.ts";
 import { ENV as WRITES_ENV } from "../lib/written.ts";
 import { holdOrigin, type Origin } from "../driver/origin.ts";
 import { needLine, sharedResources, takeSweepLock } from "../driver/sweep-lock.ts";
-import { type AcceptanceResult, type Check, PROGRAM_KINDS, acceptance, allReds, heldByGate, isCarried, owedChecks, tiers, withSetups } from "../driver/accept.ts";
+import { type AcceptanceResult, type Check, PROGRAM_KINDS, acceptance, allReds, heldByGate, tiers, withSetups } from "../driver/accept.ts";
 import { type LegsOptions, legSteps, linuxLegs, startWslBuild } from "../driver/legs.ts";
 import { lastGreen, PlanSweep } from "../driver/runner.ts";
 import { writeGoalPlan } from "../renderers/goal-plan.ts";
 import { SelectStore } from "../select/store.ts";
 import { describeFull, fullRun } from "../select/full.ts";
 
-export const summary = "the loop driver: one turn with no mode, or the live goal's plan: nv loop [--side <slug>] --list|--run|--goal-only [--full] [--collect] [--gate-shut] [--stage <label>] [--name <text>] [--feature <id>] | --goal | --owed | --settle";
+export const summary = "the loop driver: one turn with no mode, or the live goal's plan: nv loop [--side <slug>] --list|--run|--goal-only [--full] [--collect] [--gate-shut] [--stage <label>] [--name <text>] [--feature <id>] | --goal";
 
 const RUN = ".loop/run.json";
 
 const USAGE =
-  "bun nv loop [--side <slug>] [--model <m>] [--effort <e>] [--permission-mode <p>] [--max-sessions <n>] [--max-stalls <n>] [--max-retries <n>] [--max-limit-wait <seconds>] [--max-result-lines <n>] [--max-input-lines <n>] [--max-line-chars <n>] [--full-output] [--no-status] [--no-hold] [--min-free-gb <n>] [--keep-runs <n>] | --list|--run|--goal-only [--full] [--collect] [--gate-shut] [--stage <label>] [--name <text>] [--feature <id>] | --goal | --owed | --settle";
+  "bun nv loop [--side <slug>] [--model <m>] [--effort <e>] [--permission-mode <p>] [--max-sessions <n>] [--max-stalls <n>] [--max-retries <n>] [--max-limit-wait <seconds>] [--max-result-lines <n>] [--max-input-lines <n>] [--max-line-chars <n>] [--full-output] [--no-status] [--no-hold] [--min-free-gb <n>] [--keep-runs <n>] | --list|--run|--goal-only [--full] [--collect] [--gate-shut] [--stage <label>] [--name <text>] [--feature <id>] | --goal";
 
 /** The session prompt every turn's session opens with. */
 const PROMPT = "docs/agent/session-prompt.md";
@@ -372,7 +365,7 @@ async function runChecks(filters: Filters): Promise<number> {
   const found = selected(filters);
   if (found === null) return 2;
   const { goal, shown, labelOf } = found;
-  const order = tiers(shown, labelOf).flatMap((t) => t.checks);
+  const order = tiers(shown).flatMap((t) => t.checks);
   const sweep = await PlanSweep.open(goal.checks as Check[], labelOf, { full: true, onRun: (what) => console.error(`  .. ${what}`), say: (l) => console.error(`  ${l}`) });
   sweep.batch(order);
   let red = 0;
@@ -547,45 +540,6 @@ async function goalOnly(filters: Filters): Promise<number> {
   return 0;
 }
 
-/** `--owed`: names the carried checks the change since the store's tree reaches, and runs nothing. */
-async function owed(): Promise<number> {
-  const found = selected({});
-  if (found === null) return 2;
-  const { goal, labelOf } = found;
-  const carried = (goal.checks as Check[]).filter((c) => isCarried(labelOf(c.stage)));
-  const sweep = await PlanSweep.open(goal.checks as Check[], labelOf, { full: false });
-  let names: string[];
-  try {
-    names = owedChecks(carried, labelOf, (c) => sweep.reached(c)).map(nameOf);
-  } finally {
-    sweep.discard();
-  }
-  if (names.length === 0) {
-    console.log("owed: nothing -- every carried check is green over this tree");
-    return 0;
-  }
-  const more = names.length > 6 ? `, +${names.length - 6} more` : "";
-  console.log(`owed: ${names.length} carried check(s) are not green over this tree: ${names.slice(0, 6).join(", ")}${more}`);
-  console.log("      `bun nv loop --settle` runs them, and only them");
-  return 1;
-}
-
-/** `--settle`: the carried checks alone, only the ones the change reaches started and every red collected, so it runs what `--owed` names. */
-async function settle(): Promise<number> {
-  const found = selected({});
-  if (found === null) return 2;
-  const { goal, labelOf } = found;
-  const carried = (goal.checks as Check[]).filter((c) => isCarried(labelOf(c.stage)));
-  console.log(`running the carried floor, ${carried.length} ${carried.length === 1 ? "check" : "checks"} (collecting every red)`);
-  const { result, secs } = await sweepOver(goal, carried, labelOf, { full: false, collect: true });
-  console.log(`cost: ${secs}s, ${result.ran} run, ${result.answered} not reached by the change, of ${carried.length}`);
-  if (result.fail !== "") {
-    console.log(`NOT GREEN: ${result.fail}`);
-    return 1;
-  }
-  console.log("SETTLED: every carried check is green over this tree");
-  return 0;
-}
 
 /**
  * The sweep over the plan's checks whose ids are in `ids`, every red collected: what `nv affected --run`
@@ -1460,8 +1414,7 @@ export async function run(args: string[]): Promise<number> {
     args = args.slice(2);
   }
   if (args.length === 1 && args[0] === "--goal") return await goalView();
-  if (args.length === 1 && args[0] === "--owed") return owed();
-  if (args.length === 1 && args[0] === "--settle") return settle();
+
   const mode = args[0];
   if (mode === undefined || !["--list", "--run", "--goal-only"].includes(mode)) {
     const flags = parseTurn(args);

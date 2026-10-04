@@ -219,15 +219,15 @@ what the selection store says differs from the tree it last recorded, which is w
 test binary and case whose footprint holds a key the change moved, or that is new, red or owed, with
 the path each came from. Its acceptance half is each plan check one of whose atoms is selected. A heavy
 check — the release profile, fuzz, TSan, the database matrix, the Linux legs — is named and left to the
-floor gate. A carried check reached only because its atoms were owed before the change is counted and
-left to the floor gate or to `bun nv loop --settle` at a push. `--run` runs the rest: `nv verify` first,
+floor gate. A check reached only because its atoms were owed or red before the change is left out, since
+it stays red until the goal is reached. `--run` runs the rest: `nv verify` first,
 then the sweep over exactly the checks it named, and a binary or case verify ran green is not started
 twice.
 
 **`nv guard` refuses the commands that run more than a change reaches**: `cargo test` with no target
-and no filter, `bun nv loop --settle`, `bun nv loop --goal-only` or `--run` over the whole plan, `bun nv
-proofs --verify` or `--run` over every feature, and `bun nv verify --no-cache`. A person runs them by
-hand; the loop driver and the pre-push hook are not tool calls, so the guard never sees them. To look
+and no filter, `bun nv loop --goal-only` or `--run` over the whole plan, `bun nv proofs --verify` or
+`--run` over every feature, and `bun nv verify --no-cache`. A person runs them by hand; the loop
+driver is not a tool call, so the guard never sees it. To look
 into one test, name it: `cargo test --test <name>` or `cargo test --lib <filter>`.
 
 **Two of those are for the run that is not the final one, and both are measured as unused.** Over a
@@ -329,9 +329,7 @@ fail over it.
 ## What is owed, and where it is collected
 
 ```sh
-bun nv loop --owed                # the carried checks the store does not answer for this tree; runs nothing
-bun nv loop --settle              # run those, and only those; by hand, since the guard refuses it to an agent
-bun nv affected                   # which of them a change reaches, and the paths that reach each
+bun nv affected                   # the checks a change reaches, and the paths that reach each
 bun nv select                     # the atoms the change since the recorded tree selects, and why
 bun nv select --since <rev>       # the same, against <rev> instead of the recorded tree
 bun nv select --since A --until B # replay the change from commit A to commit B, to count what it would run
@@ -356,24 +354,18 @@ afterwards. The edits are reverted in a `finally`, and a batch fails when `git s
 
 **Verification runs what a change can reach, and the checks that cost minutes wait.** `nv verify`
 runs the test binaries a change reaches and every `.nvst` case, and the loop's sweep after each session
-runs every acceptance check the change reached, carried or not. The heavy ones — the fuzz run, the
+runs every acceptance check the change reached. The heavy ones — the fuzz run, the
 valgrind sweep and the WSL leg, the release-profile guards, the database matrix, the checks never
 memoized — wait for the floor gate (`tools/nv/cmd/loop.ts`'s `FLOOR_GATE_EVERY`) and for the sweep a
 goal is reached on. Nothing is dropped: an atom the change reached that a run did not start is `owed`
 in the store, and stays selected until a run of it is green.
 
-**Every sweep names every red check, not the first.** It runs past a red check, so a carried check
-that went red never keeps the goal's own checks from being judged, and the ledger's `goal check:` line is
+**Every sweep names every red check, not the first.** It runs past a red check, so one red check
+never keeps the others from being judged, and the ledger's `goal check:` line is
 followed by one `also red:` line per other red check, which the pack prints. A build that fails still
 stops it, since nothing behind a build can run. The goal-end gates (`nv verify --doc`, `bun nv owners
 --closes`) run after the sweep that would reach the goal, whether it is red or green.
 
-**A change made by hand has no gate, so the debt is collected where the work leaves the machine.**
-`--owed` reads it off the same store and the same selection a sweep uses, and exits non-zero while there is
-any; `tools/git-hooks/pre-push` asks it and refuses the push. `--settle` is `--goal-only` over the
-carried floor alone. The goal's own checks are never counted — they are red until the goal is reached
-— and neither is a check that says `memoize = false`. A worktree's merge into `main` settles first for
-the same reason.
 
 **What a check is made of is decided by what the check is, and every doubt widens.**
 `tools/nv/select/checks.ts`'s module doc is the table: a fixture is one atom, a suite its cases, a

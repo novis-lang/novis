@@ -155,18 +155,14 @@ third if anyone will work in this tree interactively.
    git config core.hooksPath                   # prints tools/git-hooks when it is set
    ```
 
-   `nv verify` prints a line every run until it is set. There are two:
+   `nv verify` prints a line every run until it is set. There is one:
 
    | Hook | Refuses | Cleared by |
    |---|---|---|
    | `commit-msg` | a commit message carrying an attribution trailer — [docs/agent/conventions.md](agent/conventions.md) § *A commit message* | deleting the lines it names |
-   | `pre-push` | a push while a carried check is not green over the tree, or while tracked files have uncommitted changes | `bun nv loop --settle`, which runs what is owed and only that; `bun nv loop --owed` names it and runs nothing |
 
-   The second exists because verification runs what a change can reach and defers the checks that
-   cost minutes; [docs/agent/commands.md](agent/commands.md) § *What is owed, and where it is collected*
-   is the reasoning. Neither hook is bypassed with `--no-verify`. On Linux and macOS a hook must also
-   be executable, which the repository records; if a checkout lost the bit, `chmod +x
-   tools/git-hooks/*` puts it back.
+   It is never bypassed with `--no-verify`. On Linux and macOS a hook must also be executable, which
+   the repository records; if a checkout lost the bit, `chmod +x tools/git-hooks/*` puts it back.
 2. **A git identity**, if the machine has no global one — `git config user.name` and `user.email`. Every
    session ends in commits, so a machine that cannot commit cannot finish one.
 3. **Machine-local harness settings.** `.claude/settings.json` is committed and carries the shared

@@ -456,11 +456,6 @@ export interface Tier {
   programs: boolean;
 }
 
-/** A check carried in as the floor: stage 0's catch-up, or a stage whose label says `floor`. */
-export function isFloor(c: Check, label: string): boolean {
-  return c.stage === 0 || label.toLowerCase().includes("floor");
-}
-
 /** Whether `c` builds or measures the release profile, which the sweep runs last whatever its stage. */
 export function isRelease(c: Check): boolean {
   return (c.args ?? []).includes("--release") || measuresReleaseCli(c);
@@ -525,7 +520,7 @@ export function withSetups(shown: Check[], plan: Check[]): Check[] {
 }
 
 /** Every check in the tiers the sweep runs, each tier by stage and in the plan's order within one. */
-export function tiers(checks: Check[], label: (n: number) => string): Tier[] {
+export function tiers(checks: Check[]): Tier[] {
   const byStage = (list: Check[]) => list.map((c, i) => ({ c, i })).sort((a, b) => a.c.stage - b.c.stage || a.i - b.i).map((x) => x.c);
   const programs = byStage(checks.filter((c) => PROGRAM_KINDS.has(c.kind)));
   const rest = checks.filter((c) => !PROGRAM_KINDS.has(c.kind));
@@ -533,9 +528,9 @@ export function tiers(checks: Check[], label: (n: number) => string): Tier[] {
   return [
     { name: "catch-up", checks: plain.filter((c) => c.stage === 0 && !isRelease(c)), programs: false },
     { name: "setup", checks: rest.filter((c) => c.setup), programs: false },
-    { name: "floor fixtures", checks: programs.filter((c) => isFloor(c, label(c.stage))), programs: true },
+    { name: "catch-up fixtures", checks: programs.filter((c) => c.stage === 0), programs: true },
     { name: "cargo and command checks", checks: byStage(plain.filter((c) => c.stage !== 0 && !isRelease(c))), programs: false },
-    { name: "goal fixtures", checks: programs.filter((c) => !isFloor(c, label(c.stage))), programs: true },
+    { name: "goal fixtures", checks: programs.filter((c) => c.stage !== 0), programs: true },
     { name: "overlap", checks: rest.filter((c) => !c.setup && c.overlap), programs: false },
     { name: "release", checks: plain.filter(isRelease), programs: false },
   ];
@@ -561,23 +556,6 @@ export function allReds(reds: string[]): string {
 
 /** A build that fails stops every sweep, collecting or not, since nothing behind it can run. */
 export const BUILD_FAILED = /^the (native|workspace test|release) build failed/;
-
-/**
- * A check the goal switch carried in from the goals before: a stage whose label says `floor`. Stage 0 is
- * a floor to `isFloor` but is this goal's own reopened work, so it is not carried.
- */
-export function isCarried(label: string): boolean {
-  return label.toLowerCase().includes("floor");
-}
-
-/**
- * The carried checks the change reaches, over the tree as it stands: what `nv loop --owed` names and
- * `--settle` runs. The goal's own checks are left out, since they stay red until the goal is reached,
- * and so is a check with `memoize = false`, which every sweep reaches and every open floor gate runs.
- */
-export function owedChecks(checks: Check[], label: (n: number) => string, reached: (c: Check) => boolean): Check[] {
-  return checks.filter((c) => isCarried(label(c.stage)) && c.memoize !== false && reached(c));
-}
 
 export interface AcceptanceOptions {
   label: (n: number) => string;
@@ -637,7 +615,7 @@ export async function acceptance(checks: Check[], o: AcceptanceOptions): Promise
     return { fail, ran, answered, verdicts };
   };
 
-  const order = tiers(checks, o.label);
+  const order = tiers(checks);
   for (const tier of order) {
     const fails: { c: Check; fail: string }[] = [];
     o.sweep.batch?.(tier.checks.filter(o.reached));

@@ -189,8 +189,8 @@ describe("nv audit ci", () => {
   });
 
   test("a hook line calling Python outside a comment is an offender", () => {
-    const hook = ["#!/bin/sh", "# sh and awk, not python, on purpose.", "if ! command -v python >/dev/null; then", "bun nv loop --owed"].join("\n");
-    expect(pythonCalls("pre-push", hook)).toEqual(["pre-push:3: if ! command -v python >/dev/null; then"]);
+    const hook = ["#!/bin/sh", "# sh and awk, not python, on purpose.", "if ! command -v python >/dev/null; then", "bun nv verify"].join("\n");
+    expect(pythonCalls("commit-msg", hook)).toEqual(["commit-msg:3: if ! command -v python >/dev/null; then"]);
     expect(pythonCalls("commit-msg", "#!/bin/sh\n# not python\nawk '{print}'\n")).toEqual([]);
   });
 });

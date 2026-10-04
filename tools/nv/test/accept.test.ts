@@ -11,7 +11,7 @@ import {
   judgeTests,
   measuresReleaseCli,
   orderedIn,
-  owedChecks,
+
   plainCrateTest,
   programFailLine,
   PROOF_SCOPES_PER_LIMIT,
@@ -339,24 +339,24 @@ describe("judgeTests", () => {
 });
 
 describe("the whole sweep", () => {
-  const label = (n: number) => (n === 1 ? "1 floor" : `${n} stage`);
+  const label = (n: number) => `${n} stage`;
   const plan: Check[] = [
     check({ id: "rel", stage: 2, argv: ["bun", "nv", "bench", "--guard"] }),
     check({ id: "goal-fix", kind: "exact", stage: 3, file: "g.nvs", want: [] }),
     check({ id: "cmd3", stage: 3, argv: ["a"] }),
     check({ id: "cmd2", stage: 2, argv: ["b"] }),
     check({ id: "over", stage: 1, argv: ["c"], overlap: true }),
-    check({ id: "floor-fix", kind: "exact", stage: 1, file: "f.nvs", want: [] }),
+    check({ id: "catch-fix", kind: "exact", stage: 0, file: "f.nvs", want: [] }),
     check({ id: "setup", stage: 1, argv: ["d"], setup: true }),
     check({ id: "catch", stage: 0, kind: "cargo-named", args: ["test"] }),
   ];
 
-  test("tiers run catch-up, setup, floor fixtures, the rest by stage, goal fixtures, overlap, release", () => {
-    const got = tiers(plan, label).map((t) => [t.name, t.checks.map((c) => c.id)]);
+  test("tiers run catch-up, setup, catch-up fixtures, the rest by stage, goal fixtures, overlap, release", () => {
+    const got = tiers(plan).map((t) => [t.name, t.checks.map((c) => c.id)]);
     expect(got).toEqual([
       ["catch-up", ["catch"]],
       ["setup", ["setup"]],
-      ["floor fixtures", ["floor-fix"]],
+      ["catch-up fixtures", ["catch-fix"]],
       ["cargo and command checks", ["cmd2", "cmd3"]],
       ["goal fixtures", ["goal-fix"]],
       ["overlap", ["over"]],
@@ -396,14 +396,14 @@ describe("the whole sweep", () => {
     const s = fake(["cmd2"]);
     const r = await acceptance(plan, opts(s));
     expect(r.fail).toBe("cmd2 red");
-    expect(s.ran).toEqual(["catch", "setup", "over", "floor-fix", "cmd2"]);
+    expect(s.ran).toEqual(["catch", "setup", "over", "catch-fix", "cmd2"]);
   });
 
   test("the sweep names each tier's reached checks before the first of them runs", async () => {
     const told: string[][] = [];
     const s = { ...fake([]), batch: (checks: Check[]) => told.push(checks.map((c) => c.id)) };
     await acceptance(plan, opts(s, { reached: (c) => c.id !== "cmd2" }));
-    expect(told).toEqual([["catch"], ["setup"], ["floor-fix"], ["cmd3"], ["goal-fix"], ["over"], ["rel"]]);
+    expect(told).toEqual([["catch"], ["setup"], ["catch-fix"], ["cmd3"], ["goal-fix"], ["over"], ["rel"]]);
   });
 
   test("a collecting sweep runs past each red and names every one", async () => {
@@ -466,14 +466,14 @@ describe("the whole sweep", () => {
     expect(h.log).not.toContain("run rel");
     h.end.build();
     expect((await swept).fail).toBe("");
-    expect(h.log).toEqual(["run catch", "run setup", "run over", "run floor-fix", "run cmd2", "run cmd3", "build rel", "run goal-fix", "over ends", "build ends", "run rel"]);
+    expect(h.log).toEqual(["run catch", "run setup", "run over", "run catch-fix", "run cmd2", "run cmd3", "build rel", "run goal-fix", "over ends", "build ends", "run rel"]);
   });
 
   test("the release builds start after the cargo and command tier and before the goal's fixtures, and a release check waits for them", async () => {
     const h = held();
     const swept = acceptance(plan, { label, sweep: h.sweep, reached: (c) => c.id !== "over", collect: false });
     await until(() => h.log.includes("run goal-fix"));
-    expect(h.log).toEqual(["run catch", "run setup", "run floor-fix", "run cmd2", "run cmd3", "build rel", "run goal-fix"]);
+    expect(h.log).toEqual(["run catch", "run setup", "run catch-fix", "run cmd2", "run cmd3", "build rel", "run goal-fix"]);
     await Bun.sleep(5);
     expect(h.log).not.toContain("run rel");
     expect(h.told.stop?.aborted).toBe(false);
@@ -580,13 +580,6 @@ describe("the whole sweep", () => {
     expect(r.fail).toBe("catch red\n       also red: the native build failed -- error: x");
   });
 
-  test("owed is the carried checks the change reaches, less stage 0, the goal's own and memoize = false", () => {
-    const live = check({ id: "live", stage: 1, memoize: false });
-    const reached = new Set(["floor-fix", "setup", "cmd3", "live", "catch"]);
-    const owed = owedChecks([...plan, live], label, (c: Check) => reached.has(c.id));
-    expect(owed.map((c) => c.id)).toEqual(["floor-fix", "setup"]);
-    expect(owedChecks(plan, label, everything).map((c) => c.id)).toEqual(["over", "floor-fix", "setup"]);
-  });
 
   describe("a setup command with the floor gate shut", () => {
     // The shape of the queue fixture's pair: a migration never memoized, and the fixture that reads its tables.

@@ -108,10 +108,9 @@ harness settings and nothing else.
 
 The acceptance check running *before* the `DONE` check is deliberate: the machine outranks the claim.
 
-**The goal switch is the driver's, and it is one commit.** `live` is tracked in git, so every clone, CI
-and the pre-push hook see the same live goal; the switch rewrites that one field, commits
-`data/chain.json` as ``docs(loop): the chain advances from `a` to `b` ``, and copies and retires
-nothing, because a walked goal keeps its checks and the next goal's plan carries them in as its floor.
+**The goal switch is the driver's, and it is one commit.** `live` is tracked in git, so every clone and
+CI see the same live goal. The switch deletes the goal it leaves and moves `live` to the next one, as
+`rule:tooling/the-chain-names-its-live-goal` says, and carries none of its checks.
 `bun nv chain --new`, `--move` and `--remove` edit `goals` and never `live`.
 
 The driver does not run an optimization pass, never picks a side goal on its own, and does not copy a

@@ -84,8 +84,7 @@ const CASES: Record<string, { deny: [Tool, Record<string, unknown>][]; allow: [T
     deny: [
       ["Bash", { command: "cargo test 2>&1 | tail -20" }],
       ["PowerShell", { command: "cargo test --workspace --features x" }],
-      ["Bash", { command: "bun nv loop --settle" }],
-      ["Bash", { command: "timeout 100 bun nv loop --settle > .agent-tmp/out 2>&1" }],
+      ["Bash", { command: "timeout 100 bun nv loop --goal-only > .agent-tmp/out 2>&1" }],
       ["PowerShell", { command: "bun nv loop --goal-only --full" }],
       ["Bash", { command: "bun nv proofs --verify" }],
       ["Bash", { command: "bun nv verify --no-cache" }],

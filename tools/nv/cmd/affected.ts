@@ -22,11 +22,9 @@
 // of the live plan, or of the side goal `NOVIS_SIDE_GOAL` names. A check reached through a key the change
 // moved, or through its own record changing, is due, less the heavy ones: a check that builds or
 // measures the release profile, fuzz, TSan, the database matrix, the two Linux legs and a check that is
-// never memoized. Those are named as deferred, and the loop's floor gate runs them. A carried check
-// reached only because its atoms were owed, red or never recorded before the change is owed: named as a
-// count and never run here. The floor gate or `bun nv loop --settle` pays it, and the pre-push hook
-// refuses a push until one has. A goal check reached only that way was red before the change, and stays
-// so until the goal is reached, so it is not due either.
+// never memoized. Those are named as deferred, and the loop's floor gate runs them. A check reached only
+// because its atoms were owed, red or never recorded before the change was red before the change, and
+// stays so until the goal is reached, so it is not due.
 //
 // `--run` runs `nv verify` when it has anything to run, then sweeps the checks that were due. A test
 // binary or case verify ran green is not picked again, so a check made of those is not started twice.
@@ -36,7 +34,7 @@
 
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { type Check, isCarried, isHeavy } from "../driver/accept.ts";
+import { type Check, isHeavy } from "../driver/accept.ts";
 import { PlanSweep } from "../driver/runner.ts";
 import { type Graph, metadata } from "../keys/graph.ts";
 import { currentPlan } from "../lib/chain.ts";
@@ -69,7 +67,6 @@ export interface Reached {
 
 export interface ReachedCheck extends Reached {
   id: string;
-  carried: boolean;
   /** Heavy: the floor gate runs it, not this command. */
   deferred: boolean;
   /** Reached only through atoms owed or red from before the change. */
@@ -95,7 +92,7 @@ export interface Plan {
     /** Atoms the change reaches that verify does not run, by kind: they stay owed. */
     others: Record<string, number>;
   };
-  acceptance: { checks: ReachedCheck[]; legs: Reached[]; owed: number };
+  acceptance: { checks: ReachedCheck[]; legs: Reached[] };
 }
 
 // ---- the change --------------------------------------------------------------------------------------
@@ -189,7 +186,7 @@ export async function plan(change: Change, graph: Graph | null): Promise<Plan> {
       cases: Object.values(v.cases).flatMap((cs) => cs.map((p) => ({ id: `case:${p}`, why: why(`case:${p}`) }))),
       others,
     },
-    acceptance: { checks: [], legs: [], owed: 0 },
+    acceptance: { checks: [], legs: [] },
   };
   const found = currentPlan();
   if (found === null) return out;
@@ -202,15 +199,9 @@ export async function plan(change: Change, graph: Graph | null): Promise<Plan> {
       if (!sweep.reached(c)) continue;
       const g = sweep.groups.get(c.id);
       const { by, before } = reasons(g?.atoms ?? [], sweep.sel.selected);
-      const carried = isCarried(label(c.stage));
-      const x: ReachedCheck = { id: c.id, name: c.name ?? c.file ?? c.id, by: by.length > 0 ? by : [c.memoize === false ? "never memoized" : "what it names beyond its atoms is not in the store"], carried, deferred: isHeavy(c), before };
-      // A debt from before the change is the floor gate's or `--settle`'s to pay, and a goal check that was
-      // red before it stays red until the goal is reached.
-      if (before) {
-        if (carried && c.memoize !== false) out.acceptance.owed++;
-        continue;
-      }
-      out.acceptance.checks.push(x);
+      // A check that was red before the change stays red until the goal is reached.
+      if (before) continue;
+      out.acceptance.checks.push({ id: c.id, name: c.name ?? c.file ?? c.id, by: by.length > 0 ? by : [c.memoize === false ? "never memoized" : "what it names beyond its atoms is not in the store"], deferred: isHeavy(c), before });
     }
     for (const leg of LEGS) {
       if (!sweep.legReached(leg)) continue;
@@ -268,10 +259,10 @@ function print(p: Plan, asked: string[] | undefined): void {
   const run = due(p);
   const deferred = p.acceptance.checks.filter((x) => x.deferred).length + p.acceptance.legs.length;
   console.log(`\nacceptance -- \`bun nv affected --run\` runs ${run.length} check(s):`);
-  for (const x of run.slice(0, 20)) console.log(`  ${x.carried ? "floor" : "goal "} ${x.name}${from(x.by)}`);
+  for (const x of run.slice(0, 20)) console.log(`  ${x.name}${from(x.by)}`);
   if (run.length > 20) console.log(`  +${run.length - 20} more`);
   if (deferred > 0) console.log(`  ${deferred} reached heavy check(s) and leg(s) wait for the loop's floor gate: release profile, fuzz, TSan, the database matrix, the Linux legs`);
-  if (p.acceptance.owed > 0) console.log(`  ${p.acceptance.owed} carried check(s) are owed from before this change; the floor gate or \`bun nv loop --settle\` at a push pays them`);
+
 
   if (owes(p)) console.log(`\nrun it: \`bun nv affected --run${c.why === "uncommitted changes" || c.why === "the loop's session base" ? "" : ` ${c.why}`}\``);
 }

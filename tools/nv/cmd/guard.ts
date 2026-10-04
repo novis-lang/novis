@@ -541,7 +541,7 @@ function heavyRun(all: string[], cwd: string): string | null {
   if (nv !== null) {
     const [cmd, ...rest] = nv;
     const narrowed = rest.some((w) => /^--(?:stage|name|feature)(?:=|$)/.test(w));
-    if (cmd === "loop" && rest[0] === "--settle") return "`bun nv loop --settle` runs every carried check the change since the store's tree reaches, and most of them were owed before your change";
+
     if (cmd === "loop" && (rest[0] === "--goal-only" || rest[0] === "--run") && !narrowed) return `\`bun nv loop ${rest[0]}\` runs the whole plan, whatever your change reaches`;
     if (cmd === "proofs" && rest.some((w) => w === "--verify" || w === "--run") && !rest.some((w) => /^--(?:id|only|group)(?:=|$)/.test(w))) {
       return "`bun nv proofs` over every feature runs each one's examples and attacks, whatever your change reaches";

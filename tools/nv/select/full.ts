@@ -114,14 +114,14 @@ export function keptMisses(store: SelectStore): Map<string, { lastGreen: number;
  * floor gate does not hold whose atom is its own (`howOf`, the check's group), and every setup command,
  * so a setup comes before the fixtures that read what it writes. The other checks are made of cases,
  * test binaries, proof programs and tools tests, which the full run runs whole. */
-export function ownChecks(plan: Check[], label: (n: number) => string, howOf: (c: Check) => How | undefined): Check[] {
+export function ownChecks(plan: Check[], howOf: (c: Check) => How | undefined): Check[] {
   const own = plan.filter((c) => {
     if (c.setup === true) return true;
     if (heldByGate(c)) return false;
     const how = howOf(c);
     return how === "fixture" || how === "command" || how === "nv";
   });
-  return tiers(own, label).flatMap((t) => t.checks);
+  return tiers(own).flatMap((t) => t.checks);
 }
 
 /** Runs every atom that is not heavy on `store`, records each, moves the store's tree, and reports the
@@ -177,7 +177,7 @@ export async function fullRun(store: SelectStore, opts: FullOptions = {}): Promi
     // (`driver/sweep-lock.ts`): a fixture of `examples/http.nvs` needs both. No leg runs here, and a
     // heavy check only when it is a setup.
     if (kinds.has("check")) {
-      const own = ownChecks(plan, label, (c) => sweep.groups.get(c.id)?.how);
+      const own = ownChecks(plan, (c) => sweep.groups.get(c.id)?.how);
       const need = sharedResources(own, false, () => false);
       say(`select: ${needLine(need)}`);
       const lock = need.lock ? await takeSweepLock({ note: (l) => say(`select: ${l}`) }) : null;

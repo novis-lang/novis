@@ -154,7 +154,7 @@ async function auditEol(): Promise<Finding[]> {
 }
 
 const WORKFLOWS = [".github/workflows/ci.yml", ".github/workflows/pages.yml", ".github/workflows/release.yml", ".github/workflows/release-promote.yml"];
-const HOOKS = ["tools/git-hooks/commit-msg", "tools/git-hooks/pre-push"];
+const HOOKS = ["tools/git-hooks/commit-msg"];
 const WEBSITE_SYNCS = ["website/scripts/sync-rules.mjs", "website/scripts/sync-core.mjs"];
 
 /** The lines of a file that are not blank and not a `#` comment, each with its 1-based number. */

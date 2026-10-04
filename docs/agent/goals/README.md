@@ -134,8 +134,8 @@ The split is **by file set, not by topic**. That is why M8 is two goals — `nvs
 ## The chain contract
 
 **`data/chain.json` is the chain**: `goals`, a list of goal slugs whose order is the order the driver
-walks, and `live`, the goal it works on. `live` is tracked in git, so every clone, CI and the pre-push
-hook see the same live goal, and every goal in front of it is walked. There is no second file saying
+walks, and `live`, the goal it works on. `live` is tracked in git, so every clone and CI see the
+same live goal, and every goal in front of it is walked. There is no second file saying
 what the order is, so **reordering the chain is editing that list** — and `bun nv chain` is how that is
 done, never by hand. `--new`, `--move` and `--remove` each edit `goals` in that one file and never
 `live`, which only the driver's goal switch moves; `--check` says whether every goal is one the driver
