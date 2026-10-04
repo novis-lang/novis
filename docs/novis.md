@@ -29097,10 +29097,16 @@ one first.
 
 #### What it claims
 
-`.nvs`, and nothing else. It wakes on a Novis document and stays asleep in a window without one. It
-does not claim `.php`, though the compiler reads that dialect: the file type belongs to whichever PHP
-extension a person already has, and losing a quiet fight over it looks like Novis being broken rather
-than like two extensions disagreeing.
+`.nvs`, and nothing else. It starts when you open a Novis document, or when the workspace has a
+file named `nvs.toml`. In any other window it does not start. It does not claim `.php`, though the
+compiler reads that dialect: the file type belongs to whichever PHP extension a person already has, and
+losing a quiet fight over it looks like Novis being broken rather than like two extensions disagreeing.
+
+A file named `nvs.toml` gets completion and nothing else. After a `[`, you get the block headers. On an
+empty line under a header, you get the keys of that block, with the default and the comment from the
+default file. A key the block already sets is not offered again. The extension does not claim TOML
+files, so a TOML extension you already have still colours and checks the file. The editor shows both
+extensions' completions together.
 
 A second language is registered for `.nvst` and `.lspt` — the two case formats above — coloured and
 nothing more, so a case reads as the program inside it. No server is started for one.

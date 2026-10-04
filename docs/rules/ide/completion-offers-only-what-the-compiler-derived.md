@@ -7,8 +7,9 @@ Novis's answer to "framework support", and it is a closed rule, not a starting p
 
 What that admits: route names and their parameters, from the route table
 `rule:routing/routes-are-compiled-not-registered` builds while compiling — the same table
-`rule:routing/link-name-and-params-are-checked` checks a link against; configuration directives in
-`nvs.toml` and every file `[[include]]` pulls in, from the closed registry the runtime validates against
+`rule:routing/link-name-and-params-are-checked` checks a link against; configuration directives in a
+file named `nvs.toml` (`rule:ide/the-extension-claims-nvs-only`), from the default file the binary ships,
+which `bun nv directives --check-template` holds to the parser that refuses an unknown key
 (`rule:config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`), so completion, hover with type and
 default, and "no such directive" are three readings of one registry, and `[[include]]`'s `path` and `dir`
 complete as paths — scoped to the workspace's config tree, never to every TOML file; a `require` path,

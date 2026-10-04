@@ -50,6 +50,7 @@ import {
 
 import * as ast from "./ast";
 import { Origin, Runnable, install as installCopies, installDirectory, installed, runnable } from "./binary";
+import * as directives from "./directives";
 import * as format from "./format";
 import * as imports from "./imports";
 import { RELEASE_PAGE, currentTarget, downloadVerified, installBinary, overHttps, releaseFor } from "./install";
@@ -99,7 +100,8 @@ const SUBCOMMAND = ["lsp"];
 
 // What the client claims: files the editor calls Novis, and nothing else. The case grammar's `nvst`
 // language is coloured statically and starts no server, and `.php` is claimed by nobody here
-// (`rule:ide/the-extension-claims-nvs-only`).
+// (`rule:ide/the-extension-claims-nvs-only`). A file named `nvs.toml` is not claimed either: its
+// completion is `directives.ts`'s provider, which asks this client and opens nothing on it.
 const SELECTOR = [{ scheme: "file", language: "nvs" }];
 
 // The settings a running client is built from. A change to one of these restarts it, because
@@ -170,6 +172,9 @@ export async function activate(context: ExtensionContext): Promise<Surface> {
   // The paste provider, registered from activation for the same reason: a copy made before the
   // server answers carries no imports, and the editor pastes it as it always did.
   imports.install(context);
+  // The `nvs.toml` completion provider, registered from activation because the workspace holding
+  // that file is one of the two things that activate the extension.
+  directives.install(context);
   // The formatter, which is a process rather than a request: it starts `nvs fmt` and needs no
   // server, so it is installed here beside the rest and not in `start`.
   format.install(context);
@@ -337,6 +342,7 @@ async function start(context: ExtensionContext): Promise<void> {
   redactions.serve(client);
   regions.serve(client);
   imports.serve(client);
+  directives.serve(client);
   await retire(previous);
   const { shown, source, origin } = chosen;
   const answering = outcome.copied !== undefined
@@ -502,6 +508,8 @@ async function retire(previous: LanguageClient | undefined): Promise<void> {
     regions.serve(undefined);
     // A copy made while nothing answers carries no imports, and its paste is plain text.
     imports.serve(undefined);
+    // An `nvs.toml` keeps whatever completion its TOML extension gives.
+    directives.serve(undefined);
   }
   try {
     await previous.stop();

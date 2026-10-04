@@ -2350,6 +2350,7 @@ version = "0.0.1"
 dependencies = [
  "lsp-server",
  "lsp-types",
+ "nvs-config",
  "nvs-diagnostics",
  "nvs-footprint",
  "nvs-hir",

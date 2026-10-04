@@ -1,5 +1,6 @@
-// The four surfaces this extension puts in an editor, asserted in a real one: the status item, the
-// Tasks and the Problems panel behind them, the AST panel, and the concealment of a `secret`.
+// The surfaces this extension puts in an editor, asserted in a real one: the status item, the Tasks
+// and the Problems panel behind them, the AST panel, the concealment of a `secret`, and the
+// completion offered in an `nvs.toml`.
 //
 // None of them can be observed anywhere else. A `LanguageStatusItem` and a decoration are sinks —
 // `setDecorations` takes ranges and hands none back — which is why `activate` returns the read-only
@@ -210,6 +211,31 @@ describe("the surfaces", () => {
     const left = covered(document, after.concealed);
     assert.equal(left.length, 1, `${left.length} ranges left concealed: ${left.join(" | ")}`);
     assert.ok(left[0].includes(SECOND), `the range left concealed is ${left[0]}`);
+  });
+
+  it("completes an nvs.toml's keys from the server and leaves the file's language alone", async () => {
+    // The one provider outside the `nvs` language (`rule:ide/the-extension-claims-nvs-only`). The
+    // file is written here rather than shipped in the fixture, because a workspace holding one
+    // activates the extension at start, and `colour.test.ts` needs it asleep until a `.nvs` opens.
+    const reading = await surface();
+    await until("the status item naming a running server", async () =>
+      reading.status?.text.includes("lsp") === true ? true : undefined, () => said(reading));
+    const uri = fixture("nvs.toml");
+    await vscode.workspace.fs.writeFile(uri, new TextEncoder().encode("[limits]\nmemory = \"1G\"\n\n"));
+    try {
+      const document = await vscode.workspace.openTextDocument(uri);
+      assert.notEqual(document.languageId, "nvs", "an nvs.toml was given the nvs language");
+      const labels = await until("the keys of [limits] offered", async () => {
+        const list = await vscode.commands.executeCommand<vscode.CompletionList>(
+          "vscode.executeCompletionItemProvider", uri, new vscode.Position(2, 0));
+        const found = list.items.map((item) => typeof item.label === "string" ? item.label : item.label.label);
+        return found.includes("cpu_time") ? found : undefined;
+      });
+      // A key the section already sets is not offered a second time.
+      assert.ok(!labels.includes("memory"), `memory is offered again: ${labels.join(", ")}`);
+    } finally {
+      await vscode.workspace.fs.delete(uri);
+    }
   });
 
   it("decorates nothing for tainted at the default setting", async () => {

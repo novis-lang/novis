@@ -51,6 +51,7 @@ interface Manifest {
     languages: {
       id: string;
       extensions: string[];
+      filenames?: string[];
       configuration?: string;
       icon?: { light: string; dark: string };
     }[];
@@ -317,10 +318,12 @@ describe("the file types the extension claims", () => {
     }
   });
 
-  it("activates on nvs and on nothing else", () => {
+  it("activates on nvs and on a workspace with an nvs.toml, and on nothing else", () => {
     // A grammar is contributed statically, so colouring a case starts nothing: the second language
-    // adds no activation event, and opening one does not start the server.
-    assert.deepEqual(manifest.activationEvents, ["onLanguage:nvs"]);
+    // adds no activation event, and opening one does not start the server. A workspace holding an
+    // `nvs.toml` activates it so that the file's completion answers before any `.nvs` is opened
+    // (`rule:ide/the-extension-claims-nvs-only`), and that is an activation and not a claim.
+    assert.deepEqual(manifest.activationEvents, ["onLanguage:nvs", "workspaceContains:**/nvs.toml"]);
   });
 
   it("claims no php file type", () => {
@@ -339,6 +342,24 @@ describe("the file types the extension claims", () => {
       }
     }
     for (const claim of ['.php"', '"php"', ":php", "phtml"]) {
+      assert.equal(manifestText.toLowerCase().includes(claim), false,
+                   `the manifest claims ${claim}`);
+    }
+  });
+
+  it("claims no toml file type", () => {
+    // `nvs.toml` gets one completion provider and nothing else, so a TOML extension keeps the file
+    // and the editor merges the two answers. A language id, a file extension or a grammar for TOML
+    // would be the claim this refuses.
+    for (const language of manifest.contributes.languages) {
+      for (const extension of language.extensions ?? []) {
+        assert.ok(!/toml/i.test(extension), `${extension} is not Novis's to claim`);
+      }
+      for (const name of language.filenames ?? []) {
+        assert.ok(!/toml/i.test(name), `${name} is not Novis's to claim`);
+      }
+    }
+    for (const claim of ['"toml"', ":toml", "source.toml"]) {
       assert.equal(manifestText.toLowerCase().includes(claim), false,
                    `the manifest claims ${claim}`);
     }

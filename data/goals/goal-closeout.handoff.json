@@ -1,22 +1,18 @@
 {
-  "state": "**Goal `goal-closeout`: Stage 4, building the user's answers.** The user answered all seven questions in the goal prose's § *Questions for the user at the goal end* (`docs/agent/goals/goal-closeout.md:205`). Two are built and their questions deleted. `Core\\Server` gets no request environment: spec § 15 and the `server.rs` module doc say `Core\\Request` and `Core\\Env` cover `$_SERVER`, and that gap is deleted. Reference cards are held to the plain voice by `rule:core-api/reference-card` and `AGENTS.md` § *Text an end user reads*, and the card rewrite is gap `reference-cards-are-not-held-to-the-plain-voice`, now owned by M10.\n\n`bun nv owners --closes goal-closeout` names 5 gaps. One of them, `completion-file-images-are-not-checked-in-an-editor`, waits on the user's report from VS Code (\"image shows\" or \"text only\"). Its question stays open until that report is written under it. No session can build it. When it is the only gap left, write `BLOCKED` and name that question.",
+  "state": "**Goal `goal-closeout`: Stage 4, building the user's answers.** The user answered all seven questions in the goal prose's § *Questions for the user at the goal end*. Three are built and their questions deleted: `Core\\Server` carries no request environment, reference cards are held to the plain voice (gap owned by M10), and `nvs.toml` gets directive completion. `nvs/directives` is the sixth Novis request (`rule:ide/the-request-set-is-closed`). It is answered by `crates/nvs-lsp/src/directives.rs` from `nvs_config::default_file()`, and `editors/vscode/src/directives.ts` is its one provider for files named `nvs.toml` (`rule:ide/the-extension-claims-nvs-only`).\n\n`bun nv owners --closes goal-closeout` names 4 gaps. One of them, `completion-file-images-are-not-checked-in-an-editor`, waits on the user's report from VS Code (\"image shows\" or \"text only\"). Its question stays open until that report is written under it, and no session can build it. When it is the only gap left, write `BLOCKED` and name that question.",
   "next": {
     "stage": 4,
     "title": "finished in place, the answers built",
     "files": [],
-    "note": "one file set: the extension's completion and the `nvs.toml` registry.",
+    "note": "one file set: the isolate result type, the script result builder and `Core\\Out::capture`.",
     "items": [
       {
         "done": false,
-        "text": "**Directive completion in `nvs.toml`** (answer 1: one completion provider for files named `nvs.toml`, and the rule is rewritten). Rewrite `rule:ide/the-extension-claims-nvs-only` (`docs/rules/ide/the-extension-claims-nvs-only.md:1`). The LSP selector is `editors/vscode/src/extension.ts:103`, and the registry is `crates/nvs-config/src/directive.rs:87`. That registry has block rows such as `limits`, and the full key list is only in the serde tree at `crates/nvs-config/src/tree.rs:75`, so decide first where the complete key table comes from. `bun nv verify`'s `directives` and `template` steps already count 269 leaf keys and check that the default file contains each one, so start from whatever those steps read. M10 asks for completion \"asserted against the producing table\" (`docs/plan/m10.md:208`). Update the activation tests at `editors/vscode/test/host/colour.test.ts:90` and `editors/vscode/test/contributions/contributions.test.ts:320`. Delete gap `route-name-and-directive-completion-are-unbuilt` and its question."
+        "text": "**The captured-output carrier** (answer 1: the sink's carrier at run time, `Core\\Html\\Markup|Core\\Cli\\Text` statically, for the isolate result and `Core\\Out::capture`). It is at `crates/nvs-types/src/expr/isolate.rs:593`, `crates/nvs-stdlib/src/script.rs:1326` and `crates/nvs-stdlib/src/out.rs:151`. `Ctx::carrier` picks the carrier, and `writes_raw` is at `crates/nvs-runtime/src/helpers.rs:2776`. Delete gap `an-isolate-result-output-is-typed-string` and its question."
       },
       {
         "done": false,
-        "text": "**The captured-output carrier** (answer 1: the sink's carrier at run time, `Core\\Html\\Markup|Core\\Cli\\Text` statically, for the isolate result and `Core\\Out::capture`). It is at `crates/nvs-types/src/expr/isolate.rs:593`, `crates/nvs-stdlib/src/script.rs:1326` and `crates/nvs-stdlib/src/out.rs:151`."
-      },
-      {
-        "done": false,
-        "text": "**Closure rebind** (answer 1: same class or a subclass, checked at run time, no scope argument). It is at `crates/nvs-types/src/expr/calls.rs:111` and `crates/nvs-ir/src/lower/closure.rs:214`."
+        "text": "**Closure rebind** (answer 1: same class or a subclass, checked at run time, no scope argument). It is at `crates/nvs-types/src/expr/calls.rs:111` and `crates/nvs-ir/src/lower/closure.rs:214`. Delete gap `a-callable-has-no-bind-bindto-or-call` and its question."
       },
       {
         "done": false,
@@ -25,6 +21,8 @@
     ]
   },
   "backlog": [
-    "The completion-image question waits on the user's VS Code report (`data/gaps/nvs-lsp/completion-file-images-are-not-checked-in-an-editor.json`)."
+    "The completion-file image question waits for the user's report (`docs/agent/goals/goal-closeout.md` § *Questions for the user at the goal end*).",
+    "`nvs/directives` offers nothing in a file `[[include]]` pulls in under another name, because the provider is chosen by the file name (`rule:ide/completion-offers-only-what-the-compiler-derived`).",
+    "The `nvs.toml` host test in `editors/vscode/test/host/surfaces.test.ts` has not run yet: `bun nv verify`'s `extension` step runs the headless suite, and `npm run test:host` in `editors/vscode` is the run that reaches it."
   ]
 }

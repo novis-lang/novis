@@ -105,6 +105,7 @@ use crate::completion;
 use crate::completion_files::{self, CompletionFiles, Finding, Reload};
 use crate::definition;
 use crate::diagnostics::{Phases, SOURCE, dimming, for_document};
+use crate::directives;
 use crate::document::{Analysed, Documents, analyse, directory_uri_of, path_of, uri_of};
 use crate::folding;
 use crate::hints;
@@ -741,6 +742,13 @@ fn answer(
         },
         imports::EDITS_METHOD => match imports::EditsParams::from_value(params) {
             Ok(params) => Response::new_ok(id, import_edits(documents, index, encoding, &params)),
+            Err(error) => unreadable(id, &method, &error),
+        },
+        directives::METHOD => match directives::Params::from_value(params) {
+            Ok(params) => Response::new_ok(
+                id,
+                directives::complete(&params.text, params.position, encoding),
+            ),
             Err(error) => unreadable(id, &method, &error),
         },
         _ => Response::new_err(

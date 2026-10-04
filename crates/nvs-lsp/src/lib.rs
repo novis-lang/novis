@@ -105,6 +105,7 @@ pub mod completion_files;
 pub mod coverage;
 pub mod definition;
 pub mod diagnostics;
+pub mod directives;
 mod document;
 pub mod folding;
 pub mod hints;

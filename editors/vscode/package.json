@@ -22,7 +22,8 @@
     "workspace"
   ],
   "activationEvents": [
-    "onLanguage:nvs"
+    "onLanguage:nvs",
+    "workspaceContains:**/nvs.toml"
   ],
   "main": "./out/extension.js",
   "contributes": {

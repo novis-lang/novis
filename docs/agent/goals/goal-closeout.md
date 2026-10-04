@@ -234,26 +234,6 @@ The check `no question waits for the user` fails while a line `- **Answer:** ope
 - **Answer:** 1. The user checks it in VS Code by hand. The result is written here as "image shows"
   or "text only" when the user reports it, and a session builds from that.
 
-### May the extension offer completion inside `nvs.toml`?
-
-- **Gap** — `route-name-and-directive-completion-are-unbuilt`, `crates/nvs-lsp/src/completion.rs`
-  and `docs/plan/m10.md:208`. Route-name completion is built either way. This question is only the
-  directive half.
-- **What has to be decided** — `rule:ide/the-extension-claims-nvs-only` says the extension registers
-  `.nvs` only. Its reason is not to fight other extensions over `.php`. Directive completion needs a
-  provider in a TOML file.
-- **Options** —
-  1. *A provider for files named `nvs.toml` only.* The extension does not claim the TOML language.
-     It adds one completion provider with the selector `**/nvs.toml`, fed by the directive registry.
-     VS Code merges it with a TOML extension's completion, so nothing is fought over. The rule is
-     rewritten to say so. Cost: one provider and its host test, nothing at run time.
-  2. *Drop directive completion.* It is removed from the rule and from M10's acceptance. No work,
-     but a user writes `nvs.toml` with no help from the editor.
-- **Recommendation** — 1. `nvs.toml` is where most users make their first mistakes, and the
-  provider is small.
-- **Answer:** 1. One completion provider for files named `nvs.toml` only, and the rule is rewritten to
-  say so.
-
 ### May file writes walk from a folder handle instead of a path?
 
 - **Gap** — `zip-extraction-creates-a-file-by-path-after-resolving-its-folder`, `place` at

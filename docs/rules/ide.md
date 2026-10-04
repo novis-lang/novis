@@ -394,6 +394,13 @@ start, run once more on demand. It is the one request that changes what the serv
 reading it, so it is answered where the store is mutable and never by a `.lspt` case, and its answer is
 the number of files the index holds.
 
+The sixth is `nvs/directives` ([`ide/the-extension-claims-nvs-only`](ide.md#ide-the-extension-claims-nvs-only)), and it passes the test with
+nothing new built: its table is the default `nvs.toml` the binary already ships, which `bun nv directives
+--check-template` already holds to the parser's tree. It is non-standard because the document it completes
+is not one the server opens: an `nvs.toml` belongs to the user's TOML extension, so the client sends the
+text and the cursor with the request. It has no `.lspt` vocabulary, and `crates/nvs-lsp/tests/directives.rs`
+holds it.
+
 `textDocument/declaration` is refused rather than deferred: Novis has no declaration that is not the
 definition, so it would answer identically to `textDocument/definition`, and the crate names neither
 spelling of it.
@@ -1063,8 +1070,9 @@ Novis's answer to "framework support", and it is a closed rule, not a starting p
 
 What that admits: route names and their parameters, from the route table
 [`routing/routes-are-compiled-not-registered`](routing.md#routing-routes-are-compiled-not-registered) builds while compiling — the same table
-[`routing/link-name-and-params-are-checked`](routing.md#routing-link-name-and-params-are-checked) checks a link against; configuration directives in
-`nvs.toml` and every file `[[include]]` pulls in, from the closed registry the runtime validates against
+[`routing/link-name-and-params-are-checked`](routing.md#routing-link-name-and-params-are-checked) checks a link against; configuration directives in a
+file named `nvs.toml` ([`ide/the-extension-claims-nvs-only`](ide.md#ide-the-extension-claims-nvs-only)), from the default file the binary ships,
+which `bun nv directives --check-template` holds to the parser that refuses an unknown key
 ([`config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`](config.md#config-a-duplicate-key-is-an-error-and-so-is-an-unknown-one)), so completion, hover with type and
 default, and "no such directive" are three readings of one registry, and `[[include]]`'s `path` and `dir`
 complete as paths — scoped to the workspace's config tree, never to every TOML file; a `require` path,
@@ -1689,7 +1697,7 @@ Novis rejects as fine.
 
 <a id="ide-the-extension-claims-nvs-only"></a>
 
-## The extension activates on `.nvs` and never claims `.php`  *(designed — not yet in the compiler)*
+## The extension activates on `.nvs`, never claims `.php` or TOML, and offers completion in a file named `nvs.toml`  *(designed — not yet in the compiler)*
 
 `rule:ide/the-extension-claims-nvs-only`
 
@@ -1697,7 +1705,16 @@ The extension registers `.nvs` and does not claim `.php`, even though `nvs-synta
 would fight every PHP extension a user already has, and losing that fight silently looks like Novis being
 broken. An opt-in setting is M10's if anyone converting a codebase asks for it.
 
-The extension-host run proves activation on `.nvs` and its absence on `.php`.
+A file named `nvs.toml` gets one completion provider and nothing else: no language id, file extension or
+grammar for TOML. The provider's selector is the file name, so a TOML extension keeps the file and the
+editor merges its completion with this one, and nothing is fought over. The provider asks the server's
+`nvs/directives`, which answers the keys of the block the cursor is in, read from the default file the
+binary ships. A workspace holding an `nvs.toml` activates the extension, so the answer is there before any
+`.nvs` is opened. `nvs.toml` is where most users make their first mistakes, and an activation is not a
+claim.
+
+The extension-host run proves activation on `.nvs`, its absence on `.php`, and completion in an `nvs.toml`
+whose language stays the editor's own. The manifest test proves no TOML file type is claimed.
 
 <sub>See also [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added), [`ide/the-extension-runs-where-the-binary-is`](ide.md#ide-the-extension-runs-where-the-binary-is). Decided in [0099](../decisions/0099.md).</sub>
 

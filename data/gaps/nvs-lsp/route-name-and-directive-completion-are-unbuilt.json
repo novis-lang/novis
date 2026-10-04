@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-lsp/src/completion.rs",
-  "title": "Completion offers no `nvs.toml` directives, and M10's acceptance paragraph asserts it.",
-  "text": "`rule:ide/completion-offers-only-what-the-compiler-derived` admits `nvs.toml` directives, from the closed directive registry, and `docs/plan/m10.md:208` asserts their completion against that registry. Route names and a link's `$params` keys are built: `crates/nvs-lsp/src/completion.rs` reads them off the compiled route table. Directive completion needs the extension to offer something in a `.toml` file, which `rule:ide/the-extension-claims-nvs-only` does not allow today. It waits on the question *May the extension offer completion inside `nvs.toml`?*. Closing this either builds directive completion under a rule that settles the `.toml` question, or removes it from the rule and from M10.",
-  "goal": "goal-closeout"
-}

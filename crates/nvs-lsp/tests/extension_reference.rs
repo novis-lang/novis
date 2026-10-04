@@ -136,7 +136,12 @@ fn the_chapter_documents_every_contributed_command_and_no_other() {
     }
 }
 
-/// The extension wakes on a Novis document and claims no PHP file.
+/// The extension wakes on a Novis document or a workspace with an `nvs.toml`,
+/// and claims no PHP file.
+///
+/// The second activation event is not a claim: an `nvs.toml` gets one
+/// completion provider selected by its file name and no language
+/// (`rule:ide/the-extension-claims-nvs-only`).
 ///
 /// What `rule:ide/the-extension-claims-nvs-only` refuses is the *claim* — a
 /// language id, a file extension, an activation event — and not the three
@@ -154,8 +159,8 @@ fn the_chapter_and_the_manifest_agree_the_extension_claims_nvs_alone() {
 
     assert_eq!(
         manifest["activationEvents"],
-        serde_json::json!(["onLanguage:nvs"]),
-        "the chapter says the extension wakes on a Novis document and nothing else"
+        serde_json::json!(["onLanguage:nvs", "workspaceContains:**/nvs.toml"]),
+        "the chapter says the extension wakes on a Novis document or a workspace with an nvs.toml"
     );
     for language in manifest["contributes"]["languages"]
         .as_array()

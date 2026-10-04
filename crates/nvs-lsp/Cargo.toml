@@ -33,6 +33,10 @@ lsp-types.workspace = true
 # beneath it into the server's link closure, which `tests/stdout_policy.rs`
 # names.
 nvs-diagnostics.workspace = true
+# The default `nvs.toml` the binary ships, which is the table `nvs/directives`
+# completes from (`crate::directives`). Already in the link closure beneath
+# `nvs-types`; named here because this crate reads it directly.
+nvs-config.workspace = true
 nvs-hir.workspace = true
 nvs-syntax.workspace = true
 nvs-types.workspace = true
