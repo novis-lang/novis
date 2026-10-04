@@ -327,6 +327,7 @@ pub(crate) fn infer_static_call(
                     // class name to be recognized by — `crate::response` owns
                     // the roster and the refusal.
                     crate::response::note_body_member(&qname, &name, expr.span, env);
+                    crate::response::reject_head_change_in_later(&qname, &name, expr.span, env);
                     // `rule:core-api/shape-rules` R20's one genuinely reachable two-spellings case — see
                     // `report_core_instance_member`. Its user-class sibling asks the
                     // narrower question `report_instance_method_called_statically`
@@ -389,7 +390,14 @@ pub(crate) fn infer_static_call(
     // give that argument — and no other — a meaning at all. See
     // [`note_method_ref_args`].
     note_method_ref_args(resolved.as_ref(), args, env);
+    // `rule:core-classes/html-later`'s closed head, armed over a `later`
+    // call's own arguments — see [`crate::response::is_later`].
+    let outer_later = env.body_writers.in_later;
+    env.body_writers.in_later |= resolved
+        .as_ref()
+        .is_some_and(|(owner, name, _)| crate::response::is_later(owner, name));
     let (arg_types, slots, sig) = check_args_typed(args, sig, expr.span, live, scope, ctx, env);
+    env.body_writers.in_later = outer_later;
     // See [`infer_method_call`]: the same question, before the same `slots`
     // are handed to [`resolved_call`]. The two folds below return ahead of it
     // deliberately — a retrieval's and an enumeration's arguments are the

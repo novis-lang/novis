@@ -62,6 +62,12 @@
 //! `Core\Response::stream` and `Core\Sse::stream` open the same cell and
 //! declare a content type each — so `echo` beside either is the same
 //! disagreement, and the two of them together are two writers of one body.
+//!
+//! **The same roster, widened by the head members, is what a
+//! `Core\Html::later` closure may not call** (`rule:core-classes/html-later`).
+//! That refusal is armed by the `later` call rather than by a `#[Route]`
+//! handler, because the runtime throws `LogicError` for it on every host, so a
+//! `.nvst` case or a CLI program meets it too. See [`is_later`].
 
 use nvs_diagnostics::{Diagnostic, Span, code};
 use nvs_hir::QName;
@@ -120,6 +126,71 @@ pub(crate) struct BodyWriters {
     /// per body: a handler that echoes in a loop and declares a body once has
     /// made one mistake, and a diagnostic per `echo` describes it no better.
     reported: bool,
+    /// Whether a `Core\Html::later` call's arguments are being checked — see
+    /// [`is_later`].
+    pub(crate) in_later: bool,
+}
+
+/// The members that change the response head, which a `Core\Html::later`
+/// closure may not call: [`BODY_MEMBERS`], plus these.
+///
+/// The same list as `nvs_stdlib::response::head_open`'s callers, which throw
+/// `LogicError` inside a slot at run time; this is the half of
+/// `rule:core-classes/html-later`'s refusal the checker can see.
+const HEAD_MEMBERS: [(&str, &str); 5] = [
+    ("Response", "setStatus"),
+    ("Response", "setHeader"),
+    ("Response", "redirect"),
+    ("Response", "addCookie"),
+    ("Session", "regenerate"),
+];
+
+/// Whether `qname::member` is `Core\Html::later`, whose argument list is
+/// checked with [`BodyWriters::in_later`] set.
+///
+/// The whole list rather than the closure alone: the options beside it are
+/// `Markup` values, so a head member written there is already a type error,
+/// and one flag over the list keeps the call site a single swap. The reach is
+/// lexical, like the body-writer rule's — a closure written in place, and the
+/// closures nested in it. A closure held in a variable, or a method the
+/// closure calls, is left to the run-time `LogicError`.
+pub(crate) fn is_later(qname: &QName, member: &str) -> bool {
+    qname.is_core()
+        && qname.segments().len() == 2
+        && qname.short_name() == "Html"
+        && member == "later"
+}
+
+/// A resolved `Core\Class::member(...)` call, refused when it changes the
+/// response head inside a `Core\Html::later` closure.
+pub(crate) fn reject_head_change_in_later(
+    qname: &QName,
+    member: &str,
+    span: Span,
+    env: &mut Env<'_>,
+) {
+    if !env.body_writers.in_later || !qname.is_core() || qname.segments().len() != 2 {
+        return;
+    }
+    let class = qname.short_name();
+    if !BODY_MEMBERS
+        .iter()
+        .chain(HEAD_MEMBERS.iter())
+        .any(|(owner, name)| *owner == class && *name == member)
+    {
+        return;
+    }
+    env.diags.report(
+        Diagnostic::error(
+            code::E_LATER_CHANGES_THE_RESPONSE_HEAD,
+            format!(
+                "`Core\\{class}::{member}` changes the response, and a `Core\\Html::later` \
+                 closure cannot do that"
+            ),
+        )
+        .with_primary(span, "this call changes the response")
+        .with_help("make this call in the main script, before or after `Core\\Html::later`"),
+    );
 }
 
 /// The state to install for `m`'s body — armed for a `#[Route]` handler, inert

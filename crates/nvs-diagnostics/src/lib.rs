@@ -5332,6 +5332,16 @@ pub mod code {
         "This method returns a case of the enum you write as its type argument, so the type \
          argument must be an enum. Write an enum such as `Core\\Audience` or `App\\Role`.",
     );
+    /// A call that changes the response head — a status, a header, a redirect,
+    /// a cookie, a body method or `Core\Session::regenerate` — written inside
+    /// the closure passed to `Core\Html::later`. `rule:core-classes/html-later`
+    /// makes the same call throw `LogicError` at run time, and this is its
+    /// compile-time half, where the checker sees the closure written in place.
+    pub const E_LATER_CHANGES_THE_RESPONSE_HEAD: Code = Code::new("E0842").card(
+        "A `Core\\Html::later` closure fills one part of the page. It cannot change the status, \
+         the headers, the cookies or the session of the response. Make this call in the main \
+         script, before or after `Core\\Html::later`.",
+    );
 
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.
