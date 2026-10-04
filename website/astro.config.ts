@@ -120,7 +120,16 @@ export default defineConfig({
       sidebar: [
         {
           label: 'Guides',
-          items: [{ label: 'Overview', link: '/guides/' }],
+          items: [
+            { label: 'Overview', link: '/guides/' },
+            {
+              label: 'A Tour of Novis',
+              items: [
+                { label: 'Start the Tour', link: '/guides/tour/' },
+                { label: '1. Methods and types', link: '/guides/tour/01-methods-and-types/' },
+              ],
+            },
+          ],
         },
         {
           label: 'Syntax',
@@ -273,6 +282,8 @@ export default defineConfig({
           items: [
             { label: 'Install Novis', link: INSTALL.href },
             { label: 'Hello, World!', link: '/install/hello-world/' },
+            { label: 'The editor extension', link: '/install/editor/' },
+            { label: 'Install on a server', link: '/install/server/' },
           ],
         },
       ],

@@ -1,0 +1,14 @@
+<?nvs
+// Every function is a method of a class.
+class Greeter {
+    // A method says the type of each parameter and the type it returns.
+    public static function greeting(string $name, int $hour): string {
+        if ($hour < 12) {
+            return "Good morning, " . $name . "!";
+        }
+        return "Good afternoon, " . $name . "!";
+    }
+}
+
+echo Greeter::greeting("Ada", 9), "\n";
+echo Greeter::greeting("Linus", 15), "\n";
