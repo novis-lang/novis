@@ -36,4 +36,3 @@ Each runs in a worktree of its own, started by hand with `bun nv loop --side <sl
 | Goal | What it builds | State | Milestone | Stages |
 |---|---|---|---|---|
 | [`test-scratch-and-hover`](goals/side/test-scratch-and-hover.md) | test scratch stays inside the tree, and hover answers on every class name | side |  | **2** test scratch under `target/` · **3** hover on every class name, and `use` lines in references |
-| [`website-overhaul`](goals/side/website-overhaul.md) | the website is four areas a newcomer can follow, and cannot go stale | side |  | **2** the structure and the stale guard · **3** Reference, generated and complete · **4** Syntax · **5** Install and Guides · **6** In-Depth, the home page and the last links |
