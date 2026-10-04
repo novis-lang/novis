@@ -293,6 +293,7 @@ pub struct Route {
     handler: String,
     access: Option<String>,
     csrf: bool,
+    slotted: bool,
     captures: Vec<Capture>,
     segments: Vec<Seg>,
     rank: Vec<u8>,
@@ -343,6 +344,7 @@ impl Route {
             handler: handler.into(),
             access,
             csrf,
+            slotted: false,
             captures,
             segments,
             rank,
@@ -373,6 +375,23 @@ impl Route {
     #[must_use]
     pub fn csrf(&self) -> bool {
         self.csrf
+    }
+
+    /// The same row with `rule:core-classes/html-later`'s `slotted: true`
+    /// recorded, so a response to a request that matched it is slotted.
+    ///
+    /// A builder for [`Self::without_csrf`]'s reason: almost every row is not
+    /// slotted, and a parameter would put `false` in every call site.
+    #[must_use]
+    pub fn with_slotted(mut self) -> Self {
+        self.slotted = true;
+        self
+    }
+
+    /// Whether the route was declared `slotted: true`.
+    #[must_use]
+    pub fn slotted(&self) -> bool {
+        self.slotted
     }
 
     /// The `Core\Http\Method` case this route is declared under, by its own

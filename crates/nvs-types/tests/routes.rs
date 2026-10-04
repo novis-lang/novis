@@ -252,6 +252,47 @@ fn one_route_shape_is_served_once_per_verb() {
 }
 
 #[test]
+fn the_route_attribute_takes_slotted() {
+    // `rule:core-classes/html-later`'s route field is an optional `bool`.
+    let diags = check_src(&route_src(
+        "  #[Route(path: \"/blog\", method: Core\\Http\\Method::Get, slotted: true)]\n  \
+         public function blog(): string { return \"\"; }\n",
+    ));
+    assert!(!diags.has_errors(), "{diags:?}");
+
+    // A string is refused at the value, the way `name: true` is.
+    let diags = check_src(&route_src(
+        "  #[Route(path: \"/blog\", method: Core\\Http\\Method::Get, slotted: \"yes\")]\n  \
+         public function blog(): string { return \"\"; }\n",
+    ));
+    assert!(diags.has_errors());
+}
+
+#[test]
+fn slotted_is_carried_to_the_route_table() {
+    let (diags, exprs) = check_src_table(&route_src(
+        "  #[Route(path: \"/blog\", method: Core\\Http\\Method::Get, slotted: true)]\n  \
+         public function blog(): string { return \"\"; }\n  \
+         #[Route(path: \"/shop\", method: Core\\Http\\Method::Get, slotted: false)]\n  \
+         public function shop(): string { return \"\"; }\n  \
+         #[Route(path: \"/health\", method: Core\\Http\\Method::Get)]\n  \
+         public function health(): string { return \"\"; }\n",
+    ));
+    assert!(!diags.has_errors(), "{diags:?}");
+    let slotted: Vec<(&str, bool)> = exprs
+        .routes()
+        .rows()
+        .iter()
+        .map(|row| (row.path.as_str(), row.slotted))
+        .collect();
+    // An attribute that writes no `slotted` is a normal route.
+    assert_eq!(
+        slotted,
+        [("/blog", true), ("/shop", false), ("/health", false)]
+    );
+}
+
+#[test]
 fn the_collected_table_crosses_on_the_expression_table() {
     // § 5's rows are collected here and reversed in `nvs-ir`, so what makes
     // them reachable at all is `ExprTypeTable::routes` — the channel every

@@ -140,7 +140,7 @@ impl AttributeDoc {
     }
 
     /// The attribute as a program writes it, with each field at its type —
-    /// `#[Core\Route(path: string, method: Core\Http\Method, name?: string)]`,
+    /// `#[Core\Route(path: string, method: Core\Http\Method, name?: string, slotted?: bool)]`,
     /// and `#[Core\Query]` for one that carries nothing.
     #[must_use]
     pub fn spelled(&self) -> String {
@@ -332,6 +332,11 @@ pub const ATTRIBUTE_DOCS: &[AttributeDoc] = &[
                 ty: "string",
                 required: false,
             },
+            AttributeField {
+                name: "slotted",
+                ty: "bool",
+                required: false,
+            },
         ],
         short: "Declares the HTTP path and method this method handles. Write it twice to \
                 handle two methods.",
@@ -461,7 +466,7 @@ pub const COMMAND: &str = r"Core\Command";
 /// inference from defaults or types. [`crate::commands`] owns the payload.
 pub const OPTION: &str = r"Core\Option";
 
-/// `#[Route(path: string, method: Core\Http\Method, name?: string)]` — `rule:routing/route-attribute`
+/// `#[Route(path: string, method: Core\Http\Method, name?: string, slotted?: bool)]` — `rule:routing/route-attribute`
 /// 's route declaration, on a method, and repeatable (`rule:attributes/repeatable`) so one
 /// method serves two verbs. It names no member of anything — the table is read
 /// back through the separate `Core\Router` class — so a file that spells it

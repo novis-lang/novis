@@ -38,7 +38,7 @@ costs nothing.
 
 `rule:routing/route-attribute`
 
-`type Core\Route = {path: string, method: Core\Http\Method, name?: string};` — an ordinary
+`type Core\Route = {path: string, method: Core\Http\Method, name?: string, slotted?: bool};` — an ordinary
 [`attributes/inert-metadata`](attributes.md#attributes-inert-metadata) alias, attached the ordinary way, with one difference: the compiler
 acts on it only when the name **resolves** to `Core\Route`. It sits on
 [`core-classes/derive-attribute`](core-classes.md#core-classes-derive-attribute)'s closed list of compiler-recognized attributes and is matched
@@ -57,6 +57,8 @@ no route however they are spelled.
 - **`name` is optional and never derived.** A route without one is matchable but not linkable.
   Deriving one from the class and method would make a link break silently on a rename, which is one
   of the three bugs [`routing/routes-are-compiled-not-registered`](routing.md#routing-routes-are-compiled-not-registered) exists to catch.
+- **`slotted` is optional and `false` when absent.** It is the route half of
+  [`core-classes/html-later`](core-classes.md#core-classes-html-later)'s slotted delivery, and the route table carries it.
 
 A `#[Route]` method also carries an `#[Access]` ([`attributes/access-is-a-required-sibling`](attributes.md#attributes-access-is-a-required-sibling)).
 

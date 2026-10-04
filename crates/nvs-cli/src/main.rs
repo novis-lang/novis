@@ -2413,10 +2413,15 @@ pub(crate) fn runtime_routes(exprs: &nvs_types::ExprTypeTable) -> nvs_runtime::r
                 // second time: the verb's half of § 4 is `Route::new`'s and the
                 // declaration's half is the compiler's, so this is the one
                 // place the two meet.
-                if row.csrf {
+                let route = if row.csrf {
                     route
                 } else {
                     route.without_csrf()
+                };
+                if row.slotted {
+                    route.with_slotted()
+                } else {
+                    route
                 }
             })
             .collect(),

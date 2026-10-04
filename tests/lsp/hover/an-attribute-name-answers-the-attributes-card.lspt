@@ -15,7 +15,7 @@ class Blog
 hover
 --EXPECT--
 ```nvs
-#[Core\Route(path: string, method: Core\Http\Method, name?: string)]
+#[Core\Route(path: string, method: Core\Http\Method, name?: string, slotted?: bool)]
 ```
 
 Declares the HTTP path and method this method handles. Write it twice to handle two methods.

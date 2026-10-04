@@ -118,6 +118,7 @@ const METHOD_ENUM: &str = r"Core\Http\Method";
 const PATH: &str = "path";
 const METHOD: &str = "method";
 const NAME: &str = "name";
+const SLOTTED: &str = "slotted";
 
 const ALLOW: &str = "allow";
 const CSRF: &str = "csrf";
@@ -137,7 +138,7 @@ const TYPE: &str = "type";
 /// the form the row carries and the form the check compares.
 const UNSAFE_VERBS: [&str; 4] = ["Post", "Put", "Patch", "Delete"];
 
-/// `#[Route(path: string, method: Core\Http\Method, name?: string)]` — `rule:routing/route-attribute`
+/// `#[Route(path: string, method: Core\Http\Method, name?: string, slotted?: bool)]` — `rule:routing/route-attribute`
 /// 's own spelling, in the order that section writes it.
 ///
 /// `method` is an enum case rather than a string
@@ -148,10 +149,14 @@ const UNSAFE_VERBS: [&str; 4] = ["Post", "Put", "Patch", "Delete"];
 /// no `methods:` row: § 1 serves two verbs by repeating the attribute
 /// (`rule:attributes/repeatable`), so a union or an array here would be a second way to write
 /// what the existing rule already covers.
+///
+/// `slotted` is `rule:core-classes/html-later`'s route field: an ordinary
+/// `bool`, absent meaning `false`, which [`Route::slotted`] carries.
 pub(crate) const OPTIONS: &[(&str, OptionTy)] = &[
     (PATH, OptionTy::Str),
     (METHOD, OptionTy::Enum(METHOD_ENUM)),
     (NAME, OptionTy::Str),
+    (SLOTTED, OptionTy::Bool),
 ];
 
 /// `#[Access(allow: mixed, csrf?: bool)]` — `rule:attributes/access-payload`'s own spelling, and
@@ -371,6 +376,10 @@ pub struct Route {
     /// out of, so a `false` under four safe verbs belongs to a program that did
     /// not compile and never reaches a table.
     pub csrf: bool,
+    /// `rule:core-classes/html-later`'s `slotted`: `true` only where the
+    /// attribute wrote `slotted: true`, so the response sends its shell when
+    /// the main script ends and each `later` fill as it finishes.
+    pub slotted: bool,
     /// `rule:routing/api-document-is-generated-from-the-route-table`
     /// 's summary: the first sentence of the declaration's own doc comment,
     /// or `None` where the method carries none.
@@ -1393,6 +1402,7 @@ fn collect_route(
     let mut params = check_captures(&captures, path_span, m, class, handler, env);
     params.extend(query_params(m, class, ctx, env));
     let name = folded_str(attr, NAME, env);
+    let slotted = folded_bool(attr, SLOTTED, env).unwrap_or(false);
     // Read before `access` is resolved to its name, because it is a field of
     // the attribute and that binding is about to become the string the row
     // carries instead.
@@ -1406,6 +1416,7 @@ fn collect_route(
         params,
         access,
         csrf,
+        slotted,
         summary: doc.map(|doc| doc.summary.clone()),
         description: doc.and_then(|doc| doc.description.clone()),
         returns: returns.map(str::to_owned),
@@ -2092,6 +2103,19 @@ fn folded_str(attr: &Attribute, option: &str, env: &mut Env<'_>) -> Option<(Stri
     let declared = env.interner.intern(crate::ty::Ty::String);
     match crate::defaults::literal_default(&value, declared, env) {
         Some(crate::defaults::ConstArg::Str(text)) => Some((text, span)),
+        _ => None,
+    }
+}
+
+/// One `bool` option's written value, folded — `None` where the field was not
+/// written or where its value was not a `bool`, the second of which
+/// [`crate::attributes::check_roster`] has already reported.
+fn folded_bool(attr: &Attribute, option: &str, env: &mut Env<'_>) -> Option<bool> {
+    let field = written(attr, option, env)?;
+    let value = field.value.clone();
+    let declared = env.interner.intern(crate::ty::Ty::Bool);
+    match crate::defaults::literal_default(&value, declared, env) {
+        Some(crate::defaults::ConstArg::Bool(flag)) => Some(flag),
         _ => None,
     }
 }
