@@ -1158,10 +1158,12 @@ originates outside the process is `tainted` (`rule:security/tainted-qualifier`).
   carrying no classification and so refuses a tainted argument outright. An event stream is
   `Core\Sse::stream` (§ 16) and never this one. `echo` is the HTML-only path, and mixing it with any body
   member on one response is a compile error (`rule:security/response-body-is-one-typed-member`).
-- `Core\Server`: the request's own environment — replacing `$_SERVER` — plus `traceId(): string`, which is
+- `Core\Server`: `traceId(): string`, which is
   present on every request whether or not the trace is sampled and is Novis's only request identifier
   (`rule:observability/the-runtime-exports-what-it-already-measures`), and `isDraining(): bool`, true once graceful shutdown
-  has begun (`rule:http-server/the-server-block-is-boot-class`).
+  has begun (`rule:http-server/the-server-block-is-boot-class`). Nothing in this class replaces `$_SERVER`:
+  `Core\Request` has the method, path, query, headers, host, scheme and client address, and `Core\Env`
+  has the environment variables. The HTTP version and the server's and client's ports have no member.
 - `Core\Session`: `start`, `get`, `set`, `remove`, `clear`, `regenerate`, `destroy`, `setSecret`,
   `getSecret` — replacing all ~25
   `session_*` functions. `start` is the one that reaches the store, and a member called before it throws

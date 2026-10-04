@@ -1,6 +1,7 @@
 //! `Core\Server` — the class an application asks about the server it is running
-//! under, replacing `$_SERVER`
-//! (`rule:statements/no-host-populated-variables`).
+//! under. `$_SERVER` is not populated
+//! (`rule:statements/no-host-populated-variables`), and what it carried lives on
+//! `Core\Request` and `Core\Env`, so this class has no request environment.
 //!
 //! # What is here, and what is not
 //!
@@ -12,11 +13,10 @@
 //! [`nvs_runtime::TraceContext::trace_id_hex`] so it is the same thirty-two
 //! characters a `[log]` record and a `traceparent` carry. The context already
 //! holds the trace for the logger, so the member spends no per-request memory;
-//! each call allocates its string. The rest of
-//! [docs/spec/01-core-library.md](/docs/spec/01-core-library.md) § 15's
-//! `Core\Server` — the request's own environment — is a known gap of this
-//! module, and which members it owes beside `Core\Request` and `Core\Env` is a
-//! question the goal has put to the user.
+//! each call allocates its string. The HTTP version and the server's and the
+//! client's ports have no member anywhere
+//! ([docs/spec/01-core-library.md](/docs/spec/01-core-library.md) § 15): no rule
+//! or example needs them, and one is added when a program does.
 //!
 //! # Why the bit is not read from `nvs-server`
 //!
