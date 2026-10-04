@@ -55,8 +55,11 @@
 //! One [`NodePath`](nvs_syntax::NodePath) per line that opens with whitespace,
 //! built and dropped inside the call. The index lookup behind it is a binary
 //! search, so a line costs the logarithm of the file's nodes plus its depth,
-//! and [`Indent::opening_of`] adds one such lookup per enclosing body. Nothing
-//! here runs on the request path (`rule:tooling/fmt-is-never-a-diagnostic`).
+//! and [`Indent::opening_of`] adds one such lookup and one stack frame per
+//! enclosing body. The parser stops at a fixed nesting limit (`E0108`), so
+//! that depth is a constant and nothing caches it; `fmt/depth.nvs` under
+//! `benches/scaling/` measures it. Nothing here runs on the request path
+//! (`rule:tooling/fmt-is-never-a-diagnostic`).
 
 use nvs_diagnostics::BytePos;
 use nvs_syntax::{IndexNode, SyntaxIndex, Trivia, TriviaKind};

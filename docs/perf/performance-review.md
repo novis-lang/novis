@@ -317,9 +317,9 @@ every open buffer into a new source map per call (`document.rs:229`, `:324-327`)
 
 **Found:** every lookup into the syntax index scans all nodes, once per line and per candidate byte
 (fixed: `SyntaxIndex::at` and `children_of` are binary searches, and `fmt/classes.nvs` is flat),
-and a line's indent recurses once per enclosing body
-([`opening-of-recurses-per-enclosing-body`](../../data/gaps/nvs-fmt/opening-of-recurses-per-enclosing-body.json)).
-These are the likely cause of `fmt/classes.nvs` growing.
+and a line's indent recurses once per enclosing body (closed without a cache: the parser stops at
+96 levels of nesting, so the depth is a constant, and `fmt/depth.nvs` is flat at 40 levels).
+The index scans were the cause of `fmt/classes.nvs` growing.
 
 **Fine:** the output string is appended to. Sorts run outside loops.
 

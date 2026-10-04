@@ -1,0 +1,34 @@
+<?nvs
+// Prints a file of n methods, each with 40 nested `if` blocks and untidy spacing, as `nvs fmt` meets in deeply nested code.
+// scaling: kind fmt
+// scaling: start 10
+// scaling: max 320
+// scaling: expect linear
+
+class Bench {
+    public static function run(uint $size): string {
+        array<string> $lines = ["<?nvs", "class Deep {"];
+        uint $m = 0;
+        while ($m < $size) {
+            $lines[] = "public static function run{$m}(int \$x):int{";
+            uint $i = 0;
+            while ($i < 40) {
+                $lines[] = "if (\$x>{$i}) {";
+                $lines[] = "  \$x = \$x  +  {$m};";
+                $i = $i + 1;
+            }
+            $i = 0;
+            while ($i < 40) {
+                $lines[] = "}";
+                $i = $i + 1;
+            }
+            $lines[] = "return \$x;";
+            $lines[] = "}";
+            $m = $m + 1;
+        }
+        $lines[] = "}";
+        return Core\Str::join($lines, "\n") . "\n";
+    }
+}
+
+echo Bench::run(10);
