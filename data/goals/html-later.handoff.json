@@ -1,30 +1,27 @@
 {
-  "state": "**Goal `html-later` — Stage 3's slotted delivery runs, and its two browser and CI halves are open.** ADR 0266 decides the goal. `crates/nvs-runtime/src/later.rs` holds the slots and both deliveries; its module doc § *A slotted response* says how the slotted one works and what it spends.\n\n**On disk:** when `Ctx::is_slotted()` holds and the connection's `BodySlot` carries `stream::Scripts`, `run_later` calls `deliver`. It sends the shell up to the last `</body`, then each slot writes its own `<template for>` fill and the trigger as it finishes, the polyfill ahead of the first fill only, then the held-back end. `Opened::slotted` makes `serve::streamed` add `X-Accel-Buffering: no` and the `slotted::Slotted` extension, and after the secure set is filled `slotted::allow_scripts` adds the two hashes to a script-limiting CSP. `crates/nvs-server/src/slotted/` holds `polyfill.js`, `trigger.js`, their hashes and the CSP amendment. Its `tests.rs` covers 15 of the stage check's 16 tests; the 16th, `slotted_after_the_main_script_ended_throws`, stays in `serve.rs`. All 16 are green. `serve::tests::served_page` is the helper they share.\n\n**Not proven yet:** the polyfill has never run in a browser. `rule:core-classes/html-later` stays `designed` until the Playwright check and the CI lane are green. Flip it in the session that closes them.\n\n**Known gaps, in `later.rs`'s module doc:** slots run when the frame returns, concurrently with each other but not with the main script. A `later` inside a `Core\\Task::all` child is never assembled. A slot whose task is cancelled while it writes ends the stream, and the fills after it are not sent.",
+  "state": "**Goal `html-later` — Stage 3 is closed. Stage 4 (the editor) and Stage 5 (the proofs gate) are open.** ADR 0266 decides the goal. `crates/nvs-runtime/src/later.rs` holds the slots and both deliveries. Its module doc § *A slotted response* says how the slotted one works and what it costs.\n\n**On disk:** `rule:core-classes/html-later` is `shipped`. Its guards now include `crates/nvs-server/src/slotted/tests.rs` and `tools/nv/test/html-later-polyfill.test.ts`. That test streams a slotted page to Playwright's Chromium headless shell, launched once with `DocumentPatching` and once with both it and `HTMLProcessingInstruction` off. One extra page turns the markers into processing instructions, so both kinds of marker are covered. The test skips when no browser is downloaded, and fails instead under `NV_BROWSER`. CI's `browser` job sets that. `LANES.browser` in `tools/nv/cmd/ci-changes.ts` turns the job on. The polyfill now trims a marker's text (`<?end>` as a PI has empty data, so it read `\"?end \"` before) and removes both markers with the old content. `POLYFILL_HASH` matches the file.\n\n**Known gaps, in `later.rs`'s module doc:** slots run when the frame returns, concurrently with each other but not with the main script. A `later` inside a `Core\\Task::all` child is never assembled. A slot whose task is cancelled while it writes ends the stream, and the fills after it are not sent.",
   "next": {
-    "stage": 3,
-    "title": "slotted delivery",
+    "stage": 4,
+    "title": "tests, the editor and the help",
     "files": [],
-    "note": "one file set: `crates/nvs-server/src/slotted/`, `tools/nv/cmd/ci-changes.ts`, `.github/workflows/ci.yml`, and the new `tools/nv/test/html-later-polyfill.test.ts`.",
+    "note": "one file set: `crates/nvs-lsp/src/completion.rs`, `crates/nvs-lsp/src/hover.rs`, `crates/nvs-lsp/src/card.rs` and a test under `crates/nvs-lsp/tests/`.",
     "items": [
       {
         "done": false,
-        "text": "**The polyfill in a real browser**: `tools/nv/test/html-later-polyfill.test.ts` loads one page through Playwright, launched once with native `<template for>` and once without. It checks that each slot is filled once, that nothing the browser already applied changes, and that a second `_nvs()` changes nothing (`rule:core-classes/html-later`, the goal's standing decisions). Playwright is pre-authorized, with one Chromium download. The script under test is `crates/nvs-server/src/slotted/polyfill.js:1`. If the test shows the polyfill is wrong, fix it there, then recompute `POLYFILL_HASH` in `crates/nvs-server/src/slotted/mod.rs:54`; `the_polyfill_and_trigger_hashes_match_their_files` fails until you do."
+        "text": "**Completion offers `later`'s options**: inside the `{…}` bag of a `Core\\Html::later(…)` call, completion offers `placeholder`, `error` and `deadline`. Nothing in the LSP completes an options bag's keys yet. The nearest code is `route_keys` at `crates/nvs-lsp/src/completion.rs:1041` (keys for `Core\\Router::url`'s params), and `core_parts` at `crates/nvs-lsp/src/completion.rs:2953` already spells the bag in a detail. The check wants the test `completion_offers_the_options_of_later`. `crates/nvs-lsp/tests/completion_edits.rs:234` is the nearest test to copy the shape of (`rule:core-classes/html-later`)."
       },
       {
         "done": false,
-        "text": "**The CI `browser` lane**: a `browser` entry in `LANES` at `tools/nv/cmd/ci-changes.ts:41` matching `crates/nvs-server/src/slotted/` and the test file, and a `browser:` job in `.github/workflows/ci.yml:112` gated on `needs.changes.outputs.browser`, which runs that one test (`rule:testing/ci-lanes`)."
+        "text": "**Hover shows `later`'s card**: hover over `later` shows its `Core` card. `core` at `crates/nvs-lsp/src/hover.rs:589` builds a `Core` hover, and `core_member_hover` at `crates/nvs-lsp/src/card.rs:165` reads the card. Check that `later` has a card (`rule:core-api/reference-card`), then add the hover test the stage check names (`bun nv loop --list --stage 4`)."
       },
       {
         "done": false,
-        "text": "**Flip `rule:core-classes/html-later` to shipped** once both are green, and name its guards: `crates/nvs-server/src/slotted/tests.rs:1` and the Playwright test."
+        "text": "**Stage 5, the proofs gate**: `bun nv proofs --gate` must owe nothing with `later` and slotted routes in it. `bun nv proofs --id '<feature>'` lists what is still owed (`rule:testing/feature-proofs`), at `tools/nv/cmd/proofs.ts:1`."
       }
     ]
   },
   "backlog": [
-    "Stage 4: `nvs-lsp` completion of `later`'s options and its hover card (`completion_offers_the_options_of_later`), and its help in the binary — the goal's record.",
-    "Stage 5: the feature proofs, `bun nv proofs --id` for `later` and slotted routes — `rule:testing/feature-proofs`.",
-    "Slots that overlap the main script need a host call that starts a child and returns — `crates/nvs-runtime/src/later.rs` module doc.",
-    "A `later` inside a `Core\\Task::all` child is never assembled — same module doc.",
-    "A test slot is a native function, and one parked in `sleep` cannot be torn down: it aborts the test binary. A test that needs a cancelled slot must not park in it — noted at `a_limit_breach_on_a_slotted_route_fills_every_unfilled_slot_with_its_error_and_ends`."
+    "The ADR's second slot (the polyfill and its CSP hash) is not used. Stage 3 closed without needing it.",
+    "Known gaps above stay in `crates/nvs-runtime/src/later.rs`'s module doc until a goal takes them."
   ]
 }

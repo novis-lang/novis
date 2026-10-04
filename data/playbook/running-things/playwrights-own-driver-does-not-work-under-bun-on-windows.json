@@ -1,0 +1,11 @@
+{
+  "lead": "Playwright's own driver does not work under Bun on Windows:",
+  "body": "`chromium.launch` hangs on its pipe transport, `connectOverCDP` never opens its WebSocket, and `playwright-core install` under Bun fails with `ERR_TLS_CERT_ALTNAME_INVALID`. Playwright's bundled transports are Node code that Bun's compatibility layer does not run. Download the browser with `PLAYWRIGHT_BROWSERS_PATH=0 node node_modules/playwright-core/cli.js install --only-shell chromium`, spawn it with `--remote-debugging-port=0`, and drive it over CDP with Bun's own `WebSocket`, as `tools/nv/test/html-later-polyfill.test.ts` does.",
+  "files": [
+    "tools/nv/test/html-later-polyfill.test.ts"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "tools/nv/test/html-later-polyfill.test.ts:remote-debugging-port"
+  }
+}

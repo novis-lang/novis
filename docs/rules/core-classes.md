@@ -3,7 +3,7 @@
 
 # The Core classes
 
-*22 of 87 rules below are **designed** rather than shipped, and are marked where they appear.*
+*21 of 87 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="core-classes-cli-arguments"></a>
 
@@ -475,7 +475,7 @@ predicate rather than against the count.
 
 <a id="core-classes-html-later"></a>
 
-## `Core\Html::later` runs a part of a page as a child of the request, and the route decides whether the page waits for it  *(designed — not yet in the compiler)*
+## `Core\Html::later` runs a part of a page as a child of the request, and the route decides whether the page waits for it
 
 `rule:core-classes/html-later`
 

@@ -1,6 +1,6 @@
 {
   "title": "`Core\\Html::later` runs a part of a page as a child of the request, and the route decides whether the page waits for it",
-  "status": "designed",
+  "status": "shipped",
   "because": [
     "0266"
   ],
@@ -14,6 +14,8 @@
   "guardedBy": [
     "crates/nvs-stdlib/tests/html_later.rs",
     "tests/conformance/core/html-later-assembles-the-page-in-place-whatever-order-the-slots-finish.nvst",
-    "tests/conformance/reject/html-later-closure-cannot-change-the-response-head.nvst"
+    "tests/conformance/reject/html-later-closure-cannot-change-the-response-head.nvst",
+    "crates/nvs-server/src/slotted/tests.rs",
+    "tools/nv/test/html-later-polyfill.test.ts"
   ]
 }
