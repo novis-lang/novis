@@ -488,8 +488,11 @@ pub const SEND_TIMED_OUT: &str =
     "the response body stream met its send timeout with the client no longer reading it";
 
 /// The consumer is gone: the connection dropped its half, or a bound already
-/// closed this stream.
-const CLOSED: &str = "the client is no longer reading this response body";
+/// closed this stream. Public for [`SEND_TIMED_OUT`]'s reason: a request-scoped
+/// stream's writer treats both as its client having left
+/// (`rule:http-server/a-request-outlives-a-client-that-goes-away`), and matches
+/// on this string to do it.
+pub const CLOSED: &str = "the client is no longer reading this response body";
 
 /// A write made where there is no task to park, so nothing could give the core
 /// back while the connection catches up. A refusal rather than a block, since

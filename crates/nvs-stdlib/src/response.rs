@@ -603,11 +603,14 @@ const STREAM_WRITE_DOC: MethodDoc = MethodDoc {
                is for `Core\\Response::text`.",
         shape: &[],
     }],
-    ret: "Nothing. When this method returns, the part has been given to the connection.",
+    ret: "Nothing. When this method returns, the part has been given to the connection. If the \
+          client has gone, this method returns at once and the part is thrown away. The client \
+          has gone when it closed the connection, or when it did not read a part before the \
+          server's send timeout. Your request still runs to its end.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "The client stopped reading. It closed the connection, or it did not read this part \
-               before the server's send timeout. The stream is then closed.",
+        desc: "The part is larger than the server allows for one part. Nothing is sent, and you \
+               can still send smaller parts.",
     }],
 };
 
@@ -1897,9 +1900,15 @@ nvs_runtime::nvs_helper! {
     /// a program that produces faster than the peer reads is slowed by the peer
     /// and nothing accumulates in between (`nvs_runtime::stream`). A peer that
     /// has stopped reading altogether meets the connection's send timeout, which
-    /// closes the stream and is reported here as itself:
-    /// `rule:concurrency/connection-bounds-are-finite`'s defined close rather
-    /// than a wait with no end.
+    /// closes the stream: `rule:concurrency/connection-bounds-are-finite`'s
+    /// defined close rather than a wait with no end.
+    ///
+    /// **A client that has gone is not the program's error.** A closed stream
+    /// and a send timeout both mean the client left, so the write returns at
+    /// once and its bytes are discarded, and the request runs on to its end
+    /// (`rule:http-server/a-request-outlives-a-client-that-goes-away`). What
+    /// still throws is the program's own mistake: a chunk over the message
+    /// bound, or a write from outside the task that owns the stream.
     fn nvs_core_response_stream_write(ctx, args: [2]) {
         crate::instance::receiver(args[0], &STREAM, "write")?;
         // Unreachable from source: the row's parameter is a union of exactly
@@ -1921,16 +1930,23 @@ nvs_runtime::nvs_helper! {
             // is what lets the writing task go on while the bytes are still on
             // their way to the wire.
             //
-            // No case can reach this: a stream that can close is one a
-            // connection is draining, and a `.nvst` case is offered no cell.
-            // `a_write_whose_reader_has_gone_is_refused_rather_than_parked` is
-            // the `#[test]` that asserts it instead.
-            return emit
-                .send(chunk.to_vec())
-                .map(|()| Value::null())
-                .map_err(|closed| {
-                    Fault::thrown(format!("Core\\Response\\Stream::write(): {closed}"))
-                });
+            // No case can reach the client leaving: a stream that can close is
+            // one a connection is draining, and a `.nvst` case is offered no
+            // cell. `a_stream_write_after_the_client_left_returns_without_throwing`
+            // and `a_stream_write_after_the_send_timeout_returns_without_throwing`
+            // are the `#[test]`s that assert it instead.
+            return match emit.send(chunk.to_vec()) {
+                Ok(()) => Ok(Value::null()),
+                Err(left)
+                    if *left == *nvs_runtime::stream::CLOSED
+                        || *left == *nvs_runtime::stream::SEND_TIMED_OUT =>
+                {
+                    Ok(Value::null())
+                }
+                Err(refused) => Err(Fault::thrown(format!(
+                    "Core\\Response\\Stream::write(): {refused}"
+                ))),
+            };
         }
         // Unreachable from source, on `text`'s reasoning: `OutputSink::Buffer`
         // and `Sink` never fail, which `Ctx::write_output`'s own `# Errors`
@@ -2316,15 +2332,17 @@ mod tests {
         dropped(handle);
     }
 
-    /// A write whose reader has gone is refused rather than parked — the
-    /// connection dropping its half closes the stream at once, so a program
-    /// learns it on the next chunk instead of at the send timeout.
+    /// A write whose client has gone returns without throwing and without
+    /// parking — `rule:http-server/a-request-outlives-a-client-that-goes-away`.
+    /// The connection dropping its half closes the stream, and every later
+    /// write is discarded at once. The context has no task to park on, so a
+    /// write that waited would have thrown instead.
     ///
     /// Unreachable from a `.nvst` case for the reason above: a stream that can
     /// close is one a connection is draining.
     // covers: Core\Response\Stream::write
     #[test]
-    fn a_write_whose_reader_has_gone_is_refused_rather_than_parked() {
+    fn a_stream_write_after_the_client_left_returns_without_throwing() {
         let slot = offered_cell();
         let mut ctx = framing(&slot);
 
@@ -2337,12 +2355,60 @@ mod tests {
         );
 
         let chunk = Value::str(NvsStr::new(b"too late"));
-        call(
-            super::nvs_core_response_stream_write,
-            &mut ctx,
-            &[handle, chunk],
-        )
-        .expect_err("a write with nothing left to read it is refused");
+        for _ in 0..2 {
+            let wrote = call(
+                super::nvs_core_response_stream_write,
+                &mut ctx,
+                &[handle, chunk],
+            )
+            .expect("a write to a client that left is discarded, not thrown");
+            assert_eq!(wrote.bits(), Value::null().bits());
+        }
+
+        dropped(media_type);
+        dropped(chunk);
+        dropped(handle);
+    }
+
+    /// A send timeout counts as the client having gone: the write that meets
+    /// it returns without throwing, and so does every write after it, which
+    /// finds the stream closed. A zero send timeout is met by the first write
+    /// that finds the cell still full, so no task or clock is needed.
+    // covers: Core\Response\Stream::write
+    #[test]
+    fn a_stream_write_after_the_send_timeout_returns_without_throwing() {
+        let slot = nvs_runtime::stream::BodySlot::new(std::time::Duration::ZERO, 1 << 20);
+        let mut ctx = framing(&slot);
+
+        let media_type = Value::str(NvsStr::new(b"text/csv"));
+        let handle = call(super::nvs_core_response_stream, &mut ctx, &[media_type])
+            .expect("an offered cell takes the stream");
+        // Held and never drained: a client that stopped reading, not one that
+        // left, so the stream closes at the send timeout and not before it.
+        let mut stalled = slot
+            .take(std::task::Waker::noop())
+            .expect("the member filled the cell");
+
+        let chunk = Value::str(NvsStr::new(b"id,name\n"));
+        for _ in 0..3 {
+            let wrote = call(
+                super::nvs_core_response_stream_write,
+                &mut ctx,
+                &[handle, chunk],
+            )
+            .expect("a write past the send timeout is discarded, not thrown");
+            assert_eq!(wrote.bits(), Value::null().bits());
+        }
+        assert!(
+            ctx.body_stream().is_some_and(|emit| emit.is_closed()),
+            "the second write did not meet the send timeout"
+        );
+        let nvs_runtime::stream::Drained::Chunk(first) =
+            stalled.drain.next_chunk(std::task::Waker::noop())
+        else {
+            panic!("the first chunk never reached the cell");
+        };
+        assert_eq!(first, b"id,name\n", "only the first chunk was in flight");
 
         dropped(media_type);
         dropped(chunk);
