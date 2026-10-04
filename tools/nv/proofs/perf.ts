@@ -40,7 +40,7 @@ const COMPLEXITY_RE = /(?:\/\/|#)\s*bench:\s*complexity\s+(constant|linear)/;
 const SCALE_RE = /(?:\/\/|#)\s*bench:\s*scale\s+([0-9._]+)/;
 /** The one line `nvs run --count` prints on standard error at exit. */
 const COUNT_LINE_RE = /^count: statements=(\d+) calls=(\d+) allocations=(\d+) bytes=(\d+)/m;
-const COUNTS = ["statements", "calls", "allocations", "bytes"] as const;
+export const COUNTS = ["statements", "calls", "allocations", "bytes"] as const;
 /** How far a scaling ratio may sit above what its declared complexity predicts: a factor, because a
  * same-run wall-clock ratio is honest to a factor and not to a percent. */
 const SCALE_TOLERANCE = 3;
@@ -53,7 +53,7 @@ const TIMEOUT_MS = 600_000;
 type Rec = Record<string, unknown>;
 
 /** A failure that stops the sweep, with the line that says why. */
-class PerfError extends Error {}
+export class PerfError extends Error {}
 
 const firstLine = (text: string) => text.trim().split(/\r?\n/)[0] ?? "";
 
@@ -76,9 +76,10 @@ async function timeProgram(nvs: string, path: string, reps: number): Promise<[nu
 }
 
 /** `rule:testing/bench-counters`'s four totals for one run of `path`. One run, because the answer is the
- * same every time. */
-async function countProgram(nvs: string, path: string): Promise<Record<string, number>> {
-  const out = await spawnProof([nvs, "run", "--count", path], path, TIMEOUT_MS);
+ * same every time. `proof` is the program whose `.in`, `.nvsr` and `nvs.toml` siblings the run takes,
+ * which is `path` itself unless `path` is a rewritten copy of it. */
+export async function countProgram(nvs: string, path: string, proof = path): Promise<Record<string, number>> {
+  const out = await spawnProof([nvs, "run", "--count", path], proof, TIMEOUT_MS);
   if (out.code !== 0) throw new PerfError(`${path} exited ${out.code} under --count: ${firstLine(out.stderr)}`);
   const m = COUNT_LINE_RE.exec(out.stderr.replace(/\r\n/g, "\n"));
   if (!m) throw new PerfError(`${path}: \`nvs run --count\` printed no count line -- is ${nvs} built from this tree?`);
