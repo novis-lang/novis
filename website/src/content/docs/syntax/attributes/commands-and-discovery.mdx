@@ -1,0 +1,56 @@
+---
+title: Commands and finding classes
+covers: ['lang:attributes/core-command-and-core-option-the-command-table', 'lang:attributes/core-program-implementing-i-every-class-that-is-an-i', 'lang:attributes/core-program-implementingwith-i-t-member-every-implementor-with-one-attribute']
+description: How #[Core\Command] and #[Core\Option] declare command-line commands, and how Core\Program::implementing finds every class that implements an interface.
+---
+import Snippet from '@components/Snippet.astro'
+
+`Core\Program::implementing<I>()` returns one new object of every class that implements `I`. You
+do not need to list the classes yourself. The compiler finds them while it compiles.
+
+<Snippet src="syntax/implementing/01-implementing.nvs" />
+
+- The array is sorted by the full class name. The order is the same on every computer.
+- `I` is an interface or a class. A class that is not `abstract` is in its own list.
+- Every class in the list needs a constructor that takes no arguments.
+- The objects are made new each time the line runs.
+- When no class implements `I`, the result is `[]`.
+- The compiler also finds classes in the folders that `autoload` names, even when no code uses them.
+
+## Classes with an attribute
+
+`Core\Program::implementingWith<I, T>("render")` returns the same objects. Each one comes with the
+attribute on its method `render` that matches the shape `T`.
+
+<Snippet src="syntax/implementing/02-implementing-with.nvs" />
+
+- Each row has `instance`, the object, and `attribute`, the attribute or `null`.
+- The argument is a method name, a property name or a parameter name. `""` means the class itself.
+- When a class does not have that method or property, the program does not compile.
+- When two attributes on one class match `T`, the program does not compile. Use a narrower shape.
+
+## Commands
+
+`#[Core\Command(name: "greet", about: "Say hello")]` on a static method declares a command-line
+command. `#[Core\Option]` on a parameter makes it an option, like `--loud`. The compiler collects
+all commands into one table and checks them.
+
+<Snippet src="syntax/commands/01-commands.nvs" />
+
+- Novis does not run these commands yet. There is no `nvs` command that calls them. Your program
+  reads the table with `Core\Program::implementing` and `Core\Attributes::get`, as above.
+- `name:` is required and must be unique. `about:` is a one-line description.
+- A parameter without `#[Core\Option]` is a positional argument. Text from the command line is
+  user input, so declare it `tainted string`.
+- A `bool` option is a flag. `short: "l"` adds `-l`. `long:` sets the long name when it is not the
+  parameter name.
+- An option has the same types as a route capture. `float` does not compile.
+- The method is `static`. It returns `void` for exit status `0`, or `uint` for its own exit status.
+
+## Do and don't
+
+- Do pass what a class needs through the methods of `I`. Its constructor takes no arguments.
+- Do use `implementingWith` when you need the attribute of each class. Inside a loop over
+  `implementing`, you cannot name the class.
+- Do declare a positional argument `tainted string`, and check it before you use it.
+- Don't expect `nvs` to run a command. The compiler checks commands, and nothing runs them.

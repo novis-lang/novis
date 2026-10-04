@@ -1,0 +1,19 @@
+<?nvs
+// This program reads several attributes of the same shape from one class.
+
+type Tag = {label: string};
+type Route = {path: string};
+
+#[Tag(label: "fast")]
+#[Tag(label: "safe")]
+class Engine {}
+
+// `all<Tag>` returns every attribute that has a `label` field, in the order they are written.
+array<Tag> $tags = Core\Attributes::all<Tag>(Engine::constructor(...));
+foreach ($tags as Tag $tag) {
+    echo $tag->label, "\n";
+}
+
+// `Engine` has no attribute with a `path` field, so `get<Route>` returns `null`.
+?Route $route = Core\Attributes::get<Route>(Engine::constructor(...));
+echo $route?->path ?? "no route", "\n";

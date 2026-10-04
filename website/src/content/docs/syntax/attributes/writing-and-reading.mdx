@@ -1,0 +1,66 @@
+---
+title: Writing and reading attributes
+covers: ['lang:attributes/an-attribute-is-a-shape-literal-attached-to-a-declaration', 'lang:attributes/reading-attributes-back-core-attributes-get-and-all', 'lang:attributes/the-names-the-compiler-acts-on']
+description: How to attach data to a class, method, property or parameter with #[...], and how to read it back with Core\Attributes.
+---
+import Snippet from '@components/Snippet.astro'
+
+An attribute is a small piece of data that you write in front of a declaration. It starts with
+`#[`. The data is a shape: a list of fields with values, like `{path: "/users"}`. An attribute does
+nothing by itself. Your program reads it back with `Core\Attributes`.
+
+<Snippet src="syntax/attributes/01-write-and-read.nvs" />
+
+## Writing an attribute
+
+- `#[Route(path: "/users")]` is an attribute with a name. `Route` must be a `type` with a shape,
+  such as `type Route = {path: string};`. The compiler checks the fields against that shape.
+- Every field the shape has must be given, with the right type. Extra fields are allowed.
+- `#[Audited]` with no fields is allowed when the `type` has no fields: `type Audited = {};`.
+- `#[{inject: "repo"}]` is an attribute without a name. Nothing checks its fields.
+- An attribute can be written in front of a `class`, an `interface`, an `enum`, a method, a
+  property, a class constant and a parameter. In front of a statement, it does not compile.
+- Every value must be known when the program compiles. A literal, an array of literals, a class
+  constant and an enum case are allowed. A variable, a function call and `new` do not compile.
+- You can write several attributes on separate lines, or in one bracket with commas:
+  `#[A(n: 1), B(s: "x")]`.
+- `#` alone starts a comment. Only `#[` starts an attribute.
+
+## Reading attributes back
+
+`Core\Attributes::get<T>` returns the one attribute whose fields match the shape `T`. When none
+matches, the result is `null`. `Core\Attributes::all<T>` returns every match, in the order they are
+written.
+
+<Snippet src="syntax/attributes/02-all.nvs" />
+
+- The first argument says where to look. `Users::show(...)` is the method `show`.
+  `Users::constructor(...)` is the class itself. Every class has a constructor, even when you do
+  not write one.
+- A second argument names a property or a parameter of that target, as a string literal.
+- The match uses the fields, not the name. `get<{path: string}>` finds any attribute with a
+  `path` field of type `string`.
+- When two attributes match, `get<T>` does not compile. Use `all<T>` in that case.
+- The empty shape `{}` matches every attribute. Give a marker attribute a field, so you can find
+  it.
+- The compiler reads the attributes while it compiles. Nothing is looked up when the program runs.
+- The result is an ordinary shape value. You read its fields with `->`.
+
+## The attributes Novis reads
+
+A few attribute names belong to Novis: `Core\Json\Derive`, `Core\Json\Field`, `Core\Route`,
+`Core\Access`, `Core\Query`, `Core\Api`, `Core\Command`, `Core\Option` and the testing attributes.
+The compiler reads these itself and does something with them. The next pages show what.
+
+- The compiler checks the fields of these attributes. An unknown field, a field with the wrong type
+  or a field given twice does not compile.
+- `use Core\Route;` and then `#[Route(...)]` is the same as `#[Core\Route(...)]`.
+- Your own `type Route = {...}` is a different name. An attribute with that name is ordinary data.
+
+## Do and don't
+
+- Do declare a `type` for each attribute you use often. The compiler then checks every place you
+  write it.
+- Do give every attribute at least one field, so `get<T>` can tell it apart from the others.
+- Don't put a variable or a function call in an attribute. Use a class constant.
+- Don't name your own `type` after a Novis attribute. It only makes the code harder to read.

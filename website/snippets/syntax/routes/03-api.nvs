@@ -1,0 +1,12 @@
+<?nvs
+// This program declares a route with extra details for an OpenAPI document.
+
+class Users {
+    /// Show one user. Looks the user up by id.
+    #[Core\Route(path: "/users/{id}", method: Core\Http\Method::Get, name: "Users::show")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    #[Core\Api(tags: ["users"])]
+    public function show(uint $id): string { return "user " . $id; }
+}
+
+echo Core\Router::url("Users::show", ["id" => 7]), "\n";

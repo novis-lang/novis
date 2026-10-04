@@ -1,0 +1,4 @@
+class: /users
+method: /users/{id}
+property: user_name
+parameter: repo

@@ -1,0 +1,23 @@
+<?nvs
+// This program makes one object of every class that implements an interface.
+
+interface Greeter {
+    public function greet(): string;
+}
+
+class English implements Greeter {
+    public function greet(): string {
+        return "hello";
+    }
+}
+
+class German implements Greeter {
+    public function greet(): string {
+        return "hallo";
+    }
+}
+
+// The array has one new object of each class, sorted by class name.
+foreach (Core\Program::implementing<Greeter>() as Greeter $greeter) {
+    echo $greeter->greet(), "\n";
+}

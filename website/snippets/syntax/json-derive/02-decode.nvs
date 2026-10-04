@@ -1,0 +1,29 @@
+<?nvs
+// This program builds an object from JSON text, and shows the errors for bad text.
+
+#[Core\Json\Derive]
+class Row {
+    public string $name;
+    public ?int $rank;
+    #[Core\Json\Field(name: "is_live")]
+    public bool $live;
+
+    public function constructor(string $name, ?int $rank, bool $live) {
+        $this->name = $name;
+        $this->rank = $rank;
+        $this->live = $live;
+    }
+}
+
+// The key `extra` is not a property of `Row`, so it is ignored.
+var $row = Core\Json::decodeAs<Row>("{\"name\":\"ada\",\"rank\":null,\"is_live\":true,\"extra\":1}");
+echo $row->name, " ", $row->rank ?? "unranked", "\n";
+
+// This text has three problems. One `ParseError` lists all of them.
+try {
+    Core\Json::decodeAs<Row>("{\"rank\":\"first\",\"is_live\":null}");
+} catch (ParseError $bad) {
+    foreach ($bad->issues as {path: string, message: string} $issue) {
+        echo $issue->path, ": ", $issue->message, "\n";
+    }
+}

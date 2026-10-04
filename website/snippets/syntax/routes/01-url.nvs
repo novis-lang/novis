@@ -1,0 +1,25 @@
+<?nvs
+// This program declares routes and builds links to them by name.
+
+enum Lang { En, De }
+
+class Docs {
+    // `{page?}` may be left out of the path. Its parameter needs a default.
+    #[Core\Route(path: "/{lang}/docs/{page?}", method: Core\Http\Method::Get, name: "docs")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function page(Lang $lang, uint $page = 1, #[Core\Query] string $q = ""): string {
+        return "docs";
+    }
+
+    // `{path...}` takes the rest of the path, with its `/` characters.
+    #[Core\Route(path: "/files/{path...}", method: Core\Http\Method::Get, name: "file")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function file(string $path): string {
+        return "file";
+    }
+}
+
+echo Core\Router::url("docs", ["lang" => Lang::De]), "\n";
+// `q` has `#[Core\Query]`, so it goes into the query string.
+echo Core\Router::url("docs", ["lang" => Lang::En, "page" => 3, "q" => "a b"]), "\n";
+echo Core\Router::url("file", ["path" => "a/b c.txt"]), "\n";

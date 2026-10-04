@@ -1,0 +1,108 @@
+---
+title: Routes and access
+covers: ['lang:attributes/core-route-and-core-access-the-route-table', 'lang:attributes/core-api-and-the-openapi-document']
+description: How #[Core\Route] and #[Core\Access] declare the URLs of a web app, and how Core\Router builds links and finds the route for a request.
+---
+import Snippet from '@components/Snippet.astro'
+
+A route connects a URL path and an HTTP method to a method of your class. You declare it with
+`#[Core\Route]`. Every route also needs `#[Core\Access]`, which says who may use it. The compiler
+collects all routes of the program into one table. `Core\Router` reads that table.
+
+<Snippet src="syntax/routes/01-url.nvs" />
+
+## The route attribute
+
+- `path:` starts with `/`. A part like `{id}` is a capture. It matches one part of the path.
+- `{page?}` may be left out. It is only allowed at the end, and its parameter needs a default.
+- `{path...}` matches the rest of the path, with its `/` characters. Its parameter is a `string`.
+- Every capture needs a parameter with the same name. The capture is converted to the parameter's
+  type: `string`, `int`, `uint`, `decimal`, `bool`, an enum, a union like `"en"|"de"`, or a class
+  that implements `Parses`. `float` is not allowed.
+- `#[Core\Query]` on a parameter reads it from the query string.
+- `method:` is a case of `Core\Http\Method`, such as `Core\Http\Method::Get`.
+- `name:` is optional. `Core\Router::url` finds the route by this name. Each name must be unique.
+- The same path with the same method twice does not compile.
+- Two `#[Core\Route]` lines on one method give two routes to the same method.
+- A path like `/users/new` wins over `/users/{id}`, in any order.
+
+## Building a link
+
+`Core\Router::url("docs", [...])` returns the path of the route named `docs`. The compiler checks
+the name and the keys. An unknown name or a missing capture does not compile.
+
+- A capture value is encoded for a URL. `a b` becomes `a%20b` in the path.
+- A `#[Core\Query]` key goes into the query string. A `null` value is left out.
+- `Core\Router::urlAbsolute` puts the origin in front, such as `https://example.com`. The origin is
+  the `origin` setting under `[[app]]` in `nvs.toml`. Without it, `urlAbsolute` throws a
+  `RuntimeError`.
+
+## Access
+
+`#[Core\Access(allow: Core\Audience::Public)]` says who may use the route. A route without it does
+not compile. So a public route always says that it is public.
+
+- `allow:` is any constant: `Core\Audience::Public`, or a case of your own enum.
+- One `#[Core\Access]` covers every route on the method. `#[Core\Access]` on a method without a
+  route does not compile.
+- `Post`, `Put`, `Patch` and `Delete` requests are checked for CSRF (a request sent from another
+  site). `csrf: false` turns that check off for one method.
+
+## Handling a request
+
+`nvs serve` finds the route for each request before your program runs. Your program then gets the
+match from `Core\Request::route()`. The server does not call the route method. Your program calls
+it, usually with one `switch` on the route name.
+
+`Core\Router::match` finds the route for a method and path that you choose. This example uses it,
+so it runs without a server.
+
+<Snippet src="syntax/routes/02-match.nvs" />
+
+- `match` returns `null` when no route has this method and path.
+- `Core\Router::methodsFor($path)` returns the methods the path has. An empty array means `404`.
+  Any other array means `405`.
+- `accessAs<Core\Audience>()` returns the `allow:` value. The server does not check it. Your program
+  checks it before it calls the method. Treat `null` as "not allowed".
+- `param("id")` returns the converted capture.
+- The CSRF check is the only check the server does for you.
+
+## An OpenAPI document
+
+`nvs build --openapi main.nvs` prints an OpenAPI document for all routes. `#[Core\Api]` adds
+details that the code does not have. The `///` comment above the method becomes the summary and the
+description.
+
+<Snippet src="syntax/routes/03-api.nvs" />
+
+For this file, the document has this operation:
+
+```json
+"/users/{id}": {
+  "get": {
+    "description": "Looks the user up by id.",
+    "operationId": "Users::show",
+    "parameters": [
+      {"in": "path", "name": "id", "required": true, "schema": {"minimum": 0, "type": "integer"}}
+    ],
+    "responses": {
+      "200": {"content": {"application/json": {"schema": {"type": "string"}}}, "description": "success"}
+    },
+    "summary": "Show one user.",
+    "tags": ["users"]
+  }
+}
+```
+
+- `tags:` and `security:` are arrays of strings.
+- `errors:` is an array like `[{status: 404, type: NotFound::class}]`. Each class must exist.
+- `example:` is a shape whose keys are properties of the return type.
+- `#[Core\Api]` is only allowed on a method that has a route.
+
+## Do and don't
+
+- Do give every route a `name:`, and build links with `Core\Router::url`.
+- Do check `accessAs` once, before the `switch` that calls the methods.
+- Do give a capture the type you need, such as `uint`. The conversion is then done for you.
+- Don't write a path by hand in a link. A typo in a route name does not compile.
+- Don't use `csrf: false` on a form that a browser sends.

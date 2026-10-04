@@ -1,0 +1,39 @@
+<?nvs
+// This program finds the route for a request and calls the method for it.
+
+class Users {
+    #[Core\Route(path: "/users/{id}", method: Core\Http\Method::Get, name: "Users::show")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function show(uint $id): string { return "user " . $id; }
+
+    #[Core\Route(path: "/users", method: Core\Http\Method::Post, name: "Users::create")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function create(): string { return "created"; }
+}
+
+class App {
+    public static function answer(Core\Http\Method $method, string $path): string {
+        var $match = Core\Router::match($method, $path);
+        if ($match == null) {
+            // No route has this method and path. An empty list of methods means no route has the path.
+            return Core\Router::methodsFor($path) == [] ? "404" : "405";
+        }
+        // Check the access value before you call the method.
+        if ($match->accessAs<Core\Audience>() != Core\Audience::Public) {
+            return "403";
+        }
+        var $users = new Users();
+        switch ($match->name()) {
+            case "Users::show":
+                return $users->show($match->param("id") as uint);
+            case "Users::create":
+                return $users->create();
+        }
+        return "404";
+    }
+}
+
+echo App::answer(Core\Http\Method::Get, "/users/7"), "\n";
+echo App::answer(Core\Http\Method::Post, "/users"), "\n";
+echo App::answer(Core\Http\Method::Delete, "/users"), "\n";
+echo App::answer(Core\Http\Method::Get, "/nothing"), "\n";

@@ -1,0 +1,34 @@
+<?nvs
+// This program turns objects into JSON with `#[Core\Json\Derive]`.
+
+use Core\Json;
+use Core\Json\Field;
+
+#[Core\Json\Derive]
+class Address {
+    public string $city;
+    public function constructor(string $city) { $this->city = $city; }
+}
+
+#[Core\Json\Derive]
+class User {
+    public string $name;
+    // `name:` sets the key in the JSON text.
+    #[Field(name: "is_admin")]
+    public bool $isAdmin;
+    // `skip: true` leaves this property out of the JSON text.
+    #[Field(skip: true)]
+    public int $cachedHash;
+    public Address $address;
+    public ?int $score;
+
+    public function constructor(string $name, bool $isAdmin, Address $address, ?int $score) {
+        $this->name = $name;
+        $this->isAdmin = $isAdmin;
+        $this->cachedHash = 0;
+        $this->address = $address;
+        $this->score = $score;
+    }
+}
+
+echo Json::encode(new User("ada", true, new Address("london"), null)), "\n";
