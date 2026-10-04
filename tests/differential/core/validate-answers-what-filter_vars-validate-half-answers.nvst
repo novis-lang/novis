@@ -13,9 +13,9 @@ Core\Validate::isEmail, isDomain, isIp and isMac answer what filter_var's FILTER
 // against `false` at every call so that the *question* is the same one.
 //
 // Two subjects the two languages answer differently are deliberately not in the
-// tables below — an address literal for a mailbox host and a domain written
+// tables below — a bracketed IP address for a mailbox host and a domain written
 // with its root dot — and they are the subject of
-// `validate-refuses-the-address-literal-and-the-root-dot-filter_var-accepts`.
+// `validate-refuses-the-bracketed-ip-address-and-the-root-dot-filter_var-accepts`.
 final class Show {
     public static function of(bool $answer): string {
         return $answer ? "1" : "0";

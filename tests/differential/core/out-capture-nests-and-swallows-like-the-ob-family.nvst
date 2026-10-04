@@ -3,14 +3,14 @@ Core\Out::capture answers at every depth what ob_start/ob_get_clean answers at t
 --FILE--
 <?nvs
 // Spec § 12 says `Core\Out` has one member and that a buffer is scoped to a
-// closure, where PHP's `ob_*` family is a global stack any function can push
+// callable, where PHP's `ob_*` family is a global stack any function can push
 // and pop. The two therefore have no *shape* in common — but for a program
 // whose starts and ends happen to nest, they must answer the same bytes at
 // every depth, and that is what is compared here. The PHP side spells the
 // bracketing out by hand at each level, which is the point: nothing on the
 // Novis side can be written non-nesting.
 
-// One level. `capture` answers what the closure wrote and not what it returned,
+// One level. `capture` answers what the callable wrote and not what it returned,
 // which is `ob_get_clean`'s answer too.
 echo "[", Core\Out::capture(fn (): void => { echo "one"; }), "]\n";
 

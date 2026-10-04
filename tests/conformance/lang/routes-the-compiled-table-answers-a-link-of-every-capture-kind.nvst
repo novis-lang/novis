@@ -1,5 +1,5 @@
 --TEST--
-Every `#[Core\Route]` in the program is collected into one compiled table, and `Core\Router::url` is answered from that table for a literal segment, a capture, an enum, an absent trailing segment, a catch-all and a query key alike (`rule:routing/routes-are-compiled-not-registered` and `rule:routing/link-name-and-params-are-checked`)
+Every `#[Core\Route]` in the program is collected into one compiled table, and `Core\Router::url` is answered from that table for a fixed segment, a capture, an enum, an absent trailing segment, a catch-all and a query key alike (`rule:routing/routes-are-compiled-not-registered` and `rule:routing/link-name-and-params-are-checked`)
 --FILE--
 <?nvs
 // covers: lang:attributes/core-route-and-core-access-the-route-table
@@ -11,7 +11,7 @@ Every `#[Core\Route]` in the program is collected into one compiled table, and `
 enum Lang { En, De }
 
 class Users {
-    // `rule:routing/precedence-is-structural`: a literal segment beats a capture, so these
+    // `rule:routing/precedence-is-structural`: a fixed segment beats a capture, so these
     // two coexist in either declaration order.
     #[Core\Route(path: "/users/{id}", method: Core\Http\Method::Get, name: "Users::show")]
     #[Core\Access(allow: Core\Audience::Public)]

@@ -1,5 +1,5 @@
 --TEST--
-The four type names refusing what they do not hold: a `callable` given a function's name as text, a call through one used without converting it, a plain `string` at the two sites that take a class reference, and a shape literal short of a field it names (`rule:types/callable-values`, `rule:types/class-reference-sites`, `rule:types/shape-type`)
+The four type names refusing what they do not hold: a `callable` given a function's name as text, a call through one used without converting it, a plain `string` at the two sites that take a class reference, and an anonymous object short of a field it names (`rule:types/callable-values`, `rule:types/class-reference-sites`, `rule:types/shape-type`)
 --FILE--
 <?nvs
 // covers: lang:types/callable-classes-object-shapes
@@ -11,8 +11,8 @@ class Cell {
     }
 }
 
-// `rule:types/callable-values`: a closure is the only thing a
-// `callable` holds, so there is no callable string to fall back on.
+// `rule:types/callable-values`: a `callable` holds only an anonymous
+// function or a method reference, so there is no callable string to fall back on.
 callable $named = "strtoupper";
 
 // `rule:types/callable-values`: a call through a `callable` value

@@ -1,5 +1,5 @@
 --TEST--
-A closure parameter declaring an enum is checked against the enum tag of its backing type, so an enum is told apart from its backing integer and the two backings from each other, while two enums with one backing are not told apart — `rule:enums/representation` and `rule:types/conversion`
+An anonymous function's parameter declaring an enum is checked against the enum tag of its backing type, so an enum is told apart from its backing integer and the two backings from each other, while two enums with one backing are not told apart — `rule:enums/representation` and `rule:types/conversion`
 --FILE--
 <?nvs
 // `nvs_ir::lower::param_tag_nibble` gives an enum parameter the enum tag of
@@ -21,7 +21,7 @@ enum Weight: uint {
 }
 
 // Nine declarations, asked of every subject in the same order. Handing a
-// closure to a `Core` member's `callable` option is the runtime's own call,
+// callable to a `Core` member's `callable` option is the runtime's own call,
 // which is what runs the check.
 array<callable> $decls = [
     fn (Mode $v, string $k) => true,

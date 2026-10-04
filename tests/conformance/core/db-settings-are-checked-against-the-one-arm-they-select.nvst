@@ -1,5 +1,5 @@
 --TEST--
-A settings literal is held to the one arm it selects, so `host` beside `Driver::Sqlite` is refused while compiling and so is the server arm's key set under that driver — `rule:core-api/shape-arms-are-disjoint`, `rule:core-classes/db-capabilities`
+A settings object is held to the one arm it selects, so `host` beside `Driver::Sqlite` is refused while compiling and so is the server arm's key set under that driver — `rule:core-api/shape-arms-are-disjoint`, `rule:core-classes/db-capabilities`
 --FILE--
 <?nvs
 // `rule:core-classes/db-capabilities`: a SQLite connection is a file. Its arm declares no `host` at

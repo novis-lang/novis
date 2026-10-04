@@ -1,0 +1,31 @@
+--TEST--
+An anonymous function calling itself by its self-name has its arguments checked against the parameters that function declares, where they are written — `rule:types/anonymous-function-self-name`, `rule:types/callable-signature`
+--FILE--
+<?nvs
+// The self-name is not a value of the opaque `callable` type — it is the
+// anonymous function being written — so its parameter list is what the recursive call's
+// arguments are checked against, and the mismatch is a diagnostic here rather
+// than `nvs_runtime::callable`'s per-argument tag check at run time.
+callable $fact = fn fact(int $n): int => $n <= 1 ? 1 : $n * fact("no");
+
+// The count is exact for the same reason: a call through a written signature
+// may pass fewer than the *type* names only because the value behind it may
+// declare fewer, and here there is no value behind it — the declaration is
+// this line.
+callable $join = fn join(int $n, string $s): string => $s . join($n);
+--EXPECTF-ERROR--
+error[E0401]: expected `int`, found `string`
+  --> %s:6:66
+  |
+6 | callable $fact = fn fact(int $n): int => $n <= 1 ? 1 : $n * fact("no");
+  |                                                                  ^^^^ this is `string`
+
+error[E0809]: this anonymous function names 2 parameter(s), and this call passes 1
+   --> %s:12:61
+   |
+12 | callable $join = fn join(int $n, string $s): string => $s . join($n);
+   |                                                             ^^^^^^^^ expected 2, found 1
+   = help: an anonymous function that calls itself by its own name passes exactly the parameters it declares. Its signature is the one written right here, so there is no wider type to match a shorter list against
+
+error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

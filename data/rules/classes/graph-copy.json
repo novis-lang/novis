@@ -16,7 +16,7 @@
   "guardedBy": [
     "tests/conformance/core/serialize-encode-and-decode-are-one-graph-copy.nvst",
     "tests/conformance/core/serialize-round-trips-every-shape-the-walk-reaches.nvst",
-    "tests/conformance/core/serialize-refuses-a-closure-and-foreign-bytes-by-name.nvst",
+    "tests/conformance/core/serialize-refuses-a-callable-and-foreign-bytes-by-name.nvst",
     "crates/nvs-runtime/src/graph.rs"
   ]
 }

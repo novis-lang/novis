@@ -4,7 +4,7 @@
 <?nvs
 // `rule:errors/on-limit`'s tier 1 is a *registration*, and the thing worth pinning about
 // a registration is the boundary it does not cross: nothing about handing the
-// closure over is allowed to call it. A ladder that ran the handler eagerly —
+// callable over is allowed to call it. A ladder that ran the handler eagerly —
 // or one that ran it to "check" it, which is the shape zero retries exists to
 // forbid — prints a line here that the expectation does not have. That is the
 // edge this case asks about; what a breach then does with the handler is the
@@ -23,10 +23,10 @@ Core\Fatal::onLimit(fn (): void => {
 });
 echo "replaced\n";
 
-// A handler is a closure like any other, so registering one neither consumes it
+// A handler is a callable like any other, so registering one neither consumes it
 // nor makes it unusable: the value stays a `callable` the program still holds.
 // Calling it directly is a plain call, and it is the one place this case may
-// print from the closure at all.
+// print from the callable at all.
 var $handler = fn (): void => { echo "called directly\n"; };
 Core\Fatal::onLimit($handler);
 $handler();

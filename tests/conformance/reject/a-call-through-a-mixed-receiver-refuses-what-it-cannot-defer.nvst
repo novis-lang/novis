@@ -29,9 +29,9 @@ $m->value(n: 1);
 int $n = 1;
 $m->value(inout $n);
 
-// `rule:types/callable-values`'s first-class callable spelling makes no call at all: it names a
-// closure value, which carries its callee with it, and there is no class here
-// to read one off.
+// A method reference (`rule:types/callable-values`) makes no call at all: it
+// names a callable, which carries its callee with it, and there is no class
+// here to read one off.
 $m->value(...);
 --EXPECTF-ERROR--
 error[E0712]: `n:` names no parameter of a call through a `mixed` receiver

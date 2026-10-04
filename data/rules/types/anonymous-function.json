@@ -13,8 +13,8 @@
     "types/callable-values"
   ],
   "guardedBy": [
-    "tests/conformance/lang/a-closure-is-called-through-the-variable-holding-it.nvst",
-    "tests/conformance/lang/a-closure-argument-is-checked-against-its-parameter-type.nvst",
+    "tests/conformance/lang/a-callable-is-called-through-the-variable-holding-it.nvst",
+    "tests/conformance/lang/an-argument-to-an-anonymous-function-is-checked-against-its-parameter-type.nvst",
     "crates/nvs-syntax/src/parser/tests/expr.rs"
   ]
 }

@@ -1,5 +1,5 @@
 --TEST--
-`Core\Validate`'s six members draw the lines spec § 12's prose states, and `{version?: 4|6}` is `rule:types/single-value-types`'s literal union rather than an `int`
+`Core\Validate`'s six members draw the lines spec § 12's prose states, and `{version?: 4|6}` is `rule:types/single-value-types`'s set of allowed values rather than an `int`
 --FILE--
 <?nvs
 // docs/spec/01-core-library.md § 12: "isEmail, isIp(string $s,

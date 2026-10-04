@@ -19,7 +19,7 @@ class Point {
 class Ask {
     // `1` when all four members say the pair is one value, `0` when all four
     // say it is two, and `-1` when they disagree — which is the failure this
-    // case exists to catch. A closure cannot be called through the variable
+    // case exists to catch. A callable cannot be called through the variable
     // holding it (`nvs-ir` gap 1), so the predicate is a static method.
     public static function verdict(array<mixed> $pair): int {
         array<mixed> $one = Core\Arr::slice($pair, 0, 1);

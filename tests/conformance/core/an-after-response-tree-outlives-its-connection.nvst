@@ -1,16 +1,16 @@
 --TEST--
-a request tree that deferred work keeps running once its answer is complete, and the answer is complete: nothing the deferred closure writes can reach the response the caller already holds — `rule:concurrency/after-response-outlives-the-connection`, `rule:testing/in-process-request`
+a request tree that deferred work keeps running once its answer is complete, and the answer is complete: nothing the deferred callable writes can reach the response the caller already holds — `rule:concurrency/after-response-outlives-the-connection`, `rule:testing/in-process-request`
 --FILE--
 <?nvs
-// `task-after-response-runs` asks *when* a deferred closure runs, on a host
+// `task-after-response-runs` asks *when* a deferred callable runs, on a host
 // that has no response for anything to be after. This case asks the other
-// half, which only a request can be asked: § 6's "the closure runs after the
+// half, which only a request can be asked: § 6's "the callable runs after the
 // response is fully written", read from the side of the caller holding that
 // response.
 //
 // The shape is *a bound asserted on both sides*, over one request: the last
 // bytes the answer carries and the first bytes it does not are named together.
-// A queue that ran its closures inline — before the frame returned — would put
+// A queue that ran its callables inline — before the frame returned — would put
 // `deferred` inside the body below, and a response that stayed writable after
 // the connection was answered would put it there too. Both are what § 6
 // forbids, and either one takes this case off its expectation.
@@ -35,7 +35,7 @@ try {
     });
 } catch (RuntimeError $refused) {
     // The child. It registers deferred work and then finishes answering; § 6
-    // keeps `Core\Request` readable inside the closure because the tree is
+    // keeps `Core\Request` readable inside the callable because the tree is
     // still the same tree, and keeps `Core\Response` out of it because the
     // response is not.
     Core\Task::afterResponse(fn (): void => {

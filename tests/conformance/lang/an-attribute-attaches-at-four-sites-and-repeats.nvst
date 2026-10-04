@@ -41,7 +41,7 @@ echo "sites=", $agreed as string, "/4\n";
 // others share its site, so four attachments stay four — including the two
 // identical ones, which no deduplication collapses — and `all` answers them in
 // attach order. The comma-separated bracket is the same attachment as a second
-// line, which is why the bare literal in it is counted here too.
+// line, which is why the bare anonymous object in it is counted here too.
 #[Site(site: "first")]
 #[Site(site: "first")]
 #[Site(site: "third"), {site: "fourth"}]
@@ -51,10 +51,10 @@ array<Site> $all = Core\Attributes::all<Site>(Repeated::constructor(...));
 echo "attachments=", Core\Arr::count($all) as string, "\n";
 foreach ($all as Site $one) { echo "  ", $one->site, "\n"; }
 
-// The two spellings differ only in whether a shape checks the literal
+// The two spellings differ only in whether a shape checks the payload object
 // (`rule:attributes/attach-sites-and-forms`), so a retrieval written for the same shape sees
 // the same payload from either. Asserted as agreement rather than as two
-// lines: a bare literal that stopped reaching retrieval fails here.
+// lines: a bare anonymous object that stopped reaching retrieval fails here.
 #[Site(site: "same")]
 class Named {}
 
@@ -72,7 +72,7 @@ if ($fromNamed != null) {
 echo "spellings agree=", $agree, "\n";
 
 # Only `#[` opens an attribute, so this line is a comment and `Plain` carries
-# nothing at all — `{}` is satisfied by every attached literal, which makes a
+# nothing at all — `{}` is satisfied by every attached payload object, which makes a
 # `null` here the assertion that none was attached.
 class Plain {}
 

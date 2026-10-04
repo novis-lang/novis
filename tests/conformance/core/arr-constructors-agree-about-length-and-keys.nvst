@@ -15,7 +15,7 @@ Core\Arr::fill, fillKeys, fromKeysAndValues, padStart and padEnd are asked for t
 // `fromKeysAndValues` are handed keys, so they answer whatever key shape the
 // argument named. Nothing in either family reads a key's *type* to choose.
 //
-// A closure cannot be called through the variable holding it (`nvs-ir` gap 1),
+// A callable cannot be called through the variable holding it (`nvs-ir` gap 1),
 // so each question is a static method called directly.
 class Ask {
     // The two families' key shapes, side by side. A `?` is a member that broke

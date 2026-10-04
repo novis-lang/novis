@@ -1,8 +1,8 @@
 --TEST--
-`Core\Out::capture` swallows what its closure echoes, nests by call nesting and answers the sink's carrier rather than a `string` — spec § 12, `rule:tooling/echo-always-has-a-sink` and `rule:security/capture-answers-the-carrier`
+`Core\Out::capture` swallows what its callable echoes, nests by call nesting and answers the sink's carrier rather than a `string` — spec § 12, `rule:tooling/echo-always-has-a-sink` and `rule:security/capture-answers-the-carrier`
 --FILE--
 <?nvs
-// § 12: the buffer is scoped to a closure, so `ob_start`/`ob_get_clean`'s
+// § 12: the buffer is scoped to a callable, so `ob_start`/`ob_get_clean`'s
 // global stack has no equivalent and neither does implicit flushing.
 var $captured = Core\Out::capture(fn (): void => {
     echo "a";
@@ -18,7 +18,7 @@ echo $captured, "\n";
 // which is why the line below is the first "a" a reader sees in order.
 echo "swallowed=", $captured, "\n";
 
-// Nesting is call nesting. The inner capture takes only what its own closure
+// Nesting is call nesting. The inner capture takes only what its own callable
 // wrote, and the outer one takes the inner's re-emission along with the rest.
 echo Core\Out::capture(fn (): void => {
     echo "outer<";
@@ -26,12 +26,12 @@ echo Core\Out::capture(fn (): void => {
     echo ">";
 }), "\n";
 
-// A closure that writes nothing answers an empty carrier, not `null`.
+// A callable that writes nothing answers an empty carrier, not `null`.
 echo "[", Core\Out::capture(fn (): void => {}), "]\n";
 
 // § 12's `{through: $filter}` transforms what was captured and takes and
 // answers the same carrier. The identity is the filter that pins the plumbing
-// alone — that the option is read and its closure called on the captured
+// alone — that the option is read and its callable called on the captured
 // value; a filter that reads the carrier and writes a different one is
 // `out-capture-through-rewrites-the-captured-text.nvst`.
 echo Core\Out::capture(

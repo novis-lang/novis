@@ -3,7 +3,7 @@ a `#[TestWith(...)]` data row names the method's parameters and gives each the t
 --FILE--
 <?nvs
 // covers: lang:testing/core-test-testwith-data-rows
-// `rule:testing/data-rows` matches a data row's shape literal against the method's
+// `rule:testing/data-rows` matches a data row's anonymous object against the method's
 // parameters **by name and by type**, and reports each row as its own case.
 // Two rules fall out of that and are refused here: a row describes the method
 // it is attached to, and every row of one method fills the same parameters,

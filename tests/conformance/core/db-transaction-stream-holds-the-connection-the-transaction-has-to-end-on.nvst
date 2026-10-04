@@ -41,13 +41,13 @@ $db->transaction(fn (Transaction $tx): void => {
 echo "kept ", $db->query("select id from t", [])->count(), "\n";
 
 // § 7's end is a statement like any other, so a walk that still holds the
-// connection is refused *there* rather than anywhere inside the closure.
+// connection is refused *there* rather than anywhere inside the callable.
 try {
     $db->transaction(fn (Transaction $tx): void => {
         foreach ($tx->stream("select id from t order by id", []) as Row $row) {
             break;
         }
-        echo "the closure returned\n";
+        echo "the callable returned\n";
     });
     echo "the transaction ended\n";
 } catch (LogicError $busy) {
@@ -66,5 +66,5 @@ path = ":memory:"
 walked 3 refused 3
 after the walk 3
 kept 3
-the closure returned
+the callable returned
 the end was refused

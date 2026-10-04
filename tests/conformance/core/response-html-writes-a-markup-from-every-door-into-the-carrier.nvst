@@ -1,5 +1,5 @@
 --TEST--
-`Core\Response::html` writes the carrier whichever door made one — the lift, the literal, the composition, the escape and the join — `rule:security/response-body-is-one-typed-member`
+`Core\Response::html` writes the carrier whichever door made one — the lift, the html template, the composition, the escape and the join — `rule:security/response-body-is-one-typed-member`
 --FILE--
 <?nvs
 // The claim is asked of every entrance rather than of the one that is easiest

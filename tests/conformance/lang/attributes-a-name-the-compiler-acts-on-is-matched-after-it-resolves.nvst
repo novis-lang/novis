@@ -1,5 +1,5 @@
 --TEST--
-The compiler acts on an attribute only when its name resolves to one of its closed `Core`-owned list, so a whole name and the short name a `use` binds are one attribute, a userland name of the same shape is inert whatever it is spelled, and recognition leaves the literal in the structural roster (`rule:core-classes/derive-attribute` and `rule:attributes/inert-metadata`)
+The compiler acts on an attribute only when its name resolves to one of its closed `Core`-owned list, so a whole name and the short name a `use` binds are one attribute, a userland name of the same shape is inert whatever it is spelled, and recognition leaves the payload object in the structural roster (`rule:core-classes/derive-attribute` and `rule:attributes/inert-metadata`)
 --FILE--
 <?nvs
 // covers: lang:attributes/the-names-the-compiler-acts-on
@@ -64,7 +64,7 @@ echo "long: ", Core\Json::encode(new Long("bea")), "\n";
 // instead of printing one plausible line of seven.
 uint $agreed = 0;
 
-// The userland name and the bare literal are both inert, so neither class has
+// The userland name and the bare anonymous object are both inert, so neither class has
 // an encoding.
 try {
     echo Core\Json::encode(new Plain("cyd")), "\n";
@@ -84,7 +84,7 @@ if ($mine != null) {
     if ($mine->note == "mine") { $agreed = $agreed + 1; }
 }
 
-// Recognition does not take a literal out of the structural roster: the
+// Recognition does not take a payload object out of the structural roster: the
 // recognized `#[Core\Command]` payload, the userland twin and the `use`d
 // `#[Derive]` are each one entry where they are attached.
 if (Core\Arr::count(Core\Attributes::all<{name: string}>(Jobs::real(...))) == 1) { $agreed = $agreed + 1; }

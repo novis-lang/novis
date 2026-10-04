@@ -22,9 +22,9 @@ if (true) {
         public function f(): int;
     }
 }
-// A closure body is a body like any other.
+// An anonymous function body is a body like any other.
 callable $f = fn (): int => {
-    enum InAClosure: int {
+    enum InAFunction: int {
         Red = 1,
     }
     return 1;
@@ -52,9 +52,9 @@ error[E0233]: a nested `interface` declaration is not supported
 error[E0233]: a nested `enum` declaration is not supported
    --> %s:24:10
    |
-24 |     enum InAClosure: int {
-   |          ^^^^^^^^^^ `InAClosure` would only exist once control reached this statement
-   = help: move `InAClosure` out to file scope — every type in Novis is declared before any code runs, so a name's existence never depends on control flow
+24 |     enum InAFunction: int {
+   |          ^^^^^^^^^^^ `InAFunction` would only exist once control reached this statement
+   = help: move `InAFunction` out to file scope — every type in Novis is declared before any code runs, so a name's existence never depends on control flow
 
 error: aborting due to 3 errors
 To read what a code means and how to fix it, run `nvs agent show <code>`.

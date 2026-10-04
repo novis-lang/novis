@@ -1,5 +1,5 @@
 --TEST--
-`rollBack` records its reason as well as throwing, so a `catch (Throwable)` between it and the closure's own return cannot leave the transaction committed — `rule:core-classes/db-transactions`
+`rollBack` records its reason as well as throwing, so a `catch (Throwable)` between it and the callable's own return cannot leave the transaction committed — `rule:core-classes/db-transactions`
 --FILE--
 <?nvs
 // covers: Core\Db\Connection::transaction
@@ -13,7 +13,7 @@ var $db = Db::connect("main");
 $db->execute("create table t (id integer primary key, name text not null)", []);
 
 // The hazard § 7 closes. An intervening `catch (Throwable)` swallows the signal
-// `rollBack` threw, and the closure then returns as though nothing had gone
+// `rollBack` threw, and the callable then returns as though nothing had gone
 // wrong — the shape a framework's own error boundary takes when it is a few
 // frames further out. Doctrine's `setRollbackOnly()` relies on every layer
 // checking; this does not, because what the owning frame acts on is the reason

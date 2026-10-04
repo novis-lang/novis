@@ -58,7 +58,7 @@ echo $n == ($whole as int) ? "same" : "different", "\n";
 // Strings compare with `Core\Str::compare`.
 echo Core\Str::compare("a", "b"), "\n";
 
-// Only a closure is callable, and its parameter type may come from the
+// Only an anonymous function or a method reference is callable, and its parameter type may come from the
 // `callable(...)` type it is given to.
 callable $len = fn(string $s): uint => Core\Str::length($s);
 callable(int): int $triple = fn($x) => $x * 3;

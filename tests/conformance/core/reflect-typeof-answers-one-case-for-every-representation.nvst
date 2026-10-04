@@ -1,5 +1,5 @@
 --TEST--
-`Core\Reflect::typeOf` answers exactly one `TypeKind` case per representation, and a closure is an object — `rule:core-classes/reflect`, `rule:types/anonymous-function`
+`Core\Reflect::typeOf` answers exactly one `TypeKind` case per representation, and a callable is an object — `rule:core-classes/reflect`, `rule:types/anonymous-function`
 --FILE--
 <?nvs
 // `rule:core-classes/reflect`: reflection is read-only, and this member is the extreme of
@@ -60,7 +60,7 @@ echo Kind::of($octets), "\n";
 echo Kind::of($list), "\n";
 echo Kind::of($instance), "\n";
 
-// `rule:types/anonymous-function`: a closure is an ordinary object, which is why there is no
+// `rule:types/anonymous-function`: a callable is an ordinary object, which is why there is no
 // `Callable` case for this to disagree with. The pair that would drift is
 // this one — a case added here and a representation that never arrives.
 mixed $callable = fn (int $n): int => $n + 1;

@@ -15,8 +15,8 @@
     "types/implicit-capture"
   ],
   "guardedBy": [
-    "tests/conformance/lang/an-anonymous-object-literal-constructs-and-reads-its-fields.nvst",
-    "tests/conformance/lang/an-object-literal-refuses-a-repeated-field-name.nvst",
-    "tests/conformance/lang/a-shape-literal-is-parenthesized-in-a-statement-and-an-arrow-body.nvst"
+    "tests/conformance/lang/an-anonymous-object-constructs-and-reads-its-fields.nvst",
+    "tests/conformance/lang/an-anonymous-object-refuses-a-repeated-field-name.nvst",
+    "tests/conformance/lang/an-anonymous-object-is-parenthesized-in-a-statement-and-an-arrow-body.nvst"
   ]
 }

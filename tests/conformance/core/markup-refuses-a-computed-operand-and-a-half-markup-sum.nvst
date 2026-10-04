@@ -1,5 +1,5 @@
 --TEST--
-`as Markup` trusts only a source literal and `+` composes only two `Markup` — `rule:core-classes/html-auto-escape`'s two bounds
+`as Markup` trusts only a string literal and `+` composes only two `Markup` — `rule:core-classes/html-auto-escape`'s two bounds
 --FILE--
 <?nvs
 // § 5's first bullet, on both sides of its bound: the literal above is trusted

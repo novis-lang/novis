@@ -1,0 +1,81 @@
+--TEST--
+A `callable` holds a function value and answers `mixed`, a class, interface and enum name each stand where a type stands, `object` gives the class back through `is` and `as`, a `class<T>` comes from `as` and serves its three sites, and a shape is satisfied by the fields a value carries (`rule:types/callable-values`, `rule:types/object-top`, `rule:types/class-reference-sites`, `rule:types/shape-type`)
+--FILE--
+<?nvs
+// covers: lang:types/callable-classes-object-shapes
+
+interface Speaks {
+    public function speak(): string;
+}
+enum Size {
+    Small = 1,
+    Large = 2,
+}
+class Animal implements Speaks {
+    public int $legs = 4;
+    public function speak(): string {
+        return "...";
+    }
+    public static function kind(): string {
+        return "animal";
+    }
+}
+class Dog extends Animal {
+    public function speak(): string {
+        return "woof";
+    }
+    public static function kind(): string {
+        return "dog";
+    }
+}
+
+// `rule:types/callable-values`: an anonymous function written with `fn` is what a
+// `callable` holds, and a call through the value answers `mixed`, so the
+// result is converted where it is used.
+callable $twice = fn(int $x): int => $x * 2;
+echo $twice(4) as int, "\n";
+
+// `rule:types/object-top`: an interface name and an enum name each stand
+// where a type stands, and `object` is the top every instance assigns to --
+// with `is` asking the class and `as` getting it back.
+class Pen {
+    public static function describe(Speaks $who, Size $size): string {
+        return $who->speak() . (($size == Size::Large) ? " loudly" : " quietly");
+    }
+}
+object $o = new Dog();
+echo Pen::describe(new Animal(), Size::Small), " ", Pen::describe(new Dog(), Size::Large), "\n";
+echo $o->legs, " ", ($o is Dog) ? "dog" : "other", " ", ($o as Animal)->speak(), "\n";
+
+// `rule:types/class-reference-sites`: `as` is a class reference's only source,
+// it widens to a base, and the three sites that take one are `new $cls()`,
+// `$cls::f()` and `$x is $cls`. `Dog::class` is a `string` and stays one.
+class<Dog> $dogs = "Dog" as class<Dog>;
+class<Animal> $animals = $dogs;
+Animal $made = new $animals();
+echo $made->speak(), " ", $animals::kind(), " ", ($o is $dogs) ? "same" : "other", "\n";
+echo Dog::class, " ", Core\Str::length(Dog::class), "\n";
+class<Dog> $again = "Dog" as class<Dog>;
+echo ($dogs == $again) ? "equal" : "different", "\n";
+
+// `rule:types/shape-type`: a shape is a structural object type named through a
+// `type` alias, an anonymous object builds one, and an anonymous object with more
+// fields than the shape asks for still satisfies it.
+type Point = {x: int, y: int};
+class Geo {
+    public static function sum(Point $p): int {
+        return $p->x + $p->y;
+    }
+}
+Point $p = {x: 1, y: 2};
+var $q = {x: 3, y: 4, z: "extra"};
+$q->x = 30;
+echo Geo::sum($p), " ", Geo::sum($q), " ", $q->z, "\n";
+--EXPECT--
+8
+... quietly woof loudly
+4 dog woof
+woof dog same
+Dog 3
+equal
+3 34 extra

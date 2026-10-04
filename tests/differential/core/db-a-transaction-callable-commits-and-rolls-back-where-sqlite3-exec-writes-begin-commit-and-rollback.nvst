@@ -1,0 +1,92 @@
+--TEST--
+`rule:core-classes/db-transactions`'s transaction callable keeps what a normal return keeps and drops what a throw drops, matching a hand-written BEGIN/COMMIT/ROLLBACK through SQLite3::exec — and the rollback is not something the program can forget to write — `rule:core-classes/db-transactions`
+--FILE--
+<?nvs
+// § 7's callable form is forced: with no destructors there is no point at which
+// an object-scoped transaction could roll back. What that changes is not the
+// outcome — PHP reaches the same three states — but *whose* obligation the
+// rollback is. Every line of the oracle's `catch` block below is the program's
+// own; here the throw leaves the scope and the rollback has already happened.
+use Core\Db;
+use Core\Db\Transaction;
+
+var $db = Db::connect("main");
+$db->execute("create table t (id integer primary key, name text not null)", []);
+
+// A normal return commits.
+$db->transaction(fn (Transaction $tx): void => {
+    $tx->execute("insert into t (name) values (?)", ["ada"]);
+});
+echo "committed ", $db->query("select count(*) as n from t", [])->first()?->int("n") ?? -1, "\n";
+
+// A throw rolls back *and propagates*, so the caller sees the failure and the
+// database has already forgotten the write.
+try {
+    $db->transaction(fn (Transaction $tx): void => {
+        $tx->execute("insert into t (name) values (?)", ["grace"]);
+        throw new LogicError("this level keeps nothing");
+    });
+} catch (LogicError $failed) {
+    echo "rolled back: ", $failed->message, "\n";
+}
+echo "kept ", $db->query("select count(*) as n from t", [])->first()?->int("n") ?? -1, "\n";
+
+// The connection is usable afterwards: a rolled-back transaction ends the
+// transaction rather than the session, on both sides.
+$db->transaction(fn (Transaction $tx): void => {
+    $tx->execute("insert into t (name) values (?)", ["alan"]);
+});
+echo "kept ", $db->query("select count(*) as n from t", [])->first()?->int("n") ?? -1, "\n";
+foreach ($db->query("select name from t order by id", [])->all() as Core\Db\Row $row) {
+    echo "name ", $row->string("name") ?? "?", "\n";
+}
+--FILE nvs.toml--
+# § 3: a SQLite connection's file path comes from its config block.
+[capabilities.db]
+connect = ["main"]
+
+[db.main]
+driver = "sqlite"
+path = ":memory:"
+--ORACLE--
+<?php
+$db = new SQLite3(':memory:');
+$db->exec("create table t (id integer primary key, name text not null)");
+
+function total(SQLite3 $db): int {
+    $row = $db->query("select count(*) as n from t")->fetchArray(SQLITE3_ASSOC);
+    return $row === false ? -1 : $row['n'];
+}
+
+$db->exec("BEGIN");
+$insert = $db->prepare("insert into t (name) values (?)");
+$insert->bindValue(1, "ada", SQLITE3_TEXT);
+$insert->execute();
+$db->exec("COMMIT");
+echo "committed ", total($db), "\n";
+
+try {
+    $db->exec("BEGIN");
+    $insert->reset();
+    $insert->bindValue(1, "grace", SQLITE3_TEXT);
+    $insert->execute();
+    throw new LogicException("this level keeps nothing");
+} catch (LogicException $failed) {
+    // The line the callable form does not have: forgetting it leaves the
+    // transaction open for whatever the request does next.
+    $db->exec("ROLLBACK");
+    echo "rolled back: ", $failed->getMessage(), "\n";
+}
+echo "kept ", total($db), "\n";
+
+$db->exec("BEGIN");
+$insert->reset();
+$insert->bindValue(1, "alan", SQLITE3_TEXT);
+$insert->execute();
+$db->exec("COMMIT");
+echo "kept ", total($db), "\n";
+
+$result = $db->query("select name from t order by id");
+while ($row = $result->fetchArray(SQLITE3_ASSOC)) {
+    echo "name ", $row['name'], "\n";
+}

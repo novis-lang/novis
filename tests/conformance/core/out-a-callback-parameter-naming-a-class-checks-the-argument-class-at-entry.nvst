@@ -1,10 +1,10 @@
 --TEST--
-A closure parameter naming a class is checked against the argument's own ancestry at the closure's entry, so an unrelated class refuses by name while a subclass, an interface and every erased spelling accept — `rule:types/conversion`, `rule:types/anonymous-function`
+An anonymous function's parameter naming a class is checked against the argument's own ancestry at the callable's entry, so an unrelated class refuses by name while a subclass, an interface and every erased spelling accept — `rule:types/conversion`, `rule:types/anonymous-function`
 --FILE--
 <?nvs
 // The depth claim is *a bound asserted on both sides*, over the one argument
 // shape the neighbouring `arr-a-mixed-or-nullable-callback-parameter-is-unchecked`
-// case cannot reach: an **object**. Two checks stand at a closure's entry and
+// case cannot reach: an **object**. Two checks stand at a callable's entry and
 // the case asserts where each one stops.
 //
 // `nvs_runtime::callable::check_param_tags` compares the four-bit
@@ -18,7 +18,7 @@ A closure parameter naming a class is checked against the argument's own ancestr
 // (`nvs_ir::lower::anon_fn::check_param_class`), which is what draws the
 // second line — around the argument's *ancestry*, not around its exact class.
 // `docs/adr/README.md` § *Decisions taken at project start* owns why the
-// closure's entry is the boundary that pays for it: without it a named-class
+// callable's entry is the boundary that pays for it: without it a named-class
 // binding reads and writes at a fixed offset against a label nothing verified,
 // which is a type confusion rather than a wrong answer.
 //
@@ -26,14 +26,14 @@ A closure parameter naming a class is checked against the argument's own ancestr
 // it is the one `Core` member that hands a callback an object — its own
 // `Core\Cli\Text` carrier (spec § 12). A `callable` is opaque as to signature
 // (`rule:types/anonymous-function`), so nothing static stands between the option and what the
-// closure declares, and these two checks are the whole of what stands there at
+// callable declares, and these two checks are the whole of what stands there at
 // run time.
 final class Marker {
     public string $name = "m";
 }
 
 // Each declaration is written twice, bare then nullable, so a pair that
-// flipped fails rather than balancing a total. `y` is "the closure ran", `n`
+// flipped fails rather than balancing a total. `y` is "the callable ran", `n`
 // is "the call threw `LogicError`" — and the pairs are the carrier's own class
 // first, then the five representations an object is not, then a class the
 // argument is not an instance of, then the two erased spellings.

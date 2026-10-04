@@ -1,14 +1,14 @@
 --TEST--
-A list of markup literals built in a loop composes with `Core\Html::join`, and the joined result splices into another literal without being escaped again — `rule:core-classes/html-template`
+A list of html templates built in a loop composes with `Core\Html::join`, and the joined result splices into another template without being escaped again — `rule:core-classes/html-template`
 --FILE--
 <?nvs
-// The shape a page is actually written in: one literal per row, a list built
+// The shape a page is actually written in: one template per row, a list built
 // as the rows are produced, and one `join` at the end — which is what replaces
 // folding `+` over `n` fragments and allocating `n - 1` intermediates.
 array<string> $names = ["ada & grace", "<hopper>", "o'neill"];
 array<Core\Html\Markup> $cells = [];
 foreach ($names as string $name) {
-    // Each hole is escaped where it is written: the literal's segments are the
+    // Each hole is escaped where it is written: the template's segments are the
     // author's markup and the hole is the data.
     $cells[] = html`<td>{$name}</td>`;
 }

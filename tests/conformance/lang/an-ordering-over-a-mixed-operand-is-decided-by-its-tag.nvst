@@ -5,7 +5,7 @@ An ordering whose operand the checker could not type is decided by that operand'
 // `rule:types/arithmetic`'s ordering table is closed, and where the static types name a
 // row `nvs-codegen` emits the machine comparison. A `mixed` or a union names
 // none, so the *tag* names it instead — `nvs_ir::Helper::ValueLt` and its two
-// siblings — and the same table's closure becomes a throw rather than a
+// siblings — and the same table's completeness becomes a throw rather than a
 // diagnostic, because the tags are where it first became answerable.
 final class Ask {
     // One place where both operands are `mixed`, so every row below is the

@@ -56,8 +56,8 @@ try {
 
 // And the refusal wrote nothing: a body sent under a header the server then
 // could not spell is the failure this check exists to prevent.
-// The `catch` inside the closure binds `$injected` rather than `$refused`:
-// repeating an enclosing frame's `catch` name inside a closure is an ICE in
+// The `catch` inside the callable binds `$injected` rather than `$refused`:
+// repeating an enclosing frame's `catch` name inside a callable is an ICE in
 // the lowerer today, which the playbook's *Writing a test case* section owns.
 var $written = Core\Out::capture(fn (): void => {
     try {

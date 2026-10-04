@@ -1,5 +1,5 @@
 --TEST--
-Every row of the equality table answers by its own rule — numbers across all four kinds, text by its code points, an array by its contents in order, an object by identity, an enum by its case, a closure by which closure it is, and a `mixed` by the tag it holds — and each row also states the pair it must call unequal, so a row that answered `true` for everything fails, `rule:expressions/equality-semantics`
+Every row of the equality table answers by its own rule — numbers across all four kinds, text by its code points, an array by its contents in order, an object by identity, an enum by its case, a callable by which callable it is, and a `mixed` by the tag it holds — and each row also states the pair it must call unequal, so a row that answered `true` for everything fails, `rule:expressions/equality-semantics`
 --FILE--
 <?nvs
 // covers: lang:expressions/comparison-and-equality
@@ -85,8 +85,8 @@ if ($held != $copied) { $differ = $differ + 1; }
 if (Rank::Silver == Rank::Silver) { $equal = $equal + 1; }
 if (Rank::Silver != Rank::Bronze) { $differ = $differ + 1; }
 
-// A closure is equal to itself. Two `fn` literals with identical bodies are
-// two closures and are not equal.
+// A callable is equal to itself. Two anonymous functions with identical bodies are
+// two callables and are not equal.
 callable $adder = fn(int $n): int => $n + 1;
 callable $sameAdder = $adder;
 callable $twin = fn(int $n): int => $n + 1;

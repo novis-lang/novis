@@ -1,11 +1,11 @@
 --TEST--
-`Core\Task::all` composes inside `Core\Task::afterResponse`'s closure with no special case — `rule:concurrency/after-response-outlives-the-connection`
+`Core\Task::all` composes inside `Core\Task::afterResponse`'s callable with no special case — `rule:concurrency/after-response-outlives-the-connection`
 --FILE--
 <?nvs
 // § 6: "`Core\Task::all`/`::map` compose inside it with no special case, since
-// it is an ordinary task." A deferred closure that could not start children
+// it is an ordinary task." A deferred callable that could not start children
 // would work everywhere except the one place the receipts are actually sent, so
-// the group is asked for *from inside* the closure rather than beside it — and
+// the group is asked for *from inside* the callable rather than beside it — and
 // the sum is read back, because a group that answered a shape of nulls would
 // print plausibly against a case that only counted its fields.
 Core\Task::afterResponse(fn (): void => {

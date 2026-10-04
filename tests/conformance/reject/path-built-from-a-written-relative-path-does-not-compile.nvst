@@ -1,0 +1,19 @@
+--TEST--
+a path argument that starts with a relative path given as a string literal and adds a value built while the program runs is relative on every run, so it does not compile and the help names `Core\Path::thisDir` — `rule:programs/relative-paths-resolve-from-their-file`
+--FILE--
+<?nvs
+// The string literal is joined to nothing: the whole path is built while the program runs.
+string $name = 'note';
+echo Core\IO::read('data/' . $name . '.txt');
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0840]: this path is relative when the program runs, so the call always throws an error
+  --> case.nvs:4:20
+  |
+4 | echo Core\IO::read('data/' . $name . '.txt');
+  |                    ^^^^^^^ a relative path, with more added while the program runs
+  = help: start the path with the folder of this file: `Core\Path::thisDir('data') . '/' . $name`, or `Core\Path::join(Core\Path::thisDir('data'), $name)`
+
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

@@ -28,7 +28,7 @@ type Point = {x: int};
 Point $p = {x: 1};
 echo $p->x, "\n";
 
-// A discarded object literal keeps the parenthesize refusal: no variable
+// A discarded anonymous object keeps the parenthesize refusal: no variable
 // follows the `}`, so this tell answers no and `rule:types/anonymous-object`'s
 // own error is still what an author reads.
 {x: 1};

@@ -1,5 +1,5 @@
 --TEST--
-A `spawn script` whose argument cannot cross throws in the parent and leaves the parent's value whole: a graph nested past the depth limit and an array holding a closure are each still readable and spawnable afterwards, and each is released once at the end — `rule:classes/graph-copy`, `rule:security/isolate-values-cross-by-copy`
+A `spawn script` whose argument cannot cross throws in the parent and leaves the parent's value whole: a graph nested past the depth limit and an array holding a callable are each still readable and spawnable afterwards, and each is released once at the end — `rule:classes/graph-copy`, `rule:security/isolate-values-cross-by-copy`
 --FILE nvs.toml--
 # `spawn script` goes through a door that asks for `script.spawn` first, and
 # deny-by-default means a case with no configuration cannot spawn at all.
@@ -51,18 +51,18 @@ while ($cut < 100) {
 var $sent = spawn script "depth.nvs" with(args: $shallow, output: "capture");
 echo (await $sent)->output;
 
-// A closure is refused as the object it is, one level down.
-array<mixed> $withClosure = ["label", fn (): int => 1];
+// A callable is refused as the object it is, one level down.
+array<mixed> $withCallable = ["label", fn (): int => 1];
 try {
-    var $closure = spawn script "depth.nvs" with(args: $withClosure);
+    var $task = spawn script "depth.nvs" with(args: $withCallable);
     echo "not reached\n";
 } catch (LogicError $error) {
-    echo "refused: a closure\n";
+    echo "refused: a callable\n";
 }
-echo "parent still holds ", Core\Arr::count($withClosure), " entries\n";
+echo "parent still holds ", Core\Arr::count($withCallable), " entries\n";
 --EXPECT--
 refused: too deep
 parent still reads 300
 child counted 200
-refused: a closure
+refused: a callable
 parent still holds 2 entries

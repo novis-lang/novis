@@ -10,7 +10,7 @@ Core\Arr::flattenDeep answers the same leaves at every nesting depth including o
 // copy-on-write value, so `$a[] = $a` stores a copy". The sibling cases
 // `arr-flatten-deep-is-flatten-iterated-to-a-fixed-point` and
 // `arr-flatten-unwraps-one-level-and-flatten-deep-all-of-them` both work over
-// nestings a source literal can write, which is where neither reason bites.
+// nestings an array literal can write, which is where neither reason bites.
 
 // The same two leaves under a sweep of depths, the last of them 5,000 levels —
 // far past what a recursive walk could take a frame at a time, and a depth no

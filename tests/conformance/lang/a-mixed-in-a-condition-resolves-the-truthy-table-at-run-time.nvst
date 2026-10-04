@@ -80,7 +80,7 @@ final class Box {
     public int $n = 0;
 }
 echo Say::truthy("object", new Box());
-echo Say::truthy("closure", fn (): int => 0);
+echo Say::truthy("callable", fn (): int => 0);
 
 // The same table through `as bool`, on the rows where the two could most
 // easily disagree: a conversion that read "empty or not" would answer `true`
@@ -128,7 +128,7 @@ null: false
 array empty: false
 array one falsy element: true
 object: true
-closure: true
+callable: true
 as bool: string zero: false
 as bool: string false: true
 as bool: int 0: false

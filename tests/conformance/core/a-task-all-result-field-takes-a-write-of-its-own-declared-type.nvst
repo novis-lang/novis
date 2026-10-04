@@ -2,10 +2,10 @@
 A field of `Core\Task::all`'s result accepts a write of the type that field's own callable declared, and reads it back — `rule:concurrency/all-answers-a-typed-shape`, `rule:types/erased-member-access`
 --FILE--
 <?nvs
-// The result carries the *argument literal's* class, because a shape class is
+// The result carries the *argument object's* class, because a shape class is
 // named for its field names alone and both sides spell the same ones — so the
-// slot tags that class promises would be the literal's, where every field
-// holds a closure, and every write below would be refused for writing an `int`
+// slot tags that class promises would be the object's, where every field
+// holds a callable, and every write below would be refused for writing an `int`
 // to a field declared `object`. `nvs_ir::lower::Lowering::record_core_result_shape`
 // records the result's own representations against that same label instead,
 // which degrades each disagreeing slot to unchecked — `nvs_runtime::object`'s

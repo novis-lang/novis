@@ -41,7 +41,7 @@ class Names {
 var $db = Db::connect("main");
 $db->execute("create table t (id integer primary key, name text not null)", []);
 
-// The outermost transaction is a `BEGIN`, and returning from the closure is the
+// The outermost transaction is a `BEGIN`, and returning from the callable is the
 // commit — there is no `commit` member to reach for on either class.
 $db->transaction(fn (Transaction $tx): void => {
     $tx->execute("insert into t (name) values (?)", ["ada"]);

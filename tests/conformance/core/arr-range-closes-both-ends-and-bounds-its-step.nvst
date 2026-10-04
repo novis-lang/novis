@@ -9,7 +9,7 @@ Core\Arr::range closes both of its ends and bounds its `step` on both sides — 
 // range, and the value one step past it has to be *outside* it; together those
 // two say the walk stopped exactly where it had to, and neither says it alone.
 //
-// A closure cannot be called through the variable holding it (`nvs-ir` gap 1),
+// A callable cannot be called through the variable holding it (`nvs-ir` gap 1),
 // so the row's question is a static method called directly.
 class Bound {
     // A row as `count,` then three characters: `s` for the first entry being

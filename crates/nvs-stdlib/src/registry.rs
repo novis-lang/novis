@@ -2442,11 +2442,11 @@ pub const CLASSES: &[CoreClass] = &[
 /// `rule:security/capability-declaration-is-one-table`
 /// , with `None` for a member that needs none.
 ///
-/// One table rather than a field on 346 rows, because "what can this runtime do
-/// to my machine" is a question whose whole answer should be one screen of one
-/// file. Spread across 41 class literals in 39 modules it is 39 greps and a
-/// judgement about whether you found them all, which is precisely the judgement
-/// a security review is trying not to have to make.
+/// One table and not a field on every member row, because "what can this runtime
+/// do to my machine" is a question whose whole answer should be one screen of one
+/// file. Spread across the class tables of every module it would be one grep per
+/// module and a judgement about whether you found them all, which is precisely
+/// the judgement a security review is trying not to have to make.
 ///
 /// **Nothing reads this at run time.** It is audit data — `nvs meta` renders
 /// it, the reference documentation prints it beside a member's card (`rule:core-api/reference-card`),

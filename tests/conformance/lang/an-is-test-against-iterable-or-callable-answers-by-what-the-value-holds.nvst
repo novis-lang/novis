@@ -1,5 +1,5 @@
 --TEST--
-An `is iterable` test answers for an array and for a class reaching either iteration interface, `is callable` for a closure and for nothing else, and a written signature by the closure's own declared one — rule:types/type-test, rule:iteration/two-interfaces, rule:types/callable-values, rule:types/callable-signature
+An `is iterable` test answers for an array and for a class reaching either iteration interface, `is callable` for a function value and for nothing else, and a written signature by the function's own declared one — rule:types/type-test, rule:iteration/two-interfaces, rule:types/callable-values, rule:types/callable-signature
 --FILE--
 <?nvs
 // `rule:types/type-test`: neither row asks anything about the declared type.
@@ -47,8 +47,8 @@ array<mixed> $values = [
     "iterator" => new Steps(),
     "iterable" => new Bag(),
     "plain object" => new Plain(),
-    "fn literal" => fn(): int => 1,
-    "first-class callable" => Plain::twice(...),
+    "anonymous function" => fn(): int => 1,
+    "method reference" => Plain::twice(...),
     "int" => 7,
     "string" => "x",
     "null" => null,
@@ -85,9 +85,9 @@ echo "both at once ", $both, "\n";
 echo "subject: ", Counter::subject() is iterable ? "yes" : "no", ", calls ", Counter::$calls, "\n";
 
 // `rule:types/callable-signature`'s written signature is the `callable` row one
-// step more specific, and a closure carries no signature at run time — the
-// answer is the literal's own declared one, which is why a value that is not a
-// closure at all declines here exactly as it declines `callable`. The bound is
+// step more specific, and a callable carries no signature at run time — the
+// answer is the function's own declared one, which is why a value that is not a
+// callable at all declines here exactly as it declines `callable`. The bound is
 // asserted on both sides: a wider parameter and a narrower parameter list both
 // conform, being the directions a binding of that type would accept, and the
 // return type alone is where the answer turns over.
@@ -96,7 +96,7 @@ array<mixed> $fns = [
     "int: int" => fn(int $n): int => $n,
     "mixed: string" => fn(mixed $m): string => "b",
     "no parameters" => fn(): string => "c",
-    "first-class callable" => Plain::label(...),
+    "method reference" => Plain::label(...),
     "int" => 7,
 ];
 foreach ($fns as string $key => mixed $f) {
@@ -106,7 +106,7 @@ foreach ($fns as string $key => mixed $f) {
 // Agreement, counted: a signature is a supertype of `callable` and never
 // reachable without it, so a value answering the signature and declining
 // `callable` would mean the marker had been put on something that is not a
-// closure.
+// callable.
 uint $without = 0;
 foreach ($fns as string $key => mixed $g) {
     if (($g is callable(int): string) && !($g is callable)) {
@@ -120,8 +120,8 @@ empty array: iterable yes, callable no
 iterator: iterable yes, callable no
 iterable: iterable yes, callable no
 plain object: iterable no, callable no
-fn literal: iterable no, callable yes
-first-class callable: iterable no, callable yes
+anonymous function: iterable no, callable yes
+method reference: iterable no, callable yes
 int: iterable no, callable no
 string: iterable no, callable no
 null: iterable no, callable no
@@ -132,6 +132,6 @@ int: string: callable(int): string yes
 int: int: callable(int): string no
 mixed: string: callable(int): string yes
 no parameters: callable(int): string yes
-first-class callable: callable(int): string yes
+method reference: callable(int): string yes
 int: callable(int): string no
 signature without callable 0

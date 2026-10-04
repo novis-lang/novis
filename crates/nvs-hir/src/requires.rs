@@ -2331,7 +2331,7 @@ class Unreached {}
     /// is a value built at run time and loads nothing.
     #[test]
     fn a_written_class_name_conversion_loads_its_class() {
-        let dir = TempDir::new("autoload-class-literal");
+        let dir = TempDir::new("autoload-written-class-name");
         fs::create_dir_all(dir.path.join("src")).expect("create root");
         dir.write("Bootstrap.nvs", "<?nvs\nautoload 'Shop' from './src';\n");
         dir.write(

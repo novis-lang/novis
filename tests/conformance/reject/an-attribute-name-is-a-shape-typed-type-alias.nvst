@@ -7,7 +7,7 @@ a named attribute's name resolves to a shape-typed `type` alias and the payload 
 // for PHP familiarity, and is not one — `Name` is never a class and never a
 // new namespace of attribute kinds. It is a pre-existing `type` alias whose
 // right-hand side is a shape, and its whole job is to be the type the
-// attached literal is then checked against, by `rule:types/shape-type`'s ordinary width
+// attribute's payload object is then checked against, by `rule:types/shape-type`'s ordinary width
 // subtyping and not by a second rule of its own.
 type Route = {path: string, method: string};
 type Tagged = {};

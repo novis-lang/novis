@@ -6,7 +6,7 @@
 // A `Core\Db\Transaction` carries every `Queryable` member of the connection it
 // runs on, and `close`, `driver`, `serverVersion` and `isOpen` are the four
 // that are not `Queryable`'s. `rule:core-classes/db-transactions` is why: a transaction lives for the
-// length of one closure and nothing inside it can release the connection, so
+// length of one callable and nothing inside it can release the connection, so
 // "is this still open" has no answer to give there that is not already `true`.
 class Step {
     public static function run(Core\Db\Transaction $tx): bool {

@@ -3,10 +3,10 @@ A `Core\Task::afterResponse` deadline of zero or less is already over, as it is 
 --FILE--
 <?nvs
 // covers: Core\Task::afterResponse
-// Each closure prints, then waits, which is where a deadline is noticed. The
+// Each callable prints, then waits, which is where a deadline is noticed. The
 // deferred queue reads a deadline of `0` nanoseconds as "none", so a member
 // that handed it a `0s` or a negative deadline unchanged would let both of the
-// first two closures print their second line.
+// first two callables print their second line.
 Core\Task::afterResponse(fn (): void => {
     echo "zero: started\n";
     Core\Time::sleep(50ms);
@@ -31,7 +31,7 @@ try {
     echo "group: timed out\n";
 }
 
-// A closure with no deadline and one with room to spare both finish, and
+// A callable with no deadline and one with room to spare both finish, and
 // both run after the two that were stopped.
 Core\Task::afterResponse(fn (): void => {
     Core\Time::sleep(1ms);

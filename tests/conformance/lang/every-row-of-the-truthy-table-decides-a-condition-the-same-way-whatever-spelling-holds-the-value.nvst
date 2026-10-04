@@ -1,5 +1,5 @@
 --TEST--
-Every row of the truthy table decides a condition its own way — `""` and the one-character `"0"` falsy while `"0.0"` is not, a `bytes` falsy only when it is empty, `NAN` truthy, an empty array of any element type falsy, and an object, a closure and an enum case always truthy — and the same value reaching the condition through a `mixed` takes the same row, `rule:expressions/truthy-table`
+Every row of the truthy table decides a condition its own way — `""` and the one-character `"0"` falsy while `"0.0"` is not, a `bytes` falsy only when it is empty, `NAN` truthy, an empty array of any element type falsy, and an object, a callable and an enum case always truthy — and the same value reaching the condition through a `mixed` takes the same row, `rule:expressions/truthy-table`
 --FILE--
 <?nvs
 // covers: lang:expressions/logical-operators-and-truth
@@ -61,7 +61,7 @@ if (!$noNumbers) { $falsy = $falsy + 1; }
 if (!$noText) { $falsy = $falsy + 1; }
 if ($oneZero) { $truthy = $truthy + 1; }
 
-// An object, a closure and an enum case are true whatever they hold.
+// An object, a callable and an enum case are true whatever they hold.
 Meter $atZero = new Meter(0);
 callable $identity = fn(int $n): int => $n;
 if ($atZero) { $truthy = $truthy + 1; }

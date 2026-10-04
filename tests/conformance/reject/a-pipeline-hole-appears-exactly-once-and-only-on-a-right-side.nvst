@@ -14,8 +14,8 @@ echo $s |> Core\Str::upper("shout"), "\n";
 // Two holes on one right side: the second has nothing left to take.
 echo $s |> Core\Str::replace($_, $_, "x"), "\n";
 
-// First-class callable syntax is the PHP 8.5 habit, and the diagnostic says so
-// rather than leaving the reader to discover that `|>` substitutes here.
+// A method reference on the right is the PHP 8.5 habit, and the diagnostic says
+// so rather than leaving the reader to discover that `|>` substitutes here.
 echo $s |> Core\Str::upper(...), "\n";
 
 // A hole outside a right side has no meaning at all.

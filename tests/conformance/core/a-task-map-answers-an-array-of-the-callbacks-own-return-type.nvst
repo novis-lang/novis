@@ -5,7 +5,7 @@
 // § 2's signature is `map(array<T>, callable, {limit?, deadline?}): array<U>`,
 // and `U` binds from the one callback the whole call shares — which is the
 // contrast that makes `all` and `map` two members rather than one. `all` needs
-// a per-field binding site because a shape literal carries a different closure
+// a per-field binding site because an anonymous object carries a different callable
 // in every field; `map` writes its callback once, so an ordinary
 // `CoreTy::CallableTo` already says everything there is to say.
 //

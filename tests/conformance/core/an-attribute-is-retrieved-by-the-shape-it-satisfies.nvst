@@ -1,10 +1,10 @@
 --TEST--
-`Core\Attributes::get<T>`/`all<T>` answer the attached literals that structurally satisfy `T`, folded at the call site (`rule:attributes/structural-retrieval` and `rule:attributes/retrieval-folds-while-checking`)
+`Core\Attributes::get<T>`/`all<T>` answer the attached payload objects that structurally satisfy `T`, folded at the call site (`rule:attributes/structural-retrieval` and `rule:attributes/retrieval-folds-while-checking`)
 --FILE--
 <?nvs
 // covers: Core\Attributes::get
 // `rule:attributes/structural-retrieval`: retrieval is structural, not nominal. `T` is a shape and an
-// attached literal is an answer exactly when it satisfies `T` under `rule:types/shape-type`
+// attached payload object is an answer exactly when it satisfies `T` under `rule:types/shape-type`
 // 's width subtyping — whether it was attached bare or under a name, and
 // whatever that name was.
 type Route = {path: string};
@@ -21,7 +21,7 @@ class Controller {
     #[{column: "years"}]
     public int $age = 0;
 
-    // § 4: a method is named by its own first-class-callable reference, and a
+    // § 4: a method is named by its own method reference, and a
     // parameter by that reference plus a literal member name.
     #[Route(path: "/show")]
     public static function show(#[{inject: "repo"}] int $id): int {
@@ -37,7 +37,7 @@ if ($route != null) { echo "class route=", $route->path, "\n"; }
 ?{audit: bool} $audit = Core\Attributes::get<{audit: bool}>(Controller::constructor(...));
 if ($audit != null) { echo "class audit=", $audit->audit as string, "\n"; }
 
-// `rule:types/shape-type`'s width subtyping: the attached literal carries `unique` too,
+// `rule:types/shape-type`'s width subtyping: the attached payload object carries `unique` too,
 // and an extra field is fine.
 ?{column: string} $column = Core\Attributes::get<{column: string}>(
     Controller::constructor(...),

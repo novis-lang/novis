@@ -30,7 +30,7 @@ echo "after the connection ", $db->query("select id from t", [])->count(), "\n";
 // Back to one row, so the two halves are asked the same question.
 $db->execute("delete from t where name = ?", ["bo"]);
 
-// Through a transaction the refusal travels out of the closure, and the row the
+// Through a transaction the refusal travels out of the callable, and the row the
 // first run wrote goes back out with it. Counting rather than reading a line is
 // what makes this fail for a member that committed each run of the batch.
 try {

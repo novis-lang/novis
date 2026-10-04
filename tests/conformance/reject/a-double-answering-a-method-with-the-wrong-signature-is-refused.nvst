@@ -1,5 +1,5 @@
 --TEST--
-A double whose closure cannot stand in for the method it names is refused — `rule:testing/doubles`, `rule:types/callable-variance`
+A double whose callable cannot stand in for the method it names is refused — `rule:testing/doubles`, `rule:types/callable-variance`
 --FILE--
 <?nvs
 // The third question the structural check asks, after the name is known to
@@ -10,7 +10,7 @@ A double whose closure cannot stand in for the method it names is refused — `r
 //
 // The comparison is ordinary assignability over the answer's own signature, so
 // `rule:types/callable-variance` is what a double is held to and nothing was
-// invented for it: a closure may declare fewer parameters and accept wider
+// invented for it: a callable may declare fewer parameters and accept wider
 // ones, and only the unsound directions are refused.
 interface Clock {
     public function now(): int;

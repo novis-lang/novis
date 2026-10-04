@@ -5,7 +5,7 @@
 // `test-assert-null-refuses-every-value-that-is-not-null.nvst` asks two of
 // these spellings over eighteen *scalars* and the empty array. The kinds it
 // cannot reach with a literal are the ones where the three members might
-// plausibly part: a value behind a reference, a `Core` instance, a closure,
+// plausibly part: a value behind a reference, a `Core` instance, a callable,
 // binary data, a container of containers, and a shape. All of those are one
 // `Tag::Object`-or-container answer to `assertNull`'s `matches!` and one call
 // into `identity::value_identical` for the other two, so the claim is that
@@ -84,7 +84,7 @@ final class Ask {
 }
 
 Card $card = new Card();
-callable $closure = fn (): int => { return 1; };
+callable $callable = fn (): int => { return 1; };
 bytes $binary = "ab" as bytes;
 array<array<int>> $nested = [[1], [2]];
 object $shape = {a: 1};
@@ -94,12 +94,12 @@ Core\Time\Duration $duration = 30s;
 array<string> $empty = [];
 ?string $noFirst = Core\Arr::first($empty);
 
-// Eight kinds, none of them `null`: a user object, a closure, `bytes`, a
+// Eight kinds, none of them `null`: a user object, a callable, `bytes`, a
 // container of containers, an anonymous shape, a `Core` instance built from
-// `rule:types/duration`'s duration literal, an enum case, and a `?T` binding that is
+// a `rule:types/duration` duration like `1h`, an enum case, and a `?T` binding that is
 // holding one. Every one must be refused by all four spellings.
 array<mixed> $values = [
-    $card, $closure, $binary, $nested, $shape, $duration, Suit::Clubs, $present,
+    $card, $callable, $binary, $nested, $shape, $duration, Suit::Clubs, $present,
 ];
 
 int $agreed = 0;

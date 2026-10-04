@@ -8,7 +8,7 @@ Core\Arr's five numeric folds give one answer over any one-entry subject and thr
 // separate answers. A member that grew its own empty case, or its own
 // ordering, would still answer plausibly on its own line and fails here.
 //
-// A closure cannot be called through the variable holding it (`nvs-ir` gap 1),
+// A callable cannot be called through the variable holding it (`nvs-ir` gap 1),
 // so each per-subject question is a static method called directly.
 class Fold {
     // `min` and `max` answer `?T`, so absence is spelled out rather than

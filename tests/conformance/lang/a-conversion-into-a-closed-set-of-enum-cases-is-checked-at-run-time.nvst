@@ -11,7 +11,7 @@ enum Mode {
 
 class Gate {
     // § 3's subset over an operand only known at run time. The test is the
-    // same one a set of `int` literals gets, run one representation down: a
+    // same one a set of allowed `int` values gets, run one representation down: a
     // case *is* its integer (`rule:enums/no-class-machinery`), so the comparison is over the
     // enum's backing type and the throw names the cases rather than them.
     public static function narrow(Mode $m): string {

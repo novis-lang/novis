@@ -22,7 +22,7 @@ class Counter {
         return $x + $by;
     }
 
-    // A closure with no `static` in front, which does not use `$this`.
+    // An anonymous function with no `static` in front, which does not use `$this`.
     public function scaler(int $by): callable {
         return fn(int $x): int => $x * $by;
     }

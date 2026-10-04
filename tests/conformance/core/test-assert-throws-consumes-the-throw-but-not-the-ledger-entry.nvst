@@ -11,8 +11,8 @@
 // both spellings look identical from the throw alone.
 //
 // The bodies are named static methods so each row runs one piece of code
-// rather than a re-spelling of it; a first-class `Class::method(...)`
-// reference does not exist yet, so the `callable` is a `fn` literal calling
+// rather than a re-spelling of it; a method reference `Class::method(...)`
+// does not exist yet, so the `callable` is an anonymous function calling
 // one.
 
 final class Ran {

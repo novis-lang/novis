@@ -21,8 +21,8 @@
 //
 // The bodies are named static methods for the reason
 // `test-assert-throws-is-bounded-on-both-sides-of-the-class-it-names.nvst`
-// gives -- a first-class `Class::method(...)` reference does not exist yet, so
-// each row's `callable` is a `fn` literal calling one.
+// gives -- a method reference `Class::method(...)` does not exist yet, so
+// each row's `callable` is an anonymous function calling one.
 
 final class Ask {
     // The verdict as a `bool` rather than as control flow. A refusal is a
@@ -60,7 +60,7 @@ final class Ran {
         throw new ArithmeticError("the divisor is zero");
     }
 
-    // The throw crosses a closure frame before it reaches the one
+    // The throw crosses an anonymous function's frame before it reaches the one
     // `call_callable` is watching, which is the edge a member reading its own
     // frame rather than the pending throw would part company on.
     public static function nested(): void {

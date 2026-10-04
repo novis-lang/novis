@@ -14,7 +14,7 @@
   "guardedBy": [
     "crates/nvs-stdlib/tests/html_later.rs",
     "tests/conformance/core/html-later-assembles-the-page-in-place-whatever-order-the-slots-finish.nvst",
-    "tests/conformance/reject/html-later-closure-cannot-change-the-response-head.nvst",
+    "tests/conformance/reject/html-later-anonymous-function-cannot-change-the-response-head.nvst",
     "crates/nvs-server/src/slotted/tests.rs",
     "tools/nv/test/html-later-polyfill.test.ts"
   ]

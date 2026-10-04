@@ -1,5 +1,5 @@
 --TEST--
-a `require`'s path literal is a link to the file the graph walk resolved it to, quotes included, `rule:ide/the-request-set-is-closed`, `rule:statements/require-is-the-only-inclusion-construct`
+the string literal a `require` takes as its path is a link to the file the graph walk resolved it to, quotes included, `rule:ide/the-request-set-is-closed`, `rule:statements/require-is-the-only-inclusion-construct`
 --FILE--
 <?nvs
 require 'lib.nvs';

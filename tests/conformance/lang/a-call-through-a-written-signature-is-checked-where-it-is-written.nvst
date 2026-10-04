@@ -9,7 +9,7 @@ string $joined = $join(2, "x");
 echo $joined, "\n";
 
 // `rule:types/callable-arity`: what the value holds may declare fewer
-// parameters than the type names, and the runtime hands that closure only the
+// parameters than the type names, and the runtime hands that callable only the
 // ones it declares — so the call site still passes what the *type* names.
 callable(int): int $seven = fn (): int => 7;
 echo $seven(1), "\n";

@@ -48,7 +48,7 @@ $db->transaction(fn (Transaction $work): void => {
 });
 echo "committed ", Names::total($db), "\n";
 
-// The member's answer is its closure's at every depth, so a value computed
+// The member's answer is its callable's at every depth, so a value computed
 // three levels down leaves as the `uint` it was declared — no `mixed`, and no
 // annotation at any of the three call sites.
 uint $deep = $db->transaction(fn (Transaction $one): uint =>

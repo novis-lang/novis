@@ -16,7 +16,7 @@ Integer `+`, `-`, `*` and unary `-` answer one step inside their type's bound an
 // `Throwable`, so a refusal raised as any other class would leave this case
 // with an uncaught throw instead of a mismatched line. Each is a
 // `public static function` because a case is top-level statements and a
-// closure holding the sweep would not lower (`rule:classes/no-free-functions-or-constants`).
+// anonymous function holding the sweep would not lower (`rule:classes/no-free-functions-or-constants`).
 final class Edge {
     public static function add(int $a, int $b): string {
         try {

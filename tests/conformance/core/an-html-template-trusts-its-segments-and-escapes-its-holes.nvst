@@ -1,0 +1,36 @@
+--TEST--
+An html template's segments are written as the author typed them and every hole goes through the escape — `rule:core-classes/html-template`
+--FILE--
+<?nvs
+// The whole rule in one line: the segment is source, so its `&` stands; the
+// hole is data, so its `&` and its angle brackets become references. This is
+// the rule `<?= ?>` already follows, written as an expression.
+var $name = "ada & <grace>";
+echo html`<b>ada & co</b>: {$name}`, "\n";
+
+// The hole grammar is the double-quoted string's, both halves of it: a bare
+// `$name` interpolates in PHP's simple syntax, and it escapes exactly as the
+// braced form does — the spelling of the hole says nothing about its trust.
+echo html`<i>$name</i>`, "\n";
+
+// A braced hole's body is a full expression closed by the matching brace, and
+// what it computes is escaped whatever it was computed from.
+var $tail = "<z>";
+echo html`<p>{$name . $tail}</p>`, "\n";
+
+// The result is a `Core\Html\Markup`, so it composes with the other trusted
+// fragments rather than being escaped a second time on the way into them.
+Core\Html\Markup $cell = html`<td>{$name}</td>`;
+echo $cell + ("<td>plain</td>" as Core\Html\Markup), "\n";
+
+// And escaping is not idempotent, which is why the carrier exists: text that
+// already reads as a reference is escaped again, because that is what the
+// author's data said.
+var $already = "&amp;";
+echo html`<p>{$already}</p>`, "\n";
+--EXPECT--
+<b>ada & co</b>: ada &amp; &lt;grace&gt;
+<i>ada &amp; &lt;grace&gt;</i>
+<p>ada &amp; &lt;grace&gt;&lt;z&gt;</p>
+<td>ada &amp; &lt;grace&gt;</td><td>plain</td>
+<p>&amp;amp;</p>

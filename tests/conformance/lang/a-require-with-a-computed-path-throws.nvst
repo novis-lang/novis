@@ -19,7 +19,7 @@ try {
     echo "value form threw\n";
 }
 
-// A literal path is loaded while compiling, so this one runs.
+// A path given as a string literal is loaded while compiling, so this one runs.
 require 'lib/setup.nvs';
 --FILE lib/setup.nvs--
 <?nvs

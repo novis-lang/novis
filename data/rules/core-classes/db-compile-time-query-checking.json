@@ -13,6 +13,6 @@
   ],
   "guardedBy": [
     "tests/conformance/core/db-stream-is-checked-while-compiling-like-every-other-statement.nvst",
-    "tests/conformance/core/db-open-refuses-a-settings-literal-that-names-no-driver.nvst"
+    "tests/conformance/core/db-open-refuses-a-settings-object-that-names-no-driver.nvst"
   ]
 }

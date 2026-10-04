@@ -6,10 +6,10 @@
 // before anything fires is a memory one: each registration replaces the last,
 // so the reference the context dropped has to go with it. A registration that
 // only ever retained — the easy half of `Ctx::set_limit_handler` to write —
-// leaks one closure per call and passes every case that counts what ran.
+// leaks one callable per call and passes every case that counts what ran.
 //
 // Asserted by counting rather than read off a line: the loop registers a fresh
-// capturing closure each turn under a ceiling far below what a thousand leaked
+// capturing anonymous function each turn under a ceiling far below what a thousand leaked
 // ones would hold, so a tree that leaks them does not print a wrong number, it
 // dies at `rule:errors/on-limit`'s `FATAL` partway through.
 int $registered = 0;
@@ -20,7 +20,7 @@ while ($registered < 1000) {
 }
 echo "registered=", $registered, "\n";
 
-// Still exactly one handler in force, and still not run: the thousand closures
+// Still exactly one handler in force, and still not run: the thousand callables
 // above captured a 16 KiB string each and none of them printed it.
 Core\Fatal::onLimit(fn (): void => { echo "the last one\n"; });
 echo "done\n";

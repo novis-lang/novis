@@ -1,0 +1,17 @@
+--TEST--
+An unterminated html template is `E0002`, named at the backtick that opened it rather than at the end of the file — `rule:core-classes/html-template`
+--FILE--
+<?nvs
+// The template adds no diagnostic of its own: `E0002` is the code an
+// unterminated string, heredoc and interpolation already carry, and a fourth
+// code for a fourth delimiter would be three spellings of one mistake.
+// What matters is the span — a run to end of file is only useful if it names
+// where the run started.
+var $open = html`<p>never closed;
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0002]: unterminated html template
+  --> case.nvs:7:13
+%A

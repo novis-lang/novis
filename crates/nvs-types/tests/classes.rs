@@ -852,7 +852,7 @@ fn check_written_class_names(
 #[test]
 fn a_written_class_name_conversion_names_a_class_that_can_be_loaded() {
     let (diags, module) = check_written_class_names(
-        "class-literal-loads.nvs",
+        "written-class-name-loads.nvs",
         "class<Shop\\Animal> $dog = 'Shop\\Dog' as class<Shop\\Animal>;\n\
          ?class<Shop\\Animal> $again = (\"Shop\\\\Dog\") as ?class<Shop\\Animal>;\n",
     );
@@ -867,7 +867,7 @@ fn a_written_class_name_conversion_names_a_class_that_can_be_loaded() {
 #[test]
 fn a_written_class_name_conversion_naming_an_unknown_class_does_not_compile() {
     let (diags, _module) = check_written_class_names(
-        "class-literal-unknown.nvs",
+        "written-class-name-unknown.nvs",
         "var $a = 'Shop\\Wolf' as class<Shop\\Animal>;\n\
          var $b = 'Shop\\Wolf' as ?class<Shop\\Animal>;\n\
          var $c = 'Dog' as class<Shop\\Animal>;\n\
@@ -888,7 +888,7 @@ fn a_written_class_name_conversion_naming_an_unknown_class_does_not_compile() {
 #[test]
 fn a_written_class_name_conversion_naming_a_class_that_is_not_a_t_does_not_compile() {
     let (diags, module) = check_written_class_names(
-        "class-literal-outside.nvs",
+        "written-class-name-outside.nvs",
         "var $a = 'Shop\\Rock' as class<Shop\\Animal>;\n\
          var $b = 'Shop\\Rock' as ?class<Shop\\Animal>;\n\
          var $c = Shop\\Rock::class as class<Shop\\Animal>;\n",
@@ -913,7 +913,7 @@ fn a_written_class_name_conversion_naming_a_class_that_is_not_a_t_does_not_compi
 #[test]
 fn a_class_string_built_at_run_time_still_sees_only_loaded_classes() {
     let (diags, module) = check_written_class_names(
-        "class-literal-run-time.nvs",
+        "written-class-name-run-time.nvs",
         "class Names { const BIRD = 'Shop\\Bird'; }\n\
          string $name = 'Shop\\Bird';\n\
          var $a = $name as ?class<Shop\\Animal>;\n\

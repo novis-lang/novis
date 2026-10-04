@@ -7,7 +7,7 @@ A script that ended with `Core\Script::finish()` is an ordinary end, so its `Cor
 // `FATAL` each run none of it, because the host is about to report that status
 // and script running over it would lose one of the two. A finish arrives on the
 // same path a throw does and is *not* that — the handler is done answering, not
-// failing — so the queue drains and the deferred closure runs.
+// failing — so the queue drains and the deferred callable runs.
 Core\Task::afterResponse(fn (): void => {
     echo "then the receipt\n";
 });

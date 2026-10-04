@@ -1,5 +1,5 @@
 --TEST--
-A shape proves its own fields and nothing else: field order in a literal does not change the type, an object with more fields satisfies it, a name it does not list is read off the object at run time and throws only where that object has none, an optional field is proven in type and not in presence, and `==` stays identity — `rule:types/shape-type`
+A shape proves its own fields and nothing else: field order in an anonymous object does not change the type, an object with more fields satisfies it, a name it does not list is read off the object at run time and throws only where that object has none, an optional field is proven in type and not in presence, and `==` stays identity — `rule:types/shape-type`
 --FILE--
 <?nvs
 // covers: lang:expressions/anonymous-objects
@@ -10,11 +10,11 @@ A shape proves its own fields and nothing else: field order in a literal does no
 // proving the whole object would stop throwing on the erased read.
 //
 // The field order block is the type's own identity. `{y: 2, x: 1}` and
-// `{x: 1, y: 2}` are one shape, so the second literal satisfies `Point`
+// `{x: 1, y: 2}` are one shape, so the second anonymous object satisfies `Point`
 // and both encode to the same JSON.
 //
 // `==` is identity for every object (`rule:expressions/object-identity-equality`), which
-// the two literals holding equal fields ask about. The alias asks the same
+// the two anonymous objects with equal fields ask about. The alias asks the same
 // question from the other side: one object under two names, where a write
 // through either is read through both.
 type Point = {x: int, y: int};

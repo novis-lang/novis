@@ -71,7 +71,7 @@ echo Core\Str::join(Core\Arr::keys(Core\Arr::sort($list,
 //
 // What is left bare is an **option bag's** callback, and there the same
 // mistake is still the runtime's to catch: `nvs_runtime::call_callable` checks
-// each argument against the tags the closure declared, so a callback writing
+// each argument against the tags the callable declared, so a callback writing
 // `int $k` throws `LogicError` — `rule:types/conversion` has no implicit
 // `string` → `int` conversion, and the only widening it does admit runs the
 // other way. Both counters are incremented from inside the same five blocks,

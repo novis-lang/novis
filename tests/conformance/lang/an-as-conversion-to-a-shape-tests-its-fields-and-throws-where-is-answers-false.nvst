@@ -46,7 +46,7 @@ echo Box::wide("text"), "\n";
 echo Box::wide(null), "\n";
 
 // A field holding an `int` is not a `float` field. The shape reads its slot as
-// a `float`, so both an object literal and a class instance fail the test.
+// a `float`, so both an anonymous object and a class instance fail the test.
 var $made = {w: 2};
 echo Box::wide($made), "\n";
 echo Box::wide(new Whole(2)), "\n";

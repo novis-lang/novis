@@ -13,6 +13,6 @@
   "guardedBy": [
     "tests/conformance/error/a-method-that-only-throws-satisfies-its-return-type.nvst",
     "tests/conformance/reject/a-bare-return-is-refused-where-the-declaration-is-not-void.nvst",
-    "tests/conformance/reject/a-hook-and-a-block-bodied-closure-owe-a-value-at-every-exit.nvst"
+    "tests/conformance/reject/a-hook-and-a-block-bodied-anonymous-function-owe-a-value-at-every-exit.nvst"
   ]
 }

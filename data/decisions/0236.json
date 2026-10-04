@@ -8,7 +8,7 @@
     "0054"
   ],
   "dependsOnText": "[0036](0036.md) (shape types and object literals), [0007](0007.md) and [0054](0054.md) (the\n`int` → `float` widening is the one implicit conversion).",
-  "validatedBy": "`tests/conformance/lang/a-shape-literal-at-a-declared-shape-takes-the-declared-field-types.nvst`\nand `tests/conformance/reject/an-existing-int-shape-field-does-not-widen-to-float.nvst`.",
+  "validatedBy": "`tests/conformance/lang/an-anonymous-object-at-a-declared-shape-takes-the-declared-field-types.nvst`\nand `tests/conformance/reject/an-existing-int-shape-field-does-not-widen-to-float.nvst`.",
   "summary": {
     "group": "types",
     "headline": "Whole numbers in `float` shape fields",

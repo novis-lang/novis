@@ -1,12 +1,12 @@
 --TEST--
-`Core\Task::afterResponse` runs its closure after the request's own execution, in registration order — `rule:concurrency/after-response-outlives-the-connection` and `rule:concurrency/deferred-is-bounded-by-two-directives`
+`Core\Task::afterResponse` runs its callable after the request's own execution, in registration order — `rule:concurrency/after-response-outlives-the-connection` and `rule:concurrency/deferred-is-bounded-by-two-directives`
 --FILE--
 <?nvs
-// § 6: "The closure runs after the response is fully written." A CLI run has no
+// § 6: "The callable runs after the response is fully written." A CLI run has no
 // response for anything to be *after*, so the request's own frame returning is
 // when that is, and `nvs_runtime::deferred` is the one home for why all three
 // hosts read the section the same way. The whole assertion here is *order*: a
-// member that ran the closure at the registration would print `receipt sent`
+// member that ran the callable at the registration would print `receipt sent`
 // first, and one that only stored it would never print it at all.
 Core\Task::afterResponse(fn (): void => {
     echo "receipt sent\n";
@@ -21,13 +21,13 @@ Core\Task::afterResponse(fn (): void => {
 });
 
 // § 7's `deadline` is the only option a deferred call takes: `limit` shapes
-// concurrency and one closure has none. It is also the bound `[limits]
+// concurrency and one callable has none. It is also the bound `[limits]
 // wall_time` stops being, the client no longer being on the other end of it.
 Core\Task::afterResponse(fn (): void => {
     echo "then the reindex, under a deadline\n";
 }, {deadline: 30s});
 
-// Registering neither consumes the closure nor freezes it: it stays a
+// Registering neither consumes the callable nor freezes it: it stays a
 // `callable` the program holds, so this one runs twice — once where it is
 // called and once where it was deferred to.
 var $twice = fn (): void => { echo "twice\n"; };

@@ -1,8 +1,8 @@
 --TEST--
-A call on a variable whose type can never be a closure does not compile, which refuses PHP's variable function — `rule:types/callable-values`
+A call on a variable whose type can never be a callable does not compile, which refuses PHP's variable function — `rule:types/callable-values`
 --FILE--
 <?nvs
-// `rule:types/callable-values`: only a closure is callable, so a
+// `rule:types/callable-values`: only a callable can be called, so a
 // `string` holding a function's name is refused where it is called.
 string $name = "Zoë";
 string $function = 'strlen';

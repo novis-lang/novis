@@ -25,7 +25,7 @@ Note::say("concat") . "x";
 true ? Note::say("ternary") : Note::say("never");
 match (1) { 1 => Note::say("match"), default => Note::say("never") };
 [Note::say("array")];
-// `rule:types/anonymous-object`: a statement-initial `{` is a block, so the literal is
+// `rule:types/anonymous-object`: a statement-initial `{` is a block, so the anonymous object is
 // parenthesized — which changes nothing about what the statement means.
 ({v: Note::say("shape")});
 (Note::say("paren"));

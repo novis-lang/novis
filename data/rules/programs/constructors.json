@@ -12,7 +12,7 @@
   ],
   "guardedBy": [
     "tests/conformance/core/program-constructors-builds-each-class-with-the-arguments-you-pass.nvst",
-    "tests/conformance/core/program-constructors-make-is-an-ordinary-closure.nvst",
+    "tests/conformance/core/program-constructors-make-is-an-ordinary-callable.nvst",
     "tests/conformance/reject/program-constructors-names-the-class-whose-constructor-does-not-fit.nvst",
     "crates/nvs-types/src/program.rs"
   ]

@@ -1,0 +1,33 @@
+--TEST--
+Only `{$` opens a hole in an html template, so a `<style>` block's braces and a `{` before anything else are text — `rule:core-classes/html-template`
+--FILE--
+<?nvs
+// The hole grammar is the double-quoted string's and nothing is added to it,
+// so a CSS block needs no escape at all — its braces are ordinary bytes.
+echo html`<style>.badge{color:red}</style>`, "\n";
+
+// A brace before anything that is not `$` is text, which is what keeps a
+// template language's own syntax from meaning anything here.
+echo html`<p>{not a hole} {{ }}</p>`, "\n";
+
+// A hole must begin with `$`, so a static call is text exactly as it is in a
+// double-quoted string — PHP's limitation, kept rather than grown into a
+// second interpolation grammar. The compiler warns at the brace (`W1012`),
+// since a page printing this text is the template habit gone wrong; the
+// bytes stay text, and `<?= … ?>` is the hole that takes the call.
+var $amount = "12.50";
+echo html`<p>{Money::format($amount)} is {$amount}</p>`, "\n";
+
+// `\{` is the one spelling that wants a literal brace ahead of a name, and
+// `\$` is the double-quoted string's own escape for the name itself.
+echo html`<p>\{\$amount} stays written</p>`, "\n";
+
+// A literal backtick in the body is `\``, since the backtick is the closing
+// delimiter — the delimiter is free because Novis has no shell-execution form.
+echo html`<code>a \` backtick</code>`, "\n";
+--EXPECT--
+<style>.badge{color:red}</style>
+<p>{not a hole} {{ }}</p>
+<p>{Money::format(12.50)} is 12.50</p>
+<p>{$amount} stays written</p>
+<code>a ` backtick</code>

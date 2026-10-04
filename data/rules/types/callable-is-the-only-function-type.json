@@ -15,7 +15,7 @@
   "guardedBy": [
     "crates/nvs-types/tests/callable.rs",
     "crates/nvs-syntax/src/parser/tests/expr.rs",
-    "tests/conformance/closures/bind-bindto-and-call-rebind-this-to-the-same-class-or-a-subclass.nvst",
-    "tests/conformance/reject/a-closure-rebind-takes-one-object-and-no-scope.nvst"
+    "tests/conformance/callables/bind-bindto-and-call-rebind-this-to-the-same-class-or-a-subclass.nvst",
+    "tests/conformance/reject/a-callable-rebind-takes-one-object-and-no-scope.nvst"
   ]
 }

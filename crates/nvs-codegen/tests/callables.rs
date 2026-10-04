@@ -118,7 +118,7 @@ fn a_mismatched_argument_throws_a_logic_error_out_of_the_core_member_that_called
     // the call site saw what this callable requires and
     // `nvs_runtime::call_callable` is the only thing that can refuse the
     // argument. Caught as `LogicError` specifically, which is the half
-    // `tests/conformance/lang/a-closure-argument-is-checked-against-its-parameter-type.nvst`
+    // `tests/conformance/lang/an-argument-to-an-anonymous-function-is-checked-against-its-parameter-type.nvst`
     // cannot pin: it catches `Throwable`, and the widening row beside this one
     // throws `ArithmeticError` past 2^53 — a `Throwable` catch cannot tell the
     // two apart.

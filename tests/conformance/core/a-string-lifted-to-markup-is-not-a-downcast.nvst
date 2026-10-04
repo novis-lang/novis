@@ -3,7 +3,7 @@
 --FILE--
 <?nvs
 // The lift builds a `Markup` out of bytes the developer wrote. Nothing is
-// tested, because a source-literal `string` is trusted by the rule rather than
+// tested, because a string literal is trusted by the rule rather than
 // by a descriptor comparison — which is what makes this the one `Core` target
 // decided by a rule rather than by a test. A computed operand is refused where
 // it is written, and `markup-refuses-a-computed-operand-and-a-half-markup-sum`

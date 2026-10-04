@@ -1,5 +1,5 @@
 --TEST--
-`Core\Attributes::all` answers every attached literal satisfying the shape written at the call, in declaration order, at a class, a property, a method and a parameter alike, and a computed `$member` folds to the empty result rather than to the roster the same text names (`rule:attributes/structural-retrieval` and `rule:attributes/retrieval-folds-while-checking`)
+`Core\Attributes::all` answers every attached payload object satisfying the shape written at the call, in declaration order, at a class, a property, a method and a parameter alike, and a computed `$member` folds to the empty result rather than to the roster the same text names (`rule:attributes/structural-retrieval` and `rule:attributes/retrieval-folds-while-checking`)
 --FILE--
 <?nvs
 // covers: lang:attributes/reading-attributes-back-core-attributes-get-and-all
@@ -37,8 +37,8 @@ class Names {
     }
 }
 
-// Each roster read whole. A bare literal and a named one are both answers, and
-// the wider `{name, weight}` literal on the class satisfies the narrower `Tag`.
+// Each roster read whole. A bare anonymous object and a named one are both answers, and
+// the wider `{name, weight}` object on the class satisfies the narrower `Tag`.
 echo "class: ", Names::of(Core\Attributes::all<Tag>(Target::constructor(...))), "\n";
 echo "property: ", Names::of(Core\Attributes::all<Tag>(Target::constructor(...), "rows")), "\n";
 echo "method: ", Names::of(Core\Attributes::all<Tag>(Target::run(...))), "\n";
@@ -61,7 +61,7 @@ if (Core\Attributes::get<Tag>(Target::constructor(...), $computed) == null) { $a
 if (Core\Attributes::get<{missing: int}>(Target::constructor(...)) == null) { $agreed = $agreed + 1; }
 if (Core\Arr::count(Core\Attributes::all<{missing: int}>(Target::run(...))) == 0) { $agreed = $agreed + 1; }
 
-// The empty shape is satisfied by every attached literal, so it answers the
+// The empty shape is satisfied by every attached payload object, so it answers the
 // whole roster wherever it is asked.
 if (Core\Arr::count(Core\Attributes::all<{}>(Target::constructor(...))) == 2) { $agreed = $agreed + 1; }
 if (Core\Arr::count(Core\Attributes::all<{}>(Target::run(...), "id")) == 1) { $agreed = $agreed + 1; }

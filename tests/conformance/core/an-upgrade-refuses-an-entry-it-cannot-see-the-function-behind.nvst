@@ -8,7 +8,7 @@ class Chat {
 
 string $room = "lobby";
 
-// `rule:security/isolate-shares-nothing` refuses an `fn` literal because the same literal one keyword away
+// `rule:security/isolate-shares-nothing` refuses an anonymous function because the same syntax one keyword away
 // in `spawn worker` *does* capture its enclosing scope, and an isolate shares
 // nothing but compiled code -- so one spelling with two meanings is what the
 // refusal exists to prevent. This one reads `$room`, which is exactly the

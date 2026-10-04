@@ -1,5 +1,5 @@
 --TEST--
-Core\Db::open asks `db.open` about the host a settings literal wrote, and then puts the address it resolves to through the denied ranges in full — the check a `connect`-named endpoint is exempt from, `rule:core-classes/db-capabilities` and `rule:security/net-address-policy`
+Core\Db::open asks `db.open` about the host a settings object wrote, and then puts the address it resolves to through the denied ranges in full — the check a `connect`-named endpoint is exempt from, `rule:core-classes/db-capabilities` and `rule:security/net-address-policy`
 --FILE--
 <?nvs
 // The host this deployment does not grant. The refusal is the capability's,

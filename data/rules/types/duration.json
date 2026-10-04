@@ -13,8 +13,8 @@
     "types/integer-literals"
   ],
   "guardedBy": [
-    "tests/conformance/lang/duration-literal-and-parse-share-one-grammar.nvst",
-    "tests/conformance/reject/a-duration-literal-follows-one-grammar.nvst",
+    "tests/conformance/lang/a-written-duration-and-parse-share-one-grammar.nvst",
+    "tests/conformance/reject/a-duration-follows-one-grammar.nvst",
     "tests/conformance/reject/a-duration-unit-is-lower-case-only.nvst",
     "tests/conformance/core/time-duration-round-trips-through-parse-exactly-where-the-grammar-has-a-spelling.nvst"
   ]

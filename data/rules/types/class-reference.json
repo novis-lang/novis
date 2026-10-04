@@ -23,8 +23,8 @@
     "tests/conformance/reject/a-written-class-name-outside-the-hierarchy-is-refused-under-the-nullable-conversion-too.nvst",
     "crates/nvs-ir/tests/class_reference.rs",
     "crates/nvs-types/tests/classes.rs",
-    "tests/conformance/lang/class-literal-conversion-is-decided-while-compiling.nvst",
-    "tests/conformance/reject/class-literal-conversion-names-an-unknown-class.nvst",
-    "tests/conformance/reject/class-literal-conversion-names-a-class-that-is-not-a-t.nvst"
+    "tests/conformance/lang/a-written-class-name-conversion-is-decided-while-compiling.nvst",
+    "tests/conformance/reject/a-written-class-name-conversion-names-an-unknown-class.nvst",
+    "tests/conformance/reject/a-written-class-name-conversion-names-a-class-that-is-not-a-t.nvst"
   ]
 }

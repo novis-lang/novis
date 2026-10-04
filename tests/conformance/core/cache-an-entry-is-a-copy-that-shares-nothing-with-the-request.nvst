@@ -36,12 +36,12 @@ var $again = $cache->get("note") as Note;
 echo "again=", $again->text, "\n";
 
 // § 2: a cached value is subject to the same restrictions as any crossing
-// value, because it *is* the same copy — so a closure, which captures a heap
+// value, because it *is* the same copy — so a callable, which captures a heap
 // and a scope, is refused here exactly as it is at the isolate boundary.
 var $fn = fn(): int => 1;
 try {
-    $cache->put("closure", $fn);
-    echo "stored a closure\n";
+    $cache->put("callable", $fn);
+    echo "stored a callable\n";
 } catch (LogicError $error) {
     echo $error->message, "\n";
 }

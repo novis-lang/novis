@@ -19,7 +19,7 @@ try {
     });
     Markup $fast = Core\Html::later(fn(): Markup => html`<p>Shop items</p>`);
 
-    // A `later` inside a `later` closure is filled in the same pass.
+    // A `later` inside a `later` callable is filled in the same pass.
     Markup $outer = Core\Html::later(fn(): void => {
         echo html`<div>`, Core\Html::later(fn(): Markup => html`<p>Comments</p>`), html`</div>`;
     });

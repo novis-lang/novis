@@ -6,5 +6,5 @@
     "0169"
   ],
   "dependsOnText": "[0169](0169.md) for the literal and its `{$…}` holes.",
-  "validatedBy": "`tests/conformance/core/a-markup-literal-takes-an-output-tag-hole-for-any-expression.nvst`\nand the reject cases beside it."
+  "validatedBy": "`tests/conformance/core/an-html-template-takes-an-output-tag-hole-for-any-expression.nvst`\nand the reject cases beside it."
 }

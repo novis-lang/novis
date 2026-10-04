@@ -1,0 +1,56 @@
+--TEST--
+A checked `as` into a set of allowed values tests membership at run time and throws naming the set — `rule:types/single-value-types`
+--FILE--
+<?nvs
+// covers: lang:types/nullable-union-single-value-and-enum-case-types
+class Mode {
+    // § 4's checked row: `mixed` into a closed set throws unless the value
+    // equals one of the named values. It never *converts* to reach one —
+    // an `int` operand is a miss even where the set names its digits.
+    public static function pick(mixed $raw): string {
+        try {
+            "a"|"b"|"c" $mode = $raw as "a"|"b"|"c";
+            return "picked " . $mode;
+        } catch (Throwable $e) {
+            return "threw: " . $e->message;
+        }
+    }
+
+    // The same row over allowed `int` values, off a statically typed operand: § 5
+    // says the set is the only thing that costs anything, and it costs one
+    // comparison per member either way.
+    public static function level(int $n): string {
+        try {
+            1|2|3 $level = $n as 1|2|3;
+            return "level " . $level;
+        } catch (Throwable $e) {
+            return "threw: " . $e->message;
+        }
+    }
+
+    // § 4's free rows, which is what "zero additional runtime representation"
+    // buys: the checker settled this conversion by itself (an operand outside
+    // the set would be `E0469` and never run), and widening the result back to
+    // its base is the same value again.
+    public static function settled(): string {
+        "a"|"b" $mode = "a" as "a"|"b";
+        string $widened = $mode;
+        return $widened;
+    }
+}
+
+echo Mode::pick("a"), "\n";
+echo Mode::pick("c"), "\n";
+echo Mode::pick("z"), "\n";
+echo Mode::pick(1), "\n";
+echo Mode::level(2), "\n";
+echo Mode::level(9), "\n";
+echo Mode::settled(), "\n";
+--EXPECT--
+picked a
+picked c
+threw: `"z"` is not one of `"a"`, `"b"`, `"c"`
+threw: `1` is not one of `"a"`, `"b"`, `"c"`
+level 2
+threw: `9` is not one of `1`, `2`, `3`
+a

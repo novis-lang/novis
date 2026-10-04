@@ -7,7 +7,7 @@ Core\Arr::reduce over an empty subject is the seed returned unchanged with no ca
 // only assertable by handing the fold a *landmine* — a callback that throws the
 // moment it is called — since a callback that merely returns its carry would
 // leave the two indistinguishable. Every callback here is written inline: the
-// first-class callable spelling `Fold::boom(...)` panics nvs-ir outright, so a
+// method reference syntax `Fold::boom(...)` panics nvs-ir outright, so a
 // case cannot name one landmine and reuse it.
 array<int> $nums = [1, 2, 3, 4];
 

@@ -293,7 +293,7 @@ fn completion_offers_the_options_of_later() {
 #[test]
 fn completion_in_a_written_class_name_offers_every_class_autoload_can_load() {
     let root = std::env::temp_dir().join(format!(
-        "nvs-completion-class-literal-{}",
+        "nvs-completion-written-class-name-{}",
         std::process::id()
     ));
     let _ = std::fs::remove_dir_all(&root);

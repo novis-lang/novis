@@ -96,7 +96,7 @@ class Help {
     }
 }
 
-// § 4's method spelling: a first-class-callable reference names the method the
+// § 4's method spelling: a method reference names the method the
 // `#[Command]` is attached to.
 ?{name: string} $deployName = Core\Attributes::get<{name: string}>(Deploy::deploy(...));
 ?{about: string} $deployAbout = Core\Attributes::get<{about: string}>(Deploy::deploy(...));

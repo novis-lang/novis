@@ -88,7 +88,7 @@ Person $q = clone $p;
 $q->first = "Grace";
 echo $p->first, " ", $q->first, " ", Person::class, "\n";
 
-// A closure in place of `__invoke`.
+// An anonymous function in place of `__invoke`.
 callable $twice = fn(int $x): int => $x * 2;
 echo $twice(4), "\n";
 

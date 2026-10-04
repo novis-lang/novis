@@ -8,7 +8,7 @@
 // plain literal is enough to show it.
 //
 // The sequence is built from code points rather than written as "\e": § 1's
-// second mechanism makes an `ESC` in a source literal a compile error, so a
+// second mechanism makes an `ESC` in a string literal a compile error, so a
 // computed sequence is the only path left to run time, and it is also the
 // attack the ADR's *Context* names — a title report, `ESC ] 0 ; … BEL`, which
 // is CVE-2022-46387's shape.

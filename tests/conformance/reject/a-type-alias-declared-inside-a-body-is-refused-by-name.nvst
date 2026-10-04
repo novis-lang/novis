@@ -1,5 +1,5 @@
 --TEST--
-a `type` alias written in a method body, a block or a closure body is `E0233` naming the alias, the same refusal a nested class gets — `rule:types/type-alias`
+a `type` alias written in a method body, a block or an anonymous function's body is `E0233` naming the alias, the same refusal a nested class gets — `rule:types/type-alias`
 --FILE--
 <?nvs
 // `rule:types/type-alias`: `type` is a file- and namespace-scope declaration
@@ -22,9 +22,9 @@ if (true) {
     type InABlock = int;
 }
 
-// A closure body is a body like any other.
+// An anonymous function's body is a body like any other.
 callable $f = fn (): int => {
-    type InAClosure = int;
+    type InAnAnonymousFunction = int;
     return 1;
 };
 

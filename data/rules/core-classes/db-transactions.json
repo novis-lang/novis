@@ -14,8 +14,8 @@
     "errors/propagation"
   ],
   "guardedBy": [
-    "tests/conformance/core/db-transaction-answers-what-its-closure-answers.nvst",
-    "tests/conformance/core/db-transaction-hands-its-closure-a-transaction-and-not-a-connection.nvst",
+    "tests/conformance/core/db-transaction-answers-what-its-callable-answers.nvst",
+    "tests/conformance/core/db-transaction-hands-its-callable-a-transaction-and-not-a-connection.nvst",
     "tests/conformance/core/db-a-sqlite-transaction-nests-as-a-savepoint.nvst",
     "tests/conformance/core/db-a-roll-back-survives-a-catch-of-throwable.nvst",
     "tests/conformance/core/db-roll-back-belongs-to-the-transaction-and-not-the-connection.nvst"

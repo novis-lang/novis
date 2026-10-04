@@ -15,7 +15,7 @@
   ],
   "guardedBy": [
     "tests/conformance/core/a-double-is-passed-where-its-interface-is-taken.nvst",
-    "tests/conformance/core/a-double-answers-with-its-closures.nvst",
+    "tests/conformance/core/a-double-answers-with-its-callables.nvst",
     "tests/conformance/core/a-partial-delegates-what-it-does-not-override.nvst",
     "tests/conformance/reject/a-double-missing-a-method-is-refused.nvst",
     "tests/conformance/reject/a-double-declaring-a-method-the-interface-lacks-is-refused.nvst",

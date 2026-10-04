@@ -56,7 +56,7 @@ echo "onlyA is Alpha|Beta: ", (new OnlyA() as mixed) is Alpha|Beta ? "yes" : "no
 echo "float is int|string|float: ", (1.5 as mixed) is int|string|float ? "yes" : "no", "\n";
 echo "float is int|string|bool: ", (1.5 as mixed) is int|string|bool ? "yes" : "no", "\n";
 
-// `?int` is the two-member union it interns as, and a literal member is the
+// `?int` is the two-member union it interns as, and a single-value member is the
 // tag-then-payload row inside a chain.
 echo "null is ?int: ", (null as mixed) is ?int ? "yes" : "no", "\n";
 echo "7 is ?int: ", (7 as mixed) is ?int ? "yes" : "no", "\n";

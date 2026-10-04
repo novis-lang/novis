@@ -11,7 +11,7 @@ echo Core\Out::capture(
     {through: fn (Core\Cli\Text $t): Core\Cli\Text => Core\Cli\Text::plain(Core\Str::upper($t->text()))}
 ), "\n";
 
-// The filter sees everything the closure wrote, in order and joined, including
+// The filter sees everything the callable wrote, in order and joined, including
 // what a nested capture re-emitted into it.
 echo Core\Out::capture(
     fn (): void => {
@@ -22,7 +22,7 @@ echo Core\Out::capture(
     {through: fn (Core\Cli\Text $t): Core\Cli\Text => Core\Cli\Text::plain("<" . $t->text() . ">")}
 ), "\n";
 
-// A closure that wrote nothing is still handed a carrier, and it reads as the
+// A callable that wrote nothing is still handed a carrier, and it reads as the
 // empty string rather than as `null`.
 echo Core\Out::capture(
     fn (): void => {},

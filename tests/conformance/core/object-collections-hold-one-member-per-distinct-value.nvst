@@ -54,8 +54,8 @@ foreach ($tags as Tag $tag) {
 }
 echo $map->count(), " ", $map->get($tags["1"]) ?? -1, " ", $map->get(new Tag("x")) ?? -1, "\n";
 
-// A closure is an object, so two identical `fn` literals are two members and
-// a copy of one closure value is not a second.
+// A callable is an object, so two identical anonymous functions are two members and
+// a copy of one callable value is not a second.
 Core\ObjectSet<callable> $callbacks = new Core\ObjectSet<callable>();
 callable $double = fn(int $n): int => $n * 2;
 callable $alias = $double;

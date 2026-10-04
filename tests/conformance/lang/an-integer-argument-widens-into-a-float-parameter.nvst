@@ -1,5 +1,5 @@
 --TEST--
-An `int` or `uint` argument widens into a closure's `float` parameter, and is refused past 2^53 — `rule:types/conversion` and `rule:types/arithmetic`, `rule:types/anonymous-function`
+An `int` or `uint` argument widens into an anonymous function's `float` parameter, and is refused past 2^53 — `rule:types/conversion` and `rule:types/arithmetic`, `rule:types/anonymous-function`
 --FILE--
 <?nvs
 // `rule:types/conversion`: an `int` or `uint` in a `float` position is the one implicit
@@ -8,11 +8,11 @@ An `int` or `uint` argument widens into a closure's `float` parameter, and is re
 // `nvs_runtime::call_callable` applies it where it would otherwise refuse.
 callable $half = fn (float $f): float => $f / 2.0;
 
-// Agreement, not one answer: the same closure and the same argument through
+// Agreement, not one answer: the same callable and the same argument through
 // `$fn(...)` and through a `Core` member's callback. A widening that lived in
 // one caller would still print plausibly on the other's line. `map`'s callback
 // declares its signature (`rule:types/callable-signature`), which a bare
-// `callable` does not satisfy, so it reaches the member through a literal that
+// `callable` does not satisfy, so it reaches the member through an anonymous function that
 // forwards to it.
 array<int> $ints = [7];
 array<mixed> $mapped = Core\Arr::map($ints, fn (int $n) => $half($n));

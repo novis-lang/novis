@@ -1,5 +1,5 @@
 --TEST--
-a `Core\Attributes` retrieval reads its target and its written member name syntactically, so a target that is only a `callable` value and a member name naming no declaration are both refused where they are written, and `get` refuses a shape two attached literals satisfy (`rule:attributes/structural-retrieval` and `rule:attributes/retrieval-folds-while-checking`)
+a `Core\Attributes` retrieval reads its target and its written member name syntactically, so a target that is only a `callable` value and a member name naming no declaration are both refused where they are written, and `get` refuses a shape two attribute payload objects satisfy (`rule:attributes/structural-retrieval` and `rule:attributes/retrieval-folds-while-checking`)
 --FILE--
 <?nvs
 // covers: lang:attributes/reading-attributes-back-core-attributes-get-and-all
@@ -44,7 +44,7 @@ callable $reference = Target::run(...);
 // it. Neither of the class's two rosters names `id`.
 ?Tag $wrongRoster = Core\Attributes::get<Tag>(Target::constructor(...), "id");
 
-// Two attached literals satisfy `Tag` here, and `get` answers at most one.
+// Two attribute payload objects satisfy `Tag` here, and `get` answers at most one.
 ?Tag $ambiguous = Core\Attributes::get<Tag>(Target::constructor(...));
 
 echo "unreachable\n";

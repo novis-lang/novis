@@ -18,7 +18,7 @@ int $chosen = 42;
 
 // One number, read at the call site and at the report, so the assertion is that
 // the two *agree* rather than that the report said 42. Capture is by value at
-// the literal (`rule:types/implicit-capture`) and `$chosen` is never rebound, so what the hook
+// the anonymous function (`rule:types/implicit-capture`) and `$chosen` is never rebound, so what the hook
 // holds is what the `exit` below is handed.
 Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
     string $named = match ($report->reason()) {

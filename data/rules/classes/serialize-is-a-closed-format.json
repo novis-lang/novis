@@ -13,7 +13,7 @@
     "classes/definite-property-initialization"
   ],
   "guardedBy": [
-    "tests/conformance/core/serialize-refuses-a-closure-and-foreign-bytes-by-name.nvst",
+    "tests/conformance/core/serialize-refuses-a-callable-and-foreign-bytes-by-name.nvst",
     "tests/conformance/reject/serialize-decode-refuses-a-tainted-operand.nvst"
   ]
 }

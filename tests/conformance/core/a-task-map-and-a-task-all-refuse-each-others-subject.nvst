@@ -1,8 +1,8 @@
 --TEST--
-`Core\Task::map` and `Core\Task::all` are two jobs, not two spellings of one: a shape literal is not an `array` and an array literal is not a written-out shape — `rule:concurrency/all-answers-a-typed-shape` and `rule:concurrency/map-preserves-keys-and-order`
+`Core\Task::map` and `Core\Task::all` are two jobs, not two spellings of one: an anonymous object is not an `array` and an array literal is not a written-out shape — `rule:concurrency/all-answers-a-typed-shape` and `rule:concurrency/map-preserves-keys-and-order`
 --FILE--
 <?nvs
-// § 2: "a shape literal cannot express *one per element of a runtime array*
+// § 2: "an anonymous object cannot express *one per element of a runtime array*
 // and an array cannot carry a per-element type". That is the argument for two
 // members rather than one, and this case is the argument stated as a pair of
 // refusals — each member handed the other's subject.

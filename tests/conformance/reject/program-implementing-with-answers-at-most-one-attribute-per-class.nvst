@@ -1,5 +1,5 @@
 --TEST--
-two attached literals on one implementor's member satisfying the shape are `E0728` naming that class, since each row's `attribute` holds at most one, `rule:programs/implementing-with`
+two attribute payload objects on one implementor's member satisfying the shape are `E0728` naming that class, since each row's `attribute` holds at most one, `rule:programs/implementing-with`
 --FILE--
 <?nvs
 interface Page {

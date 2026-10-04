@@ -1,5 +1,5 @@
 --TEST--
-a `|>` whose right side is first-class callable syntax is refused, and the note names PHP 8.5's operator — `rule:expressions/pipeline-hole-once`'s E0129
+a `|>` whose right side is a method reference is refused, and the note names PHP 8.5's operator — `rule:expressions/pipeline-hole-once`'s E0129
 --FILE--
 <?nvs
 // rule:expressions/pipeline-substitution — this `|>` substitutes a hole where

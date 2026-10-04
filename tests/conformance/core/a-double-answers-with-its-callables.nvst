@@ -1,0 +1,59 @@
+--TEST--
+Every method of a double answers from its own callable, arguments and all, and two doubles of one interface answer apart — `rule:testing/doubles`, `rule:types/anonymous-function`
+--FILE--
+<?nvs
+// covers: Core\Test::double, Core\Test::partial
+// The question here is not whether a double *is* the interface but what it
+// answers with: each field of the shape is the body of the method it names, so
+// a method with parameters is handed them and a callable that computes is what
+// computes.
+interface Mailer {
+    public function send(string $to, string $subject): bool;
+    public function outbox(): uint;
+}
+
+Mailer $sent = Core\Test::double<Mailer>({
+    send: fn(string $to, string $subject): bool => $to != "" && $subject != "",
+    outbox: fn(): uint => 3,
+});
+
+// Both arguments arrive, in the order the call wrote them, and the callable's
+// own expression is the answer.
+echo $sent->send("ada@example.test", "welcome") ? "sent" : "refused", "\n";
+echo $sent->send("", "welcome") ? "sent" : "refused", "\n";
+echo $sent->outbox() as string, "\n";
+
+// A second double of the same interface is the same class — one descriptor per
+// call site — and still answers with its own callables, so nothing about the
+// shared class is shared state.
+Mailer $broken = Core\Test::double<Mailer>({
+    send: fn(string $to, string $subject): bool => false,
+    outbox: fn(): uint => 0,
+});
+echo $broken->send("ada@example.test", "welcome") ? "sent" : "refused", "\n";
+echo $broken->outbox() as string, "\n";
+
+// A partial's overridden method answers from its callable by the same route:
+// what differs between the two members is only what happens to a method the
+// shape left out.
+final class RealMailer implements Mailer {
+    public function send(string $to, string $subject): bool {
+        return true;
+    }
+
+    public function outbox(): uint {
+        return 99;
+    }
+}
+
+Mailer $half = Core\Test::partial<Mailer>(new RealMailer(), {
+    outbox: fn(): uint => 7,
+});
+echo $half->outbox() as string, "\n";
+--EXPECT--
+sent
+refused
+3
+refused
+0
+7

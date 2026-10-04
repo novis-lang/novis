@@ -11,7 +11,7 @@
 // than reading the flag word, which is `crates/nvs-stdlib/src/cli.rs`'s own
 // business and not the language's.
 class Bag {
-    // The bag is a shape literal with fixed keys, so a sweep over the five
+    // The bag is an anonymous object with fixed keys, so a sweep over the five
     // attributes passes all five every time and varies which are `true`.
     public static function flags(
         bool $bold,

@@ -1,5 +1,5 @@
 --TEST--
-A double whose shape of closures names a method its interface does not declare is refused — `rule:testing/doubles`, `rule:types/shape-type`
+A double whose shape of callables names a method its interface does not declare is refused — `rule:testing/doubles`, `rule:types/shape-type`
 --FILE--
 <?nvs
 // ADR 0079 § 10's second refusal, and the one that catches a renamed member:

@@ -1,11 +1,11 @@
 --TEST--
-Every `Core\Task::all` field answers what its own callable declares, so a written literal, a first-class callable, a shape held in a variable and a bare `callable` all compile and only the last one widens — `rule:concurrency/all-answers-a-typed-shape`, `rule:types/callable-signature`
+Every `Core\Task::all` field answers what its own callable declares, so an anonymous function, a method reference, a shape held in a variable and a bare `callable` all compile and only the last one widens — `rule:concurrency/all-answers-a-typed-shape`, `rule:types/callable-signature`
 --FILE--
 <?nvs
 // `Core\Task::all`'s result is a shape carrying each field's own return type,
 // and `rule:types/callable-signature` is what puts that type within a *type's*
 // reach: the field is read off the argument's type rather than off the
-// expression written at the call, so where the closure was written stopped
+// expression written at the call, so where the callable was written stopped
 // mattering.
 //
 // This is the agreement shape (`docs/agent/conventions.md`): four different
@@ -18,7 +18,7 @@ class Held {
     }
 }
 
-// A written literal and a first-class callable both carry a signature, so both
+// An anonymous function and a method reference both carry a signature, so both
 // fields are typed by what that signature returns.
 var $page = Core\Task::all({
     literal:    fn(): int => 1,

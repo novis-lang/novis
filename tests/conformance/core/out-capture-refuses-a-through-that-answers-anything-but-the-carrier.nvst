@@ -1,11 +1,11 @@
 --TEST--
-`Core\Out::capture` accepts exactly one of the answers a `through` closure can give and names what each of the others was — spec § 12, `rule:security/capture-answers-the-carrier` and `rule:types/anonymous-function`
+`Core\Out::capture` accepts exactly one of the answers a `through` callable can give and names what each of the others was — spec § 12, `rule:security/capture-answers-the-carrier` and `rule:types/anonymous-function`
 --FILE--
 <?nvs
 // `rule:security/capture-answers-the-carrier` makes `capture` answer the sink's *carrier*, and § 12's
 // `{through:}` a transform over it. A `callable` is opaque as to signature
 // (`rule:types/anonymous-function`), so nothing static stands between that option and what the
-// closure actually answers: this check is the whole of the guarantee behind
+// callable actually answers: this check is the whole of the guarantee behind
 // the member's declared `Core\Cli\Text` return, and it is `Core\Out`'s only
 // refusal.
 final class Impostor {
@@ -14,7 +14,7 @@ final class Impostor {
 
 array<string> $labels = ["a"];
 
-// Every shape a `through` can answer, the carrier first. A closure cannot be
+// Every shape a `through` can answer, the carrier first. A callable cannot be
 // *called* through the variable holding it, but handing one to a `Core`
 // member's `callable` option is the runtime's own call and does work — which
 // is what lets this be a sweep rather than eight copies of one block.
@@ -71,7 +71,7 @@ try {
 
 // The sink below is untouched by any of it, and an omitted `through` is not a
 // refused one — the option defaults to `Const::Null` rather than to an
-// identity closure, and that arm never reaches the check at all.
+// identity callable, and that arm never reaches the check at all.
 echo Core\Out::capture(fn (): void => { echo "no filter"; }), "\n";
 --EXPECT--
 written

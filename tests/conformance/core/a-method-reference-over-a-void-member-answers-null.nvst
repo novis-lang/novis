@@ -1,0 +1,58 @@
+--TEST--
+A `callable` naming a `void` member runs it and answers `null`, over a static target, an instance one and a `Core` member alike — `rule:types/callable-values`, `rule:types/anonymous-function` and `rule:types/implicit-capture`
+--FILE--
+<?nvs
+// `rule:types/anonymous-function` makes `callable` the only function type, so a `void` member's
+// `(...)` produces the same object every other one produces and is called the
+// same way. What it hands *back* is the question this case asks. A `void`
+// frame returns nothing at all, so the caller reads the null its own out slot
+// started as — one answer, rather than a second no-value representation for a
+// program to test for.
+class Counter {
+    public int $n;
+
+    public function constructor() {
+        $this->n = 0;
+    }
+
+    public function bump(int $by): void {
+        $this->n = $this->n + $by;
+    }
+
+    public static function announce(string $what): void {
+        echo "announce ", $what, "\n";
+    }
+}
+
+// A static `void` target: the called class is baked in, the body runs, and
+// nothing comes back.
+callable $announce = Counter::announce(...);
+mixed $said = $announce("open");
+echo $said == null ? "null\n" : "not null\n";
+
+// An instance `void` target captures its receiver by value (`rule:types/implicit-capture`), so
+// what the call mutates is the object the `(...)` saw — a `void` member is
+// called for exactly that, and losing it would be invisible in the answer.
+Counter $c = new Counter();
+callable $bump = $c->bump(...);
+mixed $bumped = $bump(4);
+$bump(3);
+echo $c->n, "\n";
+echo $bumped == null ? "null\n" : "not null\n";
+
+// A Tier 0 `Core` member is native Rust behind a helper symbol, which is the
+// thunk's *other* calling convention — it borrows what the thunk staged rather
+// than taking it — and it answers the same nothing.
+Core\ObjectSet<int> $set = new Core\ObjectSet<int>();
+callable $add = $set->add(...);
+mixed $added = $add(7);
+$add(9);
+echo $set->count(), "\n";
+echo $added == null ? "null\n" : "not null\n";
+--EXPECT--
+announce open
+null
+7
+null
+2
+null

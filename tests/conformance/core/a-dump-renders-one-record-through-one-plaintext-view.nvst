@@ -32,7 +32,7 @@ class Point {
 }
 echo Core\Debug::render(new Point(1, 2)), "\n";
 
-// `rule:types/implicit-capture`: a closure has no user-visible state, so it renders as the
+// `rule:types/implicit-capture`: a callable has no user-visible state, so it renders as the
 // signature it declares rather than as an object full of captures.
 echo Core\Debug::render(fn (int $n): int => $n), "\n";
 echo Core\Debug::render(fn (int $a, int $b): int => $a + $b), "\n";

@@ -1,5 +1,5 @@
 --TEST--
-A call to an `abstract static` method is refused where the class it is called on is fixed while compiling — a written class name, and `self::` inside a closure — because no override can be reached from there, `rule:statements/static-is-a-member-modifier`
+A call to an `abstract static` method is refused where the class it is called on is fixed while compiling — a written class name, and `self::` inside an anonymous function — because no override can be reached from there, `rule:statements/static-is-a-member-modifier`
 --FILE--
 <?nvs
 abstract class Page {

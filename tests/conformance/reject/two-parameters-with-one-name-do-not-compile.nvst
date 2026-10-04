@@ -1,5 +1,5 @@
 --TEST--
-two parameters of one name are `E0107` in a method, a block closure and an arrow function alike
+two parameters of one name are `E0107` in a method, a block-bodied anonymous function and an arrow function alike
 --FILE--
 <?nvs
 // Each parameter in one list needs its own name.

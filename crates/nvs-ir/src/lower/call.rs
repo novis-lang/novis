@@ -830,7 +830,7 @@ impl<'a> Lowering<'a> {
     /// inhabitant, a callable object, so `$f(...)` already names the value a reference
     /// to `$f` would have to produce and the answer is that callable itself —
     /// which is also PHP's, pinned by
-    /// `tests/differential/lang/a-first-class-callable-of-a-closure-matches-phps.nvst`.
+    /// `tests/differential/lang/a-method-reference-of-a-callable-matches-phps.nvst`.
     /// It is handed on as a fresh owner: one retain where the callee borrowed a
     /// slot this frame does not own, and none where the callee already produced
     /// one, which is [`Self::aliasing_read`]'s judgment everywhere else in this

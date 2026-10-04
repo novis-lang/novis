@@ -4,9 +4,9 @@ A partial whose real object is another partial answers what it overrides, forwar
 <?nvs
 // covers: Core\Test::partial
 // Each level overrides a different method, so one call is answered by the
-// outer closure, one by the inner closure and one by the real object. A
+// outer callable, one by the inner callable and one by the real object. A
 // partial wrapping a partial with the same override reuses the inner one's
-// class, and still answers from its own closure.
+// class, and still answers from its own callable.
 interface Prices {
     public function rate(int $n): int;
     public function total(int $n): int;

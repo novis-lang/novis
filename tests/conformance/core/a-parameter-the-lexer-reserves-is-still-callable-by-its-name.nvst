@@ -1,12 +1,12 @@
 --TEST--
-a `Core` parameter whose spec name is a reserved word is callable by that name — `fn:` in argument position is a name, and an `fn` literal beside it is still a closure (`rule:core-api/shape-rules` R2)
+a `Core` parameter whose spec name is a reserved word is callable by that name — `fn:` in argument position is a name, and an anonymous function beside it is still a callable (`rule:core-api/shape-rules` R2)
 --FILE--
 <?nvs
 // `docs/spec/01-core-library.md` § 6 writes `Core\Arr::map(array<T> $a,
 // callable $fn): array<U>`, so R2's "every parameter is callable by the spec's
 // $name" makes `fn:` a name here. The `:` is the whole disambiguation: nothing
 // else in argument position is a keyword followed by one, so the value on the
-// same line can be an `fn` literal without either reading being in doubt.
+// same line can be an anonymous function without either reading being in doubt.
 array<string> $shouted = Core\Arr::map(fn: fn (string $w): string => Core\Str::upper($w), a: ["ab", "cd"]);
 echo Core\Str::join($shouted, "-"), "\n";
 
@@ -19,7 +19,7 @@ array<string> $letters = ["a", "b", "c"];
 echo Core\Str::join(Core\Arr::filter(predicate: fn (string $w): bool => $w != "b", a: $letters), ""), "\n";
 
 // § 5's `replaceWith` names its third parameter `$fn` too, and its callback is
-// a closure written into the argument the name fills.
+// an anonymous function written into the argument the name fills.
 echo Core\Regex::replaceWith(fn: fn (Core\Regex\Match $m): string => "<" . $m->text() . ">",
     pattern: "\\d+", subject: "a1b22c"), "\n";
 --EXPECT--

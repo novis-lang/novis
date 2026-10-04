@@ -35,8 +35,8 @@ echo Core\Arr::count($ok) as string, "\n";
 // § 4: retrieval is structural, so `T` has to be a shape.
 ?int $scalar = Core\Attributes::get<int>(Twice::constructor(...));
 
-// § 4: the target is a first-class-callable reference, inspected where it is
-// written — a closure value names no declaration.
+// § 4: the target is a method reference, inspected where it is written —
+// an anonymous function names no declaration.
 callable $fn = fn (): int => 1;
 ?Route $computed = Core\Attributes::get<Route>($fn);
 

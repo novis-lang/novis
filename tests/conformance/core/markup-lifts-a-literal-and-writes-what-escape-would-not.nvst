@@ -1,8 +1,8 @@
 --TEST--
-`as Core\Html\Markup` lifts a source literal into the carrier the HTML sink writes raw — ADR 0024 §§ 3 and 5
+`as Core\Html\Markup` lifts a string literal into the carrier the HTML sink writes raw — ADR 0024 §§ 3 and 5
 --FILE--
 <?nvs
-// § 5: a `Markup` is the sink's only raw-write bypass, and `as` on a source
+// § 5: a `Markup` is the sink's only raw-write bypass, and `as` on a string
 // literal is the way one is obtained — the class is memberless, so there is no
 // constructor to reach instead.
 var $m = "<b>bold</b>" as Core\Html\Markup;

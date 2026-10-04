@@ -15,7 +15,7 @@
   "guardedBy": [
     "tests/conformance/core/db-settings-are-checked-against-the-one-arm-they-select.nvst",
     "tests/conformance/core/db-settings-require-the-keys-of-the-arm-they-select.nvst",
-    "tests/conformance/core/db-open-refuses-a-settings-literal-that-names-no-driver.nvst",
+    "tests/conformance/core/db-open-refuses-a-settings-object-that-names-no-driver.nvst",
     "crates/nvs-types/src/expr/args.rs"
   ]
 }

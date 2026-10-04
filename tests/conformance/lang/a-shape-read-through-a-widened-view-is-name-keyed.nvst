@@ -25,7 +25,7 @@ var $point = {x: 1, y: 2};
 echo $point->x, " ", $point->y, "\n";
 
 // The same value through the narrower view, both as a binding and as a
-// literal written straight into the argument.
+// anonymous object written straight into the argument.
 echo View::y($point), "\n";
 echo View::y({x: 10, y: 20}), "\n";
 

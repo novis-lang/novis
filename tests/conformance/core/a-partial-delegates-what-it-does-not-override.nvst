@@ -4,7 +4,7 @@ A partial answers the methods its shape names and delegates every other one to t
 <?nvs
 // covers: Core\Test::partial, Core\Test::double
 // The delegation is the claim: `total` is overridden and `rate` is not, so one
-// answer comes from the closure and the other from the object behind the
+// answer comes from the callable and the other from the object behind the
 // double — including the state that object holds, which is what makes the
 // forward a real call rather than a re-implementation.
 interface Prices {
@@ -33,7 +33,7 @@ Prices $fixed = Core\Test::partial<Prices>($real, {
     total: fn(uint $items): uint => $items,
 });
 
-// Overridden: the closure answers, and the real `total` — which would have
+// Overridden: the callable answers, and the real `total` — which would have
 // said 20 for one item — never runs.
 echo $fixed->total(1) as string, "\n";
 echo $fixed->total(4) as string, "\n";

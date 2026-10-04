@@ -1,5 +1,5 @@
 --TEST--
-`Core\Router::url`'s two compile errors: a literal name no `#[Route]` claims, and a `$params` that does not cover the path's captures — `rule:routing/link-name-and-params-are-checked`
+`Core\Router::url`'s two compile errors: a route name given as a string literal that no `#[Route]` claims, and a `$params` that does not cover the path's captures — `rule:routing/link-name-and-params-are-checked`
 --FILE--
 <?nvs
 // One route, named, with one required capture. § 5's scan reaches this class

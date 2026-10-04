@@ -11,7 +11,7 @@ Core\Arr::isList and Core\Json::encode's array test are one predicate, so the me
 // list test of its own would still answer plausibly on its own line and shows
 // up here as a `!` that no row is allowed to print.
 //
-// A closure cannot be called through the variable holding it (`nvs-ir` gap 1),
+// A callable cannot be called through the variable holding it (`nvs-ir` gap 1),
 // so the question is a static method called directly.
 class Ask {
     // `L` when both say list, `m` when both say map, `!` when they parted.

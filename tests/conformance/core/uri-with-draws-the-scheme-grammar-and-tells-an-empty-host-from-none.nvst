@@ -62,8 +62,8 @@ echo "emptied+path ", $emptiedPath->toString(), " host=[", $emptiedPath->host() 
 echo "absent+path  ", $absentPath->toString(), " host=[", $absentPath->host() ?? "NULL", "]\n";
 
 // A host outside § 3.2.2 is refused where a host outside § 3.1 was: a space is
-// a byte the URI grammar does not admit, and brackets are IP-literal syntax
-// rather than a name that happens to contain them.
+// a byte the URI grammar does not admit, and brackets in a host only ever
+// enclose an IP address, never a name.
 array<string> $badHosts = ["h ost", "[nope]"];
 foreach ($badHosts as string $badHost) {
     try {

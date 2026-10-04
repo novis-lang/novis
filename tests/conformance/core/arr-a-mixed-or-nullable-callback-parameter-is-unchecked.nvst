@@ -1,9 +1,9 @@
 --TEST--
-A `mixed` or `?T` closure parameter admits every argument, so a Core\Arr callback declaring one is never refused while its non-nullable twin always is — `rule:types/conversion`, `rule:types/arrays`
+A `mixed` or `?T` parameter of an anonymous function admits every argument, so a Core\Arr callback declaring one is never refused while its non-nullable twin always is — `rule:types/conversion`, `rule:types/arrays`
 --FILE--
 <?nvs
 // The depth claim is *a bound asserted on both sides*. `nvs_runtime` checks a
-// closure's arguments against the tags the closure declared, and the tag it
+// callable's arguments against the tags the callable declared, and the tag it
 // compares is the parameter's **representation**, not its declared type: a
 // `?T` and a `mixed` both erase to one tagged slot, which admits every tag by
 // construction (`nvs_ir::lower::param_tag_nibble`'s own doc comment owns why).

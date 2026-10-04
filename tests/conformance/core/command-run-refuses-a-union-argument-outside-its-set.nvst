@@ -2,7 +2,7 @@
 `Core\Command::run` refuses a word its parameter's union does not declare, and says every word that would have been accepted — `rule:tooling/commands-are-compiled`
 --FILE--
 <?nvs
-// The other side of `command-run-converts-a-union-of-literals-argument-by-its-word`,
+// The other side of `command-run-converts-a-set-of-allowed-values-argument-by-its-word`,
 // and the half § 6 argues the conversion's *shape* from: a command line is a
 // person typing, so a refusal is worth raising only if it says what to type
 // instead. That is why `nvs_types::commands::ArgConv::OneOf` carries the words

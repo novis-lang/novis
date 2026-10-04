@@ -1,0 +1,32 @@
+--TEST--
+An html template with no holes carries exactly the bytes `as Core\Html\Markup` would lift from the same source text — `rule:core-classes/html-template`
+--FILE--
+<?nvs
+// The two spellings of a trusted fragment answer the same carrier over the
+// same bytes: the template is the ordinary one in expression position, and the
+// lift stays for a literal already held in an initializer.
+Core\Html\Markup $written = html`<span class="badge">new</span>`;
+Core\Html\Markup $lifted = "<span class=\"badge\">new</span>" as Core\Html\Markup;
+echo Core\Html::toSource($written, "comparing the template with the lift"), "\n";
+echo Core\Html::toSource($lifted, "comparing the lift with the template"), "\n";
+
+// Nothing in a hole-free template is escaped — every byte of it is the author's
+// markup, including the five characters the sink escapes in data.
+echo html`<p>a & b, 'q' > "p"</p>`, "\n";
+
+// It is a `Markup` and not bytes that print the same, so it composes with the
+// lift and with itself.
+echo $written + $lifted, "\n";
+
+// A template is scanned for `{$` and its closing delimiter and nothing else, so
+// a fragment need not balance: an opening tag and a closing tag are two
+// ordinary templates, which is what lets a page be composed from pieces.
+Core\Html\Markup $open = html`<ul>`;
+Core\Html\Markup $close = html`</ul>`;
+echo $open + $written + $close, "\n";
+--EXPECT--
+<span class="badge">new</span>
+<span class="badge">new</span>
+<p>a & b, 'q' > "p"</p>
+<span class="badge">new</span><span class="badge">new</span>
+<ul><span class="badge">new</span></ul>

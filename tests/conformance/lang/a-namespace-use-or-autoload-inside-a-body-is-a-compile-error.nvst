@@ -15,7 +15,7 @@ class Outer {
 if (true) {
     type Handle = int;
 }
-// A closure body is a body like any other. The statement form is the only one
+// An anonymous function body is a body like any other. The statement form is the only one
 // — `namespace Inner { … }` is `E0243` wherever it is written — so what this
 // asks about is the position, not the spelling.
 callable $f = fn (): int => {

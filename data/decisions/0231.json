@@ -8,7 +8,7 @@
     "0211"
   ],
   "dependsOnText": "[0008](0008.md) (`static` marks a class member and keeps its PHP meanings),\n[0144](0144.md) (`static::class` is a run-time read of the called class a frame holds),\n[0211](0211.md) (`static::` in a closure is refused).",
-  "validatedBy": "`tests/conformance/closures/self-and-parent-in-a-closure-call-the-class-the-closure-is-written-in.nvst`.",
+  "validatedBy": "`tests/conformance/callables/self-and-parent-in-an-anonymous-function-call-the-class-the-function-is-written-in.nvst`.",
   "summary": {
     "group": "language",
     "headline": "`self::` in a closure calls the class the closure is written in",

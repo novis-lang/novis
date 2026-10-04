@@ -1,8 +1,8 @@
 --TEST--
-Spec § 4: `Core\Time\Duration::parse` is `rule:types/duration`'s second entry point into the literal's own grammar, so every refusal is a `ParseError` naming the rule it broke
+Spec § 4: `Core\Time\Duration::parse` is `rule:types/duration`'s second entry point into the grammar of a duration written in the code, so every refusal is a `ParseError` naming the rule it broke
 --FILE--
 <?nvs
-// A duration literal's refusals are compile errors, so the only place a
+// A malformed duration written in the code is a compile error, so the only place a
 // program can watch the grammar say no is `parse` -- `rule:types/duration`'s second
 // entry point into the one parser, printing the same sentence the lexer does.
 // Every row below is a rule from § 1, in the order that section states them.

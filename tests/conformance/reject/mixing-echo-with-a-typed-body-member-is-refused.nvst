@@ -27,7 +27,7 @@ class Pages
         echo " and a footer";
     }
 
-    // A closure written in the handler writes the same response, so the two
+    // An anonymous function written in the handler writes the same response, so the two
     // writers meet there too -- its body is checked inside the handler's.
     #[Core\Route(path: "/deferred", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]

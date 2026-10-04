@@ -6,7 +6,7 @@ Every form a call is written in reaches one body with one argument list, whichev
 // Agreement, not one answer: eleven spellings of one call are asked the same
 // question and counted. The class side, an object in a variable, the result of
 // another call, a `new` with no brackets around it, and the four places a
-// value holding a closure is called from all reach one body — and the last one
+// value holding a callable is called from all reach one body — and the last one
 // crosses the two halves, naming the arguments through a receiver that is
 // itself a call. A form that grew a convention of its own still prints
 // plausibly on its own line and fails the count.

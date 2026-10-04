@@ -4,7 +4,7 @@ A `Core\Heap<T>` drained by `pop` and the same table given to `Core\Arr::sort` a
 <?nvs
 // Two members implement one rule: `nvs_stdlib::ordering::compare_values` is
 // what a comparator-less `Core\Heap` sifts by and what `Core\Arr::sort`
-// permutes by, and a user closure is threaded into both. So the question
+// permutes by, and a user callable is threaded into both. So the question
 // worth asking is not what either one printed — the neighbouring cases read
 // a drained heap and a sorted array off their own lines already — but whether
 // the two **agree**, position for position. A member that grew its own

@@ -1,5 +1,5 @@
 --TEST--
-a deployment granted `net.connect` may not bind, the refusal names the endpoint it asked for, and a bind takes an address literal rather than a name — `rule:security/net-listen-is-a-separate-grant-from-net-connect`
+a deployment granted `net.connect` may not bind, the refusal names the endpoint it asked for, and a bind takes an IP address given as a string literal rather than a host name — `rule:security/net-listen-is-a-separate-grant-from-net-connect`
 --FILE--
 <?nvs
 // The other direction of the same split. This deployment may reach the

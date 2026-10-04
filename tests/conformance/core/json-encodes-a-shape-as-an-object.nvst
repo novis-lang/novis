@@ -4,7 +4,7 @@ Core\Json::encode spells an `rule:types/object-top` shape as a JSON object keyed
 <?nvs
 use Core\Json;
 
-// `rule:core-classes/derive-generates-what-is-missing`: a shape literal has no declaration to hang `#[Json\Derive]`
+// `rule:core-classes/derive-generates-what-is-missing`: an anonymous object has no declaration to hang `#[Json\Derive]`
 // on, so there is nothing to opt in and its fields *are* the document.
 echo Json::encode({order: 7}), "\n";
 

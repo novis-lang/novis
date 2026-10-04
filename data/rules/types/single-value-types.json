@@ -15,10 +15,10 @@
     "types/narrowing"
   ],
   "guardedBy": [
-    "tests/conformance/lang/a-conversion-into-a-closed-set-of-literals-is-checked-at-run-time.nvst",
-    "tests/conformance/lang/a-conversion-into-a-set-of-mixed-literal-kinds-tags-its-operand.nvst",
+    "tests/conformance/lang/a-conversion-into-a-set-of-allowed-values-is-checked-at-run-time.nvst",
+    "tests/conformance/lang/a-conversion-into-a-set-of-allowed-values-of-mixed-kinds-tags-its-operand.nvst",
     "tests/conformance/lang/a-conversion-the-operand-disproves-is-a-compile-error.nvst",
-    "tests/conformance/lang/a-true-or-false-target-is-a-literal-type-of-bool.nvst",
+    "tests/conformance/lang/a-true-or-false-target-is-a-single-value-type-of-bool.nvst",
     "crates/nvs-types/tests/single_value_types.rs"
   ]
 }

@@ -20,7 +20,7 @@
     "tests/conformance/lang/a-shape-read-through-a-widened-view-is-name-keyed.nvst",
     "tests/conformance/core/json-encodes-a-shape-as-an-object.nvst",
     "crates/nvs-types/tests/objects_and_shapes.rs",
-    "tests/conformance/lang/a-shape-literal-at-a-declared-shape-takes-the-declared-field-types.nvst",
+    "tests/conformance/lang/an-anonymous-object-at-a-declared-shape-takes-the-declared-field-types.nvst",
     "tests/conformance/reject/an-existing-int-shape-field-does-not-widen-to-float.nvst"
   ]
 }

@@ -1,5 +1,5 @@
 --TEST--
-Core\Arr::map and ::filter take a closure and leave their subject alone
+Core\Arr::map and ::filter take a callable and leave their subject alone
 --FILE--
 <?nvs
 array<int> $ns = Core\Arr::range(1, 10);

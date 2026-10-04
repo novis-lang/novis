@@ -15,6 +15,6 @@
   "guardedBy": [
     "tests/conformance/lang/the-inout-marker-is-required-at-both-ends-and-replaces-every-ampersand.nvst",
     "tests/conformance/lang/a-reference-assignment-is-a-compile-error.nvst",
-    "tests/conformance/lang/a-closure-refuses-a-by-reference-parameter.nvst"
+    "tests/conformance/lang/an-anonymous-function-refuses-a-by-reference-parameter.nvst"
   ]
 }

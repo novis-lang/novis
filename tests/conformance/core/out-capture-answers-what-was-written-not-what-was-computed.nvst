@@ -1,5 +1,5 @@
 --TEST--
-`Core\Out::capture` discards its closure's result, answers a value that outlives the next capture, closes its level on a caught throw, and runs `{through:}` after the level is already closed — spec § 12, `rule:security/capture-answers-the-carrier`
+`Core\Out::capture` discards its callable's result, answers a value that outlives the next capture, closes its level on a caught throw, and runs `{through:}` after the level is already closed — spec § 12, `rule:security/capture-answers-the-carrier`
 --FILE--
 <?nvs
 // `crates/nvs-stdlib/src/out.rs`'s module doc owns the three properties this
@@ -8,7 +8,7 @@
 // here is the behaviour at each edge of the one member: what is answered, how
 // long it lives, what happens on a throw, and when the transform runs.
 
-// The member answers what was *written*, not what was computed: the closure's
+// The member answers what was *written*, not what was computed: the callable's
 // own return value is released and never reaches the caller. A `callable` is
 // opaque as to signature (`rule:types/anonymous-function`), so a body that returns a `string` is an
 // ordinary argument here rather than a type error.

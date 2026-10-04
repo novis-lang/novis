@@ -31,7 +31,7 @@ try {
 // The absence is readable as absence and not only as an omitted key on the way
 // back out: `rule:types/shape-type` names `??` and `isset` as the spellings
 // that ask whether an optional field is there, and a hydrated shape answers
-// them the same way a shape literal that never wrote the key does. A
+// them the same way an anonymous object that never wrote the key does. A
 // `lateinit` property's unwritten slot still throws under the same guard
 // (`rule:classes/an-unwritten-property-read-throws`) — one runtime state, two
 // declarations, and only the shape's means "the subject did not carry it".

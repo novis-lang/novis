@@ -1,5 +1,5 @@
 --TEST--
-`empty($x)` is `rule:expressions/truthy-table`'s truthy table negated, including the four rows PHP has no spelling for — `bytes`, `uint`, `decimal` and a shape literal — `rule:expressions/truthy-table` and `rule:enums/truthiness`, `rule:types/string-is-utf8`
+`empty($x)` is `rule:expressions/truthy-table`'s truthy table negated, including the four rows PHP has no spelling for — `bytes`, `uint`, `decimal` and an anonymous object — `rule:expressions/truthy-table` and `rule:enums/truthiness`, `rule:types/string-is-utf8`
 --FILE--
 <?nvs
 final class Show {

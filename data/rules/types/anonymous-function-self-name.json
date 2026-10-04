@@ -11,7 +11,7 @@
     "types/callable-signature"
   ],
   "guardedBy": [
-    "tests/conformance/core/a-named-closure-recurses.nvst",
-    "tests/conformance/lang/a-self-name-recursive-call-is-checked-against-the-closures-own-parameters.nvst"
+    "tests/conformance/core/a-named-anonymous-function-recurses.nvst",
+    "tests/conformance/lang/a-self-name-recursive-call-is-checked-against-the-anonymous-functions-own-parameters.nvst"
   ]
 }

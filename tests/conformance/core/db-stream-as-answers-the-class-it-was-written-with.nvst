@@ -42,7 +42,7 @@ foreach ($db->streamAs<Person>("select id, name from people order by id", []) as
 
 // `rule:classes/no-traits` declares the member once, on `Core\Db\Queryable`, so a
 // transaction's walk is its connection's: the same statement, the same class,
-// through the receiver the closure was handed.
+// through the receiver the callable was handed.
 $db->transaction(fn (Transaction $tx): void => {
     foreach ($tx->streamAs<Person>("select id, name from people order by id desc", []) as Person $each) {
         echo "in transaction ", $each->name, "\n";

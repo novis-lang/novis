@@ -31,7 +31,7 @@ while (!$n->isEmpty()) {
 echo "|\n";
 
 // A comparator given at construction reverses it — the max-heap that
-// `SplMaxHeap` was, one closure rather than one subclass.
+// `SplMaxHeap` was, one callable rather than one subclass.
 var $d = new Core\Heap<int>(fn(int $a, int $b): int => $b - $a);
 $d->push(3);
 $d->push(7);

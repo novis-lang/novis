@@ -52,7 +52,7 @@ Adder::bump($count);
 echo Adder::sum(inout $count, 2), "\n";
 
 // Through a `callable` there is no parameter list to bind against at either
-// end: `rule:types/callable-is-the-only-function-type` keeps the type opaque and refuses an `inout` closure
+// end: `rule:types/callable-is-the-only-function-type` keeps the type opaque and refuses an `inout` anonymous function
 // parameter outright, so nothing this call can reach declares one.
 callable $f = fn (int $n): int => $n + 1;
 echo $f(inout $count), "\n";

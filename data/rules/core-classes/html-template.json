@@ -14,15 +14,15 @@
     "tooling/styling-is-a-value-not-a-grammar"
   ],
   "guardedBy": [
-    "tests/conformance/core/a-markup-literal-trusts-its-segments-and-escapes-its-holes.nvst",
-    "tests/conformance/core/a-markup-literal-with-no-holes-is-the-lift-of-the-same-bytes.nvst",
+    "tests/conformance/core/an-html-template-trusts-its-segments-and-escapes-its-holes.nvst",
+    "tests/conformance/core/an-html-template-with-no-holes-is-the-lift-of-the-same-bytes.nvst",
     "tests/conformance/core/a-markup-hole-holding-a-markup-is-spliced-and-not-escaped-again.nvst",
-    "tests/conformance/core/a-brace-before-a-non-dollar-is-text-in-a-markup-literal.nvst",
+    "tests/conformance/core/a-brace-before-a-non-dollar-is-text-in-an-html-template.nvst",
     "tests/conformance/core/html-join-composes-a-list-of-fragments-built-in-a-loop.nvst",
     "tests/conformance/core/markup-join-writes-every-fragment-with-its-separator-between.nvst",
     "tests/conformance/core/markup-join-over-an-empty-list-answers-markup-that-writes-nothing.nvst",
     "tests/conformance/core/markup-join-escapes-nothing-because-every-part-is-already-a-carrier.nvst",
-    "tests/conformance/reject/an-unterminated-markup-literal-is-named-where-it-opened.nvst",
-    "tests/conformance/reject/a-secret-value-in-a-markup-hole-is-refused.nvst"
+    "tests/conformance/reject/an-unterminated-html-template-is-named-where-it-opened.nvst",
+    "tests/conformance/reject/a-secret-value-in-an-html-template-hole-is-refused.nvst"
   ]
 }

@@ -17,7 +17,7 @@ echo "three calls wrote [", $quiet, "]\n";
 
 // A refused one is quiet for a stronger reason: the code is checked before it
 // is declared, so a refusal leaves neither a byte nor a declaration behind.
-// The `catch` inside the closure binds its own name -- repeating an enclosing
+// The `catch` inside the callable binds its own name -- repeating an enclosing
 // frame's is an ICE in the lowerer today, which the playbook owns.
 var $onRefusal = Core\Out::capture(fn (): void => {
     try {

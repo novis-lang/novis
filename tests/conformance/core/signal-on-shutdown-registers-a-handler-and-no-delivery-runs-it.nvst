@@ -2,10 +2,10 @@
 `Core\Signal::onShutdown` registers a handler, replaces it when called again, and runs neither while nothing has asked this process to stop — `rule:core-api/tier-roster`
 --FILE--
 <?nvs
-// The class is a registration and nothing else: what runs the closure is a
+// The class is a registration and nothing else: what runs the callable is a
 // delivered terminating signal reaching the request's next safepoint, and no
 // signal has been delivered to this program. So the boundary worth pinning is
-// the one a registration may not cross — handing the closure over is not
+// the one a registration may not cross — handing the callable over is not
 // allowed to call it, and a class that ran it to "check" it prints a line here
 // the expectation does not have.
 Core\Signal::onShutdown(fn (): void => {

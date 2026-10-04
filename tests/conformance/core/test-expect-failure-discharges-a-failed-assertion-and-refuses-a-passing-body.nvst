@@ -10,8 +10,8 @@
 // it is the one a member written over the throw instead of over the ledger
 // would let through.
 //
-// The `callable` is written as a `fn` literal at each call site: a block body
-// declares its return type, and a first-class `Class::method(...)` reference
+// The `callable` is written as an anonymous function at each call site: a block body
+// declares its return type, and a method reference `Class::method(...)`
 // does not exist yet, so there is no shared body to name.
 
 int $discharged = 0;

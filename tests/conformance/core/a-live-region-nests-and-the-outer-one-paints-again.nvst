@@ -2,7 +2,7 @@
 A live region nests by call nesting, and the outer one paints again once the inner has closed -- `rule:tooling/terminal-output-is-a-sink` sections 5 and 8
 --FILE--
 <?nvs
-// `rule:tooling/in-place-output-is-a-scoped-live-region` is the scoped-closure shape `Core\Out::capture` already uses,
+// `rule:tooling/in-place-output-is-a-scoped-live-region` is the scoped-callable shape `Core\Out::capture` already uses,
 // so regions nest the way calls nest: the stack is an implementation detail
 // and no program can observe an unbalanced one.
 var $depth = Core\Cli::live(fn(Core\Cli\Live $outer): string => {

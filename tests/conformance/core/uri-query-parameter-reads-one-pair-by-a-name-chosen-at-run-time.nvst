@@ -8,8 +8,8 @@
 // at run time, so it gets a member instead. The answer comes through
 // `Core\Uri::parseQuery`'s bracket walk, not a second one.
 // The brackets are written percent-encoded because RFC 3986 admits `[` only
-// in an IP-literal host, which is the same spelling `Core\Uri::buildQuery`
-// writes them in.
+// around an IP address in the host, and `Core\Uri::buildQuery` writes them
+// the same way.
 var $u = Core\Uri::parse("https://example.com/a?x=1&y=two&a%5Bb%5D=c&e=");
 
 echo $u->queryParameter("x") as bytes as string, "\n";

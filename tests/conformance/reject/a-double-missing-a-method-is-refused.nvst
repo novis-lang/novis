@@ -1,5 +1,5 @@
 --TEST--
-A double whose shape of closures leaves a method its interface requires unanswered is refused — `rule:testing/doubles`, `rule:types/shape-type`
+A double whose shape of callables leaves a method its interface requires unanswered is refused — `rule:testing/doubles`, `rule:types/shape-type`
 --FILE--
 <?nvs
 // ADR 0079 § 10's first refusal. `zone` is declared and the shape does not

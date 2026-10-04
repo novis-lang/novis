@@ -7,7 +7,7 @@ callable(int, string): string $join = fn (int $n, string $s): string => $s . $n;
 // bare `callable` this is `nvs_runtime::callable`'s per-argument tag check and
 // a `LogicError` at run time; here there is nothing left for it to decide.
 echo $join("a", "b");
-// The count is exact in this one direction: the value may hold a closure
+// The count is exact in this one direction: the value may hold a callable
 // declaring fewer parameters than the type names, so a call passing fewer can
 // leave one of *those* unfilled.
 echo $join(1);

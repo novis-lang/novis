@@ -13,7 +13,7 @@ echo Core\Path::isAbsolute($file) && Core\Path::isAbsolute($dir) ? "absolute\n" 
 echo Core\Path::normalize($dir) == Core\Path::dirname(Core\Path::normalize($file))
     ? "same folder\n" : "different folder\n";
 
-// A relative literal is added to the folder, with `.` and `..` removed.
+// A relative path given as a string literal is added to the folder, with `.` and `..` removed.
 string $rates = Core\Path::thisDir('data/./rates.json');
 echo Core\Path::normalize($rates) == Core\Path::normalize(Core\Path::join($dir, 'data', 'rates.json'))
     ? "same path\n" : "different path\n";

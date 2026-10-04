@@ -8,7 +8,7 @@ Core\Arr::contains, keyOf, find, findKey and any answer one question over one gr
 // the five can only ever give one answer -- and what this case asserts is that
 // agreement rather than the five answers, which each already have a case.
 //
-// A closure cannot be called through the variable holding it (`nvs-ir` gap 1),
+// A callable cannot be called through the variable holding it (`nvs-ir` gap 1),
 // so each question is a static method called directly, and the needle is
 // captured by the predicate it builds.
 class Search {

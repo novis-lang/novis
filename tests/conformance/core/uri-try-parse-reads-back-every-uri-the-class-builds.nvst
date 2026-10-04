@@ -2,7 +2,7 @@
 Every `Core\Uri` the class can build — from `parse`, `with` and `resolve` — renders text `Core\Uri::tryParse` reads back to the same text, counted over the whole cross-product — spec § 12, `rule:expressions/try-parse`
 --FILE--
 <?nvs
-// `tryParse` is the class's own totality predicate, so it is what a closure
+// `tryParse` is the class's own totality predicate, so it is what a callable
 // property is asserted with: `toString` on anything the class builds must be
 // text the class reads, and reading it must not move it. A `with` that forgot
 // a delimiter, or a `resolve` that emitted a path a relative reference cannot

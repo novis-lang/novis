@@ -6,7 +6,7 @@ Every Core\Arr callback is offered ($value, $key) and trimmed to what it declare
 // this class one callback protocol — every callback receives `($value, $key)`
 // and may declare fewer parameters, which is what removes PHP's
 // `ARRAY_FILTER_USE_KEY`/`ARRAY_FILTER_USE_BOTH` pair — and
-// `nvs_runtime::call_callable` trims the tail to the arity the closure wrote.
+// `nvs_runtime::call_callable` trims the tail to the arity the callable wrote.
 // Four members read `nvs_runtime::callable_arity` themselves and skip building
 // a key nobody declared (`crates/nvs-stdlib/src/arr.rs`'s module doc, and
 // `docs/perf/userland-gap.md` § D); the rest always offer both. That split is
@@ -21,7 +21,7 @@ array<int> $subject = ["b" => 20, "d" => 40, "a" => 10, "c" => 30];
 array<int> $partner = ["p" => 10, "q" => 60];
 array<int> $twin = ["a" => 0, "b" => 0, "c" => 0, "d" => 0];
 
-// Each row is one member asked its own question twice: the left cell's closure
+// Each row is one member asked its own question twice: the left cell's callable
 // declares `($value)`, the right cell's declares `($value, $key)` and ignores
 // the key. `Core\Json::encode` renders whatever shape the member answers, so
 // two answers of any shape compare as one string.

@@ -14,7 +14,7 @@ if (Core\Server::isDraining()) {
 
 // Second, and the part only this case asks: registering a handler is not a way
 // to start what the handler is for. A class that began the drain when it took
-// the closure — or that kept a bit of its own for the handler to run inside —
+// the callable — or that kept a bit of its own for the handler to run inside —
 // changes the answer below, which is the same question asked again with a
 // registration between the two askings.
 Core\Signal::onShutdown(fn (): void => {
