@@ -18,9 +18,9 @@ A finding that is bounded by a small fixed ceiling, or that costs a constant fac
 passes of the checker, IR lowering of classes, and codegen's class conversion.
 
 **Found:** a long `elseif` chain is not depth-guarded and overflows the stack at 300 arms in the
-debug build, and the same chain written `else if` is refused with `E0108` at 90
-([`an-elseif-chain-is-not-depth-guarded`](../../data/gaps/nvs-syntax/an-elseif-chain-is-not-depth-guarded.json),
-checked with a probe). Quadratic in program size:
+debug build, and the same chain written `else if` is refused with `E0108` at 90 (checked with a
+probe; fixed, an `If` is now one statement with a list of arms,
+[`ast.rs`](../../crates/nvs-syntax/src/ast.rs)). Quadratic in program size:
 [`a-require-chain-is-cloned-per-file`](../../data/gaps/nvs-hir/a-require-chain-is-cloned-per-file.json),
 [`the-live-set-is-cloned-per-branch`](../../data/gaps/nvs-types/the-live-set-is-cloned-per-branch.json),
 [`flattening-a-class-dedupes-by-linear-scan`](../../data/gaps/nvs-types/flattening-a-class-dedupes-by-linear-scan.json)
