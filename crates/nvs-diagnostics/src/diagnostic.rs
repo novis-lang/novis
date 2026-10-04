@@ -11,7 +11,7 @@
 //!     .with_primary(span, "remove this call")
 //!     .with_note("Novis compiles ahead of execution, so runtime code generation \
 //!                 cannot be type-checked, cached, or sandboxed")
-//!     .with_help("restructure as a closure, a match, or a lookup table");
+//!     .with_help("restructure as an anonymous function, a match, or a lookup table");
 //! assert!(d.is_error());
 //! ```
 

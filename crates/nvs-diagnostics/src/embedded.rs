@@ -199,10 +199,10 @@ pub fn is_dir(path: &Path) -> bool {
 /// path in an ordinary `nvs`.
 ///
 /// `rule:programs/relative-paths-resolve-from-their-file` joins a relative path
-/// literal to the folder of the file that wrote it, and inside a bundle that
-/// folder is synthetic: `app.exe/src` is a directory of the payload and
-/// nothing on disk. This answers that rule's question for a bundle. A literal
-/// in `src/main.nvs` names a file under `src/` beside the executable, so a
+/// given as a string literal to the folder of the file that wrote it, and inside
+/// a bundle that folder is synthetic: `app.exe/src` is a directory of the payload
+/// and nothing on disk. This answers that rule's question for a bundle. A string
+/// literal in `src/main.nvs` names a file under `src/` beside the executable, so a
 /// bundle reads its data files from where the source tree kept them, placed
 /// next to the executable.
 #[must_use]

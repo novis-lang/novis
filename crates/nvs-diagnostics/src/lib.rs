@@ -152,12 +152,12 @@ pub mod code {
     pub const E_INVALID_UTF8: Code = Code::new("E0006").card(
         "The file is not valid UTF-8 text. Save it again with the UTF-8 encoding.",
     );
-    /// A duration literal that does not follow
+    /// A duration such as `1h30m` that does not follow
     /// `rule:types/duration`'s grammar —
     /// out of order, a repeated unit, a fractional count, or longer than
     /// `Core\Time\Duration` can hold. A unit written in the wrong case is a
     /// spelling rather than a shape, and is `E_RESERVED_SPELLING_CASE`.
-    pub const E_BAD_DURATION_LITERAL: Code = Code::new("E0007").card(
+    pub const E_BAD_DURATION: Code = Code::new("E0007").card(
         "This duration is not written correctly, or it is too long to store. Write a whole \
          number before each unit, and write the units from the largest to the smallest, each \
          unit once. For example, write `1h30m`, not `30m1h` or `1.5h`.",
@@ -181,12 +181,12 @@ pub mod code {
         "This file starts with `#!`, so it is Novis code from the first line. \
          Delete this `<?nvs` tag.",
     );
-    /// A `<?nvs` open tag inside a markup literal, whose body is one expression
+    /// A `<?nvs` open tag inside an html template, whose body is one expression
     /// and has no code mode to enter (`rule:core-classes/html-template`); the
-    /// output tag `<?= … ?>` is the hole a literal has.
-    pub const E_CODE_BLOCK_IN_MARKUP: Code = Code::new("E0010").card(
-        "A markup literal cannot contain a `<?nvs` code block. \
-         Write `<?= … ?>` to put the value of one expression into the markup.",
+    /// output tag `<?= … ?>` is the only hole a template has.
+    pub const E_CODE_BLOCK_IN_HTML_TEMPLATE: Code = Code::new("E0010").card(
+        "An html template cannot contain a `<?nvs` code block. \
+         Write `<?= … ?>` to put the value of one expression into the template.",
     );
 
     // --- E01xx parser ------------------------------------------------------
@@ -251,7 +251,7 @@ pub mod code {
         "A method name must be written in camelCase, for example `findOrder`. Rename it to the \
          name the message suggests.",
     );
-    /// A property, parameter, local variable or closure self-name is not
+    /// A property, parameter, local variable or anonymous function's self-name is not
     /// `camelCase` — `rule:core-api/identifier-casing`'s casing table, tightened by
     /// `rule:classes/no-leading-underscore-identifiers`, which allows no leading
     /// underscore at all.
@@ -289,32 +289,32 @@ pub mod code {
         "`secret` must come before `tainted`. Write `secret tainted string` or \
          `secret tainted bytes`.",
     );
-    /// A `{name: value, ...}` object literal written where `{` already
+    /// A `{name: value, ...}` anonymous object written where `{` already
     /// commits to a block — an expression-bodied `fn() => {...}`, or a bare
     /// statement-initial `{...}` — needs the same parenthesize-to-force-
     /// expression fix JavaScript uses for the identical ambiguity; see
     /// `rule:types/anonymous-object`.
-    pub const E_OBJECT_LITERAL_NEEDS_PARENS: Code = Code::new("E0117").card(
-        "An object literal in this position is read as a block of code. This happens after \
+    pub const E_ANON_OBJECT_NEEDS_PARENS: Code = Code::new("E0117").card(
+        "An anonymous object in this position is read as a block of code. This happens after \
          `fn() =>` and at the start of a statement. Put parentheses around it: \
          `({name: value})`.",
     );
-    /// `{x}` — an object literal has no shorthand; every field is written
+    /// `{x}` — an anonymous object has no shorthand; every field is written
     /// `name: value`. See `rule:types/anonymous-object`.
-    pub const E_OBJECT_LITERAL_SHORTHAND: Code = Code::new("E0118").card(
-        "An object literal has no short form for a field. Write each field as `name: value`. \
+    pub const E_ANON_OBJECT_SHORTHAND: Code = Code::new("E0118").card(
+        "An anonymous object has no short form for a field. Write each field as `name: value`. \
          For example, write `{x: $x}`, not `{x}`.",
     );
-    /// `{[$expr]: value}` — an object literal has no computed/dynamic key;
+    /// `{[$expr]: value}` — an anonymous object has no computed/dynamic key;
     /// every field name is a static identifier. See `rule:types/anonymous-object`.
-    pub const E_OBJECT_LITERAL_COMPUTED_KEY: Code = Code::new("E0119").card(
-        "A field name in an object literal cannot be computed from an expression. Write each \
+    pub const E_ANON_OBJECT_COMPUTED_KEY: Code = Code::new("E0119").card(
+        "A field name in an anonymous object cannot be computed from an expression. Write each \
          field name directly, for example `{name: value}`.",
     );
-    /// A `float` literal in type position — `rule:types/single-value-types` defers float literal
-    /// types until floating-point equality has a real answer, so `0.1` names
+    /// A `float` literal in type position — `rule:types/single-value-types` defers single-value
+    /// `float` types until floating-point equality has a real answer, so `0.1` names
     /// no type the way `1` and `"a"` do.
-    pub const E_FLOAT_LITERAL_TYPE: Code = Code::new("E0120").card(
+    pub const E_FLOAT_SINGLE_VALUE_TYPE: Code = Code::new("E0120").card(
         "A `float` value such as `0.1` cannot be used as a type. Use the type `float` and check \
          the value in your code. Or use `int` values as the type, such as `1|2|3`.",
     );
@@ -341,9 +341,9 @@ pub mod code {
     /// string literal — an interpolated `"$dir"`, a concatenation, a
     /// variable. Every path resolves at compile time, relative to the file
     /// the declaration appears in, so there is nothing to interpolate from;
-    /// see `rule:programs/autoload`, which carries `require`'s literal-only restriction for the same
-    /// reason.
-    pub const E_AUTOLOAD_PATH_NOT_LITERAL: Code = Code::new("E0123").card(
+    /// see `rule:programs/autoload`, which carries `require`'s string-literal-only restriction for
+    /// the same reason.
+    pub const E_AUTOLOAD_PATH_NOT_WRITTEN_DIRECTLY: Code = Code::new("E0123").card(
         "An `autoload` path must be a plain string, such as `\"src/\"`. It cannot contain a \
          variable or be built from parts. The path is read when the program compiles, relative \
          to this file.",
@@ -398,8 +398,8 @@ pub mod code {
          what it says as normal text.",
     );
     /// The right side of a `|>` with no `$_` in it — the help names the shape
-    /// (`Str::trim($_)`), and when the right side is first-class callable
-    /// syntax or a closure value it adds that PHP 8.5's `|>` applies a
+    /// (`Str::trim($_)`), and when the right side is a method reference
+    /// or a callable value it adds that PHP 8.5's `|>` applies a
     /// callable where this one substitutes a hole.
     /// `rule:expressions/pipeline-hole-once`: the whole affordability of
     /// sharing the spelling with PHP is that the habit is refused at the
@@ -449,7 +449,7 @@ pub mod code {
     /// before it is anything else, so the shape never reaches a declaration
     /// there; every other slot takes a bare shape fine, and the help names the
     /// `type` alias that rule's own example uses. Reported in place of
-    /// [`E_OBJECT_LITERAL_NEEDS_PARENS`] when the token after the matched `}`
+    /// [`E_ANON_OBJECT_NEEDS_PARENS`] when the token after the matched `}`
     /// is a variable, because parentheses are not the fix for this one.
     pub const E_SHAPE_TYPED_LOCAL_NEEDS_AN_ALIAS: Code = Code::new("E0134").card(
         "A variable cannot be declared with a shape type written directly in front of it. Give \
@@ -526,11 +526,11 @@ pub mod code {
          written on a class member. Use a `private static` property on the class, or pass the \
          value as a parameter.",
     );
-    /// `static function`/`static fn`: closures already capture `$this` only
-    /// if they use it, so `static` has nothing left to mean here.
-    pub const E_STATIC_CLOSURE_UNSUPPORTED: Code = Code::new("E0210").card(
-        "`static` cannot be written before a closure. A closure uses `$this` only if its body \
-         uses it, so the word is not needed. Remove `static`.",
+    /// `static function`/`static fn`: an anonymous function already captures
+    /// `$this` only if it uses it, so `static` has nothing left to mean here.
+    pub const E_STATIC_ANON_FN_UNSUPPORTED: Code = Code::new("E0210").card(
+        "`static` cannot be written before an anonymous function. An anonymous function uses \
+         `$this` only if its body uses it, so the word is not needed. Remove `static`.",
     );
     /// A PHP superglobal (`$_GET`, `$_SERVER`, `$GLOBALS`, `$argv`, …): no
     /// variable is ever populated by the host — see `rule:statements/no-host-populated-variables`.
@@ -590,25 +590,26 @@ pub mod code {
          `require`. It throws an error when the file is missing, and it runs the file every \
          time it is reached.",
     );
-    /// An anonymous `function (...) { ... }` literal, with or without a
-    /// `use` clause: `fn` is the only closure literal — see `rule:types/anonymous-function`.
-    pub const E_FUNCTION_CLOSURE_UNSUPPORTED: Code = Code::new("E0222").card(
-        "An anonymous `function (...) { ... }` is not allowed. `fn` is the only way to write a \
-         closure. Write `fn(...) => expr` for one expression, or `fn(...) => { ... }` for a \
-         block.",
+    /// An anonymous `function (...) { ... }` expression, with or without a
+    /// `use` clause: `fn` is the only anonymous function syntax — see
+    /// `rule:types/anonymous-function`.
+    pub const E_FUNCTION_EXPRESSION_UNSUPPORTED: Code = Code::new("E0222").card(
+        "An anonymous `function (...) { ... }` is not allowed. `fn` is the only way to write an \
+         anonymous function. Write `fn(...) => expr` for one expression, or `fn(...) => { ... }` \
+         for a block.",
     );
-    /// `use ($y)` on a closure literal: capture is always implicit and by
+    /// `use ($y)` on an anonymous function: capture is always implicit and by
     /// value, so there is no clause to write — see `rule:types/implicit-capture`.
-    pub const E_CLOSURE_USE_UNSUPPORTED: Code = Code::new("E0223").card(
-        "A closure has no `use` clause. It captures every outer variable its body reads, by \
-         value, automatically. Remove the `use (...)` clause.",
+    pub const E_ANON_FN_USE_UNSUPPORTED: Code = Code::new("E0223").card(
+        "An anonymous function has no `use` clause. It captures every outer variable its body \
+         reads, by value, automatically. Remove the `use (...)` clause.",
     );
-    /// `use (&$y)` on a closure literal specifically: by-reference capture
+    /// `use (&$y)` on an anonymous function specifically: by-reference capture
     /// has no replacement syntax — see `rule:types/implicit-capture`.
-    pub const E_CLOSURE_USE_BY_REF_UNSUPPORTED: Code = Code::new("E0224").card(
-        "A closure cannot capture a variable by reference, as `use (&$x)` does. A closure \
-         captures by value only. Store the shared value in an object property, and let the \
-         closure use the object.",
+    pub const E_ANON_FN_USE_BY_REF_UNSUPPORTED: Code = Code::new("E0224").card(
+        "An anonymous function cannot capture a variable by reference, as `use (&$x)` does. It \
+         captures by value only. Store the shared value in an object property, and use the \
+         object inside the function.",
     );
     /// PHP's legacy `(T)expr` cast syntax — `as` is the only conversion
     /// spelling. See `rule:types/no-legacy-cast`, which amends `rule:types/conversion`.
@@ -655,7 +656,7 @@ pub mod code {
     );
     /// A reserved lexical spelling written in anything but lower case —
     /// A reserved spelling written in a case Novis does not have: `<?NVS`
-    /// rather than `<?nvs`, and a duration literal's unit, `30S` rather than
+    /// rather than `<?nvs`, and a duration's unit, `30S` rather than
     /// `30s`. PHP matches its reserved spellings case-insensitively; Novis
     /// accepts exactly one spelling of each, so a program's meaning never
     /// depends on the case a reserved word was typed in. See
@@ -718,7 +719,7 @@ pub mod code {
     /// `rule:classes/no-dynamic-properties` keeps its runtime-throw half for the two ways a name
     /// genuinely arrives late — a reflection-based get/set, and `rule:types/erased-member-access`'s
     /// erased receiver, where the name *is* written out and only the class
-    /// behind the handle is unknown. Neither needs this spelling, and `rule:types/anonymous-object` already refuses its literal-side twin, the computed shape key
+    /// behind the handle is unknown. Neither needs this spelling, and `rule:types/anonymous-object` already refuses its anonymous-object twin, the computed key
     /// `{[$expr]: 1}`.
     ///
     /// `rule:types/property-key-access` carves out the one exception and moves the report with it:
@@ -758,7 +759,7 @@ pub mod code {
     /// The spellings refused because the language has no such thing keep
     /// their own codes and are deliberately not this one:
     /// [`E_ASSIGN_BY_REFERENCE`], [`E_ARRAY_ELEMENT_BY_REFERENCE`] and
-    /// [`E_CLOSURE_USE_BY_REF_UNSUPPORTED`] each name a rule rather than a
+    /// [`E_ANON_FN_USE_BY_REF_UNSUPPORTED`] each name a rule rather than a
     /// spelling, and `inout` is not what replaces any of them.
     pub const E_BY_REFERENCE_MARKER_RETIRED: Code = Code::new("E0237").card(
         "`&` does not mark a parameter or a variable as a reference in Novis. Write `inout` \
@@ -830,11 +831,12 @@ pub mod code {
     /// `new class { … }`: an anonymous class is a nested declaration in
     /// expression position, with no name for the static class table to hold —
     /// the same refusal a conditionally declared class gets, for the same
-    /// reason. The rewrite is a named class in the same file, or a closure
-    /// (`rule:types/anonymous-function`).
+    /// reason. The rewrite is a named class in the same file, or an anonymous
+    /// function (`rule:types/anonymous-function`).
     pub const E_ANONYMOUS_CLASS_UNSUPPORTED: Code = Code::new("E0244").card(
         "An anonymous class, `new class { ... }`, is not allowed. Declare a named class in the \
-         same file and create it with `new`. If the class has only one method, use a closure.",
+         same file and create it with `new`. If the class has only one method, use an anonymous \
+         function written with `fn`.",
     );
     /// `catch (A | B $e)`, PHP's multi-class clause. The binding carries one
     /// static type (`rule:types/declaration`'s `catch` row), so a clause naming two classes has no type to give
@@ -1009,14 +1011,14 @@ pub mod code {
          `type A = B; type B = A;`. Change one alias so that it ends in a real type, such as \
          `int` or a class.",
     );
-    /// A `require` whose path is a literal, resolved statically per
+    /// A `require` whose path is a string literal, resolved statically per
     /// `rule:statements/require-is-the-only-inclusion-construct`, but does not name a file that can be loaded as source (it
     /// does not exist, or is not valid UTF-8).
     pub const E_REQUIRE_TARGET_NOT_FOUND: Code = Code::new("E0311").card(
         "The file that `require` names cannot be loaded. It does not exist, or it is not valid \
          UTF-8 text. Check the path.",
     );
-    /// A `require` chain whose statically-resolved literal paths lead back
+    /// A `require` chain whose statically-resolved string-literal paths lead back
     /// to a file already being resolved — `require`'s own semantics (same
     /// frame, runs every time reached) give this no other resolution than a
     /// diagnostic, the same way `crate::hierarchy`'s `extends`/trait-use
@@ -1034,7 +1036,7 @@ pub mod code {
          does not add properties to an object while the program runs. Declare the property in \
          the class, or fix the name.",
     );
-    /// A `require` whose literal path resolves on disk only because the
+    /// A `require` whose string-literal path resolves on disk only because the
     /// filesystem is case-insensitive — `require 'mailer.nvs';` finding
     /// `Mailer.nvs`. Reported on Windows/macOS so the same source is not a
     /// `E_REQUIRE_TARGET_NOT_FOUND` on Linux; see
@@ -1197,7 +1199,7 @@ pub mod code {
          `as` to the type that is needed.",
     );
     /// Wrong number of arguments — including a **shape key** a member
-    /// requires and a written literal does not carry. `rule:core-api/shape-flattens-at-the-abi` flattens
+    /// requires and a written anonymous object does not carry. `rule:core-api/shape-flattens-at-the-abi` flattens
     /// each key of a shape parameter into one argument of its own, so an
     /// omitted required key is a call one argument short rather than a
     /// separate kind of mistake.
@@ -1313,18 +1315,19 @@ pub mod code {
         "`as` cannot convert a value of one enum type to a different enum type. Write a `match` \
          that gives a case of the new enum for every case of the old one.",
     );
-    /// `as Core\Html\Markup` on anything but a source-literal string — a
-    /// runtime-computed or `tainted` value can never become trusted markup
-    /// this way, closing "compute the escape-defeating payload at runtime,
-    /// then cast it." See `rule:core-classes/html-auto-escape`.
-    pub const E_MARKUP_REQUIRES_LITERAL: Code = Code::new("E0417").card(
+    /// `as Core\Html\Markup` on anything but a string literal. A
+    /// runtime-computed or `tainted` value can never become a trusted
+    /// `Markup` this way, which closes "compute the escape-defeating payload
+    /// at runtime, then convert it." See `rule:core-classes/html-auto-escape`.
+    pub const E_MARKUP_NEEDS_WRITTEN_STRING: Code = Code::new("E0417").card(
         "`as Core\\Html\\Markup` works only on a string written directly in the source code. A \
          value computed while the program runs cannot become trusted HTML this way. Build the \
-         markup from literal parts, or escape the value with a `Core\\Html` method.",
+         markup from strings written in the code, or escape the value with a `Core\\Html` \
+         method.",
     );
     /// A string passed (or convertible without laundering) where `callable`
     /// is the declared type — PHP's bare-name/`"Class::method"` callable
-    /// spellings are both rejected in favor of first-class callable syntax.
+    /// spellings are both rejected in favor of a method reference.
     /// See `rule:types/callable-values`.
     pub const E_CALLABLE_STRING_UNSUPPORTED: Code = Code::new("E0418").card(
         "A string cannot be called as a function, even if it contains the name of one. Write \
@@ -1340,9 +1343,9 @@ pub mod code {
     /// `__invoke`, so no class ever makes `()` mean anything else. See
     /// `rule:types/callable-values`.
     pub const E_NOT_CALLABLE: Code = Code::new("E0420").card(
-        "Only a closure can be called with `(...)`, and this value is not one. Write an `fn` \
-         closure, or get a callable with `Class::method(...)` or `$obj->method(...)`. An object \
-         cannot be called, because Novis has no `__invoke`.",
+        "Only a `callable` can be called with `(...)`, and this value is not one. Write an \
+         anonymous function with `fn`, or get a callable with `Class::method(...)` or \
+         `$obj->method(...)`. An object cannot be called, because Novis has no `__invoke`.",
     );
     /// A `secret`-qualified value reaching a `Core\Html\Markup`-building
     /// conversion — refused even though the equivalent `tainted`-only value
@@ -1481,8 +1484,8 @@ pub mod code {
     /// (or a negated one). `rule:enums/declaration` makes a case a compile-time integer
     /// constant, not a general constant-expression position.
     pub const E_ENUM_CASE_VALUE_NOT_LITERAL: Code = Code::new("E0436").card(
-        "The value of an `enum` case must be an integer literal, such as `3` or `-1`. Write the \
-         number itself.",
+        "The value of an `enum` case must be a whole number written directly in the code, such \
+         as `3` or `-1`. Write the number itself.",
     );
     /// An `enum` case whose value — written, or reached by `rule:enums/declaration`'s
     /// auto-increment — does not fit the enum's backing type.
@@ -1508,8 +1511,8 @@ pub mod code {
     /// (`nvs_types::expr::args::check_inout_arg` owns why the call-site copy
     /// that would fake one is not offered).
     pub const E_INOUT_ARG_NOT_A_PLACE: Code = Code::new("E0439").card(
-        "Only a variable or a property can be passed to an `inout` parameter. A literal, a \
-         calculation, an array element or a property with hooks is not allowed. Copy the value \
+        "Only a variable or a property can be passed to an `inout` parameter. A value written \
+         directly in the code, a calculation, an array element or a property with hooks is not allowed. Copy the value \
          into a variable, pass the variable, and then assign it back.",
     );
     /// An argument passed to an `inout $x` parameter whose type is not *exactly*
@@ -1562,12 +1565,12 @@ pub mod code {
          Write `foreach ($items as string $v)`, or loop over an array.",
     );
     /// A `yield` in a body that is not a generator's own — at file scope, or
-    /// inside an `rule:types/anonymous-function` closure. `rule:iteration/generators` confines `yield` lexically to
+    /// inside an anonymous function (`rule:types/anonymous-function`). `rule:iteration/generators` confines `yield` lexically to
     /// the generator's own body, which is the stated price of lowering to a
     /// state machine rather than to a coroutine.
     pub const E_YIELD_OUTSIDE_GENERATOR: Code = Code::new("E0445").card(
         "`yield` is allowed only directly in the body of a function or a method. It cannot be \
-         used at the top level of a file or inside a closure.",
+         used at the top level of a file or inside an anonymous function.",
     );
     /// A generator — a function whose body contains `yield` — declaring a
     /// return type other than `Iterator<T>`. `rule:iteration/generators`: calling one runs
@@ -1599,13 +1602,13 @@ pub mod code {
         "This class does not have a method that one of its interfaces requires. Add the method to \
          the class, or give the method a default body in the interface.",
     );
-    /// A block-bodied `fn` closure literal (`rule:types/anonymous-function`) with no declared
+    /// A block-bodied `fn` anonymous function (`rule:types/anonymous-function`) with no declared
     /// return type. An expression body *is* its own answer, so it needs no
     /// annotation; a block body would need whole-body return-type inference,
     /// which `rule:types/declaration`'s "nothing is untyped, and no type ever changes by
     /// itself" does not ask the compiler to grow.
-    pub const E_CLOSURE_RETURN_TYPE_REQUIRED: Code = Code::new("E0450").card(
-        "A closure with a `{ ... }` body must declare its return type. Write \
+    pub const E_ANON_FN_RETURN_TYPE_REQUIRED: Code = Code::new("E0450").card(
+        "An anonymous function with a `{ ... }` body must declare its return type. Write \
          `fn (int $x): int => { ... }`, or use a single expression as the body.",
     );
     /// A parameter default (`function f(int $n = ...)`) that is not a literal
@@ -1617,7 +1620,7 @@ pub mod code {
     /// (`null`, an enum case) it is expected to grow next.
     pub const E_PARAM_DEFAULT_NOT_LITERAL: Code = Code::new("E0451").card(
         "The default value of a parameter must be a constant of the parameter's type. Write a \
-         literal such as `0`, `-1` or `'text'`, an enum case, or a `const` of another class.",
+         value such as `0`, `-1` or `'text'`, an enum case, or a `const` of another class.",
     );
     /// A parameter with no default declared *after* one that has a default.
     /// Every call supplies arguments positionally, so a required parameter
@@ -1627,7 +1630,7 @@ pub mod code {
         "A parameter without a default value cannot come after a parameter with one. Move it \
          before the parameters that have defaults, or give it a default too.",
     );
-    /// Something other than an `rule:types/object-top` object literal written at a `Core`
+    /// Something other than an `rule:types/object-top` anonymous object written at a `Core`
     /// member's trailing options-bag parameter (`rule:core-api/shape-rules` R2). The bag has no
     /// runtime representation — it flattens into one argument per declared
     /// option at the call site — so it must be written out there or omitted
@@ -1635,7 +1638,7 @@ pub mod code {
     /// **shape key** parameter is refused here on the same terms and for the
     /// same reason — one flatten, one rule — and the message says "options"
     /// for either, the bag being the all-optional case of the shape.
-    pub const E_OPTIONS_NOT_A_LITERAL: Code = Code::new("E0453").card(
+    pub const E_OPTIONS_NOT_AN_ANON_OBJECT: Code = Code::new("E0453").card(
         "The options of this function must be written in the call itself, such as \
          `{default: false}`. A variable that contains the options cannot be passed.",
     );
@@ -1645,7 +1648,7 @@ pub mod code {
     /// that is silently ignored is the failure `rule:core-api/shape-rules` R2 exists to prevent.
     /// A **shape key** no arm of an `rule:core-api/shape-parameter` shape parameter declares is
     /// this same code: the merged list is the whole key set either way. So is a
-    /// key that belongs to an arm the literal's other values did not select —
+    /// key that belongs to an arm the anonymous object's other values did not select —
     /// § 2's arm selection narrows *which* key set a call is held to, and a key
     /// outside the selected one is still not a key of this call. The two read
     /// differently and are one code on purpose: a second code would ask the
@@ -1670,7 +1673,7 @@ pub mod code {
          decimal point, and about 28 digits in total. Use `Core\\BigInt` for a larger whole \
          number.",
     );
-    // `E0457` (`E_LITERAL_TYPE_UNCHECKED`) is **retired**, not reused.
+    // `E0457` (`E_SINGLE_VALUE_TYPE_UNCHECKED`) is **retired**, not reused.
     // `rule:types/single-value-types`'s
     // atoms intern as real types (`nvs_types::lower::lower_atom`), so there
     // is nothing left for it to refuse.
@@ -1731,7 +1734,7 @@ pub mod code {
     /// options, or whose value is not a literal of that option's type.
     pub const E_DERIVE_FIELD_ATTRIBUTE: Code = Code::new("E0464").card(
         "`#[Json\\Field(...)]` and `#[Db\\Field(...)]` accept only the options `name` and `skip`, \
-         and each value must be a literal. For example, write `#[Json\\Field(name: 'user_id')]` \
+         and each value must be written directly in the code. For example, write `#[Json\\Field(name: 'user_id')]` \
          or `#[Json\\Field(skip: true)]`.",
     );
     /// A type argument written where the member needs a *class* rather than
@@ -1761,28 +1764,28 @@ pub mod code {
     );
     /// `Foo::BAR` in *type* position where `Foo::BAR` is declared but is not a
     /// `string`/`int` compile-time constant — `rule:types/constant-in-type-position`. A class constant is
-    /// sugar that folds to its own literal type, so it folds only when the
-    /// value has a literal type to fold to: a `float` (§ 7 defers those), an
+    /// sugar that folds to its own single-value type, so it folds only when the
+    /// value has a single-value type to fold to: a `float` (§ 7 defers those), an
     /// `array`, an object, or an expression that is not a literal at all has
     /// none. A name nothing declares is [`E_UNKNOWN_MEMBER`] instead — that is
     /// a different mistake with a different fix.
-    pub const E_LITERAL_TYPE_NOT_CONST: Code = Code::new("E0468").card(
+    pub const E_SINGLE_VALUE_TYPE_NOT_CONST: Code = Code::new("E0468").card(
         "A class constant used as a type must have a `string` or `int` value. This constant has \
          another kind of value, so write its base type instead.",
     );
-    /// `"z" as "a"|"b"` — `rule:types/single-value-types`: a checked conversion into a closed set
-    /// of literals whose operand already names a value the set does not
+    /// `"z" as "a"|"b"` — `rule:types/single-value-types`: a checked conversion into a set of
+    /// allowed values whose operand already names a value the set does not
     /// contain, so it would compile and then throw on every execution. The
     /// accepted set in the message is generated from the target type, never
     /// written per site. A conversion the operand does not settle — `$s as
     /// "a"|"b"` over a plain `string` — is § 4's ordinary checked row and
     /// compiles.
-    pub const E_LITERAL_TYPE_MISMATCH: Code = Code::new("E0469").card(
+    pub const E_SINGLE_VALUE_TYPE_MISMATCH: Code = Code::new("E0469").card(
         "This value is not one of the values the target type allows, so the conversion always \
          fails. Write one of the values the message lists, or add this value to the target type.",
     );
     /// `Mode::Admin as Mode::Read|Mode::Write` — § 3's case-subset half of
-    /// [`E_LITERAL_TYPE_MISMATCH`], on the same terms. Its own code because
+    /// [`E_SINGLE_VALUE_TYPE_MISMATCH`], on the same terms. Its own code because
     /// the set it names is a set of *cases* rather than of literal values,
     /// which is the distinction § 3 exists to keep.
     pub const E_ENUM_CASE_SUBSET_MISMATCH: Code = Code::new("E0470").card(
@@ -1811,7 +1814,7 @@ pub mod code {
     /// literal only.
     pub const E_PROPERTY_DEFAULT_NOT_LITERAL: Code = Code::new("E0472").card(
         "The default value of a property must be a constant of the property's type. Write a \
-         literal, `[]`, an enum case or a `const` of another class. Set any other value in the \
+         value such as `0` or `'text'`, `[]`, an enum case or a `const` of another class. Set any other value in the \
          constructor.",
     );
     /// `$obj as ?SomeClass` — `rule:expressions/nullable-conversion-availability`'s class row: `is` plus
@@ -2000,7 +2003,7 @@ pub mod code {
     /// only what a position naming no `array<T>` at all is left with, a
     /// `mixed` binding or parameter being the reachable one.
     pub const E_SPREAD_SUBJECT_NOT_AN_ARRAY: Code = Code::new("E0484").card(
-        "`...` inside an array literal works only on an `array<T>`. Declare the value as an \
+        "`...` inside an array such as `[...$x]` works only on an `array<T>`. Declare the value as an \
          array, or write it as an ordinary element without `...`.",
     );
     // `E0485` is retired and is never reused: it refused a `name:` argument at
@@ -2086,22 +2089,22 @@ pub mod code {
         "A method that uses `yield` cannot have an `inout` parameter. Take the value as an \
          ordinary parameter, and `yield` the values you compute from it.",
     );
-    /// A `fn` closure literal declaring an `inout $x` parameter.
+    /// A `fn` anonymous function declaring an `inout $x` parameter.
     ///
     /// A by-reference parameter is a contract between a call site and a
-    /// declaration, and a closure's type is `callable` — `rule:types/callable-is-the-only-function-type` keeps it
+    /// declaration, and an anonymous function's type is `callable` — `rule:types/callable-is-the-only-function-type` keeps it
     /// opaque, carrying no parameter list at all, so no call site can know to
-    /// stage a cell. The closure may also outlive every frame in scope where
+    /// stage a cell. The callable may also outlive every frame in scope where
     /// it was written.
-    pub const E_CLOSURE_INOUT_PARAM: Code = Code::new("E0493").card(
-        "A closure written with `fn` cannot have an `inout` parameter. Take the value as an \
+    pub const E_ANON_FN_INOUT_PARAM: Code = Code::new("E0493").card(
+        "An anonymous function written with `fn` cannot have an `inout` parameter. Take the value as an \
          ordinary parameter and `return` the result, or pass an object and change its properties.",
     );
-    /// An `rule:types/anonymous-object` object literal writing one field name twice —
+    /// An `rule:types/anonymous-object` anonymous object writing one field name twice —
     /// `{a: 1, a: 2}`.
     ///
     /// A shape's fields are a set: the type `{a: int}` names one slot `a`,
-    /// and there is no layout under which a literal's two `a`s are both
+    /// and there is no layout under which an anonymous object's two `a`s are both
     /// reachable. PHP's nearest neighbour is a duplicate *array* key, where
     /// the last write wins silently, but an array is a map and a shape is a
     /// record — and the two sides here would not even agree on which write
@@ -2109,7 +2112,7 @@ pub mod code {
     /// class carries one slot per name. Refusing where it is written is the
     /// only answer that keeps both readings out of the language.
     pub const E_DUPLICATE_SHAPE_FIELD: Code = Code::new("E0494").card(
-        "This object literal writes the same field name twice, as in `{a: 1, a: 2}`. Each field \
+        "This anonymous object writes the same field name twice, as in `{a: 1, a: 2}`. Each field \
          can appear only once, so remove one of them.",
     );
     /// `->` on a receiver whose declared type can never hold an object —
@@ -2402,7 +2405,7 @@ pub mod code {
     /// It refuses nothing `nvs_runtime::capability::require` would have
     /// allowed: the same grant list, walked by the same
     /// `nvs_config::capability::Capabilities::allows_host`, so this is `rule:expressions/preparation-preserves-behaviour`'s earlier answer and never a different one. It is therefore asked
-    /// only where both halves are facts at check time — a literal host, and a
+    /// only where both halves are facts at check time — a host given as a string literal, and a
     /// configuration this machine actually read. A computed host, or a check
     /// run with no configuration in front of it, says nothing and leaves the
     /// refusal to the door. In this band rather than the types one for
@@ -2742,7 +2745,7 @@ pub mod code {
     /// before the program runs rather than at the door alone.
     ///
     /// `E0618` one class over, and asked under `E0618`'s conditions and no
-    /// others: a literal queue name, a configuration this machine actually
+    /// others: a queue name given as a string literal, a configuration this machine actually
     /// read, and the same grant list walked by the same
     /// `nvs_config::capability::Capabilities`. So it refuses nothing
     /// `nvs_runtime::capability::require` would have allowed, which is
@@ -3041,7 +3044,7 @@ pub mod code {
     /// The mirror of [`E_INOUT_ARG_MISSING`]: a marker that is allowed to be
     /// wrong is worth nothing to the reader, so `rule:statements/inout-is-written-at-the-call` makes the extra
     /// one an error too. Through a `callable` it can never be right — ADR
-    /// 0031 § 4 keeps that type opaque and [`E_CLOSURE_INOUT_PARAM`] refuses
+    /// 0031 § 4 keeps that type opaque and [`E_ANON_FN_INOUT_PARAM`] refuses
     /// the declaration end outright — and a spread hands over a subject's
     /// entries rather than the subject, which is the same reason
     /// [`E_INOUT_ARG_NOT_A_PLACE`] wants one storage location. Through a
@@ -3235,14 +3238,14 @@ pub mod code {
     /// A `name:` argument at a call through a `callable`.
     ///
     /// `rule:types/anonymous-function` gives `callable` no parameter list — it is one opaque type
-    /// whatever closure a variable holds — so there is no parameter for a name
-    /// to fill, at the site or below it: a closure value records its arity and
+    /// whatever callable a variable holds — so there is no parameter for a name
+    /// to fill, at the site or below it: a callable value records its arity and
     /// its parameter *tags*, never their names, so nothing at run time could
     /// resolve one either. PHP can only allow it because a `Closure` there
     /// carries its declaration.
     ///
-    /// The same rule as [`E_CLOSURE_INOUT_PARAM`], read from the call site's
-    /// end rather than the literal's. It has no sibling at a *resolved*
+    /// The same rule as [`E_ANON_FN_INOUT_PARAM`], read from the call site's
+    /// end rather than the anonymous function's. It has no sibling at a *resolved*
     /// target: every signature the checker builds names its parameters (ADR
     /// 0063 R2), so a `name:` there is a spelling question and never an
     /// absence — [`E_UNKNOWN_ARG_NAME`] is the whole of it. A `...`
@@ -3252,7 +3255,7 @@ pub mod code {
     /// A call through a **`mixed` receiver** takes the same code, because it
     /// is the same absence: `rule:types/erased-member-access` defers that call to the receiver's
     /// runtime class, whose method row carries the callee's arity and
-    /// parameter tags and — for a closure value's reason — never its parameter
+    /// parameter tags and — for a callable value's reason — never its parameter
     /// names.
     pub const E_NAMED_ARG_THROUGH_CALLABLE: Code = Code::new("E0712").card(
         "A call through a `callable` or a `mixed` value cannot use named arguments. The compiler \
@@ -3484,22 +3487,22 @@ pub mod code {
          `Core\\Secret::reveal($value, \"reason\")` first.",
     );
     /// An attribute payload's field value is not a compile-time constant —
-    /// `rule:attributes/payload-is-a-compile-time-constant`. The whole literal is resolved once, at compile time, into the
+    /// `rule:attributes/payload-is-a-compile-time-constant`. The whole payload object is resolved once, at compile time, into the
     /// unit's constant pool, the same storage class an enum case's backing
     /// value already uses; there is no "evaluate this attribute's arguments"
     /// step at class-definition time for a variable, a call or a `new` to be
     /// evaluated *in*, which is what PHP's lazily-constructed attribute
     /// object has and this one deliberately does not.
     pub const E_ATTRIBUTE_VALUE_NOT_CONSTANT: Code = Code::new("E0725").card(
-        "An attribute value must be known when the program compiles. Write a literal, a class \
-         constant or an enum case. A variable, a function call or `new` is not allowed.",
+        "An attribute value must be known when the program compiles. Write a number, a string \
+         in quotes, a class constant or an enum case. A variable, a function call or `new` is not allowed.",
     );
     /// The named form of an attribute names something that is not a
     /// shape-typed `type` alias —
     /// `rule:attributes/attach-sites-and-forms`. `Name` there is never a class and never a new namespace of
     /// attribute kinds: it is a pre-existing alias whose right-hand side is a
-    /// shape, and its whole job is to be the type the attached literal is
-    /// checked against.
+    /// shape, and its whole job is to be the type the attribute's payload
+    /// object is checked against.
     ///
     /// A name nothing declared at all takes [`E_UNDEFINED_CLASS`] instead,
     /// exactly as any other unresolvable name does — an attribute name is not
@@ -3535,7 +3538,7 @@ pub mod code {
          the compiled program, where any code can read them. Keep the secret out of the attribute.",
     );
     /// A `Core\Attributes::get<T>` whose target carries more than one attached
-    /// literal satisfying `T` — `rule:attributes/retrieval-folds-while-checking`.
+    /// payload object satisfying `T` — `rule:attributes/retrieval-folds-while-checking`.
     ///
     /// A declaration's attached-attribute list is fully static, so "which one
     /// did I get?" is a question this compiler answers rather than one a test
@@ -3548,7 +3551,7 @@ pub mod code {
     /// The `<T>` written at a `Core\Attributes::get`/`all` call site is not a
     /// shape type — `rule:attributes/structural-retrieval`.
     ///
-    /// Retrieval is *structural*: `T` is what an attached literal is matched
+    /// Retrieval is *structural*: `T` is what an attribute's payload object is matched
     /// against under `rule:types/shape-type`'s width subtyping, so a `T` that is not a
     /// shape names nothing an attribute payload could ever satisfy.
     pub const E_ATTRIBUTE_TYPE_ARG_NOT_A_SHAPE: Code = Code::new("E0729").card(
@@ -3559,7 +3562,7 @@ pub mod code {
     /// declaration this unit holds — `rule:attributes/structural-retrieval`.
     ///
     /// § 4 fixes the spelling: a method (a constructor included) is named by
-    /// its own first-class-callable reference `Foo::bar(...)`, and a class by
+    /// its own method reference `Foo::bar(...)`, and a class by
     /// its `constructor`'s. Retrieval is resolved entirely at compile time, so
     /// the reference is *inspected* where it is written rather than evaluated
     /// — anything else has no declaration to read an attribute list off.
@@ -3567,7 +3570,7 @@ pub mod code {
         "The target of `Core\\Attributes::get` or `all` must name a declaration. Write \
          `Foo::bar(...)` for a method, and `Foo::constructor(...)` for the class itself.",
     );
-    /// An attached literal satisfies the `T` a `Core\Attributes` retrieval
+    /// An attached payload object satisfies the `T` a `Core\Attributes` retrieval
     /// asked for, but holds a value this compiler cannot materialize.
     ///
     /// `rule:attributes/retrieval-folds-while-checking` replaces the call with the payload itself, so every value
@@ -3581,22 +3584,23 @@ pub mod code {
     /// site that needs the value rather than the name.
     pub const E_ATTRIBUTE_PAYLOAD_UNFOLDABLE: Code = Code::new("E0731").card(
         "This attribute uses a class constant whose value the compiler cannot compute. Write the \
-         value in the attribute directly, or give that constant a literal value.",
+         value in the attribute directly, or give that constant a value written directly in the \
+         code.",
     );
-    /// The first-class callable spelling `$m->method(...)` written on a
+    /// The method reference `$m->method(...)` written on a
     /// `mixed` receiver.
     ///
     /// Every other erased receiver takes [`E_METHOD_ON_ERASED_RECEIVER`] for
     /// the whole call; `mixed` is `rule:types/conversion`'s one unchecked position and
     /// defers instead, so a *call* through it dispatches on the receiver's
     /// runtime class. This spelling does not call at all: `rule:types/callable-values` makes it a
-    /// closure **value**, which carries the callee's arity and parameter tags
+    /// callable **value**, which carries the callee's arity and parameter tags
     /// in the value itself (`nvs_runtime::closure`), and there is no class
     /// here to read either off — the receiver's descriptor answers a call it
     /// is present at, not a value that outlives the site. Narrowing the
     /// receiver, or calling the member directly, is the fix; both are what the
     /// help names.
-    pub const E_FIRST_CLASS_CALLABLE_ERASED_RECEIVER: Code = Code::new("E0732").card(
+    pub const E_METHOD_REF_ERASED_RECEIVER: Code = Code::new("E0732").card(
         "A method reference like `$value->method(...)` needs a value of a known class, and this \
          value is `mixed`. Narrow the value first with `is` or `as ClassName`, or call the method \
          directly.",
@@ -3687,7 +3691,7 @@ pub mod code {
     /// A `#[TestWith(...)]` data row that does not describe the method it is
     /// attached to.
     ///
-    /// `rule:testing/data-rows` matches a row's shape literal against the method's
+    /// `rule:testing/data-rows` matches a row's anonymous object against the method's
     /// parameters **by name and by type**, so one code covers every way the
     /// two can fail to line up: a field naming no parameter, a field whose
     /// value is not a literal of that parameter's declared type, a row that
@@ -3724,23 +3728,23 @@ pub mod code {
         "This method declares a return type, but one path reaches the end of the body without a \
          `return` or a `throw`. Add a `return` with a value or a `throw` at the end of that path.",
     );
-    /// The first-class callable spelling written on `new`: `new C(...)`.
+    /// A method reference written on `new`: `new C(...)`.
     ///
     /// `rule:types/callable-values`'s kept list is a list of *members* — `Class::method(...)`,
     /// `$obj->method(...)`, `self`/`static`/`parent::method(...)` — and a
-    /// constructor is not one of them: `new` names a class, and the closure
+    /// constructor is not one of them: `new` names a class, and the callable
     /// this syntax builds carries a callee, not an allocation. PHP refuses it
     /// for the same reason ("cannot create Closure for new expression"), so
     /// refusing it is the PHP-compatible answer as well as the only one with a
-    /// meaning. `fn (): C => new C(…)` is the closure that was wanted, and it
+    /// meaning. `fn (): C => new C(…)` is the anonymous function that was wanted, and it
     /// is what the help names.
     ///
-    /// Separate from [`E_FIRST_CLASS_CALLABLE_ERASED_RECEIVER`] because the
+    /// Separate from [`E_METHOD_REF_ERASED_RECEIVER`] because the
     /// two are opposite failures: that one resolves a member and has no class
     /// to bind it to, this one names a class and has no member.
-    pub const E_FIRST_CLASS_CALLABLE_NEW: Code = Code::new("E0740").card(
+    pub const E_METHOD_REF_NEW: Code = Code::new("E0740").card(
         "`new Foo(...)` cannot be used as a method reference, because a constructor is not a \
-         method. Write a closure instead: `fn (): Foo => new Foo()`.",
+         method. Write an anonymous function instead: `fn (): Foo => new Foo()`.",
     );
 
     /// A body declaring `static` returns a value that is not the called class.
@@ -3862,15 +3866,16 @@ pub mod code {
     /// can be converted into is an option that could never be given — and § 6
     /// takes `rule:security/route-capture-is-laundered-by-its-type`'s conversion roster unchanged, which is why an
     /// `array<int>`, a shape or a class other than `Core\Uuid` is refused here
-    /// while an enum, a literal union and `bool` are not.
+    /// while an enum, a set of allowed values and `bool` are not.
     ///
     /// The primary span is the parameter rather than the attribute: the
     /// attribute is written correctly and it is the declared type that cannot
     /// answer it.
     pub const E_OPTION_TYPE_HAS_NO_CONVERSION: Code = Code::new("E0746").card(
         "An option's value arrives as text, so an `#[Option]` parameter needs a type that text can \
-         be converted to. Use `string`, `int`, `uint`, `decimal`, `bool`, an enum, a union of \
-         literal types, or a class that implements `Parses`, like `Core\\Uuid`.",
+         be converted to. Use `string`, `int`, `uint`, `decimal`, `bool`, an enum, a set of \
+         allowed values like `\"asc\"|\"desc\"`, or a class that implements `Parses`, like \
+         `Core\\Uuid`.",
     );
 
     /// A `#[Route]` gives no `path`, no `method`, or neither.
@@ -3920,7 +3925,7 @@ pub mod code {
     /// One code for the whole grammar, because every way a path fails it is
     /// the same fact — the router cannot build a node out of this — and the
     /// message names which way it was. The four: a path that does not begin
-    /// at the root, a segment that is neither a literal nor a whole capture
+    /// at the root, a segment that is neither a fixed segment nor a whole capture
     /// (`/u{id}`, `/{id}.json`), a capture naming nothing a parameter could
     /// be called, and a `{name?}` or `{name...}` written anywhere but last.
     ///
@@ -3980,9 +3985,9 @@ pub mod code {
 
     /// `Core\Router::url`/`urlAbsolute` names a route the table does not hold.
     ///
-    /// `rule:routing/link-name-and-params-are-checked`: a *literal* `$name` that is not a declared route is a
-    /// compile error, and a computed one throws instead — so this is reported
-    /// at the argument rather than at the call, which is where the literal is.
+    /// `rule:routing/link-name-and-params-are-checked`: a `$name` given as a string literal that is
+    /// not a declared route is a compile error, and a computed one throws instead — so this is
+    /// reported at the argument rather than at the call, which is where the string is.
     /// The table it is checked against is the whole program's, which is why
     /// the check runs after every file has been walked and not where the call
     /// is typed: the route may be declared in a file § 5's scan reaches later.
@@ -3991,7 +3996,7 @@ pub mod code {
          spelling against the `name:` of the route.",
     );
 
-    /// A `Core\Router::url` `$params` literal covers none of some capture the
+    /// A `Core\Router::url` `$params` array literal covers none of some capture the
     /// named route's path declares.
     ///
     /// `rule:routing/link-name-and-params-are-checked`: a `$params` array that does not cover the route's
@@ -4201,10 +4206,10 @@ pub mod code {
          the program uses when it runs. The message says what is wrong, so fix the text there.",
     );
 
-    /// A literal `Core\Str::format` template, or a literal `Core\Db` query,
-    /// that does not fit the arguments written beside it.
+    /// A `Core\Str::format` template or a `Core\Db` query, given as a string
+    /// literal, that does not fit the arguments written beside it.
     ///
-    /// Separate from [`E_INTRINSIC_LITERAL_MALFORMED`] because the literal is
+    /// Separate from [`E_INTRINSIC_LITERAL_MALFORMED`] because the string is
     /// *fine*: the mistake is in the pairing, which is `rule:expressions/intrinsic-list-is-closed`'s own
     /// reason for naming this member's placeholder check separately — it turns
     /// PHP's `printf` argument-mismatch bug family into a compile error. ADR
@@ -4496,9 +4501,9 @@ pub mod code {
     /// harmless: a constant nobody names costs nothing, and the span the
     /// author can act on is the one that asked for a value.
     ///
-    /// Distinct from [`E_LITERAL_TYPE_NOT_CONST`], which refuses the same
+    /// Distinct from [`E_SINGLE_VALUE_TYPE_NOT_CONST`], which refuses the same
     /// declaration in *type* position under `rule:types/constant-in-type-position`'s narrower question
-    /// ("is this a `string` or `int` literal type"). An `array` constant is
+    /// ("is this a `string` or `int` single-value type"). An `array` constant is
     /// legal here and refused there, and after the array fold this code is
     /// down to the shapes no constant emitter exists for at all — another
     /// class's `const`, an enum case, and `Foo::class` nested inside a
@@ -4506,7 +4511,7 @@ pub mod code {
     pub const E_CLASS_CONST_NO_CONSTANT_FORM: Code = Code::new("E0792").card(
         "The value of this class constant cannot be computed when the program compiles, \
          because it uses another class's constant, an enum case or `Foo::class`. Write the \
-         value out directly, as a literal or an array of literals.",
+         value out directly, as a number, a string in quotes, or an array of them.",
     );
 
     /// `rule:types/callable-values`'s `(...)` naming a member whose parameter list a
@@ -4519,12 +4524,13 @@ pub mod code {
     /// therefore a type confusion in the callee rather than a wrong answer,
     /// which is why this is a refusal and not a run-time report.
     ///
-    /// The `inout` half is [`E_CLOSURE_INOUT_PARAM`]'s rule reached by the
-    /// other spelling — that code refuses the parameter where a closure
-    /// *declares* it, this one refuses naming a member that already has one.
-    pub const E_FIRST_CLASS_CALLABLE_UNFORWARDABLE: Code = Code::new("E0793").card(
+    /// The `inout` half is [`E_ANON_FN_INOUT_PARAM`]'s rule reached by the
+    /// other spelling — that code refuses the parameter where an anonymous
+    /// function *declares* it, this one refuses naming a member that already has one.
+    pub const E_METHOD_REF_UNFORWARDABLE: Code = Code::new("E0793").card(
         "`method(...)` cannot make a `callable` from a method with an `inout` parameter or a \
-         variadic parameter (`...$rest`). Write a closure that calls the method instead.",
+         variadic parameter (`...$rest`). Write an anonymous function with `fn` that calls the \
+         method instead.",
     );
 
     /// `rule:classes/constructor-compatibility`: a `new` through a `class<T>` whose `T` has an implementor
@@ -4563,8 +4569,8 @@ pub mod code {
     /// `retryIdempotencyKey`.
     ///
     /// Reportable while compiling because both halves are written: the verb is
-    /// the member's own name, and `rule:core-api/shape-rules` R2 makes the options bag a literal
-    /// at the call site. Distinct from [`E_UNKNOWN_OPTION`], which is the
+    /// the member's own name, and `rule:core-api/shape-rules` R2 makes the options bag an
+    /// anonymous object written at the call site. Distinct from [`E_UNKNOWN_OPTION`], which is the
     /// mistake of naming an option that does not exist; here every option
     /// named is real and it is the *absent* one that is the defect.
     pub const E_RETRY_WITHOUT_IDEMPOTENCY_KEY: Code = Code::new("E0796").card(
@@ -4595,14 +4601,14 @@ pub mod code {
          `Core\\Secret::reveal` on that field only.",
     );
 
-    /// A `Core\Attributes` retrieval whose literal `$member` names no declared
+    /// A `Core\Attributes` retrieval whose `$member`, given as a string literal, names no declared
     /// parameter or property of the target.
     ///
     /// `rule:attributes/structural-retrieval`'s last paragraph: a written `$member` is checked against
     /// the target's real declarations at the call site, the same
-    /// literal-inspection `rule:security/secret-sinks-refuse`'s sinks make. Only a *computed*
-    /// `$member` falls back to the empty result § 4's *Consequences* fixes,
-    /// because there is no literal left to check.
+    /// inspection of a string literal that `rule:security/secret-sinks-refuse`'s sinks make. Only a
+    /// *computed* `$member` falls back to the empty result § 4's *Consequences* fixes,
+    /// because there is no string left to check.
     ///
     /// Distinct from [`E_ATTRIBUTE_TARGET_NOT_A_DECLARATION`], which is the
     /// mistake of writing something that is not a declaration reference at
@@ -4692,7 +4698,7 @@ pub mod code {
 
     /// A `spawn script` operand that is neither of
     /// [ADR 0006](/docs/decisions/0006.md)
-    /// § *Decision*'s two entry forms — an `fn` literal, or a value whose type
+    /// § *Decision*'s two entry forms — an `fn` anonymous function, or a value whose type
     /// is `callable`.
     ///
     /// One code for both because it is one rule: the entry is **decided
@@ -4700,8 +4706,8 @@ pub mod code {
     /// reference written there, and everything else is refused for the same
     /// reason — whether a callable captures is not a question the spawn site
     /// can answer, and an isolate that captured would share more than compiled
-    /// code. The two halves differ only in the `help:`, because an `fn` literal
-    /// has a mechanical way out (give it a name and a class) and a variable
+    /// code. The two halves differ only in the `help:`, because an anonymous
+    /// function has a mechanical way out (give it a name and a class) and a variable
     /// does not.
     ///
     /// Deliberately not [`E_TYPE_MISMATCH`], which is what a `callable` against
@@ -4710,7 +4716,7 @@ pub mod code {
     /// sends the reader to fix the wrong half.
     pub const E_SPAWN_ENTRY_NOT_A_PATH_OR_METHOD: Code = Code::new("E0802").card(
         "`spawn script` needs a path or a `static` method written as `Class::method(...)`. An \
-         `fn` literal or a `callable` variable is not allowed. Move the code into a `static` \
+         anonymous function written with `fn` or a `callable` variable is not allowed. Move the code into a `static` \
          method and spawn that method.",
     );
 
@@ -4721,7 +4727,7 @@ pub mod code {
     // shape is the shape that runs, and a mismatch is the ordinary
     // named-argument error the ADR names, raised at the spawn.
 
-    /// A written reason that is not a source literal, at a member whose reason
+    /// A written reason that is not a string literal, at a member whose reason
     /// exists to be read by the next person —
     /// `rule:core-classes/html-to-source`'s second sentence, which `nvs_types::reasons` owns the roster of.
     ///
@@ -4731,12 +4737,12 @@ pub mod code {
     /// a second refusal here would only make the throw unreachable.
     /// `nvs_types::reasons`' module doc is the home of the split.
     ///
-    /// A `const` **is** a source literal here, deliberately: it folds, so the
+    /// A `const` counts as written here, deliberately: it folds, so the
     /// text is still in the source and still greppable, and pulling a long
     /// justification out to a named constant is the shape this hatch wants
     /// rather than the one it refuses.
-    pub const E_REASON_NOT_A_SOURCE_LITERAL: Code = Code::new("E0805").card(
-        "The reason passed to this method must be a string literal or a `const`. A computed \
+    pub const E_REASON_NOT_WRITTEN_DIRECTLY: Code = Code::new("E0805").card(
+        "The reason passed to this method must be a string in quotes or a `const`. A computed \
          value is not allowed, because a reader must be able to see the reason in the code.",
     );
 
@@ -4780,14 +4786,14 @@ pub mod code {
     /// `fn ($n) => …` written where nothing says what `$n` holds —
     /// `rule:types/anonymous-function-parameter-inference`.
     ///
-    /// A closure literal's parameter may leave its type out, and then takes it
-    /// from the position the literal is written in. Only a written
+    /// An anonymous function's parameter may leave its type out, and then takes it
+    /// from the position the function is written in. Only a written
     /// `callable(...)` signature is such a position: bare `callable` is the top
     /// of the lattice and names no parameter, and a signature shorter than the
-    /// literal names this one no type either. The parameter is checked as
+    /// function names this one no type either. The parameter is checked as
     /// `mixed` afterwards so the body is still checked at all.
-    pub const E_CLOSURE_PARAMETER_TYPE_NOT_INFERABLE: Code = Code::new("E0808").card(
-        "This closure parameter has no type, and the compiler cannot tell which type it should \
+    pub const E_ANON_FN_PARAMETER_TYPE_NOT_INFERABLE: Code = Code::new("E0808").card(
+        "This parameter of an anonymous function has no type, and the compiler cannot tell which type it should \
          have. Write the type, as in `fn (User $u) => $u->name`.",
     );
 
@@ -4796,10 +4802,10 @@ pub mod code {
     /// name, `rule:types/callable-signature`.
     ///
     /// The count is exact in this one direction only: the *value* may hold a
-    /// closure of any arity up to the signature's
-    /// (`rule:types/callable-arity`), and the runtime hands that closure only
+    /// callable of any arity up to the signature's
+    /// (`rule:types/callable-arity`), and the runtime hands that callable only
     /// the leading arguments it declares — so a site passing fewer than the
-    /// signature names can leave a parameter of the closure actually held
+    /// signature names can leave a parameter of the callable actually held
     /// unfilled, which is a fault below the language rather than a throw. A
     /// site passing more names a parameter the type does not have. Bare
     /// `callable` keeps no count at all: nothing there says what to compare
@@ -4901,7 +4907,7 @@ pub mod code {
     /// request with two bodies but a call site that has not decided what it is
     /// sending. Reportable while compiling for
     /// [`E_RETRY_WITHOUT_IDEMPOTENCY_KEY`]'s reason — `rule:core-api/shape-rules` R2 makes the bag
-    /// a literal — and where the verb is dynamic the same question throws
+    /// an anonymous object written at the call site — and where the verb is dynamic the same question throws
     /// before the first attempt rather than after it.
     pub const E_TWO_REQUEST_BODIES: Code = Code::new("E0815").card(
         "This `Core\\Http\\Client` call has two body options, and a request has only one body. \
@@ -4947,8 +4953,8 @@ pub mod code {
     /// silently got this one, is measuring something it did not ask for. Two
     /// spawns under an `if` say the same thing with the question asked here.
     ///
-    /// A code of its own rather than the mismatch against a union of the two
-    /// literals that `nvs_types::expr::isolate` could report instead: an
+    /// A code of its own rather than the mismatch against a set of the two
+    /// allowed values that `nvs_types::expr::isolate` could report instead: an
     /// expected type claims a position accepts values of that type, and this
     /// one accepts two words.
     pub const E_SPAWN_PLACEMENT_UNKNOWN: Code = Code::new("E0818").card(
@@ -5048,8 +5054,8 @@ pub mod code {
     /// Reported at a signature with no body too. An abstract method and an
     /// interface member are read by exactly the callers this is protecting, so
     /// the slot they leave empty is the one that costs most.
-    /// [`E_CLOSURE_RETURN_TYPE_REQUIRED`] is this requirement at a
-    /// block-bodied `fn`, and between them an expression-bodied closure is the
+    /// [`E_ANON_FN_RETURN_TYPE_REQUIRED`] is this requirement at a
+    /// block-bodied `fn`, and between them an expression-bodied anonymous function is the
     /// only callable whose return type may go unwritten — its body is one
     /// expression, which is its own answer.
     pub const E_METHOD_RETURN_TYPE_REQUIRED: Code = Code::new("E0823").card(
@@ -5063,7 +5069,7 @@ pub mod code {
     /// `rule:security/secret-qualifier` puts the bit on a type, and a container
     /// keeps it only where the container's own element or field type spells it:
     /// an `array<T>` literal joins nothing, so `[$secret]` placed at an
-    /// `array<mixed>` drops the qualifier at the bracket, and a shape literal's
+    /// `array<mixed>` drops the qualifier at the bracket, and an anonymous object's
     /// inferred field type drops it at the assignment into a field declared
     /// something wider. Refused at the write, which is the last place the
     /// qualifier is visible — `rule:errors/record-transformations`'s redaction
@@ -5086,7 +5092,7 @@ pub mod code {
     /// [`E_INTERFACE_METHOD_MISSING`] is the same defect written as a class
     /// declaration, and the two keep separate codes because what the author
     /// does about them differs: a class declares the member, while a double
-    /// either names a `method:` field whose closure answers it or is written as
+    /// either names a `method:` field whose callable answers it or is written as
     /// `Core\Test::partial` and delegates it to a real implementation.
     ///
     /// There is no answer for it to default to, which is why this is refused
@@ -5094,7 +5100,7 @@ pub mod code {
     /// of `now(): Instant` has nothing legal to return.
     pub const E_DOUBLE_METHOD_MISSING: Code = Code::new("E0825").card(
         "This test double (a fake object for a test) does not implement a method that its \
-         interface requires. Add a field with a closure for that method, or use \
+         interface requires. Add a field with an anonymous function for that method, or use \
          `Core\\Test::partial` to take the method from a real implementation.",
     );
     /// A `Core\Test::double<T>`/`partial<T>` whose shape of answers names a
@@ -5116,7 +5122,7 @@ pub mod code {
     /// A `Core\Test::double<T>`/`partial<T>` whose `T` names a declaration that
     /// is not an interface.
     ///
-    /// `rule:testing/doubles` checks a shape of closures against an
+    /// `rule:testing/doubles` checks a shape of callables against an
     /// **interface** because that is the whole of what a double can answer: a
     /// class also carries state and method bodies, so a shape standing in for
     /// one would silently leave every property unset and every inherited body
@@ -5141,17 +5147,17 @@ pub mod code {
     /// does declare with a value that cannot stand in for it.
     ///
     /// The third question `rule:testing/doubles`' structural check asks, after
-    /// the name is known to belong to the contract: a closure whose parameters
+    /// the name is known to belong to the contract: a callable whose parameters
     /// refuse what the interface's own call sites pass, or whose result is not
     /// what they were promised, answers the method in name only. A field that
-    /// is not a closure at all is named by this too — nothing else at the call
+    /// is not a callable at all is named by this too — nothing else at the call
     /// asks what a field holds, since the declared parameter is `object`.
     ///
     /// A field typed bare `callable` is accepted: it carries no parameter list
     /// to compare (`rule:types/callable-values`), and the call it stands
     /// in for is checked one argument at a time by `nvs_runtime::closure`.
     pub const E_DOUBLE_METHOD_SIGNATURE: Code = Code::new("E0828").card(
-        "The closure for this method of the test double does not fit the method's declaration. \
+        "The function given for this method of the test double does not fit the method's declaration. \
          It may have fewer parameters, but each parameter must accept what callers pass, and \
          its return type must match.",
     );
@@ -5224,20 +5230,20 @@ pub mod code {
          constant. Give it the parent's type, or a type that fits it.",
     );
 
-    /// `static::` — a constant, a call, `::class`, `new static()` — inside a
-    /// closure body.
+    /// `static::` — a constant, a call, `::class`, `new static()` — inside an
+    /// anonymous function's body.
     ///
-    /// The called class is what the enclosing method's frame holds, and a
-    /// closure is lifted to a frame of its own that carries neither it nor a
-    /// receiver, so there is nothing to bind `static` to. Refused where it is
-    /// written; before this code, lowering panicked on the spelling.
-    pub const E_STATIC_IN_CLOSURE: Code = Code::new("E0834").card(
-        "`static::` cannot be used inside a closure. Read the value into a variable outside the \
-         closure, and use that variable inside it.",
+    /// The called class is what the enclosing method's frame holds, and an
+    /// anonymous function is lifted to a frame of its own that carries neither
+    /// it nor a receiver, so there is nothing to bind `static` to. Refused
+    /// where it is written.
+    pub const E_STATIC_IN_ANON_FN: Code = Code::new("E0834").card(
+        "`static::` cannot be used inside an anonymous function. Read the value into a variable \
+         outside the function, and use that variable inside it.",
     );
 
     /// A call to an `abstract static` method on a class fixed while compiling
-    /// — a written class name, or `self::`/`parent::` inside a closure body —
+    /// — a written class name, or `self::`/`parent::` inside an anonymous function's body —
     /// where no class from that one upwards declares the method with a body.
     ///
     /// Such a call sets the class it dispatches on, so no subclass's override
@@ -5246,8 +5252,8 @@ pub mod code {
     pub const E_ABSTRACT_STATIC_CALLED: Code = Code::new("E0835").card(
         "This method is `abstract`, so it has no body, and this call names a class that does not \
          give it one. Call the method on a class that is not `abstract`. Inside a method, \
-         `static::` calls the class the method was called on. Inside a closure, read the value \
-         into a variable outside the closure, and use that variable inside it.",
+         `static::` calls the class the method was called on. Inside an anonymous function, read \
+         the value into a variable outside the function, and use that variable inside it.",
     );
 
     /// A `#[Core\Path]` written anywhere but on a `string` parameter of a
@@ -5274,20 +5280,20 @@ pub mod code {
     /// then. A value built at run time has a member that joins it already,
     /// and the help names it rather than letting the fold quietly fall back to
     /// a call.
-    pub const E_PATH_THIS_DIR_JOIN_NOT_A_RELATIVE_LITERAL: Code = Code::new("E0837").card(
+    pub const E_PATH_THIS_DIR_JOIN_NOT_A_WRITTEN_RELATIVE_PATH: Code = Code::new("E0837").card(
         "`Core\\Path::thisDir` adds its argument to the folder while the program compiles, so \
-         the argument must be a relative path written as a string literal, such as `'data'`. \
+         the argument must be a relative path written as a string in quotes, such as `'data'`. \
          For a path the program builds, write `Core\\Path::join(Core\\Path::thisDir(), $part)`.",
     );
 
     /// A `Core\Program::constructors<T, C>()` whose `C` is not a `callable`
     /// type naming its parameters, or names a return type other than `T`.
     ///
-    /// `rule:programs/constructors`: each row's `make` is a closure taking
+    /// `rule:programs/constructors`: each row's `make` is a callable taking
     /// `C`'s parameters and returning a new `T`, so `C` is what decides both
     /// what every constructor is checked against and what the caller may pass.
     /// Bare `callable` names no parameters to check, and a return type `T`
-    /// does not satisfy is a closure the row could not hold.
+    /// does not satisfy is a callable the row could not hold.
     pub const E_PROGRAM_CONSTRUCTORS_TYPE_ARG_NOT_A_MAKER: Code = Code::new("E0838").card(
         "The second type argument of `Core\\Program::constructors` must be a function type with \
          its parameters and a return type that accepts the first type argument, for example \
@@ -5313,12 +5319,12 @@ pub mod code {
     /// value built at run time — `'data/' . $name` or `"data/{$name}"`.
     ///
     /// `rule:programs/relative-paths-resolve-from-their-file` joins only a
-    /// whole literal to the folder of its file. A path built this way stays
+    /// whole string literal to the folder of its file. A path built this way stays
     /// relative when the program runs, and every path door throws for a
     /// relative path, so the call can never succeed. The help names
     /// `Core\Path::thisDir` and `Core\Path::join`, which build the same path
     /// from the file's folder.
-    pub const E_PATH_BUILT_FROM_A_RELATIVE_LITERAL: Code = Code::new("E0840").card(
+    pub const E_PATH_BUILT_FROM_A_WRITTEN_RELATIVE_PATH: Code = Code::new("E0840").card(
         "This path starts with a relative path, and the rest is added while the program runs. \
          The result is still a relative path, so the call always throws an error. Start the path \
          with the folder of this file: `Core\\Path::thisDir('data') . '/' . $name`, or \
@@ -5334,11 +5340,11 @@ pub mod code {
     );
     /// A call that changes the response head — a status, a header, a redirect,
     /// a cookie, a body method or `Core\Session::regenerate` — written inside
-    /// the closure passed to `Core\Html::later`. `rule:core-classes/html-later`
+    /// the callable passed to `Core\Html::later`. `rule:core-classes/html-later`
     /// makes the same call throw `LogicError` at run time, and this is its
-    /// compile-time half, where the checker sees the closure written in place.
+    /// compile-time half, where the checker sees the anonymous function written in place.
     pub const E_LATER_CHANGES_THE_RESPONSE_HEAD: Code = Code::new("E0842").card(
-        "A `Core\\Html::later` closure fills one part of the page. It cannot change the status, \
+        "The function passed to `Core\\Html::later` fills one part of the page. It cannot change the status, \
          the headers, the cookies or the session of the response. Make this call in the main \
          script, before or after `Core\\Html::later`.",
     );
@@ -5480,16 +5486,16 @@ pub mod code {
          below it. Start each line of a doc comment with `///` instead.",
     );
     /// `{` directly followed by a class path — `{Page::TITLE}`,
-    /// `{Money::format($c)}` — inside a markup literal
+    /// `{Money::format($c)}` — inside an html template
     /// (`rule:core-classes/html-template`). A brace hole begins with `$`, so
     /// this is text and is written to the page as written; the shape is a
     /// template habit, and a page that prints `{Page::TITLE}` is a program
     /// that runs and ships the wrong string. A warning rather than a refusal
     /// because the grammar is unchanged and the bytes may be what was meant;
     /// the help names `<?= Page::TITLE ?>`, the hole that takes the
-    /// expression, and `\{` for a literal brace that wants to stay.
-    pub const W_MARKUP_BRACE_BEFORE_A_CLASS_PATH: Code = Code::new("W1012").card(
-        "In markup, a `{` followed by a class name is printed as text. Write \
+    /// expression, and `\{` for a brace that should stay as text.
+    pub const W_HTML_TEMPLATE_BRACE_BEFORE_A_CLASS_PATH: Code = Code::new("W1012").card(
+        "In an html template, a `{` followed by a class name is printed as text. Write \
          `<?= Page::TITLE ?>` to print a value, or `\\{` for a brace you want to keep.",
     );
     /// A completion file that is not JSON, or has a field that is unknown or
