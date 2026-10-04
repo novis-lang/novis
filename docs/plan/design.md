@@ -80,7 +80,7 @@ spellings rejected, and the reasoning. Do not restate that detail here when addi
 | Security | Server-level `nvs.toml`, root-owned, TOML (`rule:config/the-file-is-nvs-toml-and-it-is-toml`), deny-by-default capabilities + hard per-request limits (`rule:config/three-changeability-classes`) |
 | Serving | Built-in **HTTP/1.1** server, scoped to a development server and a proxied origin; no TLS listener, no h2c, no HTTP/3, no FastCGI, no compression (`rule:http-server/two-deployments-and-nothing-a-proxy-owns`) |
 | Text and binary | `string` is guaranteed-valid UTF-8 and counts extended grapheme clusters; binary data is the separate `bytes` primitive, counting bytes (`rule:types/bytes`) |
-| Databases | One `Core\Db` API over MySQL, MariaDB (a driver of its own, not a MySQL version), PostgreSQL, SQLite and MS SQL Server: connections named in root-owned config, every statement prepared, a transaction is a closure (`rule:core-classes/db-one-api`) |
+| Databases | One `Core\Db` API over MySQL, MariaDB (a driver of its own, not a MySQL version), PostgreSQL, SQLite and MS SQL Server: connections named in root-owned config, every statement prepared, a transaction is a callable (`rule:core-classes/db-one-api`) |
 | Tooling | LSP + formatter, test runner, debugger + profiler, package manager |
 | Audience | Web applications of every kind; the pitch is isolation and qualifiers, and PHP syntax is an on-ramp rather than a compatibility promise (`rule:programs/audience`) |
 | Packages | Content-addressed source archives from a first-party registry or (root-only) a git URL, resolved by minimal version selection, with no package code running before the program and capabilities granted per package (`rule:packaging/a-package-is-its-digest`) |
@@ -269,7 +269,7 @@ the one below — request framing is a security-critical parser.
 16-byte tagged value: `{ tag: u8, _pad: [u8;7], bits: u64 }`. NaN-boxing is rejected because PHP semantics
 require full-range `i64`. Tags: `null | bool | int(i64) | uint(u64) | float(f64) | string | array | object |
 enum-int | enum-uint | decimal | bytes` (`rule:enums/representation` owns the two enum tags), beside the never-written storage state a property slot carries
-(`rule:classes/an-unwritten-property-read-throws`). There is no `closure` or `resource` tag: a closure is an
+(`rule:classes/an-unwritten-property-read-throws`). There is no `callable` or `resource` tag: a callable is an
 ordinary object (`rule:types/callable-values`) and an engine-owned handle is a `Core` class holding a
 key into its own context's table, so neither buys a second heap shape or a second release path.
 `uint` is a tag, not a wider slot, so it costs nothing here; the type system

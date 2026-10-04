@@ -34,7 +34,7 @@ from rebase noise in test modules.
   (its module doc), and six of the twelve crates already have it as a dev-dependency (`nvs-cli`,
   `nvs-lsp`, `nvs-stdlib`, `nvs-runtime`, `nvs-config`, `nvs-types`).
 - **Hover.** `crates/nvs-lsp/src/hover.rs:121-140` answers from expression nodes, attribute payloads,
-  autoload prefixes, class literals, path arguments and completion-file values. It never asks
+  autoload prefixes, written class names, path arguments and completion-file values. It never asks
   `definition::type_name_at` (`crates/nvs-lsp/src/definition.rs:1127`) or `definition::import_at`
   (`definition.rs:828`), which is why go-to-definition jumps from a `use` line, an `implements` clause
   and a type position while hover shows nothing there.

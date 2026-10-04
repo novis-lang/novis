@@ -30344,11 +30344,11 @@ One row per PHP built-in. *member*: a `Core` member in Part B does the job. *lan
 | `get_declared_traits` | dropped | there is no `trait` |
 | `spl_classes` | dropped | SPL's data structures are `Core\Arr`, `Core\Heap`, `Core\ObjectMap` and `Core\ObjectSet`; a list of the classes one extension registered describes a build, not a program |
 | `spl_object_hash` | dropped | the same id in hex, with the same reuse hazard and a string's cost on top |
-| `spl_autoload_register` | dropped | *"which file declares this name?"* is `autoload`, whose literal paths are resolved relative to the file that declares it and which has no runtime existence. A loader stack is process-global state a thread-per-core runtime cannot keep |
+| `spl_autoload_register` | dropped | *"which file declares this name?"* is `autoload`, whose paths are written directly in the code and resolved relative to the file that declares it and which has no runtime existence. A loader stack is process-global state a thread-per-core runtime cannot keep |
 | `spl_autoload_unregister` | dropped | there is no stack to remove from |
 | `spl_autoload_functions` | dropped | same; there is no stack to enumerate |
 | `spl_autoload_call` | dropped | there is no moment at which a name is declared but not yet resolved |
-| `spl_autoload` | dropped | the default loader, which is the `include`-path search `autoload`'s literal paths replace |
+| `spl_autoload` | dropped | the default loader: the `include`-path search, which the paths written in `autoload` replace |
 | `spl_autoload_extensions` | dropped | same — `autoload` names paths, so there is no extension list to guess a filename from |
 | `call_user_func` | language | `$f(...)`. A `callable` is only an anonymous function or a method reference, and you call it by writing the call; the `"Class::method"` string form has no spelling at all |
 | `call_user_func_array` | language | `$f(...$args)`, argument unpacking |

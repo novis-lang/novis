@@ -1,6 +1,6 @@
 {
   "module": "crates/nvs-fmt/src/lib.rs",
   "title": "A literal written inside an attribute keeps the quotes it was written with.",
-  "text": "`tokens.rs` respells a literal the index has a node for, and an attribute's argument list is written outside every node `crates/nvs-syntax/src/walk.rs` builds — the same absence `brace.rs`'s own doc names for an attribute's object literal. So `#[Core\\Command(name: \"greet\")]` comes back double-quoted where the same literal in an argument list does not, and what closes it is a node for the attribute in that walk rather than a second scan here.",
+  "text": "`tokens.rs` respells a literal the index has a node for, and an attribute's argument list is written outside every node `crates/nvs-syntax/src/walk.rs` builds — the same absence `brace.rs`'s own doc names for an attribute's anonymous object. So `#[Core\\Command(name: \"greet\")]` comes back double-quoted where the same literal in an argument list does not, and what closes it is a node for the attribute in that walk rather than a second scan here.",
   "milestone": "M10"
 }

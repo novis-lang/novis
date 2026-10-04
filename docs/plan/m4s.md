@@ -27,7 +27,7 @@ compile-time half wired into `nvs-types` — and, per
 qualifier classification here**, with an unclassified `string`/`bytes` parameter refusing `tainted` and that
 crate's own test suite failing on any member that ships without one (§ 2 of the same ADR); the pass that
 marks the existing rows is part of building §§ 1–12 rather than a separate slice. `Duration::parse` shares its grammar and its implementation with
-M1's duration literal (`rule:types/duration`), so build the literal first and this is
+M1's written duration (`rule:types/duration`), so build that first and this is
 the same parser reached from a second entry point. `Core\Str`'s
 unit is `rule:types/string-is-utf8`'s grapheme cluster, decided and seamed in
 `nvs_stdlib::granularity`; the **lazily cached count** that ADR's *Consequences* names is still owed and

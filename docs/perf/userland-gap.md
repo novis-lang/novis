@@ -275,9 +275,9 @@ to reach it through compiled code.
 
 ~~`Core\Arr::map`, `filter`, `reduce` and `sort` all call `nvs_array_key_at` per element. On a
 packed list that renders a decimal and allocates an `NvsStr` — two allocations — and `call_callable`
-then slices the argument list to the closure's declared arity and throws it away.
+then slices the argument list to the callable's declared arity and throws it away.
 `12-array-map-filter` burns 400 000 of them per round for nothing. The arity is a field on the
-closure object and is readable once before the loop instead of per call.~~ ~~`Core\Arr::sort`
+callable object and is readable once before the loop instead of per call.~~ ~~`Core\Arr::sort`
 compounds it: it builds a key per element even when `preserveKeys` is `false`, and the key is then
 discarded.~~ **Landed, both halves.**
 
@@ -288,7 +288,7 @@ too: `nvs_runtime::SlotKey` answers the key in whichever form the subject's own 
 it — the position itself while the array is packed, a reference to the stored string once it is
 hashed — and `NvsArray::set_index` writes it back with nothing rendered. A `filter` allocates a key
 only where it left a gap, which is exactly where the result stops being a list. `sort` goes one
-further: with `preserveKeys` false and no `by` closure asking for one, nothing downstream can
+further: with `preserveKeys` false and no `by` callable asking for one, nothing downstream can
 observe a key, so its walk collects none.
 
 Measured against the sweep in *Where the suite stands*, which was taken on the commit before this
@@ -402,7 +402,7 @@ megamorphic over a baseline; a slot index is the baseline it speculates *from*, 
 cheaper for it existing.
 
 Beside it and unrelated to the layout question: `call_callable` and `call_at` each `Vec::with_capacity`
-per call, which is a heap allocation on every closure call and every native-to-object dispatch.
+per call, which is a heap allocation on every call through a callable and every native-to-object dispatch.
 `smallvec` is already a workspace dependency.
 
 *Owner:* `crates/nvs-runtime/src/object.rs` for the layout, `dispatch.rs` for the call.
@@ -418,7 +418,7 @@ classification — its template is that ADR's sink — so it is cheapest done in
 
 ### J — `Core\Arr::sort` compares without an indirection
 
-It sorts an index permutation with a `Result`-returning closure over `compare_values`, where PHP
+It sorts an index permutation with a `Result`-returning Rust closure over `compare_values`, where PHP
 sorts the buckets directly with a specialized comparator. It was the least bad of the losing cases
 and it is barely a losing case now — item D took it from 0.69× to **0.96×** without touching the
 comparison at all — but it is still the only one on this list whose fix is a rewrite rather than a

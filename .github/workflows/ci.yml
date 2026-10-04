@@ -911,7 +911,7 @@ jobs:
       # dependencies and the global allocator underneath them, and one program taken through parse,
       # check and lowering reaches all of that. The sample is the `nvs-types` unit tests of its
       # types, class layouts, generics and type annotations, which build no table, and two `nvs-ir`
-      # tests that take a generator and a closure through the whole pipeline. The integration tests
+      # tests that take a generator and an anonymous function through the whole pipeline. The integration tests
       # of both crates do not run under Miri at all, for the same reason.
       #
       # A filter that matches nothing is not an error to libtest, so a renamed test would drop out

@@ -135,14 +135,14 @@ each:
 | Area | What grows |
 |---|---|
 | `compiler` | functions, classes, statements in one function, nesting depth, length of one expression, string and array literal size, `match` arms, files joined by `require`, routes declared — `crates/nvs-syntax`, `nvs-hir`, `nvs-types`, `nvs-ir`, `nvs-codegen` |
-| `values` | arrays passed and copied, object properties, deep and long chains freed at once, closures, exceptions through deep call stacks — `crates/nvs-runtime` |
+| `values` | arrays passed and copied, object properties, deep and long chains freed at once, callables, exceptions through deep call stacks — `crates/nvs-runtime` |
 | `arrays` | every `Core\Arr` member over n elements: sort, unique, diff, intersect, search, slice, splice, keys, merge |
 | `strings` | `Core\Str` over n characters and n pieces, building a string in a loop, UTF-8 indexing |
 | `regex` | subject length and pattern size under `Core\Regex` |
 | `json` | document size and nesting depth, encode and decode |
 | `markup` | `Core\Xml`, `Core\Html` parse and write, size and depth |
 | `formats` | CSV, query strings, form bodies, multipart parts, cookies, `Core\Uri` |
-| `templates` | markup literals and rendered pages over n rows — `crates/nvs-render` |
+| `templates` | html templates and rendered pages over n rows — `crates/nvs-render` |
 | `numbers` | `Core\BigInt` and `Core\Decimal` digit counts, judged against their algorithm |
 | `time` | ranges and recurrences, time zone lookups |
 | `database` | rows read, parameters bound, distinct statements prepared (the plan cache), connections — over SQLite, which needs no container; the other drivers where a difference is suspected — `crates/nvs-db` |

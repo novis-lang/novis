@@ -369,7 +369,7 @@ removes the by-reference mutation that was their only reason to exist
 | `sortByKey` | `sortByKey(array<T> $a, {order?: Order, comparator?: callable}): array<T>` | `ksort`, `krsort`, `uksort` | |
 
 Eleven sort functions plus `array_multisort` become two members. Descending is `{order: Order::Desc}`,
-key-preservation is an option rather than a letter in the name, and `by` — a key-extractor closure — is
+key-preservation is an option rather than a letter in the name, and `by` — a key-extractor callable — is
 the thing `usort` callbacks are written to emulate. Both sorts are stable.
 
 `by` and `comparator` **compose** rather than conflict, on `sort` and on `diff`/`intersect` alike: `by`
@@ -976,7 +976,7 @@ is not.
 | `Csv::rows` | `rows(Core\IO\File $file, {separator?, quote?, escape?, header?: bool}): Core\Csv\Rows` | the `while (fgetcsv($handle))` loop | |
 | `Out::capture` | `capture(callable(): mixed $fn, {through?: callable}): Sink` | `ob_start`/`ob_get_clean`, `ob_start($callback)` | |
 
-`Core\Out` has exactly this one member. A buffer is scoped to a closure and nests by call nesting, so
+`Core\Out` has exactly this one member. A buffer is scoped to a callable and nests by call nesting, so
 PHP's global `ob_*` stack — start in one function, end in another, ten functions to inspect the stack — has
 no equivalent, and neither does implicit flushing. `capture` always **swallows**: `{through: $filter}`
 transforms what was captured, and re-emitting it is a visible `echo Out::capture(…)` rather than
@@ -1355,8 +1355,8 @@ in Part II and lands at **M5** rather than M8.
 | `map` | `map(array<T> $items, callable(T, string): U $fn, {limit?: uint, deadline?: Duration}): array<U>` | `curl_multi_*` | |
 | `afterResponse` | `afterResponse(callable(): mixed $fn, {deadline?: Duration}): void` | `fastcgi_finish_request` | |
 
-`all` takes a shape literal of zero-argument closures and returns a shape with the same field names, each
-carrying **that closure's own declared return type**. Every field must be a written `fn` literal — a
+`all` takes an anonymous object of zero-argument callables and returns a shape with the same field names, each
+carrying **that callable's own declared return type**. Every field must be an anonymous function written in place — a
 `callable`-typed variable is a compile error naming the field, pending
 `rule:types/grammar`'s typed `callable` signatures. `map` preserves its
 input's keys and order regardless of completion order, and its callback receives `($value, $key)` like

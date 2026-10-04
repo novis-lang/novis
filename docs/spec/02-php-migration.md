@@ -906,7 +906,7 @@ Most of this family asks the compiler a question at run time. `class_exists`, `m
 `get_class_methods` and `get_declared_classes` exist because a PHP program is assembled while it runs: a
 name is declared when a file happens to be included, so whether a class exists is a fact that can differ
 between two lines. A Novis unit is whole before it runs — *"which file declares this name?"* is `autoload`,
-a top-level declaration with literal paths and no runtime existence whatsoever
+a top-level declaration whose paths are written directly in the code, and with no runtime existence whatsoever
 (`rule:programs/no-runtime-autoload`) — so each of these is either a
 question the compiler has already answered or one member of `Core\Reflect`
 ([01 § 13](01-core-library.md)), and never a lookup that can load a file as a side effect.
@@ -950,11 +950,11 @@ identify.
 | `spl_classes` | dropped | SPL's data structures are `Core\Arr`, `Core\Heap`, `Core\ObjectMap` and `Core\ObjectSet` (`rule:core-api/tier-roster`); a list of the classes one extension registered describes a build, not a program |
 | `spl_object_id` | member | `Core\ObjectMap` and `Core\ObjectSet` ([01 § 9](01-core-library.md)) — the side table the id existed to key. An identity valid only while the object is alive, handed out as a reusable `int`, is the bug those two classes remove |
 | `spl_object_hash` | dropped | the same id in hex, with the same reuse hazard and a string's cost on top |
-| `spl_autoload_register` | dropped | *"which file declares this name?"* is `autoload`, whose literal paths are resolved relative to the file that declares it and which has no runtime existence (`rule:programs/no-runtime-autoload`). A loader stack is process-global state a thread-per-core runtime cannot keep |
+| `spl_autoload_register` | dropped | *"which file declares this name?"* is `autoload`, whose paths are written directly in the code and resolved relative to the file that declares it and which has no runtime existence (`rule:programs/no-runtime-autoload`). A loader stack is process-global state a thread-per-core runtime cannot keep |
 | `spl_autoload_unregister` | dropped | there is no stack to remove from |
 | `spl_autoload_functions` | dropped | same; there is no stack to enumerate |
 | `spl_autoload_call` | dropped | there is no moment at which a name is declared but not yet resolved |
-| `spl_autoload` | dropped | the default loader, which is the `include`-path search `autoload`'s literal paths replace |
+| `spl_autoload` | dropped | the default loader: the `include`-path search, which the paths written in `autoload` replace |
 | `spl_autoload_extensions` | dropped | same — `autoload` names paths, so there is no extension list to guess a filename from |
 | `call_user_func` | language | `$f(...)`. A `callable` is only an anonymous function or a method reference (`rule:types/callable-values`), and you call it by writing the call; the `"Class::method"` string form has no spelling at all |
 | `call_user_func_array` | language | `$f(...$args)`, argument unpacking |

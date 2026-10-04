@@ -23,7 +23,7 @@ with the workspace's `overflow-checks = true` applied to the crate as to everyth
 - **The comparator path stays,** and so does every subject the key sort declines: a `decimal`, a
   `bytes`, an `int` beside a `float` (which the merge sort sorts through the ordering's numeric
   widening), an array or an object (which it throws on). brainsort's `sort_by` cannot abort on a
-  throwing callback, and a Novis comparator costs a closure call per comparison, so the algorithm under
+  throwing callback, and a Novis comparator costs a call through a callable per comparison, so the algorithm under
   it is not where the time goes.
 
 ## Correctness evidence
@@ -233,7 +233,7 @@ The remainder of case 11 is the 50 000 `by` callbacks per round, which no sort t
   and allocates nothing. Every block goes through Novis's own global allocator like the merge sort's
   scratch did, so the seam changes nothing about attribution; neither sort consults
   `nvs_runtime::affordable` for its scratch, which is a gap they share.
-- **Failure containment.** The key closures cannot fail — every value was classified before the sort
+- **Failure containment.** The Rust key closures cannot fail — every value was classified before the sort
   began. Allocation failure inside the crate completes the sort through the standard library's stable
   sort with the same order. A panic inside the crate (an overflow check, say — the workspace enables
   them in release, and the crate's own ASan job runs with them on) is contained to one request by the

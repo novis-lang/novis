@@ -61,7 +61,7 @@ a `///` on a `Core` member, a `#` in a manifest and a `//` inside a `.nvst` case
 
 The failure this exists to stop is cumulative, and it is the one an agent makes by default: a comment is
 edited by writing the new truth **beside** the old one — "originally a `Vec`, now a slab", "this was
-later widened to also take a closure" — and after enough sessions the comment is a diff of every session
+later widened to also take a callable" — and after enough sessions the comment is a diff of every session
 that touched the file, which a reader has to replay in their head to learn what the function does today.
 **So a comment is rewritten as a whole and never appended to.** When the code under it changes, write
 the comment again from the code as it now stands and delete the sentence describing what it used to do;

@@ -4030,7 +4030,7 @@
       "section": "Reflection and the class API",
       "php": "spl_autoload_register",
       "outcome": "dropped",
-      "novis": "*\"which file declares this name?\"* is `autoload`, whose literal paths are resolved relative to the file that declares it and which has no runtime existence (`rule:programs/no-runtime-autoload`). A loader stack is process-global state a thread-per-core runtime cannot keep"
+      "novis": "*\"which file declares this name?\"* is `autoload`, whose paths are written directly in the code and resolved relative to the file that declares it and which has no runtime existence (`rule:programs/no-runtime-autoload`). A loader stack is process-global state a thread-per-core runtime cannot keep"
     },
     {
       "section": "Reflection and the class API",
@@ -4054,7 +4054,7 @@
       "section": "Reflection and the class API",
       "php": "spl_autoload",
       "outcome": "dropped",
-      "novis": "the default loader, which is the `include`-path search `autoload`'s literal paths replace"
+      "novis": "the default loader: the `include`-path search, which the paths written in `autoload` replace"
     },
     {
       "section": "Reflection and the class API",
