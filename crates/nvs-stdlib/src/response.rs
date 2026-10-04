@@ -1943,6 +1943,9 @@ nvs_runtime::nvs_helper! {
                 {
                     Ok(Value::null())
                 }
+                // No case can reach this either, for the same reason: only an
+                // offered cell has a message bound to go over.
+                // `a_stream_write_over_the_message_bound_throws` asserts it.
                 Err(refused) => Err(Fault::thrown(format!(
                     "Core\\Response\\Stream::write(): {refused}"
                 ))),
@@ -2412,6 +2415,42 @@ mod tests {
 
         dropped(media_type);
         dropped(chunk);
+        dropped(handle);
+    }
+
+    /// A chunk over the message bound is the program's own mistake, so it
+    /// still throws while the client is there, and the stream stays writable:
+    /// a chunk inside the bound goes through afterwards.
+    // covers: Core\Response\Stream::write
+    #[test]
+    fn a_stream_write_over_the_message_bound_throws() {
+        let slot = nvs_runtime::stream::BodySlot::new(std::time::Duration::from_secs(30), 4);
+        let mut ctx = framing(&slot);
+
+        let media_type = Value::str(NvsStr::new(b"text/csv"));
+        let handle = call(super::nvs_core_response_stream, &mut ctx, &[media_type])
+            .expect("an offered cell takes the stream");
+
+        let oversized = Value::str(NvsStr::new(b"id,name\n"));
+        call(
+            super::nvs_core_response_stream_write,
+            &mut ctx,
+            &[handle, oversized],
+        )
+        .expect_err("a chunk twice the message bound");
+
+        let small = Value::str(NvsStr::new(b"id\n"));
+        call(
+            super::nvs_core_response_stream_write,
+            &mut ctx,
+            &[handle, small],
+        )
+        .expect("a chunk inside the bound still goes through");
+        assert!(ctx.body_stream().is_some_and(|emit| !emit.is_closed()));
+
+        dropped(media_type);
+        dropped(oversized);
+        dropped(small);
         dropped(handle);
     }
 
