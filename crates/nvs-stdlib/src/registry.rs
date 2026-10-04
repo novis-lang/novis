@@ -3240,8 +3240,74 @@ pub fn type_names() -> Vec<&'static str> {
     nvs_footprint::every_class();
     link_targets()
         .into_iter()
+        .chain(INTERFACES.iter().map(|core| core.name))
         .chain(ENUMS.iter().map(|core| core.name))
         .collect()
+}
+
+/// A `Core` interface a program writes as a type, and only as a type: its
+/// implementors are a closed list of `Core` classes, and none of them is a
+/// program's.
+///
+/// **It owns no rows.** Its members are [`Self::rows`]' instance members minus
+/// [`Self::beyond`], and every implementor carries each of them under the same
+/// symbol, so a call on the interface is the same helper call a call on either
+/// class is: no dispatch, no table, and nothing per value.
+/// `crate::db::transaction`'s delegation sweep is what holds the implementors
+/// to one roster. **No class may name one in an `implements` clause**, which is
+/// why [`link_targets`] leaves the roster out: a program's own class would
+/// reach those helpers with a receiver that has none of their slots.
+///
+/// A value is never an instance of the interface itself, so it has no
+/// descriptor. `$v is Core\Db\Queryable` is the test against each of
+/// [`Self::implementors`] in turn.
+#[derive(Clone, Copy, Debug)]
+pub struct CoreInterface {
+    /// The fully-qualified name, as source writes it.
+    pub name: &'static str,
+    /// Every `Core` class that implements it. Each one carries all of
+    /// [`Self::members`] under the same symbols.
+    pub implementors: &'static [&'static str],
+    /// The class whose instance rows the members are read from.
+    rows: &'static CoreClass,
+    /// The names among [`Self::rows`]' instance members that are that class's
+    /// alone.
+    beyond: &'static [&'static str],
+}
+
+impl CoreInterface {
+    /// Builds the row: `rows` minus `beyond` are the members.
+    pub(crate) const fn new(
+        name: &'static str,
+        implementors: &'static [&'static str],
+        rows: &'static CoreClass,
+        beyond: &'static [&'static str],
+    ) -> Self {
+        Self {
+            name,
+            implementors,
+            rows,
+            beyond,
+        }
+    }
+
+    /// Its members, each an instance member with the symbol every implementor
+    /// declares it under.
+    pub fn members(&self) -> impl Iterator<Item = &'static CoreMethod> + '_ {
+        self.rows
+            .instance
+            .iter()
+            .filter(|row| !self.beyond.contains(&row.name))
+    }
+}
+
+/// Every [`CoreInterface`].
+pub const INTERFACES: &[CoreInterface] = &[crate::db::QUERYABLE];
+
+/// Looks a [`CoreInterface`] up by its fully-qualified name.
+#[must_use]
+pub fn interface(name: &str) -> Option<&'static CoreInterface> {
+    INTERFACES.iter().find(|interface| interface.name == name)
 }
 
 /// Whether a `Core`-owned class renders as text —

@@ -463,7 +463,11 @@ pub fn testable_core_class(qname: &QName) -> bool {
 /// and `nvs_ir`'s own never-matching row is what takes it there.
 pub(crate) fn names_no_instance(ty: TypeId, interner: &TypeInterner) -> bool {
     match interner.get(ty) {
-        Ty::Class(qname, _) => qname.is_core() && !testable_core_class(qname),
+        Ty::Class(qname, _) => {
+            qname.is_core()
+                && !testable_core_class(qname)
+                && crate::core_lib::interface_implementors(qname).is_none()
+        }
         Ty::Union(members) => members
             .iter()
             .all(|member| names_no_instance(*member, interner)),

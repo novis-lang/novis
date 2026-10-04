@@ -530,12 +530,24 @@ pub(crate) const CONNECTION: CoreClass = CoreClass {
 /// `stream` and `streamAs` will not join it: § 18 puts both on `Queryable`, so
 /// each lands on both classes.
 ///
-/// `#[cfg(test)]` because the running language never asks this question — a
-/// call is resolved against the class the receiver is, and neither class needs
-/// to know what the other declares. It sits here rather than in the case's own
-/// module so that it is beside the rows it names.
-#[cfg(test)]
+/// [`QUERYABLE`] reads its members off the same list: every [`CONNECTION`]
+/// row not named here.
 pub(super) const BEYOND_QUERYABLE: &[&str] = &["close", "driver", "serverVersion", "isOpen"];
+
+/// `rule:core-classes/db-transactions`' `Core\Db\Queryable`: what a function
+/// declares when it runs its statements on a connection and a transaction
+/// alike.
+///
+/// [`CONNECTION`] and [`TRANSACTION`] already carry its members under one
+/// symbol each, and `bind::handle_of` is where a helper asks which receiver it was
+/// handed. So the interface is that shared roster given a name, and costs
+/// nothing at a call.
+pub(crate) const QUERYABLE: CoreInterface = CoreInterface::new(
+    QUERYABLE_NAME,
+    &[CONNECTION_NAME, TRANSACTION_NAME],
+    &CONNECTION,
+    BEYOND_QUERYABLE,
+);
 
 /// `Core\Db\Connection::close`'s reference card — `rule:core-api/reference-card`.
 const CLOSE_DOC: MethodDoc = MethodDoc {

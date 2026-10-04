@@ -292,8 +292,8 @@ use rand::RngExt as _;
 use nvs_runtime::{Fault, NvsArray, NvsStr, Tag, ThrownClass, Value};
 
 use crate::registry::{
-    CaseDoc, ClassDoc, Const, CoreClass, CoreEnum, CoreField, CoreMethod, CoreOption, CoreTy,
-    EnumDoc, ErrorDoc, MethodDoc, ParamDoc, Qual, ShapeKeyDoc,
+    CaseDoc, ClassDoc, Const, CoreClass, CoreEnum, CoreField, CoreInterface, CoreMethod,
+    CoreOption, CoreTy, EnumDoc, ErrorDoc, MethodDoc, ParamDoc, Qual, ShapeKeyDoc,
 };
 
 mod bind;
@@ -370,6 +370,9 @@ const BLOCK_AT: usize = 1;
 ///
 /// `pub(crate)` for `registry`'s handle roster, for [`IN_LIST_NAME`]'s reason.
 pub(crate) const TRANSACTION_NAME: &str = r"Core\Db\Transaction";
+
+/// `Core\Db\Queryable`'s fully-qualified name. [`QUERYABLE`] is the interface.
+pub(crate) const QUERYABLE_NAME: &str = r"Core\Db\Queryable";
 
 /// A [`TRANSACTION`]'s third slot: whether the `transaction()` call that built
 /// it is still running.

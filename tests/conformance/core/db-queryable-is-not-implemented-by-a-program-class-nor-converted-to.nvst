@@ -1,0 +1,20 @@
+--TEST--
+`Core\Db\Queryable` is a type and nothing more: a program's own class may not implement it, and `as Core\Db\Queryable` is not a checked conversion — `rule:core-classes/db-transactions`
+--FILE--
+<?nvs
+// A program's own class cannot implement the interface: the members of
+// `Core\Db\Queryable` read a connection's handle off their receiver, and this
+// class has none.
+class Fake implements Core\Db\Queryable {
+}
+
+// No value is ever an instance of the interface itself, so there is no
+// checked conversion into it. `is` is the way to ask.
+mixed $m = 1;
+var $q = $m as Core\Db\Queryable;
+--EXPECTF-ERROR--
+error[E0303]: %a
+error[E0711]: `mixed` cannot be converted to `Core\Db\Queryable`
+%a
+error: aborting due to 2 errors
+%a

@@ -6552,6 +6552,16 @@ fn test_shape(
     // `super::closure::declared_class`'s reason: `nvs-hir` is a
     // dev-dependency of this crate.
     if let CheckedTy::Class(qname, _) = checked_types.get(tested) {
+        // A `Core` interface has no descriptor, since no value is an instance
+        // of the interface itself. The test is one class test per implementor.
+        if let Some(implementors) = nvs_types::core_interface_implementors(qname) {
+            return Some(TestShape::Any(
+                implementors
+                    .iter()
+                    .map(|name| TestShape::Class((*name).to_owned()))
+                    .collect(),
+            ));
+        }
         // A `Core` name off `nvs_types::expr::testable_core_class`'s roster is
         // a namespace class: nothing is an instance of one, and the process
         // publishes no descriptor a walk could compare against. The constant

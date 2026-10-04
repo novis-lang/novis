@@ -104,6 +104,31 @@ pub(crate) fn seed(table: &mut SignatureTable, interner: &mut TypeInterner) {
             table.seed_implements(qname, QName::parse(ITERABLE), vec![elem]);
         }
     }
+    // `nvs_stdlib::registry::CoreInterface`'s roster: the interface is an entry
+    // with its members' signatures, and each implementor gets the edge
+    // `crate::expr::assign`'s class rule reads. No arguments: none of them is
+    // generic.
+    for interface in nvs_stdlib::registry::INTERFACES {
+        let qname = QName::parse(interface.name);
+        let methods = interface
+            .members()
+            .map(|method| (method.name.to_owned(), method_sig(method, false, interner)))
+            .collect();
+        table.seed_class(qname.clone(), FxHashMap::default(), methods);
+        for implementor in interface.implementors {
+            table.seed_implements(QName::parse(implementor), qname.clone(), Vec::new());
+        }
+    }
+}
+
+/// The classes that implement the `Core` interface `qname`, or `None` when
+/// `qname` names no `Core` interface (`nvs_stdlib::registry::CoreInterface`).
+///
+/// A value is an instance of one of these and never of the interface itself,
+/// so `nvs-ir` lowers `$v is Core\Db\Queryable` as one class test per entry.
+#[must_use]
+pub fn interface_implementors(qname: &QName) -> Option<&'static [&'static str]> {
+    nvs_stdlib::registry::interface(&qname.to_string()).map(|found| found.implementors)
 }
 
 /// One registry row as the checker's own signature.
@@ -179,15 +204,24 @@ fn method_sig(
 }
 
 /// The symbol a resolved `Core` call is reachable at, or `None` if `qname`
-/// names no registered class or `method` no registered member.
+/// names no registered class or interface, or `method` no registered member.
 ///
 /// `nvs-ir` reads this to lower a resolved static call whose target is a
 /// `Core` member into the helper-shaped instruction that reaches it — the one
 /// piece of a `Core` call that is genuinely not the same as a user-declared
-/// one, since there is no compiled Novis function to name.
+/// one, since there is no compiled Novis function to name. A `Core` interface's
+/// member has the symbol every implementor declares it under, so a call on
+/// one is the same helper call.
 #[must_use]
 pub fn symbol_of(qname: &QName, method: &str) -> Option<&'static str> {
-    let class = nvs_stdlib::registry::class(&qname.to_string())?;
+    let name = qname.to_string();
+    if let Some(interface) = nvs_stdlib::registry::interface(&name) {
+        return interface
+            .members()
+            .find(|candidate| candidate.name == method)
+            .map(|found| found.symbol);
+    }
+    let class = nvs_stdlib::registry::class(&name)?;
     class
         .members()
         .find(|candidate| candidate.name == method)
