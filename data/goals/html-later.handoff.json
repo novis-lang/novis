@@ -1,32 +1,31 @@
 {
-  "state": "**Goal `html-later` — Stage 2's artefacts are all on disk: `Core\\Html::later` runs on a normal route.** ADR 0266 decides the goal. `crates/nvs-runtime/src/later.rs` holds the slots and the one assembly pass; `crates/nvs-stdlib/src/response.rs`'s `head_open` makes head members throw `LogicError` inside a slot, and `crates/nvs-types/src/response.rs`'s `reject_head_change_in_later` makes the same calls `E0842` where a closure is written in a `later` call's arguments. `crates/nvs-stdlib/tests/html_later.rs` (13 tests) and three `.nvst` cases are green; the third, `tests/conformance/core/html-later-closure-that-changes-the-head-throws-a-logic-error.nvst`, keeps `conformance_coverage`'s floor and error-path gates green.\n\n`echo html`…`` at a sink now writes through `Helper::EchoMarkup`, so under the HTML sink a segment is raw and a hole is escaped once (it was escaped twice before; `tests/conformance/core/a-markup-literal-echoed-in-a-request-is-escaped-once.nvst`).\n\n`rule:core-classes/html-later` names its guards but stays `designed`: its slotted-route half (Stage 3) is not in the tree, and `docs/novis.md` lists only rules whose every line runs. Flip it when Stage 3 lands.\n\n**Known gap, in `later.rs`'s module doc:** slots run when the frame returns, concurrently with each other but not with the main script, and a `later` inside a `Core\\Task::all` child is never assembled.",
+  "state": "**Goal `html-later` — Stage 2 is on disk and Stage 3 has its first piece.** ADR 0266 decides the goal. `crates/nvs-runtime/src/later.rs` holds the slots and the one assembly pass. `crates/nvs-stdlib/src/response.rs`'s `head_open` makes head members throw `LogicError` inside a slot, and `crates/nvs-types/src/response.rs`'s `reject_head_change_in_later` makes the same calls `E0842` where a closure is written in a `later` call's arguments.\n\n**`#[Core\\Route(…, slotted: true)]` compiles and is carried:** `nvs_types::routes::Route::slotted` (roster row `SLOTTED`, folded by `folded_bool`), the attribute card in `crates/nvs-types/src/derive.rs`, `nvs_runtime::routes::Route::with_slotted`/`slotted()`, and the CLI's table build sets it (`crates/nvs-cli/src/main.rs`, beside `without_csrf`). `rule:routing/route-attribute` names the field. Nothing reads `Route::slotted()` at the door yet. The two nvs-types tests `the_route_attribute_takes_slotted` and `slotted_is_carried_to_the_route_table` are green.\n\n`rule:core-classes/html-later` stays `designed` until the slotted half runs. Flip it when Stage 3 lands.\n\n**Known gap, in `later.rs`'s module doc:** slots run when the frame returns, concurrently with each other but not with the main script, and a `later` inside a `Core\\Task::all` child is never assembled.",
   "next": {
     "stage": 3,
     "title": "slotted delivery",
     "files": [
-      "crates/nvs-types/src/routes.rs",
-      "crates/nvs-runtime/src/routes.rs",
-      "crates/nvs-runtime/src/later.rs"
+      "crates/nvs-stdlib/src/response.rs",
+      "crates/nvs-runtime/src/later.rs",
+      "crates/nvs-server/src/serve.rs"
     ],
     "items": [
       {
         "done": false,
-        "text": "**`#[Core\\Route(…, slotted: true)]`**: the route attribute takes an optional `slotted: bool` and the route table carries it; test `the_route_attribute_takes_slotted` in nvs-types (`rule:core-classes/html-later`'s table) — `crates/nvs-types/src/routes.rs:1`, `crates/nvs-runtime/src/routes.rs:1`."
+        "text": "**`Core\\Response::slotted()`** as the runtime switch: a registry row beside `setStatus`, a request-level flag the matched route's `slotted()` also sets, and `slotted_after_the_main_script_ended_throws` (`rule:core-classes/html-later`'s table) — `crates/nvs-stdlib/src/response.rs:1`, `crates/nvs-runtime/src/routes.rs:378`."
       },
       {
         "done": false,
-        "text": "**The slotted assembly**: on a slotted route the shell goes out when the main script ends with placeholders in place, then each fill as a `<template for>` in finishing order, polyfill once (goal § Standing decisions) — `crates/nvs-runtime/src/later.rs:1`."
+        "text": "**The slotted assembly**: on a slotted route the shell goes out when the main script ends with placeholders in place, then each fill as a `<template for>` with the trigger, the polyfill sent once, `</body></html>` held back, no `Content-Length`, `X-Accel-Buffering: no` (`rule:core-classes/html-later`) — `crates/nvs-runtime/src/later.rs:1`, `crates/nvs-server/src/serve.rs:1`."
       },
       {
         "done": false,
-        "text": "**`Core\\Response::slotted()`** as the runtime switch, with its registry row beside `setStatus` — `crates/nvs-stdlib/src/response.rs:1`."
+        "text": "**The polyfill and trigger files with their CSP hashes**, 1 KB and 120-bytes-per-slot limits, and `tools/nv/test/html-later-polyfill.test.ts` under Playwright (`rule:core-classes/html-later`) — `crates/nvs-runtime/src/later.rs:1`."
       }
     ]
   },
   "backlog": [
-    "`docs/reference/lang/80-concurrency.md:10-13` and `docs/spec/02-php-migration.md:862` still describe the world before `later` (goal § Stage 0).",
-    "Inline HTML after `?>` is written through `Helper::EchoStr`, which the HTML sink escapes — not checked whether a served page with `?>` text is escaped; `crates/nvs-ir/src/lower/expr.rs`'s `lower_inline_html`.",
-    "Flip `rule:core-classes/html-later` to `shipped` once Stage 3 lands (`data/rules/core-classes/html-later.json`).",
-    "Stage 4: nvs-lsp completion and hover for `later` (`crates/nvs-lsp`)."
+    "The CI `browser` lane in `tools/nv/cmd/ci-changes.ts` and `.github/workflows/ci.yml` (`rule:testing/ci-lanes`), paths `crates/nvs-server/src/slotted/`.",
+    "nvs-lsp: completion offers `later`'s options, hover shows its card (Stage 4).",
+    "`bun nv proofs --gate` with `later` and slotted routes in the roster (Stage 5)."
   ]
 }
