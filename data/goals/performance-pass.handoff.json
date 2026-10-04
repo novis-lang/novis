@@ -1,28 +1,32 @@
 {
-  "state": "**Goal `performance-pass`, Stage 3 (the ladders) is done as far as the goal prose names it, and Stage 4 (the review) is next.** All 22 areas have a ladder, and `bun nv scaling --areas` prints `every area has a ladder`. `bun nv scaling` in `tools/nv/cmd/scaling.ts` measures six kinds (`run`, `compile`, `lsp`, `fmt`, `serve`, `fetch`); its module doc is the home of the ramp, the bounds, `KINDS`, `AREAS`, the `serve` sizes and the `fetch` server.\n\n**The `app` area has five ladders, all flat:** `requests.nvs` (`serve`, requests served), `clients.nvs` (`serve`, `size connections`, 16 to 512), `rows.nvs` (`run`, products per page, counts at slope 1.00), `modules.nvs` (`compile`, n page classes each with a route) and `editor.nvs` (`lsp`, the same program, clock 1.13). No queued job yet: the queue needs the `nvs_jobs` tables `queue/jobs.nvs` creates.\n\n**Ladders that grow:** `fmt/classes.nvs`, `lsp/classes.nvs`, and `numbers/bigint-mul.nvs` (under *Benches to look at*). `docs/perf/performance-pass.md` *What we found* now has the two server findings checked: an unread POST body from 16 KB closes the connection after the response, and at 512 KB loses the response in 6 of 20 tries; 100 header lines get a correct `431`, which is not a defect. The 1.05 MB per `Core\\Task` is still unexplained.\n\n**Still red:** `--areas --reviewed` (`docs/perf/performance-review.md` does not exist, Stage 4) and `scaling --check` (the growing ladders, Stage 5). `lspInstructions` has not run, and `--iterations --check` has had no full sweep.",
+  "state": "**Goal `performance-pass`, Stage 4 (the review) has its check green:** `bun nv scaling --areas --reviewed` prints `every area has a ladder and a review section`. `docs/perf/performance-review.md` has one section per area of `AREAS` (`tools/nv/cmd/scaling.ts:278`): what was read, the findings with their gap records, and what is bounded or fine. It has no `## floor` section yet, and old refusals have not been priced again.\n\n**27 gap records owned by `performance-pass`** came out of the review (`bun nv owners --check` counts them as `live-goal-owned`). Only `nvs-syntax/an-elseif-chain-is-not-depth-guarded` was confirmed with a probe: 300 `elseif` arms overflow the debug compiler's stack, and `else if` is refused with `E0108` at 90. The rest say *from the Stage 4 review, not re-run* unless the session read the site. No ladder exists yet for any review finding.\n\n**Still red:** `scaling --check` (the growing ladders `fmt/classes.nvs`, `lsp/classes.nvs`, `numbers/bigint-mul.nvs`, Stage 5). The review names the likely causes: `nvs-syntax/a-syntax-index-lookup-scans-every-node` for fmt, `nvs-lsp/the-index-copies-an-entrys-reads-into-every-file` and `nvs-lsp/unused-private-scans-every-occurrence` for lsp. `docs/perf/performance-pass.md` *Decisions for you* has one entry: a total deadline for the request head.",
   "next": {
     "stage": 4,
-    "title": "the review",
+    "title": "the review, its floor and its first ladders",
     "files": [
       "docs/perf/performance-review.md",
-      "tools/nv/cmd/scaling.ts"
+      "benches/scaling/compiler/",
+      "crates/nvs-syntax/src/parser/stmt.rs"
     ],
     "items": [
       {
         "done": false,
-        "text": "**Write `docs/perf/performance-review.md`** with one `## <area>` section per entry of `AREAS`, which `areas()` at `tools/nv/cmd/scaling.ts:846` reads. Fan out one read-only `Explore` subagent per area, two or three per message, each given the area's crates from the goal prose's Stage 3 table and the shapes Stage 4 lists; each finding becomes a gap record under `data/gaps/` owned by `performance-pass`. Rule: `rule:testing/bench-counters`."
+        "text": "**Write the `## floor` section of `docs/perf/performance-review.md`**: measure with counts an empty program run, an empty program compiled, one empty request served and an empty file opened in `nvs lsp`, and say what the counts are spent on, as the goal's Stage 4 *The fixed floor* says. `bun nv scaling` kinds and their bounds are documented at `tools/nv/cmd/scaling.ts:1`. Rule: `rule:testing/bench-counters`."
       },
       {
         "done": false,
-        "text": "**Find where `nvs serve` decides to close on an unread body**, starting from the connection loop in `crates/nvs-cli/src/serve.rs:1`: the response must be flushed before the close, at every size. A fix that drains a bounded amount of the body before closing spends no memory per request beyond that bound. Rule: `rule:testing/bench-counters`."
+        "text": "**Write `benches/scaling/compiler/elseif.nvs`**, n `elseif` arms, `compile` kind, so the ladder shows the crash recorded in `data/gaps/nvs-syntax/an-elseif-chain-is-not-depth-guarded.json`; the cause is `crates/nvs-syntax/src/parser/stmt.rs:403`. The ladder fails until Stage 5 fixes it, which is what `scaling --check` is for. Rule: `rule:testing/bench-counters`."
+      },
+      {
+        "done": false,
+        "text": "**Price old refusals again**: find decision records and perf notes under `docs/decisions/` and `docs/perf/` that declined a performance change on a figure from a smaller tree, measure each again, and give each a line in its area's section of `docs/perf/performance-review.md`, or a gap if the verdict changes; the review file's opening is at `docs/perf/performance-review.md:1`. Rule: `rule:testing/member-perf-ledger`."
       }
     ]
   },
   "backlog": [
-    "`lsp/classes.nvs` near-quadratic clock — Stage 5, `docs/perf/performance-pass.md`.",
-    "`fmt/classes.nvs` grows — Stage 5, `docs/perf/performance-pass.md`.",
-    "1.05 MB per `Core\\Task` — `docs/perf/performance-pass.md` *What we found*.",
-    "An `app` ladder for a queued job, once `queue/jobs.nvs`'s tables exist in the `app` folder — `benches/scaling/README.md`.",
-    "`lspInstructions` never run, and no full `--iterations --check` sweep — `tools/nv/cmd/scaling.ts` module doc."
+    "Ladders for the other review findings, one per gap record that names a ladder (`data/gaps/*/*.json` with `\"goal\": \"performance-pass\"`).",
+    "Find where `nvs serve` decides to close on an unread POST body, from `crates/nvs-cli/src/serve.rs:1` (`docs/perf/performance-pass.md` *What we found*).",
+    "The 1.05 MB per `Core\\Task`: check whether the request is charged the reserved stack (`data/gaps/nvs-host/a-task-is-charged-a-whole-stack.json`).",
+    "`lspInstructions` has not run, and `--iterations --check` has had no full sweep (`tools/nv/cmd/scaling.ts` module doc)."
   ]
 }

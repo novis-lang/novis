@@ -1,0 +1,11 @@
+{
+  "lead": "A probe `.nvs` file without `<?nvs` on its first line is template text, so `nvs check` passes and `nvs run` prints the source.",
+  "body": "Code mode starts only at `<?nvs`, and `<?php` is refused with `E0229`. A generated stress input that skips the tag measures the text path and can report \"no crash\" for code that crashes. Start every generated probe with `<?nvs\\n`, and confirm the run reaches a diagnostic or output from the code itself; the open tags are lexed in `crates/nvs-syntax/src/token.rs`.",
+  "files": [
+    "crates/nvs-syntax/src/token.rs"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "crates/nvs-syntax/src/token.rs:only code-mode open tag"
+  }
+}
