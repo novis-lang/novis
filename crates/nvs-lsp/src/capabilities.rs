@@ -81,10 +81,13 @@ pub const TOKEN_MODIFIERS: &[SemanticTokenModifier] = &[
 /// a fix that changes meaning has to arrive through this channel instead.
 /// The third kind is the html-template refactor's ([`crate::html_template::KIND`]),
 /// narrow enough that a client asking for it by kind gets that action alone.
+/// The fourth is `refactor.rewrite`, which *Put on separate lines* and *Join
+/// onto one line* are filed under ([`crate::split_join::KIND`]).
 pub const CODE_ACTION_KINDS: &[CodeActionKind] = &[
     CodeActionKind::QUICKFIX,
     CodeActionKind::new("source.fixAll.nvs"),
     CodeActionKind::new(crate::html_template::KIND),
+    CodeActionKind::new(crate::split_join::KIND),
 ];
 
 /// The version this server reports in `serverInfo`.

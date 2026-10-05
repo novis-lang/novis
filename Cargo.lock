@@ -2352,6 +2352,7 @@ dependencies = [
  "lsp-types",
  "nvs-config",
  "nvs-diagnostics",
+ "nvs-fmt",
  "nvs-footprint",
  "nvs-hir",
  "nvs-repo",

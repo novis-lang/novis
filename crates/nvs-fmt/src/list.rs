@@ -88,7 +88,7 @@ const PARAMETERS: &[&str] = &["Function", "Method", "Fn"];
 const ENUM: &str = "EnumDecl";
 
 /// Whether a node of `kind` writes a list this module lays out.
-fn writes_a_list(kind: &str) -> bool {
+pub(crate) fn writes_a_list(kind: &str) -> bool {
     kind == ENUM || PARAMETERS.contains(&kind) || LISTS.iter().any(|(list, ..)| *list == kind)
 }
 
@@ -103,13 +103,13 @@ pub(crate) enum Level {
 /// One list, read from the lossless tree.
 pub(crate) struct List {
     /// The opening delimiter.
-    opener: usize,
+    pub(crate) opener: usize,
     /// The closing delimiter.
     pub(crate) closer: usize,
     /// Every comma between two items, and the trailing one if it is written.
-    commas: Vec<usize>,
+    pub(crate) commas: Vec<usize>,
     /// The first code byte of each item.
-    items: Vec<usize>,
+    pub(crate) items: Vec<usize>,
     /// Whether a line break sits at the list's own level.
     pub(crate) broken: bool,
 }

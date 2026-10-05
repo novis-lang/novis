@@ -13,10 +13,11 @@
 //! so there is nothing here for it to be translated *from*, and it is offered
 //! by nothing rather than refused by a list.
 //!
-//! The one action that is not a fix is [`crate::html_template`]'s refactor, a
-//! string rewritten as an html template. It is appended to the quick fixes under
-//! its own kind and never to a fix-all, since applying it changes what the
-//! line prints.
+//! Two actions are not fixes. [`crate::html_template`]'s refactor rewrites a
+//! string as an html template, and [`crate::split_join`]'s puts a list on
+//! separate lines or joins it onto one. Each is appended to the quick fixes
+//! under its own kind and never to a fix-all: the first changes what the line
+//! prints, and the second changes a layout that is the author's choice.
 //!
 //! # Decision: the gate an editor sees is the gate an action is offered behind
 //!
@@ -120,7 +121,8 @@ impl Kind {
 
 /// Every fix offered over `[start, end)` of the entry document of `analysed`,
 /// under `kind`, positioned in `encoding` — and, beside the quick fixes, the
-/// html-template refactor when the range is on a string ([`crate::html_template`]).
+/// html-template refactor when the range is on a string ([`crate::html_template`])
+/// and the split or join when it is inside a list ([`crate::split_join`]).
 ///
 /// The diagnostics read are the compiler's, phase-gated, and the ones `files`
 /// gives the entry document, which is where a deprecated value's replacement
@@ -161,6 +163,7 @@ pub fn at(
         .collect();
     if kind == Kind::QuickFix {
         offered.extend(crate::html_template::at(analysed, start, end, encoding));
+        offered.extend(crate::split_join::at(analysed, start, encoding));
     }
     offered.sort_by(|left, right| order(left).cmp(&order(right)));
     offered

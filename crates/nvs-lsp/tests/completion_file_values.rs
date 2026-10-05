@@ -654,7 +654,7 @@ fn the_replacement_quick_fix_rewrites_only_the_string_and_escapes_for_its_quote(
             PositionEncoding::Utf8,
         )
         .into_iter()
-        .filter(|action| action.kind != nvs_lsp::html_template::KIND)
+        .filter(|action| action.kind == actions::Kind::QuickFix.name())
         .map(|action| (action.title, action.replacement, action.range))
         .collect();
         let want: Vec<(String, String, Range)> = want
@@ -665,7 +665,8 @@ fn the_replacement_quick_fix_rewrites_only_the_string_and_escapes_for_its_quote(
     }
 
     // Without the file, no fix is offered. The string is still offered the
-    // html-template conversion, which is no fix and is not counted here.
+    // html-template conversion and the call its split, which are no fixes and
+    // are not counted here.
     let (_, analysis, at) = opened(&workspace, "Icon::render('arrow-<|>left', 16);");
     let offered: Vec<_> = actions::at(
         &analysis,
@@ -676,7 +677,7 @@ fn the_replacement_quick_fix_rewrites_only_the_string_and_escapes_for_its_quote(
         PositionEncoding::Utf8,
     )
     .into_iter()
-    .filter(|action| action.kind != nvs_lsp::html_template::KIND)
+    .filter(|action| action.kind == actions::Kind::QuickFix.name())
     .collect();
     assert!(offered.is_empty(), "{offered:?}");
 }

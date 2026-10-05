@@ -123,6 +123,7 @@ pub mod selection;
 pub mod semantic;
 mod server;
 pub mod settings;
+pub mod split_join;
 pub mod stubs;
 pub mod suite;
 pub mod symbols;

@@ -68,7 +68,10 @@ mod list;
 mod modifiers;
 mod print;
 mod space;
+mod split_join;
 mod tokens;
+
+pub use split_join::{Relayout, Toggle};
 
 /// A file `nvs fmt` will not rewrite, because its parse reported an error
 /// these rules do not themselves rewrite.
@@ -141,4 +144,15 @@ pub fn format(file: &SourceFile) -> Result<String, Refusal> {
         });
     }
     Ok(print::print(file, &parsed, &diagnostics))
+}
+
+/// The edit that puts the list around byte `offset` of `file` on separate
+/// lines, or joins it onto one, written as `nvs fmt` lays it out
+/// (`rule:ide/a-list-splits-onto-lines-and-joins-onto-one`).
+///
+/// [`None`] where no list is around `offset`, where the file does not parse,
+/// and where the list is broken and a line comment sits at its own level.
+#[must_use]
+pub fn relayout(file: &SourceFile, offset: usize) -> Option<Relayout> {
+    split_join::at(file, offset)
 }

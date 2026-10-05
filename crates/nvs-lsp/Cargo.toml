@@ -36,6 +36,10 @@ nvs-diagnostics.workspace = true
 # completes from (`crate::directives`). Already linked through `nvs-types`;
 # named here because this crate reads it directly.
 nvs-config.workspace = true
+# The formatter's list layout, for *Put on separate lines* and *Join onto one
+# line* (`crate::split_join`): the edit is the layout `nvs fmt` writes, so the
+# rules stay in one crate (`rule:ide/one-server-two-thin-clients`).
+nvs-fmt.workspace = true
 nvs-hir.workspace = true
 nvs-syntax.workspace = true
 nvs-types.workspace = true
