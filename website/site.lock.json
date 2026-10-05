@@ -181,12 +181,12 @@
     "lang:types/parameters": "b717ae73a872b8ae"
   },
   "syntax/operators/arithmetic.mdx": {
-    "lang:expressions/arithmetic": "537f01ba95d7cd24",
+    "lang:expressions/arithmetic": "ff67c48497b119e0",
     "lang:expressions/assignment": "d0b9aae015dcb3c3"
   },
   "syntax/operators/comparison.mdx": {
     "lang:expressions/comparison-and-equality": "d9461e5271186485",
-    "lang:expressions/logical-operators-and-truth": "79c43ea21be70279"
+    "lang:expressions/logical-operators-and-truth": "76e639b7f85e12a8"
   },
   "syntax/operators/null-coalescing.mdx": {
     "lang:expressions/and-the-ternary": "d082efd61d67d36b"
@@ -285,7 +285,7 @@
     "lang:enums/what-replaces-php-s-enum-members": "d513ee76b1f78ff9"
   },
   "syntax/values/is.mdx": {
-    "lang:types/narrowing": "e942af609df048f7"
+    "lang:types/narrowing": "157c96628eff67c0"
   },
   "syntax/values/nullable.mdx": {
     "lang:types/nullable-union-single-value-and-enum-case-types": "572dc4590c11810c"

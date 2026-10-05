@@ -19,6 +19,9 @@ import Snippet from '@components/Snippet.astro'
 
 Arithmetic needs numbers on both sides. `"3" * 2` does not compile. Write `($s as int) * 2`.
 
+A value that can be `null`, such as a `?float`, does not compile either. Test it first with
+`if ($a != null)`, or give it a default with `??`: `($a ?? 0.0) + 1.5`.
+
 ## Errors
 
 <Snippet src="syntax/arithmetic/02-errors.nvs" />

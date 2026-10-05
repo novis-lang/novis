@@ -31,6 +31,8 @@ Objects can be compared when their class implements `Comparable`.
 - `&&` is true when both sides are true. It checks the right side only when the left side is true.
 - `||` is true when one side is true. It checks the right side only when the left side is false.
 - `!` turns `true` into `false` and `false` into `true`.
+- The block of `if ($a != null && $b != null)` runs only when both tests are true. Inside it,
+  `$a` and `$b` are not `null`.
 
 These values count as false: `false`, `0`, `0.0`, `""`, `"0"`, `[]` and `null`. Every other value
 counts as true.

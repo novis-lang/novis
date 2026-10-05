@@ -18,6 +18,9 @@ These tests change the type in the same way:
 - `$x == null` and `$x != null` on a `?T`
 - `$x == "read"` on a type that lists exact values, and `$x == Mode::Read` on an enum
 - the right side of `&&` and `||`, and the two sides of `? :`
+- both tests of `if (A && B)`, inside its block
+- both tests of `if ($a == null || $b == null) { return; }`, in the code after it. There, `$a` and
+  `$b` are not `null`.
 
 ## Use this when there are many types to test
 
