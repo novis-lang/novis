@@ -1228,6 +1228,15 @@ struct Classes {
     /// shape class answers for every field *type*; `nvs-ir`'s module docs own
     /// that choice.
     shape_codecs: FxHashMap<String, *const nvs_runtime::ShapeCodec>,
+    /// [`Self::conforming_to`]'s answer for every label any class is a
+    /// subtype of, built once in [`Self::build`] by reading each class's
+    /// `conforms` the other way round, so a `class<T>` conversion site is a
+    /// lookup rather than a scan of every class.
+    ///
+    /// **Costs** one `String` per edge per class, the same as
+    /// [`ClassEntry::conforms`], for the life of the compiled unit — never per
+    /// request, and freed with the unit.
+    conforming: FxHashMap<String, Vec<(String, *const nvs_runtime::ClassDesc)>>,
 }
 
 /// One compiled function's declared shape, as
@@ -1334,7 +1343,28 @@ impl Classes {
             out.table
                 .define_enum(shape.label.clone(), shape.unsigned, shape.cases.clone());
         }
+        out.index_conforming();
         out
+    }
+
+    /// Fills [`Self::conforming`] from every class's `conforms`, each list
+    /// sorted by label for [`Self::conforming_to`]'s reason.
+    fn index_conforming(&mut self) {
+        let mut conforming: FxHashMap<String, Vec<(String, *const nvs_runtime::ClassDesc)>> =
+            FxHashMap::default();
+        for (label, entry) in &self.by_label {
+            for base in std::iter::once(label).chain(&entry.conforms) {
+                conforming
+                    .entry(base.clone())
+                    .or_default()
+                    .push((label.clone(), entry.desc));
+            }
+        }
+        for list in conforming.values_mut() {
+            list.sort_unstable_by(|a, b| a.0.cmp(&b.0));
+            list.dedup_by(|a, b| a.0 == b.0);
+        }
+        self.conforming = conforming;
     }
 
     /// Fills in every class's `rule:core-classes/derive-attribute` codecs — the JSON one and the row one
@@ -1608,17 +1638,10 @@ impl Classes {
     /// two builds of one unit have to emit the same instructions for
     /// `rule:packaging/an-artifact-is-verified-whole-before-a-page-is-executable`'s
     /// checksum to mean what it claims.
-    fn conforming_to(&self, base: &str) -> Vec<(&str, *const nvs_runtime::ClassDesc)> {
-        let mut out: Vec<(&str, *const nvs_runtime::ClassDesc)> = self
-            .by_label
-            .iter()
-            .filter(|(label, entry)| {
-                label.as_str() == base || entry.conforms.iter().any(|up| up == base)
-            })
-            .map(|(label, entry)| (label.as_str(), entry.desc))
-            .collect();
-        out.sort_unstable_by_key(|(label, _)| *label);
-        out
+    ///
+    /// A lookup in [`Self::conforming`], which [`Self::build`] filled once.
+    fn conforming_to(&self, base: &str) -> &[(String, *const nvs_runtime::ClassDesc)] {
+        self.conforming.get(base).map_or(&[], Vec::as_slice)
     }
 
     /// Every class this unit declares, as `(label, descriptor address)` — what

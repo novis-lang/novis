@@ -23,8 +23,8 @@ probe; fixed, an `If` is now one statement with a list of arms,
 [`ast.rs`](../../crates/nvs-syntax/src/ast.rs)). Quadratic in program size:
 `a-require-chain-is-cloned-per-file`, `the-live-set-is-cloned-per-branch` and its constructor half
 `the-constructor-init-state-is-cloned-per-branch` (all three fixed),
-`flattening-a-class-dedupes-by-linear-scan` (fixed,
-[performance-pass.md § *What got better*](performance-pass.md#what-got-better)) and [`conforming-to-scans-every-class-per-site`](../../data/gaps/nvs-codegen/conforming-to-scans-every-class-per-site.json).
+`flattening-a-class-dedupes-by-linear-scan` and `conforming-to-scans-every-class-per-site` (both
+fixed, [performance-pass.md § *What got better*](performance-pass.md#what-got-better)).
 
 **Bounded:** `ClassLayout::slot_of` is a linear search per property default
 (`crates/nvs-ir/src/lower/mod.rs:316`), O(F²) in one class's fields. The duplicate-key check of an

@@ -139,6 +139,17 @@ them apart even at 16384 files, about 3 s either way, because loading and parsin
 far more than the copies did. It spends one more copy of each path on the chain while the program
 is loaded.
 
+**A `class<T>` conversion site looks up the classes that are a `T`.** Each `as class<T>` filtered
+every class in the program and sorted the result, so C classes and C sites cost O(C²) in the
+compiler's code generation. The lists are now built once per unit, one per supertype, from each
+class's supertype set (`Classes::conforming` in `crates/nvs-codegen/src/lib.rs`). The ladder
+[`compiler/class-sites`](../../benches/scaling/compiler/class-sites.nvs) prints n classes and one
+function with n sites. It is flat, but its clock is `nvs check`'s, which stops before code
+generation, so the fix was timed by hand: a cold `nvs run` of the printed program at 16384, old and
+new binary in alternating rounds, took 12.5 to 14.1 s before and 8.2 to 11.2 s after. What remains
+is the one long function, which grows about 5 times for 4 times the sites with only four classes.
+It spends one label per edge of the class hierarchy for the life of the compiled unit.
+
 **The `Core` signature table is built once per process.** Every check built the whole table from the
 registry, interned its types and freed it again. The first check now builds it into a frozen base
 (`crates/nvs-types/src/core_lib.rs`), and every check layers its own declarations and types over

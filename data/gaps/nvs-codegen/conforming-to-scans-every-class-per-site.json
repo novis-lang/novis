@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-codegen/src/lib.rs",
-  "title": "Every `class<T>` conversion site filters and sorts every class in the program again.",
-  "text": "From the Stage 4 review, not re-run: `conforming_to` (`crates/nvs-codegen/src/lib.rs:1611`, called from `crates/nvs-codegen/src/emit.rs:2644` for each `ClassDescIn` instruction) filters every class in `by_label` by its `conforms` list and sorts the result, with no cache. The cost is O(sites × C log C), quadratic in program size when both grow. Computing the list once per target class makes it linear. Ladder: `compiler/class-sites.nvs`, C classes and C conversion sites, `compile` kind.",
-  "goal": "performance-pass"
-}

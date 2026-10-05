@@ -1,0 +1,32 @@
+<?nvs
+// Prints a program of n classes and one function that converts a name to each of them with `as ?class<T>`, as a plugin loader that picks a class by name does.
+// scaling: kind compile
+// scaling: start 256
+// scaling: max 4096
+// scaling: expect linear
+
+class Bench {
+    public static function run(uint $size): string {
+        array<string> $lines = ["<?nvs", "class Base {}"];
+        uint $i = 0;
+        while ($i < $size) {
+            $lines[] = "class K{$i} extends Base {}";
+            $i = $i + 1;
+        }
+        $lines[] = "class Loader {";
+        $lines[] = "    public static function count(string \$name): int {";
+        $lines[] = "        int \$found = 0;";
+        $i = 0;
+        while ($i < $size) {
+            $lines[] = "        if ((\$name as ?class<K{$i}>) is null) { \$found = \$found + 1; }";
+            $i = $i + 1;
+        }
+        $lines[] = "        return \$found;";
+        $lines[] = "    }";
+        $lines[] = "}";
+        $lines[] = "echo Loader::count(\"K0\"), \"\\n\";";
+        return Core\Str::join($lines, "\n") . "\n";
+    }
+}
+
+echo Bench::run(256);
