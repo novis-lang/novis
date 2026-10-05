@@ -1,32 +1,35 @@
 {
-  "state": "**Goal `growth-proof`, Stage 2: every bench declares its complexity, and `--record-perf` requires it.** No floor is carried.\n\nEvery bench under `benches/members/` has `// bench: complexity`. The files still without one are helpers that `programs()` in `tools/nv/cmd/scaling.ts` skips: the child scripts under `lang/concurrency/*/`, `autoload…/Step.nvs`, `require…/part.nvs` and `_calibration/`. `COMPLEXITY_REQUIRED` is gone, and `measureOne` in `tools/nv/proofs/perf.ts` passes `required = true` to `growthOf`.\n\n`bun nv scaling --growth [filter...] [--all]` judges benches the way `--record-perf` does, with callgrind off and no record written. A bench with findings and a `// proof: gap` marker prints `gap` and does not fail. Over the 45 benches backfilled this session, nothing fails.\n\nTwo gap records carry the benches whose growth cannot be proven yet:\n- `data/gaps/nv/a-bench-cannot-ramp-an-input-fixed-outside-its-program.json` (M10) covers 20 benches. Their input is a `.nvsr`, a `.in`, the environment or the declared classes, so they declare `linear` with no sibling.\n- `data/gaps/nvs-stdlib/bigint-division-and-decimal-text-grow-quadratically.json` (M12) covers nine `Core\\BigInt` benches that declare `quadratic`.\n\n`core/BigInt/mul.scale.nvs` is unclear without callgrind, as its ladder is in `docs/perf/performance-pass.md`.\n\nThe whole tree has not been run under `--growth` (about a thousand benches, release binary). A bench that an area's subagent declared wrongly is found only by running it.",
+  "state": "**Goal `growth-proof`, between Stage 2 and Stage 3.** No floor is carried.\n\nEvery bench under `benches/members/` has `// bench: complexity`, and `--record-perf` requires it (`measureOne` in `tools/nv/proofs/perf.ts`). `bun nv scaling --growth [filter...]` judges benches as the proof does, with callgrind off.\n\nCallgrind now sets N: when callgrind's instructions settle a bench's ramp, `rampAt` records the batch as `Judged.threshold`, and `growthOf` lowers the bench's `iterations` to twice that batch with `withIterations`, written as `// bench: iterations N callgrind`. `measureOne` runs the growth first, so the record is taken at the new N. N is never raised. `benches/members/README.md` documents the `callgrind` note.\n\n`bun nv scaling --iterations --sized` exists: it fails a flat bench whose N is more than twice the batch its ramp settled at (`oversized`), and prints the check's line when none is. Every bench still has its old N, so the check is red until the tree is lowered. `core/Str/length.nvs` settles at 1024 with N 400000, for example.\n\nGap records for benches whose growth cannot be proven yet: `data/gaps/nv/a-bench-cannot-ramp-an-input-fixed-outside-its-program.json` (20 benches) and `data/gaps/nvs-stdlib/bigint-division-and-decimal-text-grow-quadratically.json` (nine `Core\\BigInt` benches).\n\nThe whole tree has not been run under `--growth` or `--sized` yet (about a thousand benches, release binary).",
   "next": {
-    "stage": 2,
-    "title": "growth is a feature proof",
+    "stage": 3,
+    "title": "small benches, and a budget",
     "files": [
       "tools/nv/cmd/scaling.ts",
-      "tools/nv/proofs/perf.ts",
-      "tools/nv/test/proof-growth.test.ts"
+      "benches/members/**",
+      "docs/perf/members.ndjson"
     ],
     "items": [
       {
         "done": false,
-        "text": "**Callgrind sets N.** ADR 0272 § 5, `rule:testing/feature-proofs`. When callgrind settles a ramp in `rampAt` (`tools/nv/cmd/scaling.ts:902`), set the bench's `iterations` from that batch and write beside it that callgrind measured it. A later run uses N and does not run valgrind again. Pin it in `tools/nv/test/proof-growth.test.ts` with a fake measure."
+        "text": "**Lower the tree's N.** Run `bun nv scaling --iterations --sized --jobs 4` (`tools/nv/cmd/scaling.ts:1137`) under `bun nv bg`, and for each bench it names set `// bench: iterations` and the closing literal to the N it prints. `withIterations` (`tools/nv/cmd/scaling.ts:209`) is the rewrite, without the `callgrind` note. Re-record the clock figures of the lowered benches in the same slice (`bun nv proofs --record-perf`). Split by area across subagents with worktrees. Spec: the goal's Stage 3, `rule:testing/member-perf-ledger`."
       },
       {
         "done": false,
-        "text": "**Sweep the tree.** Run `bun nv scaling --growth` (`tools/nv/cmd/scaling.ts:1008`) under `bun nv bg`. Fix each FAIL by correcting its class or its sibling. If the fix is larger than a slice, add a gap marker. This is the evidence that Stage 2's declarations hold."
+        "text": "**`--budget`.** Add `bun nv scaling --budget` in `tools/nv/cmd/scaling.ts:1097` (`run`): the counted work of every bench at its N, stored in `docs/perf/bench-budget.json`, which may only go down except for a new bench's share or a raised N with a reason beside its line. Check `the-bench-tree-is-within-its-budget`."
       },
       {
         "done": false,
-        "text": "**Stage 3 begins: `--iterations --sized`.** In `tools/nv/cmd/scaling.ts:200` (`batchSizes`, under `CEILING` at `tools/nv/cmd/scaling.ts:139`), fail while a bench's N is more than about twice the batch where its ramp settled. The goal's Stage 3 is the spec, and the check is `every-bench-iteration-count-is-what-its-growth-check-needs`."
+        "text": "**README wording.** `benches/members/README.md:78`: \"Size it to run in well under a second\" becomes \"the smallest count that shows the growth\"."
+      },
+      {
+        "done": false,
+        "text": "**Sweep `--growth`.** Run `bun nv scaling --growth` (`tools/nv/cmd/scaling.ts:1050`) under `bun nv bg`, and fix each FAIL by correcting its class or its sibling, or add a gap marker. Can share the bg run with the first item."
       }
     ]
   },
   "backlog": [
-    "`--budget` and `docs/perf/bench-budget.json` (goal Stage 3).",
-    "`rule:testing/member-perf-ledger` still describes the same-run ratio. Stage 4's record rewrites it.",
-    "`core/Heap/push` and `pop` declare `constant`, but each operation costs log n in the heap's size, and `EXPECT` has no logarithmic class. Stage 6's section can list them.",
-    "Stages 4–6: the selection tests, the skip tests, and `## The growth proof` in `docs/perf/performance-pass.md`."
+    "Stage 4 (a change reruns the benches it reaches) and Stage 5 (skip what is already proven): their checks fail with \"filters did not match any test files\", because the tests are not written yet. Goal prose Stages 4 and 5.",
+    "Stage 6: `docs/perf/performance-pass.md` needs `## The growth proof`, which lists every bench that needed callgrind or stayed unclear. Goal prose Stage 6.",
+    "`core/BigInt/mul.scale.nvs` is unclear without callgrind. Its ladder is in `docs/perf/performance-pass.md`."
   ]
 }
