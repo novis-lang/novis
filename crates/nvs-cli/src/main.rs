@@ -2065,10 +2065,10 @@ fn front_end_synthesized(path: &std::path::Path, text: &str) -> Result<Checked, 
 /// own entry point every autoloaded name in it is undeclared. When the walk
 /// below found no declaration of the entry's own and reported an undeclared
 /// name, the `.nvs` files under `survey` are searched in path order for the
-/// first program that lends to this file, and the walk runs again with that
-/// program's declarations behind the file's own. A file that declares its own
-/// map, or names nothing undeclared, is checked exactly once and nothing is
-/// searched. A file no program lends to keeps the first walk's diagnostics.
+/// program that lends to this file ([`nvs_hir::lenders::choose`]), and the
+/// walk runs again with that program's declarations behind the file's own. A
+/// file that declares its own map, or names nothing undeclared, is checked
+/// exactly once and nothing is searched. A file no program lends to keeps the first walk's diagnostics.
 #[expect(
     clippy::too_many_arguments,
     reason = "one parameter per front-end question its four callers answer differently; a struct would be a second spelling of those callers"

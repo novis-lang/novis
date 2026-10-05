@@ -262,8 +262,13 @@ lands it on.
   analyses it through exactly that one, as `nvs check` does.
 - **A borrowed declaration reports nothing**, a duplicate and a malformed glob included. Its position is
   in a file this walk never read, and the lender's own analysis is where it is reported.
-- **The first lender in entry-path order lends, never a union.** Two programs over one source tree may
-  give one prefix different roots, and the union is a map neither of them runs with.
+- **One lender lends, never a union.** Two programs over one source tree may give one prefix different
+  roots, and the union is a map neither of them runs with.
+- **A lender that owns the file outranks one that only holds it.** A lender owns a file when its walk read
+  it or one of its own declarations names a root holding it. It only holds a file it reaches by the
+  directory test. The first owner in entry-path order lends, and the first holder lends only when nothing
+  owns the file. A program at a project's root holds every plain file in the tree, and its map need not
+  name their namespace at all.
 - **The lender's declaring files are dependencies of the borrowing analysis**, so an edit to one
   re-analyses and republishes every open document that borrowed from it. An edit to a file the lender
   read repeats its walk only when the edited text holds `require`, since only a `require` can change what
@@ -275,8 +280,9 @@ declares it, or the entry that requires it, is open too.
 `nvs check <file>` borrows by the same test, and searches only when it must. It walks the file first; when
 that walk found no declaration of the file's own program and reported `E0303` or `E0306`, it walks the
 `.nvs` files under the project root — the directory of the first `--config` file, else the working
-directory, skipping what the server skips — in path order, stops at the first lender that lends to the
-file, and checks the file again with that lender's declarations behind its own. A file that declares a
+directory, skipping what the server skips — in path order, stops at the first lender that owns the
+file, else takes the first that holds it, and checks the file again with that lender's declarations
+behind its own. A file that declares a
 map, or names nothing undeclared, is checked once and searches nothing; a file no lender reaches keeps
 the first walk's diagnostics. `nvs_hir::lenders` is the one implementation of what a lender is and whom it
 lends to, for the server and the command both.

@@ -249,8 +249,9 @@ fn editing_the_declaring_file_reaches_the_documents_that_borrowed_from_it() {
     assert!(codes(&after).contains(&"E0306"), "{:?}", codes(&after));
 }
 
-/// Two programs over one source tree: the first in entry-path order lends, so
-/// the answer does not depend on which was found first.
+/// Two programs over one source tree, both naming its root: the first in
+/// entry-path order lends, so the answer does not depend on which was found
+/// first.
 #[test]
 fn the_first_program_in_path_order_is_the_one_that_lends() {
     let dir = TempDir::new("two-programs");
@@ -275,6 +276,33 @@ fn the_first_program_in_path_order_is_the_one_that_lends() {
     let read = tails(&analysed);
     assert!(read.contains(&"lib-a/Thing.nvs".to_owned()), "{read:?}");
     assert!(!read.contains(&"lib-b/Thing.nvs".to_owned()), "{read:?}");
+}
+
+/// A program at the workspace root holds every plain file under it and sorts
+/// first, but the program whose declaration names the class file's root owns
+/// it, and that one lends.
+#[test]
+fn a_program_that_names_the_files_root_outranks_one_at_the_root() {
+    let dir = TempDir::new("owner-first");
+    dir.write(
+        "app/app.nvs",
+        "<?nvs\nautoload 'Demo' from './demo';\n\necho 1;\n",
+    );
+    dir.write("app/bootstrap.nvs", "<?nvs\nautoload 'Lib' from './src';\n");
+    dir.write(
+        "app/src/Point.nvs",
+        "<?nvs\nnamespace Lib;\n\nclass Point {}\n",
+    );
+    let grouped = "<?nvs\nnamespace Lib;\n\nclass GroupedPoint extends Point {\n    \
+                   public function group(): Point {\n        return new Point();\n    }\n}\n";
+    dir.write("app/src/GroupedPoint.nvs", grouped);
+
+    let mut documents = Documents::new();
+    documents.survey(CheckScope::Workspace, Some(&dir.at("app")));
+    dir.open(&mut documents, "app/src/GroupedPoint.nvs", grouped);
+
+    let analysed = analyse(&documents, &dir.uri("app/src/GroupedPoint.nvs")).expect("it is open");
+    assert_eq!(codes(&analysed), Vec::<&str>::new());
 }
 
 /// A file a program requires borrows the map that program's chain declares,

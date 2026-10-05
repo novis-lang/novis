@@ -5,8 +5,10 @@
 //! checked as its own entry point every name its program autoloads would be
 //! undeclared. These cases hold that the command finds the program that lends
 //! the map, that a real mistake in the class file is still reported, that the
-//! first program in path order lends, that a file no program lends to is
-//! checked as before, and that a file declaring its own map never borrows.
+//! first program in path order lends, that a program naming the file's root
+//! outranks one that only holds it by directory, that a file no program lends
+//! to is checked as before, and that a file declaring its own map never
+//! borrows.
 //!
 //! Through the built binary, because the survey's root is the working
 //! directory the command runs in.
@@ -188,6 +190,32 @@ fn the_first_program_by_entry_path_lends() {
         !stderr.contains("E0303") && !stderr.contains("E0306"),
         "{stderr}"
     );
+}
+
+/// A program at the project's root holds every plain file in the tree by the
+/// directory test, and here it sorts first. The program whose declaration
+/// names the class file's root owns the file, so its map lends.
+#[test]
+fn a_program_that_names_the_files_root_outranks_one_at_the_root() {
+    let project = Project::new("owner-first");
+    project.write(
+        "app.nvs",
+        "<?nvs\nautoload 'Demo' from './demo';\n\necho 1;\n",
+    );
+    project.write("bootstrap.nvs", "<?nvs\nautoload 'Lib' from './src';\n");
+    project.write(
+        "src/Point.nvs",
+        "<?nvs\nnamespace Lib;\n\nclass Point {\n    \
+         public function value(): int {\n        return 1;\n    }\n}\n",
+    );
+    project.write(
+        "src/GroupedPoint.nvs",
+        "<?nvs\nnamespace Lib;\n\nclass GroupedPoint extends Point {\n    \
+         public function group(): Point {\n        return new Point();\n    }\n}\n",
+    );
+
+    let checked = project.check(&["src/GroupedPoint.nvs"]);
+    assert_eq!(checked.status.code(), Some(0), "{}", stderr(&checked));
 }
 
 /// A file that declares its own `autoload` is a program, and never borrows

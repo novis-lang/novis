@@ -14,10 +14,11 @@
 //! they agree on what a lender is. `nvs-lsp` walks every file under the
 //! workspace once and keeps the lenders for the session. `nvs check` walks the
 //! files under the project root in path order with [`first_lender`] and stops
-//! at the first lender that lends to the checked file. It does that only when
-//! the checked file declares no map of its own and names something no file
-//! declares.
+//! at the first lender that owns the checked file. It does that only when the
+//! checked file declares no map of its own and names something no file
+//! declares. Both pick through [`choose`].
 
+use std::borrow::Borrow;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -138,11 +139,52 @@ impl Lender {
     /// needs it, so a caller can read the text lazily. Whether `path` is itself
     /// a lender is the caller's question: a lender never borrows.
     pub fn lends_to(&self, path: &Path, plain: impl FnOnce() -> bool) -> bool {
-        let key = canonical_key(path);
-        self.reads.binary_search(&key).is_ok()
-            || self.map.claims(path)
-            || (key.starts_with(&self.dir) && plain())
+        self.owns(path) || (canonical_key(path).starts_with(&self.dir) && plain())
     }
+
+    /// Whether `path` belongs to this program by name rather than by place:
+    /// its walk read the file, or one of its own declarations names a root
+    /// that holds it. A lender that owns a file outranks one that lends to it
+    /// only by the directory test ([`choose`]).
+    #[must_use]
+    pub fn owns(&self, path: &Path) -> bool {
+        self.reads.binary_search(&canonical_key(path)).is_ok() || self.map.claims(path)
+    }
+}
+
+/// The lender among `lenders`, taken in entry-path order, that lends `path`
+/// its map: the first that [owns](Lender::owns) the file, else the first that
+/// lends to it by the directory test.
+///
+/// The directory test is the weakest evidence. A program at a project's root
+/// passes it for every plain file in the tree, and its map need not name the
+/// file's namespace at all, while a program whose declaration names the file's
+/// root is the one the file is built through. `plain` is [`is_plain`] for the
+/// text of `path`, asked at most once and only when the directory test needs
+/// it. The search stops at the first owner, so a caller that walks each lender
+/// lazily walks none past it.
+#[must_use]
+pub fn choose<L: Borrow<Lender>>(
+    lenders: impl IntoIterator<Item = L>,
+    path: &Path,
+    plain: impl FnOnce() -> bool,
+) -> Option<L> {
+    let mut plain = Some(plain);
+    let mut is_plain = None;
+    let mut by_place = None;
+    for lender in lenders {
+        if lender.borrow().owns(path) {
+            return Some(lender);
+        }
+        if by_place.is_none()
+            && lender.borrow().lends_to(path, || {
+                *is_plain.get_or_insert_with(|| plain.take().is_some_and(|plain| plain()))
+            })
+        {
+            by_place = Some(lender);
+        }
+    }
+    by_place
 }
 
 /// Whether `text` holds neither `require` nor `autoload`, so the file starts no
@@ -152,14 +194,15 @@ pub fn is_plain(text: &str) -> bool {
     !text.contains("require") && !text.contains("autoload")
 }
 
-/// The first lender, in entry-path order, among the `.nvs` files under `root`
-/// that lends its map to `path`.
+/// The lender among the `.nvs` files under `root` that lends its map to
+/// `path`, as [`choose`] picks it in entry-path order.
 ///
 /// The files are walked one by one and the search stops at the first lender
-/// that lends, so the cost is one read per file and one walk per program up to
-/// that lender. `plain` is [`is_plain`] for the text of `path`. `path` itself
-/// is skipped: the caller asks only for a file that declares no map of its
-/// own.
+/// that owns `path`, so the cost is one read per file and one walk per program
+/// up to that lender. When no lender owns it, every program under `root` is
+/// walked before the first that lends by the directory test is returned.
+/// `plain` is [`is_plain`] for the text of `path`. `path` itself is skipped:
+/// the caller asks only for a file that declares no map of its own.
 #[must_use]
 pub fn first_lender(root: &Path, path: &Path, plain: bool) -> Option<Lender> {
     let key = canonical_key(path);
@@ -170,10 +213,13 @@ pub fn first_lender(root: &Path, path: &Path, plain: bool) -> Option<Lender> {
         .collect();
     found.sort();
     found.dedup();
-    found
-        .into_iter()
-        .filter_map(|source| Lender::walk(SourceMap::new(), &source))
-        .find(|lender| lender.lends_to(path, || plain))
+    choose(
+        found
+            .into_iter()
+            .filter_map(|source| Lender::walk(SourceMap::new(), &source)),
+        path,
+        || plain,
+    )
 }
 
 /// Every `.nvs` file under `root`, recursively, in no particular order.

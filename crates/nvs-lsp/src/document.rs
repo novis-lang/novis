@@ -286,10 +286,12 @@ impl Documents {
         self.lenders.sort_by(|a, b| a.entry().cmp(b.entry()));
     }
 
-    /// The program `path` borrows its `autoload` map from: the first, in
-    /// entry-path order, that lends to it ([`Lender::lends_to`]).
+    /// The program `path` borrows its `autoload` map from, as
+    /// [`nvs_hir::lenders::choose`] picks it in entry-path order: the first
+    /// that owns the file, else the first that lends to it by the directory
+    /// test.
     ///
-    /// The first and not a union, because two programs sharing a source tree
+    /// One program and not a union, because two programs sharing a source tree
     /// may give one prefix different roots, and a union of their maps is a map
     /// neither of them runs with. A lender never borrows: it has a map of its
     /// own, and `nvs check` analyses it through exactly that one. The
@@ -302,14 +304,9 @@ impl Documents {
         if self.lenders.iter().any(|lender| lender.entry() == key) {
             return None;
         }
-        let mut plain: Option<bool> = None;
-        self.lenders.iter().find(|lender| {
-            lender.lends_to(path, || {
-                *plain.get_or_insert_with(|| {
-                    self.text_of(path)
-                        .is_some_and(|text| nvs_hir::lenders::is_plain(&text))
-                })
-            })
+        nvs_hir::lenders::choose(&self.lenders, path, || {
+            self.text_of(path)
+                .is_some_and(|text| nvs_hir::lenders::is_plain(&text))
         })
     }
 
