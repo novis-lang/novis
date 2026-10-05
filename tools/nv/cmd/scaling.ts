@@ -7,6 +7,12 @@
 //     bun nv scaling --iterations                every bench under benches/members/
 //     bun nv scaling --iterations core/Str       only the benches whose path contains `core/Str`
 //     bun nv scaling --areas [--reviewed]        whether every area in `AREAS` has a ladder (and a review)
+//     bun nv scaling --budget [--write]          whether every bench's counted work is within its budget
+//
+// The budget. `--budget` counts the statements each bench runs at its own N and compares each with its
+// share in `docs/perf/bench-budget.json`. A share may only go down. A new bench brings its own share,
+// and a bench whose `// bench: iterations N` line gives a reason after ` -- ` may rise. A new share is
+// stored by `--write`, so the budget's growth is always an exact number in a diff.
 //
 // `--check` adds one closing line when nothing grows past its bound, which is what an acceptance check
 // reads. A run exits 1 when a program grows, and a ladder run also when a ladder is invalid. Every run
@@ -26,7 +32,8 @@
 // `iterations N` as one integer literal, or whose N is too small to ramp, is skipped and named.
 // `--sized` also fails a flat bench whose N is more than twice the batch its ramp settled at, the last
 // batch or callgrind's threshold (`oversized`), since N is the ramp's cap and nothing past it is needed.
-// A bench whose ramp does not settle keeps its N.
+// A bench whose ramp does not settle keeps its N. `--lower` rewrites an oversized bench's N to twice
+// that batch with `withIterations`, noting `callgrind` only when callgrind settled it, and does not fail it.
 //
 // The ramp. The first batch is `START` operations and each next batch doubles the one before. A batch
 // is one `nvs run --count` (the counting run of `tools/nv/proofs/perf.ts`) and the fastest of `--reps`
@@ -136,6 +143,10 @@ const PASSED_ITERATIONS = "every bench costs the same per operation in every bat
 const PASSED_LADDERS = "every ladder is within its declared growth";
 /** The line `--sized` prints when no bench runs more iterations than its ramp needs. */
 const PASSED_SIZED = "every bench's iteration count is no larger than its growth check needs";
+/** The line `--budget` prints when no bench's share of the budget rose without a reason. */
+const PASSED_BUDGET = "the bench tree's counted work is within its budget";
+/** The statements each bench runs at its N, which `--budget` holds the tree to. */
+const BUDGET = "docs/perf/bench-budget.json";
 const CALIBRATION = "_calibration";
 /** How many of the slowest programs a run names at its end. */
 const SLOWEST = 5;
@@ -203,11 +214,12 @@ export function withBatch(source: string, iterations: number, batch: number): st
 
 /**
  * The bench's source with `iterations` lowered from `was` to `n`: its `// bench: iterations` line reads
- * `n callgrind`, the note that callgrind measured it, and its closing line passes `n`. Null when that
- * closing line does not pass `was` as one literal.
+ * `n`, followed by `callgrind` when `callgrind` says callgrind measured it, and its closing line passes
+ * `n`. Null when that closing line does not pass `was` as one literal.
  */
-export function withIterations(source: string, was: number, n: number): string | null {
-  return withBatch(source, was, n)?.replace(/^(\s*(?:\/\/|#)\s*bench:\s*iterations\s+)[0-9_]+[^\r\n]*/m, `$1${n} callgrind`) ?? null;
+export function withIterations(source: string, was: number, n: number, callgrind = true): string | null {
+  const note = callgrind ? " callgrind" : "";
+  return withBatch(source, was, n)?.replace(/^(\s*(?:\/\/|#)\s*bench:\s*iterations\s+)[0-9_]+[^\r\n]*/m, `$1${n}${note}`) ?? null;
 }
 
 /** The batch sizes a bench of `iterations` operations may run: doubling from `START`, below its own N
@@ -280,6 +292,8 @@ export interface Judged {
   notes: string[];
   /** The batch at which callgrind's instructions first agreed, when callgrind ran and they did. */
   threshold?: number;
+  /** Each count's last increment: what one operation costs, with the program's set-up cancelled out. */
+  perOp?: Record<string, number>;
 }
 
 /** The verdict on a finished ramp's counts: which count grows past the bound, and by how much. */
@@ -941,6 +955,7 @@ async function rampAt(judged: Judged, source: string, literal: number, sizes: nu
     if (measure.keys.length && countsAgree(batches, measure.keys)) break;
   }
   judged.sizes = batches.map((b) => b.size);
+  if (measure.keys.length && batches.length >= 2) judged.perOp = Object.fromEntries(measure.keys.map((k) => [k, increments(batches, (b) => b.counts[k]!).at(-1)!]));
   const { slopes, over } = judgeCounts(batches, measure.keys, bounds.count);
   const own = measure.judge?.(batches);
   if (own) over.push(own);
@@ -1027,6 +1042,90 @@ export function oversized(j: Judged, iterations: number): string | null {
   return `\`iterations ${iterations}\` is more than its ramp needs: it settled at ${settled}, so N is at most ${2 * settled}`;
 }
 
+/** A reason written beside a bench's `// bench: iterations N` line, after ` -- `, which lets its share
+ * of the budget rise. */
+const RAISED_RE = /(?:\/\/|#)\s*bench:\s*iterations\s+[0-9_]+(?:\s+callgrind)?\s+--\s+(\S[^\r\n]*)/;
+
+/** The stored budget: the statements each bench runs at its N, and their total. */
+interface Budget {
+  total: number;
+  benches: Record<string, number>;
+}
+
+/** Why the counted work of `now` breaks the budget `was`, one line per bench whose share rose with no
+ * reason beside its N. A bench `was` does not have is new and brings its own share. `reasons` is each
+ * bench's raised-N reason. */
+export function overBudget(was: Budget, now: Record<string, number>, reasons: Record<string, string>): string[] {
+  const out: string[] = [];
+  for (const [bench, n] of Object.entries(now)) {
+    const before = was.benches[bench];
+    if (before === undefined || n <= before || reasons[bench]) continue;
+    out.push(`${bench} runs ${n} statements and its budget is ${before}: lower its N, or write the reason it was raised beside its \`// bench: iterations\` line`);
+  }
+  return out;
+}
+
+/**
+ * `--budget`: counts the statements every bench runs at its own N, one `nvs run --count` each, and
+ * compares each with its share of `BUDGET`. A share may only go down, except for a new bench and for a
+ * bench whose N carries a reason. `write` stores the counts when they are within the budget. A bench
+ * this host does not run, or one that fails under the count, keeps its stored share.
+ */
+async function budgetRun(write: boolean, jobs: number, named: string | null): Promise<number> {
+  let nvs = named;
+  if (!nvs) {
+    const built = await releaseBinary();
+    if (typeof built === "string") {
+      console.error(`nv scaling: ${built}`);
+      return 1;
+    }
+    nvs = built.path;
+  }
+  const was: Budget = existsSync(abs(BUDGET)) ? JSON.parse(readFileSync(abs(BUDGET), "utf8")) : { total: 0, benches: {} };
+  const todo = programs(BENCHES).filter((b) => !b.endsWith(".scale.nvs"));
+  const now: Record<string, number> = {};
+  const reasons: Record<string, string> = {};
+  const uncounted: string[] = [];
+  let next = 0;
+  const worker = async () => {
+    while (next < todo.length) {
+      const bench = todo[next++]!;
+      const source = read(bench);
+      const reason = RAISED_RE.exec(source);
+      if (reason) reasons[bench] = reason[1]!;
+      if (skipReason(source) || !ITER_RE.test(source)) continue;
+      progress(`scaling: counting ${bench} (${next}/${todo.length})`);
+      try {
+        now[bench] = (await countProgram(nvs!, bench)).statements!;
+      } catch (e) {
+        if (!(e instanceof PerfError)) throw e;
+        uncounted.push(`${bench}: ${e.message}`);
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(jobs, todo.length) }, worker));
+  for (const u of uncounted.sort()) console.log(`  uncounted ${u}`);
+  const over = overBudget(was, now, reasons).sort();
+  for (const o of over) console.log(`  over     ${o}`);
+  const kept = Object.fromEntries(Object.entries(was.benches).filter(([b]) => !(b in now) && existsSync(abs(b))));
+  const benches = Object.fromEntries(Object.entries({ ...kept, ...now }).sort(([a], [b]) => a.localeCompare(b)));
+  const total = Object.values(benches).reduce((a, b) => a + b, 0);
+  console.log(`nv scaling: ${Object.keys(now).length} benches run ${total} statements in all; ${BUDGET} holds ${was.total}`);
+  if (over.length) return 1;
+  if (write) {
+    writeFileSync(abs(BUDGET), `${JSON.stringify({ total, benches }, null, 2)}\n`);
+    console.log(`nv scaling: wrote ${BUDGET}`);
+  } else if (!existsSync(abs(BUDGET))) {
+    console.log(`nv scaling: ${BUDGET} does not exist yet -- run --budget --write`);
+    return 1;
+  } else if (Object.keys(benches).some((b) => !(b in was.benches))) {
+    console.log(`nv scaling: a new bench has no share in ${BUDGET} yet -- run --budget --write`);
+    return 1;
+  }
+  console.log(PASSED_BUDGET);
+  return 0;
+}
+
 const showSlope = (s: number | null | undefined) => (s === null || s === undefined ? "-" : fixed(s, 2));
 
 function line(j: Judged): string {
@@ -1105,7 +1204,11 @@ export async function run(argv: string[]): Promise<number> {
                           \`.scale.nvs\` sibling, and a missing \`// bench: complexity\`; writes no record
     --sized               with --iterations, also fail a bench whose N is more than twice the batch its
                           ramp settled at
-    --check               print one line when nothing grows past its bound, for an acceptance check
+    --lower               with --sized, rewrite such a bench's N to twice that batch instead of failing it
+    --budget              count the statements every bench runs at its N, and fail a bench whose count
+                          rose above its share of ${BUDGET} with no reason beside its N
+    --write               with --budget, store the counts when they are within the budget
+    --check             print one line when nothing grows past its bound, for an acceptance check
     --areas               fail while an area has no ladder; with --reviewed, also no section in ${REVIEW}
     <filter>...           only the programs whose path contains one of these
     --nvs <path>          the binary to run, instead of the release build
@@ -1133,10 +1236,25 @@ The ramp, the agreement test, the ceiling and the bounds are in tools/nv/cmd/sca
   }
   const growth = flag("--growth");
   if (growth) return growthRun(args);
+  if (flag("--budget")) {
+    const write = flag("--write");
+    const jobs = Math.max(1, Number(arg(args, "--jobs") ?? 4));
+    const named = arg(args, "--nvs");
+    if (args.length) {
+      console.error(`nv scaling: --budget takes only --write, --jobs and --nvs, not ${args[0]}`);
+      return 2;
+    }
+    return budgetRun(write, jobs, named ?? null);
+  }
   const iterations = flag("--iterations");
   const sized = flag("--sized");
   if (sized && !iterations) {
     console.error("nv scaling: --sized judges benches, so it needs --iterations");
+    return 2;
+  }
+  const lower = flag("--lower");
+  if (lower && !sized) {
+    console.error("nv scaling: --lower rewrites what --sized finds, so it needs --sized");
     return 2;
   }
   const check = flag("--check");
@@ -1174,6 +1292,7 @@ The ramp, the agreement test, the ceiling and the bounds are in tools/nv/cmd/sca
   const took: [string, number][] = [];
   let next = 0;
   let tooLarge = 0;
+  let lowered = 0;
   const worker = async () => {
     while (next < todo.length) {
       const bench = todo[next++]!;
@@ -1186,9 +1305,16 @@ The ramp, the agreement test, the ceiling and the bounds are in tools/nv/cmd/sca
         // A bench that fails at a small batch is one to look at; a ladder that fails is broken.
         j = { bench, verdict: iterations ? "unclear" : "invalid", sizes: [], slopes: {}, clock: null, notes: [e.message] };
       }
-      const n = sized ? ITER_RE.exec(read(bench)) : null;
+      const source = sized ? read(bench) : "";
+      const n = sized ? ITER_RE.exec(source) : null;
       const over = n ? oversized(j, number(n[1]!)) : null;
-      if (over) {
+      const settled = j.threshold ?? j.sizes.at(-1)!;
+      const rewritten = over && lower ? withIterations(source, number(n![1]!), 2 * settled, j.threshold !== undefined) : null;
+      if (rewritten !== null) {
+        writeFileSync(abs(bench), rewritten);
+        j.notes.push(`\`iterations ${n![1]}\` is now ${2 * settled}, twice the batch its ramp settled at`);
+        lowered++;
+      } else if (over) {
         j.notes.push(over);
         tooLarge++;
       }
@@ -1208,6 +1334,7 @@ The ramp, the agreement test, the ceiling and the bounds are in tools/nv/cmd/sca
   // The slowest programs, so a run that nears an acceptance check's time limit says where its time went.
   const slowest = took.sort((a, b) => b[1] - a[1]).slice(0, SLOWEST);
   console.log(`nv scaling: slowest ${slowest.map(([b, s]) => `${b.replace(/^benches\/[^/]+\//, "")} ${fixed(s, 0)}s`).join(", ")}`);
+  if (lower) console.log(`nv scaling: ${lowered} benches had their iterations lowered to what their ramp needs`);
   if (sized) console.log(`nv scaling: ${tooLarge} benches run more iterations than their ramp needs`);
   if (tally("grows") + tally("invalid") + tooLarge > 0) return 1;
   if (check) console.log(iterations ? PASSED_ITERATIONS : PASSED_LADDERS);

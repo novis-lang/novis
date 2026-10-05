@@ -3,8 +3,10 @@
 // `rule:testing/member-perf-ledger` is what a record holds and when it is current, and
 // `benches/members/README.md` is what a bench program is.
 //
-// A record is four counts and one clock. The counts come from one `nvs run --count` and are the same on
-// every machine. The clock is the fastest of `--reps` timed runs, with the empty program's fastest run
+// A record is four counts and one clock. Each count per operation is the growth ramp's last increment,
+// what one more operation cost between its two largest batches, so the bench's set-up cancels out and
+// lowering its N moves no count. A bench too small to ramp has its totals from one `nvs run --count`
+// divided by N. The counts are the same on every machine. The clock is the fastest of `--reps` timed runs, with the empty program's fastest run
 // subtracted, and `ratio` divides it by the calibration program's cost per iteration, measured in the same
 // sweep. A bench's `// bench:` lines say what it expects, and a record whose figures miss them is not
 // written unless the bench carries a `proof: gap` marker: the record then carries the findings.
@@ -142,14 +144,23 @@ async function measureOne(nvs: string, bench: string, reps: number, floor: numbe
   const iters = iterationsOf(bench);
   const [total, median] = await timeProgram(nvs, bench, reps);
   const nsPerOp = Math.max(0, (total - floor) / iters);
-  const counts = await countProgram(nvs, bench);
-  const perOp = Object.fromEntries(COUNTS.map((k) => [k, round(Math.max(0, counts[k]! - base[k]!) / iters, 3)])) as Record<string, number>;
+  // A count per operation is the ramp's last increment, so the bench's own set-up cancels out and N
+  // does not move it. A bench too small to ramp divides its totals by N instead.
+  const ramped = growth.ramps[0]?.perOp;
+  const counts = ramped ? null : await countProgram(nvs, bench);
+  const perOp = Object.fromEntries(COUNTS.map((k) => [k, round(Math.max(0, ramped ? ramped[k]! : (counts![k]! - base[k]!) / iters), 3)])) as Record<string, number>;
   const fig: Rec = { iterations: iters, ns_per_op: round(nsPerOp, 3), median_ns_per_op: round(Math.max(0, (median - floor) / iters), 3), ...perOp };
   const findings: string[] = [];
   const expected = expectationsOf(bench);
   if (Object.keys(expected).length) fig.expected = expected;
+  // A declaration is met to within a hundredth, or to within one count across the ramp's last window,
+  // which is as fine as an increment can read: a buffer that doubles once in that window is not a
+  // count per operation.
+  const sizes = growth.ramps[0]?.sizes ?? [];
+  const window = ramped && sizes.length >= 2 ? sizes.at(-1)! - sizes.at(-2)! : 0;
+  const tolerance = Math.max(0.01, window ? 1 / window : 0) + 0.0005;
   for (const [k, want] of Object.entries(expected)) {
-    if (Math.abs(perOp[k]! - want) > 0.01) findings.push(`declares \`${k} ${want}\` per op and did ${fixed(perOp[k]!, 3)}`);
+    if (Math.abs(perOp[k]! - want) > tolerance) findings.push(`declares \`${k} ${want}\` per op and did ${fixed(perOp[k]!, 3)}`);
   }
   if (growth.complexity) fig.complexity = growth.complexity;
   const clock = (s: number | null) => (s === null ? null : round(s, 3));

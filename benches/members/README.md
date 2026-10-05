@@ -22,7 +22,7 @@ figure: `benches/members/core/Str/length.nvs`. `bun nv proofs --id '<feature>'` 
 ```nvs
 <?nvs
 // Counts the characters of a short label, as a program does before it shortens or pads one.
-// bench: iterations 400000
+// bench: iterations 2048
 // bench: allocations 0
 // bench: complexity constant
 
@@ -39,7 +39,7 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(2048), "\n";
 ```
 
 The rules, of which the chained input and the `int` subscript are the ones that are not obvious:
@@ -75,9 +75,14 @@ The rules, of which the chained input and the `int` subscript are the ones that 
 - **A bench answers no request** unless a sibling `<name>.nvsr` describes one, which every timed
   and counted run then answers ([docs/examples/README.md](../../docs/examples/README.md) § *A request
   for the program*). A `Core\Request` member throws without one.
-- **Size it to run in well under a second.** The sweep runs one program per feature and there are
-  hundreds; a bench that takes ten seconds costs an hour across the tree. Raise `iterations` until
-  the reading is stable, not until it is long.
+- **The smallest count that shows the growth.** N is twice the batch at which the ramp below found a
+  clear pattern, and `bun nv scaling --iterations --sized` fails a bench whose N is larger;
+  `--sized --lower` rewrites it. The sweep runs one program per feature and there are hundreds, so
+  every operation past that batch is time spent across the whole tree for no new fact.
+- **The tree has a budget.** `bun nv scaling --budget` counts the statements every bench runs at its
+  N and holds each to its share in `docs/perf/bench-budget.json`, which may only go down. A new bench
+  brings its own share, stored by `--budget --write`. An existing bench may raise its N only with
+  the reason written after ` -- ` on its line: `// bench: iterations 8192 -- <why>`.
 
 ## What a bench declares, so its first run can be judged
 
@@ -88,8 +93,10 @@ misses one is a failing proof — no record is written, and
 names the two answers, the second being a `// proof: gap` marker on the bench.
 
 - **`// bench: allocations 0`**, and likewise `calls`, `statements`, `bytes` — what one operation
-  should count, in the four counts below. Met to within a hundredth per operation, so the one
-  set-up allocation of the `$labels` array rounds away and an allocation per call does not. A
+  should count, in the four counts below. A count per operation is what one more operation cost
+  between the ramp's two largest batches, so the one set-up allocation of the `$labels` array
+  cancels out and an allocation per call does not. It is met to within a hundredth, or to within
+  one count across the last batch's added operations, so a buffer that doubles once there passes. A
   member that returns a scalar declares `allocations 0`; a member bench declares `calls 0`, because
   a `Core` member is a helper and not a compiled call site, and a bench over a language feature
   that calls a method declares the calls it makes.

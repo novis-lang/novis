@@ -1,7 +1,7 @@
 import { afterAll, expect, test } from "bun:test";
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { type Batch, growthOf, type Judged, type Measure, type Options, oversized } from "../cmd/scaling.ts";
+import { type Batch, growthOf, type Judged, type Measure, type Options, overBudget, oversized, withIterations } from "../cmd/scaling.ts";
 import { stepCommands } from "../cmd/verify.ts";
 import { ROOT } from "../lib/paths.ts";
 import { COUNTS, ProgramFailed } from "../proofs/perf.ts";
@@ -143,6 +143,19 @@ test("--sized fails a bench whose N is more than twice the batch its ramp settle
   expect(oversized(judged("flat", [16, 32, 64, 128, 256, 512, 1024, 2048, 4096], 128), 100000)).toContain("settled at 128");
   // A ramp that did not settle keeps its N.
   expect(oversized(judged("unclear", [16, 32, 64, 128, 256, 512, 1024, 2048, 4096]), 100000)).toBeNull();
+});
+
+test("--lower rewrites N, and notes callgrind only when callgrind settled the ramp", () => {
+  const source = "// bench: iterations 400_000\n// bench: complexity constant\necho Bench::run(400_000);\n";
+  expect(withIterations(source, 400000, 2048, false)).toBe("// bench: iterations 2048\n// bench: complexity constant\necho Bench::run(2048);\n");
+  expect(withIterations(source, 400000, 256)).toContain("// bench: iterations 256 callgrind\n");
+});
+
+test("--budget lets a share rise only for a new bench or an N raised with a reason", () => {
+  const was = { total: 300, benches: { "a.nvs": 100, "b.nvs": 200 } };
+  expect(overBudget(was, { "a.nvs": 90, "b.nvs": 200, "c.nvs": 5000 }, {})).toEqual([]);
+  expect(overBudget(was, { "a.nvs": 101, "b.nvs": 200 }, {})[0]).toContain("a.nvs runs 101 statements and its budget is 100");
+  expect(overBudget(was, { "a.nvs": 101, "b.nvs": 200 }, { "a.nvs": "the ramp needs 4096" })).toEqual([]);
 });
 
 test("nv verify never runs valgrind over a bench", () => {
