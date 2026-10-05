@@ -1,30 +1,29 @@
 {
-  "state": "**Goal `performance-pass`, Stage 5 (the fixes).** Stage 4's review is whole (`docs/perf/performance-review.md`).\n\n**The editor on a file of subclasses is linear.** The parser's doc-comment scan (`take_doc_comment`, `warn_docblock_above` in `crates/nvs-syntax/src/parser/mod.rs`) and the hierarchy pass's `use`-line site (`SitesAbove` in `crates/nvs-hir/src/imports.rs`) each re-read the whole file per declaration, and now stop at what is next to it. Callgrind before and after are in `docs/perf/performance-pass.md` § *What got better*, and the gap record is deleted. `bun nv scaling lsp/` is flat.\n\n**7 gap records owned by `performance-pass`** keep `owners --closes performance-pass` red (`bun nv owners --closes performance-pass` lists them).\n\n**`bun nv scaling --check` is red on two ladders:** `numbers/bigint-mul.nvs` unclear, and `request/headers.nvs` invalid (a `serve` ladder does not run under callgrind).\n\n**The driver's stage-2 check `scaling --iterations --check` timed out after 1800 s** on the last sweep. Not checked whether one ladder hangs or the whole roster is just slow.\n\nThe Linux debug binary callgrind reads (`/var/tmp/nvs-target-wsl/debug/nvs`) is rebuilt by syncing the mirror and running `wslBuildLine` from `tools/nv/driver/legs.ts`. No `nv` command does it alone.",
+  "state": "**Goal `performance-pass`, Stage 5 (the fixes).** Stage 4's review is whole (`docs/perf/performance-review.md`).\n\n**`Core\\Request::headers()` is linear.** `grouped_fields` in `crates/nvs-stdlib/src/request.rs` searched every name already seen for each header line. A name-to-group map replaces that search. The `request/headers` ladder now reads the list 200 times per request, so the clock sees it. Its clock slope went from 1.46–1.77 to 0.92–0.97 (`docs/perf/performance-pass.md` § *What got better*). Before the change it was `invalid` on 3 runs of 4, because the clock was noise and a `serve` ladder has no callgrind fallback.\n\n**`numbers/bigint-mul.nvs` stays `unclear`, and that is judged.** `num-bigint` uses Toom-3 above 256 digits. Each step now squares sixteen sizes spaced evenly in ratio from n/3 to n. Callgrind's local slopes are 1.37, 1.23 and 1.32: all under the 1.7 bound, but they differ by more than `AGREE`. It is recorded under *Benches to look at*. `unclear` does not fail `scaling --check`, which exits 1 only on `grows` or `invalid` (`tools/nv/cmd/scaling.ts:1016`).\n\n**`bun nv scaling --check` is green**: 49 flat, 1 unclear (`bigint-mul`), on the release binary with this fix.\n\nThe perf ledger is current: `bun nv proofs --record-perf` re-measured 347 stale records, and `docs/perf/members.md` is regenerated.\n\n**7 gap records owned by `performance-pass`** keep `owners --closes performance-pass` red. `bun nv owners --closes performance-pass` lists them.\n\n**The driver's stage-2 check `scaling --iterations --check` timed out after 1800 s.** Not checked whether one bench hangs or the whole roster is just slow.\n\nThe release binary `target/release/nvs.exe` was rebuilt this session with the `headers()` fix.",
   "next": {
     "stage": 5,
-    "title": "the fixes, the two ladders `scaling --check` cannot pass",
+    "title": "the fixes, the stage-2 timeout and the first gap records",
     "files": [
-      "benches/scaling/numbers/",
-      "benches/scaling/request/",
-      "tools/nv/cmd/scaling.ts"
+      "tools/nv/cmd/scaling.ts",
+      "data/goals/performance-pass.json"
     ],
     "items": [
       {
         "done": false,
-        "text": "**Judge `numbers/bigint-mul.nvs`** (`benches/scaling/numbers/bigint-mul.nvs:1`): run it under callgrind at three sizes. If schoolbook multiplication is the algorithm, judge it against O(n²) per the standing decisions and declare that in the ladder. Otherwise fix it, or write it under *Benches to look at* in `docs/perf/performance-pass.md`. Rule: AGENTS.md priority ordering."
+        "text": "**Find why `bun nv scaling --iterations --check` runs past 1800 s** (`tools/nv/cmd/scaling.ts:986`). Time the roster per area with a filter (`bun nv scaling --iterations core/Str`) to find a bench that hangs or a ramp that is slow. Either fix it or give the check a `timeout` in `data/goals/performance-pass.json`. Rule: the module doc of `tools/nv/cmd/scaling.ts`."
       },
       {
         "done": false,
-        "text": "**Judge `request/headers.nvs`** (`benches/scaling/request/headers.nvs:1`): a `serve` ladder has no callgrind fallback (`tools/nv/cmd/scaling.ts:749`), so either its clock settles under a looser bound or it goes under *Benches to look at*. Rule: AGENTS.md priority ordering."
+        "text": "**Close `the-queue-claim-sorts-every-due-row`** (`crates/nvs-stdlib/src/queue.rs:1`): fix the growth, or strike it as a stated bound. Rule: the goal's standing decisions."
       },
       {
         "done": false,
-        "text": "**Find why `bun nv scaling --iterations --check` runs past 1800 s** (`tools/nv/cmd/scaling.ts:1`), the earliest red stage-2 check. Time the roster per ladder and find the slow one. Rule: AGENTS.md priority ordering."
+        "text": "**Close `decode-positions-reports-every-bad-element`** (`crates/nvs-stdlib/src/json.rs:1`): same choice. Rule: the goal's standing decisions."
       }
     ]
   },
   "backlog": [
-    "The 7 gap records owned by `performance-pass` are closed or re-owned before `DONE` (`bun nv owners --closes performance-pass`).",
-    "`bun nv proofs --gate` is red on perf figures (`rule:testing/member-perf-ledger`)."
+    "The 5 other `performance-pass` gaps (`bun nv owners --closes performance-pass`): `a-task-is-charged-a-whole-stack`, `a-request-analyses-an-unchanged-document-again`, `identity-hash-stops-at-depth-four`, `a-websocket-write-buffer-has-no-ceiling`, `finished-jobs-are-kept-until-purged`. Each is either a *Decisions for you* entry or a fix.",
+    "Stage 6: `bun nv proofs --gate` is red. It owes the summary in `docs/perf/performance-pass.md`."
   ]
 }
