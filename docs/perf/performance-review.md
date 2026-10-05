@@ -21,9 +21,8 @@ passes of the checker, IR lowering of classes, and codegen's class conversion.
 debug build, and the same chain written `else if` is refused with `E0108` at 90 (checked with a
 probe; fixed, an `If` is now one statement with a list of arms,
 [`ast.rs`](../../crates/nvs-syntax/src/ast.rs)). Quadratic in program size:
-[`a-require-chain-is-cloned-per-file`](../../data/gaps/nvs-hir/a-require-chain-is-cloned-per-file.json),
-`the-live-set-is-cloned-per-branch` and its constructor half
-`the-constructor-init-state-is-cloned-per-branch` (both fixed),
+`a-require-chain-is-cloned-per-file`, `the-live-set-is-cloned-per-branch` and its constructor half
+`the-constructor-init-state-is-cloned-per-branch` (all three fixed),
 `flattening-a-class-dedupes-by-linear-scan` (fixed,
 [performance-pass.md § *What got better*](performance-pass.md#what-got-better)) and [`conforming-to-scans-every-class-per-site`](../../data/gaps/nvs-codegen/conforming-to-scans-every-class-per-site.json).
 

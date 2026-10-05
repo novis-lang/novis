@@ -32,4 +32,5 @@ Each runs in a worktree of its own, started by hand with `bun nv loop --side <sl
 
 | Goal | What it builds | State | Milestone | Stages |
 |---|---|---|---|---|
+| [`fmt-layout-from-breaks`](goals/side/fmt-layout-from-breaks.md) | a line break the author writes decides the layout `nvs fmt` gives a list, a call chain and an operator chain | side |  | **2** a list is one line or one item per line · **3** call chains and operator chains · **4** *Put on separate lines* and *Join onto one line* |
 | [`test-scratch-and-hover`](goals/side/test-scratch-and-hover.md) | test scratch stays inside the tree, and hover answers on every class name | side |  | **2** test scratch under `target/` · **3** hover on every class name, and `use` lines in references |

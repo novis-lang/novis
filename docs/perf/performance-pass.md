@@ -128,6 +128,17 @@ checker. On the clock, `nvs check` of 16384 went from 12879 ms to 218 ms, best o
 and after alternated. It spends one more copy of each assigned property name per constructor while
 it is checked.
 
+**A file a `require` loads no longer copies the chain that loaded it.** Each newly loaded file took
+a copy of its parent's require chain, and each `require` searched that chain for a cycle, so a chain
+of n files cost O(n²) in time and in allocation. A file now carries only its depth: the walk keeps
+one chain, cut back to that depth when the file is reached, and a set of the same paths answers the
+cycle check in one probe (`crates/nvs-hir/src/requires.rs`). The ladder
+[`compiler/requires`](../../benches/scaling/compiler/requires.nvs) prints n files, each requiring the
+next and one shared file. It is flat on the old binary and the new one, and the clock could not tell
+them apart even at 16384 files, about 3 s either way, because loading and parsing the files costs
+far more than the copies did. It spends one more copy of each path on the chain while the program
+is loaded.
+
 **The `Core` signature table is built once per process.** Every check built the whole table from the
 registry, interned its types and freed it again. The first check now builds it into a frozen base
 (`crates/nvs-types/src/core_lib.rs`), and every check layers its own declarations and types over
