@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-host/src/scheduler.rs",
-  "title": "The scheduler's scan fixes have no parked-task ladder and no measured before and after.",
-  "text": "The code is fixed: `run()`'s parked sweep reads `TaskTree::sweep` (the tasks marked or parked under a cancellation since the last sweep) and not the whole parked set; `TaskNode::children` is a `BTreeSet`, so `retire` and `detach` are O(log siblings); `nvs_host::channel::Waiters` is ticket-keyed, so `Drop for Waiter` is O(log waiters). Ladder `scheduler/fan-out.nvs` covers the child scan. Still owed: ladder `scheduler/parked.nvs` (N parked tasks beside one task that sleeps N times, since only a reactor wake reaches the sweep), and the before and after of both ladders on a release build of each commit, in `docs/perf/performance-pass.md` § *What got better*.",
-  "goal": "performance-pass"
-}
