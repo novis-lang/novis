@@ -1,7 +1,6 @@
 {
-  "live": "serve-per-mount-config",
+  "live": "growth-proof",
   "goals": [
-    "serve-per-mount-config",
     "growth-proof",
     "coverage-depth",
     "php-oracle-retired",
