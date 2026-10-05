@@ -1,10 +1,9 @@
 {
-  "state": "**Side goal `one-temp-root` is written and nothing of it is built yet.** `NOT_YET_MOVED` in `crates/nvs-repo/tests/scratch.rs` still names the test sites `test-scratch-and-hover` left, eight of them Unix sockets. `nvs lsp-test` and the `.nvst` runner create a guessable folder in the system temp directory. The goal's prose has the measured starting point and the user's calls from 2026-10-05.",
+  "state": "**Side goal `one-temp-root`, stage 2: `nvs_repo::socket` exists, and no site uses it yet.** It returns a `Scratch` guard for `target/test-scratch/sock-<pid>-<n>/` and the absolute socket path inside it, built from `CARGO_MANIFEST_DIR`'s ancestors so the path holds no `..` (the private `repository()` still joins `../..`, which `socket` avoids because those bytes count against the limit). On Unix it stops when the path passes 107 bytes (Linux) or 103 (macOS, BSD). The message says to move the checkout to a shorter path, not to set `CARGO_TARGET_DIR` as the goal's prose suggested: scratch always sits under `<repo>/target/`, so that variable would not help. On Windows nothing is checked, because the socket sites there use pipe names. `NOT_YET_MOVED` in `crates/nvs-repo/tests/scratch.rs` is unchanged. Stage 3, the two runners, has not started.",
   "next": {
     "stage": 2,
     "title": "every test writes under `target/`, sockets included",
     "files": [
-      "crates/nvs-repo/src/lib.rs",
       "crates/nvs-repo/tests/scratch.rs",
       "crates/nvs-config/tests/control.rs",
       "crates/nvs-server/src/serve.rs",
@@ -16,15 +15,11 @@
     "items": [
       {
         "done": false,
-        "text": "**`nvs_repo::socket` and its two tests**, an absolute path under `target/test-scratch/` that stops with the limit named when it is too long. Anchor: `crates/nvs-repo/src/lib.rs:222`."
+        "text": "**Move the eight socket sites and fold the three hand-written socket helpers into `nvs_repo::socket`**, lowering each `NOT_YET_MOVED` row in the same commit, and adding `nvs-repo` as a dev-dependency where a crate lacks it. Anchors: `crates/nvs-config/tests/control.rs:49`, `crates/nvs-server/src/serve.rs:8086`, `crates/nvs-host/src/net.rs:2662`, `crates/nvs-cli/src/ctl.rs:460`, `crates/nvs-cli/src/serve.rs:3894`, `crates/nvs-server/src/control.rs:489`, `crates/nvs-repo/src/lib.rs:279`."
       },
       {
         "done": false,
-        "text": "**Move the eight socket sites and fold the three hand-written socket helpers into it**, lowering each `NOT_YET_MOVED` row in the same commit. Anchors: `crates/nvs-config/tests/control.rs:49`, `crates/nvs-server/src/serve.rs:8086`, `crates/nvs-host/src/net.rs:2662`, `crates/nvs-cli/src/ctl.rs:460`, `crates/nvs-cli/src/serve.rs:3894`, `crates/nvs-server/src/control.rs:489`."
-      },
-      {
-        "done": false,
-        "text": "**Move the other sites** (`nvs-stdlib`, `nvs-db`, `nvs-host/src/tls.rs`, `nvs-footprint`, `nvs-test/src/run.rs`) until `NOT_YET_MOVED` is gone, and delete `data/gaps/nvs-repo/some-test-code-still-writes-into-the-system-temp-dir.json`. Anchor: `crates/nvs-repo/tests/scratch.rs:18`."
+        "text": "**Move the other sites** (`nvs-stdlib`, `nvs-db` incl. its socket sites `crates/nvs-db/src/pg.rs:4080`, `crates/nvs-db/src/mysql.rs:5247` and `crates/nvs-db/src/mysql.rs:5351`, `nvs-host/src/tls.rs`, `nvs-footprint`, `nvs-test/src/run.rs`) until `NOT_YET_MOVED` is gone, and delete `data/gaps/nvs-repo/some-test-code-still-writes-into-the-system-temp-dir.json`. Anchor: `crates/nvs-repo/tests/scratch.rs:18`."
       },
       {
         "done": false,
@@ -32,5 +27,8 @@
       }
     ]
   },
-  "backlog": []
+  "backlog": [
+    "`bun nv verify`'s `extension` step fails in this worktree because the extension's npm dependencies are not installed (`@types/node` missing, see `.agent-tmp/verify-extension.log`). Every Rust step passed. Installing them is a by-hand call this session did not make.",
+    "Stage 3: `nvs lsp-test` and the `.nvst` runner write under `[io] temp_root` (`docs/agent/goals/side/one-temp-root.md` § Stage 3)."
+  ]
 }
