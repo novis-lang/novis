@@ -1,6 +1,7 @@
 <?nvs
 // Measures getting the name of a file type, as a server does for the `Content-Type` of a download.
 // bench: iterations 400000
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

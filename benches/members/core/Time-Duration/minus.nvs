@@ -1,6 +1,7 @@
 <?nvs
 // Subtracts one duration from another, as a program does when it tracks the time a request has left.
 // bench: iterations 400000
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): int {

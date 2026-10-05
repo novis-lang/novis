@@ -3,6 +3,7 @@
 // it shows the table to somebody.
 // bench: iterations 200000
 // bench: calls 0
+// bench: complexity nlogn
 
 class Bench {
     public static function run(uint $rounds): uint {

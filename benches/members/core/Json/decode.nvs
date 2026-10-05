@@ -1,6 +1,7 @@
 <?nvs
 // Decodes a small JSON object, as a server does with the body of each API request it receives.
 // bench: iterations 50000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

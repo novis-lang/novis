@@ -1,0 +1,61 @@
+<?nvs
+// Measures `Core\Zip::entries` on one archive, at growing numbers of files in it.
+// bench: start 16
+// bench: max 256
+
+class Bench
+{
+    // Builds a ZIP archive with one stored file for each name. All files have the same bytes.
+    public static function archive(array<string> $names, bytes $data): bytes
+    {
+        array<mixed> $sum = Core\Bytes::unpack(Core\Hash::of($data, Core\Digest::Crc32), "N");
+        uint $crc = $sum[0] as uint;
+        uint $size = Core\Bytes::length($data);
+        array<bytes> $locals = [];
+        array<bytes> $central = [];
+        uint $offset = 0;
+        foreach ($names as string $name) {
+            uint $nameLength = Core\Bytes::length($name as bytes);
+            bytes $local = Core\Bytes::join([
+                Core\Bytes::pack("VvvvvvVVVvv", 0x04034b50, 20, 0, 0, 0, 0x21, $crc, $size, $size, $nameLength, 0),
+                $name as bytes,
+                $data,
+            ]);
+            $locals[] = $local;
+            $central[] = Core\Bytes::join([
+                Core\Bytes::pack(
+                    "VvvvvvvVVVvvvvvVV",
+                    0x02014b50, 20, 20, 0, 0, 0, 0x21, $crc, $size, $size, $nameLength, 0, 0, 0, 0, 0, $offset
+                ),
+                $name as bytes,
+            ]);
+            $offset = $offset + Core\Bytes::length($local);
+        }
+        bytes $directory = Core\Bytes::join($central);
+        uint $count = Core\Arr::count($names);
+        bytes $end = Core\Bytes::pack(
+            "VvvvvVVv", 0x06054b50, 0, 0, $count, $count, Core\Bytes::length($directory), $offset, 0
+        );
+        return Core\Bytes::join([Core\Bytes::join($locals), $directory, $end]);
+    }
+
+    public static function run(uint $size): uint
+    {
+        array<string> $names = [];
+        uint $n = 0;
+        while ($n < $size) {
+            $names[] = "src/file" . $n . ".nvs";
+            $n = $n + 1;
+        }
+        bytes $archive = Bench::archive($names, "Hello" as bytes);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            $total = $total + Core\Arr::count(Core\Zip::entries($archive));
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(16), "\n";

@@ -1,6 +1,7 @@
 <?nvs
 // Reads the field names of an attribute, as a framework does when it checks an attribute for unknown settings.
 // bench: iterations 400000
+// bench: complexity constant
 
 class CheckoutController {
     #[{method: "POST", path: "/checkout"}]

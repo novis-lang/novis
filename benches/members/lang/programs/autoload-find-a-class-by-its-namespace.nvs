@@ -4,6 +4,7 @@
 // bench: iterations 200000
 // bench: calls 1
 // bench: allocations 0
+// bench: complexity constant
 
 autoload 'Loaded' from './autoload-find-a-class-by-its-namespace';
 

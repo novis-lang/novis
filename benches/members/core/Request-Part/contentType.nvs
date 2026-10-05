@@ -1,6 +1,7 @@
 <?nvs
 // Reads the media type of each uploaded file, as a handler does to accept only some kinds of file.
 // bench: iterations 1
+// bench: complexity constant
 
 class Bench
 {

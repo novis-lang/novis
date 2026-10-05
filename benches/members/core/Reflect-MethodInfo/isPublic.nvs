@@ -2,6 +2,7 @@
 // Checks whether a method is public, as a router does before it offers a method as a page.
 // bench: iterations 400000
 // bench: allocations 0
+// bench: complexity constant
 
 class Controller {
     public function home(): string {

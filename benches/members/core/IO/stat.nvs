@@ -1,6 +1,7 @@
 <?nvs
 // Reads the size and kind of a file with one call, as a program does when it lists a folder.
 // bench: iterations 5000
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

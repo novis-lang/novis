@@ -3,6 +3,7 @@
 // statics, its own place to print to, and the result it returns. A program that
 // runs a job for every item on a list meets this once per item.
 // bench: iterations 2000
+// bench: complexity constant
 
 class Bench {
     // `here` returns its argument as a full path. A relative path written in

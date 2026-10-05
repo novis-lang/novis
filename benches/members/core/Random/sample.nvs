@@ -1,6 +1,7 @@
 <?nvs
 // Measures choosing three of twenty questions, as a program does when it builds a short quiz.
 // bench: iterations 200000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): int {

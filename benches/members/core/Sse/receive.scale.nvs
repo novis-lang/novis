@@ -1,0 +1,25 @@
+<?nvs
+// Measures `receive` on an event stream for one value published to a topic, at growing value lengths.
+// bench: start 256
+// bench: max 4096
+
+class Bench
+{
+    public static function run(Core\Sse $sse, uint $size): uint
+    {
+        Core\Topic::subscribe("feed:updates");
+        string $update = Core\Str::repeat('a', $size);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            Core\Topic::publish("feed:updates", $update);
+            ?Core\Sse\Message $message = $sse->receive();
+            string $posted = $message?->value() as string;
+            $total = $total + Core\Str::length($posted) % 7 + 1;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(Core\Sse::current(), 256), "\n";

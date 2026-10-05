@@ -1,6 +1,7 @@
 <?nvs
 // Moves a date forward by a few days, as a program does when it works out when an invoice is due.
 // bench: iterations 200000
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): string {

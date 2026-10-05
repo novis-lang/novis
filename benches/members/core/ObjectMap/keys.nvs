@@ -1,6 +1,7 @@
 <?nvs
 // Lists the keys of a small map, as a program does before it passes the objects to another function.
 // bench: iterations 400000
+// bench: complexity linear
 
 final class Key {
     public int $id;

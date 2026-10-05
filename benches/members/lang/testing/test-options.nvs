@@ -5,6 +5,7 @@
 // bench: iterations 300000
 // bench: calls 1
 // bench: allocations 0
+// bench: complexity constant
 
 use Core\Test;
 

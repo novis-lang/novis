@@ -2,6 +2,7 @@
 // Reads how many parameters a method has, as a job runner does before it calls a task with no arguments.
 // bench: iterations 400000
 // bench: allocations 0
+// bench: complexity constant
 
 class Tasks {
     public function clearCache(): bool {

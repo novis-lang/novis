@@ -1,6 +1,7 @@
 <?nvs
 // Gives a session with two values a new identifier, as a sign-in page does.
 // bench: iterations 2000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

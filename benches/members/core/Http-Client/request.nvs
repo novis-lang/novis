@@ -3,6 +3,7 @@
 // of a job that sends saved changes.
 // bench: iterations 20000
 // bench: calls 0
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

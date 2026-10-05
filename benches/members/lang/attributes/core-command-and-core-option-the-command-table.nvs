@@ -5,6 +5,7 @@
 // bench: iterations 200000
 // bench: allocations 2
 // bench: calls 0
+// bench: complexity constant
 
 type Command = {name: string, about: string};
 type Option = {short: string, about: string};

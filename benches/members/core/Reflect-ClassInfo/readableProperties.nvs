@@ -1,6 +1,7 @@
 <?nvs
 // Builds the list of readable properties of an object, as a debug helper does before it prints one.
 // bench: iterations 200000
+// bench: complexity constant
 
 class Customer {
     public string $name = "";

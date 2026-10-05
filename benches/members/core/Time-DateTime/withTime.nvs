@@ -1,6 +1,7 @@
 <?nvs
 // Sets the time of a date and time, as a program does to plan a reminder at a fixed hour.
 // bench: iterations 200000
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): int {

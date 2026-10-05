@@ -2,6 +2,7 @@
 // Checks whether a path can be written, as a program does before it writes a log or a report.
 // bench: iterations 5000
 // bench: calls 0
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

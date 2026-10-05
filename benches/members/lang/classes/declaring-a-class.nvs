@@ -5,6 +5,7 @@
 // bench: iterations 400000
 // bench: calls 2
 // bench: allocations 1
+// bench: complexity constant
 
 final class Point {
     public function constructor(public int $x, public int $y) {}

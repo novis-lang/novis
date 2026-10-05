@@ -1,6 +1,7 @@
 <?nvs
 // Saves a message in a session that has two other values and removes it, as a page does after it shows the message once.
 // bench: iterations 100000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

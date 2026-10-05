@@ -2,6 +2,7 @@
 // Reads the first or the last character of a short word, as a program does when it builds initials.
 // bench: iterations 400000
 // bench: calls 0
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

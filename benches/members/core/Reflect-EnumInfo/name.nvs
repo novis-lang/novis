@@ -2,6 +2,7 @@
 // Reads the name of the enum a description is about, as a program does to print a heading or a log line.
 // bench: iterations 400000
 // bench: allocations 0
+// bench: complexity constant
 
 enum Shipping: int {
     Standard = 1,

@@ -3,6 +3,7 @@
 // starts and loads the identity for a partner's server.
 // bench: iterations 2000
 // bench: calls 0
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

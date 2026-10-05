@@ -1,6 +1,7 @@
 <?nvs
 // Reads the topic name of a message, as a stream does to decide which event to send.
 // bench: iterations 200000
+// bench: complexity constant
 
 class Bench {
     public static function run(Core\Sse $sse, uint $rounds): uint {

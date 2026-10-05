@@ -2,6 +2,7 @@
 // Reads the subprotocol of a WebSocket connection, as a program does before it writes a message.
 // bench: iterations 400000
 // bench: allocations 0
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

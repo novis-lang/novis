@@ -3,6 +3,7 @@
 // join and the compression a program pays for once per compressed file.
 // bench: iterations 5000
 // bench: calls 0
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

@@ -3,6 +3,7 @@
 // picks the statement one database writes differently.
 // bench: iterations 400000
 // bench: allocations 0
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

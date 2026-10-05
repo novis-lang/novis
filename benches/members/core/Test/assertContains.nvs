@@ -1,6 +1,7 @@
 <?nvs
 // Checks that a short list contains a value, as a test does after it collects errors or roles.
 // bench: iterations 200000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

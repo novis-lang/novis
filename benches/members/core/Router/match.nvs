@@ -1,6 +1,7 @@
 <?nvs
 // Matches a method and a path against a small route table, as a link checker or a test does for each link.
 // bench: iterations 200000
+// bench: complexity linear
 
 class Shop {
     #[Core\Route(path: "/", method: Core\Http\Method::Get, name: "Shop::home")]

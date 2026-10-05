@@ -1,6 +1,7 @@
 <?nvs
 // Writes a property by name, as a program does when it fills an object from configuration or a form.
 // bench: iterations 400000
+// bench: complexity constant
 
 class Counter {
     public int $value = 0;

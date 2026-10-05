@@ -1,6 +1,7 @@
 <?nvs
 // Decodes a search text from a query string, as a server does before it runs the search.
 // bench: iterations 200000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

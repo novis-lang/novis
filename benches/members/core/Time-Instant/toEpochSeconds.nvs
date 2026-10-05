@@ -1,6 +1,7 @@
 <?nvs
 // Reads the Unix timestamp of an instant, as a program does before it stores or sends one.
 // bench: iterations 400000
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): int {

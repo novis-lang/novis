@@ -1,0 +1,29 @@
+<?nvs
+// Measures `Core\Router::urlSigned` on one link, at growing lengths of the value in the link.
+// bench: start 256
+// bench: max 4096
+
+class Files {
+    #[Core\Route(path: "/files/{name}", method: Core\Http\Method::Get, name: "Files::download")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function download(string $name): string { return "one file"; }
+}
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        array<secret bytes> $keys = [Core\Crypto::generateKey()];
+        string $name = Core\Str::repeat('a', $size);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            string $link = Core\Router::urlSigned("Files::download", ["name" => $name], {keys: $keys, until: null});
+            $total = $total + Core\Str::length($link) % 7 + 1;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

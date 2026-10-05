@@ -1,6 +1,7 @@
 <?nvs
 // Empties a session that has one value, as a form with several steps does when the user starts over.
 // bench: iterations 100000
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

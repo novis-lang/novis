@@ -1,0 +1,23 @@
+<?nvs
+// Measures `Core\IO::within` on one file name, at growing numbers of folders in the name.
+// bench: start 16
+// bench: max 256
+
+class Bench
+{
+    public static function run(string $folder, uint $size): uint
+    {
+        string $name = Core\Str::repeat('photos/../', $size) . 'notes.txt';
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            $total = $total + Core\Str::length(Core\IO::within($folder, $name));
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+string $folder = Core\IO::temporaryDir();
+Core\IO::makeDir(Core\Path::join($folder, 'photos'));
+echo Bench::run($folder, 16), "\n";

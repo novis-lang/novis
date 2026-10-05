@@ -2,6 +2,7 @@
 // Changes the first letter of a name to lower case, as a program does when it turns a column name into a JSON key.
 // bench: iterations 200000
 // bench: calls 0
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

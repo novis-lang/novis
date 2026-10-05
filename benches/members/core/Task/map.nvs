@@ -1,6 +1,7 @@
 <?nvs
 // Runs one small task for each of three labels and reads the results, as a program does when it checks a short list of links.
 // bench: iterations 10000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

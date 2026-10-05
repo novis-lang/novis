@@ -1,0 +1,23 @@
+<?nvs
+// Measures `Core\Storage::put` saving one file, at growing file sizes.
+// bench: start 256
+// bench: max 4096
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        bytes $picture = Core\Str::repeat('x', $size) as bytes;
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            Core\Storage::put('bench', 'bench-put-scale.bin', $picture);
+            $total = $total + Core\Bytes::length($picture) + $i % 2;
+            $i = $i + 1;
+        }
+        Core\Storage::delete('bench', 'bench-put-scale.bin');
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

@@ -1,0 +1,43 @@
+<?nvs
+// Measures a `foreach` loop over a class that implements `Iterator`, at growing numbers of values.
+// It shows how the cost grows when the loop calls `advance()` and `current()` more often.
+// bench: start 256
+// bench: max 4096
+
+class Letters implements Iterator<int> {
+    private int $at = -1;
+
+    public function constructor(private array<int> $items, private int $count) {}
+
+    public function advance(): bool {
+        $this->at = $this->at + 1;
+        return $this->at < $this->count;
+    }
+
+    public function current(): int {
+        return $this->items[$this->at];
+    }
+}
+
+class Bench {
+    public static function run(uint $size): int {
+        int $n = $size as int;
+        array<int> $values = [];
+        int $i = 0;
+        while ($i < $n) {
+            $values[] = $i % 10;
+            $i = $i + 1;
+        }
+        int $total = 0;
+        int $r = 0;
+        while ($r < 64) {
+            foreach (new Letters($values, $n) as int $v) {
+                $total = $total + $v + ($total % 2);
+            }
+            $r = $r + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

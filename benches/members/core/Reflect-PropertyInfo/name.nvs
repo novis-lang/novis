@@ -2,6 +2,7 @@
 // Reads the name of a property, as an export tool does to write the header of a CSV file.
 // bench: iterations 400000
 // bench: allocations 0
+// bench: complexity constant
 
 class Product {
     public string $sku = "A-100";

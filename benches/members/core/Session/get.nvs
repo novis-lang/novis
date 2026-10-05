@@ -1,6 +1,7 @@
 <?nvs
 // Reads one value from a session that has three, as a page does to show who is signed in.
 // bench: iterations 100000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

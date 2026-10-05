@@ -1,6 +1,7 @@
 <?nvs
 // Reads the value published to a topic, as a connection does for every update it forwards to its client.
 // bench: iterations 200000
+// bench: complexity constant
 
 class Bench {
     public static function run(Core\Socket $conn, uint $rounds): uint {

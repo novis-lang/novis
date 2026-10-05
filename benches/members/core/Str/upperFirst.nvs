@@ -2,6 +2,7 @@
 // Changes the first letter of a word to upper case, as a program does when it shows a stored status as a label.
 // bench: iterations 200000
 // bench: calls 0
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

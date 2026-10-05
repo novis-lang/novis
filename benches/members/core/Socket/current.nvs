@@ -1,6 +1,7 @@
 <?nvs
 // Gets the connection, as a connection script does on its first line and in every helper it calls.
 // bench: iterations 200000
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

@@ -1,0 +1,21 @@
+<?nvs
+// Measures `nodes` on the top node of one parsed file, at growing numbers of statements.
+// bench: start 64
+// bench: max 1024
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        Core\Ast\Node $file = Core\Ast::parse('<?nvs ' . Core\Str::repeat('if (1) { echo 2; }', $size));
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            $total = $total + Core\Arr::count($file->nodes());
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(64), "\n";

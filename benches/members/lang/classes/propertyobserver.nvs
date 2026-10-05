@@ -3,6 +3,7 @@
 // tracks its own changes pays this on every field it updates.
 // bench: iterations 400000
 // bench: allocations 0
+// bench: complexity constant
 
 final class Tracked implements PropertyObserver {
     public int $level;

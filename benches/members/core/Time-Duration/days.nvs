@@ -1,6 +1,7 @@
 <?nvs
 // Creates a duration from a number of days, as a program does when it reads a setting such as "keep logs for 30 days".
 // bench: iterations 400000
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): int {

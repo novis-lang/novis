@@ -3,6 +3,7 @@
 // thrown from, and the number of frames. A program that logs a failure reads
 // these for every one it reports.
 // bench: iterations 200000
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

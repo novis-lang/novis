@@ -3,6 +3,7 @@
 // the other task, and the `catch` that takes the error. A page that loads
 // several things at once meets this every time one of them is missing.
 // bench: iterations 20000
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

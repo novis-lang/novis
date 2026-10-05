@@ -3,6 +3,7 @@
 // link it renders.
 // bench: iterations 200000
 // bench: calls 0
+// bench: complexity linear
 
 class Products {
     #[Core\Route(path: "/products/{sku}", method: Core\Http\Method::Get, name: "product")]

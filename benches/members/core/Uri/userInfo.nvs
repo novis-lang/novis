@@ -2,6 +2,7 @@
 // Reads the user part of an address, as a program does when it reads a database address from its settings.
 // bench: iterations 400000
 // bench: allocations 0
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

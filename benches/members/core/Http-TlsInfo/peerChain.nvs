@@ -2,6 +2,7 @@
 // Reads the certificates a server sent, as a program does before it saves or compares them.
 // bench: iterations 100000
 // bench: calls 0
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

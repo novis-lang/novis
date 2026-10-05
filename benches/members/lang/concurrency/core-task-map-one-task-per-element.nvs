@@ -3,6 +3,7 @@
 // running them and collecting the answers back under the input's keys. An import that
 // checks every row of an upload meets this once per file.
 // bench: iterations 20000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

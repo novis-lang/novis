@@ -1,0 +1,27 @@
+<?nvs
+// Measures `Core\Response::json` on one list of numbers, at growing list lengths.
+// bench: start 256
+// bench: max 4096
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        array<uint> $ids = [];
+        uint $n = 0;
+        while ($n < $size) {
+            $ids[] = $n;
+            $n = $n + 1;
+        }
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            Core\Response::json({ ids: $ids, ok: true });
+            $total = $total + Core\Arr::count($ids) + 1;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

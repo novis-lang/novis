@@ -3,6 +3,7 @@
 // when it reports the limits it runs under, or logs its own configuration.
 // bench: iterations 20000
 // bench: calls 0
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

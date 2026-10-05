@@ -1,6 +1,7 @@
 <?nvs
 // Closes a WebSocket connection, as a program does each time it is finished with a feed.
 // bench: iterations 200000
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

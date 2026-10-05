@@ -2,6 +2,7 @@
 // Lists the constants of a class, as a program does when it prints a class's settings or checks a name.
 // bench: iterations 400000
 // bench: allocations 0
+// bench: complexity constant
 
 class Limits {
     public const int SMALL = 1;

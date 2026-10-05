@@ -1,0 +1,32 @@
+<?nvs
+// Measures `writeStdin` on a running program, at growing line lengths.
+// It shows how the cost of `writeStdin` grows when the input grows.
+// bench: start 256
+// bench: max 4096
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        // `/bin/sh` runs `cat` on Linux and macOS, and `cmd.exe` runs `findstr` on Windows. Both read the input and throw it away.
+        string $path = "/bin/sh";
+        array<string> $arguments = ["-c", "exec cat >/dev/null"];
+        if (Core\Path::SEPARATOR == "\\") {
+            $path = "C:\\Windows\\System32\\cmd.exe";
+            $arguments = ["/c", "findstr /v zzzz >nul"];
+        }
+        var $program = Core\Process::spawn($path, $arguments);
+        bytes $line = (Core\Str::repeat("a", $size) . "\n") as bytes;
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            $program->writeStdin($line);
+            $total = $total + Core\Bytes::length($line);
+            $i = $i + 1;
+        }
+        $program->wait();
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

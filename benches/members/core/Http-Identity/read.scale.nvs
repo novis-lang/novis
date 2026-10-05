@@ -1,0 +1,27 @@
+<?nvs
+// Measures `Core\Http\Identity::read` on one certificate chain, at growing numbers of certificates.
+// bench: start 4
+// bench: max 32
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        string $leaf = "-----BEGIN CERTIFICATE-----\nMIIBZzCCAQ6gAwIBAgIBAjAKBggqhkjOPQQDAjAYMRYwFAYDVQQDDA1ub3ZpcyB0\nZXN0IGNhMCAXDTI2MDkxMjIzNDMyMloYDzIxMjYwODE5MjM0MzIyWjAdMRswGQYD\nVQQDDBJsZWFmLm5vdmlzLmV4YW1wbGUwWTATBgcqhkjOPQIBBggqhkjOPQMBBwNC\nAARsn8jTlvalvY27GIy5MEAhedk0hTduuei+6w3oC+YGT6Oo/R0MxoMtmUvhJLqW\nwY841Jo0D0ncfN+RfqQumQgWo0IwQDAdBgNVHQ4EFgQU4YjxNI3Zm79IaJTjEAsd\nZ33g5NgwHwYDVR0jBBgwFoAUYXHdOcSvHEpU6eRt6uCGrm/kckEwCgYIKoZIzj0E\nAwIDRwAwRAIgU7u+n0wo8NXFiu4+xaVKNc3nkN18o3GFgjuLmJkvLRQCICGQuFac\ngtWeQVkGYL2V+BnVrdR9QaThMcoIojXmgY6Q\n-----END CERTIFICATE-----\n";
+        string $issuer = "-----BEGIN CERTIFICATE-----\nMIIBhjCCAS2gAwIBAgIUV0uykyi92cy1XbXyftDdAZt6jL0wCgYIKoZIzj0EAwIw\nGDEWMBQGA1UEAwwNbm92aXMgdGVzdCBjYTAgFw0yNjA5MTIyMzQzMjJaGA8yMTI2\nMDgxOTIzNDMyMlowGDEWMBQGA1UEAwwNbm92aXMgdGVzdCBjYTBZMBMGByqGSM49\nAgEGCCqGSM49AwEHA0IABBbbsFmglrXdizZZ5GVhBN1uQOBg93SUc/deqOO5ZPMn\nTVDw2JDzW4uCnCeBlRTvu+xJG2srdROAdmchqKfz12ijUzBRMB0GA1UdDgQWBBRh\ncd05xK8cSlTp5G3q4Iaub+RyQTAfBgNVHSMEGDAWgBRhcd05xK8cSlTp5G3q4Iau\nb+RyQTAPBgNVHRMBAf8EBTADAQH/MAoGCCqGSM49BAMCA0cAMEQCIDXK5Gwryalq\ntQsX3awNpXAZJ8e0tYVGlMF1WQf14CK6AiALVkvZIJbooDOaBEhlpJC26/S+ArGm\njO0pIW15iNfuGQ==\n-----END CERTIFICATE-----\n";
+        secret bytes $keyFile = "-----BEGIN PRIVATE KEY-----\nMIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgNfM2JpNIZ3eTXvRd\n5pkBv32iz2fY5Nto/tlQ5IS9n36hRANCAARsn8jTlvalvY27GIy5MEAhedk0hTdu\nuei+6w3oC+YGT6Oo/R0MxoMtmUvhJLqWwY841Jo0D0ncfN+RfqQumQgW\n-----END PRIVATE KEY-----\n" as bytes;
+        Core\Crypto\KeyPair $key = Core\Crypto\KeyPair::read($keyFile, Core\Crypto\KeyKind::P256);
+        // The chain is the certificate and then copies of the one that issued it.
+        bytes $chain = ($leaf . Core\Str::repeat($issuer, $size - 1)) as bytes;
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            Core\Http\Identity $identity = Core\Http\Identity::read($chain, $key);
+            $total = $total + $i + 1;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(4), "\n";

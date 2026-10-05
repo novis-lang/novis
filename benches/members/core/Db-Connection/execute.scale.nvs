@@ -1,0 +1,24 @@
+<?nvs
+// Measures one insert of one row, at growing sizes of the text it stores.
+// bench: start 256
+// bench: max 4096
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        var $db = Core\Db::connect('notes');
+        $db->execute('create table notes (id integer primary key, body text not null)', []);
+        string $body = Core\Str::repeat('a', $size);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            var $written = $db->execute('insert into notes (body) values (?)', [$body]);
+            $total = $total + $written->affected();
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

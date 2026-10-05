@@ -2,6 +2,7 @@
 // Measures one rendering of a small object with `Core\Debug::render`. A program
 // builds these while somebody is looking for a fault in it.
 // bench: iterations 200000
+// bench: complexity constant
 
 class Row {
     public function constructor(public int $id, public string $name) {

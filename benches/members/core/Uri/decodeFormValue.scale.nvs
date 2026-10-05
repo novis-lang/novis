@@ -1,0 +1,21 @@
+<?nvs
+// Measures `Core\Uri::decodeFormValue` on one long search text, at growing text lengths.
+// bench: start 256
+// bench: max 4096
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        string $search = Core\Str::repeat('salt+%26+', $size);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            $total = $total + Core\Bytes::length(Core\Uri::decodeFormValue($search));
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

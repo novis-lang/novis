@@ -1,6 +1,7 @@
 <?nvs
 // Reads a zone's offset at an instant, as a program does before it shows a local time.
 // bench: iterations 200000
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): int {

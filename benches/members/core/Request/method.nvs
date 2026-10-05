@@ -2,6 +2,7 @@
 // Reads the method of a request, as a page does to decide whether to show a form or save it.
 // bench: iterations 400000
 // bench: allocations 0
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

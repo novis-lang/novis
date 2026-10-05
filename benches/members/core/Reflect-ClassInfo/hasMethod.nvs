@@ -2,6 +2,7 @@
 // Checks whether a class has a method by name, as an event dispatcher does before it calls a handler.
 // bench: iterations 400000
 // bench: allocations 0
+// bench: complexity constant
 
 class Listener {
     public function onCreated(): int {

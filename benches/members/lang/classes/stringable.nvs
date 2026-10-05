@@ -2,6 +2,7 @@
 // Renders an object into a line of text, the way a log line or a receipt does.
 // Each round joins the object to a string, which calls `toString` once.
 // bench: iterations 200000
+// bench: complexity constant
 
 final class Money implements Stringable {
     public int $cents;

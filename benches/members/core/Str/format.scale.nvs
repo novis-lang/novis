@@ -1,0 +1,21 @@
+<?nvs
+// Measures `Core\Str::format` filling one template, at growing template lengths.
+// bench: start 256
+// bench: max 4096
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        string $template = Core\Str::repeat('x', $size) . ' %s has %d items';
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            $total = $total + Core\Str::length(Core\Str::format($template, 'Anna', $i));
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

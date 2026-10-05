@@ -2,6 +2,7 @@
 // Reads the fragment of a parsed address, as a crawler does before it removes it from a link.
 // bench: iterations 400000
 // bench: allocations 0
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

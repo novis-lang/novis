@@ -3,6 +3,7 @@
 // values, and the `catch` that takes it. A test suite meets this shape on every
 // failing test.
 // bench: iterations 50000
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

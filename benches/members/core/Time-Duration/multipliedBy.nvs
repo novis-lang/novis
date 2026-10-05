@@ -1,6 +1,7 @@
 <?nvs
 // Multiplies a duration by a whole number, as a program does when it doubles the wait after a failed try.
 // bench: iterations 400000
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): int {

@@ -3,6 +3,7 @@
 // caught by a `RuntimeError` arm. A program meets this shape whenever one arm
 // handles a whole branch.
 // bench: iterations 200000
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

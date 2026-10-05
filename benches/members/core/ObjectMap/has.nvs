@@ -2,6 +2,7 @@
 // Checks if an object is a key in a map, as a program does before it does a piece of work only once.
 // bench: iterations 1000000
 // bench: allocations 0
+// bench: complexity constant
 
 final class Key {
     public int $id;

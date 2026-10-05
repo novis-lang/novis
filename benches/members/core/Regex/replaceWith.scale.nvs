@@ -1,0 +1,24 @@
+<?nvs
+// Measures `Core\Regex::replaceWith` on one price list, at growing list lengths.
+// The list has one amount for every sixteen characters.
+// bench: start 256
+// bench: max 4096
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        string $line = Core\Str::repeat('12 usd and more ', $size);
+        Core\Regex\Pattern $amount = Core\Regex::compile('\d+ [a-z]{3}');
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            string $shown = Core\Regex::replaceWith($line, $amount, fn(Core\Regex\Match $m) => Core\Str::upper($m->text()));
+            $total = $total + Core\Str::length($shown) + 1;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

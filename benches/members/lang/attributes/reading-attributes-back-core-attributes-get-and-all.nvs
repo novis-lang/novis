@@ -5,6 +5,7 @@
 // bench: iterations 200000
 // bench: calls 0
 // bench: allocations 8
+// bench: complexity constant
 
 type Route = {path: string};
 type Middleware = {name: string};

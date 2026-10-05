@@ -1,0 +1,23 @@
+<?nvs
+// Measures reading the certificates a server sent, at growing certificate sizes.
+// bench: start 64
+// bench: max 1024
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        // The session is made by the test, so nothing is sent over a network.
+        // A longer name in the certificate makes the certificate larger.
+        Core\Http\TlsInfo $session = Core\Test::tlsSession({ subject: 'CN=' . Core\Str::repeat('a', $size) });
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            $total = $total + Core\Str::length($session->peerChain()[0]);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(64), "\n";

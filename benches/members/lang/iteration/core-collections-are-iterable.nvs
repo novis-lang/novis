@@ -2,6 +2,7 @@
 // Walks a small `Core\ObjectSet` and a small `Core\Heap` with `foreach`. A program meets this shape
 // when a request has collected some values and reports every one of them before it answers.
 // bench: iterations 50000
+// bench: complexity nlogn
 
 class Bench {
     public static function run(int $rounds): int {

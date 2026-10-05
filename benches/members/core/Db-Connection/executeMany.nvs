@@ -2,6 +2,7 @@
 // Measures one batch of four rows, as a program does when it writes a group of
 // records with a single call.
 // bench: iterations 5000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

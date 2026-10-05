@@ -1,0 +1,23 @@
+<?nvs
+// Measures `queryParameter` on an address with a long query, at growing query lengths.
+// The parameter it reads comes after the long one.
+// bench: start 256
+// bench: max 4096
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        Core\Uri $link = Core\Uri::parse("/search?q=" . Core\Str::repeat('shoes', $size) . "&page=14");
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            mixed $page = $link->queryParameter("page");
+            $total = $total + Core\Str::length($page as string);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

@@ -1,0 +1,26 @@
+<?nvs
+// Measures reading one part of an open file, at growing part sizes.
+// bench: start 1024
+// bench: max 16384
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        string $path = Core\Path::join(Core\IO::temporaryDir(), 'read.txt');
+        Core\IO::write($path, Core\Str::repeat('a', $size));
+        Core\IO\File $file = Core\IO::open($path, Core\IO\FileMode::Read);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            // Each round reads the whole file and then moves back to its start.
+            $total = $total + Core\Str::length($file->read($size));
+            $file->seek(0);
+            $i = $i + 1;
+        }
+        $file->close();
+        return $total;
+    }
+}
+
+echo Bench::run(1024), "\n";

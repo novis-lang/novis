@@ -1,6 +1,7 @@
 <?nvs
 // Receives one short message over UDP, as a server does for each request it gets. Each round also sends that message.
 // bench: iterations 20000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

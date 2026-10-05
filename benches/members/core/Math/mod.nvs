@@ -2,6 +2,7 @@
 // Measures the remainder of two `float` values, as a program does to keep an angle or a time inside one cycle.
 // bench: iterations 400000
 // bench: allocations 0
+// bench: complexity constant
 
 class Bench {
     public static function run(int $rounds): float {

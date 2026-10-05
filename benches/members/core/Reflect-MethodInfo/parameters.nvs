@@ -2,6 +2,7 @@
 // Reads the parameter list of a method, as a form handler does to find the fields it needs.
 // bench: iterations 400000
 // bench: allocations 0
+// bench: complexity constant
 
 class Handlers {
     public function signup(string $email, string $name, string $country): bool {

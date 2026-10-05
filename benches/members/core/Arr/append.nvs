@@ -1,6 +1,7 @@
 <?nvs
 // Adds one value to a short list, as a program does while it collects the lines of a report.
 // bench: iterations 200000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

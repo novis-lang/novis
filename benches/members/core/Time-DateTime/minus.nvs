@@ -1,6 +1,7 @@
 <?nvs
 // Subtracts days and months from a date and time, as a program does to find the start of a report period.
 // bench: iterations 200000
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): int {

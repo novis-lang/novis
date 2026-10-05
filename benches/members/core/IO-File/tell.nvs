@@ -2,6 +2,7 @@
 // Asks an open file for its position, as a program does before it saves where it stopped.
 // bench: iterations 400000
 // bench: allocations 0
+// bench: complexity constant
 
 class Bench {
     public static function run(Core\IO\File $file, uint $rounds): uint {

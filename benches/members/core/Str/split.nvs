@@ -2,6 +2,7 @@
 // Splits a short list at its commas, as a program does when it reads tags or a line of CSV.
 // bench: iterations 200000
 // bench: calls 0
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

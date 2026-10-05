@@ -1,0 +1,23 @@
+<?nvs
+// Measures `Core\Crypto::open` on one sealed field, at growing field sizes.
+// bench: start 256
+// bench: max 4096
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        secret bytes $key = Core\Crypto::generateKey();
+        bytes $sealed = Core\Crypto::seal(Core\Bytes::fill($size, 65), $key, Core\Crypto\Cipher::XChaCha20Poly1305);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            bytes $opened = Core\Crypto::open($sealed, $key, Core\Crypto\Cipher::XChaCha20Poly1305);
+            $total = $total + Core\Bytes::length($opened);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

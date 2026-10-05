@@ -2,6 +2,7 @@
 // Walks an array with a `foreach` loop. A program meets this shape whenever it reads every
 // value of a list it already holds.
 // bench: iterations 200000
+// bench: complexity linear
 
 class Bench {
     public static function run(int $rounds): int {

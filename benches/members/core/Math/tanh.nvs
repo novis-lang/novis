@@ -2,6 +2,7 @@
 // Measures the hyperbolic tangent of a number, as a website does when it turns votes into a score.
 // bench: iterations 400000
 // bench: allocations 0
+// bench: complexity constant
 
 class Bench {
     public static function run(int $rounds): float {

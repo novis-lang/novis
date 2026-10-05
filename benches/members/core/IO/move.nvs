@@ -2,6 +2,7 @@
 // Moves a file to a new name, as a program does when it replaces a file safely.
 // bench: iterations 2000
 // bench: calls 0
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

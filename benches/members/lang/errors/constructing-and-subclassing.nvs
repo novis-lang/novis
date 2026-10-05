@@ -3,6 +3,7 @@
 // subclass adds, and the cause it is given. A program meets this shape every
 // time it wraps a lower error in one of its own.
 // bench: iterations 200000
+// bench: complexity constant
 
 class Wrapped extends RuntimeError {
     public function constructor(string $message, public uint $code, ?Throwable $cause) {

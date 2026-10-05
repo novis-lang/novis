@@ -3,6 +3,7 @@
 // page text that sits between the tags, and comes back for the next round.
 // Every list on a page is built this way.
 // bench: iterations 100000
+// bench: complexity constant
 
 int $total = 0;
 int $i = 0;

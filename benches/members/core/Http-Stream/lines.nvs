@@ -1,6 +1,7 @@
 <?nvs
 // Reads a streamed reply one line at a time, as a program does with a log or an export.
 // bench: iterations 20000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

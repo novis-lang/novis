@@ -2,6 +2,7 @@
 // Reverses a short word, as a program does when it checks if a word is a palindrome.
 // bench: iterations 400000
 // bench: calls 0
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

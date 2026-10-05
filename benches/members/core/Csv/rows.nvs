@@ -3,6 +3,7 @@
 // for every file it is given.
 // bench: iterations 20000
 // bench: calls 6
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

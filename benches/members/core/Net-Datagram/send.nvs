@@ -1,6 +1,7 @@
 <?nvs
 // Sends one short message over UDP, as a program does for each metric or log line it reports.
 // bench: iterations 2000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

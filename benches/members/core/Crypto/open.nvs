@@ -2,6 +2,7 @@
 // Measures opening one short field, as a program does when it reads a row back.
 // bench: iterations 100000
 // bench: calls 0
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

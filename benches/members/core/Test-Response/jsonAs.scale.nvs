@@ -1,0 +1,42 @@
+<?nvs
+// Measures `jsonAs` reading one test response into a class, at growing sizes of its JSON body.
+// bench: start 256
+// bench: max 4096
+
+#[Core\Json\Derive]
+class Product
+{
+    public string $sku;
+    public int $price;
+
+    public function constructor(string $sku, int $price)
+    {
+        $this->sku = $sku;
+        $this->price = $price;
+    }
+}
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        Core\Test\Response $response = Core\Test::request(Core\Http\Method::Get, '/' . Core\Str::repeat('a', $size));
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            var $product = $response->jsonAs<Product>();
+            $total = $total + Core\Str::length($product->sku);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+// Each request runs this file again. In that run, this part sends one product.
+// The `sku` has one `x` for each character of the path.
+try {
+    var $sku = Core\Str::repeat('x', Core\Str::length(Core\Request::path()));
+    Core\Response::json(['sku' => $sku, 'price' => 12]);
+} catch (LogicError $noRequest) {
+echo Bench::run(256), "\n";
+}

@@ -1,6 +1,7 @@
 <?nvs
 // Sends one request to the program itself and reads the status, as a test of a web page does.
 // bench: iterations 2000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

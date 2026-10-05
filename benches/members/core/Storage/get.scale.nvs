@@ -1,0 +1,23 @@
+<?nvs
+// Measures `Core\Storage::get` reading one saved file, at growing file sizes.
+// bench: start 256
+// bench: max 4096
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        Core\Storage::put('bench', 'bench-get-scale.txt', Core\Str::repeat('x', $size) as bytes);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            bytes $saved = Core\Storage::get('bench', 'bench-get-scale.txt') ?? '' as bytes;
+            $total = $total + Core\Bytes::length($saved);
+            $i = $i + 1;
+        }
+        Core\Storage::delete('bench', 'bench-get-scale.txt');
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

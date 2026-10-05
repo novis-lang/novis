@@ -1,0 +1,27 @@
+<?nvs
+// Measures `Core\Test::request` sending one request to the program itself, at growing sizes of the page it writes.
+// bench: start 256
+// bench: max 4096
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        string $path = '/' . Core\Str::repeat('a', $size);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            var $response = Core\Test::request(Core\Http\Method::Get, $path);
+            $total = $total + $response->status() + Core\Str::length($response->body());
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+// Each request runs this file again. In that run, this part writes one `x` for each character of the path.
+try {
+    echo Core\Str::repeat('x', Core\Str::length(Core\Request::path()));
+} catch (LogicError $noRequest) {
+echo Bench::run(256), "\n";
+}

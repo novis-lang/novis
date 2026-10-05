@@ -1,6 +1,7 @@
 <?nvs
 // Reads the value of a message, as a stream does before it sends the value to its client.
 // bench: iterations 200000
+// bench: complexity constant
 
 class Bench {
     public static function run(Core\Sse $sse, uint $rounds): uint {

@@ -1,6 +1,7 @@
 <?nvs
 // Tests whether any quantity in a small basket is below a limit, as a shop does while it fills a page.
 // bench: iterations 200000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

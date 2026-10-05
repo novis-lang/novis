@@ -1,6 +1,7 @@
 <?nvs
 // Reads the messages a program sent over a fake WebSocket, as a test does after it runs the code.
 // bench: iterations 20000
+// bench: complexity linear
 
 use Core\Http\Client;
 

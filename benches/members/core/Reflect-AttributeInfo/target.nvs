@@ -1,6 +1,7 @@
 <?nvs
 // Reads which member an attribute is written on, as a validator does when it matches rules to properties.
 // bench: iterations 400000
+// bench: complexity constant
 
 class Signup {
     #[{required: true}]

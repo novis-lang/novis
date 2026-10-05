@@ -1,0 +1,33 @@
+<?nvs
+// Measures `foreach` over a `Core\ObjectSet` and a `Core\Heap`, at growing numbers of values.
+// A heap gives its values in order, so it sorts a copy of them first.
+// bench: start 256
+// bench: max 4096
+
+class Bench {
+    public static function run(uint $size): int {
+        var $tags = new Core\ObjectSet<int>();
+        var $costs = new Core\Heap<int>();
+        int $n = $size as int;
+        int $i = 0;
+        while ($i < $n) {
+            $tags->add($i);
+            $costs->push($n - $i);
+            $i = $i + 1;
+        }
+        int $total = 0;
+        int $r = 0;
+        while ($r < 64) {
+            foreach ($tags as int $tag) {
+                $total = $total + $tag;
+            }
+            foreach ($costs as int $cost) {
+                $total = $total + $cost + ($total % 2);
+            }
+            $r = $r + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

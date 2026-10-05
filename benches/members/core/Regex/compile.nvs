@@ -1,6 +1,7 @@
 <?nvs
 // Compiles a pattern that was compiled before, as a function does that compiles its pattern on every call.
 // bench: iterations 200000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

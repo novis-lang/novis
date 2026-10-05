@@ -5,6 +5,7 @@
 // bench: iterations 400000
 // bench: calls 1
 // bench: allocations 0
+// bench: complexity constant
 
 abstract class Step {
     public abstract function apply(int $n): int;

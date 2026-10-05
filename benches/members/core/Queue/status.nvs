@@ -2,6 +2,7 @@
 // Reads the state of one job, as a page does when it shows the progress of an export.
 // bench: iterations 3000
 // bench: calls 0
+// bench: complexity constant
 use Core\Queue;
 use Core\Queue\Id;
 use Core\Queue\State;

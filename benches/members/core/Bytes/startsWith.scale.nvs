@@ -1,0 +1,22 @@
+<?nvs
+// Measures `Core\Bytes::startsWith` with a start as long as the value, at growing lengths.
+// bench: start 256
+// bench: max 4096
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        bytes $upload = Core\Bytes::fill($size, 97);
+        bytes $magic = Core\Bytes::fill($size, 97);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            $total = $total + ((Core\Bytes::startsWith($upload, $magic) ? 2 : 1) as uint);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

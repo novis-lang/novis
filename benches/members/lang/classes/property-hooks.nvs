@@ -3,6 +3,7 @@
 // hook. A class that checks a value on the way in does both on every update.
 // bench: iterations 400000
 // bench: allocations 0
+// bench: complexity constant
 
 class Gauge {
     public int $level {

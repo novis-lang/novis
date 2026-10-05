@@ -1,0 +1,21 @@
+<?nvs
+// Measures `Core\Str::wrap` wrapping one message at 10 characters, at growing message lengths.
+// bench: start 256
+// bench: max 4096
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        string $message = Core\Str::repeat('word ', $size);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            $total = $total + Core\Str::length(Core\Str::wrap($message, 10));
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

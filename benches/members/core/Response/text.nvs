@@ -1,6 +1,7 @@
 <?nvs
 // Sends a short line of plain text, as a health check or a small status page does once for each request.
 // bench: iterations 20000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

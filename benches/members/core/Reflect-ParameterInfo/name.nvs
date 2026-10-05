@@ -2,6 +2,7 @@
 // Reads the name of a parameter, as a program does to match configuration keys to the arguments of a method.
 // bench: iterations 400000
 // bench: allocations 0
+// bench: complexity constant
 
 class Pool {
     public function open(int $size, int $timeout, string $host): bool {

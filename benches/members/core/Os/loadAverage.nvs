@@ -2,6 +2,7 @@
 // Measures reading the load average. A program does this before it starts a
 // large job, to see if the machine is busy.
 // bench: iterations 20000
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

@@ -1,0 +1,26 @@
+<?nvs
+// Measures `Core\Str::fromCodePoints` building one word, at growing numbers of code points.
+// bench: start 256
+// bench: max 4096
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        array<uint> $points = [];
+        uint $n = 0;
+        while ($n < $size) {
+            $points[] = 233;
+            $n = $n + 1;
+        }
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            $total = $total + Core\Str::length(Core\Str::fromCodePoints($points));
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

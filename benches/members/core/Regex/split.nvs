@@ -1,6 +1,7 @@
 <?nvs
 // Splits a line at commas and the spaces around them, as a program does when it reads a list that a person typed.
 // bench: iterations 200000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

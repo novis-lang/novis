@@ -3,6 +3,7 @@
 // scaling factor an amount is stored with.
 // bench: iterations 200000
 // bench: calls 0
+// bench: complexity karatsuba
 
 class Bench {
     public static function run(uint $rounds): uint {

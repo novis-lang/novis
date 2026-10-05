@@ -1,6 +1,7 @@
 <?nvs
 // Escapes a search text for a form value, as a page does for each link to a results page.
 // bench: iterations 200000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

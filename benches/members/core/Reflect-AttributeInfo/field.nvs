@@ -1,6 +1,7 @@
 <?nvs
 // Reads one value of an attribute by its field name, as a framework does when it reads a cache time for a page.
 // bench: iterations 400000
+// bench: complexity constant
 
 type Cache = {seconds: int, shared: bool};
 

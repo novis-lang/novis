@@ -1,0 +1,38 @@
+<?nvs
+// Measures a page with three `later` parts, sent early and read back, at growing page lengths.
+// The page shows the path of the request, so a longer path gives a longer page.
+// bench: start 256
+// bench: max 4096
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        // Each request runs this file again. In that run, this part writes the page.
+        try {
+            Bench::page(Core\Request::path());
+            return 0;
+        } catch (LogicError $noRequest) {
+        }
+        string $path = '/' . Core\Str::repeat('a', $size);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 16) {
+            var $response = Core\Test::request(Core\Http\Method::Get, $path);
+            $total = $total + Core\Str::length($response->body());
+            $i = $i + 1;
+        }
+        return $total;
+    }
+
+    public static function page(tainted string $path): void
+    {
+        Core\Response::slotted();
+        Core\Html\Markup $title = Core\Html::later(fn(): Core\Html\Markup => html`<h1>{$path}</h1>`);
+        Core\Html\Markup $list = Core\Html::later(fn(): Core\Html\Markup => html`<ul><li>one</li></ul>`);
+        Core\Html\Markup $foot = Core\Html::later(fn(): Core\Html\Markup => html`<p>end</p>`);
+        echo $title, $list, $foot;
+    }
+}
+
+echo Bench::run(256), "\n";

@@ -3,6 +3,7 @@
 // and reading the value it returned. A program that runs a job per item on a
 // list pays this once per item.
 // bench: iterations 2000
+// bench: complexity constant
 
 class Bench {
     // `here` returns its argument as a full path. A relative path written in

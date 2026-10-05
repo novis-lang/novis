@@ -1,6 +1,7 @@
 <?nvs
 // Starts a document and writes its document type declaration, as a program does before it writes an XHTML page.
 // bench: iterations 50000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

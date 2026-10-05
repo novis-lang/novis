@@ -1,6 +1,7 @@
 <?nvs
 // Builds the query string of a search link with a list of tags, as a page does for each link it writes.
 // bench: iterations 100000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

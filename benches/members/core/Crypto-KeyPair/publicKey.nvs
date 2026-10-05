@@ -3,6 +3,7 @@
 // publishes its key or sends it to a peer.
 // bench: iterations 20000
 // bench: calls 0
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

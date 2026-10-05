@@ -3,6 +3,7 @@
 // bench: iterations 400000
 // bench: allocations 0
 // bench: calls 0
+// bench: complexity constant
 
 class Invoices {
     #[Core\Route(path: "/invoices/{number}", method: Core\Http\Method::Get, name: "Invoices::show")]

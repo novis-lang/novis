@@ -2,6 +2,7 @@
 // Measures reading the machine's name. A program does this when it writes the
 // name into a log line or a worker's name.
 // bench: iterations 20000
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

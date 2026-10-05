@@ -3,6 +3,7 @@
 // carries one.
 // bench: iterations 200000
 // bench: calls 0
+// bench: complexity constant
 
 type Signup = {name: string, age: int};
 

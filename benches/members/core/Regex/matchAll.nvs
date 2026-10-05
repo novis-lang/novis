@@ -1,6 +1,7 @@
 <?nvs
 // Finds every tag in a short line of text, as a program does when it reads hashtags from a post.
 // bench: iterations 100000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

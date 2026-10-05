@@ -2,6 +2,7 @@
 // Reads how many calls a rate limit still allows, as a handler does to write a `RateLimit-Remaining` header.
 // bench: iterations 400000
 // bench: allocations 0
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

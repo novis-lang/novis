@@ -1,0 +1,47 @@
+<?nvs
+// Measures one `select` inside a transaction that builds one object per row, at growing numbers of rows.
+// bench: start 64
+// bench: max 512
+use Core\Db\Derive;
+
+#[Derive]
+class Note
+{
+    public uint $id;
+    public uint $n;
+
+    public function constructor(uint $id, uint $n)
+    {
+        $this->id = $id;
+        $this->n = $n;
+    }
+}
+
+class Bench
+{
+    public static function run(uint $size): int
+    {
+        var $db = Core\Db::connect('notes');
+        $db->execute('create table notes (id integer primary key, n int not null)', []);
+        array<array<mixed>> $sets = [];
+        uint $written = 0;
+        while ($written < $size) {
+            $sets[] = [$written as int];
+            $written = $written + 1;
+        }
+        $db->executeMany('insert into notes (n) values (?)', $sets);
+        return $db->transaction(fn (Core\Db\Transaction $tx): int => {
+            int $total = 0;
+            uint $i = 0;
+            while ($i < 64) {
+                foreach ($tx->streamAs<Note>('select id, n from notes where n >= ? order by id', [$total % 2]) as Note $note) {
+                    $total = $total + ($note->n as int);
+                }
+                $i = $i + 1;
+            }
+            return $total;
+        });
+    }
+}
+
+echo Bench::run(64), "\n";

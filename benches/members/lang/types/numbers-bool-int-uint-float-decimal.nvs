@@ -3,6 +3,7 @@
 // Pricing and accounting code does this. `decimal` arithmetic is slower than
 // `int` or `float` arithmetic, and this bench measures that cost.
 // bench: iterations 500000
+// bench: complexity constant
 
 class Bench {
     public static function run(int $rounds): decimal {

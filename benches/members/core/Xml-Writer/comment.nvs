@@ -1,6 +1,7 @@
 <?nvs
 // Writes comments inside an element, as a program does when it adds notes to an exported file.
 // bench: iterations 50000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

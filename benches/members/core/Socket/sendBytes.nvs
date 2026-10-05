@@ -1,6 +1,7 @@
 <?nvs
 // Sends a short binary message to the client, as a connection does for every packed reading it pushes.
 // bench: iterations 5000
+// bench: complexity linear
 
 class Bench {
     public static function run(Core\Socket $conn, uint $rounds): uint {

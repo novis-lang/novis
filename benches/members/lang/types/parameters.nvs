@@ -4,6 +4,7 @@
 // Each round uses the result of the round before, so no call can be skipped.
 // bench: iterations 400000
 // bench: allocations 0
+// bench: complexity constant
 
 class Tally
 {

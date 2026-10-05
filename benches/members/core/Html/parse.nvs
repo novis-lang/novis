@@ -1,6 +1,7 @@
 <?nvs
 // Measures parsing a short piece of HTML into a tree, as a program does before it reads the links of a page.
 // bench: iterations 20000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

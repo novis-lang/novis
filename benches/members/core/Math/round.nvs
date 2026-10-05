@@ -2,6 +2,7 @@
 // Measures rounding a `float` to two decimal places, as a program does before it shows a measured value.
 // bench: iterations 400000
 // bench: allocations 0
+// bench: complexity constant
 
 class Bench {
     public static function run(int $rounds): float {

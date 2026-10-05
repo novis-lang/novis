@@ -1,6 +1,7 @@
 <?nvs
 // Sets the page number in the query of an address, as a list page does for each link to another page.
 // bench: iterations 100000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

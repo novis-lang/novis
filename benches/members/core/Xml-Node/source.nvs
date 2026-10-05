@@ -1,6 +1,7 @@
 <?nvs
 // Writes a small node back out as XML text, as a program does when it copies part of a document.
 // bench: iterations 200000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

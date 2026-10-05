@@ -1,0 +1,33 @@
+<?nvs
+// Measures `Core\Serialize::decode` on one settings object, at growing numbers of columns.
+// bench: start 256
+// bench: max 4096
+
+class Settings {
+    public string $theme = "dark";
+    public array<string> $columns = [];
+}
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        Settings $settings = new Settings();
+        uint $n = 0;
+        while ($n < $size) {
+            $settings->columns[] = "column";
+            $n = $n + 1;
+        }
+        bytes $payload = Core\Serialize::encode($settings);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            Settings $back = Core\Serialize::decode($payload) as Settings;
+            $total = $total + Core\Arr::count($back->columns) + 1;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

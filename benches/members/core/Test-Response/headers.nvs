@@ -2,6 +2,7 @@
 // Reads every header of a test response, as a test does before it checks which headers a page sends.
 // bench: iterations 400000
 // bench: allocations 0
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

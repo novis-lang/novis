@@ -1,6 +1,7 @@
 <?nvs
 // Adds a function to run when the script ends, as a library does when it opens a file or takes a lock.
 // bench: iterations 100000
+// bench: complexity constant
 
 final class Seen {
     public static uint $ran = 0;

@@ -2,6 +2,7 @@
 // Checks whether a class has a property by name, as a settings loader does before it writes a value.
 // bench: iterations 400000
 // bench: allocations 0
+// bench: complexity constant
 
 class MailSettings {
     public string $host = "localhost";

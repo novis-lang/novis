@@ -1,6 +1,7 @@
 <?nvs
 // Reads the cookies of a test response, as a test does before it checks that a login sets a session cookie.
 // bench: iterations 200000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

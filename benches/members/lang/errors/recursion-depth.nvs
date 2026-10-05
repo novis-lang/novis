@@ -5,6 +5,7 @@
 // bench: iterations 100000
 // bench: calls 17
 // bench: allocations 0
+// bench: complexity constant
 
 class Bench {
     public static function down(int $depth, int $acc): int {

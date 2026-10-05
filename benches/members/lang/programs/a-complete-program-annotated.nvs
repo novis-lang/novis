@@ -3,6 +3,7 @@
 // in order, then walked through and added up as numbers. It is what a web
 // handler does with the fields a form sent, before it answers.
 // bench: iterations 200000
+// bench: complexity nlogn
 
 class Bench {
     public static function run(int $rounds): int {

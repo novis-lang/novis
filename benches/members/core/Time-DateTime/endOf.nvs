@@ -1,6 +1,7 @@
 <?nvs
 // Finds the last moment of the day, the week or the month, as a program does to show when an offer ends.
 // bench: iterations 200000
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): int {

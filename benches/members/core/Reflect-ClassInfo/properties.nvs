@@ -2,6 +2,7 @@
 // Reads the property list of a class, as a serializer does before it writes an object.
 // bench: iterations 400000
 // bench: allocations 0
+// bench: complexity constant
 
 class Tag {
     public string $label = "";

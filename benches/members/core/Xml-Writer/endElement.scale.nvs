@@ -1,0 +1,27 @@
+<?nvs
+// Measures `endElement` on an element with a long name, at growing name lengths.
+// The writer indents each line with two spaces.
+// bench: start 256
+// bench: max 4096
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        string $name = Core\Str::repeat('menu', $size);
+        Core\Xml\Writer $writer = Core\Xml::writer({indent: "  "});
+        $writer->startDocument();
+        $writer->startElement("site");
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            $writer->startElement($name);
+            $writer->endElement();
+            $total = $total + 1;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

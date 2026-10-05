@@ -1,0 +1,23 @@
+<?nvs
+// Measures a pipeline that trims a label, makes it lower case and counts its length.
+// The label gets longer at each step, so this shows how the cost grows with it.
+// bench: start 256
+// bench: max 4096
+
+class Bench {
+    public static function run(uint $size): int {
+        string $label = "  " . Core\Str::repeat('A', $size) . " ";
+        var $total = 0;
+        var $i = 0;
+        while ($i < 64) {
+            $total = $total + ($label
+                |> Core\Str::trim($_)
+                |> Core\Str::lower($_)
+                |> Core\Str::length($_) as int);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

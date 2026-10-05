@@ -3,6 +3,7 @@
 // when it writes the name of the handler that ran into a log line.
 // bench: iterations 400000
 // bench: allocations 1
+// bench: complexity constant
 
 class Handler {
     public const int WEIGHT = 2;

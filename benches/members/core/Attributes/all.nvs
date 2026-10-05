@@ -4,6 +4,7 @@
 // bench: iterations 200000
 // bench: calls 0
 // bench: allocations 6
+// bench: complexity constant
 
 type Middleware = {name: string};
 

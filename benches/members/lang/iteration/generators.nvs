@@ -2,6 +2,7 @@
 // Drives a generator through a `foreach` loop. A program meets this shape when it reads a
 // sequence of values that are produced one step at a time.
 // bench: iterations 50000
+// bench: complexity linear
 
 class Bench {
     public static function steps(int $n): Iterator<int> {

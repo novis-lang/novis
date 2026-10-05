@@ -1,0 +1,32 @@
+<?nvs
+// Measures `Core\Jwt\KeySet::read` on one key set, at growing numbers of keys.
+// A key set may have at most 16 keys.
+// bench: start 2
+// bench: max 16
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        Core\Crypto\KeyPair $pair = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519);
+        string $jwk = Core\Encoding::decodeText($pair->publicKey()->write(Core\Crypto\KeyFormat::Jwk), Core\Charset::Utf8);
+        // Every key in the set is the same key with its own id.
+        array<string> $keys = [];
+        uint $n = 0;
+        while ($n < $size) {
+            $keys[] = Core\Str::replace($jwk, '{', Core\Str::format("{\"kid\":\"k%04d\",", $n));
+            $n = $n + 1;
+        }
+        string $document = "{\"keys\":[" . Core\Str::join($keys, ',') . ']}';
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            Core\Jwt\KeySet $set = Core\Jwt\KeySet::read($document);
+            $total = $total + 1 + $i % 2;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(2), "\n";

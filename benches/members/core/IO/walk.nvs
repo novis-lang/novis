@@ -1,6 +1,7 @@
 <?nvs
 // Walks a small folder tree, as a program does when it looks for every template or upload below a folder.
 // bench: iterations 2000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

@@ -1,6 +1,7 @@
 <?nvs
 // Writes a small archive of two compressed files into a new folder, as a program does to unpack an upload.
 // bench: iterations 2000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

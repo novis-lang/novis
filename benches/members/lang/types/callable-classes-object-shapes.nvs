@@ -4,6 +4,7 @@
 // This bench measures the extra cost of a call through a variable.
 // bench: iterations 400000
 // bench: allocations 1
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): int {

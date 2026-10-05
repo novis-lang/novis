@@ -2,6 +2,7 @@
 // Removes an object that is not in a map, as a program does when it cleans up an object that may never have been stored.
 // bench: iterations 1000000
 // bench: allocations 0
+// bench: complexity constant
 
 final class Key {
     public int $id;

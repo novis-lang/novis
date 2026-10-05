@@ -1,6 +1,7 @@
 <?nvs
 // Makes a time of day from an hour and a minute, as a program does when it reads a schedule.
 // bench: iterations 400000
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

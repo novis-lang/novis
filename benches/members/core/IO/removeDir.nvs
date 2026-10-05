@@ -1,6 +1,7 @@
 <?nvs
 // Deletes an empty folder, as a program does when it cleans up after a job.
 // bench: iterations 2000
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

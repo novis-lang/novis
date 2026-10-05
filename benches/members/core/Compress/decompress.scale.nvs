@@ -1,0 +1,21 @@
+<?nvs
+// Measures `Core\Compress::decompress` on one record, at growing record sizes.
+// bench: start 256
+// bench: max 4096
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        bytes $frame = Core\Compress::compress(Core\Str::repeat('{"id":1042}', $size), Core\Codec::Zstd);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            $total = $total + Core\Bytes::length(Core\Compress::decompress($frame, Core\Codec::Zstd));
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

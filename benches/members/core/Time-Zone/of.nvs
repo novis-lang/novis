@@ -1,6 +1,7 @@
 <?nvs
 // Finds a zone by its name, as a program does when it reads the zone saved for a user.
 // bench: iterations 100000
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): int {

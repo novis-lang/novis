@@ -1,6 +1,7 @@
 <?nvs
 // Sends one part of a body that is sent in parts, as a CSV export does for each row.
 // bench: iterations 20000
+// bench: complexity linear
 
 class Bench {
     public static function run(Core\Response\Stream $body, uint $rounds): uint {

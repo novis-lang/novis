@@ -1,6 +1,7 @@
 <?nvs
 // Reads every line of one header of a streamed reply, as a program does to collect its cookies.
 // bench: iterations 400000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

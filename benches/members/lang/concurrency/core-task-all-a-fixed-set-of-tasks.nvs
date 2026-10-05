@@ -2,6 +2,7 @@
 // Measures what a group of three jobs costs to start, run and collect. A page that
 // loads several parts at the same time meets this once per request.
 // bench: iterations 20000
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

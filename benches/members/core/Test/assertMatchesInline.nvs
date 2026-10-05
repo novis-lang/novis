@@ -1,6 +1,7 @@
 <?nvs
 // Checks a small value against its snapshot, as a test does after it builds a result.
 // bench: iterations 100000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

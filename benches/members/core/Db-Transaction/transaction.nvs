@@ -2,6 +2,7 @@
 // Measures one transaction opened inside another, as a program does when a
 // function writes its own rows inside a caller's transaction.
 // bench: iterations 20000
+// bench: complexity constant
 use Core\Db\Transaction;
 
 class Bench {

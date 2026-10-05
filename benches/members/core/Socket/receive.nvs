@@ -1,6 +1,7 @@
 <?nvs
 // Reads a message posted to a topic, as a chat connection does for every line somebody posts in its room.
 // bench: iterations 20000
+// bench: complexity linear
 
 class Bench {
     public static function run(Core\Socket $conn, uint $rounds): uint {

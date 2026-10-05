@@ -2,6 +2,7 @@
 // Measures escaping a short name, as a page does before it shows a name that a visitor typed.
 // bench: iterations 200000
 // bench: calls 0
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

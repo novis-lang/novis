@@ -2,6 +2,7 @@
 // Changes a short code to upper case, as a program does before it compares a voucher or a country code.
 // bench: iterations 200000
 // bench: calls 0
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

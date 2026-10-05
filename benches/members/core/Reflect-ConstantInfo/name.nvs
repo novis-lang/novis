@@ -2,6 +2,7 @@
 // Reads the name of a class constant, as a program does when it lists a class's settings or looks one up by name.
 // bench: iterations 400000
 // bench: allocations 0
+// bench: complexity constant
 
 class Limits {
     public const int SMALL = 1;

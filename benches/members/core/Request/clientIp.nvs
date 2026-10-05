@@ -1,6 +1,7 @@
 <?nvs
 // Reads the address of the client, as a handler does before it writes a log line or counts logins.
 // bench: iterations 200000
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

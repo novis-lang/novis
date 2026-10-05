@@ -1,6 +1,7 @@
 <?nvs
 // Checks if a text is an address, as a server does with a link a user typed into a form.
 // bench: iterations 200000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

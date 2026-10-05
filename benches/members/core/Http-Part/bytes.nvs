@@ -2,6 +2,7 @@
 // Measures creating an upload from data in memory, as a program does before it sends a report or a picture.
 // bench: iterations 200000
 // bench: calls 0
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

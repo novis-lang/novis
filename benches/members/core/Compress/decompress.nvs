@@ -3,6 +3,7 @@
 // time it reads a value out of a cache that keeps its entries compressed.
 // bench: iterations 200000
 // bench: calls 0
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

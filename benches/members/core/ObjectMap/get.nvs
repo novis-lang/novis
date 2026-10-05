@@ -2,6 +2,7 @@
 // Reads the value stored for an object, as a program does when it looks up a result it saved earlier.
 // bench: iterations 1000000
 // bench: allocations 0
+// bench: complexity constant
 
 final class Key {
     public int $id;

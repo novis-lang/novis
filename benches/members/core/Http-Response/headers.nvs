@@ -2,6 +2,7 @@
 // Reads every line of one header of a reply, as a program does to read the cookies a server sets.
 // bench: iterations 200000
 // bench: calls 0
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

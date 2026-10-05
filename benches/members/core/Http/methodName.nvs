@@ -1,6 +1,7 @@
 <?nvs
 // Turns HTTP methods into text, as a server does when it writes an `Allow` header or a log line.
 // bench: iterations 200000
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

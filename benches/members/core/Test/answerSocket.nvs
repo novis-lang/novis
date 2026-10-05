@@ -1,6 +1,7 @@
 <?nvs
 // Scripts a WebSocket peer, as a test does before it runs code that opens a socket.
 // bench: iterations 20000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

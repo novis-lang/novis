@@ -1,6 +1,7 @@
 <?nvs
 // Measures checking one password against a stored hash, as every login does.
 // bench: iterations 20
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

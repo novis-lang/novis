@@ -1,6 +1,7 @@
 <?nvs
 // Encrypts a short session value with a shared key, as a server does before it puts it in a cookie.
 // bench: iterations 20000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

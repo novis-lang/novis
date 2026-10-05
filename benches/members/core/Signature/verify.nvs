@@ -1,6 +1,7 @@
 <?nvs
 // Measures checking a signed token, as a server does when somebody opens a signed link.
 // bench: iterations 50000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): int {

@@ -2,6 +2,7 @@
 // Repeats a short text a few times, as a program does when it indents a line or draws a bar.
 // bench: iterations 200000
 // bench: calls 0
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

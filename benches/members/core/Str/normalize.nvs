@@ -2,6 +2,7 @@
 // Changes a short name to `Nfc`, as a program does before it stores or compares a name.
 // bench: iterations 200000
 // bench: calls 0
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

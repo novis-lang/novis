@@ -2,6 +2,7 @@
 // Checks if a result of `stat` is a folder, as a program does when it walks a folder tree.
 // bench: iterations 400000
 // bench: allocations 0
+// bench: complexity constant
 
 class Bench {
     public static function run(array<Core\IO\Metadata> $infos, uint $rounds): uint {

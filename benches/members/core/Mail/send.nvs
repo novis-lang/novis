@@ -2,6 +2,7 @@
 // Measures how `Core\Mail::send` checks the addresses of a message before it connects,
 // as a contact form does with every address a visitor types.
 // bench: iterations 20000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

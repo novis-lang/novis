@@ -3,6 +3,7 @@
 // once when it starts and builds its dispatch table.
 // bench: iterations 100000
 // bench: calls 0
+// bench: complexity constant
 
 type Route = {path: string};
 

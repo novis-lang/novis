@@ -1,6 +1,7 @@
 <?nvs
 // Leaves a chat room and joins it again, as a chat script does when a user switches rooms.
 // bench: iterations 100000
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

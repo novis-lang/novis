@@ -1,6 +1,7 @@
 <?nvs
 // Reads a duration from a short text, as a program does with a timeout from a configuration file.
 // bench: iterations 400000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): int {

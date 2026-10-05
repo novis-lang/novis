@@ -2,6 +2,7 @@
 // Measures the greatest common divisor of two numbers, as a program does when it shortens a ratio.
 // bench: iterations 400000
 // bench: allocations 0
+// bench: complexity constant
 
 class Bench {
     public static function run(int $rounds): int {

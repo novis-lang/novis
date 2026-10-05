@@ -1,6 +1,7 @@
 <?nvs
 // Encodes a small settings object, as a program does before it saves the object in a cache.
 // bench: iterations 200000
+// bench: complexity linear
 
 class Settings {
     public string $theme = "dark";

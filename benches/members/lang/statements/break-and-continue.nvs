@@ -6,6 +6,7 @@
 // bench: iterations 300000
 // bench: allocations 0
 // bench: calls 0
+// bench: complexity linear
 
 class Scan {
     public static function run(int $rounds): int {

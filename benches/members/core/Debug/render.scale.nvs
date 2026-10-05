@@ -1,0 +1,28 @@
+<?nvs
+// Measures one `Core\Debug::render` of an array, at growing numbers of elements.
+// bench: start 64
+// bench: max 1024
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        array<int> $row = [];
+        uint $at = 0;
+        while ($at < $size) {
+            $row[] = $at as int;
+            $at = $at + 1;
+        }
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            $row[0] = ($total % 97) as int;
+            Core\Cli\Text $text = Core\Debug::render($row);
+            $total = $total + Core\Str::length($text->text());
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(64), "\n";

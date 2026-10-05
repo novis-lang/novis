@@ -1,6 +1,7 @@
 <?nvs
 // Saves a small file from three chunks, as a program does when it stores an uploaded file.
 // bench: iterations 2000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

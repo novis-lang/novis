@@ -1,6 +1,7 @@
 <?nvs
 // Checks a signed link, as a server does each time somebody opens a download or reset link.
 // bench: iterations 50000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

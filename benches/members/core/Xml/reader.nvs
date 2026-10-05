@@ -1,6 +1,7 @@
 <?nvs
 // Reads a small XML document one node at a time, as a program does when it takes a few values from a feed.
 // bench: iterations 100000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

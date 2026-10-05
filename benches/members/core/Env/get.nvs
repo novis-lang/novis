@@ -3,6 +3,7 @@
 // reads a setting such as a port or a database host.
 // bench: iterations 50000
 // bench: calls 0
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

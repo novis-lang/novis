@@ -1,6 +1,7 @@
 <?nvs
 // Joins a chat room the connection is already in, as a chat script does each time a user opens a room.
 // bench: iterations 200000
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

@@ -1,6 +1,7 @@
 <?nvs
 // Reads a query string into an array, as a server does for the query of every request.
 // bench: iterations 200000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

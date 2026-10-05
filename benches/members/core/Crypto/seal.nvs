@@ -2,6 +2,7 @@
 // Measures sealing one short field, as a program does before it stores a row.
 // bench: iterations 100000
 // bench: calls 0
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

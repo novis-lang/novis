@@ -1,6 +1,7 @@
 <?nvs
 // Checks that a method was not called, as a test does after it runs the code.
 // bench: iterations 20000
+// bench: complexity constant
 
 interface Files {
     public function read(string $path): string;

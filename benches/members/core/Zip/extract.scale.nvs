@@ -1,0 +1,58 @@
+<?nvs
+// Measures `Core\Zip::extract` on an archive with one stored file, at growing file sizes.
+// Each round writes the file into a new folder.
+// bench: start 1024
+// bench: max 16384
+
+class Bench
+{
+    // Builds a ZIP archive with one stored file for each name. All files have the same bytes.
+    public static function archive(array<string> $names, bytes $data): bytes
+    {
+        array<mixed> $sum = Core\Bytes::unpack(Core\Hash::of($data, Core\Digest::Crc32), "N");
+        uint $crc = $sum[0] as uint;
+        uint $size = Core\Bytes::length($data);
+        array<bytes> $locals = [];
+        array<bytes> $central = [];
+        uint $offset = 0;
+        foreach ($names as string $name) {
+            uint $nameLength = Core\Bytes::length($name as bytes);
+            bytes $local = Core\Bytes::join([
+                Core\Bytes::pack("VvvvvvVVVvv", 0x04034b50, 20, 0, 0, 0, 0x21, $crc, $size, $size, $nameLength, 0),
+                $name as bytes,
+                $data,
+            ]);
+            $locals[] = $local;
+            $central[] = Core\Bytes::join([
+                Core\Bytes::pack(
+                    "VvvvvvvVVVvvvvvVV",
+                    0x02014b50, 20, 20, 0, 0, 0, 0x21, $crc, $size, $size, $nameLength, 0, 0, 0, 0, 0, $offset
+                ),
+                $name as bytes,
+            ]);
+            $offset = $offset + Core\Bytes::length($local);
+        }
+        bytes $directory = Core\Bytes::join($central);
+        uint $count = Core\Arr::count($names);
+        bytes $end = Core\Bytes::pack(
+            "VvvvvVVv", 0x06054b50, 0, 0, $count, $count, Core\Bytes::length($directory), $offset, 0
+        );
+        return Core\Bytes::join([Core\Bytes::join($locals), $directory, $end]);
+    }
+
+    public static function run(uint $size): uint
+    {
+        bytes $archive = Bench::archive(["notes.txt"], Core\Bytes::repeat("a" as bytes, $size));
+        string $folder = Core\IO::temporaryDir();
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 16) {
+            string $into = Core\Path::join($folder, 'r' . $i . '-' . $total);
+            $total = $total + Core\Zip::extract($archive, $into);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(1024), "\n";

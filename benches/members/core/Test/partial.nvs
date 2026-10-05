@@ -1,6 +1,7 @@
 <?nvs
 // Builds a test double that replaces one method of a real object, as a test does before it runs the code.
 // bench: iterations 20000
+// bench: complexity constant
 
 interface Shop {
     public function name(): string;

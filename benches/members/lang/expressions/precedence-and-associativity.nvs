@@ -3,6 +3,7 @@
 // this when it works out a line total and then makes a decision from it.
 // bench: iterations 400000
 // bench: allocations 0
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

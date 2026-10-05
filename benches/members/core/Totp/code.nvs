@@ -1,6 +1,7 @@
 <?nvs
 // Makes a one-time code from a secret, as a login test or a setup page does.
 // bench: iterations 100000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

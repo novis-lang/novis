@@ -1,6 +1,7 @@
 <?nvs
 // Checks a login token from another service with its public key, as an API does on each request.
 // bench: iterations 5000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

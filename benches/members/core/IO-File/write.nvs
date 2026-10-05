@@ -1,6 +1,7 @@
 <?nvs
 // Writes one short line to an open file, as a program does when it writes a log or a CSV file.
 // bench: iterations 200000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

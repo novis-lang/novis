@@ -1,6 +1,7 @@
 <?nvs
 // Publishes a small order update to a topic, as a web request does to tell open dashboards that an order changed.
 // bench: iterations 100000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

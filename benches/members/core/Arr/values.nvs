@@ -3,6 +3,7 @@
 // the form sent without naming the fields.
 // bench: iterations 400000
 // bench: calls 0
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

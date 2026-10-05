@@ -2,6 +2,7 @@
 // Reads the attribute list of a class, as a framework does when it looks for routes or rules on a class.
 // bench: iterations 400000
 // bench: allocations 0
+// bench: complexity constant
 
 type Route = {path: string};
 

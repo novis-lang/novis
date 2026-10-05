@@ -3,6 +3,7 @@
 // request makes before it decides whether it has to build the value.
 // bench: iterations 200000
 // bench: calls 0
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

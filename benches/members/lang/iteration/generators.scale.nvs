@@ -1,0 +1,30 @@
+<?nvs
+// Measures a `foreach` loop over a generator, at growing numbers of values.
+// It shows how the cost grows when the generator gives more values.
+// bench: start 256
+// bench: max 4096
+
+class Bench {
+    public static function steps(int $n): Iterator<int> {
+        int $i = 0;
+        while ($i < $n) {
+            yield $i;
+            $i = $i + 1;
+        }
+    }
+
+    public static function run(uint $size): int {
+        int $n = $size as int;
+        int $total = 0;
+        int $r = 0;
+        while ($r < 64) {
+            foreach (Bench::steps($n) as int $v) {
+                $total = $total + $v + ($total % 2);
+            }
+            $r = $r + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

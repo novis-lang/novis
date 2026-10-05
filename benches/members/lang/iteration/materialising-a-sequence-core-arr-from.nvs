@@ -2,6 +2,7 @@
 // Collects a short generator into an array with `Core\Arr::from`. A program meets this shape
 // when it needs the whole of a sequence at once, to count it or to sort it.
 // bench: iterations 50000
+// bench: complexity linear
 
 class Bench {
     public static function steps(int $n): Iterator<int> {

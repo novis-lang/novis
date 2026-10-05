@@ -1,6 +1,7 @@
 <?nvs
 // Gets the text of a UUID, as a program does before it writes one into a URL, a log line or JSON.
 // bench: iterations 200000
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

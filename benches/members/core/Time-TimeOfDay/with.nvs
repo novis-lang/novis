@@ -1,6 +1,7 @@
 <?nvs
 // Changes one part of a time of day, as a program does when it rounds a time down to the full hour.
 // bench: iterations 400000
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

@@ -2,6 +2,7 @@
 // Checks the number type of an enum, as a program does before it reads the value of a case.
 // bench: iterations 400000
 // bench: allocations 0
+// bench: complexity constant
 
 enum Permission: uint {
     Read = 1,

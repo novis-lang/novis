@@ -2,6 +2,7 @@
 // Changes a short word to lower case, as a program does before it compares a name or an email address.
 // bench: iterations 200000
 // bench: calls 0
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

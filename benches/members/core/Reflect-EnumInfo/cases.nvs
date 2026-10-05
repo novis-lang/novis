@@ -2,6 +2,7 @@
 // Reads the case list of an enum, as a program does before it checks a filter or builds a menu.
 // bench: iterations 400000
 // bench: allocations 0
+// bench: complexity constant
 
 enum Status: int {
     Open = 1,

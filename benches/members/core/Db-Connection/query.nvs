@@ -2,6 +2,7 @@
 // Measures one `select` that reads a few rows, as a program does when it shows
 // a page of a list.
 // bench: iterations 20000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

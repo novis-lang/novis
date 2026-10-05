@@ -3,6 +3,7 @@
 // bench: iterations 400000
 // bench: allocations 0
 // bench: calls 0
+// bench: complexity constant
 
 class Orders {
     #[Core\Route(path: "/orders/{order}/items/{item}", method: Core\Http\Method::Get, name: "Orders::item")]

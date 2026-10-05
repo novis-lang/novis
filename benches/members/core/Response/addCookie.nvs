@@ -1,6 +1,7 @@
 <?nvs
 // Adds a session cookie with the default options, as a login page does once for each request.
 // bench: iterations 20000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

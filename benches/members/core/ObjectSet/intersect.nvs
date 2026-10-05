@@ -1,6 +1,7 @@
 <?nvs
 // Intersects two small sets of objects, as a program does when it finds the admins who are online.
 // bench: iterations 200000
+// bench: complexity linear
 
 final class Key {
     public int $id;

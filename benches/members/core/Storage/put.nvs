@@ -1,6 +1,7 @@
 <?nvs
 // Saves a small file under one of three keys, as a program does when a user uploads a picture.
 // bench: iterations 2000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

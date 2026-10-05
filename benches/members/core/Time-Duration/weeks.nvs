@@ -1,6 +1,7 @@
 <?nvs
 // Creates a duration from a number of weeks, as a program does when it reads a setting such as "a trial of 2 weeks".
 // bench: iterations 400000
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): int {

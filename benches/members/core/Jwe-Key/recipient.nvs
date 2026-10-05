@@ -1,6 +1,7 @@
 <?nvs
 // Makes a key from another service's public key, as a program does before it encrypts a message for that service.
 // bench: iterations 200000
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

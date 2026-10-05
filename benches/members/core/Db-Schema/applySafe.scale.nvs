@@ -1,0 +1,33 @@
+<?nvs
+// Measures applying a schema to a database that already matches it, at growing numbers of columns.
+// bench: start 16
+// bench: max 128
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        var $db = Core\Db::connect('notes');
+        array<mixed> $columns = [['name' => 'id', 'type' => 'int64', 'identity' => true]];
+        uint $column = 1;
+        while ($column < $size) {
+            $columns[] = ['name' => 'c' . $column, 'type' => 'text(200)'];
+            $column = $column + 1;
+        }
+        var $schema = Core\Db\Schema::fromArray([
+            'tables' => [['name' => 'notes', 'columns' => $columns, 'primary_key' => ['id']]],
+        ]);
+        $schema->applySafe($db);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 16) {
+            $schema->applySafe($db);
+            $total = $total + 1;
+            $i = $i + 1;
+        }
+        $db->close();
+        return $total;
+    }
+}
+
+echo Bench::run(16), "\n";

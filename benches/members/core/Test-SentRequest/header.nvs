@@ -1,6 +1,7 @@
 <?nvs
 // Reads one header of a sent request, as a test does to check the token a client sent.
 // bench: iterations 400000
+// bench: complexity constant
 
 use Core\Http\Client;
 use Core\Test\SentRequest;

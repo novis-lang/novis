@@ -1,6 +1,7 @@
 <?nvs
 // Builds the link to a product page from its id, as a page does for each product it lists.
 // bench: iterations 200000
+// bench: complexity linear
 
 class Shop {
     #[Core\Route(path: "/products/{id}", method: Core\Http\Method::Get, name: "Shop::product")]

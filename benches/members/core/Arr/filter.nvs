@@ -2,6 +2,7 @@
 // Keeps the quantities in a small basket above a limit, as a shop does before it writes an order.
 // bench: iterations 200000
 // bench: calls 0
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

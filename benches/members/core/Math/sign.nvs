@@ -2,6 +2,7 @@
 // Measures finding the sign of a whole number, as a report does to say if a value went up or down.
 // bench: iterations 400000
 // bench: allocations 0
+// bench: complexity constant
 
 class Bench {
     public static function run(int $rounds): int {

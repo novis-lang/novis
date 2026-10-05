@@ -1,6 +1,7 @@
 <?nvs
 // Reads one compressed file out of a small archive, as a program does to load a settings file from an upload.
 // bench: iterations 20000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

@@ -4,6 +4,7 @@
 // answers itself with `Core\Test::scriptAnswers`, the way a test does.
 // bench: iterations 200000
 // bench: calls 0
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): int {

@@ -1,0 +1,25 @@
+<?nvs
+// Measures `Core\Crypto::verify` on one signed message, at growing message sizes.
+// bench: start 256
+// bench: max 4096
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        Core\Crypto\KeyPair $pair = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519);
+        Core\Crypto\PublicKey $key = $pair->publicKey();
+        bytes $message = Core\Bytes::fill($size, 65);
+        bytes $signature = Core\Crypto::sign($message, $pair);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            Core\Crypto::verify($message, $signature, $key);
+            $total = $total + 1;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

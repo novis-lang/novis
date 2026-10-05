@@ -1,6 +1,7 @@
 <?nvs
 // Connects to a server through a socket file, as a program does before it talks to a local database or cache.
 // bench: iterations 200
+// bench: complexity constant
 // requires: unix
 
 class Bench {

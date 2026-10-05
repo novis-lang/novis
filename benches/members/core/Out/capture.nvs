@@ -1,6 +1,7 @@
 <?nvs
 // Measures collecting one short line of output, as a test does when it checks what a function prints.
 // bench: iterations 20000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

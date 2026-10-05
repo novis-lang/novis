@@ -1,0 +1,23 @@
+<?nvs
+// Measures `Core\Cli::confirm` with a default answer and no terminal, at growing question lengths.
+// bench: start 256
+// bench: max 4096
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        string $question = Core\Str::repeat('a', $size) . '?';
+        uint $taken = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            if (Core\Cli::confirm($question, {default: true})) {
+                $taken = $taken + 1;
+            }
+            $i = $i + 1;
+        }
+        return $taken;
+    }
+}
+
+echo Bench::run(256), "\n";

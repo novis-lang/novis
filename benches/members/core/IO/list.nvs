@@ -1,6 +1,7 @@
 <?nvs
 // Lists the files in a small folder, as a program does when it looks for new uploads or old logs.
 // bench: iterations 2000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

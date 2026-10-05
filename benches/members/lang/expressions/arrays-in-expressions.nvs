@@ -4,6 +4,7 @@
 // array with `[...]`, an append, a write by key and a read by key. Every round
 // takes its input from the round before it, so no work can be skipped.
 // bench: iterations 200000
+// bench: complexity constant
 
 class Bench
 {

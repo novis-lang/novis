@@ -1,6 +1,7 @@
 <?nvs
 // Reads a small part of a message from a TCP connection, as a server does while it reads a request.
 // bench: iterations 200000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

@@ -3,6 +3,7 @@
 // every test, so a runner pays this once per test.
 // bench: iterations 200000
 // bench: calls 1
+// bench: complexity constant
 
 use Core\Test;
 

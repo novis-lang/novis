@@ -3,6 +3,7 @@
 // The loop counts the parts, so the figure is the cost of `captures()` alone.
 // bench: iterations 200000
 // bench: allocations 0
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

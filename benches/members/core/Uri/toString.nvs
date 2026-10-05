@@ -2,6 +2,7 @@
 // Gets the text of a parsed address, as a server does when it writes a link into a header or a page.
 // bench: iterations 400000
 // bench: allocations 0
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

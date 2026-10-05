@@ -1,6 +1,7 @@
 <?nvs
 // Turns a typed file name into a full path, as a command-line tool does for each file name it is given.
 // bench: iterations 100000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

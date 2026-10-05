@@ -1,6 +1,7 @@
 <?nvs
 // Combines two small sets of objects, as a program does when it merges two lists of people to notify.
 // bench: iterations 200000
+// bench: complexity linear
 
 final class Key {
     public int $id;

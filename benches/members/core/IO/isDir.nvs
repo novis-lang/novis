@@ -2,6 +2,7 @@
 // Checks whether a path is a folder, as a program does before it lists what is inside.
 // bench: iterations 5000
 // bench: calls 0
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

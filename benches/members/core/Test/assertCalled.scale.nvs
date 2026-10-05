@@ -1,0 +1,34 @@
+<?nvs
+// Measures `Core\Test::assertCalled` checking the calls of one method, at growing numbers of calls.
+// bench: start 256
+// bench: max 4096
+
+interface Mailer
+{
+    public function send(string $to): bool;
+}
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        Mailer $mailer = Core\Test::double<Mailer>({
+            send: fn(string $to): bool => true,
+        });
+        uint $n = 0;
+        while ($n < $size) {
+            $mailer->send('ada@example.com');
+            $n = $n + 1;
+        }
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            Core\Test::assertCalled($mailer, Mailer::send, {times: $size, with: ['ada@example.com']});
+            $total = $total + 1 + ($total % 2);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

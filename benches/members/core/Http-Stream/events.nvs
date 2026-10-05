@@ -1,6 +1,7 @@
 <?nvs
 // Reads a streamed reply as server-sent events, as a program does with a live feed.
 // bench: iterations 20000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

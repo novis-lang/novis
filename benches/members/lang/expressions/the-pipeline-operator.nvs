@@ -2,6 +2,7 @@
 // Measures a three-step pipeline that trims a label, makes it lower case and
 // counts its length. A request handler does this to clean up a form field.
 // bench: iterations 1000000
+// bench: complexity linear
 
 class Bench {
     public static function run(int $rounds): int {

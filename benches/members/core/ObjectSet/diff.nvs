@@ -1,6 +1,7 @@
 <?nvs
 // Takes one small set of objects away from another, as a program does when it finds the guests who have not answered.
 // bench: iterations 200000
+// bench: complexity linear
 
 final class Key {
     public int $id;

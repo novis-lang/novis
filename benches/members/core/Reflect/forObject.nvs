@@ -1,6 +1,7 @@
 <?nvs
 // Describes the class of an object, as a log or an error report does to name what it received.
 // bench: iterations 100000
+// bench: complexity constant
 
 class Order {
     public int $id = 0;

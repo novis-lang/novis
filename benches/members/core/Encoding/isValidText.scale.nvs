@@ -1,0 +1,25 @@
+<?nvs
+// Measures `Core\Encoding::isValidText` on one field of bytes, at growing field sizes.
+// bench: start 256
+// bench: max 4096
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        bytes $field = Core\Encoding::encodeText(Core\Str::repeat('é', $size), Core\Charset::Utf8);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            if (Core\Encoding::isValidText($field, Core\Charset::Utf8)) {
+                $total = $total + 1;
+            } else {
+                $total = $total + 2;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

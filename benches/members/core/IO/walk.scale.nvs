@@ -1,0 +1,29 @@
+<?nvs
+// Measures `Core\IO::walk` on one folder tree, at growing numbers of files in it.
+// bench: start 16
+// bench: max 256
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        string $root = Core\Path::join(Core\IO::temporaryDir(), 'templates');
+        Core\IO::makeDir(Core\Path::join($root, 'parts'));
+        uint $n = 0;
+        while ($n < $size) {
+            Core\IO::write(Core\Path::join($root, 'parts', Core\Str::format('%d.html', $n)), 'b');
+            $n = $n + 1;
+        }
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            foreach (Core\IO::walk($root) as string $entry) {
+                $total = $total + 1;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(16), "\n";

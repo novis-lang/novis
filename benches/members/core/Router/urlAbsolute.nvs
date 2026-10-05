@@ -1,6 +1,7 @@
 <?nvs
 // Builds the full URL of a product page, as a program does for each entry of a sitemap.
 // bench: iterations 200000
+// bench: complexity linear
 
 class Shop {
     #[Core\Route(path: "/products/{id}", method: Core\Http\Method::Get, name: "Shop::product")]

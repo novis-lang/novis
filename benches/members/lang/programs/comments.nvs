@@ -4,6 +4,7 @@
 // as fast as the same loop without comments.
 // bench: iterations 4000000
 // bench: allocations 0
+// bench: complexity constant
 
 int $a = 1; // the value from the last round
 int $b = 2; # a line comment can also start with #

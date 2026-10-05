@@ -1,6 +1,7 @@
 <?nvs
 // Closes nested elements with an indent, as a program does when it writes a tree such as a menu or a category list.
 // bench: iterations 40000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

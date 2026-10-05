@@ -1,6 +1,7 @@
 <?nvs
 // Reads a UUID from its text, as a server does for each id it gets in a web address or a form.
 // bench: iterations 200000
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

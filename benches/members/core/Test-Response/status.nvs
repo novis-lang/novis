@@ -2,6 +2,7 @@
 // Reads the status of one test response, as a test does before it checks that a page answered.
 // bench: iterations 400000
 // bench: allocations 0
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

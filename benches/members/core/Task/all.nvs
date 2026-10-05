@@ -1,6 +1,7 @@
 <?nvs
 // Runs two small tasks at the same time and reads both results, as a page does when it loads two things at once.
 // bench: iterations 20000
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

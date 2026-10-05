@@ -2,6 +2,7 @@
 // Counts the objects in a set, as a program does before it checks a limit.
 // bench: iterations 1000000
 // bench: allocations 0
+// bench: complexity constant
 
 final class Key {
     public int $id;

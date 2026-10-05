@@ -3,6 +3,7 @@
 // shape when a request carries a level and a class decides what to do with it.
 // bench: iterations 400000
 // bench: allocations 0
+// bench: complexity constant
 
 enum Level { Low = 1, Mid = 5, High = 9 }
 

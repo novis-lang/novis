@@ -1,6 +1,7 @@
 <?nvs
 // Sends the browser to another page, as a form handler does after it saves the form.
 // bench: iterations 200000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

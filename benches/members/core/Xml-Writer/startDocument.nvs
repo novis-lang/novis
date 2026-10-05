@@ -1,6 +1,7 @@
 <?nvs
 // Starts a new document with a new writer, as a program does once for every XML file or reply it writes.
 // bench: iterations 40000
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

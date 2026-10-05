@@ -2,6 +2,7 @@
 // Measures feeding a short line to an open stream, as a program does when it hashes a report line by line.
 // bench: iterations 200000
 // bench: calls 0
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

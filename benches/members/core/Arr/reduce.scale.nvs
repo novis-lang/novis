@@ -1,0 +1,23 @@
+<?nvs
+// Measures `Core\Arr::reduce` adding up one list of amounts, at growing list lengths.
+// bench: start 256
+// bench: max 4096
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        array<int> $amounts = Core\Arr::range(1, $size as int);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            int $seed = ($total % 7) as int;
+            int $sum = Core\Arr::reduce($amounts, fn(int $carry, int $cents) => $carry + $cents, $seed);
+            $total = $total + (($sum % 11) as uint);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

@@ -1,6 +1,7 @@
 <?nvs
 // Saves one value in a session that has two others, as a page does when a visitor changes a setting.
 // bench: iterations 100000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

@@ -1,6 +1,7 @@
 <?nvs
 // Builds a date and time from its parts in a zone, as a program does when it plans an appointment.
 // bench: iterations 200000
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): int {

@@ -1,6 +1,7 @@
 <?nvs
 // Reads the requests a program sent to a fake web service, as a test does after it runs the code.
 // bench: iterations 20000
+// bench: complexity linear
 
 use Core\Http\Client;
 

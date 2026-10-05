@@ -1,6 +1,7 @@
 <?nvs
 // Finds the start of the day, the week or the month, as a program does to group orders into a report.
 // bench: iterations 200000
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): int {

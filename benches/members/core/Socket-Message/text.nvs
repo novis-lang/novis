@@ -1,6 +1,7 @@
 <?nvs
 // Reads the text of a message, as a connection does for every line a client types.
 // bench: iterations 200000
+// bench: complexity constant
 
 class Bench {
     public static function run(Core\Socket $conn, uint $rounds): uint {

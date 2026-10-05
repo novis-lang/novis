@@ -2,6 +2,7 @@
 // Reads the value of a case by its name, as a program does to save a choice from a form.
 // bench: iterations 400000
 // bench: allocations 0
+// bench: complexity constant
 
 enum Rating: int {
     Poor = 1,

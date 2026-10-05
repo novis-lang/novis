@@ -2,6 +2,7 @@
 // Measures one transaction that writes a row and then gives up, as a program
 // does when a check at the end of the work fails.
 // bench: iterations 20000
+// bench: complexity constant
 use Core\Db\RolledBack;
 use Core\Db\Transaction;
 

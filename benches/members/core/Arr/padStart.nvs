@@ -1,6 +1,7 @@
 <?nvs
 // Adds entries in front of a short list until it has a fixed length, as a report does before it draws a row.
 // bench: iterations 200000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

@@ -1,6 +1,7 @@
 <?nvs
 // Reads a short Latin-1 file and converts it to a string, as a program does with an old export.
 // bench: iterations 5000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

@@ -3,6 +3,7 @@
 // tests do this for every request that saves a record on another service.
 // bench: iterations 20000
 // bench: calls 0
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

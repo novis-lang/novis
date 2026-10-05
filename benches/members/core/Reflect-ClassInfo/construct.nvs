@@ -1,6 +1,7 @@
 <?nvs
 // Creates an object from its class name, as a container or a plugin loader does when the name comes from configuration.
 // bench: iterations 200000
+// bench: complexity constant
 
 class Point {
     public int $x;

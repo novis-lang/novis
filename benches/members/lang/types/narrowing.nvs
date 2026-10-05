@@ -4,6 +4,7 @@
 // Each round uses the last round's result. The loop allocates no memory.
 // bench: iterations 300000
 // bench: allocations 0
+// bench: complexity constant
 
 class Bench {
     public static function step(?int $carried, int $fallback): int {

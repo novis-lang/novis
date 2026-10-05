@@ -2,6 +2,7 @@
 // Moves the handle of an open file, as a program does when it reads records at known places.
 // bench: iterations 400000
 // bench: allocations 0
+// bench: complexity constant
 
 class Bench {
     public static function run(Core\IO\File $file, uint $rounds): uint {

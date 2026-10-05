@@ -4,6 +4,7 @@
 // with `.=`, and the number-to-text conversion each makes. Every round takes
 // its input from the round before, so no work can be skipped.
 // bench: iterations 200000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

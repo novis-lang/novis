@@ -1,6 +1,7 @@
 <?nvs
 // Reads the whole text of a match, as a program does when it collects every tag or number it found.
 // bench: iterations 400000
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {
