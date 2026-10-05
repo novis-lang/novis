@@ -8,10 +8,21 @@ Core\Config::set('memory', '64M');
 
 // 1. A stream under every algorithm, finished with nothing fed. Each digest has its normal size.
 array<Core\Digest> $all = [
-    Core\Digest::Crc32, Core\Digest::Md5, Core\Digest::Sha1, Core\Digest::Sha256,
-    Core\Digest::Sha384, Core\Digest::Sha512, Core\Digest::Sha224, Core\Digest::Sha512_224,
-    Core\Digest::Sha512_256, Core\Digest::Sha3_224, Core\Digest::Sha3_256, Core\Digest::Sha3_384,
-    Core\Digest::Sha3_512, Core\Digest::Crc32c, Core\Digest::Blake3,
+    Core\Digest::Crc32,
+    Core\Digest::Md5,
+    Core\Digest::Sha1,
+    Core\Digest::Sha256,
+    Core\Digest::Sha384,
+    Core\Digest::Sha512,
+    Core\Digest::Sha224,
+    Core\Digest::Sha512_224,
+    Core\Digest::Sha512_256,
+    Core\Digest::Sha3_224,
+    Core\Digest::Sha3_256,
+    Core\Digest::Sha3_384,
+    Core\Digest::Sha3_512,
+    Core\Digest::Crc32c,
+    Core\Digest::Blake3,
 ];
 foreach ($all as Core\Digest $digest) {
     Core\Hash\Stream $empty = Core\Hash::stream($digest);

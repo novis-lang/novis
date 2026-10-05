@@ -3,9 +3,17 @@
 // Each step out of the range should throw a `RuntimeError`, and nothing should crash.
 
 array<Core\Unit> $units = [
-    Core\Unit::Nanosecond, Core\Unit::Microsecond, Core\Unit::Millisecond, Core\Unit::Second,
-    Core\Unit::Minute, Core\Unit::Hour, Core\Unit::Day, Core\Unit::Week,
-    Core\Unit::Month, Core\Unit::Quarter, Core\Unit::Year,
+    Core\Unit::Nanosecond,
+    Core\Unit::Microsecond,
+    Core\Unit::Millisecond,
+    Core\Unit::Second,
+    Core\Unit::Minute,
+    Core\Unit::Hour,
+    Core\Unit::Day,
+    Core\Unit::Week,
+    Core\Unit::Month,
+    Core\Unit::Quarter,
+    Core\Unit::Year,
 ];
 var $middle = Core\Time::at(2024, 10, 27, Core\Time\Zone::of('Europe/Berlin'), { hour: 2, minute: 30 });
 

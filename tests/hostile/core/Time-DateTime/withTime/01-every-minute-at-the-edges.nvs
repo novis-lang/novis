@@ -25,7 +25,10 @@ echo $built, ' built, ', $refused, " refused\n";
 
 // 2. Every minute of days when the clocks change, in zones that change at different times.
 array<string> $changes = [
-    '2024-03-31T12:00:00Z', '2024-10-27T12:00:00Z', '2024-03-10T12:00:00Z', '2024-04-07T12:00:00Z',
+    '2024-03-31T12:00:00Z',
+    '2024-10-27T12:00:00Z',
+    '2024-03-10T12:00:00Z',
+    '2024-04-07T12:00:00Z',
 ];
 array<string> $zones = ['Europe/Berlin', 'America/New_York', 'Australia/Lord_Howe', 'Pacific/Chatham'];
 int $moved = 0;

@@ -108,7 +108,11 @@ int $round = 0;
 while ($round < 200000) {
     $nested = Attack::add(Attack::add(Attack::add(Attack::add(Attack::add(
         Attack::add(Attack::add(Attack::add(Attack::add(Attack::add(
-            $round % 7, 1), 1), 1), 1), 1), 1), 1), 1), 1), 1);
+            $round % 7,
+            1,
+        ), 1), 1), 1), 1),
+        1,
+    ), 1), 1), 1), 1);
     $round = $round + 1;
 }
 echo $nested, "\n";

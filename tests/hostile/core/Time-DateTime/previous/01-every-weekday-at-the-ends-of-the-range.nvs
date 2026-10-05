@@ -3,8 +3,13 @@
 // A day before the range should throw a `RuntimeError`, and nothing should crash.
 
 array<Core\Weekday> $days = [
-    Core\Weekday::Monday, Core\Weekday::Tuesday, Core\Weekday::Wednesday, Core\Weekday::Thursday,
-    Core\Weekday::Friday, Core\Weekday::Saturday, Core\Weekday::Sunday,
+    Core\Weekday::Monday,
+    Core\Weekday::Tuesday,
+    Core\Weekday::Wednesday,
+    Core\Weekday::Thursday,
+    Core\Weekday::Friday,
+    Core\Weekday::Saturday,
+    Core\Weekday::Sunday,
 ];
 
 // 1. Every weekday is looked for before the first second, and before each of the seven days after it.

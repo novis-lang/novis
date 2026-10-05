@@ -4,8 +4,12 @@
 
 Core\Time\TimeOfDay $t = Core\Time\TimeOfDay::at(23, 59, { second: 59, nanos: 999999999 });
 array<Core\Unit> $units = [
-    Core\Unit::Nanosecond, Core\Unit::Microsecond, Core\Unit::Millisecond,
-    Core\Unit::Second, Core\Unit::Minute, Core\Unit::Hour,
+    Core\Unit::Nanosecond,
+    Core\Unit::Microsecond,
+    Core\Unit::Millisecond,
+    Core\Unit::Second,
+    Core\Unit::Minute,
+    Core\Unit::Hour,
 ];
 
 // 1. The largest and the smallest `int` are added in every unit.

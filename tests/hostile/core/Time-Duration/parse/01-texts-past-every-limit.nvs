@@ -4,9 +4,12 @@
 
 // 1. The largest count each unit allows, and one more.
 array<string> $edges = [
-    '9223372036854775807ns', '9223372036854775808ns',
-    '15250w', '15251w',
-    '106751d23h47m16s854ms775us807ns', '106751d23h47m16s854ms775us808ns',
+    '9223372036854775807ns',
+    '9223372036854775808ns',
+    '15250w',
+    '15251w',
+    '106751d23h47m16s854ms775us807ns',
+    '106751d23h47m16s854ms775us808ns',
     '99999999999999999999999999999999999999s',
 ];
 foreach ($edges as string $text) {

@@ -5,8 +5,11 @@ use Core\Http\Method;
 
 try {
     // 1. The visitor's text copies the form of a placeholder. It is escaped and stays text.
-    var $fake = Core\Test::request(Method::Post, '/fake',
-        { body: "<?start name=\"nvs-AAAAAAAAAAAAAAAA-0\"><?end>" });
+    var $fake = Core\Test::request(
+        Method::Post,
+        '/fake',
+        { body: "<?start name=\"nvs-AAAAAAAAAAAAAAAA-0\"><?end>" },
+    );
     echo 'step 1 ', $fake->status(), "\n", $fake->body();
 
     // 2. The page writes the same placeholder twice. The request fails with a `LogicError`.

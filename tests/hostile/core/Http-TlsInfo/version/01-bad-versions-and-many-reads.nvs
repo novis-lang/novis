@@ -6,8 +6,16 @@
 // 1. Versions that are not `TLSv1.3` or `TLSv1.2` must throw a `LogicError`.
 //    One of them is a text of one megabyte.
 array<string> $bad = [
-    '', 'TLSv1.1', 'TLSv1.0', 'SSLv3', 'tlsv1.3', 'TLSv1.3 ', ' TLSv1.2', 'TLSv1.4',
-    "TLSv1.3\0", Core\Str::repeat('TLSv1.3', 150000),
+    '',
+    'TLSv1.1',
+    'TLSv1.0',
+    'SSLv3',
+    'tlsv1.3',
+    'TLSv1.3 ',
+    ' TLSv1.2',
+    'TLSv1.4',
+    "TLSv1.3\0",
+    Core\Str::repeat('TLSv1.3', 150000),
 ];
 uint $refused = 0;
 foreach ($bad as string $version) {

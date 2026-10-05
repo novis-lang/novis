@@ -60,7 +60,8 @@ foreach ($types as string $type) {
         }
     }
     try {
-        Core\Http\Response $whole = Core\Http\Client::post('https://203.0.113.10/upload', {deadline: 2s,
+        Core\Http\Response $whole = Core\Http\Client::post('https://203.0.113.10/upload', {
+            deadline: 2s,
             body: Core\Http\Part::bytes('x', 'x.txt', { contentType: $type }),
         });
         throw new LogicError('a media type with a line break was sent as a header');

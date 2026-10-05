@@ -24,9 +24,15 @@ class Site
 // 1. Paths that a visitor writes to reach the settings page. `%2F` is one segment,
 // so that path matches `Site::page` and not `Site::settings`.
 array<string> $paths = [
-    '/pages/admin/settings', '/pages/admin%2Fsettings', '/pages/admin/settings/',
-    '//pages/admin/settings', '/pages/./admin/settings', '/pages/admin/../admin/settings',
-    '/PAGES/admin/settings', '/pages/admin/settings%00', '/pages/admin%2fsettings',
+    '/pages/admin/settings',
+    '/pages/admin%2Fsettings',
+    '/pages/admin/settings/',
+    '//pages/admin/settings',
+    '/pages/./admin/settings',
+    '/pages/admin/../admin/settings',
+    '/PAGES/admin/settings',
+    '/pages/admin/settings%00',
+    '/pages/admin%2fsettings',
 ];
 foreach ($paths as string $path) {
     try {

@@ -22,7 +22,18 @@ echo Core\Arr::count(Core\Arr::overlay($wide, $wide)), "\n";
 // 4. Twelve layers in one call.
 array<int> $one = [1 => 1];
 echo Core\Arr::count(Core\Arr::overlay(
-    $one, $one, $one, $one, $one, $one, $one, $one, $one, $one, $one, $one,
+    $one,
+    $one,
+    $one,
+    $one,
+    $one,
+    $one,
+    $one,
+    $one,
+    $one,
+    $one,
+    $one,
+    $one,
 )), "\n";
 
 // 5. Two hundred copies of a ten thousand entry array, one after the other.

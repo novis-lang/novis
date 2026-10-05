@@ -7,9 +7,18 @@ echo Core\Mime::mediaType(Core\Mime::detect('' as bytes)), "\n";
 
 // 2. Every signature with its last byte missing, and with its last byte changed.
 array<string> $signatures = [
-    '89504e470d0a1a0a', 'ffd8ffe000104a4649', '474946383961', '524946462400000057454250',
-    '0000001c6674797061766966', '255044462d312e37', '504b03041400', '1f8b0800',
-    '28b52ffd', 'fd377a585a00', '0061736d01000000', '1a45dfa3',
+    '89504e470d0a1a0a',
+    'ffd8ffe000104a4649',
+    '474946383961',
+    '524946462400000057454250',
+    '0000001c6674797061766966',
+    '255044462d312e37',
+    '504b03041400',
+    '1f8b0800',
+    '28b52ffd',
+    'fd377a585a00',
+    '0061736d01000000',
+    '1a45dfa3',
 ];
 uint $unknown = 0;
 foreach ($signatures as string $hex) {

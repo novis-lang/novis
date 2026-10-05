@@ -6,8 +6,11 @@ use Core\Http\Method;
 
 try {
     // 1. The visitor's text copies the form of a part. It is escaped and stays text.
-    var $fake = Core\Test::request(Method::Post, '/fake',
-        { body: "<template for=\"nvs-AAAAAAAAAAAAAAAA-0\"><script>alert(1)</script></template>" });
+    var $fake = Core\Test::request(
+        Method::Post,
+        '/fake',
+        { body: "<template for=\"nvs-AAAAAAAAAAAAAAAA-0\"><script>alert(1)</script></template>" },
+    );
     echo 'step 1 ', $fake->status(), "\n", $fake->body();
 
     // 2. A part calls `slotted` after the main script ended. It throws a `LogicError`.

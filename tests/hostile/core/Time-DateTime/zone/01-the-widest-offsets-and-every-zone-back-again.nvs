@@ -19,8 +19,16 @@ echo $refused, " refused\n";
 // 3. One moment is read in many zones, including zones on a half or quarter hour.
 // Reading it again in the zone that `zone` returns gives the same text every time.
 array<string> $names = [
-    'UTC', 'Europe/Berlin', 'America/St_Johns', 'Asia/Kathmandu', 'Australia/Eucla',
-    'Pacific/Chatham', 'Pacific/Kiritimati', 'Pacific/Pago_Pago', 'Asia/Kolkata', 'America/Caracas',
+    'UTC',
+    'Europe/Berlin',
+    'America/St_Johns',
+    'Asia/Kathmandu',
+    'Australia/Eucla',
+    'Pacific/Chatham',
+    'Pacific/Kiritimati',
+    'Pacific/Pago_Pago',
+    'Asia/Kolkata',
+    'America/Caracas',
 ];
 var $moment = Core\Time::fromIso('2024-03-31T01:30:00Z');
 int $same = 0;

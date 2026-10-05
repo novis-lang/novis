@@ -1,29 +1,34 @@
 {
-  "state": "**Side goal `fmt-layout-from-breaks` is written and nothing of it is built yet.** ADR 0267 and its four `designed` rules state the layout; `nvs fmt` still copies every continuation line inside an expression (`crates/nvs-fmt/src/indent.rs:24-32`). The goal's prose has the user's calls from 2026-10-05.",
+  "state": "**Side goal `fmt-layout-from-breaks`, stage 2 partly landed.** `nvs fmt` now lays out a call's arguments (`Call`, `MethodCall`, `StaticCall`, `new`), an array literal and an anonymous object as one line or one item per line, chosen by a break at the list's own level (`crates/nvs-fmt/src/list.rs`, held by `crates/nvs-fmt/tests/list_layout.rs`). The trailing comma follows `List::broken` for those lists (`crates/nvs-fmt/src/tokens.rs`). The corpus is reformatted to the new layout in its own commit.\n\nNot yet a list: parameter lists, enum case lists and shape types, because their node ends somewhere other than the list's closer. `match` arms keep their own rule. The rule `rule:tooling/fmt-a-list-is-one-line-or-one-item-per-line` stays `designed` until those land.",
   "next": {
     "stage": 2,
-    "title": "a list is one line or one item per line",
+    "title": "the lists no closer finds",
     "files": [
-      "crates/nvs-fmt/src/lib.rs",
-      "crates/nvs-fmt/src/indent.rs",
-      "crates/nvs-fmt/src/print.rs",
-      "crates/nvs-fmt/tests/list_layout.rs",
-      "crates/nvs-fmt/tests/never_reflows.rs"
+      "crates/nvs-fmt/src/list.rs",
+      "crates/nvs-fmt/src/brace.rs",
+      "crates/nvs-fmt/src/tokens.rs",
+      "crates/nvs-fmt/tests/list_layout.rs"
     ],
     "items": [
       {
         "done": false,
-        "text": "**Find a list's own-level line breaks** in the lossless tree: after the opener, between items, before the closer, never inside an item — `crates/nvs-fmt/src/indent.rs:24`, `crates/nvs-fmt/src/print.rs:1`"
+        "text": "**A parameter list is a list** — find the `(` … `)` of a `Function`, `Method` and `Fn` signature from its parameter children and add it to `List::of` (`rule:tooling/fmt-a-list-is-one-line-or-one-item-per-line`) — `crates/nvs-fmt/src/list.rs:65`"
       },
       {
         "done": false,
-        "text": "**Write the broken layout** — one item per line, one level in, trailing comma, closer on its own line, and an enum on one line keeping its `{` on the `enum` line — and the tests in `crates/nvs-fmt/tests/list_layout.rs`"
+        "text": "**An enum's case list is a list** — broken: Allman brace and one case per line; on one line: `{` stays on the `enum` line with one space inside each brace (`rule:tooling/fmt-base-style-is-per`) — `crates/nvs-fmt/src/brace.rs:50`"
       },
       {
         "done": false,
-        "text": "**Update `never_reflows.rs`** to the new layout, add a `tests/fmt/` pair, and reformat the corpus `.nvs` files the rule moves in their own commit — `crates/nvs-fmt/tests/never_reflows.rs:20`, `crates/nvs-fmt/tests/identity.rs:1`"
+        "text": "**Add a `tests/fmt/` pair for lists** (`tests/fmt/input/lists.nvs` and its formatted twin), and drop the old closer-only comma test in `crates/nvs-fmt/src/tokens.rs:114` once every list is `List::of`'s"
       }
     ]
   },
-  "backlog": []
+  "backlog": [
+    "`bun nv verify`'s extension step fails in this worktree because `editors/*/node_modules` is absent (no `vscode` or `@types/node`); every Rust step was green. Install the extension's packages here, or the run needs that step's allowance.",
+    "Shape types as lists: a type is no node in the walk, so this needs the type spans first (`crates/nvs-fmt/src/space.rs` module doc names the same gap).",
+    "Stage 3, call chains and operator chains: `rule:tooling/fmt-a-broken-call-chain-is-one-call-per-line`, `rule:tooling/fmt-a-broken-operator-chain-is-one-operand-per-line`.",
+    "An item's own continuation lines keep the author's column when the item moves; `rule:tooling/fmt-never-reflows` says they keep \"the indentation of the line it continues\", which would shift them with it.",
+    "ADR 0267's `fn(User $user) {` example does not parse; the rule fragment now says `fn(User $user): string => {`, and the record is frozen."
+  ]
 }

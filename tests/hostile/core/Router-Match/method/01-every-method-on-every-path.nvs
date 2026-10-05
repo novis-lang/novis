@@ -17,8 +17,13 @@ class Tasks
 }
 
 array<Core\Http\Method> $methods = [
-    Core\Http\Method::Get, Core\Http\Method::Head, Core\Http\Method::Post, Core\Http\Method::Put,
-    Core\Http\Method::Patch, Core\Http\Method::Delete, Core\Http\Method::Options,
+    Core\Http\Method::Get,
+    Core\Http\Method::Head,
+    Core\Http\Method::Post,
+    Core\Http\Method::Put,
+    Core\Http\Method::Patch,
+    Core\Http\Method::Delete,
+    Core\Http\Method::Options,
 ];
 array<string> $paths = ['/tasks', '/tasks/1', '/tasks/', '/TASKS', '/tasks/1/2', ''];
 

@@ -34,7 +34,14 @@ while ($c < 100000) {
 
 // 5. Raise the limit, remove it with `false`, or set it to values that are not sizes.
 array<string> $raises = [
-    '1G', '1024G', '9223372036854775807', '-1', '0', 'false', '', '32M',
+    '1G',
+    '1024G',
+    '9223372036854775807',
+    '-1',
+    '0',
+    'false',
+    '',
+    '32M',
 ];
 foreach ($raises as string $value) {
     Core\Config::set('cache.local.max_size', $value);

@@ -5,8 +5,13 @@
 Core\Time\Instant $first = Core\Time::fromEpoch(-377705023201);
 Core\Time\Instant $last = Core\Time::fromEpoch(253402207200, { nanos: 999999999 });
 array<Core\Time\Instant> $edges = [
-    $first, $first->plus(1ns), Core\Time::fromEpoch(-1, { nanos: 999999999 }), Core\Time::fromEpoch(0),
-    Core\Time::fromEpoch(0, { nanos: 1 }), $last->minus(1ns), $last,
+    $first,
+    $first->plus(1ns),
+    Core\Time::fromEpoch(-1, { nanos: 999999999 }),
+    Core\Time::fromEpoch(0),
+    Core\Time::fromEpoch(0, { nanos: 1 }),
+    $last->minus(1ns),
+    $last,
 ];
 
 // 1. Every pair of values at the ends of the range, both ways round.

@@ -11,8 +11,14 @@ Test::answerHttp('https://api.example.com/*', 200);
 
 // Step 1: one request with each of the eight methods.
 array<Method> $methods = [
-    Method::Get, Method::Head, Method::Options, Method::Trace,
-    Method::Post, Method::Put, Method::Patch, Method::Delete,
+    Method::Get,
+    Method::Head,
+    Method::Options,
+    Method::Trace,
+    Method::Post,
+    Method::Put,
+    Method::Patch,
+    Method::Delete,
 ];
 foreach ($methods as Method $method) {
     Client::request($method, 'https://api.example.com/items');

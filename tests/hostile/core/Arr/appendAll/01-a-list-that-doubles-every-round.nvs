@@ -16,7 +16,18 @@ echo Core\Arr::count(Core\Arr::appendAll($wide, $wide)), "\n";
 // 3. Twelve arrays in one call. Nothing is compared, so the result holds every
 // value of all twelve.
 echo Core\Arr::count(Core\Arr::appendAll(
-    $wide, $wide, $wide, $wide, $wide, $wide, $wide, $wide, $wide, $wide, $wide, $wide,
+    $wide,
+    $wide,
+    $wide,
+    $wide,
+    $wide,
+    $wide,
+    $wide,
+    $wide,
+    $wide,
+    $wide,
+    $wide,
+    $wide,
 )), "\n";
 
 // 4. Two keys as far apart as a number can be. The result is numbered from 0,

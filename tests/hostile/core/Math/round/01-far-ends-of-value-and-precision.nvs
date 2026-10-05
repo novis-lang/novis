@@ -5,8 +5,12 @@
 
 // 1. The largest and smallest numbers, in every mode.
 array<Core\RoundMode> $modes = [
-    Core\RoundMode::HalfUp, Core\RoundMode::HalfDown, Core\RoundMode::HalfEven,
-    Core\RoundMode::HalfOdd, Core\RoundMode::Up, Core\RoundMode::Down,
+    Core\RoundMode::HalfUp,
+    Core\RoundMode::HalfDown,
+    Core\RoundMode::HalfEven,
+    Core\RoundMode::HalfOdd,
+    Core\RoundMode::Up,
+    Core\RoundMode::Down,
 ];
 foreach ($modes as Core\RoundMode $mode) {
     echo Core\Math::round(Core\Math::FLOAT_MAX, { precision: 2, mode: $mode }), ' ';

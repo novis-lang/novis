@@ -5,7 +5,13 @@
 Core\Time\Duration $max = Core\Time\Duration::nanoseconds(9223372036854775807);
 Core\Time\Duration $min = Core\Time\Duration::nanoseconds(-9223372036854775807 - 1);
 array<Core\Time\Duration> $edges = [
-    $min, $min->plus(1ns), 1ns->negated(), Core\Time\Duration::seconds(0), 1ns, $max->minus(1ns), $max,
+    $min,
+    $min->plus(1ns),
+    1ns->negated(),
+    Core\Time\Duration::seconds(0),
+    1ns,
+    $max->minus(1ns),
+    $max,
 ];
 
 // 1. Every pair of values at the ends of the range, both ways round.

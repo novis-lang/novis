@@ -4,8 +4,12 @@
 
 // 1. The last count that fits and the first that does not, at both ends and at the ends of `int`.
 array<int> $counts = [
-    9223372036, 9223372037, -9223372036, -9223372037,
-    9223372036854775807, -9223372036854775807 - 1,
+    9223372036,
+    9223372037,
+    -9223372036,
+    -9223372037,
+    9223372036854775807,
+    -9223372036854775807 - 1,
 ];
 foreach ($counts as int $count) {
     try {

@@ -1,0 +1,11 @@
+{
+  "lead": "`SyntaxIndex::children_of` is not always in source order.",
+  "body": "A pipeline's `$_` hole is a child whose span is the pipeline's left side, before the call that holds it, so a walk that assumes children arrive left to right picks a delimiter from the wrong call. Sort the children by `span.start` and skip one ending past the point you search from, as `crates/nvs-fmt/src/list.rs` does in `List::of`.",
+  "files": [
+    "crates/nvs-fmt/src/list.rs"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "crates/nvs-fmt/src/list.rs:sort_by_key"
+  }
+}

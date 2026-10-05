@@ -24,8 +24,11 @@ class Attack
     {
         var $zeros = Core\Str::repeat('0', $count);
         var $spaces = Core\Str::repeat(' ', $count);
-        return Core\Str::compare($spaces . 'x' . $zeros . '1', 'x0' . $spaces . '1',
-            { natural: true, caseInsensitive: true });
+        return Core\Str::compare(
+            $spaces . 'x' . $zeros . '1',
+            'x0' . $spaces . '1',
+            { natural: true, caseInsensitive: true },
+        );
     }
 
     /// 4. Compares characters whose lower case form is longer than the character itself.

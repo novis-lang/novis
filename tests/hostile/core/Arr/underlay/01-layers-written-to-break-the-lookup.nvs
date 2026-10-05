@@ -22,7 +22,18 @@ echo Core\Arr::count(Core\Arr::underlay($wide, $wide)), "\n";
 // 4. Twelve arrays in one call, all holding the same ten thousand keys. Every
 // key after the first array is already there, so it is dropped.
 echo Core\Arr::count(Core\Arr::underlay(
-    $wide, $wide, $wide, $wide, $wide, $wide, $wide, $wide, $wide, $wide, $wide, $wide,
+    $wide,
+    $wide,
+    $wide,
+    $wide,
+    $wide,
+    $wide,
+    $wide,
+    $wide,
+    $wide,
+    $wide,
+    $wide,
+    $wide,
 )), "\n";
 
 // 5. Two hundred copies of a ten thousand entry array, one after the other.

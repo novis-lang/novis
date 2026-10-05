@@ -17,9 +17,16 @@ while ($value < 256) {
 }
 Core\IO::writeStream($path, $everyByte, { overwrite: true });
 array<Core\Charset> $charsets = [
-    Core\Charset::Utf8, Core\Charset::Utf16Le, Core\Charset::Utf16Be, Core\Charset::Ascii,
-    Core\Charset::Latin1, Core\Charset::Gb18030, Core\Charset::Big5, Core\Charset::ShiftJis,
-    Core\Charset::EucKr, Core\Charset::Iso2022Jp,
+    Core\Charset::Utf8,
+    Core\Charset::Utf16Le,
+    Core\Charset::Utf16Be,
+    Core\Charset::Ascii,
+    Core\Charset::Latin1,
+    Core\Charset::Gb18030,
+    Core\Charset::Big5,
+    Core\Charset::ShiftJis,
+    Core\Charset::EucKr,
+    Core\Charset::Iso2022Jp,
 ];
 foreach ($charsets as Core\Charset $charset) {
     try {
