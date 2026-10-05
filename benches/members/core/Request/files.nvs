@@ -1,6 +1,8 @@
 <?nvs
 // Walks the files of an upload form and adds up their sizes, as a handler does before it stores them.
 // bench: iterations 1
+// bench: complexity linear
+// proof: gap nv/a-bench-cannot-ramp-an-input-fixed-outside-its-program
 
 class Bench {
     public static function run(): uint {

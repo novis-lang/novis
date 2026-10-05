@@ -2,6 +2,8 @@
 // Measures writing the completion script for one shell, over a table of two
 // commands. A program meets this when somebody sets their shell up for it.
 // bench: iterations 50000
+// bench: complexity linear
+// proof: gap nv/a-bench-cannot-ramp-an-input-fixed-outside-its-program
 // bench: calls 0
 // bench: allocations 53
 

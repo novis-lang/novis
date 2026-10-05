@@ -1,6 +1,7 @@
 <?nvs
 // Reads the path of a request, as a program does before it picks the page to show.
 // bench: iterations 200000
+// bench: complexity constant
 // bench: allocations 1
 // bench: calls 0
 

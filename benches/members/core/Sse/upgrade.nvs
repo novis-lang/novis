@@ -1,6 +1,7 @@
 <?nvs
 // Opens an event stream with a small argument, as a page of live notifications does once per visitor.
 // bench: iterations 1
+// bench: complexity constant
 
 class Notifications {
     public static function run(string $user): void {

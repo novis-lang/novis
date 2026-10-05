@@ -1,6 +1,7 @@
 <?nvs
 // Saves the body of a streamed reply to a file, as a program does when it downloads a report.
 // bench: iterations 2000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

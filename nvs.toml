@@ -2852,3 +2852,16 @@ entry = "benches/members/core/Db-Schema/planAgainst.scale.nvs"
 [app.capabilities.db]
 connect = ["notes"]
 schema = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Http/allowUrl.scale.nvs"
+
+[app.capabilities.net]
+connect = ["203.0.113.10"]
+
+[[app]]
+entry = "benches/members/core/Http-Stream/saveTo.scale.nvs"
+
+[app.capabilities.fs]
+read = true
+write = true

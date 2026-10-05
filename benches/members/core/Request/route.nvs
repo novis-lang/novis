@@ -1,6 +1,7 @@
 <?nvs
 // Reads the route the request matched, as a handler does to find the record the address names.
 // bench: iterations 200000
+// bench: complexity constant
 // bench: calls 0
 
 class Users {

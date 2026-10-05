@@ -1,6 +1,8 @@
 <?nvs
 // Reads a small JSON request body into a class, as an API does with every order it receives.
 // bench: iterations 50000
+// bench: complexity linear
+// proof: gap nv/a-bench-cannot-ramp-an-input-fixed-outside-its-program
 
 #[Core\Json\Derive]
 class Line {

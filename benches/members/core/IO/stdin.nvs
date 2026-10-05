@@ -1,6 +1,8 @@
 <?nvs
 // Reads a list of 2000 orders sent to standard input, as a command-line tool does with a piped file.
 // bench: iterations 1
+// bench: complexity linear
+// proof: gap nv/a-bench-cannot-ramp-an-input-fixed-outside-its-program
 
 class Bench {
     public static function run(): uint {

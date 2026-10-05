@@ -1,6 +1,7 @@
 <?nvs
 // Builds a page with three `later` parts and reads it, as a page with a few slow boxes does.
 // bench: iterations 2000
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

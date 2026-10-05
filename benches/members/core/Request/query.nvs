@@ -1,6 +1,7 @@
 <?nvs
 // Reads one parameter of the query string, as a search or list page does for its page number or filter.
 // bench: iterations 200000
+// bench: complexity constant
 // bench: calls 0
 
 class Bench {

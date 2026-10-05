@@ -1,6 +1,8 @@
 <?nvs
 // Writes an uploaded file to disk, as a handler does when it stores a document somebody sent.
 // bench: iterations 1
+// bench: complexity linear
+// proof: gap nv/a-bench-cannot-ramp-an-input-fixed-outside-its-program
 
 class Bench
 {

@@ -2,6 +2,8 @@
 // Measures collecting every class that implements an interface, which a program
 // does once for each list of plug-ins it builds.
 // bench: iterations 100000
+// bench: complexity linear
+// proof: gap nv/a-bench-cannot-ramp-an-input-fixed-outside-its-program
 // bench: calls 1
 
 interface Check {

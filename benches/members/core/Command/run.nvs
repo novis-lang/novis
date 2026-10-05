@@ -4,6 +4,8 @@
 // status is 2. Every command-line program meets this when somebody starts it
 // with nothing to do.
 // bench: iterations 20000
+// bench: complexity linear
+// proof: gap nv/a-bench-cannot-ramp-an-input-fixed-outside-its-program
 // bench: calls 0
 // bench: allocations 17
 

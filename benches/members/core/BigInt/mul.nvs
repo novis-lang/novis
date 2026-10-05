@@ -2,6 +2,7 @@
 // Measures multiplying two large numbers. A program does this when it counts a
 // total in the smallest unit of a currency.
 // bench: iterations 200000
+// bench: complexity karatsuba
 // bench: calls 0
 
 class Bench {

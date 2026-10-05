@@ -1,6 +1,8 @@
 <?nvs
 // Decodes a small JSON request body, as an API does with every order or form it receives.
 // bench: iterations 50000
+// bench: complexity linear
+// proof: gap nv/a-bench-cannot-ramp-an-input-fixed-outside-its-program
 
 class Bench {
     public static function run(uint $rounds): uint {

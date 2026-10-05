@@ -1,6 +1,8 @@
 <?nvs
 // Reads an uploaded file into one value, as a handler does before it checks or stores a small upload.
 // bench: iterations 1
+// bench: complexity linear
+// proof: gap nv/a-bench-cannot-ramp-an-input-fixed-outside-its-program
 
 class Bench
 {

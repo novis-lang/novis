@@ -1,6 +1,7 @@
 <?nvs
 // Reads one cookie by its name, as a page does to find the session or the language of a visitor.
 // bench: iterations 200000
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

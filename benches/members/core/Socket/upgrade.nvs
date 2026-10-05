@@ -1,6 +1,7 @@
 <?nvs
 // Upgrades a request to a WebSocket connection with a small argument, as a chat page does once per visitor.
 // bench: iterations 1
+// bench: complexity constant
 
 class Chat {
     public static function run(string $user, string $room): void {

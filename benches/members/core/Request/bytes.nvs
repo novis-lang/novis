@@ -1,6 +1,8 @@
 <?nvs
 // Reads the body of a small upload as bytes, as a handler does before it checks or stores a file.
 // bench: iterations 200000
+// bench: complexity linear
+// proof: gap nv/a-bench-cannot-ramp-an-input-fixed-outside-its-program
 // bench: allocations 1
 
 class Bench {

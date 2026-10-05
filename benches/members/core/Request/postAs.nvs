@@ -1,6 +1,8 @@
 <?nvs
 // Reads a submitted form into a shape, as a program does when it handles a sign-up or contact form.
 // bench: iterations 100000
+// bench: complexity linear
+// proof: gap nv/a-bench-cannot-ramp-an-input-fixed-outside-its-program
 // bench: calls 0
 
 class Bench {

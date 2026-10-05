@@ -1,6 +1,7 @@
 <?nvs
 // Reads the host name of a request, as a server that runs several sites does to pick the site.
 // bench: iterations 200000
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

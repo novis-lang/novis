@@ -1,6 +1,7 @@
 <?nvs
 // Reads one header by its name, as a program does to find the content type or language of a request.
 // bench: iterations 200000
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

@@ -2,6 +2,7 @@
 // Measures taking the smallest number from a heap of 1000 numbers and adding it back with a later time.
 // A scheduler does this with a job that repeats, so each round is one `pop` and one `push`.
 // bench: iterations 200000
+// bench: complexity constant
 // bench: allocations 0
 // bench: calls 0
 

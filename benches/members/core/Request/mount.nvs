@@ -1,6 +1,7 @@
 <?nvs
 // Reads the mount of a request, as a program does before it builds a link or picks a customer.
 // bench: iterations 200000
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

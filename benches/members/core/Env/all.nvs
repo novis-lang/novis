@@ -2,6 +2,8 @@
 // Measures reading every environment variable into one array. A program does this when it
 // starts and collects its settings.
 // bench: iterations 5000
+// bench: complexity linear
+// proof: gap nv/a-bench-cannot-ramp-an-input-fixed-outside-its-program
 // bench: calls 0
 
 class Bench {

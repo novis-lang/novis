@@ -1,6 +1,8 @@
 <?nvs
 // Reads an uploaded file in pieces and adds up its size, as a handler does before it stores a large upload.
 // bench: iterations 1
+// bench: complexity linear
+// proof: gap nv/a-bench-cannot-ramp-an-input-fixed-outside-its-program
 // bench: allocations 2
 
 class Bench {

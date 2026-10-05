@@ -2,6 +2,8 @@
 // Measures turning a large number into text, as a program does before it
 // writes an amount into a message.
 // bench: iterations 100000
+// bench: complexity quadratic
+// proof: gap nvs-stdlib/bigint-division-and-decimal-text-grow-quadratically
 // bench: calls 0
 
 class Bench {

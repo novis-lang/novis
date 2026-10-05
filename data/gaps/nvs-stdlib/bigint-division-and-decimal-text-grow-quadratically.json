@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-stdlib/src/bigint.rs",
+  "title": "`Core\\BigInt`'s division, remainder, gcd, root, modular power and decimal text grow faster than any class `nv scaling` accepts.",
+  "text": "`div`, `mod`, `gcd`, `lcm`, `sqrt`, `powMod`, `parse`, `toString` and `format` are `num-bigint`'s schoolbook algorithms: long division, and decimal conversion by repeated division or multiplication by one limb's worth of digits, are quadratic in the number's length, and `powMod` multiplies that by its exponent's length. Their benches declare `complexity quadratic`, which the growth proof refuses, and carry this gap's marker. Not checked: the measured slope. The counts cannot show it, because one call allocates the same number of times at every length, so a `.scale.nvs` sibling decides only under callgrind. Closing it is a sub-quadratic algorithm for each member (divide-and-conquer division and radix conversion), or a cap on the operand length that makes the quadratic cost a constant one, and then a sibling per bench under the class it reaches. The cost matters most for `parse`, whose input is often text a request sent.",
+  "milestone": "M12"
+}

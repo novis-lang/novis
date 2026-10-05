@@ -2,6 +2,8 @@
 // Measures the square root of a large number. A program does this to check
 // that a count of items fits in a square grid.
 // bench: iterations 50000
+// bench: complexity quadratic
+// proof: gap nvs-stdlib/bigint-division-and-decimal-text-grow-quadratically
 // bench: calls 0
 
 class Bench {

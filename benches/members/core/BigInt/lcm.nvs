@@ -2,6 +2,8 @@
 // Measures the least common multiple of two large numbers, as a program does
 // when it finds the moment two repeating jobs meet.
 // bench: iterations 50000
+// bench: complexity quadratic
+// proof: gap nvs-stdlib/bigint-division-and-decimal-text-grow-quadratically
 // bench: calls 0
 
 class Bench {

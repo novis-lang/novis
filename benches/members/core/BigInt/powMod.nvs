@@ -2,6 +2,8 @@
 // Measures one modular power over numbers the size a key exchange uses, which
 // is the step a program repeats for every handshake it makes.
 // bench: iterations 20000
+// bench: complexity quadratic
+// proof: gap nvs-stdlib/bigint-division-and-decimal-text-grow-quadratically
 // bench: calls 0
 
 class Bench {
