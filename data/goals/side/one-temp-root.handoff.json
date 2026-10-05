@@ -1,39 +1,26 @@
 {
-  "state": "**Side goal `one-temp-root`: stage 2 is done except the `icacls` item, and stage 3, the two runners, has not started.** No test code calls `std::env::temp_dir()` any more. `NOT_YET_MOVED` is gone from `crates/nvs-repo/tests/scratch.rs`, and `SUBJECT` is empty. Every former site writes through `nvs_repo::scratch`, or `nvs_repo::socket` for a Unix socket. A helper that used to return a path now returns `(nvs_repo::Scratch, PathBuf)`, and its callers bind `let (_dir, path)`. `nvs-db`, `nvs-footprint` and `nvs-test` have `nvs-repo` as a dev-dependency. For `nvs-footprint` that is a dev-dependency cycle, because `nvs-repo` depends on it. The gap `some-test-code-still-writes-into-the-system-temp-dir` is deleted. The only `temp_dir()` calls left are product code: `crates/nvs-runtime/src/capability.rs:1278` (the temp root itself), `crates/nvs-test/src/lib.rs:353` and `crates/nvs-lsp/src/suite.rs:339`.",
+  "state": "**Side goal `one-temp-root`: stage 3 is done except the repository's `nvs.toml`, and stage 2 still owes the `icacls` item.** `capability::private_dir(root)` (`crates/nvs-runtime/src/capability.rs`) creates an `nvs-<pid>-<nonce>` folder without a `Ctx`, and `capability::temp_dir` runs the same loop through `create_entry` with its grant check. `nvs_test::Options::root` and `nvs_lsp::suite::run(paths, root, ..)` take the folder the run writes under, create it when it is missing and delete it at the end. The CLI passes `tmp::runner_dir(config)`, a fresh `private_dir` under `capability::temp_root` of the resolved configuration (`crates/nvs-cli/src/tmp.rs`). The guard is `nothing_but_the_temp_root_reads_the_system_temp_dir` and allows only the call inside `pub fn temp_root(` plus `SUBJECT`, which is empty. `rule:core-classes/temporary-dir-sweep` names the two runners. The gap `lsp-test-writes-its-cases-into-the-system-temp-dir` is deleted.",
   "next": {
     "stage": 3,
-    "title": "the two runners use Novis's own temp root",
-    "files": [
-      "crates/nvs-runtime/src/capability.rs",
-      "crates/nvs-test/src/lib.rs",
-      "crates/nvs-lsp/src/suite.rs",
-      "crates/nvs-repo/tests/scratch.rs"
-    ],
+    "title": "the repository's runs stay in the tree",
+    "files": [],
+    "note": "one file set: `nvs.toml`, `crates/nvs-config/src/resolve.rs`, the `[io]` table's resolution.",
     "items": [
       {
         "done": false,
-        "text": "**A private folder without a `Ctx`**: move the create loop out of `capability::temp_dir` into a public function that takes the root, and add the test `a_runner_dir_is_private_and_named_for_the_orphan_sweep` (`rule:core-classes/temporary-dir-sweep`). Anchor: `crates/nvs-runtime/src/capability.rs:1278`."
+        "text": "**A relative `[io] temp_root` resolves against its file**, and `io.temp_root` joins the list in `rule:config/a-relative-path-resolves-against-the-file-it-is-written-in`. Not checked whether it does today. Anchor: `crates/nvs-runtime/src/capability.rs:1309`."
       },
       {
         "done": false,
-        "text": "**The `.nvst` runner takes a root through `Options`** and deletes it when it finishes; test `the_nvst_runner_writes_its_cases_under_the_root_it_is_given`. Anchor: `crates/nvs-test/src/lib.rs:353`."
+        "text": "**The repository's `nvs.toml` sets `[io] temp_root` under `target/`.** Check first that the fixtures granting `fs.write` to `Core\\IO::temporaryDir()`'s answer still pass; the repository's `nvs.toml`, around its lines 51 and 66, says how those grants are written. Anchor: `crates/nvs-runtime/src/capability.rs:1309`."
       },
       {
         "done": false,
-        "text": "**`nvs_lsp::suite::run` takes a root**; test `lsp_test_writes_its_cases_under_the_root_it_is_given`, then delete `data/gaps/nvs-lsp/lsp-test-writes-its-cases-into-the-system-temp-dir.json`. Anchor: `crates/nvs-lsp/src/suite.rs:339`."
-      },
-      {
-        "done": false,
-        "text": "**The guard covers product code**: rename it to `nothing_but_the_temp_root_reads_the_system_temp_dir` and allow only `capability::temp_root` and `SUBJECT`. Anchor: `crates/nvs-repo/tests/scratch.rs:13`."
+        "text": "**The `icacls` test gives this account its rights back from a guard's `Drop`**, so its folder is deleted even when it fails (stage 2). Anchor: `crates/nvs-cli/tests/init.rs:466`."
       }
     ]
   },
   "backlog": [
-    "The CLI passes `temp_root` to both runners, and the repository's `nvs.toml` points `[io] temp_root` under `target/` (`docs/agent/goals/side/one-temp-root.md` § Stage 3).",
-    "**The `icacls` test gives this account its rights back from a guard's `Drop`**, so its folder is deleted even when it fails. Anchor: `crates/nvs-cli/tests/init.rs:466`.",
-    "The Unix arms of the socket sites compile only on Unix. Check them with `cargo clippy --all-targets` in WSL (`CARGO_TARGET_DIR=/var/tmp/nvs-target-wsl`), because the Windows `bun nv verify` does not reach them. Run them from the ext4 mirror (`syncMirror` in `tools/nv/driver/mirror.ts`): over `/mnt` a socket bind fails with `EOPNOTSUPP`.",
-    "In this worktree's WSL mirror, `/var/tmp/nvs-target-wsl-src/mnt-e-mwl-.agent-tmp-worktrees-side-one-temp-root`, every `nvs_repo::socket` path is about 121 bytes. Linux allows 107, so each socket test stops with the limit named. A checkout at the main path fits. The fix belongs to `mirrorPath` in `tools/nv/driver/mirror.ts`: a shorter mirror name.",
-    "`bun nv goal context --add` writes into the chain's live goal (`performance-pass`), never into a side goal run in a worktree. Edit a side goal's `context` by hand.",
-    "`bun nv verify`'s `extension` step fails in this worktree when the extension's npm dependencies are not installed (`.agent-tmp/verify-extension.log`)."
+    "Then the goal's end gates: `bun nv verify --doc` and `bun nv owners --closes one-temp-root` (docs/agent/goals/side/one-temp-root.md)."
   ]
 }
