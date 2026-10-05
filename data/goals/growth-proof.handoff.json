@@ -1,28 +1,32 @@
 {
-  "state": "**Goal `growth-proof`, Stage 2: the perf proof runs the ramp, and its tests are on disk.** No floor is carried.\n\n`bun nv proofs --record-perf` now judges growth through `growthOf` (`tools/nv/cmd/scaling.ts`): the bench's batch ramp, and for a complexity other than `constant` the size ramp of its `.scale.nvs` sibling, which takes `// bench: start`/`max` like a ladder. The old one-ratio check and `// bench: scale K` are gone; the two linear siblings (`core/Str/length`, `core/Http-Response/text`) are converted and the constant one's sibling is deleted. Callgrind runs only from `--record-perf` without `--no-callgrind`. `tools/nv/test/proof-growth.test.ts` holds the check `the-perf-proof-judges-growth`, 5 pass; its test names print only outside an agent environment (playbook, *Running things*).\n\n`COMPLEXITY_REQUIRED` (`tools/nv/proofs/perf.ts:45`) is `false`: the missing-declaration failure is gated until the backfill lands, because most benches under `benches/members/` still lack `// bench: complexity`. The ledger rule `rule:testing/member-perf-ledger` still describes the old same-run ratio. ADR 0272 scoped that rule out, so Stage 4's record is where its sentence gets rewritten.",
+  "state": "**Goal `growth-proof`, Stage 2: every bench declares its complexity, and `--record-perf` requires it.** No floor is carried.\n\nEvery bench under `benches/members/` has `// bench: complexity`. The files still without one are helpers that `programs()` in `tools/nv/cmd/scaling.ts` skips: the child scripts under `lang/concurrency/*/`, `autoload…/Step.nvs`, `require…/part.nvs` and `_calibration/`. `COMPLEXITY_REQUIRED` is gone, and `measureOne` in `tools/nv/proofs/perf.ts` passes `required = true` to `growthOf`.\n\n`bun nv scaling --growth [filter...] [--all]` judges benches the way `--record-perf` does, with callgrind off and no record written. A bench with findings and a `// proof: gap` marker prints `gap` and does not fail. Over the 45 benches backfilled this session, nothing fails.\n\nTwo gap records carry the benches whose growth cannot be proven yet:\n- `data/gaps/nv/a-bench-cannot-ramp-an-input-fixed-outside-its-program.json` (M10) covers 20 benches. Their input is a `.nvsr`, a `.in`, the environment or the declared classes, so they declare `linear` with no sibling.\n- `data/gaps/nvs-stdlib/bigint-division-and-decimal-text-grow-quadratically.json` (M12) covers nine `Core\\BigInt` benches that declare `quadratic`.\n\n`core/BigInt/mul.scale.nvs` is unclear without callgrind, as its ladder is in `docs/perf/performance-pass.md`.\n\nThe whole tree has not been run under `--growth` (about a thousand benches, release binary). A bench that an area's subagent declared wrongly is found only by running it.",
   "next": {
     "stage": 2,
     "title": "growth is a feature proof",
-    "files": [],
-    "note": "one file set: the benches under `benches/members/` and `tools/nv/proofs/perf.ts`.",
+    "files": [
+      "tools/nv/cmd/scaling.ts",
+      "tools/nv/proofs/perf.ts",
+      "tools/nv/test/proof-growth.test.ts"
+    ],
     "items": [
       {
         "done": false,
-        "text": "**The backfill** — ADR 0272 § 4 and `rule:testing/feature-proofs`: add `// bench: complexity` to every bench under `benches/members/` that lacks one, one subagent per area (goal § *Standing decisions*), using the class the bench's operation has (`EXPECT`, `tools/nv/cmd/scaling.ts:297`). A non-constant one also needs a `.scale.nvs` sibling in the `start`/`max` form (`benches/members/README.md:96`, model `benches/members/core/Str/length.scale.nvs`)."
+        "text": "**Callgrind sets N.** ADR 0272 § 5, `rule:testing/feature-proofs`. When callgrind settles a ramp in `rampAt` (`tools/nv/cmd/scaling.ts:902`), set the bench's `iterations` from that batch and write beside it that callgrind measured it. A later run uses N and does not run valgrind again. Pin it in `tools/nv/test/proof-growth.test.ts` with a fake measure."
       },
       {
         "done": false,
-        "text": "**Turn the declaration on** — flip `COMPLEXITY_REQUIRED` (`tools/nv/proofs/perf.ts:45`) to `true` once no bench lacks the line, and rewrite its doc comment."
+        "text": "**Sweep the tree.** Run `bun nv scaling --growth` (`tools/nv/cmd/scaling.ts:1008`) under `bun nv bg`. Fix each FAIL by correcting its class or its sibling. If the fix is larger than a slice, add a gap marker. This is the evidence that Stage 2's declarations hold."
       },
       {
         "done": false,
-        "text": "**Callgrind sets N** — ADR 0272 § 5: when callgrind settles a ramp in `rampAt` (`tools/nv/cmd/scaling.ts:900`), set the bench's `iterations` from that batch with a note that callgrind measured it, and do not run valgrind again until the definition changes."
+        "text": "**Stage 3 begins: `--iterations --sized`.** In `tools/nv/cmd/scaling.ts:200` (`batchSizes`, under `CEILING` at `tools/nv/cmd/scaling.ts:139`), fail while a bench's N is more than about twice the batch where its ramp settled. The goal's Stage 3 is the spec, and the check is `every-bench-iteration-count-is-what-its-growth-check-needs`."
       }
     ]
   },
   "backlog": [
-    "Stage 3's checks (`scaling --iterations --sized`, `--budget`) are red because their subcommands do not exist yet — goal record, Stage 3.",
-    "`rule:testing/member-perf-ledger`'s \"checked as a ratio inside one run\" sentence is stale; Stage 4's ADR rewrites it.",
-    "Stages 4–6 (selection by reach, skipping proven benches, the `## The growth proof` section of `docs/perf/performance-pass.md`) — goal record."
+    "`--budget` and `docs/perf/bench-budget.json` (goal Stage 3).",
+    "`rule:testing/member-perf-ledger` still describes the same-run ratio. Stage 4's record rewrites it.",
+    "`core/Heap/push` and `pop` declare `constant`, but each operation costs log n in the heap's size, and `EXPECT` has no logarithmic class. Stage 6's section can list them.",
+    "Stages 4–6: the selection tests, the skip tests, and `## The growth proof` in `docs/perf/performance-pass.md`."
   ]
 }
