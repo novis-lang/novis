@@ -843,6 +843,33 @@ echo Check::label($ada), " ", Check::label(null), " ", Check::on($ada), " ", Che
 Ada guest off yes no deletes reads
 ```
 
+The block of `if (A && B)` runs only when both tests are true, so it sees what each test proves. In
+`if ($a != null && $b != null)`, both `$a` and `$b` are narrowed inside the block. In the same way, the
+code after `if ($a == null || $b == null) { return; }` sees both variables narrowed. The `else` of an
+`&&` and the block of an `||` narrow nothing, because there only one of the two tests is known.
+
+```nvs
+<?nvs
+class Sum {
+    public static function both(?float $a, ?float $b): float {
+        if ($a != null && $b != null) {
+            return $a + $b;
+        }
+        return 0.0;
+    }
+    public static function guarded(?float $a, ?float $b): float {
+        if ($a == null || $b == null) {
+            return -1.0;
+        }
+        return $a + $b;
+    }
+}
+echo Sum::both(1.5, 2.0), " ", Sum::both(null, 2.0), " ", Sum::guarded(1.0, 2.0), " ", Sum::guarded(1.0, null), "\n";
+```
+```output
+3.5 0 3 -1
+```
+
 A write to the binding inside the branch drops the narrowing. Narrowing is branch-local; a `?T`
 that was tested in one `if` is still `?T` after it, and `->` on an un-narrowed `?C` is refused.
 

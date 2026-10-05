@@ -22,6 +22,7 @@
     "tests/conformance/lang/a-comparison-against-a-literal-narrows-its-subject.nvst",
     "tests/conformance/lang/a-ternary-and-a-short-circuit-operand-are-narrowed-like-an-if.nvst",
     "tests/conformance/reject/narrowing-in-a-ternary-or-an-and-stops-at-its-end.nvst",
+    "tests/conformance/lang/the-block-of-an-and-condition-and-the-code-after-an-or-guard-are-narrowed-by-both-operands.nvst",
     "crates/nvs-types/tests/narrowing.rs"
   ]
 }

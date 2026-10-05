@@ -6,6 +6,10 @@ narrowing described the value that was there, not the slot.
 A ternary's two arms and the right operand of `&&` and `||` are branches too. The condition narrows
 `$c ? $a : $b` exactly as it narrows `if ($c)` and its `else`, `&&` narrows its right operand as the
 `if` block of its left, and `||` as the `else` block. Nothing it proves holds after the expression.
+The edge where `A && B` holds proves both operands, so the block of `if ($a != null && $b != null)`
+sees both narrowed, and the edge where `A || B` fails proves both negations, which is what narrows the
+code after a guard clause `if ($a == null || $b == null) { return; }`. The other edge of each proves
+only that one operand decided, and narrows nothing.
 
 `is` is the general one — it tests a value against any type a value can inhabit, and it is the only
 type test there is (`rule:types/type-test`). Its value arm narrows too: `$x is $cls`, where `$cls` is

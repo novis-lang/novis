@@ -441,7 +441,30 @@ fn null_test(cond: &Expr) -> Option<(Span, bool)> {
 /// and `||` (`crate::expr::infer`), and — through [`is_true_literal`] — each
 /// label of a `match (true)`/`switch (true)`, which is `rule:types/narrowing`'s
 /// fourth spelling and is a label only in where it is written.
+///
+/// A condition joined by `&&` proves both operands on its true edge, and one
+/// joined by `||` both negations on its false edge, so those two edges narrow
+/// by each operand in turn — the left first, because the right operand was
+/// checked under the left's narrowing and its recorded facts assume it. The
+/// other edge of each proves only a disjunction and narrows nothing. A `!`
+/// swaps the edge, which is what reaches `!($a == null || $b == null)`.
 pub(crate) fn narrow(cond: &Expr, when: bool, scope: &LocalScope, env: &mut Env<'_>) -> Narrowing {
+    match &cond.kind {
+        ExprKind::Paren(inner) => return narrow(inner, when, scope, env),
+        ExprKind::Unary {
+            op: nvs_syntax::ast::UnaryOp::Not,
+            expr: inner,
+        } => return narrow(inner, !when, scope, env),
+        ExprKind::Binary { op, lhs, rhs }
+            if (*op == nvs_syntax::ast::BinaryOp::And && when)
+                || (*op == nvs_syntax::ast::BinaryOp::Or && !when) =>
+        {
+            let mut both = narrow(lhs, when, scope, env);
+            both.absorb(narrow(rhs, when, scope, env));
+            return both;
+        }
+        _ => {}
+    }
     let residue = match null_residue(cond, when, scope, env) {
         Some(found) => Some(found),
         None => match type_test_residue(cond, when, scope, env) {

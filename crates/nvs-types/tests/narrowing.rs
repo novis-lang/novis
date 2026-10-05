@@ -358,3 +358,62 @@ fn a_foreach_binding_over_the_narrowed_name_widens_it() {
     );
     assert!(refuses_nullable_receiver(&diags), "{diags:?}");
 }
+
+/// Wraps `body` in a method taking two `?Node`s, for the conditions that join
+/// two tests.
+fn check_with_two_nodes(body: &str) -> Diagnostics {
+    check_src(&format!(
+        "<?nvs\nclass Node {{\n  function label(): string {{ return \"n\"; }}\n}}\n\
+         class T {{\n  function m(?Node $a, ?Node $b): void {{\n{body}\n  }}\n}}\n"
+    ))
+}
+
+/// The block of `if (A && B)` runs only where both hold, so it sees what each
+/// of them proves.
+#[test]
+fn the_block_of_an_and_condition_is_narrowed_by_both_operands() {
+    let diags = check_with_two_nodes(
+        "if ($a != null && $b != null) {\n  echo $a->label(), $b->label();\n}\n",
+    );
+    assert!(!diags.has_errors(), "{diags:?}");
+}
+
+/// A guard clause written with `||` narrows the rest of the block by both
+/// negations, and a `!` around the `||` makes its block the narrowed edge.
+#[test]
+fn the_false_edge_of_an_or_condition_is_narrowed_by_both_operands() {
+    let guard = check_with_two_nodes(
+        "if ($a == null || $b == null) {\n  return;\n}\necho $a->label(), $b->label();\n",
+    );
+    assert!(!guard.has_errors(), "{guard:?}");
+    let negated = check_with_two_nodes(
+        "if (!($a == null || ($b == null))) {\n  echo $a->label(), $b->label();\n}\n",
+    );
+    assert!(!negated.has_errors(), "{negated:?}");
+}
+
+/// The other edge of each proves only that one operand failed, which names
+/// neither: the `else` of an `&&` and the block of an `||` narrow nothing.
+#[test]
+fn the_other_edge_of_and_and_or_narrows_nothing() {
+    let and_else =
+        check_with_two_nodes("if ($a == null && $b == null) {\n  return;\n}\necho $a->label();\n");
+    assert!(refuses_nullable_receiver(&and_else), "{and_else:?}");
+    let or_block =
+        check_with_two_nodes("if ($a != null || $b != null) {\n  echo $a->label();\n}\n");
+    assert!(refuses_nullable_receiver(&or_block), "{or_block:?}");
+}
+
+/// What the `&&` proves ends with the block, and a write inside it still
+/// widens the binding again.
+#[test]
+fn an_and_narrowing_ends_with_its_block_and_a_write_widens_it() {
+    let after = check_with_two_nodes(
+        "if ($a != null && $b != null) {\n  echo \"both\";\n}\necho $a->label();\n",
+    );
+    assert!(refuses_nullable_receiver(&after), "{after:?}");
+    let written = check_with_two_nodes(
+        "if ($a != null && $b != null) {\n  $a = null;\n  echo $a->label();\n}\n",
+    );
+    assert!(refuses_nullable_receiver(&written), "{written:?}");
+}
