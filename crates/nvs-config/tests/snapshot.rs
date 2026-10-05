@@ -14,7 +14,7 @@ use nvs_config::cache::{
     ProbeHash, Revalidation, UnitKey, Validate, artifact_key, content_hash, env_hash, probe_hash,
 };
 use nvs_config::resolve::{Files, Resolved, Roots, resolve};
-use nvs_config::snapshot::{Current, Snapshot};
+use nvs_config::snapshot::{AppBlocks, Current, Published, Snapshot};
 use nvs_config::trust::Untrusted;
 use nvs_config::{Setting, tree};
 use nvs_diagnostics::SourceMap;
@@ -190,6 +190,220 @@ fn the_hosts_snapshot_folds_no_block_and_names_no_entry() {
     assert_eq!(limits(&snapshot).wall_time, text("30s"));
     assert_eq!(snapshot.mode, None);
     assert_eq!(snapshot.origin, None);
+}
+
+/// The shop tree with a second file in the shop, so two entries match one chain of blocks.
+fn shop_with_cart() -> Fake {
+    let mut fs = shop();
+    fs.files.insert(p("srv/www/shop/cart.nvs"), String::new());
+    fs
+}
+
+/// ADR 0271's published set over `fs`, with `entries` matched at publish time.
+fn published(fs: &Fake, entries: &[&str]) -> Published {
+    let tree = tree_of(fs);
+    let host = Snapshot::host(&tree, fs)
+        .unwrap_or_else(|err| panic!("refused: {} [{:?}]", err.message, err.notes));
+    let entries: Vec<PathBuf> = entries.iter().map(|entry| p(entry)).collect();
+    Published::new(host, AppBlocks::of(&tree), &entries, fs)
+        .unwrap_or_else(|err| panic!("refused: {} [{:?}]", err.message, err.notes))
+}
+
+/// The snapshot `entry` runs under in `set`, panicking with the refusal when there is none.
+fn entry_of(set: &Published, fs: &Fake, entry: &str) -> Arc<Snapshot> {
+    set.entry(&p(entry), fs)
+        .unwrap_or_else(|err| panic!("refused: {} [{:?}]", err.message, err.notes))
+}
+
+/// Every entry of the shop tree gets, out of one publish, the blocks and the tree
+/// [`Snapshot::build`] gives that file alone.
+#[test]
+fn a_publish_resolves_each_entry_to_the_blocks_that_match_it() {
+    let fs = shop();
+    let entries = [
+        "srv/www/index.nvs",
+        "srv/www/shop/index.nvs",
+        "srv/www/shop/bin/import.nvs",
+        "srv/other/x.nvs",
+    ];
+    let set = published(&fs, &entries);
+    for entry in entries {
+        let from_set = entry_of(&set, &fs, entry);
+        let built = snapshot_of(&fs, entry);
+        assert_eq!(from_set.blocks, built.blocks, "{entry}");
+        assert_eq!(from_set.table, built.table, "{entry}");
+        assert_eq!(from_set.mode, built.mode, "{entry}");
+        assert_eq!(from_set.origin, built.origin, "{entry}");
+    }
+}
+
+/// Two mounted entries under different blocks run under different limits and grants in one
+/// publish: the shop's block grants `process.exec` and raises `memory`, and the host-wide block
+/// beside it does neither.
+#[test]
+fn two_entries_under_different_blocks_get_different_limits_and_capabilities() {
+    let fs = shop();
+    let set = published(&fs, &["srv/www/index.nvs", "srv/www/shop/index.nvs"]);
+    let www = entry_of(&set, &fs, "srv/www/index.nvs");
+    let shop = entry_of(&set, &fs, "srv/www/shop/index.nvs");
+    let exec = |snapshot: &Snapshot| {
+        snapshot
+            .config
+            .capabilities
+            .as_ref()
+            .and_then(|caps| caps.process.as_ref())
+            .and_then(|process| process.exec.clone())
+    };
+    assert_eq!(exec(&www), Some(Setting::Bool(false)));
+    assert_eq!(exec(&shop), Some(Setting::Bool(true)));
+    assert_eq!(limits(&www).memory, text("128M"));
+    assert_eq!(limits(&shop).memory, text("512M"));
+    assert_eq!(www.mode.as_deref(), Some("production"));
+}
+
+/// Two entries whose blocks form one chain share one snapshot, and an entry with its own `entry`
+/// block gets another. Each has the values its own blocks fold, as [`Snapshot::build`] gives them.
+#[test]
+fn entries_that_match_the_same_blocks_share_one_snapshot() {
+    let fs = shop_with_cart();
+    let set = published(&fs, &["srv/www/shop/index.nvs"]);
+    let index = entry_of(&set, &fs, "srv/www/shop/index.nvs");
+    let cart = entry_of(&set, &fs, "srv/www/shop/cart.nvs");
+    let import = entry_of(&set, &fs, "srv/www/shop/bin/import.nvs");
+
+    assert!(Arc::ptr_eq(&index, &cart));
+    assert!(!Arc::ptr_eq(&index, &import));
+    assert_eq!(limits(&cart).memory, text("512M"));
+    assert_eq!(limits(&cart).wall_time, text("30s"));
+    assert_eq!(cart.origin.as_deref(), Some("https://shop.example"));
+    assert_eq!(limits(&import).wall_time, text("600s"));
+    assert_eq!(import.mode.as_deref(), Some("development"));
+    let built = snapshot_of(&fs, "srv/www/shop/bin/import.nvs");
+    assert_eq!(import.table, built.table);
+    assert_eq!(import.blocks, built.blocks);
+}
+
+/// An entry no block matches runs under the host's snapshot itself, and the host's is the one the
+/// door and every process-wide key read.
+#[test]
+fn an_entry_no_block_matches_gets_the_host_snapshot() {
+    let fs = shop();
+    let set = published(&fs, &["srv/other/x.nvs"]);
+    let other = entry_of(&set, &fs, "srv/other/x.nvs");
+    assert!(Arc::ptr_eq(&other, set.host()));
+    assert!(set.host().blocks.is_empty());
+}
+
+/// One publish has one generation: the database pool and the drain read one number per publish,
+/// whatever application a request runs.
+#[test]
+fn every_snapshot_of_a_publish_carries_the_hosts_generation() {
+    let fs = shop();
+    let set = published(&fs, &["srv/www/index.nvs", "srv/www/shop/bin/import.nvs"]);
+    for entry in [
+        "srv/www/index.nvs",
+        "srv/www/shop/index.nvs",
+        "srv/www/shop/bin/import.nvs",
+    ] {
+        assert_eq!(entry_of(&set, &fs, entry).generation, set.host().generation);
+    }
+}
+
+/// An entry is matched once per publish: asking again gives the same snapshot, and a spelling
+/// with a `.` in it finds the one kept for the canonical path.
+#[test]
+fn an_entry_is_matched_once_per_publish() {
+    let fs = shop();
+    let set = published(&fs, &[]);
+    let first = entry_of(&set, &fs, "srv/www/shop/bin/import.nvs");
+    let again = entry_of(&set, &fs, "srv/www/shop/bin/import.nvs");
+    let spelled = entry_of(&set, &fs, "srv/www/shop/./bin/import.nvs");
+    assert!(Arc::ptr_eq(&first, &again));
+    assert!(Arc::ptr_eq(&first, &spelled));
+}
+
+/// The `Boot` carry runs on the host's tree before any entry is folded, so an entry's snapshot
+/// reads the running `workers` and the new `[app.limits]`.
+#[test]
+fn every_snapshot_of_one_publish_carries_the_running_boot_values() {
+    let before = Fake::with(&[("nvs.toml", "[server]\nworkers = 4\n"), ("srv/a.nvs", "")]);
+    let after = Fake::with(&[
+        (
+            "nvs.toml",
+            "[server]\nworkers = 2\n\n[[app]]\nroot = \"srv\"\n\n[app.limits]\nmemory = \"64M\"\n",
+        ),
+        ("srv/a.nvs", ""),
+    ]);
+    let current = Current::new(
+        Snapshot::host(&tree_of(&before), &before)
+            .unwrap_or_else(|err| panic!("refused: {} [{:?}]", err.message, err.notes)),
+    );
+    let tree = tree_of(&after);
+    let host = Snapshot::host(&tree, &after)
+        .unwrap_or_else(|err| panic!("refused: {} [{:?}]", err.message, err.notes));
+    let reload = current
+        .publish_set(
+            Arc::unwrap_or_clone(host),
+            AppBlocks::of(&tree),
+            &[p("srv/a.nvs")],
+            &after,
+            &[],
+        )
+        .expect("this tree deserializes");
+
+    assert_eq!(
+        reload.boot.iter().map(|row| row.key).collect::<Vec<_>>(),
+        vec!["server.workers"]
+    );
+    let entry = entry_of(&current.published(), &after, "srv/a.nvs");
+    let workers = entry
+        .config
+        .server
+        .as_ref()
+        .and_then(|server| server.workers);
+    assert_eq!(workers, Some(4));
+    assert_eq!(
+        entry
+            .config
+            .limits
+            .as_ref()
+            .and_then(|limits| limits.memory.clone()),
+        text("64M")
+    );
+    assert!(Arc::ptr_eq(&current.load(), &reload.snapshot));
+}
+
+/// A mounted entry that cannot be matched refuses the whole publish, and the set already serving
+/// stays.
+#[test]
+fn an_entry_that_does_not_resolve_leaves_the_previous_set_serving() {
+    let fs = shop();
+    let tree = tree_of(&fs);
+    let host = Snapshot::host(&tree, &fs)
+        .unwrap_or_else(|err| panic!("refused: {} [{:?}]", err.message, err.notes));
+    let current = Current::new(Arc::clone(&host));
+    let refused = current.publish_set(
+        Arc::unwrap_or_clone(Arc::clone(&host)),
+        AppBlocks::of(&tree),
+        &[p("srv/www/shop/gone.nvs")],
+        &fs,
+        &[],
+    );
+    assert!(refused.is_err());
+    assert!(Arc::ptr_eq(&current.load(), &host));
+}
+
+/// A set built from one snapshot and no roster serves that snapshot to every entry, which is what
+/// a process holding one configuration for itself reads.
+#[test]
+fn a_host_only_set_serves_its_snapshot_to_every_entry() {
+    let fs = shop();
+    let built = snapshot_of(&fs, "srv/www/shop/bin/import.nvs");
+    let current = Current::new(Arc::clone(&built));
+    let set = current.published();
+    for entry in ["srv/other/x.nvs", "srv/www/shop/index.nvs"] {
+        assert!(Arc::ptr_eq(&entry_of(&set, &fs, entry), &built));
+    }
 }
 
 /// § 2's worked example, both halves at once: `/srv/www/shop/bin/import.nvs` gets a memory of

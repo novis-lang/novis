@@ -2,11 +2,17 @@
 //!
 //! A [`Snapshot`] is one entry file's whole answer — the global tree with that file's `[[app]]`
 //! blocks folded over it (`rule:config/every-matching-app-block-applies-least-specific-first`) — built once at boot or reload and never mutated
-//! afterwards. [`Snapshot::host`] is the one that is for no file: the global tree alone, which is
-//! what a server started over its mount table with no file named reads. [`Current`] holds the published one; a request clones the [`Arc`] when it starts and
-//! reads that clone for its whole life, so a reload landing mid-request is invisible to it and no
-//! request ever sees half of one tree and half of another. `Core\Config::set` writes a per-request
-//! overlay *over* this value and never into it (`rule:config/ini-set-is-core-config-set`).
+//! afterwards. [`Snapshot::host`] is the one that is for no file: the global tree alone, which every
+//! process-wide key and the door read.
+//!
+//! **One publish is a [`Published`] set** (ADR 0271): the host's snapshot, and the way from an entry
+//! file to its own. Entries whose blocks form the same chain share one snapshot, folded over the
+//! host's tree after its `Boot` carry and carrying the host's generation, and an entry no block
+//! matches gets the host's [`Arc`] itself. [`Current`] holds the published set; a request clones an
+//! [`Arc`] out of it when it starts and reads that clone for its whole life, so a reload landing
+//! mid-request is invisible to it and no request ever sees half of one tree and half of another.
+//! `Core\Config::set` writes a per-request overlay *over* this value and never into it
+//! (`rule:config/ini-set-is-core-config-set`).
 //!
 //! **The per-app fold is [`resolve`](crate::resolve)'s `merge_table`, over the global table, one
 //! block at a time in [`matching`](crate::app::matching)'s order** — not [`app::layer`]'s effective
@@ -23,12 +29,14 @@
 //! reads — so the report and the carry are one operation.
 //!
 //! Cost: one owned `Config` and one owned `toml::Table` per snapshot, shared by every request that
-//! clones the `Arc` and dropped when the last of them finishes. That is O(in-flight snapshots),
-//! which is one plus however many outlived a reload, and never O(requests). Per request it is an
-//! `RwLock` read and an `Arc` clone, once, at start.
+//! clones the `Arc` and dropped when the last of them finishes. A publish holds one per distinct
+//! chain of blocks plus the host's, and one map entry per entry file it resolved. That is
+//! O(in-flight publishes), which is one plus however many outlived a reload, and never
+//! O(requests). Per request it is an `RwLock` read and an `Arc` clone at start, and one map lookup
+//! for the entry's snapshot.
 //!
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, RwLock};
@@ -39,7 +47,7 @@ use crate::app;
 use crate::directive::{Apply, DIRECTIVES, Directive, governs};
 use crate::resolve::{Files, Origin, Override, Resolved};
 use crate::secret::Secret;
-use crate::tree::Config;
+use crate::tree::{App, Config};
 
 /// The number [`Snapshot::build`] takes for the tree it is building.
 ///
@@ -74,8 +82,9 @@ pub struct Snapshot {
     /// written somewhere this overwrites — `retype`'s own doc § *The seam every `resolve()` pass is
     /// measured against* is the rule, and the sound answers to it.
     pub table: toml::Table,
-    /// The entry file this snapshot is for, canonical — or `None` for [`Snapshot::host`]'s, which
-    /// is for no file and folded no `[[app]]` block.
+    /// The entry file [`Snapshot::build`] built this snapshot for, canonical. `None` for
+    /// [`Snapshot::host`]'s, which is for no file, and for a [`Published`] set's per-chain one,
+    /// which every entry matching that chain shares: [`blocks`](Snapshot::blocks) names the chain.
     pub entry: Option<PathBuf>,
     /// This snapshot's number: unique in this process, never reused, and 0 for one no boot built.
     ///
@@ -151,10 +160,10 @@ impl Snapshot {
     /// Builds the snapshot of the host itself: the global tree with **no `[[app]]` block folded**,
     /// because no entry file was named for one to match.
     ///
-    /// This is what a server started over its mount table alone reads its process-wide keys from —
-    /// `[server]`, `[http.client.tls]`, the admission arithmetic — and what it hands every request.
-    /// [`mode`](Snapshot::mode), [`origin`](Snapshot::origin) and [`blocks`](Snapshot::blocks) are
-    /// empty in it for the same reason.
+    /// This is what a server reads its process-wide keys from — `[server]`, `[http.client.tls]`,
+    /// the admission arithmetic — and the base every entry's snapshot in a [`Published`] set is
+    /// folded over. [`mode`](Snapshot::mode), [`origin`](Snapshot::origin) and
+    /// [`blocks`](Snapshot::blocks) are empty in it for the same reason.
     ///
     /// # Errors
     ///
@@ -171,8 +180,9 @@ impl Snapshot {
         entry: Option<PathBuf>,
         files: &dyn Files,
     ) -> Result<Arc<Self>, Diagnostic> {
+        let roster = AppBlocks::of(resolved);
         let matching = match &entry {
-            Some(entry) => app::matching(&resolved.config.app, entry, files)?,
+            Some(entry) => app::matching(&roster.apps, entry, files)?,
             None => Vec::new(),
         };
         let mut snapshot = Self {
@@ -198,50 +208,66 @@ impl Snapshot {
         // report.
         snapshot.roster = snapshot.table.remove("app");
         snapshot.origins.retain(|key, _| !governs("app", key));
-        for index in matching {
-            let block = &resolved.config.app[index];
+        snapshot.fold(&roster, &matching, files)?;
+        Ok(Arc::new(snapshot))
+    }
+
+    /// Folds the blocks `matching` names, least-specific first, over this snapshot's tree, and
+    /// retypes it. The one fold [`build`](Snapshot::build), [`host`](Snapshot::host) and a
+    /// [`Published`] set's per-chain snapshot all run.
+    ///
+    /// # Errors
+    ///
+    /// `E0601` if the folded tree does not deserialize.
+    fn fold(
+        &mut self,
+        roster: &AppBlocks,
+        matching: &[usize],
+        files: &dyn Files,
+    ) -> Result<(), Diagnostic> {
+        for &index in matching {
+            let block = &roster.apps[index];
             if let Some(key) = app::key_of(block) {
-                snapshot.blocks.push(key.to_path_buf());
+                self.blocks.push(key.to_path_buf());
             }
             // Least-specific first, so the last block to state one of these wins — which is the
             // same later-wins the merge below applies to everything else.
             if block.mode.is_some() {
-                snapshot.mode.clone_from(&block.mode);
+                self.mode.clone_from(&block.mode);
             }
             if block.origin.is_some() {
-                snapshot.origin.clone_from(&block.origin);
+                self.origin.clone_from(&block.origin);
             }
-            let (Some(mut directives), Some(origin)) = (
-                app::block_table(resolved, index),
-                app::block_origin(resolved, index),
-            ) else {
+            let (Some(directives), Some(origin)) = (&roster.tables[index], &roster.origins[index])
+            else {
                 continue;
             };
             // `root` and `entry` selected this block and `mode`/`origin` are above; what is left is
             // `[app.limits]` and `[app.capabilities]`, which are the global blocks' own shapes and
             // fold straight onto them.
+            let mut directives = directives.clone();
             for key in ["root", "entry", "mode", "origin"] {
                 directives.remove(key);
             }
             crate::resolve::merge_table(
-                &mut snapshot.table,
+                &mut self.table,
                 &directives,
                 origin,
                 "",
-                &mut snapshot.origins,
-                &mut snapshot.overrides,
+                &mut self.origins,
+                &mut self.overrides,
             );
         }
-        snapshot.retype()?;
+        self.retype()?;
         // `rule:security/path-scope-canonicalise-then-prefix`'s grant side, canonicalized once and here rather than per check, for the
         // reason an `[[app]]` key is canonicalized at this same point: a root still spelled the way
         // the operator typed it is a comparison against the wrong thing.
         //
         // [ADR 0118]: ../../../docs/decisions/0118.md
-        if let Some(capabilities) = snapshot.config.capabilities.as_mut() {
+        if let Some(capabilities) = self.config.capabilities.as_mut() {
             capabilities.canonicalize(files);
         }
-        Ok(Arc::new(snapshot))
+        Ok(())
     }
 
     /// Deserializes [`table`](Snapshot::table) into [`config`](Snapshot::config), and puts
@@ -356,23 +382,201 @@ pub struct Reload {
     pub boot: Vec<&'static Directive>,
 }
 
-/// The published snapshot: what a request clones at start, and what a reload replaces whole.
+/// The `[[app]]` roster as a fold reads it: each block's typed half, the table it was written as,
+/// and the file it was written in, by the block's index.
+///
+/// Taken out of the [`Resolved`] tree once, so a [`Published`] set can fold an entry it first meets
+/// after the publish without holding the whole resolved tree beside the host's snapshot.
+#[derive(Clone, Debug, Default)]
+pub struct AppBlocks {
+    apps: Vec<App>,
+    tables: Vec<Option<toml::Table>>,
+    origins: Vec<Option<Origin>>,
+}
+
+impl AppBlocks {
+    /// The roster `resolved` writes, which [`resolve`](crate::resolve::resolve) has canonicalized.
+    #[must_use]
+    pub fn of(resolved: &Resolved) -> Self {
+        let indices = 0..resolved.config.app.len();
+        Self {
+            apps: resolved.config.app.clone(),
+            tables: indices
+                .clone()
+                .map(|index| app::block_table(resolved, index))
+                .collect(),
+            origins: indices
+                .map(|index| app::block_origin(resolved, index).cloned())
+                .collect(),
+        }
+    }
+}
+
+/// One publish: the host's snapshot, and the way from an entry file to its own (ADR 0271).
+///
+/// An entry's snapshot depends only on the chain of blocks [`app::matching`] gives it, so entries
+/// matching one chain share one [`Arc`], and an entry no block matches gets the host's. Every
+/// snapshot here is the host's tree with the chain folded over it, after the host's `Boot` carry,
+/// and carries the host's [`generation`](Snapshot::generation).
+///
+/// An entry is matched once per publish: eagerly for the entries [`Published::new`] is given, and
+/// on first use for any other, which is then kept here. A request that finds its entry already
+/// resolved pays one map lookup under a read lock.
+///
+/// Cost: one snapshot per distinct chain, bounded by the configuration, and one map entry per
+/// canonical entry file resolved, bounded by the files on disk. The whole set is dropped when the
+/// last request holding a snapshot of it finishes after the next publish.
+#[derive(Debug)]
+pub struct Published {
+    host: Arc<Snapshot>,
+    blocks: AppBlocks,
+    resolved: RwLock<Resolutions>,
+}
+
+/// What a [`Published`] set has matched so far.
+#[derive(Debug, Default)]
+struct Resolutions {
+    /// By canonical entry file.
+    entries: HashMap<PathBuf, Arc<Snapshot>>,
+    /// By the indices [`app::matching`] gave, least-specific first. Never holds an empty chain.
+    chains: HashMap<Vec<usize>, Arc<Snapshot>>,
+}
+
+impl Published {
+    /// A set in which every entry runs under `host`: no roster to match against.
+    ///
+    /// This is a process that built one snapshot for itself — `nvs run`, or a server whose caller
+    /// has not handed it the roster.
+    #[must_use]
+    pub fn host_only(host: Arc<Snapshot>) -> Self {
+        Self {
+            host,
+            blocks: AppBlocks::default(),
+            resolved: RwLock::new(Resolutions::default()),
+        }
+    }
+
+    /// The set for `host` and `blocks`, with every file in `entries` matched and folded now.
+    ///
+    /// # Errors
+    ///
+    /// As [`entry`](Published::entry), for the first of `entries` that fails: a block that does
+    /// not fold for one mounted entry refuses the whole publish.
+    pub fn new(
+        host: Arc<Snapshot>,
+        blocks: AppBlocks,
+        entries: &[PathBuf],
+        files: &dyn Files,
+    ) -> Result<Self, Diagnostic> {
+        let set = Self {
+            host,
+            blocks,
+            resolved: RwLock::new(Resolutions::default()),
+        };
+        for entry in entries {
+            set.entry(entry, files)?;
+        }
+        Ok(set)
+    }
+
+    /// The host's snapshot, which every process-wide key and the door read.
+    #[must_use]
+    pub fn host(&self) -> &Arc<Snapshot> {
+        &self.host
+    }
+
+    /// The snapshot `entry` runs under in this publish.
+    ///
+    /// `entry` is looked up as given first, which is the whole cost when the caller holds the
+    /// canonical path. Otherwise it is canonicalized and matched, and the result is kept under the
+    /// canonical path alone, so the set grows with the files on disk and never with spellings.
+    ///
+    /// # Errors
+    ///
+    /// `E0605` when `entry` cannot be examined, and `E0601` if its chain does not fold.
+    ///
+    /// # Panics
+    ///
+    /// If a thread panicked while holding the lock, which nothing under it can do.
+    pub fn entry(&self, entry: &Path, files: &dyn Files) -> Result<Arc<Snapshot>, Diagnostic> {
+        if self.blocks.apps.is_empty() {
+            return Ok(Arc::clone(&self.host));
+        }
+        let lock = "the publish's resolutions are never poisoned";
+        if let Some(found) = self.resolved.read().expect(lock).entries.get(entry) {
+            return Ok(Arc::clone(found));
+        }
+        let canonical = files.canonical(entry).map_err(|err| {
+            crate::resolve::unreadable(entry, &err, "it is the entry file being configured")
+        })?;
+        if let Some(found) = self.resolved.read().expect(lock).entries.get(&canonical) {
+            return Ok(Arc::clone(found));
+        }
+        let chain = app::matching(&self.blocks.apps, &canonical, files)?;
+        let known = if chain.is_empty() {
+            Some(Arc::clone(&self.host))
+        } else {
+            self.resolved
+                .read()
+                .expect(lock)
+                .chains
+                .get(&chain)
+                .cloned()
+        };
+        let snapshot = match known {
+            Some(snapshot) => snapshot,
+            None => {
+                let mut folded = Snapshot::clone(&self.host);
+                folded.fold(&self.blocks, &chain, files)?;
+                let folded = Arc::new(folded);
+                let mut resolved = self.resolved.write().expect(lock);
+                Arc::clone(resolved.chains.entry(chain).or_insert(folded))
+            }
+        };
+        self.resolved
+            .write()
+            .expect(lock)
+            .entries
+            .insert(canonical, Arc::clone(&snapshot));
+        Ok(snapshot)
+    }
+}
+
+/// The published set: what a request clones a snapshot out of at start, and what a reload
+/// replaces whole.
 ///
 /// A `RwLock` and not a lock-free cell because the read happens **once per request**, at start,
 /// and is an `Arc` clone under a read guard — the contended case is a reload, which is rare, and
 /// a dependency bought for one uncontended read is not a trade this crate makes (`rule:packaging/a-c-dependency-answers-two-questions`).
+/// The host's snapshot and its entries are one value behind it, so no request reads two publishes.
 ///
 #[derive(Debug)]
-pub struct Current(RwLock<Arc<Snapshot>>);
+pub struct Current(RwLock<Arc<Published>>);
 
 impl Current {
-    /// The holder, serving `snapshot` from the moment it exists.
+    /// The holder, serving `snapshot` to every entry from the moment it exists.
     #[must_use]
     pub fn new(snapshot: Arc<Snapshot>) -> Self {
-        Self(RwLock::new(snapshot))
+        Self(RwLock::new(Arc::new(Published::host_only(snapshot))))
     }
 
-    /// The snapshot serving now, for a request to hold for its whole life.
+    /// The holder, serving `published` from the moment it exists.
+    #[must_use]
+    pub fn of(published: Published) -> Self {
+        Self(RwLock::new(Arc::new(published)))
+    }
+
+    /// The published set serving now, for a request to take its entry's snapshot from.
+    ///
+    /// # Panics
+    ///
+    /// As [`load`](Current::load).
+    #[must_use]
+    pub fn published(&self) -> Arc<Published> {
+        Arc::clone(&self.0.read().expect("the snapshot lock is never poisoned"))
+    }
+
+    /// The host's snapshot serving now, for a request to hold for its whole life.
     ///
     /// # Panics
     ///
@@ -381,7 +585,13 @@ impl Current {
     /// is already unwinding through something else.
     #[must_use]
     pub fn load(&self) -> Arc<Snapshot> {
-        Arc::clone(&self.0.read().expect("the snapshot lock is never poisoned"))
+        Arc::clone(
+            &self
+                .0
+                .read()
+                .expect("the snapshot lock is never poisoned")
+                .host,
+        )
     }
 
     /// Publishes `next`, after carrying the running snapshot's `Boot` values into it.
@@ -421,7 +631,38 @@ impl Current {
         let mut next = next;
         let boot = self.load().carry_boot(&mut next, keep)?;
         let snapshot = Arc::new(next);
-        *self.0.write().expect("the snapshot lock is never poisoned") = Arc::clone(&snapshot);
+        let set = Published::host_only(Arc::clone(&snapshot));
+        *self.0.write().expect("the snapshot lock is never poisoned") = Arc::new(set);
+        Ok(Reload { snapshot, boot })
+    }
+
+    /// Publishes the set built from `next` as the host's snapshot and `blocks` as its roster,
+    /// with every file in `entries` matched before anything is swapped.
+    ///
+    /// The `Boot` carry runs on the host's tree first, so every entry's snapshot is folded over
+    /// the running value of each `Boot` key. [`Reload::snapshot`] is the host's.
+    ///
+    /// # Errors
+    ///
+    /// As [`publish`](Current::publish), and as [`Published::new`]. Either leaves the previous set
+    /// serving.
+    ///
+    /// # Panics
+    ///
+    /// As [`publish`](Current::publish).
+    pub fn publish_set(
+        &self,
+        next: Snapshot,
+        blocks: AppBlocks,
+        entries: &[PathBuf],
+        files: &dyn Files,
+        keep: &[&str],
+    ) -> Result<Reload, Diagnostic> {
+        let mut next = next;
+        let boot = self.load().carry_boot(&mut next, keep)?;
+        let snapshot = Arc::new(next);
+        let set = Published::new(Arc::clone(&snapshot), blocks, entries, files)?;
+        *self.0.write().expect("the snapshot lock is never poisoned") = Arc::new(set);
         Ok(Reload { snapshot, boot })
     }
 }

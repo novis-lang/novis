@@ -92,7 +92,7 @@ pub use export::{DEFAULT_MAX_SERIES, Exporter, Metering, Tracing};
 pub use request::Request;
 pub use resolve::{Origin, Override, Resolved, Roots};
 pub use server::{Capacity, ConnectionBounds, Waits};
-pub use snapshot::{Current, Reload, Snapshot};
+pub use snapshot::{AppBlocks, Current, Published, Reload, Snapshot};
 pub use tree::{Config, Setting};
 pub use value::{Quantity, Unit};
 
