@@ -241,6 +241,20 @@
 //! message names a value with read off it rather than out of a second
 //! structure.
 //!
+//! # What a list decode costs
+//!
+//! **A decode is linear in the document, and so is its issue list.** An
+//! `array<T>` field reports every bad position, as
+//! `rule:core-classes/derive-reports-every-field` asks, so a list of n bad
+//! elements throws with n issues, each path the field's own plus one position.
+//! That is work in proportion to what the sender wrote, which the decode
+//! already does by reading it, and the request body's cap bounds both. A
+//! position's path is formatted only where it is needed — an issue, or the
+//! prefix a nested class, shape or list reports its own issues under — so a
+//! list of scalars that decodes cleanly formats none. A whole document that is
+//! a list, [`decode_each`], stops at the first bad element instead: which of the
+//! two a list field should do is not a cost question, and it stays as written.
+//!
 //! # Known gaps
 //!
 //! Each gap is a record, and `bun nv gaps --module crates/nvs-stdlib/src/json.rs` lists them.
@@ -3264,7 +3278,6 @@ unsafe fn decode_positions(
     let mut decoded = NvsArray::new();
     let mut issues: Vec<(String, String)> = Vec::new();
     for at in 0..source.count() {
-        let at_path = format!("{path}.{at}");
         // A JSON object reads back as one `NvsArray` too, so a position that
         // is not there is `{"a": 1}` arriving where a list was declared —
         // `decode_each` tells the two apart the same way.
@@ -3279,7 +3292,10 @@ unsafe fn decode_positions(
         };
         // A nested object at a position, whichever of the two kinds it is: a
         // declared class and an inline shape are one walk over two tables, and
-        // [`decode_element`] reads both out of the field's own index.
+        // [`decode_element`] reads both out of the field's own index. A nested
+        // element is handed its path as the prefix of its own issues; a scalar
+        // builds its path only when it fails, so a list that decodes cleanly
+        // formats none.
         let nested = match element.ty {
             CodecTy::Class | CodecTy::Shape =>
             {
@@ -3288,7 +3304,7 @@ unsafe fn decode_positions(
                     reason = "the element descriptor `nvs-codegen` resolved out of the \
                               owner's own class table"
                 )]
-                Some(unsafe { decode_element(ctx, contract, index, item, &at_path) })
+                Some(unsafe { decode_element(ctx, contract, index, item, &format!("{path}.{at}")) })
             }
             CodecTy::List => Some(match element.element.as_deref() {
                 #[expect(
@@ -3297,7 +3313,7 @@ unsafe fn decode_positions(
                               link further down the element chain"
                 )]
                 Some(inner) => unsafe {
-                    decode_positions(ctx, contract, index, inner, item, &at_path)
+                    decode_positions(ctx, contract, index, inner, item, &format!("{path}.{at}"))
                 },
                 // Unreachable from source, as [`decode_list`]'s own missing
                 // element is: `nvs_types::derive` writes a `List` and the link
@@ -3325,7 +3341,7 @@ unsafe fn decode_positions(
         let converted = unsafe { scalar(element.ty, cases, item, contract.reading) };
         let Some(value) = converted else {
             issues.push((
-                at_path,
+                format!("{path}.{at}"),
                 format!("expected {}, found {}", wanted(element.ty), describe(item)),
             ));
             continue;

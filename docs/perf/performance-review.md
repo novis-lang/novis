@@ -97,8 +97,9 @@ a full cache empties itself whole (fixed, under *What got better* in
 
 **Read:** encode, decode, `decodeAs` and its issue paths, and the depth bounds of each.
 
-**Found:** `decodeAs` builds a path for every list element and an issue for every bad one
-([`decode-positions-reports-every-bad-element`](../../data/gaps/nvs-stdlib/decode-positions-reports-every-bad-element.json)).
+**Found:** `decodeAs` builds a path for every list element and an issue for every bad one. Both
+are linear in the document; the path is now built only where an issue or a nested element needs it,
+and the bound is stated in `crates/nvs-stdlib/src/json.rs` § *What a list decode costs*.
 
 **Bounded:** encode's cycle check scans the ancestor stack per container, and a field prefix is
 copied once per nested class level. Both are bounded by `DEPTH_CEILING` (1024).

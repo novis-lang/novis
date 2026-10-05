@@ -306,3 +306,7 @@ The ladders `bun nv scaling` judged flat: `arrays/sort`, `compiler/functions`, `
 
 `Core\Request::cookie` and `::header` walk every header line on each call. The server answers
 `431` from 100 header lines, so each walk is bounded by a constant and is not a growth defect.
+
+`Core\Json::decodeAs` reports every bad element of an `array<T>` field, one issue each. That is
+linear in the document, as the decode is. A clean list of scalars no longer formats a path per
+element; `crates/nvs-stdlib/src/json.rs` § *What a list decode costs* states the bound.
