@@ -1,29 +1,25 @@
 {
-  "state": "**Side goal `narrow-a-readonly-property`, stage 2 under way.** E0782 now refuses a `readonly` write whose receiver is not `$this`, inside the declaring constructor too (`reject_readonly_write`), guarded by `tests/conformance/reject/readonly-is-written-only-through-this.nvst`. Still open in stage 2: a second write on one constructor path, a hook on `readonly`, and the writers the checker does not see. Stages after it (the narrowing itself, the checked read, E0459's help) are untouched. The goal's prose has the user's calls from 2026-10-05. `bun nv verify` is green except its `extension` step, which fails in this worktree on missing `@types/node` (the extension's npm dependencies are not installed here); no TypeScript was touched.",
+  "state": "**Side goal `narrow-a-readonly-property`, stage 2 nearly closed.** E0782 refuses a `readonly` write through another receiver (`crates/nvs-types/src/expr/assign.rs`, `reject_readonly_write`), a second write on one constructor path, a write inside a constructor loop, and a body write to a promoted `readonly` parameter (`crates/nvs-types/src/ctor_init.rs`, `InitState::write`; its module doc says how the union join works). The new E0843 refuses a hook on `readonly` in the parser, beside E0249. All four cases of the `readonly-is-written-once` check are on disk and pass. Still open in stage 2 is item 3, the writers the checker does not see. Stages 3 and 4 are untouched: the narrowing, the checked read, and E0459's help. The `extension` step of `bun nv verify` fails in this worktree because `@types/node` is not installed. No TypeScript was touched.",
   "next": {
     "stage": 2,
     "title": "`readonly` is written once",
     "files": [
-      "crates/nvs-types/src/ctor_init.rs",
-      "crates/nvs-types/src/check.rs",
-      "crates/nvs-diagnostics/src/lib.rs"
+      "crates/nvs-types/src/expr/assign.rs",
+      "crates/nvs-types/src/ctor_init.rs"
     ],
     "items": [
       {
         "done": false,
-        "text": "**At most once on each path**, a promoted parameter and a constructor loop included; a second write keeps E0782 — `crates/nvs-types/src/ctor_init.rs:1`"
+        "text": "**The writers the checker does not see**: a shape receiver (`ExprInfo::ShapeProperty`, no declaring class), reflection, filling from a row or JSON, and `clone`. Each one refuses `readonly` or is shown not to write it. Also check inside the constructor: a destructuring target `[$this->a] = ...`, an element write `$this->list[0] = ...`, and a `$this->x = ...` inside an anonymous function. `ctor_init` sees none of these as a write, and `rule:classes/lateinit-restrictions` gives the contract — `crates/nvs-types/src/expr/assign.rs:1116`, `crates/nvs-types/src/ctor_init.rs:640`"
       },
       {
         "done": false,
-        "text": "**No hook on `readonly`**: one new code, taken right before it is written — `crates/nvs-types/src/check.rs`, `crates/nvs-diagnostics/src/lib.rs:4378`"
-      },
-      {
-        "done": false,
-        "text": "**The writers the checker does not see**: shape receivers, reflection, filling from a row or JSON, `clone` — each refuses `readonly` or is shown not to write it — `crates/nvs-types/src/expr/assign.rs:1114`"
+        "text": "**Stage 3 starts once this is closed**: a null test narrows a path of `readonly` links (`rule:types/narrowing`) — `crates/nvs-types/src/locals.rs:1`"
       }
     ]
   },
   "backlog": [
-    "A closure created inside the constructor and writing `$this->id` is still exempt, because `ctx.in_constructor` is what is read; decide whether stage 2's once-per-path check covers it — `crates/nvs-types/src/expr/assign.rs:1130`."
+    "A `switch` case that falls through into the next one: `ctor_init` walks each case from the mark, so a write in both cases is not seen as a second write. Check whether Novis allows fall-through at all (`crates/nvs-types/src/ctor_init.rs`).",
+    "Stage 4 owes a rule fragment for \"written once\". The code cites `rule:classes/lateinit-restrictions` until it exists."
   ]
 }
