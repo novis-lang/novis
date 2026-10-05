@@ -1,24 +1,24 @@
 {
-  "state": "**Goal `performance-pass`, Stage 5 (the fixes).** Stage 4's review is whole (`docs/perf/performance-review.md`, ending in `## floor`). Old refusals have not been priced again yet.\n\n**The event-stream reader reads each part of a reply once.** `EventScan` in `crates/nvs-stdlib/src/http/stream.rs` keeps the parse of one event across the pulls of one `step`, and `line_from` resumes its search for a line end, so `lines()` gains the same. The ladder `benches/scaling/http-client/event-size.nvs` (a `fetch` ladder, server `event-size/server.nvs`) grew with bytes slope 1.92 before and is flat after (`docs/perf/performance-pass.md` § *What got better*). `target/release/nvs.exe` was rebuilt at this change.\n\n**20 gap records owned by `performance-pass`** keep `owners --closes performance-pass` red (`bun nv owners --closes performance-pass` lists them). *Decisions for you* in `docs/perf/performance-pass.md` has two entries: a total deadline for the request head, and `Markup` concatenation in place.",
+  "state": "**Goal `performance-pass`, Stage 5 (the fixes).** Stage 4's review is whole (`docs/perf/performance-review.md`, ending in `## floor`). Old refusals have not been priced again yet.\n\n**The regex cache answers what a fresh compile would.** In `crates/nvs-stdlib/src/regex.rs`, `compiled_prepared` asks the memory ceiling for the entry's stored `search_cost` on every hit, keys on whether the compiler forced the backtracking tier, and evicts the least recently used entry one at a time (module doc § *What a compiled pattern costs*). Three unit tests cover it. The double automaton build on a miss stays, as a stated once-per-miss bound in `search_cost`'s doc. Its gap record is deleted (`docs/perf/performance-pass.md` § *What got better*).\n\n**19 gap records owned by `performance-pass`** keep `owners --closes performance-pass` red (`bun nv owners --closes performance-pass` lists them). `bun nv scaling --check` passes, with `numbers/bigint-mul` unclear. *Decisions for you* in `docs/perf/performance-pass.md` has two entries: a total deadline for the request head, and `Markup` concatenation in place.",
   "next": {
     "stage": 5,
-    "title": "the fixes, the regex cache",
+    "title": "the fixes, the cache tier's order queue",
     "files": [
-      "crates/nvs-stdlib/src/regex.rs"
+      "crates/nvs-stdlib/src/cache.rs"
     ],
     "items": [
       {
         "done": false,
-        "text": "**A regex cache hit runs the memory check too** (`crates/nvs-stdlib/src/regex.rs:987`), per `data/gaps/nvs-stdlib/a-regex-cache-hit-skips-the-memory-check.json`. `affordable(search_cost)` runs only on a miss in `compiled_prepared` (`crates/nvs-stdlib/src/regex.rs:965`), and `prepared` is not in the key. Move the check to every use and put the engine in the key. Rule: the goal's base rule, and the priority ordering (a correctness defect first)."
+        "text": "**A forgotten cache key takes its eviction slot with it** (`crates/nvs-stdlib/src/cache.rs:976`), per `data/gaps/nvs-stdlib/a-forgotten-cache-key-leaves-its-order-slot.json`. `Entries::forget` leaves its slot in `order`, and a later `put` of the same key pushes a second one (`crates/nvs-stdlib/src/cache.rs:953`), so put, forget and put grows `order` with traffic when `max_size` is off. A put with an elapsed lifetime (`crates/nvs-stdlib/src/cache.rs:935`) takes the same path. Rule: AGENTS.md priority ordering (O(in-flight), not O(requests served))."
       },
       {
         "done": false,
-        "text": "**The regex cache evicts one entry, and a miss builds once** (`crates/nvs-stdlib/src/regex.rs:994`), per the same gap record: past `CACHE_CAPACITY` the cache clears whole, and `build` (`crates/nvs-stdlib/src/regex.rs:1051`) runs twice per miss. Ladder `benches/scaling/regex/patterns.nvs`, 255, 257 and 512 distinct patterns in rotation. Rule: the goal's base rule."
+        "text": "**An expired entry is removed on `get`** (`crates/nvs-stdlib/src/cache.rs:985`), per the same gap record, so keys written once with a lifetime do not stay forever with the cap off. Ladder `benches/scaling/cache/forget.nvs` under `serve` if the counts can see it."
       }
     ]
   },
   "backlog": [
-    "The other gap records owned by `performance-pass`: `bun nv owners --closes performance-pass`.",
-    "`nvs lsp` grows near-quadratically with document size: `docs/perf/performance-pass.md` § *What we found*."
+    "18 more gap records owned by `performance-pass`: `bun nv owners --closes performance-pass`.",
+    "`numbers/bigint-mul` is unclear in `bun nv scaling --check`; it belongs under *Benches to look at* in `docs/perf/performance-pass.md` if it is not there yet."
   ]
 }
