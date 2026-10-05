@@ -23,6 +23,10 @@
     "tests/conformance/lang/a-ternary-and-a-short-circuit-operand-are-narrowed-like-an-if.nvst",
     "tests/conformance/reject/narrowing-in-a-ternary-or-an-and-stops-at-its-end.nvst",
     "tests/conformance/lang/the-block-of-an-and-condition-and-the-code-after-an-or-guard-are-narrowed-by-both-operands.nvst",
+    "tests/conformance/class/a-null-test-narrows-a-readonly-property.nvst",
+    "tests/conformance/class/a-null-test-narrows-a-path-of-readonly-properties.nvst",
+    "tests/conformance/reject/a-write-to-the-root-variable-widens-a-narrowed-property.nvst",
+    "crates/nvs-ir/tests/narrowed_property_reads.rs",
     "crates/nvs-types/tests/narrowing.rs"
   ]
 }

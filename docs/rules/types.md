@@ -996,9 +996,16 @@ case-subset type is reached ([`types/enum-case-type`](types.md#types-enum-case-t
 have to be stated again for `!=`, `&&`, `||` and negation, where `as` says the same thing in one
 place.
 
-The subject of every spelling is a **binding**, named. A property, an element or any other place is
-never the thing narrowed: `$e->previous != null` proves nothing about the next read of
-`$e->previous`, so a nullable one is reached through `?->` or bound to a local and tested there.
+The subject of every spelling is a **binding**, named, or a **path of `readonly` properties** from
+one — `$this->node`, `$app->config->parent` — where every property on the path is `readonly`. A
+`readonly` property is written once, during construction, so a test of it still holds at the next
+read. A write to the path's root binding widens the path again, exactly as it widens the binding.
+The narrowed read of a property keeps a run-time null check, which a narrowed binding does not: a
+write the checker could not see throws a `LogicError` naming the property, and never reads `null` as
+an object. A mutable property, an element or any other place is never the thing narrowed:
+`$e->previous != null` proves nothing about the next read of a mutable `$e->previous`, because a
+call in between may have written it, so a nullable one is reached through `?->` or bound to a
+local and tested there.
 
 Narrowing never changes a binding's declared type ([`types/declaration`](types.md#types-declaration)); it changes what the
 checker knows about it on one path. A value that has to *stay* narrowed is a second binding at the

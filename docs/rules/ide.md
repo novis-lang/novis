@@ -3,7 +3,7 @@
 
 # The editor
 
-*60 of 83 rules below are **designed** rather than shipped, and are marked where they appear.*
+*59 of 83 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="ide-one-grammar-one-tree"></a>
 
@@ -668,7 +668,7 @@ applying it changes what the line prints, which is why it is a refactor and not 
 
 <a id="ide-a-list-splits-onto-lines-and-joins-onto-one"></a>
 
-## A list, a call chain or an operator chain is offered *Put on separate lines* or *Join onto one line*, an action the server computes from the tree and that changes only line breaks  *(designed — not yet in the compiler)*
+## A list, a call chain or an operator chain is offered *Put on separate lines* or *Join onto one line*, an action the server computes from the tree and that changes only line breaks
 
 `rule:ide/a-list-splits-onto-lines-and-joins-onto-one`
 

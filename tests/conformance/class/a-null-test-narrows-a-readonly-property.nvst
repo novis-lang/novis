@@ -1,0 +1,79 @@
+--TEST--
+A null test or an `is` test narrows a `readonly` property, through `$this` and through a variable, on the same edges as a variable — `rule:types/narrowing`
+--FILE--
+<?nvs
+// A `readonly` property is written once, in the constructor. After a test
+// shows it is not `null`, you can call its methods without `?->`.
+final class Node
+{
+    public function constructor(public string $name) {}
+
+    public function label(): string
+    {
+        return "node " . $this->name;
+    }
+}
+
+final class Holder
+{
+    public readonly ?Node $node;
+
+    public function constructor(?Node $node)
+    {
+        $this->node = $node;
+    }
+
+    public function describe(): string
+    {
+        // Inside this block, `$this->node` is a `Node`.
+        if ($this->node != null) {
+            return $this->node->label();
+        }
+        return "empty";
+    }
+
+    public function describeOrStop(): string
+    {
+        // After this guard clause, `$this->node` is a `Node`.
+        if ($this->node == null) {
+            return "stopped";
+        }
+        return $this->node->label();
+    }
+}
+
+var $full = new Holder(new Node("a"));
+var $empty = new Holder(null);
+
+echo $full->describe(), "\n";
+echo $empty->describe(), "\n";
+echo $full->describeOrStop(), "\n";
+echo $empty->describeOrStop(), "\n";
+
+// The same test works through a variable.
+if ($full->node != null) {
+    echo $full->node->label(), "\n";
+}
+
+// `is` narrows the property on its true edge.
+if ($full->node is Node) {
+    echo $full->node->name, "\n";
+}
+
+// The right side of `&&` sees the narrowed property.
+echo $full->node != null && $full->node->name == "a" ? "yes" : "no", "\n";
+
+// Each arm of `match (true)` sees what its own test showed.
+echo match (true) {
+    $empty->node != null => $empty->node->label(),
+    default => "no node",
+}, "\n";
+--EXPECT--
+node a
+empty
+node a
+stopped
+node a
+a
+yes
+no node

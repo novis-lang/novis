@@ -1,0 +1,47 @@
+--TEST--
+A null test narrows a path of `readonly` properties, such as `$this->config->parent`, when every property on the path is `readonly` — `rule:types/narrowing`
+--FILE--
+<?nvs
+// Every property on the path `$this->config->parent` is `readonly`.
+// After one test, the whole path is not `null` inside the block.
+final class Config
+{
+    public function constructor(
+        public readonly string $name,
+        public readonly ?Config $parent,
+    ) {}
+}
+
+final class App
+{
+    public function constructor(public readonly Config $config) {}
+
+    public function parentName(): string
+    {
+        if ($this->config->parent != null) {
+            return $this->config->parent->name;
+        }
+        return "none";
+    }
+}
+
+var $base = new Config("base", null);
+var $child = new Config("child", $base);
+
+echo new App($child)->parentName(), "\n";
+echo new App($base)->parentName(), "\n";
+
+// The same path works from a variable, and a test inside the block
+// narrows the next property on the path.
+var $app = new App($child);
+if ($app->config->parent != null) {
+    echo $app->config->parent->name, "\n";
+    if ($app->config->parent->parent == null) {
+        echo "the base has no parent", "\n";
+    }
+}
+--EXPECT--
+base
+none
+base
+the base has no parent
