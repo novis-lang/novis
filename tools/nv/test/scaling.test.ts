@@ -1,8 +1,8 @@
 import { expect, test } from "bun:test";
 import { join } from "node:path";
 import {
-  agrees, AREAS, type Batch, batchSizes, boundsOf, CEILING, compileCounts, COUNT_BOUND, countsAgree, increments, judgeCounts, type Judged, ladderOf, ladderSizes, LSP_URI, lspFrame, lspScript, missingAreas,
-  HEADER_VALUE, PEAK_SLACK, PER_CONNECTION, peakGrows, printedFiles, proposed, rebased, serveShape, slopeOf, START, withBatch,
+  agrees, AREAS, type Batch, batchSizes, boundsOf, CEILING, clockFlat, compileCounts, COUNT_BOUND, countsAgree, increments, judgeCounts, type Judged, ladderOf, ladderSizes, LSP_URI, lspFrame, lspScript, missingAreas,
+  HEADER_VALUE, PEAK_SLACK, PER_CONNECTION, peakGrows, printedFiles, proposed, rebased, serveShape, SHAPED_REQUESTS, slopeOf, START, withBatch,
 } from "../cmd/scaling.ts";
 import { ROOT } from "../lib/paths.ts";
 
@@ -112,6 +112,14 @@ test("a serve ladder's size defaults to requests, belongs to serve alone, and sh
   expect(serveShape("query", 3).path).toBe("/?p0=value&p1=value&q=1");
   expect(serveShape("form", 3).shape.body!.toString()).toBe("p0=value&p1=value&q=1");
   expect(serveShape("connections", 8)).toMatchObject({ requests: 8 * PER_CONNECTION, concurrency: 8 });
+  expect(serveShape("routes", 512)).toEqual({ path: "/last", shape: {}, requests: SHAPED_REQUESTS, concurrency: 1 });
+});
+
+test("a clock whose slope is unread is flat only when the largest size stays near the smallest", () => {
+  const at = (ns: number[]): Batch[] => ns.map((n, i) => ({ size: 256 << i, counts: {}, ns: n }));
+  expect(clockFlat(at([100, 90, 110, 105, 120]))).toBe(true);
+  expect(clockFlat(at([100, 90, 110, 105, 130]))).toBe(false);
+  expect(clockFlat(at([100]))).toBe(false);
 });
 
 test("an area needs a ladder in its folder, and with a review, a section headed with its name", () => {

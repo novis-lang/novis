@@ -1,28 +1,28 @@
 {
-  "state": "**Goal `performance-pass`, Stage 5 (the fixes).** Stage 4's review is whole (`docs/perf/performance-review.md`, ending in `## floor`).\n\n**A `class<T>` conversion site is a lookup.** `Classes::conforming` in `crates/nvs-codegen/src/lib.rs` holds one sorted list per supertype, built once in `Classes::build`; `conforming_to` reads it. Figures in `docs/perf/performance-pass.md` § *What got better*, gap record deleted. Ladder `benches/scaling/compiler/class-sites.nvs` is flat, but a `compile` ladder's clock is `nvs check`'s, which stops before code generation, so no ladder kind sees codegen cost: the fix was timed by hand with a cold `nvs run` (the artifact cache hides every run after the first, so each timed program gets a unique trailing comment).\n\n**11 gap records owned by `performance-pass`** keep `owners --closes performance-pass` red (`bun nv owners --closes performance-pass` lists them). `bun nv scaling --check` was red at the last sweep and was not re-run this session; read its output first next session. *Decisions for you* in `docs/perf/performance-pass.md` has two entries: a total deadline for the request head, and `Markup` concatenation in place.",
+  "state": "**Goal `performance-pass`, Stage 5 (the fixes).** Stage 4's review is whole (`docs/perf/performance-review.md`, ending in `## floor`).\n\n**Route dispatch is a prefix trie.** `Prefix` in `crates/nvs-runtime/src/routes.rs` narrows which rows `match_request` and `methods_for` compare; the rank comparison and its load-order tie-break are unchanged. Ladder `benches/scaling/request/routes.nvs` uses the new `size routes` of `bun nv scaling` and is flat on the new binary, grows (slope 1.06) on the old one. A `serve` ladder with an unread clock slope is now flat when its largest size is within `CLOCK_FLAT` of its smallest (`tools/nv/cmd/scaling.ts`). Figures in `docs/perf/performance-pass.md` § *What got better*; gap record deleted.\n\n**10 gap records owned by `performance-pass`** keep `owners --closes performance-pass` red. `bun nv scaling --check` (all ladders) was not re-run this session; run it first next session to learn which ladder is red. *Decisions for you* has two entries: a total deadline for the request head, and `Markup` concatenation in place.",
   "next": {
     "stage": 5,
-    "title": "the fixes, route dispatch",
+    "title": "the fixes, the scheduler's scans",
     "files": [
-      "crates/nvs-runtime/src/routes.rs",
-      "crates/nvs-server/src/route.rs",
-      "benches/scaling/request/"
+      "crates/nvs-host/src/scheduler.rs",
+      "crates/nvs-host/src/channel.rs",
+      "benches/scaling/scheduler/"
     ],
     "items": [
       {
         "done": false,
-        "text": "**A request is matched through an index over the routes, not against every row** (`crates/nvs-runtime/src/routes.rs:674`), per `data/gaps/nvs-runtime/route-matching-tries-every-route.json`: `match_request` runs `fill` (`crates/nvs-runtime/src/routes.rs:440`) on every row; a first-segment index or a trie makes it O(path length). The table is built once at `crates/nvs-server/src/route.rs:98`. Match order and which route wins must not change. Rule: AGENTS.md priority ordering."
+        "text": "**A scheduler turn and a finished child do not scan every parked task or sibling** (`crates/nvs-host/src/scheduler.rs:977`), per `data/gaps/nvs-host/a-scheduler-turn-scans-every-parked-task.json`: `run()` collects `doomed` over the whole `parked` map on every reactor wake; `retire` and `detach` (`crates/nvs-host/src/scheduler.rs:422`) `retain` over the parent's children; `Drop for Waiter` (`crates/nvs-host/src/channel.rs:183`) is a `position` over the queue. Ladders `scheduler/parked.nvs` and `scheduler/fan-out.nvs`, flat per task. Rule: AGENTS.md priority ordering."
       },
       {
         "done": false,
-        "text": "**A ladder proves it** — `benches/scaling/request/routes.nvs`, `serve` kind, N page classes each with a route and the last one requested, shaped like `benches/scaling/request/fields.nvs:1`. Rule: AGENTS.md priority ordering."
+        "text": "**A channel send finds its own waiters without scanning the core's** (`crates/nvs-stdlib/src/channel.rs:285`), per `data/gaps/nvs-stdlib/a-channel-send-scans-every-waiter-on-the-core.json`: a map from channel to its waiters and a ticket-keyed slab. Ladder `scheduler/waiters.nvs`. Rule: AGENTS.md priority ordering."
       }
     ]
   },
   "backlog": [
-    "`bun nv scaling --check` red at the last sweep: read which ladder first (`benches/scaling/README.md`).",
-    "The remaining 10 gaps from `bun nv owners --closes performance-pass`: scheduler and channel waiter scans (`crates/nvs-host/src/scheduler.rs`, `crates/nvs-stdlib/src/channel.rs`), the LSP index and re-analysis (`crates/nvs-lsp/src/index.rs`, `crates/nvs-lsp/src/server.rs`), the queue (`crates/nvs-stdlib/src/queue.rs`), JSON decode positions, identity hash depth, WebSocket buffer ceiling, task stack size.",
-    "No `scaling` kind times code generation; a `compile` ladder only reaches `nvs check` (`tools/nv/cmd/scaling.ts`, the `COMPILE` measure).",
-    "`bun nv proofs --gate` red at the last sweep (stage 6)."
+    "`crates/nvs-lsp/src/index.rs` and `crates/nvs-lsp/src/server.rs`: the two editor gaps, one file set (`data/gaps/nvs-lsp/`).",
+    "`crates/nvs-stdlib/src/queue.rs`: claim sorts every due row, and finished jobs kept until purged (`data/gaps/nvs-stdlib/`).",
+    "`crates/nvs-runtime/src/identity.rs`, `crates/nvs-stdlib/src/json.rs`, `crates/nvs-server/src/socket.rs`, `crates/nvs-host/src/stack.rs`: one gap each (`data/gaps/`).",
+    "A `compile` ladder's clock is `nvs check`'s and never sees code generation (`tools/nv/cmd/scaling.ts` module doc)."
   ]
 }

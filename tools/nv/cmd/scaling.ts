@@ -37,7 +37,10 @@
 // is reported. Above `CLOCK_BOUND` it counts only when a second run of the same batches agrees, because
 // the clock is the second signal and never the first. Even then it does not fail a bench whose counts
 // settled within their bound: the second run shares the first one's machine load, so callgrind
-// settles it, as below. A clock increment at or under zero leaves the clock's slope unread.
+// settles it, as below. A clock increment at or under zero leaves the clock's slope unread. A kind with
+// no counts whose slope is unread is flat when the clock at the largest size is within `CLOCK_FLAT` of
+// the clock at the smallest: over three doublings, linear work that is more than a few percent of the
+// load at the smallest size could not stay inside it.
 //
 // A bench that reaches the ceiling and has not agreed, or whose clock grew twice, runs the same batches again under
 // `valgrind --tool=callgrind`, in WSL on Windows, with the Linux binary `--wsl-nvs` names. Callgrind's
@@ -63,7 +66,7 @@
 // the cursor, timed from the open to the last answer so the server's start-up is outside it. Callgrind
 // runs the same session with its messages piped in from a file.
 //
-// `serve` is the one kind whose copy is not rewritten: the ladder is the program every request runs,
+// `serve` is the one kind whose copy is not rewritten but for one size: the ladder is the program every request runs,
 // and `// scaling: size` names what the size counts (`SERVE_SIZES`, `serveShape`). At each size the
 // tool boots `nvs serve` on the copy, on a free port, sends the load with `bun nv bench`'s client, and
 // stops the server. `requests`, the default, is that many GETs over one keep-alive connection. `headers`,
@@ -71,7 +74,10 @@
 // header of that many bytes, or that many query parameters, the last of them `q`; `body-bytes` sends as
 // many POSTs whose body is that many bytes, and `form` as many whose body is that many urlencoded
 // fields, named as `query` names its parameters. `connections` opens that many keep-alive connections before
-// the clock starts and sends `PER_CONNECTION` requests over each, all at once. The clock is the load's,
+// the clock starts and sends `PER_CONNECTION` requests over each, all at once. `routes` is the one
+// `serve` size that rewrites the copy: the ladder prints a program declaring that many routes, as a
+// `compile` ladder does, the tool serves the printed program, and sends `SHAPED_REQUESTS` GETs to
+// `ROUTES_PATH`, the last route it declares. The clock is the load's,
 // from the first request to the last answer, and the fastest of `--reps` boots. The server prints no
 // counts, so the clock decides as it does for `fmt`, and a clock slope left unread is reported invalid,
 // because a server is not run under callgrind. Its peak memory, the most the OS saw the server process
@@ -254,6 +260,16 @@ export function judgeCounts(batches: Batch[], keys: readonly string[] = COUNTS, 
 
 const clockSlope = (batches: Batch[]) => slopeOf(increments(batches, (b) => b.ns));
 
+/** How far a kind with no counts may see its clock rise from the smallest size to the largest and
+ * still be flat, when its increments are too small to give a slope. */
+export const CLOCK_FLAT = 0.25;
+
+/** Whether the clock at the largest size is within `CLOCK_FLAT` of the clock at the smallest. */
+export function clockFlat(batches: Batch[]): boolean {
+  if (batches.length < 2) return false;
+  return batches.at(-1)!.ns <= batches[0]!.ns * (1 + CLOCK_FLAT);
+}
+
 /** The steepest a ramp's counts and its clock may grow. */
 export interface Bounds {
   count: number;
@@ -282,7 +298,10 @@ export const AREAS = [
 ] as const;
 
 /** What a `serve` ladder's size counts; the first is the default. */
-export const SERVE_SIZES = ["requests", "headers", "header-bytes", "body-bytes", "query", "form", "connections"] as const;
+export const SERVE_SIZES = ["requests", "headers", "header-bytes", "body-bytes", "query", "form", "connections", "routes"] as const;
+
+/** The path every request of a `size routes` load asks for: the last route the printed program declares. */
+export const ROUTES_PATH = "/last";
 
 /** How many requests one load sends when the size shapes each request rather than counting them. */
 export const SHAPED_REQUESTS = 1024;
@@ -661,6 +680,8 @@ export function serveShape(what: string, n: number): { path: string; shape: Http
       return { ...one, shape: { body: Buffer.from(fields(n), "latin1") } };
     case "connections":
       return { ...one, requests: n * PER_CONNECTION, concurrency: n };
+    case "routes":
+      return { ...one, path: ROUTES_PATH };
     default:
       throw new PerfError(`\`size ${what}\` has no load`);
   }
@@ -711,17 +732,21 @@ export function peakGrows(batches: Batch[]): string | null {
 
 /** The program every request runs, under the load its size `what` shapes: the clock of the whole load,
  * and the server's peak memory, which `peakGrows` holds flat when the size counts requests served. */
-const serve = (what: string): Measure => ({
-  keys: [],
-  rewrites: false,
-  take: async (copy, bench, opts, size) => {
-    const { ns, peak } = await serveLoad(copy, bench, opts, what, size);
-    return { counts: { peak }, ns };
-  },
-  clock: async (copy, bench, opts, size) => (await serveLoad(copy, bench, opts, what, size)).ns,
-  callgrind: (_copy, bench) => Promise.reject(new PerfError(`the clock's slope of ${bench} could not be read, and a \`serve\` ladder is not run under callgrind`)),
-  ...(what === "requests" ? { judge: peakGrows } : {}),
-});
+const serve = (what: string): Measure => {
+  // `routes` serves the program the ladder prints at this size; every other size serves the ladder.
+  const program = async (copy: string, bench: string, opts: Options) => (what === "routes" ? generate(copy, bench, opts) : copy);
+  return {
+    keys: [],
+    rewrites: what === "routes",
+    take: async (copy, bench, opts, size) => {
+      const { ns, peak } = await serveLoad(await program(copy, bench, opts), bench, opts, what, size);
+      return { counts: { peak }, ns };
+    },
+    clock: async (copy, bench, opts, size) => (await serveLoad(await program(copy, bench, opts), bench, opts, what, size)).ns,
+    callgrind: (_copy, bench) => Promise.reject(new PerfError(`the clock's slope of ${bench} could not be read, and a \`serve\` ladder is not run under callgrind`)),
+    ...(what === "requests" ? { judge: peakGrows } : {}),
+  };
+};
 
 /** `body`, run while an `nvs serve` of the `fetch` ladder's `<name>/server.nvs` listens on a free port
  * and `FETCH_URL_ENV` names it to every program `body` starts. */
@@ -825,6 +850,7 @@ async function rampAt(judged: Judged, source: string, literal: number, sizes: nu
   // A kind with no counts has only the clock, so the clock decides.
   if (!measure.keys.length && clockGrows) return { ...judged, verdict: "grows", notes: [...judged.notes, clockGrows] };
   if (!measure.keys.length && judged.clock !== null) return { ...judged, verdict: "flat" };
+  if (!measure.keys.length && clockFlat(batches)) return { ...judged, verdict: "flat", notes: [...judged.notes, `the clock's slope is unread, and the largest size took at most ${fixed(CLOCK_FLAT * 100, 0)}% longer than the smallest`] };
   // Counts that settled within their bound are not failed by the clock alone, since the second run
   // shares the first one's machine load: callgrind settles it.
   if (measure.keys.length && countsAgree(batches, measure.keys) && !clockGrows) return { ...judged, verdict: "flat" };

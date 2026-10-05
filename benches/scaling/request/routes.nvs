@@ -1,0 +1,28 @@
+<?nvs
+// Prints a program of n page classes, each with a route, and serves requests for the last route, as a large site with many pages does.
+// scaling: kind serve
+// scaling: size routes
+// scaling: start 256
+// scaling: max 4096
+// scaling: expect constant
+
+class Bench {
+    public static function run(uint $size): string {
+        array<string> $lines = ["<?nvs"];
+        uint $i = 0;
+        while ($i < $size) {
+            string $path = $i + 1 == $size ? "/last" : "/pages/p{$i}";
+            $lines[] = "class Page{$i} {";
+            $lines[] = "    #[Core\\Route(path: \"{$path}\", method: Core\\Http\\Method::Get, name: \"Page{$i}::show\")]";
+            $lines[] = "    #[Core\\Access(allow: Core\\Audience::Public)]";
+            $lines[] = "    public function show(): string { return \"page {$i}\"; }";
+            $lines[] = "}";
+            $i = $i + 1;
+        }
+        $lines[] = "?Core\\Router\\Match \$matched = Core\\Request::route();";
+        $lines[] = "echo \$matched == null ? \"none\" : (\$matched->name() ?? \"no name\"), \"\\n\";";
+        return Core\Str::join($lines, "\n") . "\n";
+    }
+}
+
+echo Bench::run(256);

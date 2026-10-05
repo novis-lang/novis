@@ -150,6 +150,18 @@ new binary in alternating rounds, took 12.5 to 14.1 s before and 8.2 to 11.2 s a
 is the one long function, which grows about 5 times for 4 times the sites with only four classes.
 It spends one label per edge of the class hierarchy for the life of the compiled unit.
 
+**A request is matched only against the routes that share its fixed prefix.** `match_request` ran
+`fill` on every row of the route table, so each request cost O(routes). The table now keeps a trie
+keyed by each row's leading fixed segments, built once when the table is (`Prefix` in
+`crates/nvs-runtime/src/routes.rs`). A request collects the rows along its own path and compares
+them in load order, so which route wins does not change. The ladder
+[`request/routes`](../../benches/scaling/request/routes.nvs) serves n routes and requests the last
+one: on the old binary the clock grows with slope 1.06, and 1.04 on a second run; on the new one
+the largest size is within 25% of the smallest. The ladder needed the new `size routes` of
+`bun nv scaling`. A table whose rows all begin with a capture still compares every row. It spends
+one trie node per distinct fixed prefix for the life of the table, and one list of candidate rows
+per request.
+
 **The `Core` signature table is built once per process.** Every check built the whole table from the
 registry, interned its types and freed it again. The first check now builds it into a frozen base
 (`crates/nvs-types/src/core_lib.rs`), and every check layers its own declarations and types over

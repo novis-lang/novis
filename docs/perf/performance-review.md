@@ -236,9 +236,8 @@ The 1.05 MB per task that *What we found* reports matches the 1 MiB stack every 
 **Read:** the route table and its dispatch, mounts, CORS, header and cookie reads, the policy
 snapshot, and the CSRF key.
 
-**Found:** a request is matched against every route in turn
-([`route-matching-tries-every-route`](../../data/gaps/nvs-runtime/route-matching-tries-every-route.json)),
-and form and query reads parse again per call, under the formats record.
+**Found:** a request is matched against every route in turn (fixed,
+[performance-pass.md § *What got better*](performance-pass.md#what-got-better)), and form and query reads parse again per call, under the formats record.
 
 **Bounded:** `[http] csrf_key` is base64-decoded on every request (`crates/nvs-cli/src/serve.rs:1052`),
 a constant per request. `Serving::policy` takes a read lock on one process-wide `RwLock` per request
