@@ -537,6 +537,15 @@ pub const INSERT_POSTGRES: &str = "with existing as (\
 /// scan what this one seeks. Which queues one worker asks about is [`QUEUES_POSTGRES`]'s question,
 /// asked one statement earlier and against the same two arms.
 ///
+/// **Each arm is its own `limit 1`, and the earlier of the two is the claim.** One `where` joining
+/// the arms with an `or` is a set no index returns in `run_at` order, so the server gathered and
+/// sorted every due row to take one, and draining a backlog of n was O(n²). Apart, the pending arm
+/// is a seek on `(queue, 0, run_at)` that stops at its first unlocked row, and the expired arm reads
+/// `state = 1` alone, which is the claims in flight. A claim is O(log n + in-flight), and the order
+/// is the one the single `order by run_at, id` gave. Each arm locks the row it found, so the arm that
+/// loses keeps one row locked until the statement ends, and another worker steps over it for that
+/// long.
+///
 /// **The claim clears `dedupe_pending`**, which is the moment the job stops being pending in the
 /// sense [`schema`]'s unique key means it: a second push of the same key is admitted from here on,
 /// and [`RETRY_POSTGRES`] is what puts the key back when an attempt did not return.
@@ -554,12 +563,19 @@ pub const INSERT_POSTGRES: &str = "with existing as (\
 /// **PostgreSQL's dialect, and [`CLAIM_MYSQL`] is § 4's claim where a data-modifying CTE cannot be
 /// had** — the same two arms, the same lock, and the same columns in the same order, taken by two
 /// statements inside one transaction rather than by one.
-pub const CLAIM_POSTGRES: &str = "with due as (\
-     select id from nvs_jobs \
-     where queue = $1::text \
-     and ((state = 0 and run_at <= $2::bigint) or (state = 1 and claimed_at <= $3::bigint)) \
+pub const CLAIM_POSTGRES: &str = "with pending as (\
+     select id, run_at from nvs_jobs \
+     where queue = $1::text and state = 0 and run_at <= $2::bigint \
      order by run_at, id limit 1 \
      for update skip locked\
+ ), expired as (\
+     select id, run_at from nvs_jobs \
+     where queue = $1::text and state = 1 and claimed_at <= $3::bigint \
+     order by run_at, id limit 1 \
+     for update skip locked\
+ ), due as (\
+     select id from (select id, run_at from pending union all select id, run_at from expired) as arms \
+     order by run_at, id limit 1\
  ) update nvs_jobs set state = 1, attempts = attempts + 1, claimed_at = $2::bigint, \
    dedupe_pending = null \
    where id in (select id from due) \
@@ -580,11 +596,10 @@ pub const CLAIM_POSTGRES: &str = "with due as (\
 /// answers nothing here, so a worker spends no claim on it. `$1` and `$2` are that statement's `$2`
 /// and `$3` — now, and the instant `[queue] visibility` before it.
 ///
-/// **What it costs, and the gap it leaves.** `distinct` over `(queue, state, run_at)` is a scan
-/// PostgreSQL will not turn into a skip-scan, so this is O(due rows) per idle turn rather than
-/// O(queues). That is the right trade while the alternative is a configuration key: a deployment
-/// whose due backlog is large enough for it to matter is one that wants a roster written down, and
-/// the roster is where this should move when § 2 grows one.
+/// **What it costs, and the gap it leaves.** No index is led by `state`, so this reads every due
+/// row, and `crates/nvs-cli/src/worker.rs`'s `turn` asks it before every round of claims. Draining
+/// a backlog of n on one queue is therefore O(n²) here, while each claim is O(log n). The gap
+/// record `the-roster-poll-reads-every-due-row` names the loose index scan that makes it O(queues).
 ///
 /// **PostgreSQL's dialect, and [`QUEUES_MYSQL`] is the same question asked in the other one** — one
 /// whole text each, per [`Split`]'s doc, since nothing here rests on a construct only PostgreSQL
@@ -837,14 +852,26 @@ pub const INSERT_SQLSERVER: Split = Split {
 /// The `update` is keyed by `id` rather than by a subquery, because [`Split::first`] has already
 /// named the row and holds its lock: PostgreSQL's `where id in (select id from due)` exists to
 /// reach its own CTE, and there is no CTE here to reach.
+///
+/// **The two arms are [`CLAIM_POSTGRES`]'s, each a locked `limit 1` in parentheses**, and the outer
+/// `select` keeps the earlier of the two. A `?` is a position and cannot be named twice, so
+/// [`Split::first`] binds four values where the other dialects bind three: the queue, now, the
+/// queue again, and the cutoff.
 pub const CLAIM_MYSQL: Split = Split {
     first: "select id, script, args, attempts + 1 as attempts, max_attempts, backoff_ms, errors, \
             grants, limits \
-            from nvs_jobs \
-            where queue = ? \
-            and ((state = 0 and run_at <= ?) or (state = 1 and claimed_at <= ?)) \
-            order by run_at, id limit 1 \
-            for update skip locked",
+            from (\
+            (select id, script, args, attempts, max_attempts, backoff_ms, errors, grants, limits, \
+            run_at from nvs_jobs \
+            where queue = ? and state = 0 and run_at <= ? \
+            order by run_at, id limit 1 for update skip locked) \
+            union all \
+            (select id, script, args, attempts, max_attempts, backoff_ms, errors, grants, limits, \
+            run_at from nvs_jobs \
+            where queue = ? and state = 1 and claimed_at <= ? \
+            order by run_at, id limit 1 for update skip locked)\
+            ) as arms \
+            order by run_at, id limit 1",
     then: "update nvs_jobs set state = 1, attempts = attempts + 1, claimed_at = ?, \
            dedupe_pending = null where id = ?",
 };
@@ -869,12 +896,24 @@ pub const CLAIM_MYSQL: Split = Split {
 ///
 /// The `update` is keyed by `id` for [`CLAIM_MYSQL`]'s reason as well: [`Split::first`] has named
 /// the row, and there is no CTE to reach back into.
+///
+/// **The two arms are [`CLAIM_POSTGRES`]'s**, each a `limit 1` inside its own subquery because a
+/// compound `select` here takes no `order by` on an arm. `?1` to `?3` name the three values, so the
+/// queue is bound once and read by both arms, and a caller sends what it sends every other dialect.
 pub const CLAIM_SQLITE: Split = Split {
     first: "select id, script, args, attempts + 1 as attempts, max_attempts, backoff_ms, errors, \
             grants, limits \
-            from nvs_jobs \
-            where queue = ? \
-            and ((state = 0 and run_at <= ?) or (state = 1 and claimed_at <= ?)) \
+            from (\
+            select * from (select id, script, args, attempts, max_attempts, backoff_ms, errors, \
+            grants, limits, run_at from nvs_jobs \
+            where queue = ?1 and state = 0 and run_at <= ?2 \
+            order by run_at, id limit 1) \
+            union all \
+            select * from (select id, script, args, attempts, max_attempts, backoff_ms, errors, \
+            grants, limits, run_at from nvs_jobs \
+            where queue = ?1 and state = 1 and claimed_at <= ?3 \
+            order by run_at, id limit 1)\
+            ) as arms \
             order by run_at, id limit 1",
     then: "update nvs_jobs set state = 1, attempts = attempts + 1, claimed_at = ?, \
            dedupe_pending = null where id = ?",
@@ -884,11 +923,10 @@ pub const CLAIM_SQLITE: Split = Split {
 /// [`Split`] — which is the one place this dialect follows [`CLAIM_POSTGRES`] where the enqueue
 /// beside it could not.
 ///
-/// **A common table expression is updatable here even though it cannot insert**, so the shape
-/// [`CLAIM_POSTGRES`] takes survives the crossing: the reader picks the one due row and the update
-/// marks it, in a single statement the server cannot be interrupted inside. What crosses with it is
-/// the ordering — `order by run_at, id` needs a `top` to be legal inside a CTE, and one row is what
-/// a claim takes anyway.
+/// **The shape [`CLAIM_POSTGRES`] takes survives the crossing**: the CTE picks the one due row and
+/// the update marks it, in a single statement the server cannot be interrupted inside. What crosses
+/// with it is the ordering — `order by run_at, id` needs a `top` to be legal inside a CTE or a
+/// derived table, and one row is what a claim takes anyway.
 ///
 /// **`updlock, readpast, rowlock` is `for update skip locked` in this dialect's spelling**, and the
 /// three hints are one decision: `updlock` takes the lock the update is about to need, `readpast`
@@ -899,21 +937,27 @@ pub const CLAIM_SQLITE: Split = Split {
 ///
 /// **`output inserted.<column>` answers the list a `returning` does**, and the columns are the ones
 /// `crates/nvs-cli/src/worker.rs` reads by position — `inserted` is the row *after* the update, so
-/// `attempts` is the incremented count, which is what the other dialects answer too. The CTE names
-/// every column the update writes or the output reads, because `inserted` over an updated CTE
-/// carries that CTE's columns and no others.
+/// `attempts` is the incremented count, which is what the other dialects answer too.
+///
+/// **The two arms are [`CLAIM_POSTGRES`]'s, each a `top 1` carrying the three hints**, and the CTE
+/// keeps the earlier of the two. A CTE over a `union all` cannot be updated, so the `update` names
+/// the table and finds the row by `id`, whose lock the arm that read it already holds.
 pub const CLAIM_SQLSERVER: &str = "with due as (\
-     select top 1 id, script, args, state, attempts, max_attempts, backoff_ms, run_at, claimed_at, \
-     dedupe_pending, errors, grants, limits from nvs_jobs with (updlock, readpast, rowlock) \
-     where queue = @p1 \
-     and ((state = 0 and run_at <= cast(@p2 as bigint)) \
-     or (state = 1 and claimed_at <= cast(@p3 as bigint))) \
-     order by run_at, id\
- ) update due set state = 1, attempts = attempts + 1, claimed_at = cast(@p2 as bigint), \
+     select top 1 id from (\
+     select * from (select top 1 id, run_at from nvs_jobs with (updlock, readpast, rowlock) \
+     where queue = @p1 and state = 0 and run_at <= cast(@p2 as bigint) \
+     order by run_at, id) as pending \
+     union all \
+     select * from (select top 1 id, run_at from nvs_jobs with (updlock, readpast, rowlock) \
+     where queue = @p1 and state = 1 and claimed_at <= cast(@p3 as bigint) \
+     order by run_at, id) as expired\
+     ) as arms order by run_at, id\
+ ) update nvs_jobs set state = 1, attempts = attempts + 1, claimed_at = cast(@p2 as bigint), \
    dedupe_pending = null \
    output inserted.id, inserted.script, inserted.args, inserted.attempts, \
    inserted.max_attempts, inserted.backoff_ms, inserted.errors, inserted.grants, \
-   inserted.limits";
+   inserted.limits \
+   where id in (select id from due)";
 
 /// [`DEAD_LETTER_POSTGRES`] in MySQL's dialect, which MariaDB runs unchanged.
 ///
@@ -986,7 +1030,7 @@ pub const DEAD_LETTER_SQLSERVER: Split = Split {
 ///
 /// The scan [`QUEUES_POSTGRES`]'s doc costs out is the same scan here, for the same reason: MySQL
 /// will not answer `distinct` off the leading column of `jobs.due` without walking the due rows
-/// either, and § 2's roster is where both dialects stop paying for it.
+/// either, and the gap record that doc names covers both dialects.
 pub const QUEUES_MYSQL: &str = "select distinct queue from nvs_jobs \
     where (state = 0 and run_at <= ?) or (state = 1 and claimed_at <= ?)";
 
@@ -5779,7 +5823,10 @@ mod tests {
         let output = CLAIM_SQLSERVER
             .split_once("output ")
             .expect("SQL Server's claim answers with an `output` list")
-            .1;
+            .1
+            .split_once(" where ")
+            .expect("the `update` after the list finds its row by `id`")
+            .0;
         assert_eq!(
             named(output),
             named(returned),
@@ -6415,7 +6462,7 @@ mod tests {
             ("mysql", CLAIM_MYSQL.then, CLAIM_MYSQL.first),
         ] {
             assert!(
-                takes.contains("set state = 1") && arms.contains("(state = 1 and claimed_at"),
+                takes.contains("set state = 1") && arms.contains("state = 1 and claimed_at"),
                 "{dialect}: a claim writes the ordinal above, and the timeout takes it back"
             );
             assert!(

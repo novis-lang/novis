@@ -1,26 +1,29 @@
 {
-  "state": "**Goal `performance-pass`, Stage 5 (the fixes).** Stage 4's review is whole (`docs/perf/performance-review.md`).\n\n**The stage-2 check now runs `bun nv scaling --iterations --check --jobs 4`.** With one job the 953-bench roster took 17 to 36 minutes on the driver's sweeps, against an 1800 s limit. No bench hangs. With four jobs it passed in 438 s: 953 flat, 1 unclear, 0 grow. The tool now names the five slowest programs at the end of every run. The slowest took 80 to 125 s each (`core/Sse-Message/topic`, `value`). The module doc of `tools/nv/cmd/scaling.ts` says why more jobs cannot fail a bench.\n\n**`core/IO/temporaryDir.nvs` is `unclear` under four jobs and flat alone.** Its counts are flat and callgrind's slope is 0.98. Only the clock rose. `unclear` does not fail the check. It is not recorded under *Benches to look at*, because one job judges it flat.\n\n**`bun nv scaling --check` went red on the driver on `request/query.nvs`, `invalid`.** Its clock increments from 8 to 16 parameters were below the noise. The ladder now ramps 64 to 4096, as `request/query-fields` does, and was flat on 3 runs of 3 (clock 1.05, 1.08, 1.53 not repeated). The rest of the roster was 48 flat and 1 unclear (`numbers/bigint-mul`, judged and recorded).\n\n**`decode-positions-reports-every-bad-element` is struck as a stated bound.** The list decode and its issue list are linear, and reporting every bad element is `rule:core-classes/derive-reports-every-field`. A clean list of scalars no longer formats a path per element. The bound is `crates/nvs-stdlib/src/json.rs` § *What a list decode costs*.\n\n**6 gap records owned by `performance-pass`** keep `owners --closes performance-pass` red. `bun nv owners --closes performance-pass` lists them.",
+  "state": "**Goal `performance-pass`, Stage 5 (the fixes).** Stage 4's review is whole (`docs/perf/performance-review.md`).\n\n**The queue claim is O(log n + in-flight) on all five drivers.** Each arm (pending, expired lease) is its own `limit 1`, and the earlier of the two is taken, so the order is unchanged. The existing `nvs_jobs_due (queue, state, run_at)` index serves it; no schema change. MySQL's claim binds four values (the queue twice); SQLite's uses `?1..?3`. The framed claim's transaction is `read committed` (playbook, *Running things*). `bun nv db-matrix` was green on all seven legs. `a_sqlite_claim_seeks_each_arm_through_the_due_index` guards the plan.\n\n**The rest of that gap is now `the-roster-poll-reads-every-due-row`.** The worker's `select distinct queue` runs before every round of claims and reads every due row, so draining is still O(n²) through the poll. The record names the fix.\n\n**The stage-2 check runs `bun nv scaling --iterations --check --jobs 4`**, and passed in 438 s (953 flat, 1 unclear). `core/IO/temporaryDir.nvs` is `unclear` under four jobs and flat alone; it does not fail the check.\n\n**6 gap records owned by `performance-pass`** keep `owners --closes performance-pass` red. `bun nv owners --closes performance-pass` lists them.",
   "next": {
     "stage": 5,
-    "title": "the fixes, the queue's two gaps",
-    "files": [],
-    "note": "one file set: `crates/nvs-stdlib/src/queue.rs` and its tests.",
+    "title": "the fixes, the queue's two remaining gaps",
+    "files": [
+      "crates/nvs-stdlib/src/queue.rs",
+      "crates/nvs-cli/src/worker.rs",
+      "crates/nvs-stdlib/tests/queue_sqlite.rs",
+      "crates/nvs-stdlib/tests/queue.rs"
+    ],
     "items": [
       {
         "done": false,
-        "text": "**Close `the-queue-claim-sorts-every-due-row`** (`crates/nvs-stdlib/src/queue.rs:557`): two claims, one per arm, each `limit 1` on its own index, and an index on `(state, claimed_at)`; or strike it as a stated bound. The idle poll's `select distinct queue` is at `crates/nvs-stdlib/src/queue.rs:592`. The schema is at `crates/nvs-stdlib/src/queue.rs:346`. Rule: the goal's standing decisions; the ladder is `queue/backlog.nvs`."
+        "text": "**Close `the-roster-poll-reads-every-due-row`** (`crates/nvs-stdlib/src/queue.rs:607`): a loose index scan, a recursive CTE stepping over pending queue names on a new index led by `state`, then an `exists` per name on `nvs_jobs_due`; the expired arm reads `state = 1` alone. The schema is at `crates/nvs-stdlib/src/queue.rs:346`, the MySQL, SQLite and SQL Server texts follow `QUEUES_MYSQL`, and the caller is `turn` at `crates/nvs-cli/src/worker.rs:610`. SQL Server's recursive member allows no `top`. Probe each dialect against the running containers first, as this session did, and finish with `bun nv db-matrix --no-up --all`. Rule: the goal's standing decisions."
       },
       {
         "done": false,
-        "text": "**Close `finished-jobs-are-kept-until-purged`** (`crates/nvs-stdlib/src/queue.rs:1469`): an index on `(queue, state, id)` serves `purge`'s `order by id limit N`. Retention is the module doc's to answer. Rule: the goal's standing decisions."
+        "text": "**Close `finished-jobs-are-kept-until-purged`** (`crates/nvs-stdlib/src/queue.rs:1513`): an index on `(queue, state, id)` serves `purge`'s `order by id limit N`; the retention question is the module doc's to answer. Rule: the goal's standing decisions."
       }
     ]
   },
   "backlog": [
-    "`a-websocket-write-buffer-has-no-ceiling` — `crates/nvs-server/src/socket.rs`, gap record.",
-    "`identity-hash-stops-at-depth-four` — `crates/nvs-runtime/src/identity.rs`, gap record.",
-    "`a-request-analyses-an-unchanged-document-again` — `crates/nvs-lsp/src/server.rs`, gap record.",
-    "`a-task-is-charged-a-whole-stack` — `crates/nvs-host/src/stack.rs`, gap record.",
-    "Stage 6: `bun nv proofs --gate` was red on the driver's sweep after session 0037; not checked since."
+    "`a-task-is-charged-a-whole-stack` (`crates/nvs-host/src/stack.rs`), from its gap record.",
+    "`a-request-analyses-an-unchanged-document-again` (`crates/nvs-lsp/src/server.rs`), from its gap record.",
+    "`identity-hash-stops-at-depth-four` (`crates/nvs-runtime/src/identity.rs`), from its gap record.",
+    "`a-websocket-write-buffer-has-no-ceiling` (`crates/nvs-server/src/socket.rs`), from its gap record."
   ]
 }

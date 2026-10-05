@@ -1328,6 +1328,76 @@ fn a_sqlite_roster_names_only_the_queues_holding_due_work() {
     );
 }
 
+/// The claim's two arms are read apart and its order is still one order: the
+/// earlier `run_at` wins whichever arm holds it, and `id` breaks a tie.
+///
+/// Both directions, because a claim that always preferred one arm reads
+/// correctly against either half alone.
+#[test]
+fn a_sqlite_claim_takes_the_earliest_due_row_across_both_arms() {
+    let (worker, _reader) = two_connections("nvs-stdlib-queue-claim-across-arms");
+    let pending = push(&worker, NOW - 5, 0, 0, None);
+    let abandoned = push(&worker, NOW - 9, 1, 1, Some(NOW - WINDOW));
+    let tied = push(&worker, NOW - 5, 0, 0, None);
+
+    let order: Vec<i64> = std::iter::from_fn(|| claim(&worker, NOW, NOW - WINDOW))
+        .map(|row| int(&row[0]))
+        .take(4)
+        .collect();
+    assert_eq!(
+        order,
+        vec![abandoned, pending, tied],
+        "the expired lease is due earliest, then the two pending rows by id"
+    );
+}
+
+/// The claim's plan reads `nvs_jobs` only through the `nvs_jobs_due` index, so
+/// one claim seeks its row and does not sort the due backlog.
+///
+/// SQLite's plan names every table access, so a full scan or a second index
+/// would show here as a line that is not a `SEARCH` on `nvs_jobs_due`. The one
+/// temporary b-tree allowed is the outer `order by`, over at most two rows.
+#[test]
+fn a_sqlite_claim_seeks_each_arm_through_the_due_index() {
+    let (worker, _reader) = two_connections("nvs-stdlib-queue-claim-plan");
+    let plan = rows(
+        &worker,
+        &format!("explain query plan {}", queue::CLAIM_SQLITE.first),
+        vec![
+            SqliteValue::Text(String::from(QUEUE)),
+            SqliteValue::Int(NOW),
+            SqliteValue::Int(NOW - WINDOW),
+        ],
+    );
+    let details: Vec<String> = plan
+        .iter()
+        .filter_map(|row| match row.get(3) {
+            Some(SqliteValue::Text(detail)) => Some(detail.clone()),
+            _ => None,
+        })
+        .collect();
+
+    let reads: Vec<&String> = details
+        .iter()
+        .filter(|detail| detail.contains("nvs_jobs"))
+        .collect();
+    assert_eq!(reads.len(), 2, "one read per arm: {details:?}");
+    for read in reads {
+        assert!(
+            read.starts_with("SEARCH") && read.contains("nvs_jobs_due"),
+            "every read of the table seeks the due index: {details:?}"
+        );
+    }
+    assert!(
+        details
+            .iter()
+            .filter(|detail| detail.contains("TEMP B-TREE"))
+            .count()
+            <= 1,
+        "only the outer `order by` sorts, and it sorts the two arms' rows: {details:?}"
+    );
+}
+
 /// `rule:concurrency/delivery-is-at-least-once`'s visibility timeout from the
 /// end that loses: a worker that overran the window reports into a row that is no
 /// longer its own, and every write-back it can make matches nothing.

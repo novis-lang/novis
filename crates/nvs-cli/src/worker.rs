@@ -825,11 +825,10 @@ struct Job {
 
 /// One claim against one queue, answering with the row it took.
 ///
-/// **The same values in the same order on every dialect**, as [`roster`]'s are:
-/// [`nvs_stdlib::queue::CLAIM_MYSQL`]'s `select` names the queue and the two instants exactly where
-/// [`nvs_stdlib::queue::CLAIM_POSTGRES`] names them and [`nvs_stdlib::queue::CLAIM_SQLITE`] names
-/// them again, so the branch is over how the answer is read and how many statements it took, never
-/// over what was sent. The binding is each arm's own, for [`roster`]'s reason.
+/// **The same values in the same order on every dialect but one**: the queue, then now, then the
+/// cutoff. [`nvs_stdlib::queue::CLAIM_MYSQL`] reads the queue in both of its arms, and a `?` cannot
+/// be named twice, so that dialect is sent the queue again before the cutoff. The binding is each
+/// arm's own, for [`roster`]'s reason.
 fn claim(conn: &mut Wire, queue: &str, now: i64, cutoff: i64) -> io::Result<Option<Job>> {
     match conn.dialect() {
         Dialect::Postgres(postgres) => {
@@ -837,7 +836,8 @@ fn claim(conn: &mut Wire, queue: &str, now: i64, cutoff: i64) -> io::Result<Opti
             postgres_claim(postgres, &borrowed(&sending))
         }
         Dialect::Framed(mut framed) => {
-            let sending = wire_claim(queue, now, cutoff);
+            let [queue, now_text, cutoff] = wire_claim(queue, now, cutoff);
+            let sending = [queue.clone(), now_text, queue, cutoff];
             framed_claim(&mut framed, &borrowed(&sending), now)
         }
         Dialect::SqlServer(tds) => {
@@ -1087,12 +1087,18 @@ fn tds_claim(tds: &mut nvs_db::TdsConn, bound: &[Option<&[u8]>]) -> io::Result<O
 /// the caller is about to hear: a failed statement ends this worker either way, but an open
 /// transaction on the way out would hold the row's lock for as long as the connection lived, and
 /// the connection is held for the whole run.
+///
+/// **The transaction is `read committed`**, which costs one more round trip on this protocol. Under
+/// InnoDB's default `repeatable read`, each arm of the claim also locks the index record just past
+/// its range, and `skip locked` waits on that record rather than stepping over it. Two workers
+/// would then queue behind each other's claims. At `read committed` a row that does not match
+/// keeps no lock.
 fn framed_claim(
     framed: &mut Framed<'_>,
     bound: &[Option<&[u8]>],
     now: i64,
 ) -> io::Result<Option<Job>> {
-    framed.begin(None, false)?;
+    framed.begin(Some(nvs_db::Isolation::ReadCommitted), false)?;
     match claimed_in_two(framed, bound, now) {
         Ok(took) => {
             framed.commit()?;

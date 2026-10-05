@@ -196,8 +196,9 @@ by hashed key. Not checked: whether pools keyed by settings that carry credentia
 **Read:** the jobs schema and indexes, the claim in every dialect, the idle poll, `purge`, `stats`
 and the wake bell.
 
-**Found:** a claim sorts the due backlog, and an idle poll reads the whole table
-([`the-queue-claim-sorts-every-due-row`](../../data/gaps/nvs-stdlib/the-queue-claim-sorts-every-due-row.json)).
+**Found:** a claim sorted the due backlog (fixed: each arm is its own `limit 1`), and the roster
+poll before every round of claims reads every due row
+([`the-roster-poll-reads-every-due-row`](../../data/gaps/nvs-stdlib/the-roster-poll-reads-every-due-row.json)).
 Finished jobs stay until purged, and `purge` and `stats` scan them
 ([`finished-jobs-are-kept-until-purged`](../../data/gaps/nvs-stdlib/finished-jobs-are-kept-until-purged.json)).
 

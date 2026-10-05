@@ -897,25 +897,34 @@ fn pending_for(conn: &mut Conn, key: &str) -> Option<String> {
 /// One claim against `queue`, taken at `now`, returning jobs whose lease was
 /// taken at or before `cutoff` as well as the ones nothing holds.
 ///
-/// **Three values in one order for both dialects**, exactly as
-/// `crates/nvs-cli/src/worker.rs`'s own claim sends them, and the answer is
-/// [`queue::CLAIM_POSTGRES`]'s `returning` list either way — that is what
-/// [`queue::CLAIM_MYSQL`]'s `select` is written to name. What differs is how
+/// **The values `crates/nvs-cli/src/worker.rs`'s own claim sends, in its
+/// order**: the queue, now and the cutoff, with the queue sent twice on the
+/// framed dialect because both of [`queue::CLAIM_MYSQL`]'s arms read it. The
+/// answer is [`queue::CLAIM_POSTGRES`]'s `returning` list either way — that is
+/// what [`queue::CLAIM_MYSQL`]'s `select` is written to name. What differs is how
 /// many statements it took: the pair's `update` is keyed by the id its `select`
 /// just locked, and the transaction around them is what carries the lock across
 /// the gap a single statement did not have.
 fn claim(conn: &mut Conn, queue: &str, now: i64, cutoff: i64) -> Vec<Vec<Option<String>>> {
     let (now, cutoff) = (millis(now), millis(cutoff));
-    let bound = [
-        Some(queue.as_bytes()),
-        Some(now.as_slice()),
-        Some(cutoff.as_slice()),
-    ];
     if conn.driver() == Driver::Postgres {
+        let bound = [
+            Some(queue.as_bytes()),
+            Some(now.as_slice()),
+            Some(cutoff.as_slice()),
+        ];
         return rows(conn, queue::CLAIM_POSTGRES, &bound);
     }
 
-    conn.begin(None, false)
+    let bound = [
+        Some(queue.as_bytes()),
+        Some(now.as_slice()),
+        Some(queue.as_bytes()),
+        Some(cutoff.as_slice()),
+    ];
+    // At the worker's own level, which `crates/nvs-cli/src/worker.rs`'s
+    // `framed_claim` owns the reason for.
+    conn.begin(Some(nvs_db::Isolation::ReadCommitted), false)
         .expect("the server opened the transaction");
     let took = rows(conn, queue::CLAIM_MYSQL.first, &bound);
     for row in &took {
@@ -2646,8 +2655,8 @@ fn a_framed_dedupe_push_is_refused_by_the_index_and_not_by_the_guard() {
 /// **What is new here is that the bound is enforced by a statement that is not
 /// the one writing the lease.** [`queue::CLAIM_POSTGRES`] chooses the row and
 /// re-takes it in a single statement, so the predicate and the write cannot
-/// disagree. [`queue::CLAIM_MYSQL`] is a [`queue::Split`]: `((state = 0 and
-/// run_at <= ?) or (state = 1 and claimed_at <= ?))` is on the `select` alone,
+/// disagree. [`queue::CLAIM_MYSQL`] is a [`queue::Split`]: `state = 1 and
+/// claimed_at <= ?` is on the `select`'s second arm alone,
 /// and the `update` is keyed by the `id` that `select` named and asks nothing
 /// about the lease it is overwriting. What holds them together is the row lock
 /// the `for update` took, inside the transaction the helper opens — so the
@@ -2980,10 +2989,11 @@ fn a_framed_claim_skips_the_row_another_transaction_holds() {
     let bound = [
         Some(QUEUE.as_bytes()),
         Some(taken.as_slice()),
+        Some(QUEUE.as_bytes()),
         Some(cutoff.as_slice()),
     ];
     first
-        .begin(None, false)
+        .begin(Some(nvs_db::Isolation::ReadCommitted), false)
         .expect("the server opened a transaction");
     let held = rows(&mut first, queue::CLAIM_MYSQL.first, &bound);
     assert_eq!(
