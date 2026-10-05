@@ -232,7 +232,8 @@ A scheduler turn scans all parked tasks, and a finished child scans its siblings
 [*What got better*](performance-pass.md#what-got-better), guarded by ladders `scheduler/fan-out.nvs`
 and `scheduler/parked.nvs`).
 The 1.05 MB per task that *What we found* reports matches the 1 MiB stack every task reserves
-([`a-task-is-charged-a-whole-stack`](../../data/gaps/nvs-host/a-task-is-charged-a-whole-stack.json)).
+(recorded,
+[performance-pass.md § *Decisions for you*](performance-pass.md#decisions-for-you)).
 
 **Fine:** timers are a `BTreeSet` with a map beside it. The bus publishes in O(cores).
 
@@ -373,7 +374,8 @@ client that answers its own empty server in 43 µs. The client and the loopback 
 **Editor:** an `nvs lsp` session that opens an empty file, edits it once and hovers is 13.1 ms,
 7.4 ms above the process start. It ran the front end five times over two versions of the
 document, and the `Core` signature table is 63% of its instructions. An edit now analyses the
-edited document once, and the hover still analyses it again
-([`a-request-analyses-an-unchanged-document-again`](../../data/gaps/nvs-lsp/a-request-analyses-an-unchanged-document-again.json)).
+edited document once, and the hover reads that analysis
+(`a-request-analyses-an-unchanged-document-again`, fixed,
+[performance-pass.md § *What got better*](performance-pass.md#what-got-better)).
 
 Not checked: the share of the signature table in a check of a large program.

@@ -234,6 +234,17 @@ documented `while (purge(...) > 0)` loop was quadratic in the history it removed
 measured. It spends one index entry per job row, written once by `push`. `stats` still reads every
 row its queue holds, because its `attempts` counts them all; a program's purge is the retention.
 
+**A request about an unchanged document reads the analysis already made of it.** Every hover,
+completion, reference list and other request about a document walked its whole `require` graph
+again, even when the edit before it had just analysed the same version. The store now keeps the
+last analysis of each open document (`Documents::analysed` in `crates/nvs-lsp/src/document.rs`).
+The diagnostics an edit publishes come from an analysis that is kept too. Any change to the open
+documents empties the store, and a kept analysis is not used once a file it read has a new
+modification time. `a_request_reads_the_kept_analysis_until_something_it_read_changes` keeps that
+so. The open, edit and hover session the review measured now runs three analyses rather than
+four; neither figure was measured again. It spends one analysis per open document, freed at the
+next change to any of them.
+
 ## Decisions for you
 
 **Should a request head get a total deadline as well as its idle one?** `header_timeout` is an idle
@@ -256,6 +267,19 @@ operand's reference only where its holder is re-pointed at the result, and a hel
 the carrier's text slot when both the object and its string have one reference. Both are new `unsafe`
 code, so it is recorded rather than built. `Core\Html::join` is the linear form now. The gain is the
 whole quadratic term, and it spends no memory beyond the doubling a string `.` already spends.
+
+**Should a `Core\Task` child be charged less than its whole stack?** Each child is charged
+`TASK_STACK_SIZE`, 1 MiB (`crates/nvs-host/src/stack.rs:88`), against the memory cap when it starts
+(`crates/nvs-host/src/group.rs:399`), and the charge is returned when it ends. `Core\Task::map` holds
+a child for every element at once, so n children are charged n MiB together, even when each one
+touches a few pages. Under the repository's `nvs.toml`, which sets `[limits] memory` to 256M, the
+ladders `scheduler/waiters.nvs` and `scheduler/parked.nvs` stop at 128 parked tasks. With no
+configuration there is no cap, and 4096 children use 26 MB of real memory. There are two answers.
+Smaller stacks that grow make the charge small, but they change how deep a task may recurse, and a
+program can see that. Charging the pages a stack touched makes the charge match real memory, but the
+charge then grows while the task runs, so the cap stops a task in the middle of its work rather than
+when it starts. Both change observable behaviour or the memory accounting, so it is recorded rather
+than built. Not measured: the pages a typical task touches, which is the gain of the second answer.
 
 ## Benches to look at
 
