@@ -1,30 +1,29 @@
 {
-  "state": "**Goal `performance-pass`, Stage 5 (the fixes).** Stage 4's review is whole (`docs/perf/performance-review.md`, ending in `## floor`).\n\n**The scheduler and channel scans are fixed in code.** `Scheduler::run`'s parked sweep reads `TaskTree::sweep` (tasks marked, or parked while cancelled, since the last sweep) and not the whole parked set. `TaskNode::children` is a `BTreeSet`, so a child ending is O(log siblings). `nvs_host::channel::Waiters` is ticket-keyed, so `Drop for Waiter` is O(log waiters). `nvs-stdlib`'s channel registry is keyed by channel, then ticket, so a send reads only its own waiters. The stdlib channel gap record is deleted. Ladders `benches/scaling/scheduler/fan-out.nvs` and `waiters.nvs` are new; neither has a before and after yet, because `target/release/nvs.exe` was built before these fixes.\n\n**9 gap records owned by `performance-pass`** keep `owners --closes performance-pass` red, one of them `data/gaps/nvs-host/a-scheduler-turn-scans-every-parked-task.json`, which now owes only the `parked.nvs` ladder and the figures. `bun nv scaling --check` over all ladders was not run this session either.\n\n**Every task is charged its 1 MiB stack** (`data/gaps/nvs-host/a-task-is-charged-a-whole-stack.json`), so 256 parked tasks exceed the 256M default cap and `waiters.nvs` stops at 128. With an explicit `--config` the charge also reaches tasks that finish at once: 4096 children of `Core\\Task::map` exceed a 1G cap, and use 26 MB without `--config`. Not checked why the two differ.",
+  "state": "**Goal `performance-pass`, Stage 5 (the fixes).** Stage 4's review is whole (`docs/perf/performance-review.md`).\n\n**The scheduler fixes are measured and closed.** Ladder `benches/scaling/scheduler/parked.nvs` is new. `docs/perf/performance-pass.md` § *What got better* has the before and after of `fan-out` and `parked`: both builds are linear and the clock does not see the removed terms. Its gap record is deleted.\n\n**8 gap records owned by `performance-pass`** keep `owners --closes performance-pass` red (`bun nv owners --closes performance-pass` lists them).\n\n**`bun nv scaling --check` over all 49 ladders: 47 flat, 0 grow.** Two keep it red: `numbers/bigint-mul.nvs` is unclear (allocations 1.31, bytes 1.40, instructions 1.29, clock 1.23, and nothing agreed by the ceiling), and `request/headers.nvs` is invalid (the clock's slope could not be read, and a `serve` ladder does not run under callgrind).\n\n**The stack charge is explained** in `data/gaps/nvs-host/a-task-is-charged-a-whole-stack.json`: the charge is the same with or without `--config`, and only the cap differs. The shipped defaults set no `[limits] memory`, and the repository's `nvs.toml` sets 256M.",
   "next": {
     "stage": 5,
-    "title": "the fixes, the scheduler's figures",
+    "title": "the fixes, the workspace index lookups",
     "files": [
-      "benches/scaling/scheduler/",
-      "docs/perf/performance-pass.md",
-      "crates/nvs-host/src/scheduler.rs"
+      "crates/nvs-lsp/src/index.rs",
+      "benches/scaling/lsp/"
     ],
     "items": [
       {
         "done": false,
-        "text": "**Write `scheduler/parked.nvs` and measure the scheduler ladders before and after** (`crates/nvs-host/src/scheduler.rs:996`), per `data/gaps/nvs-host/a-scheduler-turn-scans-every-parked-task.json`: N tasks parked on channels beside one task that calls `Core\\Time::sleep` N times (only a reactor wake reaches the sweep). Build release at this commit and at its parent, run `bun nv scaling scheduler --nvs <each>`, write the figures to `docs/perf/performance-pass.md` § *What got better*, then delete the gap record. Rule: AGENTS.md priority ordering."
+        "text": "**Make `declaration` and `subtypes` constant-time lookups** (`crates/nvs-lsp/src/index.rs:602`, `crates/nvs-lsp/src/index.rs:509`), per `data/gaps/nvs-lsp/a-hierarchy-lookup-scans-every-declaration.json`: one map from symbol to declaration and one from supertype to subtypes, kept where `invalidate` and `absorb` change the index. Write an `lsp` ladder of one file of n classes with a CodeLens request, take the before and after, write them to `docs/perf/performance-pass.md` § *What got better*, and delete the gap record. Rule: AGENTS.md priority ordering."
       },
       {
         "done": false,
-        "text": "**Add to `a-task-is-charged-a-whole-stack` why `--config` changes the charge** (`crates/nvs-host/src/scheduler.rs:823`): 4096 finished-at-once children of `Core\\Task::map` hold 4.3 GB with `--config` and 26 MB without. Find out why and write it into that gap record. Rule: AGENTS.md priority ordering (memory O(in-flight), attributable)."
-      },
-      {
-        "done": false,
-        "text": "**Run `bun nv scaling --check` over every ladder** (`tools/nv/cmd/scaling.ts:265`) to learn which ladder keeps `every-ladder-is-within-its-declared-growth` red."
+        "text": "**Judge the two ladders that keep `scaling --check` red** (`benches/scaling/numbers/bigint-mul.nvs:1`, `benches/scaling/request/headers.nvs:1`): re-run `bun nv scaling numbers/bigint-mul request/headers`; fix a ladder that is wrong, and write one the tool cannot judge under `docs/perf/performance-pass.md` § *Benches to look at*. Rule: the goal's standing decisions."
       }
     ]
   },
   "backlog": [
-    "The other 8 gap records owned by `performance-pass`: `bun nv owners --closes performance-pass` lists them.",
-    "*Decisions for you* has two entries: a total deadline for the request head, and `Markup` concatenation in place (`docs/perf/performance-pass.md`)."
+    "`crates/nvs-lsp/src/server.rs`: a request analyses an unchanged document again (`data/gaps/nvs-lsp/a-request-analyses-an-unchanged-document-again.json`).",
+    "`crates/nvs-stdlib/src/queue.rs`: the queue claim sorts every due row, and finished jobs are kept until purged (two gap records under `data/gaps/nvs-stdlib/`).",
+    "`crates/nvs-runtime/src/identity.rs`: the identity hash stops at depth four (gap record).",
+    "`crates/nvs-server/src/socket.rs`: a WebSocket write buffer has no ceiling (gap record).",
+    "`crates/nvs-stdlib/src/json.rs`: `decodeAs` reports every bad element (gap record).",
+    "`crates/nvs-host/src/stack.rs`: each task is charged its whole stack; the answer is a decision for *Decisions for you* (gap record)."
   ]
 }
