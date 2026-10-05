@@ -1,5 +1,6 @@
-// The spec chapters' tables, which tools read and the chapters render. Their prose stays in
-// `docs/spec/01-core-library.md` and `docs/spec/02-php-migration.md`.
+// The spec chapters' tables, which the tools read. `bun nv render` writes them from the tables in
+// `docs/spec/01-core-library.md` and `docs/spec/02-php-migration.md` (`renderers/spec-tables.ts`), and
+// the chapters' prose stays there.
 //
 // The core library's tables differ by section, so each is kept whole: its section, its column names
 // and its cells as Markdown. The migration table has one shape, one row per PHP name.

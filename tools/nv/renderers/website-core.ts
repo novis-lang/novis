@@ -3,7 +3,7 @@
 // from it, and nothing under `website/src/content/` is written by this file.
 //
 // Three sources, each read once. The member tables are the `spec_core_members` record, which
-// `nv import` reads out of `docs/spec/01-core-library.md`. The prose the record does not carry — each
+// `spec-tables.ts` renders from `docs/spec/01-core-library.md`. The prose the record does not carry — each
 // class's summary, its `Enums:` and `Constants:` lines, the `- \`Core\X\`: …` bullet rosters, and the
 // headings that say which class a table belongs to — is read from that chapter, which is where it is
 // written. The registry is `nvs meta --json`: which members are implemented, and the card of each
@@ -33,12 +33,9 @@ import { load } from "../lib/store.ts";
 import { classTail, roster, type Meta } from "../proofs/roster.ts";
 import { REFERENCE_FILE, referenceData } from "./website-reference.ts";
 import { specCoreMembers } from "../schema/spec.ts";
+import { CORE as SPEC, SEPARATOR } from "./spec-tables.ts";
 
-export const SPEC = "docs/spec/01-core-library.md";
 export const DATA_FILE = "website/src/data/core.json";
-
-/** The spec's own table separator, as `nv import` reads it. */
-const SEPARATOR = /^\|(\s*:?-+:?\s*\|)+\s*$/;
 
 // ---------------------------------------------------------------- the binary's registry
 
@@ -482,16 +479,16 @@ export function parseSpec(text: string, tables: SpecTable[], overrides: Override
 
     if (!opensTable) continue;
     const table = tables[nextTable++];
-    if (!table) throw new Error(`${SPEC}:${i + 1} opens a table the spec_core_members record does not have: run \`bun nv import --write\``);
+    if (!table) throw new Error(`${SPEC}:${i + 1} opens a table the spec_core_members record does not have: run \`bun nv render\``);
     let j = i + 2;
     while (j < lines.length && lines[j]!.startsWith("|")) j++;
     if (j - i - 2 !== table.rows.length) {
-      throw new Error(`${SPEC}:${i + 1}: the table has ${j - i - 2} row(s) and the spec_core_members record's has ${table.rows.length}: run \`bun nv import --write\``);
+      throw new Error(`${SPEC}:${i + 1}: the table has ${j - i - 2} row(s) and the spec_core_members record's has ${table.rows.length}: run \`bun nv render\``);
     }
     i = j - 1;
     readTable(table);
   }
-  if (nextTable !== tables.length) throw new Error(`the spec_core_members record has ${tables.length} table(s) and ${SPEC} ${nextTable}: run \`bun nv import --write\``);
+  if (nextTable !== tables.length) throw new Error(`the spec_core_members record has ${tables.length} table(s) and ${SPEC} ${nextTable}: run \`bun nv render\``);
 
   function readTable(table: SpecTable) {
     const header = table.columns.map((c) => c.replace(/\*/g, "").trim());

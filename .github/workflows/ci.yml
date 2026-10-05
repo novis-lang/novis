@@ -737,7 +737,7 @@ jobs:
       # The records under data/ first, because every generated page is rendered from them.
       # `nv check` holds each record to its schema, its foreign keys and its invariants;
       # `nv render --check` writes nothing and fails when a committed rendered file no longer
-      # matches the records it is rendered from.
+      # matches the records it is rendered from, or a spec record no longer matches its chapter's tables.
       - name: Every record matches its schema, its foreign keys and its invariants
         run: bun nv check
       - name: Every rendered file matches the records it is rendered from
