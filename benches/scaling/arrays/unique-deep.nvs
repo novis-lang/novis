@@ -1,0 +1,21 @@
+<?nvs
+// Removes repeated entries from a list of n nested records, as a program does with decoded JSON.
+// scaling: start 1000
+// scaling: max 64000
+// scaling: expect linear
+
+class Bench {
+    public static function run(uint $size): uint {
+        array<array<array<array<array<array<uint>>>>>> $records = [];
+        uint $i = 0;
+        while ($i < $size) {
+            // Records come in equal pairs, and pairs differ only at the fifth level.
+            $records[] = [[[[[$i - $i % 2]]]]];
+            $i = $i + 1;
+        }
+        array<array<array<array<array<array<uint>>>>>> $once = Core\Arr::unique($records);
+        return Core\Arr::count($once);
+    }
+}
+
+echo Bench::run(1000), "\n";

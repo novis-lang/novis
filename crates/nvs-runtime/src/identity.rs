@@ -97,10 +97,16 @@
 //! slow path. Its one obligation is the standard one: **identical values hash
 //! equally.** It is deliberately allowed to be coarse in the other direction,
 //! and is — a `NaN` hashes like any other float though it is identical to
-//! nothing, an array is hashed only [`HASH_DEPTH`] levels deep, and the
-//! numeric domain merges the one trio [`hash_numeric`] describes — because a
-//! collision costs one extra [`value_identical`] call and bounded work is
-//! what keeps the hash itself immune to a deep input.
+//! nothing, and the numeric domain merges the one trio [`hash_numeric`]
+//! describes — because a collision costs one extra [`value_identical`] call.
+//!
+//! **An array is hashed whole, at every depth.** A hash that stopped at a
+//! fixed depth gave every value differing only below it one bucket, and
+//! `unique` over many such values compared each against every earlier one.
+//! The whole hash walks the value once, which is what one comparison already
+//! costs, so `unique` stays linear in the size of its input. The walk keeps
+//! one frame per open level on a heap stack, as the comparison's worklist
+//! does, so a deep value costs heap and never the native stack.
 //!
 //! The numeric family is the one row where the hash costs more than a write:
 //! an `int` pays two casts, a `float` pays nothing, and a `decimal` pays the
@@ -121,14 +127,6 @@ use std::mem::ManuallyDrop;
 use crate::array::{ArrayHeader, NvsArray};
 use crate::string::NvsStr;
 use crate::value::{Tag, Value};
-
-/// How many levels of nested array [`value_hash`] descends before it stops.
-///
-/// Four rather than one because the shapes that collide in practice —
-/// `array<array<string>>` rows out of `groupBy`, a decoded JSON object — differ
-/// below the first level; and bounded rather than complete because this
-/// module's docs say why a hash may be coarse and a comparison may not.
-const HASH_DEPTH: u32 = 4;
 
 /// Whether two values are the same value — the one strict-identity comparison
 /// this crate defines, whose rules are this module's own docs.
@@ -265,11 +263,34 @@ fn entries_identical(
 /// same bytes — see this module's docs for where it is deliberately coarser
 /// than the comparison.
 pub fn value_hash<H: Hasher>(value: Value, state: &mut H) {
-    hash_to_depth(value, state, HASH_DEPTH);
+    // Each frame is an array being walked and the slot its walk resumes from.
+    // Entering a nested array pushes a frame rather than recursing, so the
+    // bytes fed are the recursive pre-order walk's and the depth costs heap.
+    let mut stack: Vec<(ManuallyDrop<NvsArray>, usize)> = Vec::new();
+    if let Some(array) = hash_shallow(value, state) {
+        stack.push((array, 0));
+    }
+    while let Some((array, from)) = stack.last_mut() {
+        let Some(slot) = array.next_slot(*from) else {
+            stack.pop();
+            continue;
+        };
+        *from = slot + 1;
+        if let Some(key) = array.key_at(slot) {
+            state.write(key.as_bytes());
+        }
+        let nested = array
+            .value_at(slot)
+            .and_then(|entry| hash_shallow(entry, state));
+        if let Some(nested) = nested {
+            stack.push((nested, 0));
+        }
+    }
 }
 
-/// [`value_hash`], carrying how many more levels of array it may descend.
-fn hash_to_depth<H: Hasher>(value: Value, state: &mut H, depth: u32) {
+/// Feeds `value`'s own bytes to `state`, and for an array its count alone,
+/// returning the array so [`value_hash`] walks its entries.
+fn hash_shallow<H: Hasher>(value: Value, state: &mut H) -> Option<ManuallyDrop<NvsArray>> {
     // One discriminant per *family*, not per tag: the numeric representations
     // share one because they are one domain, and every opaque handle shares
     // one because it is hashed as its bits either way.
@@ -294,22 +315,9 @@ fn hash_to_depth<H: Hasher>(value: Value, state: &mut H, depth: u32) {
         }
         Some(Tag::Array) => {
             state.write_u8(5);
-            let Some(ptr) = value.array_ptr() else { return };
-            let array = borrowed(ptr);
+            let array = borrowed(value.array_ptr()?);
             state.write_usize(array.count());
-            if depth == 0 {
-                return;
-            }
-            let mut from = 0usize;
-            while let Some(slot) = array.next_slot(from) {
-                if let Some(key) = array.key_at(slot) {
-                    state.write(key.as_bytes());
-                }
-                if let Some(entry) = array.value_at(slot) {
-                    hash_to_depth(entry, state, depth - 1);
-                }
-                from = slot + 1;
-            }
+            return Some(array);
         }
         _ => {
             state.write_u8(6);
@@ -317,6 +325,7 @@ fn hash_to_depth<H: Hasher>(value: Value, state: &mut H, depth: u32) {
             state.write_u64(value.bits());
         }
     }
+    None
 }
 
 /// The bytes a numeric contributes, chosen so that any pair
@@ -836,10 +845,63 @@ mod tests {
         let other = tower(50_000, 2);
         assert!(value_identical(left, same));
         assert!(!value_identical(left, other));
-        // The hash stops at `HASH_DEPTH`, so it agrees on the pair that is
-        // identical and is free to agree on the pair that is not.
+        // The hash walks the whole tower on the heap as well, and tells
+        // apart two towers that differ only at the bottom.
         assert_eq!(hashed(left), hashed(same));
+        assert_ne!(hashed(left), hashed(other));
         release_all(&[left, same, other]);
+    }
+
+    /// Values that differ only at the fifth level hash apart, so a set over
+    /// many of them compares each new value against almost nothing.
+    #[test]
+    fn values_that_differ_only_deep_down_hash_apart() {
+        use std::cell::Cell;
+        use std::collections::HashSet;
+
+        thread_local!(static COMPARED: Cell<usize> = const { Cell::new(0) });
+
+        struct Counted(Value);
+        impl PartialEq for Counted {
+            fn eq(&self, other: &Self) -> bool {
+                COMPARED.with(|n| n.set(n.get() + 1));
+                value_identical(self.0, other.0)
+            }
+        }
+        impl Eq for Counted {}
+        impl std::hash::Hash for Counted {
+            fn hash<H: Hasher>(&self, state: &mut H) {
+                value_hash(self.0, state);
+            }
+        }
+
+        fn record(leaf: i64) -> Value {
+            let mut value = Value::int(leaf);
+            for _ in 0..5 {
+                let mut level = NvsArray::new();
+                level.set(NvsStr::new(b"0"), value);
+                value = Value::array(level);
+            }
+            value
+        }
+
+        let records: Vec<Value> = (0..2000).map(record).collect();
+        let again = record(7);
+        let mut seen = HashSet::new();
+        for &value in &records {
+            assert!(seen.insert(Counted(value)));
+        }
+        assert!(!seen.insert(Counted(again)));
+        // A hash that stopped above the leaf would compare each insert with
+        // every earlier one, about two million times here.
+        assert!(
+            COMPARED.with(Cell::get) < records.len(),
+            "{} comparisons for 2001 inserts",
+            COMPARED.with(Cell::get)
+        );
+        drop(seen);
+        release_all(&records);
+        release_all(&[again]);
     }
 
     #[test]

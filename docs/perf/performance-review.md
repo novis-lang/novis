@@ -52,9 +52,9 @@ that is memory per request in the number of opens, freed with the request.
 **Read:** `Core\Arr` sort, unique, diff, intersect, contains, slice, splice, keys, merge and the
 overlay family, and the array cursor.
 
-**Found:** values that differ only below depth 4 hash alike, so `unique`, `diff` and `intersect`
-over them are quadratic
-([`identity-hash-stops-at-depth-four`](../../data/gaps/nvs-runtime/identity-hash-stops-at-depth-four.json)).
+**Found:** values that differed only below depth 4 hashed alike, so `unique`, `diff` and `intersect`
+over them were quadratic. Fixed: the identity hash walks the whole value
+(`crates/nvs-runtime/src/identity.rs`), and `benches/scaling/arrays/unique-deep.nvs` is its ladder.
 
 **Fine:** sort is a bottom-up merge sort over a permutation, O(n log n). `unique` without a
 comparator hashes. `replaceRange` is three linear walks with no shifting. The overlay family uses an
