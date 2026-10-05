@@ -53,7 +53,8 @@ use std::path::{Path, PathBuf};
 
 use nvs_diagnostics::{Diagnostic, code};
 
-use crate::snapshot::{Current, Snapshot};
+use crate::resolve::Files;
+use crate::snapshot::{AppBlocks, Current, Snapshot};
 use crate::tree::{Config, Setting};
 use crate::trust::Untrusted;
 
@@ -318,7 +319,12 @@ pub struct Report {
     pub invalidated: usize,
 }
 
-/// Publishes `next` over what `current` is serving and reports § 5's three answers.
+/// Publishes the set built from `next` and `blocks` over what `current` is serving, and reports
+/// § 5's three answers.
+///
+/// `next` is the host's snapshot and `blocks` the `[[app]]` roster each entry's own snapshot is
+/// folded from. Every file in `entries` is folded before anything is swapped, so a block that does
+/// not fold for one of them refuses the whole reload ([`Current::publish_set`]).
 ///
 /// `held` is how many compiled units the caller has, which is the only half of § 5's third answer
 /// this module cannot know: the unit cache is `nvs-cli`'s.
@@ -329,17 +335,21 @@ pub struct Report {
 ///
 /// # Errors
 ///
-/// Whatever [`Current::publish`] refuses — `E0601` for a tree that does not deserialize once the
-/// running `Boot` values are carried into it. The previous snapshot is still serving in that case,
-/// because publishing is the last step and it never ran.
+/// Whatever [`Current::publish_set`] refuses — `E0601` for a tree that does not deserialize once
+/// the running `Boot` values are carried into it, or a block that does not fold for one of
+/// `entries`. The previous set is still serving in that case, because publishing is the last step
+/// and it never ran.
 pub fn reload(
     current: &Current,
     next: Snapshot,
+    blocks: AppBlocks,
+    entries: &[PathBuf],
+    files: &dyn Files,
     held: usize,
     keep: &[&str],
 ) -> Result<Report, Diagnostic> {
     let before = current.load();
-    let published = current.publish_keeping(next, keep)?;
+    let published = current.publish_set(next, blocks, entries, files, keep)?;
     // The comparison is against the *published* table and not the submitted one, which is what
     // makes a changed `Boot` key absent from `applied` rather than present in both lists: publishing
     // carries the running value back over it, so by this line the two tables agree about it again.

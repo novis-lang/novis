@@ -1117,6 +1117,9 @@ mod tests {
         let report = reload(
             &current,
             snapshot("[control]\nsocket = \"/run/nvs/other.sock\"\n[limits]\nmemory = \"256M\"\n"),
+            nvs_config::AppBlocks::default(),
+            &[],
+            &nvs_config::resolve::Disk,
             12,
             &["control.socket"],
         )

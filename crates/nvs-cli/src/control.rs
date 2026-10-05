@@ -100,7 +100,7 @@ use std::sync::{Arc, Mutex, OnceLock, PoisonError, Weak};
 use std::time::{Duration, SystemTime};
 
 use nvs_config::resolve::Origin;
-use nvs_config::snapshot::{Current, Snapshot, value_at};
+use nvs_config::snapshot::{AppBlocks, Current, Snapshot, value_at};
 use nvs_config::{Apply, DIRECTIVES};
 use nvs_diagnostics::{Diagnostic, Renderer, SourceMap};
 use nvs_render::{Level, Node, Record, Rendered, Scalar};
@@ -140,10 +140,9 @@ pub(crate) struct Process {
     /// `--config` as it was written, so a reload resolves the roots this boot
     /// resolved rather than whatever the working directory now holds.
     roots: Vec<PathBuf>,
-    /// The entry file the command named, which is what selects the `[[app]]`
-    /// blocks the snapshot folds — or `None` where it named none and the
-    /// snapshot folds no block.
-    entry: Option<PathBuf>,
+    /// The mount rows the server answers from, whose entries a reload folds
+    /// before it publishes (ADR 0271), or `None` where no server is serving.
+    rows: Option<Arc<crate::serve::mounts::Mounts>>,
     /// The fleet's one unit cache, for the count a reload reports and the
     /// re-key it owes.
     compiler: Arc<Compiler>,
@@ -232,17 +231,19 @@ enum Retrust {
 /// A tree resolved from the files as they stand now, with what a refusal of
 /// it is rendered against.
 struct Tree {
+    /// The host's snapshot, with no `[[app]]` block folded.
     next: Arc<Snapshot>,
+    /// The roster each entry's own snapshot is folded from.
+    blocks: AppBlocks,
     origins: BTreeMap<String, Origin>,
     sources: SourceMap,
 }
 
 impl Process {
-    /// The process serving `current`, resolved from `roots` and `entry`.
+    /// The process serving `current`, resolved from `roots`.
     pub(crate) fn new(
         current: Arc<Current>,
         roots: Vec<PathBuf>,
-        entry: Option<PathBuf>,
         compiler: Arc<Compiler>,
         admission: Arc<Admission>,
         draining: Draining,
@@ -251,7 +252,7 @@ impl Process {
         Self {
             current,
             roots,
-            entry,
+            rows: None,
             compiler,
             admission,
             draining,
@@ -276,6 +277,17 @@ impl Process {
     #[must_use]
     pub(crate) fn draining_through(mut self, generations: Arc<Generations>) -> Self {
         self.generations = generations;
+        self
+    }
+
+    /// The same process, folding the entries of `rows` into every publish.
+    ///
+    /// A step after the constructor for the same reason as
+    /// [`draining_through`](Process::draining_through): a process no server is
+    /// serving has no rows.
+    #[must_use]
+    pub(crate) fn serving_rows(mut self, rows: Arc<crate::serve::mounts::Mounts>) -> Self {
+        self.rows = Some(rows);
         self
     }
 
@@ -398,25 +410,31 @@ impl Process {
             .map(|(_, sources)| Arc::clone(sources))
     }
 
-    /// The tree the roots resolve to now.
+    /// The tree the roots resolve to now, as the boot resolved it: the host's
+    /// snapshot and the `[[app]]` roster, whatever file the command named.
     ///
     /// # Errors
     ///
     /// The tree does not resolve, rendered.
     fn resolved(&self) -> Result<Tree, String> {
         let mut sources = SourceMap::new();
-        let (next, origins) = crate::config::boot_origins(
-            &self.roots,
-            self.entry.as_deref(),
-            &mut sources,
-            crate::config::Init::Never,
-        )
-        .map_err(|refusal| rendered(&refusal, &sources))?;
+        let (next, blocks, origins) =
+            crate::config::boot_set(&self.roots, &mut sources, crate::config::Init::Never)
+                .map_err(|refusal| rendered(&refusal, &sources))?;
         Ok(Tree {
             next,
+            blocks,
             origins,
             sources,
         })
+    }
+
+    /// The entry file of every mount row standing now, which a publish folds
+    /// before it swaps anything.
+    fn entries(&self) -> Vec<PathBuf> {
+        self.rows
+            .as_ref()
+            .map_or_else(Vec::new, |rows| rows.entries())
     }
 
     /// The reload itself, from a resolved tree, which is everything except
@@ -429,14 +447,25 @@ impl Process {
     fn published(&self, tree: Tree) -> Result<Report, String> {
         let Tree {
             next,
+            blocks,
             origins,
             sources,
         } = tree;
-        // Asked of the incoming tree before the publish, so a `[limits]` memory
-        // setting the admission arithmetic cannot read refuses the reload the
-        // way it refuses a boot, and leaves the running tree serving.
-        nvs_config::server::capacity_for(&next.config, &origins)
-            .map_err(|refusal| rendered(&refusal, &sources))?;
+        // Asked of the incoming set before the publish, so an `[[app]]` block
+        // that does not fold for one mounted entry, or a `[limits]` memory
+        // setting the admission arithmetic cannot read in any entry's snapshot,
+        // refuses the reload the way it refuses a boot, and leaves the running
+        // set serving. The publish folds the entries again over the carried
+        // `Boot` values, so a reload folds each mounted entry twice.
+        let entries = self.entries();
+        let incoming = nvs_config::Published::new(
+            Arc::clone(&next),
+            blocks.clone(),
+            &entries,
+            &crate::config::LocalFiles,
+        )
+        .map_err(|refusal| rendered(&refusal, &sources))?;
+        capacity_of(&incoming, &origins).map_err(|refusal| rendered(&refusal, &sources))?;
         // Before the control endpoint moves, so a refused tree has created
         // nothing. Queue workers that would start on a new connection start
         // only where its storage holds the queue's schema, as at boot.
@@ -473,8 +502,16 @@ impl Process {
             .collect();
         // A refused publish drops a new endpoint here, and the old one is
         // still answering.
-        let report = nvs_config::control::reload(&self.current, next, self.compiler.held(), &keep)
-            .map_err(|refusal| rendered(&refusal, &sources))?;
+        let report = nvs_config::control::reload(
+            &self.current,
+            next,
+            blocks,
+            &entries,
+            &crate::config::LocalFiles,
+            self.compiler.held(),
+            &keep,
+        )
+        .map_err(|refusal| rendered(&refusal, &sources))?;
         // After the publish, so a connection accepted from here on is under the
         // new tree and is not drained with the old one.
         self.generations
@@ -530,11 +567,12 @@ impl Process {
             nvs_host::tls::install(client);
         }
         self.compiler.reconfigure(&serving.config);
-        // `rule:http-server/admission-is-arithmetic-not-a-number` over the tree
-        // now serving: `limits.memory` reloads, and `[server] max_in_flight` is
-        // whatever the publish carried. The tree passed the same arithmetic
-        // above, so the error arm keeps the ceiling it had and never runs.
-        if let Ok(capacity) = nvs_config::server::capacity_for(&serving.config, &origins) {
+        // `rule:http-server/admission-is-arithmetic-not-a-number` over the set
+        // now serving: `limits.memory` reloads in every entry's snapshot, and
+        // `[server] max_in_flight` is whatever the publish carried. The set
+        // passed the same arithmetic above, so the error arm keeps the ceiling
+        // it had and never runs.
+        if let Ok(capacity) = capacity_of(&self.current.published(), &origins) {
             let ceiling = Ceiling::of(&capacity);
             if let Some(note) = ceiling.clamp_note() {
                 eprintln!("note: {note}");
@@ -736,6 +774,19 @@ pub(crate) fn check(process: &Arc<Process>) {
     if let Err(error) = spawned {
         eprintln!("warning: the configuration files will not be checked for changes: {error}");
     }
+}
+
+/// `rule:http-server/admission-is-arithmetic-not-a-number` over `set`: the
+/// host's ceiling, and the largest per-request cap any entry's snapshot folded
+/// so far gives, as the boot asks it.
+fn capacity_of(
+    set: &nvs_config::Published,
+    origins: &BTreeMap<String, Origin>,
+) -> Result<nvs_config::server::Capacity, Diagnostic> {
+    let folded = set.snapshots();
+    let entries: Vec<&nvs_config::Config> =
+        folded.iter().map(|snapshot| &snapshot.config).collect();
+    nvs_config::server::capacity_across(&set.host().config, &entries, origins)
 }
 
 /// Whether `next` is the tree `serving` already is: the same keys and values,

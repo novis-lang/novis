@@ -31,15 +31,17 @@
 //! (`rule:http-server/a-path-is-never-derived-from-a-url`): the rows are still
 //! enumerated from the configuration's globs, only more than once.
 //!
-//! **The table follows a reload.** Each pass reads `[server] root`,
-//! `[[server.mount]]` and `[[app]] origin` from the tree a reload published
-//! last. Where the root or the blocks changed, the pass expands the published
-//! tree at once ([`Rescan::rewritten`]), with no wait for `settle`, and renders
-//! a refusal against the source map that reload recorded
-//! (`crate::control::Process::sources_of`). Where only the origin moved, the
-//! pass folds it into the rows the last expansion gave
-//! (`super::fall_back_to`). Either way it asks the origin check of every row
-//! that changed, and publishes. A named file over a tree that writes no
+//! **The table follows a reload.** Each pass reads `[server] root` and
+//! `[[server.mount]]` from the host's snapshot a reload published last. Where
+//! either changed, the pass expands the published tree at once
+//! ([`Rescan::rewritten`]), with no wait for `settle`, and renders a refusal
+//! against the source map that reload recorded
+//! (`crate::control::Process::sources_of`). After any expansion and after any
+//! publish, each row takes the `[[app]] origin` of its own entry's snapshot in
+//! the set standing then (`super::fold_origins`, ADR 0271). A row the rescan
+//! adds is folded into that set as it is read. Either way the pass asks the
+//! origin check of every row that changed, and publishes. A reload folds the
+//! entries of the rows standing when it runs ([`Mounts::entries`]). A named file over a tree that writes no
 //! `[[server.mount]]` is one row that is never expanded again, and a reload
 //! that removes the last block leaves that row. Boot's check that a named
 //! file is one of the table's entries is not asked again.
@@ -74,7 +76,7 @@ use crate::script::Compiler;
 
 /// The rows every core answers from, and how many times they were replaced.
 #[derive(Debug)]
-pub(super) struct Mounts {
+pub(crate) struct Mounts {
     /// Moved once per [`Mounts::publish`], always under [`Self::rows`]' lock, so
     /// a reader that sees it move and then takes the lock reads the rows of
     /// that generation or a later one.
@@ -95,6 +97,12 @@ impl Mounts {
     fn rows(&self) -> (u64, Arc<[Mounted]>) {
         let held = self.rows.lock().unwrap_or_else(PoisonError::into_inner);
         (held.0, Arc::clone(&held.1))
+    }
+
+    /// The entry file of every row standing now, which a reload folds before
+    /// it publishes (`crate::control`).
+    pub(crate) fn entries(&self) -> Vec<PathBuf> {
+        self.rows().1.iter().map(|row| row.entry.clone()).collect()
     }
 
     /// Replaces the rows. A request already running keeps the row it
@@ -290,8 +298,9 @@ pub(super) struct Rescan {
     /// The rows the last expansion gave, before `[[app]] origin` was folded
     /// into them.
     written: Vec<Mounted>,
-    /// The `[[app]] origin` the rows standing now were folded with.
-    folded: Option<String>,
+    /// The publish whose entry snapshots the rows standing now took their
+    /// `[[app]] origin` from.
+    folded: Arc<nvs_config::Published>,
     mounts: Arc<Mounts>,
     stamps: BTreeMap<PathBuf, Stamp>,
     /// The refusals the last expansion logged. An expansion logs only what is
@@ -318,8 +327,8 @@ fn mounting(snapshot: &nvs_config::Snapshot) -> (Option<&str>, Option<&Path>, &[
 
 impl Rescan {
     /// The expansion that follows boot's, which expanded `snapshot` into
-    /// `written` and took `stamps`. Boot folded `snapshot`'s `[[app]] origin`
-    /// into the rows.
+    /// `written` and took `stamps`. Boot folded each row's own `[[app]]
+    /// origin` out of the set `current` serves.
     pub(super) fn new(
         snapshot: Arc<nvs_config::Snapshot>,
         sources: SourceMap,
@@ -329,7 +338,7 @@ impl Rescan {
         written: Vec<Mounted>,
         stamps: BTreeMap<PathBuf, Stamp>,
     ) -> Self {
-        let folded = snapshot.origin.clone();
+        let folded = current.published();
         Self {
             expanded_from: snapshot,
             sources: Arc::new(sources),
@@ -344,27 +353,26 @@ impl Rescan {
         }
     }
 
-    /// One pass: nothing while no directory moved and the published tree
-    /// changed none of `[server] root`, `[[server.mount]]` and `[[app]]
-    /// origin`, and otherwise the rows folded again and published where they
-    /// changed. The module doc lists what happens to each row.
+    /// One pass: nothing while no directory moved and no reload published,
+    /// and otherwise the rows folded again and published where they changed.
+    /// The module doc lists what happens to each row.
     ///
     /// Answers how long until a change it held back is quiet, and `None`
     /// where it held none back, as `Compiler::revalidate` does.
     pub(super) fn pass(&mut self, compiler: &Compiler) -> Option<Duration> {
-        let serving = self.current.load();
-        let origin = serving.origin.clone();
+        let published = self.current.published();
+        let serving = Arc::clone(published.host());
         let (expanded, wait) = if mounting(&serving) == mounting(&self.expanded_from) {
             self.expand(compiler.settle())
         } else {
             (self.rewritten(serving), None)
         };
-        if !expanded && origin == self.folded {
+        if !expanded && Arc::ptr_eq(&published, &self.folded) {
             return wait;
         }
-        self.folded = origin;
+        self.folded = published;
         let mut rows = self.written.clone();
-        super::fall_back_to(&mut rows, self.folded.as_deref());
+        super::fold_origins(&mut rows, &self.folded);
         let (_, standing) = self.mounts.rows();
         let mut unreached = Vec::new();
         rows.retain(|row| {

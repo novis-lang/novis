@@ -157,7 +157,7 @@ use crate::service::{Notify, State};
 
 #[cfg(feature = "exporter")]
 mod exporters;
-mod mounts;
+pub(crate) mod mounts;
 
 /// `nvs serve [<file>]` — resolve the tree, build § 4's mount table, compile every
 /// entry in it, bind the socket and run the accept loop until this process is
@@ -376,13 +376,7 @@ pub(crate) fn run(
     // origin` of its own entry's snapshot. The rows as written are kept too,
     // for the fold a reload of `[[app]] origin` asks for (`mounts`'s module doc).
     let mut mounts = written.clone();
-    for mount in &mut mounts {
-        let own = published
-            .entry(&mount.entry, &crate::config::LocalFiles)
-            .ok()
-            .and_then(|config| config.origin.clone());
-        fall_back_to(std::slice::from_mut(mount), own.as_deref());
-    }
+    fold_origins(&mut mounts, &published);
     // `rule:http-server/admission-is-arithmetic-not-a-number`'s ceiling, over
     // the largest cap any mounted entry's own snapshot gives a request, because
     // that is what one admitted request may hold.
@@ -542,13 +536,13 @@ pub(crate) fn run(
         crate::control::Process::new(
             Arc::clone(&current),
             config.to_vec(),
-            path.map(Path::to_path_buf),
             Arc::clone(&compiler),
             Arc::clone(&admission),
             nvs_server::Draining::process(),
             told.clone(),
         )
-        .draining_through(serving.generations()),
+        .draining_through(serving.generations())
+        .serving_rows(Arc::clone(&mounts)),
     );
     crate::control::install(Arc::clone(&host));
     // A saved configuration file reaches this process without anybody pushing
@@ -2040,16 +2034,28 @@ fn writes_mounts(snapshot: &nvs_config::Snapshot) -> bool {
 /// that must not disagree. From here down, `Mounted::origin` is *the* origin
 /// this mount resolved, whichever key wrote it.
 ///
-/// At boot the `[app]` half is each row's own entry's snapshot out of the
-/// publish, so every mount takes the origin its own `[[app]]` blocks write. A
-/// reload still passes the one snapshot it published for every row
-/// (`mounts::Rescan::pass`), which is the reload half of ADR 0271 and not
-/// done yet.
+/// [`fold_origins`] is how the boot and the rescan call it, with each row's
+/// own entry's snapshot.
 fn fall_back_to(mounts: &mut [Mounted], app: Option<&str>) {
     for mount in mounts {
         if mount.origin.is_none() {
             mount.origin = app.map(str::to_owned);
         }
+    }
+}
+
+/// [`fall_back_to`] for every row, each with the `[app] origin` of its own
+/// entry's snapshot in `published` (ADR 0271), so every mount takes the origin
+/// its own `[[app]]` blocks write. An entry `published` has not met yet is
+/// folded now. One whose blocks do not fold takes no origin, and its requests
+/// fail on that fold.
+fn fold_origins(mounts: &mut [Mounted], published: &nvs_config::Published) {
+    for mount in mounts {
+        let own = published
+            .entry(&mount.entry, &crate::config::LocalFiles)
+            .ok()
+            .and_then(|config| config.origin.clone());
+        fall_back_to(std::slice::from_mut(mount), own.as_deref());
     }
 }
 
@@ -4349,7 +4355,6 @@ mod tests {
         crate::control::Process::new(
             Arc::clone(&current),
             vec![root],
-            Some(entry),
             Arc::new(Compiler::default()),
             Arc::new(nvs_server::Admission::new(&nvs_server::Ceiling::of(
                 &capacity,
