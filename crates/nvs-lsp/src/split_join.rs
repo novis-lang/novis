@@ -1,7 +1,8 @@
-//! *Put on separate lines* and *Join onto one line*, offered inside a list
+//! *Put on separate lines* and *Join onto one line*, offered inside a list, a
+//! call chain or an operator chain
 //! (`rule:ide/a-list-splits-onto-lines-and-joins-onto-one`).
 //!
-//! The edit is [`nvs_fmt::relayout`]'s, so which lists exist, what breaks one
+//! The edit is [`nvs_fmt::relayout`]'s, so which constructs exist, what breaks one
 //! and the layout it ends in are the formatter's rules and nowhere else
 //! (`rule:ide/one-server-two-thin-clients`). This module only places the edit
 //! in the client's encoding. The action is computed from the entry document's
@@ -10,7 +11,7 @@
 //! # What it spends
 //!
 //! What [`nvs_fmt::relayout`] spends, once per request whose cursor is inside
-//! a list, dropped with the answer.
+//! a list or a chain, dropped with the answer.
 
 use nvs_diagnostics::{BytePos, PositionEncoding, Span};
 
@@ -23,7 +24,7 @@ use crate::render::Action;
 pub const KIND: &str = "refactor.rewrite";
 
 /// The split or join offered with the cursor at `start` of the entry document,
-/// if a list is around it.
+/// if a list or a chain is around it.
 #[must_use]
 pub fn at(analysed: &Analysed, start: BytePos, encoding: PositionEncoding) -> Option<Action> {
     let file = analysed.map.file(analysed.entry);

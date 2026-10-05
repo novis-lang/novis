@@ -9,4 +9,5 @@ echo $n ?? $<|>m + 10;
 codeAction
 --EXPECT--
 4:6-4:19 quickfix apply `??` first: `($n ?? $m) + 10` -> "($n ?? $m) + 10"
+4:8-4:12 refactor.rewrite Put on separate lines -> "\n    ?? "
 4:12-4:19 quickfix keep the current meaning: `$n ?? ($m + 10)` -> "($m + 10)"

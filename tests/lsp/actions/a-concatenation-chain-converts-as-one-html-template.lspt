@@ -9,3 +9,4 @@ echo "<b>" . $na<|>me . "</b> is " . ($n + 1) . ' years';
 codeAction
 --EXPECT--
 4:6-4:54 refactor.rewrite.htmlTemplate Convert to html template -> "html`<b>{$name}</b> is <?= ($n + 1) ?> years`"
+4:11-4:46 refactor.rewrite Put on separate lines -> "\n    . $name\n    . "</b> is "\n    . ($n + 1)\n    . "

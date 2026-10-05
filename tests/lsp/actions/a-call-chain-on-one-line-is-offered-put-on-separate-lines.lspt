@@ -1,0 +1,23 @@
+--TEST--
+a cursor on an arrow of a call chain written on one line is offered Put on separate lines, which starts each arrow on a line one level in, `rule:ide/a-list-splits-onto-lines-and-joins-onto-one`
+--FILE--
+<?nvs
+class Query
+{
+    public function where(string $field): Query
+    {
+        return $this;
+    }
+
+    public function limit(int $count): Query
+    {
+        return $this;
+    }
+}
+
+Query $query = new Query();
+Query $rows = $query->where('state')-<|>>limit(20);
+--REQUEST--
+codeAction
+--EXPECT--
+16:21-16:37 refactor.rewrite Put on separate lines -> "\n    ->where('state')\n    "

@@ -1,5 +1,5 @@
 --TEST--
-a `.` chain with no string in it is offered no html-template conversion, since there is no markup text to keep, `rule:ide/a-string-converts-to-an-html-template`
+a `.` chain with no string in it is offered no html-template conversion, since there is no markup text to keep, and is offered only Put on separate lines, `rule:ide/a-string-converts-to-an-html-template`
 --FILE--
 <?nvs
 int $a = 1;
@@ -8,4 +8,4 @@ echo $a . 42 . $<|>b;
 --REQUEST--
 codeAction
 --EXPECT--
-none
+4:8-4:16 refactor.rewrite Put on separate lines -> "\n    . 42\n    . "

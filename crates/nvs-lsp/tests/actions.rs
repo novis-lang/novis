@@ -148,6 +148,7 @@ fn a_fix_all_applies_the_grouping_that_keeps_the_meaning_and_never_the_alternati
         titles(actions::Kind::QuickFix),
         [
             "apply `??` first: `($n ?? 0) + 10`",
+            "Put on separate lines",
             "keep the current meaning: `$n ?? (0 + 10)`"
         ]
     );
@@ -180,10 +181,16 @@ fn the_html_template_refactor_has_its_own_kind_and_is_never_in_a_fix_all() {
     };
     assert_eq!(
         offered(actions::Kind::QuickFix),
-        [(
-            nvs_lsp::html_template::KIND.to_owned(),
-            "html`<b>{$name}</b>`".to_owned()
-        )]
+        [
+            (
+                nvs_lsp::html_template::KIND.to_owned(),
+                "html`<b>{$name}</b>`".to_owned()
+            ),
+            (
+                nvs_lsp::split_join::KIND.to_owned(),
+                "\n    . $name\n    . ".to_owned()
+            )
+        ]
     );
     assert_eq!(offered(actions::Kind::FixAll), []);
 }

@@ -61,6 +61,9 @@
 //! the `(` is on, operator first after the first, and the `)` starts a line at
 //! that line's own depth. [`crate::brace`] then writes ` {` after it.
 //!
+//! [`seams_on`] names every place a line break sits at a chain's own level,
+//! which is what the editor actions in [`crate::split_join`] add or remove.
+//!
 //! # What it spends
 //!
 //! One [`Chain`] or [`Operators`] per question, built from the chain's nodes
@@ -461,6 +464,90 @@ fn operators_on(
         .get(top + 1)
         .and_then(|&holder| condition_of(text, trivia, holder, nodes[top]));
     Operators::of(index, text, trivia, nodes[top], condition)
+}
+
+/// One place a line break sits at a call chain's or an operator chain's own
+/// level, as [`crate::split_join`] reads it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum SeamKind {
+    /// In front of an arrow, where a split opens a line one level in.
+    Arrow,
+    /// In front of an operator, where a split opens a line one level in.
+    Operator,
+    /// After an operator, which is one space in both layouts.
+    Operand,
+    /// After a condition's `(`, where a split opens a line one level in.
+    Open,
+    /// In front of a condition's `)`, where a split opens a line at the
+    /// depth of the `(` line.
+    Close,
+}
+
+/// The seams of one call chain or operator chain, in source order.
+pub(crate) struct Seams {
+    /// The first byte of the code whose line every opened line is indented
+    /// from: the receiver, the first operand, or a condition's `(`.
+    pub(crate) anchor: usize,
+    /// One past the chain's last byte, a condition's `)` included.
+    pub(crate) end: usize,
+    /// Whether a line break sits at the chain's own level.
+    pub(crate) broken: bool,
+    /// Each seam's kind and the trivia `from..to` it covers.
+    pub(crate) seams: Vec<(SeamKind, usize, usize)>,
+}
+
+/// The seams of the call chain or operator chain the node `nodes[at]`
+/// belongs to, where `nodes` is a path innermost first, or [`None`] where
+/// that node is in no chain.
+pub(crate) fn seams_on(
+    index: &SyntaxIndex,
+    text: &str,
+    trivia: &[Trivia],
+    nodes: &[IndexNode],
+    at: usize,
+) -> Option<Seams> {
+    if LINKS.contains(&nodes[at].kind) {
+        let top = outermost(index, nodes, at);
+        let chain = Chain::of(index, text, trivia, top)?;
+        let seams = chain
+            .arrows
+            .iter()
+            .map(|&arrow| (SeamKind::Arrow, code_before(trivia, arrow), arrow))
+            .collect();
+        return Some(Seams {
+            anchor: chain.receiver,
+            end: top.span.end as usize,
+            broken: chain.broken,
+            seams,
+        });
+    }
+    if nodes.iter().any(|node| OPAQUE.contains(&node.kind)) {
+        return None;
+    }
+    let chain = operators_on(index, text, trivia, nodes, at)?;
+    let first = chain.operands[0].span.start as usize;
+    let mut seams = Vec::new();
+    if let Some((open, _)) = chain.condition {
+        seams.push((SeamKind::Open, open + 1, first));
+    }
+    for (&operator, operand) in chain.operators.iter().zip(&chain.operands[1..]) {
+        seams.push((SeamKind::Operator, code_before(trivia, operator), operator));
+        seams.push((
+            SeamKind::Operand,
+            operator + chain.spelling.len(),
+            operand.span.start as usize,
+        ));
+    }
+    let last = chain.operands.last()?.span.end as usize;
+    if let Some((_, close)) = chain.condition {
+        seams.push((SeamKind::Close, code_before(trivia, close), close));
+    }
+    Some(Seams {
+        anchor: chain.condition.map_or(first, |(open, _)| open),
+        end: chain.condition.map_or(last, |(_, close)| close + 1),
+        broken: chain.broken,
+        seams,
+    })
 }
 
 /// What opens the line at `offset` where it is an operator of a broken
