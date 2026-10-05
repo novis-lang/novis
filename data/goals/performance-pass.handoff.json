@@ -1,28 +1,30 @@
 {
-  "state": "**Goal `performance-pass`, Stage 5 (the fixes).** Stage 4's review is whole (`docs/perf/performance-review.md`, ending in `## floor`).\n\n**Route dispatch is a prefix trie.** `Prefix` in `crates/nvs-runtime/src/routes.rs` narrows which rows `match_request` and `methods_for` compare; the rank comparison and its load-order tie-break are unchanged. Ladder `benches/scaling/request/routes.nvs` uses the new `size routes` of `bun nv scaling` and is flat on the new binary, grows (slope 1.06) on the old one. A `serve` ladder with an unread clock slope is now flat when its largest size is within `CLOCK_FLAT` of its smallest (`tools/nv/cmd/scaling.ts`). Figures in `docs/perf/performance-pass.md` § *What got better*; gap record deleted.\n\n**10 gap records owned by `performance-pass`** keep `owners --closes performance-pass` red. `bun nv scaling --check` (all ladders) was not re-run this session; run it first next session to learn which ladder is red. *Decisions for you* has two entries: a total deadline for the request head, and `Markup` concatenation in place.",
+  "state": "**Goal `performance-pass`, Stage 5 (the fixes).** Stage 4's review is whole (`docs/perf/performance-review.md`, ending in `## floor`).\n\n**The scheduler and channel scans are fixed in code.** `Scheduler::run`'s parked sweep reads `TaskTree::sweep` (tasks marked, or parked while cancelled, since the last sweep) and not the whole parked set. `TaskNode::children` is a `BTreeSet`, so a child ending is O(log siblings). `nvs_host::channel::Waiters` is ticket-keyed, so `Drop for Waiter` is O(log waiters). `nvs-stdlib`'s channel registry is keyed by channel, then ticket, so a send reads only its own waiters. The stdlib channel gap record is deleted. Ladders `benches/scaling/scheduler/fan-out.nvs` and `waiters.nvs` are new; neither has a before and after yet, because `target/release/nvs.exe` was built before these fixes.\n\n**9 gap records owned by `performance-pass`** keep `owners --closes performance-pass` red, one of them `data/gaps/nvs-host/a-scheduler-turn-scans-every-parked-task.json`, which now owes only the `parked.nvs` ladder and the figures. `bun nv scaling --check` over all ladders was not run this session either.\n\n**Every task is charged its 1 MiB stack** (`data/gaps/nvs-host/a-task-is-charged-a-whole-stack.json`), so 256 parked tasks exceed the 256M default cap and `waiters.nvs` stops at 128. With an explicit `--config` the charge also reaches tasks that finish at once: 4096 children of `Core\\Task::map` exceed a 1G cap, and use 26 MB without `--config`. Not checked why the two differ.",
   "next": {
     "stage": 5,
-    "title": "the fixes, the scheduler's scans",
+    "title": "the fixes, the scheduler's figures",
     "files": [
-      "crates/nvs-host/src/scheduler.rs",
-      "crates/nvs-host/src/channel.rs",
-      "benches/scaling/scheduler/"
+      "benches/scaling/scheduler/",
+      "docs/perf/performance-pass.md",
+      "crates/nvs-host/src/scheduler.rs"
     ],
     "items": [
       {
         "done": false,
-        "text": "**A scheduler turn and a finished child do not scan every parked task or sibling** (`crates/nvs-host/src/scheduler.rs:977`), per `data/gaps/nvs-host/a-scheduler-turn-scans-every-parked-task.json`: `run()` collects `doomed` over the whole `parked` map on every reactor wake; `retire` and `detach` (`crates/nvs-host/src/scheduler.rs:422`) `retain` over the parent's children; `Drop for Waiter` (`crates/nvs-host/src/channel.rs:183`) is a `position` over the queue. Ladders `scheduler/parked.nvs` and `scheduler/fan-out.nvs`, flat per task. Rule: AGENTS.md priority ordering."
+        "text": "**Write `scheduler/parked.nvs` and measure the scheduler ladders before and after** (`crates/nvs-host/src/scheduler.rs:996`), per `data/gaps/nvs-host/a-scheduler-turn-scans-every-parked-task.json`: N tasks parked on channels beside one task that calls `Core\\Time::sleep` N times (only a reactor wake reaches the sweep). Build release at this commit and at its parent, run `bun nv scaling scheduler --nvs <each>`, write the figures to `docs/perf/performance-pass.md` § *What got better*, then delete the gap record. Rule: AGENTS.md priority ordering."
       },
       {
         "done": false,
-        "text": "**A channel send finds its own waiters without scanning the core's** (`crates/nvs-stdlib/src/channel.rs:285`), per `data/gaps/nvs-stdlib/a-channel-send-scans-every-waiter-on-the-core.json`: a map from channel to its waiters and a ticket-keyed slab. Ladder `scheduler/waiters.nvs`. Rule: AGENTS.md priority ordering."
+        "text": "**Add to `a-task-is-charged-a-whole-stack` why `--config` changes the charge** (`crates/nvs-host/src/scheduler.rs:823`): 4096 finished-at-once children of `Core\\Task::map` hold 4.3 GB with `--config` and 26 MB without. Find out why and write it into that gap record. Rule: AGENTS.md priority ordering (memory O(in-flight), attributable)."
+      },
+      {
+        "done": false,
+        "text": "**Run `bun nv scaling --check` over every ladder** (`tools/nv/cmd/scaling.ts:265`) to learn which ladder keeps `every-ladder-is-within-its-declared-growth` red."
       }
     ]
   },
   "backlog": [
-    "`crates/nvs-lsp/src/index.rs` and `crates/nvs-lsp/src/server.rs`: the two editor gaps, one file set (`data/gaps/nvs-lsp/`).",
-    "`crates/nvs-stdlib/src/queue.rs`: claim sorts every due row, and finished jobs kept until purged (`data/gaps/nvs-stdlib/`).",
-    "`crates/nvs-runtime/src/identity.rs`, `crates/nvs-stdlib/src/json.rs`, `crates/nvs-server/src/socket.rs`, `crates/nvs-host/src/stack.rs`: one gap each (`data/gaps/`).",
-    "A `compile` ladder's clock is `nvs check`'s and never sees code generation (`tools/nv/cmd/scaling.ts` module doc)."
+    "The other 8 gap records owned by `performance-pass`: `bun nv owners --closes performance-pass` lists them.",
+    "*Decisions for you* has two entries: a total deadline for the request head, and `Markup` concatenation in place (`docs/perf/performance-pass.md`)."
   ]
 }
