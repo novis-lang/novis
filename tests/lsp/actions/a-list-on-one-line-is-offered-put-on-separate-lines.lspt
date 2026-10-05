@@ -1,0 +1,19 @@
+--TEST--
+a cursor inside a call's arguments written on one line is offered Put on separate lines, which writes one argument per line with a trailing comma, `rule:ide/a-list-splits-onto-lines-and-joins-onto-one`
+--FILE--
+<?nvs
+class Shop
+{
+    public static function place(int $customer, int $basket): int
+    {
+        return $customer + $basket;
+    }
+}
+
+int $customer = 10;
+int $basket = 20;
+echo Shop::place($customer, $bas<|>ket);
+--REQUEST--
+codeAction
+--EXPECT--
+12:17-12:37 refactor.rewrite Put on separate lines -> "(\n    $customer,\n    $basket,\n)"

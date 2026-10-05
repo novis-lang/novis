@@ -1,28 +1,30 @@
 {
-  "state": "**Side goal `fmt-layout-from-breaks`, stages 2 and 3 landed except shape types.** `nvs fmt` lays out every list as one line or one item per line (`crates/nvs-fmt/src/list.rs`). It lays out a `->` / `?->` call chain as one line or one call per line, and an `&&`, `||`, `??` or `.` chain as one line or one operand per line, operator first. A broken `if` / `elseif` / `while` / `do … while` condition puts `(` and `)` on lines of their own. All three are in `crates/nvs-fmt/src/chain.rs`, wired beside `list` in `crates/nvs-fmt/src/indent.rs` and `crates/nvs-fmt/src/print.rs`. `crates/nvs-fmt/tests/chain_layout.rs` holds the stage-3 check's 9 tests plus one, and the corpus is reformatted. `rule:tooling/fmt-a-broken-call-chain-is-one-call-per-line` and `rule:tooling/fmt-a-broken-operator-chain-is-one-operand-per-line` are `shipped`.\n\nStill not a list: a shape type (gap `comma-separated-list-whose-closing-delimiter`), so `rule:tooling/fmt-a-list-is-one-line-or-one-item-per-line` stays `designed`. Stage 4 (editor actions) is not started.",
+  "state": "**Side goal `fmt-layout-from-breaks`: stages 2 and 3 have landed except shape types. Stage 4 has landed for lists.** `nvs fmt` lays out lists (`crates/nvs-fmt/src/list.rs`), `->` / `?->` call chains and `&&`, `||`, `??`, `.` chains, plus broken conditions (`crates/nvs-fmt/src/chain.rs`).\n\nThe editor actions *Put on separate lines* and *Join onto one line* exist for lists. `nvs_fmt::relayout` (`crates/nvs-fmt/src/split_join.rs`) writes the breaks, formats the file, and returns the formatted list as the edit. If formatting changed anything outside the list, the edit is the breaks alone. The LSP side is `crates/nvs-lsp/src/split_join.rs`, filed under `refactor.rewrite` and offered beside the html-template refactor in `crates/nvs-lsp/src/actions.rs`. The check `split-and-join-actions` has three cases under `tests/lsp/actions/`, and all of them pass.\n\n`rule:ide/a-list-splits-onto-lines-and-joins-onto-one` stays `designed` because the call chain and operator chain actions are not written yet. `rule:tooling/fmt-a-list-is-one-line-or-one-item-per-line` stays `designed` because of shape types (gap `comma-separated-list-whose-closing-delimiter`).",
   "next": {
     "stage": 4,
-    "title": "the split and join editor actions",
-    "files": [],
-    "note": "one file set: `crates/nvs-lsp/src/actions.rs`, a new `crates/nvs-lsp/src/split_join.rs`, `crates/nvs-fmt/src/list.rs`, `crates/nvs-fmt/src/lib.rs`, three new cases under `tests/lsp/actions/`.",
+    "title": "split and join for chains",
+    "files": [
+      "crates/nvs-fmt/src/split_join.rs",
+      "crates/nvs-fmt/src/chain.rs",
+      "tests/lsp/actions/"
+    ],
     "items": [
       {
         "done": false,
-        "text": "**A list on one line is offered *Put on separate lines*** (`rule:ide/a-list-splits-onto-lines-and-joins-onto-one`) — expose the list under the cursor from nvs-fmt (`crates/nvs-fmt/src/list.rs:104` `List`, today `pub(crate)`) and offer the action beside `html_template::at` at `crates/nvs-lsp/src/actions.rs:160`. The edit only adds the breaks; `nvs fmt` lays out the rest. Case `tests/lsp/actions/a-list-on-one-line-is-offered-put-on-separate-lines.lspt`, shaped like `tests/lsp/actions/a-concatenation-chain-converts-as-one-html-template.lspt`."
+        "text": "**A call chain is offered *Put on separate lines* / *Join onto one line*** (`rule:ide/a-list-splits-onto-lines-and-joins-onto-one`). Expose the chain's arrows from `crates/nvs-fmt/src/chain.rs:94` `Chain`, today private. Then pick the innermost list or chain around the cursor in `crates/nvs-fmt/src/split_join.rs:74`. The split adds a break before the first arrow and lets the format pass lay out the rest, the same way lists work today."
       },
       {
         "done": false,
-        "text": "**A broken list is offered *Join onto one line*** (same rule) — same anchors, `crates/nvs-lsp/src/actions.rs:160`. Case `tests/lsp/actions/a-broken-list-is-offered-join-onto-one-line.lspt`."
+        "text": "**An operator chain is offered the same actions** (same rule): `crates/nvs-fmt/src/chain.rs:276` `Operators`, again through `crates/nvs-fmt/src/split_join.rs:74`. A broken condition's `(` and `)` come from the format pass."
       },
       {
         "done": false,
-        "text": "**A list holding a line comment is offered no join** (same rule) — `crates/nvs-lsp/src/actions.rs:160`. Case `tests/lsp/actions/a-list-holding-a-line-comment-is-offered-no-join.lspt`. The stage-4 check `split-and-join-actions` names all three cases."
+        "text": "**Ship the rule** once both exist: rewrite the module doc at `crates/nvs-fmt/src/split_join.rs:1` to cover chains, set `status` to `shipped` at `data/rules/ide/a-list-splits-onto-lines-and-joins-onto-one.json:3` and add the chain cases to `guardedBy`. Then run `bun nv rules --render`."
       }
     ]
   },
   "backlog": [
-    "A shape type is not laid out as a list, because no node writes one — `data/gaps/` record `comma-separated-list-whose-closing-delimiter`, owner `crates/nvs-syntax/src/walk.rs`.",
-    "`bun nv verify`'s extension step fails in this worktree because `editors/vscode/node_modules` is not installed (`vscode` and node types missing); every Rust step is green. Installing the extension's dependencies here needs a command outside the loop's allowlist.",
-    "Whether the actions also cover call chains and operator chains is the rule's call (`rule:ide/a-list-splits-onto-lines-and-joins-onto-one`); the check names lists only."
+    "Shape types as lists: gap `comma-separated-list-whose-closing-delimiter`, owned by `crates/nvs-fmt/src/list.rs`.",
+    "The VS Code client needs no command for these actions, because `refactor.rewrite` reaches the light bulb as it is. This was not checked in a running editor."
   ]
 }

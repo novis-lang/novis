@@ -1,0 +1,15 @@
+--TEST--
+a broken array literal with a line comment between its items is offered no Join onto one line, because joining would turn the next item into comment text, `rule:ide/a-list-splits-onto-lines-and-joins-onto-one`
+--FILE--
+<?nvs
+int $small = 10;
+int $large = 30;
+array<int> $sizes = [
+    $small, // the smallest
+    $lar<|>ge,
+];
+echo $sizes[0];
+--REQUEST--
+codeAction
+--EXPECT--
+none

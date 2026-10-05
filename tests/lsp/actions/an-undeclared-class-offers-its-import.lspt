@@ -1,5 +1,5 @@
 --TEST--
-an unqualified class name that resolves to nothing offers the `use` line for the one type it could have meant, inserted after the open tag because the file has no `use` and no `namespace` of its own — `rule:ide/an-undeclared-name-offers-its-import`, `rule:ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`
+an unqualified class name that resolves to nothing offers the `use` line for the one type it could have meant, inserted after the open tag because the file has no `use` and no `namespace` of its own; the call's arguments around it are offered Put on separate lines — `rule:ide/an-undeclared-name-offers-its-import`, `rule:ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`, `rule:ide/a-list-splits-onto-lines-and-joins-onto-one`
 --FILE--
 <?nvs
 Core\Debug::dump(Req<|>uest::headers());
@@ -7,3 +7,4 @@ Core\Debug::dump(Req<|>uest::headers());
 codeAction
 --EXPECT--
 1:6-1:6 quickfix import `Core\Request` -> "\nuse Core\Request;"
+2:17-2:37 refactor.rewrite Put on separate lines -> "(\n    Request::headers(),\n)"

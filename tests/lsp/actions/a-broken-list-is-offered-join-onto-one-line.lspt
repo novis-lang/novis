@@ -1,0 +1,15 @@
+--TEST--
+a cursor inside an array literal with one item per line is offered Join onto one line, which drops the line breaks and the trailing comma, `rule:ide/a-list-splits-onto-lines-and-joins-onto-one`
+--FILE--
+<?nvs
+int $small = 10;
+int $large = 30;
+array<int> $sizes = [
+    $small,
+    $lar<|>ge,
+];
+echo $sizes[0];
+--REQUEST--
+codeAction
+--EXPECT--
+4:21-7:2 refactor.rewrite Join onto one line -> "[$small, $large]"

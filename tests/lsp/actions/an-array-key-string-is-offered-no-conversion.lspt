@@ -1,9 +1,9 @@
 --TEST--
-a string used as an array key is a position a markup value has no meaning in, so it is offered no html-template conversion, while the value beside it is, `rule:ide/a-string-converts-to-an-html-template`
+a string used as an array key is a position a markup value has no meaning in, so it is offered no html-template conversion, while the value beside it is; the array around it is offered Put on separate lines, `rule:ide/a-string-converts-to-an-html-template`, `rule:ide/a-list-splits-onto-lines-and-joins-onto-one`
 --FILE--
 <?nvs
 var $labels = ["tit<|>le" => "<b>Title</b>"];
 --REQUEST--
 codeAction
 --EXPECT--
-none
+2:15-2:42 refactor.rewrite Put on separate lines -> "[\n    "title" => "<b>Title</b>",\n]"

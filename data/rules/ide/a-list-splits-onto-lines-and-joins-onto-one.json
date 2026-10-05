@@ -10,5 +10,10 @@
     "tooling/fmt-a-broken-operator-chain-is-one-operand-per-line",
     "ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows"
   ],
-  "guardedBy": []
+  "guardedBy": [
+    "crates/nvs-fmt/src/split_join.rs",
+    "tests/lsp/actions/a-list-on-one-line-is-offered-put-on-separate-lines.lspt",
+    "tests/lsp/actions/a-broken-list-is-offered-join-onto-one-line.lspt",
+    "tests/lsp/actions/a-list-holding-a-line-comment-is-offered-no-join.lspt"
+  ]
 }
