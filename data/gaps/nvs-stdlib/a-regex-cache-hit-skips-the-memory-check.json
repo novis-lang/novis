@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-stdlib/src/regex.rs",
-  "title": "A compiled-pattern cache hit skips the memory check a miss makes, and the cache empties itself whole when it fills.",
-  "text": "From the Stage 4 review, not re-run: `nvs_runtime::affordable(search_cost)` (`crates/nvs-stdlib/src/regex.rs:972-990`) runs only on a miss, so a request whose limit is too low for the capture table is refused on a cold core and served on a warm one. That is a cache whose answer differs from computing it again, a correctness defect first. `prepared` is not part of the key either, so a `Backtracking` program cached by `compile` is used by a plain `match` with the same text, flags and budget. Past `CACHE_CAPACITY` (256) distinct patterns the cache clears whole (`:994-997`), and each miss builds the program twice (`:1095`). The check belongs on every use, the engine in the key, and eviction one entry at a time. Ladder: `regex/patterns.nvs`, 255, 257 and 512 distinct patterns in rotation; time per call flat.",
-  "goal": "performance-pass"
-}
