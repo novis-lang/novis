@@ -107,3 +107,8 @@ __pycache__/
 /.cache/
 
 a.out
+
+# `::absorb`, made by a shell command under WSL that ran an unquoted Rust path such as
+# `Type>::absorb` as a redirect. NTFS allows no `:`, so WSL stores each colon as U+F03A. The `*`
+# matches those characters, so this file stays ASCII.
+/*absorb
