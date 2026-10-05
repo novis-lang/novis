@@ -1,26 +1,24 @@
 {
-  "state": "**Goal `performance-pass`, Stage 5 (the fixes).** Stage 4's review is whole (`docs/perf/performance-review.md`, ending in `## floor`). Old refusals have not been priced again yet.\n\n**`bun nv scaling traffic` is green** with the new ladder `benches/scaling/traffic/debug-log.nvs` (n filtered `Debug` calls with n fields each); `benches/scaling/traffic/nvs.toml` sets `[log] level = \"error\"` for the folder. The counts cannot see inside `Core\\Log::write`, so the fix was proven by clock: 497 ms before, 41 ms after at 4000, best of five alternating runs (`docs/perf/performance-pass.md` § *What got better*).\n\n**A filtered `Core\\Log::write` builds nothing**: `Ctx::log_writes` (`crates/nvs-runtime/src/ctx/output.rs`) is asked before the record, and `a_record_below_the_minimum_takes_no_coalescing_slot` in `crates/nvs-stdlib/src/log.rs` pins that filtered records take no `floor::LOG_WINDOWS` slot.\n\n**21 gap records owned by `performance-pass`** keep `owners --closes performance-pass` red (`bun nv owners --closes performance-pass` lists them). *Decisions for you* in `docs/perf/performance-pass.md` has two entries: a total deadline for the request head, and `Markup` concatenation in place.",
+  "state": "**Goal `performance-pass`, Stage 5 (the fixes).** Stage 4's review is whole (`docs/perf/performance-review.md`, ending in `## floor`). Old refusals have not been priced again yet.\n\n**The event-stream reader reads each part of a reply once.** `EventScan` in `crates/nvs-stdlib/src/http/stream.rs` keeps the parse of one event across the pulls of one `step`, and `line_from` resumes its search for a line end, so `lines()` gains the same. The ladder `benches/scaling/http-client/event-size.nvs` (a `fetch` ladder, server `event-size/server.nvs`) grew with bytes slope 1.92 before and is flat after (`docs/perf/performance-pass.md` § *What got better*). `target/release/nvs.exe` was rebuilt at this change.\n\n**20 gap records owned by `performance-pass`** keep `owners --closes performance-pass` red (`bun nv owners --closes performance-pass` lists them). *Decisions for you* in `docs/perf/performance-pass.md` has two entries: a total deadline for the request head, and `Markup` concatenation in place.",
   "next": {
     "stage": 5,
-    "title": "the fixes, the event-stream reader",
+    "title": "the fixes, the regex cache",
     "files": [
-      "crates/nvs-stdlib/src/http/stream.rs"
+      "crates/nvs-stdlib/src/regex.rs"
     ],
     "items": [
       {
         "done": false,
-        "text": "**The event-stream reader remembers where its last scan stopped** (`crates/nvs-stdlib/src/http/stream.rs:612`), per `data/gaps/nvs-stdlib/an-event-stream-reparses-its-buffer-per-read.json`. `event_at` (`crates/nvs-stdlib/src/http/stream.rs:824`) and `line_at` (`crates/nvs-stdlib/src/http/stream.rs:723`) scan from offset 0 on every `pull()`, so one event arriving in small reads is O(n²/read size). Ladder `http-client/event-size.nvs`. Rule: the goal's base rule."
+        "text": "**A regex cache hit runs the memory check too** (`crates/nvs-stdlib/src/regex.rs:987`), per `data/gaps/nvs-stdlib/a-regex-cache-hit-skips-the-memory-check.json`. `affordable(search_cost)` runs only on a miss in `compiled_prepared` (`crates/nvs-stdlib/src/regex.rs:965`), and `prepared` is not in the key. Move the check to every use and put the engine in the key. Rule: the goal's base rule, and the priority ordering (a correctness defect first)."
       },
       {
         "done": false,
-        "text": "**A regex cache hit runs the memory check too** (`crates/nvs-stdlib/src/regex.rs:972`), per `data/gaps/nvs-stdlib/a-regex-cache-hit-skips-the-memory-check.json` — a different file set, so take it only with room to spare. Correctness first: a cold and a warm core must give the same answer, and `prepared` belongs in the key. Rule: the goal's base rule."
+        "text": "**The regex cache evicts one entry, and a miss builds once** (`crates/nvs-stdlib/src/regex.rs:994`), per the same gap record: past `CACHE_CAPACITY` the cache clears whole, and `build` (`crates/nvs-stdlib/src/regex.rs:1051`) runs twice per miss. Ladder `benches/scaling/regex/patterns.nvs`, 255, 257 and 512 distinct patterns in rotation. Rule: the goal's base rule."
       }
     ]
   },
   "backlog": [
-    "19 more gap records owned by `performance-pass`; `bun nv owners --closes performance-pass` lists them (`docs/agent/goals/performance-pass.md` Stage 5).",
-    "Each request's first log write reads the `[log]` keys and opens the log file again (`crates/nvs-runtime/src/ctx/output.rs:363`, `crates/nvs-runtime/src/logfile.rs:104`); not checked against `nvs serve`, and a per-request constant, so only in scope if a measurement shows it is half of a request.",
-    "`bun nv scaling` ramps `strings/at` only to 8000 and sees no clock there, so a member-internal regression in it shows only by a direct clock probe (`tools/nv/cmd/scaling.ts`).",
-    "Old refusals priced again, per the goal's Stage 5 (`docs/agent/goals/performance-pass.md`)."
+    "The other gap records owned by `performance-pass`: `bun nv owners --closes performance-pass`.",
+    "`nvs lsp` grows near-quadratically with document size: `docs/perf/performance-pass.md` § *What we found*."
   ]
 }

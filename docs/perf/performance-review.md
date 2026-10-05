@@ -286,8 +286,8 @@ are each bounded. The rate limiter's state lives in the capped local tier.
 **Read:** the transport, the connection pool, redirects, body collection and the event-stream
 reader.
 
-**Found:** the event-stream reader parses its buffer from the start after every partial read
-([`an-event-stream-reparses-its-buffer-per-read`](../../data/gaps/nvs-stdlib/an-event-stream-reparses-its-buffer-per-read.json)).
+**Found:** the event-stream reader parsed its buffer from the start after every partial read; it
+is fixed and resumes where the last read stopped.
 
 **Bounded:** each resolved address formats its pool key and hashes the whole trust anchor PEM again
 (`crates/nvs-stdlib/src/http/transport.rs:1464-1467`). An expired idle connection is closed only by

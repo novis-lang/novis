@@ -53,6 +53,13 @@ filtered records could evict the window of a record that is written. The ladder
 fields each: at 4000, the best of five alternating runs went from 497 ms to 41 ms, with the same
 output. It spends nothing.
 
+**`Core\Http\Stream::events()` and `::lines()` read each part of the reply once.** Each read of
+8 KB that did not finish an event parsed the event again from its first line, so one event of n
+bytes cost O(n²/8 KB). The parse now resumes where the last read stopped. The ladder
+[`http-client/event-size`](../../benches/scaling/http-client/event-size.nvs) reads one event of 256
+to 16384 lines: its bytes count grew with slope 1.92 before, and it is flat after. It spends
+nothing.
+
 ## Decisions for you
 
 **Should a request head get a total deadline as well as its idle one?** `header_timeout` is an idle

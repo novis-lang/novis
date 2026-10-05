@@ -600,7 +600,7 @@ fn event_walk(body: Value) -> Value {
 ///
 /// # Errors
 ///
-/// [`line_at`]'s and [`event_at`]'s caps, and
+/// [`line_from`]'s and [`EventScan::next`]'s caps, and
 /// [`transport::Incoming::pull`]'s two bounds and its `IOError`.
 fn step(ctx: &mut Ctx, value: Value, class: &CoreClass, framing: Framing) -> Result<Value, Fault> {
     let receiver = crate::instance::receiver(value, class, nvs_runtime::sequence::ADVANCE)?;
@@ -618,22 +618,25 @@ fn step(ctx: &mut Ctx, value: Value, class: &CoreClass, framing: Framing) -> Res
             .map(|id| id.as_bytes().to_vec()),
         Framing::Lines | Framing::Chunks => None,
     };
+    // Both scans resume where the previous pull left them. Nothing is consumed
+    // until an element is framed, and a pull only appends, so what they have
+    // already read is still the front of what the reader holds.
+    let mut scan = EventScan::new(carried);
+    let mut searched = 0;
     let reader = reader_at(ctx, key, class)?;
     let element = loop {
         let ended = reader.ended();
         let held = reader.held();
         let framed = match framing {
-            Framing::Events => {
-                event_at(held, ended, carried.as_deref())?.map(|(event, used, id)| {
-                    crate::instance::set_slot(
-                        receiver,
-                        READER_LAST_ID_AT,
-                        optional_text(id.as_deref()),
-                    );
-                    (event, used)
-                })
-            }
-            Framing::Lines => line_at(held, ended, false, "lines")?
+            Framing::Events => scan.next(held, ended)?.map(|(event, used, id)| {
+                crate::instance::set_slot(
+                    receiver,
+                    READER_LAST_ID_AT,
+                    optional_text(id.as_deref()),
+                );
+                (event, used)
+            }),
+            Framing::Lines => line_from(held, &mut searched, ended, false, "lines")?
                 .map(|(line, used)| text_of(line, "lines").map(|line| (line, used)))
                 .transpose()?,
             // A walk over chunks frames nothing, so whatever has arrived is an
@@ -717,18 +720,27 @@ fn current(value: Value, class: &CoreClass) -> Result<Value, Fault> {
 /// terminator, which is what `ended` decides: the body being over is what makes
 /// a fragment the last line rather than the start of one still arriving.
 ///
+/// `searched` is how many octets at the front an earlier call already found no
+/// line end in. The search starts there, and a call that frames no line leaves
+/// it where the next search has to start, so a long line that arrives in many
+/// reads is searched once. A call that frames a line sets it back to zero,
+/// because the next call is handed what follows that line.
+///
 /// # Errors
 ///
 /// [`capped`]'s, on the framed line and on a fragment alike.
-fn line_at<'a>(
+fn line_from<'a>(
     octets: &'a [u8],
+    searched: &mut usize,
     ended: bool,
     ends_at_cr: bool,
     member: &str,
 ) -> Result<Option<(&'a [u8], usize)>, Fault> {
-    let (line, used) = match octets
+    let from = (*searched).min(octets.len());
+    let (line, used) = match octets[from..]
         .iter()
         .position(|byte| *byte == b'\n' || (ends_at_cr && *byte == b'\r'))
+        .map(|at| from + at)
     {
         // Nothing that ends a line is here. A body that is over ends its last
         // line by being over; one that is not is holding a fragment, which is
@@ -737,6 +749,7 @@ fn line_at<'a>(
         None => {
             if !ended {
                 capped(octets.len(), member)?;
+                *searched = octets.len();
                 return Ok(None);
             }
             if octets.is_empty() {
@@ -746,8 +759,10 @@ fn line_at<'a>(
         }
         // A `\r` at the very end of what has arrived may be the first half of
         // a CRLF whose second half is still on the wire, and a framing that
-        // ends a line at either would read one line ending as two.
+        // ends a line at either would read one line ending as two. The next
+        // search starts at that `\r` again.
         Some(at) if ends_at_cr && octets[at] == b'\r' && at + 1 == octets.len() && !ended => {
+            *searched = at;
             return Ok(None);
         }
         Some(at) => {
@@ -760,6 +775,7 @@ fn line_at<'a>(
         _ => line,
     };
     capped(line.len(), member)?;
+    *searched = 0;
     Ok(Some((line, used)))
 }
 
@@ -789,11 +805,11 @@ fn capped(length: usize, member: &str) -> Result<(), Fault> {
 /// the parse took, and the id left in force after it.
 type Dispatched = (Value, usize, Option<Vec<u8>>);
 
-/// The next event off the front of `octets`, parsed as the WHATWG EventSource
-/// format defines one: the event, the octets it took, and the id left in force
-/// after it.
+/// A parse of the next event off the front of the reader, as the WHATWG
+/// EventSource format defines one: the event, the octets it took, and the id
+/// left in force after it.
 ///
-/// `carried` is that id on the way in. The format keeps it between events — an
+/// The id [`EventScan::new`] is given is that id on the way in. The format keeps it between events — an
 /// `id` line sets it and nothing clears it, including the blank line that
 /// dispatches — so an event that names no `id` reports the last one the origin
 /// did, which is the value a program resuming the stream sends back as
@@ -807,58 +823,96 @@ type Dispatched = (Value, usize, Option<Vec<u8>>);
 /// lines set no `data` dispatches nothing either, which is what makes an id-only
 /// keep-alive block invisible to a walk.
 ///
-/// The parse restarts at the front of the block every time more of it arrives,
-/// which is what `data` accumulating between two reads would otherwise have to
-/// be threaded through slots for. What that rescan costs is bounded by the same
-/// [`transport::EVENT_CEILING`] that bounds the block: an origin sending `data`
-/// and never a blank line runs into it rather than into this walk's memory.
+/// The parse is a scan that one step keeps across its pulls: each call to
+/// [`EventScan::next`] resumes at the first line the previous call could not
+/// finish, with the fields it had already read. One event that arrives in many
+/// reads is therefore read once, and costs time linear in its size. The scan
+/// lives only inside one step, so nothing but the id is threaded through slots.
+/// What one event may hold is bounded by [`transport::EVENT_CEILING`]: an
+/// origin sending `data` and never a blank line runs into it rather than into
+/// this walk's memory.
 ///
 /// `retry` is read and ignored — reconnecting is the program's decision, and a
 /// server-chosen sleep inside a `Core` iterator is a wait with no bound the
 /// caller wrote.
-///
-/// # Errors
-///
-/// [`line_at`]'s cap, and a `RuntimeError` where one event's accumulated `data`
-/// passes [`transport::EVENT_CEILING`].
-fn event_at(
-    octets: &[u8],
-    ended: bool,
-    carried: Option<&[u8]>,
-) -> Result<Option<Dispatched>, Fault> {
-    let mut at = 0;
-    let mut data: Vec<u8> = Vec::new();
-    let mut written = false;
-    let mut name: Option<Vec<u8>> = None;
-    let mut id: Option<Vec<u8>> = carried.map(<[u8]>::to_vec);
-    while let Some((line, next)) = line_at(&octets[at..], ended, true, "events")? {
-        at += next;
-        if line.is_empty() {
-            if written {
-                // All three are checked before any is allocated, so a refusal
-                // leaves nothing to release.
-                checked(&data, "events")?;
-                for field in [&name, &id].into_iter().flatten() {
-                    checked(field, "events")?;
-                }
-                return Ok(Some((
-                    crate::instance::build(
-                        &EVENT,
-                        [
-                            Value::str(NvsStr::new(&data)),
-                            optional_text(name.as_deref()),
-                            optional_text(id.as_deref()),
-                        ],
-                    ),
-                    at,
-                    id,
-                )));
-            }
-            name = None;
-            continue;
+struct EventScan {
+    /// The octets of the block already read, which every line before it took.
+    at: usize,
+    /// [`line_from`]'s resume point inside the line that starts at `at`.
+    searched: usize,
+    data: Vec<u8>,
+    written: bool,
+    name: Option<Vec<u8>>,
+    id: Option<Vec<u8>>,
+}
+
+impl EventScan {
+    /// A scan positioned at the front of a block, with `carried` in force.
+    fn new(carried: Option<Vec<u8>>) -> Self {
+        Self {
+            at: 0,
+            searched: 0,
+            data: Vec::new(),
+            written: false,
+            name: None,
+            id: carried,
         }
+    }
+
+    /// The next event of `octets`, which must start with every octet an
+    /// earlier call on this scan was handed.
+    ///
+    /// # Errors
+    ///
+    /// [`line_from`]'s cap, and a `RuntimeError` where one event's accumulated
+    /// `data` passes [`transport::EVENT_CEILING`].
+    fn next(&mut self, octets: &[u8], ended: bool) -> Result<Option<Dispatched>, Fault> {
+        while let Some((line, next)) = line_from(
+            &octets[self.at..],
+            &mut self.searched,
+            ended,
+            true,
+            "events",
+        )? {
+            self.at += next;
+            if line.is_empty() {
+                if self.written {
+                    // All three are checked before any is allocated, so a
+                    // refusal leaves nothing to release.
+                    checked(&self.data, "events")?;
+                    for field in [&self.name, &self.id].into_iter().flatten() {
+                        checked(field, "events")?;
+                    }
+                    let id = self.id.take();
+                    return Ok(Some((
+                        crate::instance::build(
+                            &EVENT,
+                            [
+                                Value::str(NvsStr::new(&self.data)),
+                                optional_text(self.name.as_deref()),
+                                optional_text(id.as_deref()),
+                            ],
+                        ),
+                        self.at,
+                        id,
+                    )));
+                }
+                self.name = None;
+                continue;
+            }
+            self.line(line)?;
+        }
+        Ok(None)
+    }
+
+    /// One line of a block that is not blank: a comment, or a field.
+    ///
+    /// # Errors
+    ///
+    /// A `RuntimeError` where the `data` passes [`transport::EVENT_CEILING`].
+    fn line(&mut self, line: &[u8]) -> Result<(), Fault> {
         if line[0] == b':' {
-            continue;
+            return Ok(());
         }
         let (field, value) = match line.iter().position(|byte| *byte == b':') {
             None => (line, &b""[..]),
@@ -869,12 +923,12 @@ fn event_at(
         };
         match field {
             b"data" => {
-                if written {
-                    data.push(b'\n');
+                if self.written {
+                    self.data.push(b'\n');
                 }
-                data.extend_from_slice(value);
-                written = true;
-                if data.len() > transport::EVENT_CEILING {
+                self.data.extend_from_slice(value);
+                self.written = true;
+                if self.data.len() > transport::EVENT_CEILING {
                     return Err(Fault::thrown(format!(
                         "{STREAM_NAME}::events(): one event of this reply carries more than the \
                          {} bytes of `data` an event may accumulate — the length is the origin's \
@@ -883,14 +937,14 @@ fn event_at(
                     )));
                 }
             }
-            b"event" => name = Some(value.to_vec()),
+            b"event" => self.name = Some(value.to_vec()),
             // A NUL in an id is the one value the format says to ignore, and
             // ignoring it leaves the previous one standing.
-            b"id" if !value.contains(&0) => id = Some(value.to_vec()),
+            b"id" if !value.contains(&0) => self.id = Some(value.to_vec()),
             _ => {}
         }
+        Ok(())
     }
-    Ok(None)
 }
 
 /// The `?string` slot behind `name()` and `id()`, over octets [`checked`]
@@ -1224,8 +1278,100 @@ nvs_runtime::nvs_helper! {
 
 #[cfg(test)]
 mod tests {
-    use super::{CHUNKS, EVENTS, LINES, STREAM, event_at, line_at};
+    use super::{CHUNKS, Dispatched, EVENTS, EventScan, Fault, LINES, STREAM, line_from};
     use nvs_runtime::{Ctx, Tag, Value};
+
+    /// One line off the front of `octets`, by a search that starts at its front.
+    fn line_at<'a>(
+        octets: &'a [u8],
+        ended: bool,
+        ends_at_cr: bool,
+        member: &str,
+    ) -> Result<Option<(&'a [u8], usize)>, Fault> {
+        line_from(octets, &mut 0, ended, ends_at_cr, member)
+    }
+
+    /// The next event off the front of `octets`, by a scan of its own.
+    fn event_at(
+        octets: &[u8],
+        ended: bool,
+        carried: Option<&[u8]>,
+    ) -> Result<Option<Dispatched>, Fault> {
+        EventScan::new(carried.map(<[u8]>::to_vec)).next(octets, ended)
+    }
+
+    /// An event that arrives one octet at a time is parsed by one scan that
+    /// resumes after each octet, and the result is the event the whole block
+    /// gives in one read: the same data, name, id and octets taken. A scan
+    /// that lost a field or a line between two reads would still dispatch an
+    /// event, which is why every field is compared.
+    #[test]
+    fn an_event_read_in_pieces_is_the_event_read_whole() {
+        let body = b": hi\r\nevent: tick\r\ndata: one\rdata: two\nid: 7\r\n\r\ndata: next\n\n";
+        let mut ctx = Ctx::buffered();
+        let mut fields = |event: Value| -> Vec<Option<String>> {
+            [
+                super::nvs_core_http_event_data,
+                super::nvs_core_http_event_name,
+                super::nvs_core_http_event_id,
+            ]
+            .into_iter()
+            .map(|reader| {
+                nvs_runtime::call(reader, &mut ctx, &[event])
+                    .expect("a reader reads a slot")
+                    .as_text()
+                    .map(str::to_owned)
+            })
+            .collect()
+        };
+        let (whole, used, id) = event_at(body, false, None)
+            .expect("no cap is reached")
+            .expect("the block ends with a blank line");
+        let mut scan = EventScan::new(None);
+        let mut pieces = None;
+        for end in 1..=body.len() {
+            if let Some(found) = scan.next(&body[..end], false).expect("no cap is reached") {
+                assert_eq!(
+                    end, used,
+                    "the event is dispatched once its blank line arrives"
+                );
+                pieces = Some(found);
+                break;
+            }
+        }
+        let (piece, piece_used, piece_id) = pieces.expect("the pieces finish one event");
+        assert_eq!((piece_used, piece_id.as_deref()), (used, id.as_deref()));
+        let whole = fields(whole);
+        assert_eq!(fields(piece), whole);
+        assert_eq!(
+            whole,
+            [
+                Some("one\ntwo".to_owned()),
+                Some("tick".to_owned()),
+                Some("7".to_owned())
+            ]
+        );
+    }
+
+    /// A line that arrives in pieces is found once its end arrives, and a `\r`
+    /// at the end of one piece still waits to see whether a `\n` follows it.
+    #[test]
+    fn a_line_search_resumes_where_the_last_one_stopped() {
+        let body = b"one two\r\nthree";
+        let mut searched = 0;
+        for end in 1..=8 {
+            assert_eq!(
+                line_from(&body[..end], &mut searched, false, true, "events").expect("short"),
+                None,
+                "no whole line is in the first {end} octets"
+            );
+        }
+        assert_eq!(searched, 7, "the next search starts at the `\\r` again");
+        let (line, used) = line_from(&body[..9], &mut searched, false, true, "events")
+            .expect("short")
+            .expect("the CRLF has arrived");
+        assert_eq!((line, used, searched), (&b"one two"[..], 9, 0));
+    }
 
     /// The walks' slot layouts, asserted together: one implementation reads all
     /// three, so a class whose slots drifted would frame the wrong field of the
