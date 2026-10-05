@@ -199,7 +199,7 @@ Three file sets, in this order.
    PHP-name item is rewritten from what Novis then prints, **in the commit that removes the feature**,
    and that commit names each case.
 2. **The data, the tools and the gates.** `docs/spec/02-php-migration.md`, `data/spec/php-migration.json`
-   and its importer half in `tools/nv/import/spec.ts`, `tools/dump-php-builtins.php`,
+   and its half of `tools/nv/renderers/spec-tables.ts` (`phpMigration`), `tools/dump-php-builtins.php`,
    `tools/nv/cmd/migration.ts` and the reference topic `tools/nv/cmd/reference.ts:507` generates from it.
    The `Replaces` column leaves `docs/spec/01-core-library.md` and `data/spec/core-members.json`, with
    its readers: `tools/nv/renderers/website-core.ts` (`replaces`, `replacesPhrase`) and the "Replaces in
@@ -269,10 +269,9 @@ File sets by rule topic, one topic per group: `php-migration/` first, then `type
   refuses can be stated without PHP. Then `data/rules/php-migration.json` and its chapter are deleted.
   Every live citation follows the move (about 100 files, `git grep -l "php-migration/"`); a frozen one
   gets Stage 5's edit, or the new id where the rule moved.
-- **`divergesFromPhp` is deleted** from `tools/nv/schema/rule.ts`, the importer
-  (`tools/nv/import/rules.ts`), `tools/nv/cmd/rules.ts`, `tools/nv/renderers/website-rules.ts`
-  (`:184,196,290-297`, the per-rule PHP flag and aside), `website/src/components/RuleBookIndex.astro:48`
-  (the counter), `tools/nv/test/import.test.ts`, and the about 593 records that carry it — one script
+- **`divergesFromPhp` is deleted** from `tools/nv/schema/rule.ts`, `tools/nv/cmd/rules.ts`,
+  `tools/nv/renderers/website-rules.ts` (`:184,196,290-297`, the per-rule PHP flag and aside),
+  `website/src/components/RuleBookIndex.astro:48` (the counter), and the about 593 records that carry it — one script
   under `.agent-tmp/`, deleted after. `docs/divergences.md` and the generator that writes it are
   deleted, and every link to it is rewritten.
 - **Normative lines** say the behaviour itself: `types/arithmetic.md:5` ("PHP-exact"),

@@ -23,7 +23,7 @@ const TOOLS = {
   context: { modules: ["tools/nv/main.ts"] },
   stages: [
     { number: 1, title: "floor", summary: "Every check of every walked goal still passes." },
-    { number: 4, title: "the records", summary: "Reads every legacy home into records.", context: { rules: ["testing/feature-proofs"] } },
+    { number: 4, title: "the records", summary: "Every home is a record.", context: { rules: ["testing/feature-proofs"] } },
   ],
   checks: [
     { id: "nv-check", kind: "command" as const, stage: 4, name: "every record is valid", argv: ["bun", "nv", "check"], want: ["nv check: 0 findings"] },
@@ -37,7 +37,7 @@ function seed(): Index {
   write(milestone, "m12", { title: "Measurement", order: 12, loopDays: "measurement-bound", state: "ongoing" }, tmp.root);
   write(goal, "tooling-overhaul", TOOLS, tmp.root);
   write(chain, "chain", { live: "tooling-overhaul", goals: ["tooling-overhaul"] }, tmp.root);
-  write(handoff, "tooling-overhaul", { state: "Stage 3 landed.", next: { stage: 4, title: "the importer", files: ["tools/nv/import/**"], items: [{ done: false, text: "Record types" }] }, backlog: [] }, tmp.root);
+  write(handoff, "tooling-overhaul", { state: "Stage 3 landed.", next: { stage: 4, title: "the records", files: ["tools/nv/lib/**"], items: [{ done: false, text: "Record types" }] }, backlog: [] }, tmp.root);
   write(decision, "0134", { title: "Features owe proofs", status: "accepted", scope: "What a feature owes.", dependsOn: [] }, tmp.root);
   write(topic, "testing", { title: "Testing", order: 90, rules: ["testing/feature-proofs"] }, tmp.root);
   write(rule, "testing/feature-proofs", { title: "A feature is finished when its proofs exist", status: "shipped", because: ["0134"], seeAlso: [], guardedBy: ["tools/nv/proofs/collect.ts"] }, tmp.root);

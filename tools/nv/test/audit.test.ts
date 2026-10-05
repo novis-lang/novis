@@ -85,7 +85,7 @@ describe("nv audit python", () => {
       "the checks in docs/agent/loop-goal.toml",
       "`loop-goal.md` § *Standing decisions*",
       "re-render `../docs/decisions.toml`",
-      "`tools/nv/import/rules.ts` reads docs/rules/_index.json",
+      "`tools/nv/cmd/rules.ts` reads docs/rules/_index.json",
       "edit `tools/data/help-backlog.toml`",
       `under \`docs/agent/goals/${OLD}/\``,
       "docs/agent/goals/12-parses.md",
@@ -106,7 +106,7 @@ describe("nv audit python", () => {
       "docs/decisions/0221.md",
       "npm run sync:render",
       "`.loop/accept-green.json` remembers",
-      "tools/nv/import/rules.ts:_index.json",
+      "tools/nv/cmd/rules.ts:_index.json",
       "docs/agent/goals/core-math-1-3.md",
     ];
     for (const line of fine) expect(docNamingPython("x.md", line, re)).toBeNull();

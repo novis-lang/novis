@@ -21,9 +21,8 @@
 
 import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, posix, relative, sep } from "node:path";
-import { handoffValue } from "../import/goals.ts";
-import type { Unread } from "../import/lib.ts";
 import { chainGoals, liveGoal, sideGoal } from "../lib/chain.ts";
+import { handoffValue, type Unread } from "../lib/handoff.ts";
 import { ROOT } from "../lib/paths.ts";
 import { run as runProc } from "../lib/proc.ts";
 import { ArgError, parseArgs, pyRepr } from "../lib/py.ts";
@@ -39,7 +38,7 @@ import { CITATION, Rulebook } from "./rules.ts";
 import { wrapGate } from "./site.ts";
 import { NUMBER_CITE, OWN_HEADER } from "./chain.ts";
 import { GOAL_PLAN, writeGoalPlan } from "../renderers/goal-plan.ts";
-import { anchors, bulletValue } from "../import/playbook.ts";
+import { anchors, bulletValue } from "../lib/playbook-fragments.ts";
 import { blocks, declaration, EXPIRY, expiryReport, retire } from "./playbook.ts";
 
 export const summary = "the session tail: nv session --template | --check | --counts | --scrub | --wrap F [--dry-run]";
@@ -799,7 +798,7 @@ function fragmentSlug(lead: string): string {
   return out || "bullet";
 }
 
-/** The record a bullet's fragment file is imported as: `data/playbook/<section>/<slug>.json`. */
+/** The record a bullet's fragment file is written to: `data/playbook/<section>/<slug>.json`. */
 function bulletRecord(fragment: string): { id: string; path: string } {
   const id = fragment.slice(PLAYBOOK_DIR.length + 1, -".md".length);
   return { id, path: pathOf(playbookBullet, id) };

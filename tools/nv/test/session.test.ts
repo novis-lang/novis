@@ -1,5 +1,73 @@
 import { describe, expect, test } from "bun:test";
 import { manifestProblems, nextGroupItems, parseEdits, parseWrap, stripTrailers, validateHandoff } from "../cmd/session.ts";
+import { handoffValue, type Unread } from "../lib/handoff.ts";
+import { scratch } from "./scratch.ts";
+
+describe("nv session handoffValue", () => {
+  test("a handoff's state names the goal by slug, and its next group is a lead, a checklist and what follows", () => {
+    const tmp = scratch();
+    try {
+      tmp.put(
+        "h.md",
+        [
+          "# Handoff",
+          "",
+          "## State",
+          "",
+          "**Goal 2 — Core\\X — has just started.** Where it stands.",
+          "",
+          "## Next group",
+          "",
+          "**Stage 2: the work.** One file set: `a.rs`, `b.rs` and",
+          "`c.rs`. More.",
+          "",
+          "- [ ] **One** —",
+          "  wrapped.",
+          "- [x] Two",
+          "",
+          "After.",
+          "",
+          "## Backlog",
+          "",
+          "- Later.",
+        ].join("\n"),
+      );
+      const unread: Unread[] = [];
+      expect(handoffValue(tmp.root, "h.md", "core-x", unread)).toEqual({
+        state: "**Goal `core-x` — Core\\X — has just started.** Where it stands.",
+        next: {
+          stage: 2,
+          title: "the work",
+          files: ["a.rs", "b.rs", "c.rs"],
+          note: "More.",
+          items: [
+            { done: false, text: "**One** — wrapped." },
+            { done: true, text: "Two" },
+          ],
+          after: "After.",
+        },
+        backlog: ["Later."],
+      });
+      expect(unread).toEqual([]);
+    } finally {
+      tmp.cleanup();
+    }
+  });
+
+  test("a file set that is more than paths stays whole in the note, and a missing section is reported", () => {
+    const tmp = scratch();
+    try {
+      tmp.put("a.md", "# Handoff\n\n## State\n\nS.\n\n## Next group\n\n**Stage 2: b** — one file set per slice: `x/` and the rest.\n");
+      tmp.put("b.md", "# Handoff\n\n## State\n\nS.\n");
+      const unread: Unread[] = [];
+      expect(handoffValue(tmp.root, "a.md", "a", unread)).toMatchObject({ next: { stage: 2, title: "b", files: [], note: "one file set per slice: `x/` and the rest.", items: [] } });
+      expect(handoffValue(tmp.root, "b.md", "b", unread)).toBeNull();
+      expect(unread.map((u) => `${u.path}: ${u.reason}`)).toEqual(["b.md: it has no `## State` or no `## Next group`"]);
+    } finally {
+      tmp.cleanup();
+    }
+  });
+});
 
 describe("nv session manifestProblems", () => {
   test("a problem two copies share is refused once, and each names the floor check", () => {

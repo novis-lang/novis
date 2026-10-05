@@ -2,12 +2,50 @@ import { describe, expect, test } from "bun:test";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { blocks, decided, declaration, expiryReport, holds, ignoredOf, retire, triage } from "../cmd/playbook.ts";
+import { readPlaybook } from "../lib/playbook-fragments.ts";
 import { load, write } from "../lib/store.ts";
 import { goal } from "../schema/goal.ts";
 import { playbookBullet, playbookSection } from "../schema/playbook.ts";
 import { scratch } from "./scratch.ts";
 
 const TODAY = new Date(2026, 8, 24);
+
+describe("nv playbook fragments", () => {
+  test("a bullet unwraps its lead and body, names the files it anchors, and a malformed fragment is left out", () => {
+    const tmp = scratch();
+    try {
+      write(playbookSection, "tooling", { title: "Tooling", order: 1 }, tmp.root);
+      write(playbookSection, "divergences", { title: "Divergences", order: 2 }, tmp.root);
+      tmp.put("tools/x.py", "");
+      tmp.put("Cargo.toml", "");
+      tmp.put(
+        "docs/agent/playbook/tooling/a-trap.md",
+        "- **A trap\n  wraps.** Why, in `tools/x.py:12` and\n  `Cargo.toml`, not `tools/gone.py`.\n  [until: gone tools/x.py:needle]\n",
+      );
+      tmp.put("docs/agent/playbook/tooling/plain.md", "- A bullet with no bold lead.\n  [until: reviewed 2026-09-01]\n");
+      tmp.put("docs/agent/playbook/stray/b.md", "- **B.** c [until: gone tools/x.py]\n");
+      const got = readPlaybook(tmp.root);
+      expect(got.sections).toEqual([
+        { id: "tooling", title: "Tooling", order: 1 },
+        { id: "divergences", title: "Divergences", order: 2 },
+      ]);
+      expect(got.bullets).toEqual([
+        {
+          id: "tooling/a-trap",
+          from: "docs/agent/playbook/tooling/a-trap.md",
+          value: {
+            lead: "A trap wraps.",
+            body: "Why, in `tools/x.py:12` and `Cargo.toml`, not `tools/gone.py`.",
+            files: ["tools/x.py", "Cargo.toml"],
+            until: { kind: "gone", arg: "tools/x.py:needle" },
+          },
+        },
+      ]);
+    } finally {
+      tmp.cleanup();
+    }
+  });
+});
 
 describe("nv playbook holds", () => {
   const tmp = scratch();

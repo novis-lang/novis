@@ -6,6 +6,13 @@ import { join, relative, resolve, sep } from "node:path";
 /** The repository root: two directories above this library. */
 export const ROOT = resolve(import.meta.dir, "..", "..", "..");
 
+/**
+ * The word the feature proofs were once named by. `nv audit` finds it where it is still said, and
+ * `nv disk clean` deletes the memo file named by it. It is built in halves so that no tool's own text
+ * says it.
+ */
+export const OLD = ["doss", "ier"].join("");
+
 /** The records. Everything under it is JSON that only `store` writes. */
 export const DATA = join(ROOT, "data");
 

@@ -1,7 +1,0 @@
-{
-  "crates/nvs-cli/src/openapi.rs": "Its `## Known gaps` block opens on a paragraph about all the gaps together. No gap record holds shared prose, so the import drops it, and the gaps' own text still says what each one is.",
-  "crates/nvs-ir/src/lib.rs": "Its `# Known gaps` block opens on a paragraph about all the gaps together, naming `tools/holes.py`. No gap record holds shared prose, so the import drops it, and the gaps' own text still says what each one is.",
-  "crates/nvs-runtime/src/lib.rs": "Its `## Known gaps` block opens on a paragraph about all the gaps together. No gap record holds shared prose, so the import drops it, and the gaps' own text still says what each one is.",
-  "crates/nvs-lsp/src/completion.rs": "Its `**Known gaps.**` run states several gaps in one paragraph with no bold title, which `tools/holes.py` reads as one hole. The import reads it as one gap too, titled by its first sentence, slug `nvs-lsp/two-of-them-are-the-class`.",
-  "docs/spec/01-core-library.md": "The `Core\\Jwt` row in Part II has a `\\|` inside a code span. `tools/gaps.py` splits a row on every `|`, so it reads that row's cells wrongly and skips it. The import splits only on an unescaped `|`, which is how the chapter renders."
-}

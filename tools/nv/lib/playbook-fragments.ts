@@ -1,29 +1,44 @@
-// The playbook's Markdown home: one bullet per file under `docs/agent/playbook/<section>/`, each
-// becoming `data/playbook/<section>/<slug>.json`. A section's title and order are its record,
-// `data/playbook/<section>.json`, which has no Markdown source, so it is read as it stands and passed
-// through.
+// The playbook's Markdown home: one bullet per file under `docs/agent/playbook/<section>/`, each with
+// its record at `data/playbook/<section>/<slug>.json`. `bun nv session --wrap` writes both, and
+// `bun nv orient` prints the bullets from the fragment files. A section's title and order are its
+// record, `data/playbook/<section>.json`, which has no Markdown source.
 //
 // A bullet's `lead` is its bold opening and `body` the rest before the trailer, each unwrapped to one
 // line, since the rendered file wraps them again. `files` is what `anchors` finds: the tree paths the
 // bullet names in backticks that exist, and a `gone` or `exists` trailer's.
 
-import { statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
-import { load, pathOf } from "../lib/store.ts";
-import { playbookBullet, playbookSection } from "../schema/playbook.ts";
-import { exists, list, text, type Importer, type ImportResult } from "./lib.ts";
+import { load } from "./store.ts";
+import { playbookSection } from "../schema/playbook.ts";
 
-const DIR = "docs/agent/playbook";
+export const PLAYBOOK_FRAGMENTS = "docs/agent/playbook";
 const TREE_DIRS = ["crates/", "tools/", "docs/", "tests/", "benches/", "examples/", "fuzz/", ".github/"];
 const PATH_TRIM = /(:re:.*|:@[\w:.-]+|:\d+([-+]\d+)?|[.,;:)\]'"]+)$/;
 const BRACES = /^([^{}]*)\{([^{}]+)\}([^{}]*)$/;
 const EXPIRY = /\[until:\s*(test|exists|gone|rule)\s+([^\]]+?)\s*\]\s*$/;
+
+export interface BulletValue {
+  lead: string;
+  body: string;
+  files: string[];
+  until: { kind: string; arg: string };
+}
 
 function isFile(root: string, path: string): boolean {
   try {
     return statSync(join(root, path)).isFile();
   } catch {
     return false;
+  }
+}
+
+/** The names in the repo-relative directory `dir`, sorted, or none when it does not exist. */
+export function list(root: string, dir: string): string[] {
+  try {
+    return readdirSync(join(root, dir)).sort();
+  } catch {
+    return [];
   }
 }
 
@@ -45,11 +60,11 @@ export function namedPaths(bullet: string): string[] {
 
 /** The files in the tree a bullet names: its backticked paths that exist, and its trailer's path. */
 export function anchors(root: string, bullet: string, until: { kind: string; arg: string } | null): string[] {
-  const out = namedPaths(bullet).filter((p) => exists(root, p));
+  const out = namedPaths(bullet).filter((p) => existsSync(join(root, p)));
   for (const [, raw] of bullet.matchAll(/`([^`\s/]+\.[A-Za-z]+)`/g)) if (isFile(root, raw!)) out.push(raw!);
   if (until && (until.kind === "gone" || until.kind === "exists")) {
     const path = until.arg.split(":")[0]!.trim().replace(/\\/g, "/");
-    if (path !== "" && exists(root, path)) out.push(path);
+    if (path !== "" && existsSync(join(root, path))) out.push(path);
   }
   return [...new Set(out)];
 }
@@ -60,7 +75,7 @@ const unwrap = (s: string) => s.replace(/\s*\n\s*/g, " ").trim();
  * One bullet file's text as its record's value, or why it cannot be one. The lead ends at the first
  * `**` outside a code span, so a lead that quotes bold Markdown in backticks is read whole.
  */
-export function bulletValue(root: string, src: string): { value: { lead: string; body: string; files: string[]; until: { kind: string; arg: string } } } | { reason: string } {
+export function bulletValue(root: string, src: string): { value: BulletValue } | { reason: string } {
   const m = /^- \*\*((?:`[^`]*`|[^`*]|\*(?!\*))+?)\*\*([\s\S]*)$/.exec(src);
   if (!m) return { reason: "does not open on `- **`" };
   const trailer = EXPIRY.exec(m[2]!);
@@ -76,39 +91,38 @@ export function bulletValue(root: string, src: string): { value: { lead: string;
   };
 }
 
-export const playbook: Importer = {
-  name: "playbook",
-  read(root) {
-    const out: ImportResult = { records: [], unread: [], files: 0 };
-    const sections = load(playbookSection, root)
-      .filter((r) => r.issues.length === 0)
-      .map((r) => ({ id: r.id, value: r.value as { title: string; order: number } }))
-      .sort((a, b) => a.value.order - b.value.order);
-    for (const s of sections) {
-      out.files++;
-      out.records.push({ type: playbookSection, id: s.id, value: s.value, from: pathOf(playbookSection, s.id) });
+export interface PlaybookSection {
+  id: string;
+  title: string;
+  order: number;
+}
+
+export interface Fragment {
+  /** `<section>/<slug>`, the id of its record. */
+  id: string;
+  value: BulletValue;
+  /** The repo-relative fragment file. */
+  from: string;
+}
+
+/**
+ * The playbook's sections, in order, from their records, and every bullet read from its fragment file
+ * under a section that has a record, in file-name order. A fragment that is not one well-formed bullet
+ * is left out.
+ */
+export function readPlaybook(root: string): { sections: PlaybookSection[]; bullets: Fragment[] } {
+  const sections = load(playbookSection, root)
+    .filter((r) => r.issues.length === 0)
+    .map((r) => ({ id: r.id, ...(r.value as { title: string; order: number }) }))
+    .sort((a, b) => a.order - b.order);
+  const bullets: Fragment[] = [];
+  for (const s of sections) {
+    for (const name of list(root, `${PLAYBOOK_FRAGMENTS}/${s.id}`)) {
+      if (!name.endsWith(".md")) continue;
+      const path = `${PLAYBOOK_FRAGMENTS}/${s.id}/${name}`;
+      const got = bulletValue(root, readFileSync(join(root, path), "utf8").replace(/\r\n?/g, "\n").trim());
+      if ("value" in got) bullets.push({ id: `${s.id}/${name.slice(0, -".md".length)}`, value: got.value, from: path });
     }
-    const known = new Set(sections.map((s) => s.id));
-    for (const dir of list(root, DIR)) {
-      if (dir.endsWith(".md")) continue;
-      if (!known.has(dir)) {
-        out.unread.push({ path: `${DIR}/${dir}`, reason: "has no section record under `data/playbook/`" });
-        continue;
-      }
-      for (const name of list(root, `${DIR}/${dir}`)) {
-        const path = `${DIR}/${dir}/${name}`;
-        if (!name.endsWith(".md")) continue;
-        out.files++;
-        const src = text(root, path).trim();
-        if (/^- \*\*/.test(src) && /\n- /.test(src)) out.unread.push({ path, reason: "holds more than one bullet" });
-        const got = bulletValue(root, src);
-        if ("reason" in got) {
-          out.unread.push({ path, reason: got.reason });
-          continue;
-        }
-        out.records.push({ type: playbookBullet, id: `${dir}/${name.slice(0, -".md".length)}`, value: got.value, from: path });
-      }
-    }
-    return out;
-  },
-};
+  }
+  return { sections, bullets };
+}

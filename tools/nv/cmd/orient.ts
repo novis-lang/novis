@@ -33,13 +33,11 @@ import { tracked } from "../lib/git.ts";
 import { ROOT } from "../lib/paths.ts";
 import { run as runProc } from "../lib/proc.ts";
 import { fill, pyRepr } from "../lib/py.ts";
+import { readPlaybook } from "../lib/playbook-fragments.ts";
 import { load } from "../lib/store.ts";
-import { plan as planImporter } from "../import/plan.ts";
-import { playbook as playbookImporter } from "../import/playbook.ts";
 import { goal as goalType, sideGoal as sideGoalType } from "../schema/goal.ts";
 import { handoff as handoffType, sideHandoff as sideHandoffType } from "../schema/handoff.ts";
 import { planStatus } from "../schema/plan-status.ts";
-import { playbookBullet, playbookSection } from "../schema/playbook.ts";
 import { rule as ruleType } from "../schema/rule.ts";
 import { topic as topicType } from "../schema/topic.ts";
 import { bodyOf, leadParagraph, milestones, verifyParagraph } from "./plan.ts";
@@ -1063,25 +1061,18 @@ export interface BookSection {
 }
 
 /**
- * The playbook's sections in order, each with its bullets by id, read through the importer. `skip` leaves
- * out the bullets imported from those fragment files, which is how a retirement asks what a selector
+ * The playbook's sections in order, each with its bullets by id, read from the fragment files. `skip`
+ * leaves out the bullets of those fragment files, which is how a retirement asks what a selector
  * reaches once they are deleted.
  */
 export function playbookBook(root: string = ROOT, skip: ReadonlySet<string> = new Set()): BookSection[] {
-  const got = playbookImporter.read(root);
-  const sections = got.records
-    .filter((r) => r.type === playbookSection)
-    .map((r) => ({ id: r.id, ...(r.value as { title: string; order: number }) }))
-    .sort((a, b) => a.order - b.order);
-  const bullets = got.records.filter((r) => r.type === playbookBullet && !skip.has(r.from)).sort((a, b) => (a.id < b.id ? -1 : 1));
+  const { sections, bullets: all } = readPlaybook(root);
+  const bullets = all.filter((b) => !skip.has(b.from)).sort((a, b) => (a.id < b.id ? -1 : 1));
   return sections.map((s) => ({
     title: s.title,
     bullets: bullets
       .filter((b) => b.id.startsWith(`${s.id}/`))
-      .map((b) => {
-        const v = b.value as { lead: string; body: string; until: { kind: string; arg: string } };
-        return { lead: v.lead, text: `- **${v.lead}**${v.body ? ` ${v.body}` : ""} [until: ${v.until.kind} ${v.until.arg}]` };
-      }),
+      .map(({ value: v }) => ({ lead: v.lead, text: `- **${v.lead}**${v.body ? ` ${v.body}` : ""} [until: ${v.until.kind} ${v.until.arg}]` })),
   }));
 }
 
@@ -1305,12 +1296,12 @@ function runPlaybook(wanted: string[], item: string, stage: number | null, modul
 // ------------------------------------------------------------------- plan and numbers
 
 function runPlan(m: Manifest): void {
-  const status = planImporter.read(ROOT).records.find((r) => r.type === planStatus)?.value as Record<string, string> | undefined;
+  const status = load(planStatus, ROOT)[0]?.value as Record<string, string> | undefined;
   if (!status) return;
   const picked = PLAN_FIELDS.filter(([label, key]) => m.plan.includes(label) && status[key] !== undefined);
   if (picked.length === 0) return;
   section("THE PLAN, THE FIELDS THIS GOAL READS", `docs/implementation-plan.md, ${pyList(m.plan)}`);
-  for (const [label, key] of picked) emit(indentedFill(`${label}: ${stripLinks(status[key]!)}`, "    ", ""));
+  for (const [label, key] of picked) emit(indentedFill(`${label}: ${stripLinks(status[key]!.trim())}`, "    ", ""));
   emit();
   emit(`These fields are rewritten by \`${tool("session")} --wrap\`, never edited by hand.`);
 }

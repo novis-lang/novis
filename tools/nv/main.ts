@@ -43,8 +43,6 @@ const COMMANDS: Record<string, () => Promise<Command>> = {
   goal: () => import("./cmd/goal.ts"),
   guard: () => import("./cmd/guard.ts"),
   holes: () => import("./cmd/holes.ts"),
-
-  import: () => import("./cmd/import.ts"),
   layout: () => import("./cmd/layout.ts"),
   links: () => import("./cmd/links.ts"),
   lints: () => import("./cmd/lints.ts"),

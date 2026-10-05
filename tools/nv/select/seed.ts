@@ -65,7 +65,7 @@ export interface SeedReport {
 }
 
 /** The `bun nv` subcommands a seed never runs: each builds, runs programs, benches, or writes the tree. */
-const NOT_SEEDED = new Set(["bench", "db-matrix", "try", "verify", "loop", "release", "session", "splice", "selftest", "disk", "bg", "machine", "import", "relink", "select", "affected", "guard"]);
+const NOT_SEEDED = new Set(["bench", "db-matrix", "try", "verify", "loop", "release", "session", "splice", "selftest", "disk", "bg", "machine", "relink", "select", "affected", "guard"]);
 
 /** Whether a `bun nv` check only reads: a seed runs it for what it reads. */
 export function seedable(argv: string[]): boolean {

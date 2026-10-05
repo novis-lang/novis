@@ -60,9 +60,8 @@ import type { Dirent } from "node:fs";
 import { readdir, stat as statAsync } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join, resolve, sep } from "node:path";
-import { OLD } from "../import/lib.ts";
 import { covwsCargo } from "../lib/covws.ts";
-import { CACHE, ROOT } from "../lib/paths.ts";
+import { CACHE, OLD, ROOT } from "../lib/paths.ts";
 import { run as runProgram } from "../lib/proc.ts";
 import { pyInt } from "../lib/py.ts";
 

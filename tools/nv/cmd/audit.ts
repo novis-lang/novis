@@ -24,10 +24,9 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { parse as parseToml } from "smol-toml";
-import { OLD } from "../import/lib.ts";
 import { liveGoal } from "../lib/chain.ts";
 import { indexEol, tracked } from "../lib/git.ts";
-import { ROOT } from "../lib/paths.ts";
+import { OLD, ROOT } from "../lib/paths.ts";
 import { load } from "../lib/store.ts";
 import { goal, sideGoal } from "../schema/goal.ts";
 

@@ -35,9 +35,8 @@
 
 import { existsSync, readFileSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { list } from "../import/lib.ts";
-import { namedPaths, playbook as playbookImporter } from "../import/playbook.ts";
 import { ROOT } from "../lib/paths.ts";
+import { list, namedPaths, readPlaybook } from "../lib/playbook-fragments.ts";
 import { run as runProc } from "../lib/proc.ts";
 import { pyRepr } from "../lib/py.ts";
 import { load, pathOf, remove as removeRecord, write as writeRecord } from "../lib/store.ts";
@@ -204,11 +203,7 @@ export interface Finding {
 
 /** Every file whose blocks must declare what retires them, repo-relative, with which blocks must. */
 function declaring(root: string): [string, (head: string, first: string) => boolean][] {
-  const sections = playbookImporter
-    .read(root)
-    .records.filter((r) => r.type === playbookSection)
-    .sort((a, b) => (a.value as { order: number }).order - (b.value as { order: number }).order);
-  const fragments = sections.flatMap((s) =>
+  const fragments = readPlaybook(root).sections.flatMap((s) =>
     list(root, `${PLAYBOOK_DIR}/${s.id}`)
       .filter((n) => n.endsWith(".md"))
       .map((n) => [`${PLAYBOOK_DIR}/${s.id}/${n}`, () => true] as [string, (head: string, first: string) => boolean]),
