@@ -1,21 +1,22 @@
 {
-  "state": "**Goal `performance-pass`, Stage 5 (the fixes).** Stage 4's review is whole (`docs/perf/performance-review.md`, ending in `## floor`). Old refusals have not been priced again yet.\n\n**Flattening a class collects each inherited name once.** `Seen` in `crates/nvs-types/src/layout.rs` is the name-keyed set all four flatten walks share. The ladder `benches/scaling/compiler/members.nvs` is new and flat on the counts, which do not see the checker. The clock figures are in `docs/perf/performance-pass.md` § *What got better*. Reusing a parent's layout was not built: each layout is a full copy of what it inherits, so it would save only a constant factor. The gap record is deleted.\n\n**15 gap records owned by `performance-pass`** keep `owners --closes performance-pass` red (`bun nv owners --closes performance-pass` lists them). `bun nv scaling --check` passed at the last sweep, with `numbers/bigint-mul` unclear. *Decisions for you* in `docs/perf/performance-pass.md` has two entries: a total deadline for the request head, and `Markup` concatenation in place.\n\nOne `bun nv verify` run failed at `conformance` with every case passed and exit 1. A direct rerun and a second verify were green, so it looked flaky; not investigated.",
+  "state": "**Goal `performance-pass`, Stage 5 (the fixes).** Stage 4's review is whole (`docs/perf/performance-review.md`, ending in `## floor`). Old refusals have not been priced again yet.\n\n**The checker no longer copies the live-locals set per branch.** `Live` in `crates/nvs-types/src/live.rs` is one set with an undo log; every `if`, loop, `case`, `try` arm, `catch` expression and closure marks it, rewinds it and joins back what every way out assigned. The ladder `benches/scaling/compiler/branches.nvs` is flat on the new binary (clock slope 1.02). The figures are in `docs/perf/performance-pass.md` § *What got better*. The constructor property check in `crates/nvs-types/src/ctor_init.rs` still copies its own set per branch; its new gap record is `data/gaps/nvs-types/the-constructor-init-state-is-cloned-per-branch.json`.\n\n**15 gap records owned by `performance-pass`** keep `owners --closes performance-pass` red (`bun nv owners --closes performance-pass` lists them). `bun nv scaling --check` passed at the last sweep, with `numbers/bigint-mul` unclear. *Decisions for you* in `docs/perf/performance-pass.md` has two entries: a total deadline for the request head, and `Markup` concatenation in place.",
   "next": {
     "stage": 5,
-    "title": "the fixes, the checker's per-function and per-check costs",
+    "title": "the fixes, the checker's per-check and per-constructor costs",
     "files": [
-      "crates/nvs-types/src/locals.rs",
       "crates/nvs-types/src/core_lib.rs",
-      "crates/nvs-types/src/check.rs"
+      "crates/nvs-types/src/check.rs",
+      "crates/nvs-types/src/ctor_init.rs",
+      "crates/nvs-types/src/live.rs"
     ],
     "items": [
       {
         "done": false,
-        "text": "**The live-locals set is not cloned per branch** (`crates/nvs-types/src/locals.rs:1124`), per `data/gaps/nvs-types/the-live-set-is-cloned-per-branch.json`. Write a `compile` ladder under `benches/scaling/compiler/` first and take its before figure, then delete the gap record and add a paragraph to `docs/perf/performance-pass.md` § *What got better*. Rule: AGENTS.md priority ordering."
+        "text": "**The `Core` signature table is built once per process** (`crates/nvs-types/src/core_lib.rs:45`, called from `crates/nvs-types/src/check.rs:126`), per `data/gaps/nvs-types/core-signatures-are-built-again-for-every-check.json`. Counts decide: callgrind on the debug Linux binary, empty program. Rule: AGENTS.md priority ordering."
       },
       {
         "done": false,
-        "text": "**The `Core` signature table is built once per process** (`crates/nvs-types/src/core_lib.rs:45`, called from `crates/nvs-types/src/check.rs:126`), per `data/gaps/nvs-types/core-signatures-are-built-again-for-every-check.json`. Counts decide: callgrind on the debug Linux binary, empty program. Rule: AGENTS.md priority ordering."
+        "text": "**The constructor check rewinds rather than copies** (`crates/nvs-types/src/ctor_init.rs:281`, and `scan_branches` at `crates/nvs-types/src/ctor_init.rs:496`), per `data/gaps/nvs-types/the-constructor-init-state-is-cloned-per-branch.json`. Reuse `crate::live::Live` (`crates/nvs-types/src/live.rs:30`) for `InitState::assigned`. Write the `compiler/constructor.nvs` ladder first and take its before figure, as `benches/scaling/compiler/branches.nvs` did. Rule: AGENTS.md priority ordering."
       }
     ]
   },
