@@ -578,16 +578,17 @@ mod sys {
 mod tests {
     use super::*;
 
-    fn scratch(name: &str) -> std::path::PathBuf {
-        let dir = std::env::temp_dir().join(format!("nvs-beneath-{name}-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&dir);
-        std::fs::create_dir_all(&dir).expect("scratch folder");
-        std::fs::canonicalize(&dir).expect("canonical scratch folder")
+    /// A scratch folder, and its path as `fs::canonicalize` spells it. The folder is deleted when
+    /// the guard drops, so a test keeps it alive until its last step.
+    fn scratch(name: &str) -> (nvs_repo::Scratch, std::path::PathBuf) {
+        let dir = nvs_repo::scratch(&format!("beneath-{name}"));
+        let canonical = std::fs::canonicalize(&dir).expect("canonical scratch folder");
+        (dir, canonical)
     }
 
     #[test]
     fn creates_every_missing_folder_and_then_the_file() {
-        let root = scratch("create");
+        let (_dir, root) = scratch("create");
         create_dirs(&root.join("a").join("b")).expect("folders");
         create_dirs(&root.join("a").join("b")).expect("folders that already exist");
         let mut file = create_file(&root.join("a").join("b").join("x.txt"), false).expect("file");
@@ -601,12 +602,11 @@ mod tests {
             std::fs::read(root.join("a").join("b").join("x.txt")).expect("read"),
             b""
         );
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]
     fn append_writes_at_the_end_and_read_write_empties_nothing() {
-        let root = scratch("modes");
+        let (_dir, root) = scratch("modes");
         let path = root.join("log.txt");
         for line in [&b"one\n"[..], b"two\n"] {
             let mut file = open_file(&path, Mode::Append).expect("append");
@@ -618,12 +618,11 @@ mod tests {
         io::Read::read_to_string(&mut file, &mut text).expect("read back");
         assert_eq!(text, "one\ntwo\n");
         drop(file);
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]
     fn rename_moves_the_name_and_replaces_the_destination() {
-        let root = scratch("rename");
+        let (_dir, root) = scratch("rename");
         std::fs::create_dir_all(root.join("a")).expect("folder");
         std::fs::write(root.join("x.txt"), b"new").expect("source");
         std::fs::write(root.join("a").join("y.txt"), b"old").expect("destination");
@@ -637,12 +636,11 @@ mod tests {
         assert!(root.join("b").join("y.txt").exists());
         let err = rename(&root.join("gone.txt"), &root.join("z.txt")).expect_err("no source");
         assert_eq!(err.kind(), io::ErrorKind::NotFound);
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]
     fn write_mode_empties_nothing_and_same_file_sees_one_file() {
-        let root = scratch("same");
+        let (_dir, root) = scratch("same");
         let path = root.join("s.txt");
         std::fs::write(&path, b"keep").expect("file");
         let written = open_file(&path, Mode::Write).expect("write");
@@ -652,16 +650,14 @@ mod tests {
         let other = open_file(&root.join("t.txt"), Mode::Write).expect("another file");
         assert!(!same_file(&read, &other).expect("identity"));
         drop((written, read, other));
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]
     fn a_file_where_a_folder_is_needed_is_an_error() {
-        let root = scratch("file");
+        let (_dir, root) = scratch("file");
         std::fs::write(root.join("f"), b"").expect("file");
         assert!(create_dirs(&root.join("f").join("g")).is_err());
         assert!(create_file(&root.join("f").join("g"), true).is_err());
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     /// A link to `target` at `at`. On Windows a symbolic link needs a right most accounts lack, and
@@ -684,8 +680,8 @@ mod tests {
     /// A link is planted where a folder of the path was.
     #[test]
     fn a_planted_link_is_never_followed() {
-        let root = scratch("link");
-        let outside = scratch("link-outside");
+        let (_dir, root) = scratch("link");
+        let (_outside_dir, outside) = scratch("link-outside");
         let planted = plant_dir_link(&outside, &root.join("d"));
         assert!(planted, "a symbolic link on Unix, or a junction on Windows");
         if planted {
@@ -725,7 +721,5 @@ mod tests {
                 assert_eq!(std::fs::read(outside.join("y.txt")).expect("read"), b"keep");
             }
         }
-        let _ = std::fs::remove_dir_all(&root);
-        let _ = std::fs::remove_dir_all(&outside);
     }
 }
