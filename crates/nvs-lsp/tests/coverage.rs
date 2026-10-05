@@ -36,8 +36,14 @@ fn corpus() -> PathBuf {
 /// session to write cases that already exist.
 fn matrix() -> Matrix {
     let mut report = Vec::new();
-    let outcome = suite::run(&[corpus()], &mut report, Report::Summary)
-        .expect("the corpus is readable and the report is written to memory");
+    let scratch = nvs_repo::scratch("lspt-corpus");
+    let outcome = suite::run(
+        &[corpus()],
+        &scratch.join("cases"),
+        &mut report,
+        Report::Summary,
+    )
+    .expect("the corpus is readable and the report is written to memory");
     assert!(
         outcome.summary.is_success(),
         "the coverage matrix is only readable over a corpus that passes:\n{}",

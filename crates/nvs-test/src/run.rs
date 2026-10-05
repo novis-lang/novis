@@ -80,16 +80,21 @@ pub struct Options {
     /// starts writes its coverage counters and its footprint log there, under
     /// the case's [`record_name`], and compiles with no artifact cache.
     pub record: Option<PathBuf>,
+    /// The directory each case's working directory is made under. The run
+    /// creates it when it is missing and deletes it, whole, when it finishes,
+    /// so it is a directory this run owns: `nvs test` passes a fresh one under
+    /// the runtime's temporary root.
+    pub root: PathBuf,
 }
 
 impl Options {
     /// The defaults: this very binary, `php` from `PATH`, and as many cases
-    /// at once as the machine has hardware threads.
+    /// at once as the machine has hardware threads, writing under `root`.
     ///
     /// # Errors
     ///
     /// Fails when the running executable's own path cannot be determined.
-    pub fn from_current_exe() -> io::Result<Self> {
+    pub fn from_current_exe(root: PathBuf) -> io::Result<Self> {
         Ok(Self {
             nvs: std::env::current_exe()?,
             php: PathBuf::from("php"),
@@ -98,6 +103,7 @@ impl Options {
             timeout: CASE_TIMEOUT,
             only: None,
             record: None,
+            root,
         })
     }
 }
@@ -686,13 +692,14 @@ mod tests {
             "--TEST--\nmath\n--FILE--\n<?nvs\necho 1;\n--EXPECT--\n1\n",
         )
         .expect("the case parses");
-        let mut opts = Options::from_current_exe().expect("this binary has a path");
+        let scratch = nvs_repo::scratch("test-records");
+        let mut opts =
+            Options::from_current_exe(scratch.join("cases")).expect("this binary has a path");
         assert!(
             recording(&case, &opts).is_empty(),
             "nothing is recorded unless asked"
         );
 
-        let scratch = nvs_repo::scratch("test-records");
         let dir = scratch.join("records");
         opts.record = Some(dir.clone());
         let vars = recording(&case, &opts);

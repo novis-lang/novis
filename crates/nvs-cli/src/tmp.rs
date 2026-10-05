@@ -54,6 +54,32 @@ use crate::render_diagnostics;
 /// `nvs tmp clean [--dry-run]` — resolve the tree, walk the owned root, and
 /// report every entry whose owner is gone.
 pub(crate) fn clean(config: &[PathBuf], dry_run: bool) -> ExitCode {
+    match root(config) {
+        Ok(root) => clean_root(&root, dry_run, &mut std::io::stdout()),
+        Err(code) => code,
+    }
+}
+
+/// A fresh private directory under the temporary root, for a runner that
+/// writes its cases there: `nvs test` over a `.nvst` tree and `nvs lsp-test`.
+/// The runner deletes it when it finishes, and a killed run's directory is
+/// what [`clean`] sweeps.
+///
+/// # Errors
+///
+/// The exit code to stop with, once the configuration's diagnostics or the
+/// create's error have been printed.
+pub(crate) fn runner_dir(config: &[PathBuf]) -> Result<PathBuf, ExitCode> {
+    let root = root(config)?;
+    nvs_runtime::capability::private_dir(&root).map_err(|error| {
+        eprintln!("error: could not create a directory for the cases: {error}");
+        ExitCode::FAILURE
+    })
+}
+
+/// The temporary root `[io] temp_root` names in the configuration `config`
+/// resolves to, with any diagnostic already printed.
+fn root(config: &[PathBuf]) -> Result<PathBuf, ExitCode> {
     let files = LocalFiles;
     let mut sources = SourceMap::new();
     // `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`'s roots, resolved as `config check` resolves them and for the
@@ -69,15 +95,10 @@ pub(crate) fn clean(config: &[PathBuf], dry_run: bool) -> ExitCode {
             let mut diags = Diagnostics::new();
             diags.report(diagnostic);
             render_diagnostics(&mut diags, &sources);
-            return ExitCode::FAILURE;
+            return Err(ExitCode::FAILURE);
         }
     };
-
-    clean_root(
-        &nvs_runtime::capability::temp_root(Some(&resolved.config)),
-        dry_run,
-        &mut std::io::stdout(),
-    )
+    Ok(nvs_runtime::capability::temp_root(Some(&resolved.config)))
 }
 
 /// [`clean`] with the root already decided and the output already chosen — the

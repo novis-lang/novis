@@ -333,7 +333,8 @@ mod tests {
              --EXPECT--\n"
         );
         let case = crate::Case::parse(Path::new("covered.lspt"), &text).expect("the case parses");
-        crate::suite::answer(&case)
+        let root = nvs_repo::scratch("lspt-covered");
+        crate::suite::answer(&case, &root)
             .expect("the case is answered")
             .covered
     }

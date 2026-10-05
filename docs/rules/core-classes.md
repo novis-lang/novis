@@ -235,7 +235,10 @@ Every directory is created under one root the runtime owns — a configured path
 subdirectory of the platform temporary directory. Exclusive ownership of that root is the entire
 safety argument for the sweeps: the runtime never deletes anything it did not create, because nothing
 else writes there. Sweeping a shared `/tmp`, with anyone's symlinks and anyone's names, is the
-classic TOCTOU surface this forbids.
+classic TOCTOU surface this forbids. The two test runners, `nvs test` over a `.nvst` tree and
+`nvs lsp-test`, have no script and no grant, and write their cases in a folder they create under the
+same root, with the same name. Each runner deletes its folder when the run ends, and a killed run's
+folder is an orphan like any other.
 
 The runtime keeps a per-script list of the paths it handed out and deletes each surviving entry when
 the script ends — after the exit queue on a CLI ending, after the after-response work on a request,

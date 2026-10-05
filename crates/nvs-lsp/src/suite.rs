@@ -171,22 +171,52 @@ fn gather(path: &Path, into: &mut Vec<PathBuf>) -> io::Result<()> {
 
 /// Runs every case in `paths`, writing a report to `out`.
 ///
+/// Each case's files are written in a directory of their own under `root`.
+/// The run creates `root` when it is missing and deletes it, whole, when it
+/// finishes, so it is a directory this run owns: `nvs lsp-test` passes a fresh
+/// one under the runtime's temporary root.
+///
 /// # Errors
 ///
-/// Fails on a discovery error, or when `out` cannot be written to. A failing
-/// *case* is not an error: it is counted in the returned [`Summary`], and so is
-/// a case that could not be parsed, because a file that is not a case is a
-/// failure of that file rather than of the run.
-pub fn run(paths: &[PathBuf], out: &mut dyn Write, report: Report) -> io::Result<Outcome> {
+/// Fails on a discovery error, when `root` cannot be created, or when `out`
+/// cannot be written to. A failing *case* is not an error: it is counted in the
+/// returned [`Summary`], and so is a case that could not be parsed, because a
+/// file that is not a case is a failure of that file rather than of the run.
+pub fn run(
+    paths: &[PathBuf],
+    root: &Path,
+    out: &mut dyn Write,
+    report: Report,
+) -> io::Result<Outcome> {
+    let cases = collect(paths)?;
+    fs::create_dir_all(root).map_err(|error| {
+        io::Error::new(
+            error.kind(),
+            format!("could not create {}: {error}", root.display()),
+        )
+    })?;
+    let outcome = run_in(&cases, root, out, report);
+    let _ = fs::remove_dir_all(root);
+    outcome
+}
+
+/// [`run`] once `root` exists: every case answered and reported.
+fn run_in(
+    cases: &[PathBuf],
+    root: &Path,
+    out: &mut dyn Write,
+    report: Report,
+) -> io::Result<Outcome> {
     let mut outcome = Outcome {
         summary: Summary::default(),
         matrix: Matrix::new(),
     };
-    for path in collect(paths)? {
-        match check(&path) {
+    for path in cases {
+        let path = path.as_path();
+        match check(path, root) {
             Ok((request, covered)) => {
                 outcome.summary.passed += 1;
-                outcome.matrix.record(&path, request, &covered);
+                outcome.matrix.record(path, request, &covered);
             }
             Err(lines) => {
                 outcome.summary.failed += 1;
@@ -214,10 +244,10 @@ pub fn run(paths: &[PathBuf], out: &mut dyn Write, report: Report) -> io::Result
 /// here: a case whose rendering is not what it froze covers nothing, because
 /// coverage is a claim a frozen expectation makes
 /// (`rule:ide/lspt-coverage-is-inferred`).
-fn check(path: &Path) -> Result<(Request, Vec<&'static str>), Vec<String>> {
+fn check(path: &Path, root: &Path) -> Result<(Request, Vec<&'static str>), Vec<String>> {
     let text = fs::read_to_string(path).map_err(|error| vec![format!("{error}")])?;
     let case = Case::parse(path, &text).map_err(|error| vec![format!("{error}")])?;
-    let answered = answer(&case).map_err(|why| vec![why])?;
+    let answered = answer(&case, root).map_err(|why| vec![why])?;
     let rendered = answered.response.render();
     if rendered == case.expect {
         return Ok((case.request, answered.covered));
@@ -260,8 +290,8 @@ pub(crate) struct Answered {
 ///
 /// The materialised files are held until the answer is rendered, because the
 /// files a `require` resolves against go when they do.
-pub(crate) fn answer(case: &Case) -> Result<Answered, String> {
-    let (files, documents, entry) = store(case)?;
+pub(crate) fn answer(case: &Case, root: &Path) -> Result<Answered, String> {
+    let (files, documents, entry) = store(case, root)?;
     let analysed = analyse(&documents, &entry)
         .ok_or_else(|| "the case's document could not be analysed".to_owned())?;
     let response = match case.request {
@@ -323,9 +353,9 @@ struct Materialised {
     /// spelling [`crate::document::uri_of`] gives a canonical path. The server
     /// names every file it answers by its canonical path, so a directory
     /// spelled any other way would never be a prefix of an answered location.
-    /// The platform temporary root is not canonical everywhere: some Windows
-    /// machines name it by an 8.3 alias (`C:\Users\RUNNER~1`) or in a case the
-    /// disk does not use, and macOS keeps it under the `/var` symlink.
+    /// A temporary root is not canonical everywhere: some Windows machines name
+    /// it by an 8.3 alias (`C:\Users\RUNNER~1`) or in a case the disk does not
+    /// use, and macOS keeps it under the `/var` symlink.
     dir: PathBuf,
     /// The same directory as [`fs::canonicalize`] spells it, verbatim prefix
     /// and all: the spelling of a path the graph walk loaded.
@@ -333,17 +363,10 @@ struct Materialised {
 }
 
 impl Materialised {
-    /// Writes `case`'s sections, entry first.
-    fn write(case: &Case) -> io::Result<Self> {
+    /// Writes `case`'s sections under `root`, entry first.
+    fn write(case: &Case, root: &Path) -> io::Result<Self> {
         static NEXT: AtomicUsize = AtomicUsize::new(0);
-        let created = std::env::temp_dir().join(format!(
-            "nvs-lspt-{}-{}",
-            std::process::id(),
-            NEXT.fetch_add(1, Ordering::Relaxed)
-        ));
-        // A directory left behind by a run that died, under a process id the
-        // host has since handed out again.
-        let _ = fs::remove_dir_all(&created);
+        let created = root.join(NEXT.fetch_add(1, Ordering::Relaxed).to_string());
         fs::create_dir_all(&created)?;
         let canonical = match fs::canonicalize(&created) {
             Ok(canonical) => canonical,
@@ -412,8 +435,8 @@ impl Drop for Materialised {
 ///
 /// The directory is handed back with them because it has to outlive the
 /// answer: dropping it takes the files a `require` resolves against with it.
-fn store(case: &Case) -> Result<(Materialised, Documents, Uri), String> {
-    let files = Materialised::write(case)
+fn store(case: &Case, root: &Path) -> Result<(Materialised, Documents, Uri), String> {
+    let files = Materialised::write(case, root)
         .map_err(|error| format!("the case's files could not be written: {error}"))?;
     let mut documents = Documents::new();
     // The case's own stub tree, under its directory, so a jump to a `Core`
@@ -760,10 +783,55 @@ mod tests {
              --EXPECT--\n"
         );
         let case = Case::parse(Path::new("gate.lspt"), &text).expect("the case parses");
-        answer(&case)
+        let root = scratch("asked");
+        answer(&case, &root)
             .expect("diagnostics are answered")
             .response
             .render()
+    }
+
+    /// [`run`] writes each case under the root it is given and nowhere else:
+    /// the root's missing parent is created beside the scratch guard, the root
+    /// itself is gone when the run ends, and a root that cannot be created stops
+    /// the run naming it.
+    #[test]
+    fn lsp_test_writes_its_cases_under_the_root_it_is_given() {
+        let dir = scratch("root");
+        let case = dir.join("one.lspt");
+        write(
+            &case,
+            "--TEST--\none\n--FILE--\n<?nvs\necho 1;\n--REQUEST--\ndiagnostics\n--EXPECT--\nnone\n",
+        );
+
+        let root = dir.join("given").join("root");
+        let mut out = Vec::new();
+        let outcome = run(
+            std::slice::from_ref(&case),
+            &root,
+            &mut out,
+            Report::Summary,
+        )
+        .expect("the run finishes");
+        assert!(
+            outcome.summary.is_success(),
+            "{}",
+            String::from_utf8_lossy(&out)
+        );
+        assert!(
+            dir.join("given").is_dir(),
+            "the root was made under the scratch guard"
+        );
+        assert!(!root.exists(), "the run deletes its root");
+
+        write(&dir.join("a-file"), "");
+        let error = run(
+            std::slice::from_ref(&case),
+            &dir.join("a-file").join("root"),
+            &mut Vec::new(),
+            Report::Summary,
+        )
+        .expect_err("a root under a file cannot be created");
+        assert!(error.to_string().contains("a-file"), "{error}");
     }
 
     /// The codes in a rendering, which is `L:C-L:C severity CODE message`.
@@ -832,8 +900,9 @@ mod tests {
         write(&dir.join("README.md"), "what this tree is for\n");
 
         let mut report = Vec::new();
-        let outcome =
-            run(&[dir.to_path_buf()], &mut report, Report::Summary).expect("the tree is readable");
+        let root = dir.join("cases");
+        let outcome = run(&[dir.to_path_buf()], &root, &mut report, Report::Summary)
+            .expect("the tree is readable");
         let report = String::from_utf8(report).expect("the report is text");
 
         assert_eq!(
@@ -859,7 +928,7 @@ mod tests {
         // A path that does not exist is the mistake it looks like, rather than
         // an empty suite that passes.
         let missing = dir.join("nowhere");
-        let error = run(&[missing], &mut Vec::new(), Report::Summary)
+        let error = run(&[missing], &root, &mut Vec::new(), Report::Summary)
             .expect_err("a mistyped path is an error");
         assert_eq!(error.kind(), io::ErrorKind::NotFound);
     }

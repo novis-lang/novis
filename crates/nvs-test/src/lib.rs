@@ -350,10 +350,13 @@ pub fn run(paths: &[PathBuf], opts: &Options, out: &mut dyn Write) -> io::Result
         .any(|case| matches!(case.oracle, Some(Oracle::Php(_))));
     let php = !wants_oracle || run::php_available(opts);
 
-    let root = std::env::temp_dir().join(format!("nvs-test-{}", std::process::id()));
-    // A previous run that was killed before its cleanup leaves this behind.
-    let _ = fs::remove_dir_all(&root);
-    fs::create_dir_all(&root)?;
+    let root = &opts.root;
+    fs::create_dir_all(root).map_err(|error| {
+        io::Error::new(
+            error.kind(),
+            format!("could not create {}: {error}", root.display()),
+        )
+    })?;
 
     let mut summary = Summary::default();
     // A pool of workers each taking the next unstarted case off one counter, and one channel
@@ -365,7 +368,7 @@ pub fn run(paths: &[PathBuf], opts: &Options, out: &mut dyn Write) -> io::Result
     thread::scope(|scope| {
         for _ in 0..jobs {
             let tx = tx.clone();
-            let (parsed, next, root) = (&parsed, &next, &root);
+            let (parsed, next) = (&parsed, &next);
             scope.spawn(move || {
                 loop {
                     let index = next.fetch_add(1, Ordering::Relaxed);
@@ -404,7 +407,7 @@ pub fn run(paths: &[PathBuf], opts: &Options, out: &mut dyn Write) -> io::Result
         }
         Ok::<(), io::Error>(())
     })?;
-    let _ = fs::remove_dir_all(&root);
+    let _ = fs::remove_dir_all(root);
 
     writeln!(
         out,
@@ -449,6 +452,42 @@ fn read(path: &Path) -> Result<Case, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// [`Options::root`] is the only place a run writes: the root's missing
+    /// parent is created beside the scratch guard, the root itself is gone when
+    /// the run ends, and a root that cannot be created stops the run naming it.
+    /// The case's `nvs` does not exist, so the case fails after its working
+    /// directory was made.
+    #[test]
+    fn the_nvst_runner_writes_its_cases_under_the_root_it_is_given() {
+        let scratch = nvs_repo::scratch("test-root");
+        let tree = scratch.join("tree");
+        fs::create_dir_all(&tree).expect("the tree's directory");
+        fs::write(
+            tree.join("one.nvst"),
+            "--TEST--\none\n--FILE--\n<?nvs\necho 1;\n--EXPECT--\n1\n",
+        )
+        .expect("the case");
+
+        let root = scratch.join("given").join("root");
+        let mut opts = Options::from_current_exe(root.clone()).expect("this binary has a path");
+        opts.nvs = scratch.join("no-such-nvs");
+        let mut out = Vec::new();
+        let summary = run(std::slice::from_ref(&tree), &opts, &mut out).expect("the run finishes");
+
+        assert_eq!(summary.failed, 1, "{}", String::from_utf8_lossy(&out));
+        assert!(
+            scratch.join("given").is_dir(),
+            "the root was made under the scratch guard"
+        );
+        assert!(!root.exists(), "the run deletes its root");
+
+        fs::write(scratch.join("a-file"), b"").expect("a file in the root's way");
+        opts.root = scratch.join("a-file").join("root");
+        let error = run(std::slice::from_ref(&tree), &opts, &mut Vec::new())
+            .expect_err("a root under a file cannot be created");
+        assert!(error.to_string().contains("a-file"), "{error}");
+    }
 
     #[test]
     fn a_summary_with_no_failures_is_a_success() {

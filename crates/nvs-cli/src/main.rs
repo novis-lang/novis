@@ -1763,7 +1763,11 @@ fn main() -> ExitCode {
             } else {
                 nvs_lsp::suite::Report::Summary
             };
-            match nvs_lsp::suite::run(&paths, &mut out, report) {
+            let root = match tmp::runner_dir(&cli.config) {
+                Ok(root) => root,
+                Err(code) => return code,
+            };
+            match nvs_lsp::suite::run(&paths, &root, &mut out, report) {
                 Ok(outcome) if outcome.summary.is_success() => ExitCode::SUCCESS,
                 Ok(_) => ExitCode::FAILURE,
                 Err(error) => {
@@ -3444,7 +3448,11 @@ fn run_test(
         return ExitCode::FAILURE;
     }
 
-    let mut options = match nvs_test::Options::from_current_exe() {
+    let root = match tmp::runner_dir(config) {
+        Ok(root) => root,
+        Err(code) => return code,
+    };
+    let mut options = match nvs_test::Options::from_current_exe(root) {
         Ok(options) => options,
         Err(error) => {
             eprintln!("error: could not locate this binary to run cases with: {error}");
