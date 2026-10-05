@@ -224,8 +224,9 @@ no session cookie (`session.rs:825-831`), and the Redis tier past a grep.
 
 **Found:** a channel send scans every waiter on the core (fixed: the registry in
 `crates/nvs-stdlib/src/channel.rs` is keyed by channel, guarded by ladder `scheduler/waiters.nvs`).
-A scheduler turn scans all parked tasks, and a finished child scans its siblings
-([`a-scheduler-turn-scans-every-parked-task`](../../data/gaps/nvs-host/a-scheduler-turn-scans-every-parked-task.json)).
+A scheduler turn scans all parked tasks, and a finished child scans its siblings (fixed: see
+[*What got better*](performance-pass.md#what-got-better), guarded by ladders `scheduler/fan-out.nvs`
+and `scheduler/parked.nvs`).
 The 1.05 MB per task that *What we found* reports matches the 1 MiB stack every task reserves
 ([`a-task-is-charged-a-whole-stack`](../../data/gaps/nvs-host/a-task-is-charged-a-whole-stack.json)).
 

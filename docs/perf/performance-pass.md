@@ -173,6 +173,25 @@ file, edits it once and hovers went from 192.7 M to 48.6 M, because it builds th
 than five times. The cost does not grow with input, so there is no ladder. It spends one copy of the
 table for the life of the process, the same size as the copy each check built and freed.
 
+**A scheduler turn reads only the tasks that need its attention.** The sweep at the end of each
+turn read every parked task, a task ending searched its parent's whole list of children, and a
+channel waiter leaving searched every waiter of its channel. With n tasks, each of these cost O(n),
+and doing it once per task cost O(n²). The sweep now reads only the tasks cancelled since the last
+turn. Children and waiters are kept in sorted collections keyed by id, so removing one is O(log n)
+(`crates/nvs-host/src/scheduler.rs`, `crates/nvs-host/src/channel.rs`). The ladders
+[`scheduler/fan-out`](../../benches/scaling/scheduler/fan-out.nvs),
+[`scheduler/waiters`](../../benches/scaling/scheduler/waiters.nvs) and
+[`scheduler/parked`](../../benches/scaling/scheduler/parked.nvs) are flat on the counts before and
+after, because the counts do not see the scheduler. The repository's 256M memory cap stops the last
+two at 128 parked tasks, so they were also timed by hand with no configuration file and no cap. The
+release builds of the fix and its parent ran in three alternating rounds. `fan-out` at 32768
+children took 578 ms before and 602 ms after, best of three. `parked` with 512 parked tasks and
+512 sleeps took 62 ms before and 75 ms after, and with 2048 of each 122 ms before and 128 ms after.
+Both builds grow linearly, so the clock on this machine does not see the
+removed terms. A positive sleep wakes no sooner than the system timer, and one scan of 2048 tasks
+costs far less than that wait. Callgrind was not run. It spends one tree node per child and per
+waiter, and one list of task ids per turn.
+
 ## Decisions for you
 
 **Should a request head get a total deadline as well as its idle one?** `header_timeout` is an idle
