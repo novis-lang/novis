@@ -1,37 +1,31 @@
 {
-  "state": "**Goal `serve-per-mount-config` — every mounted entry runs under its own `[[app]]` blocks, and the door under the host's — has not started.** Nothing is carried; the suites are the floor.\n\n`nvs serve` holds one snapshot for the process in one `nvs_config::Current` (`crates/nvs-cli/src/serve.rs:299`), built by `crate::config::boot_origins` for the named file or, with none, as `Snapshot::host` with no block folded. The door clones it at each request's start (`crates/nvs-server/src/serve.rs:1427`) and writes the same `Arc` onto the request's context (`:1670`), so every mount reads one application's `[[app]]` blocks or none. A reload resolves the same way (`crates/nvs-cli/src/control.rs:406-420`).",
+  "state": "**Goal `serve-per-mount-config` — Stage 2 has landed; nothing on the request path uses it yet.** ADR 0271 is the goal's one record; it `modifies` the four rules the goal names, and their `because` lists carry 0271. Their prose is still the pre-goal truth and is rewritten by the stage that lands each behaviour (goal file § *Stage 0*): `rule:http-server/the-served-file-is-optional` with Stage 3/4, the scheduled-run and job rules with Stage 5.\n\n`nvs_config::Current` now holds an `Arc<Published>`: the host's snapshot plus `AppBlocks` (the roster taken out of `Resolved` once), resolving an entry file to its own snapshot on first use and keeping it under the canonical path. Entries on one chain of blocks share one `Arc`; an entry no block matches gets the host's; every snapshot carries the host's generation and is folded after the host's `Boot` carry. `Current::load` still returns the host's, `Current::published` returns the set, `Current::publish_set` publishes host + roster + eagerly matched entries. `Current::new` and `publish`/`publish_keeping` build a host-only set, so every caller in `nvs-cli` serves exactly what it did before. The goal's five Stage 2 tests are in `crates/nvs-config/tests/snapshot.rs`, with two more (a spelling with `.`, a refused publish leaving the old set).",
   "next": {
-    "stage": 2,
-    "title": "the record and the published set",
-    "files": [
-      "crates/nvs-config/src/snapshot.rs",
-      "crates/nvs-config/src/app.rs",
-      "crates/nvs-config/src/control.rs",
-      "crates/nvs-config/tests/snapshot.rs"
-    ],
+    "stage": 3,
+    "title": "the request path, the door half",
+    "files": [],
+    "note": "one file set: `crates/nvs-server/src/serve.rs`, `crates/nvs-config/src/snapshot.rs` (read only).",
     "items": [
       {
         "done": false,
-        "text": "**The decision record** — one new record, written first, for the whole goal, from the goal file's § *Standing decisions*; it `modifies` `rule:http-server/the-served-file-is-optional` (`docs/rules/http-server/the-served-file-is-optional.md:3-14`), `rule:config/the-config-is-an-immutable-snapshot`, `rule:config/a-scheduled-run-is-a-root-isolate` and `rule:concurrency/a-job-runs-as-a-root-isolate`."
+        "text": "**`Reply::Run` carries the snapshot the program runs under** — `crates/nvs-server/src/serve.rs:422`; the door writes it onto the context at `crates/nvs-server/src/serve.rs:1670` and reads the disconnect keys from it at `crates/nvs-server/src/serve.rs:1680`, while the request start at `crates/nvs-server/src/serve.rs:1427` keeps the host's (ADR 0271 § 1)."
       },
       {
         "done": false,
-        "text": "**The published set** — `crates/nvs-config/src/snapshot.rs:366`'s `Current` holds the host's snapshot and the way from an entry file to its own, swapped under one lock; `load` keeps returning the host's (`rule:config/the-config-is-an-immutable-snapshot`)."
+        "text": "**`Serving::policy` is handed only the host's snapshot** — `crates/nvs-server/src/serve.rs:809`, so alternating mounts never re-derive the policy (ADR 0271 § 1, *Consequences*)."
       },
       {
         "done": false,
-        "text": "**One snapshot per chain of blocks** — `crates/nvs-config/src/app.rs:436`'s `matching` once per entry per publish, the fold of `crates/nvs-config/src/snapshot.rs:169` run over the host snapshot after `carry_boot` (`:317`), every snapshot sharing the publish's `generation` (`:182`) (`rule:config/every-matching-app-block-applies-least-specific-first`)."
+        "text": "**The Stage 3 door check's named tests** — `bun nv loop --list --stage 3` prints them; they sit beside `crates/nvs-server/src/serve.rs:1670`'s existing tests."
       },
       {
         "done": false,
-        "text": "**The named tests** of the goal file's Stage 2 check, in `crates/nvs-config/tests/snapshot.rs`."
+        "text": "**Then the binary half** (its own group, next session): the handler picks the snapshot after `Table::select` at `crates/nvs-cli/src/serve.rs:937` via `Current::published().entry(..)`, boot builds the set with `Current::publish_set`/`Published::new` at `crates/nvs-cli/src/serve.rs:299`, `fall_back_to` at `crates/nvs-cli/src/serve.rs:1995` takes each row's origin from its own entry, and `per_request_cap` at `crates/nvs-config/src/server.rs:874` takes the largest of the global and every block's limits."
       }
     ]
   },
   "backlog": [
-    "**Stage 3: the request path** — `Reply::Run` at `crates/nvs-server/src/serve.rs:422` carries the snapshot the handler chose at `crates/nvs-cli/src/serve.rs:937`; the door keeps the host's for `Serving::policy` (`crates/nvs-server/src/serve.rs:809`).",
-    "**Stage 4: reload and the mount rows** — `crates/nvs-cli/src/control.rs:406` and `crates/nvs-cli/src/serve/mounts.rs:354`.",
-    "**Stage 5: scheduled fires and queued jobs** — `crates/nvs-cli/src/serve.rs:1746`, `crates/nvs-cli/src/worker.rs:625`.",
-    "**Stage 6: the reference and the proofs** — `docs/reference/tools/25-server.md:22-29`, `docs/reference/tools/20-config.md:321`, two `about.md` files, the attack."
+    "`nvs ctl config` per-application view — out of this goal (ADR 0271 § 7); a later goal if wanted.",
+    "`crates/nvs-config/src/control.rs`'s `reload` still publishes a host-only set; Stage 4 moves it to `Current::publish_set` (goal file § *Stage 4*)."
   ]
 }

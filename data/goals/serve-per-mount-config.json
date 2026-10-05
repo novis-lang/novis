@@ -19,7 +19,8 @@
       "http-server/a-mount-carries-no-policy"
     ],
     "adrs": [
-      "0200"
+      "0200",
+      "0271"
     ],
     "shapes": [
       "A commit message"
