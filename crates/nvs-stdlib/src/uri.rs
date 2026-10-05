@@ -306,6 +306,16 @@
 //! Parsing is a single pass, so a hostile input costs O(n) here as it does
 //! everywhere else in this module.
 //!
+//! **`$uri->queryParameter($name)` is a stated bound, not a memo:** each call
+//! is one [`parse_query`] over the receiver's query, O(query length), and
+//! keeps nothing. A program that reads P names off one `Uri` pays P parses,
+//! and its card sends that program to `parseQuery` once instead. A memo slot
+//! would buy the loop back at the price of a parsed array per instance and of
+//! writing to a built `Uri` — [`crate::instance::set_slot`] exists for the
+//! spec's mutable collections only, and every other `Core` class, this one
+//! included, is built once and read. `Core\Request::query` does hold its
+//! parse, because a request has one query and a place to keep it.
+//!
 //! # A decoder answers `bytes`
 //!
 //! Percent-decoding is defined over octets and a client may send any of them,
@@ -975,7 +985,9 @@ const WITH_DOC: MethodDoc = MethodDoc {
 const QUERY_PARAMETER_DOC: MethodDoc = MethodDoc {
     short: "Returns one value from the query of the address, by its name. For \
             `/search?q=red+shoes` the result of `queryParameter(\"q\")` is `red shoes`. The query \
-            is read the same way as by `Core\\Uri::parseQuery`, and each call reads it again.",
+            is read the same way as by `Core\\Uri::parseQuery`, and each call reads it again. \
+            To read many parameters, call `Core\\Uri::parseQuery` once on the query and read the \
+            array it returns.",
     params: &[ParamDoc {
         name: "name",
         desc: "The name of the parameter, without brackets. For `a[b]=c`, the name is `\"a\"`.",
