@@ -1,0 +1,37 @@
+--TEST--
+A constructor does not write a `readonly` property inside a loop, because the loop can run the write twice (`rule:classes/lateinit-restrictions`)
+--FILE--
+<?nvs
+// The loop body can run more than once, so the write inside it can be a
+// second write. Computing the value in a local variable is the fix.
+class Total {
+    public readonly ?int $last;
+
+    public function constructor(array<int> $items) {
+        foreach ($items as int $item) {
+            $this->last = $item;
+        }
+    }
+}
+
+class Fixed {
+    public readonly int $sum;
+
+    public function constructor(array<int> $items) {
+        int $sum = 0;
+        foreach ($items as int $item) {
+            $sum += $item;
+        }
+        $this->sum = $sum;
+    }
+}
+
+var $t = new Fixed([1, 2]);
+// covers: lang:classes/properties
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0782]: `Total::$last` is `readonly`, so the constructor writes it only once
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

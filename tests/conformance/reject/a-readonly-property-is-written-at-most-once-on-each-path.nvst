@@ -1,0 +1,40 @@
+--TEST--
+A constructor writes a `readonly` property at most once on each path, a promoted parameter included (`rule:classes/lateinit-restrictions`)
+--FILE--
+<?nvs
+// Each branch of the `if` writes `$id` once, so that is allowed. The write
+// after the `if` is a second write on the path that took the branch.
+class Node {
+    public readonly uint $id;
+
+    public function constructor(uint $id, bool $root) {
+        if ($root) {
+            $this->id = 0;
+        } else {
+            $this->id = $id;
+        }
+        if ($id > 100) {
+            $this->id = 100;
+        }
+    }
+}
+
+// A promoted parameter sets the property before the body runs, so any write
+// in the body is the second one.
+class Label {
+    public function constructor(public readonly string $text) {
+        $this->text = "label: " . $text;
+    }
+}
+
+var $n = new Node(1, false);
+// covers: lang:classes/properties
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0782]: `Node::$id` is `readonly`, so the constructor writes it only once
+%A
+error[E0782]: `Label::$text` is `readonly`, so the constructor writes it only once
+%A
+error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.
