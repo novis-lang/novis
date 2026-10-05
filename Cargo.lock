@@ -2305,6 +2305,7 @@ version = "0.0.1"
 dependencies = [
  "nvs-diagnostics",
  "nvs-footprint",
+ "nvs-repo",
  "nvs-syntax",
  "rustc-hash",
 ]
