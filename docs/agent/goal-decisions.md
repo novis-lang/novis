@@ -4,9 +4,8 @@ This file is a record for reading. It binds no goal, and a later goal may decide
 saying why. **A rule fragment under [docs/rules/](../rules/) is the only binding form**: a decision a
 later goal must honour is written there, and this file is not where to look for it.
 
-Each entry below is a standing decision that, when goal `goal-closeout` read the goals in front of it,
-had no home but that goal's prose: no rule fragment, decision record, module doc, reference page or test
-stated it. An entry says what was decided, where in the tree it applies, and the goal it came from. Work a
+Each entry below is a standing decision that had no home but a finished goal's prose when that goal was
+deleted: no rule fragment, decision record, module doc, reference page or test stated it. An entry says what was decided, where in the tree it applies, and the goal it came from. Work a
 goal promised and did not build is not here: it is a gap record under `data/gaps/`.
 
 ## Decisions
