@@ -1512,14 +1512,12 @@ mod tests {
         assert!(distinct(b",\"\\", "parse").is_ok());
     }
 
-    /// A path under the host's temporary directory that one case owns, with
-    /// anything a previous run left there removed.
-    fn scratch(name: &str) -> std::path::PathBuf {
-        let dir = std::env::temp_dir().join("nvs-csv-rows");
-        std::fs::create_dir_all(&dir).expect("a temporary directory the tests own");
+    /// A path in a scratch directory one case owns, and the guard that
+    /// deletes the directory when the case ends.
+    fn scratch(name: &str) -> (nvs_repo::Scratch, std::path::PathBuf) {
+        let dir = nvs_repo::scratch("csv-rows");
         let path = dir.join(name);
-        let _ = std::fs::remove_file(&path);
-        path
+        (dir, path)
     }
 
     /// A `Core\IO\File` over `path`, filed on `ctx` exactly as `Core\IO::open`
@@ -1610,7 +1608,7 @@ mod tests {
     fn csv_rows_reads_a_file_one_record_at_a_time() {
         const DOCUMENT: &str = "name,note,qty\nfig,\"a, b\nc\",2\nplum,plain,7\n";
 
-        let path = scratch("orders.csv");
+        let (_dir, path) = scratch("orders.csv");
         std::fs::write(&path, DOCUMENT).expect("the document this case walks");
 
         let mut ctx = Ctx::new(OutputSink::Sink);
@@ -1678,7 +1676,7 @@ mod tests {
             document.len() > super::READ_CHUNK * 4,
             "the document has to be several reads long for the bound below to mean anything"
         );
-        let path = scratch("ledger.csv");
+        let (_dir, path) = scratch("ledger.csv");
         std::fs::write(&path, &document).expect("the document this case walks");
 
         let mut ctx = Ctx::new(OutputSink::Sink);

@@ -17,5 +17,10 @@ doctest = false
 # reads a file or resolves a class can call it without adding an edge upward.
 [dependencies]
 
+# Test-only: the log cases write under `target/` through `nvs_repo::scratch`. `nvs-repo` depends
+# on this crate, and cargo builds a dev-dependency cycle as a second copy of this one for the test.
+[dev-dependencies]
+nvs-repo.workspace = true
+
 [lints]
 workspace = true

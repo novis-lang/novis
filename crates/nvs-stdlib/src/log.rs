@@ -853,7 +853,7 @@ mod tests {
         // retention bound is what stops the target growing with the loop.
         const MAX_BYTES: u64 = 256;
         const KEEP: usize = 2;
-        let path = scratch("floor.log", KEEP);
+        let (_dir, path) = scratch("floor.log");
         ctx.set_diagnostic_sink(OutputSink::File(LogFile::with_bounds(
             path.clone(),
             MAX_BYTES,
@@ -913,7 +913,7 @@ mod tests {
     /// record a deployment collects.
     #[test]
     fn both_writers_land_in_the_target_the_deployment_named() {
-        let path = scratch("named-target.log", 0);
+        let (_dir, path) = scratch("named-target.log");
         let mut ctx = Ctx::buffered();
         ctx.set_diagnostic_sink(OutputSink::Buffer(Vec::new()));
         ctx.set_config(crate::tests::granting(&format!(
@@ -984,7 +984,7 @@ mod tests {
     /// can.
     #[test]
     fn the_configured_minimum_is_the_floor_both_writers_write_over() {
-        let path = scratch("minimum-level.log", 0);
+        let (_dir, path) = scratch("minimum-level.log");
         let mut ctx = Ctx::buffered();
         ctx.set_config(crate::tests::granting(&format!(
             "[log]\ntarget = \"file:{}\"\nlevel = \"Warn\"\n",
@@ -1092,7 +1092,7 @@ mod tests {
     /// every assertion made about the other one alone.
     #[test]
     fn both_writers_emit_the_rendering_the_deployment_configured() {
-        let path = scratch("text-format.log", 0);
+        let (_dir, path) = scratch("text-format.log");
         let mut ctx = Ctx::buffered();
         ctx.set_config(crate::tests::granting(&format!(
             "[log]\ntarget = \"file:{}\"\nformat = \"text\"\n",
@@ -1158,16 +1158,12 @@ mod tests {
         std::path::PathBuf::from(name)
     }
 
-    /// A path under the host's temporary directory that this case owns, with
-    /// its live file and every rotation a previous run left behind removed.
-    fn scratch(name: &str, keep: usize) -> std::path::PathBuf {
-        let dir = std::env::temp_dir().join("nvs-floor-rotation");
-        std::fs::create_dir_all(&dir).expect("a temporary directory the tests own");
+    /// A path in a scratch directory this case owns, and the guard that
+    /// deletes the directory, with every rotation in it, when the case ends.
+    fn scratch(name: &str) -> (nvs_repo::Scratch, std::path::PathBuf) {
+        let dir = nvs_repo::scratch("log-rotation");
         let path = dir.join(name);
-        for n in 0..=keep + 1 {
-            let _ = std::fs::remove_file(rotation(&path, n));
-        }
-        path
+        (dir, path)
     }
 
     /// [`LEVEL`]'s rows and the record model's roster name the same five cases,

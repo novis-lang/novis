@@ -2425,13 +2425,8 @@ mod tests {
     // covers: Core\Net::connectLocal, Core\Net::listenLocal
     #[test]
     fn a_granted_socket_path_reaches_the_transport_at_both_ends() {
-        let path = std::env::temp_dir().join(format!("nvs-local-{}.sock", std::process::id()));
-        // A run that was killed leaves the node behind, and a bind refuses it.
-        let _ = std::fs::remove_file(&path);
-        let path = path
-            .to_str()
-            .expect("the temporary directory is text")
-            .to_owned();
+        let (_dir, path) = nvs_repo::socket("local.sock");
+        let path = path.to_str().expect("a scratch path is text").to_owned();
         let written = format!("[capabilities.net]\nlocal = [{path:?}]\n");
 
         let mut ctx = Ctx::buffered();

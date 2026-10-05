@@ -682,10 +682,8 @@ mod tests {
     /// A fresh folder configured as the disk [`OBJECTS`], and a context whose
     /// `fs.read` and `fs.write` grants cover that folder and nothing else —
     /// the two blocks an operator writes in `nvs.toml`.
-    fn disk(name: &str) -> (PathBuf, Ctx) {
-        let root = std::env::temp_dir().join(format!("nvs-storage-{}-{name}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&root);
-        std::fs::create_dir_all(&root).expect("a temporary directory the tests own");
+    fn disk(name: &str) -> (nvs_repo::Scratch, Ctx) {
+        let root = nvs_repo::scratch(&format!("storage-{name}"));
         let path = root.display();
         let mut ctx = Ctx::buffered();
         ctx.set_config(crate::tests::granting(&format!(

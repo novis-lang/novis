@@ -1,6 +1,6 @@
 //! No test writes into the system temp directory: a test that needs a directory asks
 //! `nvs_repo::scratch` for one under `target/`. This reads every test source under `crates/` as
-//! text and fails on a call to `std::env::temp_dir()` that neither list below names.
+//! text and fails on a call to `std::env::temp_dir()` that `SUBJECT` below does not name.
 //!
 //! Test code is a file under a package's `tests/`, a file a `#[cfg(test)] mod name;` declares, a
 //! file that opens with `#![cfg(test)]`, and the item that follows a `#[cfg(…)]` naming `test`.
@@ -11,33 +11,6 @@ use std::path::Path;
 /// The tests whose subject is the system temp directory itself, and so keep calling it: the file,
 /// how many calls it makes in test code, and why.
 const SUBJECT: &[(&str, usize, &str)] = &[];
-
-/// The calls in test code that have not moved to `nvs_repo::scratch` yet, by file. The guard fails
-/// when a file makes more calls than it is listed with, and also when it makes fewer, so the list
-/// only shrinks.
-const NOT_YET_MOVED: &[(&str, usize)] = &[
-    ("crates/nvs-db/src/mysql.rs", 2),
-    ("crates/nvs-db/src/pg.rs", 1),
-    ("crates/nvs-footprint/src/lib.rs", 1),
-    ("crates/nvs-host/src/tls.rs", 2),
-    ("crates/nvs-stdlib/src/cache.rs", 2),
-    ("crates/nvs-stdlib/src/cache/redis.rs", 1),
-    ("crates/nvs-stdlib/src/csv.rs", 1),
-    ("crates/nvs-stdlib/src/http.rs", 2),
-    ("crates/nvs-stdlib/src/http/stream.rs", 1),
-    ("crates/nvs-stdlib/src/http/transport.rs", 1),
-    ("crates/nvs-stdlib/src/io.rs", 1),
-    ("crates/nvs-stdlib/src/lib.rs", 1),
-    ("crates/nvs-stdlib/src/log.rs", 1),
-    ("crates/nvs-stdlib/src/net.rs", 1),
-    ("crates/nvs-stdlib/src/queue.rs", 1),
-    ("crates/nvs-stdlib/src/request.rs", 1),
-    ("crates/nvs-stdlib/src/response.rs", 1),
-    ("crates/nvs-stdlib/src/storage.rs", 1),
-    ("crates/nvs-stdlib/src/zip.rs", 1),
-    ("crates/nvs-stdlib/tests/capability.rs", 1),
-    ("crates/nvs-test/src/run.rs", 3),
-];
 
 #[test]
 fn no_test_code_writes_into_the_system_temp_dir() {
@@ -64,9 +37,7 @@ fn no_test_code_writes_into_the_system_temp_dir() {
     for (file, calls, _why) in SUBJECT {
         *allowed.entry((*file).to_string()).or_insert(0) += calls;
     }
-    for (file, calls) in NOT_YET_MOVED {
-        *allowed.entry((*file).to_string()).or_insert(0) += calls;
-    }
+
     let wrong: Vec<String> = found
         .keys()
         .chain(allowed.keys())
@@ -84,7 +55,7 @@ fn no_test_code_writes_into_the_system_temp_dir() {
         "test code calls `std::env::temp_dir()` where nothing lists it:\n{}\n\
          Write into `nvs_repo::scratch(\"<name>\")` instead: it is a directory under `target/` that is \
          deleted when its guard drops. A test whose subject is the system temp directory itself goes \
-         in `SUBJECT` in {}, with the reason. A file that makes fewer calls than it is listed with \
+         in `SUBJECT` in {}, with the reason. A file that makes fewer calls than `SUBJECT` lists \
          has its entry lowered or removed.",
         wrong.join("\n"),
         file!()

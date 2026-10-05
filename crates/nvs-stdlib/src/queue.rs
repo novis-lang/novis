@@ -7405,8 +7405,9 @@ mod tests {
             while ran.next_row().is_some() {}
         }
 
-        let script = std::env::temp_dir().join("jobs").join("report.nvs");
-        let script = script.to_str().expect("the temporary folder is UTF-8");
+        let dir = nvs_repo::scratch("jobs");
+        let script = dir.join("report.nvs");
+        let script = script.to_str().expect("a scratch path is UTF-8");
         let mut ctx = nvs_runtime::Ctx::buffered();
         ctx.set_config(crate::tests::granting(&format!(
             "[db.jobs]\ndriver = \"sqlite\"\npath = \"{URI}\"\n\n[queue]\nconnection = \"jobs\"\n"

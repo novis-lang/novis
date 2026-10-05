@@ -2271,6 +2271,7 @@ dependencies = [
  "mysql_common",
  "nvs-config",
  "nvs-host",
+ "nvs-repo",
  "nvs-runtime",
  "postgres-protocol",
  "rusqlite",
@@ -2298,6 +2299,9 @@ dependencies = [
 [[package]]
 name = "nvs-footprint"
 version = "0.0.1"
+dependencies = [
+ "nvs-repo",
+]
 
 [[package]]
 name = "nvs-hir"
@@ -2507,6 +2511,9 @@ dependencies = [
 [[package]]
 name = "nvs-test"
 version = "0.0.1"
+dependencies = [
+ "nvs-repo",
+]
 
 [[package]]
 name = "nvs-types"

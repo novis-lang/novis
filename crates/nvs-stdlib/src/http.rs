@@ -6934,7 +6934,7 @@ mod tests {
     // covers: Core\Http\Part::file
     #[test]
     fn part_file_holds_the_path_and_no_octets_and_asks_the_grant_first() {
-        let dir = std::env::temp_dir().join("nvs-http-part-file");
+        let dir = nvs_repo::scratch("http-part-file");
         let granted = dir.join("granted");
         std::fs::create_dir_all(&granted).expect("a temporary directory the tests own");
         let inside = granted.join("report.csv");
@@ -7025,8 +7025,7 @@ mod tests {
     /// opened first.
     #[test]
     fn a_multipart_form_checks_every_name_before_it_opens_a_file() {
-        let dir = std::env::temp_dir().join("nvs-http-multipart-order");
-        std::fs::create_dir_all(&dir).expect("a temporary directory the tests own");
+        let dir = nvs_repo::scratch("http-multipart-order");
         let inside = dir.join("note.txt");
         std::fs::write(&inside, b"note\n").expect("the file the part names");
 

@@ -3680,14 +3680,12 @@ mod tests {
         }
     }
 
-    /// A path under the host's temporary directory that one case owns, with
-    /// anything a previous run left there removed.
-    fn scratch(name: &str) -> std::path::PathBuf {
-        let dir = std::env::temp_dir().join("nvs-write-stream");
-        std::fs::create_dir_all(&dir).expect("a temporary directory the tests own");
+    /// A path in a scratch directory one case owns, and the guard that
+    /// deletes the directory when the case ends.
+    fn scratch(name: &str) -> (nvs_repo::Scratch, std::path::PathBuf) {
+        let dir = nvs_repo::scratch("io");
         let path = dir.join(name);
-        let _ = std::fs::remove_file(&path);
-        path
+        (dir, path)
     }
 
     // covers: Core\IO::writeStream
@@ -3707,7 +3705,7 @@ mod tests {
         );
 
         let mut ctx = writing();
-        let path = scratch("existing.bin");
+        let (_dir, path) = scratch("existing.bin");
         std::fs::write(&path, b"already here").expect("the file the write must not replace");
         let src = source(&[b"one", b"two"]);
 
@@ -3749,7 +3747,7 @@ mod tests {
         // land, the third passes the ceiling, and the claim is that the two
         // that landed are gone.
         let mut ctx = writing();
-        let path = scratch("partial.bin");
+        let (_dir, path) = scratch("partial.bin");
         let src = source(&[b"aaaa", b"bbbb", b"cccc"]);
 
         let refused = stream_to_disk(&mut ctx, &path, src, 10, false, WRITE_STREAM)
@@ -3829,7 +3827,7 @@ mod tests {
     /// removed reads, so the refusal is about the octets and not the file.
     #[test]
     fn core_io_read_and_lines_refuse_a_file_that_is_not_utf8() {
-        let path = scratch("not-utf8.txt");
+        let (_dir, path) = scratch("not-utf8.txt");
         std::fs::write(&path, b"ok\n\xff\n").expect("a file with one byte that is not text");
         let mut ctx = reading("1MiB");
         let refused = read_under(&mut ctx, &path).expect_err("`read` of a file that is not text");
@@ -3861,7 +3859,7 @@ mod tests {
     /// else, and a member that grew a message of its own fails here while still refusing.
     #[test]
     fn core_io_read_is_bounded_by_the_same_directive_and_the_same_signature() {
-        let path = scratch("bounded-by-max-output.txt");
+        let (_dir, path) = scratch("bounded-by-max-output.txt");
         std::fs::write(&path, vec![b'x'; 4096]).expect("the file the ceilings are chosen around");
 
         let mut tight = reading("64");
@@ -3950,7 +3948,7 @@ mod tests {
     // covers: Core\IO::write
     #[test]
     fn core_io_write_replaces_the_whole_file_and_a_refusal_creates_nothing() {
-        let root = scratch("write");
+        let (_dir, root) = scratch("write");
         let _ = std::fs::remove_dir_all(&root);
         std::fs::create_dir_all(&root).expect("a folder to work in");
         let file = root.join("note.txt");
@@ -3993,7 +3991,7 @@ mod tests {
     // covers: Core\IO::append
     #[test]
     fn core_io_append_adds_to_the_end_and_a_refusal_creates_nothing() {
-        let path = scratch("append.log");
+        let (_dir, path) = scratch("append.log");
         let mut ctx = writing();
         for content in ["one\n", "", "two\n"] {
             call_with(nvs_core_io_append, &mut ctx, &[spelled(&path), content])
@@ -4004,7 +4002,7 @@ mod tests {
             b"one\ntwo\n"
         );
 
-        let refused_path = scratch("append-refused.log");
+        let (_dir, refused_path) = scratch("append-refused.log");
         let mut reading_only = nvs_runtime::Ctx::buffered();
         reading_only.set_config(crate::tests::granting("[capabilities.fs]\nread = true\n"));
         let refused = call_with(
@@ -4026,8 +4024,8 @@ mod tests {
     // covers: Core\IO::copy
     #[test]
     fn core_io_copy_duplicates_refuses_itself_and_needs_fs_write() {
-        let from = scratch("copy-source.txt");
-        let to = scratch("copy-destination.txt");
+        let (_dir, from) = scratch("copy-source.txt");
+        let (_dir, to) = scratch("copy-destination.txt");
         std::fs::write(&from, b"the content").expect("the source");
         std::fs::write(&to, b"whatever was here before, and longer").expect("a taken destination");
         let mut both = nvs_runtime::Ctx::buffered();
@@ -4052,7 +4050,7 @@ mod tests {
             "a copy onto itself changed the file"
         );
 
-        let fresh = scratch("copy-refused.txt");
+        let (_dir, fresh) = scratch("copy-refused.txt");
         let mut reading_only = nvs_runtime::Ctx::buffered();
         reading_only.set_config(crate::tests::granting("[capabilities.fs]\nread = true\n"));
         let refused = call_with(
@@ -4074,7 +4072,7 @@ mod tests {
     // covers: Core\IO::canonicalize
     #[test]
     fn core_io_canonicalize_is_a_fixed_point_and_refuses_a_missing_name() {
-        let file = scratch("canonical.txt");
+        let (_dir, file) = scratch("canonical.txt");
         std::fs::write(&file, b"x").expect("the file to resolve");
         let dir = file.parent().expect("a scratch file has a directory");
         std::fs::create_dir_all(dir.join("sub")).expect("a directory to climb out of");
@@ -4128,7 +4126,7 @@ mod tests {
         name: &str,
         ctx: &mut nvs_runtime::Ctx,
     ) -> [bool; 3] {
-        let file = scratch(&format!("{name}.txt"));
+        let (_dir, file) = scratch(&format!("{name}.txt"));
         std::fs::write(&file, b"x").expect("a file to ask about");
         let dir = file.with_extension("d");
         std::fs::create_dir_all(&dir).expect("a directory to ask about");
@@ -4154,7 +4152,7 @@ mod tests {
         let refused = call_with(
             nvs_core_io_exists,
             &mut writing(),
-            &[spelled(&scratch("x"))],
+            &[spelled(&scratch("x").1)],
         )
         .expect_err("`fs.write` is not `fs.read`");
         assert!(refused.contains("fs.read"), "{refused}");
@@ -4173,7 +4171,7 @@ mod tests {
         let refused = call_with(
             nvs_core_io_is_file,
             &mut writing(),
-            &[spelled(&scratch("x"))],
+            &[spelled(&scratch("x").1)],
         )
         .expect_err("`fs.write` is not `fs.read`");
         assert!(refused.contains("fs.read"), "{refused}");
@@ -4188,7 +4186,7 @@ mod tests {
         let refused = call_with(
             nvs_core_io_is_dir,
             &mut writing(),
-            &[spelled(&scratch("x"))],
+            &[spelled(&scratch("x").1)],
         )
         .expect_err("`fs.write` is not `fs.read`");
         assert!(refused.contains("fs.read"), "{refused}");
@@ -4207,7 +4205,7 @@ mod tests {
         let refused = call_with(
             nvs_core_io_is_readable,
             &mut writing(),
-            &[spelled(&scratch("x"))],
+            &[spelled(&scratch("x").1)],
         )
         .expect_err("`fs.write` is not `fs.read`");
         assert!(refused.contains("fs.read"), "{refused}");
@@ -4227,7 +4225,7 @@ mod tests {
         let refused = call_with(
             nvs_core_io_is_writable,
             &mut reading("1MiB"),
-            &[spelled(&scratch("x"))],
+            &[spelled(&scratch("x").1)],
         )
         .expect_err("`fs.read` is not `fs.write`");
         assert!(refused.contains("fs.write"), "{refused}");
@@ -4240,9 +4238,9 @@ mod tests {
     // covers: Core\IO::size
     #[test]
     fn core_io_size_counts_bytes_and_throws_for_a_missing_file() {
-        let file = scratch("size.txt");
+        let (_dir, file) = scratch("size.txt");
         std::fs::write(&file, "Café".as_bytes()).expect("a file to measure");
-        let empty = scratch("size-empty.txt");
+        let (_dir, empty) = scratch("size-empty.txt");
         std::fs::write(&empty, b"").expect("an empty file to measure");
         let mut ctx = reading("1MiB");
         let size_of = |ctx: &mut nvs_runtime::Ctx, path: &std::path::Path| {
@@ -4255,7 +4253,7 @@ mod tests {
             "four characters, five bytes"
         );
         assert_eq!(size_of(&mut ctx, &empty), Ok(0));
-        let missing = size_of(&mut ctx, &scratch("size-missing.txt")).expect_err("no file");
+        let missing = size_of(&mut ctx, &scratch("size-missing.txt").1).expect_err("no file");
         assert!(missing.contains(r"Core\IO::size"), "{missing}");
 
         let refused = size_of(&mut writing(), &file).expect_err("`fs.write` is not `fs.read`");
@@ -4271,7 +4269,7 @@ mod tests {
     // covers: Core\IO::stat
     #[test]
     fn core_io_stat_answers_size_and_kind_and_throws_for_a_missing_name() {
-        let file = scratch("stat.txt");
+        let (_dir, file) = scratch("stat.txt");
         std::fs::write(&file, "Café".as_bytes()).expect("a file to measure");
         let dir = file.parent().expect("a scratch file sits in a directory");
         let mut ctx = reading("1MiB");
@@ -4297,7 +4295,7 @@ mod tests {
             "four characters, five bytes"
         );
         assert!(matches!(stat_of(&mut ctx, dir), Ok((_, false, true))));
-        let missing = stat_of(&mut ctx, &scratch("stat-missing.txt")).expect_err("no file");
+        let missing = stat_of(&mut ctx, &scratch("stat-missing.txt").1).expect_err("no file");
         assert!(missing.contains(r"Core\IO::stat"), "{missing}");
 
         let refused = stat_of(&mut writing(), &file).expect_err("`fs.write` is not `fs.read`");
@@ -4324,7 +4322,7 @@ mod tests {
     // covers: Core\IO\Metadata::size
     #[test]
     fn core_io_metadata_size_counts_bytes_and_does_not_follow_the_file() {
-        let path = scratch("metadata-size.txt");
+        let (_dir, path) = scratch("metadata-size.txt");
         std::fs::write(&path, "Café".as_bytes()).expect("a file to measure");
         let mut ctx = reading("1MiB");
         let size_of = |ctx: &mut nvs_runtime::Ctx, metadata| {
@@ -4362,7 +4360,7 @@ mod tests {
     // covers: Core\IO\Metadata::modifiedAt
     #[test]
     fn core_io_metadata_modified_at_returns_the_recorded_time_of_its_own_stat() {
-        let path = scratch("metadata-modified-at.txt");
+        let (_dir, path) = scratch("metadata-modified-at.txt");
         std::fs::write(&path, b"dated").expect("a file to date");
         let set = |seconds: u64| {
             std::fs::File::options()
@@ -4416,7 +4414,7 @@ mod tests {
     // covers: Core\IO\Metadata::isFile
     #[test]
     fn core_io_metadata_is_file_answers_the_kind_its_stat_saw() {
-        let path = scratch("metadata-is-file");
+        let (_dir, path) = scratch("metadata-is-file");
         let _ = std::fs::remove_dir_all(&path);
         std::fs::write(&path, b"a file").expect("a file to ask about");
         let mut ctx = reading("1MiB");
@@ -4442,7 +4440,7 @@ mod tests {
     // covers: Core\IO\Metadata::isDir
     #[test]
     fn core_io_metadata_is_dir_answers_the_kind_its_stat_saw() {
-        let path = scratch("metadata-is-dir");
+        let (_dir, path) = scratch("metadata-is-dir");
         let _ = std::fs::remove_dir_all(&path);
         std::fs::create_dir(&path).expect("a directory to ask about");
         let mut ctx = reading("1MiB");
@@ -4468,7 +4466,7 @@ mod tests {
     // covers: Core\IO::modifiedAt
     #[test]
     fn core_io_modified_at_answers_the_recorded_time_and_throws_for_a_missing_name() {
-        let file = scratch("modified-at.txt");
+        let (_dir, file) = scratch("modified-at.txt");
         std::fs::write(&file, b"dated").expect("a file to date");
         let recorded = std::time::UNIX_EPOCH + std::time::Duration::from_secs(1_700_000_000);
         std::fs::File::options()
@@ -4493,7 +4491,7 @@ mod tests {
         );
         let dir = file.parent().expect("a scratch file sits in a directory");
         assert!(iso_of(&mut ctx, dir).is_ok(), "a directory has a time too");
-        let missing = iso_of(&mut ctx, &scratch("modified-at-missing.txt")).expect_err("no file");
+        let missing = iso_of(&mut ctx, &scratch("modified-at-missing.txt").1).expect_err("no file");
         assert!(missing.contains(r"Core\IO::modifiedAt"), "{missing}");
 
         let refused = iso_of(&mut writing(), &file).expect_err("`fs.write` is not `fs.read`");
@@ -4508,8 +4506,8 @@ mod tests {
     // covers: Core\IO::move
     #[test]
     fn core_io_move_replaces_the_destination_and_names_both_ends_when_it_fails() {
-        let from = scratch("move-from.txt");
-        let to = scratch("move-to.txt");
+        let (_dir, from) = scratch("move-from.txt");
+        let (_dir, to) = scratch("move-to.txt");
         std::fs::write(&from, b"the new content").expect("a file to move");
         std::fs::write(&to, b"old").expect("a file to replace");
         let mut ctx = writing();
@@ -4521,7 +4519,7 @@ mod tests {
             b"the new content"
         );
 
-        let missing = scratch("move-missing.txt");
+        let (_dir, missing) = scratch("move-missing.txt");
         let failed = call_with(
             nvs_core_io_move,
             &mut ctx,
@@ -4549,7 +4547,7 @@ mod tests {
     // covers: Core\IO::makeDir
     #[test]
     fn core_io_make_dir_creates_the_parents_and_accepts_a_folder_already_there() {
-        let root = scratch("make-dir");
+        let (_dir, root) = scratch("make-dir");
         let _ = std::fs::remove_dir_all(&root);
         let nested = root.join("a").join("b").join("c");
         let mut ctx = writing();
@@ -4589,7 +4587,7 @@ mod tests {
     // covers: Core\IO::remove
     #[test]
     fn core_io_remove_deletes_a_file_and_throws_for_a_missing_name_or_a_folder() {
-        let root = scratch("remove");
+        let (_dir, root) = scratch("remove");
         let _ = std::fs::remove_dir_all(&root);
         std::fs::create_dir_all(&root).expect("a folder to work in");
         let file = root.join("gone.txt");
@@ -4623,7 +4621,7 @@ mod tests {
     // covers: Core\IO::removeDir
     #[test]
     fn core_io_remove_dir_deletes_an_empty_folder_and_throws_for_one_with_entries() {
-        let root = scratch("remove-dir");
+        let (_dir, root) = scratch("remove-dir");
         let _ = std::fs::remove_dir_all(&root);
         let empty = root.join("empty");
         std::fs::create_dir_all(&empty).expect("an empty folder");
@@ -4692,7 +4690,7 @@ mod tests {
     // covers: Core\IO::list
     #[test]
     fn core_io_list_returns_bare_names_one_level_deep_and_refuses_a_file() {
-        let root = scratch("list");
+        let (_dir, root) = scratch("list");
         let _ = std::fs::remove_dir_all(&root);
         std::fs::create_dir_all(root.join("sub")).expect("a folder to list");
         std::fs::write(root.join("a.txt"), b"x").expect("a file to list");
@@ -4756,7 +4754,7 @@ mod tests {
     // covers: Core\IO::walk
     #[test]
     fn core_io_walk_returns_relative_paths_level_by_level_and_refuses_a_file() {
-        let root = scratch("walk");
+        let (_dir, root) = scratch("walk");
         let _ = std::fs::remove_dir_all(&root);
         std::fs::create_dir_all(root.join("sub").join("deep")).expect("a tree to walk");
         std::fs::create_dir_all(root.join("empty")).expect("an empty folder");
@@ -4852,9 +4850,8 @@ mod tests {
     // covers: Core\IO::within
     #[test]
     fn core_io_within_resolves_inside_the_base_and_refuses_an_escape_or_a_missing_base() {
-        let root = scratch("within");
+        let (_dir, root) = scratch("within");
         let _ = std::fs::remove_dir_all(&root);
-        let _ = std::fs::remove_dir_all(scratch("within-more"));
         std::fs::create_dir_all(root.join("sub")).expect("a base with a folder in it");
         std::fs::write(root.join("sub").join("a.txt"), b"x").expect("a file inside the base");
         let within = |ctx: &mut nvs_runtime::Ctx, base: &std::path::Path, path: &str| {
@@ -4941,7 +4938,7 @@ mod tests {
     // covers: Core\IO::lines
     #[test]
     fn core_io_lines_splits_on_all_three_terminators_and_refuses_without_fs_read() {
-        let path = scratch("lines.txt");
+        let (_dir, path) = scratch("lines.txt");
         std::fs::write(&path, b"a\r\nb\rc\n\nd\n").expect("a file with every terminator");
         let mut ctx = reading("1MiB");
         assert_eq!(
@@ -4976,7 +4973,7 @@ mod tests {
     // covers: Core\IO::read
     #[test]
     fn core_io_read_returns_the_file_unchanged_and_refuses_without_fs_read() {
-        let path = scratch("read.txt");
+        let (_dir, path) = scratch("read.txt");
         let mut ctx = reading("1MiB");
         let read = |ctx: &mut nvs_runtime::Ctx, path: &std::path::Path| {
             call_with(nvs_core_io_read, ctx, &[spelled(path)]).map(|value| {
@@ -5022,7 +5019,7 @@ mod tests {
         const UTF8: i64 = 0;
         const UTF16LE: i64 = 1;
         const LATIN1: i64 = 4;
-        let path = scratch("read-text.txt");
+        let (_dir, path) = scratch("read-text.txt");
         let read_text = |ctx: &mut nvs_runtime::Ctx, path: &std::path::Path, charset: i64| {
             let args = [
                 Value::str(NvsStr::new(spelled(path).as_bytes())),
@@ -5129,7 +5126,7 @@ mod tests {
         const WRITE: i64 = 1;
         const APPEND: i64 = 2;
         const READ_WRITE: i64 = 3;
-        let path = scratch("open.txt");
+        let (_dir, path) = scratch("open.txt");
         let mut ctx = nvs_runtime::Ctx::buffered();
         ctx.set_config(crate::tests::granting(
             "[capabilities.fs]\nread = true\nwrite = true\n",
@@ -5307,7 +5304,7 @@ mod tests {
     // covers: Core\IO\File::close
     #[test]
     fn core_io_file_close_releases_the_handle_and_a_second_close_throws() {
-        let path = scratch("file-close.txt");
+        let (_dir, path) = scratch("file-close.txt");
         let mut ctx = handling();
         let file = handle_on(&mut ctx, &path);
         let text = Value::str(NvsStr::new(b"kept"));
@@ -5341,7 +5338,7 @@ mod tests {
     // covers: Core\IO\File::flush
     #[test]
     fn core_io_file_flush_changes_nothing_a_reader_sees_and_a_closed_handle_throws() {
-        let path = scratch("file-flush.txt");
+        let (_dir, path) = scratch("file-flush.txt");
         let mut ctx = handling();
         let file = handle_on(&mut ctx, &path);
         on_handle(&mut ctx, nvs_core_io_file_flush, file, &[]).expect("nothing written flushes");
@@ -5375,8 +5372,8 @@ mod tests {
     // covers: Core\IO\File::lock
     #[test]
     fn core_io_file_lock_refuses_a_second_holder_until_the_first_closes() {
-        let path = scratch("file-lock.txt");
-        let other = scratch("file-lock-other.txt");
+        let (_dir, path) = scratch("file-lock.txt");
+        let (_dir, other) = scratch("file-lock-other.txt");
         let mut ctx = handling();
         let first = handle_on(&mut ctx, &path);
         let second = handle_on(&mut ctx, &path);
@@ -5442,7 +5439,7 @@ mod tests {
     // covers: Core\IO\File::read
     #[test]
     fn core_io_file_read_never_cuts_a_character_and_a_refused_read_does_not_move() {
-        let path = scratch("file-read.txt");
+        let (_dir, path) = scratch("file-read.txt");
         std::fs::write(&path, "café au lait").expect("a scratch file");
         let mut ctx = handling();
         let file = handle_on(&mut ctx, &path);
@@ -5531,7 +5528,7 @@ mod tests {
     // covers: Core\IO\File::readLine
     #[test]
     fn core_io_file_read_line_crosses_a_chunk_and_a_refused_line_does_not_move() {
-        let path = scratch("file-read-line.txt");
+        let (_dir, path) = scratch("file-read-line.txt");
         let before = "x".repeat(LINE_CHUNK - 1);
         std::fs::write(&path, format!("{before}\r\nnext\r{before}\ry\r")).expect("a scratch file");
         let mut ctx = handling();
@@ -5610,7 +5607,7 @@ mod tests {
     // covers: Core\IO\File::write
     #[test]
     fn core_io_file_write_counts_bytes_and_refuses_a_handle_that_cannot_write() {
-        let path = scratch("file-write.txt");
+        let (_dir, path) = scratch("file-write.txt");
         let mut ctx = handling();
         let file = handle_on(&mut ctx, &path);
         assert_eq!(write_on(&mut ctx, file, "café"), Ok(5));
@@ -5666,7 +5663,7 @@ mod tests {
     // covers: Core\IO\File::seek
     #[test]
     fn core_io_file_seek_counts_from_the_start_and_may_pass_the_end() {
-        let path = scratch("file-seek.txt");
+        let (_dir, path) = scratch("file-seek.txt");
         std::fs::write(&path, "café au lait").expect("a scratch file");
         let mut ctx = handling();
         let file = handle_on(&mut ctx, &path);
@@ -5702,7 +5699,7 @@ mod tests {
     // covers: Core\IO\File::tell
     #[test]
     fn core_io_file_tell_counts_bytes_from_the_start_and_agrees_with_seek() {
-        let path = scratch("file-tell.txt");
+        let (_dir, path) = scratch("file-tell.txt");
         std::fs::write(&path, "café au lait").expect("a scratch file");
         let mut ctx = handling();
         let file = handle_on(&mut ctx, &path);
@@ -5733,7 +5730,7 @@ mod tests {
     // covers: Core\IO\File::truncate
     #[test]
     fn core_io_file_truncate_sets_a_length_and_leaves_the_position() {
-        let path = scratch("file-truncate.txt");
+        let (_dir, path) = scratch("file-truncate.txt");
         std::fs::write(&path, "café au lait").expect("a scratch file");
         let mut ctx = handling();
         let file = handle_on(&mut ctx, &path);

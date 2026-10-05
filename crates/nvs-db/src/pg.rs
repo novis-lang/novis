@@ -4076,11 +4076,8 @@ mod tests {
     fn a_postgres_socket_directory_becomes_the_engines_own_name() {
         #[cfg(unix)]
         {
-            let mut directory = std::env::temp_dir();
-            directory.push(format!("nvs-pg-{}-sockets", std::process::id()));
-            let _ = std::fs::remove_dir_all(&directory);
-            std::fs::create_dir_all(&directory).expect("the OS refused the directory");
-            let written = directory.to_str().expect("a temporary path is UTF-8");
+            let (directory, _) = nvs_repo::socket(".s.PGSQL.5433");
+            let written = directory.to_str().expect("a scratch path is UTF-8");
 
             let super::Endpoint::Socket(derived) = super::socket_endpoint(written, 5433)
                 .expect("a build with `AF_UNIX` derives rather than refuses")
@@ -4112,7 +4109,6 @@ mod tests {
                 opened.is_err(),
                 "a server that hung up before the startup answer is not a connection"
             );
-            let _ = std::fs::remove_dir_all(&directory);
         }
 
         #[cfg(not(unix))]

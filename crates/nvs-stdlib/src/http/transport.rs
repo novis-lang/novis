@@ -4625,11 +4625,13 @@ pub(crate) mod tests {
         }
     }
 
-    /// A file in this platform's temporary directory holding `content`.
-    fn scratch(name: &str, content: &[u8]) -> std::path::PathBuf {
-        let path = std::env::temp_dir().join(name);
+    /// A file holding `content` in a scratch directory, and the guard that
+    /// deletes the directory.
+    fn scratch(name: &str, content: &[u8]) -> (nvs_repo::Scratch, std::path::PathBuf) {
+        let dir = nvs_repo::scratch("http-transport");
+        let path = dir.join(name);
         std::fs::write(&path, content).expect("a scratch file");
-        path
+        (dir, path)
     }
 
     /// `rule:http-server/an-outbound-request-carries-one-body`: a file part is
@@ -4639,7 +4641,7 @@ pub(crate) mod tests {
     #[test]
     fn a_file_body_is_streamed_at_one_chunk_whatever_its_size() {
         let content = vec![b'x'; super::BODY_CHUNK * 5 + 17];
-        let path = scratch("nvs-http-one-chunk.bin", &content);
+        let (_dir, path) = scratch("one-chunk.bin", &content);
         let body = file_body(&path);
 
         let mut sink = Chunks {
@@ -4675,7 +4677,7 @@ pub(crate) mod tests {
     /// nothing between the two and sends what is on disk when it sends.
     #[test]
     fn a_file_body_is_re_read_on_every_attempt() {
-        let path = scratch("nvs-http-re-read.bin", b"the first attempt");
+        let (_dir, path) = scratch("re-read.bin", b"the first attempt");
         let body = file_body(&path);
         let member = "Core\\Http\\Client::put";
 

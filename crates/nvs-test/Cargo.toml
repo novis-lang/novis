@@ -18,5 +18,9 @@ doctest = false
 # hand-written rather than pulling a regex engine in for `--EXPECTF--`.
 [dependencies]
 
+# Test-only: the runner's own cases write under `target/` through `nvs_repo::scratch`.
+[dev-dependencies]
+nvs-repo.workspace = true
+
 [lints]
 workspace = true

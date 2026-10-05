@@ -404,21 +404,13 @@ pub fn every_app() {
 mod tests {
     use super::*;
 
-    /// A log file in the temporary directory, removed when dropped.
-    struct Scratch(PathBuf);
+    /// A log file in a scratch directory of its own, deleted with the directory when dropped.
+    struct Scratch(PathBuf, #[allow(dead_code)] nvs_repo::Scratch);
 
     impl Scratch {
         fn new(name: &str) -> Self {
-            let path = std::env::temp_dir()
-                .join(format!("nvs-footprint-{name}-{}.log", std::process::id()));
-            let _ = std::fs::remove_file(&path);
-            Self(path)
-        }
-    }
-
-    impl Drop for Scratch {
-        fn drop(&mut self) {
-            let _ = std::fs::remove_file(&self.0);
+            let dir = nvs_repo::scratch("footprint");
+            Self(dir.join(format!("{name}.log")), dir)
         }
     }
 

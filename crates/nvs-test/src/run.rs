@@ -637,16 +637,12 @@ mod tests {
 
     #[test]
     fn an_auxiliary_file_lands_under_the_directories_its_path_names() {
-        let root = std::env::temp_dir().join(format!("nvs-test-aux-{}", std::process::id()));
-        let _ = fs::remove_dir_all(&root);
-        fs::create_dir_all(&root).expect("a fresh working directory");
+        let root = nvs_repo::scratch("test-aux");
 
         write_aux(&root, "src/App/Greeter.nvs", "<?nvs\n").expect("it writes");
         let written = fs::read_to_string(root.join("src").join("App").join("Greeter.nvs"))
             .expect("it is where the path said");
         assert_eq!(written, "<?nvs\n");
-
-        let _ = fs::remove_dir_all(&root);
     }
 
     #[test]
@@ -696,7 +692,8 @@ mod tests {
             "nothing is recorded unless asked"
         );
 
-        let dir = std::env::temp_dir().join("records");
+        let scratch = nvs_repo::scratch("test-records");
+        let dir = scratch.join("records");
         opts.record = Some(dir.clone());
         let vars = recording(&case, &opts);
         let value = |name: &str| {
@@ -780,6 +777,7 @@ mod tests {
     #[test]
     fn a_case_whose_process_never_finishes_is_killed_and_reported() {
         let exe = std::env::current_exe().expect("this test binary has a path");
+        let cwd = nvs_repo::scratch("test-killed");
         let began = Instant::now();
         let error = spawn(
             &exe,
@@ -788,7 +786,7 @@ mod tests {
                 "--exact".as_ref(),
                 "run::tests::a_process_that_never_finishes_on_purpose".as_ref(),
             ],
-            &std::env::temp_dir(),
+            &cwd,
             &[],
             Duration::from_millis(200),
         )

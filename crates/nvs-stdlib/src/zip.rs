@@ -1794,7 +1794,7 @@ mod tests {
 
         // Extraction reaches the deepest name the reader accepts, one level at
         // a time, and writes the file at the bottom of it.
-        let root = temp_root("deepest");
+        let (_dir, root) = temp_root("deepest");
         std::fs::create_dir_all(&root).expect("the scratch root is this test's to create");
         let mut ctx = granting(&root);
         let raw = archive(&[Written::plain(&deepest_file, "x")]);
@@ -1950,13 +1950,12 @@ mod tests {
         );
     }
 
-    /// A directory of this test's own under the host's temporary directory,
-    /// removed first so a run that failed half way does not decide the next
-    /// one's answer.
-    fn temp_root(what: &str) -> PathBuf {
-        let at = std::env::temp_dir().join(format!("nvs-zip-{what}-{}", std::process::id()));
-        std::fs::remove_dir_all(&at).ok();
-        at
+    /// A path for this test's own directory, not created yet, and the guard
+    /// that deletes the scratch directory it is in.
+    fn temp_root(what: &str) -> (nvs_repo::Scratch, PathBuf) {
+        let dir = nvs_repo::scratch("zip");
+        let at = dir.join(what);
+        (dir, at)
     }
 
     /// A symlink at `link` pointing at the directory `target`, or `None` where
@@ -2023,7 +2022,7 @@ mod tests {
                   run is a silent pass"
     )]
     fn extraction_cannot_escape_its_destination_when_a_symlink_appears_during_it() {
-        let root = temp_root("escape");
+        let (_dir, root) = temp_root("escape");
         let dest = root.join("dest");
         let outside = root.join("outside");
         std::fs::create_dir_all(&dest).expect("the destination is this test's to create");
@@ -2118,7 +2117,7 @@ mod tests {
     // covers: Core\Zip::extract
     #[test]
     fn the_member_extracts_under_one_bound_held_on_both_sides_across_the_archive() {
-        let root = temp_root("extract");
+        let (_dir, root) = temp_root("extract");
         std::fs::create_dir_all(&root).expect("the scratch root is this test's to create");
         let mut ctx = granting(&root);
         let raw = archive(&[

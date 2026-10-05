@@ -5243,9 +5243,7 @@ mod tests {
     fn a_mysql_socket_path_is_opened_as_written() {
         #[cfg(unix)]
         {
-            let mut path = std::env::temp_dir();
-            path.push(format!("nvs-mysql-{}-as-written.sock", std::process::id()));
-            let _ = std::fs::remove_file(&path);
+            let (_dir, path) = nvs_repo::socket("mysqld.sock");
             let listener =
                 std::os::unix::net::UnixListener::bind(&path).expect("the OS refused the path");
             let server = std::thread::spawn(move || listener.accept().is_ok());
@@ -5264,7 +5262,6 @@ mod tests {
                 opened.is_err(),
                 "a server that hung up before greeting is not a connection"
             );
-            let _ = std::fs::remove_file(&path);
         }
 
         #[cfg(not(unix))]
@@ -5346,12 +5343,7 @@ mod tests {
                 let over_tcp = dial(crate::conn::Endpoint::Tcp(address));
                 server.join().expect("the fake server runs to completion");
 
-                let mut path = std::env::temp_dir();
-                path.push(format!(
-                    "nvs-{driver}-{}-either-transport.sock",
-                    std::process::id()
-                ));
-                let _ = std::fs::remove_file(&path);
+                let (_dir, path) = nvs_repo::socket(&format!("{driver}.sock"));
                 let listening =
                     std::os::unix::net::UnixListener::bind(&path).expect("the OS refused the path");
                 let script = refusal.clone();
@@ -5361,7 +5353,6 @@ mod tests {
                 });
                 let over_socket = dial(crate::conn::Endpoint::Socket(path.clone()));
                 server.join().expect("the fake server runs to completion");
-                let _ = std::fs::remove_file(&path);
 
                 assert_eq!(
                     over_tcp.kind(),

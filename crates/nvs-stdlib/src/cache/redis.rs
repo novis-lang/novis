@@ -872,21 +872,19 @@ mod tests {
 
     /// A bound Unix-domain listener and the path it took — [`listening`]'s
     /// sibling, and the only line a socket case writes that its TCP twin does
-    /// not.
-    ///
-    /// The name is short on purpose: `sun_path` is 108 bytes, and a bind past
-    /// it fails with `InvalidInput`, which reads like a bug in the stream
-    /// rather than in the name it was handed. A run that was killed leaves the
-    /// node behind and `bind` refuses an existing one with `AddrInUse`, so the
-    /// path is cleared first.
+    /// not — with the guard that deletes the socket's directory.
     #[cfg(unix)]
-    fn socket_listening(name: &str) -> (std::os::unix::net::UnixListener, std::path::PathBuf) {
-        let mut path = std::env::temp_dir();
-        path.push(format!("nvs-redis-{}-{name}.sock", std::process::id()));
-        let _ = std::fs::remove_file(&path);
+    fn socket_listening(
+        name: &str,
+    ) -> (
+        nvs_repo::Scratch,
+        std::os::unix::net::UnixListener,
+        std::path::PathBuf,
+    ) {
+        let (dir, path) = nvs_repo::socket(&format!("{name}.sock"));
         let listener =
             std::os::unix::net::UnixListener::bind(&path).expect("the OS refused the path");
-        (listener, path)
+        (dir, listener, path)
     }
 
     /// A lifetime reaches this tier as a **length of time** and never as an
@@ -1235,7 +1233,7 @@ mod tests {
     fn a_record_written_through_a_socket_is_read_back_through_it() {
         #[cfg(unix)]
         {
-            let (listener, path) = socket_listening("record");
+            let (_dir, listener, path) = socket_listening("record");
             let server = std::thread::spawn(move || {
                 let (mut stream, _) = listener.accept().expect("the client dials once");
                 let set = read_exactly(

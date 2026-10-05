@@ -756,8 +756,7 @@ fn a_file_mode_is_an_enum_and_never_a_string() {
     // behaviour. Asserted at the door rather than through the member, because
     // what the case selects is a `capability::Access` and the member adds
     // nothing to it.
-    let dir = std::env::temp_dir().join("nvs-file-mode-cases");
-    std::fs::create_dir_all(&dir).expect("a temporary directory the test owns");
+    let dir = nvs_repo::scratch("file-mode-cases");
     let path = dir.join("note.txt");
     std::fs::write(&path, b"first\n").expect("the starting content");
     let ctx = ctx_reading_and_writing(&[&canonical(&dir)]);

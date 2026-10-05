@@ -4565,12 +4565,10 @@ mod tests {
         const SUPPLIED: &str = "Core\\Db::open()";
 
         let ctx = deployed("[capabilities]\ncache.shared = true\n");
-        let present =
-            std::env::temp_dir().join(format!("nvs-supplied-{}.sock", std::process::id()));
-        let absent =
-            std::env::temp_dir().join(format!("nvs-supplied-{}-gone.sock", std::process::id()));
-        std::fs::write(&present, b"").expect("a writable temporary directory");
-        let _ = std::fs::remove_file(&absent);
+        let dir = nvs_repo::scratch("supplied-socket");
+        let present = dir.join("present.sock");
+        let absent = dir.join("gone.sock");
+        std::fs::write(&present, b"").expect("a writable scratch directory");
 
         let refused = |path: &std::path::Path| {
             let host = path.to_str().expect("a temporary path is UTF-8");
@@ -4607,8 +4605,6 @@ mod tests {
                 super::Target::Socket(present.clone()),
             );
         }
-
-        let _ = std::fs::remove_file(&present);
     }
 
     /// The cipher every sealed-entry case keys, from one key, so that what

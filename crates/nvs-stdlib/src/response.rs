@@ -2563,7 +2563,7 @@ mod tests {
     // covers: Core\Response::sendFile
     #[test]
     fn send_file_leaves_a_name_on_a_request_and_writes_the_bytes_off_one() {
-        let base = std::env::temp_dir().join("nvs-response-send-file");
+        let base = nvs_repo::scratch("response-send-file");
         let root = base.join("granted");
         std::fs::create_dir_all(&root).expect("a temporary directory the test owns");
         let page = root.join("page.html");
@@ -2606,7 +2606,6 @@ mod tests {
         assert_eq!(refused.take_file_body(), None);
 
         dropped(named);
-        let _ = std::fs::remove_dir_all(&base);
     }
 
     /// `setStatus`'s bound asserted on both sides, read back off the context

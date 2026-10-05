@@ -513,8 +513,9 @@ mod tests {
         TRUSTED.get_or_init(|| {
             let issued = rcgen::generate_simple_self_signed(vec!["localhost".to_owned()])
                 .expect("the loopback certificate could not be generated");
-            let path =
-                std::env::temp_dir().join(format!("nvs-http-roots-{}.pem", std::process::id()));
+            // The client reads the file while it is built, so the directory can go after.
+            let dir = nvs_repo::scratch("http-roots");
+            let path = dir.join("roots.pem");
             std::fs::write(&path, issued.cert.pem()).expect("the roots file could not be written");
             nvs_host::tls::configure(&nvs_host::tls::ClientPolicy {
                 roots: vec![path.to_string_lossy().into_owned()],

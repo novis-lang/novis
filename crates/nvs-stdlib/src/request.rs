@@ -5832,7 +5832,7 @@ mod tests {
             read_all(ctx, part, u64::MAX).expect("a part still on the wire is read whole")
         });
         let saved = through(|ctx, part| {
-            let path = scratch("consumed-once.pdf");
+            let (_dir, path) = scratch("consumed-once.pdf");
             save_to(ctx, part, &path, false).expect("a granted destination is written");
             std::fs::read(&path).expect("the file `saveTo` made")
         });
@@ -5879,14 +5879,12 @@ mod tests {
         ctx
     }
 
-    /// A destination one case owns, with anything a previous run left there
-    /// removed.
-    fn scratch(name: &str) -> std::path::PathBuf {
-        let dir = std::env::temp_dir().join("nvs-part-save-to");
-        std::fs::create_dir_all(&dir).expect("a temporary directory the tests own");
+    /// A destination in a scratch directory one case owns, and the guard that
+    /// deletes the directory when the case ends.
+    fn scratch(name: &str) -> (nvs_repo::Scratch, std::path::PathBuf) {
+        let dir = nvs_repo::scratch("part-save-to");
         let path = dir.join(name);
-        let _ = std::fs::remove_file(&path);
-        path
+        (dir, path)
     }
 
     /// `saveTo` on `part`, with the four slots the row flattens to.
@@ -5930,7 +5928,7 @@ mod tests {
         let files = nvs_runtime::call(nvs_core_request_files, &mut arriving, &[])
             .expect("a request that declared a multipart body can be walked");
         let part = next_part(&mut arriving, files).expect("the body carries two file parts");
-        let path = scratch("upload.pdf");
+        let (_dir, path) = scratch("upload.pdf");
 
         save_to(&mut arriving, part, &path, false).expect("a granted destination is written");
         assert_eq!(
@@ -5973,7 +5971,7 @@ mod tests {
             .expect("a request that declared a multipart body can be walked");
         let stale = next_part(&mut arriving, files).expect("the body carries two file parts");
         let current = next_part(&mut arriving, files).expect("and the walk reaches the second");
-        let path = scratch("stale.bin");
+        let (_dir, path) = scratch("stale.bin");
 
         assert!(
             save_to(&mut arriving, stale, &path, false).is_err(),

@@ -1834,12 +1834,12 @@ mod tests {
         (cert, key, Arc::new(config_over(roots)))
     }
 
-    /// A path under the system temporary directory, named for its case.
-    ///
-    /// No `tempfile` dependency for this: what these cases need is a name
-    /// nothing else writes, and the case's own is that.
-    fn scratch(name: &str) -> std::path::PathBuf {
-        std::env::temp_dir().join(format!("nvs-anchors-{name}.pem"))
+    /// A path for a bundle in a scratch directory of the case's own, and the
+    /// guard that deletes the directory when the case ends.
+    fn scratch(name: &str) -> (nvs_repo::Scratch, std::path::PathBuf) {
+        let dir = nvs_repo::scratch("anchors");
+        let path = dir.join(format!("{name}.pem"));
+        (dir, path)
     }
 
     /// One bundle is parsed once however many sessions name it.
@@ -1852,7 +1852,7 @@ mod tests {
     fn an_anchor_bundle_is_parsed_once_per_path() {
         let issued = rcgen::generate_simple_self_signed(vec!["localhost".to_owned()])
             .expect("the certificate could not be generated");
-        let path = scratch("parsed-once");
+        let (_dir, path) = scratch("parsed-once");
         std::fs::write(&path, issued.cert.pem()).expect("the bundle could not be written");
 
         let first = anchors_from(&path).expect("the bundle was refused");
@@ -1915,7 +1915,7 @@ mod tests {
     /// than at the file they wrote.
     #[test]
     fn an_anchor_bundle_with_no_certificate_is_refused_rather_than_trusted_empty() {
-        let path = scratch("no-certificate");
+        let (_dir, path) = scratch("no-certificate");
         std::fs::write(&path, "# not a certificate\n").expect("the bundle could not be written");
 
         let refused = anchors_from(&path).expect_err("an empty bundle built a configuration");
@@ -2091,7 +2091,7 @@ mod tests {
     /// and one self-signed certificate nothing else here presents.
     #[test]
     fn an_installed_client_replaces_the_running_one_and_moves_the_generation() {
-        let path = scratch("installed");
+        let (_dir, path) = scratch("installed");
         drop(issued_at(&path));
         let wider = trusting(&[BUNDLED, path.to_str().expect("the scratch path is UTF-8")]);
         let before = generation();
@@ -2144,7 +2144,7 @@ mod tests {
     /// the floor, and the list an operator wrote says `["bundled", …]` adds.
     #[test]
     fn roots_of_bundled_and_a_file_trust_the_files_ca() {
-        let path = scratch("bundled-and-a-file");
+        let (_dir, path) = scratch("bundled-and-a-file");
         let (cert, key) = issued_at(&path);
         let named = path.to_string_lossy().into_owned();
 
@@ -2173,9 +2173,9 @@ mod tests {
     /// chain from any other CA is refused.
     #[test]
     fn roots_of_one_file_refuse_a_chain_from_another_ca() {
-        let ours = scratch("one-file-ours");
+        let (_ours, ours) = scratch("one-file-ours");
         drop(issued_at(&ours));
-        let theirs = scratch("one-file-theirs");
+        let (_theirs, theirs) = scratch("one-file-theirs");
         let (cert, key) = issued_at(&theirs);
 
         let config = Arc::new(
@@ -2204,7 +2204,7 @@ mod tests {
     #[test]
     fn min_version_1_3_refuses_an_origin_that_speaks_only_1_2() {
         const ONLY_1_2: &[&rustls::SupportedProtocolVersion] = &[&rustls::version::TLS12];
-        let path = scratch("min-version");
+        let (_dir, path) = scratch("min-version");
         let (cert, key) = issued_at(&path);
         let named = path.to_string_lossy().into_owned();
 
@@ -2241,10 +2241,9 @@ mod tests {
     /// implementation would produce.
     #[test]
     fn keylog_appends_each_sessions_secrets() {
-        let bundle = scratch("keylog-bundle");
+        let (dir, bundle) = scratch("keylog-bundle");
         let (cert, key) = issued_at(&bundle);
-        let log = std::env::temp_dir().join("nvs-keylog-appends.log");
-        std::fs::remove_file(&log).ok();
+        let log = dir.join("keylog.log");
 
         let policy = ClientPolicy {
             keylog: Some(log.clone()),

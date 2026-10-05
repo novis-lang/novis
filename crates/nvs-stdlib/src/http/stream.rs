@@ -1819,8 +1819,8 @@ mod tests {
     // covers: Core\Http\Stream::saveTo
     #[test]
     fn save_to_refuses_a_taken_body_and_a_path_it_may_not_write() {
-        let path = std::env::temp_dir().join("nvs-http-stream-save-to-refused.bin");
-        let _ = std::fs::remove_file(&path);
+        let dir = nvs_repo::scratch("http-stream-save-to");
+        let path = dir.join("refused.bin");
         let target = Value::str(super::NvsStr::new(path.to_string_lossy().as_bytes()));
         let mut ctx = Ctx::buffered();
 
