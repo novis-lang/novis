@@ -2,6 +2,7 @@
   "live": "performance-pass",
   "goals": [
     "performance-pass",
+    "serve-per-mount-config",
     "growth-proof",
     "coverage-depth",
     "php-oracle-retired",

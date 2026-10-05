@@ -16,8 +16,8 @@ The pass has two halves. **Measuring:** every bench runs at more than one size, 
 from the counts. **Reading:** the code is reviewed area by area for problems a bench does not show,
 above all the ones that appear only when a real program uses many features at once. Every problem
 either half finds is fixed in this goal. At the end, `docs/perf/performance-pass.md` tells the user in
-plain words what was found, what improved and by how much. Goal `growth-proof` comes next and turns
-the growth check into a feature proof.
+plain words what was found, what improved and by how much. Goal `growth-proof`, later on the chain,
+turns the growth check into a feature proof.
 
 ## Why here
 

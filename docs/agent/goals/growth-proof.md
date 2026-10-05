@@ -40,7 +40,7 @@ None.
 
 ## Stage 1 — the floor
 
-Nothing is carried. The driver deletes goal `performance-pass` when this goal starts. The suites, the
+Nothing is carried. The driver deletes goal `serve-per-mount-config` when this goal starts. The suites, the
 `.nvst` trees and `nv verify` are the floor, and this goal's Stage 6 checks that the feature proofs
 owe nothing.
 

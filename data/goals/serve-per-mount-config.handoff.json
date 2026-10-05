@@ -1,0 +1,37 @@
+{
+  "state": "**Goal `serve-per-mount-config` — every mounted entry runs under its own `[[app]]` blocks, and the door under the host's — has not started.** Nothing is carried; the suites are the floor.\n\n`nvs serve` holds one snapshot for the process in one `nvs_config::Current` (`crates/nvs-cli/src/serve.rs:299`), built by `crate::config::boot_origins` for the named file or, with none, as `Snapshot::host` with no block folded. The door clones it at each request's start (`crates/nvs-server/src/serve.rs:1427`) and writes the same `Arc` onto the request's context (`:1670`), so every mount reads one application's `[[app]]` blocks or none. A reload resolves the same way (`crates/nvs-cli/src/control.rs:406-420`).",
+  "next": {
+    "stage": 2,
+    "title": "the record and the published set",
+    "files": [
+      "crates/nvs-config/src/snapshot.rs",
+      "crates/nvs-config/src/app.rs",
+      "crates/nvs-config/src/control.rs",
+      "crates/nvs-config/tests/snapshot.rs"
+    ],
+    "items": [
+      {
+        "done": false,
+        "text": "**The decision record** — one new record, written first, for the whole goal, from the goal file's § *Standing decisions*; it `modifies` `rule:http-server/the-served-file-is-optional` (`docs/rules/http-server/the-served-file-is-optional.md:3-14`), `rule:config/the-config-is-an-immutable-snapshot`, `rule:config/a-scheduled-run-is-a-root-isolate` and `rule:concurrency/a-job-runs-as-a-root-isolate`."
+      },
+      {
+        "done": false,
+        "text": "**The published set** — `crates/nvs-config/src/snapshot.rs:366`'s `Current` holds the host's snapshot and the way from an entry file to its own, swapped under one lock; `load` keeps returning the host's (`rule:config/the-config-is-an-immutable-snapshot`)."
+      },
+      {
+        "done": false,
+        "text": "**One snapshot per chain of blocks** — `crates/nvs-config/src/app.rs:436`'s `matching` once per entry per publish, the fold of `crates/nvs-config/src/snapshot.rs:169` run over the host snapshot after `carry_boot` (`:317`), every snapshot sharing the publish's `generation` (`:182`) (`rule:config/every-matching-app-block-applies-least-specific-first`)."
+      },
+      {
+        "done": false,
+        "text": "**The named tests** of the goal file's Stage 2 check, in `crates/nvs-config/tests/snapshot.rs`."
+      }
+    ]
+  },
+  "backlog": [
+    "**Stage 3: the request path** — `Reply::Run` at `crates/nvs-server/src/serve.rs:422` carries the snapshot the handler chose at `crates/nvs-cli/src/serve.rs:937`; the door keeps the host's for `Serving::policy` (`crates/nvs-server/src/serve.rs:809`).",
+    "**Stage 4: reload and the mount rows** — `crates/nvs-cli/src/control.rs:406` and `crates/nvs-cli/src/serve/mounts.rs:354`.",
+    "**Stage 5: scheduled fires and queued jobs** — `crates/nvs-cli/src/serve.rs:1746`, `crates/nvs-cli/src/worker.rs:625`.",
+    "**Stage 6: the reference and the proofs** — `docs/reference/tools/25-server.md:22-29`, `docs/reference/tools/20-config.md:321`, two `about.md` files, the attack."
+  ]
+}
