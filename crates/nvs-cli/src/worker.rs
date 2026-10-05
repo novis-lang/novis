@@ -69,8 +69,9 @@
 //! `rule:security/capability-check-at-the-door`'s
 //! spawn door like any other — [`nvs_runtime::script::resolve`] asks `script.spawn` with the job's
 //! path as its scope. That question is asked of the *context*, and a worker's context is not the
-//! script's, so each one is handed the configuration snapshot in force when it claims a job. Under
-//! `nvs serve` that is whatever a reload published last, and under `nvs run` it is the boot's.
+//! script's, so each job is handed the snapshot the `[[app]]` blocks matching its own script fold
+//! to, out of the publish in force when it is claimed ([`configure`]). Under `nvs serve` that is
+//! whatever a reload published last, and under `nvs run` it is the boot's.
 //!
 //! That snapshot is the **ceiling** and not the answer.
 //! `rule:concurrency/a-jobs-budget-and-grants-are-recorded-at-enqueue` has the job run under what
@@ -315,7 +316,8 @@ impl Workers {
 ///
 /// Nothing runs here — [`nvs_host::Scheduler::spawn`] only queues — so the caller is free to
 /// install the reactor afterwards. `current` holds the configuration in force. Each job's context
-/// is given the snapshot it holds at the moment the job is claimed, for the reason the module
+/// is given its script's snapshot out of the publish it holds at the moment the job is claimed,
+/// for the reason the module
 /// doc's *What a job's grants are* section owns: a job's isolate is resolved against the context
 /// that runs it. `bounds` names the connection and the count, and `visibility` is only the value a
 /// turn falls back on.
@@ -621,15 +623,14 @@ fn turn(
     for queue in roster(conn, now, cutoff)? {
         conn.bound_next_exchange();
         if let Some(job) = claim(conn, &queue, now, cutoff)? {
-            // The job runs under the snapshot in force now, just after its claim, and not under
-            // the one this worker started with (`rule:config/reloadability-is-its-own-field`).
-            ctx.set_config(current.load());
             // Run before the next queue is claimed against, rather than after the roster has been
             // walked: a claim this worker is holding is a job nothing else may take, so the
             // shortest time between the two is the one that costs a fleet the least. The write-back
             // rides with it for the same reason — the row is released by [`report`] and not by the
             // end of the turn.
-            let failure = run(ctx, &job);
+            let failure = configure(ctx, current, &job)
+                .err()
+                .or_else(|| run(ctx, &job));
             // Filed again rather than once for the whole turn: the job above ran between the two
             // statements, and a clock that covered it would bound a write-back by how long
             // somebody else's code took.
@@ -639,6 +640,42 @@ fn turn(
         }
     }
     Ok(claimed)
+}
+
+/// Sets `ctx`'s configuration to the snapshot `job` runs under: the one the `[[app]]` blocks
+/// matching the job's own script fold to (ADR 0271 § 2), out of the publish in force now, just
+/// after the claim, and not the one this worker started with
+/// (`rule:config/reloadability-is-its-own-field`).
+///
+/// # Errors
+///
+/// A script whose blocks do not fold is a refused attempt, for the reason [`run`] gives a script
+/// that does not resolve: running it under the host's snapshot would hand it grants its own blocks
+/// narrowed.
+fn configure(
+    ctx: &mut nvs_runtime::Ctx,
+    current: &nvs_config::Current,
+    job: &Job,
+) -> Result<(), nvs_host::Failure> {
+    match current.published().entry(
+        std::path::Path::new(&job.script),
+        &crate::config::LocalFiles,
+    ) {
+        Ok(snapshot) => {
+            ctx.set_config(snapshot);
+            Ok(())
+        }
+        Err(refused) => {
+            eprintln!(
+                "warning: the queued job `{}` was not run: {}",
+                job.script, refused.message
+            );
+            Err(refusal(format!(
+                "its configuration did not fold: {}",
+                refused.message
+            )))
+        }
+    }
 }
 
 /// `[queue] visibility` in milliseconds, as `snapshot` resolves it, or `boot` when it resolves no
@@ -2269,6 +2306,96 @@ mod tests {
                 "an entry says when its own attempt started, which is the lease it was keyed on"
             );
         }
+    }
+
+    /// A job runs under the snapshot the `[[app]]` blocks matching its own script fold to
+    /// (ADR 0271 § 2), out of the publish the worker's holder serves.
+    ///
+    /// The tree grants `script.spawn` over both scripts. The script whose block narrows
+    /// `[app.limits] memory` gets that block's budget, and the resolve of the script whose block
+    /// narrows `script.spawn` to the other directory is denied. A job run under the host's
+    /// snapshot runs both at the global `512M`, and passes both doors.
+    #[test]
+    fn a_queued_job_runs_under_its_scripts_app_blocks() {
+        let dir = nvs_repo::scratch("worker-job-app-blocks");
+        let root = nvs_config::trust::canonical(&dir).expect("the case's directory is there");
+        for script in ["jobs/nightly.nvs", "other/nightly.nvs"] {
+            let path = root.join(script);
+            std::fs::create_dir_all(path.parent().expect("a script in the case's directory"))
+                .expect("a scratch directory of this case's own");
+            std::fs::write(&path, b"<?php\n").expect("the case writes its own script");
+        }
+        let toml = root.join("nvs.toml");
+        std::fs::write(
+            &toml,
+            format!(
+                "[limits]\nmemory = '512M'\n\n[capabilities]\nscript.spawn = ['{}']\n\n\
+                 [[app]]\nroot = 'jobs'\n\n[app.limits]\nmemory = '256M'\n\n\
+                 [[app]]\nroot = 'other'\n\n[app.capabilities]\nscript.spawn = ['{}']\n",
+                root.display(),
+                root.join("jobs").display()
+            ),
+        )
+        .expect("a tree of this case's own");
+        let mut sources = nvs_diagnostics::SourceMap::new();
+        let (host, blocks, _) = crate::config::boot_set(
+            std::slice::from_ref(&toml),
+            &mut sources,
+            crate::config::Init::Never,
+        )
+        .expect("the tree this case wrote resolves");
+        let current = nvs_config::Current::of(
+            nvs_config::Published::new(host, blocks, &[], &crate::config::LocalFiles)
+                .expect("the case's blocks fold"),
+        );
+        let job = |script: &str| super::Job {
+            id: 1,
+            script: root.join(script).to_string_lossy().into_owned(),
+            args: None,
+            attempts: 1,
+            max_attempts: 1,
+            backoff_ms: 100,
+            errors: None,
+            grants: None,
+            limits: None,
+        };
+
+        let granted = job("jobs/nightly.nvs");
+        let mut ctx = nvs_runtime::Ctx::new(nvs_runtime::OutputSink::Sink);
+        assert!(
+            super::configure(&mut ctx, &current, &granted).is_ok(),
+            "the job's script folds under the case's blocks"
+        );
+        // The block's ceiling less the tier-1 handler's reserve, which is bounded by a quarter of
+        // the ceiling (`nvs_runtime::Ctx::refresh_limits`).
+        let ceiling = 256 * 1024 * 1024;
+        let held = ctx.memory_limit();
+        assert!(
+            held > 0 && held <= ceiling && ceiling - held <= ceiling / 4,
+            "a job is charged against its script's `[app.limits] memory = '256M'`, and this one \
+             was held to {held} byte(s)"
+        );
+        assert!(
+            !matches!(
+                nvs_runtime::script::resolve(&ctx, &granted.script),
+                Err(nvs_runtime::script::ResolveError::Denied(_))
+            ),
+            "the job's script is under the deployment's `script.spawn` grant"
+        );
+
+        let narrowed = job("other/nightly.nvs");
+        let mut ctx = nvs_runtime::Ctx::new(nvs_runtime::OutputSink::Sink);
+        assert!(
+            super::configure(&mut ctx, &current, &narrowed).is_ok(),
+            "the job's script folds under the case's blocks"
+        );
+        assert!(
+            matches!(
+                nvs_runtime::script::resolve(&ctx, &narrowed.script),
+                Err(nvs_runtime::script::ResolveError::Denied(_))
+            ),
+            "a script whose own block narrows `script.spawn` away from it ran under the host's grant"
+        );
     }
 
     /// `rule:concurrency/a-tag-groups-jobs-and-a-key-dedupes-them`: the row that exhausted its
