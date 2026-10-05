@@ -108,7 +108,7 @@ it is built.
 
 **Checking a function costs what its branches assign, not what is live at each one.** The checker
 copied a function's whole set of definitely assigned locals for every `if` arm, loop body, `case`,
-`catch`, `finally` and closure, so a function of n statements checked in O(n²). Every branch now
+`catch`, `finally` and anonymous function, so a function of n statements checked in O(n²). Every branch now
 runs on the one set, which keeps a log of what it gained: the branch is rewound off it and the join
 puts back what every way out assigned (`crates/nvs-types/src/live.rs`). The ladder
 [`compiler/branches`](../../benches/scaling/compiler/branches.nvs) prints one function of n locals,
