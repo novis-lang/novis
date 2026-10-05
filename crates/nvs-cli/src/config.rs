@@ -485,6 +485,48 @@ fn boot_in(
     ),
     Diagnostic,
 > {
+    let resolved = resolved_in(cwd, config, sources, init)?;
+    let snapshot = match entry {
+        Some(entry) => nvs_config::Snapshot::build(&resolved, entry, &LocalFiles)?,
+        None => nvs_config::Snapshot::host(&resolved, &LocalFiles)?,
+    };
+    Ok((snapshot, resolved.origins))
+}
+
+/// [`boot_set`]'s host snapshot, roster and the origin of every key.
+pub(crate) type BootSet = (
+    Arc<nvs_config::Snapshot>,
+    nvs_config::AppBlocks,
+    std::collections::BTreeMap<String, nvs_config::resolve::Origin>,
+);
+
+/// What `nvs serve` boots from: the host's snapshot, with no `[[app]]` block folded, and the
+/// roster each served entry's own snapshot is folded from (ADR 0271).
+///
+/// # Errors
+///
+/// As [`boot_origins`].
+pub(crate) fn boot_set(
+    config: &[PathBuf],
+    sources: &mut SourceMap,
+    init: Init,
+) -> Result<BootSet, Diagnostic> {
+    let resolved = resolved_in(&working_directory()?, config, sources, init)?;
+    let snapshot = nvs_config::Snapshot::host(&resolved, &LocalFiles)?;
+    Ok((
+        snapshot,
+        nvs_config::AppBlocks::of(&resolved),
+        resolved.origins,
+    ))
+}
+
+/// The tree [`boot_in`] and [`boot_set`] build their snapshots from, in `cwd`.
+fn resolved_in(
+    cwd: &Path,
+    config: &[PathBuf],
+    sources: &mut SourceMap,
+    init: Init,
+) -> Result<nvs_config::resolve::Resolved, Diagnostic> {
     let files = LocalFiles;
     // `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`: every `--config` in the order given, else `./nvs.toml`,
     // else the shipped defaults. `roots` owns all three steps, so this call is
@@ -507,12 +549,7 @@ fn boot_in(
     {
         roots = nvs_config::resolve::roots(config, cwd, &files);
     }
-    let resolved = nvs_config::resolve::resolve(&roots, sources, &files)?;
-    let snapshot = match entry {
-        Some(entry) => nvs_config::Snapshot::build(&resolved, entry, &files)?,
-        None => nvs_config::Snapshot::host(&resolved, &files)?,
-    };
-    Ok((snapshot, resolved.origins))
+    nvs_config::resolve::resolve(&roots, sources, &files)
 }
 
 /// The `[capabilities]` block the machine that is **compiling** reads — `rule:core-classes/db-compile-time-query-checking`'s second sentence, which is what makes a literal `Core\Db::open` host

@@ -177,10 +177,12 @@ pub(crate) fn run(
     // `rule:config/the-config-is-an-immutable-snapshot`'s snapshot, resolved exactly as `nvs run` resolves it and
     // for the same reason: a tree that does not resolve is a refusal to start.
     // The `[server]` keys read below are `Boot`-class (`rule:http-server/the-server-block-is-boot-class`),
-    // so this is the only time they are read.
+    // so this is the only time they are read. It is the host's snapshot, with
+    // no `[[app]]` block folded: each served entry's own is folded from
+    // `blocks` once the table below names the entries (ADR 0271).
     let mut sources = SourceMap::new();
-    let (snapshot, origins) = match crate::config::boot_origins(config, path, &mut sources, init) {
-        Ok(both) => both,
+    let (snapshot, blocks, origins) = match crate::config::boot_set(config, &mut sources, init) {
+        Ok(all) => all,
         Err(diagnostic) => return report(diagnostic, &sources),
     };
     if !snapshot.warnings.is_empty() {
@@ -232,13 +234,10 @@ pub(crate) fn run(
     // that section rejected — the observed capacity of a small instance changes
     // with the arithmetic, and an operator surprised by that should be able to
     // find out why from a line rather than from a benchmark.
-    let capacity = match capacity_for(&snapshot.config, &origins) {
-        Ok(capacity) => capacity,
-        Err(diagnostic) => return report(diagnostic, &sources),
-    };
-    let ceiling = Ceiling::of(&capacity);
-    if let Some(note) = ceiling.clamp_note() {
-        eprintln!("note: {note}");
+    // The host's numbers are checked here, before anything else is read; the
+    // ceiling itself is taken once the publish below names every entry's cap.
+    if let Err(diagnostic) = capacity_for(&snapshot.config, &origins) {
+        return report(diagnostic, &sources);
     }
     // `rule:http-server/the-accept-fan-out-is-one-worker-per-core`'s core count, read at boot
     // beside the valve because the key is `Boot`-class. It is a bound
@@ -280,31 +279,6 @@ pub(crate) fn run(
     // § 6's boot `Warn` below needs the address this process actually binds —
     // which the flags have not had their say over yet.
     let nobody_trusted = trusted.is_empty();
-    // `rule:http-server/cors-is-closed-until-origins-are-named`: closed until `[http.cors] origins` names somebody, which is
-    // what a tree that wrote no `[http.cors]` resolves to — `nvs_server::cors`
-    // owns what closed means and where the refusal is taken.
-    // Held beside the accept loop's copy because the control endpoint's
-    // `status` is this same count: the valve is where a request is admitted, so
-    // asking it is reading the number rather than keeping a second one
-    // (`crate::control`).
-    let admission = Arc::new(Admission::new(&ceiling));
-    // `rule:config/the-config-is-an-immutable-snapshot`'s tree, in the holder a
-    // reload publishes into. The accept loop takes its clone out of this at the
-    // start of every request, so a tree published on the control endpoint is
-    // serving from the next request rather than from the next start; a request
-    // already running keeps the one it took. It crosses to the loop rather than
-    // through [`Isolate`] because `nvs-host` names no configuration crate at
-    // all, and this is the argument every connection — and so every request —
-    // is already served under.
-    let current = Arc::new(nvs_config::Current::new(Arc::clone(&snapshot)));
-    let serving = Serving::live(
-        Arc::clone(&admission),
-        Arc::new(Secure::of(snapshot.config.http.as_ref())),
-        Arc::new(trusted),
-        Arc::new(Cors::of(snapshot.config.http.as_ref())),
-        Arc::clone(&current),
-    )
-    .bounded_by(bounds);
     // `rule:config/one-local-control-socket`'s address, read here so that a
     // value naming something a network could reach refuses the start before
     // anything is compiled. A reload that moves it is `crate::control`'s. A tree that
@@ -381,13 +355,73 @@ pub(crate) fn run(
             return ExitCode::FAILURE;
         }
     };
+    // One publish: the host's snapshot, and every mounted entry's own folded
+    // from the `[[app]]` blocks that match it, now, so a block that does not
+    // fold for one entry refuses the start. An entry `dispatch = "path"`
+    // reaches later is folded on the request that first runs it.
+    let entries: Vec<PathBuf> = written.iter().map(|mount| mount.entry.clone()).collect();
+    let published = match nvs_config::Published::new(
+        Arc::clone(&snapshot),
+        blocks,
+        &entries,
+        &crate::config::LocalFiles,
+    ) {
+        Ok(published) => published,
+        Err(diagnostic) => return report(diagnostic, &sources),
+    };
     // `rule:routing/an-origin-is-per-mount-and-checked-at-boot`'s fallback,
     // folded into the rows once and here, so that every reader below — the boot
     // check and the door alike — has one field to read and cannot disagree
-    // about which of the two keys applied. The rows as written are kept too,
+    // about which of the two keys applied. Each row falls back to the `[app]
+    // origin` of its own entry's snapshot. The rows as written are kept too,
     // for the fold a reload of `[[app]] origin` asks for (`mounts`'s module doc).
     let mut mounts = written.clone();
-    fall_back_to(&mut mounts, snapshot.origin.as_deref());
+    for mount in &mut mounts {
+        let own = published
+            .entry(&mount.entry, &crate::config::LocalFiles)
+            .ok()
+            .and_then(|config| config.origin.clone());
+        fall_back_to(std::slice::from_mut(mount), own.as_deref());
+    }
+    // `rule:http-server/admission-is-arithmetic-not-a-number`'s ceiling, over
+    // the largest cap any mounted entry's own snapshot gives a request, because
+    // that is what one admitted request may hold.
+    let folded = published.snapshots();
+    let entries: Vec<&nvs_config::Config> =
+        folded.iter().map(|snapshot| &snapshot.config).collect();
+    let capacity = match nvs_config::server::capacity_across(&snapshot.config, &entries, &origins) {
+        Ok(capacity) => capacity,
+        Err(diagnostic) => return report(diagnostic, &sources),
+    };
+    let ceiling = Ceiling::of(&capacity);
+    if let Some(note) = ceiling.clamp_note() {
+        eprintln!("note: {note}");
+    }
+    // Held beside the accept loop's copy because the control endpoint's
+    // `status` is this same count: the valve is where a request is admitted, so
+    // asking it is reading the number rather than keeping a second one
+    // (`crate::control`).
+    let admission = Arc::new(Admission::new(&ceiling));
+    // `rule:config/the-config-is-an-immutable-snapshot`'s tree, in the holder a
+    // reload publishes into. The accept loop takes its clone out of this at the
+    // start of every request, so a tree published on the control endpoint is
+    // serving from the next request rather than from the next start; a request
+    // already running keeps the one it took. It crosses to the loop rather than
+    // through [`Isolate`] because `nvs-host` names no configuration crate at
+    // all, and this is the argument every connection — and so every request —
+    // is already served under. `rule:http-server/cors-is-closed-until-origins-are-named`:
+    // closed until `[http.cors] origins` names somebody, which is what a tree
+    // that wrote no `[http.cors]` resolves to — `nvs_server::cors` owns what
+    // closed means and where the refusal is taken.
+    let current = Arc::new(nvs_config::Current::of(published));
+    let serving = Serving::live(
+        Arc::clone(&admission),
+        Arc::new(Secure::of(snapshot.config.http.as_ref())),
+        Arc::new(trusted),
+        Arc::new(Cors::of(snapshot.config.http.as_ref())),
+        Arc::clone(&current),
+    )
+    .bounded_by(bounds);
     // What the boot's last lines say is being served: the file as it was typed,
     // or the size of the table where none was.
     let answering_with = path.map_or_else(
@@ -963,12 +997,31 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
                     return nvs_server::statics::send(&file, request.headers(), &OnDisk);
                 }
             };
+            // The snapshot the program runs under: the one the `[[app]]` blocks
+            // matching this file fold to, out of the publish the door took for
+            // this request, so the door's answer and the program's configuration
+            // come from one reload (ADR 0271 § 2). It is the file that runs and
+            // not the row's `entry`, which under `dispatch = "path"` is another
+            // file. A file whose blocks do not fold runs nothing: it answers as
+            // a failing program does, because running it under the host's
+            // snapshot instead would hand it grants its own blocks narrowed.
+            // `None` is a request this loop did not frame, and runs under the
+            // host's.
+            let (config, compiled) = match nvs_server::published_of(&request)
+                .map(|published| published.entry(&file, &crate::config::LocalFiles))
+            {
+                Some(Err(refused)) => (None, Err(refused.message)),
+                found => (
+                    found.and_then(Result::ok),
+                    compiler.compiled(&file.to_string_lossy()),
+                ),
+            };
             // Both halves of what the selected unit is: the code to run, and
             // `rule:routing/matched-once-before-the-handler`'s table to match against before it does.
             // `crate::script::Compiled` owns why the cache holds the second
             // one at all.
             let (program, routes): (Program, Option<Arc<nvs_runtime::routes::Routes>>) =
-                match compiler.compiled(&file.to_string_lossy()) {
+                match compiled {
                     Ok((program, routes)) => (program, Some(routes)),
                     // Reachable because step 4 can name a file the boot compile
                     // never saw: under `dispatch = "path"` a `.nvs` under the mount
@@ -1099,7 +1152,7 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
                 Some(watched) => isolate.watched_by(Rc::clone(watched)),
                 None => isolate,
             };
-            Reply::Run(isolate, supply, None)
+            Reply::Run(isolate, supply, config)
         }
     });
 
@@ -1952,9 +2005,10 @@ fn table_for(
         ));
     }
     if let Some(path) = path
+        && let named = files.canonical(path).ok()
         && !mounts
             .iter()
-            .any(|mount| Some(&mount.entry) == snapshot.entry.as_ref())
+            .any(|mount| Some(&mount.entry) == named.as_ref())
     {
         return Err(NoTable::Said(format!(
             "`{}` is not one of the {} entries `[[server.mount]]` mounts; serve one of those, \
@@ -1986,12 +2040,11 @@ fn writes_mounts(snapshot: &nvs_config::Snapshot) -> bool {
 /// that must not disagree. From here down, `Mounted::origin` is *the* origin
 /// this mount resolved, whichever key wrote it.
 ///
-/// The `[app]` half is from the snapshot this command resolved for the entry
-/// it was told to serve — the same value `nvs run` installs for that file. At
-/// boot that is the boot snapshot, and after a reload it is the snapshot the
-/// reload published (`mounts::Rescan::pass`). A mount whose entry matches a different `[[app]]`
-/// block than the served one does not get that block's origin yet, which is
-/// this command's per-application gap and not this key's.
+/// At boot the `[app]` half is each row's own entry's snapshot out of the
+/// publish, so every mount takes the origin its own `[[app]]` blocks write. A
+/// reload still passes the one snapshot it published for every row
+/// (`mounts::Rescan::pass`), which is the reload half of ADR 0271 and not
+/// done yet.
 fn fall_back_to(mounts: &mut [Mounted], app: Option<&str>) {
     for mount in mounts {
         if mount.origin.is_none() {

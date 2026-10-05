@@ -871,6 +871,30 @@ pub fn capacity_for(
     })
 }
 
+/// [`capacity_for`] for a server whose entries run under snapshots of their own (ADR 0271):
+/// `host` gives the ceiling and the budget, and the per-request cap is the largest any of
+/// `entries` reaches. One entry with no cap leaves none, because a request of that entry is free
+/// to hold more than any number the arithmetic could divide by.
+///
+/// # Errors
+///
+/// As [`capacity_for`], for `host` or for the first of `entries` whose `[limits]` memory setting
+/// does not parse.
+pub fn capacity_across(
+    host: &Config,
+    entries: &[&Config],
+    origins: &BTreeMap<String, Origin>,
+) -> Result<Capacity, Diagnostic> {
+    let mut capacity = capacity_for(host, origins)?;
+    for entry in entries {
+        capacity.per_request = match (capacity.per_request, per_request_cap(entry, origins)?) {
+            (Some(largest), Some(own)) => Some(largest.max(own)),
+            _ => None,
+        };
+    }
+    Ok(capacity)
+}
+
 /// The bytes one request may hold, as the tree's `[limits]` states them.
 ///
 /// The *hard* ceiling wins where one is written, because that is the number a request can actually
@@ -1221,6 +1245,29 @@ mod tests {
         assert_eq!(
             unbounded.per_request, None,
             "a removed ceiling became a cap"
+        );
+    }
+
+    /// Admission reserves for the largest request any entry may run, so a second application
+    /// with a bigger `[app.limits]` cap cannot push the machine past what the ceiling affords.
+    #[test]
+    fn the_per_request_cap_across_entries_is_the_largest_and_an_uncapped_one_leaves_none() {
+        let host = tree("[limits]\nmemory = \"64M\"\n");
+        let bigger = tree("[limits]\nmemory = \"256M\"\n");
+        let smaller = tree("[limits]\nmemory = \"16M\"\n");
+        let across = capacity_across(&host, &[&smaller, &bigger], &BTreeMap::new())
+            .expect("three written caps were refused");
+        assert_eq!(across.per_request, Some(256 * 1024 * 1024));
+
+        let alone = capacity_across(&host, &[], &BTreeMap::new()).expect("the host was refused");
+        assert_eq!(alone.per_request, Some(64 * 1024 * 1024));
+
+        let uncapped = tree("[limits]\nmemory = \"64M\"\n\n[limits.hard]\nmemory = false\n");
+        let open = capacity_across(&host, &[&bigger, &uncapped], &BTreeMap::new())
+            .expect("a removed ceiling was refused");
+        assert_eq!(
+            open.per_request, None,
+            "an uncapped entry was reserved a cap"
         );
     }
 

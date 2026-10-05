@@ -485,6 +485,23 @@ impl Published {
         &self.host
     }
 
+    /// Every distinct snapshot this publish has folded so far, the host's among them: what a
+    /// process-wide sum over the entries, such as admission's per-request cap, is taken across.
+    ///
+    /// # Panics
+    ///
+    /// As [`entry`](Published::entry).
+    #[must_use]
+    pub fn snapshots(&self) -> Vec<Arc<Snapshot>> {
+        let resolved = self
+            .resolved
+            .read()
+            .expect("the publish's resolutions are never poisoned");
+        std::iter::once(Arc::clone(&self.host))
+            .chain(resolved.chains.values().cloned())
+            .collect()
+    }
+
     /// The snapshot `entry` runs under in this publish.
     ///
     /// `entry` is looked up as given first, which is the whole cost when the caller holds the
