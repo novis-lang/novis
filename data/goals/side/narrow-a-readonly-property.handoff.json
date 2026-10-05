@@ -1,27 +1,19 @@
 {
-  "state": "**Side goal `narrow-a-readonly-property`: stages 2 and 3 are closed, and stage 4 is open.**\nA null test, `is`, a literal comparison and `match (true)` now narrow a path of `readonly` properties (`$this->a`, `$x->a->b`) as well as a binding. The path is keyed `x->a->b` in `LocalScope`'s one narrowing map (`crates/nvs-types/src/locals.rs`, `readonly_path`, `subject`, `narrowed_property`, `written_path_key`), so restore and loop suspend need no extra code. `LocalScope::drop_narrowing` drops every path rooted at the name, and `assign::note_write` drops the path a property write goes through. The module doc's narrowing section explains it.\nThe read records `ExprInfo::Property { narrowed: Some(to) }`. `nvs-ir`'s `checked_narrowed_read` (`crates/nvs-ir/src/lower/expr.rs`) tests the slot for `null` through `emit_null_guard`, the never-written guard's throw, so the error is a `LogicError` naming the property. Then it untags.\n`rule:types/narrowing`'s subject paragraph already states the path, the root-write widening and the checked read, and lists the new cases in `guardedBy`. What stage 4 still owes the rules is one sentence somewhere that `readonly` is written once, with both halves: E0782 at compile time and `write_erased_property`'s throw at run time.\nIn this worktree the `extension` step of `bun nv verify` fails because `@types/node` is not installed, and `nvs-cli`'s `live_config` test fails under load and passes alone. Neither belongs to this goal.",
+  "state": "**Side goal `narrow-a-readonly-property`: stages 2, 3 and 4 are closed, and every check in the goal's record passes locally.**\n`readonly` is written once (`rule:classes/readonly-is-written-once`, record 0270): E0782 and E0843 at compile time, `write_erased_property`'s `RuntimeError` at run time. A null test narrows a path of `readonly` properties (`rule:types/narrowing`), and the narrowed read keeps a null check that throws a `LogicError`.\nE0459 on a mutable property receiver now says a test does not narrow it, and shows the local copy and `?->` (`crates/nvs-types/src/expr/members.rs`, `is_mutable_property`). `bun nv proofs --id 'lang:classes/nullable-objects-and'` prints `complete.`.\nThe two follow-ups are gap records: `data/gaps/nvs-lsp/hover-on-a-narrowed-property-read.json` and `data/gaps/nvs-ir/an-inout-argument-keeps-a-readonly-path-narrowed.json`.\nThe wip commit of session 0005 was a stray `context` edit to `data/goals/performance-pass.json`; this session restored that file.\nIn this worktree the `extension` step of `bun nv verify` fails because `@types/node` is not installed. It does not belong to this goal.",
   "next": {
-    "stage": 4,
-    "title": "the help, the rule and the proofs",
+    "stage": null,
+    "title": "Merge and close the side goal",
     "files": [],
-    "note": "one file set: `crates/nvs-types/src/expr/members.rs`, `docs/rules/classes/`, and the reject case the `the-help-for-a-property` check names.",
+    "note": "one file set: the worktree's branch and the gap records it leaves.",
     "items": [
       {
         "done": false,
-        "text": "**E0459 on a tested mutable property says a test does not narrow it**: when the nullable receiver is a `PropertyAccess` of a mutable property, the help says a test does not narrow a property that can change, and shows the local copy (`var $n = $x->p; if ($n != null) …`) and `?->`. Case `tests/conformance/reject/a-null-test-does-not-narrow-a-mutable-property.nvst`. `rule:types/narrowing` — `crates/nvs-types/src/expr/members.rs:1173`, `crates/nvs-types/src/expr/members.rs:1198`"
-      },
-      {
-        "done": false,
-        "text": "**State \"`readonly` is written once\" as a rule**, with the compile-time half (E0782, E0843) and the run-time half (`write_erased_property`'s `RuntimeError`), in `rule:classes/lateinit-restrictions` or a new `classes/` rule, and render. `rule:classes/lateinit-restrictions` — `crates/nvs-types/src/locals.rs:547`"
-      },
-      {
-        "done": false,
-        "text": "**The `the-feature-proofs` check**: `bun nv proofs --id` for the nullable-objects feature, and close whatever it names. `rule:types/narrowing` — `crates/nvs-types/src/locals.rs:606`"
+        "text": "**Merge `side/narrow-a-readonly-property` into `main`**, then remove the worktree and delete the branch (`AGENTS.md` rule 10). The follow-ups live on as gap records. `rule:types/narrowing` — `crates/nvs-types/src/locals.rs:606`"
       }
     ]
   },
   "backlog": [
-    "An `inout` argument that passes a `readonly` path is not known to drop its narrowing. The `nvs-ir` null check makes it safe, but the checker could drop the path there too (`crates/nvs-types/src/locals.rs` module doc, narrowing section).",
-    "LSP hover on a narrowed property read still shows the declared type, because it reads `ExprInfo::Property`'s `ty` and not `narrowed` (`crates/nvs-lsp/src/hover.rs`)."
+    "Hover on a narrowed property read shows the declared type (`data/gaps/nvs-lsp/hover-on-a-narrowed-property-read.json`).",
+    "An `inout` argument does not drop a `readonly` path's narrowing (`data/gaps/nvs-ir/an-inout-argument-keeps-a-readonly-path-narrowed.json`)."
   ]
 }
