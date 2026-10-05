@@ -50,9 +50,12 @@
 //! other scheme is held and analysed as nothing, because its `require` targets
 //! have no directory to resolve against.
 
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
+use std::rc::Rc;
+use std::time::SystemTime;
 
 use lsp_types::Uri;
 use nvs_diagnostics::{BytePos, Diagnostics, SourceId, SourceMap, Span, canonical_key};
@@ -120,6 +123,26 @@ pub struct Documents {
     /// file declares (`crate::stubs`); `None` is a server nobody told and no
     /// cache directory to fall back to, whose `Core` jumps open nothing.
     stubs: Option<Stubs>,
+    /// The last analysis of each open document, which every request about
+    /// that document reads through [`analysed`](Self::analysed). It spends one
+    /// [`Analysed`] per open document. Every change to the store empties it,
+    /// because an open buffer is overlaid on every other document's graph.
+    kept: RefCell<HashMap<Uri, Kept>>,
+}
+
+/// One kept analysis, and the modification time of each file it read when it
+/// was kept.
+#[derive(Debug)]
+struct Kept {
+    analysed: Rc<Analysed>,
+    read: Vec<(PathBuf, Option<SystemTime>)>,
+}
+
+/// When `path` was last written, or `None` when it cannot be read.
+fn modified(path: &Path) -> Option<SystemTime> {
+    std::fs::metadata(path)
+        .and_then(|meta| meta.modified())
+        .ok()
 }
 
 /// `path` as a [`Lender`], walked with the open buffers in front of the files
@@ -140,6 +163,7 @@ impl Documents {
     /// Names the stub tree every analysis out of this store answers `Core`
     /// jumps from.
     pub fn set_stubs(&mut self, stubs: Option<Stubs>) {
+        self.kept.get_mut().clear();
         self.stubs = stubs;
     }
 
@@ -154,6 +178,7 @@ impl Documents {
     /// Opening a URI that is already open replaces the buffer, which is what a
     /// client that reopened a document without closing it means.
     pub fn open(&mut self, uri: Uri, version: i32, text: String) {
+        self.kept.get_mut().clear();
         let path = path_of(&uri);
         self.buffers.insert(
             uri.clone(),
@@ -180,6 +205,7 @@ impl Documents {
         let Some(document) = self.buffers.get_mut(uri) else {
             return false;
         };
+        self.kept.get_mut().clear();
         document.version = version;
         document.text = text;
         true
@@ -194,6 +220,7 @@ impl Documents {
     ///
     /// Returns whether a buffer was there to close.
     pub fn close(&mut self, uri: &Uri) -> bool {
+        self.kept.get_mut().clear();
         self.graphs.remove(uri);
         self.buffers.remove(uri).is_some()
     }
@@ -246,6 +273,7 @@ impl Documents {
             .into_iter()
             .filter_map(|(path, _)| lender(self, &path))
             .collect();
+        self.kept.get_mut().clear();
         self.lenders = lenders;
     }
 
@@ -260,6 +288,7 @@ impl Documents {
     /// leaves the lender's read set stale until its next walk, which lends a
     /// map to a file no longer required and nothing else.
     pub fn resurvey(&mut self, changed: &Path) {
+        self.kept.get_mut().clear();
         let key = canonical_key(changed);
         let requires = self.holds(changed, "require");
         let mut entries: Vec<PathBuf> = self
@@ -334,6 +363,51 @@ impl Documents {
         }
         let files = files.into_iter().map(|file| canonical_key(&file)).collect();
         self.graphs.insert(uri.clone(), files);
+    }
+
+    /// [`analyse`] of `uri`, or the analysis already kept for the version on
+    /// screen.
+    ///
+    /// A kept analysis is used again only while every file it read still has
+    /// the modification time it had when it was kept. A file another program
+    /// writes is then read again, as it is for [`analyse`]. A file created on
+    /// disk that the walk did not read is seen at the next change to the store.
+    #[must_use]
+    pub fn analysed(&self, uri: &Uri) -> Option<Rc<Analysed>> {
+        let version = self.get(uri)?.version;
+        if let Some(kept) = self.kept.borrow().get(uri)
+            && kept.analysed.version == version
+            && kept.read.iter().all(|(path, when)| modified(path) == *when)
+        {
+            return Some(Rc::clone(&kept.analysed));
+        }
+        Some(self.keep(uri, analyse(self, uri)?))
+    }
+
+    /// Keeps `analysed` as the analysis of `uri` that [`analysed`](Self::analysed)
+    /// returns until the store changes, and returns it.
+    ///
+    /// The server keeps each analysis it published diagnostics from, so the
+    /// request that follows an edit does not walk the same version again.
+    pub fn keep(&self, uri: &Uri, analysed: Analysed) -> Rc<Analysed> {
+        let read = analysed
+            .files()
+            .map(|path| {
+                let when = modified(&path);
+                (path, when)
+            })
+            .collect();
+        let analysed = Rc::new(analysed);
+        if self.is_current(uri, analysed.version) {
+            self.kept.borrow_mut().insert(
+                uri.clone(),
+                Kept {
+                    analysed: Rc::clone(&analysed),
+                    read,
+                },
+            );
+        }
+        analysed
     }
 
     /// Whether `version` is still the version of `uri` the client is looking
@@ -789,6 +863,7 @@ fn strip_drive_slash(path: &str) -> &str {
 #[cfg(test)]
 mod tests {
     use std::fs;
+    use std::time::Duration;
 
     use nvs_diagnostics::{Code, Diagnostic, code};
 
@@ -1232,5 +1307,68 @@ mod tests {
                 if named == class && args.is_empty()),
             "the type recorded for the `new` does not read back through the interner beside it"
         );
+    }
+
+    /// A second request about an unchanged document reads the analysis the
+    /// first one kept. A required file written on disk, an edit, and another
+    /// document opening each make the next request walk the graph again.
+    #[test]
+    fn a_request_reads_the_kept_analysis_until_something_it_read_changes() {
+        let dir = TempDir::new("kept");
+        dir.write("lib.nvs", "<?nvs\nclass Before {}\n");
+        dir.write("main.nvs", "<?nvs\nrequire 'lib.nvs';\n");
+        dir.write("other.nvs", "<?nvs\n");
+        let main = dir.uri("main.nvs");
+
+        let mut documents = Documents::new();
+        open_from_disk(&mut documents, &dir, &["main.nvs"]);
+
+        let first = documents.analysed(&main).expect("main.nvs is open");
+        let again = documents.analysed(&main).expect("main.nvs is open");
+        assert!(
+            Rc::ptr_eq(&first, &again),
+            "an unchanged document was analysed again"
+        );
+
+        dir.write("lib.nvs", "<?nvs\nclass After {}\n");
+        fs::File::options()
+            .write(true)
+            .open(dir.path.join("lib.nvs"))
+            .and_then(|file| file.set_modified(SystemTime::now() + Duration::from_secs(60)))
+            .expect("move the required file's modification time");
+        let rewritten = documents.analysed(&main).expect("main.nvs is open");
+        assert!(
+            !Rc::ptr_eq(&again, &rewritten),
+            "a file written on disk was not read again"
+        );
+        assert!(
+            rewritten
+                .map
+                .files()
+                .any(|file| file.text().contains("class After")),
+            "the new analysis did not read the file written on disk"
+        );
+
+        documents.change(&main, 2, "<?nvs\n".to_owned());
+        let edited = documents.analysed(&main).expect("main.nvs is open");
+        assert_eq!(edited.version, 2);
+
+        open_from_disk(&mut documents, &dir, &["other.nvs"]);
+        let reopened = documents.analysed(&main).expect("main.nvs is open");
+        assert!(
+            !Rc::ptr_eq(&edited, &reopened),
+            "an open did not empty the kept analyses"
+        );
+
+        // An analysis of a version the client has replaced is never kept.
+        let stale = analyse(&documents, &main).expect("main.nvs is open");
+        documents.change(&main, 3, "<?nvs\n".to_owned());
+        let returned = documents.keep(&main, stale);
+        let current = documents.analysed(&main).expect("main.nvs is open");
+        assert!(
+            !Rc::ptr_eq(&returned, &current),
+            "a superseded analysis was kept"
+        );
+        assert_eq!(current.version, 3);
     }
 }

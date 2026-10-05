@@ -32,7 +32,7 @@ use nvs_types::derive;
 use serde_json::{Map, Value};
 
 use crate::definition::{MemberKind, site_of};
-use crate::document::{Analysed, Documents, analyse};
+use crate::document::Documents;
 use crate::hover::{markdown, reference_card};
 
 /// Every item's `data`, with the document it was offered in written into it.
@@ -270,7 +270,7 @@ fn declared(
     member: Option<(&str, MemberKind)>,
 ) -> Option<String> {
     let uri: Uri = key.get("uri")?.as_str()?.parse().ok()?;
-    let analysed: Analysed = analyse(documents, &uri)?;
+    let analysed = documents.analysed(&uri)?;
     let site = site_of(&analysed, &QName::parse(class), member)?;
     let doc = site.doc?;
     Some(markdown(analysed.map.file(site.span.file).text(), doc))

@@ -789,7 +789,7 @@ fn document_symbol(
     encoding: PositionEncoding,
     uri: &Uri,
 ) -> DocumentSymbolResponse {
-    let outline = analyse(documents, uri).map_or_else(Vec::new, |analysed| {
+    let outline = documents.analysed(uri).map_or_else(Vec::new, |analysed| {
         symbols::for_document(&analysed, encoding)
     });
     // `Nested` and never `Flat`: the outline is a tree and `SymbolInformation`
@@ -808,7 +808,7 @@ fn folding_range(
     encoding: PositionEncoding,
     uri: &Uri,
 ) -> Vec<FoldingRange> {
-    analyse(documents, uri).map_or_else(Vec::new, |analysed| {
+    documents.analysed(uri).map_or_else(Vec::new, |analysed| {
         folding::for_document(&analysed, encoding)
     })
 }
@@ -830,7 +830,7 @@ fn semantic_tokens(
     encoding: PositionEncoding,
     uri: &Uri,
 ) -> SemanticTokensResult {
-    let data = analyse(documents, uri).map_or_else(Vec::new, |analysed| {
+    let data = documents.analysed(uri).map_or_else(Vec::new, |analysed| {
         semantic::for_document(&analysed, encoding, &[])
     });
     SemanticTokensResult::Tokens(SemanticTokens {
@@ -857,10 +857,7 @@ fn definition(
     params: &GotoDefinitionParams,
 ) -> Option<GotoDefinitionResponse> {
     let position = params.text_document_position_params.position;
-    let analysed = analyse(
-        documents,
-        &params.text_document_position_params.text_document.uri,
-    )?;
+    let analysed = documents.analysed(&params.text_document_position_params.text_document.uri)?;
     let offset = offset_at(analysed.map.file(analysed.entry), position, encoding);
     let declared = definition::at(&analysed, completion_files, offset, encoding)?;
     Some(GotoDefinitionResponse::Scalar(Location {
@@ -889,7 +886,7 @@ fn references(
     params: &ReferenceParams,
 ) -> Option<Vec<Location>> {
     let position = params.text_document_position.position;
-    let analysed = analyse(documents, &params.text_document_position.text_document.uri)?;
+    let analysed = documents.analysed(&params.text_document_position.text_document.uri)?;
     let offset = offset_at(analysed.map.file(analysed.entry), position, encoding);
     uses_of(
         documents,
@@ -960,7 +957,7 @@ fn document_highlight(
 ) -> Option<Vec<DocumentHighlight>> {
     let position = params.text_document_position_params.position;
     let uri = &params.text_document_position_params.text_document.uri;
-    let analysed = analyse(documents, uri)?;
+    let analysed = documents.analysed(uri)?;
     // The entry document's own file, because the answer cannot leave it: no
     // second file is loaded here where [`locations`] has to load one per hit.
     let file = analysed.map.file(analysed.entry);
@@ -1076,7 +1073,7 @@ fn prepare_type_hierarchy(
     params: &TypeHierarchyPrepareParams,
 ) -> Option<Vec<TypeHierarchyItem>> {
     let uri = &params.text_document_position_params.text_document.uri;
-    let analysed = analyse(documents, uri)?;
+    let analysed = documents.analysed(uri)?;
     let offset = offset_at(
         analysed.map.file(analysed.entry),
         params.text_document_position_params.position,
@@ -1432,7 +1429,7 @@ fn completion(
     params: &CompletionParams,
 ) -> CompletionResponse {
     let position = params.text_document_position.position;
-    let Some(analysed) = analyse(documents, &params.text_document_position.text_document.uri)
+    let Some(analysed) = documents.analysed(&params.text_document_position.text_document.uri)
     else {
         return CompletionResponse::Array(Vec::new());
     };
@@ -1472,10 +1469,7 @@ fn hover(
     params: &HoverParams,
 ) -> Option<lsp_types::Hover> {
     let position = params.text_document_position_params.position;
-    let analysed = analyse(
-        documents,
-        &params.text_document_position_params.text_document.uri,
-    )?;
+    let analysed = documents.analysed(&params.text_document_position_params.text_document.uri)?;
     let offset = offset_at(analysed.map.file(analysed.entry), position, encoding);
     hover::at(&analysed, completion_files, offset, encoding)
 }
@@ -1492,10 +1486,7 @@ fn signature_help(
     params: &SignatureHelpParams,
 ) -> Option<SignatureHelp> {
     let position = params.text_document_position_params.position;
-    let analysed = analyse(
-        documents,
-        &params.text_document_position_params.text_document.uri,
-    )?;
+    let analysed = documents.analysed(&params.text_document_position_params.text_document.uri)?;
     let offset = offset_at(analysed.map.file(analysed.entry), position, encoding);
     hover::help_at(&analysed, offset)
 }
@@ -1517,10 +1508,7 @@ fn type_definition(
     params: &GotoDefinitionParams,
 ) -> Option<GotoDefinitionResponse> {
     let position = params.text_document_position_params.position;
-    let analysed = analyse(
-        documents,
-        &params.text_document_position_params.text_document.uri,
-    )?;
+    let analysed = documents.analysed(&params.text_document_position_params.text_document.uri)?;
     let offset = offset_at(analysed.map.file(analysed.entry), position, encoding);
     let declared = definition::type_at(&analysed, offset, encoding)?;
     Some(GotoDefinitionResponse::Scalar(Location {
@@ -1550,7 +1538,7 @@ fn implementation(
     params: &GotoDefinitionParams,
 ) -> Option<GotoDefinitionResponse> {
     let uri = &params.text_document_position_params.text_document.uri;
-    let analysed = analyse(documents, uri)?;
+    let analysed = documents.analysed(uri)?;
     let offset = offset_at(
         analysed.map.file(analysed.entry),
         params.text_document_position_params.position,
@@ -1582,7 +1570,7 @@ fn selection_range(
     encoding: PositionEncoding,
     params: &SelectionRangeParams,
 ) -> Option<Vec<SelectionRange>> {
-    let analysed = analyse(documents, &params.text_document.uri)?;
+    let analysed = documents.analysed(&params.text_document.uri)?;
     let file = analysed.map.file(analysed.entry);
     Some(
         params
@@ -1626,7 +1614,7 @@ fn inlay_hints(
     encoding: PositionEncoding,
     params: &InlayHintParams,
 ) -> Vec<InlayHint> {
-    let Some(analysed) = analyse(documents, &params.text_document.uri) else {
+    let Some(analysed) = documents.analysed(&params.text_document.uri) else {
         return Vec::new();
     };
     hints::for_document(&analysed, encoding)
@@ -1650,7 +1638,7 @@ fn document_link(
     encoding: PositionEncoding,
     uri: &Uri,
 ) -> Vec<DocumentLink> {
-    let Some(analysed) = analyse(documents, uri) else {
+    let Some(analysed) = documents.analysed(uri) else {
         return Vec::new();
     };
     links::for_document(&analysed, encoding)
@@ -1695,7 +1683,7 @@ fn code_actions(
     encoding: PositionEncoding,
     params: &CodeActionParams,
 ) -> Vec<CodeActionOrCommand> {
-    let Some(analysed) = analyse(documents, &params.text_document.uri) else {
+    let Some(analysed) = documents.analysed(&params.text_document.uri) else {
         return Vec::new();
     };
     let file = analysed.map.file(analysed.entry);
@@ -1747,7 +1735,7 @@ fn redaction_ranges(
     encoding: PositionEncoding,
     uri: &Uri,
 ) -> Vec<serde_json::Value> {
-    analyse(documents, uri).map_or_else(Vec::new, |analysed| {
+    documents.analysed(uri).map_or_else(Vec::new, |analysed| {
         redactions::for_document(&analysed, encoding)
             .into_iter()
             .map(|item| serde_json::json!({ "range": item.range, "kind": item.kind }))
@@ -1767,15 +1755,17 @@ fn imports_in(
     encoding: PositionEncoding,
     params: &imports::Params,
 ) -> Vec<serde_json::Value> {
-    analyse(documents, &params.text_document.uri).map_or_else(Vec::new, |analysed| {
-        let file = analysed.map.file(analysed.entry);
-        let start = offset_at(file, params.range.start, encoding);
-        let end = offset_at(file, params.range.end, encoding);
-        imports::in_range(&analysed, start, end)
-            .iter()
-            .map(imports::Import::to_value)
-            .collect()
-    })
+    documents
+        .analysed(&params.text_document.uri)
+        .map_or_else(Vec::new, |analysed| {
+            let file = analysed.map.file(analysed.entry);
+            let start = offset_at(file, params.range.start, encoding);
+            let end = offset_at(file, params.range.end, encoding);
+            imports::in_range(&analysed, start, end)
+                .iter()
+                .map(imports::Import::to_value)
+                .collect()
+        })
 }
 
 /// `nvs/importEdits` — the `use` lines a paste of the names `nvs/imports`
@@ -1787,11 +1777,13 @@ fn import_edits(
     encoding: PositionEncoding,
     params: &imports::EditsParams,
 ) -> Vec<TextEdit> {
-    analyse(documents, &params.text_document.uri).map_or_else(Vec::new, |analysed| {
-        let file = analysed.map.file(analysed.entry);
-        let offset = offset_at(file, params.position, encoding);
-        imports::edits(&analysed, index, offset, &params.imports, encoding)
-    })
+    documents
+        .analysed(&params.text_document.uri)
+        .map_or_else(Vec::new, |analysed| {
+            let file = analysed.map.file(analysed.entry);
+            let offset = offset_at(file, params.position, encoding);
+            imports::edits(&analysed, index, offset, &params.imports, encoding)
+        })
 }
 
 /// `nvs/regions` — which spans of one open document are markup rather than
@@ -2128,6 +2120,8 @@ fn publish(
         if documents.is_current(&uri, analysed.version) {
             send(connection, &uri, Some(analysed.version), diagnostics)?;
         }
+        // Kept for the requests that follow, which read this version too.
+        documents.keep(&uri, analysed);
     }
 
     Ok(())
