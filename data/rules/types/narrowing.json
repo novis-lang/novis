@@ -6,7 +6,8 @@
     "0047",
     "0066",
     "0150",
-    "0192"
+    "0192",
+    "0270"
   ],
   "seeAlso": [
     "types/unions-and-mixed",
@@ -27,6 +28,7 @@
     "tests/conformance/class/a-null-test-narrows-a-path-of-readonly-properties.nvst",
     "tests/conformance/reject/a-write-to-the-root-variable-widens-a-narrowed-property.nvst",
     "crates/nvs-ir/tests/narrowed_property_reads.rs",
-    "crates/nvs-types/tests/narrowing.rs"
+    "crates/nvs-types/tests/narrowing.rs",
+    "tests/conformance/reject/a-null-test-does-not-narrow-a-mutable-property.nvst"
   ]
 }

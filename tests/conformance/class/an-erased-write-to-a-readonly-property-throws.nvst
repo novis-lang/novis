@@ -1,5 +1,5 @@
 --TEST--
-A write to a `readonly` property through an `object` receiver or `Core\Reflect\ClassInfo::set` throws, and the value stays as the constructor wrote it — `rule:classes/lateinit-restrictions`
+A write to a `readonly` property through an `object` receiver or `Core\Reflect\ClassInfo::set` throws, and the value stays as the constructor wrote it — `rule:classes/readonly-is-written-once`
 --FILE--
 <?nvs
 // The checker refuses every `readonly` write it can see. These two writes name

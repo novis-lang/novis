@@ -1,5 +1,5 @@
 --TEST--
-Writing an element of a `readonly` array property writes the property, so after the first write it is a second one (`rule:classes/lateinit-restrictions`)
+Writing an element of a `readonly` array property writes the property, so after the first write it is a second one (`rule:classes/readonly-is-written-once`)
 --FILE--
 <?nvs
 // The constructor sets `$items`, then changes one element and adds another.

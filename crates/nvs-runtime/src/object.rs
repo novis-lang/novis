@@ -5126,8 +5126,8 @@ pub fn write_erased_property(
             desc.name()
         )));
     };
-    // `rule:classes/lateinit-restrictions`' "assigned exactly once, during
-    // construction". A constructor writes its own slots inline and the graph
+    // `rule:classes/readonly-is-written-once`: the property is written once,
+    // during construction. A constructor writes its own slots inline and the graph
     // decoder through `NvsObj::set_field`, so neither comes here, and a
     // `readonly` slot reached here is refused whoever writes it. The checker
     // refuses every such write it can see; this is the receiver it cannot.

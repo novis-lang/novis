@@ -1,5 +1,5 @@
 --TEST--
-A constructor writes a `readonly` property at most once on each path, a promoted parameter included (`rule:classes/lateinit-restrictions`)
+A constructor writes a `readonly` property at most once on each path, a promoted parameter included (`rule:classes/readonly-is-written-once`)
 --FILE--
 <?nvs
 // Each branch of the `if` writes `$id` once, so that is allowed. The write

@@ -3,7 +3,7 @@
 
 # Classes
 
-*1 of 39 rules below are **designed** rather than shipped, and are marked where they appear.*
+*1 of 40 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="classes-no-free-functions-or-constants"></a>
 
@@ -286,6 +286,31 @@ Each refusal is its own diagnostic, which is one more modifier and three more re
 developer has to learn are refused rather than silently allowed.
 
 <sub>See also [`classes/lateinit`](classes.md#classes-lateinit), [`classes/no-undefined-value`](classes.md#classes-no-undefined-value), [`types/declaration`](types.md#types-declaration). Decided in [0038](../decisions/0038.md), [0022](../decisions/0022.md).</sub>
+
+<a id="classes-readonly-is-written-once"></a>
+
+## A `readonly` property is written once, by its own class's constructor through `$this`, and every other write is refused or throws
+
+`rule:classes/readonly-is-written-once`
+
+A `readonly` property is written once, by its own class's `constructor` through `$this`, and nothing
+writes it after construction ends.
+
+The checker refuses every other write it can see, as E0782: a write from any other method or class, a
+write through another instance even inside the constructor, a second write on one path through the
+constructor (a promoted parameter is the first), a write inside a loop, and an element write once the
+property is written, because that writes the property again. A `readonly` property declares no `get`
+or `set` hook (E0843), because a hook runs code at every access and the value read would no longer be
+the one written.
+
+A write the checker cannot see — through an `object` or `mixed` receiver, or
+`Core\Reflect\ClassInfo::set` — throws a `RuntimeError` naming the property, and the value stays as
+the constructor wrote it.
+
+Because the value cannot change once the object is built, a test of a `readonly` property still holds
+at the next read, which is what lets [`types/narrowing`](types.md#types-narrowing) narrow one.
+
+<sub>See also [`classes/lateinit-restrictions`](classes.md#classes-lateinit-restrictions), [`classes/property-hooks`](classes.md#classes-property-hooks), [`types/narrowing`](types.md#types-narrowing). Decided in [0270](../decisions/0270.md).</sub>
 
 <a id="classes-lateinit-read-before-write"></a>
 

@@ -1,5 +1,5 @@
 --TEST--
-A `readonly` property is written by its class's constructor and by nothing else, declared or promoted (`rule:classes/lateinit-restrictions`)
+A `readonly` property is written by its class's constructor and by nothing else, declared or promoted (`rule:classes/readonly-is-written-once`)
 --FILE--
 <?nvs
 // `rule:classes/lateinit-restrictions` states `readonly`'s contract while refusing to combine it with

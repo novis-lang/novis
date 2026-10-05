@@ -1,5 +1,5 @@
 --TEST--
-A constructor does not write a `readonly` property inside a loop, because the loop can run the write twice (`rule:classes/lateinit-restrictions`)
+A constructor does not write a `readonly` property inside a loop, because the loop can run the write twice (`rule:classes/readonly-is-written-once`)
 --FILE--
 <?nvs
 // The loop body can run more than once, so the write inside it can be a

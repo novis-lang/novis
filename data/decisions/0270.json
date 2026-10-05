@@ -1,0 +1,10 @@
+{
+  "title": "a `readonly` property is written once, by its own constructor through `$this`, so a null test of it narrows a later read",
+  "status": "accepted",
+  "scope": "what `readonly` guarantees, where each half of the guarantee is enforced, and the narrowing it buys. Which spellings narrow, and on which edges, stay `rule:types/narrowing`'s.",
+  "dependsOn": [
+    "0038",
+    "0192"
+  ],
+  "validatedBy": "`tests/conformance/reject/readonly-is-written-once.nvst`, `tests/conformance/class/an-erased-write-to-a-readonly-property-throws.nvst` and `tests/conformance/class/a-null-test-narrows-a-readonly-property.nvst`."
+}

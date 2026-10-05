@@ -4366,7 +4366,7 @@ pub mod code {
     );
 
     /// A write to a `readonly` property from anywhere but the declaring
-    /// class's own `constructor`, through `$this` — `rule:classes/lateinit-restrictions`'s
+    /// class's own `constructor`, through `$this` — `rule:classes/readonly-is-written-once`'s
     /// contract for the modifier, "assigned exactly once, and that assignment
     /// happens during construction". A write through another instance is one
     /// even inside that constructor, because that instance is already built.

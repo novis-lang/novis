@@ -1,5 +1,5 @@
 --TEST--
-Inside its own constructor, a `readonly` property is written only through `$this` (`rule:classes/lateinit-restrictions`)
+Inside its own constructor, a `readonly` property is written only through `$this` (`rule:classes/readonly-is-written-once`)
 --FILE--
 <?nvs
 // The other node finished its own constructor already, so writing its `readonly`

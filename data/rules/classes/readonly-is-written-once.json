@@ -1,0 +1,22 @@
+{
+  "title": "A `readonly` property is written once, by its own class's constructor through `$this`, and every other write is refused or throws",
+  "status": "shipped",
+  "because": [
+    "0270"
+  ],
+  "divergesFromPhp": "PHP admits the first write from any method of the declaring class and throws only on the second.",
+  "seeAlso": [
+    "classes/lateinit-restrictions",
+    "classes/property-hooks",
+    "types/narrowing"
+  ],
+  "guardedBy": [
+    "tests/conformance/reject/readonly-is-written-once.nvst",
+    "tests/conformance/reject/a-constructor-writes-readonly-only-through-this.nvst",
+    "tests/conformance/reject/a-readonly-property-is-written-at-most-once-on-each-path.nvst",
+    "tests/conformance/reject/a-readonly-property-is-not-written-in-a-constructor-loop.nvst",
+    "tests/conformance/reject/an-element-write-is-a-second-readonly-write.nvst",
+    "tests/conformance/reject/a-readonly-property-has-no-hook.nvst",
+    "tests/conformance/class/an-erased-write-to-a-readonly-property-throws.nvst"
+  ]
+}
