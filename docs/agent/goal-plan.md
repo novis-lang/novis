@@ -25,11 +25,3 @@ checks and no stages is read in its prose.
 | 11 | [`ext-image`](goals/ext-image.md) | `Novis\Image` is built into every binary: it decodes, transforms and encodes inside the sandbox, under the pixel cap | ahead, pinned last | M9 | **2** the build · **3** decode, and the cap · **4** the pipeline · **5** the benchmark · **6** the feature proofs |
 | 12 | [`ext-image-analysis`](goals/ext-image-analysis.md) | `Novis\Image` compares, hashes, summarises and draws: comparison, perceptual hashes, placeholders, palette, QR codes and text | ahead, pinned last | M9 | **2** comparison · **3** hashes, placeholders, palette · **4** QR codes · **5** text · **6** the feature proofs |
 | 13 | [`ext-intl`](goals/ext-intl.md) | `Novis\Intl` is built into every binary: ICU4X with every CLDR locale, batch-shaped, over `Core\Time` values | ahead, pinned last | M9 | **2** the record and `wit/intl.wit` · **3** collation, and the component is built in · **4** numbers and plural rules · **5** dates and times, relative time, lists · **6** segmentation and locale negotiation · **7** the growth, and a bundle · **8** the feature proofs |
-
-## Side goals
-
-Each runs in a worktree of its own, started by hand with `bun nv loop --side <slug>`.
-
-| Goal | What it builds | State | Milestone | Stages |
-|---|---|---|---|---|
-| [`test-scratch-and-hover`](goals/side/test-scratch-and-hover.md) | test scratch stays inside the tree, and hover answers on every class name | side |  | **2** test scratch under `target/` · **3** hover on every class name, and `use` lines in references |
