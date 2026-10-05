@@ -1,0 +1,33 @@
+<?nvs
+// Prints a program with one class of n properties, whose constructor assigns each one in an `if` and its `else`, as a large data class does.
+// scaling: kind compile
+// scaling: start 1024
+// scaling: max 16384
+// scaling: expect linear
+
+class Bench {
+    public static function run(uint $size): string {
+        array<string> $lines = ["<?nvs", "class Record {"];
+        uint $i = 0;
+        while ($i < $size) {
+            $lines[] = "    public int \$p{$i};";
+            $i = $i + 1;
+        }
+        $lines[] = "    public function constructor(bool \$flag) {";
+        $i = 0;
+        while ($i < $size) {
+            $lines[] = "        if (\$flag) {";
+            $lines[] = "            \$this->p{$i} = {$i};";
+            $lines[] = "        } else {";
+            $lines[] = "            \$this->p{$i} = 0;";
+            $lines[] = "        }";
+            $i = $i + 1;
+        }
+        $lines[] = "    }";
+        $lines[] = "}";
+        $lines[] = "echo (new Record(true))->p0, \"\\n\";";
+        return Core\Str::join($lines, "\n") . "\n";
+    }
+}
+
+echo Bench::run(1024);

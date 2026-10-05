@@ -115,9 +115,18 @@ puts back what every way out assigned (`crates/nvs-types/src/live.rs`). The ladd
 each followed by an `if`. Its counts do not see the checker, but on the old binary it fails on
 callgrind's instruction count, which grew with slope 1.95. On the clock, `nvs check` of 4096 went
 from 301 ms to 43 ms and of 16384 from 4835 ms to 107 ms, best of three runs, before and after
-alternated. It spends one more copy of each assigned name per function while it is checked. The
-constructor property check in `ctor_init.rs` still copies its own set per branch, and its gap record
-says so.
+alternated. It spends one more copy of each assigned name per function while it is checked.
+
+**Checking a constructor costs what its branches assign, not what is assigned before each one.**
+The check that every property is assigned on every path out of a constructor copied its set of
+assigned properties for every branch, so a constructor of n properties, each assigned in an `if`,
+checked in O(n²). It now walks every branch on one set and rewinds it the same way
+(`crates/nvs-types/src/ctor_init.rs`). The ladder
+[`compiler/constructor`](../../benches/scaling/compiler/constructor.nvs) prints one class of n
+properties whose constructor assigns each in an `if` and its `else`. Its counts do not see the
+checker. On the clock, `nvs check` of 16384 went from 12879 ms to 218 ms, best of four runs, before
+and after alternated. It spends one more copy of each assigned property name per constructor while
+it is checked.
 
 **The `Core` signature table is built once per process.** Every check built the whole table from the
 registry, interned its types and freed it again. The first check now builds it into a frozen base

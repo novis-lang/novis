@@ -88,9 +88,9 @@ use nvs_syntax::ast::{
     AssignOp, ClassDecl, ClassMemberKind, Expr, ExprKind, MemberName, Stmt, StmtKind,
 };
 use nvs_syntax::visit::each_child_expr;
-use rustc_hash::FxHashSet;
 
 use crate::expr::is_this_receiver;
+use crate::live::{Live, Mark, assigned_on_every_way};
 use crate::signatures::{own_required_properties, resolve_method};
 use crate::{Env, span_text, strip_sigil};
 
@@ -107,22 +107,75 @@ struct CtorObligations<'a> {
 /// Per-path state while walking a constructor body: which required
 /// properties have definitely been assigned so far, and whether
 /// `parent::constructor(...)` has definitely been called so far.
-#[derive(Clone, Default)]
+///
+/// A branch is walked on the same state as the code around it, never on a
+/// copy: [`InitState::mark`] records where it starts and
+/// [`InitState::rewind`] takes back what it added, the way
+/// [`crate::live::Live`] does for [`crate::locals`]. So a branch costs what
+/// it assigns, and a constructor checks in time linear in its length however
+/// many properties are assigned before each branch.
+#[derive(Default)]
 pub(crate) struct InitState {
-    assigned: FxHashSet<String>,
+    assigned: Live,
+    parent_called: bool,
+}
+
+/// Where a branch starts, from [`InitState::mark`].
+#[derive(Clone, Copy)]
+struct InitMark {
+    assigned: Mark,
+    parent_called: bool,
+}
+
+/// What one way out of a branch added past its mark: the properties it
+/// assigned, and whether `parent::constructor(...)` had been called by its
+/// end.
+#[derive(Default)]
+struct Added {
+    assigned: Vec<String>,
     parent_called: bool,
 }
 
 impl InitState {
-    /// The state true of a path only when it was true on *both* of two
-    /// branches that join back together — the same intersection
-    /// [`crate::locals::check_block`]'s `if`/`else` handling uses for `live`.
-    fn merge(a: Self, b: Self) -> Self {
-        Self {
-            assigned: a.assigned.intersection(&b.assigned).cloned().collect(),
-            parent_called: a.parent_called && b.parent_called,
+    fn mark(&self) -> InitMark {
+        InitMark {
+            assigned: self.assigned.mark(),
+            parent_called: self.parent_called,
         }
     }
+
+    /// Takes back everything added since `mark` and returns it.
+    fn rewind(&mut self, mark: InitMark) -> Added {
+        let added = Added {
+            assigned: self.assigned.rewind(mark.assigned),
+            parent_called: self.parent_called,
+        };
+        self.parent_called = mark.parent_called;
+        added
+    }
+
+    fn extend(&mut self, added: Added) {
+        self.assigned.extend(added.assigned);
+        self.parent_called |= added.parent_called;
+    }
+
+    /// Keeps, of what was added since `mark`, only what `other` also added:
+    /// the join of two ways out of a branch that both start at `mark`.
+    fn intersect_since(&mut self, mark: InitMark, other: &Added) {
+        self.assigned
+            .intersect_since(mark.assigned, &other.assigned);
+        self.parent_called &= other.parent_called;
+    }
+}
+
+/// What every way in `ways` added, or `None` when there are no ways at all.
+fn added_on_every_way(ways: Vec<Added>) -> Option<Added> {
+    let parent_called = ways.iter().all(|way| way.parent_called);
+    let assigned = assigned_on_every_way(ways.into_iter().map(|way| way.assigned).collect())?;
+    Some(Added {
+        assigned,
+        parent_called,
+    })
 }
 
 /// Checks one class declaration against `rule:classes/definite-property-initialization`. Interfaces and enums
@@ -271,32 +324,35 @@ fn walk_stmt(
         }
         StmtKind::Block(b) => walk_stmts(&b.stmts, state, obligations, env),
         // Each arm's `else` is the rest of the chain: the arms are walked in
-        // order with `state` as the rest's, then joined from the last arm
-        // back to the first. A state that ends in a terminating path is never
-        // read, so `state` may carry it.
+        // order, each taken back off `state` once walked and kept as what it
+        // added, then joined from the last arm back to the first. A state
+        // that ends in a terminating path is never read, so `state` may
+        // carry it.
         StmtKind::If { arms, else_ } => {
             let mut joins = Vec::with_capacity(arms.len());
             for (i, arm) in arms.iter().enumerate() {
                 scan_expr(&arm.cond, state, env);
-                let mut then_state = state.clone();
-                let then_terminates = walk_stmt(&arm.then, &mut then_state, obligations, env);
+                let mark = state.mark();
+                let then_terminates = walk_stmt(&arm.then, state, obligations, env);
+                let then_added = state.rewind(mark);
                 // No `else`: only the pre-existing `state` carries forward,
                 // exactly like `crate::locals::check_block`'s own `If` arm.
                 if i + 1 < arms.len() || else_.is_some() {
-                    joins.push((then_state, then_terminates));
+                    joins.push((mark, then_added, then_terminates));
                 }
             }
             let mut rest_terminates = match else_ {
                 Some(else_stmt) => walk_stmt(else_stmt, state, obligations, env),
                 None => false,
             };
-            while let Some((then_state, then_terminates)) = joins.pop() {
+            while let Some((mark, then_added, then_terminates)) = joins.pop() {
                 match (then_terminates, rest_terminates) {
                     (true, _) => {}
-                    (false, true) => *state = then_state,
-                    (false, false) => {
-                        *state = InitState::merge(then_state, std::mem::take(state));
+                    (false, true) => {
+                        state.rewind(mark);
+                        state.extend(then_added);
                     }
+                    (false, false) => state.intersect_since(mark, &then_added),
                 }
                 rest_terminates = then_terminates && rest_terminates;
             }
@@ -304,10 +360,11 @@ fn walk_stmt(
         }
         StmtKind::While { cond, body } => {
             scan_expr(cond, state, env);
-            let mut body_state = state.clone();
-            walk_stmt(body, &mut body_state, obligations, env);
+            let mark = state.mark();
+            walk_stmt(body, state, obligations, env);
             // The body may run zero times, so nothing it assigns carries
             // forward — same conservative treatment as every loop here.
+            state.rewind(mark);
             false
         }
         StmtKind::DoWhile { body, cond } => {
@@ -337,17 +394,19 @@ fn walk_stmt(
             for e in cond {
                 scan_expr(e, state, env);
             }
-            let mut body_state = state.clone();
-            walk_stmt(body, &mut body_state, obligations, env);
+            let mark = state.mark();
+            walk_stmt(body, state, obligations, env);
             for e in step {
-                scan_expr(e, &mut body_state, env);
+                scan_expr(e, state, env);
             }
+            state.rewind(mark);
             false
         }
         StmtKind::Foreach { subject, body, .. } => {
             scan_expr(subject, state, env);
-            let mut body_state = state.clone();
-            walk_stmt(body, &mut body_state, obligations, env);
+            let mark = state.mark();
+            walk_stmt(body, state, obligations, env);
+            state.rewind(mark);
             false
         }
         StmtKind::Switch { subject, cases } => {
@@ -359,26 +418,27 @@ fn walk_stmt(
             // returns/throws instead, and joining in the pre-switch `state`
             // too when there's no `default` (see that module's docs for why).
             let last_index = cases.len().saturating_sub(1);
-            let mut candidates: Vec<InitState> = Vec::new();
+            let mut candidates: Vec<Added> = Vec::new();
+            let mark = state.mark();
             for (i, case) in cases.iter().enumerate() {
-                let mut case_state = state.clone();
                 if let Some(c) = &case.cond {
-                    scan_expr(c, &mut case_state, env);
+                    scan_expr(c, state, env);
                 }
-                let terminates = walk_stmts(&case.body, &mut case_state, obligations, env);
+                let terminates = walk_stmts(&case.body, state, obligations, env);
+                let case_added = state.rewind(mark);
                 if terminates {
                     continue;
                 }
                 let exits = case.body.last();
                 if exits.is_some_and(crate::locals::ends_in_break_or_continue) || i == last_index {
-                    candidates.push(case_state);
+                    candidates.push(case_added);
                 }
             }
             if cases.iter().all(|c| c.cond.is_some()) {
-                candidates.push(state.clone());
+                candidates.push(state.rewind(mark));
             }
-            if let Some(merged) = candidates.into_iter().reduce(InitState::merge) {
-                *state = merged;
+            if let Some(merged) = added_on_every_way(candidates) {
+                state.extend(merged);
             }
             false
         }
@@ -392,33 +452,31 @@ fn walk_stmt(
             // can interrupt `body` before any of its own assignments run),
             // and each contributes to the post-`try` state only when it
             // finishes normally rather than always returning/throwing.
-            let mut candidates: Vec<InitState> = Vec::new();
-            let mut body_state = state.clone();
-            if !walk_stmts(&body.stmts, &mut body_state, obligations, env) {
-                candidates.push(body_state);
+            let mut candidates: Vec<Added> = Vec::new();
+            let mark = state.mark();
+            let body_terminates = walk_stmts(&body.stmts, state, obligations, env);
+            let body_added = state.rewind(mark);
+            if !body_terminates {
+                candidates.push(body_added);
             }
             for catch in catches {
-                let mut catch_state = state.clone();
-                if !walk_stmts(&catch.body.stmts, &mut catch_state, obligations, env) {
-                    candidates.push(catch_state);
+                let catch_terminates = walk_stmts(&catch.body.stmts, state, obligations, env);
+                let catch_added = state.rewind(mark);
+                if !catch_terminates {
+                    candidates.push(catch_added);
                 }
             }
-            let merged = candidates.into_iter().reduce(InitState::merge);
+            let merged = added_on_every_way(candidates);
             // `finally` always runs, so it applies on top of whichever
             // candidate above actually happened — union it in rather than
             // discarding the candidates' join.
             if let Some(finally) = finally {
-                let mut finally_state = state.clone();
-                walk_stmts(&finally.stmts, &mut finally_state, obligations, env);
-                *state = match merged {
-                    Some(m) => InitState {
-                        assigned: m.assigned.union(&finally_state.assigned).cloned().collect(),
-                        parent_called: m.parent_called || finally_state.parent_called,
-                    },
-                    None => finally_state,
-                };
+                walk_stmts(&finally.stmts, state, obligations, env);
+                let finally_added = state.rewind(mark);
+                state.extend(merged.unwrap_or_default());
+                state.extend(finally_added);
             } else if let Some(m) = merged {
-                *state = m;
+                state.extend(m);
             }
             false
         }
@@ -502,44 +560,44 @@ fn scan_branches(e: &Expr, state: &mut InitState, env: &Env<'_>) -> bool {
         }
         ExprKind::Ternary { cond, then, else_ } => {
             scan_expr(cond, state, env);
-            let mut taken = state.clone();
+            let mark = state.mark();
             // The Elvis form `cond ?: else_` writes no `then` branch of its
             // own: the path that skips `else_` leaves `cond`'s state as it is.
             if let Some(then) = then {
-                scan_expr(then, &mut taken, env);
+                scan_expr(then, state, env);
             }
-            let mut skipped = state.clone();
-            scan_expr(else_, &mut skipped, env);
-            *state = InitState::merge(taken, skipped);
+            let taken = state.rewind(mark);
+            scan_expr(else_, state, env);
+            state.intersect_since(mark, &taken);
         }
         ExprKind::Match { subject, arms } => {
             scan_expr(subject, state, env);
             // A `match` that matches no arm throws, so every path that leaves
             // it normally ran exactly one arm — and an arm's conditions are
             // tried until one matches, so none of those is on every path.
-            let mut joined: Option<InitState> = None;
+            let mark = state.mark();
+            let mut ways = Vec::with_capacity(arms.len());
             for arm in arms {
-                let mut arm_state = state.clone();
-                scan_expr(&arm.body, &mut arm_state, env);
-                joined = Some(match joined {
-                    Some(previous) => InitState::merge(previous, arm_state),
-                    None => arm_state,
-                });
+                scan_expr(&arm.body, state, env);
+                ways.push(state.rewind(mark));
             }
-            if let Some(joined) = joined {
-                *state = joined;
+            if let Some(joined) = added_on_every_way(ways) {
+                state.extend(joined);
             }
         }
         ExprKind::Catch { guarded, arms } => {
             // An arm runs on a path where `guarded` threw partway, so what
             // `guarded` assigned is not proven on it: every arm starts from
             // the state this expression was entered in.
-            let entry = state.clone();
+            let mark = state.mark();
             scan_expr(guarded, state, env);
+            let mut ways = vec![state.rewind(mark)];
             for arm in arms {
-                let mut arm_state = entry.clone();
-                scan_expr(&arm.body, &mut arm_state, env);
-                *state = InitState::merge(state.clone(), arm_state);
+                scan_expr(&arm.body, state, env);
+                ways.push(state.rewind(mark));
+            }
+            if let Some(joined) = added_on_every_way(ways) {
+                state.extend(joined);
             }
         }
         _ => return false,

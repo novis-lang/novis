@@ -93,10 +93,10 @@ pub(crate) fn check_class_lateinit_reads(decl: &ClassDecl, qname: &QName, env: &
 }
 
 /// The state true of a path only when it was true on *both* of two branches
-/// that join back together — the same intersection
-/// [`crate::ctor_init::InitState::merge`] uses for its own "assigned" set,
-/// for the identical reason: a property counts as "definitely written" after
-/// a join only if every path reaching the join wrote it.
+/// that join back together — the same intersection [`crate::ctor_init`]'s
+/// joins take of its "assigned" set, for the identical reason: a property
+/// counts as "definitely written" after a join only if every path reaching
+/// the join wrote it.
 fn merge(a: FxHashSet<String>, b: FxHashSet<String>) -> FxHashSet<String> {
     a.intersection(&b).cloned().collect()
 }
