@@ -814,6 +814,7 @@ pub(crate) fn check_assign(
             }
         }
     } else {
+        note_write(target, scope, env);
         mark_write_target_levels(target, true, env);
         let target_ty = check_expr(target, None, live, scope, ctx, env);
         check_write_target(target, ctx, env);
@@ -1506,13 +1507,27 @@ pub(crate) fn check_read(
     }
 }
 
-/// Drops whatever a dominating `!== null` test proved about `expr`, when
-/// `expr` is a plain local — the call every write path in this module owes,
-/// listed in `crate::locals`' narrowing docs. A write through a property or
-/// an element cannot change what a *local* holds, so it has nothing to drop.
+/// Drops whatever a dominating test proved about `expr` — the call every write
+/// path in this module owes, listed in `crate::locals`' narrowing docs.
+///
+/// A plain local is overwritten. A write through a property, or through an
+/// element of one, drops the narrowing of that property's path and of every
+/// path below it — the one write a `readonly` path can meet, inside the
+/// constructor, before its first write.
 pub(crate) fn note_write(expr: &Expr, scope: &LocalScope, env: &Env<'_>) {
     if let ExprKind::Variable(span) = &expr.kind {
         scope.overwrite(strip_sigil(span_text(env.src, *span)));
+        return;
+    }
+    let mut root = expr.unparenthesized();
+    while let ExprKind::Index { base, .. } = &root.kind {
+        root = base.unparenthesized();
+    }
+    if !matches!(root.kind, ExprKind::PropertyAccess { .. }) {
+        return;
+    }
+    if let Some(key) = crate::locals::written_path_key(root, env) {
+        scope.drop_narrowing(&key);
     }
 }
 

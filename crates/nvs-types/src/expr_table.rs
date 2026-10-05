@@ -611,6 +611,14 @@ pub enum ExprInfo {
         /// `rule:classes/property-observer-pipeline`'s second step, or `None` when the receiver's class
         /// implements no `PropertyObserver` — see [`ObserverCalls`].
         observer: Option<ObserverCalls>,
+        /// What a dominating test proved about this read of a `readonly`
+        /// path, or `None` where nothing narrowed it — see
+        /// `crate::locals`' narrowing section.
+        ///
+        /// Unlike [`ExprInfo::NarrowedRead`], this one is not trusted below
+        /// the checker: `nvs-ir` tests the slot for `null` before it changes
+        /// the value's representation to this type, and throws if it is.
+        narrowed: Option<TypeId>,
     },
     /// A resolved `Class::$prop` access, read or write — the static
     /// counterpart of [`ExprInfo::Property`], and recorded for the same reason:

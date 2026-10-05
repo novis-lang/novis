@@ -80,6 +80,23 @@
 //! type and an enum-case type their base's representation exactly, so the read
 //! is the same one either way.
 //!
+//! **A subject may be a path of `readonly` properties** — `$this->a`,
+//! `$x->a->b` — as well as a binding, and [`readonly_path`] decides which
+//! paths qualify: a variable root and a run of `->` links that each resolve to
+//! a `readonly` property. Such a path's narrowing lives in the same map under
+//! the key `x->a->b`, so a branch's restore and a loop's [`suspend`] treat it
+//! exactly as they treat a binding's. A `readonly` property is written once,
+//! during construction (`crate::expr::assign`'s `reject_readonly_write`), so
+//! two writes can change what a path reads: **a write to the root variable**,
+//! for which [`LocalScope::overwrite`] and [`LocalScope::drop_narrowing`] drop
+//! every path rooted at the name they drop, and the constructor's own first
+//! write to a link, for which `crate::expr::assign::note_write` drops the path
+//! it writes through ([`written_path_key`]). Unlike a binding's, a path's read is not
+//! trusted below the checker: [`crate::expr_table::ExprInfo::Property`]
+//! carries the narrowed type, and `nvs-ir` keeps a null check on that read, so
+//! a write path this walk missed throws rather than reading a `null` as an
+//! object. A mutable link narrows nothing.
+//!
 //! **A `match (true)`/`switch (true)` label is a condition**, so each arm body
 //! is checked under whatever the tests above prove for its own label —
 //! [`is_true_literal`] owns which subject qualifies, and why a `default` arm
@@ -268,7 +285,8 @@ impl LocalScope {
     }
 
     /// The narrowed type a dominating `!= null` test proved for `name`, or
-    /// `None` where nothing narrowed it.
+    /// `None` where nothing narrowed it. `name` may also be a `readonly`
+    /// path's key, which [`narrowed_property`] builds.
     ///
     /// [`Self::declared_ty`] deliberately answers the narrowed type without
     /// saying that it *is* one, which is right for every check it feeds. The
@@ -289,10 +307,7 @@ impl LocalScope {
     /// list every caller — a new one that forgets this is the one way a
     /// narrowing can go stale, and `nvs-ir` trusts it unconditionally.
     pub(crate) fn overwrite(&self, name: &str) -> Option<TypeId> {
-        self.narrowed.borrow_mut().remove(name);
-        for layer in self.shadowed.borrow_mut().iter_mut() {
-            layer.remove(name);
-        }
+        self.drop_narrowing(name);
         self.declared_ty(name)
     }
 
@@ -306,10 +321,17 @@ impl LocalScope {
     /// [`Self::declared_ty`]), and `nvs-ir` then panics on a capture the
     /// enclosing frame has no binding for. The narrowing still has to go — from
     /// here on the name means the new binding.
+    ///
+    /// Every `readonly` path rooted at `name` goes with it, because the path
+    /// now reads through a different object.
     pub(crate) fn drop_narrowing(&self, name: &str) {
-        self.narrowed.borrow_mut().remove(name);
+        let rooted = |key: &String| {
+            key.strip_prefix(name)
+                .is_some_and(|rest| rest.is_empty() || rest.starts_with("->"))
+        };
+        self.narrowed.borrow_mut().retain(|key, _| !rooted(key));
         for layer in self.shadowed.borrow_mut().iter_mut() {
-            layer.remove(name);
+            layer.retain(|key, _| !rooted(key));
         }
     }
 
@@ -377,8 +399,8 @@ impl Narrowing {
 }
 
 /// The `$x != null`/`$x == null` test `cond` is, if it is one at all: the
-/// tested variable's name span, and whether the test *holding* means the
-/// variable is not `null`.
+/// tested operand, and whether the test *holding* means it is not `null`.
+/// [`subject`] decides whether that operand is something a test narrows.
 ///
 /// `==`/`!=` are the whole of it, because
 /// `rule:expressions/one-equality-operator` leaves one spelling and its § 3 makes it a tag test rather than PHP's
@@ -386,13 +408,13 @@ impl Narrowing {
 /// read only `===`/`!==` while both spellings existed. A bare `if ($x)` is
 /// still not a null test: `rule:enums/truthiness` makes it one for a nullable object,
 /// but not for a `?string` holding `""`.
-fn null_test(cond: &Expr) -> Option<(Span, bool)> {
+fn null_test(cond: &Expr) -> Option<(&Expr, bool)> {
     match &cond.kind {
         ExprKind::Paren(inner) => null_test(inner),
         ExprKind::Unary {
             op: nvs_syntax::ast::UnaryOp::Not,
             expr: inner,
-        } => null_test(inner).map(|(span, non_null)| (span, !non_null)),
+        } => null_test(inner).map(|(tested, non_null)| (tested, !non_null)),
         ExprKind::Binary { op, lhs, rhs }
             if matches!(
                 op,
@@ -401,8 +423,9 @@ fn null_test(cond: &Expr) -> Option<(Span, bool)> {
         {
             let non_null = *op == nvs_syntax::ast::BinaryOp::NotEq;
             match (&lhs.kind, &rhs.kind) {
-                (ExprKind::Variable(span), ExprKind::Null)
-                | (ExprKind::Null, ExprKind::Variable(span)) => Some((*span, non_null)),
+                (ExprKind::Null, ExprKind::Null) => None,
+                (_, ExprKind::Null) => Some((&**lhs, non_null)),
+                (ExprKind::Null, _) => Some((&**rhs, non_null)),
                 _ => None,
             }
         }
@@ -487,14 +510,111 @@ fn null_residue(
     scope: &LocalScope,
     env: &mut Env<'_>,
 ) -> Option<(String, TypeId)> {
-    let (name_span, non_null_when_true) = null_test(cond)?;
+    let (tested, non_null_when_true) = null_test(cond)?;
     if non_null_when_true != when {
         return None;
     }
-    let name = strip_sigil(span_text(env.src, name_span)).to_owned();
-    let current = scope.declared_ty(&name)?;
+    let (name, current) = subject(tested, scope, env)?;
     let residue = env.interner.without_null(current);
     (residue != current).then_some((name, residue))
+}
+
+/// The key a test over `tested` narrows, and the type `tested` has on this
+/// path now — or `None` where `tested` is not something a test narrows.
+///
+/// A variable is keyed by its name. A path of `readonly` properties is keyed by
+/// [`readonly_path`]'s key, and its type now is a narrowing already in force on
+/// that key or else the last property's declared type.
+fn subject(tested: &Expr, scope: &LocalScope, env: &Env<'_>) -> Option<(String, TypeId)> {
+    if let ExprKind::Variable(span) = &tested.kind {
+        let name = strip_sigil(span_text(env.src, *span)).to_owned();
+        let current = scope.declared_ty(&name)?;
+        return Some((name, current));
+    }
+    let (key, declared) = readonly_path(tested, env)?;
+    let current = scope.narrowed_ty(&key).unwrap_or(declared);
+    Some((key, current))
+}
+
+/// The key of `expr` when it is a path of `readonly` properties from a
+/// variable — `this->a->b` for `$this->a->b` — and the last property's declared
+/// type.
+///
+/// Every link is a plain `->` to a written name that the checker resolved to a
+/// declared, `readonly` property. The links were checked a moment ago, so each
+/// one's [`ExprInfo::Property`] is already in the table. A `?->` link, a hooked
+/// property, an erased receiver and a mutable property each end the path.
+fn readonly_path(expr: &Expr, env: &Env<'_>) -> Option<(String, TypeId)> {
+    let ExprKind::PropertyAccess {
+        object,
+        nullsafe: false,
+        property: nvs_syntax::ast::MemberName::Ident(_),
+    } = &expr.kind
+    else {
+        return None;
+    };
+    let Some(ExprInfo::Property {
+        class, name, ty, ..
+    }) = env.exprs.lookup(expr.span)
+    else {
+        return None;
+    };
+    let (owner, _) =
+        crate::signatures::resolve_property_owned(class, name, env.signatures, env.graph)?;
+    let root = path_root(object, env)?;
+    crate::signatures::property_is_readonly(&owner, name, env.signatures)
+        .then(|| (format!("{root}->{name}"), *ty))
+}
+
+/// The key of a path's receiver: a variable's name, or the key of a shorter
+/// `readonly` path.
+fn path_root(object: &Expr, env: &Env<'_>) -> Option<String> {
+    match &object.kind {
+        ExprKind::Variable(span) => Some(strip_sigil(span_text(env.src, *span)).to_owned()),
+        _ => readonly_path(object, env).map(|(key, _)| key),
+    }
+}
+
+/// The key a write through `expr` drops, read off the syntax alone: a
+/// variable's name, or a run of plain `->` links to written names from one.
+///
+/// It is read off the syntax because a write target has not been checked yet
+/// when its narrowing has to go, so no link has a table entry to ask. A key
+/// that names no narrowing drops nothing.
+pub(crate) fn written_path_key(expr: &Expr, env: &Env<'_>) -> Option<String> {
+    match &expr.kind {
+        ExprKind::Variable(span) => Some(strip_sigil(span_text(env.src, *span)).to_owned()),
+        ExprKind::PropertyAccess {
+            object,
+            property: nvs_syntax::ast::MemberName::Ident(span),
+            ..
+        } => Some(format!(
+            "{}->{}",
+            written_path_key(object, env)?,
+            span_text(env.src, *span)
+        )),
+        _ => None,
+    }
+}
+
+/// What a dominating test proved for the read `object->name`, where `owner`
+/// declares `name` — `None` unless the property is `readonly`, its receiver is
+/// a variable or a `readonly` path, and a test narrowed that path.
+///
+/// `crate::expr::members` calls this for every read of a declared property it
+/// resolves, and records the answer in [`ExprInfo::Property`] for `nvs-ir`.
+pub(crate) fn narrowed_property(
+    object: &Expr,
+    owner: &nvs_hir::QName,
+    name: &str,
+    scope: &LocalScope,
+    env: &Env<'_>,
+) -> Option<TypeId> {
+    if !crate::signatures::property_is_readonly(owner, name, env.signatures) {
+        return None;
+    }
+    let root = path_root(object, env)?;
+    scope.narrowed_ty(&format!("{root}->{name}"))
 }
 
 /// The local an `is` test narrows on the branch where it evaluates to `when`,
@@ -538,12 +658,11 @@ fn type_test_residue(
     scope: &LocalScope,
     env: &mut Env<'_>,
 ) -> Option<(String, TypeId)> {
-    let (name_span, test_span, proved_when) = type_test(cond)?;
+    let (tested, test_span, proved_when) = type_test(cond)?;
     if proved_when != when {
         return None;
     }
-    let name = strip_sigil(span_text(env.src, name_span)).to_owned();
-    let current = scope.declared_ty(&name)?;
+    let (name, current) = subject(tested, scope, env)?;
     let residue = match env.exprs.lookup(test_span) {
         Some(&ExprInfo::TypeTest { tested }) => tested,
         Some(&ExprInfo::ClassRefTest { base }) => base,
@@ -552,21 +671,18 @@ fn type_test_residue(
     (residue != current).then_some((name, residue))
 }
 
-/// The `$x is Type` test `cond` is, if it is one at all: the tested variable's
-/// name span, the whole test's own span — which is the key
+/// The `$x is Type` test `cond` is, if it is one at all: the tested operand,
+/// the whole test's own span — which is the key
 /// `crate::expr_table::ExprInfo::TypeTest` was recorded under — and whether the
 /// type is proved when the condition *holds*, which a `!` inverts.
-fn type_test(cond: &Expr) -> Option<(Span, Span, bool)> {
+fn type_test(cond: &Expr) -> Option<(&Expr, Span, bool)> {
     match &cond.kind {
         ExprKind::Paren(inner) => type_test(inner),
         ExprKind::Unary {
             op: nvs_syntax::ast::UnaryOp::Not,
             expr: inner,
-        } => type_test(inner).map(|(name, test, proved)| (name, test, !proved)),
-        ExprKind::TypeTest { expr, .. } => match &expr.kind {
-            ExprKind::Variable(span) => Some((*span, cond.span, true)),
-            _ => None,
-        },
+        } => type_test(inner).map(|(tested, test, proved)| (tested, test, !proved)),
+        ExprKind::TypeTest { expr, .. } => Some((&**expr, cond.span, true)),
         _ => None,
     }
 }
@@ -605,12 +721,11 @@ pub(crate) fn single_value_residue(
     scope: &LocalScope,
     env: &mut Env<'_>,
 ) -> Option<(String, TypeId)> {
-    let (name_span, literal, proved_when) = literal_test(cond)?;
+    let (tested, literal, proved_when) = literal_test(cond)?;
     if proved_when != when {
         return None;
     }
-    let name = strip_sigil(span_text(env.src, name_span)).to_owned();
-    let current = scope.declared_ty(&name)?;
+    let (name, current) = subject(tested, scope, env)?;
     let residue = match &literal.kind {
         ExprKind::Str(span) => {
             let value = crate::string_lit::cook_string_literal(env.src, *span);
@@ -646,13 +761,14 @@ pub(crate) fn single_value_residue(
 }
 
 /// The `$x == <literal>` test `cond` is, if it is one at all: the tested
-/// variable's name span, the literal operand, and whether the literal is
-/// proved when the condition *holds* — which `!=` inverts, and a `!` inverts
-/// again.
+/// operand, the literal operand, and whether the literal is proved when the
+/// condition *holds* — which `!=` inverts, and a `!` inverts again.
 ///
-/// Either operand may be the variable: `rule:expressions/one-equality-operator` leaves one equality
-/// operator and it is symmetric, so `"read" == $mode` is the same test.
-fn literal_test(cond: &Expr) -> Option<(Span, &Expr, bool)> {
+/// Either operand may be the tested one: `rule:expressions/one-equality-operator` leaves one equality
+/// operator and it is symmetric, so `"read" == $mode` is the same test. A
+/// variable or a property access is taken as the tested operand, the left one
+/// first, and [`subject`] decides whether it is one a test narrows.
+fn literal_test(cond: &Expr) -> Option<(&Expr, &Expr, bool)> {
     match &cond.kind {
         ExprKind::Paren(inner) => literal_test(inner),
         ExprKind::Unary {
@@ -666,10 +782,18 @@ fn literal_test(cond: &Expr) -> Option<(Span, &Expr, bool)> {
             ) =>
         {
             let proved = *op == nvs_syntax::ast::BinaryOp::Eq;
-            match (&lhs.kind, &rhs.kind) {
-                (ExprKind::Variable(span), _) => Some((*span, rhs, proved)),
-                (_, ExprKind::Variable(span)) => Some((*span, lhs, proved)),
-                _ => None,
+            let tested = |e: &Expr| {
+                matches!(
+                    e.kind,
+                    ExprKind::Variable(_) | ExprKind::PropertyAccess { .. }
+                )
+            };
+            if tested(lhs) {
+                Some((&**lhs, &**rhs, proved))
+            } else if tested(rhs) {
+                Some((&**rhs, &**lhs, proved))
+            } else {
+                None
             }
         }
         _ => None,

@@ -417,3 +417,72 @@ fn an_and_narrowing_ends_with_its_block_and_a_write_widens_it() {
     );
     assert!(refuses_nullable_receiver(&written), "{written:?}");
 }
+
+/// Wraps `body` in a method taking a `Holder` `$h` and an `Outer` `$o`, whose
+/// `?Node` property is `readonly` when `modifier` says so. `Holder` also has a
+/// method whose body is `holder_body`, so a test can read through `$this`.
+fn check_with_holder(modifier: &str, holder_body: &str, body: &str) -> Diagnostics {
+    check_src(&format!(
+        "<?nvs\nclass Node {{\n  function label(): string {{ return \"n\"; }}\n}}\n\
+         class Holder {{\n  public {modifier} ?Node $node;\n\
+         \x20 function constructor(?Node $n) {{ $this->node = $n; }}\n\
+         \x20 function show(): void {{\n{holder_body}\n  }}\n}}\n\
+         class Outer {{\n  public readonly Holder $holder;\n\
+         \x20 function constructor(Holder $h) {{ $this->holder = $h; }}\n}}\n\
+         class T {{\n  function m(Holder $h, Outer $o): void {{\n{body}\n  }}\n}}\n"
+    ))
+}
+
+/// A `readonly` property is written once, so a null test narrows it through
+/// `$this`, through a variable, and along a path of `readonly` links.
+#[test]
+fn a_readonly_property_narrows_through_this_and_a_variable() {
+    let diags = check_with_holder(
+        "readonly",
+        "    if ($this->node != null) {\n      echo $this->node->label();\n    }",
+        "    if ($h->node != null) {\n      echo $h->node->label();\n    }\n\
+         \x20   if ($o->holder->node != null) {\n      echo $o->holder->node->label();\n    }\n\
+         \x20   if ($h->node is Node) {\n      echo $h->node->label();\n    }",
+    );
+    assert!(!diags.has_errors(), "{diags:?}");
+}
+
+/// A mutable property may change between the test and the read, so the test
+/// narrows nothing and the read is still refused.
+#[test]
+fn a_mutable_property_does_not_narrow() {
+    let diags = check_with_holder(
+        "",
+        "    if ($this->node != null) {\n      echo $this->node->label();\n    }",
+        "",
+    );
+    assert!(refuses_nullable_receiver(&diags), "{diags:?}");
+    let through_a_variable = check_with_holder(
+        "",
+        "",
+        "    if ($h->node != null) {\n      echo $h->node->label();\n    }",
+    );
+    assert!(
+        refuses_nullable_receiver(&through_a_variable),
+        "{through_a_variable:?}"
+    );
+}
+
+/// A write to the root variable makes the path read a different object, so
+/// it drops the narrowing of every path below it.
+#[test]
+fn a_write_to_the_root_variable_drops_a_property_narrowing() {
+    let diags = check_with_holder(
+        "readonly",
+        "",
+        "    if ($h->node != null) {\n      $h = new Holder(null);\n      echo $h->node->label();\n    }",
+    );
+    assert!(refuses_nullable_receiver(&diags), "{diags:?}");
+    let path = check_with_holder(
+        "readonly",
+        "",
+        "    if ($o->holder->node != null) {\n      $o = new Outer(new Holder(null));\n      \
+         echo $o->holder->node->label();\n    }",
+    );
+    assert!(refuses_nullable_receiver(&path), "{path:?}");
+}

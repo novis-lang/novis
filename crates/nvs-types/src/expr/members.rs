@@ -1475,6 +1475,11 @@ pub(crate) fn check_property_member(
                 // `Parser::parse_new_target_expr`'s `?->`/`->` arm), so
                 // there's no need to thread that span through as a separate
                 // parameter.
+                //
+                // A read of a `readonly` path a dominating test narrowed
+                // answers the narrowed type, and records it for `nvs-ir`'s
+                // checked read — `crate::locals`' narrowing section.
+                let narrowed = crate::locals::narrowed_property(object, &owner, &name, scope, env);
                 env.exprs.record(
                     object.span.to(*name_span),
                     ExprInfo::Property {
@@ -1482,9 +1487,10 @@ pub(crate) fn check_property_member(
                         name: name.clone(),
                         ty,
                         observer,
+                        narrowed,
                     },
                 );
-                ty
+                narrowed.unwrap_or(ty)
             }
             None => {
                 // `$this->missing` is already `E_UNDEFINED_PROPERTY`
