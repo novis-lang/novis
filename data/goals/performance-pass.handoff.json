@@ -1,29 +1,26 @@
 {
-  "state": "**Goal `performance-pass`, Stage 5 (the fixes).** Stage 4's review is whole (`docs/perf/performance-review.md`).\n\n**The scheduler fixes are measured and closed.** Ladder `benches/scaling/scheduler/parked.nvs` is new. `docs/perf/performance-pass.md` § *What got better* has the before and after of `fan-out` and `parked`: both builds are linear and the clock does not see the removed terms. Its gap record is deleted.\n\n**8 gap records owned by `performance-pass`** keep `owners --closes performance-pass` red (`bun nv owners --closes performance-pass` lists them).\n\n**`bun nv scaling --check` over all 49 ladders: 47 flat, 0 grow.** Two keep it red: `numbers/bigint-mul.nvs` is unclear (allocations 1.31, bytes 1.40, instructions 1.29, clock 1.23, and nothing agreed by the ceiling), and `request/headers.nvs` is invalid (the clock's slope could not be read, and a `serve` ladder does not run under callgrind).\n\n**The stack charge is explained** in `data/gaps/nvs-host/a-task-is-charged-a-whole-stack.json`: the charge is the same with or without `--config`, and only the cap differs. The shipped defaults set no `[limits] memory`, and the repository's `nvs.toml` sets 256M.",
+  "state": "**Goal `performance-pass`, Stage 5 (the fixes).** Stage 4's review is whole (`docs/perf/performance-review.md`).\n\n**The workspace index lookups are fixed and measured.** `crates/nvs-lsp/src/index.rs` keeps three name maps (declaration, subtypes, uses), and the override walks use a seen set. Every `lsp` ladder now also asks for code lenses (`tools/nv/cmd/scaling.ts` `lspScript`). New ladder `benches/scaling/lsp/hierarchy.nvs`. CodeLens at 3200 subclasses: 178 ms before, 39 ms after (`docs/perf/performance-pass.md` § *What got better*). Its gap record is deleted.\n\n**`lsp/hierarchy.nvs` still grows** (clock slope about 1.6): open, completion, hover and references grow about 3× per doubling in both builds, only on a file with `extends`. `nvs check` of the same file is linear. Recorded in `data/gaps/nvs-lsp/a-request-on-a-file-of-subclasses-grows-faster-than-linear.json`, with the per-request figures.\n\n**8 gap records owned by `performance-pass`** keep `owners --closes performance-pass` red (`bun nv owners --closes performance-pass` lists them).\n\n**`bun nv scaling --check` is red on three ladders:** `numbers/bigint-mul.nvs` unclear, `request/headers.nvs` invalid (a `serve` ladder does not run under callgrind), and `lsp/hierarchy.nvs` grows.",
   "next": {
     "stage": 5,
-    "title": "the fixes, the workspace index lookups",
+    "title": "the fixes, the editor on a file of subclasses",
     "files": [
-      "crates/nvs-lsp/src/index.rs",
+      "crates/nvs-lsp/src/document.rs",
+      "crates/nvs-lsp/src/server.rs",
       "benches/scaling/lsp/"
     ],
     "items": [
       {
         "done": false,
-        "text": "**Make `declaration` and `subtypes` constant-time lookups** (`crates/nvs-lsp/src/index.rs:602`, `crates/nvs-lsp/src/index.rs:509`), per `data/gaps/nvs-lsp/a-hierarchy-lookup-scans-every-declaration.json`: one map from symbol to declaration and one from supertype to subtypes, kept where `invalidate` and `absorb` change the index. Write an `lsp` ladder of one file of n classes with a CodeLens request, take the before and after, write them to `docs/perf/performance-pass.md` § *What got better*, and delete the gap record. Rule: AGENTS.md priority ordering."
+        "text": "**Find and fix what grows faster than linear when `nvs lsp` analyses a file of n subclasses** (`crates/nvs-lsp/src/document.rs:568`, `crates/nvs-lsp/src/server.rs:1228`), per `data/gaps/nvs-lsp/a-request-on-a-file-of-subclasses-grows-faster-than-linear.json`. Generate the ladder's document at 800, 1600 and 3200 classes and time each request in one session (`lspScript` and `lspFrame` from `tools/nv/cmd/scaling.ts` give the messages). Hover growing 3× per doubling means the work is per request, not only on open. Then take the before and after, write them to `docs/perf/performance-pass.md` § *What got better*, delete the gap record, and confirm `bun nv scaling lsp/` is flat. Rule: AGENTS.md priority ordering."
       },
       {
         "done": false,
-        "text": "**Judge the two ladders that keep `scaling --check` red** (`benches/scaling/numbers/bigint-mul.nvs:1`, `benches/scaling/request/headers.nvs:1`): re-run `bun nv scaling numbers/bigint-mul request/headers`; fix a ladder that is wrong, and write one the tool cannot judge under `docs/perf/performance-pass.md` § *Benches to look at*. Rule: the goal's standing decisions."
+        "text": "**Judge the two other ladders that keep `scaling --check` red** (`benches/scaling/numbers/bigint-mul.nvs:1`, `benches/scaling/request/headers.nvs:1`): re-run each, and either fix the ladder or write it under `docs/perf/performance-pass.md` § *Benches to look at*. Rule: `benches/scaling/README.md`."
       }
     ]
   },
   "backlog": [
-    "`crates/nvs-lsp/src/server.rs`: a request analyses an unchanged document again (`data/gaps/nvs-lsp/a-request-analyses-an-unchanged-document-again.json`).",
-    "`crates/nvs-stdlib/src/queue.rs`: the queue claim sorts every due row, and finished jobs are kept until purged (two gap records under `data/gaps/nvs-stdlib/`).",
-    "`crates/nvs-runtime/src/identity.rs`: the identity hash stops at depth four (gap record).",
-    "`crates/nvs-server/src/socket.rs`: a WebSocket write buffer has no ceiling (gap record).",
-    "`crates/nvs-stdlib/src/json.rs`: `decodeAs` reports every bad element (gap record).",
-    "`crates/nvs-host/src/stack.rs`: each task is charged its whole stack; the answer is a decision for *Decisions for you* (gap record)."
+    "The other gap records owned by `performance-pass` — `bun nv owners --closes performance-pass` lists them, each names its module.",
+    "`SymbolIndex::readers_of` (`crates/nvs-lsp/src/index.rs`) scans every entry's reads per refresh; not measured, left alone unless a ladder shows it."
   ]
 }
