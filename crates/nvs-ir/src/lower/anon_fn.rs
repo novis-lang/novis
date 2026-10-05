@@ -314,6 +314,7 @@ pub(crate) fn lower_anon_fn(
             // wants.
             public_fields: Vec::new(),
             protected_fields: Vec::new(),
+            readonly_fields: Vec::new(),
             constants: Vec::new(),
             attributes: Vec::new(),
             // And for the same reason again: a capture's type was written on
@@ -1013,6 +1014,7 @@ fn thunk_class(
         secret_fields: Vec::new(),
         public_fields: Vec::new(),
         protected_fields: Vec::new(),
+        readonly_fields: Vec::new(),
         constants: Vec::new(),
         attributes: Vec::new(),
         field_types: Vec::new(),

@@ -104,6 +104,17 @@ pub struct ClassLayout {
     ///
     /// **Cost:** one `bool` per field slot per class, once per compiled unit.
     pub protected_fields: Vec<bool>,
+    /// Whether each field slot is declared `readonly`, in [`Self::fields`]'
+    /// own order. The checker refuses every `readonly` write it can see
+    /// (`crate::ctor_init`), but a write through an erased receiver or through
+    /// `Core\Reflect\ClassInfo::set` names no class it could check against.
+    /// That write is checked where it lands, against this bit.
+    ///
+    /// `nvs_ir::ir::Class::readonly_fields` carries it down and
+    /// `nvs_runtime::ClassDesc::field_is_readonly` answers it.
+    ///
+    /// **Cost:** one `bool` per field slot per class, once per compiled unit.
+    pub readonly_fields: Vec<bool>,
     /// Each field slot's declared type as the declaration spells it, in
     /// [`Self::fields`]' own order, and the **empty string** for a slot no
     /// declaration laid out — the exception tree's, whose types live as
@@ -385,6 +396,12 @@ impl ClassLayoutTable {
 /// the declaration itself does not spell and [`flatten_methods`] joins on.
 type OwnMethod = (String, bool, bool, Vec<String>, Vec<String>);
 
+/// What one declaration says about one of its own instance properties:
+/// `(property name, is `public`, is `protected`, is `readonly`, declared type
+/// spelling)` — [`own_properties`]' row, which [`flatten_fields`] walks a
+/// chain of into [`ClassLayout::fields`] and the bit lists beside it.
+type OwnField = (String, bool, bool, bool, String);
+
 /// What every declaration says about its own methods, keyed by the class that
 /// wrote them — [`own_methods`]' answer before [`flatten_methods`] walks a
 /// chain of them into [`ClassLayout::methods`].
@@ -413,7 +430,7 @@ pub fn build_class_layouts(
     files: &[crate::ProgramFile<'_>],
     graph: &ClassGraph,
 ) -> ClassLayoutTable {
-    let mut own: FxHashMap<QName, Vec<(String, bool, bool, String)>> = FxHashMap::default();
+    let mut own: FxHashMap<QName, Vec<OwnField>> = FxHashMap::default();
     let mut own_methods: OwnMethods = FxHashMap::default();
     let mut own_hooks: FxHashMap<QName, Vec<(String, String, bool)>> = FxHashMap::default();
     let mut own_constants: FxHashMap<QName, Vec<ClassConstant>> = FxHashMap::default();
@@ -430,7 +447,7 @@ pub fn build_class_layouts(
         // it in a currency no text of these slots exists in.
         let fields = nvs_hir::errors::own_properties(name)
             .iter()
-            .map(|p| ((*p).to_owned(), true, false, String::new()))
+            .map(|p| ((*p).to_owned(), true, false, false, String::new()))
             .collect();
         // These constructors are synthesized rather than written
         // (`nvs_ir::lower::exception`), so they are the methods with a body
@@ -495,11 +512,13 @@ pub fn build_class_layouts(
         let mut fields = Vec::with_capacity(slots.len());
         let mut public_fields = Vec::with_capacity(slots.len());
         let mut protected_fields = Vec::with_capacity(slots.len());
+        let mut readonly_fields = Vec::with_capacity(slots.len());
         let mut field_types = Vec::with_capacity(slots.len());
-        for (name, public, protected, ty) in slots {
+        for (name, public, protected, readonly, ty) in slots {
             fields.push(name);
             public_fields.push(public);
             protected_fields.push(protected);
+            readonly_fields.push(readonly);
             field_types.push(ty);
         }
 
@@ -534,6 +553,7 @@ pub fn build_class_layouts(
                 fields,
                 public_fields,
                 protected_fields,
+                readonly_fields,
                 field_types,
                 conforms: conforms.iter().map(QName::to_string).collect(),
                 methods,
@@ -553,7 +573,7 @@ pub fn build_class_layouts(
 /// five walks over the same statements, each re-deriving the namespace the
 /// others already resolved.
 struct Own<'r> {
-    properties: &'r mut FxHashMap<QName, Vec<(String, bool, bool, String)>>,
+    properties: &'r mut FxHashMap<QName, Vec<OwnField>>,
     methods: &'r mut OwnMethods,
     hooks: &'r mut FxHashMap<QName, Vec<(String, String, bool)>>,
     constants: &'r mut FxHashMap<QName, Vec<ClassConstant>>,
@@ -899,10 +919,7 @@ fn is_protected(modifiers: &[Modifier]) -> bool {
 /// Its place in the order is the `constructor` member's own, which is all
 /// that "declaration order" can mean for it — nothing reads a slot by number
 /// across two declarations, `flatten_fields` keying every field by name.
-fn own_properties(
-    members: &[nvs_syntax::ast::ClassMember],
-    src: &SourceFile,
-) -> Vec<(String, bool, bool, String)> {
+fn own_properties(members: &[nvs_syntax::ast::ClassMember], src: &SourceFile) -> Vec<OwnField> {
     members
         .iter()
         .flat_map(|member| match &member.kind {
@@ -911,6 +928,7 @@ fn own_properties(
                     crate::strip_sigil(span_text(src, p.name)).to_owned(),
                     is_public(&p.modifiers),
                     is_protected(&p.modifiers),
+                    p.modifiers.contains(&Modifier::Readonly),
                     declared_type(src, Some(&p.ty)),
                 )]
             }
@@ -923,6 +941,7 @@ fn own_properties(
                         crate::strip_sigil(span_text(src, p.name)).to_owned(),
                         is_public(&p.modifiers),
                         is_protected(&p.modifiers),
+                        p.modifiers.contains(&Modifier::Readonly),
                         declared_type(src, p.ty.as_ref()),
                     )
                 })
@@ -961,8 +980,8 @@ fn is_static(p: &PropertyMember) -> bool {
 fn flatten_fields<'a>(
     qname: &'a QName,
     graph: &'a ClassGraph,
-    own: &'a FxHashMap<QName, Vec<(String, bool, bool, String)>>,
-    fields: &mut Vec<(String, bool, bool, String)>,
+    own: &'a FxHashMap<QName, Vec<OwnField>>,
+    fields: &mut Vec<OwnField>,
     seen: &mut Seen<'a>,
 ) {
     if !seen.classes.insert(qname) {

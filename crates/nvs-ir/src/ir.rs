@@ -223,6 +223,16 @@ pub struct Class {
     /// **Cost:** one `bool` per field slot per class, once per compiled unit,
     /// not per request.
     pub protected_fields: Vec<bool>,
+    /// A straight copy of `nvs_types::layout::ClassLayout::readonly_fields`,
+    /// which owns why the bit is carried: a write through an erased receiver
+    /// is checked where it lands, and nothing below the front end can see the
+    /// keyword. **Empty** reads as "no slot is `readonly`", which is what a
+    /// synthesized class is. `nvs-codegen` hands it to
+    /// `nvs_runtime::ClassTable::set_readonly_fields`.
+    ///
+    /// **Cost:** one `bool` per field slot per class, once per compiled unit,
+    /// not per request.
+    pub readonly_fields: Vec<bool>,
     /// A straight copy of `nvs_types::layout::ClassLayout::constants`, which
     /// owns the roster's flattening rule and why a folded value travels rather
     /// than the declaration's source text. `nvs-codegen` turns each row into a

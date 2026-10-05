@@ -478,6 +478,21 @@ pub struct ClassDesc {
     /// [`crate::Ctx::field_is_visible_from`] is its one reader. **Cost:** one
     /// `bool` per field per class, once per process, not per instance.
     protected_fields: Vec<bool>,
+    /// Whether each field slot is declared `readonly`, in slot order.
+    /// **Empty** for a class with no `readonly` property, which is most of
+    /// them, and an empty list reads as "no slot is `readonly`".
+    ///
+    /// The checker refuses every `readonly` write it can see. This bit is for
+    /// the writes it cannot: a write through an erased receiver and
+    /// `Core\Reflect\ClassInfo::set` both end in [`write_erased_property`],
+    /// which throws when it is set. Construction does not pass through there:
+    /// a compiled constructor writes its slots inline, and the graph decoder
+    /// writes them with [`NvsObj::set_field`].
+    ///
+    /// `nvs_types::layout` decides it, `nvs_ir::ir::Class::readonly_fields`
+    /// carries it and [`ClassTable::set_readonly_fields`] fills it. **Cost:**
+    /// one `bool` per field per class, once per process, not per instance.
+    readonly_fields: Vec<bool>,
     /// Each field slot's declared type, spelled as the declaration spells it —
     /// empty for a class no declaration laid out, on [`Self::public_fields`]'
     /// terms exactly.
@@ -1503,6 +1518,13 @@ impl ClassDesc {
         self.protected_fields.get(index).copied().unwrap_or(false)
     }
 
+    /// Whether slot `index` is declared `readonly` — see
+    /// [`Self::readonly_fields`]. `false` for a slot nothing told this class.
+    #[must_use]
+    pub fn field_is_readonly(&self, index: usize) -> bool {
+        self.readonly_fields.get(index).copied().unwrap_or(false)
+    }
+
     /// Every class constant this class answers, in declaration order with each
     /// ancestor's after its own — see [`Self::constants`].
     #[must_use]
@@ -2005,6 +2027,7 @@ impl ClassTable {
             secret_fields: Vec::new(),
             public_fields: Vec::new(),
             protected_fields: Vec::new(),
+            readonly_fields: Vec::new(),
             field_types: Vec::new(),
             field_classes: Vec::new(),
             constants: Vec::new(),
@@ -2168,6 +2191,29 @@ impl ClassTable {
             protected.len()
         );
         desc.protected_fields = protected;
+    }
+
+    /// Fills in `id`'s per-slot `readonly` bits — see
+    /// [`ClassDesc::readonly_fields`].
+    ///
+    /// # Panics
+    ///
+    /// If `id` does not belong to this table, or if `readonly` is not one
+    /// entry per slot — a length disagreement would let an erased write reach
+    /// a `readonly` slot.
+    pub fn set_readonly_fields(&mut self, id: ClassId, readonly: Vec<bool>) {
+        let desc = self
+            .classes
+            .get_mut(id.0)
+            .expect("a class id always belongs to the table that handed it out");
+        assert!(
+            readonly.len() == desc.fields.len(),
+            "`{}` has {} field slots but {} declared `readonly` bits",
+            desc.name,
+            desc.fields.len(),
+            readonly.len()
+        );
+        desc.readonly_fields = readonly;
     }
 
     /// Fills in `id`'s class constants — see [`ClassDesc::constants`].
@@ -4615,6 +4661,10 @@ pub unsafe extern "C" fn nvs_object_slot_probe(
 /// A third when the receiver is not an object at all, in PHP's own wording —
 /// [`nvs_object_slot_get`]'s own third, and reachable for the same one reason.
 ///
+/// A fourth when the field is declared `readonly`
+/// ([`ClassDesc::field_is_readonly`]): a constructor writes its own slots
+/// inline, so an erased write is never the one that initializes the field.
+///
 /// # Safety
 ///
 /// `ctx` and `out` must satisfy [`crate::run_helper`]'s contract, `name`/`len`
@@ -5076,6 +5126,17 @@ pub fn write_erased_property(
             desc.name()
         )));
     };
+    // `rule:classes/lateinit-restrictions`' "assigned exactly once, during
+    // construction". A constructor writes its own slots inline and the graph
+    // decoder through `NvsObj::set_field`, so neither comes here, and a
+    // `readonly` slot reached here is refused whoever writes it. The checker
+    // refuses every such write it can see; this is the receiver it cannot.
+    if desc.field_is_readonly(slot) {
+        return Err(Fault::thrown(format!(
+            "cannot modify `readonly` property `{}::${name}`",
+            desc.name()
+        )));
+    }
     if let Some(declared) = desc.field_tag(slot) {
         let actual = value.exact_tag();
         if actual != Some(declared) {

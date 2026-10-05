@@ -1574,6 +1574,15 @@ impl Classes {
             self.table
                 .set_protected_fields(id, class.protected_fields.clone());
         }
+        // The `readonly` bit, on the same terms and guarded the same way: a
+        // class with no list reads as one with no `readonly` property, which is
+        // what a synthesized class is. An erased write checks it where it lands.
+        if class.readonly_fields.len() == class.fields.len()
+            && class.readonly_fields.contains(&true)
+        {
+            self.table
+                .set_readonly_fields(id, class.readonly_fields.clone());
+        }
         // The declared type beside it, at the same granularity and guarded the
         // same way: `Core\Reflect\PropertyInfo` names the type a slot was
         // declared with, and `nvs_runtime::ClassDesc::field_tag` — the only

@@ -1,0 +1,41 @@
+--TEST--
+A write to a `readonly` property through an `object` receiver or `Core\Reflect\ClassInfo::set` throws, and the value stays as the constructor wrote it — `rule:classes/lateinit-restrictions`
+--FILE--
+<?nvs
+// The checker refuses every `readonly` write it can see. These two writes name
+// no class it could check, so the run-time check throws instead.
+class Box {
+    public readonly int $v;
+    public int $other = 0;
+    public function constructor(int $v) {
+        $this->v = $v;
+    }
+}
+
+var $box = new Box(1);
+
+// An `object` receiver has no class to check the write against.
+object $erased = $box;
+try {
+    $erased->v = 9;
+    echo "erased write", "\n";
+} catch (RuntimeError $refused) {
+    echo $refused->message, "\n";
+}
+
+// A reflective write throws the same error.
+var $described = Core\Reflect::forObject($box);
+try {
+    $described->set($box, "v", 9);
+    echo "reflective write", "\n";
+} catch (RuntimeError $refused) {
+    echo $refused->message, "\n";
+}
+
+// A property that is not `readonly` is still written.
+$erased->other = 5;
+echo $box->v, " ", $box->other, "\n";
+--EXPECT--
+cannot modify `readonly` property `Box::$v`
+cannot modify `readonly` property `Box::$v`
+1 5

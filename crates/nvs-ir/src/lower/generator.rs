@@ -530,6 +530,7 @@ pub(crate) fn lower_generator(
         secret_fields: Vec::new(),
         public_fields: Vec::new(),
         protected_fields: Vec::new(),
+        readonly_fields: Vec::new(),
         constants: Vec::new(),
         attributes: Vec::new(),
         field_types: Vec::new(),

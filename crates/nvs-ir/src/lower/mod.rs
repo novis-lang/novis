@@ -832,6 +832,9 @@ pub fn lower_program(
                 // `private` one, copied for the same reason and aligned to the
                 // same order.
                 protected_fields: layout.protected_fields.clone(),
+                // The `readonly` bit, copied for the same reason and aligned
+                // to the same order.
+                readonly_fields: layout.readonly_fields.clone(),
                 // The declared type beside it, aligned to the same slot order
                 // and copied for the same reason: the spelling lives where the
                 // declaration does.
@@ -898,6 +901,7 @@ pub fn lower_program(
         secret_fields: Vec::new(),
         public_fields: Vec::new(),
         protected_fields: Vec::new(),
+        readonly_fields: Vec::new(),
         constants: Vec::new(),
         attributes: Vec::new(),
         field_types: Vec::new(),
@@ -929,6 +933,7 @@ pub fn lower_program(
         secret_fields: Vec::new(),
         public_fields: Vec::new(),
         protected_fields: Vec::new(),
+        readonly_fields: Vec::new(),
         constants: Vec::new(),
         attributes: Vec::new(),
         field_types: Vec::new(),
@@ -2122,6 +2127,7 @@ impl<'a> Lowering<'a> {
             // `protected`, there being no class for one to be protected from.
             public_fields: vec![true; field_count],
             protected_fields: vec![false; field_count],
+            readonly_fields: Vec::new(),
             // Empty rather than one entry per slot, which is `ir::Class`'s
             // "nothing told this class": an anonymous object declares no type to
             // spell, its slots being typed by what was written into them.
@@ -3796,6 +3802,7 @@ fn nested_shapes(
             secret_fields: vec![false; field_count],
             public_fields: vec![true; field_count],
             protected_fields: vec![false; field_count],
+            readonly_fields: Vec::new(),
             field_types: Vec::new(),
             field_classes: Vec::new(),
             constants: Vec::new(),
