@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-types/src/layout.rs",
-  "title": "Flattening a class's methods, constants and fields dedupes each one against everything collected so far.",
-  "text": "From the Stage 4 review, not re-run: `crates/nvs-types/src/layout.rs:1005` (also 836 and 974, driven per class from 491-527) walks the whole superclass chain for every class and dedupes with `iter().any`. That is O(M²) per class in its members, and ancestors are flattened again for every subclass, O(C·D·M) overall. The walk also recurses once per `extends` level. A name-keyed map, and each class's flattened layout reused by its subclasses, make it linear. Ladder: `compiler/members.nvs`, one class with M methods, then a chain of D classes, `compile` kind.",
-  "goal": "performance-pass"
-}
