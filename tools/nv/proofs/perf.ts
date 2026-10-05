@@ -40,9 +40,7 @@ const ITER_RE = /(?:\/\/|#)\s*bench:\s*iterations\s+([0-9_]+)/;
 /** `// bench: allocations 0` and its siblings: what the bench expects per operation. Met to within a
  * hundredth, so a one-off set-up allocation over many iterations rounds away and a per-call one does not. */
 const EXPECT_RE = /(?:\/\/|#)\s*bench:\s*(allocations|calls|statements|bytes)\s+([0-9_]+)/g;
-/** Whether a bench with no `// bench: complexity` line fails its growth proof. It is off while benches
- * without the line remain under `benches/members/`, because each of them would fail at once. */
-export const COMPLEXITY_REQUIRED = false;
+
 /** Plain runs per batch of the growth ramp. Its clock is reported and never decides, so two are enough. */
 const RAMP_REPS = 2;
 /** The one line `nvs run --count` prints on standard error at exit. */
@@ -63,7 +61,9 @@ export class PerfError extends Error {}
  * that could not be read. */
 export class ProgramFailed extends PerfError {}
 
-const firstLine = (text: string) => text.trim().split(/\r?\n/)[0] ?? "";
+/** The first line of a run's standard error that says why it failed: `--count` writes its `compile:`
+ * line ahead of any error. */
+export const firstLine = (text: string) => text.trim().split(/\r?\n/).find((l) => !/^(compile|count): /.test(l)) ?? "";
 
 /** What `recordPerf` is measuring now, which the progress text starts with: `calibrating`, `feature 3/12`. */
 let measuring = "";
@@ -88,7 +88,7 @@ async function timeProgram(nvs: string, path: string, reps: number): Promise<[nu
  * which is `path` itself unless `path` is a rewritten copy of it. */
 export async function countProgram(nvs: string, path: string, proof = path): Promise<Record<string, number>> {
   const out = await spawnProof([nvs, "run", "--count", path], proof, TIMEOUT_MS);
-  if (out.code !== 0) throw new ProgramFailed(`${path} exited ${out.code} under --count:${firstLine(out.stderr)}`);
+  if (out.code !== 0) throw new ProgramFailed(`${path} exited ${out.code} under --count: ${firstLine(out.stderr)}`);
   const m = COUNT_LINE_RE.exec(out.stderr.replace(/\r\n/g, "\n"));
   if (!m) throw new PerfError(`${path}: \`nvs run --count\` printed no count line -- is ${nvs} built from this tree?`);
   return Object.fromEntries(COUNTS.map((k, i) => [k, Number(m[i + 1])]));
@@ -148,7 +148,8 @@ async function measureOne(nvs: string, bench: string, reps: number, floor: numbe
   // because it imports this module's counting run in turn.
   const { growthOf } = await import("../cmd/scaling.ts");
   measuring = `${measuring}, ramping`;
-  const growth = await growthOf(bench, ramp, COMPLEXITY_REQUIRED);
+  // A bench with no `// bench: complexity` line fails its proof.
+  const growth = await growthOf(bench, ramp, true);
   if (growth.complexity) fig.complexity = growth.complexity;
   const clock = (s: number | null) => (s === null ? null : round(s, 3));
   const [batches, sized] = growth.ramps;

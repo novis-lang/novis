@@ -115,7 +115,8 @@ import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { abs, DISCARD_PROFILE, rel, ROOT } from "../lib/paths.ts";
 import { progress } from "../lib/progress.ts";
 import { fixed } from "../lib/py.ts";
-import { countProgram, COUNTS, PerfError, ProgramFailed } from "../proofs/perf.ts";
+import { knownGap } from "../proofs/collect.ts";
+import { countProgram, COUNTS, firstLine, PerfError, ProgramFailed } from "../proofs/perf.ts";
 import { read } from "../proofs/roster.ts";
 import { releaseBinary, skipReason, spawnProof } from "../proofs/run.ts";
 import { freePort, hammer, HttpConn, type HttpShape, Server } from "./bench.ts";
@@ -416,7 +417,7 @@ async function timeRun(nvs: string, copy: string, bench: string, reps: number): 
   let best = Infinity;
   for (let i = 0; i < reps; i++) {
     const out = await spawnProof([nvs, "run", copy], copy, TIMEOUT_MS, { unlogged: true });
-    if (out.code !== 0) throw new ProgramFailed(`${bench} exited ${out.code} at a batch:${out.stderr.trim().split(/\r?\n/)[0] ?? ""}`);
+    if (out.code !== 0) throw new ProgramFailed(`${bench} exited ${out.code} at a batch: ${firstLine(out.stderr)}`);
     best = Math.min(best, out.ms * 1e6);
   }
   return best;
@@ -840,10 +841,11 @@ export interface Growth {
 /**
  * The growth half of the perf proof (`rule:testing/feature-proofs`): the bench's ramp over batches, whose
  * cost per operation may not rise, and for a complexity other than `constant` the size ramp of its
- * `.scale.nvs` sibling under that complexity's bound. A ramp that grows, or a program that cannot be
- * ramped because it is malformed or exits with an error, is a finding. A ramp that stays unclear keeps its notes and is judged neither way. `required`
- * makes a bench with no `// bench: complexity` line a finding. Callgrind runs only where `opts.callgrind`
- * allows it and the counts did not settle.
+ * `.scale.nvs` sibling under that complexity's bound. A ramp that grows is a finding, and so is a
+ * program that cannot be ramped because it is malformed or exits with an error. A ramp that stays
+ * unclear keeps its notes and is judged neither way. `required` makes a bench with no
+ * `// bench: complexity` line a finding. Callgrind runs only where `opts.callgrind` allows it and the
+ * counts did not settle.
  */
 export async function growthOf(bench: string, opts: Options, required: boolean, measure: Measure = RUN): Promise<Growth> {
   const complexity = COMPLEXITY_RE.exec(read(bench))?.[1] ?? null;
@@ -1001,7 +1003,8 @@ function arg(args: string[], name: string): string | undefined {
 }
 
 /** `--growth`: each bench judged by `growthOf`, as `--record-perf` judges it, with a missing declaration
- * a finding and callgrind off. It prints every ramp of a bench with a finding, and fails on any finding. */
+ * a finding and callgrind off. It prints every ramp of a bench with a finding, and fails on any finding
+ * but those of a bench whose `// proof: gap` marker records them. */
 async function growthRun(args: string[]): Promise<number> {
   const named = arg(args, "--nvs");
   const reps = Number(arg(args, "--reps") ?? 2);
@@ -1030,19 +1033,22 @@ async function growthRun(args: string[]): Promise<number> {
   const opts: Options = { nvs, reps, wslNvs: DEFAULT_WSL_NVS, callgrind: false, scratch };
   console.log(`nv scaling: the growth of ${todo.length} benches, ${rel(nvs)}`);
   let failed = 0;
+  let gaps = 0;
   try {
     for (const bench of todo) {
       const g = await growthOf(bench, opts, true);
-      if (g.findings.length) failed++;
+      const gap = g.findings.length > 0 && knownGap(read(bench)) !== null;
+      if (gap) gaps++;
+      else if (g.findings.length) failed++;
       if (!all && g.findings.length === 0) continue;
-      console.log(`${g.findings.length ? "FAIL" : "ok  "} ${bench.replace(/^benches\/[^/]+\//, "")}  complexity ${g.complexity ?? "(none)"}`);
+      console.log(`${gap ? "gap " : g.findings.length ? "FAIL" : "ok  "} ${bench.replace(/^benches\/[^/]+\//, "")}  complexity ${g.complexity ?? "(none)"}`);
       for (const j of g.ramps) console.log(line(j));
       for (const f of g.findings) console.log(`            ${f}`);
     }
   } finally {
     if (existsSync(scratch)) rmSync(scratch, { recursive: true, force: true });
   }
-  console.log(`nv scaling: ${todo.length - failed} benches meet their growth, ${failed} do not`);
+  console.log(`nv scaling: ${todo.length - failed - gaps} benches meet their growth, ${gaps} miss it under a recorded gap, ${failed} do not`);
   return failed ? 1 : 0;
 }
 
@@ -1055,7 +1061,7 @@ export async function run(argv: string[]): Promise<number> {
     --iterations          ramp every bench under ${BENCHES}/ over small batches instead
     --growth              judge every bench under ${BENCHES}/ as its perf proof does: its batches, its
                           \`.scale.nvs\` sibling, and a missing \`// bench: complexity\`; writes no record
-    --check              print one line when nothing grows past its bound, for an acceptance check
+    --check               print one line when nothing grows past its bound, for an acceptance check
     --areas               fail while an area has no ladder; with --reviewed, also no section in ${REVIEW}
     <filter>...           only the programs whose path contains one of these
     --nvs <path>          the binary to run, instead of the release build
