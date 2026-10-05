@@ -1,0 +1,25 @@
+<?nvs
+// Writes `Debug` records with many fields while the log level is `error`.
+// A request with its debug logging turned off does this on every call.
+// scaling: start 250
+// scaling: max 4000
+// scaling: expect linear
+
+class Bench {
+    public static function run(uint $size): uint {
+        array<mixed> $fields = [];
+        uint $i = 0;
+        while ($i < $size) {
+            $fields["key" . $i] = "value " . $i;
+            $i = $i + 1;
+        }
+        uint $calls = 0;
+        while ($calls < $size) {
+            Core\Log::write(Core\Log\Level::Debug, "step " . $calls, $fields);
+            $calls = $calls + 1;
+        }
+        return $calls + Core\Arr::count($fields);
+    }
+}
+
+echo Bench::run(250), "\n";

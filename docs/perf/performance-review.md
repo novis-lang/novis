@@ -273,9 +273,8 @@ connection.
 **Read:** every process-wide map, log, metric, rate-limit and cache table in the runtime, the
 standard library and the server.
 
-**Found:** the cache order queue, under the cache record. A log call below the level still builds
-its record
-([`a-filtered-log-call-builds-its-record`](../../data/gaps/nvs-stdlib/a-filtered-log-call-builds-its-record.json)).
+**Found:** the cache order queue, under the cache record. A log call below the level built its
+record; it is fixed and returns before it builds one.
 Refused metric names grow a map without bound
 ([`metric-refusals-grow-with-distinct-names`](../../data/gaps/nvs-runtime/metric-refusals-grow-with-distinct-names.json)).
 

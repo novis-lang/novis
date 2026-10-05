@@ -360,12 +360,7 @@ impl Ctx {
         record: &Record,
         unconfigured: LogChannel,
     ) -> io::Result<()> {
-        if matches!(self.log, LogTarget::Unread) {
-            self.log = log_target(self.config.as_ref());
-            self.log_minimum = log_minimum(self.config.as_ref());
-            self.log_format = log_format(self.config.as_ref());
-        }
-        if record.envelope.level < self.log_minimum {
+        if !self.log_writes(record.envelope.level) {
             return Ok(());
         }
         let rendered = rendered(self.log_format, record);
@@ -377,6 +372,23 @@ impl Ctx {
             LogChannel::Output => self.write_output(line),
             LogChannel::Diagnostic => self.write_diagnostic(line),
         }
+    }
+
+    /// Whether [`Self::write_log_record`] writes a record at `level`, or drops
+    /// it below `[log] level`.
+    ///
+    /// A producer whose record is costly to build asks this first, so a call
+    /// the floor drops builds nothing: `Core\Log::write` converts no fields,
+    /// reads no clock and takes no coalescing slot for a record that would
+    /// never be written. The answer is the same comparison
+    /// [`Self::write_log_record`] makes, over the same directives, read once.
+    pub fn log_writes(&mut self, level: Level) -> bool {
+        if matches!(self.log, LogTarget::Unread) {
+            self.log = log_target(self.config.as_ref());
+            self.log_minimum = log_minimum(self.config.as_ref());
+            self.log_format = log_format(self.config.as_ref());
+        }
+        level >= self.log_minimum
     }
 
     /// Fills the envelope keys `rule:errors/log-write` asks for beyond `level` and `msg` — `ts`, `request_id`, and

@@ -228,6 +228,13 @@ nvs_runtime::nvs_helper! {
         let source = unsafe { nvs_runtime::source::of_operand(args[0]) };
         let level = level_of(&args[1])?;
         let message = message_of(&args[2])?;
+        // A record below `[log] level` is never written, so it is never built
+        // either. Building it first would cost the fields' conversion, the
+        // clock and a slot in `nvs_runtime::floor`'s coalescing table, and
+        // that slot could push out a record that is written.
+        if !ctx.log_writes(level) {
+            return Ok(Value::null());
+        }
         let mut record = record(ctx, source, level, message, args[3]);
         // `rule:errors/a-repeat-is-bounded-at-the-sink-that-suffers`: this
         // target's bound is a finite disk, and the cheapest place to protect
@@ -1026,6 +1033,51 @@ mod tests {
             written.lines().count(),
             6,
             "three levels at or above the minimum, from two writers: {written}"
+        );
+    }
+
+    /// A record below `[log] level` takes no slot in the coalescing table, so a
+    /// run of them cannot push out the window of a record that is written.
+    ///
+    /// One `Error` opens a window, then more distinct `Debug` records than the
+    /// table has slots arrive under `level = "Warn"`. The repeat of the `Error`
+    /// is still inside its window and is swallowed, so the output is one line.
+    /// A filtered record that took a slot would have evicted that window, and
+    /// the repeat would be a second line.
+    // covers: Core\Log::write
+    #[test]
+    fn a_record_below_the_minimum_takes_no_coalescing_slot() {
+        let mut ctx = Ctx::buffered();
+        ctx.set_config(crate::tests::granting("[log]\nlevel = \"Warn\"\n"));
+        let write = |ctx: &mut Ctx, level: Level, message: &str| {
+            call(
+                nvs_core_log_write,
+                ctx,
+                &[
+                    no_source(),
+                    Value::int(level.syslog_severity().into()),
+                    Value::str(NvsStr::new(message.as_bytes())),
+                    Value::array(NvsArray::new()),
+                ],
+            )
+            .expect("a buffered sink is the one output that cannot fail");
+        };
+
+        write(&mut ctx, Level::Error, "the one that is written");
+        for n in 0..floor::LOG_WINDOW_SLOTS * 2 {
+            write(&mut ctx, Level::Debug, &format!("filtered {n}"));
+        }
+        write(&mut ctx, Level::Error, "the one that is written");
+
+        let output = String::from_utf8(
+            ctx.take_buffered_output()
+                .expect("a buffered context hands its bytes back"),
+        )
+        .expect("a JSON Lines line is text");
+        assert_eq!(
+            output.lines().count(),
+            1,
+            "the repeat is inside its window, which no filtered record evicted: {output}"
         );
     }
 

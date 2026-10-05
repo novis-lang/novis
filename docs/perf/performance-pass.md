@@ -46,6 +46,13 @@ the parsed array on the request, and every later call is one lookup. The ladders
 4096 and are linear (clock slopes 1.01 and 1.13). The cost is one parsed array per request that
 reads a form or a query, freed with the request. The before figure was not measured.
 
+**A `Core\Log::write` below `[log] level` returns before it builds a record.** It converted the
+fields, read the clock and took a coalescing slot first, so a filtered call cost O(fields), and
+filtered records could evict the window of a record that is written. The ladder
+[`traffic/debug-log`](../../benches/scaling/traffic/debug-log.nvs) makes n filtered calls with n
+fields each: at 4000, the best of five alternating runs went from 497 ms to 41 ms, with the same
+output. It spends nothing.
+
 ## Decisions for you
 
 **Should a request head get a total deadline as well as its idle one?** `header_timeout` is an idle

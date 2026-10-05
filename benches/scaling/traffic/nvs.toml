@@ -1,0 +1,3 @@
+# Only `Error` and `Critical` records are written. Every `Debug` record is skipped.
+[log]
+level = "error"
