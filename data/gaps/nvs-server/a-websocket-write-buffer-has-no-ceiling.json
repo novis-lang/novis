@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-server/src/socket.rs",
-  "title": "A WebSocket whose peer stops reading keeps every frame the program sends in a write buffer with no ceiling.",
-  "text": "`WebSocketConfig::default()` (`crates/nvs-server/src/socket.rs:217-219`) sets only `max_frame_size` and `max_message_size`, so `max_write_buffer_size` stays at the library default. The review read that this is `usize::MAX` and that a `send` that times out (`socket.rs:419`) leaves its frame queued, so a program that catches the error and keeps sending grows the buffer O(sends × frame) until the connection's lifetime ends it; the library's default is not checked here. That memory is outside the request's cap, which is an isolation question first. A write-buffer ceiling of a few frames, with a send past it failing at once, bounds it. Ladder: `connections/stalled-socket.nvs`, a peer that never reads while the program sends 1 KB per tick; peak memory flat.",
-  "goal": "performance-pass"
-}
