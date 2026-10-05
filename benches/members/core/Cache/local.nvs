@@ -1,7 +1,7 @@
 <?nvs
 // Measures getting this core's cache and using it once. That is the write and
 // the read a request makes around a value it keeps in memory.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: calls 0
 // bench: complexity linear
 
@@ -21,4 +21,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

@@ -1,7 +1,7 @@
 <?nvs
 // Measures one `select` that reads a few rows into objects of a class, as a
 // program does when it shows a page of a list.
-// bench: iterations 10000
+// bench: iterations 256
 // bench: complexity linear
 use Core\Db\Derive;
 
@@ -41,4 +41,4 @@ class Bench {
     }
 }
 
-echo Bench::run(10000), "\n";
+echo Bench::run(256), "\n";

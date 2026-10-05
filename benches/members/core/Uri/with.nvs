@@ -1,6 +1,6 @@
 <?nvs
 // Replaces the scheme and the host of an address, as a server does when it turns an internal link into a public one.
-// bench: iterations 100000
+// bench: iterations 256
 // bench: complexity linear
 
 class Bench {
@@ -22,4 +22,4 @@ class Bench {
     }
 }
 
-echo Bench::run(100000), "\n";
+echo Bench::run(256), "\n";

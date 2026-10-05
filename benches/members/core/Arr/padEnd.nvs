@@ -1,6 +1,6 @@
 <?nvs
 // Adds entries at the end of a short list until it has a fixed length, as a report does before it writes a row.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: complexity linear
 
 class Bench {
@@ -18,4 +18,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

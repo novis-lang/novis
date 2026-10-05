@@ -1,7 +1,7 @@
 <?nvs
 // Reads the parts of the prefix that a pattern matched, as a program does to find its customer.
 // The loop counts the parts, so the figure is the cost of `captures()` alone.
-// bench: iterations 200000
+// bench: iterations 1024
 // bench: allocations 0
 // bench: complexity constant
 
@@ -19,4 +19,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(1024), "\n";

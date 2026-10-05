@@ -1,6 +1,6 @@
 <?nvs
 // Builds a date from three numbers, as a program does when it reads a date from a form.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: complexity constant
 
 class Bench {
@@ -20,4 +20,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

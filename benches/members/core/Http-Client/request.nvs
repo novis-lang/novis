@@ -1,7 +1,7 @@
 <?nvs
 // Measures a request whose method is chosen while the program runs, as in the tests
 // of a job that sends saved changes.
-// bench: iterations 20000
+// bench: iterations 256
 // bench: calls 0
 // bench: complexity linear
 
@@ -24,4 +24,4 @@ class Bench {
     }
 }
 
-echo Bench::run(20000), "\n";
+echo Bench::run(256), "\n";

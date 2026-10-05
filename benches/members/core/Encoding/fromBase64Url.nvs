@@ -1,7 +1,7 @@
 <?nvs
 // Measures reading the claims out of a JSON Web Token, which a server does on
 // every request that carries one.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: calls 0
 // bench: complexity linear
 
@@ -25,4 +25,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

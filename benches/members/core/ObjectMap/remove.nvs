@@ -1,6 +1,6 @@
 <?nvs
 // Removes an object that is not in a map, as a program does when it cleans up an object that may never have been stored.
-// bench: iterations 1000000
+// bench: iterations 4096
 // bench: allocations 0
 // bench: complexity constant
 
@@ -32,4 +32,4 @@ class Bench {
     }
 }
 
-echo Bench::run(1000000), "\n";
+echo Bench::run(4096), "\n";

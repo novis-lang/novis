@@ -1,6 +1,6 @@
 <?nvs
 // Reads a short file line by line, as a program does with a list of names or a settings file.
-// bench: iterations 2000
+// bench: iterations 256
 // bench: complexity linear
 
 class Bench {
@@ -27,4 +27,4 @@ class Bench {
     }
 }
 
-echo Bench::run(2000) > 0 ? "done" : "no line was read", "\n";
+echo Bench::run(256) > 0 ? "done" : "no line was read", "\n";

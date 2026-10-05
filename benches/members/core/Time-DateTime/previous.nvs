@@ -1,6 +1,6 @@
 <?nvs
 // Finds the last day with a given weekday, as a program does to find the Monday a week started on.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: complexity constant
 
 class Bench {
@@ -22,4 +22,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

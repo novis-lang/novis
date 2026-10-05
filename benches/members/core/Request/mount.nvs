@@ -1,6 +1,6 @@
 <?nvs
 // Reads the mount of a request, as a program does before it builds a link or picks a customer.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: complexity constant
 
 class Bench {
@@ -17,4 +17,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

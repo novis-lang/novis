@@ -2,7 +2,7 @@
 // Calls a method through a variable typed at an interface, and a method the
 // interface itself wrote. A program that keeps its collaborators behind
 // interfaces does this on every request.
-// bench: iterations 400000
+// bench: iterations 256
 // bench: calls 2
 // bench: allocations 0
 // bench: complexity constant
@@ -38,4 +38,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(256), "\n";

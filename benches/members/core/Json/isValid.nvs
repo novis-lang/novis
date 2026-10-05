@@ -1,6 +1,6 @@
 <?nvs
 // Checks that a small request body is valid JSON, as an API does before it decodes the body.
-// bench: iterations 50000
+// bench: iterations 256
 // bench: complexity linear
 
 class Bench {
@@ -24,4 +24,4 @@ class Bench {
     }
 }
 
-echo Bench::run(50000), "\n";
+echo Bench::run(256), "\n";

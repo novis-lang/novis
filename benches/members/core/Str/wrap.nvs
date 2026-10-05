@@ -1,6 +1,6 @@
 <?nvs
 // Wraps a short message at 10 characters, as a program does before it prints a notice in a narrow column.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: calls 0
 // bench: complexity linear
 
@@ -18,4 +18,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

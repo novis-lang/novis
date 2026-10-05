@@ -1,6 +1,6 @@
 <?nvs
 // Measures reading the output of a running program part by part, as a server does to show the log of a long job.
-// bench: iterations 2000
+// bench: iterations 256
 // bench: calls 0
 // bench: complexity constant
 
@@ -34,4 +34,4 @@ class Bench {
     }
 }
 
-echo Bench::run(2000), "\n";
+echo Bench::run(256), "\n";

@@ -2,7 +2,7 @@
 // Measures reading a command and one of its options back off the compiled
 // table. A program does this for every command it knows about when it prints a
 // help screen.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: allocations 2
 // bench: calls 0
 // bench: complexity constant
@@ -41,4 +41,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

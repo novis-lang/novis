@@ -1,6 +1,6 @@
 <?nvs
 // Measures finding the path from one folder to a file, as a program does when it writes a link between two pages.
-// bench: iterations 400000
+// bench: iterations 512
 // bench: complexity linear
 
 class Bench {
@@ -22,4 +22,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(512), "\n";

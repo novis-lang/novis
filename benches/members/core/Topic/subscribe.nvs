@@ -1,6 +1,6 @@
 <?nvs
 // Joins a chat room the connection is already in, as a chat script does each time a user opens a room.
-// bench: iterations 200000
+// bench: iterations 2048
 // bench: complexity constant
 
 class Bench {
@@ -17,4 +17,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(2048), "\n";

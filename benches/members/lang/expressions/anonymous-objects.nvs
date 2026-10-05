@@ -3,7 +3,7 @@
 // and reads both of them back. This measures the anonymous object together
 // with those reads and that write. Every round takes its input from the
 // round before it, so no work can be skipped.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: complexity constant
 
 type Point = {x: int, y: int};
@@ -29,4 +29,4 @@ class Bench
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

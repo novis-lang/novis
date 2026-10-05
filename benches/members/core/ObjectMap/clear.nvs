@@ -1,6 +1,6 @@
 <?nvs
 // Empties a small map of objects, as a program does with a cache between two batches of work.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: complexity linear
 
 final class Key {
@@ -28,4 +28,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

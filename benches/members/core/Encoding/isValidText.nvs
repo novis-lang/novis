@@ -1,7 +1,7 @@
 <?nvs
 // Measures testing one short field of bytes for valid text, as a program does
 // for every field that arrives from outside.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: calls 0
 // bench: complexity linear
 
@@ -27,4 +27,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

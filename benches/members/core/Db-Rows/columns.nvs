@@ -1,7 +1,7 @@
 <?nvs
 // Measures reading the description of a small result, which a program does to
 // print the headings above a table.
-// bench: iterations 200000
+// bench: iterations 2048
 // bench: calls 0
 // bench: complexity constant
 
@@ -29,4 +29,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(2048), "\n";

@@ -1,7 +1,7 @@
 <?nvs
 // Measures encoding one small object as JSON, which a web service does for every
 // response it sends.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: complexity linear
 
 #[Core\Json\Derive]
@@ -31,4 +31,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

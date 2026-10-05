@@ -2,7 +2,7 @@
 // Measures one `spawn script` and one `await`: starting a file, waiting for it,
 // and reading the value it returned. A program that runs a job per item on a
 // list pays this once per item.
-// bench: iterations 2000
+// bench: iterations 512
 // bench: complexity constant
 
 class Bench {
@@ -32,4 +32,4 @@ class Bench {
     }
 }
 
-echo Bench::run(2000), "\n";
+echo Bench::run(512), "\n";

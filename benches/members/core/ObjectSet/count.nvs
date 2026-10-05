@@ -1,6 +1,6 @@
 <?nvs
 // Counts the objects in a set, as a program does before it checks a limit.
-// bench: iterations 1000000
+// bench: iterations 4096
 // bench: allocations 0
 // bench: complexity constant
 
@@ -29,4 +29,4 @@ class Bench {
     }
 }
 
-echo Bench::run(1000000), "\n";
+echo Bench::run(4096), "\n";

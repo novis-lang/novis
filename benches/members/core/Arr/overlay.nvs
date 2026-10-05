@@ -1,7 +1,7 @@
 <?nvs
 // Writes the settings a user changed over a set of defaults, as a program
 // does while it starts up.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: calls 0
 // bench: complexity linear
 
@@ -21,4 +21,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

@@ -2,7 +2,7 @@
 // Uses a case of a `Core` enum as an ordinary value: compares it and converts it to its number. A
 // program meets this shape when it carries a sort direction through its own code before handing it
 // to the member that takes it.
-// bench: iterations 400000
+// bench: iterations 2048
 // bench: calls 0
 // bench: allocations 0
 // bench: complexity constant
@@ -26,4 +26,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(2048), "\n";

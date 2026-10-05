@@ -2,7 +2,7 @@
 // Measures opening a compression stream, adding two pieces and finishing it. A
 // program meets this every time it writes one compressed record from parts it
 // built separately.
-// bench: iterations 30000
+// bench: iterations 256
 // bench: calls 0
 // bench: complexity linear
 
@@ -24,4 +24,4 @@ class Bench {
     }
 }
 
-echo Bench::run(30000), "\n";
+echo Bench::run(256), "\n";

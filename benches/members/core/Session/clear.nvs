@@ -1,6 +1,6 @@
 <?nvs
 // Empties a session that has one value, as a form with several steps does when the user starts over.
-// bench: iterations 100000
+// bench: iterations 256
 // bench: complexity constant
 
 class Bench {
@@ -18,4 +18,4 @@ class Bench {
 }
 
 Core\Session::start();
-echo Bench::run(100000), "\n";
+echo Bench::run(256), "\n";

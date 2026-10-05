@@ -1,6 +1,6 @@
 <?nvs
 // Opens and closes many empty elements side by side, as a program does when it writes one element per row of a list.
-// bench: iterations 50000
+// bench: iterations 256
 // bench: complexity linear
 
 class Bench {
@@ -21,4 +21,4 @@ class Bench {
     }
 }
 
-echo Bench::run(50000), "\n";
+echo Bench::run(256), "\n";

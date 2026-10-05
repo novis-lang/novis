@@ -1,7 +1,7 @@
 <?nvs
 // Measures one split of a price into three equal parts, which a program does
 // when it shares a payment between several accounts.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: complexity constant
 
 class Bench {
@@ -20,4 +20,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

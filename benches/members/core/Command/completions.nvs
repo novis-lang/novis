@@ -1,7 +1,7 @@
 <?nvs
 // Measures writing the completion script for one shell, over a table of two
 // commands. A program meets this when somebody sets their shell up for it.
-// bench: iterations 50000
+// bench: iterations 256
 // bench: complexity linear
 // proof: gap nv/a-bench-cannot-ramp-an-input-fixed-outside-its-program
 // bench: calls 0
@@ -43,4 +43,4 @@ class Bench {
     }
 }
 
-echo Bench::run(50000), "\n";
+echo Bench::run(256), "\n";

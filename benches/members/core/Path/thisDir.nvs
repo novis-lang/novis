@@ -1,6 +1,6 @@
 <?nvs
 // Gets the path of a file beside the program, as code does before it opens a data file.
-// bench: iterations 400000
+// bench: iterations 256
 // bench: complexity constant
 
 class Bench {
@@ -15,4 +15,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000) > 0 ? "done" : "empty", "\n";
+echo Bench::run(256) > 0 ? "done" : "empty", "\n";

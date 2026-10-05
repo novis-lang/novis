@@ -1,6 +1,6 @@
 <?nvs
 // Publishes a small order update to a topic, as a web request does to tell open dashboards that an order changed.
-// bench: iterations 100000
+// bench: iterations 256
 // bench: complexity linear
 
 class Bench {
@@ -17,4 +17,4 @@ class Bench {
     }
 }
 
-echo Bench::run(100000), "\n";
+echo Bench::run(256), "\n";

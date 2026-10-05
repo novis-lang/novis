@@ -1,6 +1,6 @@
 <?nvs
 // Reads which parameter an attribute is written on, as a framework does when it fills the arguments of a handler.
-// bench: iterations 400000
+// bench: iterations 1024
 // bench: complexity constant
 
 class ArticleController {
@@ -25,4 +25,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(1024), "\n";

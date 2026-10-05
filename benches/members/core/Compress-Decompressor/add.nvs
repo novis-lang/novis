@@ -1,7 +1,7 @@
 <?nvs
 // Measures adding one piece to an open decompression stream. A program meets
 // this on every block of a download it reads.
-// bench: iterations 100000
+// bench: iterations 256
 // bench: calls 0
 // `add` keeps the piece it was given instead of copying it, so one piece costs
 // no memory of its own.
@@ -29,4 +29,4 @@ class Bench {
     }
 }
 
-echo Bench::run(100000), "\n";
+echo Bench::run(256), "\n";

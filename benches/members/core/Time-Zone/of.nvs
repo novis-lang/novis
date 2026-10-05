@@ -1,6 +1,6 @@
 <?nvs
 // Finds a zone by its name, as a program does when it reads the zone saved for a user.
-// bench: iterations 100000
+// bench: iterations 256
 // bench: complexity constant
 
 class Bench {
@@ -19,4 +19,4 @@ class Bench {
     }
 }
 
-echo Bench::run(100000), "\n";
+echo Bench::run(256), "\n";

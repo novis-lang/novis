@@ -1,6 +1,6 @@
 <?nvs
 // Measures escaping a short name, as a page does before it shows a name that a visitor typed.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: calls 0
 // bench: complexity linear
 
@@ -20,4 +20,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

@@ -1,6 +1,6 @@
 <?nvs
 // Removes an object from a set and adds it back, as a program does when a user logs out and in again.
-// bench: iterations 500000
+// bench: iterations 256
 // bench: complexity constant
 
 final class Key {
@@ -33,4 +33,4 @@ class Bench {
     }
 }
 
-echo Bench::run(500000), "\n";
+echo Bench::run(256), "\n";

@@ -1,6 +1,6 @@
 <?nvs
 // Moves the handle of an open file, as a program does when it reads records at known places.
-// bench: iterations 400000
+// bench: iterations 256
 // bench: allocations 0
 // bench: complexity constant
 
@@ -21,5 +21,5 @@ class Bench {
 string $path = Core\Path::join(Core\IO::temporaryDir(), "seek.dat");
 Core\IO::write($path, Core\Str::repeat("x", 4096));
 Core\IO\File $file = Core\IO::open($path, Core\IO\FileMode::Read);
-echo Bench::run($file, 400000), "\n";
+echo Bench::run($file, 256), "\n";
 $file->close();

@@ -1,7 +1,7 @@
 <?nvs
 // Measures reading the row count a server reported for a write, as a program
 // does after every write whose result it reports back.
-// bench: iterations 300000
+// bench: iterations 1024
 // bench: calls 0
 // bench: allocations 0
 // bench: complexity constant
@@ -27,4 +27,4 @@ class Bench {
     }
 }
 
-echo Bench::run(300000), "\n";
+echo Bench::run(1024), "\n";

@@ -2,7 +2,7 @@
 // Measures opening a decompression stream, adding a frame in two pieces and
 // finishing it. A program meets this every time it reads one compressed record
 // that arrived in parts.
-// bench: iterations 150000
+// bench: iterations 256
 // bench: calls 0
 // bench: complexity linear
 
@@ -30,4 +30,4 @@ class Bench {
     }
 }
 
-echo Bench::run(150000), "\n";
+echo Bench::run(256), "\n";

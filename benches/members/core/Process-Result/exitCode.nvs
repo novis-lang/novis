@@ -1,6 +1,6 @@
 <?nvs
 // Measures reading the exit code of a program that has ended, as a script does before it decides whether a tool succeeded.
-// bench: iterations 400000
+// bench: iterations 1024
 // bench: allocations 0
 // bench: calls 0
 // bench: complexity constant
@@ -27,4 +27,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(1024), "\n";

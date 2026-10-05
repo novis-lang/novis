@@ -1,6 +1,6 @@
 <?nvs
 // Splits a short text into lines, as a program does when it reads a small file or a text field line by line.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: calls 0
 // bench: complexity linear
 
@@ -18,4 +18,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

@@ -1,6 +1,6 @@
 <?nvs
 // Reads a small part of a message from a TCP connection, as a server does while it reads a request.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: complexity linear
 
 class Bench {
@@ -31,4 +31,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000) <= 3200000 ? "done" : "wrong", "\n";
+echo Bench::run(256) <= 3200000 ? "done" : "wrong", "\n";

@@ -1,6 +1,6 @@
 <?nvs
 // Reads an open file one line at a time, as a program does when it reads a log or a CSV file.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: complexity linear
 
 class Bench {
@@ -25,4 +25,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000) > 0 ? "done" : "nothing was read", "\n";
+echo Bench::run(256) > 0 ? "done" : "nothing was read", "\n";

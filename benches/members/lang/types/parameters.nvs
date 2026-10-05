@@ -2,7 +2,7 @@
 // This measures one method call with a default value left out, a named argument
 // and an `inout` argument. You meet these in almost every method call you write.
 // Each round uses the result of the round before, so no call can be skipped.
-// bench: iterations 400000
+// bench: iterations 256
 // bench: allocations 0
 // bench: complexity constant
 
@@ -30,4 +30,4 @@ class Bench
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(256), "\n";

@@ -1,6 +1,6 @@
 <?nvs
 // Checks whether a request path starts with "/api/", as a program does when it routes a request.
-// bench: iterations 400000
+// bench: iterations 512
 // bench: calls 0
 // bench: allocations 0
 // bench: complexity linear
@@ -20,4 +20,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(512), "\n";

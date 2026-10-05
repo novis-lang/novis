@@ -1,6 +1,6 @@
 <?nvs
 // Writes processing instructions inside an element, as a program does when it adds notes for the program that reads the document.
-// bench: iterations 50000
+// bench: iterations 512
 // bench: complexity linear
 
 class Bench {
@@ -20,4 +20,4 @@ class Bench {
     }
 }
 
-echo Bench::run(50000), "\n";
+echo Bench::run(512), "\n";

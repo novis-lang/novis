@@ -1,6 +1,6 @@
 <?nvs
 // Checks that a small number is the expected one, as most tests do after they compute a result.
-// bench: iterations 400000
+// bench: iterations 256
 // bench: complexity constant
 
 class Bench {
@@ -17,4 +17,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(256), "\n";

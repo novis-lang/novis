@@ -1,6 +1,6 @@
 <?nvs
 // Reads a small XML document one node at a time, as a program does when it takes a few values from a feed.
-// bench: iterations 100000
+// bench: iterations 256
 // bench: complexity linear
 
 class Bench {
@@ -23,4 +23,4 @@ class Bench {
     }
 }
 
-echo Bench::run(100000), "\n";
+echo Bench::run(256), "\n";

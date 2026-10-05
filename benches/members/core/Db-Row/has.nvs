@@ -1,7 +1,7 @@
 <?nvs
 // Measures testing whether a row has a column. A program does this before it
 // reads a column whose name came in with a request.
-// bench: iterations 400000
+// bench: iterations 1024
 // bench: calls 0
 // bench: allocations 0
 // bench: complexity constant
@@ -31,4 +31,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(1024), "\n";

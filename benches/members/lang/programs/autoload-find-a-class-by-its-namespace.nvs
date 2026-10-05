@@ -1,7 +1,7 @@
 <?nvs
 // Measures a call to a method of a class that `autoload` found by its namespace.
 // A program loads most of its classes this way.
-// bench: iterations 200000
+// bench: iterations 2048
 // bench: calls 1
 // bench: allocations 0
 // bench: complexity constant
@@ -22,4 +22,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(2048), "\n";

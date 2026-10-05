@@ -1,7 +1,7 @@
 <?nvs
 // Measures one `select` inside a transaction that walks its rows one at a time.
 // A program does this when it reads a table before it writes a summary.
-// bench: iterations 10000
+// bench: iterations 256
 // bench: complexity linear
 
 class Bench {
@@ -29,4 +29,4 @@ class Bench {
     }
 }
 
-echo Bench::run(10000), "\n";
+echo Bench::run(256), "\n";

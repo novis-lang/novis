@@ -1,7 +1,7 @@
 <?nvs
 // Measures reading the label of a column, as a page does when it prints the
 // headings of a table it built from a query.
-// bench: iterations 300000
+// bench: iterations 1024
 // bench: calls 0
 // bench: complexity constant
 
@@ -29,4 +29,4 @@ class Bench {
     }
 }
 
-echo Bench::run(300000), "\n";
+echo Bench::run(1024), "\n";

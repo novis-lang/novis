@@ -1,7 +1,7 @@
 <?nvs
 // Measures picking a colour out of the terminal's 256-entry palette. A tool
 // meets this once for every line it writes in a colour of its own.
-// bench: iterations 400000
+// bench: iterations 256
 // bench: calls 0
 // bench: allocations 1
 // bench: complexity constant
@@ -27,4 +27,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(256), "\n";

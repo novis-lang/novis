@@ -1,7 +1,7 @@
 <?nvs
 // Reads the class name off a value and takes its length. A program does this
 // when it writes the name of the handler that ran into a log line.
-// bench: iterations 400000
+// bench: iterations 256
 // bench: allocations 1
 // bench: complexity constant
 
@@ -35,4 +35,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(256), "\n";

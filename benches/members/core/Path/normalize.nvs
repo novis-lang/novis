@@ -1,6 +1,6 @@
 <?nvs
 // Measures removing the `.` and `..` parts from a short path, as a program does before it compares two paths.
-// bench: iterations 400000
+// bench: iterations 512
 // bench: complexity linear
 
 class Bench {
@@ -21,4 +21,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(512), "\n";

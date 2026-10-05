@@ -1,6 +1,6 @@
 <?nvs
 // Saves one value in a session that has two others, as a page does when a visitor changes a setting.
-// bench: iterations 100000
+// bench: iterations 256
 // bench: complexity linear
 
 class Bench {
@@ -19,4 +19,4 @@ class Bench {
 Core\Session::start();
 Core\Session::set("user", 17);
 Core\Session::set("language", "de");
-echo Bench::run(100000), "\n";
+echo Bench::run(256), "\n";

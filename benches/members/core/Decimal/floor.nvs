@@ -1,7 +1,7 @@
 <?nvs
 // Measures one `Core\Decimal::floor` of an amount down to a whole number,
 // which a program does when the part it cuts off is worth nothing.
-// bench: iterations 1000000
+// bench: iterations 4096
 // bench: complexity constant
 
 class Bench {
@@ -19,4 +19,4 @@ class Bench {
     }
 }
 
-echo Bench::run(1000000), "\n";
+echo Bench::run(4096), "\n";

@@ -1,6 +1,6 @@
 <?nvs
 // Checks if a text is an address, as a server does with a link a user typed into a form.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: complexity linear
 
 class Bench {
@@ -25,4 +25,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

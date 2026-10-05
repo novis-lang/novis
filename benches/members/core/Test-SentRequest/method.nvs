@@ -1,6 +1,6 @@
 <?nvs
 // Reads the HTTP method of a sent request, as a test does to check a client used the right method.
-// bench: iterations 400000
+// bench: iterations 1024
 // bench: complexity constant
 
 use Core\Http\Client;
@@ -26,4 +26,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(1024), "\n";

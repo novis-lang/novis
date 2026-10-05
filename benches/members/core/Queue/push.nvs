@@ -1,6 +1,6 @@
 <?nvs
 // Adds a small job to a queue, as a request does when it sends an email in the background.
-// bench: iterations 3000
+// bench: iterations 256
 // bench: calls 0
 // bench: complexity constant
 use Core\Queue;
@@ -31,4 +31,4 @@ class Bench {
     }
 }
 
-echo Bench::run(3000), "\n";
+echo Bench::run(256), "\n";

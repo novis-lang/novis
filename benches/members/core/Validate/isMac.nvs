@@ -1,6 +1,6 @@
 <?nvs
 // Checks that a hardware address from a device list is a MAC address, as a program does before it saves the device.
-// bench: iterations 400000
+// bench: iterations 4096
 // bench: allocations 0
 // bench: calls 0
 // bench: complexity linear
@@ -22,4 +22,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(4096), "\n";

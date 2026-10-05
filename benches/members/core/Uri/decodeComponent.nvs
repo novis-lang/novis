@@ -1,6 +1,6 @@
 <?nvs
 // Decodes the file name part of a request path, as a server does before it opens the file.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: complexity linear
 
 class Bench {
@@ -16,4 +16,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

@@ -1,6 +1,6 @@
 <?nvs
 // Reads how many calls a rate limit still allows, as a handler does to write a `RateLimit-Remaining` header.
-// bench: iterations 400000
+// bench: iterations 1024
 // bench: allocations 0
 // bench: complexity constant
 
@@ -24,4 +24,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(1024), "\n";

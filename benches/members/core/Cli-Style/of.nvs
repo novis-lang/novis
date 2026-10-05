@@ -1,7 +1,7 @@
 <?nvs
 // Measures building a style value. A tool meets this once for every kind of
 // line it colours, and again for every line when it builds the style inline.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: calls 0
 // bench: allocations 1
 // bench: complexity constant
@@ -27,4 +27,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

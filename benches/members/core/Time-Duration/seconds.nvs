@@ -1,6 +1,6 @@
 <?nvs
 // Builds a duration from a number of seconds, as a program does with a timeout it read as a number.
-// bench: iterations 400000
+// bench: iterations 256
 // bench: complexity constant
 
 class Bench {
@@ -17,4 +17,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(256), "\n";

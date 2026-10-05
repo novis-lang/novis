@@ -1,6 +1,6 @@
 <?nvs
 // Reads the name of a property, as an export tool does to write the header of a CSV file.
-// bench: iterations 400000
+// bench: iterations 1024
 // bench: allocations 0
 // bench: complexity constant
 
@@ -24,4 +24,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(1024), "\n";

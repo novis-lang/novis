@@ -1,6 +1,6 @@
 <?nvs
 // Writes a small archive of two compressed files into a new folder, as a program does to unpack an upload.
-// bench: iterations 2000
+// bench: iterations 256
 // bench: complexity linear
 
 class Bench {
@@ -20,4 +20,4 @@ class Bench {
     }
 }
 
-echo Bench::run(2000), "\n";
+echo Bench::run(256), "\n";

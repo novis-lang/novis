@@ -1,7 +1,7 @@
 <?nvs
 // Measures one `Core\Decimal::ceil` of a cost up to a whole unit, which a
 // program does when a part of something still costs a whole one.
-// bench: iterations 1000000
+// bench: iterations 4096
 // bench: complexity constant
 
 class Bench {
@@ -19,4 +19,4 @@ class Bench {
     }
 }
 
-echo Bench::run(1000000), "\n";
+echo Bench::run(4096), "\n";

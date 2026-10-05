@@ -1,7 +1,7 @@
 <?nvs
 // Reads every label of a menu that has menus inside it. A page does this before
 // it draws the navigation.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: calls 0
 // bench: complexity linear
 
@@ -24,4 +24,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

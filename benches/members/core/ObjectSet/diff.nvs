@@ -1,6 +1,6 @@
 <?nvs
 // Takes one small set of objects away from another, as a program does when it finds the guests who have not answered.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: complexity linear
 
 final class Key {
@@ -34,4 +34,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

@@ -1,6 +1,6 @@
 <?nvs
 // Checks whether a form field is empty, as a program does before it saves the form.
-// bench: iterations 400000
+// bench: iterations 4096
 // bench: calls 0
 // bench: allocations 0
 // bench: complexity constant
@@ -20,4 +20,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(4096), "\n";

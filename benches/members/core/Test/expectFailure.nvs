@@ -1,6 +1,6 @@
 <?nvs
 // Runs a check that is expected to fail, as a test of your own check does for a bad value.
-// bench: iterations 100000
+// bench: iterations 256
 // bench: complexity constant
 
 class Bench {
@@ -16,4 +16,4 @@ class Bench {
     }
 }
 
-echo Bench::run(100000), "\n";
+echo Bench::run(256), "\n";

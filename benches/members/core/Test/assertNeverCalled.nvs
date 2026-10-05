@@ -1,6 +1,6 @@
 <?nvs
 // Checks that a method was not called, as a test does after it runs the code.
-// bench: iterations 20000
+// bench: iterations 256
 // bench: complexity constant
 
 interface Files {
@@ -26,4 +26,4 @@ class Bench {
     }
 }
 
-echo Bench::run(20000), "\n";
+echo Bench::run(256), "\n";

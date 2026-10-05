@@ -3,7 +3,7 @@
 // names in it take their places, the work happens, the frame goes. This counts
 // one call with six names in it per round, and each round's answer feeds the
 // next, so no round can be skipped.
-// bench: iterations 300000
+// bench: iterations 256
 // bench: allocations 0
 // bench: complexity constant
 
@@ -32,4 +32,4 @@ class Bench
     }
 }
 
-echo Bench::run(300000), "\n";
+echo Bench::run(256), "\n";

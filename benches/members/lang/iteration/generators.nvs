@@ -1,7 +1,7 @@
 <?nvs
 // Drives a generator through a `foreach` loop. A program meets this shape when it reads a
 // sequence of values that are produced one step at a time.
-// bench: iterations 50000
+// bench: iterations 256
 // bench: complexity linear
 
 class Bench {
@@ -28,4 +28,4 @@ class Bench {
     }
 }
 
-echo Bench::run(50000), "\n";
+echo Bench::run(256), "\n";

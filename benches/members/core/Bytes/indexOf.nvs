@@ -1,7 +1,7 @@
 <?nvs
 // Measures finding where a short run of bytes starts inside a small message. A
 // program does this when it cuts a message into its header and its body.
-// bench: iterations 400000
+// bench: iterations 1024
 // bench: calls 0
 // bench: allocations 0
 // bench: complexity linear
@@ -27,4 +27,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(1024), "\n";

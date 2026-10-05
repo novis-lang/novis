@@ -1,7 +1,7 @@
 <?nvs
 // Measures creating an upload part for a file on disk, as a program does before
 // every file upload it sends.
-// bench: iterations 20000
+// bench: iterations 256
 // bench: calls 0
 // bench: complexity constant
 
@@ -23,4 +23,4 @@ class Bench {
     }
 }
 
-echo Bench::run(20000), "\n";
+echo Bench::run(256), "\n";

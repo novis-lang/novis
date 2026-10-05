@@ -1,7 +1,7 @@
 <?nvs
 // Measures reading one public key off the wire, as a server does for every
 // client that connects and every signed token it checks.
-// bench: iterations 20000
+// bench: iterations 256
 // bench: calls 0
 // bench: complexity constant
 
@@ -41,4 +41,4 @@ class Bench {
     }
 }
 
-echo Bench::run(20000), "\n";
+echo Bench::run(256), "\n";

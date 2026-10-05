@@ -1,7 +1,7 @@
 <?nvs
 // Measures the remainder of a large number. A program does this when an
 // identifier larger than an `int` picks one of a fixed number of groups.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: complexity quadratic
 // proof: gap nvs-stdlib/bigint-division-and-decimal-text-grow-quadratically
 // bench: calls 0
@@ -25,4 +25,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

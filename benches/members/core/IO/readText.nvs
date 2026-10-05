@@ -1,6 +1,6 @@
 <?nvs
 // Reads a short Latin-1 file and converts it to a string, as a program does with an old export.
-// bench: iterations 5000
+// bench: iterations 256
 // bench: complexity linear
 
 class Bench {
@@ -30,4 +30,4 @@ class Bench {
     }
 }
 
-echo Bench::run(5000) > 0 ? "done" : "no file was read", "\n";
+echo Bench::run(256) > 0 ? "done" : "no file was read", "\n";

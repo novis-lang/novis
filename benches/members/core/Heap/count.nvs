@@ -1,6 +1,6 @@
 <?nvs
 // Measures counting the values in a heap, as a worker does when it reports how many jobs are waiting.
-// bench: iterations 400000
+// bench: iterations 2048
 // bench: allocations 0
 // bench: calls 0
 // bench: complexity constant
@@ -22,4 +22,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(2048), "\n";

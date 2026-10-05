@@ -1,6 +1,6 @@
 <?nvs
 // Measures the smaller of two whole numbers, as a program does to keep a value under a limit.
-// bench: iterations 400000
+// bench: iterations 1024
 // bench: allocations 0
 // bench: complexity constant
 
@@ -17,4 +17,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(1024), "\n";

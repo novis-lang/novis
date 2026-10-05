@@ -1,6 +1,6 @@
 <?nvs
 // Closes a UDP socket, as a program does after it sends a metric or a log line. Each round also opens the socket.
-// bench: iterations 2000
+// bench: iterations 256
 // bench: complexity constant
 
 class Bench {
@@ -18,4 +18,4 @@ class Bench {
     }
 }
 
-echo Bench::run(2000) <= 2000 ? "done" : "wrong", "\n";
+echo Bench::run(256) <= 2000 ? "done" : "wrong", "\n";

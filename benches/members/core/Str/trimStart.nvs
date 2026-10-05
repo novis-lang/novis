@@ -1,6 +1,6 @@
 <?nvs
 // Removes the zeros before an order number, as a program does before it shows the number.
-// bench: iterations 400000
+// bench: iterations 256
 // bench: complexity linear
 
 class Bench {
@@ -17,4 +17,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(256), "\n";

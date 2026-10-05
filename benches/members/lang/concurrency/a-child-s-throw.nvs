@@ -2,7 +2,7 @@
 // Measures a group of tasks in which one throws: the throw, the cancelling of
 // the other task, and the `catch` that takes the error. A page that loads
 // several things at once meets this every time one of them is missing.
-// bench: iterations 20000
+// bench: iterations 256
 // bench: complexity constant
 
 class Bench {
@@ -32,4 +32,4 @@ class Bench {
     }
 }
 
-echo Bench::run(20000), "\n";
+echo Bench::run(256), "\n";

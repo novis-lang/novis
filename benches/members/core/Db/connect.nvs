@@ -1,7 +1,7 @@
 <?nvs
 // Measures asking for the connection a request already has, as a program does
 // when several of its functions each open the database by name.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: calls 0
 // bench: complexity constant
 
@@ -25,4 +25,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

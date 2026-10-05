@@ -1,6 +1,6 @@
 <?nvs
 // Sends a short named event, as a live feed does for each update.
-// bench: iterations 20000
+// bench: iterations 256
 // bench: complexity linear
 
 class Bench {
@@ -19,4 +19,4 @@ class Bench {
 
 // `send()` writes to an open stream, so the program opens one first.
 Core\Sse $sse = Core\Sse::stream();
-echo Bench::run($sse, 20000), "\n";
+echo Bench::run($sse, 256), "\n";

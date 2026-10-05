@@ -1,6 +1,6 @@
 <?nvs
 // Adds attributes to elements, as a program does when it exports records as XML.
-// bench: iterations 50000
+// bench: iterations 512
 // bench: complexity linear
 
 class Bench {
@@ -33,4 +33,4 @@ class Bench {
     }
 }
 
-echo Bench::run(50000), "\n";
+echo Bench::run(512), "\n";

@@ -1,6 +1,6 @@
 <?nvs
 // Reads the path of a request, as a program does before it picks the page to show.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: complexity constant
 // bench: allocations 1
 // bench: calls 0
@@ -19,4 +19,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

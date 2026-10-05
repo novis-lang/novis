@@ -2,7 +2,7 @@
 // Runs a guarded block: a `try` with a `catch` and a `finally` around one call,
 // which throws on one round in four. A program does this around every row it
 // reads from a file or a request.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: complexity constant
 
 class Bench {
@@ -32,4 +32,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

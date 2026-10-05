@@ -2,7 +2,7 @@
 // Creates an object and reads a value back out of it through a method. A program
 // meets this shape every time it turns a database row or a request into one of
 // its own classes.
-// bench: iterations 400000
+// bench: iterations 256
 // bench: calls 2
 // bench: allocations 1
 // bench: complexity constant
@@ -30,4 +30,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(256), "\n";

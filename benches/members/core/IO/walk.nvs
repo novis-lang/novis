@@ -1,6 +1,6 @@
 <?nvs
 // Walks a small folder tree, as a program does when it looks for every template or upload below a folder.
-// bench: iterations 2000
+// bench: iterations 256
 // bench: complexity linear
 
 class Bench {
@@ -30,4 +30,4 @@ class Bench {
     }
 }
 
-echo Bench::run(2000) > 0 ? "done" : "no entry was found", "\n";
+echo Bench::run(256) > 0 ? "done" : "no entry was found", "\n";

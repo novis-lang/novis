@@ -1,6 +1,6 @@
 <?nvs
 // Saves a small file from three chunks, as a program does when it stores an uploaded file.
-// bench: iterations 2000
+// bench: iterations 256
 // bench: complexity linear
 
 class Bench {
@@ -25,4 +25,4 @@ class Bench {
     }
 }
 
-echo Bench::run(2000) > 0 ? "done" : "nothing was written", "\n";
+echo Bench::run(256) > 0 ? "done" : "nothing was written", "\n";

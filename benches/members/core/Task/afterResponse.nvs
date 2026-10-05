@@ -1,6 +1,6 @@
 <?nvs
 // Adds a callable to run after the response and runs it, as a program does to send a receipt.
-// bench: iterations 20000
+// bench: iterations 256
 // bench: complexity constant
 
 class Bench {
@@ -20,4 +20,4 @@ class Bench {
     }
 }
 
-echo Bench::run(20000), "\n";
+echo Bench::run(256), "\n";

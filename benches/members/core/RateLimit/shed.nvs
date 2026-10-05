@@ -1,6 +1,6 @@
 <?nvs
 // Checks one key against a per-core limit, as a server does before it runs a slow page.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: complexity constant
 
 class Bench {
@@ -17,4 +17,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

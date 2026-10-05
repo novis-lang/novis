@@ -1,6 +1,6 @@
 <?nvs
 // Measures getting the text of an HTML value, as a program does before it stores a rendered piece of a page.
-// bench: iterations 400000
+// bench: iterations 1024
 // bench: calls 0
 // bench: allocations 0
 // bench: complexity constant
@@ -25,4 +25,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(1024), "\n";

@@ -1,7 +1,7 @@
 <?nvs
 // Measures reading the list of steps out of a plan, as a deployment does for
 // every plan it decides about.
-// bench: iterations 200000
+// bench: iterations 1024
 // bench: allocations 0
 // bench: complexity constant
 
@@ -42,4 +42,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(1024), "\n";

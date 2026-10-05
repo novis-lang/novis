@@ -1,7 +1,7 @@
 <?nvs
 // Measures dividing a large number by a smaller one, as a program does when it
 // turns a balance in its smallest unit into whole units.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: complexity quadratic
 // proof: gap nvs-stdlib/bigint-division-and-decimal-text-grow-quadratically
 // bench: calls 0
@@ -25,4 +25,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

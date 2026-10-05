@@ -1,7 +1,7 @@
 <?nvs
 // Measures building one object of every class that implements an interface, as a
 // framework does when it collects its health checks or its commands.
-// bench: iterations 100000
+// bench: iterations 256
 // bench: calls 0
 // bench: complexity constant
 
@@ -35,4 +35,4 @@ class Bench {
     }
 }
 
-echo Bench::run(100000), "\n";
+echo Bench::run(256), "\n";

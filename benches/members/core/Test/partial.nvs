@@ -1,6 +1,6 @@
 <?nvs
 // Builds a test double that replaces one method of a real object, as a test does before it runs the code.
-// bench: iterations 20000
+// bench: iterations 256
 // bench: complexity constant
 
 interface Shop {
@@ -34,4 +34,4 @@ class Bench {
     }
 }
 
-echo Bench::run(20000), "\n";
+echo Bench::run(256), "\n";

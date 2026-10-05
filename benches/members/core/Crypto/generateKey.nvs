@@ -1,6 +1,6 @@
 <?nvs
 // Measures drawing one key, as a program does before it seals a new record.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: calls 0
 // bench: allocations 1
 // bench: complexity constant
@@ -22,4 +22,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

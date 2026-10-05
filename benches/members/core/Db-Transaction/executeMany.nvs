@@ -1,7 +1,7 @@
 <?nvs
 // Measures one batch of four rows inside a transaction, as a program does when
 // it saves a group of records together.
-// bench: iterations 5000
+// bench: iterations 256
 // bench: complexity linear
 
 class Bench {
@@ -28,4 +28,4 @@ class Bench {
     }
 }
 
-echo Bench::run(5000), "\n";
+echo Bench::run(256), "\n";

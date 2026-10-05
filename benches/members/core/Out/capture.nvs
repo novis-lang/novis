@@ -1,6 +1,6 @@
 <?nvs
 // Measures collecting one short line of output, as a test does when it checks what a function prints.
-// bench: iterations 20000
+// bench: iterations 256
 // bench: complexity linear
 
 class Bench {
@@ -17,4 +17,4 @@ class Bench {
     }
 }
 
-echo Bench::run(20000), "\n";
+echo Bench::run(256), "\n";

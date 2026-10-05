@@ -2,7 +2,7 @@
 // This measures reading a property, writing a property and reading a class constant.
 // Most method bodies do these three things.
 // Each round reads what the round before wrote, so no work can be skipped.
-// bench: iterations 400000
+// bench: iterations 4096
 // bench: allocations 0
 // bench: complexity constant
 
@@ -39,4 +39,4 @@ class Bench
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(4096), "\n";

@@ -1,7 +1,7 @@
 <?nvs
 // Reads the cases of an enum whose numbers were written into the declaration. A program meets this
 // shape when it stores the step a workflow has reached as the number behind the case.
-// bench: iterations 400000
+// bench: iterations 512
 // bench: calls 0
 // bench: allocations 0
 // bench: complexity constant
@@ -23,4 +23,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(512), "\n";

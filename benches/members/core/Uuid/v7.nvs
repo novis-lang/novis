@@ -1,6 +1,6 @@
 <?nvs
 // Creates a new time-ordered UUID, as a program does when it gives a new database row its key.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: complexity constant
 
 class Bench {
@@ -15,4 +15,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

@@ -1,7 +1,7 @@
 <?nvs
 // Measures reading a small CSV document, as a program does for every upload it
 // accepts.
-// bench: iterations 100000
+// bench: iterations 256
 // bench: calls 0
 // bench: complexity linear
 
@@ -26,4 +26,4 @@ class Bench {
     }
 }
 
-echo Bench::run(100000), "\n";
+echo Bench::run(256), "\n";

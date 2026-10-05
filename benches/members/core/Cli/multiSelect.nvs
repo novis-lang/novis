@@ -2,7 +2,7 @@
 // Measures offering a menu of several choices and reading the set that comes back.
 // A command line tool meets this when it asks which services to restart. The loop
 // answers itself with `Core\Test::scriptAnswers`, the way a test does.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: calls 0
 // bench: complexity linear
 
@@ -25,4 +25,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

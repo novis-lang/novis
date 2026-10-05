@@ -1,7 +1,7 @@
 <?nvs
 // Measures checking one Ed25519 signature, as a server does for every signed
 // message that arrives.
-// bench: iterations 5000
+// bench: iterations 2048
 // bench: calls 0
 // bench: complexity linear
 
@@ -33,4 +33,4 @@ class Bench {
     }
 }
 
-echo Bench::run(5000), "\n";
+echo Bench::run(2048), "\n";

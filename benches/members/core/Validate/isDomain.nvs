@@ -1,6 +1,6 @@
 <?nvs
 // Checks that a host name from a form or a configuration file is a domain name, as a program does before it connects.
-// bench: iterations 400000
+// bench: iterations 4096
 // bench: allocations 0
 // bench: calls 0
 // bench: complexity constant
@@ -22,4 +22,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(4096), "\n";

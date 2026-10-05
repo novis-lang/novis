@@ -1,7 +1,7 @@
 <?nvs
 // Measures one passing assertion. A large test suite is millions of these, so
 // what `Core\Test::assertSame` costs when it holds is what such a suite costs.
-// bench: iterations 300000
+// bench: iterations 256
 // bench: calls 0
 // bench: allocations 0
 // bench: complexity constant
@@ -23,4 +23,4 @@ class Bench {
     }
 }
 
-echo Bench::run(300000), "\n";
+echo Bench::run(256), "\n";

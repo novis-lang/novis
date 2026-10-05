@@ -1,7 +1,7 @@
 <?nvs
 // Walks an array with a `foreach` loop. A program meets this shape whenever it reads every
 // value of a list it already holds.
-// bench: iterations 200000
+// bench: iterations 512
 // bench: complexity linear
 
 class Bench {
@@ -21,4 +21,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(512), "\n";

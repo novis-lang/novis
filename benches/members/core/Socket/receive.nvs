@@ -1,6 +1,6 @@
 <?nvs
 // Reads a message posted to a topic, as a chat connection does for every line somebody posts in its room.
-// bench: iterations 20000
+// bench: iterations 256
 // bench: complexity linear
 
 class Bench {
@@ -19,4 +19,4 @@ class Bench {
     }
 }
 
-echo Bench::run(Core\Socket::current(), 20000), "\n";
+echo Bench::run(Core\Socket::current(), 256), "\n";

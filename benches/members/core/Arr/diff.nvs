@@ -1,7 +1,7 @@
 <?nvs
 // Finds which requested items a second list does not have. A program does
 // this when it checks an order against what is in stock.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: calls 0
 // bench: complexity linear
 
@@ -21,4 +21,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

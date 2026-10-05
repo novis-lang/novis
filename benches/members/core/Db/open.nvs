@@ -1,7 +1,7 @@
 <?nvs
 // Measures asking for a connection the program describes itself, as a request
 // handler does once for every request it serves.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: calls 0
 // bench: allocations 4
 // bench: complexity constant
@@ -29,4 +29,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

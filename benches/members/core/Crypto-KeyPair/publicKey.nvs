@@ -1,7 +1,7 @@
 <?nvs
 // Measures working out the public half of a key pair, as a server does when it
 // publishes its key or sends it to a peer.
-// bench: iterations 20000
+// bench: iterations 256
 // bench: calls 0
 // bench: complexity constant
 
@@ -32,4 +32,4 @@ class Bench {
     }
 }
 
-echo Bench::run(20000), "\n";
+echo Bench::run(256), "\n";

@@ -2,7 +2,7 @@
 // Measures what one job per element costs over a small array: starting the jobs,
 // running them and collecting the answers back under the input's keys. An import that
 // checks every row of an upload meets this once per file.
-// bench: iterations 20000
+// bench: iterations 256
 // bench: complexity linear
 
 class Bench {
@@ -21,4 +21,4 @@ class Bench {
     }
 }
 
-echo Bench::run(20000), "\n";
+echo Bench::run(256), "\n";

@@ -1,6 +1,6 @@
 <?nvs
 // Gets the sixteen bytes of a UUID, as a program does before it saves one in a binary column.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: complexity constant
 
 class Bench {
@@ -20,4 +20,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

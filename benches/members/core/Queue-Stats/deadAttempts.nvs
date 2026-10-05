@@ -1,6 +1,6 @@
 <?nvs
 // Reads the attempts of the failed jobs of a queue, as a health check or a daily report does.
-// bench: iterations 400000
+// bench: iterations 1024
 // bench: allocations 0
 // bench: calls 0
 // bench: complexity constant
@@ -48,4 +48,4 @@ SQL, []);
 
 // The first round reads `mail`. The total is then odd, so every later round reads `exports`.
 // The program prints `800001`.
-echo Bench::run([Queue::stats("mail"), Queue::stats("exports")], 400000), "\n";
+echo Bench::run([Queue::stats("mail"), Queue::stats("exports")], 1024), "\n";

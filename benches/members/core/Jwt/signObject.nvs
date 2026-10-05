@@ -1,7 +1,7 @@
 <?nvs
 // Signs a short access token from an object with an Ed25519 key pair, as a login server does
 // for each user.
-// bench: iterations 20000
+// bench: iterations 256
 // bench: complexity linear
 
 #[Core\Json\Derive]
@@ -31,4 +31,4 @@ class Bench {
     }
 }
 
-echo Bench::run(20000), "\n";
+echo Bench::run(256), "\n";

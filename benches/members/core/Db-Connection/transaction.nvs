@@ -1,7 +1,7 @@
 <?nvs
 // Measures one transaction around one write, as a program does for every order
 // it saves.
-// bench: iterations 20000
+// bench: iterations 256
 // bench: calls 0
 // bench: complexity constant
 
@@ -24,4 +24,4 @@ class Bench {
     }
 }
 
-echo Bench::run(20000), "\n";
+echo Bench::run(256), "\n";

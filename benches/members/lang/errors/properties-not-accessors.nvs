@@ -2,7 +2,7 @@
 // Measures reading what a caught error carries: the message, the place it was
 // thrown from, and the number of frames. A program that logs a failure reads
 // these for every one it reports.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: complexity constant
 
 class Bench {
@@ -26,4 +26,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

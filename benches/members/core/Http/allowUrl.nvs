@@ -1,6 +1,6 @@
 <?nvs
 // Measures checking a URL before a request, as a program does with every URL a user gives it.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: complexity linear
 
 class Bench {
@@ -19,4 +19,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

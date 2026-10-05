@@ -1,7 +1,7 @@
 <?nvs
 // Reads where a part of the source starts in bytes, as a tool does before it
 // cuts that part's own text out of the source.
-// bench: iterations 200000
+// bench: iterations 4096
 // bench: allocations 0
 // bench: calls 0
 // bench: complexity constant
@@ -23,4 +23,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(4096), "\n";

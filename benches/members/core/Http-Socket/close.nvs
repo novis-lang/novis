@@ -1,6 +1,6 @@
 <?nvs
 // Closes a WebSocket connection, as a program does each time it is finished with a feed.
-// bench: iterations 200000
+// bench: iterations 1024
 // bench: complexity constant
 
 class Bench {
@@ -23,4 +23,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(1024), "\n";

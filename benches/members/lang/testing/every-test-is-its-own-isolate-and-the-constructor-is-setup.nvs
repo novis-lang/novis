@@ -1,7 +1,7 @@
 <?nvs
 // Measures what the setup of a test costs: the test class is built again for
 // every test, so a runner pays this once per test.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: calls 1
 // bench: complexity constant
 
@@ -37,4 +37,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

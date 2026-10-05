@@ -1,0 +1,11 @@
+{
+  "lead": "A tree-wide `--record-perf --force` can fail a flat bench as `grows`.",
+  "body": "Under load the clock trips twice, callgrind then runs at the small batches a lowered N leaves, and its instructions can read as rising there: `Core\\IO\\File::seek` and `Core\\Response::json` both did, and both pass re-recorded alone. Re-record a `grows` finding from a long sweep with `--only <id>` on a quiet machine before treating it as real, since `tools/nv/cmd/scaling.ts` runs callgrind whenever the clock grows twice.",
+  "files": [
+    "tools/nv/cmd/scaling.ts"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "tools/nv/cmd/scaling.ts:clockGrows"
+  }
+}

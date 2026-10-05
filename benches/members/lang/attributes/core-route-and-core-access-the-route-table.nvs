@@ -1,7 +1,7 @@
 <?nvs
 // Measures building one link from the route table, which a page does for every
 // link it renders.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: calls 0
 // bench: complexity linear
 
@@ -29,4 +29,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

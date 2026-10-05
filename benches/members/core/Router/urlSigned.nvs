@@ -1,6 +1,6 @@
 <?nvs
 // Builds a signed download link for a file, as a page does for each file it lists.
-// bench: iterations 100000
+// bench: iterations 256
 // bench: complexity linear
 
 class Files {
@@ -25,4 +25,4 @@ class Bench {
     }
 }
 
-echo Bench::run(100000), "\n";
+echo Bench::run(256), "\n";

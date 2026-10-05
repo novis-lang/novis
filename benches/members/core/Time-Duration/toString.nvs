@@ -1,6 +1,6 @@
 <?nvs
 // Writes a duration as text, as a program does when it logs how long a request took.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: allocations 1
 // bench: complexity constant
 
@@ -19,4 +19,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

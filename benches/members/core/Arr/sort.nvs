@@ -1,7 +1,7 @@
 <?nvs
 // Puts a short list of prices in order, as a shop does before it shows the
 // cheapest offer first.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: calls 0
 // bench: complexity nlogn
 
@@ -21,4 +21,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

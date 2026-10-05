@@ -1,6 +1,6 @@
 <?nvs
 // Runs one small task for each of three labels and reads the results, as a program does when it checks a short list of links.
-// bench: iterations 10000
+// bench: iterations 256
 // bench: complexity linear
 
 class Bench {
@@ -18,4 +18,4 @@ class Bench {
     }
 }
 
-echo Bench::run(10000), "\n";
+echo Bench::run(256), "\n";

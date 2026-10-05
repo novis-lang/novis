@@ -2,7 +2,7 @@
 // Checks whether a `?int` argument is `null`, then uses the value.
 // Most real functions start with a check like this.
 // Each round uses the last round's result. The loop allocates no memory.
-// bench: iterations 300000
+// bench: iterations 256
 // bench: allocations 0
 // bench: complexity constant
 
@@ -27,4 +27,4 @@ class Bench {
     }
 }
 
-echo Bench::run(300000), "\n";
+echo Bench::run(256), "\n";

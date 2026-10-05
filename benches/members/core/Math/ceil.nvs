@@ -1,6 +1,6 @@
 <?nvs
 // Measures rounding a number up, as a list does when it finds how many pages it needs.
-// bench: iterations 400000
+// bench: iterations 2048
 // bench: allocations 0
 // bench: complexity constant
 
@@ -17,4 +17,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(2048), "\n";

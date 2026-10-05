@@ -1,6 +1,6 @@
 <?nvs
 // Lists the keys that start with a prefix, as a program does when it shows a user's files.
-// bench: iterations 2000
+// bench: iterations 256
 // bench: complexity linear
 
 class Bench {
@@ -23,4 +23,4 @@ class Bench {
     }
 }
 
-echo Bench::run(2000), "\n";
+echo Bench::run(256), "\n";

@@ -1,7 +1,7 @@
 <?nvs
 // Measures reading the kind of a column, as a report does when it decides how
 // to print each column of a query.
-// bench: iterations 300000
+// bench: iterations 1024
 // bench: calls 0
 // bench: complexity constant
 
@@ -28,4 +28,4 @@ class Bench {
     }
 }
 
-echo Bench::run(300000), "\n";
+echo Bench::run(1024), "\n";

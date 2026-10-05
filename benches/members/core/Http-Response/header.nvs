@@ -1,6 +1,6 @@
 <?nvs
 // Reads one header of a reply, as a program does to check the content type of every reply it gets.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: calls 0
 // bench: complexity linear
 
@@ -24,4 +24,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

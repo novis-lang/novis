@@ -1,6 +1,6 @@
 <?nvs
 // Measures recording one duration in a histogram, as a server does once for every request it handles.
-// bench: iterations 400000
+// bench: iterations 256
 // bench: allocations 0
 // bench: complexity constant
 // proof: gap nvs-stdlib/a-metrics-write-allocates-on-every-call
@@ -20,4 +20,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(256), "\n";

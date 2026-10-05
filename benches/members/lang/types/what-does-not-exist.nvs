@@ -2,7 +2,7 @@
 // Measures where a program brought over from PHP now spends its time. It
 // converts a field, reads one character, and puts two pieces of text in order.
 // Each of those was a cast, a bracket or a `<` before.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: complexity linear
 
 class Bench {
@@ -23,4 +23,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

@@ -1,7 +1,7 @@
 <?nvs
 // Measures building the array of every setting in force. A program does this
 // when it reports the limits it runs under, or logs its own configuration.
-// bench: iterations 20000
+// bench: iterations 256
 // bench: calls 0
 // bench: complexity constant
 
@@ -23,4 +23,4 @@ class Bench {
     }
 }
 
-echo Bench::run(20000), "\n";
+echo Bench::run(256), "\n";

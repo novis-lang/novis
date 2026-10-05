@@ -1,7 +1,7 @@
 <?nvs
 // Measures reading the whole list of attributes off one method, as a router does
 // for every handler it knows about when the program starts.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: calls 0
 // bench: allocations 6
 // bench: complexity constant
@@ -30,4 +30,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

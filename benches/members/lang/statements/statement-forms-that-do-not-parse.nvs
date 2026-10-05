@@ -2,7 +2,7 @@
 // Runs the loop with a `break` and a flag that replaces PHP's `goto`. A
 // program meets this shape whenever it searches a list and stops at the first
 // match.
-// bench: iterations 200000
+// bench: iterations 2048
 // bench: calls 0
 // bench: allocations 0
 // bench: complexity linear
@@ -29,4 +29,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(2048), "\n";

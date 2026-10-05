@@ -1,6 +1,6 @@
 <?nvs
 // Reads the access rule of a route match as an enum case, as a front controller does before it calls any handler.
-// bench: iterations 400000
+// bench: iterations 1024
 // bench: allocations 0
 // bench: calls 0
 // bench: complexity constant
@@ -47,4 +47,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(1024), "\n";

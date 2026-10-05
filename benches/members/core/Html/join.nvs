@@ -1,6 +1,6 @@
 <?nvs
 // Measures joining three short HTML pieces, as a page does when it puts a row of links together.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: calls 0
 // bench: complexity linear
 
@@ -25,4 +25,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

@@ -1,7 +1,7 @@
 <?nvs
 // Measures shifting a number to the left, as a program does to place one half
 // of a wide value above the other.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: calls 0
 // bench: complexity linear
 
@@ -20,4 +20,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

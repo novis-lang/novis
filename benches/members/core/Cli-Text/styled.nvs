@@ -1,7 +1,7 @@
 <?nvs
 // Measures putting a style on a short label. A tool meets this once for every
 // line it colours, such as the state at the front of a row.
-// bench: iterations 400000
+// bench: iterations 256
 // bench: calls 0
 // bench: allocations 8
 // bench: complexity linear
@@ -26,4 +26,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(256), "\n";

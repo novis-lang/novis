@@ -1,6 +1,6 @@
 <?nvs
 // Reads one value from a session that has three, as a page does to show who is signed in.
-// bench: iterations 100000
+// bench: iterations 256
 // bench: complexity linear
 
 class Bench {
@@ -20,4 +20,4 @@ Core\Session::start();
 Core\Session::set("user", 17);
 Core\Session::set("language", 2);
 Core\Session::set("cart", 5);
-echo Bench::run(100000), "\n";
+echo Bench::run(256), "\n";

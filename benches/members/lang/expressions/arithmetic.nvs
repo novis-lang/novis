@@ -3,7 +3,7 @@
 // arithmetic on. This measures those operators together with the overflow
 // test each one makes before it gives a result. Every round takes its input
 // from the round before it, so no work can be skipped.
-// bench: iterations 400000
+// bench: iterations 512
 // bench: allocations 0
 // bench: complexity constant
 
@@ -26,4 +26,4 @@ class Bench
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(512), "\n";

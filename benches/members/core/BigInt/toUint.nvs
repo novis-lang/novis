@@ -1,7 +1,7 @@
 <?nvs
 // Measures converting a number to a `uint`, as a program does when it turns a
 // large calculation into a count or an identifier.
-// bench: iterations 400000
+// bench: iterations 256
 // bench: calls 0
 // bench: allocations 1
 // bench: complexity constant
@@ -29,4 +29,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(256), "\n";

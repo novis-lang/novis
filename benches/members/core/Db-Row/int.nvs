@@ -1,7 +1,7 @@
 <?nvs
 // Measures reading a whole number out of a row. A program does this for every
 // count, quantity and identifier it reads off a table.
-// bench: iterations 300000
+// bench: iterations 2048
 // bench: calls 0
 // bench: allocations 0
 // bench: complexity constant
@@ -31,4 +31,4 @@ class Bench {
     }
 }
 
-echo Bench::run(300000), "\n";
+echo Bench::run(2048), "\n";

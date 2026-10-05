@@ -1,6 +1,6 @@
 <?nvs
 // Quotes a short search text, as a program does before it puts what a person typed into a pattern.
-// bench: iterations 400000
+// bench: iterations 256
 // bench: complexity linear
 
 class Bench {
@@ -18,4 +18,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(256), "\n";

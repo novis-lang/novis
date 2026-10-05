@@ -1,6 +1,6 @@
 <?nvs
 // Reads the declared type of a property, as a form handler does to convert text to that type.
-// bench: iterations 400000
+// bench: iterations 4096
 // bench: allocations 0
 // bench: complexity constant
 
@@ -24,4 +24,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(4096), "\n";

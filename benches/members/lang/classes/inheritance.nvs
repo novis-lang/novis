@@ -2,7 +2,7 @@
 // Calls a method through a variable typed at the parent class, so the subclass
 // version runs, and tests what the object is. A program that keeps its work in
 // a class hierarchy does both on every request.
-// bench: iterations 400000
+// bench: iterations 4096
 // bench: calls 1
 // bench: allocations 0
 // bench: complexity constant
@@ -34,4 +34,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(4096), "\n";

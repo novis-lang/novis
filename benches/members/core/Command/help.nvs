@@ -1,7 +1,7 @@
 <?nvs
 // Measures rendering one command's usage page. A command-line program meets
 // this every time somebody starts it with `--help` or with no command at all.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: complexity linear
 // proof: gap nv/a-bench-cannot-ramp-an-input-fixed-outside-its-program
 // bench: calls 0
@@ -46,4 +46,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

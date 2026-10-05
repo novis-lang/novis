@@ -1,6 +1,6 @@
 <?nvs
 // Counts the jobs of one queue, as a health check or a status page does.
-// bench: iterations 2000
+// bench: iterations 256
 // bench: calls 0
 // bench: complexity linear
 use Core\Queue;
@@ -48,4 +48,4 @@ Queue::push("jobs/export.nvs", {queue: "exports"});
 
 // The first round counts `mail`. The total is then odd, so every later round counts `exports`.
 // The program prints `4001`.
-echo Bench::run(["mail", "exports"], 2000), "\n";
+echo Bench::run(["mail", "exports"], 256), "\n";

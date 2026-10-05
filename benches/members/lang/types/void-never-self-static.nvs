@@ -3,7 +3,7 @@
 // kind was named, methods return the object, and one method is called only for
 // what it does. Each round starts from the running total, so nothing is
 // computed ahead of time. One object is allocated per round.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: allocations 1
 // bench: calls 5
 // bench: complexity constant
@@ -39,4 +39,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

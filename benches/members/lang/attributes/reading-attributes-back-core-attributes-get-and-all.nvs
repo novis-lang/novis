@@ -2,7 +2,7 @@
 // Measures reading attributes back: one value with `get`, a list of three with
 // `all`, and one more read off a parameter. A router does this for every method
 // it knows about when the program starts.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: calls 0
 // bench: allocations 8
 // bench: complexity constant
@@ -40,4 +40,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

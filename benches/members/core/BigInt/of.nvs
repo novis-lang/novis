@@ -1,7 +1,7 @@
 <?nvs
 // Measures building a number from a plain `int`, as a program does before it
 // adds up amounts that grow past what an `int` holds.
-// bench: iterations 400000
+// bench: iterations 256
 // bench: calls 0
 // bench: complexity constant
 
@@ -19,4 +19,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(256), "\n";

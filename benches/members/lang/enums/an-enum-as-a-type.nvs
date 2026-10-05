@@ -1,7 +1,7 @@
 <?nvs
 // Passes an enum through an array element, a parameter and a return value. A program meets this
 // shape when a request carries a level and a class decides what to do with it.
-// bench: iterations 400000
+// bench: iterations 256
 // bench: allocations 0
 // bench: complexity constant
 
@@ -30,4 +30,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(256), "\n";

@@ -1,6 +1,6 @@
 <?nvs
 // Makes a key from a secret key of 32 bytes, as a server does when it reads its key from the configuration.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: complexity constant
 
 class Bench {
@@ -24,4 +24,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

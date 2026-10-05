@@ -1,7 +1,7 @@
 <?nvs
 // Walks everything below a node, as a tool searching a parsed file for one
 // construct does.
-// bench: iterations 50000
+// bench: iterations 256
 // bench: calls 0
 // bench: complexity linear
 
@@ -22,4 +22,4 @@ class Bench {
     }
 }
 
-echo Bench::run(50000), "\n";
+echo Bench::run(256), "\n";

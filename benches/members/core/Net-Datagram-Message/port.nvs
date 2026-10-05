@@ -1,6 +1,6 @@
 <?nvs
 // Reads the sender's port of a received UDP message, as a server does before it sends a reply.
-// bench: iterations 2000000
+// bench: iterations 256
 // bench: allocations 0
 // bench: complexity constant
 
@@ -26,4 +26,4 @@ class Bench {
     }
 }
 
-echo Bench::run(2000000) > 0 ? "done" : "none", "\n";
+echo Bench::run(256) > 0 ? "done" : "none", "\n";

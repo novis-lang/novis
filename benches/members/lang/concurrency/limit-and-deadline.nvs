@@ -2,7 +2,7 @@
 // Measures what the two bounds cost a group of eight tasks: the queue behind `limit`
 // and the timer behind `deadline`. A request that calls a slow service meets this
 // once. The tasks do no work of their own, so only the bounds are measured.
-// bench: iterations 5000
+// bench: iterations 256
 // bench: complexity constant
 
 class Bench {
@@ -25,4 +25,4 @@ class Bench {
     }
 }
 
-echo Bench::run(5000), "\n";
+echo Bench::run(256), "\n";

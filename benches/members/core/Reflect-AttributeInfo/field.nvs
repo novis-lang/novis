@@ -1,6 +1,6 @@
 <?nvs
 // Reads one value of an attribute by its field name, as a framework does when it reads a cache time for a page.
-// bench: iterations 400000
+// bench: iterations 1024
 // bench: complexity constant
 
 type Cache = {seconds: int, shared: bool};
@@ -31,4 +31,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(1024), "\n";

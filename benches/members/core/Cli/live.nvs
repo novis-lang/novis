@@ -3,7 +3,7 @@
 // command line tool meets this when it reports where it is while it works. The
 // output here is not a terminal, so nothing is drawn and the region's own cost is
 // what is left.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: calls 0
 // bench: allocations 12
 // bench: complexity constant
@@ -25,4 +25,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

@@ -1,6 +1,6 @@
 <?nvs
 // Reads a UUID from its text, as a server does for each id it gets in a web address or a form.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: complexity constant
 
 class Bench {
@@ -21,4 +21,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

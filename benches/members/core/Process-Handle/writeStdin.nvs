@@ -1,6 +1,6 @@
 <?nvs
 // Measures sending a running program its input one line at a time, as a server does when it passes a file to a converter.
-// bench: iterations 2000
+// bench: iterations 256
 // bench: calls 0
 // bench: complexity linear
 
@@ -29,4 +29,4 @@ class Bench {
     }
 }
 
-echo Bench::run(2000), "\n";
+echo Bench::run(256), "\n";

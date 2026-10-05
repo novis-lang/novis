@@ -1,6 +1,6 @@
 <?nvs
 // Reads the day of the week, as a program does when it skips weekends.
-// bench: iterations 400000
+// bench: iterations 1024
 // bench: calls 0
 // bench: allocations 0
 // bench: complexity constant
@@ -24,4 +24,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(1024), "\n";

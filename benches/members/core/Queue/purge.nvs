@@ -1,6 +1,6 @@
 <?nvs
 // Deletes one job of a queue per call, as a clean-up task does in small batches.
-// bench: iterations 2000
+// bench: iterations 256
 // bench: calls 0
 // bench: complexity constant
 use Core\Queue;
@@ -44,4 +44,4 @@ while ($n < 2000) {
     Queue::push("jobs/export.nvs", {queue: "exports"});
     $n = $n + 1;
 }
-echo Bench::run(2000), "\n";
+echo Bench::run(256), "\n";

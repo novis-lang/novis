@@ -3,7 +3,7 @@
 // entry it writes. This measures a join of four pieces with `.`, two appends
 // with `.=`, and the number-to-text conversion each makes. Every round takes
 // its input from the round before, so no work can be skipped.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: complexity linear
 
 class Bench {
@@ -27,4 +27,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

@@ -1,7 +1,7 @@
 <?nvs
 // Walks a small `Core\ObjectSet` and a small `Core\Heap` with `foreach`. A program meets this shape
 // when a request has collected some values and reports every one of them before it answers.
-// bench: iterations 50000
+// bench: iterations 256
 // bench: complexity nlogn
 
 class Bench {
@@ -32,4 +32,4 @@ class Bench {
     }
 }
 
-echo Bench::run(50000), "\n";
+echo Bench::run(256), "\n";

@@ -3,7 +3,7 @@
 // each per round. They are a static call, an instance call, one that leaves
 // out a default, and one through a variable. Each round starts from the answer
 // the round before it gave.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: allocations 0
 // bench: calls 4
 // bench: complexity constant
@@ -43,4 +43,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

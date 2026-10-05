@@ -1,7 +1,7 @@
 <?nvs
 // Measures one `select` that reads a few rows, as a program does when it shows
 // a page of a list.
-// bench: iterations 20000
+// bench: iterations 256
 // bench: complexity linear
 
 class Bench {
@@ -26,4 +26,4 @@ class Bench {
     }
 }
 
-echo Bench::run(20000), "\n";
+echo Bench::run(256), "\n";

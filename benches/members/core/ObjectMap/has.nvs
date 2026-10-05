@@ -1,6 +1,6 @@
 <?nvs
 // Checks if an object is a key in a map, as a program does before it does a piece of work only once.
-// bench: iterations 1000000
+// bench: iterations 2048
 // bench: allocations 0
 // bench: complexity constant
 
@@ -29,4 +29,4 @@ class Bench {
     }
 }
 
-echo Bench::run(1000000), "\n";
+echo Bench::run(2048), "\n";

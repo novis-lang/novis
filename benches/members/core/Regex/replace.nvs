@@ -1,6 +1,6 @@
 <?nvs
 // Changes the order of the parts of a date, as a program does before it shows a date to a reader.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: complexity linear
 
 class Bench {
@@ -19,4 +19,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

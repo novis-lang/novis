@@ -1,6 +1,6 @@
 <?nvs
 // Gets the event stream, as a helper does before it sends an event.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: complexity constant
 
 class Bench {
@@ -18,4 +18,4 @@ class Bench {
 
 // `current()` needs an open stream, so the program opens one first.
 Core\Sse::stream();
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

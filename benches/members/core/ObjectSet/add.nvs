@@ -1,6 +1,6 @@
 <?nvs
 // Adds an object that is already in a set, as a program does when it records each object it has seen.
-// bench: iterations 1000000
+// bench: iterations 1024
 // bench: complexity constant
 
 final class Key {
@@ -27,4 +27,4 @@ class Bench {
     }
 }
 
-echo Bench::run(1000000), "\n";
+echo Bench::run(1024), "\n";

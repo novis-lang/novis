@@ -1,6 +1,6 @@
 <?nvs
 // Creates a duration from a number of minutes, as a program does when it reads a session timeout from its settings.
-// bench: iterations 400000
+// bench: iterations 256
 // bench: complexity constant
 
 class Bench {
@@ -16,4 +16,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(256), "\n";

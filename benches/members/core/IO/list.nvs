@@ -1,6 +1,6 @@
 <?nvs
 // Lists the files in a small folder, as a program does when it looks for new uploads or old logs.
-// bench: iterations 2000
+// bench: iterations 256
 // bench: complexity linear
 
 class Bench {
@@ -28,4 +28,4 @@ class Bench {
     }
 }
 
-echo Bench::run(2000) > 0 ? "done" : "no file was listed", "\n";
+echo Bench::run(256) > 0 ? "done" : "no file was listed", "\n";

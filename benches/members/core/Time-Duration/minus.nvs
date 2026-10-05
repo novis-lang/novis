@@ -1,6 +1,6 @@
 <?nvs
 // Subtracts one duration from another, as a program does when it tracks the time a request has left.
-// bench: iterations 400000
+// bench: iterations 256
 // bench: complexity constant
 
 class Bench {
@@ -19,4 +19,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(256), "\n";

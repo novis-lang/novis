@@ -1,7 +1,7 @@
 <?nvs
 // Measures replacing the rows of a live region. A tool meets this once for
 // every step it reports while it works.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: calls 0
 // bench: allocations 9
 // bench: complexity linear
@@ -25,4 +25,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

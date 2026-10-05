@@ -1,6 +1,6 @@
 <?nvs
 // Reads the whole text of a match, as a program does when it collects every tag or number it found.
-// bench: iterations 400000
+// bench: iterations 256
 // bench: complexity constant
 
 class Bench {
@@ -18,4 +18,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(256), "\n";

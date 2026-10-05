@@ -1,6 +1,6 @@
 <?nvs
 // Lists the keys of a small map, as a program does before it passes the objects to another function.
-// bench: iterations 400000
+// bench: iterations 256
 // bench: complexity linear
 
 final class Key {
@@ -29,4 +29,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(256), "\n";

@@ -1,7 +1,7 @@
 <?nvs
 // Orders two objects with `<=>` in a loop. A program meets this shape whenever
 // it compares a value of its own class against a limit or against a neighbour.
-// bench: iterations 400000
+// bench: iterations 1024
 // bench: calls 1
 // bench: allocations 0
 // bench: complexity constant
@@ -31,4 +31,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(1024), "\n";

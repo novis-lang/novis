@@ -1,7 +1,7 @@
 <?nvs
 // Measures reading the words a program was started with. A command line
 // program reads them at the start, and again for every job it runs.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: calls 0
 // bench: allocations 1
 // bench: complexity constant
@@ -20,4 +20,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

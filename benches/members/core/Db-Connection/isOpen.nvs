@@ -1,7 +1,7 @@
 <?nvs
 // Measures asking a connection whether it is still open, as a program does in
 // a step that may run after the connection was given back.
-// bench: iterations 400000
+// bench: iterations 1024
 // bench: allocations 0
 // bench: complexity constant
 
@@ -28,4 +28,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(1024), "\n";

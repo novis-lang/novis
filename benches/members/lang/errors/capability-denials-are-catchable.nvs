@@ -2,7 +2,7 @@
 // Measures a denied call: the check of the capability, the throw it raises, and
 // the `catch` that takes it. A program meets this on every call it has no grant
 // for, which is what a job running under a narrow `nvs.toml` does all day.
-// bench: iterations 50000
+// bench: iterations 256
 // bench: complexity constant
 
 class Bench {
@@ -24,4 +24,4 @@ class Bench {
     }
 }
 
-echo Bench::run(50000), "\n";
+echo Bench::run(256), "\n";

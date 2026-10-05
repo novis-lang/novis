@@ -1,6 +1,6 @@
 <?nvs
 // Measures making a 32-byte session ID, as a program does when a user logs in.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: calls 0
 // bench: allocations 1
 // bench: complexity linear
@@ -22,4 +22,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

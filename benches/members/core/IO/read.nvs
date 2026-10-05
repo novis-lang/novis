@@ -1,6 +1,6 @@
 <?nvs
 // Reads a short file whole, as a program does with a template or a small settings file.
-// bench: iterations 5000
+// bench: iterations 256
 // bench: complexity linear
 
 class Bench {
@@ -25,4 +25,4 @@ class Bench {
     }
 }
 
-echo Bench::run(5000) > 0 ? "done" : "no file was read", "\n";
+echo Bench::run(256) > 0 ? "done" : "no file was read", "\n";

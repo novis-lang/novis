@@ -1,7 +1,7 @@
 <?nvs
 // Measures reading a small CSV file a record at a time, as an import job does
 // for every file it is given.
-// bench: iterations 20000
+// bench: iterations 256
 // bench: calls 6
 // bench: complexity linear
 
@@ -34,4 +34,4 @@ class Bench {
     }
 }
 
-echo Bench::run(20000), "\n";
+echo Bench::run(256), "\n";

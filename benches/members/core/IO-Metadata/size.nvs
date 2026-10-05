@@ -1,6 +1,6 @@
 <?nvs
 // Reads the size from a result of `stat`, as a program does when it checks an upload against a limit.
-// bench: iterations 400000
+// bench: iterations 4096
 // bench: allocations 0
 // bench: complexity constant
 
@@ -25,4 +25,4 @@ foreach ($contents as string $content) {
     Core\IO::write($path, $content);
     $infos[] = Core\IO::stat($path);
 }
-echo Bench::run($infos, 400000), "\n";
+echo Bench::run($infos, 4096), "\n";

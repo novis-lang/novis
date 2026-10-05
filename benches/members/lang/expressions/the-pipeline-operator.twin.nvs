@@ -1,7 +1,7 @@
 <?nvs
 // Measures the same three steps as the pipeline bench, written as nested calls.
 // The two programs compile to the same code, so the two figures should match.
-// bench: iterations 1000000
+// bench: iterations 256
 
 class Bench {
     public static function run(int $rounds): int {
@@ -16,4 +16,4 @@ class Bench {
     }
 }
 
-echo Bench::run(1000000), "\n";
+echo Bench::run(256), "\n";

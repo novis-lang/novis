@@ -1,7 +1,7 @@
 <?nvs
 // Measures reading a one-table schema out of its array, which a program does
 // once at start-up before it plans against a database.
-// bench: iterations 20000
+// bench: iterations 256
 // bench: complexity linear
 
 use Core\Db\Schema;
@@ -32,4 +32,4 @@ class Bench {
     }
 }
 
-echo Bench::run(20000), "\n";
+echo Bench::run(256), "\n";

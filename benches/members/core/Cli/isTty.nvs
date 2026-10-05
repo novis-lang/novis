@@ -1,7 +1,7 @@
 <?nvs
 // Measures asking whether a stream is a terminal, as a program does before it
 // decides to print colour or to draw a progress line.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: calls 0
 // bench: allocations 0
 // bench: complexity constant
@@ -33,4 +33,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

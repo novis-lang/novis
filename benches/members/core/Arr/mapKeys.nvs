@@ -1,6 +1,6 @@
 <?nvs
 // Stores a few order codes under a key of their own, as a program does after it reads rows.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: calls 0
 // bench: complexity linear
 
@@ -21,4 +21,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

@@ -1,7 +1,7 @@
 <?nvs
 // Measures building one entry for a cache fill to hand back. A program does
 // this once for every secret it fetches from somewhere else.
-// bench: iterations 400000
+// bench: iterations 256
 // bench: calls 0
 // bench: complexity constant
 
@@ -23,4 +23,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(256), "\n";

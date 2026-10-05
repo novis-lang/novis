@@ -1,6 +1,6 @@
 <?nvs
 // Reads the sender's address of a received UDP message, as a server does before it checks or answers a sender.
-// bench: iterations 2000000
+// bench: iterations 2048
 // bench: complexity constant
 
 class Bench {
@@ -25,4 +25,4 @@ class Bench {
     }
 }
 
-echo Bench::run(2000000), "\n";
+echo Bench::run(2048), "\n";

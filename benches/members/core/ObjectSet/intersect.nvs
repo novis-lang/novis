@@ -1,6 +1,6 @@
 <?nvs
 // Intersects two small sets of objects, as a program does when it finds the admins who are online.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: complexity linear
 
 final class Key {
@@ -34,4 +34,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

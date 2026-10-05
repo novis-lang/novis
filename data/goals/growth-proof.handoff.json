@@ -1,35 +1,29 @@
 {
-  "state": "**Goal `growth-proof`, between Stage 2 and Stage 3.** No floor is carried.\n\nEvery bench under `benches/members/` has `// bench: complexity`, and `--record-perf` requires it (`measureOne` in `tools/nv/proofs/perf.ts`). `bun nv scaling --growth [filter...]` judges benches as the proof does, with callgrind off.\n\nCallgrind now sets N: when callgrind's instructions settle a bench's ramp, `rampAt` records the batch as `Judged.threshold`, and `growthOf` lowers the bench's `iterations` to twice that batch with `withIterations`, written as `// bench: iterations N callgrind`. `measureOne` runs the growth first, so the record is taken at the new N. N is never raised. `benches/members/README.md` documents the `callgrind` note.\n\n`bun nv scaling --iterations --sized` exists: it fails a flat bench whose N is more than twice the batch its ramp settled at (`oversized`), and prints the check's line when none is. Every bench still has its old N, so the check is red until the tree is lowered. `core/Str/length.nvs` settles at 1024 with N 400000, for example.\n\nGap records for benches whose growth cannot be proven yet: `data/gaps/nv/a-bench-cannot-ramp-an-input-fixed-outside-its-program.json` (20 benches) and `data/gaps/nvs-stdlib/bigint-division-and-decimal-text-grow-quadratically.json` (nine `Core\\BigInt` benches).\n\nThe whole tree has not been run under `--growth` or `--sized` yet (about a thousand benches, release binary).",
+  "state": "**Goal `growth-proof`, Stage 3 closed; Stage 4 is next.** No floor is carried.\n\nEvery flat bench's N is twice the batch its ramp settled at: `bun nv scaling --iterations --sized --lower` rewrote them, and `--sized` alone passes. A bench the ramp skips keeps its N (`withBatch` cannot rewrite its closing line, or N is too small to ramp).\n\nA record's count per operation is now the ramp's last increment (`measureOne` in `tools/nv/proofs/perf.ts`), so set-up cancels and N moves no count; a declaration is met within a hundredth or one count across the last window. Every bench was re-recorded at its new N in `docs/perf/members.ndjson`.\n\n`bun nv scaling --budget` counts the statements each bench runs at its N against `docs/perf/bench-budget.json`; `--write` stores them. It passes, and two runs give the same total.\n\n**The clock at the lowered N mostly reads 0:** most of the new records have `ns_per_op 0.0`, because the work is below the start-up floor's noise. The counts are intact. Whether the clock should be timed at a larger, clock-only N is the user's call, and nothing has been changed for it.",
   "next": {
-    "stage": 3,
-    "title": "small benches, and a budget",
-    "files": [
-      "tools/nv/cmd/scaling.ts",
-      "benches/members/**",
-      "docs/perf/members.ndjson"
-    ],
+    "stage": 4,
+    "title": "a change reruns the benches it reaches",
+    "files": [],
+    "note": "one file set: `tools/nv/select/atoms.ts`, `tools/nv/proofs/select.ts`, `tools/nv/cmd/affected.ts`, a new `tools/nv/test/bench-selection.test.ts`.",
     "items": [
       {
         "done": false,
-        "text": "**Lower the tree's N.** Run `bun nv scaling --iterations --sized --jobs 4` (`tools/nv/cmd/scaling.ts:1137`) under `bun nv bg`, and for each bench it names set `// bench: iterations` and the closing literal to the N it prints. `withIterations` (`tools/nv/cmd/scaling.ts:209`) is the rewrite, without the `callgrind` note. Re-record the clock figures of the lowered benches in the same slice (`bun nv proofs --record-perf`). Split by area across subagents with worktrees. Spec: the goal's Stage 3, `rule:testing/member-perf-ledger`."
+        "text": "**A `bench` atom.** Add the kind `bench` to `tools/nv/select/atoms.ts:6` (the kinds table): one bench under `benches/members/`, defined by the bench, its `.scale.nvs`, `.in` and `.nvsr`, its footprint from one recording run at the smallest batch, as `tools/nv/select/atoms.ts:119` (`proofPrograms`) takes an example's. Pin it in `tools/nv/test/bench-selection.test.ts`, the check `a change selects the benches it reaches, and only those`. Spec: the goal's Stage 4."
       },
       {
         "done": false,
-        "text": "**`--budget`.** Add `bun nv scaling --budget` in `tools/nv/cmd/scaling.ts:1097` (`run`): the counted work of every bench at its N, stored in `docs/perf/bench-budget.json`, which may only go down except for a new bench's share or a raised N with a reason beside its line. Check `the-bench-tree-is-within-its-budget`."
+        "text": "**The record.** The Stage 4 decision record (the next free ADR) modifying `rule:testing/member-perf-ledger` (`docs/rules/testing/member-perf-ledger.md:1`): a figure is current while no item its bench's footprint holds has moved."
       },
       {
         "done": false,
-        "text": "**README wording.** `benches/members/README.md:78`: \"Size it to run in well under a second\" becomes \"the smallest count that shows the growth\"."
-      },
-      {
-        "done": false,
-        "text": "**Sweep `--growth`.** Run `bun nv scaling --growth` (`tools/nv/cmd/scaling.ts:1050`) under `bun nv bg`, and fix each FAIL by correcting its class or its sibling, or add a gap marker. Can share the bg run with the first item."
+        "text": "**`nv affected` names the benches.** `tools/nv/cmd/affected.ts` lists the benches a change reaches, and `--run` reruns their perf proof at their N (`tools/nv/proofs/perf.ts:136`, `measureOne`)."
       }
     ]
   },
   "backlog": [
-    "Stage 4 (a change reruns the benches it reaches) and Stage 5 (skip what is already proven): their checks fail with \"filters did not match any test files\", because the tests are not written yet. Goal prose Stages 4 and 5.",
-    "Stage 6: `docs/perf/performance-pass.md` needs `## The growth proof`, which lists every bench that needed callgrind or stayed unclear. Goal prose Stage 6.",
-    "`core/BigInt/mul.scale.nvs` is unclear without callgrind. Its ladder is in `docs/perf/performance-pass.md`."
+    "The benches the ramp skips keep their large N and hold most of the budget (`lang/programs/*` run millions of statements each): make their closing line rampable (`tools/nv/cmd/scaling.ts:191`, `withBatch`), then `--sized --lower` and `--budget --write`. Goal Stage 3.",
+    "The zero clock figures above: the user's decision, then `tools/nv/proofs/perf.ts:136` if it changes.",
+    "Item 4 of the old group, the `--growth` sweep, was covered by the forced re-record: every bench's growth was judged and none fails.",
+    "Stage 5 (skip what is proven) and Stage 6 (`## The growth proof` in `docs/perf/performance-pass.md`) follow Stage 4."
   ]
 }

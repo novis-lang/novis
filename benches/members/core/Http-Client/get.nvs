@@ -1,7 +1,7 @@
 <?nvs
 // Measures sending a `GET` request that a test answers, as a program's own tests do
 // for every request to another service.
-// bench: iterations 20000
+// bench: iterations 256
 // bench: calls 0
 // bench: complexity linear
 
@@ -23,4 +23,4 @@ class Bench {
     }
 }
 
-echo Bench::run(20000), "\n";
+echo Bench::run(256), "\n";

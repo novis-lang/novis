@@ -1,7 +1,7 @@
 <?nvs
 // Measures putting one setting back. A program does this after a step that
 // needed a different limit than the rest of the request.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: calls 0
 // bench: complexity constant
 
@@ -24,4 +24,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

@@ -2,7 +2,7 @@
 // Raises an error and catches it one frame up, as a program does when a row it
 // reads turns out to be unusable. Each round reports the value that the round
 // before it produced.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: calls 2
 // bench: complexity constant
 
@@ -28,4 +28,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

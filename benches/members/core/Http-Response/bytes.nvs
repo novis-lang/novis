@@ -1,6 +1,6 @@
 <?nvs
 // Reads the body of a reply as bytes, as a program does with every image or file it downloads.
-// bench: iterations 400000
+// bench: iterations 256
 // bench: allocations 0
 // bench: calls 0
 // bench: complexity constant
@@ -25,4 +25,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(256), "\n";

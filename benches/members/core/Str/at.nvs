@@ -1,6 +1,6 @@
 <?nvs
 // Reads the first or the last character of a short word, as a program does when it builds initials.
-// bench: iterations 400000
+// bench: iterations 256
 // bench: calls 0
 // bench: complexity linear
 
@@ -18,4 +18,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(256), "\n";

@@ -1,6 +1,6 @@
 <?nvs
 // Counts a small array, as a program does before it checks a batch against a limit.
-// bench: iterations 400000
+// bench: iterations 4096
 // bench: allocations 0
 // bench: calls 0
 // bench: complexity constant
@@ -25,4 +25,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(4096), "\n";

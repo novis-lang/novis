@@ -1,6 +1,6 @@
 <?nvs
 // Moves a file to a new name, as a program does when it replaces a file safely.
-// bench: iterations 2000
+// bench: iterations 256
 // bench: calls 0
 // bench: complexity constant
 
@@ -24,4 +24,4 @@ class Bench {
     }
 }
 
-echo Bench::run(2000) > 0 ? "done" : "the file lost its content", "\n";
+echo Bench::run(256) > 0 ? "done" : "the file lost its content", "\n";

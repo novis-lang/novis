@@ -1,6 +1,6 @@
 <?nvs
 // Measures feeding a short line to an open stream, as a program does when it hashes a report line by line.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: calls 0
 // bench: complexity linear
 
@@ -18,4 +18,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

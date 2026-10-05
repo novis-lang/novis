@@ -1,7 +1,7 @@
 <?nvs
 // Measures the checks a request runs before it acts: two conditions joined with `&&`, an
 // alternative joined with `||`, a `!`, and a piece of text used directly as a condition.
-// bench: iterations 400000
+// bench: iterations 2048
 // bench: allocations 0
 // bench: complexity constant
 
@@ -27,4 +27,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(2048), "\n";

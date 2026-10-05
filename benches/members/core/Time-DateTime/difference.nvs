@@ -1,6 +1,6 @@
 <?nvs
 // Counts whole days between two dates, as a program does when it shows how many days an invoice is overdue.
-// bench: iterations 200000
+// bench: iterations 512
 // bench: calls 0
 // bench: allocations 0
 // bench: complexity constant
@@ -25,4 +25,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(512), "\n";

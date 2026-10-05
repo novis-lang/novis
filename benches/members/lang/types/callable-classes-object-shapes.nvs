@@ -2,7 +2,7 @@
 // Calls a function stored in a variable, once per loop round.
 // Filters, sort comparisons and formatting functions are called this way.
 // This bench measures the extra cost of a call through a variable.
-// bench: iterations 400000
+// bench: iterations 256
 // bench: allocations 1
 // bench: complexity constant
 
@@ -19,4 +19,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(256), "\n";

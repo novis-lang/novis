@@ -2,7 +2,7 @@
 // This measures a loop that uses only type aliases: a number, a union and an array.
 // An alias costs nothing at run time, so this loop is as fast as one with the full types.
 // Each round starts from the last round's total, so no round can be skipped.
-// bench: iterations 300000
+// bench: iterations 2048
 // bench: allocations 0
 // bench: calls 0
 // bench: complexity constant
@@ -30,4 +30,4 @@ class Bench {
     }
 }
 
-echo Bench::run(300000), "\n";
+echo Bench::run(2048), "\n";

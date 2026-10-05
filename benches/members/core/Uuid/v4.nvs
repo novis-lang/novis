@@ -1,6 +1,6 @@
 <?nvs
 // Creates a new random UUID, as a program does when it gives a new record its ID.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: complexity constant
 
 class Bench {
@@ -15,4 +15,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

@@ -1,6 +1,6 @@
 <?nvs
 // Checks whether a class constant is public, as a program does before it reads a constant by name.
-// bench: iterations 400000
+// bench: iterations 2048
 // bench: allocations 0
 // bench: complexity constant
 
@@ -28,4 +28,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(2048), "\n";

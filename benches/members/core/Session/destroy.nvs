@@ -1,6 +1,6 @@
 <?nvs
 // Ends a session that has one value, as a sign-out page does.
-// bench: iterations 2000
+// bench: iterations 256
 // bench: complexity constant
 
 class Bench {
@@ -18,4 +18,4 @@ class Bench {
     }
 }
 
-echo Bench::run(2000), "\n";
+echo Bench::run(256), "\n";

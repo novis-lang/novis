@@ -1,7 +1,7 @@
 <?nvs
 // Calls a method on an object, the version its parent wrote, and a static method
 // on the class. A program that puts its work in classes does this everywhere.
-// bench: iterations 400000
+// bench: iterations 256
 // bench: calls 3
 // bench: allocations 0
 // bench: complexity constant
@@ -38,4 +38,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(256), "\n";

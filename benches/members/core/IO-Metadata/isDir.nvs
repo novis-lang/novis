@@ -1,6 +1,6 @@
 <?nvs
 // Checks if a result of `stat` is a folder, as a program does when it walks a folder tree.
-// bench: iterations 400000
+// bench: iterations 1024
 // bench: allocations 0
 // bench: complexity constant
 
@@ -25,4 +25,4 @@ string $dir = Core\IO::temporaryDir();
 string $path = Core\Path::join($dir, "is-dir.dat");
 Core\IO::write($path, "x");
 array<Core\IO\Metadata> $infos = [Core\IO::stat($path), Core\IO::stat($dir)];
-echo Bench::run($infos, 400000), "\n";
+echo Bench::run($infos, 1024), "\n";

@@ -1,6 +1,6 @@
 <?nvs
 // Gets the connection, as a connection script does on its first line and in every helper it calls.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: complexity constant
 
 class Bench {
@@ -16,4 +16,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

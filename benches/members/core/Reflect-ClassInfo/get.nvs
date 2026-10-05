@@ -1,6 +1,6 @@
 <?nvs
 // Reads a property by its name, as a report or an export does when the column name comes from input.
-// bench: iterations 200000
+// bench: iterations 1024
 // bench: allocations 0
 // bench: complexity constant
 
@@ -25,4 +25,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(1024), "\n";

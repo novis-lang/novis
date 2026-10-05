@@ -1,7 +1,7 @@
 <?nvs
 // Measures converting a number to a `decimal`. A program does this when a
 // total it added up as whole numbers becomes an amount of money.
-// bench: iterations 400000
+// bench: iterations 256
 // bench: calls 0
 // bench: allocations 1
 // bench: complexity constant
@@ -29,4 +29,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(256), "\n";

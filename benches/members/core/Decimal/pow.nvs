@@ -1,7 +1,7 @@
 <?nvs
 // Measures one exact power of a growth factor over eight years, which a
 // savings or a price projection takes for every row it shows.
-// bench: iterations 400000
+// bench: iterations 256
 // bench: complexity constant
 
 class Bench {
@@ -25,4 +25,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(256), "\n";

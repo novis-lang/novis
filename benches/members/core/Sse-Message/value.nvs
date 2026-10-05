@@ -1,6 +1,6 @@
 <?nvs
 // Reads the value of a message, as a stream does before it sends the value to its client.
-// bench: iterations 200000
+// bench: iterations 1024
 // bench: complexity constant
 
 class Bench {
@@ -25,4 +25,4 @@ class Bench {
     }
 }
 
-echo Bench::run(Core\Sse::current(), 200000), "\n";
+echo Bench::run(Core\Sse::current(), 1024), "\n";

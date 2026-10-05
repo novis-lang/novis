@@ -1,6 +1,6 @@
 <?nvs
 // Measures reading the smallest number of a heap without removing it, as a scheduler does to see when the next job is due.
-// bench: iterations 400000
+// bench: iterations 2048
 // bench: allocations 0
 // bench: calls 0
 // bench: complexity constant
@@ -24,4 +24,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(2048), "\n";

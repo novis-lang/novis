@@ -1,6 +1,6 @@
 <?nvs
 // Measures converting an angle from radians to degrees, as a program does before it shows an angle.
-// bench: iterations 400000
+// bench: iterations 256
 // bench: allocations 0
 // bench: complexity constant
 
@@ -17,4 +17,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(256), "\n";

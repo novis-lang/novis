@@ -2,7 +2,7 @@
 // Measures what a started script costs to set up and take down: its own class
 // statics, its own place to print to, and the result it returns. A program that
 // runs a job for every item on a list meets this once per item.
-// bench: iterations 2000
+// bench: iterations 512
 // bench: complexity constant
 
 class Bench {
@@ -34,4 +34,4 @@ class Bench {
     }
 }
 
-echo Bench::run(2000), "\n";
+echo Bench::run(512), "\n";

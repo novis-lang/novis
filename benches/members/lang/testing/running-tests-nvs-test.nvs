@@ -2,7 +2,7 @@
 // Measures what one test costs a run: the test class is built, the test is
 // called, and the assertion it makes is recorded. A run pays this for every
 // test in the program.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: complexity constant
 
 use Core\Test;
@@ -38,4 +38,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

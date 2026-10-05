@@ -1,6 +1,6 @@
 <?nvs
 // Gets the description of an enum from its name, as a form or an API does before it lists the cases.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: complexity constant
 
 enum Shipping: int {
@@ -32,4 +32,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

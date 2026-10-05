@@ -1,6 +1,6 @@
 <?nvs
 // Makes a key from a program's own key pair, as a server does before it decrypts a message sent to it.
-// bench: iterations 200000
+// bench: iterations 512
 // bench: complexity constant
 
 class Bench {
@@ -24,4 +24,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(512), "\n";

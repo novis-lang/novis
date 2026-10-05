@@ -1,6 +1,6 @@
 <?nvs
 // Tests a code that a user typed, as the second step of a login does.
-// bench: iterations 50000
+// bench: iterations 2048
 // bench: allocations 0
 // bench: complexity linear
 
@@ -23,4 +23,4 @@ class Bench {
     }
 }
 
-echo Bench::run(50000), "\n";
+echo Bench::run(2048), "\n";

@@ -1,6 +1,6 @@
 <?nvs
 // Reads the computer's zone, as a program does once when it starts.
-// bench: iterations 50000
+// bench: iterations 256
 // bench: complexity constant
 
 class Bench {
@@ -18,4 +18,4 @@ class Bench {
     }
 }
 
-echo Bench::run(50000), "\n";
+echo Bench::run(256), "\n";

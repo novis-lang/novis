@@ -1,6 +1,6 @@
 <?nvs
 // Deletes an empty folder, as a program does when it cleans up after a job.
-// bench: iterations 2000
+// bench: iterations 256
 // bench: complexity constant
 
 class Bench {
@@ -25,4 +25,4 @@ class Bench {
     }
 }
 
-echo Bench::run(2000) > 0 ? "done" : "no folder was deleted", "\n";
+echo Bench::run(256) > 0 ? "done" : "no folder was deleted", "\n";

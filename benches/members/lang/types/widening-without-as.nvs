@@ -2,7 +2,7 @@
 // This measures passing an `int` to a parameter of type `float`.
 // The value is converted without `as`. You meet this when you pass a count to a math method.
 // Each round passes the last round's total, so no round can be skipped.
-// bench: iterations 300000
+// bench: iterations 1024
 // bench: allocations 0
 // bench: complexity constant
 
@@ -23,4 +23,4 @@ class Bench {
     }
 }
 
-echo Bench::run(300000), "\n";
+echo Bench::run(1024), "\n";

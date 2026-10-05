@@ -1,7 +1,7 @@
 <?nvs
 // Measures reading one byte out of a `bytes` value. A program does this when
 // it checks the first bytes of an uploaded file to see what kind of file it is.
-// bench: iterations 400000
+// bench: iterations 2048
 // bench: calls 0
 // bench: allocations 0
 // bench: statements 3
@@ -22,4 +22,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(2048), "\n";

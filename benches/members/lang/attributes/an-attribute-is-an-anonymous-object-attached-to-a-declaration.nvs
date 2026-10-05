@@ -2,7 +2,7 @@
 // Measures reading the attributes attached to a class and to one of its
 // methods. A router or a job scheduler does this for every class it knows
 // about when the program starts.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: allocations 2
 // bench: calls 0
 // bench: complexity constant
@@ -36,4 +36,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

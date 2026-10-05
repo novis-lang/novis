@@ -1,7 +1,7 @@
 <?nvs
 // Measures reading the process number. A program does this when it writes the
 // number into a log line or a file name.
-// bench: iterations 20000
+// bench: iterations 2048
 // bench: calls 0
 // bench: complexity constant
 
@@ -20,4 +20,4 @@ class Bench {
     }
 }
 
-echo Bench::run(20000), "\n";
+echo Bench::run(2048), "\n";

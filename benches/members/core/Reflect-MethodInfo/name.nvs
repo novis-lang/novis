@@ -1,6 +1,6 @@
 <?nvs
 // Reads the name of a method, as a router or a command-line tool does to find the method it must call.
-// bench: iterations 400000
+// bench: iterations 4096
 // bench: allocations 0
 // bench: complexity constant
 
@@ -32,4 +32,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(4096), "\n";

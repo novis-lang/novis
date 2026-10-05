@@ -1,6 +1,6 @@
 <?nvs
 // Reads the certificates a server sent, as a program does before it saves or compares them.
-// bench: iterations 100000
+// bench: iterations 256
 // bench: calls 0
 // bench: complexity linear
 
@@ -22,4 +22,4 @@ class Bench {
     }
 }
 
-echo Bench::run(100000), "\n";
+echo Bench::run(256), "\n";

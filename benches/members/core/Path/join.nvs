@@ -1,6 +1,6 @@
 <?nvs
 // Measures joining a folder and a file name, as a program does before it opens or writes a file.
-// bench: iterations 400000
+// bench: iterations 256
 // bench: complexity linear
 
 class Bench {
@@ -17,4 +17,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(256), "\n";

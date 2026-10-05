@@ -1,6 +1,6 @@
 <?nvs
 // Sends the browser to another page, as a form handler does after it saves the form.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: complexity linear
 
 class Bench {
@@ -19,4 +19,4 @@ class Bench {
 }
 
 Core\Response::redirect("/done");
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

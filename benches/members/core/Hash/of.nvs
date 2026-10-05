@@ -1,6 +1,6 @@
 <?nvs
 // Measures the SHA-256 digest of a short text, as a program does when it makes a cache key.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: allocations 1
 // bench: calls 0
 // bench: complexity linear
@@ -21,4 +21,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

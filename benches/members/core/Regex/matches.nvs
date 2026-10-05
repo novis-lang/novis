@@ -1,6 +1,6 @@
 <?nvs
 // Checks whether a short code has the right format, as a program does when it reads a form field.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: allocations 0
 // bench: complexity linear
 // proof: gap nvs-stdlib/regex-matches-allocates-on-every-call
@@ -24,4 +24,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

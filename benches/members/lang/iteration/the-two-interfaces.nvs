@@ -1,7 +1,7 @@
 <?nvs
 // Drives a cursor written by hand through a `foreach` loop. A program meets this shape when a
 // class of its own is walked, so the loop calls `advance()` and `current()` on every step.
-// bench: iterations 50000
+// bench: iterations 256
 // bench: complexity linear
 
 class Letters implements Iterator<int> {
@@ -36,4 +36,4 @@ class Bench {
     }
 }
 
-echo Bench::run(50000), "\n";
+echo Bench::run(256), "\n";

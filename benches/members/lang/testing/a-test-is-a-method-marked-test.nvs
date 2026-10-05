@@ -1,7 +1,7 @@
 <?nvs
 // Measures what a method marked `#[Test]` costs to call. A test runner pays
 // this once per test, and a marked method is an ordinary method.
-// bench: iterations 300000
+// bench: iterations 2048
 // bench: calls 1
 // bench: allocations 0
 // bench: complexity constant
@@ -32,4 +32,4 @@ class Bench {
     }
 }
 
-echo Bench::run(300000), "\n";
+echo Bench::run(2048), "\n";

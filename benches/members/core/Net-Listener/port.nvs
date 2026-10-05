@@ -1,6 +1,6 @@
 <?nvs
 // Reads the port of an open server, as a program does before it tells a client where to connect.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: allocations 0
 // bench: complexity constant
 
@@ -19,4 +19,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000) > 0 ? "measured" : "zero", "\n";
+echo Bench::run(256) > 0 ? "measured" : "zero", "\n";

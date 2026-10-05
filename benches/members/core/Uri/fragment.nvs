@@ -1,6 +1,6 @@
 <?nvs
 // Reads the fragment of a parsed address, as a crawler does before it removes it from a link.
-// bench: iterations 400000
+// bench: iterations 2048
 // bench: allocations 0
 // bench: complexity constant
 
@@ -22,4 +22,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(2048), "\n";

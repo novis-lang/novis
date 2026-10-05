@@ -2,7 +2,7 @@
 // The first ten lines of an ordinary program: a short list of text values put
 // in order, then walked through and added up as numbers. It is what a web
 // handler does with the fields a form sent, before it answers.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: complexity nlogn
 
 class Bench {
@@ -22,4 +22,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

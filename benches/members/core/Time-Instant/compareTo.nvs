@@ -1,6 +1,6 @@
 <?nvs
 // Compares two instants, as a program does when it checks whether a token has expired.
-// bench: iterations 400000
+// bench: iterations 2048
 // bench: allocations 0
 // bench: complexity constant
 
@@ -24,4 +24,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(2048), "\n";

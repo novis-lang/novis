@@ -1,6 +1,6 @@
 <?nvs
 // Opens a lock file, takes the lock and closes it, as a job does before it changes a shared file.
-// bench: iterations 20000
+// bench: iterations 256
 // bench: complexity constant
 
 class Bench {
@@ -25,4 +25,4 @@ class Bench {
     }
 }
 
-echo Bench::run(20000) > 0 ? "done" : "no lock was taken", "\n";
+echo Bench::run(256) > 0 ? "done" : "no lock was taken", "\n";

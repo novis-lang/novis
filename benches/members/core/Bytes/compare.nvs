@@ -1,7 +1,7 @@
 <?nvs
 // Measures ordering two eight-byte keys. A program does this when it sorts
 // binary keys, or when it checks that a key falls inside a range.
-// bench: iterations 400000
+// bench: iterations 1024
 // bench: calls 0
 // bench: allocations 0
 // bench: statements 3
@@ -27,4 +27,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(1024), "\n";

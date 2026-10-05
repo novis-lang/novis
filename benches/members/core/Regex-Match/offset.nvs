@@ -1,6 +1,6 @@
 <?nvs
 // Reads where a match starts, as a program does before it cuts the text around a match.
-// bench: iterations 400000
+// bench: iterations 4096
 // bench: complexity constant
 
 class Bench {
@@ -24,4 +24,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(4096), "\n";

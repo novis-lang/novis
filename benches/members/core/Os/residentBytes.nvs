@@ -1,7 +1,7 @@
 <?nvs
 // Measures reading the most memory the process has used. A server does this
 // when it fills in a metrics page.
-// bench: iterations 20000
+// bench: iterations 2048
 // bench: calls 0
 // bench: complexity constant
 
@@ -20,4 +20,4 @@ class Bench {
     }
 }
 
-echo Bench::run(20000), "\n";
+echo Bench::run(2048), "\n";

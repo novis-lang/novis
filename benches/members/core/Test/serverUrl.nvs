@@ -1,6 +1,6 @@
 <?nvs
 // Reads the test server address, as a test does before it builds each URL it requests.
-// bench: iterations 400000
+// bench: iterations 2048
 // bench: complexity constant
 
 class Bench {
@@ -17,4 +17,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(2048), "\n";

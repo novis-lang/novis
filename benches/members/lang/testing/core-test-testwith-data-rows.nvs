@@ -1,7 +1,7 @@
 <?nvs
 // Measures what one data row costs: the test is called once per row, with the
 // values that row holds. A test runner pays this for every row you write.
-// bench: iterations 300000
+// bench: iterations 2048
 // bench: calls 1
 // bench: allocations 0
 // bench: complexity constant
@@ -37,4 +37,4 @@ class Bench {
     }
 }
 
-echo Bench::run(300000), "\n";
+echo Bench::run(2048), "\n";

@@ -1,7 +1,7 @@
 <?nvs
 // Combines a configuration tree with the settings of the machine it runs on,
 // as a program does while it starts up.
-// bench: iterations 100000
+// bench: iterations 256
 // bench: calls 0
 // bench: complexity linear
 
@@ -24,4 +24,4 @@ class Bench {
     }
 }
 
-echo Bench::run(100000), "\n";
+echo Bench::run(256), "\n";

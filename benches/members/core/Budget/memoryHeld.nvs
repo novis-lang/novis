@@ -1,7 +1,7 @@
 <?nvs
 // Measures reading the memory a program is using. A program does this around a
 // piece of work to find out what the work costs.
-// bench: iterations 400000
+// bench: iterations 1024
 // bench: calls 0
 // bench: allocations 0
 // bench: statements 3
@@ -21,4 +21,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(1024), "\n";

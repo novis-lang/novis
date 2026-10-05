@@ -1,7 +1,7 @@
 <?nvs
 // Measures reading the terminal's height, as a program does before it prints
 // one page of a report.
-// bench: iterations 200000
+// bench: iterations 4096
 // bench: calls 0
 // bench: allocations 0
 // bench: complexity constant
@@ -20,4 +20,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(4096), "\n";

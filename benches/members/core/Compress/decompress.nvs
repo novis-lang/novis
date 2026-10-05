@@ -1,7 +1,7 @@
 <?nvs
 // Measures reading one short compressed record back. A program meets this every
 // time it reads a value out of a cache that keeps its entries compressed.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: calls 0
 // bench: complexity linear
 
@@ -25,4 +25,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

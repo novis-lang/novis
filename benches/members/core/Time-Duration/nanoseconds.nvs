@@ -1,6 +1,6 @@
 <?nvs
 // Creates a duration from a number of nanoseconds, as a program does when it reads a timer or a log.
-// bench: iterations 400000
+// bench: iterations 256
 // bench: complexity constant
 
 class Bench {
@@ -16,4 +16,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(256), "\n";

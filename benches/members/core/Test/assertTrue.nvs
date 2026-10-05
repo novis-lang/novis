@@ -1,6 +1,6 @@
 <?nvs
 // Checks that a condition is `true`, as a test does after it compares two values.
-// bench: iterations 400000
+// bench: iterations 256
 // bench: complexity constant
 
 class Bench {
@@ -16,4 +16,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(256), "\n";

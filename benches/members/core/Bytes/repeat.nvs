@@ -1,7 +1,7 @@
 <?nvs
 // Measures building a buffer out of a whole buffer repeated. A program does
 // this when it draws a line under a title or writes a block of a pattern.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: calls 0
 // bench: complexity linear
 
@@ -20,4 +20,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

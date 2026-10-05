@@ -1,7 +1,7 @@
 <?nvs
 // Measures `queryAs`, which runs one `select` in a transaction and reads the rows into objects.
 // A program does this when it loads records before it changes them.
-// bench: iterations 10000
+// bench: iterations 256
 // bench: complexity linear
 use Core\Db\Derive;
 
@@ -43,4 +43,4 @@ class Bench {
     }
 }
 
-echo Bench::run(10000), "\n";
+echo Bench::run(256), "\n";

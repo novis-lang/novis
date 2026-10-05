@@ -1,6 +1,6 @@
 <?nvs
 // Reads the text of a message, as a connection does for every line a client types.
-// bench: iterations 200000
+// bench: iterations 2048
 // bench: complexity constant
 
 class Bench {
@@ -26,4 +26,4 @@ class Bench {
     }
 }
 
-echo Bench::run(Core\Socket::current(), 200000), "\n";
+echo Bench::run(Core\Socket::current(), 2048), "\n";

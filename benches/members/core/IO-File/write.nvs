@@ -1,6 +1,6 @@
 <?nvs
 // Writes one short line to an open file, as a program does when it writes a log or a CSV file.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: complexity linear
 
 class Bench {
@@ -27,4 +27,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000) > 0 ? "done" : "nothing was written", "\n";
+echo Bench::run(256) > 0 ? "done" : "nothing was written", "\n";

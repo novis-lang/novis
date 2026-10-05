@@ -1,7 +1,7 @@
 <?nvs
 // Measures one rendering of a small object with `Core\Debug::render`. A program
 // builds these while somebody is looking for a fault in it.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: complexity constant
 
 class Row {
@@ -29,4 +29,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

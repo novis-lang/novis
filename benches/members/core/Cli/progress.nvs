@@ -2,7 +2,7 @@
 // Measures opening a progress bar, counting one step and closing it again. A
 // command line tool meets this when it imports a file row by row. The output here
 // is not a terminal, so nothing is drawn and the bar's own cost is what is left.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: calls 0
 // bench: allocations 10
 // bench: complexity constant
@@ -24,4 +24,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

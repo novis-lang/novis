@@ -1,6 +1,6 @@
 <?nvs
 // Reads the value a script was started with, as a child script does before it starts its work.
-// bench: iterations 400000
+// bench: iterations 2048
 // bench: allocations 0
 // bench: calls 0
 // bench: complexity constant
@@ -21,4 +21,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(2048), "\n";

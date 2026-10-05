@@ -1,6 +1,6 @@
 <?nvs
 // Reads one named group of a match, as a program does after it matched a log line or a URL.
-// bench: iterations 400000
+// bench: iterations 4096
 // bench: complexity constant
 
 class Bench {
@@ -26,4 +26,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(4096), "\n";

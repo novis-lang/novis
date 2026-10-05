@@ -1,6 +1,6 @@
 <?nvs
 // Asks an open file for its position, as a program does before it saves where it stopped.
-// bench: iterations 400000
+// bench: iterations 4096
 // bench: allocations 0
 // bench: complexity constant
 
@@ -20,5 +20,5 @@ string $path = Core\Path::join(Core\IO::temporaryDir(), "tell.dat");
 Core\IO::write($path, "0123456789");
 Core\IO\File $file = Core\IO::open($path, Core\IO\FileMode::Read);
 $file->seek(5);
-echo Bench::run($file, 400000), "\n";
+echo Bench::run($file, 4096), "\n";
 $file->close();

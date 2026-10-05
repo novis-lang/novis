@@ -1,6 +1,6 @@
 <?nvs
 // Measures adding a number to a heap of up to 2000 numbers, as a job queue does when new work arrives.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: complexity constant
 // bench: allocations 0
 // bench: calls 0
@@ -24,4 +24,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

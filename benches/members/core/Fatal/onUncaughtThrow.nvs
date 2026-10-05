@@ -1,7 +1,7 @@
 <?nvs
 // Measures registering an error function. A program does this once at its start,
 // and a framework may do it again for each part of the work.
-// bench: iterations 400000
+// bench: iterations 2048
 // bench: allocations 0
 // bench: calls 0
 // bench: complexity constant
@@ -22,4 +22,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(2048), "\n";

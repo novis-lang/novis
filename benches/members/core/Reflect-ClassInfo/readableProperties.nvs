@@ -1,6 +1,6 @@
 <?nvs
 // Builds the list of readable properties of an object, as a debug helper does before it prints one.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: complexity constant
 
 class Customer {
@@ -28,4 +28,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

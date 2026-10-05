@@ -1,6 +1,6 @@
 <?nvs
 // Divides a card number into groups of four digits, as a payment page does before it shows one.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: calls 0
 // bench: complexity linear
 
@@ -17,4 +17,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

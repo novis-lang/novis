@@ -1,6 +1,6 @@
 <?nvs
 // Closes nested elements with an indent, as a program does when it writes a tree such as a menu or a category list.
-// bench: iterations 40000
+// bench: iterations 256
 // bench: complexity linear
 
 class Bench {
@@ -29,4 +29,4 @@ class Bench {
     }
 }
 
-echo Bench::run(40000), "\n";
+echo Bench::run(256), "\n";

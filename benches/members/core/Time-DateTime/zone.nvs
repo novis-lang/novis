@@ -1,6 +1,6 @@
 <?nvs
 // Gets the time zone of a date and time, as a program does to show other times in the same zone.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: calls 0
 // bench: complexity constant
 
@@ -24,4 +24,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

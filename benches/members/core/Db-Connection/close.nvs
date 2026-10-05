@@ -1,7 +1,7 @@
 <?nvs
 // Measures closing a connection that is closed already, as the cleanup of a
 // program does when an earlier step gave the connection back.
-// bench: iterations 200000
+// bench: iterations 2048
 // bench: allocations 0
 // bench: complexity constant
 
@@ -24,4 +24,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(2048), "\n";

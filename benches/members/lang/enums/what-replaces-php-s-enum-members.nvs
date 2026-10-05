@@ -2,7 +2,7 @@
 // Turns a case into the text a person reads, through the `match` in a class of your own that
 // replaces PHP's `->name`. A program meets this shape when it writes a status into a page or a log
 // line. The length of the text is added up so the call stays inside the loop.
-// bench: iterations 400000
+// bench: iterations 512
 // bench: complexity constant
 
 enum Level { Debug, Info, Warn, Error }
@@ -33,4 +33,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(512), "\n";

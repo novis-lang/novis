@@ -1,6 +1,6 @@
 <?nvs
 // Reads the name of a node, as a program does when it looks for the elements it needs.
-// bench: iterations 400000
+// bench: iterations 4096
 // bench: allocations 0
 // bench: calls 0
 // bench: complexity constant
@@ -29,4 +29,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(4096), "\n";

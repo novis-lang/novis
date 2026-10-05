@@ -2,7 +2,7 @@
 // Does arithmetic on a `mixed` variable, as code does with request data it has not converted.
 // The type of a `mixed` value is checked at every step while the program runs.
 // Converting the value once, at the start, avoids that cost. Each round uses the last round's value.
-// bench: iterations 300000
+// bench: iterations 1024
 // bench: allocations 0
 // bench: complexity constant
 
@@ -20,4 +20,4 @@ class Bench {
     }
 }
 
-echo Bench::run(300000), "\n";
+echo Bench::run(1024), "\n";

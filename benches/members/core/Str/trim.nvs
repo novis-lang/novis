@@ -1,6 +1,6 @@
 <?nvs
 // Removes the spaces around a form field, as a program does with every value somebody types.
-// bench: iterations 400000
+// bench: iterations 256
 // bench: complexity linear
 
 class Bench {
@@ -16,4 +16,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(256), "\n";

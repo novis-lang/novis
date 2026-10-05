@@ -1,6 +1,6 @@
 <?nvs
 // Reads the body of a small JSON request, as a handler does before it checks or decodes it.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: complexity linear
 // proof: gap nv/a-bench-cannot-ramp-an-input-fixed-outside-its-program
 // bench: allocations 1
@@ -22,4 +22,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

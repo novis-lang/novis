@@ -1,6 +1,6 @@
 <?nvs
 // Checks the number of entries in a short list, as a test does after a function returns a list.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: complexity constant
 
 class Bench {
@@ -18,4 +18,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

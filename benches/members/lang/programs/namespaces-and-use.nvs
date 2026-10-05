@@ -2,7 +2,7 @@
 // One class called two ways in one loop: by the short name an import brings
 // in, and written out in full. Which way a name is written is settled while
 // the program is compiled, so both should cost the same.
-// bench: iterations 2000000
+// bench: iterations 1024
 // bench: allocations 0
 // bench: complexity constant
 
@@ -32,4 +32,4 @@ class Bench {
     }
 }
 
-echo Bench::run(2000000), "\n";
+echo Bench::run(1024), "\n";

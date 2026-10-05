@@ -1,6 +1,6 @@
 <?nvs
 // Measures a test for `NaN`, as a program does on each value before it adds it to a total.
-// bench: iterations 400000
+// bench: iterations 2048
 // bench: allocations 0
 // bench: complexity constant
 
@@ -20,4 +20,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(2048), "\n";

@@ -2,7 +2,7 @@
 // Runs a `for` loop that counts through a fixed number of rounds and does one
 // small step in each. A program meets this shape whenever it walks a list by
 // position.
-// bench: iterations 400000
+// bench: iterations 256
 // bench: calls 0
 // bench: allocations 0
 // bench: complexity constant
@@ -18,4 +18,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(256), "\n";

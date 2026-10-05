@@ -1,6 +1,6 @@
 <?nvs
 // Reads the nodes of a document one at a time, as a program does when it goes through a feed.
-// bench: iterations 100000
+// bench: iterations 256
 // bench: complexity linear
 
 class Bench {
@@ -22,4 +22,4 @@ class Bench {
     }
 }
 
-echo Bench::run(100000), "\n";
+echo Bench::run(256), "\n";

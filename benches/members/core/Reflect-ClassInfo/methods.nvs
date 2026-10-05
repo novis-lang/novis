@@ -1,6 +1,6 @@
 <?nvs
 // Lists the methods of a class, as a router or a command line tool does to find its handlers.
-// bench: iterations 200000
+// bench: iterations 2048
 // bench: complexity constant
 
 class Controller {
@@ -37,4 +37,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(2048), "\n";

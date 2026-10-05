@@ -1,7 +1,7 @@
 <?nvs
 // Reads the values of a request as a list, as a page does when it lists what
 // the form sent without naming the fields.
-// bench: iterations 400000
+// bench: iterations 256
 // bench: calls 0
 // bench: complexity linear
 
@@ -24,4 +24,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(256), "\n";

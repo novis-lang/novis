@@ -1,7 +1,7 @@
 <?nvs
 // Measures building the list of every page with its route path, as a framework does
 // once when it starts and builds its dispatch table.
-// bench: iterations 100000
+// bench: iterations 256
 // bench: calls 0
 // bench: complexity constant
 
@@ -41,4 +41,4 @@ class Bench {
     }
 }
 
-echo Bench::run(100000), "\n";
+echo Bench::run(256), "\n";

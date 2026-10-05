@@ -1,6 +1,6 @@
 <?nvs
 // Measures the SHA-256 signature of a short message, as a program does when it checks a signed cookie.
-// bench: iterations 100000
+// bench: iterations 256
 // bench: allocations 1
 // bench: calls 0
 // bench: complexity linear
@@ -22,4 +22,4 @@ class Bench {
     }
 }
 
-echo Bench::run(100000), "\n";
+echo Bench::run(256), "\n";

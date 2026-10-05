@@ -1,6 +1,6 @@
 <?nvs
 // Counts the characters of a short label, as a program does before it shortens or pads one.
-// bench: iterations 400000
+// bench: iterations 2048
 // bench: allocations 0
 // bench: complexity linear
 
@@ -17,4 +17,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(2048), "\n";

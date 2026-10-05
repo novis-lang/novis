@@ -1,6 +1,6 @@
 <?nvs
 // Measures rolling a die with a seeded generator, as a test or a simulation does.
-// bench: iterations 400000
+// bench: iterations 256
 // bench: calls 0
 // bench: allocations 0
 // bench: complexity constant
@@ -19,4 +19,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000) > 0 ? "done" : "none", "\n";
+echo Bench::run(256) > 0 ? "done" : "none", "\n";

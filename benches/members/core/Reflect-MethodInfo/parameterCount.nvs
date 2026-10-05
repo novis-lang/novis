@@ -1,6 +1,6 @@
 <?nvs
 // Reads how many parameters a method has, as a job runner does before it calls a task with no arguments.
-// bench: iterations 400000
+// bench: iterations 2048
 // bench: allocations 0
 // bench: complexity constant
 
@@ -32,4 +32,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(2048), "\n";

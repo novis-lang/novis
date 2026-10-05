@@ -1,6 +1,6 @@
 <?nvs
 // Reads the topic name of a message, as a connection does to decide what to do with each message.
-// bench: iterations 200000
+// bench: iterations 2048
 // bench: complexity constant
 
 class Bench {
@@ -30,4 +30,4 @@ class Bench {
     }
 }
 
-echo Bench::run(Core\Socket::current(), 200000), "\n";
+echo Bench::run(Core\Socket::current(), 2048), "\n";

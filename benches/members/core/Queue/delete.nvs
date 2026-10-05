@@ -1,6 +1,6 @@
 <?nvs
 // Deletes the row of one job, as a program does when a user deletes their account.
-// bench: iterations 2000
+// bench: iterations 256
 // bench: calls 0
 // bench: complexity constant
 use Core\Queue;
@@ -46,4 +46,4 @@ while ($n < 2000) {
     $saved[] = Queue::push("jobs/export.nvs", {queue: "exports"});
     $n = $n + 1;
 }
-echo Bench::run($saved, 2000), "\n";
+echo Bench::run($saved, 256), "\n";

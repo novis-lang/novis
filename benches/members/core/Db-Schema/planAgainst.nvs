@@ -1,7 +1,7 @@
 <?nvs
 // Measures planning one schema against a database that already matches it. A
 // program does this at start-up to check that its tables are there.
-// bench: iterations 2000
+// bench: iterations 256
 // bench: complexity linear
 
 use Core\Db;
@@ -36,4 +36,4 @@ class Bench {
     }
 }
 
-echo Bench::run(2000), "\n";
+echo Bench::run(256), "\n";

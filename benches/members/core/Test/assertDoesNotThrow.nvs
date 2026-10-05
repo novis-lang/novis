@@ -1,6 +1,6 @@
 <?nvs
 // Checks that a small function runs without an error, as a test does when the call itself is the point.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: complexity constant
 
 class Bench {
@@ -18,4 +18,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

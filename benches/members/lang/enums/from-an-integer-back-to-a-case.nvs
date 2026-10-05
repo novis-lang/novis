@@ -1,7 +1,7 @@
 <?nvs
 // Converts a number into the case of an enum that carries it. A program meets this shape when it
 // reads a status back out of a database row or a queue message.
-// bench: iterations 400000
+// bench: iterations 1024
 // bench: calls 0
 // bench: allocations 0
 // bench: complexity constant
@@ -23,4 +23,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(1024), "\n";

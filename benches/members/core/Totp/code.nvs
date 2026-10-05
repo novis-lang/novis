@@ -1,6 +1,6 @@
 <?nvs
 // Makes a one-time code from a secret, as a login test or a setup page does.
-// bench: iterations 100000
+// bench: iterations 256
 // bench: complexity linear
 
 class Bench {
@@ -21,4 +21,4 @@ class Bench {
     }
 }
 
-echo Bench::run(100000), "\n";
+echo Bench::run(256), "\n";

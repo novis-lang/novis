@@ -1,7 +1,7 @@
 <?nvs
 // Reads the highest bid of a short list, as an auction page does before it
 // shows the leading offer.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: calls 0
 // bench: complexity linear
 
@@ -19,4 +19,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

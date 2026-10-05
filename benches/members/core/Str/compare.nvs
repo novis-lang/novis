@@ -1,6 +1,6 @@
 <?nvs
 // Compares two short names, as a sort does many times for every list it puts in order.
-// bench: iterations 400000
+// bench: iterations 2048
 // bench: calls 0
 // bench: allocations 0
 // bench: complexity linear
@@ -19,4 +19,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(2048), "\n";

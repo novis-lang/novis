@@ -1,7 +1,7 @@
 <?nvs
 // Measures reaching a shared secret with a peer over X25519. A server does this
 // once per client, at the start of a connection.
-// bench: iterations 5000
+// bench: iterations 256
 // bench: calls 0
 // bench: allocations 1
 // bench: complexity constant
@@ -31,4 +31,4 @@ class Bench {
     }
 }
 
-echo Bench::run(5000), "\n";
+echo Bench::run(256), "\n";

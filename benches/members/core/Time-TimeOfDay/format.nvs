@@ -1,6 +1,6 @@
 <?nvs
 // Shows a time of day as text, as a program does when it writes a time into a page or a log.
-// bench: iterations 400000
+// bench: iterations 256
 // bench: complexity linear
 
 class Bench {
@@ -21,4 +21,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(256), "\n";

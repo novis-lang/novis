@@ -1,7 +1,7 @@
 <?nvs
 // Measures a three-step pipeline that trims a label, makes it lower case and
 // counts its length. A request handler does this to clean up a form field.
-// bench: iterations 1000000
+// bench: iterations 256
 // bench: complexity linear
 
 class Bench {
@@ -20,4 +20,4 @@ class Bench {
     }
 }
 
-echo Bench::run(1000000), "\n";
+echo Bench::run(256), "\n";

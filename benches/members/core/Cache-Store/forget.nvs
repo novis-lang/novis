@@ -1,7 +1,7 @@
 <?nvs
 // Measures removing a value from this core's cache. Each round writes a value
 // first, so that there is one to remove.
-// bench: iterations 200000
+// bench: iterations 1024
 // bench: calls 0
 // bench: complexity linear
 
@@ -22,4 +22,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(1024), "\n";

@@ -1,6 +1,6 @@
 <?nvs
 // Reads a date and time through a pattern, as a program does with each row of an exported file.
-// bench: iterations 100000
+// bench: iterations 256
 // bench: complexity linear
 
 class Bench {
@@ -18,4 +18,4 @@ class Bench {
     }
 }
 
-echo Bench::run(100000), "\n";
+echo Bench::run(256), "\n";

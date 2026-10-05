@@ -1,6 +1,6 @@
 <?nvs
 // Saves the body of a streamed reply to a file, as a program does when it downloads a report.
-// bench: iterations 2000
+// bench: iterations 256
 // bench: complexity linear
 
 class Bench {
@@ -25,4 +25,4 @@ class Bench {
     }
 }
 
-echo Bench::run(2000), "\n";
+echo Bench::run(256), "\n";

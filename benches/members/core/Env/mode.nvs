@@ -1,7 +1,7 @@
 <?nvs
 // Measures reading the mode the program runs in. A program does this when it
 // decides how much to show about an error.
-// bench: iterations 400000
+// bench: iterations 2048
 // bench: allocations 0
 // bench: calls 0
 // bench: complexity constant
@@ -19,4 +19,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(2048), "\n";

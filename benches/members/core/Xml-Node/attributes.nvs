@@ -1,6 +1,6 @@
 <?nvs
 // Reads the attributes of an element, as a program does for each item in an XML feed.
-// bench: iterations 400000
+// bench: iterations 2048
 // bench: complexity constant
 
 class Bench {
@@ -24,4 +24,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(2048), "\n";

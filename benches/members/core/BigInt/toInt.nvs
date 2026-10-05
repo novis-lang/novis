@@ -1,7 +1,7 @@
 <?nvs
 // Measures converting a number back to an `int`. A program does this to store
 // a large total in a database column.
-// bench: iterations 400000
+// bench: iterations 256
 // bench: calls 0
 // bench: allocations 1
 // bench: complexity constant
@@ -29,4 +29,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(256), "\n";

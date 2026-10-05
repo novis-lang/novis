@@ -1,6 +1,6 @@
 <?nvs
 // Lists the constants of a class, as a program does when it prints a class's settings or checks a name.
-// bench: iterations 400000
+// bench: iterations 1024
 // bench: allocations 0
 // bench: complexity constant
 
@@ -31,4 +31,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(1024), "\n";

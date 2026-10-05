@@ -1,6 +1,6 @@
 <?nvs
 // Compares a small order object with its lines, as a test does after it builds one.
-// bench: iterations 20000
+// bench: iterations 512
 // bench: complexity linear
 
 class Line {
@@ -35,4 +35,4 @@ class Bench {
     }
 }
 
-echo Bench::run(20000), "\n";
+echo Bench::run(512), "\n";

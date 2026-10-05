@@ -1,7 +1,7 @@
 <?nvs
 // Measures one `Core\Decimal::round` of a tax line to cents, which a checkout
 // does for every line of an order.
-// bench: iterations 1000000
+// bench: iterations 1024
 // bench: complexity constant
 
 class Bench {
@@ -22,4 +22,4 @@ class Bench {
     }
 }
 
-echo Bench::run(1000000), "\n";
+echo Bench::run(1024), "\n";

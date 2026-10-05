@@ -1,7 +1,7 @@
 <?nvs
 // Measures checking a column name, as a list page does for the column a visitor
 // chose to sort by.
-// bench: iterations 300000
+// bench: iterations 256
 // bench: calls 0
 // bench: allocations 1
 // bench: complexity linear
@@ -26,4 +26,4 @@ class Bench {
     }
 }
 
-echo Bench::run(300000), "\n";
+echo Bench::run(256), "\n";

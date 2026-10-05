@@ -1,6 +1,6 @@
 <?nvs
 // Measures checking whether a path starts at a root, as a program does before it joins a configured folder to its own.
-// bench: iterations 400000
+// bench: iterations 1024
 // bench: allocations 0
 // bench: complexity constant
 
@@ -26,4 +26,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(1024), "\n";

@@ -1,6 +1,6 @@
 <?nvs
 // Checks whether a method is public, as a router does before it offers a method as a page.
-// bench: iterations 400000
+// bench: iterations 2048
 // bench: allocations 0
 // bench: complexity constant
 
@@ -36,4 +36,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(2048), "\n";

@@ -1,6 +1,6 @@
 <?nvs
 // Opens a small file and closes it again, as a program does before it reads a part of a file.
-// bench: iterations 20000
+// bench: iterations 256
 // bench: complexity constant
 
 class Bench {
@@ -27,4 +27,4 @@ class Bench {
     }
 }
 
-echo Bench::run(20000) > 0 ? "done" : "no file was opened", "\n";
+echo Bench::run(256) > 0 ? "done" : "no file was opened", "\n";

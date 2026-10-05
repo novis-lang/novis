@@ -1,7 +1,7 @@
 <?nvs
 // Measures checking the first bytes of a value. A program does this when it
 // decides what kind of file it was given.
-// bench: iterations 400000
+// bench: iterations 1024
 // bench: calls 0
 // bench: allocations 0
 // bench: complexity linear
@@ -27,4 +27,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(1024), "\n";

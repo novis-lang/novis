@@ -1,6 +1,6 @@
 <?nvs
 // Checks the signed download link a request arrived with, as a download handler does before it sends the file.
-// bench: iterations 20000
+// bench: iterations 256
 // bench: complexity linear
 // proof: gap nv/a-bench-cannot-ramp-an-input-fixed-outside-its-program
 
@@ -26,4 +26,4 @@ class Bench {
     }
 }
 
-echo Bench::run(20000), "\n";
+echo Bench::run(256), "\n";

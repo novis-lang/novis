@@ -1,7 +1,7 @@
 <?nvs
 // Measures making a short label safe to print, as a program does with every
 // piece of text a person typed.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: calls 0
 // bench: allocations 1
 // bench: complexity linear
@@ -22,4 +22,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

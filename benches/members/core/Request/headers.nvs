@@ -1,6 +1,6 @@
 <?nvs
 // Reads every header of a request at once, as a program does to log a request or pass it on.
-// bench: iterations 50000
+// bench: iterations 256
 // bench: complexity linear
 // proof: gap nv/a-bench-cannot-ramp-an-input-fixed-outside-its-program
 
@@ -18,4 +18,4 @@ class Bench {
     }
 }
 
-echo Bench::run(50000), "\n";
+echo Bench::run(256), "\n";

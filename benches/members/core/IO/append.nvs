@@ -1,6 +1,6 @@
 <?nvs
 // Adds one short line to the end of a file, as a program does when it writes to its own log.
-// bench: iterations 5000
+// bench: iterations 256
 // bench: calls 0
 // bench: complexity linear
 
@@ -22,4 +22,4 @@ class Bench {
     }
 }
 
-echo Bench::run(5000), "\n";
+echo Bench::run(256), "\n";

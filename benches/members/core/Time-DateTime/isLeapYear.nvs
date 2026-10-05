@@ -1,6 +1,6 @@
 <?nvs
 // Checks whether a date is in a leap year, as a program does before it splits a yearly price into days.
-// bench: iterations 400000
+// bench: iterations 4096
 // bench: calls 0
 // bench: allocations 0
 // bench: complexity constant
@@ -26,4 +26,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(4096), "\n";

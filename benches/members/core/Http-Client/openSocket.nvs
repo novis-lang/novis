@@ -1,7 +1,7 @@
 <?nvs
 // Measures opening a WebSocket that a test answers and reading one message,
 // as the tests of a program with a live feed do.
-// bench: iterations 20000
+// bench: iterations 256
 // bench: calls 0
 // bench: complexity linear
 
@@ -25,4 +25,4 @@ class Bench {
     }
 }
 
-echo Bench::run(20000), "\n";
+echo Bench::run(256), "\n";

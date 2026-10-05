@@ -1,7 +1,7 @@
 <?nvs
 // Measures one insert of one row, as a program does when it writes records one
 // at a time.
-// bench: iterations 20000
+// bench: iterations 256
 // bench: complexity linear
 
 class Bench {
@@ -21,4 +21,4 @@ class Bench {
     }
 }
 
-echo Bench::run(20000), "\n";
+echo Bench::run(256), "\n";

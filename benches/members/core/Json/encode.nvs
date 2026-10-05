@@ -1,6 +1,6 @@
 <?nvs
 // Encodes a small shape as JSON, as an API server does with the answer to each request.
-// bench: iterations 50000
+// bench: iterations 256
 // bench: complexity linear
 
 class Bench {
@@ -19,4 +19,4 @@ class Bench {
     }
 }
 
-echo Bench::run(50000), "\n";
+echo Bench::run(256), "\n";

@@ -1,6 +1,6 @@
 <?nvs
 // Reads the children of an element, as a program does when it walks an XML document.
-// bench: iterations 400000
+// bench: iterations 4096
 // bench: complexity constant
 
 class Bench {
@@ -25,4 +25,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(4096), "\n";

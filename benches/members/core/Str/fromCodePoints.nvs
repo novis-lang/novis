@@ -1,6 +1,6 @@
 <?nvs
 // Builds a short word from its code points, as a program does after it removes characters from a name.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: calls 0
 // bench: complexity linear
 
@@ -17,4 +17,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

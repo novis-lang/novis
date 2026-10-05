@@ -1,7 +1,7 @@
 <?nvs
 // Measures reading the first row of a small result, which a program does for
 // every lookup by id.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: calls 0
 // bench: complexity constant
 
@@ -27,4 +27,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

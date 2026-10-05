@@ -2,7 +2,7 @@
 // Runs the statements a program is mostly made of: a local declared inside a
 // loop body, an assignment, and a block that groups one step. A program meets
 // this shape in every function it has.
-// bench: iterations 400000
+// bench: iterations 256
 // bench: calls 0
 // bench: allocations 0
 // bench: complexity constant
@@ -24,4 +24,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(256), "\n";

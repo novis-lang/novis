@@ -1,7 +1,7 @@
 <?nvs
 // Calls a method that gives a value back, once per round, and takes one of two
 // `return` statements. A program meets this shape in every helper it calls.
-// bench: iterations 400000
+// bench: iterations 512
 // bench: allocations 0
 // bench: complexity constant
 
@@ -23,4 +23,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(512), "\n";

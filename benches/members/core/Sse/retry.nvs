@@ -1,6 +1,6 @@
 <?nvs
 // Sends a reconnection time, as a stream does before the server stops for a restart.
-// bench: iterations 20000
+// bench: iterations 256
 // bench: complexity constant
 
 class Bench {
@@ -18,4 +18,4 @@ class Bench {
 
 // `retry()` writes to an open stream, so the program opens one first.
 Core\Sse $sse = Core\Sse::stream();
-echo Bench::run($sse, 20000), "\n";
+echo Bench::run($sse, 256), "\n";

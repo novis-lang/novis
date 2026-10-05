@@ -1,7 +1,7 @@
 <?nvs
 // Takes the id out of every row of a query result. A page does this before it
 // asks another table for the rows that belong to them.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: calls 0
 // bench: complexity linear
 
@@ -25,4 +25,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

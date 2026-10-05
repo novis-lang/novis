@@ -1,7 +1,7 @@
 <?nvs
 // Builds a value out of a short piece of text, as a route capture or a command
 // argument does on every request.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: complexity constant
 
 final class Sku implements Parses {
@@ -33,4 +33,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

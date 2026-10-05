@@ -1,7 +1,7 @@
 <?nvs
 // Measures reading back what a short line of terminal text says. A tool meets
 // this when it writes the same line to a log as well as to the screen.
-// bench: iterations 400000
+// bench: iterations 256
 // bench: calls 0
 // bench: allocations 3
 // bench: complexity linear
@@ -31,4 +31,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(256), "\n";

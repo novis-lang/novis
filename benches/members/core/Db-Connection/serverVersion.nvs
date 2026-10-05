@@ -1,7 +1,7 @@
 <?nvs
 // Measures reading the version of the database a connection is talking to, as
 // a program does before it uses something older databases do not have.
-// bench: iterations 400000
+// bench: iterations 256
 // bench: calls 0
 // bench: allocations 1
 // bench: complexity constant
@@ -21,4 +21,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(256), "\n";

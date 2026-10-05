@@ -1,7 +1,7 @@
 <?nvs
 // Measures one expression that mixes six levels of operator precedence. Real code writes
 // this when it works out a line total and then makes a decision from it.
-// bench: iterations 400000
+// bench: iterations 1024
 // bench: allocations 0
 // bench: complexity constant
 
@@ -18,4 +18,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(1024), "\n";

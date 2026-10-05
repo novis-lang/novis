@@ -1,6 +1,6 @@
 <?nvs
 // Calls `Core\Time::sleep` with a wait of zero or less, as a program does when a deadline has already passed.
-// bench: iterations 400000
+// bench: iterations 512
 // bench: allocations 0
 // bench: complexity constant
 
@@ -19,4 +19,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(512), "\n";

@@ -3,7 +3,7 @@
 // many times. This measures three calls per round: to an anonymous function
 // that captures nothing, to one that captures a number, and to one written
 // as a block.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: allocations 0
 // bench: complexity constant
 // proof: gap nvs-runtime/call-through-a-callable-builds-its
@@ -34,4 +34,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

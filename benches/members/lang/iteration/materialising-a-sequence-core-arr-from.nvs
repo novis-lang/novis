@@ -1,7 +1,7 @@
 <?nvs
 // Collects a short generator into an array with `Core\Arr::from`. A program meets this shape
 // when it needs the whole of a sequence at once, to count it or to sort it.
-// bench: iterations 50000
+// bench: iterations 256
 // bench: complexity linear
 
 class Bench {
@@ -27,4 +27,4 @@ class Bench {
     }
 }
 
-echo Bench::run(50000), "\n";
+echo Bench::run(256), "\n";

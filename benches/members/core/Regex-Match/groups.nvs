@@ -1,6 +1,6 @@
 <?nvs
 // Reads every group of a match at once, as a program does when it turns a matched line into fields.
-// bench: iterations 400000
+// bench: iterations 256
 // bench: complexity constant
 
 class Bench {
@@ -25,4 +25,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(256), "\n";

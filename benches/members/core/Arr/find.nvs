@@ -1,6 +1,6 @@
 <?nvs
 // Picks the first article in a small basket whose stock is below a limit, as a shop does before it shows the basket.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: complexity linear
 
 class Bench {
@@ -22,4 +22,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

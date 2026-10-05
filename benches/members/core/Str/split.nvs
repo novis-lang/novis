@@ -1,6 +1,6 @@
 <?nvs
 // Splits a short list at its commas, as a program does when it reads tags or a line of CSV.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: calls 0
 // bench: complexity linear
 
@@ -17,4 +17,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

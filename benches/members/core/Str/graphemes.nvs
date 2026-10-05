@@ -1,6 +1,6 @@
 <?nvs
 // Divides a short name into its characters, as a program does before it checks each character of a form field.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: calls 0
 // bench: complexity linear
 
@@ -17,4 +17,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

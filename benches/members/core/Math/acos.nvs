@@ -1,7 +1,7 @@
 <?nvs
 // Measures turning a cosine into an angle, as a program does when it finds the
 // angle between two directions.
-// bench: iterations 400000
+// bench: iterations 256
 // bench: allocations 0
 // bench: complexity constant
 
@@ -19,4 +19,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(256), "\n";

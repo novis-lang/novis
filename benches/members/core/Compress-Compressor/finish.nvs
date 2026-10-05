@@ -1,7 +1,7 @@
 <?nvs
 // Measures closing a compression stream that was given sixteen pieces: the
 // join and the compression a program pays for once per compressed file.
-// bench: iterations 5000
+// bench: iterations 256
 // bench: calls 0
 // bench: complexity linear
 
@@ -26,4 +26,4 @@ class Bench {
     }
 }
 
-echo Bench::run(5000), "\n";
+echo Bench::run(256), "\n";

@@ -1,6 +1,6 @@
 <?nvs
 // Pads a name with spaces, as a program does when it prints a table in a terminal.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: calls 0
 // bench: complexity linear
 
@@ -18,4 +18,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

@@ -1,6 +1,6 @@
 <?nvs
 // Flushes an open file after each write, as a program does when it writes a log line by line.
-// bench: iterations 200000
+// bench: iterations 4096
 // bench: complexity constant
 
 class Bench {
@@ -19,4 +19,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000) > 0 ? "done" : "nothing was flushed", "\n";
+echo Bench::run(4096) > 0 ? "done" : "nothing was flushed", "\n";

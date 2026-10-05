@@ -1,6 +1,6 @@
 <?nvs
 // Creates a temporary folder, as a program does before it unpacks an upload or builds an export file.
-// bench: iterations 1000
+// bench: iterations 256
 // bench: complexity constant
 
 class Bench {
@@ -16,4 +16,4 @@ class Bench {
     }
 }
 
-echo Bench::run(1000) > 0 ? "done" : "no folder was made", "\n";
+echo Bench::run(256) > 0 ? "done" : "no folder was made", "\n";

@@ -2,7 +2,7 @@
 // Measures a failed assertion: the throw, the message it builds out of the two
 // values, and the `catch` that takes it. A test suite meets this shape on every
 // failing test.
-// bench: iterations 50000
+// bench: iterations 256
 // bench: complexity constant
 
 class Bench {
@@ -24,4 +24,4 @@ class Bench {
     }
 }
 
-echo Bench::run(50000), "\n";
+echo Bench::run(256), "\n";

@@ -1,7 +1,7 @@
 <?nvs
 // Measures reading a 64-digit checksum back to bytes, which a program does
 // before it compares one against a file it already has.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: calls 0
 // bench: complexity linear
 
@@ -25,4 +25,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

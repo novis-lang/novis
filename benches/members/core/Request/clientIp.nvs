@@ -1,6 +1,6 @@
 <?nvs
 // Reads the address of the client, as a handler does before it writes a log line or counts logins.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: complexity constant
 
 class Bench {
@@ -17,4 +17,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

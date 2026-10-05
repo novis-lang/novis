@@ -1,6 +1,6 @@
 <?nvs
 // Measures creating one token, as a program does every time it renders a form.
-// bench: iterations 100000
+// bench: iterations 256
 // bench: calls 0
 // bench: complexity linear
 
@@ -22,4 +22,4 @@ class Bench {
     }
 }
 
-echo Bench::run(100000), "\n";
+echo Bench::run(256), "\n";

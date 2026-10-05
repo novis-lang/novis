@@ -1,6 +1,6 @@
 <?nvs
 // Reads a timestamp written as text, as a program does with a time it gets from a web service.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: complexity constant
 
 class Bench {
@@ -17,4 +17,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

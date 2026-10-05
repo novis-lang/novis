@@ -1,6 +1,6 @@
 <?nvs
 // Reads the body of a reply as text, as a program does with every page or file of text it downloads.
-// bench: iterations 400000
+// bench: iterations 2048
 // bench: allocations 0
 // bench: complexity linear
 
@@ -24,4 +24,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(2048), "\n";

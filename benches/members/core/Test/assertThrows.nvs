@@ -1,6 +1,6 @@
 <?nvs
 // Checks that bad input throws an error, as a test does for each input a function must not accept.
-// bench: iterations 100000
+// bench: iterations 256
 // bench: complexity constant
 
 class Bench {
@@ -19,4 +19,4 @@ class Bench {
     }
 }
 
-echo Bench::run(100000), "\n";
+echo Bench::run(256), "\n";

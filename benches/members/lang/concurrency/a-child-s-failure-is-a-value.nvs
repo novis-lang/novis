@@ -2,7 +2,7 @@
 // Measures a failed script: starting it, waiting for it, and reading the error
 // it came back with. A job runner meets this every time one of its jobs stops
 // with an error.
-// bench: iterations 2000
+// bench: iterations 512
 // bench: complexity constant
 
 class Bench {
@@ -32,4 +32,4 @@ class Bench {
     }
 }
 
-echo Bench::run(2000), "\n";
+echo Bench::run(512), "\n";

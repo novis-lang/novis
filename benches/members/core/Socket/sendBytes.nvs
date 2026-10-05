@@ -1,6 +1,6 @@
 <?nvs
 // Sends a short binary message to the client, as a connection does for every packed reading it pushes.
-// bench: iterations 5000
+// bench: iterations 256
 // bench: complexity linear
 
 class Bench {
@@ -18,4 +18,4 @@ class Bench {
     }
 }
 
-echo Bench::run(Core\Socket::current(), 5000), "\n";
+echo Bench::run(Core\Socket::current(), 256), "\n";

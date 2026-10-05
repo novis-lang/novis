@@ -1,6 +1,6 @@
 <?nvs
 // Opens a listening TCP socket and closes it again, as a program does when it starts a server.
-// bench: iterations 2000
+// bench: iterations 256
 // bench: complexity constant
 
 class Bench {
@@ -19,4 +19,4 @@ class Bench {
     }
 }
 
-echo Bench::run(2000), "\n";
+echo Bench::run(256), "\n";

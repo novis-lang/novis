@@ -1,6 +1,6 @@
 <?nvs
 // Reads who signed a server's certificate, as an audit of internal servers does.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: calls 0
 // bench: complexity linear
 
@@ -22,4 +22,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

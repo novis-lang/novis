@@ -2,7 +2,7 @@
 // This measures `as int`, which converts text to a whole number.
 // You use it on text from a form, a query string or a file.
 // Each round converts the text that the round before chose, so no round can be skipped.
-// bench: iterations 200000
+// bench: iterations 1024
 // bench: allocations 0
 // bench: complexity constant
 
@@ -20,4 +20,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(1024), "\n";

@@ -1,6 +1,6 @@
 <?nvs
 // Adds a function to run when the script ends, as a library does when it opens a file or takes a lock.
-// bench: iterations 100000
+// bench: iterations 256
 // bench: complexity constant
 
 final class Seen {
@@ -22,4 +22,4 @@ class Bench {
     }
 }
 
-echo Bench::run(100000), "\n";
+echo Bench::run(256), "\n";

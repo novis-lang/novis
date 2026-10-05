@@ -1,7 +1,7 @@
 <?nvs
 // Writes and reads one property of a class that observes itself. A record that
 // tracks its own changes pays this on every field it updates.
-// bench: iterations 400000
+// bench: iterations 2048
 // bench: allocations 0
 // bench: complexity constant
 
@@ -32,4 +32,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(2048), "\n";

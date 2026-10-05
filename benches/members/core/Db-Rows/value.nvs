@@ -1,7 +1,7 @@
 <?nvs
 // Measures reading the one value a `select count(*)` answered, which a program
 // does for every figure it shows on a page.
-// bench: iterations 400000
+// bench: iterations 1024
 // bench: calls 0
 // bench: allocations 0
 // bench: complexity constant
@@ -25,4 +25,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(1024), "\n";

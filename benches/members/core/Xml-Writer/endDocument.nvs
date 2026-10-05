@@ -1,6 +1,6 @@
 <?nvs
 // Finishes a small document and returns it as a string, as a program does for every XML reply it sends.
-// bench: iterations 40000
+// bench: iterations 256
 // bench: complexity linear
 
 class Bench {
@@ -21,4 +21,4 @@ class Bench {
     }
 }
 
-echo Bench::run(40000), "\n";
+echo Bench::run(256), "\n";

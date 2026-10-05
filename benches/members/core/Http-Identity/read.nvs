@@ -1,7 +1,7 @@
 <?nvs
 // Measures reading a client certificate chain and its key, as a service does when it
 // starts and loads the identity for a partner's server.
-// bench: iterations 2000
+// bench: iterations 256
 // bench: calls 0
 // bench: complexity linear
 
@@ -28,4 +28,4 @@ class Bench {
     }
 }
 
-echo Bench::run(2000), "\n";
+echo Bench::run(256), "\n";

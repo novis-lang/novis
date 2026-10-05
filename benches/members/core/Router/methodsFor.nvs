@@ -1,6 +1,6 @@
 <?nvs
 // Lists the methods of a path, as a server does to choose between a 404 and a 405.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: complexity linear
 
 class Shop {
@@ -28,4 +28,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

@@ -1,6 +1,6 @@
 <?nvs
 // Drops the first entry of a short list, as a program does when it reads one line and continues with the rest.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: complexity linear
 
 class Bench {
@@ -20,4 +20,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

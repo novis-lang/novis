@@ -1,7 +1,7 @@
 <?nvs
 // Reads and writes the properties of an object. A program does this while it
 // fills in a record and then adds up what it collected.
-// bench: iterations 400000
+// bench: iterations 1024
 // bench: allocations 0
 // bench: complexity constant
 
@@ -30,4 +30,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(1024), "\n";

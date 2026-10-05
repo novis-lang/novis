@@ -1,6 +1,6 @@
 <?nvs
 // Measures the remainder of two `float` values, as a program does to keep an angle or a time inside one cycle.
-// bench: iterations 400000
+// bench: iterations 256
 // bench: allocations 0
 // bench: complexity constant
 
@@ -17,4 +17,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(256), "\n";

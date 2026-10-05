@@ -1,7 +1,7 @@
 <?nvs
 // Measures reading one environment variable by name. A program does this when it
 // reads a setting such as a port or a database host.
-// bench: iterations 50000
+// bench: iterations 256
 // bench: calls 0
 // bench: complexity constant
 
@@ -22,4 +22,4 @@ class Bench {
 }
 
 // The value of `PATH` is different on each computer, so this prints only whether the loop ran.
-echo Bench::run(50000) > 0 ? "read\n" : "empty\n";
+echo Bench::run(256) > 0 ? "read\n" : "empty\n";

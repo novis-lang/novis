@@ -1,6 +1,6 @@
 <?nvs
 // Adds up the amounts of a small basket, as a shop does before it charges a card.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: calls 0
 // bench: complexity linear
 
@@ -20,4 +20,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

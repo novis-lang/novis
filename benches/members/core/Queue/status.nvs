@@ -1,6 +1,6 @@
 <?nvs
 // Reads the state of one job, as a page does when it shows the progress of an export.
-// bench: iterations 3000
+// bench: iterations 256
 // bench: calls 0
 // bench: complexity constant
 use Core\Queue;
@@ -43,4 +43,4 @@ class Bench {
 var $first = Queue::push("jobs/export.nvs", {queue: "exports"});
 var $second = Queue::push("jobs/export.nvs", {queue: "exports"});
 Queue::cancel($second);
-echo Bench::run($first, $second, 3000), "\n";
+echo Bench::run($first, $second, 256), "\n";

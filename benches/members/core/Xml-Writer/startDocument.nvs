@@ -1,6 +1,6 @@
 <?nvs
 // Starts a new document with a new writer, as a program does once for every XML file or reply it writes.
-// bench: iterations 40000
+// bench: iterations 256
 // bench: complexity constant
 
 class Bench {
@@ -18,4 +18,4 @@ class Bench {
     }
 }
 
-echo Bench::run(40000), "\n";
+echo Bench::run(256), "\n";

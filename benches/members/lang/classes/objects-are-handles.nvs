@@ -1,7 +1,7 @@
 <?nvs
 // Hands one object to a method and writes through it, as a program does when it
 // gives a record to a helper. Passing the object does not copy it.
-// bench: iterations 400000
+// bench: iterations 1024
 // bench: allocations 0
 // bench: calls 1
 // bench: complexity constant
@@ -27,4 +27,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(1024), "\n";

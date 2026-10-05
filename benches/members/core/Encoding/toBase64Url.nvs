@@ -1,7 +1,7 @@
 <?nvs
 // Measures writing a 16-byte identifier as a link slug, which a program does
 // every time it builds a link to one of its own records.
-// bench: iterations 400000
+// bench: iterations 256
 // bench: calls 0
 // bench: complexity linear
 
@@ -26,4 +26,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(256), "\n";

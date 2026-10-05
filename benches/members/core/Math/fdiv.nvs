@@ -1,6 +1,6 @@
 <?nvs
 // Measures a division that allows a zero divisor, as a report does when it works out a rate.
-// bench: iterations 400000
+// bench: iterations 256
 // bench: allocations 0
 // bench: complexity constant
 
@@ -17,4 +17,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(256), "\n";

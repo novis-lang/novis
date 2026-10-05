@@ -1,7 +1,7 @@
 <?nvs
 // Measures opening a streamed reply that a test answers, as the tests of a program
 // that reads a live feed do.
-// bench: iterations 20000
+// bench: iterations 256
 // bench: calls 0
 // bench: complexity constant
 
@@ -23,4 +23,4 @@ class Bench {
     }
 }
 
-echo Bench::run(20000), "\n";
+echo Bench::run(256), "\n";

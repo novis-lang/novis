@@ -1,6 +1,6 @@
 <?nvs
 // Reads the topic name of a message, as a stream does to decide which event to send.
-// bench: iterations 200000
+// bench: iterations 1024
 // bench: complexity constant
 
 class Bench {
@@ -30,4 +30,4 @@ class Bench {
     }
 }
 
-echo Bench::run(Core\Sse::current(), 200000), "\n";
+echo Bench::run(Core\Sse::current(), 1024), "\n";

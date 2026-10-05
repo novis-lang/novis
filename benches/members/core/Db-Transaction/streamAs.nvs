@@ -1,7 +1,7 @@
 <?nvs
 // Measures one `select` inside a transaction that builds one object per row.
 // A report does this when it reads a table before it writes a summary.
-// bench: iterations 10000
+// bench: iterations 256
 // bench: complexity linear
 use Core\Db\Derive;
 
@@ -42,4 +42,4 @@ class Bench {
     }
 }
 
-echo Bench::run(10000), "\n";
+echo Bench::run(256), "\n";

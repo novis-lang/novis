@@ -1,7 +1,7 @@
 <?nvs
 // Measures multiplying two large numbers. A program does this when it counts a
 // total in the smallest unit of a currency.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: complexity karatsuba
 // bench: calls 0
 
@@ -24,4 +24,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

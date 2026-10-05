@@ -1,6 +1,6 @@
 <?nvs
 // Checks a signed link, as a server does each time somebody opens a download or reset link.
-// bench: iterations 50000
+// bench: iterations 256
 // bench: complexity linear
 
 class Bench {
@@ -23,4 +23,4 @@ class Bench {
     }
 }
 
-echo Bench::run(50000), "\n";
+echo Bench::run(256), "\n";

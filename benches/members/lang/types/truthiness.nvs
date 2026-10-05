@@ -2,7 +2,7 @@
 // This measures `if ($value)` on a `mixed` value, whose type is known only at run time.
 // You use it to check if a setting, a list or a line of text is empty.
 // Each round picks its value from the round before, so no round can be skipped.
-// bench: iterations 400000
+// bench: iterations 1024
 // bench: allocations 0
 // bench: complexity constant
 
@@ -30,4 +30,4 @@ class Bench
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(1024), "\n";

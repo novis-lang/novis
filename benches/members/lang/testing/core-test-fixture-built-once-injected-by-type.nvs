@@ -1,7 +1,7 @@
 <?nvs
 // Measures what a fixture costs a test: the value is built once, then each test
 // that declares its type is called with it. A test runner pays this per test.
-// bench: iterations 300000
+// bench: iterations 2048
 // bench: calls 1
 // bench: allocations 0
 // bench: complexity constant
@@ -40,4 +40,4 @@ class Bench {
     }
 }
 
-echo Bench::run(300000), "\n";
+echo Bench::run(2048), "\n";

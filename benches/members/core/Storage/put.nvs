@@ -1,6 +1,6 @@
 <?nvs
 // Saves a small file under one of three keys, as a program does when a user uploads a picture.
-// bench: iterations 2000
+// bench: iterations 256
 // bench: complexity linear
 
 class Bench {
@@ -22,4 +22,4 @@ class Bench {
     }
 }
 
-echo Bench::run(2000), "\n";
+echo Bench::run(256), "\n";

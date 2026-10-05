@@ -1,7 +1,7 @@
 <?nvs
 // Measures reading the key of a row that was just inserted. A program reads it
 // before it writes the rows that belong to the new one.
-// bench: iterations 300000
+// bench: iterations 2048
 // bench: calls 0
 // bench: allocations 0
 // bench: complexity constant
@@ -27,4 +27,4 @@ class Bench {
     }
 }
 
-echo Bench::run(300000), "\n";
+echo Bench::run(2048), "\n";

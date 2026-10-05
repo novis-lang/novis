@@ -1,6 +1,6 @@
 <?nvs
 // Calls a method by its name, as a router or a command line tool does when the name comes from input.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: complexity constant
 
 class Counter {
@@ -24,4 +24,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

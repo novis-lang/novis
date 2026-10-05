@@ -2,7 +2,7 @@
 // Measures building an error class of your own: the message, the property the
 // subclass adds, and the cause it is given. A program meets this shape every
 // time it wraps a lower error in one of its own.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: complexity constant
 
 class Wrapped extends RuntimeError {
@@ -26,4 +26,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

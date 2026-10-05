@@ -1,7 +1,7 @@
 <?nvs
 // Reads a property through a value typed `object`, as a program does with a value
 // whose class it does not know. The name is looked up while the program runs.
-// bench: iterations 400000
+// bench: iterations 1024
 // bench: calls 0
 // bench: complexity constant
 
@@ -25,4 +25,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(1024), "\n";

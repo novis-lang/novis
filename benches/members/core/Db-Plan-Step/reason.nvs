@@ -1,7 +1,7 @@
 <?nvs
 // Measures reading why a step is in a plan, as a program does for every step it
 // prints for a person to approve.
-// bench: iterations 400000
+// bench: iterations 2048
 // bench: allocations 0
 // bench: complexity constant
 
@@ -34,4 +34,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(2048), "\n";

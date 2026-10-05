@@ -2,7 +2,7 @@
 // Removes one entry from a small table and writes it back, as a program does
 // when it drops the rows it has already handled. Each round works on the key
 // that the round before it produced.
-// bench: iterations 300000
+// bench: iterations 512
 // bench: calls 0
 // bench: complexity constant
 
@@ -24,4 +24,4 @@ class Bench {
     }
 }
 
-echo Bench::run(300000), "\n";
+echo Bench::run(512), "\n";

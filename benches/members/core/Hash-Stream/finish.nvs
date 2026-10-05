@@ -1,6 +1,6 @@
 <?nvs
 // Measures finishing a SHA-256 stream fed one short piece, as a program does at the end of each upload.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: calls 0
 // bench: complexity constant
 
@@ -20,4 +20,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

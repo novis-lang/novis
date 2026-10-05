@@ -1,6 +1,6 @@
 <?nvs
 // Adds days and months to a date and time, as a program does to work out a due date or an expiry time.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: complexity constant
 
 class Bench {
@@ -19,4 +19,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

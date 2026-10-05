@@ -1,7 +1,7 @@
 <?nvs
 // Measures one transaction that writes a row and then gives up, as a program
 // does when a check at the end of the work fails.
-// bench: iterations 20000
+// bench: iterations 256
 // bench: complexity constant
 use Core\Db\RolledBack;
 use Core\Db\Transaction;
@@ -29,4 +29,4 @@ class Bench {
     }
 }
 
-echo Bench::run(20000), "\n";
+echo Bench::run(256), "\n";

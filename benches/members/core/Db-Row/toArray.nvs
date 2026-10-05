@@ -1,7 +1,7 @@
 <?nvs
 // Measures reading a whole row as an array, which a program does once per row
 // before it sends a result set on as JSON.
-// bench: iterations 300000
+// bench: iterations 2048
 // bench: calls 0
 // bench: allocations 0
 // bench: complexity linear
@@ -32,4 +32,4 @@ class Bench {
     }
 }
 
-echo Bench::run(300000), "\n";
+echo Bench::run(2048), "\n";

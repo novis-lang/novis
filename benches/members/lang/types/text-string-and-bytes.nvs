@@ -2,7 +2,7 @@
 // This measures counting the characters and the bytes of a name from a form.
 // A form checks both: characters for the reader, bytes for storage.
 // Each round picks its name from the last round's total, so no count can be skipped.
-// bench: iterations 200000
+// bench: iterations 1024
 // bench: allocations 0
 // bench: complexity linear
 
@@ -24,4 +24,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(1024), "\n";

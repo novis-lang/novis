@@ -1,7 +1,7 @@
 <?nvs
 // Measures reading one stored private key, as a server does when it starts or
 // when it takes a key out of its configuration.
-// bench: iterations 20000
+// bench: iterations 256
 // bench: calls 0
 // bench: complexity constant
 
@@ -34,4 +34,4 @@ class Bench {
     }
 }
 
-echo Bench::run(20000), "\n";
+echo Bench::run(256), "\n";

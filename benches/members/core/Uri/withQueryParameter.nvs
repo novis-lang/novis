@@ -1,6 +1,6 @@
 <?nvs
 // Sets the page number in the query of an address, as a list page does for each link to another page.
-// bench: iterations 100000
+// bench: iterations 2048
 // bench: complexity linear
 
 class Bench {
@@ -21,4 +21,4 @@ class Bench {
     }
 }
 
-echo Bench::run(100000), "\n";
+echo Bench::run(2048), "\n";

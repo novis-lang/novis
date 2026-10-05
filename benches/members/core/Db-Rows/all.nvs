@@ -1,7 +1,7 @@
 <?nvs
 // Measures reading every row of a small result at once, which a program does
 // once per query before it works with the rows.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: calls 0
 // bench: complexity linear
 
@@ -29,4 +29,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

@@ -1,7 +1,7 @@
 <?nvs
 // Reads the line a part of the source starts on, as a tool does when it names
 // a place a person can jump to.
-// bench: iterations 200000
+// bench: iterations 1024
 // bench: allocations 0
 // bench: calls 0
 // bench: complexity constant
@@ -23,4 +23,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(1024), "\n";

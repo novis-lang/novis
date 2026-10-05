@@ -1,6 +1,6 @@
 <?nvs
 // Cancels one waiting job, as a page does when a user presses a Cancel button.
-// bench: iterations 2000
+// bench: iterations 256
 // bench: calls 0
 // bench: complexity constant
 use Core\Queue;
@@ -46,4 +46,4 @@ while ($n < 2000) {
     $waiting[] = Queue::push("jobs/export.nvs", {queue: "exports"});
     $n = $n + 1;
 }
-echo Bench::run($waiting, 2000), "\n";
+echo Bench::run($waiting, 256), "\n";

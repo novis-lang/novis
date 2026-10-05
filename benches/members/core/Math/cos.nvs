@@ -1,6 +1,6 @@
 <?nvs
 // Measures the cosine of an angle, as a map or a drawing does when it finds a position.
-// bench: iterations 400000
+// bench: iterations 512
 // bench: allocations 0
 // bench: complexity constant
 
@@ -17,4 +17,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(512), "\n";

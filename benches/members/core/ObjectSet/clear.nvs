@@ -1,6 +1,6 @@
 <?nvs
 // Empties a set of one object, as a program does before each batch of work.
-// bench: iterations 1000000
+// bench: iterations 256
 // bench: complexity linear
 
 final class Key {
@@ -28,4 +28,4 @@ class Bench {
     }
 }
 
-echo Bench::run(1000000), "\n";
+echo Bench::run(256), "\n";

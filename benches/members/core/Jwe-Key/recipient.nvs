@@ -1,6 +1,6 @@
 <?nvs
 // Makes a key from another service's public key, as a program does before it encrypts a message for that service.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: complexity constant
 
 class Bench {
@@ -24,4 +24,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

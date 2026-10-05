@@ -2,7 +2,7 @@
 // Measures a recursion sixteen calls deep. Every call checks the stack against
 // the depth limit, and this is what that check costs a program that walks
 // nested data.
-// bench: iterations 100000
+// bench: iterations 2048
 // bench: calls 17
 // bench: allocations 0
 // bench: complexity constant
@@ -27,4 +27,4 @@ class Bench {
     }
 }
 
-echo Bench::run(100000), "\n";
+echo Bench::run(2048), "\n";

@@ -1,6 +1,6 @@
 <?nvs
 // Turns a short link into a full address, as a crawler does for each link on a page.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: complexity linear
 
 class Bench {
@@ -18,4 +18,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

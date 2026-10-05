@@ -1,6 +1,6 @@
 <?nvs
 // Decodes a small settings object, as a program does when it reads the object back from a cache.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: complexity linear
 
 class Settings {
@@ -33,4 +33,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

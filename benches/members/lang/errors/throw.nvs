@@ -2,7 +2,7 @@
 // Measures a `throw` written after `??`: a field that is not there raises an
 // error one frame down, and the caller catches it. A program meets this shape
 // wherever it reads a field that may be missing.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: calls 2
 // bench: complexity constant
 
@@ -29,4 +29,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

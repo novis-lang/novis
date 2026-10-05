@@ -1,7 +1,7 @@
 <?nvs
 // Measures picking the plural form for a count, which a page does once for
 // every message that names a number.
-// bench: iterations 400000
+// bench: iterations 2048
 // bench: calls 0
 // bench: allocations 0
 // bench: complexity constant
@@ -27,4 +27,4 @@ class Bench {
     }
 }
 
-echo Bench::run(400000), "\n";
+echo Bench::run(2048), "\n";

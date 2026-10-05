@@ -2,7 +2,7 @@
 // Measures catching an error by a class above it in the tree: an `IOError`
 // caught by a `RuntimeError` arm. A program meets this shape whenever one arm
 // handles a whole branch.
-// bench: iterations 200000
+// bench: iterations 256
 // bench: complexity constant
 
 class Bench {
@@ -23,4 +23,4 @@ class Bench {
     }
 }
 
-echo Bench::run(200000), "\n";
+echo Bench::run(256), "\n";

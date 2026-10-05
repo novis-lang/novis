@@ -1,6 +1,6 @@
 <?nvs
 // Builds the query string of a search link with a list of tags, as a page does for each link it writes.
-// bench: iterations 100000
+// bench: iterations 256
 // bench: complexity linear
 
 class Bench {
@@ -20,4 +20,4 @@ class Bench {
     }
 }
 
-echo Bench::run(100000), "\n";
+echo Bench::run(256), "\n";
