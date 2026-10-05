@@ -61,6 +61,7 @@ use std::fmt;
 use nvs_diagnostics::{Diagnostics, SourceFile};
 
 mod brace;
+mod chain;
 mod imports;
 mod indent;
 mod list;

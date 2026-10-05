@@ -35,7 +35,7 @@ use nvs_diagnostics::{Diagnostics, SourceFile, Span};
 use nvs_syntax::{Parsed, Trivia, TriviaKind};
 
 use crate::indent::Indent;
-use crate::{brace, imports, list, modifiers, space, tokens};
+use crate::{brace, chain, imports, list, modifiers, space, tokens};
 
 /// One run of bytes, and what the printer writes in its place.
 ///
@@ -140,6 +140,7 @@ pub(crate) fn print(file: &SourceFile, parsed: &Parsed, reported: &Diagnostics) 
     let mut wanted = brace::placements(&parsed.index, &indent, text, &parsed.trivia);
     wanted.extend(space::runs(&parsed.index, &indent, text, &parsed.trivia));
     wanted.extend(list::runs(&parsed.index, &indent, text, &parsed.trivia));
+    wanted.extend(chain::runs(&parsed.index, &indent, text, &parsed.trivia));
     let runs = Runs::new(wanted, &parsed.trivia);
     let mut edits = modifiers::rewrites(parsed, text);
     edits.extend(imports::rewrites(parsed, text));

@@ -31,7 +31,8 @@
 //! stays inside `rule:tooling/fmt-never-reflows`.
 //!
 //! A line is placed when it opens an item, a comment between two items or the
-//! closer of a broken list ([`crate::list`]), when it opens a statement or a
+//! closer of a broken list ([`crate::list`]) or an arrow of a broken call
+//! chain ([`crate::chain`]), when it opens a statement or a
 //! member that a body directly
 //! contains, when it opens that body's own closing brace, which sits at the
 //! body's own depth rather than its contents', or when it opens with the `?>`
@@ -65,7 +66,7 @@
 use nvs_diagnostics::BytePos;
 use nvs_syntax::{IndexNode, SyntaxIndex, Trivia, TriviaKind};
 
-use crate::list;
+use crate::{chain, list};
 
 /// One level of indentation.
 pub(crate) const UNIT: &str = "    ";
@@ -137,6 +138,9 @@ impl<'a> Indent<'a> {
             return None;
         }
         if let Some(opening) = list::opening(self, nodes, offset) {
+            return Some(opening);
+        }
+        if let Some(opening) = chain::opening(self, nodes, offset) {
             return Some(opening);
         }
 

@@ -483,7 +483,7 @@ fn push_commas(out: &mut Vec<usize>, bytes: &[u8], trivia: &[Trivia], from: usiz
 ///
 /// The mirror of [`code_after`]: the trivia that abut one another backwards
 /// from `to` are what lies between it and the code in front of it.
-fn code_before(trivia: &[Trivia], to: usize) -> usize {
+pub(crate) fn code_before(trivia: &[Trivia], to: usize) -> usize {
     let mut at = to;
     let mut next = trivia.partition_point(|trivium| (trivium.span.end as usize) < at);
     while let Some(trivium) = trivia.get(next) {

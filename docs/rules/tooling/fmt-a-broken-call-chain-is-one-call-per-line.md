@@ -1,5 +1,7 @@
 A chain of two or more `->` or `?->` calls has two layouts: on one line, or with every arrow starting a
 line of its own. It is broken when a line break its author wrote sits before any one of its arrows.
+The chain's arrows start at its first call: a property read in front of that call is part of the
+receiver, so `$this->orders` stays together, and a property read after it is an arrow like a call's.
 
 A broken chain keeps its receiver on the line the chain starts on, and starts each arrow on a line one
 level in from that line. The arguments of each call are a list under

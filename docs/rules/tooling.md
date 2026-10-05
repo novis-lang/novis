@@ -3,7 +3,7 @@
 
 # Tooling
 
-*24 of 70 rules below are **designed** rather than shipped, and are marked where they appear.*
+*22 of 70 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="tooling-shebang-opens-code-mode"></a>
 
@@ -700,12 +700,14 @@ it. `match` arms keep their own rule ([`tooling/fmt-novis-constructs`](tooling.m
 
 <a id="tooling-fmt-a-broken-call-chain-is-one-call-per-line"></a>
 
-## A `->` call chain is on one line or has one call per line, and a line break its author wrote before any arrow is what breaks it  *(designed — not yet in the compiler)*
+## A `->` call chain is on one line or has one call per line, and a line break its author wrote before any arrow is what breaks it
 
 `rule:tooling/fmt-a-broken-call-chain-is-one-call-per-line`
 
 A chain of two or more `->` or `?->` calls has two layouts: on one line, or with every arrow starting a
 line of its own. It is broken when a line break its author wrote sits before any one of its arrows.
+The chain's arrows start at its first call: a property read in front of that call is part of the
+receiver, so `$this->orders` stays together, and a property read after it is an arrow like a call's.
 
 A broken chain keeps its receiver on the line the chain starts on, and starts each arrow on a line one
 level in from that line. The arguments of each call are a list under
@@ -730,7 +732,7 @@ The first statement formats to the second. A chain written on one line stays on 
 
 <a id="tooling-fmt-a-broken-operator-chain-is-one-operand-per-line"></a>
 
-## An `&&`, `||`, `??` or `.` chain is on one line or has one operand per line with the operator first, and a broken control-structure condition puts its parentheses on lines of their own  *(designed — not yet in the compiler)*
+## An `&&`, `||`, `??` or `.` chain is on one line or has one operand per line with the operator first, and a broken control-structure condition puts its parentheses on lines of their own
 
 `rule:tooling/fmt-a-broken-operator-chain-is-one-operand-per-line`
 
