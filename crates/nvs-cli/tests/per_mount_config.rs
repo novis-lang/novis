@@ -337,7 +337,11 @@ fn a_mount_cannot_use_a_capability_only_another_applications_block_grants() {
         None,
     );
 
-    assert_eq!(server.body("/one"), "granted", "the mount whose block grants the read");
+    assert_eq!(
+        server.body("/one"),
+        "granted",
+        "the mount whose block grants the read"
+    );
     assert_eq!(
         server.body("/two"),
         "denied",
@@ -482,7 +486,10 @@ fn two_mounts_do_not_share_process_tier_cache_entries() {
         &["one", "two"],
         "[[app]]\nroot = \"one\"\nmode = \"development\"\n\n\
          [[app]]\nroot = \"two\"\nmode = \"development\"\n",
-        &[(&entry("one"), &caching("one")), (&entry("two"), &caching("two"))],
+        &[
+            (&entry("one"), &caching("one")),
+            (&entry("two"), &caching("two")),
+        ],
         None,
     );
 
@@ -492,5 +499,98 @@ fn two_mounts_do_not_share_process_tier_cache_entries() {
         server.body("/two"),
         "absent",
         "the other mount read the first mount's entry"
+    );
+}
+
+/// A program that prints the mode it runs in, its `limits.memory` and the
+/// absolute link to its one route.
+const READING_ALL: &str = r#"<?nvs
+class Docs {
+    #[Core\Route(path: "/here", method: Core\Http\Method::Get, name: "Docs::here")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function here(): string { return "here"; }
+}
+
+echo Core\Env::mode() == Core\Env\Mode::Production ? "production" : "development", " ";
+echo Core\Config::get("limits.memory") ?? "unset", " ";
+echo Core\Router::urlAbsolute("Docs::here", []);
+"#;
+
+/// The `[[app]]` block for `two`, which neither case below changes.
+const TWO: &str = "[[app]]\nroot = \"two\"\norigin = \"https://two.example.test\"\n\n\
+                   [app.limits]\nmemory = \"100M\"\n";
+
+/// A saved `nvs.toml` is a reload, and the reload publishes every mounted
+/// entry's snapshot again. The edit changes `one`'s block, and `one` reads its
+/// new limit and origin. `two` keeps its own block's, and never the host's.
+#[test]
+fn a_reload_that_changes_one_app_block_reaches_only_its_mount() {
+    let one_block = |memory: &str, origin: &str| {
+        format!(
+            "[[app]]\nroot = \"one\"\nmode = \"production\"\norigin = \"{origin}\"\n\n\
+             [app.limits]\nmemory = \"{memory}\"\n\n{TWO}"
+        )
+    };
+    let server = Server::start(
+        "reload",
+        &["one", "two"],
+        &one_block("16M", "https://one.example.test"),
+        &[(&entry("one"), READING_ALL), (&entry("two"), READING_ALL)],
+        None,
+    );
+    let before = server.body("/one");
+    assert!(
+        before.starts_with("production 16M https://one.example.test/"),
+        "{before}"
+    );
+
+    write_file(
+        &server.dir.join("nvs.toml"),
+        &configured(
+            &["one", "two"],
+            &one_block("32M", "https://renamed.example.test"),
+        ),
+    );
+    // The limit is in force from the publish, and the origin from the next
+    // pass of the background expansion, which folds it into the rows.
+    server.awaits("/one", "the reload of `one`'s block", |answer| {
+        answer.status == 200
+            && answer
+                .body
+                .starts_with("production 32M https://renamed.example.test/")
+    });
+    let two = server.body("/two");
+    assert!(
+        two.starts_with("development 100M https://two.example.test/"),
+        "`two` lost its own block in the reload: {two}"
+    );
+}
+
+/// A row the background expansion adds after boot runs under the blocks that
+/// match its own entry: its mode, its limit and its origin. The directory the
+/// block names is there at boot, and its entry file is written later.
+#[test]
+fn a_mount_the_rescan_adds_runs_under_its_own_app_blocks() {
+    let server = Server::start(
+        "rescan",
+        &[],
+        "[[server.mount]]\nscan = \"*/index.nvs\"\nprefix = \"/{1}\"\n\n\
+         [[app]]\nroot = \"one\"\norigin = \"https://one.example.test\"\n\n\
+         [[app]]\nroot = \"two\"\nmode = \"production\"\norigin = \"https://two.example.test\"\n\n\
+         [app.limits]\nmemory = \"48M\"\n",
+        &[(&entry("one"), READING_ALL), ("two/notes.txt", "later")],
+        None,
+    );
+    let one = server.body("/one");
+    assert!(
+        one.starts_with("development unset https://one.example.test/"),
+        "{one}"
+    );
+
+    write_file(&server.dir.join(entry("two")), READING_ALL);
+    let two = server.body("/two");
+    assert!(
+        two.starts_with("production 48M https://two.example.test/"),
+        "the row the rescan added did not run under its own block: {two}"
     );
 }
