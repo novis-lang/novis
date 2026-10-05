@@ -14,7 +14,9 @@
       "tooling/fmt-a-broken-call-chain-is-one-call-per-line",
       "tooling/fmt-a-broken-operator-chain-is-one-operand-per-line",
       "tooling/fmt-trailing-commas",
-      "tooling/fmt-is-idempotent"
+      "tooling/fmt-is-idempotent",
+      "tooling/fmt-base-style-is-per",
+      "tooling/fmt-novis-constructs"
     ],
     "adrs": [
       "0267"
@@ -81,6 +83,8 @@
         "a_multi_line_item_moves_in_with_its_first_line",
         "a_parameter_list_follows_the_list_rule",
         "an_anonymous_object_follows_the_list_rule",
+        "an_enum_on_one_line_keeps_its_brace_on_the_enum_line",
+        "a_broken_enum_has_an_allman_brace_and_one_case_per_line",
         "a_line_comment_breaks_the_list_and_stays_with_its_item",
         "a_broken_list_is_a_fixed_point"
       ]

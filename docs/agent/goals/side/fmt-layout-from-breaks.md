@@ -53,8 +53,13 @@ File set: `crates/nvs-fmt/src/lib.rs`, `crates/nvs-fmt/src/indent.rs`, `crates/n
 moves.
 
 - **The lists:** call arguments including `new`'s, parameter lists of functions, methods and anonymous
-  functions, array literals, anonymous objects, shape types. Not `match` arms, enum cases or the `use`
-  block.
+  functions, array literals, anonymous objects, shape types, and an enum's case list. Not `match` arms
+  or the `use` block.
+- **An enum on one line** keeps its `{` on the `enum` line with one space inside each brace:
+  `enum AxisPosition { Left, Right }`. Today `nvs fmt` moves that brace down and leaves
+  `{ Left, Right }` on a line of its own (run on 2026-10-05). A broken enum takes the Allman brace and
+  one case per line. `rule:tooling/fmt-base-style-is-per` and `rule:tooling/fmt-novis-constructs`
+  already state this.
 - **Broken** means a line break in the trivia at the list's own level: after the opener, between two
   items, or before the closer. A break inside an item, including a function body and a heredoc, is the
   item's.
@@ -117,6 +122,8 @@ These are the user's calls, made on 2026-10-05, unless marked as mine. No sessio
   whatever the number of function arguments.
 - **A broken condition** has the operator first on each line, and `(` and `) {` on lines of their own.
 - **Editor actions** add and remove the breaks; `nvs fmt` does not.
+- **An enum's case list is a list.** On one line it is `enum AxisPosition { Left, Right }`, brace on
+  the `enum` line; broken, it is the Allman brace and one case per line.
 - **One side goal**, so the chain run is not disturbed.
 - **Mine, 2026-10-05:** `??` and `?->` join the chains; shape types and parameter lists are lists; a
   mixed operator run breaks at its lowest precedence; Join is not offered over a line comment; the

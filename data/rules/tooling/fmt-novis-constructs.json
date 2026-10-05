@@ -4,7 +4,8 @@
   "because": [
     "0039",
     "0169",
-    "0173"
+    "0173",
+    "0267"
   ],
   "seeAlso": [
     "tooling/fmt-base-style-is-per",

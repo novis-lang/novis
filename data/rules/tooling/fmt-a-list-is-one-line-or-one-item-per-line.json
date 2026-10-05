@@ -7,6 +7,8 @@
   "divergesFromPhp": "PER allows a split argument list but leaves when to split to a width or to the author; here the author's break decides and the layout after it is fixed",
   "seeAlso": [
     "tooling/fmt-never-reflows",
+    "tooling/fmt-base-style-is-per",
+    "enums/declaration",
     "tooling/fmt-trailing-commas",
     "tooling/fmt-novis-constructs",
     "ide/a-list-splits-onto-lines-and-joins-onto-one"

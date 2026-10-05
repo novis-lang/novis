@@ -592,6 +592,8 @@ line after one space, the closing brace starts its own line, and `elseif`, `else
 continue on the closing brace's line. `elseif` is one word, never `else if`. Every declaration with a
 body — `class`, `interface`, `enum`, a named function or method, including an interface method that
 carries a body — is Allman: the opening brace starts its own line at the declaration's indentation.
+The one exception is an enum whose cases are on one line, which keeps its `{` on the `enum` line
+([`tooling/fmt-a-list-is-one-line-or-one-item-per-line`](tooling.md#tooling-fmt-a-list-is-one-line-or-one-item-per-line)).
 
 Exactly one blank line follows a `namespace` line, one follows the `use` block, and one separates two
 members that each have a body; adjacent simple property and constant declarations get none. A comment
@@ -603,7 +605,7 @@ accepts these in any order, which is exactly why the formatter must fix one — 
 `public static $x;` both compile and would otherwise never converge. A missing modifier is never
 supplied: a formatter that changes meaning is not a formatter ([`core-api/written-visibility`](core-api.md#core-api-written-visibility)).
 
-<sub>See also [`tooling/fmt-is-one-canonical-style`](tooling.md#tooling-fmt-is-one-canonical-style), [`tooling/fmt-sorts-the-use-block`](tooling.md#tooling-fmt-sorts-the-use-block), [`tooling/fmt-novis-constructs`](tooling.md#tooling-fmt-novis-constructs), [`core-api/written-visibility`](core-api.md#core-api-written-visibility), [`classes/lateinit`](classes.md#classes-lateinit). Decided in [0039](../decisions/0039.md).</sub>
+<sub>See also [`tooling/fmt-is-one-canonical-style`](tooling.md#tooling-fmt-is-one-canonical-style), [`tooling/fmt-sorts-the-use-block`](tooling.md#tooling-fmt-sorts-the-use-block), [`tooling/fmt-novis-constructs`](tooling.md#tooling-fmt-novis-constructs), [`core-api/written-visibility`](core-api.md#core-api-written-visibility), [`classes/lateinit`](classes.md#classes-lateinit). Decided in [0039](../decisions/0039.md), [0267](../decisions/0267.md).</sub>
 
 <a id="tooling-fmt-never-reflows"></a>
 
@@ -643,7 +645,7 @@ evolves ([`tooling/fmt-is-idempotent`](tooling.md#tooling-fmt-is-idempotent)).
 
 A list has two layouts: every item on one line, or one item per line. The lists are a call's
 arguments, including `new`'s; the parameter list of a function, a method or an anonymous function; an
-array literal; an anonymous object; and a shape type.
+array literal; an anonymous object; a shape type; and an enum's case list.
 
 A list is **broken** when a line break its author wrote sits at the list's own level: after the
 opener, between two items, or before the closer. A break inside an item — a function body, a nested
@@ -675,11 +677,26 @@ array<string> $names = Core\Arr::map($users, fn(User $user) {
 });
 ```
 
+An enum's body is its case list, so the enum's braces are the list's opener and closer. An enum whose
+cases are on one line keeps its `{` on the `enum` line, with one space inside each brace. A broken one
+takes the declaration layout [`tooling/fmt-base-style-is-per`](tooling.md#tooling-fmt-base-style-is-per) gives every other body, the `{` on a
+line of its own:
+
+```nvs
+enum AxisPosition { Left, Right }
+
+enum Permission: uint
+{
+    Read = 0b001,
+    Write = 0b010,
+}
+```
+
 A comment inside a broken list stays on the line of the item it follows, or keeps a line of its own
 when it was written on one. A line comment breaks the list it sits in, because a line break follows
-it. `match` arms and enum cases keep their own rule ([`tooling/fmt-novis-constructs`](tooling.md#tooling-fmt-novis-constructs)).
+it. `match` arms keep their own rule ([`tooling/fmt-novis-constructs`](tooling.md#tooling-fmt-novis-constructs)).
 
-<sub>See also [`tooling/fmt-never-reflows`](tooling.md#tooling-fmt-never-reflows), [`tooling/fmt-trailing-commas`](tooling.md#tooling-fmt-trailing-commas), [`tooling/fmt-novis-constructs`](tooling.md#tooling-fmt-novis-constructs), [`ide/a-list-splits-onto-lines-and-joins-onto-one`](ide.md#ide-a-list-splits-onto-lines-and-joins-onto-one). Decided in [0267](../decisions/0267.md).</sub>
+<sub>See also [`tooling/fmt-never-reflows`](tooling.md#tooling-fmt-never-reflows), [`tooling/fmt-base-style-is-per`](tooling.md#tooling-fmt-base-style-is-per), [`enums/declaration`](enums.md#enums-declaration), [`tooling/fmt-trailing-commas`](tooling.md#tooling-fmt-trailing-commas), [`tooling/fmt-novis-constructs`](tooling.md#tooling-fmt-novis-constructs), [`ide/a-list-splits-onto-lines-and-joins-onto-one`](ide.md#ide-a-list-splits-onto-lines-and-joins-onto-one). Decided in [0267](../decisions/0267.md).</sub>
 
 <a id="tooling-fmt-a-broken-call-chain-is-one-call-per-line"></a>
 
@@ -844,7 +861,8 @@ Each construct with no PER precedent has one layout, chosen once:
 - An anonymous object or shape type on one line has one space inside each brace, `{ a: 1, b: 2 }`; across
   lines it is one field per line, indented one level, with a trailing comma. An empty one has no inside
   to space and stays `{}`.
-- Enum cases are one per line when the author wrote them that way, with a trailing comma when multi-line.
+- An enum's case list is a list under [`tooling/fmt-a-list-is-one-line-or-one-item-per-line`](tooling.md#tooling-fmt-a-list-is-one-line-or-one-item-per-line):
+  `enum Status { Active, Banned }` on one line, or one case per line below an Allman brace.
 - An html template's body is never touched — not reflowed, not re-indented, not re-quoted — exactly as a
   heredoc body and an inline-HTML region are not ([`tooling/fmt-quotes`](tooling.md#tooling-fmt-quotes),
   [`core-classes/html-template`](core-classes.md#core-classes-html-template)). Only its surroundings are laid out, so the bytes between the
@@ -859,7 +877,7 @@ Each construct with no PER precedent has one layout, chosen once:
 Several of these have exactly one contributor and no convention to defer to. Changing one later is a
 breaking rewrite of every formatted file, the same cost class casing already accepted.
 
-<sub>See also [`tooling/fmt-base-style-is-per`](tooling.md#tooling-fmt-base-style-is-per), [`tooling/fmt-trailing-commas`](tooling.md#tooling-fmt-trailing-commas), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`types/anonymous-function`](types.md#types-anonymous-function), [`types/anonymous-object`](types.md#types-anonymous-object), [`types/shape-type`](types.md#types-shape-type), [`enums/declaration`](enums.md#enums-declaration), [`core-classes/html-template`](core-classes.md#core-classes-html-template). Decided in [0039](../decisions/0039.md), [0169](../decisions/0169.md), [0173](../decisions/0173.md).</sub>
+<sub>See also [`tooling/fmt-base-style-is-per`](tooling.md#tooling-fmt-base-style-is-per), [`tooling/fmt-trailing-commas`](tooling.md#tooling-fmt-trailing-commas), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`types/anonymous-function`](types.md#types-anonymous-function), [`types/anonymous-object`](types.md#types-anonymous-object), [`types/shape-type`](types.md#types-shape-type), [`enums/declaration`](enums.md#enums-declaration), [`core-classes/html-template`](core-classes.md#core-classes-html-template). Decided in [0039](../decisions/0039.md), [0169](../decisions/0169.md), [0173](../decisions/0173.md), [0267](../decisions/0267.md).</sub>
 
 <a id="tooling-fmt-normalizes-only-reserved-spellings"></a>
 

@@ -13,7 +13,8 @@ Each construct with no PER precedent has one layout, chosen once:
 - An anonymous object or shape type on one line has one space inside each brace, `{ a: 1, b: 2 }`; across
   lines it is one field per line, indented one level, with a trailing comma. An empty one has no inside
   to space and stays `{}`.
-- Enum cases are one per line when the author wrote them that way, with a trailing comma when multi-line.
+- An enum's case list is a list under `rule:tooling/fmt-a-list-is-one-line-or-one-item-per-line`:
+  `enum Status { Active, Banned }` on one line, or one case per line below an Allman brace.
 - An html template's body is never touched — not reflowed, not re-indented, not re-quoted — exactly as a
   heredoc body and an inline-HTML region are not (`rule:tooling/fmt-quotes`,
   `rule:core-classes/html-template`). Only its surroundings are laid out, so the bytes between the

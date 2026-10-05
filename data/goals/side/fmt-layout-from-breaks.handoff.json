@@ -17,7 +17,7 @@
       },
       {
         "done": false,
-        "text": "**Write the broken layout** — one item per line, one level in, trailing comma, closer on its own line — and the tests in `crates/nvs-fmt/tests/list_layout.rs`"
+        "text": "**Write the broken layout** — one item per line, one level in, trailing comma, closer on its own line, and an enum on one line keeping its `{` on the `enum` line — and the tests in `crates/nvs-fmt/tests/list_layout.rs`"
       },
       {
         "done": false,

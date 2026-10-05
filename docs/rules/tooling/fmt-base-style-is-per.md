@@ -7,6 +7,8 @@ line after one space, the closing brace starts its own line, and `elseif`, `else
 continue on the closing brace's line. `elseif` is one word, never `else if`. Every declaration with a
 body — `class`, `interface`, `enum`, a named function or method, including an interface method that
 carries a body — is Allman: the opening brace starts its own line at the declaration's indentation.
+The one exception is an enum whose cases are on one line, which keeps its `{` on the `enum` line
+(`rule:tooling/fmt-a-list-is-one-line-or-one-item-per-line`).
 
 Exactly one blank line follows a `namespace` line, one follows the `use` block, and one separates two
 members that each have a body; adjacent simple property and constant declarations get none. A comment
