@@ -49,12 +49,15 @@
 //! placed at the items' depth. An item's own lines after its first are its own
 //! rules', and a line no rule places keeps its author's whitespace.
 //!
-//! # Not yet a list here
+//! # Where a list is kept as written
 //!
-//! A shape type is no node, so nothing tells its `{` from a block's, and a
-//! `match` arm list is [`crate::indent`]'s. An enum on one line keeps its `{`
-//! on the `enum` line, which [`crate::brace`] writes from [`List::on_one_line`]. A list inside a `switch` or inline HTML is left as it
-//! is written, as every line there is ([`crate::indent`]'s `OPAQUE`).
+//! A shape type's fields keep the line breaks and the trailing comma their
+//! author wrote: a shape type is no node, so nothing tells its `{` from a
+//! block's. A `match` arm list is laid out by [`crate::indent`], not here. An
+//! enum on one line keeps its `{` on the `enum` line, which [`crate::brace`]
+//! writes from [`List::on_one_line`]. A list inside a `switch` or inline HTML
+//! is kept as written, like every other line there ([`crate::indent`]'s
+//! `OPAQUE`).
 //!
 //! # What it spends
 //!
