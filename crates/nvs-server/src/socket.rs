@@ -40,7 +40,10 @@
 //! by `rule:concurrency/a-connection-is-a-root-isolate`'s own `[limits] memory` (8 MiB in that section's example, so
 //! under 2% of it) and O(connections in flight) rather than O(frames served).
 //! The prefix beside it is whatever `hyper` had already read — a frame at the
-//! most, released the first time the codec drains it.
+//! most, released the first time the codec drains it. The codec's write
+//! buffer holds what a send could not get out, and that is one frame at the
+//! most, however many sends a program makes to a peer that stopped reading
+//! (`Framed`'s `send`).
 //!
 //! # The clock, and who winds it
 //!
@@ -181,6 +184,10 @@ pub struct Framed {
     /// [`Connection::drain`]. `None` on a server still serving
     /// ([`PeerSocket::drain_deadline`]).
     closing_at: Option<Instant>,
+    /// Whether the last `send` failed with its frame still in the codec's
+    /// write buffer, which is what [`PeerSocket::send`] reads to queue no
+    /// second frame behind it.
+    stalled: bool,
 }
 
 impl Framed {
@@ -225,6 +232,7 @@ impl Framed {
             draining,
             cut: None,
             closing_at: None,
+            stalled: false,
         }
     }
 
@@ -400,12 +408,29 @@ impl PeerSocket for Framed {
     /// owed. One begun before the deadline is written whole however late it
     /// finishes.
     ///
+    /// # A peer that stopped reading holds one frame, not every frame
+    ///
+    /// A send that fails leaves its frame in the codec's write buffer, which
+    /// is outside every isolate's memory cap, and `tungstenite`'s own ceiling
+    /// on that buffer is `usize::MAX`. So **the send after a failed one
+    /// flushes that frame first, under the same window, and throws without
+    /// queueing its own when the peer still is not reading.** A program that
+    /// catches the error and keeps sending therefore costs one frame of buffer
+    /// however long it goes on, where every frame it sent would otherwise wait
+    /// there until the lifetime ended the connection. A frame is the bound
+    /// rather than a byte ceiling on the codec's config, because the codec
+    /// refuses any one message larger than that ceiling and the size of what a
+    /// program sends is its own memory cap's to bound, not this module's. A
+    /// peer that starts reading again gets the stalled frame and the next one
+    /// in order, and a frame whose send threw is never written after it.
+    ///
     /// # Errors
     ///
     /// The socket failed, or the send timeout expired — including the case
     /// where it was [`Connection::lifetime`] that expired first, since
     /// [`Framed::arm`] caps every wait by it and a connection past its lifetime
-    /// may not keep writing — or the server is past its drain deadline.
+    /// may not keep writing — or an earlier send's frame still could not be
+    /// written, or the server is past its drain deadline.
     fn send(&mut self, frame: PeerFrame) -> Result<(), PeerError> {
         if self.drain_deadline().is_some_and(|at| Instant::now() >= at) {
             self.close(Closing::ShuttingDown);
@@ -416,7 +441,13 @@ impl PeerSocket for Framed {
             PeerFrame::Binary(bytes) => Message::Binary(bytes.into()),
         };
         self.arm(self.bounds.send);
-        self.socket.send(message).map_err(|error| failed(&error))
+        if self.stalled {
+            self.socket.flush().map_err(|error| failed(&error))?;
+            self.stalled = false;
+        }
+        let sent = self.socket.send(message);
+        self.stalled = sent.is_err();
+        sent.map_err(|error| failed(&error))
     }
 
     /// The moment this connection first saw the drain plus

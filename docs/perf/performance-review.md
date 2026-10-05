@@ -256,8 +256,12 @@ Header and cookie reads are quadratic up to the 100-header limit.
 **Read:** the connection deadlines and phases, admission, the WebSocket wrapper and its bounds, and
 the OTLP hand-over.
 
-**Found:** a WebSocket whose peer stops reading keeps every frame sent to it
-([`a-websocket-write-buffer-has-no-ceiling`](../../data/gaps/nvs-server/a-websocket-write-buffer-has-no-ceiling.json)).
+**Found:** a WebSocket whose peer stops reading kept every frame sent to it. Fixed: a send after a
+failed one flushes the stalled frame first and throws without queueing its own
+(`crates/nvs-server/src/socket.rs`), and the server test
+`sends_to_a_peer_that_stopped_reading_queue_one_frame_at_the_most` counts the frames that reach the
+peer. No ladder: the scaling tool has no WebSocket load, and the frames a test sends stay inside a
+serve ladder's peak slack.
 
 **A rule, not a defect:** `header_timeout` is an idle wait, re-armed on every byte
 (`crates/nvs-server/src/io.rs:309-321`, `:421`), as `rule:http-server/four-idle-waits-all-finite`

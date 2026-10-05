@@ -4826,6 +4826,137 @@ pub(crate) mod tests {
         );
     }
 
+    /// `crate::socket`'s `send` § *A peer that stopped reading holds one
+    /// frame*: a program that catches a send timeout and keeps sending to a
+    /// peer that never reads queues nothing past the frame that stalled.
+    ///
+    /// The buffer is read off the wire rather than off the codec: the peer
+    /// reads nothing until the program has seen several sends fail, then
+    /// reads everything that was queued for it. Every frame it gets beyond
+    /// the sends that succeeded is one the write buffer was holding, and one
+    /// is the bound.
+    #[test]
+    fn sends_to_a_peer_that_stopped_reading_queue_one_frame_at_the_most() {
+        static PEER_READS: std::sync::atomic::AtomicBool =
+            std::sync::atomic::AtomicBool::new(false);
+        const CHUNK: usize = 256 * 1024;
+        const FAILURES: usize = 8;
+
+        fn send_past_the_stall(conn: &mut Ctx) -> String {
+            let send = |conn: &mut Ctx, frame| match conn.peer() {
+                Some(peer) => peer.send(frame).is_ok(),
+                None => false,
+            };
+            let (mut delivered, mut failed) = (0_usize, 0_usize);
+            while failed < FAILURES && delivered < 512 {
+                if send(conn, nvs_runtime::PeerFrame::Binary(vec![7; CHUNK])) {
+                    delivered += 1;
+                } else {
+                    failed += 1;
+                }
+            }
+            PEER_READS.store(true, std::sync::atomic::Ordering::SeqCst);
+            for _ in 0..500 {
+                if send(conn, nvs_runtime::PeerFrame::Text("last".to_owned())) {
+                    return format!("sent {delivered} failed {failed}");
+                }
+            }
+            format!("never recovered after {delivered} sent")
+        }
+
+        let mut listener = NvsListener::bind("127.0.0.1:0".parse().expect("a literal address"))
+            .expect("the OS refused a port");
+        let addr = listener
+            .local_addr()
+            .expect("a bound listener had no address");
+
+        let client = std::thread::spawn(move || {
+            let mut socket = TcpStream::connect(addr).expect("the loopback refused a connection");
+            socket
+                .set_read_timeout(Some(CLIENT_PATIENCE))
+                .expect("the socket refused a read timeout");
+            socket
+                .write_all(upgrade_request("/feed").as_bytes())
+                .expect("the write failed");
+            let mut head = String::new();
+            read_until(&mut socket, "\r\n\r\n", &mut head);
+            let began = Instant::now();
+            while !PEER_READS.load(std::sync::atomic::Ordering::SeqCst) {
+                assert!(
+                    began.elapsed() < CLIENT_PATIENCE,
+                    "the program never saw a send fail"
+                );
+                std::thread::sleep(Duration::from_millis(5));
+            }
+            let mut peer = tungstenite::protocol::WebSocket::from_raw_socket(
+                socket,
+                tungstenite::protocol::Role::Client,
+                None,
+            );
+            let mut frames = 0_usize;
+            let end = loop {
+                match peer.read() {
+                    Ok(tungstenite::Message::Binary(_)) => frames += 1,
+                    Ok(tungstenite::Message::Text(text)) => break text.to_string(),
+                    other => break format!("{other:?}"),
+                }
+            };
+            end_the_loop(addr);
+            (frames, end)
+        });
+
+        let said = Rc::new(RefCell::new(Vec::new()));
+        let handler_said = Rc::clone(&said);
+        let mut sched = nvs_host::Scheduler::new();
+        let _installed =
+            nvs_host::reactor::install(nvs_host::Reactor::new().expect("the OS refused a poll"));
+        sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, move |_ctx| {
+            let handler = upgrade_leaving(
+                Door::Socket,
+                String::new(),
+                handler_said,
+                send_past_the_stall,
+            );
+            let quick = crate::bounds::Connection {
+                send: Duration::from_millis(20),
+                ..crate::bounds::Connection::default()
+            };
+            serve_on_this_core(
+                &mut listener,
+                &handler,
+                Waits::default(),
+                &wide_open().bounded_by(quick),
+                &Draining::detached(),
+                |_note| {},
+                until_the_loop_is_ended(),
+            )
+            .expect("the accept loop failed");
+        });
+        nvs_host::run_until_idle(&mut sched).expect("the loop failed");
+        let (frames, end) = client.join().expect("the client thread panicked");
+
+        assert_eq!(end, "last", "the peer did not get the program's last frame");
+        let said = said.borrow();
+        let line = said
+            .iter()
+            .find_map(|line| line.strip_prefix("connection sent "))
+            .unwrap_or_else(|| panic!("the program did not report its sends: {said:?}"));
+        let (delivered, failed) = line
+            .split_once(" failed ")
+            .expect("the program's report has both counts");
+        let delivered: usize = delivered.parse().expect("a count");
+        assert_eq!(
+            failed,
+            FAILURES.to_string(),
+            "the peer never stalled a send"
+        );
+        assert!(
+            frames <= delivered + 1,
+            "{frames} frames reached the peer after {delivered} sends succeeded: \
+             a send that threw left its frame queued"
+        );
+    }
+
     /// `rule:concurrency/two-doors-one-isolate`:
     /// "the isolate is the same; the door is not". An event stream opens the
     /// same root isolate the three cases above assert of § 1 — its own context,
