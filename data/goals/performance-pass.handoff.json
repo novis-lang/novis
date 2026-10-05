@@ -1,24 +1,24 @@
 {
-  "state": "**Goal `performance-pass`, Stage 5 (the fixes).** Stage 4's review is whole (`docs/perf/performance-review.md`, ending in `## floor`). Old refusals have not been priced again yet.\n\n**The regex cache answers what a fresh compile would.** In `crates/nvs-stdlib/src/regex.rs`, `compiled_prepared` asks the memory ceiling for the entry's stored `search_cost` on every hit, keys on whether the compiler forced the backtracking tier, and evicts the least recently used entry one at a time (module doc § *What a compiled pattern costs*). Three unit tests cover it. The double automaton build on a miss stays, as a stated once-per-miss bound in `search_cost`'s doc. Its gap record is deleted (`docs/perf/performance-pass.md` § *What got better*).\n\n**19 gap records owned by `performance-pass`** keep `owners --closes performance-pass` red (`bun nv owners --closes performance-pass` lists them). `bun nv scaling --check` passes, with `numbers/bigint-mul` unclear. *Decisions for you* in `docs/perf/performance-pass.md` has two entries: a total deadline for the request head, and `Markup` concatenation in place.",
+  "state": "**Goal `performance-pass`, Stage 5 (the fixes).** Stage 4's review is whole (`docs/perf/performance-review.md`, ending in `## floor`). Old refusals have not been priced again yet.\n\n**A cache tier's eviction queue stays the size of what the tier holds.** In `crates/nvs-stdlib/src/cache.rs`, every `order` slot carries a number that matches its entry's `Entry::slot`. A write sweeps stale slots and expired entries once the queue reaches `sweep_at`, which is twice what the last sweep left, with `SWEEP_FLOOR` as the minimum (see `Entries::order`'s doc). `forget_oldest` skips a stale slot, so it can no longer evict a key that was written again. Two unit tests cover this. Its gap record is deleted (`docs/perf/performance-pass.md` § *What got better*). The regex cache fix from the session before still stands.\n\n**18 gap records owned by `performance-pass`** keep `owners --closes performance-pass` red (`bun nv owners --closes performance-pass` lists them). `bun nv scaling --check` passes, with `numbers/bigint-mul` unclear. *Decisions for you* in `docs/perf/performance-pass.md` has two entries: a total deadline for the request head, and `Markup` concatenation in place.",
   "next": {
     "stage": 5,
-    "title": "the fixes, the cache tier's order queue",
+    "title": "the fixes, the metrics refusal map",
     "files": [
-      "crates/nvs-stdlib/src/cache.rs"
+      "crates/nvs-runtime/src/metrics.rs"
     ],
     "items": [
       {
         "done": false,
-        "text": "**A forgotten cache key takes its eviction slot with it** (`crates/nvs-stdlib/src/cache.rs:976`), per `data/gaps/nvs-stdlib/a-forgotten-cache-key-leaves-its-order-slot.json`. `Entries::forget` leaves its slot in `order`, and a later `put` of the same key pushes a second one (`crates/nvs-stdlib/src/cache.rs:953`), so put, forget and put grows `order` with traffic when `max_size` is off. A put with an elapsed lifetime (`crates/nvs-stdlib/src/cache.rs:935`) takes the same path. Rule: AGENTS.md priority ordering (O(in-flight), not O(requests served))."
-      },
-      {
-        "done": false,
-        "text": "**An expired entry is removed on `get`** (`crates/nvs-stdlib/src/cache.rs:985`), per the same gap record, so keys written once with a lifetime do not stay forever with the cap off. Ladder `benches/scaling/cache/forget.nvs` under `serve` if the counts can see it."
+        "text": "**Refused metric names stop growing a per-core map** (`crates/nvs-runtime/src/metrics.rs:780`), per `data/gaps/nvs-runtime/metric-refusals-grow-with-distinct-names.json`. `refusals: BTreeMap<String, u64>` gains a key for each distinct refused name and is never trimmed. Cap it and count the rest in one overflow bucket, then delete the gap record and add a paragraph to `docs/perf/performance-pass.md` § *What got better*. Rule: AGENTS.md priority ordering (O(in-flight), not O(requests served))."
       }
     ]
   },
   "backlog": [
-    "18 more gap records owned by `performance-pass`: `bun nv owners --closes performance-pass`.",
-    "`numbers/bigint-mul` is unclear in `bun nv scaling --check`; it belongs under *Benches to look at* in `docs/perf/performance-pass.md` if it is not there yet."
+    "`crates/nvs-runtime/src/ctx/error.rs`: a throw copies its message once per frame (`data/gaps/nvs-runtime/a-throw-copies-its-message-per-frame.json`).",
+    "`crates/nvs-server/src/socket.rs`: a WebSocket write buffer has no ceiling (`data/gaps/nvs-server/a-websocket-write-buffer-has-no-ceiling.json`).",
+    "`crates/nvs-hir/src/requires.rs`: a require chain is cloned per file (its gap record).",
+    "`crates/nvs-types/src/locals.rs`: the live set is cloned per branch (its gap record).",
+    "The other 13 gap records from `bun nv owners --closes performance-pass`.",
+    "`numbers/bigint-mul` is unclear in `bun nv scaling --check` (`docs/perf/performance-pass.md` § *Benches to look at*)."
   ]
 }
