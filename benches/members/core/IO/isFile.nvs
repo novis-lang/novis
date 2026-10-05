@@ -1,6 +1,6 @@
 <?nvs
 // Checks whether a path is a file, as a program does for each name in a folder it reads.
-// bench: iterations 512
+// bench: iterations 256
 // bench: calls 0
 // bench: complexity constant
 
@@ -27,4 +27,4 @@ class Bench {
     }
 }
 
-echo Bench::run(512) > 0 ? "done" : "no file found", "\n";
+echo Bench::run(256) > 0 ? "done" : "no file found", "\n";

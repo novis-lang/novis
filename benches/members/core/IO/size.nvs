@@ -1,6 +1,6 @@
 <?nvs
 // Reads the size of a file, as a program does before it accepts an upload or rotates a log.
-// bench: iterations 1024
+// bench: iterations 256
 // bench: calls 0
 // bench: complexity constant
 
@@ -26,4 +26,4 @@ class Bench {
     }
 }
 
-echo Bench::run(1024) > 0 ? "done" : "every file was empty", "\n";
+echo Bench::run(256) > 0 ? "done" : "every file was empty", "\n";

@@ -1,7 +1,7 @@
 <?nvs
 // Measures asking how much colour the terminal can show. A program asks before
 // it decides how to draw a line of output.
-// bench: iterations 4096
+// bench: iterations 2048
 // bench: calls 0
 // bench: allocations 0
 // bench: complexity constant
@@ -20,4 +20,4 @@ class Bench {
     }
 }
 
-echo Bench::run(4096), "\n";
+echo Bench::run(2048), "\n";

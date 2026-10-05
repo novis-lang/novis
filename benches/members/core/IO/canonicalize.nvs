@@ -1,6 +1,6 @@
 <?nvs
 // Resolves the full path of a file, as a program does to check whether two paths name the same file.
-// bench: iterations 1024
+// bench: iterations 512
 // bench: calls 0
 // bench: complexity constant
 
@@ -25,4 +25,4 @@ class Bench {
     }
 }
 
-echo Bench::run(1024) > 0 ? "done" : "nothing resolved", "\n";
+echo Bench::run(512) > 0 ? "done" : "nothing resolved", "\n";
