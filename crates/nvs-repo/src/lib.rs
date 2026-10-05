@@ -31,6 +31,8 @@
 //! temp directory. A scratch directory is written and never read from the tree, so it records
 //! nothing, and a test that only uses one stays narrow. [`scratch_private`] is the same directory
 //! locked to this account, for a test that runs the configuration's ownership check against it.
+//! [`socket`] is a scratch directory and the absolute path of a socket inside it, checked against
+//! the platform's limit on a socket path's length.
 
 use std::ffi::OsStr;
 use std::fs::OpenOptions;
@@ -255,15 +257,72 @@ pub fn scratch_private(name: &str) -> Scratch {
     Scratch { path, root }
 }
 
+/// The longest socket path the platform binds, counted in bytes: `sun_path` is 108 bytes on
+/// Linux and 104 on macOS and the BSDs, and one of them is the terminating NUL.
+#[cfg(any(target_os = "linux", target_os = "android"))]
+const SOCKET_PATH_MAX: usize = 107;
+#[cfg(not(any(target_os = "linux", target_os = "android")))]
+const SOCKET_PATH_MAX: usize = 103;
+
+/// A new empty directory `target/test-scratch/sock-<pid>-<n>` and the absolute path of a socket
+/// called `name` inside it, for a test that binds a Unix socket. The path is built from the
+/// repository root with no `..` in it, because `rule:config/ownership-is-the-trust-boundary`'s
+/// check walks a socket's parent directories and a relative path cuts that walk short. The
+/// directory is deleted when the guard drops; the socket file is not created.
+///
+/// # Panics
+///
+/// If `name` is empty or holds a separator or `..`, if the directory cannot be created, and on
+/// Unix if the path is longer than a socket path may be there. That message names the limit:
+/// the fix is a checkout at a shorter path.
+#[must_use]
+pub fn socket(name: &str) -> (Scratch, PathBuf) {
+    assert!(
+        !name.is_empty() && !name.contains(['/', '\\']) && !name.contains(".."),
+        "nvs_repo::socket takes a file name, and `{name}` is not one"
+    );
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .ancestors()
+        .nth(2)
+        .expect("a package sits two directories below the repository root");
+    let dir = fresh_under(root, "sock");
+    let path = dir.join(name);
+    let dir = Scratch {
+        root: dir.clone(),
+        path: dir,
+    };
+    #[cfg(unix)]
+    fits_a_socket(&path);
+    (dir, path)
+}
+
+/// Stops the test when `path` is too long to bind as a socket.
+#[cfg_attr(not(unix), allow(dead_code))]
+fn fits_a_socket(path: &Path) {
+    let len = path.as_os_str().len();
+    assert!(
+        len <= SOCKET_PATH_MAX,
+        "nvs_repo::socket: `{}` is {len} bytes, and a socket path on this platform is at most \
+         {SOCKET_PATH_MAX}. Move the checkout to a shorter path.",
+        path.display()
+    );
+}
+
 /// `target/test-scratch/<name>-<pid>-<n>`, created empty.
 fn fresh(name: &str) -> PathBuf {
-    static NEXT: AtomicUsize = AtomicUsize::new(0);
     assert!(
         !name.is_empty() && !name.contains(['/', '\\']) && !name.contains(".."),
         "nvs_repo::scratch takes a directory name, and `{name}` is not one"
     );
+    fresh_under(&repository(), name)
+}
+
+/// `<root>/target/test-scratch/<name>-<pid>-<n>`, created empty, where `n` counts the calls in
+/// this process.
+fn fresh_under(root: &Path, name: &str) -> PathBuf {
+    static NEXT: AtomicUsize = AtomicUsize::new(0);
     let n = NEXT.fetch_add(1, Ordering::Relaxed);
-    let path = repository()
+    let path = root
         .join("target")
         .join("test-scratch")
         .join(format!("{name}-{}-{n}", std::process::id()));
@@ -391,5 +450,38 @@ mod tests {
     #[should_panic(expected = "a directory name")]
     fn scratch_refuses_a_path() {
         let _ = scratch("../elsewhere");
+    }
+
+    #[test]
+    fn a_socket_path_is_absolute_under_the_target_dir_and_its_dir_is_removed() {
+        let (dir, sock) = socket("control.sock");
+        assert!(sock.is_absolute(), "{}", sock.display());
+        assert!(
+            !sock
+                .components()
+                .any(|c| c == std::path::Component::ParentDir),
+            "{}",
+            sock.display()
+        );
+        assert_eq!(sock.parent(), Some(dir.path()));
+        assert!(dir.is_dir() && !sock.exists());
+        assert!(
+            sock.ends_with(
+                Path::new("target")
+                    .join("test-scratch")
+                    .join(dir.file_name().unwrap())
+                    .join("control.sock")
+            )
+        );
+        let kept = dir.to_path_buf();
+        drop(dir);
+        assert!(!kept.exists());
+    }
+
+    #[test]
+    #[should_panic(expected = "a socket path on this platform is at most")]
+    fn a_socket_path_past_the_limit_stops_with_the_limit_named() {
+        let long = Path::new("/").join("x".repeat(SOCKET_PATH_MAX));
+        fits_a_socket(&long);
     }
 }
