@@ -1,24 +1,23 @@
 {
-  "state": "**Goal `performance-pass`, Stage 5 (the fixes).** Stage 4's review is whole (`docs/perf/performance-review.md`, ending in `## floor`). Old refusals have not been priced again yet.\n\n**A cache tier's eviction queue stays the size of what the tier holds.** In `crates/nvs-stdlib/src/cache.rs`, every `order` slot carries a number that matches its entry's `Entry::slot`. A write sweeps stale slots and expired entries once the queue reaches `sweep_at`, which is twice what the last sweep left, with `SWEEP_FLOOR` as the minimum (see `Entries::order`'s doc). `forget_oldest` skips a stale slot, so it can no longer evict a key that was written again. Two unit tests cover this. Its gap record is deleted (`docs/perf/performance-pass.md` § *What got better*). The regex cache fix from the session before still stands.\n\n**18 gap records owned by `performance-pass`** keep `owners --closes performance-pass` red (`bun nv owners --closes performance-pass` lists them). `bun nv scaling --check` passes, with `numbers/bigint-mul` unclear. *Decisions for you* in `docs/perf/performance-pass.md` has two entries: a total deadline for the request head, and `Markup` concatenation in place.",
+  "state": "**Goal `performance-pass`, Stage 5 (the fixes).** Stage 4's review is whole (`docs/perf/performance-review.md`, ending in `## floor`). Old refusals have not been priced again yet.\n\n**A core's refused-metric-name record is capped.** `Registry::refusals` in `crates/nvs-runtime/src/metrics.rs` keys at most `REFUSED_NAMES` (256) distinct names, and refusals of any later name go to `Registry::refused_unnamed`. A unit test covers it, and the gap record is deleted (`docs/perf/performance-pass.md` § *What got better*). The cache tier queue and regex cache fixes from earlier sessions still stand.\n\n**17 gap records owned by `performance-pass`** keep `owners --closes performance-pass` red (`bun nv owners --closes performance-pass` lists them). `bun nv scaling --check` passes, with `numbers/bigint-mul` unclear. *Decisions for you* in `docs/perf/performance-pass.md` has two entries: a total deadline for the request head, and `Markup` concatenation in place.",
   "next": {
     "stage": 5,
-    "title": "the fixes, the metrics refusal map",
+    "title": "the fixes, a throw's message per frame",
     "files": [
-      "crates/nvs-runtime/src/metrics.rs"
+      "crates/nvs-runtime/src/ctx/error.rs",
+      "crates/nvs-runtime/src/throwable.rs"
     ],
     "items": [
       {
         "done": false,
-        "text": "**Refused metric names stop growing a per-core map** (`crates/nvs-runtime/src/metrics.rs:780`), per `data/gaps/nvs-runtime/metric-refusals-grow-with-distinct-names.json`. `refusals: BTreeMap<String, u64>` gains a key for each distinct refused name and is never trimmed. Cap it and count the rest in one overflow bucket, then delete the gap record and add a paragraph to `docs/perf/performance-pass.md` § *What got better*. Rule: AGENTS.md priority ordering (O(in-flight), not O(requests served))."
+        "text": "**A throw stops copying its message once per frame** (`crates/nvs-runtime/src/ctx/error.rs:825`), per `data/gaps/nvs-runtime/a-throw-copies-its-message-per-frame.json`. `Ctx::push_frame` calls `pending.message().into_owned()` per frame, and `Thrown::message()` builds an owned copy for a thrown object. Read the message only on the path that uses it, then delete the gap record and add a paragraph to `docs/perf/performance-pass.md` § *What got better*. Rule: AGENTS.md priority ordering."
       }
     ]
   },
   "backlog": [
-    "`crates/nvs-runtime/src/ctx/error.rs`: a throw copies its message once per frame (`data/gaps/nvs-runtime/a-throw-copies-its-message-per-frame.json`).",
-    "`crates/nvs-server/src/socket.rs`: a WebSocket write buffer has no ceiling (`data/gaps/nvs-server/a-websocket-write-buffer-has-no-ceiling.json`).",
-    "`crates/nvs-hir/src/requires.rs`: a require chain is cloned per file (its gap record).",
-    "`crates/nvs-types/src/locals.rs`: the live set is cloned per branch (its gap record).",
-    "The other 13 gap records from `bun nv owners --closes performance-pass`.",
-    "`numbers/bigint-mul` is unclear in `bun nv scaling --check` (`docs/perf/performance-pass.md` § *Benches to look at*)."
+    "`a-channel-send-scans-every-waiter-on-the-core` — `crates/nvs-stdlib/src/channel.rs:285`, a per-channel waiter map.",
+    "`route-matching-tries-every-route` — `crates/nvs-runtime/src/routes.rs`.",
+    "`a-websocket-write-buffer-has-no-ceiling` — `crates/nvs-server/src/socket.rs`.",
+    "The other gaps: `bun nv owners --closes performance-pass`."
   ]
 }
