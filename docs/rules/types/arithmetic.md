@@ -18,8 +18,10 @@ member that says the floating-point remainder out loud.
 
 An enum value is refused under every arithmetic and bitwise operator, prefix `-`, `+`, `~` and
 `++`/`--` included, and so is any type that can hold one: a case-subset type, `?Size`, `int|Size`. A
-case is not a number, and `as int` (`as ?int` for a nullable one) is how its backing integer joins a
-computation. `-$size as int` already reads that way, because `as` binds tighter than a prefix operator.
+case is not a number, and `as int` is how its backing integer joins a computation. A nullable one
+converts with `as ?int` and then needs a default, `($size as ?int) ?? 0`, because an operand that can
+hold `null` is refused too (below). `-$size as int` already reads that way, because `as` binds tighter
+than a prefix operator.
 
 Division is the one row that returns a union, and in practice the target's declared type absorbs it
 through the `int → float` widening (`rule:types/implicit-widening`): `float $avg = $sum / $n;` works,
@@ -31,6 +33,11 @@ answered from its runtime **tag**: the rows above where the tags name one, and t
 enum case is the exception and is refused where it is written: a case reaches arithmetic only
 through `as int` or `as uint`, and a tagged operand's arithmetic reads a case as its backing integer
 (`rule:enums/representation`).
+
+A union that can hold `null` — `?float`, `int|float|null` — is the second exception, refused under
+the same operators. `null` has no row, so its tag would throw on exactly the path a test is least
+likely to take; the fix is a `!= null` test, which narrows (`rule:types/narrowing`), or a default
+through `??`. `mixed` is not a union and is still answered from its tag.
 
 Overflow throwing is the divergence this table is least willing to trade. A silent promotion to
 `float` changes a binding's type behind its declaration, and a silent wrap is the classic

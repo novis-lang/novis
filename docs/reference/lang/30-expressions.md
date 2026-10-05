@@ -90,6 +90,8 @@ if ($n === 1) { echo "same"; }
 
 The operands of `+ - * / % **` are `int`, `uint`, `float` and `decimal`, and nothing else: a `bool`, a `string`, `bytes`, an array, an enum case, `null` and an object are refused where they are written. Nothing converts on its own — `"3" * 2` does not compile; write `($s as int) * 2`.
 
+A value that can be `null`, such as a `?float`, is also refused. Test it first with `if ($a != null)`, or give it a default with `??`: `($a ?? 0.0) + 1.5`. A `mixed` value is checked when the program runs.
+
 | Operands | Result |
 |---|---|
 | `int ⊕ int`, `uint ⊕ uint` | the same type; overflow **throws** `ArithmeticError` — no wrap, no promotion to `float` |
@@ -262,7 +264,7 @@ echo ($a == $b) as string, "|", ($a == $same) as string, "|", ($a < $b) as strin
 
 # Logical operators and truth
 
-`&&` and `||` short-circuit and answer a `bool`; `!` negates. Their operands are read as conditions: `0`, `0.0`, `""`, `"0"`, `[]`, `null` and `false` are false and everything else is true, PHP's table — the one place a value is tested without `as bool`. `and`, `or` and `xor` do not parse. `&&` narrows its right operand as the `if` block of its left would, and `||` as the `else` block, so `$u != null && $u->active` compiles over a `?User` local; nothing proven holds after the expression.
+`&&` and `||` short-circuit and answer a `bool`; `!` negates. Their operands are read as conditions: `0`, `0.0`, `""`, `"0"`, `[]`, `null` and `false` are false and everything else is true, PHP's table — the one place a value is tested without `as bool`. `and`, `or` and `xor` do not parse. `&&` narrows its right operand as the `if` block of its left would, and `||` as the `else` block, so `$u != null && $u->active` compiles over a `?User` local; nothing proven holds after the expression. The block of `if (A && B)` sees what both tests prove, and so does the code after `if (A || B) { return; }`.
 
 ```nvs
 <?nvs

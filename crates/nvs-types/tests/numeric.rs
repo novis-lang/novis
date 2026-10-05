@@ -235,13 +235,25 @@ fn an_arithmetic_operand_with_no_row_is_a_compile_error() {
         );
     }
 
-    // An operand whose type is not yet known is the run-time question the
-    // `Helper::ValueAdd` family answers from its tag, never a refusal here —
-    // a `mixed` and, for the same reason, a union such as `?int`.
+    // A `mixed` operand is the run-time question the `Helper::ValueAdd`
+    // family answers from its tag, never a refusal here.
     let tagged = check_in_method("mixed $a = 1;\nmixed $b = 2;\nmixed $c = $a + $b;\n");
     assert!(!tagged.has_errors(), "{tagged:?}");
+
+    // A union that can hold `null` is refused where it is written, because
+    // its tag would throw on the `null` arm; a `!= null` test or `??` is the
+    // fix, and both compile.
     let nullable = check_in_method("?int $n = null;\nmixed $c = $n * 2;\n");
-    assert!(!nullable.has_errors(), "{nullable:?}");
+    assert!(
+        nullable
+            .iter()
+            .any(|d| d.code == Some(code::E_ARITHMETIC_HAS_NO_ROW)),
+        "{nullable:?}"
+    );
+    let fixed = check_in_method(
+        "?int $n = null;\nif ($n != null) {\n  int $c = $n * 2;\n}\nint $d = ($n ?? 0) * 2;\n",
+    );
+    assert!(!fixed.has_errors(), "{fixed:?}");
 
     // An enum keeps `rule:types/conversion`'s own diagnostic rather than joining this one.
     let enums = check_src(

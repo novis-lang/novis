@@ -410,6 +410,21 @@ pub(crate) fn binary_result(
     if arithmetic_or_bitwise && let Some(mixed) = reject_enum_operand(op, lhs, rhs, span, env) {
         return mixed;
     }
+    if arithmetic_or_bitwise
+        && let Some(offender) = [lhs, rhs].into_iter().find(|ty| carries_null(*ty, env))
+    {
+        let bitwise = !matches!(
+            op,
+            BinaryOp::Add
+                | BinaryOp::Sub
+                | BinaryOp::Mul
+                | BinaryOp::Div
+                | BinaryOp::Mod
+                | BinaryOp::Pow
+        );
+        report_nullable_operand(binary_operator_spelling(op), bitwise, offender, span, env);
+        return env.interner.mixed();
+    }
     match op {
         // `rule:security/taint-propagation` / `rule:security/secret-propagation`: concatenating a qualified operand with
         // an unqualified one poisons the result on that axis, the same
@@ -1264,6 +1279,48 @@ fn carries_an_enum_value(ty: TypeId, env: &Env<'_>) -> bool {
     }
 }
 
+/// Whether `ty` is a union with `null` among its members — `?float` is the one
+/// written most. `rule:types/arithmetic` refuses one where it is written, the
+/// way it refuses a union that can hold an enum case: answered from its tag,
+/// the `null` arm throws at run time, so the program is wrong on exactly the
+/// path a test is least likely to take. `mixed` is not a union and still
+/// passes to its tag. `null` alone has no row and is refused one level down.
+fn carries_null(ty: TypeId, env: &Env<'_>) -> bool {
+    matches!(env.interner.get(ty), Ty::Union(_)) && env.interner.is_nullable(ty)
+}
+
+/// The one diagnostic every arithmetic and bitwise operator over a nullable
+/// operand reports — the binary rows through [`binary_result`], `-`, `+` and
+/// `~` through [`reject_unary_arith_operand`], and `++`/`--` through
+/// [`reject_increment_on_non_numeric`]. The code is the operator family's own,
+/// so `nvs agent show` explains the operator that was written.
+fn report_nullable_operand(
+    spelling: &str,
+    bitwise: bool,
+    ty: TypeId,
+    span: Span,
+    env: &mut Env<'_>,
+) {
+    let described = env.interner.describe(ty);
+    let code = if bitwise {
+        code::E_BITWISE_NOT_INTEGER
+    } else {
+        code::E_ARITHMETIC_HAS_NO_ROW
+    };
+    env.diags.report(
+        Diagnostic::error(
+            code,
+            format!("`{spelling}` has no meaning for `{described}`"),
+        )
+        .with_primary(span, "this value can be `null`")
+        .with_help(
+            "Test the value first, for example `if ($a != null && $b != null)`. \
+                 Inside that block the value is no longer `null`. \
+                 Or give it a default with `??`, for example `($a ?? 0)`.",
+        ),
+    );
+}
+
 /// The one diagnostic every operator over an enum value reports — the binary
 /// rows through [`reject_enum_operand`], `-`, `+` and `~` through
 /// [`reject_unary_arith_operand`], and `++`/`--` through
@@ -1278,9 +1335,9 @@ fn report_enum_operand(spelling: &str, ty: TypeId, span: Span, env: &mut Env<'_>
         )
         .with_primary(span, "an enum case is not a number")
         .with_help(
-            "to compute with the integer behind a case, convert it first: `$x as int` \
-             (`$x as uint` for an enum backed by `uint`), or `$x as ?int` when the value can \
-             be `null`",
+            "To compute with the integer behind a case, convert it first: `$x as int`, or \
+             `$x as uint` for an enum backed by `uint`. When the value can be `null`, give it a \
+             default too: `($x as ?int) ?? 0`.",
         ),
     );
 }
@@ -1579,6 +1636,10 @@ pub(crate) fn reject_unary_arith_operand(op: UnaryOp, ty: TypeId, span: Span, en
         report_enum_operand(spelling, ty, span, env);
         return;
     }
+    if carries_null(ty, env) {
+        report_nullable_operand(spelling, op == UnaryOp::BitNot, ty, span, env);
+        return;
+    }
     if matches!(
         env.interner.get(ty),
         Ty::Class(..) | Ty::Object | Ty::Shape(_)
@@ -1643,6 +1704,10 @@ pub(crate) fn reject_unary_arith_operand(op: UnaryOp, ty: TypeId, span: Span, en
 pub(crate) fn reject_increment_on_non_numeric(ty: TypeId, span: Span, env: &mut Env<'_>) {
     if carries_an_enum_value(ty, env) {
         report_enum_operand("++`/`--", ty, span, env);
+        return;
+    }
+    if carries_null(ty, env) {
+        report_nullable_operand("++`/`--", false, ty, span, env);
         return;
     }
     let refused = {

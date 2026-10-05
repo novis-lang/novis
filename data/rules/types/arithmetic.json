@@ -22,6 +22,7 @@
     "tests/conformance/lang/every-arithmetic-row-promotes-the-narrower-operand.nvst",
     "tests/conformance/lang/arithmetic-over-a-mixed-operand-is-decided-by-its-tag.nvst",
     "tests/conformance/reject/an-object-takes-part-in-no-arithmetic.nvst",
-    "tests/conformance/reject/an-arithmetic-or-bitwise-operator-on-an-enum-value-does-not-compile.nvst"
+    "tests/conformance/reject/an-arithmetic-or-bitwise-operator-on-an-enum-value-does-not-compile.nvst",
+    "tests/conformance/reject/an-arithmetic-or-bitwise-operator-on-a-nullable-value-does-not-compile.nvst"
   ]
 }

@@ -10,9 +10,10 @@ A `?->` chain cannot be written through in any of its spellings — a plain assi
 // own error: a spelling that stops being checked would still look right
 // beside the other three.
 //
-// The compound form reports twice. Its target is refused and then has no
-// type left to add to, so the second error is the consequence of the first
-// and is expected here rather than filtered out.
+// The compound form reports three times. Its target is refused, the value it
+// reads can be `null` and so has no `+`, and the sum then has no type left to
+// store; the later errors are the consequence of the first and are expected
+// here rather than filtered out.
 class P {
     public int $x = 1;
     public array<int> $items = [];
@@ -31,11 +32,13 @@ error[E0479]: `?->` cannot be written through
 %A
 error[E0479]: `?->` cannot be written through
 %A
+error[E0716]: `+` has no meaning for `int|null`
+%A
 error[E0401]: expected `int|null`, found `mixed`
 %A
 error[E0479]: `?->` cannot be written through
 %A
 error[E0479]: `?->` cannot be written through
 %A
-error: aborting due to 5 errors
+error: aborting due to 6 errors
 To read what a code means and how to fix it, run `nvs agent show <code>`.

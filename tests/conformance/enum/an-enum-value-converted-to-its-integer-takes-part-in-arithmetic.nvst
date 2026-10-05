@@ -12,9 +12,10 @@ echo -$s as int, "\n";
 echo ($s as int) + 1, "\n";
 echo (Size::Large as int) | 4, "\n";
 echo ~(Size::Small as int), "\n";
-// A nullable enum converts with `as ?int`, which keeps `null`.
-echo ($n as ?int) * 10, "\n";
-echo -$n as ?int, "\n";
+// A nullable enum converts with `as ?int`, which keeps `null`, so a default
+// through `??` comes before the arithmetic.
+echo (($n as ?int) ?? 0) * 10, "\n";
+echo -(($n as ?int) ?? 0), "\n";
 // `-1` is no case of `Size`, so the conversion gives `null`.
 int $minus = -1;
 ?Size $none = $minus as ?Size;

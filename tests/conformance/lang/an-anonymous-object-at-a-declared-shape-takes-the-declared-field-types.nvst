@@ -45,9 +45,11 @@ array<Price> $list = [{amount: 2}, {amount: 3}];
 Item $item = {price: {amount: 4}, count: 1};
 echo $list[0]->amount + 0.5, " ", $list[1]->amount + 0.5, " ", $item->price->amount + 0.5, "\n";
 
-// A nullable shape position works the same way.
+// A nullable shape position works the same way, once a test proves it is not `null`.
 ?Price $maybe = {amount: 5};
-echo $maybe?->amount + 0.5, "\n";
+if ($maybe != null) {
+    echo $maybe->amount + 0.5, "\n";
+}
 
 // The field is a `float`, so a later `float` write keeps the fraction.
 $written->amount = 2.5;

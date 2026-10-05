@@ -3307,9 +3307,15 @@ pub mod code {
     /// `iadd` over the `i8` a `bool` is stored in. An enum case keeps
     /// [`E_ENUM_ARITHMETIC_UNSUPPORTED`], so "this operand has no arithmetic"
     /// reads as one diagnostic per rule rather than per type.
+    ///
+    /// A union that can hold `null` takes this code too, under the arithmetic
+    /// operators, and [`E_BITWISE_NOT_INTEGER`] under the bitwise ones: its
+    /// tag would throw on the `null` arm, so it is refused where it is written.
     pub const E_ARITHMETIC_HAS_NO_ROW: Code = Code::new("E0716").card(
         "The arithmetic operators work only on `int`, `uint`, `float` and `decimal`. Novis does \
-         not convert the operand to a number by itself. Convert it with `as` first.",
+         not convert the operand to a number by itself. Convert it with `as` first. A value \
+         that can be `null`, such as a `?float`, is not allowed either. Test it with \
+         `if ($x != null)` first, or give it a default with `($x ?? 0)`.",
     );
 
     /// `%` with a `float` operand.

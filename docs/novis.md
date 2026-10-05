@@ -1433,6 +1433,33 @@ echo Check::label($ada), " ", Check::label(null), " ", Check::on($ada), " ", Che
 Ada guest off yes no deletes reads
 ```
 
+The block of `if (A && B)` runs only when both tests are true, so it sees what each test proves. In
+`if ($a != null && $b != null)`, both `$a` and `$b` are narrowed inside the block. In the same way, the
+code after `if ($a == null || $b == null) { return; }` sees both variables narrowed. The `else` of an
+`&&` and the block of an `||` narrow nothing, because there only one of the two tests is known.
+
+```nvs
+<?nvs
+class Sum {
+    public static function both(?float $a, ?float $b): float {
+        if ($a != null && $b != null) {
+            return $a + $b;
+        }
+        return 0.0;
+    }
+    public static function guarded(?float $a, ?float $b): float {
+        if ($a == null || $b == null) {
+            return -1.0;
+        }
+        return $a + $b;
+    }
+}
+echo Sum::both(1.5, 2.0), " ", Sum::both(null, 2.0), " ", Sum::guarded(1.0, 2.0), " ", Sum::guarded(1.0, null), "\n";
+```
+```output
+3.5 0 3 -1
+```
+
 A write to the binding inside the branch drops the narrowing. Narrowing is branch-local; a `?T`
 that was tested in one `if` is still `?T` after it, and `->` on an un-narrowed `?C` is refused.
 
@@ -1850,6 +1877,8 @@ if ($n === 1) { echo "same"; }
 
 The operands of `+ - * / % **` are `int`, `uint`, `float` and `decimal`, and nothing else: a `bool`, a `string`, `bytes`, an array, an enum case, `null` and an object are refused where they are written. Nothing converts on its own — `"3" * 2` does not compile; write `($s as int) * 2`.
 
+A value that can be `null`, such as a `?float`, is also refused. Test it first with `if ($a != null)`, or give it a default with `??`: `($a ?? 0.0) + 1.5`. A `mixed` value is checked when the program runs.
+
 | Operands | Result |
 |---|---|
 | `int ⊕ int`, `uint ⊕ uint` | the same type; overflow **throws** `ArithmeticError` — no wrap, no promotion to `float` |
@@ -2022,7 +2051,7 @@ echo ($a == $b) as string, "|", ($a == $same) as string, "|", ($a < $b) as strin
 
 ### Logical operators and truth
 
-`&&` and `||` short-circuit and answer a `bool`; `!` negates. Their operands are read as conditions: `0`, `0.0`, `""`, `"0"`, `[]`, `null` and `false` are false and everything else is true, PHP's table — the one place a value is tested without `as bool`. `and`, `or` and `xor` do not parse. `&&` narrows its right operand as the `if` block of its left would, and `||` as the `else` block, so `$u != null && $u->active` compiles over a `?User` local; nothing proven holds after the expression.
+`&&` and `||` short-circuit and answer a `bool`; `!` negates. Their operands are read as conditions: `0`, `0.0`, `""`, `"0"`, `[]`, `null` and `false` are false and everything else is true, PHP's table — the one place a value is tested without `as bool`. `and`, `or` and `xor` do not parse. `&&` narrows its right operand as the `if` block of its left would, and `||` as the `else` block, so `$u != null && $u->active` compiles over a `?User` local; nothing proven holds after the expression. The block of `if (A && B)` sees what both tests prove, and so does the code after `if (A || B) { return; }`.
 
 ```nvs
 <?nvs
