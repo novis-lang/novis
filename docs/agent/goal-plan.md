@@ -32,5 +32,4 @@ Each runs in a worktree of its own, started by hand with `bun nv loop --side <sl
 
 | Goal | What it builds | State | Milestone | Stages |
 |---|---|---|---|---|
-| [`narrow-a-readonly-property`](goals/side/narrow-a-readonly-property.md) | a null test narrows a `readonly` property, and `readonly` is written once | side |  | **2** `readonly` is written once · **3** a null test narrows a `readonly` property · **4** the help, the rule and the proofs |
 | [`test-scratch-and-hover`](goals/side/test-scratch-and-hover.md) | test scratch stays inside the tree, and hover answers on every class name | side |  | **2** test scratch under `target/` · **3** hover on every class name, and `use` lines in references |
