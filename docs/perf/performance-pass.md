@@ -46,6 +46,13 @@ the parsed array on the request, and every later call is one lookup. The ladders
 4096 and are linear (clock slopes 1.01 and 1.13). The cost is one parsed array per request that
 reads a form or a query, freed with the request. The before figure was not measured.
 
+**`Core\Request::headers()` groups the header lines in one pass.** Each line searched every name
+already seen, so a request with h distinct header names cost O(h²) per call. A map from name to
+group now finds each line's group in one probe. The ladder
+[`request/headers`](../../benches/scaling/request/headers.nvs) reads the list 200 times per request
+over 12 to 96 headers: its clock slope was 1.46 to 1.77 on four runs before and 0.92 to 0.97 on
+three runs after. It spends one more copy of each distinct header name for the length of the call.
+
 **A `Core\Log::write` below `[log] level` returns before it builds a record.** It converted the
 fields, read the clock and took a coalescing slot first, so a filtered call cost O(fields), and
 filtered records could evict the window of a record that is written. The ladder
@@ -278,10 +285,13 @@ not judge it.
 picks schoolbook, Karatsuba or Toom-3 by length and recurses a whole level deeper past each threshold,
 so one size's allocation count is not monotonic: squaring 384,000 bits allocated 2,999 times and
 256,000 bits 3,095 times. Squaring one size per step, the ladder read allocations at slope 1.85 and
-failed. It now squares sixteen sizes from n/2 to 31n/32 per step, which reads allocations 1.31,
-bytes 1.40 and callgrind's instructions 1.29, all under `karatsuba`'s 1.7 and Toom-3's own 1.47. The
-local slopes still differ by more than the agreement test allows, so the tool reports it unclear and
-does not judge it. The size cannot go higher: one `Core\BigInt` result is at most 1,048,576 bits.
+failed. It now squares sixteen sizes per step, spaced evenly in ratio from n/3 to n, so each step
+covers one whole Toom-3 level. That reads allocations 1.38, bytes 1.43 and callgrind's instructions
+1.30, all under `karatsuba`'s 1.7 and Toom-3's own 1.47. Callgrind's three local slopes are 1.37,
+1.23 and 1.32; sixteen sizes spaced evenly from n/2 gave 1.45, 1.13 and 1.37. They still differ by
+more than the agreement test allows, because the Karatsuba levels below Toom-3 step at powers of two,
+so the tool reports it unclear and does not judge it. The size cannot go higher: one `Core\BigInt`
+result is at most 1,048,576 bits.
 
 ## What we checked and found fine
 
@@ -294,5 +304,5 @@ The ladders `bun nv scaling` judged flat: `arrays/sort`, `compiler/functions`, `
 `database/rows`, `cache/keys`, `queue/jobs`, `scheduler/tasks`, `request/headers`,
 `request/header-bytes`, `request/body`, `request/query` and `connections/open`.
 
-`Core\Request::cookie` and `::headers` walk every header line on each call. The server answers
+`Core\Request::cookie` and `::header` walk every header line on each call. The server answers
 `431` from 100 header lines, so each walk is bounded by a constant and is not a growth defect.

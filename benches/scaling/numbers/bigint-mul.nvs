@@ -1,5 +1,5 @@
 <?nvs
-// Multiplies numbers of n/2 to n binary digits by themselves, as a program does when it works with very large keys.
+// Multiplies numbers of n/3 to n binary digits by themselves, as a program does when it works with very large keys.
 // scaling: start 64000
 // scaling: max 512000
 // scaling: expect karatsuba
@@ -8,13 +8,13 @@ class Bench {
     public static function run(uint $size): uint {
         var $one = Core\BigInt::of(1);
         uint $signs = 0;
-        uint $step = ($size / 32) as uint;
-        uint $k = 16;
-        // Sixteen sizes from n/2 up to 31n/32, so no single size decides the result.
-        while ($k < 32) {
-            var $wide = $one->shl($k * $step)->sub($one);
+        // Sixteen sizes from n/3 up to n. Each size is 7% smaller than the one before.
+        // Very large numbers are multiplied in three parts. Sizes over a range of three times make the cost grow smoothly.
+        array<uint> $parts = [1000, 934, 872, 814, 760, 709, 662, 618, 577, 539, 503, 470, 439, 410, 382, 357];
+        uint $unit = ($size / 1000) as uint;
+        foreach ($parts as uint $part) {
+            var $wide = $one->shl($unit * $part)->sub($one);
             $signs = $signs + ($wide->mul($wide)->sign() as uint);
-            $k = $k + 1;
         }
         return $signs;
     }
