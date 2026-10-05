@@ -1,11 +1,15 @@
 {
-  "title": "`nvs fmt` never decides where an expression breaks: the author's own line breaks are kept and only what surrounds them is normalized",
+  "title": "`nvs fmt` never breaks or joins a line to fit a width: whether a construct spans one line or several is the line break its author wrote",
   "status": "shipped",
   "because": [
-    "0039"
+    "0039",
+    "0267"
   ],
   "divergesFromPhp": "php-cs-fixer and Prettier-style tools re-wrap to a column limit; here there is no line-length rule at all, soft or hard",
   "seeAlso": [
+    "tooling/fmt-a-list-is-one-line-or-one-item-per-line",
+    "tooling/fmt-a-broken-call-chain-is-one-call-per-line",
+    "tooling/fmt-a-broken-operator-chain-is-one-operand-per-line",
     "tooling/fmt-is-idempotent",
     "tooling/fmt-trailing-commas",
     "expressions/pipeline-substitution"

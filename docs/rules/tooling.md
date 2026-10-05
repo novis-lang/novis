@@ -3,7 +3,7 @@
 
 # Tooling
 
-*21 of 67 rules below are **designed** rather than shipped, and are marked where they appear.*
+*24 of 70 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="tooling-shebang-opens-code-mode"></a>
 
@@ -607,26 +607,149 @@ supplied: a formatter that changes meaning is not a formatter ([`core-api/writte
 
 <a id="tooling-fmt-never-reflows"></a>
 
-## `nvs fmt` never decides where an expression breaks: the author's own line breaks are kept and only what surrounds them is normalized
+## `nvs fmt` never breaks or joins a line to fit a width: whether a construct spans one line or several is the line break its author wrote
 
 `rule:tooling/fmt-never-reflows`
 
-Whether an expression, a call-argument list, an array literal, an anonymous object, a `match` arm list or an
-enum-case list spans one line or several is the author's choice, and `nvs fmt` preserves it exactly. It
-normalizes what surrounds that choice — the indentation of continuation lines, spacing, and brace
-placement — and nothing inside it. A hand-wrapped multi-line call is never collapsed onto one line; a long
-one-line call is never split.
+`nvs fmt` never breaks a line because it is long and never joins lines onto one. Whether a list, a
+`->` call chain or an operator chain spans one line or several is the author's choice, made by writing
+a line break at that construct's own level, and `nvs fmt` keeps that choice exactly. A long one-line
+call is never split; a hand-wrapped call is never collapsed onto one line.
 
-There is deliberately no line-length rule anywhere, soft or hard. With no reflow decision to make, a width
-limit would be advisory prose with nothing in the tool to enforce it.
+What follows from the choice is `nvs fmt`'s: a broken construct gets one fixed layout, one part per
+line ([`tooling/fmt-a-list-is-one-line-or-one-item-per-line`](tooling.md#tooling-fmt-a-list-is-one-line-or-one-item-per-line),
+[`tooling/fmt-a-broken-call-chain-is-one-call-per-line`](tooling.md#tooling-fmt-a-broken-call-chain-is-one-call-per-line),
+[`tooling/fmt-a-broken-operator-chain-is-one-operand-per-line`](tooling.md#tooling-fmt-a-broken-operator-chain-is-one-operand-per-line)). Every other line break inside an
+expression stays where its author wrote it, with the indentation of the line it continues.
 
-The cost is stated and accepted: the formatter cannot repair a badly wrapped call by itself, and a human
-still decides when an expression is long enough to wrap. What that buys is a formatter that is a
-whitespace, brace and order normalizer walking the existing parse tree rather than a width-fitting doc
-printer this project has no other user of — and one that stays trivially byte-for-byte deterministic as the
-parser evolves ([`tooling/fmt-is-idempotent`](tooling.md#tooling-fmt-is-idempotent)).
+There is deliberately no line-length rule anywhere, soft or hard. With no width decision to make, a
+width limit would be advisory prose with nothing in the tool to enforce it, and the editor's own ruler
+already shows a column.
 
-<sub>See also [`tooling/fmt-is-idempotent`](tooling.md#tooling-fmt-is-idempotent), [`tooling/fmt-trailing-commas`](tooling.md#tooling-fmt-trailing-commas), [`expressions/pipeline-substitution`](expressions.md#expressions-pipeline-substitution). Decided in [0039](../decisions/0039.md).</sub>
+The cost is stated and accepted: the formatter cannot decide by itself that a line is too long, and a
+human still chooses when a construct is long enough to break, with one keystroke or with
+[`ide/a-list-splits-onto-lines-and-joins-onto-one`](ide.md#ide-a-list-splits-onto-lines-and-joins-onto-one). What that buys is a formatter that walks the
+existing parse tree rather than a width-fitting printer this project has no other user of, never
+breaks a line at a place nobody would choose, and stays byte-for-byte deterministic as the parser
+evolves ([`tooling/fmt-is-idempotent`](tooling.md#tooling-fmt-is-idempotent)).
+
+<sub>See also [`tooling/fmt-a-list-is-one-line-or-one-item-per-line`](tooling.md#tooling-fmt-a-list-is-one-line-or-one-item-per-line), [`tooling/fmt-a-broken-call-chain-is-one-call-per-line`](tooling.md#tooling-fmt-a-broken-call-chain-is-one-call-per-line), [`tooling/fmt-a-broken-operator-chain-is-one-operand-per-line`](tooling.md#tooling-fmt-a-broken-operator-chain-is-one-operand-per-line), [`tooling/fmt-is-idempotent`](tooling.md#tooling-fmt-is-idempotent), [`tooling/fmt-trailing-commas`](tooling.md#tooling-fmt-trailing-commas), [`expressions/pipeline-substitution`](expressions.md#expressions-pipeline-substitution). Decided in [0039](../decisions/0039.md), [0267](../decisions/0267.md).</sub>
+
+<a id="tooling-fmt-a-list-is-one-line-or-one-item-per-line"></a>
+
+## A list is on one line or has one item per line, and a line break its author wrote at the list's own level is what breaks it  *(designed — not yet in the compiler)*
+
+`rule:tooling/fmt-a-list-is-one-line-or-one-item-per-line`
+
+A list has two layouts: every item on one line, or one item per line. The lists are a call's
+arguments, including `new`'s; the parameter list of a function, a method or an anonymous function; an
+array literal; an anonymous object; and a shape type.
+
+A list is **broken** when a line break its author wrote sits at the list's own level: after the
+opener, between two items, or before the closer. A break inside an item — a function body, a nested
+array, a nested call, a heredoc — belongs to that item and never breaks the list around it.
+
+| Written | Formatted |
+|---|---|
+| no break at the list's own level | one line, however long |
+| a break after the opener, between two items, or before the closer | the opener ends its line, each item starts a line one level in, a trailing comma follows the last item, and the closer starts a line at the indentation of the opener's line |
+
+```nvs
+$order = Shop::place($customer,
+    $basket, $address);
+
+$order = Shop::place(
+    $customer,
+    $basket,
+    $address,
+);
+```
+
+The first statement formats to the second. An item that spans several lines moves in with its first
+line and keeps the layout its own rules give it, so a call whose last argument is a function with a
+multi-line body and no break between its arguments stays as written:
+
+```nvs
+array<string> $names = Core\Arr::map($users, fn(User $user) {
+    return Core\Str::upper($user->name);
+});
+```
+
+A comment inside a broken list stays on the line of the item it follows, or keeps a line of its own
+when it was written on one. A line comment breaks the list it sits in, because a line break follows
+it. `match` arms and enum cases keep their own rule ([`tooling/fmt-novis-constructs`](tooling.md#tooling-fmt-novis-constructs)).
+
+<sub>See also [`tooling/fmt-never-reflows`](tooling.md#tooling-fmt-never-reflows), [`tooling/fmt-trailing-commas`](tooling.md#tooling-fmt-trailing-commas), [`tooling/fmt-novis-constructs`](tooling.md#tooling-fmt-novis-constructs), [`ide/a-list-splits-onto-lines-and-joins-onto-one`](ide.md#ide-a-list-splits-onto-lines-and-joins-onto-one). Decided in [0267](../decisions/0267.md).</sub>
+
+<a id="tooling-fmt-a-broken-call-chain-is-one-call-per-line"></a>
+
+## A `->` call chain is on one line or has one call per line, and a line break its author wrote before any arrow is what breaks it  *(designed — not yet in the compiler)*
+
+`rule:tooling/fmt-a-broken-call-chain-is-one-call-per-line`
+
+A chain of two or more `->` or `?->` calls has two layouts: on one line, or with every arrow starting a
+line of its own. It is broken when a line break its author wrote sits before any one of its arrows.
+
+A broken chain keeps its receiver on the line the chain starts on, and starts each arrow on a line one
+level in from that line. The arguments of each call are a list under
+[`tooling/fmt-a-list-is-one-line-or-one-item-per-line`](tooling.md#tooling-fmt-a-list-is-one-line-or-one-item-per-line), judged on their own: a broken chain does
+not break them, and a broken argument list does not break the chain.
+
+```nvs
+$rows = $query->from('orders')->where('state', 'open')
+    ->orderBy('created')->limit(20)->fetch();
+
+$rows = $query
+    ->from('orders')
+    ->where('state', 'open')
+    ->orderBy('created')
+    ->limit(20)
+    ->fetch();
+```
+
+The first statement formats to the second. A chain written on one line stays on one line.
+
+<sub>See also [`tooling/fmt-never-reflows`](tooling.md#tooling-fmt-never-reflows), [`tooling/fmt-a-list-is-one-line-or-one-item-per-line`](tooling.md#tooling-fmt-a-list-is-one-line-or-one-item-per-line), [`ide/a-list-splits-onto-lines-and-joins-onto-one`](ide.md#ide-a-list-splits-onto-lines-and-joins-onto-one). Decided in [0267](../decisions/0267.md).</sub>
+
+<a id="tooling-fmt-a-broken-operator-chain-is-one-operand-per-line"></a>
+
+## An `&&`, `||`, `??` or `.` chain is on one line or has one operand per line with the operator first, and a broken control-structure condition puts its parentheses on lines of their own  *(designed — not yet in the compiler)*
+
+`rule:tooling/fmt-a-broken-operator-chain-is-one-operand-per-line`
+
+A run of `&&`, `||`, `??` or `.` has two layouts: on one line, or one operand per line with the
+operator at the start of the line. It is broken when a line break its author wrote sits between two of
+its operands, on either side of an operator.
+
+A broken chain keeps its first operand where it was and starts each following operand on a line one
+level in, operator first. When a run mixes operators of different precedence, the chain is the run at
+the lowest precedence, and each operand made of higher-precedence operators is judged on its own.
+
+The condition of an `if`, `elseif`, `while` or `do … while` takes one more step when it is broken: the
+`(` ends its line, each operand of the condition's top-level chain starts a line one level in, and the
+`)` starts a line of its own, followed by ` {` where a block follows. A line break after the `(`,
+between two operands of that top-level chain, or before the `)` breaks the condition. A break inside
+one operand, such as inside a call's arguments, belongs to that operand.
+
+```nvs
+if ($user->isActive() &&
+    $user->hasRole('admin') && $request->isSecure()) {
+    Audit::log($user);
+}
+
+if (
+    $user->isActive()
+    && $user->hasRole('admin')
+    && $request->isSecure()
+) {
+    Audit::log($user);
+}
+```
+
+The first statement formats to the second. A condition written on one line stays on one line, and
+an unbroken chain anywhere else does too.
+
+<sub>See also [`tooling/fmt-never-reflows`](tooling.md#tooling-fmt-never-reflows), [`tooling/fmt-base-style-is-per`](tooling.md#tooling-fmt-base-style-is-per), [`tooling/fmt-a-list-is-one-line-or-one-item-per-line`](tooling.md#tooling-fmt-a-list-is-one-line-or-one-item-per-line). Decided in [0267](../decisions/0267.md).</sub>
 
 <a id="tooling-fmt-quotes"></a>
 
@@ -673,12 +796,15 @@ front of the `)` and buy none of the one-line diff this rule exists for, so it i
 written there by hand is deleted for the same reason one is inserted: a canonical style has one spelling
 of a list, not two.
 
+[`tooling/fmt-a-list-is-one-line-or-one-item-per-line`](tooling.md#tooling-fmt-a-list-is-one-line-or-one-item-per-line) puts the closer of every broken list on a
+line of its own, so once that rule holds the two questions never come apart in formatted output.
+
 Whether a list spans several lines is the author's decision, which [`tooling/fmt-never-reflows`](tooling.md#tooling-fmt-never-reflows)
 preserves; the comma follows from that decision mechanically. This removes the one place PHP's grammar
 leaves a genuinely free stylistic choice with no way to derive the right answer from context, and it is
 what makes adding an element to a multi-line list a one-line diff.
 
-<sub>See also [`tooling/fmt-never-reflows`](tooling.md#tooling-fmt-never-reflows), [`tooling/fmt-novis-constructs`](tooling.md#tooling-fmt-novis-constructs). Decided in [0039](../decisions/0039.md).</sub>
+<sub>See also [`tooling/fmt-never-reflows`](tooling.md#tooling-fmt-never-reflows), [`tooling/fmt-novis-constructs`](tooling.md#tooling-fmt-novis-constructs). Decided in [0039](../decisions/0039.md), [0267](../decisions/0267.md).</sub>
 
 <a id="tooling-fmt-sorts-the-use-block"></a>
 
@@ -825,12 +951,14 @@ where the rules apply and never a second rule set.
 Deterministic here means **byte-stable, not source-independent**, and the difference is the whole cost of
 [`tooling/fmt-never-reflows`](tooling.md#tooling-fmt-never-reflows). Output is a pure function of the input bytes: the same file formats to
 the same result on every machine, forever. It is deliberately not a function of the parsed program. Two
-files that differ only in where their author wrapped a call have the same AST and still format to
-different bytes, because those line breaks are kept. A formatter whose output depended only on the AST
+files that differ only in whether their author broke a call have the same AST and still format to
+different bytes, because that choice is kept. Two that broke the same list in different places converge
+once [`tooling/fmt-a-list-is-one-line-or-one-item-per-line`](tooling.md#tooling-fmt-a-list-is-one-line-or-one-item-per-line) holds, because a broken list has one
+layout. A formatter whose output depended only on the AST
 would have to choose every line break itself, which is exactly the width-fitting printer this design
 declines to build. What converges is one file, run twice — never two semantically identical files.
 
-<sub>See also [`tooling/fmt-never-reflows`](tooling.md#tooling-fmt-never-reflows), [`tooling/fmt-check-writes-nothing`](tooling.md#tooling-fmt-check-writes-nothing), [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients). Decided in [0039](../decisions/0039.md).</sub>
+<sub>See also [`tooling/fmt-never-reflows`](tooling.md#tooling-fmt-never-reflows), [`tooling/fmt-check-writes-nothing`](tooling.md#tooling-fmt-check-writes-nothing), [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients). Decided in [0039](../decisions/0039.md), [0267](../decisions/0267.md).</sub>
 
 <a id="tooling-fmt-is-never-a-diagnostic"></a>
 

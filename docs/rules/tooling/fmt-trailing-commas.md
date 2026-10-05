@@ -11,6 +11,9 @@ front of the `)` and buy none of the one-line diff this rule exists for, so it i
 written there by hand is deleted for the same reason one is inserted: a canonical style has one spelling
 of a list, not two.
 
+`rule:tooling/fmt-a-list-is-one-line-or-one-item-per-line` puts the closer of every broken list on a
+line of its own, so once that rule holds the two questions never come apart in formatted output.
+
 Whether a list spans several lines is the author's decision, which `rule:tooling/fmt-never-reflows`
 preserves; the comma follows from that decision mechanically. This removes the one place PHP's grammar
 leaves a genuinely free stylistic choice with no way to derive the right answer from context, and it is

@@ -1,0 +1,15 @@
+{
+  "title": "A list is on one line or has one item per line, and a line break its author wrote at the list's own level is what breaks it",
+  "status": "designed",
+  "because": [
+    "0267"
+  ],
+  "divergesFromPhp": "PER allows a split argument list but leaves when to split to a width or to the author; here the author's break decides and the layout after it is fixed",
+  "seeAlso": [
+    "tooling/fmt-never-reflows",
+    "tooling/fmt-trailing-commas",
+    "tooling/fmt-novis-constructs",
+    "ide/a-list-splits-onto-lines-and-joins-onto-one"
+  ],
+  "guardedBy": []
+}

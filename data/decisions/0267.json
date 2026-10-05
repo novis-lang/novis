@@ -1,0 +1,11 @@
+{
+  "title": "A line break the author writes decides whether a list, a call chain or an operator chain is one line or one part per line, and `nvs fmt` lays out the rest",
+  "status": "accepted",
+  "scope": "which line breaks `nvs fmt` reads as the author's choice, the one-line and one-part-per-line layouts of a list, a\n`->` call chain and an `&&`, `||`, `??` or `.` chain, a broken control-structure condition, and the two editor actions\nthat add or remove those breaks. Not `match` arms, enum cases or the `use` block, whose layouts their own rules keep; not\nan html template body, a heredoc body or a template region, which `nvs fmt` never touches.",
+  "dependsOn": [
+    "0039",
+    "0259",
+    "0004"
+  ],
+  "validatedBy": "`crates/nvs-fmt/tests/list_layout.rs`, `crates/nvs-fmt/tests/chain_layout.rs` and the split and join cases under `tests/lsp/actions/`, as side goal `fmt-layout-from-breaks` lands them."
+}

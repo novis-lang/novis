@@ -1,11 +1,12 @@
 {
-  "title": "A quick fix ships only where its replacement text is already in a diagnostic's suggestions, and the one action the server computes for itself is the html-template rewrite",
+  "title": "A quick fix ships only where its replacement text is already in a diagnostic's suggestions, and the actions the server computes for itself are the html-template rewrite and splitting or joining a list",
   "status": "designed",
   "because": [
     "0099",
     "0040",
     "0201",
-    "0259"
+    "0259",
+    "0267"
   ],
   "seeAlso": [
     "core-api/identifier-casing",
@@ -14,7 +15,8 @@
     "tooling/fmt-is-never-a-diagnostic",
     "ide/narrow-an-annotation-to-its-literal",
     "ide/every-feature-is-staged-behind-its-dependency",
-    "ide/a-string-converts-to-an-html-template"
+    "ide/a-string-converts-to-an-html-template",
+    "ide/a-list-splits-onto-lines-and-joins-onto-one"
   ],
   "guardedBy": []
 }

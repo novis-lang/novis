@@ -3,7 +3,7 @@
 
 # The editor
 
-*59 of 81 rules below are **designed** rather than shipped, and are marked where they appear.*
+*60 of 82 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="ide-one-grammar-one-tree"></a>
 
@@ -544,7 +544,7 @@ added to the extension's frozen roster under that roster's own rule: a name is a
 
 <a id="ide-a-code-action-ships-only-a-fix-a-diagnostic-already-knows"></a>
 
-## A quick fix ships only where its replacement text is already in a diagnostic's suggestions, and the one action the server computes for itself is the html-template rewrite  *(designed — not yet in the compiler)*
+## A quick fix ships only where its replacement text is already in a diagnostic's suggestions, and the actions the server computes for itself are the html-template rewrite and splitting or joining a list  *(designed — not yet in the compiler)*
 
 `rule:ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`
 
@@ -564,15 +564,16 @@ The third fix admitted under the same boundary is the import an undeclared name'
 where it raises `E0303`, so the provider's translation is what it was, and the server still resolves
 nothing of its own.
 
-One code action is not a fix and has no diagnostic behind it: the rewrite of a string or a `.` chain as
-an html template ([`ide/a-string-converts-to-an-html-template`](ide.md#ide-a-string-converts-to-an-html-template)). Nothing about the string is wrong,
-so there is no diagnostic to carry it, and the server computes it from the expression under the cursor
-alone, with no type or module question. It is the only such action, it is filed under its own
-`refactor.rewrite.htmlTemplate` kind, and it is never under `source.fixAll.nvs` or `quickfix`, because
-applying it changes what the line prints. Any further action the server computes for itself is still
-M10's.
+Two code actions are not fixes and have no diagnostic behind them. One is the rewrite of a string or a
+`.` chain as an html template ([`ide/a-string-converts-to-an-html-template`](ide.md#ide-a-string-converts-to-an-html-template)), filed under its own
+`refactor.rewrite.htmlTemplate` kind because applying it changes what the line prints. The other is
+*Put on separate lines* and *Join onto one line* ([`ide/a-list-splits-onto-lines-and-joins-onto-one`](ide.md#ide-a-list-splits-onto-lines-and-joins-onto-one)),
+which changes only line breaks. Nothing is wrong in either case, so there is no diagnostic to carry
+them, and the server computes each from the expression under the cursor alone, with no type or module
+question. Neither is ever under `source.fixAll.nvs` or `quickfix`. Any further action the server
+computes for itself is still M10's.
 
-<sub>See also [`core-api/identifier-casing`](core-api.md#core-api-identifier-casing), [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed), [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic), [`ide/narrow-an-annotation-to-its-literal`](ide.md#ide-narrow-an-annotation-to-its-literal), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency), [`ide/a-string-converts-to-an-html-template`](ide.md#ide-a-string-converts-to-an-html-template). Decided in [0099](../decisions/0099.md), [0040](../decisions/0040.md), [0201](../decisions/0201.md), [0259](../decisions/0259.md).</sub>
+<sub>See also [`core-api/identifier-casing`](core-api.md#core-api-identifier-casing), [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed), [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic), [`ide/narrow-an-annotation-to-its-literal`](ide.md#ide-narrow-an-annotation-to-its-literal), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency), [`ide/a-string-converts-to-an-html-template`](ide.md#ide-a-string-converts-to-an-html-template), [`ide/a-list-splits-onto-lines-and-joins-onto-one`](ide.md#ide-a-list-splits-onto-lines-and-joins-onto-one). Decided in [0099](../decisions/0099.md), [0040](../decisions/0040.md), [0201](../decisions/0201.md), [0259](../decisions/0259.md), [0267](../decisions/0267.md).</sub>
 
 <a id="ide-a-quick-fix-is-a-diagnostics-own-suggestion"></a>
 
@@ -652,6 +653,31 @@ applying it changes what the line prints, which is why it is a refactor and not 
 ([`ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`](ide.md#ide-a-code-action-ships-only-a-fix-a-diagnostic-already-knows)).
 
 <sub>See also [`core-classes/html-template`](core-classes.md#core-classes-html-template), [`ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`](ide.md#ide-a-code-action-ships-only-a-fix-a-diagnostic-already-knows), [`ide/a-quick-fix-is-a-diagnostics-own-suggestion`](ide.md#ide-a-quick-fix-is-a-diagnostics-own-suggestion), [`ide/the-index-answers-the-cursor`](ide.md#ide-the-index-answers-the-cursor). Decided in [0259](../decisions/0259.md).</sub>
+
+<a id="ide-a-list-splits-onto-lines-and-joins-onto-one"></a>
+
+## A list, a call chain or an operator chain is offered *Put on separate lines* or *Join onto one line*, an action the server computes from the tree and that changes only line breaks  *(designed — not yet in the compiler)*
+
+`rule:ide/a-list-splits-onto-lines-and-joins-onto-one`
+
+A cursor inside a list, a `->` call chain or an `&&`, `||`, `??` or `.` chain is offered **Put on
+separate lines** when the innermost such construct around it is on one line, and **Join onto one
+line** when it is broken. The construct and what breaks it are the three layout rules':
+[`tooling/fmt-a-list-is-one-line-or-one-item-per-line`](tooling.md#tooling-fmt-a-list-is-one-line-or-one-item-per-line),
+[`tooling/fmt-a-broken-call-chain-is-one-call-per-line`](tooling.md#tooling-fmt-a-broken-call-chain-is-one-call-per-line) and
+[`tooling/fmt-a-broken-operator-chain-is-one-operand-per-line`](tooling.md#tooling-fmt-a-broken-operator-chain-is-one-operand-per-line).
+
+Each action writes the layout `nvs fmt` gives the construct once the break is added or removed, so
+formatting after it changes nothing more. Only line breaks and the whitespace around them change,
+together with the trailing comma the layout implies ([`tooling/fmt-trailing-commas`](tooling.md#tooling-fmt-trailing-commas)), so nothing
+the program does changes. Join is not offered on a construct that holds a line comment, because
+joining would turn the code after the comment into comment text.
+
+The server computes both from the tree under the cursor alone, with no type or module question. They
+are filed under `refactor.rewrite`, and are never under `source.fixAll.nvs` or `quickfix`: whether a
+construct is broken is the author's choice, never something wrong.
+
+<sub>See also [`tooling/fmt-a-list-is-one-line-or-one-item-per-line`](tooling.md#tooling-fmt-a-list-is-one-line-or-one-item-per-line), [`tooling/fmt-a-broken-call-chain-is-one-call-per-line`](tooling.md#tooling-fmt-a-broken-call-chain-is-one-call-per-line), [`tooling/fmt-a-broken-operator-chain-is-one-operand-per-line`](tooling.md#tooling-fmt-a-broken-operator-chain-is-one-operand-per-line), [`ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`](ide.md#ide-a-code-action-ships-only-a-fix-a-diagnostic-already-knows). Decided in [0267](../decisions/0267.md).</sub>
 
 <a id="ide-an-undeclared-name-offers-its-import"></a>
 

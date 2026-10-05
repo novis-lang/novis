@@ -1,0 +1,14 @@
+{
+  "title": "An `&&`, `||`, `??` or `.` chain is on one line or has one operand per line with the operator first, and a broken control-structure condition puts its parentheses on lines of their own",
+  "status": "designed",
+  "because": [
+    "0267"
+  ],
+  "divergesFromPhp": "PER lets a broken condition put its boolean operators at the start or the end of the line; here they always start it",
+  "seeAlso": [
+    "tooling/fmt-never-reflows",
+    "tooling/fmt-base-style-is-per",
+    "tooling/fmt-a-list-is-one-line-or-one-item-per-line"
+  ],
+  "guardedBy": []
+}

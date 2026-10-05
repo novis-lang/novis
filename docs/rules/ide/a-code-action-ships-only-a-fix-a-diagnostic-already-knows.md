@@ -14,10 +14,11 @@ The third fix admitted under the same boundary is the import an undeclared name'
 where it raises `E0303`, so the provider's translation is what it was, and the server still resolves
 nothing of its own.
 
-One code action is not a fix and has no diagnostic behind it: the rewrite of a string or a `.` chain as
-an html template (`rule:ide/a-string-converts-to-an-html-template`). Nothing about the string is wrong,
-so there is no diagnostic to carry it, and the server computes it from the expression under the cursor
-alone, with no type or module question. It is the only such action, it is filed under its own
-`refactor.rewrite.htmlTemplate` kind, and it is never under `source.fixAll.nvs` or `quickfix`, because
-applying it changes what the line prints. Any further action the server computes for itself is still
-M10's.
+Two code actions are not fixes and have no diagnostic behind them. One is the rewrite of a string or a
+`.` chain as an html template (`rule:ide/a-string-converts-to-an-html-template`), filed under its own
+`refactor.rewrite.htmlTemplate` kind because applying it changes what the line prints. The other is
+*Put on separate lines* and *Join onto one line* (`rule:ide/a-list-splits-onto-lines-and-joins-onto-one`),
+which changes only line breaks. Nothing is wrong in either case, so there is no diagnostic to carry
+them, and the server computes each from the expression under the cursor alone, with no type or module
+question. Neither is ever under `source.fixAll.nvs` or `quickfix`. Any further action the server
+computes for itself is still M10's.

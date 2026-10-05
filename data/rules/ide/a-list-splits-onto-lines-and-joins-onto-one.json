@@ -1,0 +1,14 @@
+{
+  "title": "A list, a call chain or an operator chain is offered *Put on separate lines* or *Join onto one line*, an action the server computes from the tree and that changes only line breaks",
+  "status": "designed",
+  "because": [
+    "0267"
+  ],
+  "seeAlso": [
+    "tooling/fmt-a-list-is-one-line-or-one-item-per-line",
+    "tooling/fmt-a-broken-call-chain-is-one-call-per-line",
+    "tooling/fmt-a-broken-operator-chain-is-one-operand-per-line",
+    "ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows"
+  ],
+  "guardedBy": []
+}

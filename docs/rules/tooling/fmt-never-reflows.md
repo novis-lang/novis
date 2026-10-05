@@ -1,14 +1,21 @@
-Whether an expression, a call-argument list, an array literal, an anonymous object, a `match` arm list or an
-enum-case list spans one line or several is the author's choice, and `nvs fmt` preserves it exactly. It
-normalizes what surrounds that choice — the indentation of continuation lines, spacing, and brace
-placement — and nothing inside it. A hand-wrapped multi-line call is never collapsed onto one line; a long
-one-line call is never split.
+`nvs fmt` never breaks a line because it is long and never joins lines onto one. Whether a list, a
+`->` call chain or an operator chain spans one line or several is the author's choice, made by writing
+a line break at that construct's own level, and `nvs fmt` keeps that choice exactly. A long one-line
+call is never split; a hand-wrapped call is never collapsed onto one line.
 
-There is deliberately no line-length rule anywhere, soft or hard. With no reflow decision to make, a width
-limit would be advisory prose with nothing in the tool to enforce it.
+What follows from the choice is `nvs fmt`'s: a broken construct gets one fixed layout, one part per
+line (`rule:tooling/fmt-a-list-is-one-line-or-one-item-per-line`,
+`rule:tooling/fmt-a-broken-call-chain-is-one-call-per-line`,
+`rule:tooling/fmt-a-broken-operator-chain-is-one-operand-per-line`). Every other line break inside an
+expression stays where its author wrote it, with the indentation of the line it continues.
 
-The cost is stated and accepted: the formatter cannot repair a badly wrapped call by itself, and a human
-still decides when an expression is long enough to wrap. What that buys is a formatter that is a
-whitespace, brace and order normalizer walking the existing parse tree rather than a width-fitting doc
-printer this project has no other user of — and one that stays trivially byte-for-byte deterministic as the
-parser evolves (`rule:tooling/fmt-is-idempotent`).
+There is deliberately no line-length rule anywhere, soft or hard. With no width decision to make, a
+width limit would be advisory prose with nothing in the tool to enforce it, and the editor's own ruler
+already shows a column.
+
+The cost is stated and accepted: the formatter cannot decide by itself that a line is too long, and a
+human still chooses when a construct is long enough to break, with one keystroke or with
+`rule:ide/a-list-splits-onto-lines-and-joins-onto-one`. What that buys is a formatter that walks the
+existing parse tree rather than a width-fitting printer this project has no other user of, never
+breaks a line at a place nobody would choose, and stays byte-for-byte deterministic as the parser
+evolves (`rule:tooling/fmt-is-idempotent`).

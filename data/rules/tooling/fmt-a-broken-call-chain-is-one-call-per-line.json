@@ -1,0 +1,13 @@
+{
+  "title": "A `->` call chain is on one line or has one call per line, and a line break its author wrote before any arrow is what breaks it",
+  "status": "designed",
+  "because": [
+    "0267"
+  ],
+  "seeAlso": [
+    "tooling/fmt-never-reflows",
+    "tooling/fmt-a-list-is-one-line-or-one-item-per-line",
+    "ide/a-list-splits-onto-lines-and-joins-onto-one"
+  ],
+  "guardedBy": []
+}
