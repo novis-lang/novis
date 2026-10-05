@@ -3405,11 +3405,9 @@ mod tests {
         {
             use std::os::unix::fs::PermissionsExt as _;
 
-            let dir = scratch_directory("unix-listener");
-            let configured = vec![
-                Listen::Unix(dir.join("nvs.sock")),
-                Listen::Unix(dir.join("nvs-admin.sock")),
-            ];
+            // The longer name is the one `nvs_repo::socket` checks against the limit.
+            let (dir, admin) = nvs_repo::socket("nvs-admin.sock");
+            let configured = vec![Listen::Unix(dir.join("nvs.sock")), Listen::Unix(admin)];
             let wanted = addresses(&configured, None, None).expect("two socket paths");
             assert_eq!(
                 wanted, configured,
@@ -3864,42 +3862,18 @@ mod tests {
         );
     }
 
-    /// The endpoint one case names, in the platform's own namespace: a socket
-    /// under [`scratch_directory`] on Unix, a pipe name on Windows.
-    fn control_endpoint(case: &str) -> PathBuf {
-        #[cfg(unix)]
-        {
-            scratch_directory(&format!("control-{case}")).join("control.sock")
-        }
-        #[cfg(windows)]
-        {
-            PathBuf::from(format!(
-                r"\\.\pipe\nvs-serve-control-{}-{case}",
-                std::process::id()
-            ))
-        }
+    /// The endpoint one case names, in the platform's own namespace, and what
+    /// keeps it there: a socket in `nvs_repo::socket`'s directory on Unix,
+    /// deleted when the guard drops, and a pipe name on Windows.
+    #[cfg(unix)]
+    fn control_endpoint(_case: &str) -> (nvs_repo::Scratch, PathBuf) {
+        nvs_repo::socket("control.sock")
     }
 
-    /// An empty directory of this case's own, beside the test binary.
-    ///
-    /// Beside the binary and not under `std::env::temp_dir()`, for the reason
-    /// `nvs_config::control`'s own cases give:
-    /// `rule:config/ownership-is-the-trust-boundary` runs on the parent too,
-    /// and a world-writable `/tmp` above a tight directory of ours fails it.
-    /// `target/` is owned by this account and writable by neither its group
-    /// nor the world, which is the bar an operator's `/run/nvs` clears — and
-    /// the bar a socket whose own mode decides who may connect is asserted
-    /// against.
-    #[cfg(unix)]
-    fn scratch_directory(case: &str) -> PathBuf {
-        let beside = std::env::current_exe().expect("the test binary knows its own path");
-        let dir = beside
-            .parent()
-            .expect("a test binary sits in a directory")
-            .join(format!("nvs-serve-{}-{case}", std::process::id()));
-        drop(std::fs::remove_dir_all(&dir));
-        std::fs::create_dir_all(&dir).expect("a scratch directory of this case's own");
-        dir
+    #[cfg(windows)]
+    fn control_endpoint(case: &str) -> ((), PathBuf) {
+        let pipe = format!(r"\\.\pipe\nvs-serve-control-{}-{case}", std::process::id());
+        ((), PathBuf::from(pipe))
     }
 
     /// `rule:config/one-local-control-socket`'s address, as the tree a boot
@@ -3935,7 +3909,7 @@ mod tests {
     /// could only be false if the two steps were the other way round.
     #[test]
     fn serve_binds_the_control_socket_the_tree_names_before_any_listener_accepts() {
-        let name = control_endpoint("binds");
+        let (_dir, name) = control_endpoint("binds");
         let wanted = a_free_address();
         let free = Arc::new(AtomicBool::new(false));
         let seen = Arc::clone(&free);
@@ -3978,7 +3952,7 @@ mod tests {
     /// is not a state every platform's test can be put in.
     #[test]
     fn serve_refuses_to_boot_when_the_control_sockets_directory_is_writable_by_another_account() {
-        let name = control_endpoint("untrusted");
+        let (_dir, name) = control_endpoint("untrusted");
         let wanted = a_free_address();
         let asked = name.clone();
         let refusal = bind_sockets(

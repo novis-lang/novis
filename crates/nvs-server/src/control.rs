@@ -477,42 +477,24 @@ mod tests {
         same_build,
     };
 
-    /// A directory of this case's own, empty, beside the test binary under `target/`.
+    /// The endpoint one case creates, in the platform's own namespace, and what keeps it there.
     ///
-    /// Not `std::env::temp_dir()`: on Unix that is `/tmp`, mode 1777, and
-    /// the `rule:config/ownership-is-the-trust-boundary` check § 3's socket directory is held to refuses a directory the world can
-    /// write. It runs on the named directory *and* on its parent, so a scratch directory of our own
-    /// is refused for the `/tmp` above it however tight its own bits are. That refusal is § 3
-    /// working, so the case names a directory the rule accepts rather than asking for a rule that
-    /// accepts `/tmp`. `target/` is owned by this account and writable by neither its group nor the
-    /// world, which is the same bar the operator's `/run/nvs` has to clear.
-    fn scratch(name: &str) -> PathBuf {
-        let beside = std::env::current_exe().expect("the test binary knows its own path");
-        let dir = beside
-            .parent()
-            .expect("a test binary sits in a directory")
-            .join(format!("nvs-control-{}-{name}", std::process::id()));
-        drop(fs::remove_dir_all(&dir));
-        fs::create_dir_all(&dir).expect("a scratch directory of this case's own");
-        dir
+    /// On Unix it is a socket in `nvs_repo::socket`'s directory under `target/`, deleted when the
+    /// guard drops. Not `std::env::temp_dir()`: on Unix that is `/tmp`, mode 1777, and the
+    /// `rule:config/ownership-is-the-trust-boundary` check § 3's socket directory is held to runs
+    /// on the named directory *and* on its parent, so a directory of our own is refused for the
+    /// `/tmp` above it however tight its own bits are. `target/` is owned by this account and
+    /// writable by neither its group nor the world, which is the bar the operator's `/run/nvs` has
+    /// to clear. On Windows it is a pipe name, which has no directory.
+    #[cfg(unix)]
+    fn endpoint(_name: &str) -> (nvs_repo::Scratch, PathBuf) {
+        nvs_repo::socket("control.sock")
     }
 
-    /// The endpoint one case creates, in the platform's own namespace: a socket under `dir` on
-    /// Unix, a pipe name on Windows, where `dir` exists only to be the thing § 3's directory rule
-    /// is about.
-    fn endpoint(dir: &std::path::Path, name: &str) -> PathBuf {
-        #[cfg(unix)]
-        {
-            dir.join(format!("{name}.sock"))
-        }
-        #[cfg(windows)]
-        {
-            let _ = dir;
-            PathBuf::from(format!(
-                r"\\.\pipe\nvs-control-{}-{name}",
-                std::process::id()
-            ))
-        }
+    #[cfg(windows)]
+    fn endpoint(name: &str) -> ((), PathBuf) {
+        let pipe = format!(r"\\.\pipe\nvs-control-{}-{name}", std::process::id());
+        ((), PathBuf::from(pipe))
     }
 
     /// Whether anything at all answers at `name`, and this account is the one it answers to — the
@@ -573,8 +555,7 @@ mod tests {
     /// and be useless.
     #[test]
     fn the_control_socket_is_created_0600() {
-        let dir = scratch("created");
-        let name = endpoint(&dir, "created");
+        let (_dir, name) = endpoint("created");
 
         let created = bind(&name, boundary).expect("this account owns the directory it names");
         assert_eq!(
@@ -611,7 +592,6 @@ mod tests {
         }
 
         drop(created);
-        drop(fs::remove_dir_all(&dir));
     }
 
     /// `rule:config/one-local-control-socket`'s other half of the same sentence: the server refuses to start if the socket's
@@ -625,8 +605,7 @@ mod tests {
     /// what stops the injection from being the only thing under test.
     #[test]
     fn a_world_writable_socket_directory_refuses_the_socket() {
-        let dir = scratch("exposed");
-        let name = endpoint(&dir, "exposed");
+        let (_dir, name) = endpoint("exposed");
 
         let why = bind(&name, |_| {
             Err(Untrusted::Breach(
@@ -648,7 +627,8 @@ mod tests {
         {
             use std::os::unix::fs::PermissionsExt;
 
-            fs::set_permissions(&dir, fs::Permissions::from_mode(0o777))
+            let dir = name.parent().expect("the socket's own directory");
+            fs::set_permissions(dir, fs::Permissions::from_mode(0o777))
                 .expect("a world-writable mode");
             let why = bind(&name, boundary).expect_err("the real check reads the real directory");
             assert!(
@@ -656,10 +636,8 @@ mod tests {
                 "the real boundary refuses the same state the injected verdict describes: {}",
                 why.message(),
             );
-            fs::set_permissions(&dir, fs::Permissions::from_mode(0o700)).expect("an owned mode");
+            fs::set_permissions(dir, fs::Permissions::from_mode(0o700)).expect("an owned mode");
         }
-
-        drop(fs::remove_dir_all(&dir));
     }
 
     /// `rule:config/one-local-control-socket`: the surface has three operations and nothing else.
@@ -932,8 +910,7 @@ mod tests {
     /// report's own lines, neither of them the other's bytes.
     #[test]
     fn two_reloads_on_one_endpoint_are_answered_one_after_the_other() {
-        let dir = scratch("two-reloads");
-        let name = endpoint(&dir, "two-reloads");
+        let (_dir, name) = endpoint("two-reloads");
         let listening = bind(&name, boundary).unwrap_or_else(|why| panic!("{}", why.message()));
         let process = Process::serving("[limits]\nmemory = \"128M\"\n", "/etc/nvs/nvs.toml");
 
@@ -1001,7 +978,6 @@ mod tests {
         }
 
         drop(listening);
-        drop(fs::remove_dir_all(&dir));
     }
 
     /// `rule:config/one-local-control-socket`: the wire shape is unstable until 1.0, so **every**

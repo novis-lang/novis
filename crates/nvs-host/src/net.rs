@@ -2650,22 +2650,6 @@ mod tests {
         assert_eq!(with_current(|reactor| reactor.registrations()), Some(0));
     }
 
-    /// A path under the system temporary directory that nothing else in this
-    /// binary will pick.
-    ///
-    /// Short on purpose: `sun_path` is 108 bytes and a bind past it fails with
-    /// `InvalidInput`, which reads like a bug in the stream rather than in the
-    /// name it was handed.
-    #[cfg(unix)]
-    fn socket_path(name: &str) -> std::path::PathBuf {
-        let mut path = std::env::temp_dir();
-        path.push(format!("nvs-{}-{name}.sock", std::process::id()));
-        // A previous run that was killed leaves the node behind, and `bind`
-        // refuses an existing one with `AddrInUse`.
-        let _ = std::fs::remove_file(&path);
-        path
-    }
-
     /// The parking contract over a local socket is the *same* contract: this is
     /// the TCP parking test with one type substituted, which is what makes it
     /// worth having — the four functions it exercises are the same four.
@@ -2721,7 +2705,7 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn a_unix_connect_on_a_core_reaches_a_listener() {
-        let path = socket_path("reaches");
+        let (_dir, path) = nvs_repo::socket("reaches.sock");
         let listener =
             std::os::unix::net::UnixListener::bind(&path).expect("the OS refused the path");
         let accepting = std::thread::spawn(move || {
@@ -2748,7 +2732,6 @@ mod tests {
             "the connected stream did not carry bytes"
         );
         assert_eq!(with_current(|reactor| reactor.registrations()), Some(0));
-        let _ = std::fs::remove_file(&path);
     }
 
     /// The refusal half of the same question: nothing is bound at the path, so
@@ -2756,7 +2739,7 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn a_unix_connect_to_nothing_reports_the_failure_rather_than_a_stream() {
-        let path = socket_path("refused");
+        let (_dir, path) = nvs_repo::socket("refused.sock");
         let mut sched = Scheduler::new();
         let _installed = install(Reactor::new().expect("the OS refused a poll"));
         let outcome = Rc::new(Cell::new(None));
@@ -2785,7 +2768,7 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn a_unix_connect_whose_peer_already_hung_up_reads_what_it_wrote() {
-        let path = socket_path("hung-up");
+        let (_dir, path) = nvs_repo::socket("hung-up.sock");
         let listener =
             std::os::unix::net::UnixListener::bind(&path).expect("the OS refused the path");
         let dialing = mio::net::UnixStream::connect(&path).expect("the connect failed");
@@ -2798,7 +2781,6 @@ mod tests {
         let mut said = Vec::new();
         stream.read_to_end(&mut said).expect("the read failed");
         assert_eq!(said, b"bye", "the peer's last words were lost");
-        let _ = std::fs::remove_file(&path);
     }
 
     /// Off a core the local socket takes the blocking path like every other

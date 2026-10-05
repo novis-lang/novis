@@ -281,11 +281,7 @@ pub fn socket(name: &str) -> (Scratch, PathBuf) {
         !name.is_empty() && !name.contains(['/', '\\']) && !name.contains(".."),
         "nvs_repo::socket takes a file name, and `{name}` is not one"
     );
-    let root = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .ancestors()
-        .nth(2)
-        .expect("a package sits two directories below the repository root");
-    let dir = fresh_under(root, "sock");
+    let dir = fresh_under("sock");
     let path = dir.join(name);
     let dir = Scratch {
         root: dir.clone(),
@@ -314,15 +310,19 @@ fn fresh(name: &str) -> PathBuf {
         !name.is_empty() && !name.contains(['/', '\\']) && !name.contains(".."),
         "nvs_repo::scratch takes a directory name, and `{name}` is not one"
     );
-    fresh_under(&repository(), name)
+    fresh_under(name)
 }
 
 /// `<root>/target/test-scratch/<name>-<pid>-<n>`, created empty, where `n` counts the calls in
-/// this process.
-fn fresh_under(root: &Path, name: &str) -> PathBuf {
+/// this process. The root is the repository's with no `..` in it, so the path is the one a
+/// program that normalizes it prints back, and every byte of a socket path is one it needs.
+fn fresh_under(name: &str) -> PathBuf {
     static NEXT: AtomicUsize = AtomicUsize::new(0);
     let n = NEXT.fetch_add(1, Ordering::Relaxed);
-    let path = root
+    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .ancestors()
+        .nth(2)
+        .expect("a package sits two directories below the repository root")
         .join("target")
         .join("test-scratch")
         .join(format!("{name}-{}-{n}", std::process::id()));
@@ -411,8 +411,23 @@ mod tests {
     #[test]
     fn a_scratch_dir_is_under_the_target_dir() {
         let (dirs, lines) = nvs_footprint::capture(|| (scratch("probe"), scratch("probe")));
-        let under = repository().join("target").join("test-scratch");
-        assert!(dirs.0.is_dir() && dirs.0.starts_with(&under));
+        let under = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .ancestors()
+            .nth(2)
+            .unwrap()
+            .join("target")
+            .join("test-scratch");
+        assert!(
+            dirs.0.is_dir() && dirs.0.starts_with(&under),
+            "{}",
+            dirs.0.display()
+        );
+        assert!(
+            !dirs
+                .0
+                .components()
+                .any(|c| c == std::path::Component::ParentDir)
+        );
         assert_ne!(dirs.0.path(), dirs.1.path());
         assert_eq!(std::fs::read_dir(dirs.0.path()).unwrap().count(), 0);
         assert!(lines.is_empty(), "scratch recorded {lines:?}");
@@ -453,7 +468,7 @@ mod tests {
     }
 
     #[test]
-    fn a_socket_path_is_absolute_under_the_target_dir_and_its_dir_is_removed() {
+    fn a_socket_path_is_under_the_target_dir() {
         let (dir, sock) = socket("control.sock");
         assert!(sock.is_absolute(), "{}", sock.display());
         assert!(
@@ -480,7 +495,7 @@ mod tests {
 
     #[test]
     #[should_panic(expected = "a socket path on this platform is at most")]
-    fn a_socket_path_past_the_limit_stops_with_the_limit_named() {
+    fn a_socket_path_the_platform_cannot_bind_stops_with_the_limit() {
         let long = Path::new("/").join("x".repeat(SOCKET_PATH_MAX));
         fits_a_socket(&long);
     }

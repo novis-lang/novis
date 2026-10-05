@@ -8083,12 +8083,7 @@ pub(crate) mod tests {
     #[cfg(unix)]
     #[test]
     fn one_connection_over_a_unix_socket_gets_the_same_response() {
-        let path = std::env::temp_dir().join(format!(
-            "nvs-serve-unix-{}-{:?}.sock",
-            std::process::id(),
-            std::thread::current().id()
-        ));
-        drop(std::fs::remove_file(&path));
+        let (_dir, path) = nvs_repo::socket("serve.sock");
         let mut listener =
             nvs_host::NvsUnixListener::bind(&path).expect("the OS refused a socket path");
 
@@ -8124,7 +8119,6 @@ pub(crate) mod tests {
         nvs_host::run_until_idle(&mut sched).expect("the loop failed");
 
         let answer = client.join().expect("the client thread panicked");
-        drop(std::fs::remove_file(&path));
         assert!(
             answer.starts_with("HTTP/1.1 200 OK\r\n") && answer.ends_with("hello /hello"),
             "the same request over a socket path was answered differently: {answer}"

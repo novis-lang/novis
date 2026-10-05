@@ -8,12 +8,11 @@
 //! § 3's "operations serialize" rests on.
 //!
 //! Each case names an endpoint of its own, because the namespace is per platform and not per test:
-//! a path under a directory of this case's own on Unix, and a pipe name carrying this process's id
-//! on Windows, where there is no directory to be in. Each passes `bind` a guard that accepts, which
-//! is what that seam is for — whether a directory is inside the trust boundary is
-//! `rule:config/ownership-is-the-trust-boundary`'s question and `tests/trust.rs`'s subject, and a
-//! system temporary directory is world-writable on most Unixes, so asking it here would assert
-//! something about the host rather than about the transport.
+//! a socket in `nvs_repo::socket`'s directory under `target/` on Unix, and a pipe name carrying
+//! this process's id on Windows, where there is no directory to be in. Each passes `bind` a guard
+//! that accepts, which is what that seam is for — whether a directory is inside the trust boundary
+//! is `rule:config/ownership-is-the-trust-boundary`'s question and `tests/trust.rs`'s subject, and
+//! asking it here would assert something about the checkout rather than about the transport.
 
 use std::io::{Read, Write};
 use std::path::PathBuf;
@@ -37,38 +36,25 @@ fn filled(from: &mut impl Read, into: &mut [u8]) {
     }
 }
 
-/// An endpoint name no other case and no other process is using.
-fn endpoint(case: &str) -> PathBuf {
-    let unique = std::process::id();
-    #[cfg(windows)]
-    {
-        PathBuf::from(format!(r"\\.\pipe\nvs-control-{unique}-{case}"))
-    }
-    #[cfg(unix)]
-    {
-        let dir = std::env::temp_dir().join(format!("nvs-control-{unique}-{case}"));
-        drop(std::fs::remove_dir_all(&dir));
-        std::fs::create_dir_all(&dir).expect("a scratch directory of this case's own");
-        dir.join("control.sock")
-    }
+/// An endpoint name no other case and no other process is using, and what keeps it there: on Unix
+/// the socket's directory, deleted when the guard drops, and on Windows nothing, because the pipe
+/// goes with its handle.
+#[cfg(unix)]
+fn endpoint(_case: &str) -> (nvs_repo::Scratch, PathBuf) {
+    nvs_repo::socket("control.sock")
 }
 
-/// Whatever a case left behind, which on Windows is nothing: the pipe went with its handle.
-fn clean(name: &std::path::Path) {
-    #[cfg(unix)]
-    drop(std::fs::remove_dir_all(
-        name.parent()
-            .expect("the scratch directory the socket is in"),
-    ));
-    #[cfg(windows)]
-    let _ = name;
+#[cfg(windows)]
+fn endpoint(case: &str) -> ((), PathBuf) {
+    let pipe = format!(r"\\.\pipe\nvs-control-{}-{case}", std::process::id());
+    ((), PathBuf::from(pipe))
 }
 
 /// A client asks and is answered over the one stream, which is the whole of what the accept owes
 /// the operation loop above it.
 #[test]
 fn a_client_is_answered_on_the_stream_the_accept_hands_back() {
-    let name = endpoint("answered");
+    let (_dir, name) = endpoint("answered");
     let endpoint = bind(&name, |_| Ok(())).unwrap_or_else(|why| panic!("{}", why.message()));
 
     let addressed = name.clone();
@@ -94,7 +80,6 @@ fn a_client_is_answered_on_the_stream_the_accept_hands_back() {
         b"pong",
         "the answer reaches the client before the stream is taken back",
     );
-    clean(&name);
 }
 
 /// The next client is accepted once the stream before it is dropped — on Windows because the drop
@@ -103,7 +88,7 @@ fn a_client_is_answered_on_the_stream_the_accept_hands_back() {
 /// serialization stated as a transport property.
 #[test]
 fn the_next_client_is_accepted_once_the_stream_before_it_is_dropped() {
-    let name = endpoint("in-turn");
+    let (_dir, name) = endpoint("in-turn");
     let endpoint = bind(&name, |_| Ok(())).unwrap_or_else(|why| panic!("{}", why.message()));
 
     for round in *b"12" {
@@ -132,6 +117,4 @@ fn the_next_client_is_accepted_once_the_stream_before_it_is_dropped() {
             "the client of this round is the one that was answered",
         );
     }
-
-    clean(&name);
 }

@@ -16,13 +16,10 @@ const SUBJECT: &[(&str, usize, &str)] = &[];
 /// when a file makes more calls than it is listed with, and also when it makes fewer, so the list
 /// only shrinks.
 const NOT_YET_MOVED: &[(&str, usize)] = &[
-    ("crates/nvs-config/tests/control.rs", 1),
     ("crates/nvs-db/src/mysql.rs", 2),
     ("crates/nvs-db/src/pg.rs", 1),
     ("crates/nvs-footprint/src/lib.rs", 1),
-    ("crates/nvs-host/src/net.rs", 1),
     ("crates/nvs-host/src/tls.rs", 2),
-    ("crates/nvs-server/src/serve.rs", 1),
     ("crates/nvs-stdlib/src/cache.rs", 2),
     ("crates/nvs-stdlib/src/cache/redis.rs", 1),
     ("crates/nvs-stdlib/src/csv.rs", 1),

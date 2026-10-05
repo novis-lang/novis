@@ -450,38 +450,18 @@ mod tests {
         }
     }
 
-    /// A directory of this case's own, empty, beside the test binary under `target/`.
-    ///
-    /// Not `std::env::temp_dir()`, for the reason `nvs_server::control`'s own cases give: the
-    /// endpoint's directory is held to `rule:config/ownership-is-the-trust-boundary`, which runs
-    /// on the parent too, and a world-writable `/tmp` above a tight directory of ours fails it.
-    /// These cases skip that guard — it is the server's half and has its own coverage — but they
-    /// keep the directory, so nothing here leaves a socket in a shared place.
-    fn scratch(name: &str) -> PathBuf {
-        let beside = std::env::current_exe().expect("the test binary knows its own path");
-        let dir = beside
-            .parent()
-            .expect("a test binary sits in a directory")
-            .join(format!("nvs-ctl-{}-{name}", std::process::id()));
-        drop(fs::remove_dir_all(&dir));
-        fs::create_dir_all(&dir).expect("a scratch directory of this case's own");
-        dir
+    /// The endpoint one case creates, in the platform's own namespace, and what keeps it there: a
+    /// socket in `nvs_repo::socket`'s directory on Unix, deleted when the guard drops, and a pipe
+    /// name on Windows, which goes with its handle.
+    #[cfg(unix)]
+    fn endpoint(_name: &str) -> (nvs_repo::Scratch, PathBuf) {
+        nvs_repo::socket("control.sock")
     }
 
-    /// The endpoint one case creates, in the platform's own namespace: a socket under a scratch
-    /// directory on Unix, a pipe name on Windows, where the directory exists on both so that a
-    /// case cleans up after itself either way.
-    fn endpoint(name: &str) -> PathBuf {
-        let dir = scratch(name);
-        #[cfg(unix)]
-        {
-            dir.join("control.sock")
-        }
-        #[cfg(windows)]
-        {
-            let _ = dir;
-            PathBuf::from(format!(r"\\.\pipe\nvs-ctl-{}-{name}", std::process::id()))
-        }
+    #[cfg(windows)]
+    fn endpoint(name: &str) -> ((), PathBuf) {
+        let pipe = format!(r"\\.\pipe\nvs-ctl-{}-{name}", std::process::id());
+        ((), PathBuf::from(pipe))
     }
 
     /// `method target` asked of an endpoint that `serving` answers one client on, and what came
@@ -493,7 +473,7 @@ mod tests {
     where
         S: FnOnce(nvs_config::control::platform::Stream<'_>) + Send + 'static,
     {
-        let name = endpoint(case);
+        let (_dir, name) = endpoint(case);
         let bound = bind(&name, |_| Ok(())).expect("an endpoint under a directory of our own");
         let answering = std::thread::spawn(move || {
             serving(bound.accept().expect("a client arrives on the endpoint"));
@@ -767,9 +747,7 @@ mod tests {
     /// changed is named back rather than taken.
     #[test]
     fn ctl_reload_publishes_the_edited_tree_and_prints_what_it_could_not_apply() {
-        // A directory of its own and not the endpoint's: `scratch` empties what it hands back, so
-        // a tree written under the name `asked` will use is a tree deleted before it is re-read.
-        let dir = scratch("reload-live-tree");
+        let dir = nvs_repo::scratch("ctl-reload-live-tree");
         let (root, current, process) = a_server_over(
             &dir,
             "[limits]\nmemory = \"64M\"\n\n[server]\nlisten = [\"127.0.0.1:8080\"]\n",
@@ -814,7 +792,7 @@ mod tests {
     /// operation exists for — the offline `nvs config dump --origin` is the other half.
     #[test]
     fn ctl_config_prints_the_live_snapshot_with_each_directives_origin() {
-        let dir = scratch("config-live-tree");
+        let dir = nvs_repo::scratch("ctl-config-live-tree");
         let (root, _current, process) = a_server_over(&dir, "[limits]\nmemory = \"64M\"\n");
         fs::write(&root, "[limits]\nmemory = \"128M\"\n")
             .expect("the file changes under a process that has not reloaded");

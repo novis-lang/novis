@@ -81,6 +81,9 @@ windows-sys.workspace = true
 # A test, never a dependency of the host itself: nothing in `src/` resolves a configuration.
 nvs-config.workspace = true
 toml.workspace = true
+# Test-only: the local-socket cases in `src/net.rs` bind under `target/` through
+# `nvs_repo::socket`.
+nvs-repo.workspace = true
 
 # ---------------------------------------------------------------------------
 # This crate cannot inherit the workspace lint policy: a coroutine yielder

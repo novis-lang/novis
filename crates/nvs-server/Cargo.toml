@@ -97,6 +97,9 @@ nvs-render.workspace = true
 # `nvs-host` already rests on both.
 sha2.workspace = true
 base64.workspace = true
+# Test-only: the control and Unix-listener cases bind their sockets under `target/` through
+# `nvs_repo::socket`.
+nvs-repo.workspace = true
 
 # This crate inherits the workspace lint policy unchanged, `unsafe_code =
 # "forbid"` included. That is a decision and not an omission: the obvious way to
