@@ -12,8 +12,22 @@ class Search
 
 // 1. Eight captures of 200000 characters each. Every character is the escape `%41`.
 string $part = Core\Str::repeat('%41', 200000);
-string $path = '/s/' . $part . '/' . $part . '/' . $part . '/' . $part
-    . '/' . $part . '/' . $part . '/' . $part . '/' . $part;
+string $path = '/s/'
+    . $part
+    . '/'
+    . $part
+    . '/'
+    . $part
+    . '/'
+    . $part
+    . '/'
+    . $part
+    . '/'
+    . $part
+    . '/'
+    . $part
+    . '/'
+    . $part;
 ?Core\Router\Match $big = Core\Router::match(Core\Http\Method::Get, $path);
 if ($big != null) {
     uint $length = 0;

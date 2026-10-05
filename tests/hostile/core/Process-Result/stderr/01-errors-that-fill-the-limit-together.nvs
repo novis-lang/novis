@@ -13,8 +13,10 @@ class Attack
             Core\Process\Result $result = Core\Path::SEPARATOR == "\\"
                 ? Core\Process::run("C:\\Windows\\System32\\cmd.exe", ['/c', $windows])
                 : Core\Process::run('/bin/sh', ['-c', $unix]);
-            return Core\Bytes::length($result->stdout()) . ' and '
-                . Core\Bytes::length($result->stderr()) . ' bytes';
+            return Core\Bytes::length($result->stdout())
+                . ' and '
+                . Core\Bytes::length($result->stderr())
+                . ' bytes';
         } catch (RuntimeError $tooMuch) {
             return 'RuntimeError';
         } catch (IOError $failed) {

@@ -58,9 +58,9 @@ class Outline
 // node for each run of it — dropping it would be a guess about which of it
 // mattered.
 Core\Xml\Node $document = Core\Xml::parse(
-    "<?render fast?><order id=\"7\" zone='west'>" .
-    "<!--the customer wrote this--><item sku=\"a &amp; b\">two</item>" .
-    '<note><![CDATA[<raw>]]></note></order>',
+    "<?render fast?><order id=\"7\" zone='west'>"
+        . "<!--the customer wrote this--><item sku=\"a &amp; b\">two</item>"
+        . '<note><![CDATA[<raw>]]></note></order>',
 );
 Outline::show($document, '');
 

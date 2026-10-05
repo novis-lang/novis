@@ -58,8 +58,32 @@ echo 1.7976931348623157e308, ' ', 5e-324, "\n";
 echo 'café 日本 😀', "\n";
 
 // 4. A long text built from many parts. Each part is a separate value in the compiled program.
-string $parts = 'a' . 'b' . 'c' . 'd' . 'e' . 'f' . 'g' . 'h' . 'i' . 'j' . 'k' . 'l' . 'm'
-    . 'n' . 'o' . 'p' . 'q' . 'r' . 's' . 't' . 'u' . 'v' . 'w' . 'x' . 'y' . 'z';
+string $parts = 'a'
+    . 'b'
+    . 'c'
+    . 'd'
+    . 'e'
+    . 'f'
+    . 'g'
+    . 'h'
+    . 'i'
+    . 'j'
+    . 'k'
+    . 'l'
+    . 'm'
+    . 'n'
+    . 'o'
+    . 'p'
+    . 'q'
+    . 'r'
+    . 's'
+    . 't'
+    . 'u'
+    . 'v'
+    . 'w'
+    . 'x'
+    . 'y'
+    . 'z';
 echo $parts, "\n";
 
 // 5. A loop that calls library functions many times from the loaded code.

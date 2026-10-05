@@ -15,7 +15,9 @@ foreach (Core\Ast::parse($liar)->children() as Core\Ast\Node $part) {
 
 // 2. Forty `if` blocks inside each other, which the parser accepts. Every level
 // is asked what it is.
-string $deep = '<?nvs ' . Core\Str::repeat('if (1) { ', 40) . 'echo 1;'
+string $deep = '<?nvs '
+    . Core\Str::repeat('if (1) { ', 40)
+    . 'echo 1;'
     . Core\Str::repeat('}', 40);
 uint $ifs = 0;
 foreach (Core\Ast::parse($deep)->nodes() as Core\Ast\Node $node) {
@@ -27,7 +29,9 @@ echo 'forty levels deep the walk found ', $ifs, " of them\n";
 
 // 3. A hundred thousand blocks inside each other. The parser stops at its own
 // nesting limit and throws an error, which is caught here.
-string $deeper = '<?nvs ' . Core\Str::repeat('if (1) { ', 100000) . 'echo 1;'
+string $deeper = '<?nvs '
+    . Core\Str::repeat('if (1) { ', 100000)
+    . 'echo 1;'
     . Core\Str::repeat('}', 100000);
 try {
     string $root = Core\Ast::parse($deeper)->kind();

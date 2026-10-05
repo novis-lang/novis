@@ -8,8 +8,11 @@
 
 // 1. 100,000 brackets inside each other. The parser stops at its own nesting
 // limit and throws an error, which is caught here so the next step still runs.
-string $nested = '<?nvs echo ' . Core\Str::repeat('(', 100000) . '1'
-    . Core\Str::repeat(')', 100000) . ';';
+string $nested = '<?nvs echo '
+    . Core\Str::repeat('(', 100000)
+    . '1'
+    . Core\Str::repeat(')', 100000)
+    . ';';
 try {
     Core\Ast::parse($nested);
     echo "deep nesting accepted\n";

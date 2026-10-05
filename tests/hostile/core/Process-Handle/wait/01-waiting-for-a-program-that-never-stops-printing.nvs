@@ -19,8 +19,11 @@ class Attack
     {
         try {
             var $result = $program->wait();
-            return 'exit code ' . $result->exitCode() . ', '
-                . Core\Bytes::length($result->stdout()) . ' bytes';
+            return 'exit code '
+                . $result->exitCode()
+                . ', '
+                . Core\Bytes::length($result->stdout())
+                . ' bytes';
         } catch (RuntimeError $tooMuch) {
             return 'RuntimeError';
         } catch (IOError $failed) {

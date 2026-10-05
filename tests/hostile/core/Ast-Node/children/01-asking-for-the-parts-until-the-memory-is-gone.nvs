@@ -12,8 +12,11 @@ uint $n = 1;
 uint $refusals = 0;
 uint $deepest = 0;
 while ($n < 200) {
-    string $deep = '<?nvs echo ' . Core\Str::repeat('(', $n) . '1'
-        . Core\Str::repeat(')', $n) . ';';
+    string $deep = '<?nvs echo '
+        . Core\Str::repeat('(', $n)
+        . '1'
+        . Core\Str::repeat(')', $n)
+        . ';';
     try {
         Core\Ast\Node $node = Core\Ast::parse($deep);
         uint $steps = 0;

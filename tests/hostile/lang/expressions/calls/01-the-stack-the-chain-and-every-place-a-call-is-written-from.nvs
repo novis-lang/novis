@@ -89,9 +89,32 @@ try {
 // A call written on the result of a call, as deep as the parser will take one.
 // The same chain is then built a quarter of a million times over.
 Attack $walked = new Attack();
-echo $walked->next()->next()->next()->next()->next()->next()->next()->next()
-    ->next()->next()->next()->next()->next()->next()->next()->next()->next()
-    ->next()->next()->next()->next()->next()->next()->next()->next()
+echo $walked
+    ->next()
+    ->next()
+    ->next()
+    ->next()
+    ->next()
+    ->next()
+    ->next()
+    ->next()
+    ->next()
+    ->next()
+    ->next()
+    ->next()
+    ->next()
+    ->next()
+    ->next()
+    ->next()
+    ->next()
+    ->next()
+    ->next()
+    ->next()
+    ->next()
+    ->next()
+    ->next()
+    ->next()
+    ->next()
     is Attack ? 'chain standing' : 'chain gone', "\n";
 
 int $links = 0;

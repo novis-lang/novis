@@ -15,10 +15,10 @@
 // What a comment form might arrive with: formatting worth keeping, a script
 // element, an inline handler, and a `javascript:` link.
 tainted string $submitted =
-    '<p>Great post! <b>Really</b> useful.</p>' .
-    "<script>fetch('/steal?c=' + document.cookie)</script>" .
-    "<p onclick=\"boom()\">Click <a href=\"javascript:alert(1)\">here</a>," .
-    " or <a href=\"/docs\">the docs</a>.</p>";
+    '<p>Great post! <b>Really</b> useful.</p>'
+        . "<script>fetch('/steal?c=' + document.cookie)</script>"
+        . "<p onclick=\"boom()\">Click <a href=\"javascript:alert(1)\">here</a>,"
+        . " or <a href=\"/docs\">the docs</a>.</p>";
 
 Core\Html\Markup $clean = Core\Html::sanitize($submitted);
 

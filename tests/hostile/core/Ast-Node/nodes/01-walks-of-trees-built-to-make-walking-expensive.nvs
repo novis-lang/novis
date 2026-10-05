@@ -8,7 +8,9 @@
 
 // 1. Forty `if` blocks inside each other. The walk goes down every level, so it
 // must reach the bottom of the tree.
-string $deep = '<?nvs ' . Core\Str::repeat('if (1) { ', 40) . 'echo 1;'
+string $deep = '<?nvs '
+    . Core\Str::repeat('if (1) { ', 40)
+    . 'echo 1;'
     . Core\Str::repeat('}', 40);
 uint $depth = Core\Arr::count(Core\Ast::parse($deep)->nodes());
 echo 'forty levels give ', $depth, " nodes\n";

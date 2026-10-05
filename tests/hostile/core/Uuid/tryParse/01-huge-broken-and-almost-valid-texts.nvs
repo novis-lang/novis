@@ -24,8 +24,15 @@ while ($at < 36) {
 echo $refused, "\n";
 
 // 4. 36 characters that are "é" letters and hyphens. Each "é" is two bytes. This prints null.
-string $wide = Core\Str::repeat('é', 8) . '-' . Core\Str::repeat('é', 4) . '-'
-    . Core\Str::repeat('é', 4) . '-' . Core\Str::repeat('é', 4) . '-' . Core\Str::repeat('é', 12);
+string $wide = Core\Str::repeat('é', 8)
+    . '-'
+    . Core\Str::repeat('é', 4)
+    . '-'
+    . Core\Str::repeat('é', 4)
+    . '-'
+    . Core\Str::repeat('é', 4)
+    . '-'
+    . Core\Str::repeat('é', 12);
 echo Core\Uuid::tryParse($wide) == null ? 'null' : 'uuid', "\n";
 
 // 5. One million checks of a valid text and of a text with one more character.

@@ -23,8 +23,14 @@ echo $total, "\n";
 array<string> $letters = ['A', 'B', 'C', 'D', 'E', 'F'];
 int $lower = 0;
 foreach ($letters as string $letter) {
-    string $upper = Core\Str::repeat($letter, 8) . '-' . Core\Str::repeat($letter, 4) . '-'
-        . Core\Str::repeat($letter, 4) . '-' . Core\Str::repeat($letter, 4) . '-'
+    string $upper = Core\Str::repeat($letter, 8)
+        . '-'
+        . Core\Str::repeat($letter, 4)
+        . '-'
+        . Core\Str::repeat($letter, 4)
+        . '-'
+        . Core\Str::repeat($letter, 4)
+        . '-'
         . Core\Str::repeat($letter, 12);
     string $text = Core\Uuid::parse($upper)->toString();
     if ($text == Core\Str::lower($upper)) {
