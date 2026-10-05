@@ -235,6 +235,8 @@ is computed from the text `init` wrote, so `init` can see whether somebody chang
 Line endings do not count, so a checkout with CRLF line endings has the same fingerprint.
 `nvs agent primer` also prints one line on standard error when `init` would change a file: one
 that an older `nvs` wrote, or one that the agent reading the primer needs and the project lacks.
+A missing hook does not count. So a project that you set up with `--no-hooks` gets no note, and
+the next `init` without `--no-hooks` adds the hook.
 
 `--check` writes nothing. It prints `missing`, `outdated`, `edited` or `retired` and the path for
 each file that is not current, and `missing hook` and the path for a hook the agent lacks. Then it

@@ -1565,7 +1565,7 @@ enum Hooks {
     Add,
     /// Remove every hook an earlier run added, whichever agent it was for.
     Remove,
-    /// Read no hook file: `--check` with `--no-hooks`.
+    /// Read no hook file: `--check` with `--no-hooks`, and the primer's note.
     Leave,
 }
 
@@ -1736,12 +1736,16 @@ pub(crate) fn init(options: &InitOptions) -> ExitCode {
 /// The one line `primer` puts on standard error when a re-run of `init` would
 /// change something in the project in the working directory: a file an older
 /// `init` wrote that nobody edited since, a retired pointer, or — once the
-/// stanza is there — a file or a hook the agent running now needs and lacks. `None`
+/// stanza is there — a file the agent running now needs and lacks. `None`
 /// when it would change nothing, and for a project with no stanza.
+///
+/// A missing hook is never named. A project that ran `init --no-hooks` lacks
+/// its hook on purpose, and nothing in it says so, so a note about the hook
+/// would print on every run. The next `init` adds the hook anyway.
 pub(crate) fn stale_note() -> Option<&'static str> {
     let root = std::env::current_dir().ok()?;
-    let (agents, _) = chosen(&[], false, true);
-    let plan = plan(&root, &agents, Hooks::Add);
+    let (agents, _) = chosen(&[], false, false);
+    let plan = plan(&root, &agents, Hooks::Leave);
     let installed = plan
         .changes
         .iter()

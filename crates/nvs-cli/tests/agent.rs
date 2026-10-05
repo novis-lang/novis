@@ -2236,7 +2236,8 @@ fn init_refuses_a_settings_file_it_cannot_read_and_force_does_not_override_it() 
 
 /// `--no-hooks` removes the hooks an earlier run added, for every agent, and
 /// deletes a file that held nothing else. `--check` names a hook the running
-/// agent lacks, and with `--no-hooks` it does not look.
+/// agent lacks, and with `--no-hooks` it does not look. The primer never
+/// names a missing hook.
 // covers: tools:agents/nvs-agent-init
 #[test]
 fn no_hooks_removes_each_hook_and_check_names_a_missing_one() {
@@ -2266,10 +2267,10 @@ fn no_hooks_removes_each_hook_and_check_names_a_missing_one() {
     let (out, _, _, ok) = init_as(&dir, CLAUDE, &["--check"]);
     assert!(!ok, "a missing hook fails the check");
     assert_eq!(out.trim_end(), "missing hook .claude/settings.json");
-    let note = primer_err(&dir, CLAUDE);
-    assert!(
-        note.contains("nvs agent init"),
-        "the primer says so: {note}"
+    assert_eq!(
+        primer_err(&dir, CLAUDE),
+        "",
+        "the primer has no note for a hook the project left out"
     );
 
     let (out, _, err, ok) = init_as(&dir, CLAUDE, &["--check", "--no-hooks"]);
