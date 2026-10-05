@@ -993,16 +993,17 @@ fn landed(conn: &mut Conn, queue: &str) -> (String, String) {
 /// process against one database, so a case asserting the vector itself would be
 /// asserting what its neighbours happened to be doing at that instant.
 ///
-/// Both dialects bind the same two instants in the same order, which is what
+/// Every dialect binds the same two instants in the same order, which is what
 /// [`queue::QUEUES_MYSQL`]'s doc means by the transcription changing nothing but
-/// the placeholder spelling.
+/// the placeholder spelling. SQL Server's text is its own and not the framed
+/// one, because its recursive step is a `row_number()` over a join.
 fn roster(conn: &mut Conn, now: i64, cutoff: i64) -> Vec<String> {
     let (now, cutoff) = (millis(now), millis(cutoff));
     let bound = [Some(now.as_slice()), Some(cutoff.as_slice())];
-    let sql = if conn.driver() == Driver::Postgres {
-        queue::QUEUES_POSTGRES
-    } else {
-        queue::QUEUES_MYSQL
+    let sql = match conn.driver() {
+        Driver::Postgres => queue::QUEUES_POSTGRES,
+        Driver::SqlServer => queue::QUEUES_SQLSERVER,
+        _ => queue::QUEUES_MYSQL,
     };
     rows(conn, sql, &bound)
         .into_iter()
@@ -1151,10 +1152,15 @@ fn purge_dead(
 fn set_state(conn: &mut Conn, id: &str, state: &str, lease: Option<i64>) {
     let lease = lease.map(millis);
     let lease = lease.as_deref();
-    let sql = if conn.driver() == Driver::Postgres {
-        "update nvs_jobs set state = $1::smallint, claimed_at = $2::bigint where id = $3::bigint"
-    } else {
-        "update nvs_jobs set state = ?, claimed_at = ? where id = ?"
+    let sql = match conn.driver() {
+        Driver::Postgres => {
+            "update nvs_jobs set state = $1::smallint, claimed_at = $2::bigint where id = $3::bigint"
+        }
+        Driver::SqlServer => {
+            "update nvs_jobs set state = cast(@p1 as smallint), claimed_at = cast(@p2 as bigint) \
+             where id = cast(@p3 as bigint)"
+        }
+        _ => "update nvs_jobs set state = ?, claimed_at = ? where id = ?",
     };
     assert_eq!(
         apply(
@@ -2760,17 +2766,32 @@ fn a_framed_visibility_timeout_returns_an_abandoned_job_to_the_queue() {
 /// once per idle turn rather than once per job.
 #[test]
 fn a_framed_roster_names_a_queue_on_either_arm_and_not_past_either_bound() {
-    const QUEUE: &str = "nvs-stdlib-tests-framed-roster";
-    const DUE: i64 = 6_000;
-
     let Some(server) = framed() else {
         return;
     };
-    schema(&server);
-    let mut conn = open(&server);
-    clear(&mut conn, QUEUE);
+    roster_bounds(&server, "nvs-stdlib-tests-framed-roster");
+}
 
-    let held = |named: Vec<String>| named.iter().filter(|name| name.as_str() == QUEUE).count();
+/// [`a_framed_roster_names_a_queue_on_either_arm_and_not_past_either_bound`]'s
+/// claims against [`queue::QUEUES_SQLSERVER`], whose recursive step is a
+/// `row_number() = 1` over a join where the other dialects take a `min`.
+#[test]
+fn a_sql_server_roster_names_a_queue_on_either_arm_and_not_past_either_bound() {
+    let Some(server) = sqlserver() else {
+        return;
+    };
+    roster_bounds(&server, "nvs-stdlib-tests-mssql-roster");
+}
+
+/// The body of both roster cases, on whichever server `server` names.
+fn roster_bounds(server: &Leg, queue: &str) {
+    const DUE: i64 = 6_000;
+
+    schema(server);
+    let mut conn = open(server);
+    clear(&mut conn, queue);
+
+    let held = |named: Vec<String>| named.iter().filter(|name| name.as_str() == queue).count();
 
     assert_eq!(
         held(roster(&mut conn, DUE, DUE)),
@@ -2778,7 +2799,7 @@ fn a_framed_roster_names_a_queue_on_either_arm_and_not_past_either_bound() {
         "an empty queue is no queue at all: the roster names what has work and not what has a name"
     );
 
-    let id = push(&mut conn, QUEUE, DUE, "3");
+    let id = push(&mut conn, queue, DUE, "3");
     assert_eq!(
         held(roster(&mut conn, DUE, 0)),
         1,
@@ -2791,7 +2812,7 @@ fn a_framed_roster_names_a_queue_on_either_arm_and_not_past_either_bound() {
         "and the millisecond before it is the first refused one"
     );
 
-    let second = push(&mut conn, QUEUE, DUE, "3");
+    let second = push(&mut conn, queue, DUE, "3");
     assert_ne!(second, id, "that is a second row and not the first again");
     assert_eq!(
         held(roster(&mut conn, DUE, 0)),
@@ -2805,13 +2826,8 @@ fn a_framed_roster_names_a_queue_on_either_arm_and_not_past_either_bound() {
     // `queue`, so what it locks is two rows rather than whatever a scan for a
     // queue reaches — every case here shares this table with the others running
     // beside it.
-    let lease = millis(DUE);
     for row in [&id, &second] {
-        apply(
-            &mut conn,
-            "update nvs_jobs set state = 1, claimed_at = ? where id = ?",
-            &[Some(lease.as_slice()), Some(row.as_bytes())],
-        );
+        set_state(&mut conn, row, "1", Some(DUE));
     }
     assert_eq!(
         held(roster(&mut conn, DUE + 60_000, DUE - 1)),
