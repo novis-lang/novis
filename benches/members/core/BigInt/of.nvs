@@ -3,6 +3,7 @@
 // adds up amounts that grow past what an `int` holds.
 // bench: iterations 400000
 // bench: calls 0
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

@@ -1,0 +1,22 @@
+<?nvs
+// Measures `Core\Arr::flip` on one list of names, at growing list lengths.
+// bench: start 256
+// bench: max 4096
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        array<string> $formats = Core\Arr::map(Core\Arr::range(1, $size as int), fn(int $n): string => "f" . ($n as string));
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            var $keyed = Core\Arr::flip($formats);
+            $total = $total + Core\Arr::count($keyed);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

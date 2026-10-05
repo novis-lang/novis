@@ -1,0 +1,23 @@
+<?nvs
+// Measures `Core\Arr::values` on one keyed array, at growing array sizes.
+// bench: start 256
+// bench: max 4096
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        array<int> $values = Core\Arr::range(1, $size as int);
+        array<string> $names = Core\Arr::map($values, fn(int $n): string => "k" . ($n as string));
+        array<int> $sent = Core\Arr::fromKeysAndValues($names, $values);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            $total = $total + Core\Arr::count(Core\Arr::values($sent));
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

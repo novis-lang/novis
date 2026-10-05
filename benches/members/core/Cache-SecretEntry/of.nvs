@@ -3,6 +3,7 @@
 // this once for every secret it fetches from somewhere else.
 // bench: iterations 400000
 // bench: calls 0
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

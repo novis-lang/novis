@@ -1,0 +1,25 @@
+<?nvs
+// Measures `Core\Arr::column` on one table of rows, at growing row counts.
+// bench: start 256
+// bench: max 4096
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        array<array<string>> $rows = Core\Arr::map(
+            Core\Arr::range(1, $size as int),
+            fn(int $n): array<string> => ['id' => $n as string, 'name' => 'Ada'],
+        );
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            array<string> $ids = Core\Arr::column($rows, 'id');
+            $total = $total + Core\Arr::count($ids);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

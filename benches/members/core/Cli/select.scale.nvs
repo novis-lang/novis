@@ -1,0 +1,22 @@
+<?nvs
+// Measures `Core\Cli::select` with a default answer and no terminal, at growing numbers of choices.
+// bench: start 256
+// bench: max 4096
+
+class Bench
+{
+    public static function run(uint $size): int
+    {
+        array<int> $sizes = Core\Arr::range(1, $size as int);
+        int $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            int $at = $total % 3;
+            $total = $total + Core\Cli::select("how many days?", $sizes, {default: $sizes[$at]});
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

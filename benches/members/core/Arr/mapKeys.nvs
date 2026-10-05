@@ -2,6 +2,7 @@
 // Stores a few order codes under a key of their own, as a program does after it reads rows.
 // bench: iterations 200000
 // bench: calls 0
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

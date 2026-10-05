@@ -1,6 +1,7 @@
 <?nvs
 // Finds the name of the first sensor whose reading is below a limit, as a monitor does on every round.
 // bench: iterations 200000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

@@ -2,6 +2,7 @@
 // Reads where a part of the source begins, as a program does when it reports a
 // place somebody can go to and look at.
 // bench: iterations 200000
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

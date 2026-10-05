@@ -1,6 +1,7 @@
 <?nvs
 // Picks the first article in a small basket whose stock is below a limit, as a shop does before it shows the basket.
 // bench: iterations 200000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

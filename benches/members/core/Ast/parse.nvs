@@ -2,6 +2,7 @@
 // Parses a short piece of Novis source, as an editor service does with every
 // snippet somebody sends it.
 // bench: iterations 200000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

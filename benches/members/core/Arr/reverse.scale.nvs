@@ -1,0 +1,22 @@
+<?nvs
+// Measures `Core\Arr::reverse` on one list of events, at growing list lengths.
+// bench: start 256
+// bench: max 4096
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        array<string> $events = Core\Arr::map(Core\Arr::range(1, $size as int), fn(int $n): string => "paid");
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            array<string> $newest = Core\Arr::reverse($events);
+            $total = $total + Core\Arr::count($newest);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

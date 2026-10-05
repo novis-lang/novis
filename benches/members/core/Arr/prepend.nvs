@@ -1,6 +1,7 @@
 <?nvs
 // Puts one value in front of a short list, as a program does when it adds an entry above a menu.
 // bench: iterations 200000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

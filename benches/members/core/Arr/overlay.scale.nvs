@@ -1,0 +1,25 @@
+<?nvs
+// Measures `Core\Arr::overlay` writing two settings over a set of defaults, at growing numbers of defaults.
+// bench: start 256
+// bench: max 4096
+
+class Bench
+{
+    public static function run(uint $size): int
+    {
+        array<int> $numbers = Core\Arr::range(1, $size as int);
+        array<string> $names = Core\Arr::map($numbers, fn(int $n): string => "k" . ($n as string));
+        array<int> $defaults = Core\Arr::fromKeysAndValues($names, $numbers);
+        int $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            array<int> $layer = ["k2" => $total % 7, "g" => 7];
+            array<int> $settings = Core\Arr::overlay($defaults, $layer);
+            $total = $total + $settings["k2"] + $settings["k1"];
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";
