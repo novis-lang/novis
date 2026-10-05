@@ -38,6 +38,21 @@
 //! ask (a `&str` this crate built, a `bytes` read as text). The UAX #29
 //! primitives both go through live in `nvs_runtime::graphemes`, beside the
 //! header that caches them.
+//!
+//! # What an index costs
+//!
+//! A member that takes or returns a position — `Core\Str::at`, `slice`,
+//! `replaceRange`, `indexOf`, `lastIndexOf`, `Core\Regex::match` — reaches it
+//! through an `_of` method that has the value in hand. Those compare the cached
+//! count with the byte length first: equal means every unit is one byte, so a
+//! position *is* a byte offset and the call is O(1) once the count is cached.
+//! A program indexing every character of an ASCII string is therefore linear.
+//!
+//! **A subject with wider units walks to the position on every call**, and
+//! that is a stated bound rather than a gap: the byte offset of the `i`-th
+//! cluster is stored nowhere, and storing it would be an index of one word per
+//! cluster on every string that is ever indexed. A program that visits every
+//! character of such a string splits it once with `Core\Str::graphemes`.
 
 use unicode_segmentation::UnicodeSegmentation;
 
@@ -143,6 +158,33 @@ impl Unit {
         }
     }
 
+    /// [`Unit::pieces`] for `value`, whose payload is `subject`, with the
+    /// one-byte check answered by [`Unit::length_of`] instead of a scan.
+    ///
+    /// Every unit is at least one byte, so a count equal to the byte length
+    /// says every unit is exactly one, and that is [`Pieces::Bytes`]. The count
+    /// is the string's cached one, so a member called once per index over one
+    /// subject pays the scan on the first call and an O(1) check on every
+    /// later one. That is what keeps a loop over every index of an ASCII
+    /// string linear rather than quadratic.
+    #[must_use]
+    pub fn pieces_of<'a>(self, value: &Value, subject: &'a str) -> Pieces<'a> {
+        if self.length_of(value, subject) == subject.len() {
+            return Pieces::Bytes {
+                subject,
+                next: 0,
+                end: subject.len(),
+            };
+        }
+        match self {
+            Self::CodePoint => Pieces::CodePoints {
+                subject,
+                indices: subject.char_indices(),
+            },
+            Self::Grapheme => Pieces::Graphemes(subject.graphemes(true)),
+        }
+    }
+
     /// The `index`-th unit of `subject`, counting from the end when `index` is
     /// negative, or `None` when it addresses nothing.
     ///
@@ -160,6 +202,27 @@ impl Unit {
         usize::try_from(from_start)
             .ok()
             .and_then(|offset| self.pieces(subject).nth(offset))
+    }
+
+    /// [`Unit::at`] for `value`, whose payload is `subject`: the length a
+    /// negative index needs and the one-byte check both come from the cached
+    /// count ([`Unit::pieces_of`]), so on a subject of one-byte units every
+    /// call after the first is O(1).
+    ///
+    /// A subject with a wider unit still walks to `index`, because the byte
+    /// offset of the `index`-th cluster is not stored anywhere. That is the
+    /// module docs' *What an index costs*.
+    #[must_use]
+    pub fn at_of<'a>(self, value: &Value, subject: &'a str, index: i64) -> Option<&'a str> {
+        let from_start = if index < 0 {
+            let total = i64::try_from(self.length_of(value, subject)).ok()?;
+            total.checked_add(index)?
+        } else {
+            index
+        };
+        usize::try_from(from_start)
+            .ok()
+            .and_then(|offset| self.pieces_of(value, subject).nth(offset))
     }
 
     /// How many units of `subject` end at or before byte offset `byte` — the
@@ -186,6 +249,21 @@ impl Unit {
         self.length(&subject[..byte])
     }
 
+    /// [`Unit::index_of_byte`] for `value`, whose payload is `subject`: on a
+    /// subject of one-byte units the index is the byte offset, which the cached
+    /// count says without walking the prefix.
+    ///
+    /// # Panics
+    ///
+    /// As [`Unit::index_of_byte`] does.
+    #[must_use]
+    pub fn index_of_byte_of(self, value: &Value, subject: &str, byte: usize) -> usize {
+        if self.length_of(value, subject) == subject.len() {
+            return byte;
+        }
+        self.index_of_byte(subject, byte)
+    }
+
     /// [`Self::index_of_byte`] for a whole run of **non-decreasing** offsets
     /// over one subject, walking that subject once in total rather than once
     /// per offset.
@@ -206,8 +284,22 @@ impl Unit {
         }
     }
 
-    /// The byte offset a **signed** unit index names, with a negative one
-    /// counting from the end and either end saturating.
+    /// [`Unit::cursor`] for `value`, whose payload is `subject`, over
+    /// [`Unit::pieces_of`] — so a subject of one-byte units starts the cursor
+    /// on its no-walk arm without scanning the subject first.
+    #[must_use]
+    pub fn cursor_of<'a>(self, value: &Value, subject: &'a str) -> Cursor<'a> {
+        Cursor {
+            pieces: self.pieces_of(value, subject),
+            start: 0,
+            counted: 0,
+            held: None,
+        }
+    }
+
+    /// The byte offset a **signed** unit index names in `value`, whose payload
+    /// is `subject`, with a negative one counting from the end and either end
+    /// saturating.
     ///
     /// [`Self::byte_of_index`] with
     /// `rule:core-api/shape-rules` R8's sign
@@ -217,15 +309,26 @@ impl Unit {
     /// saturates rather than answering `None` for the reason
     /// [`Self::byte_of_index`] does: a search starting past the end finds
     /// nothing, which composes with a loop where a throw would not.
+    ///
+    /// The total comes from the cached count ([`Unit::length_of`]), and a total
+    /// equal to the byte length makes the index the byte offset, so a find-next
+    /// loop over a subject of one-byte units pays no walk per call.
     #[must_use]
-    pub fn byte_of_signed_index(self, subject: &str, index: i64) -> usize {
+    pub fn byte_of_signed_index_of(self, value: &Value, subject: &str, index: i64) -> usize {
+        let total = self.length_of(value, subject);
         let from_start = if index < 0 {
-            let total = i64::try_from(self.length(subject)).unwrap_or(i64::MAX);
-            total.saturating_add(index).max(0)
+            i64::try_from(total)
+                .unwrap_or(i64::MAX)
+                .saturating_add(index)
+                .max(0)
         } else {
             index
         };
-        self.byte_of_index(subject, usize::try_from(from_start).unwrap_or(usize::MAX))
+        let from_start = usize::try_from(from_start).unwrap_or(usize::MAX);
+        if total == subject.len() {
+            return from_start.min(subject.len());
+        }
+        self.byte_of_index(subject, from_start)
     }
 
     /// The byte offset unit `index` of `subject` starts at, or the subject's
@@ -643,6 +746,60 @@ mod tests {
                     unit.byte_of_index(subject, unit.length(subject) + 9),
                     subject.len()
                 );
+            }
+        }
+    }
+
+    /// The `_of` methods read the cached count and take the one-byte shortcut
+    /// when it equals the byte length. Every answer they give matches the
+    /// `&str` method that walks, for every index and every sign, on subjects
+    /// that take the shortcut and on subjects that do not.
+    #[test]
+    fn the_cached_count_shortcut_answers_what_the_walk_answers() {
+        for subject in [
+            "",
+            "ascii",
+            "x\r\ny",
+            "cafe\u{301}",
+            "日本語",
+            "ok \u{1f1e9}\u{1f1ea}!",
+        ] {
+            let value = Value::str(nvs_runtime::NvsStr::new(subject.as_bytes()));
+            for unit in [Unit::CodePoint, Unit::Grapheme] {
+                let total = i64::try_from(unit.length(subject)).unwrap_or(i64::MAX);
+                for index in -total - 2..=total + 2 {
+                    assert_eq!(
+                        unit.at_of(&value, subject, index),
+                        unit.at(subject, index),
+                        "{subject:?} at {index}"
+                    );
+                    let from_start = if index < 0 {
+                        (total + index).max(0)
+                    } else {
+                        index
+                    };
+                    let walked =
+                        unit.byte_of_index(subject, usize::try_from(from_start).unwrap_or(0));
+                    assert_eq!(
+                        unit.byte_of_signed_index_of(&value, subject, index),
+                        walked,
+                        "{subject:?} byte of {index}"
+                    );
+                }
+                let mut cursor = unit.cursor_of(&value, subject);
+                for (byte, _) in subject.char_indices().chain([(subject.len(), ' ')]) {
+                    let counted = unit.index_of_byte(subject, byte);
+                    assert_eq!(unit.index_of_byte_of(&value, subject, byte), counted);
+                    assert_eq!(cursor.index_of_byte(byte), counted, "{subject:?} at {byte}");
+                }
+            }
+            #[expect(
+                unsafe_code,
+                reason = "this test owns the one reference it built for the \
+                          subject, and every method above borrowed it"
+            )]
+            unsafe {
+                value.release();
             }
         }
     }

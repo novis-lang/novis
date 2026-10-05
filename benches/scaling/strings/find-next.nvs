@@ -1,0 +1,20 @@
+<?nvs
+// Finds every comma in a long string, and each search starts after the last comma, as a tokenizer does.
+// scaling: start 1000
+// scaling: max 64000
+// scaling: expect linear
+
+class Bench {
+    public static function run(uint $size): uint {
+        string $text = Core\Str::repeat("a,", $size);
+        uint $found = 0;
+        ?uint $at = Core\Str::indexOf($text, ",");
+        while ($at != null) {
+            $found = $found + 1;
+            $at = Core\Str::indexOf($text, ",", {from: ($at as int) + 1});
+        }
+        return $found;
+    }
+}
+
+echo Bench::run(1000), "\n";

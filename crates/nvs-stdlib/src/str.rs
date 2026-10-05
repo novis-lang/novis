@@ -1931,10 +1931,10 @@ nvs_runtime::nvs_helper! {
         let subject = text(&args[0], "at", "the subject")?;
         let index = integer(&args[1], "at", "the index")?;
         let unit = crate::granularity::DEFAULT;
-        let found = unit.at(subject, index).ok_or_else(|| {
+        let found = unit.at_of(&args[0], subject, index).ok_or_else(|| {
             Fault::thrown(format!(
                 "Core\\Str::at(): index {index} is outside a string of {} characters",
-                unit.length(subject)
+                unit.length_of(&args[0], subject)
             ))
         })?;
         produced(found)
@@ -2847,6 +2847,7 @@ nvs_runtime::nvs_helper! {
 /// about a negative length is exactly the PHP surprise this shared reading
 /// removes.
 fn window(
+    value: &Value,
     subject: &str,
     offset: &Value,
     length: &Value,
@@ -2855,7 +2856,7 @@ fn window(
     let offset = integer(offset, member, "the offset")?;
     let unit = crate::granularity::DEFAULT;
 
-    let start = unit.byte_of_signed_index(subject, offset);
+    let start = unit.byte_of_signed_index_of(value, subject, offset);
     let end = match length.tag() {
         Some(Tag::Null) => subject.len(),
         _ => {
@@ -2864,15 +2865,14 @@ fn window(
                 // Counted from the *end*, not from the start: this is the one
                 // place R8's sign rule means "stop short of" rather than
                 // "begin at".
-                let total = i64::try_from(unit.length(subject)).unwrap_or(i64::MAX);
+                let total = i64::try_from(unit.length_of(value, subject)).unwrap_or(i64::MAX);
                 let from_end = total.saturating_add(length);
-                unit.byte_of_index(subject, usize::try_from(from_end).unwrap_or(0))
+                unit.byte_of_signed_index_of(value, subject, from_end.max(0))
             } else {
                 // Walked from the start rather than from the subject's first
-                // byte, so a short window near the start of a long subject
-                // reads only the characters up to its end. `start` is a unit
-                // boundary, and segmenting from one finds the same boundaries
-                // the whole subject has.
+                // byte, so the walk reads only the characters inside the
+                // window. `start` is a unit boundary, and segmenting from one
+                // finds the same boundaries the whole subject has.
                 let length = usize::try_from(length).unwrap_or(usize::MAX);
                 start + unit.byte_of_index(&subject[start..], length)
             }
@@ -2892,7 +2892,7 @@ nvs_runtime::nvs_helper! {
     /// the one that composes with a loop.
     fn nvs_core_str_slice(_ctx, args: [3]) {
         let subject = text(&args[0], "slice", "the subject")?;
-        let (start, end) = window(subject, &args[1], &args[2], "slice")?;
+        let (start, end) = window(&args[0], subject, &args[1], &args[2], "slice")?;
         produced(subject.get(start..end).unwrap_or(""))
     }
 }
@@ -2922,7 +2922,7 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_str_replace_range(_ctx, args: [4]) {
         let subject = text(&args[0], "replaceRange", "the subject")?;
         let replacement = text(&args[3], "replaceRange", "the replacement")?;
-        let (start, end) = window(subject, &args[1], &args[2], "replaceRange")?;
+        let (start, end) = window(&args[0], subject, &args[1], &args[2], "replaceRange")?;
 
         // Written once, straight into the result: the capacity is exact, and
         // both parts are already in memory, so the result is never larger
@@ -2964,13 +2964,14 @@ fn after_match(haystack: &str, at: usize, matched: usize) -> usize {
 
 /// A byte offset into `subject` as the `uint` position a member answers with —
 /// [`crate::granularity::DEFAULT`]'s unit, which is what `rule:types/string-is-utf8` makes
-/// every `string` position Novis hands out.
-fn position(subject: &str, byte: usize) -> HelperResult {
+/// every `string` position Novis hands out. `value` is the string whose payload
+/// is `subject`, so the conversion can read its cached count.
+fn position(value: &Value, subject: &str, byte: usize) -> HelperResult {
     // Unreachable from source for `nvs_core_str_length`'s reason, which states
     // it in full: `usize` is no wider than `u64` on any target `deny.toml`
     // builds for, so the conversion is total and the `Err` arm is what writing
     // `try_from` rather than `as` costs.
-    let index = u64::try_from(crate::granularity::DEFAULT.index_of_byte(subject, byte))
+    let index = u64::try_from(crate::granularity::DEFAULT.index_of_byte_of(value, subject, byte))
         .map_err(|_| Fault::fatal("Core\\Str counted a position past `uint`"))?;
     Ok(Value::uint(index))
 }
@@ -2995,10 +2996,10 @@ nvs_runtime::nvs_helper! {
         let from = integer(&args[2], "indexOf", "the `from` option")?;
         let case_insensitive = boolean(&args[3], "indexOf", "the `caseInsensitive` option")?;
 
-        let start = crate::granularity::DEFAULT.byte_of_signed_index(subject, from);
+        let start = crate::granularity::DEFAULT.byte_of_signed_index_of(&args[0], subject, from);
         match find_at(subject, needle, case_insensitive, start) {
             None => Ok(Value::null()),
-            Some((at, _)) => position(subject, at),
+            Some((at, _)) => position(&args[0], subject, at),
         }
     }
 }
@@ -3024,11 +3025,11 @@ nvs_runtime::nvs_helper! {
         let before = integer(&args[2], "lastIndexOf", "the `before` option")?;
         let case_insensitive = boolean(&args[3], "lastIndexOf", "the `caseInsensitive` option")?;
 
-        let bound = crate::granularity::DEFAULT.byte_of_signed_index(subject, before);
+        let bound = crate::granularity::DEFAULT.byte_of_signed_index_of(&args[0], subject, before);
         let window = subject.get(..bound).unwrap_or(subject);
         match rfind_from(window, needle, case_insensitive) {
             None => Ok(Value::null()),
-            Some(at) => position(subject, at),
+            Some(at) => position(&args[0], subject, at),
         }
     }
 }

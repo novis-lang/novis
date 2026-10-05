@@ -68,8 +68,9 @@ comparator cannot be hashed. `contains` is O(n) per call, which is what it is. N
 **Read:** `Core\Str` indexing, slicing, search, replace, split, join, case and the grapheme
 counting under them, and string concatenation.
 
-**Found:** an index, a slice start or a search `from` walks the subject from its start on every call
-([`a-string-index-walks-the-whole-subject`](../../data/gaps/nvs-stdlib/a-string-index-walks-the-whole-subject.json)).
+**Found:** an index, a slice start or a search `from` walks the subject from its start on every call.
+Fixed for one-byte text, which the cached count recognises; wider text is a stated bound in the
+module doc of `crates/nvs-stdlib/src/granularity.rs`, *What an index costs*.
 
 **Bounded:** `replaceAll` tries every pair at every position, O(n·p), which its doc names
 (`crates/nvs-stdlib/src/str.rs:2802`). A `debug_assert!` checks the whole joined buffer on each
@@ -127,8 +128,8 @@ pieces once.
 and CSV.
 
 **Found:** `post`, `query` and `Core\Uri::queryParameter` parse the whole input on every call.
-`post` and `query` are fixed and parse once per request; `queryParameter` is still open
-([`uri-query-parameter-reparse-per-call`](../../data/gaps/nvs-stdlib/uri-query-parameter-reparse-per-call.json)).
+`post` and `query` are fixed and parse once per request; `queryParameter` is a stated bound in the
+module doc of `crates/nvs-stdlib/src/uri.rs`, *What it spends*.
 
 **Bounded:** the multipart reader looks for a part's header end from the same start after every chunk
 (`crates/nvs-stdlib/src/multipart.rs:439-450`), quadratic in a header block of at most 16 KiB.

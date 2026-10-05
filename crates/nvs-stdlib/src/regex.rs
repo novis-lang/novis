@@ -1587,9 +1587,9 @@ fn names_of(compiled: &Compiled) -> Vec<Option<&str>> {
 
 /// The byte offset a search starting at unit index `from` begins at —
 /// [`MATCH_OPTIONS`]'s option, read through the one place a signed position
-/// becomes a byte offset.
-fn start_byte(subject: &str, from: i64) -> usize {
-    DEFAULT.byte_of_signed_index(subject, from)
+/// becomes a byte offset. `value` is the string whose payload is `subject`.
+fn start_byte(value: &Value, subject: &str, from: i64) -> usize {
+    DEFAULT.byte_of_signed_index_of(value, subject, from)
 }
 
 /// One `Core\Regex\Match` over `captured`, as the value a member returns.
@@ -1678,7 +1678,7 @@ nvs_runtime::nvs_helper! {
         let given = pattern_of(&args[1], "match")?;
         let pattern = text(&given.text, "match", "the pattern")?;
         let from = integer(&args[2], "match", "the `from` option")?;
-        let start = start_byte(subject, from);
+        let start = start_byte(&args[0], subject, from);
 
         let budget = step_budget(ctx);
         let compiled = compiled(pattern, given.flags, "match", budget)?;
@@ -1693,7 +1693,7 @@ nvs_runtime::nvs_helper! {
                 .map(|caps| backtracking_groups(&caps)),
         };
         Ok(found.map_or_else(Value::null, |captured| {
-            built_match(&mut DEFAULT.cursor(subject), &names, &captured)
+            built_match(&mut DEFAULT.cursor_of(&args[0], subject), &names, &captured)
         }))
     }
 }
