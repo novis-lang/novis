@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-stdlib/src/queue.rs",
-  "title": "The worker's roster poll reads every due row of every queue on every turn, so draining a backlog of n is O(n²).",
-  "text": "`QUEUES_POSTGRES` and its siblings (`crates/nvs-stdlib/src/queue.rs`, `select distinct queue`) filter `(state = 0 and run_at <= ?) or (state = 1 and claimed_at <= ?)` with no `queue =` prefix, so no index serves them and each one reads every due row. `crates/nvs-cli/src/worker.rs`'s `turn` asks the roster before every round of claims, and a round takes at most one job per queue, so a backlog of n on one queue costs n polls of O(n). The claim itself is O(log n + in-flight) since its two arms were split. The fix is a loose index scan over an index led by `state`: a recursive CTE that steps from one pending queue name to the next, `limit 1` each, then an `exists` per name against `nvs_jobs_due`. SQL Server's recursive member allows no `top`, so it needs the `row_number()` form. Adding the index changes `schema()` and so what `nvs queue migrate` applies. A claim cannot be reached from a Novis program, so the ladder is a Rust case that counts rows read, or a plan assertion as `a_sqlite_claim_seeks_each_arm_through_the_due_index` makes.",
-  "goal": "performance-pass"
-}
