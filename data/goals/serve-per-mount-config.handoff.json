@@ -1,32 +1,32 @@
 {
-  "state": "**Goal `serve-per-mount-config` — Stage 2 has landed, and Stage 3's code; Stage 3's cli check file is not written yet.** ADR 0271 is the goal's one record; the four rules the goal names still state the pre-goal truth and are rewritten by the stage that lands each behaviour (goal file § *Stage 0*): `rule:http-server/the-served-file-is-optional` with Stage 3/4, the scheduled-run and job rules with Stage 5.\n\n`nvs serve` now boots from `crate::config::boot_set`: the host's snapshot with no `[[app]]` block folded, plus `AppBlocks`. After the mount table expands it builds `nvs_config::Published::new` over every mounted entry (a block that does not fold refuses the start), folds each row's origin from its own entry's snapshot, takes admission's ceiling from `nvs_config::server::capacity_across` over `Published::snapshots()`, and hands `Current::of(published)` to the door. The handler takes `nvs_server::published_of(&request)`, calls `.entry(<the file that runs>, &LocalFiles)` and passes it as `Reply::Run`'s third field; a file whose blocks do not fold answers as a failing program.\n\n**The reload still publishes host-only** (`crates/nvs-cli/src/control.rs:408` resolves through `boot_origins` and `publish_keeping`), so after a reload every mount runs under the host's snapshot until Stage 4 lands. A named file over a mount table no longer folds its blocks into the host's snapshot; `table_for` matches it by canonical path.",
+  "state": "**Goal `serve-per-mount-config` — Stages 2 and 3 have landed; Stage 4 (reload and the mount rows) is next.** ADR 0271 is the goal's one record. The four rules the goal names still state the pre-goal truth, and each is rewritten by the stage that lands its behaviour (goal file § *Stage 0*): `rule:http-server/the-served-file-is-optional` with Stage 4, and the scheduled-run and job rules with Stage 5.\n\n`nvs serve` boots from `crate::config::boot_set` and hands the door `Current::of(published)`: the host's snapshot, plus one snapshot per mounted entry that its own `[[app]]` blocks fold. The handler runs each file under `Published::entry` for that file. `crates/nvs-cli/tests/per_mount_config.rs` now holds Stage 3's seven cli tests, and they pass. Its `Server` harness starts `nvs serve` with no control endpoint over `[server] root = \".\"` and one `/<name>` mount per `<name>/index.nvs`.\n\n**The reload still publishes host-only** (`crates/nvs-cli/src/control.rs:408` resolves through `boot_origins` and `publish_keeping`). After a reload, every mount runs under the host's snapshot until Stage 4 lands.",
   "next": {
-    "stage": 3,
-    "title": "the request path, the cli check",
+    "stage": 4,
+    "title": "reload and the mount rows",
     "files": [],
-    "note": "one file set: a new `crates/nvs-cli/tests/per_mount_config.rs`, modelled on `crates/nvs-cli/tests/live_config.rs`.",
+    "note": "one file set: `crates/nvs-cli/src/control.rs`, `crates/nvs-cli/src/serve/mounts.rs`, and Stage 4's tests added to `crates/nvs-cli/tests/per_mount_config.rs`. That file's harness needs a `[control] socket` added for `nvs ctl reload`; `crates/nvs-cli/tests/live_config.rs:413` (`endpoint`) and `:432` (`controlled`) are the shape.",
     "items": [
       {
         "done": false,
-        "text": "**The Stage 3 cli check** — write `crates/nvs-cli/tests/per_mount_config.rs` with the seven tests `nvs-cli-two-mounts-run-under-their-own-app-blocks` names, reusing the `Server` harness shape at `crates/nvs-cli/tests/live_config.rs:66` and its `awaits` at `crates/nvs-cli/tests/live_config.rs:276` (ADR 0271 § 2, `rule:config/every-matching-app-block-applies-least-specific-first`). Two `[[server.mount]]` rows and two `[[app]]` blocks; each test reads a value back through a served program (`Core\\Env::mode`, `urlAbsolute`, a capability-gated call, `Core\\Cache::process()`)."
+        "text": "**The reload publishes the set** — `crates/nvs-cli/src/control.rs:408` resolves with `boot_set` and publishes with `Current::publish_set` over the rows `crates/nvs-cli/src/serve/mounts.rs:396` holds. The reload's ceiling at `crates/nvs-cli/src/control.rs:438` and `crates/nvs-cli/src/control.rs:537` uses `capacity_across` (ADR 0271 § 2, `rule:http-server/admission-is-arithmetic-not-a-number`)."
       },
       {
         "done": false,
-        "text": "**Stage 4: the reload publishes the set** — `crates/nvs-cli/src/control.rs:408` resolves with `boot_set` and publishes with `Current::publish_set` over the rows `crates/nvs-cli/src/serve/mounts.rs:396` holds, and the reload's ceiling at `crates/nvs-cli/src/control.rs:438` and `crates/nvs-cli/src/control.rs:537` uses `capacity_across` (ADR 0271 § 2, `rule:http-server/admission-is-arithmetic-not-a-number`)."
+        "text": "**A rescan's rows take their own origin** — `fall_back_to` at `crates/nvs-cli/src/serve.rs:2049` is called per row with the row's own entry snapshot in `mounts::Rescan::pass`, as the boot does (`rule:routing/an-origin-is-per-mount-and-checked-at-boot`)."
       },
       {
         "done": false,
-        "text": "**Stage 4: a rescan's rows take their own origin** — `fall_back_to` at `crates/nvs-cli/src/serve.rs:2049` is called per row with the row's own entry snapshot in `mounts::Rescan::pass`, as the boot now does (`rule:routing/an-origin-is-per-mount-and-checked-at-boot`)."
+        "text": "**The Stage 4 cli tests** — add the tests the goal record's stage-4 check names to `crates/nvs-cli/tests/per_mount_config.rs:43` (`Server`), with a reload helper copied from `crates/nvs-cli/tests/live_config.rs:324`."
       },
       {
         "done": false,
-        "text": "**Rewrite `rule:http-server/the-served-file-is-optional`'s fragment** — its *One snapshot serves the process* paragraph at `docs/rules/http-server/the-served-file-is-optional.md:14` is now false for the boot; rewrite it once Stage 4 makes the reload match."
+        "text": "**Rewrite `rule:http-server/the-served-file-is-optional`'s fragment** — its *One snapshot serves the process* paragraph at `docs/rules/http-server/the-served-file-is-optional.md:14` becomes true once the reload matches the boot."
       }
     ]
   },
   "backlog": [
     "`nvs ctl config` reports the host's snapshot only; a per-application view is not in this goal (goal file § *Standing decisions*).",
-    "An entry `dispatch = \"path\"` reaches after boot is folded on first request but is not counted in admission's ceiling until a reload recomputes it (`crates/nvs-config/src/server.rs` `capacity_across`).",
+    "An entry that `dispatch = \"path\"` reaches after boot is folded on its first request, but admission's ceiling does not count it until a reload recomputes it (`crates/nvs-config/src/server.rs` `capacity_across`).",
     "`install_tls_client`'s relaxed-grant lines read the host's snapshot only, so an `[app.capabilities]` TLS relaxation is not announced at boot (`crates/nvs-cli/src/config.rs` `relaxed_grants`)."
   ]
 }
