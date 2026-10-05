@@ -78,7 +78,8 @@
 //! by union. A write through `$this` to a name already in it is `E0782`, and
 //! so is one inside a loop, and one to a promoted parameter, which the
 //! binding wrote before the body ran. Every write spelling counts here — `=`,
-//! a compound operator, `++`/`--` and `unset` — and a short-circuit operand,
+//! a compound operator, `++`/`--`, `unset`, and each of them on an element of
+//! the property (`$this->list[0] = v`) — and a short-circuit operand,
 //! a `catch` and a `finally` start from every write that may have run before
 //! them. A write through another receiver, and one from outside the
 //! constructor, are refused by `crate::expr::assign` instead.
@@ -622,8 +623,8 @@ fn walk_stmt(
         StmtKind::Unset(xs) => {
             for x in xs {
                 scan_expr(x, state, env);
-                if let Some(name) = this_property(x, env) {
-                    state.write(name, x.span);
+                if let Some((name, span)) = this_property_written(x, env) {
+                    state.write(name, span);
                 }
             }
             false
@@ -656,16 +657,18 @@ pub(crate) fn scan_expr(e: &Expr, state: &mut InitState, env: &Env<'_>) {
     each_child_expr(e, &mut |child| scan_expr(child, state, env));
     match &e.kind {
         ExprKind::Assign { op, target, .. } => {
-            if let Some(name) = this_property(target, env) {
-                state.write(name, target.span);
-                if *op == AssignOp::Assign {
-                    state.assigned.insert(name.to_owned());
-                }
+            if let Some((name, span)) = this_property_written(target, env) {
+                state.write(name, span);
+            }
+            if let Some(name) = this_property(target, env)
+                && *op == AssignOp::Assign
+            {
+                state.assigned.insert(name.to_owned());
             }
         }
         ExprKind::PreIncDec { expr, .. } | ExprKind::PostIncDec { expr, .. } => {
-            if let Some(name) = this_property(expr, env) {
-                state.write(name, expr.span);
+            if let Some((name, span)) = this_property_written(expr, env) {
+                state.write(name, span);
             }
         }
         ExprKind::StaticCall {
@@ -691,6 +694,20 @@ fn this_property<'s>(target: &Expr, env: &Env<'s>) -> Option<&'s str> {
         } if is_this_receiver(object, env.src) => Some(strip_sigil(span_text(env.src, *name_span))),
         _ => None,
     }
+}
+
+/// The property a write to `target` writes, when its root is `$this->name`,
+/// with the span of that root. An element write (`$this->list[0] = v`,
+/// `$this->list[] = v`) writes its root property: the changed copy of the
+/// array is stored back into it, so it counts against a `readonly` property's
+/// one write. It does not assign the property, which [`this_property`] alone
+/// decides.
+fn this_property_written<'s>(target: &Expr, env: &Env<'s>) -> Option<(&'s str, Span)> {
+    let mut root = target.unparenthesized();
+    while let ExprKind::Index { base, .. } = &root.kind {
+        root = base.unparenthesized();
+    }
+    this_property(root, env).map(|name| (name, root.span))
 }
 
 /// The expression forms whose operands do not all run, joined the way

@@ -1,0 +1,27 @@
+--TEST--
+Writing an element of a `readonly` array property writes the property, so after the first write it is a second one (`rule:classes/lateinit-restrictions`)
+--FILE--
+<?nvs
+// The constructor sets `$items`, then changes one element and adds another.
+// Each element write stores a new array in `$items`, so both are second writes.
+class Bag {
+    public readonly array<int> $items;
+
+    public function constructor() {
+        $this->items = [1];
+        $this->items[0] = 5;
+        $this->items[] = 6;
+    }
+}
+
+var $g = new Bag();
+// covers: lang:classes/properties
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0782]: `Bag::$items` is `readonly`, so the constructor writes it only once
+%A
+error[E0782]: `Bag::$items` is `readonly`, so the constructor writes it only once
+%A
+error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.
