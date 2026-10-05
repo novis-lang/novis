@@ -1,16 +1,14 @@
 {
-  "state": "**Side goal `narrow-a-readonly-property`, stage 2 nearly closed.** E0782 refuses a `readonly` write through another receiver (`crates/nvs-types/src/expr/assign.rs`, `reject_readonly_write`), a second write on one constructor path, a write inside a constructor loop, and a body write to a promoted `readonly` parameter (`crates/nvs-types/src/ctor_init.rs`, `InitState::write`; its module doc says how the union join works). The new E0843 refuses a hook on `readonly` in the parser, beside E0249. All four cases of the `readonly-is-written-once` check are on disk and pass. Still open in stage 2 is item 3, the writers the checker does not see. Stages 3 and 4 are untouched: the narrowing, the checked read, and E0459's help. The `extension` step of `bun nv verify` fails in this worktree because `@types/node` is not installed. No TypeScript was touched.",
+  "state": "**Side goal `narrow-a-readonly-property`, stage 2 has one item left.** E0782 refuses every `readonly` write the checker can see: through another receiver, after construction, through a property key (`crates/nvs-types/src/expr/assign.rs`, `reject_readonly_write`), and a second write on one constructor path, inside a loop, over a promoted parameter, and as an element write (`$this->list[0] = v`), all in `crates/nvs-types/src/ctor_init.rs` (`InitState::write`, `this_property_written`; the module doc says how). E0843 refuses a hook on `readonly`. These writers were checked and need no change: a write inside an anonymous function is E0782 (\"after construction\"); destructuring into a property is E0105; `clone` is a shallow copy with no hook (`rule:classes/clone-is-shallow`); `Core\\Json::decodeAs` into a class and the database row fill both run the constructor; the graph decoder rebuilds an object that was already built.\n**The hole still open is the writers the checker cannot see.** An erased receiver writes a `readonly` property with no check: `object $o = $b; $o->v = 9;` prints `9` (run here). `Core\\Reflect\\ClassInfo::set` (`crates/nvs-stdlib/src/reflect.rs:2812`) reaches the same `write_erased_property` (found by search, not run). `ClassDesc` has no `readonly` bit (`crates/nvs-runtime/src/object.rs:304`). Stages 3 and 4 are untouched. In this worktree the `extension` step of `bun nv verify` fails because `@types/node` is not installed. That is the environment, not the change.",
   "next": {
     "stage": 2,
     "title": "`readonly` is written once",
-    "files": [
-      "crates/nvs-types/src/expr/assign.rs",
-      "crates/nvs-types/src/ctor_init.rs"
-    ],
+    "files": [],
+    "note": "one file set: `crates/nvs-runtime/src/object.rs`, `crates/nvs-stdlib/src/reflect.rs`, plus wherever codegen builds `ClassDesc`'s field list.",
     "items": [
       {
         "done": false,
-        "text": "**The writers the checker does not see**: a shape receiver (`ExprInfo::ShapeProperty`, no declaring class), reflection, filling from a row or JSON, and `clone`. Each one refuses `readonly` or is shown not to write it. Also check inside the constructor: a destructuring target `[$this->a] = ...`, an element write `$this->list[0] = ...`, and a `$this->x = ...` inside an anonymous function. `ctor_init` sees none of these as a write, and `rule:classes/lateinit-restrictions` gives the contract — `crates/nvs-types/src/expr/assign.rs:1116`, `crates/nvs-types/src/ctor_init.rs:640`"
+        "text": "**A run-time `readonly` bit for erased writes**: give `ClassDesc` one flag per field, set from `crate::signatures::property_is_readonly` where the field names are emitted. Then make the erased writes throw an `Error` naming the property when the flag is set: `nvs_object_slot_set`, `nvs_object_key_set`, `write_erased_property`, and so `ClassInfo::set`. PHP throws `Error: Cannot modify readonly property C::$p` here. The graph decoder (`crates/nvs-runtime/src/graph.rs:931`) is construction and stays exempt. Cost: one bit per field per class, once per process, and one test on the erased write path, which is already the slow path. Add a reject-style runtime `.nvst` for the `object` receiver and for reflection. `rule:classes/lateinit-restrictions` — `crates/nvs-runtime/src/object.rs:304`, `crates/nvs-runtime/src/object.rs:5028`, `crates/nvs-runtime/src/object.rs:4629`, `crates/nvs-runtime/src/object.rs:4743`, `crates/nvs-stdlib/src/reflect.rs:2812`"
       },
       {
         "done": false,
@@ -19,7 +17,8 @@
     ]
   },
   "backlog": [
-    "A `switch` case that falls through into the next one: `ctor_init` walks each case from the mark, so a write in both cases is not seen as a second write. Check whether Novis allows fall-through at all (`crates/nvs-types/src/ctor_init.rs`).",
-    "Stage 4 owes a rule fragment for \"written once\". The code cites `rule:classes/lateinit-restrictions` until it exists."
+    "Stage 3: the checked narrowed read in nvs-ir (`narrowed_property_reads` test target), after the checker narrows (goal record, stage 3).",
+    "Stage 4: E0459's help on a tested mutable property shows the local copy and `?->` (goal record, stage 4).",
+    "`bun nv goal context --add` writes to the chain's live goal, not to a side goal, so stage 2's `context.modules` was widened by hand (`data/goals/side/narrow-a-readonly-property.json`)."
   ]
 }

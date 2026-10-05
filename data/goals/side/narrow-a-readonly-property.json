@@ -28,7 +28,9 @@
       "context": {
         "modules": [
           "crates/nvs-types/src/ctor_init.rs",
-          "crates/nvs-types/src/check.rs"
+          "crates/nvs-types/src/check.rs",
+          "crates/nvs-runtime/src/object.rs",
+          "crates/nvs-stdlib/src/reflect.rs"
         ],
         "rules": [
           "classes/definite-property-initialization",
