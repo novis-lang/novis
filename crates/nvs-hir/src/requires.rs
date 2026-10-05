@@ -312,14 +312,14 @@ fn walk(
 
     let mut loaded: Vec<Loaded> = Vec::new();
     let mut done: FxHashSet<PathBuf> = FxHashSet::default();
-    let entry_chain: Vec<PathBuf> = canonical_path(map.file(entry_id)).into_iter().collect();
+    let entry_path: Option<PathBuf> = canonical_path(map.file(entry_id));
     // `done` answers "has this path been walked"; `by_path` answers "as which
     // file", which is what a `require` naming an already-loaded path needs to
     // record its own edge. They are two maps rather than one because a path
     // can be marked done and then fail to load, and an entry with no id is
     // exactly what such a `require` must not be handed.
     let mut by_path: FxHashMap<PathBuf, SourceId> = FxHashMap::default();
-    for path in &entry_chain {
+    if let Some(path) = &entry_path {
         done.insert(path.clone());
         by_path.insert(path.clone(), entry_id);
     }
@@ -330,8 +330,18 @@ fn walk(
     // the only constant a path can name.
     let mut consts = ConstTable::default();
 
-    let mut work: Vec<(SourceId, Vec<Stmt>, Vec<PathBuf>)> =
-        vec![(entry_id, entry_stmts, entry_chain)];
+    // Each file on `work` carries its depth in the load tree and its own
+    // canonical path, rather than a copy of the chain that loaded it. `work` is
+    // a stack, so a file's whole subtree is walked before anything pushed
+    // beneath it: when a file at depth `d` is popped, `chain`'s first `d`
+    // entries are exactly its ancestors, and truncating to `d` is all it takes
+    // to make that true. `on_chain` is the same paths as a set, so a cycle
+    // check costs one probe however deep the chain is. A root — the entry, a
+    // scanned or an autoloaded file — is depth 0 and starts a chain of its own.
+    let mut work: Vec<(SourceId, Vec<Stmt>, usize, Option<PathBuf>)> =
+        vec![(entry_id, entry_stmts, 0, entry_path)];
+    let mut chain: Vec<Option<PathBuf>> = Vec::new();
+    let mut on_chain: FxHashSet<PathBuf> = FxHashSet::default();
 
     // `rule:programs/no-runtime-autoload`'s accumulators: every `autoload` declaration the
     // bootstrap chain wrote, every name that might need one, and the names
@@ -346,7 +356,15 @@ fn walk(
     let mut autoload_map: Option<AutoloadMap> = None;
 
     loop {
-        while let Some((id, stmts, chain)) = work.pop() {
+        while let Some((id, stmts, depth, path)) = work.pop() {
+            debug_assert!(depth <= chain.len(), "a file is popped below its parent");
+            for left in chain.drain(depth..).flatten() {
+                on_chain.remove(&left);
+            }
+            if let Some(path) = &path {
+                on_chain.insert(path.clone());
+            }
+            chain.push(path);
             {
                 let src = map.file(id);
                 resolver.collect_declarations(&stmts, src, diags);
@@ -422,9 +440,12 @@ fn walk(
                     if let Some(base) = &canonical_base {
                         check_path_case(base, &literal, &canonical, span, diags);
                     }
-                    if chain.contains(&canonical) {
-                        let mut names: Vec<String> =
-                            chain.iter().map(|p| p.display().to_string()).collect();
+                    if on_chain.contains(&canonical) {
+                        let mut names: Vec<String> = chain
+                            .iter()
+                            .flatten()
+                            .map(|p| p.display().to_string())
+                            .collect();
                         names.push(canonical.display().to_string());
                         diags.report(
                             Diagnostic::error(
@@ -463,9 +484,7 @@ fn walk(
                     // `work`, so the next target of the file being walked can
                     // name a constant this one just loaded.
                     collect_consts(&new_stmts, map.file(new_id), &mut consts);
-                    let mut new_chain = chain.clone();
-                    new_chain.push(canonical);
-                    work.push((new_id, new_stmts, new_chain));
+                    work.push((new_id, new_stmts, depth + 1, Some(canonical)));
                 }
             }
 
@@ -510,7 +529,7 @@ fn walk(
                 let new_stmts = parse_file(map.file(new_id), diags);
                 check_declarations(&new_stmts, map.file(new_id), diags);
                 autoload::check_file_shape(&new_stmts, map.file(new_id), &name, site, diags);
-                work.push((new_id, new_stmts, vec![path]));
+                work.push((new_id, new_stmts, 0, Some(path)));
             }
             continue;
         }
@@ -548,7 +567,7 @@ fn walk(
         let new_stmts = parse_file(map.file(new_id), diags);
         check_declarations(&new_stmts, map.file(new_id), diags);
         autoload::check_file_shape(&new_stmts, map.file(new_id), &name, span, diags);
-        work.push((new_id, new_stmts, vec![path]));
+        work.push((new_id, new_stmts, 0, Some(path)));
     }
 
     resolver.resolve_imports(diags);
