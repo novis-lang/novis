@@ -727,7 +727,7 @@ until it passes.
 
 <a id="testing-feature-proofs"></a>
 
-## A feature is finished when its feature proofs exist: a description, a test from both sides, three examples, a measured figure, an attack and its help in the binary
+## A feature is finished when its feature proofs exist: a description, a test from both sides, three examples, a measured figure and its growth, an attack and its help in the binary
 
 `rule:testing/feature-proofs`
 
@@ -739,8 +739,12 @@ expert read the same way. It is the first thing the website shows for the featur
 first, and every kind of feature owes it.
 **Tests** — its behaviour pinned from Novis *and* from Rust; a `Core` member owes at least one of
 each. **Examples** — three small, self-contained, plainly-commented programs a reader learns from.
-**Perf** — one measured figure, so a change can be re-measured against it. **Hostile** — one program
-written to break it, which passes when the runtime is still standing.
+**Perf** — one measured figure *and its growth*: the figure, so a change can be re-measured against
+it, and the doubling ramp of `bun nv scaling` over the same bench, so a cost that grows faster than
+the bench's declared `// bench: complexity` fails before it ships. The counts decide and the clock
+reports; valgrind runs only when the ramp shows no clear growth, only to find the batch at which it
+is clear, and never in `nv verify` or an ordinary bench run. **Hostile** — one program written to
+break it, which passes when the runtime is still standing.
 **Help** — the binary that runs the feature explains it. `nvs agent find` reaches the feature under
 the name its user types, and `nvs agent show` prints what it does, how it is written and what it
 throws or reports: a `Core` member's card, a language feature's reference section, a command's or a
@@ -757,7 +761,7 @@ policy nothing can check. A single feature excused from a single proof is a skip
 **the reason as its value**, so "this cannot be measured" and "nobody wrote one" never look the same
 in the audit.
 
-<sub>See also [`testing/roster-is-derived`](testing.md#testing-roster-is-derived), [`testing/proof-attribution`](testing.md#testing-proof-attribution), [`testing/member-perf-ledger`](testing.md#testing-member-perf-ledger), [`testing/hostile-case-contract`](testing.md#testing-hostile-case-contract), [`testing/one-slice-is-one-feature`](testing.md#testing-one-slice-is-one-feature). Decided in [0134](../decisions/0134.md), [0079](../decisions/0079.md), [0117](../decisions/0117.md), [0216](../decisions/0216.md).</sub>
+<sub>See also [`testing/roster-is-derived`](testing.md#testing-roster-is-derived), [`testing/proof-attribution`](testing.md#testing-proof-attribution), [`testing/member-perf-ledger`](testing.md#testing-member-perf-ledger), [`testing/hostile-case-contract`](testing.md#testing-hostile-case-contract), [`testing/one-slice-is-one-feature`](testing.md#testing-one-slice-is-one-feature). Decided in [0134](../decisions/0134.md), [0079](../decisions/0079.md), [0117](../decisions/0117.md), [0216](../decisions/0216.md), [0272](../decisions/0272.md).</sub>
 
 <a id="testing-roster-is-derived"></a>
 

@@ -1,0 +1,10 @@
+{
+  "title": "a feature's perf proof is one measured figure and its growth, judged by the doubling ramp on the counts, with callgrind only to find a threshold",
+  "status": "accepted",
+  "scope": "what the **Perf** proof of `rule:testing/feature-proofs` owes: the ramp over the feature's bench, a required `// bench: complexity` declaration, and when valgrind may run. Which change reruns a bench, and when a figure is current, stay `rule:testing/member-perf-ledger`'s.",
+  "dependsOn": [
+    "0134",
+    "0191"
+  ],
+  "validatedBy": "`tools/nv/test/proof-growth.test.ts`, among them the guard that the plan `nv verify` runs never starts valgrind over a bench, and `bun nv proofs --record-perf` over the whole bench tree."
+}

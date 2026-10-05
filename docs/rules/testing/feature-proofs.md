@@ -6,8 +6,12 @@ expert read the same way. It is the first thing the website shows for the featur
 first, and every kind of feature owes it.
 **Tests** — its behaviour pinned from Novis *and* from Rust; a `Core` member owes at least one of
 each. **Examples** — three small, self-contained, plainly-commented programs a reader learns from.
-**Perf** — one measured figure, so a change can be re-measured against it. **Hostile** — one program
-written to break it, which passes when the runtime is still standing.
+**Perf** — one measured figure *and its growth*: the figure, so a change can be re-measured against
+it, and the doubling ramp of `bun nv scaling` over the same bench, so a cost that grows faster than
+the bench's declared `// bench: complexity` fails before it ships. The counts decide and the clock
+reports; valgrind runs only when the ramp shows no clear growth, only to find the batch at which it
+is clear, and never in `nv verify` or an ordinary bench run. **Hostile** — one program written to
+break it, which passes when the runtime is still standing.
 **Help** — the binary that runs the feature explains it. `nvs agent find` reaches the feature under
 the name its user types, and `nvs agent show` prints what it does, how it is written and what it
 throws or reports: a `Core` member's card, a language feature's reference section, a command's or a

@@ -107,7 +107,7 @@ which are whole where they stand.
    or the words *not checked*, and advice you volunteered meets the same bar as the answer — a
    follow-up that sends you to the code and changes what you said means the answer went out early.
 9. **A feature is finished when its feature proofs exist, not when it works** — `about.md`, tests from
-   Novis and from Rust, three examples, one bench, one attack, and its help in the binary. `bun nv proofs --id '<feature>'`
+   Novis and from Rust, three examples, one bench with its growth, one attack, and its help in the binary. `bun nv proofs --id '<feature>'`
    prints what it still owes and the path of each, and every `.nvs` and `about.md` among
    them is held to § *Text an end user reads* below.
 10. **Nothing is written outside the project's folders.** Every scratch file — a patch, a probe script, a

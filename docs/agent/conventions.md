@@ -176,13 +176,15 @@ line** — are not. Every step that can be caught is caught; the one that cannot
 // hostile: ends-early 3 FATAL   (only when the last step ends the program; it prints `step 3` first)
 ```
 
-**A bench** — `benches/members/<path>.nvs`, one file, iterations declared, inputs chained so no
-optimiser can delete the loop:
+**A bench, with its growth** — `benches/members/<path>.nvs`, one file, iterations and complexity
+declared, inputs chained so no optimiser can delete the loop. Its growth is checked by the ramp, and
+a complexity other than `constant` also needs the `.scale.nvs` sibling its README describes:
 
 ```nvs
 <?nvs
 // Counts the characters of a short label, as a program does before it shortens or pads one.
 // bench: iterations 400000
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {
