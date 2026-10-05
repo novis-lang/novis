@@ -63,7 +63,8 @@
 // `nvs fmt --check` decides under the second-run bound, and a clock slope left unread goes to callgrind.
 // `lsp` prints a document that marks one `<|>` cursor and is judged as `fmt` is, on the clock of one
 // `nvs lsp` session over stdio (`lspScript`): open, an edit, then completion, hover and references at
-// the cursor, timed from the open to the last answer so the server's start-up is outside it. Callgrind
+// the cursor and the document's code lenses, timed from the open to the last answer so the server's
+// start-up is outside it. Callgrind
 // runs the same session with its messages piped in from a file.
 //
 // `serve` is the one kind whose copy is not rewritten but for one size: the ladder is the program every request runs,
@@ -530,7 +531,8 @@ export const lspFrame = (message: object): string => {
 /**
  * The session an `lsp` ladder runs on the document it printed, in the order it is sent: the
  * handshake, open, one edit that appends a comment line, then completion, hover and references at the
- * `<|>` the document marks, then shutdown and exit. Requests carry ids 1 to 5 in that order. Returns
+ * `<|>` the document marks, the document's code lenses, then shutdown and exit. Requests carry ids 1
+ * to 6 in that order. Returns
  * null when the document marks no cursor.
  */
 export function lspScript(printed: string): object[] | null {
@@ -548,7 +550,8 @@ export function lspScript(printed: string): object[] | null {
     { id: 2, method: "textDocument/completion", params: doc },
     { id: 3, method: "textDocument/hover", params: doc },
     { id: 4, method: "textDocument/references", params: { ...doc, context: { includeDeclaration: true } } },
-    { id: 5, method: "shutdown", params: null },
+    { id: 5, method: "textDocument/codeLens", params: { textDocument: { uri: LSP_URI } } },
+    { id: 6, method: "shutdown", params: null },
     { method: "exit", params: null },
   ];
 }
@@ -609,14 +612,14 @@ async function lspSession(nvs: string, script: object[], bench: string): Promise
   };
   try {
     const [init, initialized, open, edit, ...rest] = script;
-    const [completion, hover, references, shutdown, exit] = rest;
+    const [completion, hover, references, lenses, shutdown, exit] = rest;
     await answer(init!);
     send(initialized!);
     const started = performance.now();
     send(open!);
     await reader.next((m) => m.method === "textDocument/publishDiagnostics" && (m.params as { uri: string }).uri === LSP_URI, "diagnostics for the opened document");
     send(edit!);
-    for (const request of [completion!, hover!, references!]) await answer(request);
+    for (const request of [completion!, hover!, references!, lenses!]) await answer(request);
     const ns = (performance.now() - started) * 1e6;
     await answer(shutdown!);
     send(exit!);

@@ -192,6 +192,20 @@ removed terms. A positive sleep wakes no sooner than the system timer, and one s
 costs far less than that wait. Callgrind was not run. It spends one tree node per child and per
 waiter, and one list of task ids per turn.
 
+**The editor's workspace index looks a name up in one probe.** `declaration`, `subtypes` and
+`occurrences` each scanned every declaration or occurrence the index holds, and a CodeLens request
+asks them once per declaration in the file, so a file of n classes cost O(n²) per request. The index
+now keeps three maps, from a name to its declaration, from a supertype to its subtypes and from a
+name to its uses, updated where a file enters and leaves the index (`crates/nvs-lsp/src/index.rs`).
+The override walks keep the types they have seen in a set. Every `lsp` ladder now also asks for the
+document's code lenses. The new ladder [`lsp/hierarchy`](../../benches/scaling/lsp/hierarchy.nvs)
+prints n subclasses of one class that each override its method. The CodeLens request alone, best of
+two alternating rounds, took 14, 36 and 178 ms at 800, 1600 and 3200 classes before, and 8, 18 and
+39 ms after. The ladder still grows, because opening the file and the other requests grow about
+three times per doubling in both builds. That is a separate finding, recorded as a gap of
+`crates/nvs-lsp/src/document.rs`. It spends one path handle and one copy of the name per
+declaration, per supertype edge and per occurrence, for as long as the file is indexed.
+
 ## Decisions for you
 
 **Should a request head get a total deadline as well as its idle one?** `header_timeout` is an idle

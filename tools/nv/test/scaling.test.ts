@@ -147,9 +147,9 @@ test("an lsp session opens the document without its cursor, edits it, and asks a
   expect(lspScript("<?nvs\necho 1;\n")).toBeNull();
   const script = lspScript("<?nvs\nécho Base::pr<|>ice(1);\n") as { id?: number; method: string; params: any }[];
   expect(script.map((m) => m.method)).toEqual([
-    "initialize", "initialized", "textDocument/didOpen", "textDocument/didChange", "textDocument/completion", "textDocument/hover", "textDocument/references", "shutdown", "exit",
+    "initialize", "initialized", "textDocument/didOpen", "textDocument/didChange", "textDocument/completion", "textDocument/hover", "textDocument/references", "textDocument/codeLens", "shutdown", "exit",
   ]);
-  expect(script.filter((m) => m.id !== undefined).map((m) => m.id)).toEqual([1, 2, 3, 4, 5]);
+  expect(script.filter((m) => m.id !== undefined).map((m) => m.id)).toEqual([1, 2, 3, 4, 5, 6]);
   expect(script[2]!.params.textDocument).toMatchObject({ uri: LSP_URI, version: 1, text: "<?nvs\nécho Base::price(1);\n" });
   expect(script[3]!.params.contentChanges[0].text).toBe("<?nvs\nécho Base::price(1);\n// edited\n");
   expect(script[4]!.params.position).toEqual({ line: 1, character: 13 });

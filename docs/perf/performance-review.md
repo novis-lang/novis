@@ -301,8 +301,9 @@ up to `max_redirects`.
 **Found:** the index copied an entry's read list into every file it loads, and dimming unused
 private members scanned every occurrence once per declaration. Both are fixed: the index keeps one
 read list per entry point, dimming makes one pass over the occurrences, and `lsp/classes.nvs` is
-flat. A declaration or subtype lookup still scans every declaration
-([`a-hierarchy-lookup-scans-every-declaration`](../../data/gaps/nvs-lsp/a-hierarchy-lookup-scans-every-declaration.json)).
+flat. A declaration, subtype or use lookup is one probe of a map the index keeps, and
+`lsp/hierarchy.nvs` measures it. Analysing a file of many subclasses still grows faster than linear
+([`a-request-on-a-file-of-subclasses-grows-faster-than-linear`](../../data/gaps/nvs-lsp/a-request-on-a-file-of-subclasses-grows-faster-than-linear.json)).
 
 **Bounded:** each edit analyses again every entry whose graph read the changed file
 (`crates/nvs-lsp/src/index.rs:344`, `server.rs:497`), linear per edit. `overlay` copies the text of

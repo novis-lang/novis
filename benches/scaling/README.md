@@ -40,7 +40,7 @@ closing line prints it; the tool checks and runs the program it printed. A line 
 <name>.nvs` in what it prints starts another file, written beside the program for it to `require`. An `fmt` ladder prints a
 file the same way for `nvs fmt`, and an `lsp` ladder prints a document that marks one cursor with
 `<|>`, as an `.lspt` case does: the tool opens it in `nvs lsp`, edits it, and asks for completion,
-hover and references at the cursor. A `serve` ladder is the program every request runs, with no
+hover and references at the cursor, and for the document's code lenses. A `serve` ladder is the program every request runs, with no
 `Bench::run` and no closing literal: its `start` and `max` count what its `size` line names —
 requests served, or the headers, header bytes, body bytes, query parameters or form fields of each request, or
 open connections — and the tool serves the file with `nvs serve` and sends that load. Under `size

@@ -70,8 +70,9 @@
 //! keeps a reference list a list of sites that resolved to the symbol asked
 //! about rather than a text search for its name.
 
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use lsp_types::Uri;
 use nvs_diagnostics::{BytePos, Diagnostics, SourceFile, Span, canonical_key};
@@ -82,6 +83,7 @@ use nvs_syntax::ast::{
 };
 use nvs_syntax::{Token, TokenKind, tokenize, walk};
 use nvs_types::ExprInfo;
+use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::definition::{
     Target, covers, declared_type, named_at, paired, supertype_names, target_of, text_of,
@@ -335,7 +337,29 @@ pub struct SymbolIndex {
     /// shares the same list, and a copy in each of them grows with the square
     /// of the graph.
     reads: BTreeMap<PathBuf, Vec<PathBuf>>,
+    /// Every declaration in `files`, by the name it declares.
+    ///
+    /// This map and the two below make each lookup by name cost what it
+    /// returns, so a lens request over a file of many declarations stays
+    /// linear. They spend one path handle and one copy of the name per
+    /// declaration, per supertype edge and per occurrence, for as long as the
+    /// file is indexed. [`SymbolIndex::post`] and [`SymbolIndex::unpost`] keep
+    /// them, and are called where `files` gains and loses an entry.
+    by_symbol: Postings,
+    /// Every declaration in `files`, by each name it directly extends or
+    /// implements.
+    by_supertype: Postings,
+    /// Every occurrence in `files`, by the name it resolved to.
+    by_use: Postings,
 }
+
+/// Where one entry of a file's list is: the file's key and the entry's position
+/// in that list. A set of them iterates by path and then position, which is the
+/// file and then source order every answer here is given in.
+type At = (Arc<Path>, usize);
+
+/// The entries of one kind, by name.
+type Postings = FxHashMap<String, BTreeSet<At>>;
 
 impl SymbolIndex {
     /// The index over the tree `scope` selects, `root` being the workspace
@@ -415,7 +439,9 @@ impl SymbolIndex {
             .map(|(path, _)| path.clone())
             .collect();
         for path in &stale {
-            self.files.remove(path);
+            if let Some(indexed) = self.files.remove(path) {
+                self.unpost(path, &indexed);
+            }
         }
         for entry in &readers {
             self.reads.remove(entry);
@@ -442,32 +468,13 @@ impl SymbolIndex {
     /// when this is asked is `rule:ide/check-scope-defaults-to-the-workspace`'s
     /// answer, and the caller is what holds the setting.
     #[must_use]
-    ///
-    /// One pass over every occurrence in the index, however many private
-    /// declarations `path` has.
     pub fn unused_private(&self, path: &Path) -> Vec<&Declaration> {
-        let private: Vec<&Declaration> = self
-            .declarations_in(path)
+        self.declarations_in(path)
             .iter()
-            .filter(|declared| declared.visibility == Visibility::Private)
-            .collect();
-        if private.is_empty() {
-            return private;
-        }
-        let asked: HashSet<&str> = private
-            .iter()
-            .map(|declared| declared.symbol.as_str())
-            .collect();
-        let used: HashSet<&str> = self
-            .files
-            .values()
-            .flat_map(|indexed| &indexed.occurrences)
-            .map(|occurrence| occurrence.symbol.as_str())
-            .filter(|symbol| asked.contains(symbol))
-            .collect();
-        private
-            .into_iter()
-            .filter(|declared| !used.contains(declared.symbol.as_str()))
+            .filter(|declared| {
+                declared.visibility == Visibility::Private
+                    && !self.by_use.contains_key(&declared.symbol)
+            })
             .collect()
     }
 
@@ -508,17 +515,13 @@ impl SymbolIndex {
 
     /// Every declaration that directly extends or implements `symbol`, in file
     /// and then source order.
-    ///
-    /// The reverse edge is a scan and not a second map: it is asked once per
-    /// expansion of one node of a hierarchy view, where the forward edge is
-    /// asked by every reader, and a stored reverse edge would be a second
-    /// thing [`SymbolIndex::invalidate`] has to get right.
     #[must_use]
     pub fn subtypes(&self, symbol: &str) -> Vec<&Declaration> {
-        self.files
-            .values()
-            .flat_map(|indexed| &indexed.decls)
-            .filter(|declared| declared.supertypes.iter().any(|above| above == symbol))
+        self.by_supertype
+            .get(symbol)
+            .into_iter()
+            .flatten()
+            .filter_map(|(path, at)| self.files.get(&**path)?.decls.get(*at))
             .collect()
     }
 
@@ -535,7 +538,7 @@ impl SymbolIndex {
         let Some((owner, name)) = method.rsplit_once("::") else {
             return Vec::new();
         };
-        let mut seen = vec![owner.to_owned()];
+        let mut seen = FxHashSet::from_iter([owner.to_owned()]);
         let mut found = Vec::new();
         for above in self.supertypes(owner) {
             self.nearest_above(above, name, &mut seen, &mut found);
@@ -548,13 +551,12 @@ impl SymbolIndex {
         &'a self,
         ty: &'a Declaration,
         name: &str,
-        seen: &mut Vec<String>,
+        seen: &mut FxHashSet<String>,
         found: &mut Vec<&'a Declaration>,
     ) {
-        if seen.contains(&ty.symbol) {
+        if !seen.insert(ty.symbol.clone()) {
             return;
         }
-        seen.push(ty.symbol.clone());
         if let Some(declared) = self.method_of(&ty.symbol, name) {
             found.push(declared);
             return;
@@ -576,16 +578,15 @@ impl SymbolIndex {
         let Some((owner, name)) = method.rsplit_once("::") else {
             return Vec::new();
         };
-        let mut seen = vec![owner.to_owned()];
+        let mut seen = FxHashSet::from_iter([owner.to_owned()]);
         let mut pending = self.subtypes(owner);
         let mut found = Vec::new();
         let mut next = 0;
         while let Some(&ty) = pending.get(next) {
             next += 1;
-            if seen.contains(&ty.symbol) {
+            if !seen.insert(ty.symbol.clone()) {
                 continue;
             }
-            seen.push(ty.symbol.clone());
             if let Some(declared) = self.method_of(&ty.symbol, name) {
                 found.push(declared);
             }
@@ -608,19 +609,18 @@ impl SymbolIndex {
     /// than an answer this index owes two halves of.
     #[must_use]
     pub fn declaration(&self, symbol: &str) -> Option<&Declaration> {
-        self.files
-            .values()
-            .flat_map(|indexed| &indexed.decls)
-            .find(|declared| declared.symbol == symbol)
+        let (path, at) = self.by_symbol.get(symbol)?.first()?;
+        self.files.get(&**path)?.decls.get(*at)
     }
 
     /// Every use of `symbol`, in file and then source order.
     #[must_use]
     pub fn occurrences(&self, symbol: &str) -> Vec<&Occurrence> {
-        self.files
-            .values()
-            .flat_map(|indexed| &indexed.occurrences)
-            .filter(|occurrence| occurrence.symbol == symbol)
+        self.by_use
+            .get(symbol)
+            .into_iter()
+            .flatten()
+            .filter_map(|(path, at)| self.files.get(&**path)?.occurrences.get(*at))
             .collect()
     }
 
@@ -705,6 +705,7 @@ impl SymbolIndex {
                     .map(|(_, kind)| DeclKind::of_symbol(kind)),
                 entry: entry.clone(),
             };
+            self.post(&key, &indexed);
             self.files.insert(key, indexed);
             owns_a_file = true;
         }
@@ -715,6 +716,56 @@ impl SymbolIndex {
             self.reads.insert(entry, reads);
         }
         Some(analysed)
+    }
+
+    /// Adds what `indexed` declares and uses to the three maps, under `key`.
+    fn post(&mut self, key: &Path, indexed: &Indexed) {
+        let key: Arc<Path> = Arc::from(key);
+        for (at, declared) in indexed.decls.iter().enumerate() {
+            let posting = (Arc::clone(&key), at);
+            for above in &declared.supertypes {
+                add(&mut self.by_supertype, above, posting.clone());
+            }
+            add(&mut self.by_symbol, &declared.symbol, posting);
+        }
+        for (at, used) in indexed.occurrences.iter().enumerate() {
+            add(&mut self.by_use, &used.symbol, (Arc::clone(&key), at));
+        }
+    }
+
+    /// Removes from the three maps what [`SymbolIndex::post`] added for
+    /// `indexed` under `key`.
+    fn unpost(&mut self, key: &Path, indexed: &Indexed) {
+        let key: Arc<Path> = Arc::from(key);
+        for (at, declared) in indexed.decls.iter().enumerate() {
+            let posting = (Arc::clone(&key), at);
+            for above in &declared.supertypes {
+                remove(&mut self.by_supertype, above, &posting);
+            }
+            remove(&mut self.by_symbol, &declared.symbol, &posting);
+        }
+        for (at, used) in indexed.occurrences.iter().enumerate() {
+            remove(&mut self.by_use, &used.symbol, &(Arc::clone(&key), at));
+        }
+    }
+}
+
+/// Files `posting` under `symbol`.
+fn add(postings: &mut Postings, symbol: &str, posting: At) {
+    postings
+        .entry(symbol.to_owned())
+        .or_default()
+        .insert(posting);
+}
+
+/// Removes `posting` from under `symbol`, and the name with it once nothing is
+/// left under it, so the map's size follows what is indexed.
+fn remove(postings: &mut Postings, symbol: &str, posting: &At) {
+    if let Some(entries) = postings.get_mut(symbol) {
+        entries.remove(posting);
+        if entries.is_empty() {
+            postings.remove(symbol);
+        }
     }
 }
 

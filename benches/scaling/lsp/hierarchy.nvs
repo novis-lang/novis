@@ -1,0 +1,25 @@
+<?nvs
+// Prints a file of n subclasses of one base class that each override its method, as an editor shows the lenses above them.
+// scaling: kind lsp
+// scaling: start 50
+// scaling: max 1600
+// scaling: expect linear
+
+class Bench {
+    public static function run(uint $size): string {
+        array<string> $lines = ["<?nvs", "class Base {", "    public function price(int \$x): int {", "        return \$x * 2;", "    }", "}"];
+        uint $i = 0;
+        while ($i < $size) {
+            $lines[] = "class Item{$i} extends Base {";
+            $lines[] = "    public function price(int \$x): int {";
+            $lines[] = "        return \$x + {$i};";
+            $lines[] = "    }";
+            $lines[] = "}";
+            $i = $i + 1;
+        }
+        $lines[] = "echo (new Base())->pr<|>ice(1), \"\\n\";";
+        return Core\Str::join($lines, "\n") . "\n";
+    }
+}
+
+echo Bench::run(50);

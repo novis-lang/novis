@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-lsp/src/index.rs",
-  "title": "Each declaration and subtype lookup in the workspace index scans every declaration, so a hierarchy walk is O(edges × declarations).",
-  "text": "From the Stage 4 review, not re-run: `declaration` (`crates/nvs-lsp/src/index.rs:602`) and `subtypes` (`index.rs:509`) each walk every declaration of every indexed file per lookup. `supertypes`, `overridden` and `overriders` call them once per edge, and the CodeLens of a file asks them once per declaration in it, so a lens request over a file of many classes is O(declarations in the file × declarations in the index). `unused_private` no longer scans per declaration: it makes one pass over the occurrences. One map from symbol to declaration and one from supertype to subtypes, kept with the index and updated where `invalidate` and `absorb` change it, make each lookup constant; the first declaration of a duplicated name must stay the one returned. Ladder: an n-deep class chain timed through a type-hierarchy request, and a file of n classes timed through `textDocument/codeLens`.",
-  "goal": "performance-pass"
-}
