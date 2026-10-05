@@ -1200,6 +1200,19 @@ fn a_constructor_return_carries_no_value() {
     }
 }
 
+/// A `readonly` property with a hook is refused at the hook, and the same hook
+/// on a property that is not `readonly` is not.
+#[test]
+fn a_readonly_property_has_no_hook() {
+    let (_, diags) =
+        parse_stmt_with_diags("class C { public readonly int $n { get => $this->n; } }");
+    let codes: Vec<_> = diags.iter().filter_map(|d| d.code).collect();
+    assert_eq!(codes, vec![code::E_READONLY_PROPERTY_WITH_HOOK]);
+
+    let (_, diags) = parse_stmt_with_diags("class C { public int $n { get => $this->n; } }");
+    assert!(!diags.has_errors(), "{diags:?}");
+}
+
 /// `rule:php-migration/a-readonly-property-declares-no-default`: a property
 /// whose single assignment is its own default is a per-instance constant, and
 /// `const` already spells one. The refusal lands on the value, and a property

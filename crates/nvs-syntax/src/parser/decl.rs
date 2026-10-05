@@ -1281,6 +1281,23 @@ impl<'src, 'd> Parser<'src, 'd> {
             let name = self.expect(TokenKind::Variable, "a property name");
             if self.at(TokenKind::LBrace) {
                 let hooks = self.parse_property_hooks();
+                // A hook runs code on every read or write, so a `readonly`
+                // property with one is no longer one value written once.
+                if modifiers.contains(&Modifier::Readonly)
+                    && let Some(hook) = hooks.first()
+                {
+                    self.diags.report(
+                        Diagnostic::error(
+                            code::E_READONLY_PROPERTY_WITH_HOOK,
+                            "a `readonly` property cannot have a `get` or `set` hook",
+                        )
+                        .with_primary(hook.span, "this hook runs on every read or write")
+                        .with_help(
+                            "remove `readonly`, or remove the hooks and compute the value in \
+                             the constructor",
+                        ),
+                    );
+                }
                 let span = start.to(self.last_span);
                 out.push(ClassMember {
                     span,

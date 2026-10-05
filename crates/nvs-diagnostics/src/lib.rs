@@ -5355,6 +5355,14 @@ pub mod code {
          the headers, the cookies or the session of the response. Make this call in the main \
          script, before or after `Core\\Html::later`.",
     );
+    /// A `readonly` property that declares a `get` or `set` hook. PHP 8.4
+    /// refuses the same combination. A hook runs code at every read or write,
+    /// so the property would no longer be the one value its constructor wrote,
+    /// and a null test could not narrow it.
+    pub const E_READONLY_PROPERTY_WITH_HOOK: Code = Code::new("E0843").card(
+        "A `readonly` property cannot have a `get` or `set` hook. Remove `readonly`, or remove \
+         the hooks and set the value in the constructor.",
+    );
 
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.

@@ -1,0 +1,22 @@
+--TEST--
+A `readonly` property has no `get` or `set` hook, as in PHP 8.4 (`rule:classes/property-hooks`)
+--FILE--
+<?nvs
+// A hook runs code on every read, so the property is not one fixed value.
+class Price {
+    public readonly int $cents {
+        get => $this->cents * 100;
+    }
+
+    public function constructor(int $cents) {
+        $this->cents = $cents;
+    }
+}
+// covers: lang:classes/properties
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0843]: a `readonly` property cannot have a `get` or `set` hook
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.
