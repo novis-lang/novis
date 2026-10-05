@@ -1,23 +1,26 @@
 {
-  "state": "**Goal `performance-pass`, Stage 5 (the fixes).** Stage 4's review is whole (`docs/perf/performance-review.md`, ending in `## floor`). Old refusals have not been priced again yet.\n\n**A core's refused-metric-name record is capped.** `Registry::refusals` in `crates/nvs-runtime/src/metrics.rs` keys at most `REFUSED_NAMES` (256) distinct names, and refusals of any later name go to `Registry::refused_unnamed`. A unit test covers it, and the gap record is deleted (`docs/perf/performance-pass.md` § *What got better*). The cache tier queue and regex cache fixes from earlier sessions still stand.\n\n**17 gap records owned by `performance-pass`** keep `owners --closes performance-pass` red (`bun nv owners --closes performance-pass` lists them). `bun nv scaling --check` passes, with `numbers/bigint-mul` unclear. *Decisions for you* in `docs/perf/performance-pass.md` has two entries: a total deadline for the request head, and `Markup` concatenation in place.",
+  "state": "**Goal `performance-pass`, Stage 5 (the fixes).** Stage 4's review is whole (`docs/perf/performance-review.md`, ending in `## floor`). Old refusals have not been priced again yet.\n\n**A throw no longer copies its message per frame.** `Ctx::promote_pending` in `crates/nvs-runtime/src/ctx/error.rs` serves both `push_frame` and `seed_raise_site`, and it reads a message only for a bare message that cannot be promoted. The ladder `benches/scaling/values/throw-depth.nvs` is new. The release build showed no clock difference before and after, recorded in `docs/perf/performance-pass.md` § *What got better*. The gap record is deleted. The cache tier, regex cache and metrics refusal fixes from earlier sessions still stand.\n\n**16 gap records owned by `performance-pass`** keep `owners --closes performance-pass` red (`bun nv owners --closes performance-pass` lists them). `bun nv scaling --check` passed at the last sweep, with `numbers/bigint-mul` unclear. *Decisions for you* in `docs/perf/performance-pass.md` has two entries: a total deadline for the request head, and `Markup` concatenation in place.",
   "next": {
     "stage": 5,
-    "title": "the fixes, a throw's message per frame",
+    "title": "the fixes, the checker's quadratic walks",
     "files": [
-      "crates/nvs-runtime/src/ctx/error.rs",
-      "crates/nvs-runtime/src/throwable.rs"
+      "crates/nvs-types/src/layout.rs",
+      "crates/nvs-types/src/locals.rs"
     ],
     "items": [
       {
         "done": false,
-        "text": "**A throw stops copying its message once per frame** (`crates/nvs-runtime/src/ctx/error.rs:825`), per `data/gaps/nvs-runtime/a-throw-copies-its-message-per-frame.json`. `Ctx::push_frame` calls `pending.message().into_owned()` per frame, and `Thrown::message()` builds an owned copy for a thrown object. Read the message only on the path that uses it, then delete the gap record and add a paragraph to `docs/perf/performance-pass.md` § *What got better*. Rule: AGENTS.md priority ordering."
+        "text": "**Flattening a class dedupes by a name-keyed map and reuses its parent's layout** (`crates/nvs-types/src/layout.rs:1005`, driven from `crates/nvs-types/src/layout.rs:491`), per `data/gaps/nvs-types/flattening-a-class-dedupes-by-linear-scan.json`. Write the ladder `benches/scaling/compiler/members.nvs` (`compile` kind) first and take its before figure, then delete the gap record and add a paragraph to `docs/perf/performance-pass.md` § *What got better*. Rule: AGENTS.md priority ordering."
+      },
+      {
+        "done": false,
+        "text": "**The live-locals set is not cloned per branch** (`crates/nvs-types/src/locals.rs:1124`), per `data/gaps/nvs-types/the-live-set-is-cloned-per-branch.json`. Ladder `benches/scaling/compiler/branches.nvs` first. Rule: AGENTS.md priority ordering."
       }
     ]
   },
   "backlog": [
-    "`a-channel-send-scans-every-waiter-on-the-core` — `crates/nvs-stdlib/src/channel.rs:285`, a per-channel waiter map.",
-    "`route-matching-tries-every-route` — `crates/nvs-runtime/src/routes.rs`.",
-    "`a-websocket-write-buffer-has-no-ceiling` — `crates/nvs-server/src/socket.rs`.",
-    "The other gaps: `bun nv owners --closes performance-pass`."
+    "14 more gap records owned by `performance-pass` — `bun nv owners --closes performance-pass`; each names its own ladder and anchors.",
+    "Before closing a gap, time the release build first: the counts do not see work inside Rust strings, and the optimizer may already remove an unused copy (`docs/perf/performance-pass.md` § *What got better*, the throw paragraph).",
+    "*Decisions for you* — `docs/perf/performance-pass.md`."
   ]
 }
