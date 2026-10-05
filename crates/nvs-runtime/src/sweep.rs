@@ -474,6 +474,36 @@ mod tests {
         drop(ctx);
     }
 
+    /// The runners' door: [`crate::capability::private_dir`] creates a root
+    /// that is not there yet, and the entry it makes carries this process's
+    /// pid, so the walk reads it as a live owner's and a killed run's as an
+    /// orphan.
+    #[test]
+    fn a_runner_dir_is_private_and_named_for_the_orphan_sweep() {
+        let scratch = scratch("runner-dir");
+        let root = scratch.join("not-there-yet");
+        let made = crate::capability::private_dir(&root)
+            .expect("a writable scratch directory takes a root and an entry");
+
+        assert!(made.is_dir(), "{} was created", made.display());
+        assert_eq!(made.parent(), Some(root.as_path()));
+        assert_eq!(owning_pid(&made), Some(std::process::id()));
+        assert!(orphans(&root).is_empty(), "a live owner's entry is skipped");
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            for dir in [&root, &made] {
+                let mode = std::fs::metadata(dir)
+                    .expect("it exists")
+                    .permissions()
+                    .mode();
+                assert_eq!(mode & 0o777, 0o700, "{} is owner-only", dir.display());
+            }
+        }
+        let other = crate::capability::private_dir(&root).expect("a second entry");
+        assert_ne!(made, other, "each call makes a new directory");
+    }
+
     /// § 4's remaining answers, in one case because they are one rule read from
     /// two sides: a pid no process can hold is dead, and everything this module
     /// did not name is skipped.

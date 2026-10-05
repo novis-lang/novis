@@ -1202,34 +1202,70 @@ pub fn remove_dir(ctx: &Ctx, path: &Path, member: &str) -> Result<(), Fault> {
 /// attempt to create a directory under it failed.
 ///
 pub fn temp_dir(ctx: &mut Ctx, member: &str) -> Result<PathBuf, Fault> {
+    // The snapshot, never the request's overlay — [`temp_root`]'s doc owns why that is the only
+    // tree this may be asked of.
+    let root = temp_root(ctx.config().map(|request| &request.snapshot().config));
+    let path = create_entry(
+        &root,
+        // Asked of the entry rather than of the root, because that is the path the member hands
+        // back (§ 2), and before the root is created, so a program the grant refuses leaves
+        // nothing behind.
+        |path| require(ctx, Cap::FsWrite, Scope::Path(path), member),
+        |path, err| io_failure(member, path, err),
+    )?;
+    ctx.track_temporary_dir(path.clone());
+    Ok(path)
+}
+
+/// A private directory under `root`, named the way [`crate::sweep::orphans`] reads an entry, for a
+/// caller with no [`Ctx`]: the `.nvst` runner and `nvs lsp-test`, which write their cases where
+/// [`temp_root`] says.
+///
+/// The same create [`temp_dir`] runs, without the grant check and without the end-of-script record.
+/// The runner is the operator's own tool rather than a program, so no grant applies, and the caller
+/// deletes the directory itself when it finishes. A run that is killed first leaves it behind under
+/// the owned root, where its dead pid is what `nvs tmp clean` sweeps.
+///
+/// # Errors
+///
+/// The `std::io::Error` of the create that failed, naming its path, when the root could not be
+/// created or every attempt to create a directory under it failed.
+///
+pub fn private_dir(root: &Path) -> std::io::Result<PathBuf> {
+    create_entry(
+        root,
+        |_| Ok(()),
+        |path, err| std::io::Error::new(err.kind(), format!("{}: {err}", path.display())),
+    )
+}
+
+/// The create loop [`temp_dir`] and [`private_dir`] share: `check` is asked of each candidate
+/// before anything is written, the root is created on the first attempt, and a name already taken
+/// is retried with a new one.
+fn create_entry<E>(
+    root: &Path,
+    mut check: impl FnMut(&Path) -> Result<(), E>,
+    fail: impl Fn(&Path, &std::io::Error) -> E,
+) -> Result<PathBuf, E> {
     /// Enough attempts that exhausting them means something other than a collision — a full disk, a
     /// root that is not writable, a temporary directory someone has filled with our names.
     const ATTEMPTS: u32 = 16;
 
-    // The snapshot, never the request's overlay — [`temp_root`]'s doc owns why that is the only
-    // tree this may be asked of.
-    let root = temp_root(ctx.config().map(|request| &request.snapshot().config));
     for attempt in 0..ATTEMPTS {
         let path = root.join(format!("nvs-{}-{:016x}", std::process::id(), nonce()));
-        require(ctx, Cap::FsWrite, Scope::Path(&path), member)?;
+        check(&path)?;
         if attempt == 0 {
-            // After the check and never before it. Creating the root is itself a write, so a
-            // program the grant refuses leaves nothing behind — and the check is asked of the entry
-            // rather than of the root because that is the path the member hands back (§ 2).
-            create_private_root(&root).map_err(|err| io_failure(member, &root, &err))?;
+            // After the check and never before it: creating the root is itself a write.
+            create_private_root(root).map_err(|err| fail(root, &err))?;
         }
         match create_private_dir(&path) {
-            Ok(()) => {
-                ctx.track_temporary_dir(path.clone());
-                return Ok(path);
-            }
+            Ok(()) => return Ok(path),
             Err(err) if err.kind() == std::io::ErrorKind::AlreadyExists => continue,
-            Err(err) => return Err(io_failure(member, &path, &err)),
+            Err(err) => return Err(fail(&path, &err)),
         }
     }
-    Err(io_failure(
-        member,
-        &root,
+    Err(fail(
+        root,
         &std::io::Error::new(
             std::io::ErrorKind::AlreadyExists,
             format!("no unused name after {ATTEMPTS} attempts"),
@@ -1288,7 +1324,7 @@ fn create_private_root(root: &Path) -> std::io::Result<()> {
     private_builder().recursive(true).create(root)
 }
 
-/// [`temp_dir`]'s one create, with the mode applied by the create itself rather than after it.
+/// [`create_entry`]'s one create, with the mode applied by the create itself rather than after it.
 fn create_private_dir(path: &Path) -> std::io::Result<()> {
     private_builder().create(path)
 }
