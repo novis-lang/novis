@@ -1269,7 +1269,12 @@ async function walk(r: Run): Promise<number> {
 
 /** The steps an unnarrowed run walks, in order. */
 export function stepNames(built = true): string[] {
-  return stepsFor({ fast: false, doc: false, full: false, noCache: false, start: false, wait: false, list: false }, noRun, built).map((s) => s.name);
+  return stepCommands(built).map(([name]) => name);
+}
+
+/** Each step an unnarrowed run walks, as its name and the command it starts. */
+export function stepCommands(built = true): [string, string][] {
+  return stepsFor({ fast: false, doc: false, full: false, noCache: false, start: false, wait: false, list: false }, noRun, built).map((s) => [s.name, cmdOf(s)]);
 }
 
 /** What an unnarrowed `bun nv verify` would run over the tree as it stands: each step it would start,
