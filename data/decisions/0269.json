@@ -1,0 +1,9 @@
+{
+  "title": "a file's kind is a plain letter with no colour, because a decoration's colour recolours the file's name",
+  "status": "accepted",
+  "scope": "how the VS Code client draws the kind `nvs/fileKinds` answers. Which files are listed, and\nthe request, stay [0268](0268.md)'s.",
+  "dependsOn": [
+    "0268"
+  ],
+  "validatedBy": "`editors/vscode/test/client/kinds.test.ts`."
+}

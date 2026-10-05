@@ -7,9 +7,9 @@
 // the server and hands the result to the editor. Nothing here imports `vscode`, which is what lets
 // the headless tier hold it without an editor.
 //
-// The colour is a theme colour the editor already has for the same kind of symbol in the Outline
-// and in completion, and never a colour of this extension's own
-// (`rule:ide/novis-ships-names-not-colours`).
+// A badge is one plain letter and carries no colour. A decoration's colour is drawn on the file's
+// name as well as on its badge, so a colour would recolour every name in the list. With no colour
+// the editor draws the letter in the name's own colour, dimmed.
 
 /** The server's own request, spelled where `crates/nvs-lsp/src/file_kinds.rs` spells it. */
 export const METHOD = "nvs/fileKinds";
@@ -23,27 +23,18 @@ export interface FileKind {
   readonly kind: string;
 }
 
-/** What the editor draws for one kind: the letter, the theme colour's id, and the hover text. */
+/** What the editor draws for one kind: the letter, and the hover text. */
 export interface Badge {
   readonly letter: string;
-  readonly color: string;
   readonly tooltip: string;
 }
 
 /** The badge for each kind. */
 export const BADGES: Readonly<Record<Kind, Badge>> = {
-  class: { letter: "C", color: "symbolIcon.classForeground", tooltip: "This file declares a class." },
-  interface: {
-    letter: "I",
-    color: "symbolIcon.interfaceForeground",
-    tooltip: "This file declares an interface.",
-  },
-  enum: { letter: "E", color: "symbolIcon.enumeratorForeground", tooltip: "This file declares an enum." },
-  type: {
-    letter: "T",
-    color: "symbolIcon.typeParameterForeground",
-    tooltip: "This file declares a type alias.",
-  },
+  class: { letter: "C", tooltip: "This file declares a class." },
+  interface: { letter: "I", tooltip: "This file declares an interface." },
+  enum: { letter: "E", tooltip: "This file declares an enum." },
+  type: { letter: "T", tooltip: "This file declares a type alias." },
 };
 
 /** Whether `word` is one of the four kinds. A newer server may answer a word this client does not know. */

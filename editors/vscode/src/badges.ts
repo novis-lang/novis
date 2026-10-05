@@ -15,7 +15,6 @@ import {
   FileDecoration,
   FileDecorationProvider,
   TextDocument,
-  ThemeColor,
   Uri,
   window,
   workspace,
@@ -118,6 +117,6 @@ class Provider implements FileDecorationProvider {
       return undefined;
     }
     const badge = BADGES[found.kind];
-    return new FileDecoration(badge.letter, badge.tooltip, new ThemeColor(badge.color));
+    return new FileDecoration(badge.letter, badge.tooltip);
   }
 }

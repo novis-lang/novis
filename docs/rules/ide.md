@@ -1948,13 +1948,13 @@ the test provider and the command that hands a file to a viewer.
 
 <a id="ide-a-file-shows-what-it-declares"></a>
 
-## A file that declares one class, interface, enum or `type` alias and nothing else shows that kind beside its name, as a file decoration the server's `nvs/fileKinds` feeds and the theme colours
+## A file that declares one class, interface, enum or `type` alias and nothing else shows that kind beside its name as a letter, a file decoration with no colour that the server's `nvs/fileKinds` feeds
 
 `rule:ide/a-file-shows-what-it-declares`
 
 A file whose only declaration is one class, interface, enum or `type` alias, beside nothing but
-`namespace` and `use`, shows that kind in the editor's file list: a letter beside its name — `C`, `I`,
-`E` or `T` — and the theme's colour for that kind of symbol. That is the shape every autoloaded file
+`namespace` and `use`, shows that kind in the editor's file list as a letter beside its name: `C`, `I`,
+`E` or `T`. That is the shape every autoloaded file
 has ([`programs/one-declaration-per-autoloaded-file`](programs.md#programs-one-declaration-per-autoloaded-file)), and `nvs_hir::autoload::sole_declaration` is
 the one scan both the shape check and this list read. A file reached by `require` with the same shape is
 listed as well.
@@ -1962,15 +1962,16 @@ listed as well.
 The server answers `nvs/fileKinds` with every such file its index holds and the kind of each, and the
 VS Code client draws the answer as a file decoration, the editor's own surface for a badge on a file
 ([`ide/the-extension-builds-no-ui-the-editor-already-has`](ide.md#ide-the-extension-builds-no-ui-the-editor-already-has)). The icon is unchanged: an editor picks
-a file's icon from its name and language, never from its content. The colour is the editor's
-`symbolIcon.*Foreground` colour for a class, an interface, an enum or a type parameter, so the theme
-decides it ([`ide/novis-ships-names-not-colours`](ide.md#ide-novis-ships-names-not-colours)).
+a file's icon from its name and language, never from its content. The decoration carries no colour,
+because a decoration's colour is drawn on the file's name too, and a list of recoloured names is
+harder to read than the names alone. With no colour the editor draws the letter in the name's own
+colour, dimmed.
 
 The list is what the index holds. The client asks when a server starts answering, after
 `nvs.checkWorkspace`, and when a Novis document is opened or saved; a file changed outside the editor
 shows its old kind until one of those happens.
 
-<sub>See also [`programs/one-declaration-per-autoloaded-file`](programs.md#programs-one-declaration-per-autoloaded-file), [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed), [`ide/novis-ships-names-not-colours`](ide.md#ide-novis-ships-names-not-colours), [`ide/the-extension-builds-no-ui-the-editor-already-has`](ide.md#ide-the-extension-builds-no-ui-the-editor-already-has), [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients). Decided in [0268](../decisions/0268.md).</sub>
+<sub>See also [`programs/one-declaration-per-autoloaded-file`](programs.md#programs-one-declaration-per-autoloaded-file), [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed), [`ide/novis-ships-names-not-colours`](ide.md#ide-novis-ships-names-not-colours), [`ide/the-extension-builds-no-ui-the-editor-already-has`](ide.md#ide-the-extension-builds-no-ui-the-editor-already-has), [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients). Decided in [0268](../decisions/0268.md), [0269](../decisions/0269.md).</sub>
 
 <a id="ide-the-test-tree-is-discovered-and-run-through-the-cli"></a>
 
