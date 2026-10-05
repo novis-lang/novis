@@ -291,6 +291,19 @@ const KEY_WIDTH: u32 = 255;
 /// next. `run_at` closes the key so the `exists` each name is checked with is a seek too, whatever
 /// index the planner picks. Its build is `Locking` on a live queue for `tag`'s index's reason.
 ///
+/// **`nvs_jobs_purge` is `(queue, id)`, for [`PURGE_POSTGRES`] and its siblings.** A purge batch is
+/// `order by id limit N` within one queue, and its state test is an `or` over a bound value that no
+/// index key can carry, so the only index that serves it is one where `id` follows `queue`
+/// directly: the batch walks the queue from its oldest row and stops at its bound. Without it each
+/// batch sorts every row of the queue, and § 4's drain loop is quadratic in the history it removes.
+/// `a_sqlite_purge_walks_one_queue_in_id_order_without_a_sort` guards the plan.
+///
+/// **Finished jobs are kept until a program purges them, and that is the retention.**
+/// `rule:concurrency/queue-deletion-is-explicit-and-bounded` makes deletion the program's call, and
+/// `stats`'s `attempts` counts every row still in the queue (`rule:concurrency/queue-four-members`),
+/// so [`COUNTS_POSTGRES`] reads every row of its queue by definition. Both are linear in what a
+/// program has left unpurged, and a purge on the program's schedule is what keeps that small.
+///
 /// **What it spends:** two indexed [`KEY_WIDTH`]-wide columns per job row, plus the two documents
 /// `grants` and `limits` hold. `dedupe_pending` is what a partial index costs nothing for —
 /// priority 5 spent to buy one spelling everywhere the queue runs instead of two spellings on two
@@ -299,6 +312,8 @@ const KEY_WIDTH: u32 = 255;
 /// rather than by anything a caller writes, and both are written once and released with the row.
 /// `nvs_jobs_roster` is one more index entry per job row, rewritten by every statement that moves
 /// `state` or `run_at` — a constant per write, bought to make the roster O(queues).
+/// `nvs_jobs_purge` is one more entry per row as well, written once by `push`, since neither of its
+/// columns ever moves.
 ///
 /// Every identifier below is a literal this module wrote, so a refusal from the builders is a bug
 /// in this function rather than bad input, and the `expect` says which.
@@ -354,6 +369,7 @@ pub fn schema() -> nvs_db::Schema {
     .and_then(|table| table.index("nvs_jobs_due", &["queue", "state", "run_at"]))
     .and_then(|table| table.index("nvs_jobs_tag", &["queue", "tag"]))
     .and_then(|table| table.index("nvs_jobs_roster", &["state", "queue", "run_at"]))
+    .and_then(|table| table.index("nvs_jobs_purge", &["queue", "id"]))
     .expect("the jobs table names its own columns in its own keys");
 
     let dead = Table::new(

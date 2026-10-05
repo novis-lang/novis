@@ -225,6 +225,15 @@ session from open to code lenses: 1570 M and 4753 M instructions at 200 and 400 
 764 M, 1492 M and 3007 M at 200, 400 and 800 after. `bun nv scaling lsp/` is flat. It spends
 nothing.
 
+**A `Core\Queue` purge batch walks one queue from its oldest row.** A batch is `order by id limit N`,
+and no index had `id` right after `queue`, so each batch sorted every row of the queue. The
+documented `while (purge(...) > 0)` loop was quadratic in the history it removed. The new index
+`nvs_jobs_purge (queue, id)` lets the batch stop at its bound. SQLite's plan for the batch showed
+`USE TEMP B-TREE FOR ORDER BY` before and seeks `nvs_jobs_purge` with no sort after, and
+`a_sqlite_purge_walks_one_queue_in_id_order_without_a_sort` keeps it so. The clock figure was not
+measured. It spends one index entry per job row, written once by `push`. `stats` still reads every
+row its queue holds, because its `attempts` counts them all; a program's purge is the retention.
+
 ## Decisions for you
 
 **Should a request head get a total deadline as well as its idle one?** `header_timeout` is an idle

@@ -199,8 +199,10 @@ and the wake bell.
 **Found:** a claim sorted the due backlog (fixed: each arm is its own `limit 1`), and the roster
 poll before every round of claims read every due row (fixed: a loose index scan over
 `nvs_jobs_roster`, one seek per queue name).
-Finished jobs stay until purged, and `purge` and `stats` scan them
-([`finished-jobs-are-kept-until-purged`](../../data/gaps/nvs-stdlib/finished-jobs-are-kept-until-purged.json)).
+A purge batch sorted every row of its queue (fixed: `nvs_jobs_purge (queue, id)`).
+
+**Bounded:** `stats` reads every row its queue holds, since its `attempts` counts them all, and
+finished jobs stay until the program purges them.
 
 **Fine:** the bell's waiters are one per idle worker. The dedupe lookup uses its unique index.
 

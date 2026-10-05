@@ -1383,6 +1383,48 @@ fn a_sqlite_roster_seeks_and_never_scans_the_jobs_table() {
     }
 }
 
+/// A purge batch walks one queue's rows in `id` order and stops at its bound,
+/// so the `while (purge(…) > 0)` loop costs what it removes.
+///
+/// A plan that sorted the queue's rows to find the oldest would show a
+/// temporary b-tree here, and each batch would cost the whole finished history.
+#[test]
+fn a_sqlite_purge_walks_one_queue_in_id_order_without_a_sort() {
+    let (worker, _reader) = two_connections("nvs-stdlib-queue-purge-plan");
+    let plan = rows(
+        &worker,
+        &format!("explain query plan {}", queue::PURGE_SQLITE),
+        vec![
+            SqliteValue::Text(String::from(QUEUE)),
+            SqliteValue::Null,
+            SqliteValue::Null,
+            SqliteValue::Null,
+            SqliteValue::Null,
+            SqliteValue::Null,
+            SqliteValue::Null,
+            SqliteValue::Int(100),
+        ],
+    );
+    let details: Vec<String> = plan
+        .iter()
+        .filter_map(|row| match row.get(3) {
+            Some(SqliteValue::Text(detail)) => Some(detail.clone()),
+            _ => None,
+        })
+        .collect();
+
+    assert!(
+        details
+            .iter()
+            .any(|detail| detail.starts_with("SEARCH") && detail.contains("nvs_jobs_purge")),
+        "the selection seeks one queue through `nvs_jobs_purge`: {details:?}"
+    );
+    assert!(
+        !details.iter().any(|detail| detail.contains("TEMP B-TREE")),
+        "nothing is sorted: {details:?}"
+    );
+}
+
 /// The claim's two arms are read apart and its order is still one order: the
 /// earlier `run_at` wins whichever arm holds it, and `id` breaks a tie.
 ///
