@@ -1764,8 +1764,9 @@ const SCHEDULE_POLL: std::time::Duration = std::time::Duration::from_secs(1);
 /// The configuration is the one thing carried on it. A fire's context is built
 /// by the ticker, in a crate that names no configuration at all, so this is the
 /// only side that can put a tree on it — and `rule:config/a-scheduled-run-is-a-root-isolate`
-/// wants the deployment's: `[limits]` for the run's budget and `[capabilities]`
-/// for its grants, which is also what the resolve below is asked under.
+/// wants the script's own: `[limits]` for the run's budget and `[capabilities]`
+/// for its grants, each with the `[[app]]` blocks matching the script folded
+/// over it, which is also what the resolve below is asked under.
 ///
 /// The resolver is not carried. It is installed for the whole run
 /// (`nvs_runtime::script::scoped` below), so a fire reaches the same compiler and
@@ -1784,13 +1785,32 @@ struct Scheduled {
 impl nvs_server::Fires for Scheduled {
     fn isolate(&self, entry: &nvs_server::Armed, ctx: &mut Ctx) -> Option<Isolate> {
         // The fire's context arrives holding no tree, and this is the line that
-        // gives it one. Read out of the holder per fire for the reason the accept
-        // loop reads it per request (`rule:config/the-config-is-an-immutable-snapshot`):
-        // an entry firing nightly runs under what a reload published, and a fire
-        // already in flight keeps the clone it took. It is before the resolve
-        // because `script.spawn` is the first thing that resolve asks for, and a
-        // context holding no configuration grants nothing.
-        ctx.set_config(self.current.load());
+        // gives it one: the snapshot the `[[app]]` blocks matching the entry's
+        // own script fold to, as a request takes its file's (ADR 0271 § 2). Read
+        // out of the holder per fire for the reason the accept loop reads it per
+        // request (`rule:config/the-config-is-an-immutable-snapshot`): an entry
+        // firing nightly runs under what a reload published, and a fire already
+        // in flight keeps the clone it took. It is before the resolve because
+        // `script.spawn` is the first thing that resolve asks for, and a context
+        // holding no configuration grants nothing. A script whose blocks do not
+        // fold is not run, for the reason a request's file is not: the host's
+        // snapshot would hand it grants its own blocks narrowed.
+        let published = self.current.published();
+        let snapshot = match published.entry(
+            std::path::Path::new(entry.script()),
+            &crate::config::LocalFiles,
+        ) {
+            Ok(snapshot) => snapshot,
+            Err(refused) => {
+                eprintln!(
+                    "warning: the scheduled entry `{}` was not run: {}",
+                    entry.name(),
+                    refused.message
+                );
+                return None;
+            }
+        };
+        ctx.set_config(snapshot);
         // Resolved per fire and not once at boot, because `rule:config/an-edit-reaches-the-next-request-without-a-restart`'s unit swap is
         // the point: an entry that fires nightly picks up an edited script at the
         // next fire, exactly as a request picks it up at the next request. What
@@ -1819,11 +1839,12 @@ impl nvs_server::Fires for Scheduled {
         // continue and nothing but `[trace] sample` to decide it
         // (`rule:observability/sampling-is-head-based`). Every fire roots a
         // trace of its own — two runs of one entry are two units of work — and
-        // the rate is read off the same snapshot the run is made under, so a
-        // reload that changes it reaches the next fire.
+        // the rate is read off the host's snapshot of the publish the run is
+        // made under, since `[trace]` is process-wide, so a reload that changes
+        // it reaches the next fire.
         Some(Isolate::new(program, args, Output::Capture).recording(
             nvs_runtime::TraceContext::rooted(nvs_config::export::head_sample(
-                &self.current.load().config,
+                &published.host().config,
             )),
         ))
     }
@@ -3085,6 +3106,91 @@ mod tests {
             after.is_some(),
             "the next fire after a reload ran under the tree the boot resolved rather than the \
              one the reload published"
+        );
+    }
+
+    /// A fire runs under the snapshot the `[[app]]` blocks matching its own
+    /// script fold to (ADR 0271 § 2), out of the publish the holder serves.
+    ///
+    /// Two entries under one tree that grants `script.spawn` over both scripts:
+    /// the script whose block narrows `[app.limits] memory` gets an isolate held
+    /// to that block's budget, and the script whose block narrows `script.spawn`
+    /// to the other directory is refused at the door. A fire run under the
+    /// host's snapshot runs both at the global `512M`.
+    #[test]
+    fn a_scheduled_script_runs_under_its_own_app_blocks() {
+        let dir = nvs_repo::scratch("serve-fire-app-blocks");
+        let root = nvs_config::trust::canonical(&dir).expect("the case's directory is there");
+        for script in ["jobs/nightly.nvs", "other/nightly.nvs"] {
+            let path = root.join(script);
+            std::fs::create_dir_all(path.parent().expect("a script in the case's directory"))
+                .expect("a scratch directory of this case's own");
+            std::fs::write(&path, b"<?php\n").expect("the case writes its own script");
+        }
+        let toml = root.join("nvs.toml");
+        let jobs = root.join("jobs");
+        std::fs::write(
+            &toml,
+            format!(
+                "[limits]\nmemory = '512M'\n\n[capabilities]\nscript.spawn = ['{}']\n\n\
+                 [[schedule]]\nname = 'granted'\ncron = '0 3 * * *'\nscript = \
+                 'jobs/nightly.nvs'\nscope = 'host'\n\n\
+                 [[schedule]]\nname = 'ungranted'\ncron = '0 3 * * *'\nscript = \
+                 'other/nightly.nvs'\nscope = 'host'\n\n\
+                 [[app]]\nroot = 'jobs'\n\n[app.limits]\nmemory = '256M'\n\n\
+                 [[app]]\nroot = 'other'\n\n[app.capabilities]\nscript.spawn = ['{}']\n",
+                root.display(),
+                jobs.display()
+            ),
+        )
+        .expect("a tree of this case's own");
+        let mut sources = nvs_diagnostics::SourceMap::new();
+        let (host, blocks, _) = crate::config::boot_set(
+            std::slice::from_ref(&toml),
+            &mut sources,
+            crate::config::Init::Never,
+        )
+        .expect("the tree this case wrote resolves");
+        let armed = nvs_server::arm(&host.config.schedule, &super::Zoned::now(), None, |note| {
+            panic!("a `scope = \"host\"` entry needs no lease and was not armed: {note}")
+        });
+        let named = |name: &str| {
+            armed
+                .iter()
+                .find(|entry| entry.name() == name)
+                .unwrap_or_else(|| panic!("the case wrote an entry named `{name}`"))
+        };
+        let published = nvs_config::Published::new(host, blocks, &[], &crate::config::LocalFiles)
+            .expect("the case's one block folds");
+        let fires = super::Scheduled {
+            current: Arc::new(nvs_config::Current::of(published)),
+        };
+
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let built = nvs_runtime::script::scoped(&Compiles, || {
+            nvs_server::Fires::isolate(&fires, named("granted"), &mut ctx)
+        });
+        assert!(
+            built.is_some(),
+            "the fire did not carry the `script.spawn` grant its deployment wrote"
+        );
+        // The block's ceiling less the tier-1 handler's reserve, as the
+        // deployment-wide case above bands it.
+        let ceiling = 256 * 1024 * 1024;
+        let held = ctx.memory_limit();
+        assert!(
+            held > 0 && held <= ceiling && ceiling - held <= ceiling / 4,
+            "a fire is charged against its script's `[app.limits] memory = '256M'`, and this one \
+             was held to {held} byte(s)"
+        );
+
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let refused = nvs_runtime::script::scoped(&Compiles, || {
+            nvs_server::Fires::isolate(&fires, named("ungranted"), &mut ctx)
+        });
+        assert!(
+            refused.is_none(),
+            "a script whose own block narrows `script.spawn` away from it ran under the host's grant"
         );
     }
 

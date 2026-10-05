@@ -4,10 +4,16 @@ is the root isolate of a request tree, and a scheduled fire is a **second root**
 `Isolate` code path, on a task of its own so that a run taking an hour is not why the next minute's
 entry is late. Everything downstream follows with nothing added:
 
-- Its budget is `[limits]`, capped by `[limits.hard]`. A run that exceeds it is a `FATAL` handled by
-  `rule:errors/escalation-ladder`'s ladder, which is why a runaway nightly job cannot take the serving
-  cores with it.
-- Its grants are the deployment's `[capabilities]`.
+- It runs under its script's own snapshot: the `[[app]]` blocks that match the script file, folded
+  over the global tree (`rule:config/every-matching-app-block-applies-least-specific-first`), out of
+  the publish serving when it fires. A script no block matches runs under the global tree, and one
+  whose blocks do not fold is not run. This is the snapshot a request running that file would get.
+- Its budget is that snapshot's `[limits]`, capped by `[limits.hard]`. A run that exceeds it is a
+  `FATAL` handled by `rule:errors/escalation-ladder`'s ladder, which is why a runaway nightly job
+  cannot take the serving cores with it.
+- Its grants are that snapshot's `[capabilities]`. The script must still lie under the global
+  `script.spawn` roots for the configuration to resolve (`E0611`), so a block can narrow what a
+  fire may do and never makes a script schedulable.
 - The script receives its entry's `name` through `Core\Script::args()`
   (`rule:core-classes/script-args`) and answers with a top-level `return`, exactly as any `spawn
   script` target does. There is no scheduler-specific accessor.
