@@ -1,0 +1,36 @@
+{
+  "state": "**Side goal `one-temp-root` is written and nothing of it is built yet.** `NOT_YET_MOVED` in `crates/nvs-repo/tests/scratch.rs` still names the test sites `test-scratch-and-hover` left, eight of them Unix sockets. `nvs lsp-test` and the `.nvst` runner create a guessable folder in the system temp directory. The goal's prose has the measured starting point and the user's calls from 2026-10-05.",
+  "next": {
+    "stage": 2,
+    "title": "every test writes under `target/`, sockets included",
+    "files": [
+      "crates/nvs-repo/src/lib.rs",
+      "crates/nvs-repo/tests/scratch.rs",
+      "crates/nvs-config/tests/control.rs",
+      "crates/nvs-server/src/serve.rs",
+      "crates/nvs-host/src/net.rs",
+      "crates/nvs-cli/src/ctl.rs",
+      "crates/nvs-cli/src/serve.rs",
+      "crates/nvs-server/src/control.rs"
+    ],
+    "items": [
+      {
+        "done": false,
+        "text": "**`nvs_repo::socket` and its two tests**, an absolute path under `target/test-scratch/` that stops with the limit named when it is too long. Anchor: `crates/nvs-repo/src/lib.rs:222`."
+      },
+      {
+        "done": false,
+        "text": "**Move the eight socket sites and fold the three hand-written socket helpers into it**, lowering each `NOT_YET_MOVED` row in the same commit. Anchors: `crates/nvs-config/tests/control.rs:49`, `crates/nvs-server/src/serve.rs:8086`, `crates/nvs-host/src/net.rs:2662`, `crates/nvs-cli/src/ctl.rs:460`, `crates/nvs-cli/src/serve.rs:3894`, `crates/nvs-server/src/control.rs:489`."
+      },
+      {
+        "done": false,
+        "text": "**Move the other sites** (`nvs-stdlib`, `nvs-db`, `nvs-host/src/tls.rs`, `nvs-footprint`, `nvs-test/src/run.rs`) until `NOT_YET_MOVED` is gone, and delete `data/gaps/nvs-repo/some-test-code-still-writes-into-the-system-temp-dir.json`. Anchor: `crates/nvs-repo/tests/scratch.rs:18`."
+      },
+      {
+        "done": false,
+        "text": "**The `icacls` test gives this account its rights back from a guard's `Drop`**, so its folder is deleted even when it fails. Anchor: `crates/nvs-cli/tests/init.rs:466`."
+      }
+    ]
+  },
+  "backlog": []
+}
