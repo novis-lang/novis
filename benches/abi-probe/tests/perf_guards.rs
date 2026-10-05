@@ -1562,18 +1562,17 @@ fn a_cpu_bound_fan_out_across_four_worker_cores_is_near_linear_by_the_margin_thi
 }
 
 // ---------------------------------------------------------------------------
-// `rule:routing/path-grammar`'s trie, priced against the walk standing in for it
+// `rule:routing/path-grammar`'s match, priced per row of the table it is asked of
 // ---------------------------------------------------------------------------
 
-/// One row of a route table costs a small enough slice of a request that
-/// replacing the walk with a trie would buy nothing measurable.
+/// The length of a route table does not show in a request matched against it.
 ///
-/// `nvs_runtime::routes` compares against every row of the right verb, so its
-/// cost grows with the table rather than with the path. What decides whether
-/// that matters is not the per-row figure on its own but the figure times the
-/// rows an application declares, against what serving a request costs —
-/// `benches/serve-proxied.json`'s `nvs-serve-direct` arm, which is where the
-/// denominator lives and the only place it is written down.
+/// `nvs_runtime::routes` descends a trie over the rows' fixed prefixes and
+/// compares the request only against the rows sharing its own, so the slope
+/// between two table sizes is close to nothing. The bound is the one the
+/// linear walk the trie replaced was held to, so a figure past it means the
+/// match visits rows outside the request's prefix again, or a row began to
+/// allocate or convert before it has matched.
 ///
 /// The slope between two table sizes is what is measured, so the split of the
 /// path and the capture the answer carries — both per request and neither per
@@ -1584,9 +1583,7 @@ fn a_cpu_bound_fan_out_across_four_worker_cores_is_near_linear_by_the_margin_thi
 fn a_route_table_walk_costs_a_fraction_of_the_request_it_rides_in() {
     let _quiet = serialised();
 
-    // A figure past the hard bound is a row that began to allocate or to
-    // convert before it has matched, which is what would make the table's
-    // length start to show in a request.
+    // A figure past the hard bound is the table's length showing in a request.
     const PER_ROW: Bound = Bound::time_under(30.0, 300.0);
 
     let (method, path) = routes::REQUEST;
@@ -1596,8 +1593,8 @@ fn a_route_table_walk_costs_a_fraction_of_the_request_it_rides_in() {
     judge(
         "route walk",
         PER_ROW,
-        "The linear walk is kept in place because the table's length does not show in a \
-         request; if this is a real regression, that argument is the one to revisit.",
+        "The match should visit only the rows sharing the request's fixed prefix; a table's \
+         length showing in a request means the prefix trie in nvs_runtime::routes is bypassed.",
         |yard| {
             let t_small = ns_per_op(200_000, 5, || {
                 black_box(small.match_request(black_box(method), black_box(path)));

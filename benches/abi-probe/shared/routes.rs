@@ -16,10 +16,10 @@
 //! The rows are shaped like an application's rather than minimally: three
 //! shapes in rotation — a literal-only admin path, an `{id}` API path and a
 //! `{slug}` edit path — under the four verbs a table is declared with, and
-//! every path sharing a prefix with its neighbours. That is what decides where
-//! [`nvs_runtime::routes::Routes::match_request`]'s per-row work stops, so a
-//! table of distinct first segments would price the walk lower than any real
-//! one.
+//! every path sharing a first segment with its neighbours. That is what decides
+//! how far [`nvs_runtime::routes::Routes::match_request`]'s prefix trie
+//! descends before it narrows to one row, so a table of distinct first segments
+//! would price the match lower than any real one.
 
 use nvs_runtime::routes::{Capture, CaptureConv, Route, Routes};
 
@@ -27,10 +27,8 @@ use nvs_runtime::routes::{Capture, CaptureConv, Route, Routes};
 /// `{id}` row of `resource4`, which [`table`] declares `Get` at any size it is
 /// asked for.
 ///
-/// One row matches it and the walk visits all of them regardless — the match
-/// is the smallest rank in the whole table, not the first fill — so where in
-/// load order the answer sits changes nothing, and the same pair against two
-/// table sizes is what makes the slope between them a per-row figure.
+/// One row matches it, and the same pair against two table sizes is what makes
+/// the slope between them the cost of one more row to a request.
 pub(crate) const REQUEST: (&str, &str) = ("GET", "/api/resource4/42");
 
 /// A table of `rows` rows, in the load order a compiler emits.

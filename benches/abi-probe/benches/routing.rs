@@ -1,23 +1,20 @@
 //! What `rule:routing/matched-once-before-the-handler`'s match costs, and how
 //! that cost grows with the table.
 //!
-//! [`nvs_runtime::routes::Routes::match_request`] compares the request against
-//! every row of the right verb rather than descending a trie, so the question
-//! the arms below answer is not "how fast is a match" but **how much of a
-//! request one row of the table is worth**. `rule:routing/path-grammar` names
-//! `matchit`'s precedence as the model, and a trie is the shape that model is
-//! usually grown out of; whether it is worth building here is decided by the
-//! slope, against the ~27 µs of one core that `benches/serve-proxied.json`'s
-//! `nvs-serve-direct` arm spends serving a whole request.
+//! [`nvs_runtime::routes::Routes::match_request`] descends a trie over the
+//! rows' fixed prefixes and compares the request only against the rows sharing
+//! its own, so the question the arms below answer is **whether the table's
+//! length shows in a match at all**. The module doc of `nvs_runtime::routes`
+//! owns the trie and why precedence survives it.
 //!
 //! * `match_request/hit/8`, `/64`, `/512` — the same request against tables
-//!   that differ only in how many rows it walks past. The **slope** between
-//!   them is the per-row figure; the intercept is what a match costs whatever
-//!   the table size, which is one `Vec<&str>` split of the path plus the
+//!   that differ only in how many rows they hold. The **slope** between them
+//!   is what one more row costs a request, and is close to nothing; the
+//!   intercept is one `Vec<&str>` split of the path, the trie descent and the
 //!   capture the answer carries.
-//! * `match_request/miss/512` — the walk that answers `None`, which is the
-//!   `404`'s first half and the same shape with no row ever filling. It is the
-//!   arm a trie would improve least: a miss reaches no leaf either way.
+//! * `match_request/miss/512` — a match that answers `None`, which is the
+//!   `404`'s first half: the descent stops at the first piece no row's prefix
+//!   names.
 //!
 //! The table is `shared/routes.rs`', and that module's doc owns why its rows
 //! share prefixes rather than being cheap to tell apart.

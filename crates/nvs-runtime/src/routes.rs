@@ -78,27 +78,40 @@
 //! of that rule, including what a capture whose octets are not UTF-8 becomes. A
 //! `uint` capture is unaffected either way: no digit has an encoded spelling.
 //!
-//! # The walk is a comparison over every row, and stays one
+//! # A trie picks the candidates, and the rank still picks the winner
 //!
-//! [`Routes::match_request`] compares the request against every row of the
-//! right verb rather than descending a trie, so what it costs grows with the
-//! **table** rather than with the path. That is a stated bound, not a gap. A
-//! row is a verb comparison, and for the rows that survive one, a fixed
-//! segment or two before [`Route::fill`] gives up — cheap enough that the
-//! length of a table an application declares does not show in the request it
-//! rides inside, which is what a trie would have to beat to be worth the
-//! precedence rule it would have to re-derive.
+//! [`Routes::match_request`] does not visit every row. The table keeps a trie
+//! keyed by each row's **leading fixed segments**, built once in
+//! [`Routes::new`]: a row hangs off the node its fixed prefix ends at, which is
+//! the depth of its first capture, or its full length where it has none. A
+//! request descends that trie one piece at a time and collects the rows hung
+//! along the way — exactly the rows whose fixed prefix equals the request's
+//! own — and only those reach the verb comparison and [`Route::fill`]. So what
+//! a match costs grows with the path and with the rows sharing its prefix,
+//! not with the table.
 //!
-//! The figure lives in `benches/abi-probe/benches/routing.rs`, which walks
-//! tables differing only in how many rows they hold so that the slope between
-//! them is the per-row cost and the split of the path cancels out. The guard
-//! beside it in `benches/abi-probe/tests/perf_guards.rs` fails a build when a
-//! row leaves that cost class, and `benches/serve-proxied.json`'s
-//! `nvs-serve-direct` arm is the request the cost is a share of. What would
-//! overturn this is a row that allocates or converts before it has matched —
-//! which is what the guard watches — or a table orders of magnitude past what
-//! a program declares.
+//! The trie is a filter and nothing more. Every row a request could fill is a
+//! candidate, because a fixed segment that is not the request's piece at that
+//! depth is one `fill` would refuse; and the candidates are visited in load
+//! order, so the smallest rank and its load-order tie-break are the same
+//! comparison over the same rows that win it. Precedence is not re-derived
+//! out of the trie's shape, which is why the trie needs no wildcard edges.
+//!
+//! What stays linear is a table whose rows begin with a capture — `/{lang}/…`
+//! on every row hangs every row off the root — which is the walk this
+//! replaced, and no slower than it.
+//!
+//! **What it spends:** one node per distinct fixed prefix plus one index per
+//! row, built once per table and shared by every request that carries it; and
+//! per request one `Vec` of candidate indexes, sorted back into load order.
+//!
+//! The figure lives in `benches/abi-probe/benches/routing.rs`, which matches
+//! one request against tables differing only in how many rows they hold, and
+//! the guard beside it in `benches/abi-probe/tests/perf_guards.rs` fails a
+//! build when that table size starts to show. `benches/scaling/request/routes.nvs`
+//! is the same question asked of a served program.
 
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::decimal::Decimal;
@@ -560,6 +573,33 @@ fn segments_of(path: &str) -> Vec<Seg> {
         .collect()
 }
 
+/// One node of the module doc's trie: the rows whose fixed prefix ends here,
+/// and the nodes one fixed segment further on.
+///
+/// A node at depth `d` stands for the request's first `d` pieces. A row whose
+/// segments before `d` are all [`Seg::Fixed`] has consumed exactly one piece
+/// each to get here, so its segment `d` — a capture, or nothing — is compared
+/// against piece `d` by [`Route::fill`] with no offset to account for.
+#[derive(Clone, Debug, Default)]
+struct Prefix {
+    here: Vec<usize>,
+    next: HashMap<String, Prefix>,
+}
+
+impl Prefix {
+    /// Hangs row `index` off the node its leading fixed segments lead to.
+    fn insert(&mut self, segments: &[Seg], index: usize) {
+        let mut node = self;
+        for segment in segments {
+            let Seg::Fixed(text) = segment else {
+                break;
+            };
+            node = node.next.entry(text.clone()).or_default();
+        }
+        node.here.push(index);
+    }
+}
+
 /// § 1's match: the row the request selected, and the captures it filled.
 ///
 /// It holds the row rather than a copy of its fields — one atomic bump against
@@ -609,10 +649,14 @@ impl Match {
 /// A `Vec` rather than a map, which is the compiler-side table's shape and its
 /// reason: a path key is a *shape* rather than the written text, so nothing
 /// could be looked up by one. Order is also what breaks a precedence tie —
-/// [`Self::match_request`] takes the first row of the best rank.
+/// [`Self::match_request`] takes the first row of the best rank. Beside it, the
+/// module doc's trie over the rows' fixed prefixes, which only narrows which
+/// rows that comparison visits.
 #[derive(Clone, Debug, Default)]
 pub struct Routes {
     rows: Vec<Arc<Route>>,
+    /// The rows by their leading fixed segments, as indexes into `rows`.
+    prefixes: Prefix,
     /// Whether the unit that declared these rows also **links** to one
     /// absolutely — [`Self::absolute_links`], and the one fact here that is
     /// about the calls rather than about the declarations.
@@ -623,10 +667,32 @@ impl Routes {
     /// The table holding `rows`, in load order.
     #[must_use]
     pub fn new(rows: Vec<Route>) -> Self {
+        let mut prefixes = Prefix::default();
+        for (index, row) in rows.iter().enumerate() {
+            prefixes.insert(&row.segments, index);
+        }
         Self {
             rows: rows.into_iter().map(Arc::new).collect(),
+            prefixes,
             absolute_links: false,
         }
+    }
+
+    /// Every row whose leading fixed segments are `request`'s own, as indexes
+    /// in load order — the only rows [`Route::fill`] could fill.
+    fn candidates(&self, request: &[&str]) -> Vec<usize> {
+        let mut found: Vec<usize> = Vec::new();
+        let mut node = &self.prefixes;
+        let mut pieces = request.iter();
+        loop {
+            found.extend_from_slice(&node.here);
+            let Some(next) = pieces.next().and_then(|piece| node.next.get(*piece)) else {
+                break;
+            };
+            node = next;
+        }
+        found.sort_unstable();
+        found
     }
 
     /// The same table, declared by a unit that builds an absolute link.
@@ -679,7 +745,8 @@ impl Routes {
         };
         let request: Vec<&str> = path.split('/').collect();
         let mut best: Option<(&Vec<u8>, Match)> = None;
-        for row in &self.rows {
+        for index in self.candidates(&request) {
+            let row = &self.rows[index];
             if !row.verb.eq_ignore_ascii_case(verb) {
                 continue;
             }
@@ -733,7 +800,8 @@ impl Routes {
     pub fn methods_for(&self, path: &str) -> Vec<&str> {
         let request: Vec<&str> = path.split('/').collect();
         let mut verbs: Vec<&str> = Vec::new();
-        for row in &self.rows {
+        for index in self.candidates(&request) {
+            let row = &self.rows[index];
             if row.fill(&request).is_none() {
                 continue;
             }
@@ -806,6 +874,63 @@ mod tests {
                 }],
             ),
         ])
+    }
+
+    /// Rows hung at different depths of the prefix trie still compete on rank
+    /// and then on load order, as one comparison over every row would have it.
+    #[test]
+    fn the_prefix_trie_keeps_precedence_across_its_depths() {
+        let text = |name: &str| Capture {
+            name: name.to_owned(),
+            conv: CaptureConv::Text,
+        };
+        let routes = Routes::new(vec![
+            super::Route::new(
+                "Get",
+                "/{lang}/posts",
+                None,
+                "A::lang",
+                None,
+                vec![text("lang")],
+            ),
+            super::Route::new(
+                "Get",
+                "/en/{page}",
+                None,
+                "A::page",
+                None,
+                vec![text("page")],
+            ),
+            super::Route::new(
+                "Get",
+                "/en/{slug}",
+                None,
+                "A::slug",
+                None,
+                vec![text("slug")],
+            ),
+            super::Route::new(
+                "Get",
+                "/{rest...}",
+                None,
+                "A::rest",
+                None,
+                vec![text("rest")],
+            ),
+        ]);
+        let handler = |path: &str| {
+            routes
+                .match_request("GET", path)
+                .map(|matched| matched.route().handler().to_owned())
+        };
+        // `/en/{page}` has its fixed segment earlier than `/{lang}/posts`.
+        assert_eq!(handler("/en/posts").as_deref(), Some("A::page"));
+        // A tie in rank goes to the row loaded first.
+        assert_eq!(handler("/en/hello").as_deref(), Some("A::page"));
+        // A row hung off the root still matches a request no fixed row claims.
+        assert_eq!(handler("/de/posts").as_deref(), Some("A::lang"));
+        assert_eq!(handler("/de/x/y").as_deref(), Some("A::rest"));
+        assert_eq!(routes.methods_for("/en/posts"), vec!["Get"]);
     }
 
     /// § 2's forms each match what they claim, and the verb selects among
