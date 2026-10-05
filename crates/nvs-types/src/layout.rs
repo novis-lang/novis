@@ -45,7 +45,7 @@
 use nvs_diagnostics::SourceFile;
 use nvs_hir::{ClassGraph, QName};
 use nvs_syntax::ast::{ClassMemberKind, Modifier, NamespaceDecl, PropertyMember, Stmt, StmtKind};
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::consts::ConstValue;
 use crate::span_text;
@@ -491,8 +491,7 @@ pub fn build_class_layouts(
     let mut table = ClassLayoutTable::default();
     for qname in own.keys() {
         let mut slots = Vec::new();
-        let mut seen = Vec::new();
-        flatten_fields(qname, graph, &own, &mut slots, &mut seen);
+        flatten_fields(qname, graph, &own, &mut slots, &mut Seen::default());
         let mut fields = Vec::with_capacity(slots.len());
         let mut public_fields = Vec::with_capacity(slots.len());
         let mut protected_fields = Vec::with_capacity(slots.len());
@@ -509,21 +508,24 @@ pub fn build_class_layouts(
         collect_conforms(qname, graph, &mut conforms, &mut visited);
 
         let mut methods = Vec::new();
-        let mut walked = Vec::new();
-        flatten_methods(qname, graph, &own_methods, &mut methods, &mut walked);
+        flatten_methods(
+            qname,
+            graph,
+            &own_methods,
+            &mut methods,
+            &mut Seen::default(),
+        );
 
         let mut hooks = Vec::new();
-        let mut hook_walked = Vec::new();
-        flatten_hooks(qname, graph, &own_hooks, &mut hooks, &mut hook_walked);
+        flatten_hooks(qname, graph, &own_hooks, &mut hooks, &mut Seen::default());
 
         let mut constants = Vec::new();
-        let mut const_walked = Vec::new();
         flatten_constants(
             qname,
             graph,
             &own_constants,
             &mut constants,
-            &mut const_walked,
+            &mut Seen::default(),
         );
 
         table.by_label.insert(
@@ -820,20 +822,19 @@ fn push_attributes(
 /// answers with its own value, and `Foo::BAR` in source resolves the same way
 /// (`crate::consts::ConstTable::get`'s ancestor walk, which this mirrors so
 /// the two never disagree about which declaration won).
-fn flatten_constants(
-    qname: &QName,
-    graph: &ClassGraph,
-    own: &FxHashMap<QName, Vec<ClassConstant>>,
+fn flatten_constants<'a>(
+    qname: &'a QName,
+    graph: &'a ClassGraph,
+    own: &'a FxHashMap<QName, Vec<ClassConstant>>,
     constants: &mut Vec<ClassConstant>,
-    walked: &mut Vec<QName>,
+    seen: &mut Seen<'a>,
 ) {
-    if walked.contains(qname) {
+    if !seen.classes.insert(qname) {
         return;
     }
-    walked.push(qname.clone());
     if let Some(declared) = own.get(qname) {
         for constant in declared {
-            if !constants.iter().any(|have| have.name == constant.name) {
+            if seen.names.insert((constant.name.as_str(), false)) {
                 constants.push(constant.clone());
             }
         }
@@ -842,8 +843,24 @@ fn flatten_constants(
         return;
     };
     for parent in links.extends.iter().chain(links.implements.iter()) {
-        flatten_constants(parent, graph, own, constants, walked);
+        flatten_constants(parent, graph, own, constants, seen);
     }
+}
+
+/// What one class's flattening walk has already taken: the classes it has
+/// entered, which guards the cyclic `extends` the hierarchy pass has already
+/// diagnosed, and the names it has collected, so the first declaration of a
+/// name wins. A name is paired with a bit that only [`flatten_hooks`] sets,
+/// because a hook is keyed on its property and its accessor together.
+///
+/// Both are sets, so a class of many members flattens in time linear in the
+/// layout it ends up with. Each class still walks its own ancestors: its
+/// layout is a full copy of everything it inherits, so reusing a parent's
+/// layout would save a constant factor and nothing more.
+#[derive(Default)]
+struct Seen<'a> {
+    classes: FxHashSet<&'a QName>,
+    names: FxHashSet<(&'a str, bool)>,
 }
 
 /// Whether `modifiers` leave the member they decorate readable from outside its
@@ -940,18 +957,17 @@ fn is_static(p: &PropertyMember) -> bool {
 }
 
 /// Appends `qname`'s slots to `fields`: its superclass chain's first, then its
-/// own. `seen` guards a cyclic `extends` the hierarchy pass already diagnosed.
-fn flatten_fields(
-    qname: &QName,
-    graph: &ClassGraph,
-    own: &FxHashMap<QName, Vec<(String, bool, bool, String)>>,
+/// own, each name once ([`Seen`]).
+fn flatten_fields<'a>(
+    qname: &'a QName,
+    graph: &'a ClassGraph,
+    own: &'a FxHashMap<QName, Vec<(String, bool, bool, String)>>,
     fields: &mut Vec<(String, bool, bool, String)>,
-    seen: &mut Vec<QName>,
+    seen: &mut Seen<'a>,
 ) {
-    if seen.contains(qname) {
+    if !seen.classes.insert(qname) {
         return;
     }
-    seen.push(qname.clone());
     // A class has at most one `extends`; an interface may list several, and
     // none of them contributes a slot, so taking the whole list is correct for
     // both without a kind check.
@@ -971,7 +987,7 @@ fn flatten_fields(
             // narrower one is the safe direction for a question `rule:security/reflection-enforces-visibility`
             // makes a privilege check, and its declared type is the slot's for
             // the same reason: one field, one type.
-            if !fields.iter().any(|(held, _, _, _)| *held == slot.0) {
+            if seen.names.insert((slot.0.as_str(), false)) {
                 fields.push(slot.clone());
             }
         }
@@ -986,23 +1002,21 @@ fn flatten_fields(
 /// overrides, and it carries that declaration's own visibility and parameter
 /// spellings with it.
 ///
-/// `walked` guards the cyclic `extends` the hierarchy pass has already
-/// diagnosed, exactly like [`flatten_fields`]' own `seen`.
-fn flatten_methods(
-    qname: &QName,
-    graph: &ClassGraph,
-    own: &OwnMethods,
+/// `seen` is [`Seen`], as in [`flatten_fields`].
+fn flatten_methods<'a>(
+    qname: &'a QName,
+    graph: &'a ClassGraph,
+    own: &'a OwnMethods,
     methods: &mut Vec<MethodEntry>,
-    walked: &mut Vec<QName>,
+    seen: &mut Seen<'a>,
 ) {
-    if walked.contains(qname) {
+    if !seen.classes.insert(qname) {
         return;
     }
-    walked.push(qname.clone());
     let label = qname.to_string();
     if let Some(names) = own.get(qname) {
         for (name, public, protected, params, param_types) in names {
-            if !methods.iter().any(|(have, _, _, _, _, _)| have == name) {
+            if seen.names.insert((name.as_str(), false)) {
                 methods.push((
                     name.clone(),
                     label.clone(),
@@ -1020,7 +1034,7 @@ fn flatten_methods(
     // `extends` before `implements`: a superclass's concrete method beats an
     // interface default of the same name (`rule:classes/interface-default-methods`'s conflict rule).
     for parent in links.extends.iter().chain(links.implements.iter()) {
-        flatten_methods(parent, graph, own, methods, walked);
+        flatten_methods(parent, graph, own, methods, seen);
     }
 }
 
@@ -1032,23 +1046,19 @@ fn flatten_methods(
 /// class that hooks only the `set` of a property its superclass hooks both
 /// accessors of answers its own `set` and the inherited `get`, which is what
 /// overriding one accessor means.
-fn flatten_hooks(
-    qname: &QName,
-    graph: &ClassGraph,
-    own: &FxHashMap<QName, Vec<(String, String, bool)>>,
+fn flatten_hooks<'a>(
+    qname: &'a QName,
+    graph: &'a ClassGraph,
+    own: &'a FxHashMap<QName, Vec<(String, String, bool)>>,
     hooks: &mut Vec<(String, String, bool)>,
-    walked: &mut Vec<QName>,
+    seen: &mut Seen<'a>,
 ) {
-    if walked.contains(qname) {
+    if !seen.classes.insert(qname) {
         return;
     }
-    walked.push(qname.clone());
     if let Some(declared) = own.get(qname) {
         for (property, label, set) in declared {
-            if !hooks
-                .iter()
-                .any(|(have, _, kind)| have == property && kind == set)
-            {
+            if seen.names.insert((property.as_str(), *set)) {
                 hooks.push((property.clone(), label.clone(), *set));
             }
         }
@@ -1057,7 +1067,7 @@ fn flatten_hooks(
         return;
     };
     for parent in links.extends.iter().chain(links.implements.iter()) {
-        flatten_hooks(parent, graph, own, hooks, walked);
+        flatten_hooks(parent, graph, own, hooks, seen);
     }
 }
 

@@ -1,0 +1,28 @@
+<?nvs
+// Prints a program with one class of n methods, n constants and n properties, and a subclass of it, as a large model class has.
+// scaling: kind compile
+// scaling: start 50
+// scaling: max 1600
+// scaling: expect linear
+
+class Bench {
+    public static function run(uint $size): string {
+        array<string> $lines = ["<?nvs", "class Model {"];
+        uint $i = 0;
+        while ($i < $size) {
+            $lines[] = "    public const int LIMIT{$i} = {$i};";
+            $lines[] = "    public int \$field{$i} = {$i};";
+            $lines[] = "    public function get{$i}(): int { return \$this->field{$i} + self::LIMIT{$i}; }";
+            $i = $i + 1;
+        }
+        $lines[] = "}";
+        $lines[] = "class Product extends Model {";
+        $lines[] = "    public function get0(): int { return 1; }";
+        $lines[] = "}";
+        $lines[] = "Product \$p = new Product();";
+        $lines[] = "echo \$p->get0() + \$p->get" . ($size - 1) . "(), \"\\n\";";
+        return Core\Str::join($lines, "\n") . "\n";
+    }
+}
+
+echo Bench::run(50);

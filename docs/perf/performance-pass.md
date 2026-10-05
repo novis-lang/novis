@@ -95,6 +95,17 @@ optimizer probably removed it, but that was not checked. The fix makes the copy 
 rather than relying on the optimizer. A unit test in the module covers the message that cannot be
 promoted. It spends nothing.
 
+**Flattening a class collects each inherited name once.** Building a class's methods, constants,
+fields and hooks checked every name against all the names collected so far, so a class of M members
+cost O(M²) to compile. A name-keyed set now does that check. The ladder
+[`compiler/members`](../../benches/scaling/compiler/members.nvs) declares one class of n methods, n
+constants and n properties and a subclass of it. Its counts are flat before and after, because they
+do not see the type checker's own work. On the clock, `nvs check` of 4000 members went from 234 ms
+to 122 ms, and of 16000 from 1726 ms to 435 ms, best of three alternating runs. Each class still
+walks its own ancestors rather than reusing its parent's layout: the layout is a full copy of what it
+inherits, so reuse would save a constant factor. It spends one set of borrowed names per class while
+it is built.
+
 ## Decisions for you
 
 **Should a request head get a total deadline as well as its idle one?** `header_timeout` is an idle
