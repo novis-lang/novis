@@ -32,7 +32,8 @@
 // `iterations N` as one integer literal, or whose N is too small to ramp, is skipped and named.
 // `--sized` also fails a flat bench whose N is more than twice the batch its ramp settled at, the last
 // batch or callgrind's threshold (`oversized`), since N is the ramp's cap and nothing past it is needed.
-// A bench whose ramp does not settle keeps its N. `--lower` rewrites an oversized bench's N to twice
+// The batch a ramp settles at moves between runs, so a bench found oversized is ramped a second time and
+// fails only when that ramp finds it oversized too. A bench whose ramp does not settle keeps its N. `--lower` rewrites an oversized bench's N to twice
 // that batch with `withIterations`, noting `callgrind` only when callgrind settled it, and does not fail it.
 //
 // The ramp. The first batch is `START` operations and each next batch doubles the one before. A batch
@@ -1308,9 +1309,28 @@ The ramp, the agreement test, the ceiling and the bounds are in tools/nv/cmd/sca
       }
       const source = sized ? read(bench) : "";
       const n = sized ? ITER_RE.exec(source) : null;
-      const over = n ? oversized(j, number(n[1]!)) : null;
-      const settled = j.threshold ?? j.sizes.at(-1)!;
-      const rewritten = over && lower ? withIterations(source, number(n![1]!), 2 * settled, j.threshold !== undefined) : null;
+      let over = n ? oversized(j, number(n[1]!)) : null;
+      let settled = j.threshold ?? j.sizes.at(-1)!;
+      let byCallgrind = j.threshold !== undefined;
+      // Where a ramp settles moves from run to run, so an oversized N must be found on a second ramp too,
+      // and it is lowered to twice the later of the two batches.
+      if (over) {
+        let again: Judged | null = null;
+        try {
+          again = await rampOne(bench, opts);
+        } catch (e) {
+          if (!(e instanceof PerfError)) throw e;
+        }
+        if (again === null || oversized(again, number(n![1]!)) === null) {
+          j.notes.push(`${over}, and a second ramp did not repeat that`);
+          over = null;
+        } else if ((again.threshold ?? again.sizes.at(-1)!) > settled) {
+          settled = again.threshold ?? again.sizes.at(-1)!;
+          byCallgrind = again.threshold !== undefined;
+          over = oversized(again, number(n![1]!));
+        }
+      }
+      const rewritten = over && lower ? withIterations(source, number(n![1]!), 2 * settled, byCallgrind) : null;
       if (rewritten !== null) {
         writeFileSync(abs(bench), rewritten);
         j.notes.push(`\`iterations ${n![1]}\` is now ${2 * settled}, twice the batch its ramp settled at`);
