@@ -1,5 +1,5 @@
 {
-  "state": "**Side goal `test-scratch-and-hover`: stage 3 is done, and stage 2 is the only work left.** Hover answers on a `use` line, an `extends`/`implements` clause and a written type (`crates/nvs-lsp/src/hover.rs`, `name`). *Find References* lists `use` lines and the CodeLens does not count them (`SymbolIndex::imports_of` in `crates/nvs-lsp/src/index.rs`), stated in `rule:ide/five-features-are-one-reference-index`. The check `hover-references-and-lens-cases` passes: `nvs lsp-test tests/lsp/` is 360 of 360.\n\n`nvs_repo::scratch(name) -> Scratch` (`crates/nvs-repo/src/lib.rs`) is a fresh directory `target/test-scratch/<name>-<pid>-<n>`, deleted when the guard drops. `nvs_repo::scratch_private(name)` is `case/` inside one such directory locked to this account, for a test that runs the ownership check. The guard `no_test_code_writes_into_the_system_temp_dir` is in `crates/nvs-repo/tests/scratch.rs`, with `SUBJECT` (empty) and the `NOT_YET_MOVED` ratchet. Moving a site means lowering or deleting its row in the same commit.\n\n**All of `nvs-cli` and `nvs-lsp` are moved, and so is `nvs-config/tests/trust.rs`.** 42 calls are left, in `nvs-db`, `nvs-footprint`, `nvs-hir`, `nvs-host`, `nvs-runtime`, `nvs-server`, `nvs-stdlib`, `nvs-test`, `nvs-types` and `nvs-config/tests/control.rs`. A test `TempDir` struct holds `path: nvs_repo::Scratch` and has no `Drop` of its own.\n\n**`crates/nvs-config/tests/control.rs:49` is not moved, on purpose.** It is a Unix socket path, limited to about 104 bytes on macOS, and a path under `target/test-scratch/` in a deep checkout can pass that. Moving it, or listing it in `SUBJECT` with that reason, is the user's call. `crates/nvs-lsp/src/suite.rs:339` (`Materialised::write`, the `lsp-test` runner) writes each case into the system temp directory; it is not test code, so the guard does not see it.",
+  "state": "**Side goal `test-scratch-and-hover`: stage 3 is done, and stage 2 is the only work left.** Hover answers on a `use` line, an `extends`/`implements` clause and a written type (`crates/nvs-lsp/src/hover.rs`, `name`). *Find References* lists `use` lines and the CodeLens does not count them (`SymbolIndex::imports_of` in `crates/nvs-lsp/src/index.rs`), stated in `rule:ide/five-features-are-one-reference-index`. The check `hover-references-and-lens-cases` passes.\n\n`nvs_repo::scratch(name) -> Scratch` (`crates/nvs-repo/src/lib.rs`) is a fresh directory `target/test-scratch/<name>-<pid>-<n>`, deleted when the guard drops. `nvs_repo::scratch_private(name)` is `case/` inside one such directory locked to this account, for a test that runs the ownership check. The guard `no_test_code_writes_into_the_system_temp_dir` is in `crates/nvs-repo/tests/scratch.rs`, with `SUBJECT` (empty) and the `NOT_YET_MOVED` ratchet. Moving a site means lowering or deleting its row in the same commit.\n\n**Moved: all of `nvs-cli`, `nvs-lsp`, `nvs-runtime`, `nvs-hir` and `nvs-types`, and `nvs-config/tests/trust.rs`.** Calls left: `nvs-stdlib` (16 rows), `nvs-db`, `nvs-footprint`, `nvs-host`, `nvs-test`, and the two Unix socket paths below. A test `TempDir` struct holds `path: nvs_repo::Scratch` and has no `Drop` of its own. `Scratch` is not `Clone`, so a `dir.path.clone()` becomes `dir.path.to_path_buf()`. A site whose code deletes the directory itself (a sweep test) keeps the guard alive and works in `dir.join(\"standing\")`.\n\n**Two Unix socket paths are not moved, on purpose:** `crates/nvs-config/tests/control.rs:49` and `crates/nvs-server/src/serve.rs:7456` (`one_connection_over_a_unix_socket_gets_the_same_response`, `#[cfg(unix)]`). A socket path is limited to about 104 bytes on macOS, and a path under `target/test-scratch/` in a deep checkout can pass that. Moving them, or listing them in `SUBJECT` with that reason, is the user's call. `crates/nvs-lsp/src/suite.rs:339` (`Materialised::write`, the `lsp-test` runner) writes each case into the system temp directory; it is not test code, so the guard does not see it.",
   "next": {
     "stage": 2,
     "title": "test scratch under `target/`",
@@ -8,21 +8,19 @@
     "items": [
       {
         "done": false,
-        "text": "**Move the `nvs-runtime` and `nvs-server` sites to `nvs_repo::scratch`**, lowering each row in `NOT_YET_MOVED` in the same commit (the goal's § *Stage 2* is the spec). Anchor: `crates/nvs-repo/tests/scratch.rs:1`."
+        "text": "**Move the `nvs-stdlib` sites** (16 calls over 16 files, `crates/nvs-stdlib/tests/capability.rs` among them), lowering each row in `NOT_YET_MOVED` in the same commit (the goal's § *Stage 2* is the spec). Anchor: `crates/nvs-repo/tests/scratch.rs:18`."
       },
       {
         "done": false,
-        "text": "**Move the `nvs-hir`, `nvs-types` and `nvs-stdlib` sites** the same way. Anchor: `crates/nvs-repo/tests/scratch.rs:1`."
+        "text": "**Move the `nvs-db`, `nvs-footprint`, `nvs-host` and `nvs-test` sites**, so only the two socket rows are left. Check each crate's `Cargo.toml` has `nvs-repo` as a dev-dependency (`nvs-hir` did not). Anchor: `crates/nvs-repo/tests/scratch.rs:18`."
       },
       {
         "done": false,
-        "text": "**Move the `nvs-db`, `nvs-footprint`, `nvs-host` and `nvs-test` sites**, so only `crates/nvs-config/tests/control.rs:49` is left. Anchor: `crates/nvs-repo/tests/scratch.rs:1`."
+        "text": "**Ask the user about the two socket rows**, then close the goal with `DONE`. Anchor: `crates/nvs-config/tests/control.rs:49`."
       }
     ]
   },
   "backlog": [
-    "`crates/nvs-config/tests/control.rs:49` — the socket-path site waits for the user's call (move it, or list it in `SUBJECT`).",
-    "`crates/nvs-lsp/src/suite.rs:339` — the `lsp-test` runner writes cases into the system temp directory; outside this goal's guard.",
-    "A worktree needs `npm.cmd ci --prefix editors/vscode` before `nv verify`'s `extension` step can pass (playbook, Running things)."
+    "`crates/nvs-lsp/src/suite.rs:339` writes `lsp-test` cases into the system temp directory. It is outside this goal's guard. Whether it moves is a question for the user (the goal's prose)."
   ]
 }
