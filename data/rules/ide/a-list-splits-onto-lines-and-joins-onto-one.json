@@ -1,6 +1,6 @@
 {
   "title": "A list, a call chain or an operator chain is offered *Put on separate lines* or *Join onto one line*, an action the server computes from the tree and that changes only line breaks",
-  "status": "designed",
+  "status": "shipped",
   "because": [
     "0267"
   ],
@@ -14,6 +14,8 @@
     "crates/nvs-fmt/src/split_join.rs",
     "tests/lsp/actions/a-list-on-one-line-is-offered-put-on-separate-lines.lspt",
     "tests/lsp/actions/a-broken-list-is-offered-join-onto-one-line.lspt",
-    "tests/lsp/actions/a-list-holding-a-line-comment-is-offered-no-join.lspt"
+    "tests/lsp/actions/a-list-holding-a-line-comment-is-offered-no-join.lspt",
+    "tests/lsp/actions/a-call-chain-on-one-line-is-offered-put-on-separate-lines.lspt",
+    "tests/lsp/actions/a-broken-condition-is-offered-join-onto-one-line.lspt"
   ]
 }

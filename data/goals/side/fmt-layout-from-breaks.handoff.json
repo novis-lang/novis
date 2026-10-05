@@ -1,30 +1,24 @@
 {
-  "state": "**Side goal `fmt-layout-from-breaks`: stages 2 and 3 have landed except shape types. Stage 4 has landed for lists.** `nvs fmt` lays out lists (`crates/nvs-fmt/src/list.rs`), `->` / `?->` call chains and `&&`, `||`, `??`, `.` chains, plus broken conditions (`crates/nvs-fmt/src/chain.rs`).\n\nThe editor actions *Put on separate lines* and *Join onto one line* exist for lists. `nvs_fmt::relayout` (`crates/nvs-fmt/src/split_join.rs`) writes the breaks, formats the file, and returns the formatted list as the edit. If formatting changed anything outside the list, the edit is the breaks alone. The LSP side is `crates/nvs-lsp/src/split_join.rs`, filed under `refactor.rewrite` and offered beside the html-template refactor in `crates/nvs-lsp/src/actions.rs`. The check `split-and-join-actions` has three cases under `tests/lsp/actions/`, and all of them pass.\n\n`rule:ide/a-list-splits-onto-lines-and-joins-onto-one` stays `designed` because the call chain and operator chain actions are not written yet. `rule:tooling/fmt-a-list-is-one-line-or-one-item-per-line` stays `designed` because of shape types (gap `comma-separated-list-whose-closing-delimiter`).",
+  "state": "**Side goal `fmt-layout-from-breaks`: stages 2, 3 and 4 have landed. The one thing left is shape types as lists.** `nvs fmt` lays out lists (`crates/nvs-fmt/src/list.rs`), `->` / `?->` call chains, and `&&`, `||`, `??`, `.` chains, plus broken conditions (`crates/nvs-fmt/src/chain.rs`).\n\n*Put on separate lines* and *Join onto one line* are offered for lists, call chains, operator chains and broken conditions. `chain::seams_on` names each place a line break sits at a chain's own level. `nvs_fmt::relayout` (`crates/nvs-fmt/src/split_join.rs`) picks the innermost list or chain around the cursor, writes or removes the breaks, and formats the file. `rule:ide/a-list-splits-onto-lines-and-joins-onto-one` is `shipped`, with five `.lspt` cases under `tests/lsp/actions/`.\n\nThe rustdoc gate is green (`bun nv verify --doc`).\n\n`rule:tooling/fmt-a-list-is-one-line-or-one-item-per-line` stays `designed` because shape types are not laid out yet. The gap name `comma-separated-list-whose-closing-delimiter` is used only in this handoff. No gap record under `data/gaps/` carries it.",
   "next": {
-    "stage": 4,
-    "title": "split and join for chains",
+    "stage": 2,
+    "title": "a shape type is a list",
     "files": [
-      "crates/nvs-fmt/src/split_join.rs",
-      "crates/nvs-fmt/src/chain.rs",
-      "tests/lsp/actions/"
+      "crates/nvs-fmt/src/list.rs",
+      "crates/nvs-fmt/tests/list_layout.rs"
     ],
     "items": [
       {
         "done": false,
-        "text": "**A call chain is offered *Put on separate lines* / *Join onto one line*** (`rule:ide/a-list-splits-onto-lines-and-joins-onto-one`). Expose the chain's arrows from `crates/nvs-fmt/src/chain.rs:94` `Chain`, today private. Then pick the innermost list or chain around the cursor in `crates/nvs-fmt/src/split_join.rs:74`. The split adds a break before the first arrow and lets the format pass lay out the rest, the same way lists work today."
+        "text": "**A shape type is one line or one field per line** (`rule:tooling/fmt-a-list-is-one-line-or-one-item-per-line`). A shape type has no node, so its `{` cannot be told from a block's (`crates/nvs-fmt/src/list.rs:54`). Find its braces from the type's own span, then admit it in `crates/nvs-fmt/src/list.rs:91` `writes_a_list`. Split and join then come with it through `crates/nvs-fmt/src/split_join.rs`."
       },
       {
         "done": false,
-        "text": "**An operator chain is offered the same actions** (same rule): `crates/nvs-fmt/src/chain.rs:276` `Operators`, again through `crates/nvs-fmt/src/split_join.rs:74`. A broken condition's `(` and `)` come from the format pass."
-      },
-      {
-        "done": false,
-        "text": "**Ship the rule** once both exist: rewrite the module doc at `crates/nvs-fmt/src/split_join.rs:1` to cover chains, set `status` to `shipped` at `data/rules/ide/a-list-splits-onto-lines-and-joins-onto-one.json:3` and add the chain cases to `guardedBy`. Then run `bun nv rules --render`."
+        "text": "**Ship the list rule** once shape types hold: set `status` to `shipped` in `data/rules/tooling/fmt-a-list-is-one-line-or-one-item-per-line.json:3`, rewrite the \"Not yet a list here\" paragraph at `crates/nvs-fmt/src/list.rs:52`, then run `bun nv rules --render`. After that, check whether the goal is met (`bun nv verify --doc`, `bun nv owners --closes fmt-layout-from-breaks`) and write `DONE`."
       }
     ]
   },
   "backlog": [
-    "Shape types as lists: gap `comma-separated-list-whose-closing-delimiter`, owned by `crates/nvs-fmt/src/list.rs`.",
-    "The VS Code client needs no command for these actions, because `refactor.rewrite` reaches the light bulb as it is. This was not checked in a running editor."
+    "`rule:ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`: its title still says \"splitting or joining a list\". The body names the actions correctly, so a title edit is optional."
   ]
 }
