@@ -1,27 +1,27 @@
 {
-  "state": "**Goal `serve-per-mount-config` — Stages 2, 3 and 4 have landed; Stage 5 (scheduled fires and queued jobs) is next.** ADR 0271 is the goal's one record. `rule:http-server/the-served-file-is-optional` now states the per-entry publish; the scheduled-run and job rules are still pre-goal and are rewritten with Stage 5 (goal file § *Stage 0*).\n\nA reload resolves with `crate::config::boot_set` and publishes the whole set through `nvs_config::control::reload`, which now takes the roster, the entries and the files and calls `Current::publish_set`. The entries are the rows standing then (`Mounts::entries`, handed to `control::Process` by `serving_rows`). `Process::entry` is gone, and a reload's ceiling is `capacity_across` over every snapshot the set folded (`capacity_of` in `crates/nvs-cli/src/control.rs`). `mounts::Rescan` refolds each row's origin from its own entry's snapshot (`serve::fold_origins`) whenever the publish changed or a directory moved. The row origin lands on the rescan's next pass, a moment after the publish, and the Stage 4 test polls for it.\n\nThe Stage 5 check asked `cargo test -p nvs-cli --lib`, which has no library target; the record now says `--bin nvs`.",
+  "state": "**Goal `serve-per-mount-config` — Stages 2 to 5 have landed; Stage 6 (the reference and the proofs) is next.** ADR 0271 is the goal's one record. `rule:http-server/the-served-file-is-optional`, `rule:config/a-scheduled-run-is-a-root-isolate` and `rule:concurrency/a-job-runs-as-a-root-isolate` state the per-entry snapshot.\n\nA request, a scheduled fire and a queued job each take their file's snapshot with `Published::entry` out of the publish serving then: the request path in `crates/nvs-cli/src/serve.rs` (`published_of`), a fire in `Scheduled::isolate`, a job in `worker.rs`'s `configure` just after the claim. A file whose blocks do not fold runs nothing (a fire is skipped with a warning; a job is a refused attempt). A worker's own claiming context keeps the host's snapshot. `[trace] sample` for a fire is read off the publish's host snapshot.\n\nA `[[schedule]] script` must still lie under the global `script.spawn` roots for the configuration to resolve (`E0611`), so an `[[app]]` block can only narrow what a fire may do.",
   "next": {
-    "stage": 5,
-    "title": "scheduled fires and queued jobs",
+    "stage": 6,
+    "title": "the reference and the proofs",
     "files": [],
-    "note": "one file set: `crates/nvs-cli/src/serve.rs` (`Scheduled::isolate`), `crates/nvs-cli/src/worker.rs`, and the two rule fragments.",
+    "note": "one file set: the two reference pages, the two `about.md` files, and the attack directory.",
     "items": [
       {
         "done": false,
-        "text": "**A fire runs under its script's snapshot** — `crates/nvs-cli/src/serve.rs:1793` sets the context from `self.current.load()`; take `self.current.published().entry(<the fire's script>, &LocalFiles)` instead, as the request path does at `crates/nvs-cli/src/serve.rs:1005`. Test `a_scheduled_script_runs_under_its_own_app_blocks` in `serve.rs`'s unit tests (ADR 0271 § 2)."
+        "text": "**The reference tables** — `docs/reference/tools/25-server.md:22` (the right column says every mount runs under the blocks that match its own entry) and `docs/reference/tools/20-config.md:321` (the same sentence for `nvs serve` beside `nvs run`); then `bun nv reference` regenerates `docs/novis.md` (`rule:http-server/the-served-file-is-optional`)."
       },
       {
         "done": false,
-        "text": "**A job runs under its script's snapshot** — `crates/nvs-cli/src/worker.rs:626` does the same for the job's script; the worker's own context at `crates/nvs-cli/src/worker.rs:360` keeps the host's. Test `a_queued_job_runs_under_its_scripts_app_blocks` in `worker.rs`'s unit tests."
+        "text": "**The two `about.md` files** — `docs/examples/tools/server/nvs-serve/about.md:1` and `docs/examples/tools/config/app-per-application-blocks/about.md:1`, each inside its word band, under AGENTS.md § *Text an end user reads*; and `nvs serve --help` if it names the `<file>`'s role (`crates/nvs-cli/src/serve.rs:1`)."
       },
       {
         "done": false,
-        "text": "**Rewrite the scheduled-run and job rule fragments** the goal file § *Stage 0* names (candidates, not checked: `docs/rules/concurrency/a-job-runs-as-a-root-isolate.md:1`, `docs/rules/config/a-schedule-entry-narrows-only.md:1`), then `bun nv rules --render`."
+        "text": "**The attack** — beside `tests/hostile/tools/config/app-per-application-blocks/nvs.toml:1` and its `01-using-more-memory-than-the-block-allows.nvs` (goal file § *Stage 6*): a program one block covers uses a right only a sibling directory's block grants, sets it with `Core\\Config::set`, and spawns a script in that directory; every attempt should fail (ADR 0271 § 2)."
       }
     ]
   },
   "backlog": [
-    "Stage 6 (reference tables, the two `about.md` files, help text, the attack) — goal file § *Stage 6*.",
-    "A reload folds every mounted entry twice (the pre-check `Published::new` in `Process::published`, then `publish_set`); fine while reloads are rare — `crates/nvs-cli/src/control.rs` doc comment says so."
+    "A per-application view on `nvs ctl config` is out of this goal (goal file § *Standing decisions*).",
+    "`crates/nvs-server/src/schedule.rs:80-87` says \"the deployment arrives\" through `Fires::isolate`; still true, since the implementor now hands the script's snapshot, but reword it if Stage 6 touches that file."
   ]
 }
