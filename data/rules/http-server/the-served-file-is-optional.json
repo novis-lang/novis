@@ -1,5 +1,5 @@
 {
-  "title": "`nvs serve` needs no file over a written mount table, serves that table whole under the global configuration, and refuses a start that names nothing",
+  "title": "`nvs serve` needs no file over a written mount table, serves that table whole with each entry under its own `[[app]]` blocks, and refuses a start that names nothing",
   "status": "shipped",
   "because": [
     "0200",
@@ -14,6 +14,7 @@
   "guardedBy": [
     "crates/nvs-cli/src/serve.rs",
     "crates/nvs-cli/src/service.rs",
+    "crates/nvs-cli/tests/per_mount_config.rs",
     "crates/nvs-config/tests/snapshot.rs"
   ]
 }
