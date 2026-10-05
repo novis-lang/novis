@@ -1,26 +1,28 @@
 {
-  "state": "**Goal `growth-proof`, Stage 3 is still red; Stage 4's first slice is on disk.** No floor is carried.\n\n`bun nv scaling --iterations --sized` on this tree ends `942 flat, 1 grow, 8 unclear, 440 skipped` and `7 benches run more iterations than their ramp needs`, exit 1, in about 30 minutes. It never passed at the driver after the last lowering. The output this session kept did not name the eight benches. `--budget` passes.\n\nThe selection engine has a `bench` atom: `bench:benches/members/.../x.nvs`, listed by `benchFiles`, defined by `benchDef` (the proof files plus the `.scale.nvs` and `.twin.nvs` siblings), and a sibling's edit maps to its bench through `benchOf` (all `tools/nv/select/atoms.ts`). `recordBench` in `tools/nv/proofs/select.ts` records one bench from a run of a copy at its smallest batch; nothing calls it yet. `tools/nv/test/bench-selection.test.ts` pins the three tests the Stage 4 check names.\n\n`discover` (`tools/nv/select/select.ts`) does not list benches yet, on purpose: a bench atom no tool runs would stay selected as `new` in every `nv verify` and sweep. It joins `discover` in the same slice that makes `nv affected --run` run them.\n\nThe clock at the lowered N mostly reads 0 (`ns_per_op 0.0`). Whether to time the clock at a larger, clock-only N is the user's call, and nothing has changed for it.",
+  "state": "**Goal `growth-proof`, Stage 3 should now pass; Stage 4's first slice is on disk.** No floor is carried.\n\nThe whole `bun nv scaling --iterations --sized` run on this tree (about 30 minutes) named six oversized benches and one that grows. The six were lowered with `--sized --lower`: `core/Cli/colorDepth` (2048), `core/IO/canonicalize` (512), `core/IO/isFile` (256), `core/IO/size` (256), `core/IO-File/flush` (256) and `core/IO-Metadata/isFile` (1024). A filtered `--sized` re-run of the six passes. The whole run was not repeated after the lowering. The driver's sweep is that check.\n\n`core/Process-Handle/writeStdin` gives `grows`, `flat` or `unclear` on the same commit, because its allocations per call depend on when the blocking pool's job ends. It carries `// proof: gap nvs-host/a-blocking-call-allocates-by-when-it-ends`, and `--iterations` now counts a bench that grows and carries a marker naming an existing record as a known gap, the way `--growth` already did. That gap is owned by M10, not by this goal.\n\nThe seven `unclear` benches (`core/Http-TlsInfo/verified`, `version`, `core/IO/isReadable`, `core/IO-File/close`, `truncate`, `write`, `core/Queue/purge`) do not fail the check. Stage 6's section lists the benches the proof cannot judge.\n\nThe selection engine's `bench` atom and `recordBench` are as the last session left them: `discover` does not list benches yet, on purpose, and nothing calls `recordBench`.\n\nThe clock at the lowered N mostly reads 0. Whether to time the clock at a larger, clock-only N is the user's call, and nothing has changed for it.",
   "next": {
-    "stage": 3,
-    "title": "small benches, and a budget",
-    "files": [],
-    "note": "one file set: `tools/nv/cmd/scaling.ts` and the eight benches it names under `benches/members/`.",
+    "stage": 4,
+    "title": "benches join the selection engine",
+    "files": [
+      "tools/nv/select/select.ts",
+      "tools/nv/select/atoms.ts",
+      "tools/nv/proofs/select.ts",
+      "tools/nv/cmd/affected.ts"
+    ],
     "items": [
       {
         "done": false,
-        "text": "**Name the eight.** Run `bun nv bg bun nv scaling --iterations --sized` and save the whole output under `.agent-tmp/`, because the list comes before the final summary lines. The verdict is printed at `tools/nv/cmd/scaling.ts:1338`, and `oversized` is at `tools/nv/cmd/scaling.ts:1038`. Spec: `rule:testing/feature-proofs`, the goal's Stage 3."
+        "text": "**Benches join `discover` and `nv affected --run` runs them**, in one slice so a bench atom is never selected as `new` with nothing to run it: `discover` at `tools/nv/select/select.ts:621`, `benchOf` at `tools/nv/select/atoms.ts:208`, and `recordBench` at `tools/nv/proofs/select.ts:124` records each one that ran. Spec: `rule:testing/member-perf-ledger`, the goal's Stage 4 and Stage 5 checks (the Stage 5 check's test filter matches no file yet)."
       },
       {
         "done": false,
-        "text": "**Close them.** Lower the seven oversized benches with `--sized --lower`. Judge the bench that grows: either a real cost that grows, which is a gap record or a fix, or a ramp that is too short at its new N. Then run `--sized` again to make sure the lowering is stable. A lowered N whose re-ramp settles one batch higher is the likely cause, and that would mean `oversized` (`tools/nv/cmd/scaling.ts:1038`) needs more slack."
+        "text": "**A degradation turns skipping off** for every bench that shares the changed items, per the goal's standing decision, at `tools/nv/proofs/select.ts:124`."
       }
     ]
   },
   "backlog": [
-    "Stage 4, next after Stage 3: `tools/nv/cmd/affected.ts` lists the benches a change reaches (`discovered: benchFiles().map(benchId)`), and `--run` reruns their perf proof and calls `recordBench` (`tools/nv/proofs/select.ts:124`). Add `benchFiles` to `discover` (`tools/nv/select/select.ts:621`) in the same slice (goal prose, Stage 4).",
-    "Stage 4's record: ADR 0273 modifies `rule:testing/member-perf-ledger`, so that a figure is current while its bench's footprint has not moved. `tools/nv/proofs/collect.ts` (`owed`, `implHash`) moves with it, and the record is written after the tooling (goal prose, Stage 4).",
-    "Stage 5: skip benches behind proven items, and a degradation runs them all (goal prose, Stage 5).",
-    "Stage 6: `docs/perf/performance-pass.md` owes its `## The growth proof` section (goal prose, Stage 6).",
-    "The clock at the lowered N reads 0 for most benches; a clock-only N is the user's call (`tools/nv/proofs/perf.ts:136`)."
+    "Stage 6: `docs/perf/performance-pass.md` owes `## The growth proof`, listing the seven `unclear` benches above and `writeStdin`'s gap. Owner: this goal's Stage 6.",
+    "`data/gaps/nvs-host/a-blocking-call-allocates-by-when-it-ends.json`: the park and wake path in `crates/nvs-host/src/blocking.rs` allocates by timing. Owner: M10.",
+    "The clock at the lowered N reads 0: the user's call (see State)."
   ]
 }
