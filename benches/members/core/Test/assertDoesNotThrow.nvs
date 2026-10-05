@@ -1,6 +1,7 @@
 <?nvs
 // Checks that a small function runs without an error, as a test does when the call itself is the point.
 // bench: iterations 200000
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

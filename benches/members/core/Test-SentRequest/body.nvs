@@ -1,6 +1,7 @@
 <?nvs
 // Reads the body of a sent request, as a test does to check the document a client sent.
 // bench: iterations 400000
+// bench: complexity constant
 
 use Core\Http\Client;
 use Core\Test\SentRequest;

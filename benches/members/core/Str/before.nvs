@@ -2,6 +2,7 @@
 // Takes the name before "=" in a short setting line, as a program does when it reads a config file.
 // bench: iterations 400000
 // bench: calls 0
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

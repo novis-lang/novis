@@ -1,6 +1,7 @@
 <?nvs
 // Removes the spaces around a form field, as a program does with every value somebody types.
 // bench: iterations 400000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

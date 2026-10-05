@@ -1,6 +1,7 @@
 <?nvs
 // Checks that a method was called with given arguments, as a test does after it runs the code.
 // bench: iterations 20000
+// bench: complexity linear
 
 interface Mailer {
     public function send(string $to): bool;

@@ -1,6 +1,7 @@
 <?nvs
 // Reads the test server address, as a test does before it builds each URL it requests.
 // bench: iterations 400000
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

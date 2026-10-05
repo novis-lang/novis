@@ -1,0 +1,26 @@
+<?nvs
+// Measures `Core\Str::compare` on two names that differ only in the last letter, at growing name lengths.
+// bench: start 256
+// bench: max 4096
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        string $first = Core\Str::repeat('a', $size) . 'b';
+        string $second = Core\Str::repeat('a', $size) . 'c';
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            if (Core\Str::compare($first, $second) < 0) {
+                $total = $total + 2;
+            } else {
+                $total = $total + 1;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

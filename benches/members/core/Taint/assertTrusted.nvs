@@ -2,6 +2,7 @@
 // Trusts a checked value from a visitor, as a program does before it builds a sort order from it.
 // bench: iterations 400000
 // bench: allocations 0
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

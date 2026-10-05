@@ -1,6 +1,7 @@
 <?nvs
 // Builds a TLS session for a fake server, as a test does before it answers a request.
 // bench: iterations 200
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

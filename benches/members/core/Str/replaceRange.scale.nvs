@@ -1,0 +1,21 @@
+<?nvs
+// Measures `Core\Str::replaceRange` hiding all but the last four digits of one number, at growing number lengths.
+// bench: start 256
+// bench: max 4096
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        string $number = Core\Str::repeat('4', $size);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            $total = $total + Core\Str::length(Core\Str::replaceRange($number, 0, -4, '****'));
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

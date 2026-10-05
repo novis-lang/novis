@@ -2,6 +2,7 @@
 // Pads a name with spaces, as a program does when it prints a table in a terminal.
 // bench: iterations 200000
 // bench: calls 0
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

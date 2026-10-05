@@ -1,6 +1,7 @@
 <?nvs
 // Sets the day and the hour of a date and time, as a program does to plan a delivery or a meeting.
 // bench: iterations 200000
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): int {

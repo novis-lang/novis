@@ -1,6 +1,7 @@
 <?nvs
 // Removes the line break at the end of a line, as a program does with each line it reads.
 // bench: iterations 400000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

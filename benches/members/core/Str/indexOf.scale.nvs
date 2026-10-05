@@ -1,0 +1,22 @@
+<?nvs
+// Measures `Core\Str::indexOf` finding the `@` in one email address, at growing address lengths.
+// bench: start 256
+// bench: max 4096
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        string $email = Core\Str::repeat('a', $size) . '@example.com';
+        uint $none = 0;
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            $total = $total + (Core\Str::indexOf($email, '@') ?? $none);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

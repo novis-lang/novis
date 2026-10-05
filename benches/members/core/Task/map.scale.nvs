@@ -1,0 +1,29 @@
+<?nvs
+// Measures `Core\Task::map` running one small task for each label, at growing numbers of labels.
+// At most 8 tasks run at the same time, as a program sets for a long list.
+// bench: start 32
+// bench: max 512
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        array<string> $labels = [];
+        uint $n = 0;
+        while ($n < $size) {
+            $labels[] = 'order';
+            $n = $n + 1;
+        }
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            uint $shift = $total % 3;
+            var $sizes = Core\Task::map($labels, fn (string $label): uint => Core\Str::length($label) + $shift, {limit: 8});
+            $total = $total + Core\Arr::count($sizes) + $sizes["0"];
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(32), "\n";

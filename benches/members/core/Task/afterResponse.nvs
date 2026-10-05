@@ -1,6 +1,7 @@
 <?nvs
 // Adds a callable to run after the response and runs it, as a program does to send a receipt.
 // bench: iterations 20000
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

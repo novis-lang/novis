@@ -1,6 +1,7 @@
 <?nvs
 // Lists the keys that start with a prefix, as a program does when it shows a user's files.
 // bench: iterations 2000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

@@ -1,0 +1,27 @@
+<?nvs
+// Measures `Core\Test::scriptAnswers` giving a list of answers, at growing numbers of answers.
+// bench: start 256
+// bench: max 4096
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        array<string> $answers = [];
+        uint $n = 0;
+        while ($n < $size) {
+            $answers[] = 'yes';
+            $n = $n + 1;
+        }
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            Core\Test::scriptAnswers($answers);
+            $total = $total + Core\Str::length(Core\Cli::ask('Answer?'));
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

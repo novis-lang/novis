@@ -1,6 +1,7 @@
 <?nvs
 // Compares a small order object with its lines, as a test does after it builds one.
 // bench: iterations 20000
+// bench: complexity linear
 
 class Line {
     public function constructor(public string $sku, public int $quantity) {}

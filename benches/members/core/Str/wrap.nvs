@@ -2,6 +2,7 @@
 // Wraps a short message at 10 characters, as a program does before it prints a notice in a narrow column.
 // bench: iterations 200000
 // bench: calls 0
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

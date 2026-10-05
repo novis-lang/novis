@@ -1,6 +1,7 @@
 <?nvs
 // Deletes a saved file, as a cleanup job does. Each round saves the file first, so it also counts one `put`.
 // bench: iterations 2000
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

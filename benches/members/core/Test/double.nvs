@@ -1,6 +1,7 @@
 <?nvs
 // Builds a test double from anonymous functions and calls it once, as a test does before it runs the code.
 // bench: iterations 20000
+// bench: complexity constant
 
 interface Clock {
     public function hour(): int;

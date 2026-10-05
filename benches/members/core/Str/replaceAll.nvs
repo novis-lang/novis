@@ -2,6 +2,7 @@
 // Fills in the placeholders of a short message, as a program does before it sends an email.
 // bench: iterations 200000
 // bench: calls 0
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

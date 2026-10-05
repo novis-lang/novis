@@ -1,0 +1,28 @@
+<?nvs
+// Measures `Core\Test::sentHttp` reading the requests a program sent, at growing numbers of requests.
+// bench: start 64
+// bench: max 1024
+
+use Core\Http\Client;
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        Core\Test::answerHttp('https://api.example.com/*', 200);
+        uint $n = 0;
+        while ($n < $size) {
+            Client::get('https://api.example.com/users/7');
+            $n = $n + 1;
+        }
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            $total = $total + Core\Arr::count(Core\Test::sentHttp()) + ($total % 2);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(64), "\n";

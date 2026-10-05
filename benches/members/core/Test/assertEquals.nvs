@@ -1,6 +1,7 @@
 <?nvs
 // Checks that a computed number equals the expected one, as a test does after it calls the code.
 // bench: iterations 200000
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

@@ -1,6 +1,7 @@
 <?nvs
 // Reads a date and time through a pattern, as a program does with each row of an exported file.
 // bench: iterations 100000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): int {

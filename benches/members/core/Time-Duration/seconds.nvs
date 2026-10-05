@@ -1,6 +1,7 @@
 <?nvs
 // Builds a duration from a number of seconds, as a program does with a timeout it read as a number.
 // bench: iterations 400000
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): int {

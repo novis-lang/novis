@@ -1,6 +1,7 @@
 <?nvs
 // Changes the day of a date, as a program does when it finds the first day of a month.
 // bench: iterations 200000
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): string {

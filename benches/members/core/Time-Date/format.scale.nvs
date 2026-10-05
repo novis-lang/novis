@@ -1,0 +1,22 @@
+<?nvs
+// Measures `format` writing one date as text, at growing pattern lengths.
+// bench: start 64
+// bench: max 1024
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        var $date = Core\Time\Date::at(2024, 4, 5);
+        string $pattern = Core\Str::repeat('yyyy-MM-dd ', $size);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            $total = $total + Core\Str::length($date->format($pattern)) + $i % 2;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(64), "\n";

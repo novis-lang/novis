@@ -1,6 +1,7 @@
 <?nvs
 // Adds days and months to a date and time, as a program does to work out a due date or an expiry time.
 // bench: iterations 200000
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): int {

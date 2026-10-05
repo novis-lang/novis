@@ -1,6 +1,7 @@
 <?nvs
 // Decodes the JSON body of a test response, as a test does before it checks what an API sent.
 // bench: iterations 100000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

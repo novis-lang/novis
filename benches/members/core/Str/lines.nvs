@@ -2,6 +2,7 @@
 // Splits a short text into lines, as a program does when it reads a small file or a text field line by line.
 // bench: iterations 200000
 // bench: calls 0
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

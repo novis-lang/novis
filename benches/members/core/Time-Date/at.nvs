@@ -1,6 +1,7 @@
 <?nvs
 // Builds a date from three numbers, as a program does when it reads a date from a form.
 // bench: iterations 200000
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): int {

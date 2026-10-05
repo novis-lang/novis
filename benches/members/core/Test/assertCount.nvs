@@ -1,6 +1,7 @@
 <?nvs
 // Checks the number of entries in a short list, as a test does after a function returns a list.
 // bench: iterations 200000
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

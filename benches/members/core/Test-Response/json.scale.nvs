@@ -1,0 +1,29 @@
+<?nvs
+// Measures `json` on one test response, at growing sizes of its JSON body.
+// bench: start 256
+// bench: max 4096
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        Core\Test\Response $response = Core\Test::request(Core\Http\Method::Get, '/' . Core\Str::repeat('a', $size));
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            var $decoded = $response->json() as array<mixed>;
+            $total = $total + Core\Str::length($decoded['sku'] as string);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+// Each request runs this file again. In that run, this part sends one product.
+// The `sku` has one `x` for each character of the path.
+try {
+    var $sku = Core\Str::repeat('x', Core\Str::length(Core\Request::path()));
+    Core\Response::json(['sku' => $sku, 'price' => 12, 'tags' => ['blue', 'kitchen']]);
+} catch (LogicError $noRequest) {
+echo Bench::run(256), "\n";
+}

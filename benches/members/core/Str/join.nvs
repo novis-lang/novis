@@ -2,6 +2,7 @@
 // Joins the parts of a date with a separator, as a program does when it writes a date into a report or a file name.
 // bench: iterations 200000
 // bench: calls 0
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

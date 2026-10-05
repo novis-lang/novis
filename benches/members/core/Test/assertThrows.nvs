@@ -1,6 +1,7 @@
 <?nvs
 // Checks that bad input throws an error, as a test does for each input a function must not accept.
 // bench: iterations 100000
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

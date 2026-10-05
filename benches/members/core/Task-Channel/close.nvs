@@ -2,6 +2,7 @@
 // Measures ending a stream, which a program does once for every channel it
 // hands to another task.
 // bench: iterations 400000
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

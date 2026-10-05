@@ -2,6 +2,7 @@
 // Compares two durations, as a program does when it checks how long a task took against a limit.
 // bench: iterations 400000
 // bench: allocations 0
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): int {

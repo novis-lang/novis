@@ -2,6 +2,7 @@
 // Reads a duration as a number of microseconds, as a program does when it logs how long a query took.
 // bench: iterations 400000
 // bench: allocations 0
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): int {

@@ -1,6 +1,7 @@
 <?nvs
 // Gives one answer and reads it with a prompt, as a test of a program that asks questions does.
 // bench: iterations 200000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

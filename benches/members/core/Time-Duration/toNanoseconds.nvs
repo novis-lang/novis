@@ -2,6 +2,7 @@
 // Reads a duration as a number of nanoseconds, as a program does before it saves a measured time.
 // bench: iterations 400000
 // bench: allocations 0
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): int {

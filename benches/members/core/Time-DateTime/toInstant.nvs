@@ -2,6 +2,7 @@
 // Turns a local date and time into an exact moment, as a program does before it stores a time or compares two.
 // bench: iterations 400000
 // bench: calls 0
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): int {

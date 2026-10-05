@@ -2,6 +2,7 @@
 // Writes a duration as text, as a program does when it logs how long a request took.
 // bench: iterations 200000
 // bench: allocations 1
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): int {

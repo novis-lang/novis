@@ -2,6 +2,7 @@
 // Measures putting one value into a channel, which a program does once for
 // every item it hands to another task.
 // bench: iterations 400000
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): int {

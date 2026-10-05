@@ -1,6 +1,7 @@
 <?nvs
 // Finds the last day with a given weekday, as a program does to find the Monday a week started on.
 // bench: iterations 200000
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): int {

@@ -1,6 +1,7 @@
 <?nvs
 // Reads the JSON body of a test response into a class, as a test does before it checks what an API sent.
 // bench: iterations 100000
+// bench: complexity linear
 
 #[Core\Json\Derive]
 class Product {

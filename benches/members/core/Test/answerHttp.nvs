@@ -1,6 +1,7 @@
 <?nvs
 // Registers fixed replies for web calls, as a test does before it runs code that calls a web service.
 // bench: iterations 20000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

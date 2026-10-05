@@ -1,6 +1,7 @@
 <?nvs
 // Moves a date back by a few days, as a program does when it finds the start of a billing period.
 // bench: iterations 200000
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): string {
