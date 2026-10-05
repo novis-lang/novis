@@ -59,6 +59,10 @@ type Rec = Record<string, unknown>;
 /** A failure that stops the sweep, with the line that says why. */
 export class PerfError extends Error {}
 
+/** The program under measurement exited with an error: a broken proof, where a plain `PerfError` is one
+ * that could not be read. */
+export class ProgramFailed extends PerfError {}
+
 const firstLine = (text: string) => text.trim().split(/\r?\n/)[0] ?? "";
 
 /** What `recordPerf` is measuring now, which the progress text starts with: `calibrating`, `feature 3/12`. */
@@ -84,7 +88,7 @@ async function timeProgram(nvs: string, path: string, reps: number): Promise<[nu
  * which is `path` itself unless `path` is a rewritten copy of it. */
 export async function countProgram(nvs: string, path: string, proof = path): Promise<Record<string, number>> {
   const out = await spawnProof([nvs, "run", "--count", path], proof, TIMEOUT_MS);
-  if (out.code !== 0) throw new PerfError(`${path} exited ${out.code} under --count: ${firstLine(out.stderr)}`);
+  if (out.code !== 0) throw new ProgramFailed(`${path} exited ${out.code} under --count:${firstLine(out.stderr)}`);
   const m = COUNT_LINE_RE.exec(out.stderr.replace(/\r\n/g, "\n"));
   if (!m) throw new PerfError(`${path}: \`nvs run --count\` printed no count line -- is ${nvs} built from this tree?`);
   return Object.fromEntries(COUNTS.map((k, i) => [k, Number(m[i + 1])]));

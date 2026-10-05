@@ -115,7 +115,7 @@ import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { abs, DISCARD_PROFILE, rel, ROOT } from "../lib/paths.ts";
 import { progress } from "../lib/progress.ts";
 import { fixed } from "../lib/py.ts";
-import { countProgram, COUNTS, PerfError } from "../proofs/perf.ts";
+import { countProgram, COUNTS, PerfError, ProgramFailed } from "../proofs/perf.ts";
 import { read } from "../proofs/roster.ts";
 import { releaseBinary, skipReason, spawnProof } from "../proofs/run.ts";
 import { freePort, hammer, HttpConn, type HttpShape, Server } from "./bench.ts";
@@ -416,7 +416,7 @@ async function timeRun(nvs: string, copy: string, bench: string, reps: number): 
   let best = Infinity;
   for (let i = 0; i < reps; i++) {
     const out = await spawnProof([nvs, "run", copy], copy, TIMEOUT_MS, { unlogged: true });
-    if (out.code !== 0) throw new PerfError(`${bench} exited ${out.code} at a batch: ${out.stderr.trim().split(/\r?\n/)[0] ?? ""}`);
+    if (out.code !== 0) throw new ProgramFailed(`${bench} exited ${out.code} at a batch:${out.stderr.trim().split(/\r?\n/)[0] ?? ""}`);
     best = Math.min(best, out.ms * 1e6);
   }
   return best;
@@ -840,8 +840,8 @@ export interface Growth {
 /**
  * The growth half of the perf proof (`rule:testing/feature-proofs`): the bench's ramp over batches, whose
  * cost per operation may not rise, and for a complexity other than `constant` the size ramp of its
- * `.scale.nvs` sibling under that complexity's bound. A ramp that grows, or a sibling that cannot be
- * ramped, is a finding. A ramp that stays unclear keeps its notes and is judged neither way. `required`
+ * `.scale.nvs` sibling under that complexity's bound. A ramp that grows, or a program that cannot be
+ * ramped because it is malformed or exits with an error, is a finding. A ramp that stays unclear keeps its notes and is judged neither way. `required`
  * makes a bench with no `// bench: complexity` line a finding. Callgrind runs only where `opts.callgrind`
  * allows it and the counts did not settle.
  */
@@ -857,7 +857,7 @@ export async function growthOf(bench: string, opts: Options, required: boolean, 
       j = await ramp();
     } catch (e) {
       if (!(e instanceof PerfError)) throw e;
-      j = { bench: program, verdict: "unclear", sizes: [], slopes: {}, clock: null, notes: [e.message] };
+      j = { bench: program, verdict: e instanceof ProgramFailed ? "invalid" : "unclear", sizes: [], slopes: {}, clock: null, notes: [e.message] };
     }
     growth.ramps.push(j);
     if (j.verdict === "grows") growth.findings.push(`${grows}: ${j.notes.join("; ")}`);
@@ -1000,6 +1000,52 @@ function arg(args: string[], name: string): string | undefined {
   return value;
 }
 
+/** `--growth`: each bench judged by `growthOf`, as `--record-perf` judges it, with a missing declaration
+ * a finding and callgrind off. It prints every ramp of a bench with a finding, and fails on any finding. */
+async function growthRun(args: string[]): Promise<number> {
+  const named = arg(args, "--nvs");
+  const reps = Number(arg(args, "--reps") ?? 2);
+  const all = args.includes("--all");
+  const filters = args.filter((a) => a !== "--all" && a !== "--no-callgrind");
+  const unknown = filters.find((a) => a.startsWith("-"));
+  if (unknown) {
+    console.error(`nv scaling: unknown argument ${unknown}`);
+    return 2;
+  }
+  const todo = programs(BENCHES).filter((b) => !/\.(scale|twin)\.nvs$/.test(b) && (filters.length === 0 || filters.some((f) => b.includes(f))));
+  if (todo.length === 0) {
+    console.log("nv scaling: no bench matches");
+    return 0;
+  }
+  let nvs = named;
+  if (!nvs) {
+    const built = await releaseBinary();
+    if (typeof built === "string") {
+      console.error(`nv scaling: ${built}`);
+      return 1;
+    }
+    nvs = built.path;
+  }
+  const scratch = join(ROOT, ".agent-tmp", `scaling-${process.pid}`);
+  const opts: Options = { nvs, reps, wslNvs: DEFAULT_WSL_NVS, callgrind: false, scratch };
+  console.log(`nv scaling: the growth of ${todo.length} benches, ${rel(nvs)}`);
+  let failed = 0;
+  try {
+    for (const bench of todo) {
+      const g = await growthOf(bench, opts, true);
+      if (g.findings.length) failed++;
+      if (!all && g.findings.length === 0) continue;
+      console.log(`${g.findings.length ? "FAIL" : "ok  "} ${bench.replace(/^benches\/[^/]+\//, "")}  complexity ${g.complexity ?? "(none)"}`);
+      for (const j of g.ramps) console.log(line(j));
+      for (const f of g.findings) console.log(`            ${f}`);
+    }
+  } finally {
+    if (existsSync(scratch)) rmSync(scratch, { recursive: true, force: true });
+  }
+  console.log(`nv scaling: ${todo.length - failed} benches meet their growth, ${failed} do not`);
+  return failed ? 1 : 0;
+}
+
 export async function run(argv: string[]): Promise<number> {
   const args = [...argv];
   if (args.some((a) => a === "-h" || a === "--help")) {
@@ -1007,7 +1053,9 @@ export async function run(argv: string[]): Promise<number> {
 
     (no mode)             ramp every ladder under ${LADDERS}/ over its sizes
     --iterations          ramp every bench under ${BENCHES}/ over small batches instead
-    --check               print one line when nothing grows past its bound, for an acceptance check
+    --growth              judge every bench under ${BENCHES}/ as its perf proof does: its batches, its
+                          \`.scale.nvs\` sibling, and a missing \`// bench: complexity\`; writes no record
+    --check              print one line when nothing grows past its bound, for an acceptance check
     --areas               fail while an area has no ladder; with --reviewed, also no section in ${REVIEW}
     <filter>...           only the programs whose path contains one of these
     --nvs <path>          the binary to run, instead of the release build
@@ -1033,6 +1081,8 @@ The ramp, the agreement test, the ceiling and the bounds are in tools/nv/cmd/sca
     }
     return areas(reviewed);
   }
+  const growth = flag("--growth");
+  if (growth) return growthRun(args);
   const iterations = flag("--iterations");
   const check = flag("--check");
   const named = arg(args, "--nvs");

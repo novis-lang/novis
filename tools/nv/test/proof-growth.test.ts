@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { type Batch, growthOf, type Measure, type Options } from "../cmd/scaling.ts";
 import { stepCommands } from "../cmd/verify.ts";
 import { ROOT } from "../lib/paths.ts";
-import { COUNTS } from "../proofs/perf.ts";
+import { COUNTS, ProgramFailed } from "../proofs/perf.ts";
 
 // The perf proof's growth half, `growthOf`, over fixture benches whose counts a fake measure gives as a
 // function of the batch or the input size, so no binary runs and every verdict is exact.
@@ -80,6 +80,14 @@ test("a bench that grows faster than its declared complexity fails its perf proo
   expect(alone.findings[0]).toContain("has no");
   const quadratic = await growthOf(bench("quadratic", "quadratic"), opts(false), true, fake((n) => 5 * n).measure);
   expect(quadratic.findings[0]).toContain("is not one of");
+  // A sibling that exits with an error at a size cannot be ramped, and that is a finding too.
+  const broken = (n: number) => {
+    if (n > 256) throw new ProgramFailed(`the sibling exited 1 at size ${n}`);
+    return 7 * n;
+  };
+  const failing = await growthOf(`${DIR}/linear.nvs`, opts(false), true, fake((n) => 5 * n, broken).measure);
+  expect(failing.ramps.map((j) => j.verdict)).toEqual(["flat", "invalid"]);
+  expect(failing.findings[0]).toContain("cannot be ramped");
 });
 
 test("a bench with no declared complexity fails its perf proof", async () => {
