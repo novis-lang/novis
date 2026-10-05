@@ -1,0 +1,29 @@
+{
+  "state": "**Side goal `fmt-layout-from-breaks` is written and nothing of it is built yet.** ADR 0267 and its four `designed` rules state the layout; `nvs fmt` still copies every continuation line inside an expression (`crates/nvs-fmt/src/indent.rs:24-32`). The goal's prose has the user's calls from 2026-10-05.",
+  "next": {
+    "stage": 2,
+    "title": "a list is one line or one item per line",
+    "files": [
+      "crates/nvs-fmt/src/lib.rs",
+      "crates/nvs-fmt/src/indent.rs",
+      "crates/nvs-fmt/src/print.rs",
+      "crates/nvs-fmt/tests/list_layout.rs",
+      "crates/nvs-fmt/tests/never_reflows.rs"
+    ],
+    "items": [
+      {
+        "done": false,
+        "text": "**Find a list's own-level line breaks** in the lossless tree: after the opener, between items, before the closer, never inside an item — `crates/nvs-fmt/src/indent.rs:24`, `crates/nvs-fmt/src/print.rs:1`"
+      },
+      {
+        "done": false,
+        "text": "**Write the broken layout** — one item per line, one level in, trailing comma, closer on its own line — and the tests in `crates/nvs-fmt/tests/list_layout.rs`"
+      },
+      {
+        "done": false,
+        "text": "**Update `never_reflows.rs`** to the new layout, add a `tests/fmt/` pair, and reformat the corpus `.nvs` files the rule moves in their own commit — `crates/nvs-fmt/tests/never_reflows.rs:20`, `crates/nvs-fmt/tests/identity.rs:1`"
+      }
+    ]
+  },
+  "backlog": []
+}

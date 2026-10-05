@@ -1,0 +1,127 @@
+{
+  "title": "a line break the author writes decides the layout `nvs fmt` gives a list, a call chain and an operator chain",
+  "milestone": null,
+  "files": [],
+  "context": {
+    "modules": [
+      "crates/nvs-fmt/src/lib.rs",
+      "crates/nvs-fmt/src/indent.rs",
+      "crates/nvs-fmt/src/print.rs"
+    ],
+    "rules": [
+      "tooling/fmt-never-reflows",
+      "tooling/fmt-a-list-is-one-line-or-one-item-per-line",
+      "tooling/fmt-a-broken-call-chain-is-one-call-per-line",
+      "tooling/fmt-a-broken-operator-chain-is-one-operand-per-line",
+      "tooling/fmt-trailing-commas",
+      "tooling/fmt-is-idempotent"
+    ],
+    "adrs": [
+      "0267"
+    ],
+    "shapes": [
+      "A commit message",
+      "A rule fragment"
+    ],
+    "playbook": [],
+    "plan": [],
+    "milestones": []
+  },
+  "stages": [
+    {
+      "number": 2,
+      "title": "a list is one line or one item per line",
+      "summary": "Lays out every list from the author's line break: one line, or one item per line with a trailing comma and the closer on its own line."
+    },
+    {
+      "number": 3,
+      "title": "call chains and operator chains",
+      "summary": "Puts every call of a broken `->` chain, and every operand of a broken `&&`, `||`, `??` or `.` chain, on a line of its own, and lays out a broken condition with `(` and `) {` on their own lines.",
+      "context": {
+        "modules": [
+          "crates/nvs-fmt/src/space.rs"
+        ]
+      }
+    },
+    {
+      "number": 4,
+      "title": "*Put on separate lines* and *Join onto one line*",
+      "summary": "Offers the two editor actions on the innermost list, call chain or operator chain around the cursor.",
+      "context": {
+        "modules": [
+          "crates/nvs-lsp/src/html_template.rs"
+        ],
+        "rules": [
+          "ide/a-list-splits-onto-lines-and-joins-onto-one",
+          "ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows",
+          "ide/a-string-converts-to-an-html-template",
+          "ide/one-server-two-thin-clients"
+        ]
+      }
+    }
+  ],
+  "checks": [
+    {
+      "id": "a-list-is-one-line-or-one-item-per-line",
+      "kind": "cargo-named",
+      "stage": 2,
+      "name": "nvs-fmt (a list stays on one line unless its author broke it at its own level, and a broken list has one item per line)",
+      "args": [
+        "test",
+        "-p",
+        "nvs-fmt"
+      ],
+      "tests": [
+        "a_list_on_one_line_stays_on_one_line_however_long",
+        "a_break_between_two_items_puts_every_item_on_its_own_line",
+        "a_break_after_the_opener_breaks_the_list",
+        "a_break_before_the_closer_breaks_the_list",
+        "a_break_inside_a_function_body_does_not_break_the_call",
+        "a_break_inside_a_nested_array_does_not_break_the_outer_list",
+        "a_multi_line_item_moves_in_with_its_first_line",
+        "a_parameter_list_follows_the_list_rule",
+        "an_anonymous_object_follows_the_list_rule",
+        "a_line_comment_breaks_the_list_and_stays_with_its_item",
+        "a_broken_list_is_a_fixed_point"
+      ]
+    },
+    {
+      "id": "call-chains-and-operator-chains",
+      "kind": "cargo-named",
+      "stage": 3,
+      "name": "nvs-fmt (a broken call chain has one call per line, a broken operator chain one operand per line with the operator first, and a broken condition puts its parentheses on lines of their own)",
+      "args": [
+        "test",
+        "-p",
+        "nvs-fmt"
+      ],
+      "tests": [
+        "a_call_chain_on_one_line_stays_on_one_line",
+        "a_break_before_one_arrow_puts_every_call_on_its_own_line",
+        "an_operator_chain_on_one_line_stays_on_one_line",
+        "a_break_between_two_operands_puts_every_operand_on_its_own_line_operator_first",
+        "a_mixed_operator_run_breaks_at_its_lowest_precedence",
+        "a_broken_condition_puts_its_parentheses_on_lines_of_their_own",
+        "a_break_after_the_condition_parenthesis_breaks_the_condition",
+        "a_break_inside_one_operand_does_not_break_the_condition",
+        "a_broken_chain_is_a_fixed_point"
+      ]
+    },
+    {
+      "id": "split-and-join-actions",
+      "kind": "nvs-suite",
+      "stage": 4,
+      "name": "a list on one line is offered Put on separate lines, a broken list is offered Join onto one line, and a list holding a line comment is offered no join",
+      "args": [
+        "lsp-test",
+        "tests/lsp/"
+      ],
+      "cases": [
+        "tests/lsp/actions/a-list-on-one-line-is-offered-put-on-separate-lines.lspt",
+        "tests/lsp/actions/a-broken-list-is-offered-join-onto-one-line.lspt",
+        "tests/lsp/actions/a-list-holding-a-line-comment-is-offered-no-join.lspt"
+      ]
+    }
+  ],
+  "env": {}
+}
