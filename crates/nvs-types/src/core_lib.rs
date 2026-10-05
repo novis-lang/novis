@@ -2,7 +2,7 @@
 //!
 //! `nvs_stdlib::registry` is the one home for what a `Core` member's signature
 //! *is*; this is the one place that turns it into the same
-//! [`ClassSignature`](crate::signatures::ClassSignature) a user-declared class
+//! [`ClassSignature`] a user-declared class
 //! produces. Everything after that point is unchanged machinery:
 //! `resolve_method` finds `Core\Arr::count` the way it finds `Animal::name`,
 //! the arity and assignability checks are the same ones, and the recorded
