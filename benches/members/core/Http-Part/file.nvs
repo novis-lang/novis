@@ -3,6 +3,7 @@
 // every file upload it sends.
 // bench: iterations 20000
 // bench: calls 0
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

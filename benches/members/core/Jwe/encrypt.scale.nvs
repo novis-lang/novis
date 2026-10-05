@@ -1,0 +1,22 @@
+<?nvs
+// Measures `Core\Jwe::encrypt` on one value, at growing value lengths.
+// bench: start 1024
+// bench: max 16384
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        Core\Jwe\Key $key = Core\Jwe\Key::shared(Core\Crypto::generateKey());
+        string $value = Core\Str::repeat('a', $size);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            $total = $total + Core\Str::length(Core\Jwe::encrypt($value, $key));
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(1024), "\n";

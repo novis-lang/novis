@@ -2,6 +2,7 @@
 // Signs a short access token from an object with an Ed25519 key pair, as a login server does
 // for each user.
 // bench: iterations 20000
+// bench: complexity linear
 
 #[Core\Json\Derive]
 final class Access {

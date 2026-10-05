@@ -2,6 +2,7 @@
 // Measures a test for an ordinary number, as a program does on a result before it saves it.
 // bench: iterations 400000
 // bench: allocations 0
+// bench: complexity constant
 
 class Bench {
     public static function run(int $rounds): float {

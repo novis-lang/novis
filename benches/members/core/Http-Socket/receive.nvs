@@ -1,6 +1,7 @@
 <?nvs
 // Receives the next message from a WebSocket server, as a program does in its read loop.
 // bench: iterations 200000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

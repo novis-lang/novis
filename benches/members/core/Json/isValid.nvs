@@ -1,6 +1,7 @@
 <?nvs
 // Checks that a small request body is valid JSON, as an API does before it decodes the body.
 // bench: iterations 50000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

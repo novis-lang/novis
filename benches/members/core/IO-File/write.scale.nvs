@@ -1,0 +1,24 @@
+<?nvs
+// Measures writing one line to an open file, at growing line lengths.
+// bench: start 1024
+// bench: max 16384
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        string $path = Core\Path::join(Core\IO::temporaryDir(), 'write.txt');
+        Core\IO\File $file = Core\IO::open($path, Core\IO\FileMode::Write);
+        string $line = Core\Str::repeat('a', $size);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            $total = $total + $file->write($line);
+            $i = $i + 1;
+        }
+        $file->close();
+        return $total;
+    }
+}
+
+echo Bench::run(1024), "\n";

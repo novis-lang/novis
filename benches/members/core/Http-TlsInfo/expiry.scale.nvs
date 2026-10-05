@@ -1,0 +1,26 @@
+<?nvs
+// Measures reading when a server's certificate expires, at growing certificate sizes.
+// bench: start 64
+// bench: max 1024
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        // The session is made by the test, so nothing is sent over a network.
+        // A longer name in the certificate makes the certificate larger.
+        Core\Http\TlsInfo $session = Core\Test::tlsSession({
+            subject: 'CN=' . Core\Str::repeat('a', $size),
+            expiry: Core\Time::fromIso('2031-06-01T00:00:00Z'),
+        });
+        int $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            $total = $total + $session->expiry()->toEpochSeconds() % 7;
+            $i = $i + 1;
+        }
+        return $total as uint;
+    }
+}
+
+echo Bench::run(64), "\n";

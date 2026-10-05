@@ -2,6 +2,7 @@
 // Measures `E` raised to a power, as a website does when it lowers the score of an older post.
 // bench: iterations 400000
 // bench: allocations 0
+// bench: complexity constant
 
 class Bench {
     public static function run(int $rounds): float {

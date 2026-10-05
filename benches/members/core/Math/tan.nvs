@@ -2,6 +2,7 @@
 // Measures the tangent of an angle, as a map app does when it finds how steep a road is.
 // bench: iterations 400000
 // bench: allocations 0
+// bench: complexity constant
 
 class Bench {
     public static function run(int $rounds): float {

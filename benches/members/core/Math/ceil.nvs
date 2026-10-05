@@ -2,6 +2,7 @@
 // Measures rounding a number up, as a list does when it finds how many pages it needs.
 // bench: iterations 400000
 // bench: allocations 0
+// bench: complexity constant
 
 class Bench {
     public static function run(int $rounds): float {

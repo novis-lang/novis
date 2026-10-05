@@ -1,0 +1,32 @@
+<?nvs
+// Measures how `Core\Mail::send` checks the addresses of a message, at growing numbers of addresses.
+// The last address is not valid, so `send` throws an error before it connects.
+// bench: start 16
+// bench: max 256
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        array<string> $to = [];
+        uint $n = 0;
+        while ($n < $size) {
+            $to[] = 'team@example.com';
+            $n = $n + 1;
+        }
+        $to[] = 'ben.example.com';
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            try {
+                Core\Mail::send('shop', $to, 'Order 1042', 'Where is my order?');
+            } catch (RuntimeError $refused) {
+                $total = $total + (Core\Str::length($refused->message) as uint);
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(16), "\n";

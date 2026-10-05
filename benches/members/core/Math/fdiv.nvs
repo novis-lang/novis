@@ -2,6 +2,7 @@
 // Measures a division that allows a zero divisor, as a report does when it works out a rate.
 // bench: iterations 400000
 // bench: allocations 0
+// bench: complexity constant
 
 class Bench {
     public static function run(int $rounds): float {

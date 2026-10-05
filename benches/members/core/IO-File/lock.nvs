@@ -1,6 +1,7 @@
 <?nvs
 // Opens a lock file, takes the lock and closes it, as a job does before it changes a shared file.
 // bench: iterations 20000
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

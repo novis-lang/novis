@@ -1,6 +1,7 @@
 <?nvs
 // Reads a small JSON object into a class instance, as an API server does with each request body.
 // bench: iterations 50000
+// bench: complexity linear
 
 #[Core\Json\Derive]
 class Item {

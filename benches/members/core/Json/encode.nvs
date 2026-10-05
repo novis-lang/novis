@@ -1,6 +1,7 @@
 <?nvs
 // Encodes a small shape as JSON, as an API server does with the answer to each request.
 // bench: iterations 50000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

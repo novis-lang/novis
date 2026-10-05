@@ -2,6 +2,7 @@
 // Sets the length of an open file, as a program does when it empties a file to write it again.
 // bench: iterations 100000
 // bench: allocations 0
+// bench: complexity constant
 
 class Bench {
     public static function run(Core\IO\File $file, uint $rounds): uint {

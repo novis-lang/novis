@@ -2,6 +2,7 @@
 // Makes sure a folder exists, as a program does each time before it writes a file into it.
 // bench: iterations 5000
 // bench: calls 0
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

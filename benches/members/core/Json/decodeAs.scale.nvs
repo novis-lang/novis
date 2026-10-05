@@ -1,0 +1,37 @@
+<?nvs
+// Measures `Core\Json::decodeAs` on one JSON object, at growing lengths of one of its strings.
+// bench: start 1024
+// bench: max 16384
+
+#[Core\Json\Derive]
+class Item
+{
+    public string $sku;
+    public int $count;
+    public bool $gift;
+
+    public function constructor(string $sku, int $count, bool $gift)
+    {
+        $this->sku = $sku;
+        $this->count = $count;
+        $this->gift = $gift;
+    }
+}
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        string $body = "{\"sku\":\"" . Core\Str::repeat('a', $size) . "\",\"count\":2,\"gift\":false}";
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            var $item = Core\Json::decodeAs<Item>($body);
+            $total = $total + ($item->count as uint);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(1024), "\n";

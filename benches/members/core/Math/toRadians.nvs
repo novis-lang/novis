@@ -2,6 +2,7 @@
 // Measures converting an angle from degrees to radians, as a map app does before it uses `sin` or `cos`.
 // bench: iterations 400000
 // bench: allocations 0
+// bench: complexity constant
 
 class Bench {
     public static function run(int $rounds): float {

@@ -2,6 +2,7 @@
 // Reads the modification time from a result of `stat`, as a program does when it looks for the newest file.
 // bench: iterations 400000
 // bench: allocations 0
+// bench: complexity constant
 
 class Bench {
     public static function run(array<Core\IO\Metadata> $infos, uint $rounds): uint {

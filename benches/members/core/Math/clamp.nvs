@@ -2,6 +2,7 @@
 // Measures keeping a whole number inside a range, as a server does with a page size a visitor asks for.
 // bench: iterations 400000
 // bench: allocations 0
+// bench: complexity constant
 
 class Bench {
     public static function run(int $rounds): int {

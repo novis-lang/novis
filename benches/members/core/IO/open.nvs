@@ -1,6 +1,7 @@
 <?nvs
 // Opens a small file and closes it again, as a program does before it reads a part of a file.
 // bench: iterations 20000
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

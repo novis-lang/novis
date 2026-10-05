@@ -1,0 +1,22 @@
+<?nvs
+// Measures `update` on a SHA-256 stream, at growing piece sizes.
+// bench: start 256
+// bench: max 4096
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        string $piece = Core\Str::repeat('a', $size);
+        Core\Hash\Stream $stream = Core\Hash::stream(Core\Digest::Sha256);
+        uint $i = 0;
+        while ($i < 64) {
+            $stream->update($piece);
+            $i = $i + 1;
+        }
+        // The digest depends on every piece, so no round can be left out.
+        return Core\Bytes::at($stream->finish(), 0) + $i;
+    }
+}
+
+echo Bench::run(256), "\n";

@@ -2,6 +2,7 @@
 // Measures the hyperbolic sine of a number, as a tool does when it finds the length of a hanging cable.
 // bench: iterations 400000
 // bench: allocations 0
+// bench: complexity constant
 
 class Bench {
     public static function run(int $rounds): float {

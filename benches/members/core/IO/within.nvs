@@ -1,6 +1,7 @@
 <?nvs
 // Checks that a file name stays inside a folder, as a program does before it opens a file a visitor asked for.
 // bench: iterations 5000
+// bench: complexity linear
 
 class Bench {
     public static function run(string $folder, uint $rounds): uint {

@@ -1,6 +1,7 @@
 <?nvs
 // Makes a key from a secret key of 32 bytes, as a server does when it reads its key from the configuration.
 // bench: iterations 200000
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

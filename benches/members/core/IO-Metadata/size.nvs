@@ -2,6 +2,7 @@
 // Reads the size from a result of `stat`, as a program does when it checks an upload against a limit.
 // bench: iterations 400000
 // bench: allocations 0
+// bench: complexity constant
 
 class Bench {
     public static function run(array<Core\IO\Metadata> $infos, uint $rounds): uint {

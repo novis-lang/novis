@@ -1,0 +1,22 @@
+<?nvs
+// Measures reading who signed a server's certificate, at growing lengths of the signer's name.
+// bench: start 64
+// bench: max 1024
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        // The session is made by the test, so nothing is sent over a network.
+        Core\Http\TlsInfo $session = Core\Test::tlsSession({ issuer: 'CN=' . Core\Str::repeat('a', $size) });
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            $total = $total + Core\Str::length($session->issuer());
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(64), "\n";

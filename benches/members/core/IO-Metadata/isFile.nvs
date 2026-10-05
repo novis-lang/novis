@@ -2,6 +2,7 @@
 // Checks if a result of `stat` is a file, as a program does when it copies the files of a folder.
 // bench: iterations 400000
 // bench: allocations 0
+// bench: complexity constant
 
 class Bench {
     public static function run(array<Core\IO\Metadata> $infos, uint $rounds): uint {

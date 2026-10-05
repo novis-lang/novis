@@ -1,6 +1,7 @@
 <?nvs
 // Signs a short login token with a shared key, as a server does after each login.
 // bench: iterations 50000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

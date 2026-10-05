@@ -1,0 +1,22 @@
+<?nvs
+// Measures `Core\Json::encode` on one shape, at growing lengths of the name in it.
+// bench: start 1024
+// bench: max 16384
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        string $name = Core\Str::repeat('a', $size);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            string $text = Core\Json::encode({ id: $i, name: $name, active: true });
+            $total = $total + Core\Str::length($text);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(1024), "\n";

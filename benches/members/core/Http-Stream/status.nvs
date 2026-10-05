@@ -2,6 +2,7 @@
 // Reads the status code of a streamed reply, as a program does before it reads the body.
 // bench: iterations 400000
 // bench: allocations 0
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): int {

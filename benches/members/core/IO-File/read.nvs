@@ -1,6 +1,7 @@
 <?nvs
 // Reads an open file 64 bytes at a time, as a program does when it reads a large file in parts.
 // bench: iterations 200000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

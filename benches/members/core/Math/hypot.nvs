@@ -2,6 +2,7 @@
 // Measures the distance between two points, as a map or a game does for every pair it compares.
 // bench: iterations 400000
 // bench: allocations 0
+// bench: complexity constant
 
 class Bench {
     public static function run(int $rounds): float {

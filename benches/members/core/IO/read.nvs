@@ -1,6 +1,7 @@
 <?nvs
 // Reads a short file whole, as a program does with a template or a small settings file.
 // bench: iterations 5000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

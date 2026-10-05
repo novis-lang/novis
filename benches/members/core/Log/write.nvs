@@ -1,6 +1,7 @@
 <?nvs
 // Measures one `Core\Log::write` with one field, as a server writes for each order it saves.
 // bench: iterations 20000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

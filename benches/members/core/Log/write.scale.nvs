@@ -1,0 +1,22 @@
+<?nvs
+// Measures `Core\Log::write` with one message, at growing message lengths.
+// bench: start 1024
+// bench: max 16384
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        string $event = Core\Str::repeat('a', $size);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            Core\Log::write(Core\Log\Level::Info, $event, ['order' => $i]);
+            $total = $total + Core\Str::length($event);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(1024), "\n";

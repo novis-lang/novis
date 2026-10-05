@@ -1,6 +1,7 @@
 <?nvs
 // Reads a short session value from a token with a shared key, as a server does with each request's cookie.
 // bench: iterations 20000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

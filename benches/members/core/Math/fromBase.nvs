@@ -2,6 +2,7 @@
 // Measures reading a short hexadecimal number, as a program does with a colour code or an id.
 // bench: iterations 400000
 // bench: allocations 0
+// bench: complexity constant
 
 class Bench {
     public static function run(int $rounds): int {

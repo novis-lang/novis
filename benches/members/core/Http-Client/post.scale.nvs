@@ -1,0 +1,24 @@
+<?nvs
+// Measures sending one `POST` request with a JSON body, at growing body sizes.
+// bench: start 1024
+// bench: max 16384
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        // The reply comes from this table, so nothing is sent over a network.
+        Core\Test::answerHttp('https://api.example.com/orders', 201);
+        string $note = Core\Str::repeat('a', $size);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            Core\Http\Response $response = Core\Http\Client::post('https://api.example.com/orders', { json: ['note' => $note] });
+            $total = $total + ($response->status() as uint);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(1024), "\n";

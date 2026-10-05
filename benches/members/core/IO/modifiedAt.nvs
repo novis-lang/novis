@@ -2,6 +2,7 @@
 // Reads when a file was last changed, as a program does before it decides to rebuild a cache.
 // bench: iterations 5000
 // bench: calls 0
+// bench: complexity constant
 
 class Bench {
     public static function run(int $rounds): int {

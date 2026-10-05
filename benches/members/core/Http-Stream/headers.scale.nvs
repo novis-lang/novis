@@ -1,0 +1,29 @@
+<?nvs
+// Measures reading every line of one header of a streamed reply, at growing numbers of lines.
+// bench: start 16
+// bench: max 256
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        array<string> $cookies = [];
+        uint $n = 0;
+        while ($n < $size) {
+            $cookies[] = 'item=1';
+            $n = $n + 1;
+        }
+        // The reply comes from this table, so nothing is sent over a network.
+        Core\Test::answerHttp('https://shop.example.com/feed', 200, { headers: ['Set-Cookie' => $cookies] });
+        Core\Http\Stream $feed = Core\Http\Client::stream(Core\Http\Method::Get, 'https://shop.example.com/feed');
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            $total = $total + Core\Arr::count($feed->headers('set-cookie')) + 1;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(16), "\n";
