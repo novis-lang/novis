@@ -68,6 +68,7 @@
     "ide/the-extension-runs-where-the-binary-is",
     "ide/the-extension-guides-an-install-and-never-bundles-one",
     "ide/the-extension-builds-no-ui-the-editor-already-has",
+    "ide/a-file-shows-what-it-declares",
     "ide/the-test-tree-is-discovered-and-run-through-the-cli",
     "ide/the-ast-panel-shells-out-to-the-cli",
     "ide/the-lockfile-is-committed-and-build-output-is-not",

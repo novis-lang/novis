@@ -1,0 +1,18 @@
+{
+  "title": "A file that declares one class, interface, enum or `type` alias and nothing else shows that kind beside its name, as a file decoration the server's `nvs/fileKinds` feeds and the theme colours",
+  "status": "shipped",
+  "because": [
+    "0268"
+  ],
+  "seeAlso": [
+    "programs/one-declaration-per-autoloaded-file",
+    "ide/the-request-set-is-closed",
+    "ide/novis-ships-names-not-colours",
+    "ide/the-extension-builds-no-ui-the-editor-already-has",
+    "ide/one-server-two-thin-clients"
+  ],
+  "guardedBy": [
+    "crates/nvs-lsp/tests/autoload.rs",
+    "editors/vscode/test/client/kinds.test.ts"
+  ]
+}

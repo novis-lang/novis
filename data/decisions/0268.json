@@ -1,0 +1,11 @@
+{
+  "title": "a file that declares one type shows its kind beside its name, as the editor's own file decoration fed by `nvs/fileKinds`",
+  "status": "accepted",
+  "scope": "how an editor's file list tells a class file from an interface, enum or `type` alias file,\nand the seventh request of Novis's own that answers it. What shape an autoloaded file must have\nstays `rule:programs/one-declaration-per-autoloaded-file`'s.",
+  "dependsOn": [
+    "0099",
+    "0101",
+    "0201"
+  ],
+  "validatedBy": "`crates/nvs-lsp/tests/autoload.rs`'s `a_file_that_declares_one_type_is_listed_with_its_kind`\nand `editors/vscode/test/client/kinds.test.ts`."
+}

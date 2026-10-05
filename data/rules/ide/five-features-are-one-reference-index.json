@@ -2,7 +2,8 @@
   "title": "Find-references, occurrence highlight, CodeLens, type hierarchy and unused-member dimming are five queries against one workspace index",
   "status": "designed",
   "because": [
-    "0108"
+    "0108",
+    "0268"
   ],
   "seeAlso": [
     "ide/check-scope-defaults-to-the-workspace",

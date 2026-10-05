@@ -16,5 +16,10 @@ silent under the default of `rule:ide/check-scope-defaults-to-the-workspace` rat
 Call hierarchy is deliberately not in this list. `textDocument/callHierarchy` is a different index —
 call-site edges kept incrementally — and nothing else needs it, so it is not built.
 
-The structural check is that `nvs-lsp` has exactly one symbol-index construction site and all five
+One more reader reads the same index and is not a reference feature: `nvs/fileKinds`
+(`rule:ide/a-file-shows-what-it-declares`) lists the files that declare one type, from the kind the index
+recorded as it read each file. It asks what a file declares rather than where a name is used, and it
+builds no walk of its own either.
+
+The structural check is that `nvs-lsp` has exactly one symbol-index construction site and all six
 readers read it.

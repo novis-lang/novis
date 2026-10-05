@@ -304,14 +304,15 @@ pub fn declared_capabilities(encoding: PositionEncodingKind) -> serde_json::Valu
 /// settled.
 ///
 /// None of `nvs/redactions`, `nvs/regions`, `nvs/imports`, `nvs/importEdits`,
-/// `nvs/checkWorkspace` and `nvs/directives` appears in it, and that is not an
-/// omission: they are Novis's own requests
+/// `nvs/checkWorkspace`, `nvs/directives` and `nvs/fileKinds` appears in it,
+/// and that is not an omission: they are Novis's own requests
 /// (`rule:ide/redaction-ranges-come-from-the-server`,
 /// `rule:ide/a-template-region-gets-the-editors-services-and-formatter`,
 /// `rule:ide/a-pasted-type-carries-its-use-line`,
 /// `rule:ide/check-scope-defaults-to-the-workspace`,
-/// `rule:ide/the-extension-claims-nvs-only`), LSP has no capability field for
-/// any of them, and the client knows all six are available from `serverInfo`
+/// `rule:ide/the-extension-claims-nvs-only`,
+/// `rule:ide/a-file-shows-what-it-declares`), LSP has no capability field for
+/// any of them, and the client knows all seven are available from `serverInfo`
 /// naming this server at all.
 ///
 /// **No formatting provider appears either, and that absence is a decision.**

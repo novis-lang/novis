@@ -8,7 +8,8 @@
     "0137",
     "0171",
     "0201",
-    "0240"
+    "0240",
+    "0268"
   ],
   "seeAlso": [
     "ide/redaction-ranges-come-from-the-server",

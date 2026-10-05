@@ -405,3 +405,52 @@ fn a_braced_prefix_segment_hovers_as_the_directory_name_it_reaches() {
          this order:\n\n- `src`",
     );
 }
+
+/// `nvs/fileKinds` lists every file that declares one type and nothing else,
+/// with that type's kind (`rule:ide/a-file-shows-what-it-declares`).
+///
+/// The four kinds each have a file under the autoload root. The framework
+/// class outside the workspace is in the list because the program reaches it.
+/// The test file is reached by `require` and declares one class, so it is in
+/// the list too. The two entry points declare nothing, and the script with a
+/// class and a statement has a second thing in it, so none of the three is.
+#[test]
+fn a_file_that_declares_one_type_is_listed_with_its_kind() {
+    let (dir, root) = application("file-kinds");
+    dir.write(
+        "app/src/Page.nvs",
+        "<?nvs\nnamespace Blog;\n\ninterface Page { }\n",
+    );
+    dir.write(
+        "app/src/Status.nvs",
+        "<?nvs\nnamespace Blog;\n\nenum Status {\n    Draft = 1,\n    Live = 2,\n}\n",
+    );
+    dir.write(
+        "app/src/Post.nvs",
+        "<?nvs\nnamespace Blog;\n\ntype Post = {title: string};\n",
+    );
+    dir.write("app/bin/tool.nvs", "<?nvs\nclass Tool { }\necho 1;\n");
+    let mut documents = Documents::new();
+    documents.survey(CheckScope::Workspace, Some(&root));
+    let index = nvs_lsp::SymbolIndex::build(&documents, CheckScope::Workspace, Some(&root));
+
+    let mut listed: Vec<(String, &str)> = nvs_lsp::file_kinds::answer(&index)
+        .into_iter()
+        .map(|file| {
+            let name = file.uri.rsplit('/').next().unwrap_or_default().to_owned();
+            (name, file.kind)
+        })
+        .collect();
+    listed.sort_unstable();
+    assert_eq!(
+        listed,
+        vec![
+            ("ApplicationTest.nvs".to_owned(), "class"),
+            ("Index.nvs".to_owned(), "class"),
+            ("Kernel.nvs".to_owned(), "class"),
+            ("Page.nvs".to_owned(), "interface"),
+            ("Post.nvs".to_owned(), "type"),
+            ("Status.nvs".to_owned(), "enum"),
+        ],
+    );
+}

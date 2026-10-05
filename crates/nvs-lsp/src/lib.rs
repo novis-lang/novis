@@ -107,6 +107,7 @@ pub mod definition;
 pub mod diagnostics;
 pub mod directives;
 mod document;
+pub mod file_kinds;
 pub mod folding;
 pub mod hints;
 pub mod hover;

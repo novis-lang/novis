@@ -107,6 +107,7 @@ use crate::definition;
 use crate::diagnostics::{Phases, SOURCE, dimming, for_document};
 use crate::directives;
 use crate::document::{Analysed, Documents, analyse, directory_uri_of, path_of, uri_of};
+use crate::file_kinds;
 use crate::folding;
 use crate::hints;
 use crate::hover;
@@ -748,6 +749,7 @@ fn answer(
             Ok(params) => Response::new_ok(id, import_edits(documents, index, encoding, &params)),
             Err(error) => unreadable(id, &method, &error),
         },
+        file_kinds::METHOD => Response::new_ok(id, file_kinds::answer(index)),
         directives::METHOD => match directives::Params::from_value(params) {
             Ok(params) => Response::new_ok(
                 id,

@@ -75,6 +75,7 @@ use std::path::{Path, PathBuf};
 
 use lsp_types::Uri;
 use nvs_diagnostics::{BytePos, Diagnostics, SourceFile, Span, canonical_key};
+use nvs_hir::autoload::sole_declaration;
 use nvs_hir::{Loaded, QName, SymbolKind};
 use nvs_syntax::ast::{
     ClassMember, ClassMemberKind, Modifier, NamespaceDecl, Stmt, StmtKind, Type, TypeAtom, TypeKind,
@@ -299,6 +300,9 @@ struct Indexed {
     occurrences: Vec<Occurrence>,
     /// Every `use` import written here, in source order.
     imports: Vec<Import>,
+    /// The kind of the one type this file declares, when the file has the
+    /// shape an autoloaded file must have (`nvs_hir::autoload::sole_declaration`).
+    sole: Option<DeclKind>,
     /// The entry point that analysis started from, which is what re-indexing
     /// this file costs, and whose reads in [`SymbolIndex::reads`] are the edge
     /// [`SymbolIndex::invalidate`] follows.
@@ -643,6 +647,14 @@ impl SymbolIndex {
         self.files.keys().map(PathBuf::as_path)
     }
 
+    /// Every file that declares exactly one type and nothing else, with that
+    /// type's kind, in path order. `nvs/fileKinds` is this list.
+    pub fn sole_kinds(&self) -> impl Iterator<Item = (&Path, DeclKind)> {
+        self.files
+            .iter()
+            .filter_map(|(path, indexed)| Some((path.as_path(), indexed.sole?)))
+    }
+
     /// Whether the index holds an entry for `path`.
     #[must_use]
     pub fn holds(&self, path: &Path) -> bool {
@@ -689,6 +701,8 @@ impl SymbolIndex {
                 decls: declarations(&analysed, loaded, &key),
                 occurrences: occurrences(&analysed, loaded, &key),
                 imports: imports(&analysed, loaded, &key),
+                sole: sole_declaration(&loaded.stmts, analysed.map.file(loaded.id))
+                    .map(|(_, kind)| DeclKind::of_symbol(kind)),
                 entry: entry.clone(),
             };
             self.files.insert(key, indexed);

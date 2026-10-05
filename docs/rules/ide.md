@@ -3,7 +3,7 @@
 
 # The editor
 
-*60 of 82 rules below are **designed** rather than shipped, and are marked where they appear.*
+*60 of 83 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="ide-one-grammar-one-tree"></a>
 
@@ -401,11 +401,17 @@ is not one the server opens: an `nvs.toml` belongs to the user's TOML extension,
 text and the cursor with the request. It has no `.lspt` vocabulary, and `crates/nvs-lsp/tests/directives.rs`
 holds it.
 
+The seventh is `nvs/fileKinds` ([`ide/a-file-shows-what-it-declares`](ide.md#ide-a-file-shows-what-it-declares)), and it passes the test with
+nothing new built: the index already reads every file it lists, and the kind is the autoload shape check's
+own scan, recorded once per file as the index reads it. It is non-standard because LSP has no shape for
+"what this file is", and a decoration on a file the editor has not opened is not a document request. It
+has no `.lspt` vocabulary, and `crates/nvs-lsp/tests/autoload.rs` holds it.
+
 `textDocument/declaration` is refused rather than deferred: Novis has no declaration that is not the
 definition, so it would answer identically to `textDocument/definition`, and the crate names neither
 spelling of it.
 
-<sub>See also [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`](ide.md#ide-a-code-action-ships-only-a-fix-a-diagnostic-already-knows), [`ide/diagnostics-are-phase-gated`](ide.md#ide-diagnostics-are-phase-gated), [`ide/the-index-answers-the-cursor`](ide.md#ide-the-index-answers-the-cursor), [`tooling/doc-comment-tags-are-see-and-example`](tooling.md#tooling-doc-comment-tags-are-see-and-example), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency), [`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index). Decided in [0099](../decisions/0099.md), [0101](../decisions/0101.md), [0040](../decisions/0040.md), [0137](../decisions/0137.md), [0171](../decisions/0171.md), [0201](../decisions/0201.md), [0240](../decisions/0240.md).</sub>
+<sub>See also [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`](ide.md#ide-a-code-action-ships-only-a-fix-a-diagnostic-already-knows), [`ide/diagnostics-are-phase-gated`](ide.md#ide-diagnostics-are-phase-gated), [`ide/the-index-answers-the-cursor`](ide.md#ide-the-index-answers-the-cursor), [`tooling/doc-comment-tags-are-see-and-example`](tooling.md#tooling-doc-comment-tags-are-see-and-example), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency), [`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index). Decided in [0099](../decisions/0099.md), [0101](../decisions/0101.md), [0040](../decisions/0040.md), [0137](../decisions/0137.md), [0171](../decisions/0171.md), [0201](../decisions/0201.md), [0240](../decisions/0240.md), [0268](../decisions/0268.md).</sub>
 
 <a id="ide-the-first-server-answers-a-closed-list"></a>
 
@@ -1076,10 +1082,15 @@ silent under the default of [`ide/check-scope-defaults-to-the-workspace`](ide.md
 Call hierarchy is deliberately not in this list. `textDocument/callHierarchy` is a different index —
 call-site edges kept incrementally — and nothing else needs it, so it is not built.
 
-The structural check is that `nvs-lsp` has exactly one symbol-index construction site and all five
+One more reader reads the same index and is not a reference feature: `nvs/fileKinds`
+([`ide/a-file-shows-what-it-declares`](ide.md#ide-a-file-shows-what-it-declares)) lists the files that declare one type, from the kind the index
+recorded as it read each file. It asks what a file declares rather than where a name is used, and it
+builds no walk of its own either.
+
+The structural check is that `nvs-lsp` has exactly one symbol-index construction site and all six
 readers read it.
 
-<sub>See also [`ide/check-scope-defaults-to-the-workspace`](ide.md#ide-check-scope-defaults-to-the-workspace), [`classes/no-traits`](classes.md#classes-no-traits), [`classes/interface-default-methods`](classes.md#classes-interface-default-methods), [`classes/delegation-by-field`](classes.md#classes-delegation-by-field), [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency). Decided in [0108](../decisions/0108.md).</sub>
+<sub>See also [`ide/check-scope-defaults-to-the-workspace`](ide.md#ide-check-scope-defaults-to-the-workspace), [`classes/no-traits`](classes.md#classes-no-traits), [`classes/interface-default-methods`](classes.md#classes-interface-default-methods), [`classes/delegation-by-field`](classes.md#classes-delegation-by-field), [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency). Decided in [0108](../decisions/0108.md), [0268](../decisions/0268.md).</sub>
 
 <a id="ide-completion-offers-only-what-the-compiler-derived"></a>
 
@@ -1934,6 +1945,32 @@ priority applied directly. The extension's own code is the descriptor factory, t
 the test provider and the command that hands a file to a viewer.
 
 <sub>See also [`ide/the-debug-adapter-does-not-wait-for-an-editor`](ide.md#ide-the-debug-adapter-does-not-wait-for-an-editor), [`testing/debug-probes`](testing.md#testing-debug-probes), [`testing/report-formats`](testing.md#testing-report-formats), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency), [`observability/trace-events-carry-a-kind`](observability.md#observability-trace-events-carry-a-kind), [`ide/the-debugger-ui-is-as-deep-as-the-adapter`](ide.md#ide-the-debugger-ui-is-as-deep-as-the-adapter). Decided in [0040](../decisions/0040.md).</sub>
+
+<a id="ide-a-file-shows-what-it-declares"></a>
+
+## A file that declares one class, interface, enum or `type` alias and nothing else shows that kind beside its name, as a file decoration the server's `nvs/fileKinds` feeds and the theme colours
+
+`rule:ide/a-file-shows-what-it-declares`
+
+A file whose only declaration is one class, interface, enum or `type` alias, beside nothing but
+`namespace` and `use`, shows that kind in the editor's file list: a letter beside its name — `C`, `I`,
+`E` or `T` — and the theme's colour for that kind of symbol. That is the shape every autoloaded file
+has ([`programs/one-declaration-per-autoloaded-file`](programs.md#programs-one-declaration-per-autoloaded-file)), and `nvs_hir::autoload::sole_declaration` is
+the one scan both the shape check and this list read. A file reached by `require` with the same shape is
+listed as well.
+
+The server answers `nvs/fileKinds` with every such file its index holds and the kind of each, and the
+VS Code client draws the answer as a file decoration, the editor's own surface for a badge on a file
+([`ide/the-extension-builds-no-ui-the-editor-already-has`](ide.md#ide-the-extension-builds-no-ui-the-editor-already-has)). The icon is unchanged: an editor picks
+a file's icon from its name and language, never from its content. The colour is the editor's
+`symbolIcon.*Foreground` colour for a class, an interface, an enum or a type parameter, so the theme
+decides it ([`ide/novis-ships-names-not-colours`](ide.md#ide-novis-ships-names-not-colours)).
+
+The list is what the index holds. The client asks when a server starts answering, after
+`nvs.checkWorkspace`, and when a Novis document is opened or saved; a file changed outside the editor
+shows its old kind until one of those happens.
+
+<sub>See also [`programs/one-declaration-per-autoloaded-file`](programs.md#programs-one-declaration-per-autoloaded-file), [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed), [`ide/novis-ships-names-not-colours`](ide.md#ide-novis-ships-names-not-colours), [`ide/the-extension-builds-no-ui-the-editor-already-has`](ide.md#ide-the-extension-builds-no-ui-the-editor-already-has), [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients). Decided in [0268](../decisions/0268.md).</sub>
 
 <a id="ide-the-test-tree-is-discovered-and-run-through-the-cli"></a>
 

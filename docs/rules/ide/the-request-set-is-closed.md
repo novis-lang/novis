@@ -78,6 +78,12 @@ is not one the server opens: an `nvs.toml` belongs to the user's TOML extension,
 text and the cursor with the request. It has no `.lspt` vocabulary, and `crates/nvs-lsp/tests/directives.rs`
 holds it.
 
+The seventh is `nvs/fileKinds` (`rule:ide/a-file-shows-what-it-declares`), and it passes the test with
+nothing new built: the index already reads every file it lists, and the kind is the autoload shape check's
+own scan, recorded once per file as the index reads it. It is non-standard because LSP has no shape for
+"what this file is", and a decoration on a file the editor has not opened is not a document request. It
+has no `.lspt` vocabulary, and `crates/nvs-lsp/tests/autoload.rs` holds it.
+
 `textDocument/declaration` is refused rather than deferred: Novis has no declaration that is not the
 definition, so it would answer identically to `textDocument/definition`, and the crate names neither
 spelling of it.

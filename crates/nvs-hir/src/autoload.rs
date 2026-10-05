@@ -1260,7 +1260,7 @@ pub fn check_file_shape(
     span: Span,
     diags: &mut Diagnostics,
 ) {
-    let mut declared: Vec<(QName, Span)> = Vec::new();
+    let mut declared: Vec<(QName, Span, SymbolKind)> = Vec::new();
     let mut stray: Option<Span> = None;
     scan_shape(stmts, src, &[], &mut declared, &mut stray);
 
@@ -1308,6 +1308,24 @@ pub fn check_file_shape(
     }
 }
 
+/// The one declaration a file makes and its kind, when the file has the shape
+/// [`check_file_shape`] holds an autoloaded file to: exactly one class,
+/// interface, enum or `type` alias, and nothing else but `namespace` and
+/// `use`. Any other file is `None`, however it was reached.
+///
+/// This is the same scan the check runs, so the shape an editor shows a file
+/// as and the shape the compiler accepts it in cannot disagree.
+#[must_use]
+pub fn sole_declaration(stmts: &[Stmt], src: &SourceFile) -> Option<(QName, SymbolKind)> {
+    let mut declared: Vec<(QName, Span, SymbolKind)> = Vec::new();
+    let mut stray: Option<Span> = None;
+    scan_shape(stmts, src, &[], &mut declared, &mut stray);
+    match (declared.as_slice(), stray) {
+        ([(name, _, kind)], None) => Some((name.clone(), *kind)),
+        _ => None,
+    }
+}
+
 /// Collects every top-level declaration under the namespace in force where
 /// it stands. The statement form `namespace A;` sets the namespace for the
 /// statements after it; the bracketed form sets it for its own block.
@@ -1315,16 +1333,16 @@ fn scan_shape(
     stmts: &[Stmt],
     src: &SourceFile,
     outer: &[String],
-    declared: &mut Vec<(QName, Span)>,
+    declared: &mut Vec<(QName, Span, SymbolKind)>,
     stray: &mut Option<Span>,
 ) {
     let mut namespace = outer.to_vec();
     for stmt in stmts {
-        let span = match &stmt.kind {
-            StmtKind::ClassDecl(d) => d.name.span,
-            StmtKind::InterfaceDecl(d) => d.name.span,
-            StmtKind::EnumDecl(d) => d.name.span,
-            StmtKind::TypeAliasDecl(d) => d.name.span,
+        let (span, kind) = match &stmt.kind {
+            StmtKind::ClassDecl(d) => (d.name.span, SymbolKind::Class),
+            StmtKind::InterfaceDecl(d) => (d.name.span, SymbolKind::Interface),
+            StmtKind::EnumDecl(d) => (d.name.span, SymbolKind::Enum),
+            StmtKind::TypeAliasDecl(d) => (d.name.span, SymbolKind::TypeAlias),
             StmtKind::NamespaceDecl(NamespaceDecl { name, body, .. }) => {
                 let named = name.as_ref().map_or_else(Vec::new, |name| {
                     let text = src.span_text(name.span).unwrap_or_default();
@@ -1345,7 +1363,7 @@ fn scan_shape(
             }
         };
         let text = src.span_text(span).unwrap_or_default();
-        declared.push((QName::join(&namespace, text), span));
+        declared.push((QName::join(&namespace, text), span, kind));
     }
 }
 
