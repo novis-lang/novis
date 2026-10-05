@@ -119,6 +119,17 @@ alternated. It spends one more copy of each assigned name per function while it 
 constructor property check in `ctor_init.rs` still copies its own set per branch, and its gap record
 says so.
 
+**The `Core` signature table is built once per process.** Every check built the whole table from the
+registry, interned its types and freed it again. The first check now builds it into a frozen base
+(`crates/nvs-types/src/core_lib.rs`), and every check layers its own declarations and types over
+that base. A check copies a native entry only when it must change it. The override pass also skips
+a class with no supertype, which every native class is. Callgrind on the debug Linux binary, empty
+program: `nvs check` went from 54.7 M instructions to 41.7 M, because the table is no longer freed
+and the override pass no longer walks every native method. An `nvs lsp` session that opens an empty
+file, edits it once and hovers went from 192.7 M to 48.6 M, because it builds the table once rather
+than five times. The cost does not grow with input, so there is no ladder. It spends one copy of the
+table for the life of the process, the same size as the copy each check built and freed.
+
 ## Decisions for you
 
 **Should a request head get a total deadline as well as its idle one?** `header_timeout` is an idle

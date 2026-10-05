@@ -466,8 +466,15 @@ pub struct CoreShapeField {
 
 /// Interns [`Ty`] values, giving structurally identical types the same
 /// [`TypeId`].
+///
+/// An interner may sit on top of a frozen `base` that lives for the whole
+/// process: the base's types keep their ids, and this interner numbers its own
+/// types after them. [`crate::core_lib::base`] is the one base, so the types
+/// `Core`'s signatures name are interned once per process rather than once per
+/// check.
 #[derive(Debug, Default)]
 pub struct TypeInterner {
+    base: Option<&'static TypeInterner>,
     types: Vec<Ty>,
     index: FxHashMap<Ty, TypeId>,
 }
@@ -479,14 +486,41 @@ impl TypeInterner {
         Self::default()
     }
 
+    /// Whether nothing has been interned yet, in this interner or in a base.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.base.is_none() && self.types.is_empty()
+    }
+
+    /// Puts the frozen `base` under this empty interner, so every id the base
+    /// gave out names the same type here.
+    ///
+    /// # Panics
+    /// Panics if anything has been interned here already, whose id the base's
+    /// ids would collide with.
+    pub(crate) fn layer_over(&mut self, base: &'static Self) {
+        assert!(
+            self.is_empty(),
+            "an interner is layered before its first type"
+        );
+        self.base = Some(base);
+    }
+
+    fn base_len(&self) -> usize {
+        self.base.map_or(0, |base| base.types.len())
+    }
+
     /// Interns `ty`, returning its `TypeId` — the same one a structurally
     /// identical `Ty` interned earlier already has.
     pub fn intern(&mut self, ty: Ty) -> TypeId {
+        if let Some(&id) = self.base.and_then(|base| base.index.get(&ty)) {
+            return id;
+        }
         if let Some(&id) = self.index.get(&ty) {
             return id;
         }
         let id = TypeId(
-            u32::try_from(self.types.len())
+            u32::try_from(self.base_len() + self.types.len())
                 .expect("far fewer than u32::MAX types are ever interned in one compilation"),
         );
         self.types.push(ty.clone());
@@ -500,7 +534,11 @@ impl TypeInterner {
     /// Panics if `id` was not produced by this interner.
     #[must_use]
     pub fn get(&self, id: TypeId) -> &Ty {
-        &self.types[id.0 as usize]
+        let at = id.0 as usize;
+        match self.base {
+            Some(base) if at < base.types.len() => &base.types[at],
+            _ => &self.types[at - self.base_len()],
+        }
     }
 
     /// Builds a canonicalized union out of already-interned members:

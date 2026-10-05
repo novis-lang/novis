@@ -351,7 +351,8 @@ on purpose. 11% is the table of helper addresses (`nvs_stdlib::symbols`).
 
 **Compile:** `nvs check` is 8.3 ms, 2.6 ms above the process start. 54% of its instructions build
 the `Core` signature table from the registry and another 8% drop it again
-([`core-signatures-are-built-again-for-every-check`](../../data/gaps/nvs-types/core-signatures-are-built-again-for-every-check.json)).
+(`core-signatures-are-built-again-for-every-check`, fixed,
+[performance-pass.md § *What got better*](performance-pass.md#what-got-better)).
 The configuration is read once per process and grows linearly with its `[[app]]` blocks, about
 35 µs each (800 blocks: 34.7 ms); this repository's own `nvs.toml` adds 15 ms, and a deployed
 program's configuration of a few blocks adds about one.

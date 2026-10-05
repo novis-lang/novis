@@ -30,18 +30,55 @@
 use nvs_hir::QName;
 use nvs_hir::interfaces::{COMPARABLE, ITERABLE, ITERATOR, PARSES};
 use nvs_stdlib::registry::{CLASSES, Const, CoreTy, OPTIONS_NAME, Qual};
+use std::sync::OnceLock;
+
 use rustc_hash::FxHashMap;
 
 use crate::defaults::ConstArg;
-use crate::signatures::{MethodSig, SignatureTable};
+use crate::signatures::{ClassSignature, MethodSig, SignatureTable};
 use crate::ty::{TypeId, TypeInterner};
+
+/// The native declarations every check starts from, built once per process.
+pub(crate) struct Base {
+    /// `Core`, the error classes and the iteration interfaces, by name.
+    pub(crate) classes: FxHashMap<QName, ClassSignature>,
+    /// The types `classes` names, and nothing else.
+    pub(crate) interner: TypeInterner,
+}
+
+/// The process's one [`Base`], built by the first check that needs it.
+///
+/// Every input is the binary's own registry, so every check would build the
+/// same table. Building it once moves it out of every check after the first,
+/// which matters most to `nvs lsp`, where each analysis is a check. It spends
+/// one copy of the table for the life of the process, the same size as the
+/// copy each check used to build and free.
+pub(crate) fn base() -> &'static Base {
+    static BASE: OnceLock<Base> = OnceLock::new();
+    BASE.get_or_init(|| {
+        let mut table = SignatureTable::default();
+        let mut interner = TypeInterner::new();
+        seed_natives(&mut table, &mut interner);
+        Base {
+            classes: table.into_classes(),
+            interner,
+        }
+    })
+}
+
+/// Adds every native declaration to `table`: `Core`, then the error classes,
+/// then the iteration interfaces.
+pub(crate) fn seed_natives(table: &mut SignatureTable, interner: &mut TypeInterner) {
+    seed(table, interner);
+    crate::error_lib::seed(table, interner);
+    crate::iter_lib::seed(table, interner);
+}
 
 /// Adds every `nvs_stdlib::registry::CLASSES` entry to `table`.
 ///
-/// Called once, at the head of
-/// [`build_signatures`](crate::signatures::build_signatures), so a `Core`
-/// signature is in place before the first user declaration is collected and
-/// long before any body is checked.
+/// Reached through [`seed_natives`], so a `Core` signature is in place before
+/// the first user declaration is collected and long before any body is
+/// checked.
 pub(crate) fn seed(table: &mut SignatureTable, interner: &mut TypeInterner) {
     // Every class is seeded for every program, so the lookups the seeding makes are no program's
     // use of a class; `SignatureTable::get` records the ones a program makes.

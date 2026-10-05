@@ -605,8 +605,16 @@ pub struct ConstSig {
 }
 
 /// Every declaration's own [`ClassSignature`], keyed by its [`QName`].
+///
+/// The native declarations — `Core`, the error classes and the iteration
+/// interfaces — are a frozen `base` that [`crate::core_lib::base`] builds once
+/// per process and every check reads. A program's own declarations go in
+/// `by_class`. A base entry that a check has to change, such as an overridden
+/// method mark, is copied into `by_class` first, and from then on that copy
+/// is the one the check reads.
 #[derive(Debug, Default)]
 pub struct SignatureTable {
+    base: Option<&'static FxHashMap<QName, ClassSignature>>,
     by_class: FxHashMap<QName, ClassSignature>,
     property_default_types: Vec<(Span, TypeId)>,
 }
@@ -628,7 +636,9 @@ impl SignatureTable {
         if nvs_footprint::enabled() && qname.is_core() {
             nvs_stdlib::registry::record_signature(&qname.to_string());
         }
-        self.by_class.get(qname)
+        self.by_class
+            .get(qname)
+            .or_else(|| self.base.and_then(|base| base.get(qname)))
     }
 
     /// Every declaration in the table, name and signatures, in no particular
@@ -636,7 +646,27 @@ impl SignatureTable {
     /// "does anything extend me" is not a question the extended class's own
     /// entry can answer.
     pub fn iter(&self) -> impl Iterator<Item = (&QName, &ClassSignature)> {
-        self.by_class.iter()
+        let base = self
+            .base
+            .into_iter()
+            .flatten()
+            .filter(|(qname, _)| !self.by_class.contains_key(*qname));
+        self.by_class.iter().chain(base)
+    }
+
+    /// A table whose native declarations are `base`, with nothing of a
+    /// program's own in it yet.
+    pub(crate) fn over(base: &'static FxHashMap<QName, ClassSignature>) -> Self {
+        Self {
+            base: Some(base),
+            ..Self::default()
+        }
+    }
+
+    /// Every entry this table holds itself, for [`crate::core_lib::base`] to
+    /// freeze.
+    pub(crate) fn into_classes(self) -> FxHashMap<QName, ClassSignature> {
+        self.by_class
     }
 
     /// Every property initializer written in the program, paired with the
@@ -674,7 +704,12 @@ impl SignatureTable {
     }
 
     fn entry(&mut self, qname: QName) -> &mut ClassSignature {
-        self.by_class.entry(qname).or_default()
+        let base = self.base;
+        self.by_class.entry(qname).or_insert_with_key(|qname| {
+            base.and_then(|base| base.get(qname))
+                .cloned()
+                .unwrap_or_default()
+        })
     }
 
     /// Installs a whole class's properties and method signatures at once,
@@ -739,12 +774,19 @@ pub fn build_signatures(
     diags: &mut Diagnostics,
 ) -> SignatureTable {
     let (symbols, aliases, graph) = (&module.symbols, &module.aliases, &module.graph);
-    let mut table = SignatureTable::default();
     // `Core` first, so a user declaration can never be collected under a name
-    // the stdlib already owns without the later insertion being visible.
-    crate::core_lib::seed(&mut table, interner);
-    crate::error_lib::seed(&mut table, interner);
-    crate::iter_lib::seed(&mut table, interner);
+    // the stdlib already owns without the later insertion being visible. A
+    // fresh interner reads the process's frozen copy. One that already has
+    // types in it would give the native types other ids, so it seeds its own.
+    let mut table = if interner.is_empty() {
+        let base = crate::core_lib::base();
+        interner.layer_over(&base.interner);
+        SignatureTable::over(&base.classes)
+    } else {
+        let mut table = SignatureTable::default();
+        crate::core_lib::seed_natives(&mut table, interner);
+        table
+    };
     let placeholder = SignatureTable::default();
     // Same placeholder idea as `signatures` above: signature collection only
     // ever lowers property/parameter/return *type annotations*, never a call
@@ -827,10 +869,16 @@ pub fn build_signatures(
 fn mark_overridden_methods(table: &mut SignatureTable, graph: &ClassGraph) {
     let mut marks: Vec<(QName, String)> = Vec::new();
     for (qname, sig) in table.iter() {
+        // Most entries are native classes with no supertype in the program's
+        // graph, and none of their methods can override anything.
+        let direct = supertypes(qname, graph);
+        if direct.is_empty() {
+            continue;
+        }
         for name in sig.methods.keys() {
             let mut seen = FxHashSet::default();
             seen.insert(qname.clone());
-            let mut queue: Vec<QName> = supertypes(qname, graph);
+            let mut queue: Vec<QName> = direct.clone();
             while let Some(ancestor) = queue.pop() {
                 if !seen.insert(ancestor.clone()) {
                     continue;
