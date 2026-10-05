@@ -602,7 +602,8 @@ fn take_turns(workers: &Workers, mut turn: impl FnMut() -> io::Result<bool>) -> 
 /// One turn: which queues have due work, then one claim against each.
 ///
 /// The roster is asked first for the reason [`nvs_stdlib::queue::QUEUES_POSTGRES`] owns — § 2 names
-/// no queues, so the table is the only place they are written down — and the two instants are
+/// no queues, so the table is the only place they are written down — at O(queues) a turn, which
+/// that text's doc costs out. The two instants are
 /// computed once here so that every claim in this turn judges due-ness against the same moment.
 /// The visibility window is read from `current` at the start of the turn, so a reload that moves
 /// `[queue] visibility` reaches the next turn. `boot` is the window used when the snapshot in
@@ -655,9 +656,8 @@ fn window(snapshot: &nvs_config::Snapshot, boot: Duration) -> i64 {
     i64::try_from(visibility.as_millis()).unwrap_or(i64::MAX)
 }
 
-/// The queues holding work this worker could take, as [`nvs_stdlib::queue::QUEUES_POSTGRES`],
-/// [`nvs_stdlib::queue::QUEUES_MYSQL`] and [`nvs_stdlib::queue::QUEUES_SQLITE`] answer it — and the
-/// last of those is the second one, not a copy of it.
+/// The queues holding work this worker could take, as [`nvs_stdlib::queue::QUEUES_POSTGRES`] and
+/// its three siblings answer it, one text per dialect.
 ///
 /// **The same values in the same order on every dialect**, and none of these texts is a
 /// [`nvs_stdlib::queue::Split`] — so what the branch below is about is the walk over the answer and

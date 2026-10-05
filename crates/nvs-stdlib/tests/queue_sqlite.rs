@@ -127,7 +127,7 @@ fn push(conn: &SqliteConn, run_at: i64, state: i64, attempts: i64, claimed_at: O
 /// [`push`] onto a queue the case names, for the one statement whose answer is
 /// about the *table* rather than about a row.
 ///
-/// [`queue::QUEUES_SQLITE`] answers `select distinct queue`, so the case that
+/// [`queue::QUEUES_SQLITE`] answers queue names, so the case that
 /// runs it needs rows on more than one name and a database holding nothing else
 /// — and a database per case is what this file already gives it.
 fn push_on(
@@ -1280,7 +1280,7 @@ fn a_sqlite_retry_puts_the_dedupe_key_back_on_the_row_it_released() {
 /// § 2's roster, sorted: the queue names a worker idling at `now` would claim
 /// against.
 ///
-/// `select distinct` names no order, and what a case asks of it is a set, so the
+/// The roster names no order, and what a case asks of it is a set, so the
 /// comparison is made against a sorted vector rather than against whichever walk
 /// the planner de-duplicated with.
 fn roster(conn: &SqliteConn, now: i64, cutoff: i64) -> Vec<String> {
@@ -1328,6 +1328,61 @@ fn a_sqlite_roster_names_only_the_queues_holding_due_work() {
     );
 }
 
+/// The roster's step walks past a queue whose pending rows are not due yet, and
+/// past one with several due rows, without losing the name after either.
+///
+/// The step goes from one pending name to the next, so a queue holding only
+/// later work sits between two names the roster must still reach.
+#[test]
+fn a_sqlite_roster_steps_past_a_queue_with_nothing_due() {
+    let (worker, _reader) = two_connections("nvs-stdlib-queue-roster-step");
+
+    push_on(&worker, "roster-a", NOW, 0, 0, None);
+    push_on(&worker, "roster-a", NOW - 1, 0, 0, None);
+    push_on(&worker, "roster-b", NOW + 1, 0, 0, None);
+    push_on(&worker, "roster-c", NOW, 0, 0, None);
+
+    assert_eq!(
+        roster(&worker, NOW, NOW - WINDOW),
+        vec![String::from("roster-a"), String::from("roster-c")],
+        "each queue with a due row once, and not the queue whose row is due later"
+    );
+}
+
+/// The roster's plan reads `nvs_jobs` only by seeks, so one roster costs a seek
+/// per queue name and not a read of every due row.
+///
+/// SQLite's plan names every table access, so a full scan shows here as a line
+/// that starts with `SCAN nvs_jobs`.
+#[test]
+fn a_sqlite_roster_seeks_and_never_scans_the_jobs_table() {
+    let (worker, _reader) = two_connections("nvs-stdlib-queue-roster-plan");
+    let plan = rows(
+        &worker,
+        &format!("explain query plan {}", queue::QUEUES_SQLITE),
+        vec![SqliteValue::Int(NOW), SqliteValue::Int(NOW - WINDOW)],
+    );
+    let reads: Vec<String> = plan
+        .iter()
+        .filter_map(|row| match row.get(3) {
+            Some(SqliteValue::Text(detail)) if detail.contains("nvs_jobs") => Some(detail.clone()),
+            _ => None,
+        })
+        .collect();
+
+    assert_eq!(
+        reads.len(),
+        4,
+        "the first name, the next name, the due check and the expired arm: {reads:?}"
+    );
+    for read in &reads {
+        assert!(
+            read.starts_with("SEARCH"),
+            "every read of the table is a seek: {reads:?}"
+        );
+    }
+}
+
 /// The claim's two arms are read apart and its order is still one order: the
 /// earlier `run_at` wins whichever arm holds it, and `id` breaks a tie.
 ///
@@ -1351,12 +1406,15 @@ fn a_sqlite_claim_takes_the_earliest_due_row_across_both_arms() {
     );
 }
 
-/// The claim's plan reads `nvs_jobs` only through the `nvs_jobs_due` index, so
-/// one claim seeks its row and does not sort the due backlog.
+/// The claim's plan reads `nvs_jobs` only by a seek on `queue`, `state` and the
+/// due instant together, so one claim seeks its row and does not sort the due
+/// backlog.
 ///
-/// SQLite's plan names every table access, so a full scan or a second index
-/// would show here as a line that is not a `SEARCH` on `nvs_jobs_due`. The one
-/// temporary b-tree allowed is the outer `order by`, over at most two rows.
+/// SQLite's plan names every table access, so a full scan would show here as a
+/// line that is not a `SEARCH`. `nvs_jobs_due` and `nvs_jobs_roster` hold the
+/// same three columns in two orders, and both serve the claim's equalities, so
+/// the planner may take either. The one temporary b-tree allowed is the outer
+/// `order by`, over at most two rows.
 #[test]
 fn a_sqlite_claim_seeks_each_arm_through_the_due_index() {
     let (worker, _reader) = two_connections("nvs-stdlib-queue-claim-plan");
@@ -1384,8 +1442,10 @@ fn a_sqlite_claim_seeks_each_arm_through_the_due_index() {
     assert_eq!(reads.len(), 2, "one read per arm: {details:?}");
     for read in reads {
         assert!(
-            read.starts_with("SEARCH") && read.contains("nvs_jobs_due"),
-            "every read of the table seeks the due index: {details:?}"
+            read.starts_with("SEARCH")
+                && (read.contains("nvs_jobs_due") || read.contains("nvs_jobs_roster"))
+                && (read.contains("state=? AND queue=?") || read.contains("queue=? AND state=?")),
+            "every read of the table seeks one queue's rows of one state: {details:?}"
         );
     }
     assert!(

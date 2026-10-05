@@ -2745,7 +2745,7 @@ fn a_framed_visibility_timeout_returns_an_abandoned_job_to_the_queue() {
 /// arms.
 ///
 /// **What a server is being asked here is that the two arms stay keyed to their
-/// own instant.** [`queue::QUEUES_MYSQL`] is one `where` with an `or` in it, and
+/// own instant.** [`queue::QUEUES_MYSQL`] is two arms joined by a `union`, and
 /// a transcription that let `now` reach the lease arm — or the cutoff reach the
 /// due arm — answers plausibly for a queue with any work at all in it, which is
 /// the shape a case asking one question per arm would pass. So each bound is
@@ -2754,12 +2754,10 @@ fn a_framed_visibility_timeout_returns_an_abandoned_job_to_the_queue() {
 /// before it, asked with a `now` far past the row's own `run_at` so that only
 /// the second arm can be what answered.
 ///
-/// **`distinct` is the other claim, and it is the one the doc costs out.** § 2's
-/// `nvs_jobs_due` is `(queue, state, run_at)`, so neither dialect answers
-/// `distinct queue` off the index's leading column: both walk the due rows.
-/// What the statement owes in return is that two due jobs in one queue are one
-/// name — the difference between a roster and a backlog, and the reason a worker
-/// asks this once per idle turn rather than once per job.
+/// **One name per queue is the other claim.** The pending arm groups the
+/// pending rows by queue, so two due jobs in one queue are one name — the
+/// difference between a roster and a backlog, and the reason a worker asks this
+/// once per idle turn rather than once per job.
 #[test]
 fn a_framed_roster_names_a_queue_on_either_arm_and_not_past_either_bound() {
     const QUEUE: &str = "nvs-stdlib-tests-framed-roster";

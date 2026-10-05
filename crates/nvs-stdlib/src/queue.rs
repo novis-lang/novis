@@ -285,12 +285,20 @@ const KEY_WIDTH: u32 = 255;
 /// concurrently as `Locking`. So `nvs queue migrate` takes the columns unasked and the index with
 /// `--including-risky`, and a deployment that is not ready for the build has the column regardless.
 ///
+/// **`nvs_jobs_roster` is led by `state`, for [`QUEUES_POSTGRES`] alone.** `nvs_jobs_due` is led by
+/// `queue`, which is what a claim keyed on one queue seeks; the roster asks which queues hold
+/// pending rows at all, and only an index led by `state` lets it step from one such name to the
+/// next. `run_at` closes the key so the `exists` each name is checked with is a seek too, whatever
+/// index the planner picks. Its build is `Locking` on a live queue for `tag`'s index's reason.
+///
 /// **What it spends:** two indexed [`KEY_WIDTH`]-wide columns per job row, plus the two documents
 /// `grants` and `limits` hold. `dedupe_pending` is what a partial index costs nothing for —
 /// priority 5 spent to buy one spelling everywhere the queue runs instead of two spellings on two
 /// backends — and `tag` is one more, written once by `push` and read by no statement a request or a
 /// worker runs. The narrowing pair is bounded by the capability roster and the `[limits]` keys
 /// rather than by anything a caller writes, and both are written once and released with the row.
+/// `nvs_jobs_roster` is one more index entry per job row, rewritten by every statement that moves
+/// `state` or `run_at` — a constant per write, bought to make the roster O(queues).
 ///
 /// Every identifier below is a literal this module wrote, so a refusal from the builders is a bug
 /// in this function rather than bad input, and the `expect` says which.
@@ -345,6 +353,7 @@ pub fn schema() -> nvs_db::Schema {
     .and_then(|table| table.unique(DEDUPE_KEY, &["dedupe_pending"]))
     .and_then(|table| table.index("nvs_jobs_due", &["queue", "state", "run_at"]))
     .and_then(|table| table.index("nvs_jobs_tag", &["queue", "tag"]))
+    .and_then(|table| table.index("nvs_jobs_roster", &["state", "queue", "run_at"]))
     .expect("the jobs table names its own columns in its own keys");
 
     let dead = Table::new(
@@ -596,16 +605,28 @@ pub const CLAIM_POSTGRES: &str = "with pending as (\
 /// answers nothing here, so a worker spends no claim on it. `$1` and `$2` are that statement's `$2`
 /// and `$3` — now, and the instant `[queue] visibility` before it.
 ///
-/// **What it costs, and the gap it leaves.** No index is led by `state`, so this reads every due
-/// row, and `crates/nvs-cli/src/worker.rs`'s `turn` asks it before every round of claims. Draining
-/// a backlog of n on one queue is therefore O(n²) here, while each claim is O(log n). The gap
-/// record `the-roster-poll-reads-every-due-row` names the loose index scan that makes it O(queues).
+/// **O(queues · log n) and not O(due rows), because it is a loose index scan.**
+/// `crates/nvs-cli/src/worker.rs`'s `turn` asks it before every round of claims, and a round takes
+/// at most one job per queue, so a roster that read every due row would make draining a backlog of
+/// n O(n²). The pending arm therefore never reads a row twice for one name: `pending` steps from
+/// one queue name holding a `state = 0` row to the next through `nvs_jobs_roster`, one seek per
+/// name, and each name is then kept only if one seek finds a row of it already due. The expired arm
+/// reads `state = 1` alone, which is the jobs workers hold now — O(in-flight), not O(backlog).
+/// PostgreSQL's planner does not skip-scan a `distinct`, so the step is written out.
 ///
-/// **PostgreSQL's dialect, and [`QUEUES_MYSQL`] is the same question asked in the other one** — one
-/// whole text each, per [`Split`]'s doc, since nothing here rests on a construct only PostgreSQL
-/// has.
-pub const QUEUES_POSTGRES: &str = "select distinct queue from nvs_jobs \
-    where (state = 0 and run_at <= $1::bigint) or (state = 1 and claimed_at <= $2::bigint)";
+/// **PostgreSQL's dialect, and each other dialect writes its own text** — [`QUEUES_MYSQL`] asks the
+/// same question through a construct MySQL does skip-scan, and [`QUEUES_SQLSERVER`] through the one
+/// recursive form T-SQL allows.
+pub const QUEUES_POSTGRES: &str = "with recursive pending (queue) as (\
+        select min(queue) from nvs_jobs where state = 0 \
+        union all \
+        select (select min(later.queue) from nvs_jobs later \
+            where later.state = 0 and later.queue > pending.queue) \
+        from pending where pending.queue is not null\
+    ) select queue from pending where queue is not null and exists (\
+        select 1 from nvs_jobs due where due.queue = pending.queue \
+        and due.state = 0 and due.run_at <= $1::bigint\
+    ) union select queue from nvs_jobs where state = 1 and claimed_at <= $2::bigint";
 
 /// `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept`'s write-back for an attempt that returned, and [`CLAIM_POSTGRES`]'s other half.
 ///
@@ -1023,28 +1044,54 @@ pub const DEAD_LETTER_SQLSERVER: Split = Split {
 
 /// [`QUEUES_POSTGRES`] in MySQL's dialect, which MariaDB runs unchanged.
 ///
-/// **Not a [`Split`], for [`STATUS_MYSQL`]'s reason**: a `select distinct` over one table with two
-/// arms is the same statement in both dialects, so what changes is the placeholder spelling and the
-/// casts PostgreSQL needs to type a text-format parameter at all. Its two values are that
-/// statement's two, in its order — the instant now, and the instant `[queue] visibility` before it.
+/// **Not a [`Split`], for [`STATUS_MYSQL`]'s reason**: one statement in both dialects. Its two
+/// values are that statement's two, in its order — the instant now, and the instant
+/// `[queue] visibility` before it.
 ///
-/// The scan [`QUEUES_POSTGRES`]'s doc costs out is the same scan here, for the same reason: MySQL
-/// will not answer `distinct` off the leading column of `jobs.due` without walking the due rows
-/// either, and the gap record that doc names covers both dialects.
-pub const QUEUES_MYSQL: &str = "select distinct queue from nvs_jobs \
-    where (state = 0 and run_at <= ?) or (state = 1 and claimed_at <= ?)";
+/// **A `group by` and not [`QUEUES_POSTGRES`]'s recursive step**, because MySQL seeks neither a
+/// range nor a `min` on a value from the outer row inside a dependent subquery: the step there reads
+/// every pending row once per name, which is O(queues · n). A `group by state, queue` under
+/// `state = 0` is what MySQL and MariaDB answer by skipping through `nvs_jobs_roster` instead — one
+/// seek per name — so the cost is [`QUEUES_POSTGRES`]'s.
+pub const QUEUES_MYSQL: &str = "select pending.queue from (\
+        select queue from nvs_jobs where state = 0 group by state, queue\
+    ) as pending where exists (\
+        select 1 from nvs_jobs due where due.queue = pending.queue \
+        and due.state = 0 and due.run_at <= ?\
+    ) union select queue from nvs_jobs where state = 1 and claimed_at <= ?";
 
-/// [`QUEUES_MYSQL`], which SQLite runs unchanged — one `select distinct` over one table with two
-/// arms, in a placeholder spelling both backends share. [`DEAD_LETTER_SQLITE`] owns why an alias
-/// and not a copy.
-pub const QUEUES_SQLITE: &str = QUEUES_MYSQL;
+/// [`QUEUES_POSTGRES`] with SQLite's markers: SQLite seeks the range in the recursive step, and has
+/// no skip scan for [`QUEUES_MYSQL`]'s `group by` to use.
+pub const QUEUES_SQLITE: &str = "with recursive pending (queue) as (\
+        select min(queue) from nvs_jobs where state = 0 \
+        union all \
+        select (select min(later.queue) from nvs_jobs later \
+            where later.state = 0 and later.queue > pending.queue) \
+        from pending where pending.queue is not null\
+    ) select queue from pending where queue is not null and exists (\
+        select 1 from nvs_jobs due where due.queue = pending.queue \
+        and due.state = 0 and due.run_at <= ?\
+    ) union select queue from nvs_jobs where state = 1 and claimed_at <= ?";
 
-/// The same roster in T-SQL: [`QUEUES_POSTGRES`] with this dialect's markers, and a cast at each of
-/// them because a bound value arrives declared `nvarchar` and both columns it is compared against
-/// are `bigint`.
-pub const QUEUES_SQLSERVER: &str = "select distinct queue from nvs_jobs \
-    where (state = 0 and run_at <= cast(@p1 as bigint)) \
-    or (state = 1 and claimed_at <= cast(@p2 as bigint))";
+/// The same roster in T-SQL, with a cast at each marker because a bound value arrives declared
+/// `nvarchar` and both columns it is compared against are `bigint`.
+///
+/// **The step is a `row_number() = 1` over a join**, because T-SQL's recursive member allows no
+/// subquery, aggregate or `top`. SQL Server turns that filter into a seek for the next name, so the
+/// cost is [`QUEUES_POSTGRES`]'s. `maxrecursion 0` lifts the default limit of 100 steps, which
+/// would otherwise fail a deployment with more than 100 queues holding pending work.
+pub const QUEUES_SQLSERVER: &str = "with pending (queue) as (\
+        select min(queue) from nvs_jobs where state = 0 \
+        union all \
+        select later.queue from (\
+            select step.queue, row_number() over (order by step.queue) as place \
+            from pending join nvs_jobs step on step.state = 0 and step.queue > pending.queue\
+        ) as later where later.place = 1\
+    ) select queue from pending where queue is not null and exists (\
+        select 1 from nvs_jobs due where due.queue = pending.queue \
+        and due.state = 0 and due.run_at <= cast(@p1 as bigint)\
+    ) union select queue from nvs_jobs where state = 1 and claimed_at <= cast(@p2 as bigint) \
+    option (maxrecursion 0)";
 
 /// [`SUCCEEDED_POSTGRES`] in MySQL's dialect, which MariaDB runs unchanged.
 ///
@@ -5272,12 +5319,13 @@ mod tests {
         DELETE_POSTGRES, DELETE_SQLITE, Fault, INSERT_MYSQL, INSERT_POSTGRES, INSERT_SQLITE,
         INSERT_SQLSERVER, JOBS_TABLE, MESSAGE_CAP, PENDING, PURGE_DEAD_MYSQL, PURGE_DEAD_POSTGRES,
         PURGE_DEAD_SQLITE, PURGE_MYSQL, PURGE_POSTGRES, PURGE_SQLITE, PURGE_STATE_ARG,
-        QUEUES_MYSQL, QUEUES_POSTGRES, RETRY_CAP_MS, RETRY_MYSQL, RETRY_POSTGRES, RETRY_SQLSERVER,
-        STATE, STATS, STATS_ATTEMPTS_AT, STATS_ATTEMPTS_SLOT, STATS_CLAIMED_AT, STATS_CLAIMED_SLOT,
-        STATS_DEAD_AT, STATS_DEAD_ATTEMPTS_AT, STATS_DEAD_ATTEMPTS_SLOT, STATS_DEAD_SLOT,
-        STATS_PENDING_AT, STATS_PENDING_SLOT, STATUS_MYSQL, STATUS_POSTGRES, STATUS_SQLITE,
-        STATUS_SQLSERVER, SUCCEEDED_MYSQL, SUCCEEDED_POSTGRES, SUCCEEDED_SQLSERVER, Selection,
-        Split, ThrownClass, Value, dead_errors, migration, purge_state_of, purge_texts, retry_at,
+        QUEUES_MYSQL, QUEUES_POSTGRES, QUEUES_SQLITE, QUEUES_SQLSERVER, RETRY_CAP_MS, RETRY_MYSQL,
+        RETRY_POSTGRES, RETRY_SQLSERVER, STATE, STATS, STATS_ATTEMPTS_AT, STATS_ATTEMPTS_SLOT,
+        STATS_CLAIMED_AT, STATS_CLAIMED_SLOT, STATS_DEAD_AT, STATS_DEAD_ATTEMPTS_AT,
+        STATS_DEAD_ATTEMPTS_SLOT, STATS_DEAD_SLOT, STATS_PENDING_AT, STATS_PENDING_SLOT,
+        STATUS_MYSQL, STATUS_POSTGRES, STATUS_SQLITE, STATUS_SQLSERVER, SUCCEEDED_MYSQL,
+        SUCCEEDED_POSTGRES, SUCCEEDED_SQLSERVER, Selection, Split, ThrownClass, Value, dead_errors,
+        migration, purge_state_of, purge_texts, retry_at,
     };
     use super::{NAME, PURGE_DOC, PUSH_DOC};
     use crate::registry::{CAPABILITIES, Const, CoreTy};
@@ -5586,12 +5634,19 @@ mod tests {
             );
         }
         // The roster is read off the same table and the same column a claim is then keyed on, which
-        // is the whole of why § 2 needs no fifth key to name a worker's queues. Asked of both
-        // dialects, because both spell it themselves: the roster rests on no construct MySQL lacks,
-        // so nothing but this would notice one of the two texts reading a different column.
-        for (dialect, roster) in [("postgres", QUEUES_POSTGRES), ("mysql", QUEUES_MYSQL)] {
+        // is the whole of why § 2 needs no fifth key to name a worker's queues. Asked of every
+        // dialect, because each spells it itself, so nothing but this would notice one of the texts
+        // reading a different column.
+        for (dialect, roster) in [
+            ("postgres", QUEUES_POSTGRES),
+            ("mysql", QUEUES_MYSQL),
+            ("sqlite", QUEUES_SQLITE),
+            ("sqlserver", QUEUES_SQLSERVER),
+        ] {
             assert!(
-                roster.contains(JOBS_TABLE) && roster.contains("distinct queue"),
+                (roster.contains(&format!("min(queue) from {JOBS_TABLE} where state = 0"))
+                    || roster.contains(&format!("select queue from {JOBS_TABLE} where state = 0")))
+                    && roster.contains(&format!("select queue from {JOBS_TABLE} where state = 1")),
                 "{dialect}: the roster is read off the column the push writes the queue name into"
             );
         }
@@ -5662,9 +5717,11 @@ mod tests {
     #[test]
     fn no_sqlite_statement_binds_another_dialects_placeholder() {
         for (member, sql) in super::texts(nvs_db::Driver::Sqlite) {
+            // `with recursive` is this backend's own, and [`QUEUES_SQLITE`] steps with it.
+            let own = sql.replace("with recursive ", "");
             for absent in ["$1", "::", "returning", "with ", "for update"] {
                 assert!(
-                    !sql.contains(absent),
+                    !own.contains(absent),
                     "{member}'s SQLite text spells `{absent}`, which is another dialect's: {sql}"
                 );
             }
@@ -6470,10 +6527,15 @@ mod tests {
                 "{dialect}: a claim's first arm takes pending rows by `Pending`'s own ordinal"
             );
         }
-        for (dialect, roster) in [("postgres", QUEUES_POSTGRES), ("mysql", QUEUES_MYSQL)] {
+        for (dialect, roster) in [
+            ("postgres", QUEUES_POSTGRES),
+            ("mysql", QUEUES_MYSQL),
+            ("sqlite", QUEUES_SQLITE),
+            ("sqlserver", QUEUES_SQLSERVER),
+        ] {
             assert!(
-                roster.contains("state = 0 and run_at")
-                    && roster.contains("state = 1 and claimed_at"),
+                roster.contains("due.state = 0 and due.run_at <=")
+                    && roster.contains("state = 1 and claimed_at <="),
                 "{dialect}: the roster asks the claim's two arms, so a roster entry is a queue with \
                  due work in it"
             );
