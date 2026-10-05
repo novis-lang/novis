@@ -70,7 +70,7 @@ pub(crate) fn infer_method_call(
     // `?->` never reaches the method when the receiver is `null`, so the
     // method is resolved against the receiver's non-`null` half and the call's
     // own type gains the `null` that arm yields — see [`nullsafe_result`].
-    let receiver_ty = strip_nullsafe_receiver(nullsafe, object_ty, object.span, env);
+    let receiver_ty = strip_nullsafe_receiver(nullsafe, object_ty, object, env);
     check_member_name(method, live, scope, ctx, env);
     // `rule:types/property-key-access`'s first neighbour: a computed name is admitted at a property
     // access and nowhere else, so this is `E0235` whatever the operand's type

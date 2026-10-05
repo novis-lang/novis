@@ -1128,7 +1128,7 @@ pub(crate) fn check_property_access(
     // `?->` resolves the property against the receiver's non-`null` half and
     // adds `null` back to the whole access's type — see [`nullsafe_result`],
     // which the method-call arm of [`infer`] shares.
-    let receiver_ty = strip_nullsafe_receiver(nullsafe, object_ty, object.span, env);
+    let receiver_ty = strip_nullsafe_receiver(nullsafe, object_ty, object, env);
     let member_ty = check_property_member(
         access_span,
         object,
@@ -1173,7 +1173,7 @@ pub(crate) fn nullsafe_result(
 pub(crate) fn strip_nullsafe_receiver(
     nullsafe: bool,
     object_ty: TypeId,
-    span: Span,
+    object: &Expr,
     env: &mut Env<'_>,
 ) -> TypeId {
     if nullsafe {
@@ -1189,23 +1189,49 @@ pub(crate) fn strip_nullsafe_receiver(
     // `if ($m !== null) { $m->text(); }` — which every PHP program writes —
     // does not land here: `crate::locals`' narrowing gives the receiver the
     // class type inside that block, so this sees a resolved class rather than
-    // a union. What still lands here is a receiver nothing tested, and one a
-    // write inside the block widened again.
+    // a union. What still lands here is a receiver nothing tested, one a write
+    // inside the block widened again, and a mutable property, which no test
+    // narrows (`rule:types/narrowing`) — so its help shows the local copy.
     if env.interner.is_nullable(object_ty) && !matches!(env.interner.get(object_ty), Ty::Null) {
         let described = env.interner.describe(object_ty);
+        let help = if is_mutable_property(object, env) {
+            let text = span_text(env.src, object.span);
+            format!(
+                "a test does not change the type of a property that is not `readonly`, because \
+                 the property can change after the test. Copy it to a variable and test the \
+                 variable: `var $value = {text}; if ($value != null) {{ … }}`. Or use `?->`, \
+                 which returns `null` when the property is `null`"
+            )
+        } else {
+            "test it first — inside `if ($x != null) { … }` the receiver is no longer \
+             nullable — or use `?->`, which answers `null` instead of reaching the member"
+                .to_owned()
+        };
         env.diags.report(
             Diagnostic::error(
                 code::E_NULLABLE_RECEIVER,
                 format!("`{described}` may be `null`, so `->` cannot reach a member of it"),
             )
-            .with_primary(span, "this receiver is nullable")
-            .with_help(
-                "test it first — inside `if ($x != null) { … }` the receiver is no longer \
-                 nullable — or use `?->`, which answers `null` instead of reaching the member",
-            ),
+            .with_primary(object.span, "this receiver is nullable")
+            .with_help(help),
         );
     }
     object_ty
+}
+
+/// Whether `object` reads a declared property that is not `readonly` — the
+/// receiver a null test never narrows, because a write between the test and
+/// the read can change it.
+fn is_mutable_property(object: &Expr, env: &Env<'_>) -> bool {
+    if !matches!(object.kind, ExprKind::PropertyAccess { .. }) {
+        return false;
+    }
+    let Some(ExprInfo::Property { class, name, .. }) = env.exprs.lookup(object.span) else {
+        return false;
+    };
+    crate::signatures::resolve_property_owned(class, name, env.signatures, env.graph).is_some_and(
+        |(owner, _)| !crate::signatures::property_is_readonly(&owner, name, env.signatures),
+    )
 }
 
 /// `rule:classes/property-observer-pipeline`'s second step for a property access on `qname`, or `None` when
