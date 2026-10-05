@@ -60,6 +60,14 @@ bytes cost O(n²/8 KB). The parse now resumes where the last read stopped. The l
 to 16384 lines: its bytes count grew with slope 1.92 before, and it is flat after. It spends
 nothing.
 
+**A cached regex answers what a fresh compile would.** A cache hit skipped the memory check a miss
+makes, so a request with a low `[limits] memory` was refused on a cold core and served on a warm
+one. Every use now checks it, and a program the compiler forced onto the backtracking engine is
+never reused by a plain call. A full cache evicted all 256 programs at once. It now evicts the one
+used least recently, so a hot pattern survives a stream of one-off patterns. The cost per call was
+already bounded by the cache's size, so there is no ladder. Unit tests in the module cover it. It
+spends one `usize` and one `u64` per cached program.
+
 ## Decisions for you
 
 **Should a request head get a total deadline as well as its idle one?** `header_timeout` is an idle

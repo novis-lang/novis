@@ -57,19 +57,26 @@
 //!
 //! **What it spends:** one compiled program per distinct pattern per core,
 //! bounded at [`CACHE_CAPACITY`], which is O(cache) rather than O(requests
-//! served). The cache is cleared wholesale when it fills rather than evicted
-//! by recency: an LRU costs a per-hit write on the hot path to buy a better
-//! answer for a working set that does not fit, and a program with more than
-//! [`CACHE_CAPACITY`] live patterns on one core is one this cache was never
-//! going to serve.
+//! served). A miss on a full cache evicts the one entry used least recently,
+//! so a program's hot patterns survive a stream of one-off ones. What that
+//! costs a hit is one counter written into the entry the hit already read;
+//! the scan for the oldest entry runs on a miss only, beside a compile that
+//! costs far more.
+//!
+//! **A hit answers what a miss would.** Each entry keeps the capture-table
+//! bytes [`search_cost`] priced when it was built, and every use asks the
+//! request's memory ceiling for them, so a request whose limit is too low is
+//! refused on a warm core exactly as on a cold one. The key carries whether the
+//! compiler forced the backtracking tier ([`compiled_prepared`]), so a plain
+//! call never runs on a program its own routing would not have built.
 //!
 //! **Whose bytes they are, and the bound on that.** A compiled program is
 //! charged to the request that compiled it and outlives that request, so the
-//! one whose write fills the cache and clears it is credited with the programs
-//! earlier requests paid for: its `Ctx::memory_used` reading falls by that
-//! much, and the `[limits] memory` ceiling armed against that reading gives it
-//! that much extra headroom, bounded each time by the [`CACHE_CAPACITY`]
-//! programs this core holds. No accounting bracket takes that away. [`CACHE`]
+//! one whose miss evicts an entry is credited with the program an earlier
+//! request paid for: its `Ctx::memory_used` reading falls by that much, and
+//! the `[limits] memory` ceiling armed against that reading gives it that much
+//! extra headroom, bounded each time by one of the programs this core holds.
+//! No accounting bracket takes that away. [`CACHE`]
 //! hands out an `Rc` the calling request holds too, so
 //! `nvs_runtime::budget::Detached` — which asks a store for symmetry, the
 //! allocation and the release on one balance — has no pair to take, and
@@ -853,8 +860,8 @@ fn step_budget(ctx: &Ctx) -> usize {
     }
 }
 
-/// How many compiled patterns one core holds before the cache is cleared —
-/// this module's own docs own the reasoning and what it spends.
+/// How many compiled patterns one core holds before a miss evicts one — this
+/// module's own docs own the reasoning and what it spends.
 const CACHE_CAPACITY: usize = 256;
 
 /// One compiled pattern, in whichever tier `rule:core-classes/regex-two-tiers` placed it.
@@ -871,10 +878,39 @@ enum Compiled {
     Backtracking(fancy_regex::Regex),
 }
 
-/// One [`CACHE`] entry: the three things that key a compiled program — the
-/// pattern text, the [`PATTERN`] flags and the step budget it was built under —
-/// and the program itself.
-type Cached = (String, u8, usize, Rc<Compiled>);
+/// One [`CACHE`] entry: the four things that key a compiled program, what a
+/// search with it asks of the request, when it was last used, and the program
+/// itself.
+#[derive(Debug)]
+struct Cached {
+    /// The pattern text as the program wrote it.
+    pattern: String,
+    /// The [`PATTERN`] flags it was compiled under.
+    flags: u8,
+    /// The step budget the backtracking tier was built with.
+    budget: usize,
+    /// Whether the compiler's prepared tier forced the backtracking engine,
+    /// which [`compiled_prepared`] says when a hit may ignore.
+    forced: bool,
+    /// [`search_cost`] of the program, asked of every request that uses it.
+    cost: usize,
+    /// [`Cache::clock`] at the entry's last use, which picks what a full
+    /// cache evicts.
+    used: u64,
+    /// The program.
+    compiled: Rc<Compiled>,
+}
+
+/// [`CACHE`]'s contents: the entries, and a counter that rises by one per use
+/// so the least recently used entry is the one with the lowest
+/// [`Cached::used`].
+#[derive(Debug)]
+struct Cache {
+    /// At most [`CACHE_CAPACITY`] entries, in no order.
+    entries: Vec<Cached>,
+    /// The number of uses so far on this core.
+    clock: u64,
+}
 
 thread_local! {
     /// This core's compiled patterns, keyed by the pattern text, **the flags it
@@ -893,8 +929,13 @@ thread_local! {
     ///
     /// A `Vec` rather than a map: it is capacity-bounded and scanned
     /// linearly, which for a few hundred short keys beats hashing them, and
-    /// it keeps the "clear when full" policy a one-liner.
-    static CACHE: RefCell<Vec<Cached>> = const { RefCell::new(Vec::new()) };
+    /// the same scan finds the entry an eviction removes.
+    static CACHE: RefCell<Cache> = const {
+        RefCell::new(Cache {
+            entries: Vec::new(),
+            clock: 0,
+        })
+    };
 }
 
 /// `pattern` as the engines are given it: the text a program wrote, wrapped in
@@ -962,6 +1003,18 @@ fn compiled(pattern: &str, flags: u8, member: &str, budget: usize) -> Result<Rc<
 ///
 /// [`compiled`]'s, unchanged — a prepared tier picks the engine that compiles
 /// the pattern and never whether one does.
+///
+/// # What a hit may reuse
+///
+/// A call the compiler forced onto the backtracking tier may use any
+/// backtracking entry for the same text, flags and budget, because that entry
+/// is the program it would build. A call that was not forced uses only an
+/// entry that was not forced either: a forced entry is the routing rule's
+/// answer only when the compiler's tier was right, and this path does not
+/// trust that.
+///
+/// Every use, hit or miss, asks the request's memory ceiling for the entry's
+/// [`search_cost`], so a warm core refuses exactly what a cold one does.
 fn compiled_prepared(
     pattern: &str,
     flags: u8,
@@ -969,32 +1022,48 @@ fn compiled_prepared(
     prepared: Option<Tier>,
     budget: usize,
 ) -> Result<Rc<Compiled>, Fault> {
-    if let Some(hit) = CACHE.with_borrow(|cache| {
-        cache
-            .iter()
-            .find(|(key, keyed_flags, keyed_budget, _)| {
-                key == pattern && *keyed_flags == flags && *keyed_budget == budget
-            })
-            .map(|(_, _, _, compiled)| Rc::clone(compiled))
+    let forced = prepared == Some(Tier::Backtracking);
+    if let Some((cost, hit)) = CACHE.with_borrow_mut(|cache| {
+        cache.clock += 1;
+        let now = cache.clock;
+        let entry = cache.entries.iter_mut().find(|entry| {
+            entry.pattern == pattern
+                && entry.flags == flags
+                && entry.budget == budget
+                && (entry.forced == forced
+                    || (forced && matches!(*entry.compiled, Compiled::Backtracking(_))))
+        })?;
+        entry.used = now;
+        Some((entry.cost, Rc::clone(&entry.compiled)))
     }) {
+        nvs_runtime::affordable(Some(cost), "Core\\Regex")?;
         return Ok(hit);
     }
 
     let built = build(pattern, flags, prepared, budget)
         .map_err(|why| Fault::thrown(format!("Core\\Regex::{member}(): {why}")))?;
+    let cost = search_cost(&built, &effective(pattern, flags));
     // Asked before the program is cached, so a refused request leaves nothing
-    // behind, and a cached program has already been paid for.
-    nvs_runtime::affordable(
-        Some(search_cost(&built, &effective(pattern, flags))),
-        "Core\\Regex",
-    )?;
+    // behind.
+    nvs_runtime::affordable(Some(cost), "Core\\Regex")?;
 
     let built = Rc::new(built);
     CACHE.with_borrow_mut(|cache| {
-        if cache.len() >= CACHE_CAPACITY {
-            cache.clear();
+        if cache.entries.len() >= CACHE_CAPACITY
+            && let Some(oldest) = (0..cache.entries.len()).min_by_key(|&at| cache.entries[at].used)
+        {
+            cache.entries.swap_remove(oldest);
         }
-        cache.push((pattern.to_owned(), flags, budget, Rc::clone(&built)));
+        let used = cache.clock;
+        cache.entries.push(Cached {
+            pattern: pattern.to_owned(),
+            flags,
+            budget,
+            forced,
+            cost,
+            used,
+            compiled: Rc::clone(&built),
+        });
     });
     Ok(built)
 }
@@ -1084,7 +1153,7 @@ fn build(
 /// takes, and the step budget already bounds those.
 ///
 /// **What it spends:** a second automaton built and dropped, once per pattern
-/// per core, on a cache miss only.
+/// per core, on a cache miss only. A hit reads the figure its entry kept.
 fn search_cost(built: &Compiled, spelled: &str) -> usize {
     let Compiled::Linear(_) = built else {
         return 0;
@@ -2541,7 +2610,7 @@ mod tests {
             "{} bytes held",
             ctx.memory_used()
         );
-        assert!(CACHE.with_borrow(|cache| cache.iter().all(|(key, ..)| *key != many)));
+        assert!(CACHE.with_borrow(|cache| cache.entries.iter().all(|entry| entry.pattern != many)));
         #[expect(unsafe_code, reason = "this frame owns the two strings it built")]
         unsafe {
             subject.release();
@@ -2605,14 +2674,75 @@ mod tests {
         );
     }
 
-    /// The cache is bounded: filling it past its capacity clears it rather
-    /// than growing without limit.
+    /// The cache is bounded, and a miss on a full cache evicts the entry used
+    /// least recently: a pattern used between every two misses outlives twice
+    /// the capacity of one-off patterns, and the cache is full, never cleared.
     #[test]
-    fn the_cache_never_grows_past_its_capacity() {
-        for nth in 0..=CACHE_CAPACITY {
+    fn the_cache_evicts_its_least_recently_used_entry_one_at_a_time() {
+        let hot = built("hot", NO_FLAGS, "matches").expect("compiles");
+        for nth in 0..2 * CACHE_CAPACITY {
             built(&format!("bounded-{nth}"), NO_FLAGS, "matches").expect("compiles");
+            let again = built("hot", NO_FLAGS, "matches").expect("compiles");
+            assert!(Rc::ptr_eq(&hot, &again), "`hot` was evicted at {nth}");
         }
-        CACHE.with_borrow(|cache| assert!(cache.len() <= CACHE_CAPACITY, "{}", cache.len()));
+        CACHE.with_borrow(|cache| assert_eq!(cache.entries.len(), CACHE_CAPACITY));
+        let oldest = format!("bounded-{}", CACHE_CAPACITY);
+        let newest = format!("bounded-{}", 2 * CACHE_CAPACITY - 1);
+        CACHE.with_borrow(|cache| {
+            assert!(cache.entries.iter().all(|entry| entry.pattern != oldest));
+            assert!(cache.entries.iter().any(|entry| entry.pattern == newest));
+        });
+    }
+
+    /// A hit asks the request's memory ceiling for the capture table exactly
+    /// as the miss that built the entry did, so a request the table does not
+    /// fit is refused on a warm core too.
+    #[test]
+    fn a_cache_hit_asks_the_memory_ceiling_as_a_miss_does() {
+        let wide = "(a)".repeat(200);
+        let warm = built(&wide, NO_FLAGS, "match").expect("compiles");
+        assert!(search_cost(&warm, &wide) > 2 << 20);
+
+        let mut ctx = Ctx::buffered();
+        ctx.set_memory_limit(1 << 20);
+        let subject = Value::str(NvsStr::new(b"aaa"));
+        let pattern = Value::str(NvsStr::new(wide.as_bytes()));
+        let args = [subject, pattern, Value::int(0)];
+        assert!(nvs_runtime::call(nvs_core_regex_match, &mut ctx, &args).is_err());
+        #[expect(unsafe_code, reason = "this frame owns the two strings it built")]
+        unsafe {
+            subject.release();
+            pattern.release();
+        }
+    }
+
+    /// A program the compiler forced onto the backtracking tier is never what
+    /// a plain call runs, and a forced call reuses the backtracking program a
+    /// plain call already built.
+    #[test]
+    fn a_forced_tier_is_part_of_the_cache_key() {
+        let forced = compiled_prepared(
+            r"^\d+$",
+            NO_FLAGS,
+            "match",
+            Some(Tier::Backtracking),
+            BACKTRACK_BUDGET,
+        )
+        .expect("compiles");
+        assert!(matches!(*forced, Compiled::Backtracking(_)));
+        let plain = built(r"^\d+$", NO_FLAGS, "match").expect("compiles");
+        assert!(matches!(*plain, Compiled::Linear(_)));
+
+        let routed = built(r"(a)\1", NO_FLAGS, "match").expect("compiles");
+        let reused = compiled_prepared(
+            r"(a)\1",
+            NO_FLAGS,
+            "match",
+            Some(Tier::Backtracking),
+            BACKTRACK_BUDGET,
+        )
+        .expect("compiles");
+        assert!(Rc::ptr_eq(&routed, &reused));
     }
 
     /// `Core\Regex::compile` builds the program before it returns, so the
@@ -2634,8 +2764,10 @@ mod tests {
         assert_eq!(given.text.as_str_bytes(), Some(&br"^order-\d+$"[..]));
         assert_eq!(given.flags, FLAG_CASE_INSENSITIVE | FLAG_DOT_ALL);
         let held = CACHE.with_borrow(|cache| {
-            cache.iter().any(|(text, flags, budget, _)| {
-                text == r"^order-\d+$" && *flags == given.flags && *budget == BACKTRACK_BUDGET
+            cache.entries.iter().any(|entry| {
+                entry.pattern == r"^order-\d+$"
+                    && entry.flags == given.flags
+                    && entry.budget == BACKTRACK_BUDGET
             })
         });
         assert!(held, "compile returned before the program was cached");

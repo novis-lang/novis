@@ -86,8 +86,8 @@ cached.
 they share.
 
 **Found:** a cache hit skips the memory check a miss makes, the cache key leaves out the engine, and
-a full cache empties itself whole
-([`a-regex-cache-hit-skips-the-memory-check`](../../data/gaps/nvs-stdlib/a-regex-cache-hit-skips-the-memory-check.json)).
+a full cache empties itself whole (fixed, under *What got better* in
+[performance-pass.md](performance-pass.md)).
 `match` with `from` walks the subject from its start, under the strings record.
 
 **Fine:** `matchAll`, `replaceWith` and the match builder share one forward cursor per call.
