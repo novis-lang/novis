@@ -1099,7 +1099,7 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
                 Some(watched) => isolate.watched_by(Rc::clone(watched)),
                 None => isolate,
             };
-            Reply::Run(isolate, supply)
+            Reply::Run(isolate, supply, None)
         }
     });
 
@@ -4984,6 +4984,7 @@ echo Core\Router::{member}("Docs::here", []);
                     Isolate::new(program, Value::null(), Output::Capture)
                         .answering(inbound)
                         .watched_by(Rc::clone(&watched)),
+                    None,
                     None,
                 )
             }

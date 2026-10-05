@@ -1,26 +1,26 @@
 {
-  "state": "**Goal `serve-per-mount-config` — Stage 2 has landed; nothing on the request path uses it yet.** ADR 0271 is the goal's one record; it `modifies` the four rules the goal names, and their `because` lists carry 0271. Their prose is still the pre-goal truth and is rewritten by the stage that lands each behaviour (goal file § *Stage 0*): `rule:http-server/the-served-file-is-optional` with Stage 3/4, the scheduled-run and job rules with Stage 5.\n\n`nvs_config::Current` now holds an `Arc<Published>`: the host's snapshot plus `AppBlocks` (the roster taken out of `Resolved` once), resolving an entry file to its own snapshot on first use and keeping it under the canonical path. Entries on one chain of blocks share one `Arc`; an entry no block matches gets the host's; every snapshot carries the host's generation and is folded after the host's `Boot` carry. `Current::load` still returns the host's, `Current::published` returns the set, `Current::publish_set` publishes host + roster + eagerly matched entries. `Current::new` and `publish`/`publish_keeping` build a host-only set, so every caller in `nvs-cli` serves exactly what it did before. The goal's five Stage 2 tests are in `crates/nvs-config/tests/snapshot.rs`, with two more (a spelling with `.`, a refused publish leaving the old set).",
+  "state": "**Goal `serve-per-mount-config` — Stage 2 has landed, and the door half of Stage 3.** ADR 0271 is the goal's one record; it `modifies` the four rules the goal names, and their `because` lists carry 0271. Their prose is still the pre-goal truth and is rewritten by the stage that lands each behaviour (goal file § *Stage 0*): `rule:http-server/the-served-file-is-optional` with Stage 3/4, the scheduled-run and job rules with Stage 5.\n\n`nvs_config::Current` holds an `Arc<Published>`: the host's snapshot plus the roster, resolving an entry file to its own snapshot on first use (`Published::entry`). `Current::new` and `publish`/`publish_keeping` still build a host-only set, so `nvs serve` serves exactly what it did before.\n\nThe door (`crates/nvs-server/src/serve.rs`) now takes `Current::published()` once per request, derives its policy from the host's snapshot only, and leaves the publish in the request's extensions, read with `nvs_server::published_of`. `Reply::Run` has a third field, `Option<Arc<Snapshot>>`: the snapshot the program runs under, written onto the context and read for `cancel_on_disconnect`/`disconnect_grace`; `None` is the host's. Every handler passes `None` today. The door check `nvs-server-the-door-reads-the-host-and-the-program-its-entry` passes its two named tests.",
   "next": {
     "stage": 3,
-    "title": "the request path, the door half",
+    "title": "the request path, the binary half",
     "files": [],
-    "note": "one file set: `crates/nvs-server/src/serve.rs`, `crates/nvs-config/src/snapshot.rs` (read only).",
+    "note": "one file set: `crates/nvs-cli/src/serve.rs`, `crates/nvs-config/src/server.rs`, a new `crates/nvs-cli/tests/per_mount_config.rs`.",
     "items": [
       {
         "done": false,
-        "text": "**`Reply::Run` carries the snapshot the program runs under** — `crates/nvs-server/src/serve.rs:422`; the door writes it onto the context at `crates/nvs-server/src/serve.rs:1670` and reads the disconnect keys from it at `crates/nvs-server/src/serve.rs:1680`, while the request start at `crates/nvs-server/src/serve.rs:1427` keeps the host's (ADR 0271 § 1)."
+        "text": "**The handler picks the entry's snapshot** — after `Table::select` at `crates/nvs-cli/src/serve.rs:937`, take `nvs_server::published_of(&request)` (not `Current::published()`: one publish per request, ADR 0271 § 2) and `.entry(<the file the row runs>)`, and hand it as `Reply::Run`'s third field at `crates/nvs-cli/src/serve.rs:1102`. Under `dispatch = \"path\"` the file is the one run, not the row's `entry` (ADR 0271 § 6)."
       },
       {
         "done": false,
-        "text": "**`Serving::policy` is handed only the host's snapshot** — `crates/nvs-server/src/serve.rs:809`, so alternating mounts never re-derive the policy (ADR 0271 § 1, *Consequences*)."
+        "text": "**Boot publishes the set** — `crates/nvs-cli/src/serve.rs:299` builds `Current` with `Current::publish_set`/`Published::new` over the roster and every mounted entry; `fall_back_to` at `crates/nvs-cli/src/serve.rs:1995` takes each row's origin from its own entry's snapshot (`rule:routing/an-origin-is-per-mount-and-checked-at-boot`)."
       },
       {
         "done": false,
-        "text": "**The Stage 3 door check's named tests** — `bun nv loop --list --stage 3` prints them; they sit beside `crates/nvs-server/src/serve.rs:1670`'s existing tests."
+        "text": "**Admission reserves the largest per-request cap** — `per_request_cap` at `crates/nvs-config/src/server.rs:874` takes the largest of the global `[limits]` and every block's (ADR 0271 *Consequences*, `rule:http-server/admission-is-arithmetic-not-a-number`)."
       },
       {
         "done": false,
-        "text": "**Then the binary half** (its own group, next session): the handler picks the snapshot after `Table::select` at `crates/nvs-cli/src/serve.rs:937` via `Current::published().entry(..)`, boot builds the set with `Current::publish_set`/`Published::new` at `crates/nvs-cli/src/serve.rs:299`, `fall_back_to` at `crates/nvs-cli/src/serve.rs:1995` takes each row's origin from its own entry, and `per_request_cap` at `crates/nvs-config/src/server.rs:874` takes the largest of the global and every block's limits."
+        "text": "**The Stage 3 cli check** — `crates/nvs-cli/tests/per_mount_config.rs` with the tests `nvs-cli-two-mounts-run-under-their-own-app-blocks` names (`bun nv loop --list --stage 3`), and rewrite `rule:http-server/the-served-file-is-optional`'s § on one snapshot per process, anchored at `crates/nvs-cli/src/serve.rs:937`."
       }
     ]
   },

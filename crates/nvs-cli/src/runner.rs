@@ -1638,6 +1638,7 @@ fn answer_on_the_wire(
         )
         .answering(inbound),
         supply,
+        None,
     )
 }
 

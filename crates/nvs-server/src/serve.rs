@@ -431,10 +431,32 @@ pub enum Reply {
     /// request carried no body, which is also what leaves
     /// [`nvs_runtime::Inbound::has_body`] false.
     ///
-    Run(Isolate, Option<Supply>),
+    /// **The third field is the snapshot the program runs under**, which the
+    /// door writes onto the request's context in place of the host's
+    /// (`rule:config/every-matching-app-block-applies-least-specific-first`): the
+    /// one the handler took for the selected entry out of the publish the door
+    /// left on the request ([`published_of`]). `None` runs the program under the
+    /// host's snapshot, which is what a handler with no `[[app]]` roster to
+    /// match has.
+    ///
+    Run(Isolate, Option<Supply>, Option<Arc<nvs_config::Snapshot>>),
     /// Answer with this, having run nothing: § 4 step 1's `404`, step 3's static
     /// file, and every refusal a mount table can reach before a program exists.
     Done(Response<Answer>),
+}
+
+/// The publish the door took at this request's start, which a handler takes
+/// the selected entry's snapshot out of
+/// ([`nvs_config::Published::entry`]).
+///
+/// The door leaves it in the request's extensions before the handler runs, so
+/// the host's snapshot the door answers under and the entry's snapshot the
+/// program runs under come from one publish, and a reload between the two
+/// cannot split a request across them. `None` only for a request this loop
+/// did not frame.
+#[must_use]
+pub fn published_of<B>(request: &Request<B>) -> Option<&Arc<nvs_config::Published>> {
+    request.extensions().get::<Arc<nvs_config::Published>>()
 }
 
 impl Reply {
@@ -453,7 +475,7 @@ impl Reply {
     /// not have to name the half it has not got.
     #[must_use]
     pub fn run(isolate: Isolate) -> Self {
-        Self::Run(isolate, None)
+        Self::Run(isolate, None, None)
     }
 
     /// A body whose declared length is already over [`crate::body::UPLOAD_TOTAL`]:
@@ -1383,7 +1405,7 @@ where
     let phase = &phase;
     let drain_seen = io.drain_seen();
     let drain_seen = &drain_seen;
-    let service = service_fn(move |request: Request<Incoming>| async move {
+    let service = service_fn(move |mut request: Request<Incoming>| async move {
         // A head that framed is a head that arrived: what this connection is
         // waiting for from here is the body, and then nothing until the answer
         // exists.
@@ -1422,9 +1444,13 @@ where
         // socket would answer a request under whatever stood when its peer
         // dialled. It is taken before the door writes anything, because the
         // header set and the cross-origin policy every answer below carries are
-        // this tree's (`Serving::policy`), and the program the handler runs is
-        // configured by the same one.
-        let snapshot = serving.current.load();
+        // the host's snapshot's (`Serving::policy`). That is the only snapshot
+        // the policy is ever derived from, so requests to different mounts
+        // never derive it again. The program the handler runs is configured by
+        // its entry's snapshot out of the same publish, which the request
+        // carries to the handler ([`published_of`]).
+        let published = serving.current.published();
+        let snapshot = Arc::clone(published.host());
         let policy = serving.policy(&snapshot);
         // `rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing`, and it is asked here rather than once per connection
         // because what asserts it is a *header*: one connection carries many
@@ -1573,6 +1599,9 @@ where
         // slotted page reaches the wire.
         let opening = stream::BodySlot::new(send_timeout, bounds.message)
             .with_scripts(crate::slotted::SCRIPTS);
+        // The publish the host's snapshot above came from, for the handler to
+        // take the selected entry's snapshot out of ([`published_of`]).
+        request.extensions_mut().insert(published);
         let mut answered = match handler(request, origin) {
             // Already an answer: a mount table's `404`, or a file this server is
             // sending rather than running. Nothing is started for it, so the
@@ -1596,7 +1625,7 @@ where
             // to drive: `crate::body::Supply` holds the `Incoming` the handler
             // could not send to the isolate, and one `pump` per poll reads a
             // chunk for a request that is waiting for one.
-            Reply::Run(isolate, supply) => {
+            Reply::Run(isolate, supply, chosen) => {
                 // The label, off the match `crate::route::take` already wrote
                 // onto the carrier — a name out of the compile-time table, which
                 // is the whole of why this reads a match rather than a path. The
@@ -1658,7 +1687,8 @@ where
                 // cleared, and why this is ahead of the arming and not behind
                 // it.
                 ctx.borrow_mut().reroot();
-                // The tree the door took at this request's start. It is
+                // The snapshot the program runs under: the one the handler
+                // chose for its entry, or the host's where it chose none. It is
                 // written to the connection's own context because that context
                 // is this request tree's root — `Ctx::isolate` carries the
                 // configuration down to the child, while the ceiling a watchdog
@@ -1667,7 +1697,8 @@ where
                 // `[limits]` and every capability an entry asks for is this
                 // line: a context nobody configured states no ceiling and
                 // grants nothing.
-                ctx.borrow_mut().set_config(Arc::clone(&snapshot));
+                let under = chosen.unwrap_or_else(|| Arc::clone(&snapshot));
+                ctx.borrow_mut().set_config(Arc::clone(&under));
                 // A statement of its own, because the borrow a `match`
                 // scrutinee takes lives to the end of the whole `match` — and
                 // the arm below borrows the same context again to collect.
@@ -1675,10 +1706,11 @@ where
                 match started {
                     Ok(running) => {
                         // An unreadable list is one the boot refused, so the
-                        // `false` here is never reached by a request.
+                        // `false` here is never reached by a request. Read off
+                        // the program's snapshot, because the two keys sit
+                        // under `[limits]` and an `[[app]]` block may write them.
                         let disconnect =
-                            nvs_config::app::disconnect_for(&snapshot.config, &snapshot.origins)
-                                .ok();
+                            nvs_config::app::disconnect_for(&under.config, &under.origins).ok();
                         let mut peer = Peer {
                             running: Some(running),
                             supply,
@@ -5549,6 +5581,7 @@ pub(crate) mod tests {
             Reply::Run(
                 Isolate::new(program, Value::null(), Output::Capture).answering(inbound),
                 supply,
+                None,
             )
         })
     }
@@ -5656,6 +5689,7 @@ pub(crate) mod tests {
             Reply::Run(
                 Isolate::new(program, Value::null(), Output::Capture).answering(inbound),
                 supply,
+                None,
             )
         })
     }
@@ -6010,6 +6044,7 @@ pub(crate) mod tests {
                 Reply::Run(
                     Isolate::new(program, Value::null(), Output::Capture).answering(inbound),
                     supply,
+                    None,
                 )
             })
         };
@@ -6172,6 +6207,7 @@ pub(crate) mod tests {
                             Isolate::new(program, Value::null(), Output::Capture)
                                 .answering(inbound),
                             supply,
+                            None,
                         )
                     })
                 };
@@ -6323,19 +6359,22 @@ pub(crate) mod tests {
         written: &str,
         then: impl FnOnce(&mut Ctx, &Notes, &Admission) + 'static,
     ) -> Vec<String> {
-        after_a_disconnect_under(written, Waits::default(), &Draining::detached(), then)
+        after_a_disconnect_under(written, None, Waits::default(), &Draining::detached(), then)
     }
 
     /// [`after_a_disconnect`] under `waits` and `draining`, for a case that
-    /// begins a drain or reads its period.
+    /// begins a drain or reads its period. `program` is the tree the handler
+    /// chooses for the program, where it is not the host's `written`.
     fn after_a_disconnect_under(
         written: &str,
+        program: Option<&str>,
         waits: Waits,
         draining: &Draining,
         then: impl FnOnce(&mut Ctx, &Notes, &Admission) + 'static,
     ) -> Vec<String> {
         let draining = draining.clone();
         let serving = booted_on(written);
+        let chosen = program.map(tree_of);
         let admission = Arc::clone(&serving.admission);
         let notes: Notes = Arc::new(std::sync::Mutex::new(Vec::new()));
         type Then = Box<dyn FnOnce(&mut Ctx, &Notes, &Admission)>;
@@ -6377,6 +6416,7 @@ pub(crate) mod tests {
                 Reply::Run(
                     Isolate::new(program, Value::null(), Output::Capture).answering(inbound),
                     supply,
+                    chosen.clone(),
                 )
             })
         };
@@ -6466,6 +6506,38 @@ pub(crate) mod tests {
         assert!(
             finished < returned,
             "the connection ended before the request it cancelled had stopped: {notes:?}"
+        );
+    }
+
+    /// `cancel_on_disconnect` sits under `[limits]`, which an `[[app]]` block
+    /// may write, so it is read off the snapshot the program runs under and
+    /// not the host's. Both directions: a host that lists the method does not
+    /// cancel a program whose snapshot does not, and the reverse.
+    #[test]
+    fn the_disconnect_keys_are_read_from_the_snapshot_the_program_runs_under() {
+        let listed = "[limits]\ncancel_on_disconnect = [\"POST\"]\n";
+        let cancelled = |notes: &[String]| !notes.iter().any(|note| note == "the second write");
+        let host_lists = after_a_disconnect_under(
+            listed,
+            Some(""),
+            Waits::default(),
+            &Draining::detached(),
+            two_writes,
+        );
+        assert!(
+            !cancelled(&host_lists),
+            "the host's list cancelled a program whose own snapshot lists nothing: {host_lists:?}"
+        );
+        let program_lists = after_a_disconnect_under(
+            "",
+            Some(listed),
+            Waits::default(),
+            &Draining::detached(),
+            two_writes,
+        );
+        assert!(
+            cancelled(&program_lists),
+            "a program whose own snapshot lists the method ran on: {program_lists:?}"
         );
     }
 
@@ -6588,15 +6660,21 @@ pub(crate) mod tests {
                 drain: Duration::from_millis(300),
                 ..Waits::default()
             };
-            after_a_disconnect_under("", waits, &draining, move |_ctx, notes, _admission| {
-                if !waited(Duration::from_millis(100)) {
-                    return;
-                }
-                begun.begin();
-                if waited(for_how_long) {
-                    noted(notes, "ran to its end under the drain");
-                }
-            })
+            after_a_disconnect_under(
+                "",
+                None,
+                waits,
+                &draining,
+                move |_ctx, notes, _admission| {
+                    if !waited(Duration::from_millis(100)) {
+                        return;
+                    }
+                    begun.begin();
+                    if waited(for_how_long) {
+                        noted(notes, "ran to its end under the drain");
+                    }
+                },
+            )
         };
 
         let notes = under_a_drain(Duration::from_millis(50));
@@ -6711,6 +6789,7 @@ pub(crate) mod tests {
             Reply::Run(
                 Isolate::new(program, Value::null(), Output::Capture).answering(inbound),
                 None,
+                None,
             )
         });
         let client = std::thread::spawn(move || {
@@ -6781,6 +6860,7 @@ pub(crate) mod tests {
             });
             Reply::Run(
                 Isolate::new(program, Value::null(), Output::Capture).answering(inbound),
+                None,
                 None,
             )
         });
@@ -6991,6 +7071,7 @@ pub(crate) mod tests {
             Reply::Run(
                 Isolate::new(program, Value::null(), Output::Capture).answering(inbound),
                 supply,
+                None,
             )
         })
     }
@@ -7358,6 +7439,7 @@ pub(crate) mod tests {
             Reply::Run(
                 Isolate::new(program, Value::null(), Output::Capture).answering(inbound),
                 supply,
+                None,
             )
         });
         served_across_requests(listener, &handler, client, wide_open())
@@ -7412,6 +7494,7 @@ pub(crate) mod tests {
             Reply::Run(
                 Isolate::new(program, Value::null(), Output::Capture).answering(inbound),
                 supply,
+                None,
             )
         });
         served_by(listener, &handler, client)
@@ -7449,6 +7532,7 @@ pub(crate) mod tests {
                 Reply::Run(
                     Isolate::new(program, Value::null(), Output::Capture).answering(inbound),
                     supply,
+                    None,
                 )
             });
             sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, move |_ctx| {
@@ -7657,6 +7741,7 @@ pub(crate) mod tests {
                     Reply::Run(
                         Isolate::new(program, Value::null(), Output::Capture).answering(inbound),
                         supply,
+                        None,
                     )
                 })
             },
@@ -7920,11 +8005,6 @@ pub(crate) mod tests {
     /// the tree beside it. A snapshot carrying one of them is a fixture that
     /// passes a case about the half it filled and says nothing about the other.
     fn booted_on(written: &str) -> Serving {
-        let snapshot = nvs_config::Snapshot {
-            config: toml::from_str(written).expect("the tree deserializes"),
-            table: written.parse().expect("the tree is TOML"),
-            ..Default::default()
-        };
         Serving::new(
             Arc::new(Admission::new(&Ceiling::of(&Capacity {
                 configured: 10_000,
@@ -7934,8 +8014,18 @@ pub(crate) mod tests {
             Arc::new(Secure::default()),
             Arc::new(Trusted::none()),
             Arc::new(Cors::default()),
-            Arc::new(snapshot),
+            tree_of(written),
         )
+    }
+
+    /// The snapshot of `written`, with both halves filled for
+    /// [`booted_on`]'s reason.
+    fn tree_of(written: &str) -> Arc<nvs_config::Snapshot> {
+        Arc::new(nvs_config::Snapshot {
+            config: toml::from_str(written).expect("the tree deserializes"),
+            table: written.parse().expect("the tree is TOML"),
+            ..Default::default()
+        })
     }
 
     /// `rule:config/the-config-is-an-immutable-snapshot` on the served path: the
@@ -7993,6 +8083,78 @@ pub(crate) mod tests {
         assert!(
             answer.ends_with("cpu_time=7s"),
             "the tree this instance booted on did not reach the request: {answer}"
+        );
+    }
+
+    /// `rule:config/every-matching-app-block-applies-least-specific-first` on
+    /// the served path: the door's headers are the host snapshot's, and the
+    /// program reads the snapshot its handler chose. The handler also finds the
+    /// publish the door answered under, so both come from one publish.
+    #[test]
+    fn the_door_answers_under_the_host_snapshot_and_the_program_under_its_own() {
+        let listener = NvsListener::bind("127.0.0.1:0".parse().expect("a literal address"))
+            .expect("the OS refused a port");
+        let addr = listener
+            .local_addr()
+            .expect("a bound listener had no address");
+        let client = std::thread::spawn(move || {
+            let mut socket = TcpStream::connect(addr).expect("the loopback refused a connection");
+            socket
+                .write_all(b"GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")
+                .expect("the write failed");
+            let mut answer = String::new();
+            socket
+                .read_to_string(&mut answer)
+                .expect("the response could not be read");
+            answer
+        });
+        // The policies are derived from the host's tree here, where
+        // [`booted_on`] hands in the shipped ones.
+        let host = tree_of(
+            "[limits]\ncpu_time = \"7s\"\n[http.headers]\nreferrer_policy = \"no-referrer\"\n",
+        );
+        let serving = Serving::new(
+            Arc::new(Admission::new(&Ceiling::of(&Capacity {
+                configured: 10_000,
+                per_request: None,
+                budget: None,
+            }))),
+            Arc::new(Secure::of(host.config.http.as_ref())),
+            Arc::new(Trusted::none()),
+            Arc::new(Cors::default()),
+            Arc::clone(&host),
+        );
+        let own =
+            tree_of("[limits]\ncpu_time = \"3s\"\n[http.headers]\nreferrer_policy = \"origin\"\n");
+        let handler = Rc::new(move |request: Request<Incoming>, _origin: Origin| {
+            let published = published_of(&request).expect("the door left no publish");
+            assert!(
+                Arc::ptr_eq(published.host(), &host),
+                "the publish on the request is not the one the door answers under"
+            );
+            let program: Program = Box::new(move |child: &mut Ctx, _args| {
+                let said = match child.config().and_then(|config| config.get("cpu_time")) {
+                    Some(written) => format!("cpu_time={written}"),
+                    None => "no tree".to_owned(),
+                };
+                child.write_output(said.as_bytes()).expect("a buffer");
+                Value::null()
+            });
+            Reply::Run(
+                Isolate::new(program, Value::null(), Output::Capture),
+                None,
+                Some(Arc::clone(&own)),
+            )
+        });
+        let answer = served_under(listener, &handler, client, serving);
+        assert!(
+            answer.ends_with("cpu_time=3s"),
+            "the program did not run under the snapshot its handler chose: {answer}"
+        );
+        let lower = answer.to_ascii_lowercase();
+        assert!(
+            lower.contains("referrer-policy: no-referrer\r\n"),
+            "the door did not answer with the host snapshot's headers: {answer}"
         );
     }
 
@@ -10112,6 +10274,7 @@ pub(crate) mod tests {
             Reply::Run(
                 Isolate::new(program, Value::null(), Output::Capture).answering(inbound),
                 None,
+                None,
             )
         });
         let waits = Waits {
@@ -10374,6 +10537,7 @@ pub(crate) mod tests {
                 Reply::Run(
                     Isolate::new(program, Value::null(), Output::Capture).answering(inbound),
                     supply,
+                    None,
                 )
             });
             sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, move |_ctx| {
@@ -10576,6 +10740,7 @@ pub(crate) mod tests {
                 Reply::Run(
                     Isolate::new(program, Value::null(), Output::Capture).answering(inbound),
                     supply,
+                    None,
                 )
             });
             sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, move |_ctx| {
