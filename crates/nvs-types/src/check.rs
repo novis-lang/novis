@@ -43,7 +43,7 @@ use crate::ctor_init::check_class_init;
 use crate::expr::class_of_ctx;
 use crate::expr_table::{ExprTypeTable, LocalBinding};
 use crate::lateinit::check_class_lateinit_reads;
-use crate::locals::{LocalScope, check_block, check_stmt};
+use crate::locals::{Live, LocalScope, check_block, check_stmt};
 use crate::lower::lower_optional_type;
 use crate::returns::{block_always_exits, closing_brace};
 use crate::signatures::build_signatures;
@@ -196,7 +196,7 @@ pub fn check_program_granted(
         };
         let mut frame = ScriptFrame {
             scope: LocalScope::new(),
-            live: FxHashSet::default(),
+            live: Live::default(),
             // `rule:statements/a-require-expression-is-mixed`: `require`'s value is what a `return`-ing target
             // file hands back, typed `mixed` at the boundary — so the
             // synthesized frame's return type is `mixed`, not `void`.
@@ -319,7 +319,7 @@ fn record_property_types(signatures: &crate::SignatureTable, exprs: &mut ExprTyp
 /// outside it — a namespace scopes names, not storage.
 pub(crate) struct ScriptFrame {
     scope: LocalScope,
-    live: FxHashSet<String>,
+    live: Live,
     return_ty: crate::ty::TypeId,
 }
 
@@ -590,7 +590,7 @@ fn check_property_hooks(p: &nvs_syntax::ast::PropertyMember, ctx: &Ctx<'_>, env:
             continue; // abstract hook — a requirement, not code
         };
         let mut scope = LocalScope::new();
-        let mut live: FxHashSet<String> = FxHashSet::default();
+        let mut live = Live::default();
         let this_ty = class_of_ctx(&inner, env);
         scope.declare_param("this".to_owned(), this_ty, p.name);
         live.insert("this".to_owned());
@@ -664,7 +664,7 @@ fn check_method(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<'_>) {
     };
 
     let mut scope = LocalScope::new();
-    let mut live: FxHashSet<String> = FxHashSet::default();
+    let mut live = Live::default();
     if ctx.current_class.is_some() && !m.modifiers.contains(&Modifier::Static) {
         // Seeded here rather than as an ordinary parameter: `$this` has no
         // `Param` node of its own to read a span from, and property/method

@@ -49,10 +49,9 @@
 
 use nvs_diagnostics::{Diagnostic, Span, code};
 use nvs_syntax::ast::{Expr, TestOperand, Type};
-use rustc_hash::FxHashSet;
 
 use crate::expr_table::ExprInfo;
-use crate::locals::LocalScope;
+use crate::locals::{Live, LocalScope};
 use crate::lower::lower_type;
 use crate::ty::{Ty, TypeId};
 use crate::{Ctx, Env};
@@ -82,7 +81,7 @@ pub(crate) fn infer_type_test(
     expr: &Expr,
     inner: &Expr,
     against: &TestOperand,
-    live: &mut FxHashSet<String>,
+    live: &mut Live,
     scope: &LocalScope,
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
@@ -101,7 +100,7 @@ fn infer_against_type(
     expr: &Expr,
     inner: &Expr,
     ty: &Type,
-    live: &mut FxHashSet<String>,
+    live: &mut Live,
     scope: &LocalScope,
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
@@ -195,7 +194,7 @@ fn infer_against_class_ref(
     expr: &Expr,
     inner: &Expr,
     value: &Expr,
-    live: &mut FxHashSet<String>,
+    live: &mut Live,
     scope: &LocalScope,
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,

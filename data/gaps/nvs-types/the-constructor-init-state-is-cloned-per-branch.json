@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-types/src/ctor_init.rs",
+  "title": "The constructor property check clones its set of assigned properties for every branch, so a long constructor checks in quadratic time.",
+  "text": "`crates/nvs-types/src/ctor_init.rs:281` (and every other `state.clone()` in `walk_stmt` and `scan_branches`) copies `InitState` for each `if`, loop, `case`, `catch`, `finally` and short-circuit arm. The cost is O(branches × `$this->prop` writes) per constructor. `crate::live::Live`, the undo log the local-variable check already uses, keeps it linear: make `InitState::assigned` one, and rewind and join instead of cloning. Ladder: `compiler/constructor.nvs`, one class of n properties whose constructor assigns each under an `if`, `compile` kind.",
+  "goal": "performance-pass"
+}

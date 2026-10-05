@@ -1,0 +1,27 @@
+<?nvs
+// Prints a program with one function of n local variables, each followed by an `if`, as a long handler does.
+// scaling: kind compile
+// scaling: start 1024
+// scaling: max 16384
+// scaling: expect linear
+
+class Bench {
+    public static function run(uint $size): string {
+        array<string> $lines = ["<?nvs", "class Handler {", "    public static function handle(bool \$flag): int {", "        int \$total = 0;"];
+        uint $i = 0;
+        while ($i < $size) {
+            $lines[] = "        int \$x{$i} = {$i};";
+            $lines[] = "        if (\$flag) {";
+            $lines[] = "            \$total = \$total + \$x{$i};";
+            $lines[] = "        }";
+            $i = $i + 1;
+        }
+        $lines[] = "        return \$total;";
+        $lines[] = "    }";
+        $lines[] = "}";
+        $lines[] = "echo Handler::handle(true), \"\\n\";";
+        return Core\Str::join($lines, "\n") . "\n";
+    }
+}
+
+echo Bench::run(1024);

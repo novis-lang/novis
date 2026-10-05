@@ -78,12 +78,12 @@ use nvs_syntax::ast::{
     Attribute, AttributeGroup, CallArgs, ClassMember, ClassMemberKind, Expr, ExprKind, MemberName,
     NamespaceDecl, Stmt, StmtKind,
 };
-use rustc_hash::{FxHashMap, FxHashSet};
+use rustc_hash::FxHashMap;
 
 use crate::defaults::ConstArg;
 use crate::expr::{check_object_literal, is_assignable, resolve_class_expr};
 use crate::expr_table::ExprInfo;
-use crate::locals::LocalScope;
+use crate::locals::{Live, LocalScope};
 use crate::signatures::{resolve_method, resolve_property};
 use crate::ty::{Ty, TypeId};
 use crate::{Ctx, Env, span_text};
@@ -522,7 +522,7 @@ pub(crate) fn matching<'a>(sites: &[Site<'a>], want: TypeId, env: &mut Env<'a>) 
     let mut matched = Vec::new();
     for site in sites {
         env.src = site.src;
-        let mut live = FxHashSet::default();
+        let mut live = Live::default();
         let scope = LocalScope::new();
         let written = site_ctx(&table.scopes[site.scope]);
         let actual =

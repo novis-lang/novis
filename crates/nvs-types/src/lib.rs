@@ -183,6 +183,7 @@ pub mod iter_lib;
 pub mod lateinit;
 pub mod layout;
 pub(crate) mod links;
+pub(crate) mod live;
 pub mod locals;
 pub mod lower;
 pub mod paths;

@@ -35,9 +35,8 @@
 
 use nvs_diagnostics::{Diagnostic, Span, code};
 use nvs_syntax::ast::{Expr, ExprKind};
-use rustc_hash::FxHashSet;
 
-use crate::locals::LocalScope;
+use crate::locals::{Live, LocalScope};
 use crate::ty::TypeId;
 use crate::{Ctx, Env};
 
@@ -49,7 +48,7 @@ use super::check_expr;
 /// [`ExprInfo`]: crate::expr_table::ExprInfo
 pub(crate) fn check_isset_operand(
     operand: &Expr,
-    live: &mut FxHashSet<String>,
+    live: &mut Live,
     scope: &LocalScope,
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
@@ -72,7 +71,7 @@ pub(crate) fn check_isset_operand(
 /// [`ExprInfo`]: crate::expr_table::ExprInfo
 pub(crate) fn check_empty_operand(
     operand: &Expr,
-    live: &mut FxHashSet<String>,
+    live: &mut Live,
     scope: &LocalScope,
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,

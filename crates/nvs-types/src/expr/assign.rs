@@ -700,7 +700,7 @@ fn unconverted_array_help(expected: TypeId, actual: TypeId, env: &mut Env<'_>) -
 pub(crate) fn check_return(
     expr: &Expr,
     return_ty: TypeId,
-    live: &mut FxHashSet<String>,
+    live: &mut Live,
     scope: &LocalScope,
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
@@ -769,7 +769,7 @@ pub(crate) fn check_assign(
     span: Span,
     target: &Expr,
     value: &Expr,
-    live: &mut FxHashSet<String>,
+    live: &mut Live,
     scope: &LocalScope,
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
@@ -1358,7 +1358,7 @@ pub(crate) fn check_compound_assign(
     span: Span,
     target: &Expr,
     value: &Expr,
-    live: &mut FxHashSet<String>,
+    live: &mut Live,
     scope: &LocalScope,
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
@@ -1445,7 +1445,7 @@ fn defaulted_read(
 pub(crate) fn check_read(
     name: &str,
     span: Span,
-    live: &FxHashSet<String>,
+    live: &Live,
     scope: &LocalScope,
     env: &mut Env<'_>,
 ) -> TypeId {

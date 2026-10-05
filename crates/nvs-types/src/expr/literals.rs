@@ -524,7 +524,7 @@ pub(crate) fn infer_str_literal(span: Span, expected: Option<TypeId>, env: &mut 
 pub(crate) fn infer_interpolated(
     expr: &Expr,
     parts: &[StringPart],
-    live: &mut FxHashSet<String>,
+    live: &mut Live,
     scope: &LocalScope,
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
@@ -602,7 +602,7 @@ pub(crate) fn infer_interpolated(
 /// (`rule:security/secret-sinks-refuse`).
 pub(crate) fn infer_markup_literal(
     parts: &[StringPart],
-    live: &mut FxHashSet<String>,
+    live: &mut Live,
     scope: &LocalScope,
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
@@ -966,7 +966,7 @@ pub(crate) fn check_heredoc_run_issues(
 pub(crate) fn check_object_literal(
     fields: &[ObjectLiteralField],
     expected: Option<TypeId>,
-    live: &mut FxHashSet<String>,
+    live: &mut Live,
     scope: &LocalScope,
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
@@ -1090,7 +1090,7 @@ fn report_duplicate_shape_field(field: &ObjectLiteralField, name: &str, env: &mu
 pub(crate) fn check_array_literal(
     items: &[ArrayItem],
     expected: Option<TypeId>,
-    live: &mut FxHashSet<String>,
+    live: &mut Live,
     scope: &LocalScope,
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
@@ -1218,7 +1218,7 @@ pub(crate) enum NoArrayType {
 pub(crate) fn synthesize_array_literal(
     items: &[ArrayItem],
     span: Span,
-    live: &mut FxHashSet<String>,
+    live: &mut Live,
     scope: &LocalScope,
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
@@ -1232,7 +1232,7 @@ pub(crate) fn synthesize_array_literal(
 fn synthesize_items(
     items: &[ArrayItem],
     span: Span,
-    live: &mut FxHashSet<String>,
+    live: &mut Live,
     scope: &LocalScope,
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
@@ -1300,7 +1300,7 @@ fn synthesize_items(
 /// the same rule, anything else what [`check_expr`] gives it alone.
 fn element_ty(
     value: &Expr,
-    live: &mut FxHashSet<String>,
+    live: &mut Live,
     scope: &LocalScope,
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
@@ -1321,7 +1321,7 @@ fn element_ty(
 /// element type. A source that is not an array is the spread's own `E0484`.
 fn spread_element_ty(
     item: &ArrayItem,
-    live: &mut FxHashSet<String>,
+    live: &mut Live,
     scope: &LocalScope,
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
@@ -1368,7 +1368,7 @@ fn spread_element_ty(
 fn check_spread_element(
     item: &ArrayItem,
     elem_expected: Option<TypeId>,
-    live: &mut FxHashSet<String>,
+    live: &mut Live,
     scope: &LocalScope,
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,

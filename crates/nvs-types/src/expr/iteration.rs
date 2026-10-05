@@ -33,7 +33,7 @@ pub(crate) fn infer_yield(
     expr: &Expr,
     key: Option<&Expr>,
     value: Option<&Expr>,
-    live: &mut FxHashSet<String>,
+    live: &mut Live,
     scope: &LocalScope,
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
@@ -82,7 +82,7 @@ pub(crate) fn infer_yield(
 pub(crate) fn infer_yield_from(
     expr: &Expr,
     inner: &Expr,
-    live: &mut FxHashSet<String>,
+    live: &mut Live,
     scope: &LocalScope,
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,

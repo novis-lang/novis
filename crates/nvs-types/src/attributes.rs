@@ -34,10 +34,9 @@ use nvs_syntax::ast::{
     ArrayItem, Attribute, AttributeGroup, ClassMember, ClassMemberKind, EnumCase, Expr, ExprKind,
     Name, ObjectLiteralField, Param, Type, TypeAtom, TypeKind, UnaryOp,
 };
-use rustc_hash::FxHashSet;
 
 use crate::expr::{check_expr, check_object_literal, is_assignable, report_mismatch};
-use crate::locals::LocalScope;
+use crate::locals::{Live, LocalScope};
 use crate::ty::{Ty, TypeId};
 use crate::{Ctx, Env, span_text};
 
@@ -164,7 +163,7 @@ fn check_attribute(attr: &Attribute, ctx: &Ctx<'_>, env: &mut Env<'_>) {
     // Deliberately the ordinary shape-typed position's check, run over an
     // empty scope: § 2 has just proved there is no variable in this payload,
     // so no binding can be read and none can be captured.
-    let mut live = FxHashSet::default();
+    let mut live = Live::default();
     let scope = LocalScope::new();
     let actual = check_object_literal(&attr.fields, None, &mut live, &scope, ctx, env);
     if !is_assignable(actual, shape, env.interner, env.graph, env.signatures) {
@@ -288,7 +287,7 @@ fn infer_fields(
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
 ) {
-    let mut live = FxHashSet::default();
+    let mut live = Live::default();
     let scope = LocalScope::new();
     for field in fields {
         let expected = if uint_magnitudes && exceeds_int(&field.value, env) {
@@ -337,7 +336,7 @@ pub(crate) fn check_roster(
     // The scope is empty and stays empty: § 2 has just proved this payload
     // reads no variable, so there is no binding to mark live and none to
     // capture.
-    let mut live = FxHashSet::default();
+    let mut live = Live::default();
     let scope = LocalScope::new();
     let mut seen: Vec<String> = Vec::with_capacity(fields.len());
     for field in fields {

@@ -37,7 +37,6 @@
 use nvs_diagnostics::{Diagnostic, code};
 use nvs_hir::{QName, SymbolKind};
 use nvs_syntax::ast::{CallArgs, Expr, ExprKind};
-use rustc_hash::FxHashSet;
 
 use crate::defaults::ConstArg;
 use crate::expr::args::check_args_typed;
@@ -45,7 +44,7 @@ use crate::expr::calls::resolved_call;
 use crate::expr::is_assignable;
 use crate::expr::members::{check_method_visibility, class_qname_of};
 use crate::expr_table::{ArgSlot, ExprInfo, ResolvedCall};
-use crate::locals::LocalScope;
+use crate::locals::{Live, LocalScope};
 use crate::retrieval::{fold_payload, matching, sites_for};
 use crate::signatures::{resolve_method, resolve_property};
 use crate::ty::{ShapeField, Ty, TypeId};
@@ -90,7 +89,7 @@ pub(crate) fn is_joined(member: &str) -> bool {
 pub(crate) fn expand(
     call: &Expr,
     written: &[TypeId],
-    live: &mut FxHashSet<String>,
+    live: &mut Live,
     scope: &LocalScope,
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
@@ -132,7 +131,7 @@ pub(crate) fn expand_with(
     call: &Expr,
     written: &[TypeId],
     args: &CallArgs,
-    live: &mut FxHashSet<String>,
+    live: &mut Live,
     scope: &LocalScope,
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
@@ -520,7 +519,7 @@ fn constructors_of(
     classes: &[QName],
     selector: &QName,
     call: &Expr,
-    live: &mut FxHashSet<String>,
+    live: &mut Live,
     scope: &LocalScope,
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,

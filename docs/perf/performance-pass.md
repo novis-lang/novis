@@ -106,6 +106,19 @@ walks its own ancestors rather than reusing its parent's layout: the layout is a
 inherits, so reuse would save a constant factor. It spends one set of borrowed names per class while
 it is built.
 
+**Checking a function costs what its branches assign, not what is live at each one.** The checker
+copied a function's whole set of definitely assigned locals for every `if` arm, loop body, `case`,
+`catch`, `finally` and closure, so a function of n statements checked in O(n²). Every branch now
+runs on the one set, which keeps a log of what it gained: the branch is rewound off it and the join
+puts back what every way out assigned (`crates/nvs-types/src/live.rs`). The ladder
+[`compiler/branches`](../../benches/scaling/compiler/branches.nvs) prints one function of n locals,
+each followed by an `if`. Its counts do not see the checker, but on the old binary it fails on
+callgrind's instruction count, which grew with slope 1.95. On the clock, `nvs check` of 4096 went
+from 301 ms to 43 ms and of 16384 from 4835 ms to 107 ms, best of three runs, before and after
+alternated. It spends one more copy of each assigned name per function while it is checked. The
+constructor property check in `ctor_init.rs` still copies its own set per branch, and its gap record
+says so.
+
 ## Decisions for you
 
 **Should a request head get a total deadline as well as its idle one?** `header_timeout` is an idle

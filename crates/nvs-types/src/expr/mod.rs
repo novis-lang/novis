@@ -50,7 +50,7 @@ use nvs_syntax::ast::{
 use rustc_hash::FxHashSet;
 
 use crate::expr_table::{ArgSlot, ExprInfo, ForeachDrive, ResolvedCall};
-use crate::locals::{Captures, LocalScope, check_block};
+use crate::locals::{Captures, Live, LocalScope, check_block};
 use crate::lower::{lower_optional_type, lower_type};
 use crate::signatures::{
     MethodSig, SignatureTable, resolve_method, resolve_property, resolve_property_owned,
@@ -142,7 +142,7 @@ pub fn type_is_secret(ty: TypeId, interner: &TypeInterner) -> bool {
 pub(crate) fn check_expr(
     expr: &Expr,
     expected: Option<TypeId>,
-    live: &mut FxHashSet<String>,
+    live: &mut Live,
     scope: &LocalScope,
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
@@ -193,7 +193,7 @@ pub(crate) fn check_expr(
 /// [`code::E_VOID_IS_NOT_A_CONDITION`] for where that line is drawn and why.
 pub(crate) fn check_condition(
     cond: &Expr,
-    live: &mut FxHashSet<String>,
+    live: &mut Live,
     scope: &LocalScope,
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
@@ -227,7 +227,7 @@ pub(crate) fn check_condition(
 /// type against the one it replaces, so the code that runs may return.
 pub(crate) fn check_expr_stmt(
     expr: &Expr,
-    live: &mut FxHashSet<String>,
+    live: &mut Live,
     scope: &LocalScope,
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
@@ -275,7 +275,7 @@ pub(crate) fn check_expr_stmt(
 pub(crate) fn infer(
     expr: &Expr,
     expected: Option<TypeId>,
-    live: &mut FxHashSet<String>,
+    live: &mut Live,
     scope: &LocalScope,
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
@@ -996,14 +996,13 @@ pub(crate) fn infer(
             // be assumed assigned inside one. What is live afterwards is the
             // join across the ways the expression can produce a value, the same
             // shape `crate::locals`' `StmtKind::Try` arm builds.
-            let before = live.clone();
+            let mark = live.mark();
             let never = env.interner.never();
             let mut types = vec![check_expr(guarded, None, live, scope, ctx, env)];
-            let mut joins: Vec<FxHashSet<String>> = vec![live.clone()];
+            let mut joins: Vec<Vec<String>> = vec![live.rewind(mark)];
             for arm in arms {
                 let ty = lower_type(&arm.ty, ctx, env);
                 reject_finish_marker_arm(ty, arm.ty.span, env);
-                let mut arm_live = before.clone();
                 let mut binding = None;
                 let mut fresh = None;
                 match arm.var {
@@ -1013,19 +1012,20 @@ pub(crate) fn infer(
                         // A name the guard could not have assigned is the
                         // arm's alone, so it leaves with the arm; one that was
                         // already live reused an existing binding and stays.
-                        if !before.contains(&name) {
+                        if !live.contains(&name) {
                             fresh = Some(name.clone());
                         }
-                        arm_live.insert(name);
+                        live.insert(name);
                     }
                     None => warn_discarding_throwable_arm(arm, ty, env),
                 }
-                let arm_ty = check_expr(&arm.body, None, &mut arm_live, scope, ctx, env);
+                let arm_ty = check_expr(&arm.body, None, live, scope, ctx, env);
                 if let Some(binding) = binding {
                     binding.release(scope);
                 }
+                let mut arm_added = live.rewind(mark);
                 if let Some(name) = fresh {
-                    arm_live.remove(&name);
+                    arm_added.retain(|n| *n != name);
                 }
                 // § 3: a `throw` arm is typed `never`, so it produces no value
                 // — it contributes nothing to the union and is not a way the
@@ -1033,13 +1033,10 @@ pub(crate) fn infer(
                 // out of the block form's own join.
                 if arm_ty != never {
                     types.push(arm_ty);
-                    joins.push(arm_live);
+                    joins.push(arm_added);
                 }
             }
-            *live = joins
-                .into_iter()
-                .reduce(|a, b| a.intersection(&b).cloned().collect())
-                .unwrap_or_default();
+            live.extend(crate::live::assigned_on_every_way(joins).unwrap_or_default());
             env.interner.make_union(types)
         }
         ExprKind::Paren(inner) => check_expr(inner, expected, live, scope, ctx, env),

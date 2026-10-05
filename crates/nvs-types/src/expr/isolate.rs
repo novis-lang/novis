@@ -110,10 +110,9 @@
 use nvs_diagnostics::{Diagnostic, Span, code};
 use nvs_hir::QName;
 use nvs_syntax::ast::{CallArgs, Expr, ExprKind, SpawnOption, SpawnOptionKey};
-use rustc_hash::FxHashSet;
 
 use crate::expr_table::ArgSlot;
-use crate::locals::LocalScope;
+use crate::locals::{Live, LocalScope};
 use crate::ty::{ShapeField, Ty, TypeId};
 use crate::{Ctx, Env};
 
@@ -156,7 +155,7 @@ use super::{check_expr, reject_secret_crossing};
 pub(crate) fn check_spawn_script(
     path: &Expr,
     options: &[SpawnOption],
-    live: &mut FxHashSet<String>,
+    live: &mut Live,
     scope: &LocalScope,
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
@@ -235,13 +234,7 @@ pub(crate) fn check_spawn_script(
 /// asked: the spawn raises the named-argument error for either mismatch, and a
 /// literal map is not compared against the signature here yet. What that costs
 /// is when the error arrives, never whether it does.
-fn check_entry(
-    path: &Expr,
-    live: &mut FxHashSet<String>,
-    scope: &LocalScope,
-    ctx: &Ctx<'_>,
-    env: &mut Env<'_>,
-) {
+fn check_entry(path: &Expr, live: &mut Live, scope: &LocalScope, ctx: &Ctx<'_>, env: &mut Env<'_>) {
     // Checked first and on every path: a typo *inside* the operand is worth
     // reporting whichever of the three it turns out to be, and with no expected
     // type for the reason above.
@@ -554,7 +547,7 @@ fn check_placement(value: &Expr, env: &mut Env<'_>) {
 /// line rather than only about `await` itself.
 pub(crate) fn check_await(
     operand: &Expr,
-    live: &mut FxHashSet<String>,
+    live: &mut Live,
     scope: &LocalScope,
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,

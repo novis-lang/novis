@@ -85,7 +85,7 @@ pub(crate) fn infer_conversion(
     inner: &Expr,
     ty: &Type,
     legacy: bool,
-    live: &mut FxHashSet<String>,
+    live: &mut Live,
     scope: &LocalScope,
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,

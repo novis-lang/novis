@@ -9,9 +9,10 @@
 //! kinds of state through that walk: [`LocalScope`], one shared table for
 //! the *whole* function body (declaration is function-scoped — a name
 //! declared inside an `if` is visible, though not necessarily definitely
-//! assigned, after it), and a `live: &mut FxHashSet<String>` set that is
-//! cloned and merged at every branch point, so it always reflects exactly
-//! what is definitely assigned on the path reached so far.
+//! assigned, after it), and a [`Live`] set that reflects exactly what is
+//! definitely assigned on the path reached so far. Every branch is checked
+//! on that one set, taken back off it, and joined in again, so a branch costs
+//! what it assigns (`crate::live` owns how).
 //!
 //! **A deliberate, ADR-underspecified judgment call:** a second plain
 //! `LocalDecl` for a live name is always a diagnostic (the ADR's own
@@ -111,7 +112,7 @@ use nvs_syntax::ast::{
     ArrayItem, DestructureElement, DestructureTarget, Expr, ExprKind, ForeachBinding,
     ForeachBindingTy, Stmt, StmtKind,
 };
-use rustc_hash::{FxHashMap, FxHashSet};
+use rustc_hash::FxHashMap;
 
 use crate::expr::{
     check_array_key_type, check_condition, check_expr, check_expr_stmt, check_return,
@@ -119,6 +120,8 @@ use crate::expr::{
     reject_secret_output, report_mismatch, require_stringable,
 };
 use crate::expr_table::ExprInfo;
+pub(crate) use crate::live::Live;
+use crate::live::assigned_on_every_way;
 use crate::lower::{lower_optional_type, lower_type};
 use crate::ty::{Ty, TypeId};
 use crate::{Ctx, Env, span_text, strip_sigil};
@@ -870,7 +873,7 @@ pub(crate) fn ends_in_break_or_continue(stmt: &Stmt) -> bool {
 /// decides what an `if`/`else` join may assume about definite assignment.
 pub(crate) fn check_block(
     stmts: &[Stmt],
-    live: &mut FxHashSet<String>,
+    live: &mut Live,
     scope: &mut LocalScope,
     return_ty: TypeId,
     ctx: &Ctx<'_>,
@@ -934,7 +937,7 @@ fn check_exit_level(
     level: Option<&Expr>,
     stmt_span: Span,
     keyword: &str,
-    live: &mut FxHashSet<String>,
+    live: &mut Live,
     scope: &mut LocalScope,
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
@@ -1091,7 +1094,7 @@ fn reject_void_or_never_binding(
 )]
 pub(crate) fn check_stmt(
     stmt: &Stmt,
-    live: &mut FxHashSet<String>,
+    live: &mut Live,
     scope: &mut LocalScope,
     return_ty: TypeId,
     ctx: &Ctx<'_>,
@@ -1119,52 +1122,58 @@ pub(crate) fn check_stmt(
         // order with `live` as the rest's live set, each one under every
         // earlier condition narrowed false. Then the joins are made from the
         // last arm back to the first, undoing those narrowings as they go.
+        // Each arm's body is taken back off `live` once checked, and kept as
+        // the list of names it assigned, so the rest starts where it did.
         StmtKind::If { arms, else_ } => {
             let mut joins = Vec::with_capacity(arms.len());
             for (i, arm) in arms.iter().enumerate() {
                 check_condition(&arm.cond, live, scope, ctx, env);
-                let mut then_live = live.clone();
+                let mark = live.mark();
                 let narrowed = narrow(&arm.cond, true, scope, env);
-                check_stmt(&arm.then, &mut then_live, scope, return_ty, ctx, env);
+                check_stmt(&arm.then, live, scope, return_ty, ctx, env);
                 narrowed.restore(scope);
+                let then_added = live.rewind(mark);
                 // No `else`: only the pre-existing `live` carries forward.
                 if i + 1 == arms.len() && else_.is_none() {
                     break;
                 }
                 let narrowed = narrow(&arm.cond, false, scope, env);
-                joins.push((then_live, terminates(&arm.then), narrowed));
+                joins.push((mark, then_added, terminates(&arm.then), narrowed));
             }
             let mut rest_terminates = false;
             if let Some(else_stmt) = else_ {
                 check_stmt(else_stmt, live, scope, return_ty, ctx, env);
                 rest_terminates = terminates(else_stmt);
             }
-            while let Some((then_live, then_terminates, narrowed)) = joins.pop() {
+            while let Some((mark, then_added, then_terminates, narrowed)) = joins.pop() {
                 narrowed.restore(scope);
                 // When the arm terminates, `live` is already the rest's.
                 if !then_terminates {
-                    *live = if rest_terminates {
-                        then_live
+                    if rest_terminates {
+                        live.rewind(mark);
+                        live.extend(then_added);
                     } else {
-                        then_live.intersection(live).cloned().collect()
-                    };
+                        live.intersect_since(mark, &then_added);
+                    }
                 }
                 rest_terminates = then_terminates && rest_terminates;
             }
         }
         StmtKind::While { cond, body } => {
             check_condition(cond, live, scope, ctx, env);
-            let mut body_live = live.clone();
+            // The body may run zero times, so what it assigns is taken back.
+            let mark = live.mark();
             // The condition is re-tested before every entry, so what it
             // proves holds for the whole body — unlike anything proved
             // outside the loop, which `suspend` puts out of reach.
             let suspended = suspend(scope);
             let narrowed = narrow(cond, true, scope, env);
             enter_loop(env);
-            check_stmt(body, &mut body_live, scope, return_ty, ctx, env);
+            check_stmt(body, live, scope, return_ty, ctx, env);
             leave_loop(env);
             narrowed.restore(scope);
             suspended.resume(scope);
+            live.rewind(mark);
         }
         StmtKind::DoWhile { body, cond } => {
             // The body runs at least once, so its assignments carry forward.
@@ -1196,15 +1205,16 @@ pub(crate) fn check_stmt(
             for e in cond {
                 check_condition(e, live, scope, ctx, env);
             }
-            let mut body_live = live.clone();
+            let mark = live.mark();
             let suspended = suspend(scope);
             enter_loop(env);
-            check_stmt(body, &mut body_live, scope, return_ty, ctx, env);
+            check_stmt(body, live, scope, return_ty, ctx, env);
             leave_loop(env);
             for e in step {
-                check_expr(e, None, &mut body_live, scope, ctx, env);
+                check_expr(e, None, live, scope, ctx, env);
             }
             suspended.resume(scope);
+            live.rewind(mark);
         }
         StmtKind::Foreach {
             subject,
@@ -1224,14 +1234,14 @@ pub(crate) fn check_stmt(
                 _ => check_expr(subject, None, live, scope, ctx, env),
             };
             let source = crate::expr::foreach_source(subject_ty, subject.span, env);
-            let mut body_live = live.clone();
+            let mark = live.mark();
             if let Some(k) = key {
                 let string = env.interner.string();
                 let ty = foreach_binding_ty(k, string, ctx, env);
                 crate::expr::check_foreach_key(&source, ty, k, env);
                 let name = strip_sigil(span_text(env.src, k.name)).to_owned();
                 declare_binding(scope, &name, ty, k.name, false, env);
-                body_live.insert(name);
+                live.insert(name);
             }
             let element = source.value_ty().unwrap_or_else(|| env.interner.mixed());
             let value_ty = foreach_binding_ty(value, element, ctx, env);
@@ -1241,12 +1251,13 @@ pub(crate) fn check_stmt(
             }
             let value_name = strip_sigil(span_text(env.src, value.name)).to_owned();
             declare_binding(scope, &value_name, value_ty, value.name, false, env);
-            body_live.insert(value_name);
+            live.insert(value_name);
             let suspended = suspend(scope);
             enter_loop(env);
-            check_stmt(body, &mut body_live, scope, return_ty, ctx, env);
+            check_stmt(body, live, scope, return_ty, ctx, env);
             leave_loop(env);
             suspended.resume(scope);
+            live.rewind(mark);
         }
         StmtKind::Switch { subject, cases } => {
             let subject_ty = check_expr(subject, None, live, scope, ctx, env);
@@ -1265,7 +1276,8 @@ pub(crate) fn check_stmt(
             // matched" is itself a possible path, so the pre-switch `live`
             // joins the other candidates too.
             let last_index = cases.len().saturating_sub(1);
-            let mut candidates: Vec<FxHashSet<String>> = Vec::new();
+            let mut candidates: Vec<Vec<String>> = Vec::new();
+            let mark = live.mark();
             // A `switch` is a `break` target without being a loop — PHP counts
             // it as a level for both keywords, and `continue` then walks out
             // of it to the loop (see `check_exit_level`).
@@ -1274,38 +1286,35 @@ pub(crate) fn check_stmt(
             // each case body is checked under what its own label proves.
             let labels_are_conditions = is_true_literal(subject);
             for (i, case) in cases.iter().enumerate() {
-                let mut case_live = live.clone();
                 let mut narrowed = Narrowing::default();
                 if let Some(c) = &case.cond {
                     // `rule:expressions/switch-match-equality`: a `case` label is compared against the
                     // subject by the one equality rule, so a label whose type
                     // is disjoint from the subject's is § 2's refusal written
                     // without the operator.
-                    let label_ty = check_expr(c, None, &mut case_live, scope, ctx, env);
+                    let label_ty = check_expr(c, None, live, scope, ctx, env);
                     crate::expr::reject_disjoint_equality(subject_ty, label_ty, c.span, env);
                     if labels_are_conditions {
                         narrowed = narrow(c, true, scope, env);
                     }
                 }
-                check_block(&case.body, &mut case_live, scope, return_ty, ctx, env);
+                check_block(&case.body, live, scope, return_ty, ctx, env);
                 narrowed.restore(scope);
+                let case_added = live.rewind(mark);
                 let exits = case.body.last();
                 if exits.is_some_and(terminates) {
                     continue;
                 }
                 if exits.is_some_and(ends_in_break_or_continue) || i == last_index {
-                    candidates.push(case_live);
+                    candidates.push(case_added);
                 }
             }
             env.exit_targets.pop();
             if cases.iter().all(|c| c.cond.is_some()) {
-                candidates.push(live.clone());
+                candidates.push(Vec::new());
             }
-            if let Some(merged) = candidates
-                .into_iter()
-                .reduce(|a, b| a.intersection(&b).cloned().collect())
-            {
-                *live = merged;
+            if let Some(merged) = assigned_on_every_way(candidates) {
+                live.extend(merged);
             }
             // No candidates at all: every case terminates, so nothing after
             // the switch is reachable — `live` stays as-is, unused.
@@ -1332,14 +1341,14 @@ pub(crate) fn check_stmt(
             // with no exception, or any `catch` completing — each excluded
             // from the join when it always returns/throws instead, exactly
             // like a terminating `if`/`else` branch.
-            let mut candidates: Vec<FxHashSet<String>> = Vec::new();
-            let mut body_live = live.clone();
-            check_block(&body.stmts, &mut body_live, scope, return_ty, ctx, env);
+            let mut candidates: Vec<Vec<String>> = Vec::new();
+            let mark = live.mark();
+            check_block(&body.stmts, live, scope, return_ty, ctx, env);
+            let body_added = live.rewind(mark);
             if !body.stmts.last().is_some_and(terminates) {
-                candidates.push(body_live);
+                candidates.push(body_added);
             }
             for catch in catches {
-                let mut catch_live = live.clone();
                 let mut bound = None;
                 // Lowered whether or not the clause binds, because what the
                 // refusal below reads is the class the clause *names* and a
@@ -1349,21 +1358,15 @@ pub(crate) fn check_stmt(
                 if let Some(var) = catch.var {
                     let name = strip_sigil(span_text(env.src, var)).to_owned();
                     declare_binding(scope, &name, ty, var, false, env);
-                    catch_live.insert(name.clone());
                     // Unless the name was already assigned before the `try`,
                     // in which case the clause reused an existing binding
                     // (`declare_binding`'s non-strict path) and what was live
                     // going in is still live coming out.
-                    bound = (!live.contains(&name)).then_some(name);
+                    bound = (!live.contains(&name)).then(|| name.clone());
+                    live.insert(name);
                 }
-                check_block(
-                    &catch.body.stmts,
-                    &mut catch_live,
-                    scope,
-                    return_ty,
-                    ctx,
-                    env,
-                );
+                check_block(&catch.body.stmts, live, scope, return_ty, ctx, env);
+                let mut catch_added = live.rewind(mark);
                 // The binding ends with its clause. Only the thrown value ever
                 // assigns it, and no path out of the `try` carries one, so it
                 // must not join `live` even when the clause is the only way
@@ -1371,34 +1374,23 @@ pub(crate) fn check_stmt(
                 // later read reach the lowerer as an undeclared local instead
                 // of the definite-assignment error it is.
                 if let Some(name) = bound {
-                    catch_live.remove(&name);
+                    catch_added.retain(|n| *n != name);
                 }
                 if !catch.body.stmts.last().is_some_and(terminates) {
-                    candidates.push(catch_live);
+                    candidates.push(catch_added);
                 }
             }
-            let merged = candidates
-                .into_iter()
-                .reduce(|a, b| a.intersection(&b).cloned().collect());
+            let merged = assigned_on_every_way(candidates);
             // `finally` always runs, so its assignments carry forward
             // regardless of which candidate above actually happened — union
             // them in rather than discarding the candidates' join.
             if let Some(finally) = finally {
-                let mut finally_live = live.clone();
-                check_block(
-                    &finally.stmts,
-                    &mut finally_live,
-                    scope,
-                    return_ty,
-                    ctx,
-                    env,
-                );
-                *live = match merged {
-                    Some(m) => m.union(&finally_live).cloned().collect(),
-                    None => finally_live,
-                };
+                check_block(&finally.stmts, live, scope, return_ty, ctx, env);
+                let finally_added = live.rewind(mark);
+                live.extend(merged.unwrap_or_default());
+                live.extend(finally_added);
             } else if let Some(m) = merged {
-                *live = m;
+                live.extend(m);
             }
             // No `finally` and no candidates: `body` and every `catch`
             // terminate, so nothing after the `try` is reachable — `live`
@@ -1521,7 +1513,7 @@ fn var_array_literal(
     items: &[ArrayItem],
     literal: &Expr,
     name: Option<&str>,
-    live: &mut FxHashSet<String>,
+    live: &mut Live,
     scope: &LocalScope,
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
@@ -1682,7 +1674,7 @@ fn walk_destructure_target(
     target: &DestructureTarget,
     subject: Option<TypeId>,
     subject_span: Span,
-    live: &mut FxHashSet<String>,
+    live: &mut Live,
     scope: &mut LocalScope,
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
@@ -1754,7 +1746,7 @@ fn walk_destructure_target(
 /// alike and panics on a key it cannot render.
 fn check_destructure_key(
     key: Option<&Expr>,
-    live: &mut FxHashSet<String>,
+    live: &mut Live,
     scope: &mut LocalScope,
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,

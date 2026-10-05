@@ -59,7 +59,7 @@ pub(crate) fn infer_method_call(
     nullsafe: bool,
     type_args: &[Type],
     args: &CallArgs,
-    live: &mut FxHashSet<String>,
+    live: &mut Live,
     scope: &LocalScope,
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
@@ -263,7 +263,7 @@ pub(crate) fn infer_static_call(
     method: &MemberName,
     type_args: &[Type],
     args: &CallArgs,
-    live: &mut FxHashSet<String>,
+    live: &mut Live,
     scope: &LocalScope,
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
@@ -746,7 +746,7 @@ pub(crate) fn infer_new(
     target: &NewTarget,
     type_args: &[Type],
     args: &CallArgs,
-    live: &mut FxHashSet<String>,
+    live: &mut Live,
     scope: &LocalScope,
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
@@ -1607,7 +1607,7 @@ fn infer_closure_rebind(
     receiver_ty: TypeId,
     method: &MemberName,
     args: &CallArgs,
-    live: &mut FxHashSet<String>,
+    live: &mut Live,
     scope: &LocalScope,
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
@@ -1782,7 +1782,7 @@ fn report_exception_accessor(span: Span, qname: &QName, name: &str, env: &mut En
 /// § 4's first neighbour.
 pub(crate) fn check_member_name(
     member: &MemberName,
-    live: &mut FxHashSet<String>,
+    live: &mut Live,
     scope: &LocalScope,
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
@@ -1797,7 +1797,7 @@ pub(crate) fn check_member_name(
 
 pub(crate) fn check_args(
     args: &CallArgs,
-    live: &mut FxHashSet<String>,
+    live: &mut Live,
     scope: &LocalScope,
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
@@ -1841,7 +1841,7 @@ pub(crate) fn check_call_through_signature(
     expr: &Expr,
     callee_ty: TypeId,
     args: &CallArgs,
-    live: &mut FxHashSet<String>,
+    live: &mut Live,
     scope: &LocalScope,
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
@@ -1893,7 +1893,7 @@ pub(crate) fn check_call_through_signature(
 pub(crate) fn check_self_name_args(
     expr: &Expr,
     args: &CallArgs,
-    live: &mut FxHashSet<String>,
+    live: &mut Live,
     scope: &LocalScope,
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
@@ -1942,7 +1942,7 @@ fn check_args_against_params(
     expr: &Expr,
     signature: &Signature<'_>,
     args: &CallArgs,
-    live: &mut FxHashSet<String>,
+    live: &mut Live,
     scope: &LocalScope,
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
@@ -2003,7 +2003,7 @@ fn report_callable_call_arity(
 pub(crate) fn check_new_target(
     target: &NewTarget,
     span: Span,
-    live: &mut FxHashSet<String>,
+    live: &mut Live,
     scope: &LocalScope,
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
@@ -2200,7 +2200,7 @@ pub(crate) fn check_fn_literal(
     expr: &Expr,
     f: &FnExpr,
     expected: Option<TypeId>,
-    live: &FxHashSet<String>,
+    live: &mut Live,
     scope: &LocalScope,
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
@@ -2216,7 +2216,10 @@ pub(crate) fn check_fn_literal(
     let class = format!("{owner}$fn{seq}");
 
     let mut inner = LocalScope::new();
-    let mut inner_live = live.clone();
+    // The body is checked on the enclosing `live`, and everything it assigns
+    // is taken back once the body is done.
+    let mark = live.mark();
+    let inner_live = &mut *live;
     // The same ids the body checks against become the signature answered at the
     // end, so the type a call site reads and the type the body was checked
     // under cannot drift apart.
@@ -2287,12 +2290,10 @@ pub(crate) fn check_fn_literal(
     let outer_self = std::mem::replace(&mut env.fn_self, self_name);
     let return_ty = match (&f.body, declared) {
         (FnBody::Expr(body), Some(ret)) => {
-            check_expr(body, Some(ret), &mut inner_live, &inner, &inner_ctx, env);
+            check_expr(body, Some(ret), inner_live, &inner, &inner_ctx, env);
             ret
         }
-        (FnBody::Expr(body), None) => {
-            check_expr(body, None, &mut inner_live, &inner, &inner_ctx, env)
-        }
+        (FnBody::Expr(body), None) => check_expr(body, None, inner_live, &inner, &inner_ctx, env),
         (FnBody::Block(block), declared) => {
             let ret = declared.unwrap_or_else(|| {
                 env.diags.report(
@@ -2308,14 +2309,7 @@ pub(crate) fn check_fn_literal(
                 );
                 env.interner.void()
             });
-            check_block(
-                &block.stmts,
-                &mut inner_live,
-                &mut inner,
-                ret,
-                &inner_ctx,
-                env,
-            );
+            check_block(&block.stmts, inner_live, &mut inner, ret, &inner_ctx, env);
             // Recorded before `inner.captures` is taken below, and holding the
             // body's own bindings alone: what an outer name reaches this body
             // through is `Captures`, so a reader walking outward from here
@@ -2332,6 +2326,7 @@ pub(crate) fn check_fn_literal(
     };
     env.exit_targets = outer_targets;
     env.fn_self = outer_self;
+    live.rewind(mark);
 
     let captures = inner
         .captures
