@@ -9,17 +9,24 @@
 // sweep. A bench's `// bench:` lines say what it expects, and a record whose figures miss them is not
 // written unless the bench carries a `proof: gap` marker: the record then carries the findings.
 //
+// The growth is judged by `scaling.ts`'s `growthOf`, the ramp's one home: a bench whose cost per
+// operation rises as its batches double, or whose `.scale.nvs` sibling grows faster than its
+// `// bench: complexity`, misses what it declared. The record keeps each ramp's verdict and clock slope,
+// and the notes of a ramp that stayed unclear. Callgrind runs under the ramp only when `--record-perf`
+// is not given `--no-callgrind`.
+//
 // The measurements run on the release binary, never the proof binary, because a clock taken on a build
 // with a different link is not the clock a shipped program sees.
 
 import { createHash } from "node:crypto";
-import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { dirty, head, lastCommit } from "../lib/git.ts";
 import { abs } from "../lib/paths.ts";
 import { progress } from "../lib/progress.ts";
 import { fixed, general } from "../lib/py.ts";
 import { record } from "../lib/written.ts";
+import type { Options as RampOptions } from "../cmd/scaling.ts";
 import { fingerprint, implHash, knownGap, LEDGER, ledgerRecords, owed, type Policy, type Proofs, type Skips } from "./collect.ts";
 import { benchFile, implFile, read, type Entry } from "./roster.ts";
 import { skipReason, spawnProof } from "./run.ts";
@@ -33,17 +40,14 @@ const ITER_RE = /(?:\/\/|#)\s*bench:\s*iterations\s+([0-9_]+)/;
 /** `// bench: allocations 0` and its siblings: what the bench expects per operation. Met to within a
  * hundredth, so a one-off set-up allocation over many iterations rounds away and a per-call one does not. */
 const EXPECT_RE = /(?:\/\/|#)\s*bench:\s*(allocations|calls|statements|bytes)\s+([0-9_]+)/g;
-/** `// bench: complexity constant` in a bench, and `// bench: scale 10` in its `<name>.scale.nvs` sibling,
- * whose input is that many times the bench's. The ratio of their per-operation clocks, taken seconds
- * apart on one machine, is the one wall-clock check that holds on any machine. */
-const COMPLEXITY_RE = /(?:\/\/|#)\s*bench:\s*complexity\s+(constant|linear)/;
-const SCALE_RE = /(?:\/\/|#)\s*bench:\s*scale\s+([0-9._]+)/;
+/** Whether a bench with no `// bench: complexity` line fails its growth proof. It is off while benches
+ * without the line remain under `benches/members/`, because each of them would fail at once. */
+export const COMPLEXITY_REQUIRED = false;
+/** Plain runs per batch of the growth ramp. Its clock is reported and never decides, so two are enough. */
+const RAMP_REPS = 2;
 /** The one line `nvs run --count` prints on standard error at exit. */
 const COUNT_LINE_RE = /^count: statements=(\d+) calls=(\d+) allocations=(\d+) bytes=(\d+)/m;
 export const COUNTS = ["statements", "calls", "allocations", "bytes"] as const;
-/** How far a scaling ratio may sit above what its declared complexity predicts: a factor, because a
- * same-run wall-clock ratio is honest to a factor and not to a percent. */
-const SCALE_TOLERANCE = 3;
 /** The least a calibration iteration may cost. Every `units` figure divides by it, so a calibration that
  * measured nothing, on a machine busy enough that the empty program's fastest run lands above the unit
  * program's, is refused rather than recorded. A tenth of a nanosecond is under one clock cycle. */
@@ -121,8 +125,9 @@ async function calibrate(nvs: string, reps: number): Promise<[number, number]> {
   return [floor, unitNs];
 }
 
-/** One feature's figures, and every way they fall short of what its bench declared. */
-async function measureOne(nvs: string, bench: string, reps: number, floor: number, base: Record<string, number>): Promise<[Rec, string[]]> {
+/** One feature's figures, and every way they fall short of what its bench declared. `ramp` is how its
+ * growth is ramped. */
+async function measureOne(nvs: string, bench: string, reps: number, floor: number, base: Record<string, number>, ramp: RampOptions): Promise<[Rec, string[]]> {
   const iters = iterationsOf(bench);
   const [total, median] = await timeProgram(nvs, bench, reps);
   const nsPerOp = Math.max(0, (total - floor) / iters);
@@ -135,26 +140,20 @@ async function measureOne(nvs: string, bench: string, reps: number, floor: numbe
   for (const [k, want] of Object.entries(expected)) {
     if (Math.abs(perOp[k]! - want) > 0.01) findings.push(`declares \`${k} ${want}\` per op and did ${fixed(perOp[k]!, 3)}`);
   }
-  const complexity = COMPLEXITY_RE.exec(read(bench))?.[1];
-  if (complexity) fig.complexity = complexity;
-  const sibling = bench.replace(/\.nvs$/, ".scale.nvs");
-  if (existsSync(abs(sibling))) {
-    const k = SCALE_RE.exec(read(sibling));
-    if (!k) throw new PerfError(`${sibling} declares no \`// bench: scale K\``);
-    const scale = number(k[1]!);
-    const [scaledTotal] = await timeProgram(nvs, sibling, reps);
-    const scaled = Math.max(0, (scaledTotal - floor) / iterationsOf(sibling));
-    const ratio = nsPerOp > 0 ? scaled / nsPerOp : Infinity;
-    Object.assign(fig, { scale, scale_ns_per_op: round(scaled, 3), scale_ratio: round(ratio, 3) });
-    // An upper bound only. A linear member over a small input is dominated by its fixed per-call cost and
-    // looks nearly constant, which is not a bug. Growing faster than declared is the finding.
-    const predicted = complexity === "constant" ? 1 : complexity === "linear" ? scale : null;
-    if (predicted !== null && ratio > predicted * SCALE_TOLERANCE) {
-      findings.push(
-        `declares \`complexity ${complexity}\` and costs ${fixed(ratio, 1)}x per op on ${general(scale)}x the input, past the ${general(predicted * SCALE_TOLERANCE)}x that allows`,
-      );
-    }
-  }
+  // The growth, by `scaling.ts`'s ramp, which is that tool's to define. It is imported when it runs
+  // because it imports this module's counting run in turn.
+  const { growthOf } = await import("../cmd/scaling.ts");
+  measuring = `${measuring}, ramping`;
+  const growth = await growthOf(bench, ramp, COMPLEXITY_REQUIRED);
+  if (growth.complexity) fig.complexity = growth.complexity;
+  const clock = (s: number | null) => (s === null ? null : round(s, 3));
+  const [batches, sized] = growth.ramps;
+  if (batches) Object.assign(fig, { growth: batches.verdict, growth_clock: clock(batches.clock) });
+  if (sized) Object.assign(fig, { size_growth: sized.verdict, size_growth_clock: clock(sized.clock) });
+  // A ramp that stayed unclear is reported, never judged.
+  const unclear = growth.ramps.filter((j) => j.verdict === "unclear" || j.verdict === "skipped").flatMap((j) => j.notes.map((n) => `${j.bench}: ${n}`));
+  if (unclear.length) fig.growth_notes = unclear;
+  findings.push(...growth.findings);
   // The same operation written another way, timed in the same sweep so the two figures compare. A record
   // only: which form should win is the bench's own claim, and a same-run ratio is honest to a factor.
   const twin = bench.replace(/\.nvs$/, ".twin.nvs");
@@ -168,7 +167,7 @@ async function measureOne(nvs: string, bench: string, reps: number, floor: numbe
 
 /** The fields a record holds as Python floats, written with a `.0` when whole so every line of the ledger
  * reads alike. */
-const FLOATS = new Set(["ns_per_op", "median_ns_per_op", "statements", "calls", "allocations", "bytes", "scale", "scale_ns_per_op", "scale_ratio", "twin_ns_per_op", "twin_ratio", "unit_ns", "ratio"]);
+const FLOATS = new Set(["ns_per_op", "median_ns_per_op", "statements", "calls", "allocations", "bytes", "growth_clock", "size_growth_clock", "twin_ns_per_op", "twin_ratio", "unit_ns", "ratio"]);
 
 /** One ledger line, as Python's `json.dumps` wrote the lines before it. `field` is the record's own key a
  * value sits under, and is empty inside a nested value. */
@@ -188,6 +187,8 @@ export interface RecordOptions {
   reps: number;
   note: string;
   force: boolean;
+  /** Whether a growth ramp whose counts do not settle may run under callgrind to find its threshold. */
+  callgrind: boolean;
 }
 
 const ljust = (s: string, n: number) => s + " ".repeat(Math.max(0, n - s.length));
@@ -238,17 +239,21 @@ export async function recordPerf(out: string[], nvs: string, entries: Entry[], p
   print(`  ${ljust("feature", 44)} ${rjust("ns/op", 10)} ${rjust("units", 9)}  ${rjust("stmts", 7)} ${rjust("calls", 7)} ${rjust("allocs", 7)} ${rjust("bytes", 9)}`);
   const lines: string[] = [];
   let failed = 0;
+  const { DEFAULT_WSL_NVS } = await import("../cmd/scaling.ts");
+  const ramp: RampOptions = { nvs, reps: RAMP_REPS, wslNvs: DEFAULT_WSL_NVS, callgrind: opts.callgrind, scratch: abs(`.agent-tmp/proofs-growth-${process.pid}`) };
   for (const [i, e] of [...todo].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)).entries()) {
     const bench = benchFile(e);
     measuring = `feature ${i + 1}/${todo.length}`;
     let fig: Rec;
     let findings: string[];
     try {
-      [fig, findings] = await measureOne(nvs, bench, opts.reps, floor, base);
+      [fig, findings] = await measureOne(nvs, bench, opts.reps, floor, base, ramp);
     } catch (err) {
       if (!(err instanceof PerfError)) throw err;
       out.push(`  FAIL  ${e.id}: ${err.message}`);
       return 1;
+    } finally {
+      if (existsSync(ramp.scratch)) rmSync(ramp.scratch, { recursive: true, force: true });
     }
     const gap = knownGap(read(bench));
     if (findings.length && !gap) {
@@ -283,7 +288,8 @@ export async function recordPerf(out: string[], nvs: string, entries: Entry[], p
     const n = (k: string, d: number, w: number) => rjust(fixed(fig[k] as number, d), w);
     print(
       `  ${ljust(e.id, 44)} ${n("ns_per_op", 1, 10)} ${rjust(fixed(rec.ratio as number, 3), 9)}  ${n("statements", 2, 7)} ${n("calls", 2, 7)} ${n("allocations", 2, 7)} ${n("bytes", 1, 9)}` +
-        ("scale" in fig ? `   scale x${general(fig.scale as number)}: ${fixed(fig.scale_ratio as number, 2)}x` : "") +
+        ("growth" in fig ? `   growth: ${fig.growth as string}` : "") +
+        ("size_growth" in fig ? `, size ${fig.size_growth as string}` : "") +
         ("twin_ratio" in fig ? `   twin: ${fixed(fig.twin_ratio as number, 2)}x` : "") +
         (findings.length ? `   known-gap: ${findings.join("; ")}` : ""),
     );
@@ -458,7 +464,13 @@ export function perfReport(out: string[]): number {
         }
       }
       const medianCell = "median_ns_per_op" in last ? fixed(num(last.median_ns_per_op), 1) : "";
-      const scaling = "scale" in last ? `x${general(num(last.scale))} → ${fixed(num(last.scale_ratio), 2)}x` : "";
+      // A record carries the ramps' verdicts, and a record from before the ramp its one same-run ratio.
+      const scaling =
+        "growth" in last
+          ? [last.growth, last.size_growth].filter((v) => v !== undefined).join(", ")
+          : "scale" in last
+            ? `x${general(num(last.scale))} → ${fixed(num(last.scale_ratio), 2)}x`
+            : "";
       doc.push(
         `| \`${fid}\` | ${fixed(num(last.ns_per_op), 1)} | ${medianCell} | ${fixed(num(last.ratio), 3)} | ${delta} | ${scaling} | ` +
           `${last.commit ?? ""} | ${last.impl_hash || last.impl_commit || ""} |`,

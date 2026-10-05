@@ -1,25 +1,22 @@
 <?nvs
-// Measures `Core\Str::length` on labels ten times as long as in `length.nvs`.
+// Measures `Core\Str::length` on one label, at growing label lengths.
 // It shows how the cost of `length` grows when the input grows.
-// bench: iterations 100000
-// bench: scale 10
+// bench: start 256
+// bench: max 4096
 
-class Bench {
-    public static function run(uint $rounds): uint {
-        array<string> $labels = [
-            "order order order order order order order order order order",
-            "customer customer customer customer customer customer customer customer customer customer",
-            "shipping address shipping address shipping address shipping address shipping address shipping address shipping address shipping address shipping address shipping address",
-            "ünïcödé ünïcödé ünïcödé ünïcödé ünïcödé ünïcödé ünïcödé ünïcödé ünïcödé ünïcödé",
-        ];
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        string $label = Core\Str::repeat('é', $size);
         uint $total = 0;
         uint $i = 0;
-        while ($i < $rounds) {
-            $total = $total + Core\Str::length($labels[($total % 4) as int]);
+        while ($i < 64) {
+            $total = $total + Core\Str::length($label);
             $i = $i + 1;
         }
         return $total;
     }
 }
 
-echo Bench::run(100000), "\n";
+echo Bench::run(256), "\n";

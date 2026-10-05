@@ -93,14 +93,19 @@ names the two answers, the second being a `// proof: gap` marker on the bench.
   member that returns a scalar declares `allocations 0`; a member bench declares `calls 0`, because
   a `Core` member is a helper and not a compiled call site, and a bench over a language feature
   that calls a method declares the calls it makes.
-- **`// bench: complexity constant`** (or `linear`), paired with a sibling **`<name>.scale.nvs`**
-  that runs the same operation over an input `// bench: scale K` times larger and declares its own
-  `iterations`. Both are timed in the same sweep, and the ratio of their per-operation figures may
-  not exceed three times what the complexity predicts — one for constant, K for linear. An upper
-  bound only: a linear member over a short input is dominated by its fixed per-call cost and looks
-  nearly constant, which is not a bug, while growing faster than declared is. This is the one
-  wall-clock check that holds on any machine, because both numbers came from the same one seconds
-  apart, and it is the only one that sees inside a Rust member.
+- **`// bench: complexity constant`** — how the operation's cost may grow with its input: `constant`,
+  `linear`, `nlogn`, or another class `EXPECT` in `tools/nv/cmd/scaling.ts` names, and never
+  `quadratic`. Every bench carries one. Its growth is checked by that tool's ramp, which is the
+  ramp's one home: the bench runs at doubling batches of its operation, and a cost per operation
+  that rises as the batches double fails. `constant` needs nothing more. Any other class also needs
+  a sibling **`<name>.scale.nvs`** that runs the operation over an input of a given size, with
+  `// bench: start N` and `// bench: max N` in place of `iterations`, and whose closing
+  `echo Bench::run(N)` passes `start` as one literal, as a ladder's does. The ramp doubles that size
+  from `start` to `max`, and a count that grows faster than the class allows fails. The counts
+  decide and the clock is reported. Where the counts do not settle by the ramp's ceiling,
+  `--record-perf` runs the same batches under callgrind, unless it is given `--no-callgrind`, and
+  `nv verify` never does. A ramp still unclear after that is reported in the record's
+  `growth_notes`, not failed.
 - **A sibling `<name>.twin.nvs`** — the same operation written another way, such as a pipeline
   written as nested calls, with its own `iterations`. It is timed in the same sweep, and the record
   gets `twin_ns_per_op` and `twin_ratio`, the bench's figure over the twin's. It is a figure to

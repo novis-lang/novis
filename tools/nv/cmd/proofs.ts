@@ -29,6 +29,7 @@
 // (`lib/reads.ts` `inPart`), so the driver keys each scope's check on its own reads and not the whole
 // run's. `--no-perf`
 // stops the perf proof from being owed. `--record-perf` takes `--reps N` timed runs per program (5),
+// `--no-callgrind` to report a growth ramp whose counts do not settle as unclear without valgrind,
 // `--force` to re-measure what already has a current figure, `--note` to record a word with each record,
 // and `--perf-report` to write the report after it. `--nvs` names the binary to use as it is. Without it,
 // the audit reads the roster from the first built of `target/release`, the proof binary and the `covws`
@@ -71,7 +72,7 @@ const USAGE = [
   "                 [--run] [--verify] [--valgrind] [--quiet] [--no-cache]",
   "                 [--strict] [--show] [--no-perf] [--nvs NVS]",
   "                 [--bless FILE [FILE ...]] [--comments PATH [PATH ...]]",
-  "                 [--record-perf] [--reps REPS] [--force] [--note NOTE]",
+  "                 [--record-perf] [--reps REPS] [--force] [--note NOTE] [--no-callgrind]",
   "                 [--perf-report] [--impl-hash FILE [FILE ...]]",
 ].join("\n");
 
@@ -436,7 +437,7 @@ export async function run(args: string[]): Promise<number> {
     ({ rest, list: blessed } = takeList(rest, "--bless"));
     ({ rest, list: hashed } = takeList(rest, "--impl-hash"));
     ({ flags, values } = parseArgs(rest, {
-      flags: ["--owed", "--gaps", "--json", "--gate", "--no-perf", "--run", "--verify", "--valgrind", "--quiet", "--no-cache", "--strict", "--show", "--record-perf", "--force", "--perf-report"],
+      flags: ["--owed", "--gaps", "--json", "--gate", "--no-perf", "--run", "--verify", "--valgrind", "--quiet", "--no-cache", "--strict", "--show", "--record-perf", "--force", "--perf-report", "--no-callgrind"],
       valued: ["--group", "--id", "--limit", "--nvs", "--reps", "--note"],
     }));
     const int = (flag: string) => {
@@ -581,7 +582,7 @@ export async function run(args: string[]): Promise<number> {
       out.push(`nv proofs: no feature ${pyRepr(fid)}.`);
       return flush(1);
     }
-    const opts = { reps, note: values.get("--note") ?? "", force: flags.has("--force") };
+    const opts = { reps, note: values.get("--note") ?? "", force: flags.has("--force"), callgrind: !flags.has("--no-callgrind") };
     const rc = await recordPerf(out, nvs, match ? [match] : scope, proofs, policy, skips, opts);
     return flush(rc || (flags.has("--perf-report") ? perfReport(out) : 0));
   }

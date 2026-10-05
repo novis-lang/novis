@@ -18,7 +18,7 @@
 // and has no such guarantee. The `--iterations` roster is long enough to need it: with one job it runs
 // near half an hour, which an acceptance check's time limit does not hold, so a check passes `--jobs 4`.
 //
-// `--iterations` runs every bench, `.scale.nvs` and `.twin.nvs` siblings included, at a series of
+// `--iterations` runs every bench, `.twin.nvs` siblings included, at a series of
 // small batches, from a copy under `.agent-tmp/` whose closing `echo Bench::run(N)` line names the
 // batch instead of the bench's own `iterations N`. The bench's whole folder is copied, and beside the
 // copy goes the folder's `nvs.toml`, or the repository's, with its paths rebased so the copy keeps the
@@ -101,6 +101,12 @@
 // `http-client/response.nvs` downloads one body of that many bytes. The server is another process,
 // so its work is inside the clock and outside the counts. A `fetch` ladder is not run under callgrind.
 //
+// The perf proof (`tools/nv/proofs/perf.ts`) runs the same ramp through `growthOf`: the bench's batches,
+// and for a `// bench: complexity` other than `constant` the size ramp of its `.scale.nvs` sibling,
+// whose `// bench: start` and `// bench: max` lines and closing literal are a ladder's, judged against
+// that complexity's bound in `EXPECT`. A `.scale.nvs` sibling has no `iterations`, so `--iterations`
+// skips it. The proof turns callgrind on only for `--record-perf`, and `nv verify` runs neither.
+//
 // The counts are the same on every machine, so a bench gets the same verdict everywhere. The clock is
 // taken on the release binary unless `--nvs` names another, as `--record-perf` takes it.
 
@@ -142,9 +148,13 @@ export const CLOCK_BOUND = 1.5;
 const MIN_BATCHES = 4;
 const TIMEOUT_MS = 600_000;
 const ITER_RE = /(?:\/\/|#)\s*bench:\s*iterations\s+([0-9_]+)/;
+/** `// bench: complexity linear` in a bench: how its cost may grow with its input, one of `EXPECT`. */
+const COMPLEXITY_RE = /(?:\/\/|#)\s*bench:\s*complexity\s+(\S+)/;
+/** `// bench: start 256` and `// bench: max 4096` in a `.scale.nvs` sibling: the input sizes its size ramp runs. */
+const SIZE_RE = /(?:\/\/|#)\s*bench:\s*(start|max)\s+([0-9_]+)/g;
 /** `==12345== Collected : 987654321`, the instruction total callgrind prints at exit. */
 const COLLECTED_RE = /Collected\s*:\s*(\d+)/;
-const DEFAULT_WSL_NVS = "/var/tmp/nvs-target-wsl/debug/nvs";
+export const DEFAULT_WSL_NVS = "/var/tmp/nvs-target-wsl/debug/nvs";
 
 /** One batch: its size, its totals, and the fastest plain run in nanoseconds. */
 export interface Batch {
@@ -360,7 +370,7 @@ export function ladderSizes(start: number, max: number): number[] {
 /** The bounds a ladder that declares `expect` is judged against. */
 export const boundsOf = (expect: string): Bounds => ({ count: EXPECT[expect]!, clock: EXPECT[expect]! + CLOCK_BOUND - COUNT_BOUND });
 
-interface Options {
+export interface Options {
   nvs: string;
   reps: number;
   wslNvs: string;
@@ -422,7 +432,7 @@ async function instructions(opts: Options, command: string, file: string, bench:
 }
 
 /** How one kind of program is measured at one size, once its copy holds that size. */
-interface Measure {
+export interface Measure {
   /** The counts the agreement test and the bounds judge. */
   keys: readonly string[];
   /** Whether the copy's closing literal is rewritten to the size. A kind that is not rewritten is
@@ -791,8 +801,8 @@ const FETCH: Measure = {
 
 const MEASURES: Record<string, Measure> = { run: RUN, compile: COMPILE, lsp: LSP, fmt: FMT, fetch: FETCH };
 
-/** One bench, ramped and judged. */
-async function rampOne(bench: string, opts: Options): Promise<Judged> {
+/** One bench, ramped over batches of its operation and judged. */
+export async function rampOne(bench: string, opts: Options, measure: Measure = RUN): Promise<Judged> {
   const judged: Judged = { bench, verdict: "skipped", sizes: [], slopes: {}, clock: null, notes: [] };
   const source = read(bench);
   const skip = skipReason(source);
@@ -803,7 +813,65 @@ async function rampOne(bench: string, opts: Options): Promise<Judged> {
   const sizes = batchSizes(iterations);
   if (sizes.length < MIN_BATCHES) return { ...judged, notes: [`\`iterations ${iterations}\` is too few to ramp`] };
   if (withBatch(source, iterations, sizes[0]!) === null) return { ...judged, notes: ["its closing `echo Bench::run(...)` does not pass `iterations` as one literal"] };
-  return rampAt(judged, source, iterations, sizes, BENCH_BOUNDS, RUN, opts);
+  return rampAt(judged, source, iterations, sizes, BENCH_BOUNDS, measure, opts);
+}
+
+/** A bench's `.scale.nvs` sibling, ramped over the input sizes its `start` and `max` lines give, as a
+ * ladder's are, and judged against the bound `expect` names in `EXPECT`. */
+export async function rampSize(sibling: string, expect: string, opts: Options, measure: Measure = RUN): Promise<Judged> {
+  const judged: Judged = { bench: sibling, verdict: "invalid", sizes: [], slopes: {}, clock: null, notes: [] };
+  const source = read(sibling);
+  const seen: Record<string, number> = Object.fromEntries([...source.matchAll(SIZE_RE)].map((m) => [m[1]!, number(m[2]!)]));
+  if (seen.start === undefined || seen.max === undefined) return { ...judged, notes: ["it needs `// bench: start N` and `// bench: max N`"] };
+  const sizes = ladderSizes(seen.start, seen.max);
+  if (sizes.length < MIN_BATCHES) return { ...judged, notes: [`\`start ${seen.start}\` to \`max ${seen.max}\` is fewer than ${MIN_BATCHES} doublings`] };
+  if (withBatch(source, seen.start, seen.start) === null) return { ...judged, notes: ["its closing `echo Bench::run(...)` does not pass `start` as one literal"] };
+  return rampAt(judged, source, seen.start, sizes, boundsOf(expect), measure, opts);
+}
+
+/** What the perf proof's growth found for one bench: what it declares, every ramp it ran, and each way
+ * those ramps miss the declaration. */
+export interface Growth {
+  complexity: string | null;
+  ramps: Judged[];
+  findings: string[];
+}
+
+/**
+ * The growth half of the perf proof (`rule:testing/feature-proofs`): the bench's ramp over batches, whose
+ * cost per operation may not rise, and for a complexity other than `constant` the size ramp of its
+ * `.scale.nvs` sibling under that complexity's bound. A ramp that grows, or a sibling that cannot be
+ * ramped, is a finding. A ramp that stays unclear keeps its notes and is judged neither way. `required`
+ * makes a bench with no `// bench: complexity` line a finding. Callgrind runs only where `opts.callgrind`
+ * allows it and the counts did not settle.
+ */
+export async function growthOf(bench: string, opts: Options, required: boolean, measure: Measure = RUN): Promise<Growth> {
+  const complexity = COMPLEXITY_RE.exec(read(bench))?.[1] ?? null;
+  const growth: Growth = { complexity, ramps: [], findings: [] };
+  if (complexity === null && required) growth.findings.push("declares no `// bench: complexity`");
+  const known = complexity !== null && complexity in EXPECT;
+  if (complexity !== null && !known) growth.findings.push(`\`// bench: complexity ${complexity}\` is not one of ${Object.keys(EXPECT).join(", ")}`);
+  const judge = async (program: string, ramp: () => Promise<Judged>, grows: string) => {
+    let j: Judged;
+    try {
+      j = await ramp();
+    } catch (e) {
+      if (!(e instanceof PerfError)) throw e;
+      j = { bench: program, verdict: "unclear", sizes: [], slopes: {}, clock: null, notes: [e.message] };
+    }
+    growth.ramps.push(j);
+    if (j.verdict === "grows") growth.findings.push(`${grows}: ${j.notes.join("; ")}`);
+    if (j.verdict === "invalid") growth.findings.push(`${program} cannot be ramped: ${j.notes.join("; ")}`);
+  };
+  await judge(bench, () => rampOne(bench, opts, measure), "its cost per operation rises as its batches double");
+  if (!known || complexity === "constant") return growth;
+  const sibling = bench.replace(/\.nvs$/, ".scale.nvs");
+  if (!existsSync(abs(sibling))) {
+    growth.findings.push(`declares \`complexity ${complexity}\` and has no ${sibling} to ramp its input`);
+    return growth;
+  }
+  await judge(sibling, () => rampSize(sibling, complexity!, opts, measure), `it grows faster than \`complexity ${complexity}\` as its input doubles`);
+  return growth;
 }
 
 /** One ladder, ramped over its sizes and judged against what it declares. */
