@@ -1,26 +1,30 @@
 {
-  "state": "**Goal `performance-pass`, Stage 5 (the fixes).** Stage 4's review is whole (`docs/perf/performance-review.md`).\n\n**The workspace index lookups are fixed and measured.** `crates/nvs-lsp/src/index.rs` keeps three name maps (declaration, subtypes, uses), and the override walks use a seen set. Every `lsp` ladder now also asks for code lenses (`tools/nv/cmd/scaling.ts` `lspScript`). New ladder `benches/scaling/lsp/hierarchy.nvs`. CodeLens at 3200 subclasses: 178 ms before, 39 ms after (`docs/perf/performance-pass.md` § *What got better*). Its gap record is deleted.\n\n**`lsp/hierarchy.nvs` still grows** (clock slope about 1.6): open, completion, hover and references grow about 3× per doubling in both builds, only on a file with `extends`. `nvs check` of the same file is linear. Recorded in `data/gaps/nvs-lsp/a-request-on-a-file-of-subclasses-grows-faster-than-linear.json`, with the per-request figures.\n\n**8 gap records owned by `performance-pass`** keep `owners --closes performance-pass` red (`bun nv owners --closes performance-pass` lists them).\n\n**`bun nv scaling --check` is red on three ladders:** `numbers/bigint-mul.nvs` unclear, `request/headers.nvs` invalid (a `serve` ladder does not run under callgrind), and `lsp/hierarchy.nvs` grows.",
+  "state": "**Goal `performance-pass`, Stage 5 (the fixes).** Stage 4's review is whole (`docs/perf/performance-review.md`).\n\n**The editor on a file of subclasses is linear.** The parser's doc-comment scan (`take_doc_comment`, `warn_docblock_above` in `crates/nvs-syntax/src/parser/mod.rs`) and the hierarchy pass's `use`-line site (`SitesAbove` in `crates/nvs-hir/src/imports.rs`) each re-read the whole file per declaration, and now stop at what is next to it. Callgrind before and after are in `docs/perf/performance-pass.md` § *What got better*, and the gap record is deleted. `bun nv scaling lsp/` is flat.\n\n**7 gap records owned by `performance-pass`** keep `owners --closes performance-pass` red (`bun nv owners --closes performance-pass` lists them).\n\n**`bun nv scaling --check` is red on two ladders:** `numbers/bigint-mul.nvs` unclear, and `request/headers.nvs` invalid (a `serve` ladder does not run under callgrind).\n\n**The driver's stage-2 check `scaling --iterations --check` timed out after 1800 s** on the last sweep. Not checked whether one ladder hangs or the whole roster is just slow.\n\nThe Linux debug binary callgrind reads (`/var/tmp/nvs-target-wsl/debug/nvs`) is rebuilt by syncing the mirror and running `wslBuildLine` from `tools/nv/driver/legs.ts`. No `nv` command does it alone.",
   "next": {
     "stage": 5,
-    "title": "the fixes, the editor on a file of subclasses",
+    "title": "the fixes, the two ladders `scaling --check` cannot pass",
     "files": [
-      "crates/nvs-lsp/src/document.rs",
-      "crates/nvs-lsp/src/server.rs",
-      "benches/scaling/lsp/"
+      "benches/scaling/numbers/",
+      "benches/scaling/request/",
+      "tools/nv/cmd/scaling.ts"
     ],
     "items": [
       {
         "done": false,
-        "text": "**Find and fix what grows faster than linear when `nvs lsp` analyses a file of n subclasses** (`crates/nvs-lsp/src/document.rs:568`, `crates/nvs-lsp/src/server.rs:1228`), per `data/gaps/nvs-lsp/a-request-on-a-file-of-subclasses-grows-faster-than-linear.json`. Generate the ladder's document at 800, 1600 and 3200 classes and time each request in one session (`lspScript` and `lspFrame` from `tools/nv/cmd/scaling.ts` give the messages). Hover growing 3× per doubling means the work is per request, not only on open. Then take the before and after, write them to `docs/perf/performance-pass.md` § *What got better*, delete the gap record, and confirm `bun nv scaling lsp/` is flat. Rule: AGENTS.md priority ordering."
+        "text": "**Judge `numbers/bigint-mul.nvs`** (`benches/scaling/numbers/bigint-mul.nvs:1`): run it under callgrind at three sizes. If schoolbook multiplication is the algorithm, judge it against O(n²) per the standing decisions and declare that in the ladder. Otherwise fix it, or write it under *Benches to look at* in `docs/perf/performance-pass.md`. Rule: AGENTS.md priority ordering."
       },
       {
         "done": false,
-        "text": "**Judge the two other ladders that keep `scaling --check` red** (`benches/scaling/numbers/bigint-mul.nvs:1`, `benches/scaling/request/headers.nvs:1`): re-run each, and either fix the ladder or write it under `docs/perf/performance-pass.md` § *Benches to look at*. Rule: `benches/scaling/README.md`."
+        "text": "**Judge `request/headers.nvs`** (`benches/scaling/request/headers.nvs:1`): a `serve` ladder has no callgrind fallback (`tools/nv/cmd/scaling.ts:749`), so either its clock settles under a looser bound or it goes under *Benches to look at*. Rule: AGENTS.md priority ordering."
+      },
+      {
+        "done": false,
+        "text": "**Find why `bun nv scaling --iterations --check` runs past 1800 s** (`tools/nv/cmd/scaling.ts:1`), the earliest red stage-2 check. Time the roster per ladder and find the slow one. Rule: AGENTS.md priority ordering."
       }
     ]
   },
   "backlog": [
-    "The other gap records owned by `performance-pass` — `bun nv owners --closes performance-pass` lists them, each names its module.",
-    "`SymbolIndex::readers_of` (`crates/nvs-lsp/src/index.rs`) scans every entry's reads per refresh; not measured, left alone unless a ladder shows it."
+    "The 7 gap records owned by `performance-pass` are closed or re-owned before `DONE` (`bun nv owners --closes performance-pass`).",
+    "`bun nv proofs --gate` is red on perf figures (`rule:testing/member-perf-ledger`)."
   ]
 }
