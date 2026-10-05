@@ -1,17 +1,12 @@
 {
-  "state": "**Goal `performance-pass`, Stage 5 (the fixes).** Stage 4's review is whole (`docs/perf/performance-review.md`).\n\n**The queue's claim, roster and purge are all index seeks now.** A purge batch walks `nvs_jobs_purge (queue, id)` from the queue's oldest row and stops at its bound; `a_sqlite_purge_walks_one_queue_in_id_order_without_a_sort` guards the plan. The retention answer and `stats`'s bound (it reads every row its queue holds, by `rule:concurrency/queue-four-members`) are in `schema`'s doc in `crates/nvs-stdlib/src/queue.rs`. The gap `finished-jobs-are-kept-until-purged` is closed and deleted.\n\n**`bun nv db-matrix --no-up --all`**: the five TCP and file legs are green with the new index. The three socket legs fail with OS error 95 when run from Windows, as before. Not checked whether they pass under WSL.\n\n**`bun nv scaling --check` exits 0** on this session's run: 49 flat, `numbers/bigint-mul.nvs` unclear. **4 gap records owned by `performance-pass`** keep `owners --closes performance-pass` red: `a-task-is-charged-a-whole-stack`, `a-request-analyses-an-unchanged-document-again`, `identity-hash-stops-at-depth-four`, `a-websocket-write-buffer-has-no-ceiling`. `proofs --gate` is red too; not checked why.",
+  "state": "**Goal `performance-pass`, Stage 5 (the fixes).** Stage 4's review is whole (`docs/perf/performance-review.md`).\n\n**The queue's claim, roster and purge are all index seeks now, and every roster text has a server case.** The test helper `roster` sends `QUEUES_SQLSERVER` to SQL Server, and `a_sql_server_roster_names_a_queue_on_either_arm_and_not_past_either_bound` shares its body, `roster_bounds`, with the framed case. `set_state` has a SQL Server arm.\n\n**`bun nv db-matrix --no-up --driver mssql --driver mysql`**: the TCP legs are green with the new case. The MySQL socket leg fails with OS error 95 when run from Windows, as before. Not checked under WSL.\n\n**4 gap records owned by `performance-pass`** keep `owners --closes performance-pass` red: `a-task-is-charged-a-whole-stack`, `a-request-analyses-an-unchanged-document-again`, `identity-hash-stops-at-depth-four`, `a-websocket-write-buffer-has-no-ceiling`. `proofs --gate` is red too; not checked why.",
   "next": {
     "stage": 5,
-    "title": "the fixes, the queue's last test",
+    "title": "the fixes, the identity hash",
     "files": [
-      "crates/nvs-stdlib/tests/queue.rs",
-      "crates/nvs-stdlib/src/queue.rs"
+      "crates/nvs-runtime/src/identity.rs"
     ],
     "items": [
-      {
-        "done": false,
-        "text": "**A SQL Server case for the roster** (`crates/nvs-stdlib/tests/queue.rs:999`): the `roster` helper sends `QUEUES_MYSQL` to every non-PostgreSQL server; send `QUEUES_SQLSERVER` to SQL Server. Rule: the goal's standing decisions."
-      },
       {
         "done": false,
         "text": "**Close `identity-hash-stops-at-depth-four`** (`crates/nvs-runtime/src/identity.rs:1`): read the gap with `bun nv owners --closes performance-pass`, then fix it or state it as a bound in the module doc. Rule: the goal's standing decisions."
