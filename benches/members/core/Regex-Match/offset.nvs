@@ -1,6 +1,7 @@
 <?nvs
 // Reads where a match starts, as a program does before it cuts the text around a match.
 // bench: iterations 400000
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

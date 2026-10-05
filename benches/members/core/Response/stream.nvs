@@ -1,6 +1,7 @@
 <?nvs
 // Starts a response body that is sent in parts, as a CSV export or a progress page does once for each request.
 // bench: iterations 400000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

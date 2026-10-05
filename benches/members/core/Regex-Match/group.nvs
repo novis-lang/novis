@@ -1,6 +1,7 @@
 <?nvs
 // Reads one named group of a match, as a program does after it matched a log line or a URL.
 // bench: iterations 400000
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

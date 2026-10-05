@@ -2,6 +2,7 @@
 // Checks whether a class constant has a value, as a program does before it reads a constant by name.
 // bench: iterations 400000
 // bench: allocations 0
+// bench: complexity constant
 
 class Limits {
     public const int SMALL = 1;

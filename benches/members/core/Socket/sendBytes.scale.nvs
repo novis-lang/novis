@@ -1,0 +1,22 @@
+<?nvs
+// Measures `sendBytes` on a connection for one binary message, at growing message lengths.
+// bench: start 256
+// bench: max 4096
+
+class Bench
+{
+    public static function run(Core\Socket $conn, uint $size): uint
+    {
+        bytes $reading = Core\Str::repeat('a', $size) as bytes;
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            $conn->sendBytes($reading);
+            $total = $total + Core\Bytes::length($reading) % 7 + 1;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(Core\Socket::current(), 256), "\n";

@@ -1,6 +1,7 @@
 <?nvs
 // Reads every group of a match at once, as a program does when it turns a matched line into fields.
 // bench: iterations 400000
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

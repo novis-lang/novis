@@ -1,6 +1,7 @@
 <?nvs
 // Changes the order of the parts of a date, as a program does before it shows a date to a reader.
 // bench: iterations 200000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

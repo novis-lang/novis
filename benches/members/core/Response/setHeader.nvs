@@ -1,6 +1,7 @@
 <?nvs
 // Sets one response header, as a handler does for `Cache-Control` on each request.
 // bench: iterations 200000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

@@ -1,6 +1,7 @@
 <?nvs
 // Reads a value published to a topic, as a live feed does for every update it forwards to its client.
 // bench: iterations 20000
+// bench: complexity linear
 
 class Bench {
     public static function run(Core\Sse $sse, uint $rounds): uint {

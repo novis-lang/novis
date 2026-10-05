@@ -1,6 +1,7 @@
 <?nvs
 // Sends a short named event, as a live feed does for each update.
 // bench: iterations 20000
+// bench: complexity linear
 
 class Bench {
     public static function run(Core\Sse $sse, int $rounds): int {

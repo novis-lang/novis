@@ -1,6 +1,7 @@
 <?nvs
 // Sends a small file body with its content type, as a download endpoint does once for each request.
 // bench: iterations 20000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

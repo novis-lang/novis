@@ -1,6 +1,7 @@
 <?nvs
 // Reads the topic name of a message, as a connection does to decide what to do with each message.
 // bench: iterations 200000
+// bench: complexity constant
 
 class Bench {
     public static function run(Core\Socket $conn, uint $rounds): uint {

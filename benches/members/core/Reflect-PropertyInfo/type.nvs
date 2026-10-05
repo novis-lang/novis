@@ -2,6 +2,7 @@
 // Reads the declared type of a property, as a form handler does to convert text to that type.
 // bench: iterations 400000
 // bench: allocations 0
+// bench: complexity constant
 
 class Signup {
     public string $name = "";

@@ -1,0 +1,22 @@
+<?nvs
+// Measures `Core\Response::stream` on one content type, at growing content type lengths.
+// bench: start 256
+// bench: max 4096
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        string $type = 'text/plain; profile=' . Core\Str::repeat('a', $size);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            Core\Response::stream($type);
+            $total = $total + Core\Str::length($type) + 1;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

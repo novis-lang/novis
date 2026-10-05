@@ -1,6 +1,7 @@
 <?nvs
 // Finds an order number in a short line of text, as a program does when it reads an email subject.
 // bench: iterations 200000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

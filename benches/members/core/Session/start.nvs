@@ -1,6 +1,7 @@
 <?nvs
 // Opens a new session and ends it again, as the first visit to a site does.
 // bench: iterations 2000
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

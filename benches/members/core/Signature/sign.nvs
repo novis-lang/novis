@@ -1,6 +1,7 @@
 <?nvs
 // Measures signing two short values, as a server does when it builds a signed download link.
 // bench: iterations 50000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): int {

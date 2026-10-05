@@ -1,6 +1,7 @@
 <?nvs
 // Changes every amount in a line to upper case with a function, as a program does before it shows a price list.
 // bench: iterations 100000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

@@ -2,6 +2,7 @@
 // Reads the peak memory, as an exit function does before it writes the peak to a log.
 // bench: iterations 400000
 // bench: allocations 0
+// bench: complexity constant
 
 class Bench {
     public static function run(Core\Script\ExitReport $report, uint $rounds): uint {

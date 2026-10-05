@@ -1,0 +1,32 @@
+<?nvs
+// Measures `Core\Router::match` on one path, at growing path lengths.
+// bench: start 256
+// bench: max 4096
+
+class Pages {
+    #[Core\Route(path: "/pages/{slug}", method: Core\Http\Method::Get, name: "Pages::show")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function show(string $slug): string { return "one page"; }
+}
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        string $path = '/pages/' . Core\Str::repeat('a', $size);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            ?Core\Router\Match $found = Core\Router::match(Core\Http\Method::Get, $path);
+            if ($found == null) {
+                $total = $total + 1;
+            } else {
+                $total = $total + 2;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

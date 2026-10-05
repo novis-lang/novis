@@ -2,6 +2,7 @@
 // Reads the prefix that the server removed, as a program does before it builds a link.
 // bench: iterations 200000
 // bench: allocations 0
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

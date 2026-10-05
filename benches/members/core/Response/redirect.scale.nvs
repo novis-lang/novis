@@ -1,0 +1,23 @@
+<?nvs
+// Measures `Core\Response::redirect` on one address, at growing address lengths.
+// bench: start 256
+// bench: max 4096
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        string $url = '/orders/' . Core\Str::repeat('a', $size);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            Core\Response::redirect($url);
+            $total = $total + Core\Str::length($url);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+Core\Response::redirect("/done");
+echo Bench::run(256), "\n";

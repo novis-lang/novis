@@ -1,6 +1,7 @@
 <?nvs
 // Sends a reconnection time, as a stream does before the server stops for a restart.
 // bench: iterations 20000
+// bench: complexity constant
 
 class Bench {
     public static function run(Core\Sse $sse, int $rounds): int {

@@ -1,6 +1,7 @@
 <?nvs
 // Starts an event stream, as a request does before it sends its first event.
 // bench: iterations 200000
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

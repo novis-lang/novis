@@ -1,6 +1,7 @@
 <?nvs
 // Measures sealing a short value, as a server does when it sets a login cookie.
 // bench: iterations 50000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): int {

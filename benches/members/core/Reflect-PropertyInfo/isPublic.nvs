@@ -2,6 +2,7 @@
 // Checks whether a property is public, as a web API does before it sends a field to a client.
 // bench: iterations 400000
 // bench: allocations 0
+// bench: complexity constant
 
 class User {
     public string $name = "Ada";

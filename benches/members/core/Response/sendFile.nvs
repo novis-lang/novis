@@ -1,6 +1,7 @@
 <?nvs
 // Sends a file from the disk as the response, as a download page does once for each request.
 // bench: iterations 20000
+// bench: complexity constant
 
 class Bench {
     // A path written in quotes starts at the folder of this file.

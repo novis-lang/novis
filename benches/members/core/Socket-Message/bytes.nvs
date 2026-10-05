@@ -1,6 +1,7 @@
 <?nvs
 // Reads the data of a binary message, as a connection does for every reading a device sends.
 // bench: iterations 200000
+// bench: complexity constant
 
 class Bench {
     public static function run(Core\Socket $conn, uint $rounds): uint {

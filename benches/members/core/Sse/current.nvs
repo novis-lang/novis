@@ -1,6 +1,7 @@
 <?nvs
 // Gets the event stream, as a helper does before it sends an event.
 // bench: iterations 200000
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

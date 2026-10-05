@@ -1,6 +1,7 @@
 <?nvs
 // Quotes a short search text, as a program does before it puts what a person typed into a pattern.
 // bench: iterations 400000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

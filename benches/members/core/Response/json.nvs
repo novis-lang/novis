@@ -1,6 +1,7 @@
 <?nvs
 // Sends a small JSON object, as an API endpoint does once for each request.
 // bench: iterations 20000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

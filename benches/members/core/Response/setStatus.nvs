@@ -2,6 +2,7 @@
 // Sets the status of a response, as a handler does once for each request that is not a plain 200.
 // bench: iterations 400000
 // bench: allocations 0
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

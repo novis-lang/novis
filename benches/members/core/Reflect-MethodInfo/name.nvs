@@ -2,6 +2,7 @@
 // Reads the name of a method, as a router or a command-line tool does to find the method it must call.
 // bench: iterations 400000
 // bench: allocations 0
+// bench: complexity constant
 
 class Commands {
     public function status(): string {

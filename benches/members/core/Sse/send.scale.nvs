@@ -1,0 +1,24 @@
+<?nvs
+// Measures `send` on an event stream for one event, at growing event lengths.
+// bench: start 256
+// bench: max 4096
+
+class Bench
+{
+    public static function run(Core\Sse $sse, uint $size): uint
+    {
+        string $data = Core\Str::repeat('a', $size);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            $sse->send($data, event: "update");
+            $total = $total + Core\Str::length($data) % 7 + 1;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+// `send()` writes to an open stream, so the program opens one first.
+Core\Sse $sse = Core\Sse::stream();
+echo Bench::run($sse, 256), "\n";

@@ -1,6 +1,7 @@
 <?nvs
 // Reads the file name of each uploaded file, as a handler does to show a list of the files it received.
 // bench: iterations 1
+// bench: complexity constant
 
 class Bench
 {

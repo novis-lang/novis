@@ -1,0 +1,23 @@
+<?nvs
+// Measures `Core\Session::get` on a session with one long value, at growing value lengths.
+// bench: start 256
+// bench: max 4096
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        Core\Session::set("cart", Core\Str::repeat('a', $size));
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            $total = $total + (Core\Session::get("user") as uint);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+Core\Session::start();
+Core\Session::set("user", 17);
+echo Bench::run(256), "\n";
