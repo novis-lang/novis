@@ -1,24 +1,39 @@
 {
-  "state": "**Side goal `one-temp-root`, stage 2: every test socket is bound through `nvs_repo::socket`, except the three in `nvs-db`.** The six sites in `nvs-config/tests/control.rs`, `nvs-server/src/{serve,control}.rs`, `nvs-host/src/net.rs` and `nvs-cli/src/{ctl,serve}.rs` use it, and the three hand-written helpers are gone. Each case that names a control endpoint gets `(guard, path)` from a cfg-split `endpoint`, where the Windows arm returns `()` for the guard and a pipe name. `nvs-server` and `nvs-host` have `nvs-repo` as a dev-dependency. The two tests in `crates/nvs-repo/src/lib.rs` carry the names the `the-socket-helper` check runs. `scratch` and `socket` both build from a root with no `..` (`fresh_under`); `path` and `named` still use `repository()`, which joins `../..`. Three `NOT_YET_MOVED` rows are gone. Stage 3, the two runners, has not started.",
+  "state": "**Side goal `one-temp-root`: stage 2 is done except the `icacls` item, and stage 3, the two runners, has not started.** No test code calls `std::env::temp_dir()` any more. `NOT_YET_MOVED` is gone from `crates/nvs-repo/tests/scratch.rs`, and `SUBJECT` is empty. Every former site writes through `nvs_repo::scratch`, or `nvs_repo::socket` for a Unix socket. A helper that used to return a path now returns `(nvs_repo::Scratch, PathBuf)`, and its callers bind `let (_dir, path)`. `nvs-db`, `nvs-footprint` and `nvs-test` have `nvs-repo` as a dev-dependency. For `nvs-footprint` that is a dev-dependency cycle, because `nvs-repo` depends on it. The gap `some-test-code-still-writes-into-the-system-temp-dir` is deleted. The only `temp_dir()` calls left are product code: `crates/nvs-runtime/src/capability.rs:1278` (the temp root itself), `crates/nvs-test/src/lib.rs:353` and `crates/nvs-lsp/src/suite.rs:339`.",
   "next": {
-    "stage": 2,
-    "title": "every test writes under `target/`, sockets included",
-    "files": [],
-    "note": "one file set: `crates/nvs-repo/tests/scratch.rs`, `crates/nvs-db/src/pg.rs`, `crates/nvs-db/src/mysql.rs`, `crates/nvs-host/src/tls.rs`, `crates/nvs-footprint/src/lib.rs`, `crates/nvs-test/src/run.rs`, and the `nvs-stdlib` files `NOT_YET_MOVED` lists.",
+    "stage": 3,
+    "title": "the two runners use Novis's own temp root",
+    "files": [
+      "crates/nvs-runtime/src/capability.rs",
+      "crates/nvs-test/src/lib.rs",
+      "crates/nvs-lsp/src/suite.rs",
+      "crates/nvs-repo/tests/scratch.rs"
+    ],
     "items": [
       {
         "done": false,
-        "text": "**Move the other sites** (`nvs-stdlib`, `nvs-db` incl. its socket sites `crates/nvs-db/src/pg.rs:4080`, `crates/nvs-db/src/mysql.rs:5247` and `crates/nvs-db/src/mysql.rs:5351`, `nvs-host/src/tls.rs`, `nvs-footprint`, `nvs-test/src/run.rs`) until `NOT_YET_MOVED` is gone, and delete `data/gaps/nvs-repo/some-test-code-still-writes-into-the-system-temp-dir.json`. Anchor: `crates/nvs-repo/tests/scratch.rs:18`."
+        "text": "**A private folder without a `Ctx`**: move the create loop out of `capability::temp_dir` into a public function that takes the root, and add the test `a_runner_dir_is_private_and_named_for_the_orphan_sweep` (`rule:core-classes/temporary-dir-sweep`). Anchor: `crates/nvs-runtime/src/capability.rs:1278`."
       },
       {
         "done": false,
-        "text": "**The `icacls` test gives this account its rights back from a guard's `Drop`**, so its folder is deleted even when it fails. Anchor: `crates/nvs-cli/tests/init.rs:466`."
+        "text": "**The `.nvst` runner takes a root through `Options`** and deletes it when it finishes; test `the_nvst_runner_writes_its_cases_under_the_root_it_is_given`. Anchor: `crates/nvs-test/src/lib.rs:353`."
+      },
+      {
+        "done": false,
+        "text": "**`nvs_lsp::suite::run` takes a root**; test `lsp_test_writes_its_cases_under_the_root_it_is_given`, then delete `data/gaps/nvs-lsp/lsp-test-writes-its-cases-into-the-system-temp-dir.json`. Anchor: `crates/nvs-lsp/src/suite.rs:339`."
+      },
+      {
+        "done": false,
+        "text": "**The guard covers product code**: rename it to `nothing_but_the_temp_root_reads_the_system_temp_dir` and allow only `capability::temp_root` and `SUBJECT`. Anchor: `crates/nvs-repo/tests/scratch.rs:13`."
       }
     ]
   },
   "backlog": [
-    "The Unix arms of the moved socket sites are compiled only on Unix. This session checked them with `cargo clippy --all-targets` in WSL (`CARGO_TARGET_DIR=/var/tmp/nvs-target-wsl`); the Windows `bun nv verify` does not reach them.",
-    "`bun nv verify`'s `extension` step fails in this worktree when the extension's npm dependencies are not installed (`.agent-tmp/verify-extension.log`). Installing them is a by-hand call.",
-    "Stage 3: `nvs lsp-test` and the `.nvst` runner write under `[io] temp_root` (`docs/agent/goals/side/one-temp-root.md` § Stage 3)."
+    "The CLI passes `temp_root` to both runners, and the repository's `nvs.toml` points `[io] temp_root` under `target/` (`docs/agent/goals/side/one-temp-root.md` § Stage 3).",
+    "**The `icacls` test gives this account its rights back from a guard's `Drop`**, so its folder is deleted even when it fails. Anchor: `crates/nvs-cli/tests/init.rs:466`.",
+    "The Unix arms of the socket sites compile only on Unix. Check them with `cargo clippy --all-targets` in WSL (`CARGO_TARGET_DIR=/var/tmp/nvs-target-wsl`), because the Windows `bun nv verify` does not reach them. Run them from the ext4 mirror (`syncMirror` in `tools/nv/driver/mirror.ts`): over `/mnt` a socket bind fails with `EOPNOTSUPP`.",
+    "In this worktree's WSL mirror, `/var/tmp/nvs-target-wsl-src/mnt-e-mwl-.agent-tmp-worktrees-side-one-temp-root`, every `nvs_repo::socket` path is about 121 bytes. Linux allows 107, so each socket test stops with the limit named. A checkout at the main path fits. The fix belongs to `mirrorPath` in `tools/nv/driver/mirror.ts`: a shorter mirror name.",
+    "`bun nv goal context --add` writes into the chain's live goal (`performance-pass`), never into a side goal run in a worktree. Edit a side goal's `context` by hand.",
+    "`bun nv verify`'s `extension` step fails in this worktree when the extension's npm dependencies are not installed (`.agent-tmp/verify-extension.log`)."
   ]
 }
