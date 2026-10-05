@@ -1,19 +1,20 @@
-//! No test writes into the system temp directory: a test that needs a directory asks
-//! `nvs_repo::scratch` for one under `target/`. This reads every test source under `crates/` as
-//! text and fails on a call to `std::env::temp_dir()` that `SUBJECT` below does not name.
-//!
-//! Test code is a file under a package's `tests/`, a file a `#[cfg(test)] mod name;` declares, a
-//! file that opens with `#![cfg(test)]`, and the item that follows a `#[cfg(…)]` naming `test`.
+//! Nothing but the temp root reads the system temp directory. Every temporary folder Novis makes
+//! lives under `capability::temp_root`, and a test that needs a directory asks `nvs_repo::scratch`
+//! for one under `target/`. This reads every Rust source under `crates/` as text and fails on a
+//! call to `std::env::temp_dir()` anywhere else, in test code and product code alike.
 
 use std::collections::BTreeMap;
 use std::path::Path;
 
+/// The one function that reads the system temp directory: its file, and how its signature starts.
+const TEMP_ROOT: (&str, &str) = ("crates/nvs-runtime/src/capability.rs", "pub fn temp_root(");
+
 /// The tests whose subject is the system temp directory itself, and so keep calling it: the file,
-/// how many calls it makes in test code, and why.
+/// how many calls it makes, and why.
 const SUBJECT: &[(&str, usize, &str)] = &[];
 
 #[test]
-fn no_test_code_writes_into_the_system_temp_dir() {
+fn nothing_but_the_temp_root_reads_the_system_temp_dir() {
     let root = nvs_repo::path("crates");
     let mut files = Vec::new();
     walk(&root, &mut files);
@@ -26,11 +27,13 @@ fn no_test_code_writes_into_the_system_temp_dir() {
                 .to_string_lossy()
                 .replace('\\', "/")
         );
-        let text = std::fs::read_to_string(file).unwrap();
-        let whole = rel.split('/').nth(2) == Some("tests") || test_only(&files, file);
-        let calls = calls_in_test_code(&text, whole);
-        if calls > 0 {
-            found.insert(rel, calls);
+        let code = code_only(&std::fs::read_to_string(file).unwrap());
+        let mut at = calls(&code);
+        if rel == TEMP_ROOT.0 {
+            at.retain(|&at| !within(&code, TEMP_ROOT.1, at));
+        }
+        if !at.is_empty() {
+            found.insert(rel, at.len());
         }
     }
     let mut allowed = BTreeMap::new();
@@ -46,17 +49,18 @@ fn no_test_code_writes_into_the_system_temp_dir() {
         .filter_map(|file| {
             let has = found.get(file).copied().unwrap_or(0);
             let listed = allowed.get(file).copied().unwrap_or(0);
-            (has != listed)
-                .then(|| format!("  {file}: {has} call(s) in test code, {listed} listed"))
+            (has != listed).then(|| format!("  {file}: {has} call(s), {listed} listed"))
         })
         .collect();
     assert!(
         wrong.is_empty(),
-        "test code calls `std::env::temp_dir()` where nothing lists it:\n{}\n\
-         Write into `nvs_repo::scratch(\"<name>\")` instead: it is a directory under `target/` that is \
-         deleted when its guard drops. A test whose subject is the system temp directory itself goes \
-         in `SUBJECT` in {}, with the reason. A file that makes fewer calls than `SUBJECT` lists \
-         has its entry lowered or removed.",
+        "code calls `std::env::temp_dir()` outside `capability::temp_root`:\n{}\n\
+         Product code makes its directories under `capability::temp_root`, through \
+         `capability::private_dir` where there is no context. A test writes into \
+         `nvs_repo::scratch(\"<name>\")`: a directory under `target/` that is deleted when its guard \
+         drops. A test whose subject is the system temp directory itself goes in `SUBJECT` in {}, \
+         with the reason. A file that makes fewer calls than `SUBJECT` lists has its entry lowered \
+         or removed.",
         wrong.join("\n"),
         file!()
     );
@@ -76,86 +80,20 @@ fn walk(dir: &Path, out: &mut Vec<std::path::PathBuf>) {
     }
 }
 
-/// Whether `file` is declared by a `#[cfg(test)] mod name;` in the file that owns its directory.
-fn test_only(files: &[std::path::PathBuf], file: &Path) -> bool {
-    let stem = file.file_stem().unwrap().to_string_lossy();
-    let (name, dir) = if stem == "mod" {
-        let dir = file.parent().unwrap();
-        (
-            dir.file_name().unwrap().to_string_lossy(),
-            dir.parent().unwrap(),
-        )
-    } else {
-        (stem, file.parent().unwrap())
-    };
-    let parents = [
-        dir.join("lib.rs"),
-        dir.join("main.rs"),
-        dir.join("mod.rs"),
-        dir.with_extension("rs"),
-    ];
-    parents.iter().filter(|p| files.contains(p)).any(|parent| {
-        let text = std::fs::read_to_string(parent).unwrap();
-        let code = code_only(&text);
-        test_items(&code).iter().any(|item| {
-            let decl: String = code[item.0..item.1].split_whitespace().collect();
-            decl == format!("mod{name};") || decl == format!("pubmod{name};")
-        })
-    })
-}
-
-/// How many calls to `env::temp_dir()` the text makes in test code. `whole` says the whole file is.
-fn calls_in_test_code(text: &str, whole: bool) -> usize {
-    let code = code_only(text);
-    let whole = whole || code.trim_start().starts_with("#![cfg(test)]");
-    let items = test_items(&code);
+/// Where `code` calls `env::temp_dir()`, as byte offsets.
+fn calls(code: &str) -> Vec<usize> {
     code.match_indices("env::temp_dir()")
-        .filter(|(at, _)| whole || items.iter().any(|item| (item.0..item.1).contains(at)))
-        .count()
+        .map(|(at, _)| at)
+        .collect()
 }
 
-/// The byte ranges of the items that follow a `#[cfg(…)]` naming `test`, each up to its closing
-/// brace or its `;`.
-fn test_items(code: &str) -> Vec<(usize, usize)> {
-    let bytes = code.as_bytes();
-    let mut items = Vec::new();
-    let mut from = 0;
-    while let Some(found) = code[from..].find("#[cfg(") {
-        let start = from + found;
-        let close = code[start..].find(']').map_or(code.len(), |i| start + i);
-        from = close;
-        let mut words = code[start..close].split(|c: char| !c.is_alphanumeric() && c != '_');
-        let names_test = words.clone().any(|word| word == "test") && !words.any(|w| w == "not");
-        if !names_test {
-            continue;
-        }
-        let Some(open) = code[close..].find(['{', ';']).map(|i| close + i) else {
-            break;
-        };
-        let item_start = close + 1;
-        if bytes[open] == b';' {
-            items.push((item_start, open + 1));
-            continue;
-        }
-        let mut depth = 0usize;
-        let mut end = code.len();
-        for (i, &b) in bytes.iter().enumerate().skip(open) {
-            match b {
-                b'{' => depth += 1,
-                b'}' => {
-                    depth -= 1;
-                    if depth == 0 {
-                        end = i + 1;
-                        break;
-                    }
-                }
-                _ => {}
-            }
-        }
-        items.push((item_start, end));
-        from = end;
-    }
-    items
+/// Whether `at` is inside the top-level function whose signature starts with `signature`: from the
+/// signature to the first line that is a lone `}`.
+fn within(code: &str, signature: &str, at: usize) -> bool {
+    code.find(signature).is_some_and(|start| {
+        let end = code[start..].find("\n}").map_or(code.len(), |i| start + i);
+        (start..end).contains(&at)
+    })
 }
 
 /// The text with every comment, string and character literal replaced by spaces of the same
@@ -239,12 +177,17 @@ fn code_only(text: &str) -> String {
 }
 
 #[test]
-fn a_call_in_a_test_module_is_counted_and_one_in_product_code_is_not() {
-    let text = "fn product() { std::env::temp_dir(); }\n\
+fn a_call_is_counted_and_only_the_temp_roots_own_is_allowed() {
+    let text = "pub fn temp_root() -> PathBuf {\n    std::env::temp_dir().join(\"novis\")\n}\n\
                 // env::temp_dir() in a comment\n\
-                #[cfg(test)]\nmod tests {\n    fn t() { let s = \"}\"; std::env::temp_dir(); }\n}\n\
-                fn after() { env::temp_dir(); }\n\
-                #[cfg(not(test))]\nfn product_only() { env::temp_dir(); }\n";
-    assert_eq!(calls_in_test_code(text, false), 1);
-    assert_eq!(calls_in_test_code(text, true), 4);
+                fn product() { let s = \"env::temp_dir()\"; std::env::temp_dir(); }\n\
+                #[cfg(test)]\nmod tests {\n    fn t() { env::temp_dir(); }\n}\n";
+    let code = code_only(text);
+    let at = calls(&code);
+    assert_eq!(at.len(), 3);
+    let outside: Vec<_> = at
+        .into_iter()
+        .filter(|&at| !within(&code, "pub fn temp_root(", at))
+        .collect();
+    assert_eq!(outside.len(), 2);
 }
