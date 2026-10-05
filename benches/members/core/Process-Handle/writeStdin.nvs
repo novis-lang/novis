@@ -3,6 +3,7 @@
 // bench: iterations 256
 // bench: calls 0
 // bench: complexity linear
+// proof: gap nvs-host/a-blocking-call-allocates-by-when-it-ends
 
 class Bench {
     public static function run(uint $rounds): uint {

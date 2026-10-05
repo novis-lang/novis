@@ -127,7 +127,7 @@ import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { abs, DISCARD_PROFILE, rel, ROOT } from "../lib/paths.ts";
 import { progress } from "../lib/progress.ts";
 import { fixed } from "../lib/py.ts";
-import { knownGap } from "../proofs/collect.ts";
+import { gapTitle, knownGap } from "../proofs/collect.ts";
 import { countProgram, COUNTS, firstLine, PerfError, ProgramFailed } from "../proofs/perf.ts";
 import { read } from "../proofs/roster.ts";
 import { releaseBinary, skipReason, spawnProof } from "../proofs/run.ts";
@@ -1293,6 +1293,7 @@ The ramp, the agreement test, the ceiling and the bounds are in tools/nv/cmd/sca
   let next = 0;
   let tooLarge = 0;
   let lowered = 0;
+  let gapped = 0;
   const worker = async () => {
     while (next < todo.length) {
       const bench = todo[next++]!;
@@ -1318,6 +1319,12 @@ The ramp, the agreement test, the ceiling and the bounds are in tools/nv/cmd/sca
         j.notes.push(over);
         tooLarge++;
       }
+      // A bench that grows and whose `// proof: gap` marker names a gap record is a known gap.
+      const gap = iterations && j.verdict === "grows" ? knownGap(source || read(bench)) : null;
+      if (gap !== null && gapTitle(gap) !== null) {
+        j.notes.push("a known gap: its `// proof: gap` marker names the record");
+        gapped++;
+      }
       results.push(j);
       took.push([bench, (performance.now() - began) / 1000]);
       if (all || over || j.verdict !== "flat") console.log(line(j));
@@ -1336,7 +1343,8 @@ The ramp, the agreement test, the ceiling and the bounds are in tools/nv/cmd/sca
   console.log(`nv scaling: slowest ${slowest.map(([b, s]) => `${b.replace(/^benches\/[^/]+\//, "")} ${fixed(s, 0)}s`).join(", ")}`);
   if (lower) console.log(`nv scaling: ${lowered} benches had their iterations lowered to what their ramp needs`);
   if (sized) console.log(`nv scaling: ${tooLarge} benches run more iterations than their ramp needs`);
-  if (tally("grows") + tally("invalid") + tooLarge > 0) return 1;
+  if (gapped) console.log(`nv scaling: ${gapped} of the benches that grow carry a \`// proof: gap\` marker`);
+  if (tally("grows") - gapped + tally("invalid") + tooLarge > 0) return 1;
   if (check) console.log(iterations ? PASSED_ITERATIONS : PASSED_LADDERS);
   if (sized) console.log(PASSED_SIZED);
   return 0;
