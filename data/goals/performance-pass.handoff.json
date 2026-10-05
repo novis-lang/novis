@@ -1,26 +1,29 @@
 {
-  "state": "**Goal `performance-pass`, Stage 5 (the fixes).** Stage 4's review is whole (`docs/perf/performance-review.md`, ending in `## floor`). Old refusals have not been priced again yet.\n\n**A throw no longer copies its message per frame.** `Ctx::promote_pending` in `crates/nvs-runtime/src/ctx/error.rs` serves both `push_frame` and `seed_raise_site`, and it reads a message only for a bare message that cannot be promoted. The ladder `benches/scaling/values/throw-depth.nvs` is new. The release build showed no clock difference before and after, recorded in `docs/perf/performance-pass.md` § *What got better*. The gap record is deleted. The cache tier, regex cache and metrics refusal fixes from earlier sessions still stand.\n\n**16 gap records owned by `performance-pass`** keep `owners --closes performance-pass` red (`bun nv owners --closes performance-pass` lists them). `bun nv scaling --check` passed at the last sweep, with `numbers/bigint-mul` unclear. *Decisions for you* in `docs/perf/performance-pass.md` has two entries: a total deadline for the request head, and `Markup` concatenation in place.",
+  "state": "**Goal `performance-pass`, Stage 5 (the fixes).** Stage 4's review is whole (`docs/perf/performance-review.md`, ending in `## floor`). Old refusals have not been priced again yet.\n\n**Flattening a class collects each inherited name once.** `Seen` in `crates/nvs-types/src/layout.rs` is the name-keyed set all four flatten walks share. The ladder `benches/scaling/compiler/members.nvs` is new and flat on the counts, which do not see the checker. The clock figures are in `docs/perf/performance-pass.md` § *What got better*. Reusing a parent's layout was not built: each layout is a full copy of what it inherits, so it would save only a constant factor. The gap record is deleted.\n\n**15 gap records owned by `performance-pass`** keep `owners --closes performance-pass` red (`bun nv owners --closes performance-pass` lists them). `bun nv scaling --check` passed at the last sweep, with `numbers/bigint-mul` unclear. *Decisions for you* in `docs/perf/performance-pass.md` has two entries: a total deadline for the request head, and `Markup` concatenation in place.\n\nOne `bun nv verify` run failed at `conformance` with every case passed and exit 1. A direct rerun and a second verify were green, so it looked flaky; not investigated.",
   "next": {
     "stage": 5,
-    "title": "the fixes, the checker's quadratic walks",
+    "title": "the fixes, the checker's per-function and per-check costs",
     "files": [
-      "crates/nvs-types/src/layout.rs",
-      "crates/nvs-types/src/locals.rs"
+      "crates/nvs-types/src/locals.rs",
+      "crates/nvs-types/src/core_lib.rs",
+      "crates/nvs-types/src/check.rs"
     ],
     "items": [
       {
         "done": false,
-        "text": "**Flattening a class dedupes by a name-keyed map and reuses its parent's layout** (`crates/nvs-types/src/layout.rs:1005`, driven from `crates/nvs-types/src/layout.rs:491`), per `data/gaps/nvs-types/flattening-a-class-dedupes-by-linear-scan.json`. Write the ladder `benches/scaling/compiler/members.nvs` (`compile` kind) first and take its before figure, then delete the gap record and add a paragraph to `docs/perf/performance-pass.md` § *What got better*. Rule: AGENTS.md priority ordering."
+        "text": "**The live-locals set is not cloned per branch** (`crates/nvs-types/src/locals.rs:1124`), per `data/gaps/nvs-types/the-live-set-is-cloned-per-branch.json`. Write a `compile` ladder under `benches/scaling/compiler/` first and take its before figure, then delete the gap record and add a paragraph to `docs/perf/performance-pass.md` § *What got better*. Rule: AGENTS.md priority ordering."
       },
       {
         "done": false,
-        "text": "**The live-locals set is not cloned per branch** (`crates/nvs-types/src/locals.rs:1124`), per `data/gaps/nvs-types/the-live-set-is-cloned-per-branch.json`. Ladder `benches/scaling/compiler/branches.nvs` first. Rule: AGENTS.md priority ordering."
+        "text": "**The `Core` signature table is built once per process** (`crates/nvs-types/src/core_lib.rs:45`, called from `crates/nvs-types/src/check.rs:126`), per `data/gaps/nvs-types/core-signatures-are-built-again-for-every-check.json`. Counts decide: callgrind on the debug Linux binary, empty program. Rule: AGENTS.md priority ordering."
       }
     ]
   },
   "backlog": [
-    "14 more gap records owned by `performance-pass` — `bun nv owners --closes performance-pass`; each names its own ladder and anchors.",
-    "Before closing a gap, time the release build first: the counts do not see work inside Rust strings, and the optimizer may already remove an unused copy (`docs/perf/performance-pass.md` § *What got better*, the throw paragraph).",
-    "*Decisions for you* — `docs/perf/performance-pass.md`."
+    "`nvs-hir/a-require-chain-is-cloned-per-file`, `nvs-codegen/conforming-to-scans-every-class-per-site` — compiler gaps, `data/gaps/`.",
+    "`nvs-lsp/a-hierarchy-lookup-scans-every-declaration`, `nvs-lsp/a-request-analyses-an-unchanged-document-again` — editor gaps, `data/gaps/nvs-lsp/`.",
+    "`nvs-runtime/route-matching-tries-every-route`, `nvs-runtime/identity-hash-stops-at-depth-four` — runtime gaps, `data/gaps/nvs-runtime/`.",
+    "`nvs-host` scheduler and stack, `nvs-stdlib` channel, queue and json gaps — `data/gaps/`.",
+    "`nvs-server/a-websocket-write-buffer-has-no-ceiling` — `data/gaps/nvs-server/`."
   ]
 }
