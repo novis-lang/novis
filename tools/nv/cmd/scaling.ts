@@ -417,12 +417,27 @@ const RUN: Measure = {
   callgrind: (copy, bench, opts) => instructions(opts, "run", copy, bench),
 };
 
-/** The program a `compile` ladder prints, written beside its copy. Returns its repo-relative path. */
+/** A `// scaling: file <name>` line in a printed program: what follows it, up to the next one, is the
+ * file `<name>` beside the program, which the program can `require`. */
+const PRINTED_FILE = /^\/\/ scaling: file ([\w.-]+\.nvs)\r?$/m;
+
+/** A printed program split at its `// scaling: file` lines: the program first, then each named file. */
+export function printedFiles(stdout: string): { program: string; files: [string, string][] } {
+  const parts = stdout.split(PRINTED_FILE);
+  const files: [string, string][] = [];
+  for (let i = 1; i + 1 < parts.length; i += 2) files.push([parts[i]!, parts[i + 1]!.replace(/^\r?\n/, "")]);
+  return { program: parts[0]!, files };
+}
+
+/** The program a `compile` ladder prints, written beside its copy with any file it names. Returns its
+ * repo-relative path. */
 async function generate(copy: string, bench: string, opts: Options): Promise<string> {
   const out = await spawnProof([opts.nvs, "run", copy], copy, TIMEOUT_MS, { unlogged: true });
   if (out.code !== 0) throw new PerfError(`${bench} exited ${out.code} while printing its program: ${out.stderr.trim().split(/\r?\n/)[0] ?? ""}`);
   const program = copy.replace(/\.nvs$/, ".printed.nvs");
-  writeFileSync(abs(program), out.stdout);
+  const printed = printedFiles(out.stdout);
+  writeFileSync(abs(program), printed.program);
+  for (const [name, text] of printed.files) writeFileSync(join(dirname(abs(program)), name), text);
   return program;
 }
 

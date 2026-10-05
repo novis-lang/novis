@@ -36,7 +36,8 @@ echo Bench::run(1000), "\n";
 Size the work so that **the size is the only thing that grows**: build the input inside `run` from
 the size, do the operation once over it, and return something that depends on the result so nothing
 is skipped. A `compile` ladder's `run` returns the source of a program of that size instead, and the
-closing line prints it; the tool checks and runs the program it printed. An `fmt` ladder prints a
+closing line prints it; the tool checks and runs the program it printed. A line `// scaling: file
+<name>.nvs` in what it prints starts another file, written beside the program for it to `require`. An `fmt` ladder prints a
 file the same way for `nvs fmt`, and an `lsp` ladder prints a document that marks one cursor with
 `<|>`, as an `.lspt` case does: the tool opens it in `nvs lsp`, edits it, and asks for completion,
 hover and references at the cursor. A `serve` ladder is the program every request runs, with no

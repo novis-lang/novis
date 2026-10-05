@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { join } from "node:path";
 import {
   agrees, AREAS, type Batch, batchSizes, boundsOf, CEILING, compileCounts, COUNT_BOUND, countsAgree, increments, judgeCounts, type Judged, ladderOf, ladderSizes, LSP_URI, lspFrame, lspScript, missingAreas,
-  HEADER_VALUE, PEAK_SLACK, PER_CONNECTION, peakGrows, proposed, rebased, serveShape, slopeOf, START, withBatch,
+  HEADER_VALUE, PEAK_SLACK, PER_CONNECTION, peakGrows, printedFiles, proposed, rebased, serveShape, slopeOf, START, withBatch,
 } from "../cmd/scaling.ts";
 import { ROOT } from "../lib/paths.ts";
 
@@ -126,6 +126,13 @@ test("the compile line's counts are read by name, and stderr without one gives n
   expect(compileCounts("compile: tokens=7 nodes=2 names=0 exprs=0 ir=80\r\ncount: statements=1 calls=0 allocations=13 bytes=7081\r\n")!.ir).toBe(80);
   expect(compileCounts("count: statements=1 calls=0 allocations=13 bytes=7081\n")).toBeNull();
   expect(ladderOf("// scaling: kind compile\n// scaling: start 50\n// scaling: max 1600\n// scaling: expect linear\n")).toMatchObject({ kind: "compile" });
+});
+
+test("a printed program splits at its file lines, and one without them is the program alone", () => {
+  expect(printedFiles("<?nvs\necho 1;\n")).toEqual({ program: "<?nvs\necho 1;\n", files: [] });
+  const split = printedFiles("<?nvs\nrequire 'a.nvs';\n// scaling: file a.nvs\n<?nvs\nclass A {}\n// scaling: file b-1.nvs\r\n<?nvs\n");
+  expect(split.program).toBe("<?nvs\nrequire 'a.nvs';\n");
+  expect(split.files).toEqual([["a.nvs", "<?nvs\nclass A {}\n"], ["b-1.nvs", "<?nvs\n"]]);
 });
 
 test("an lsp session opens the document without its cursor, edits it, and asks at the cursor", () => {
