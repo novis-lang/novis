@@ -1,0 +1,11 @@
+{
+  "lead": "A file deleted with `git rm` breaks `bun nv session --wrap` at its commit, after the handoff is already written.",
+  "body": "`applyCommit` in `tools/nv/cmd/session.ts` runs `git add -- <paths>`, and a path that is staged as deleted is in neither the index nor the tree, so git refuses the pathspec. Delete a file with plain `rm` and name it in a `## commit:`; if it was already `git rm`ed, `git reset -- <path>` first.",
+  "files": [
+    "tools/nv/cmd/session.ts"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "tools/nv/cmd/session.ts:\"git\", \"add\", \"--\""
+  }
+}

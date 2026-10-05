@@ -1,30 +1,28 @@
 {
-  "state": "**Goal `performance-pass`, Stage 5 (the fixes).** Stage 4's review is whole (`docs/perf/performance-review.md`, ending in `## floor`).\n\n**A loaded file no longer copies its parent's require chain.** `resolve_program` in `crates/nvs-hir/src/requires.rs` carries a depth per file on `work`, keeps one chain cut back to that depth on pop, and a set of the same paths for the cycle check. Ladder `benches/scaling/compiler/requires.nvs` (n files each requiring the next and a shared file) is flat on the old and new binary; the clock could not separate them even at 16384 files. Figures in `docs/perf/performance-pass.md` § *What got better*. Its gap record is deleted.\n\n**A `compile` ladder may now print several files**: a `// scaling: file <name>.nvs` line in its output starts a file written beside the program (`printedFiles` in `tools/nv/cmd/scaling.ts`, README in `benches/scaling/README.md`).\n\n**12 gap records owned by `performance-pass`** keep `owners --closes performance-pass` red (`bun nv owners --closes performance-pass` lists them). `bun nv scaling --check` was red at the last sweep and was not re-run this session; read its output first next session. *Decisions for you* in `docs/perf/performance-pass.md` has two entries: a total deadline for the request head, and `Markup` concatenation in place.",
+  "state": "**Goal `performance-pass`, Stage 5 (the fixes).** Stage 4's review is whole (`docs/perf/performance-review.md`, ending in `## floor`).\n\n**A `class<T>` conversion site is a lookup.** `Classes::conforming` in `crates/nvs-codegen/src/lib.rs` holds one sorted list per supertype, built once in `Classes::build`; `conforming_to` reads it. Figures in `docs/perf/performance-pass.md` § *What got better*, gap record deleted. Ladder `benches/scaling/compiler/class-sites.nvs` is flat, but a `compile` ladder's clock is `nvs check`'s, which stops before code generation, so no ladder kind sees codegen cost: the fix was timed by hand with a cold `nvs run` (the artifact cache hides every run after the first, so each timed program gets a unique trailing comment).\n\n**11 gap records owned by `performance-pass`** keep `owners --closes performance-pass` red (`bun nv owners --closes performance-pass` lists them). `bun nv scaling --check` was red at the last sweep and was not re-run this session; read its output first next session. *Decisions for you* in `docs/perf/performance-pass.md` has two entries: a total deadline for the request head, and `Markup` concatenation in place.",
   "next": {
     "stage": 5,
-    "title": "the fixes, class conversion sites",
+    "title": "the fixes, route dispatch",
     "files": [
-      "crates/nvs-codegen/src/lib.rs",
-      "crates/nvs-codegen/src/emit.rs",
-      "benches/scaling/compiler/"
+      "crates/nvs-runtime/src/routes.rs",
+      "crates/nvs-server/src/route.rs",
+      "benches/scaling/request/"
     ],
     "items": [
       {
         "done": false,
-        "text": "**The classes conforming to a target are computed once per target class** (`crates/nvs-codegen/src/lib.rs:1611`), per `data/gaps/nvs-codegen/conforming-to-scans-every-class-per-site.json`: a cache keyed by base name, called from `crates/nvs-codegen/src/emit.rs:2644`. Rule: AGENTS.md priority ordering."
+        "text": "**A request is matched through an index over the routes, not against every row** (`crates/nvs-runtime/src/routes.rs:674`), per `data/gaps/nvs-runtime/route-matching-tries-every-route.json`: `match_request` runs `fill` (`crates/nvs-runtime/src/routes.rs:440`) on every row; a first-segment index or a trie makes it O(path length). The table is built once at `crates/nvs-server/src/route.rs:98`. Match order and which route wins must not change. Rule: AGENTS.md priority ordering."
       },
       {
         "done": false,
-        "text": "**A ladder proves it** — `benches/scaling/compiler/class-sites.nvs`, C classes and C `class<T>` conversion sites, `compile` kind, shaped like `benches/scaling/compiler/constructor.nvs` (`crates/nvs-codegen/src/lib.rs:1611`)."
+        "text": "**A ladder proves it** — `benches/scaling/request/routes.nvs`, `serve` kind, N page classes each with a route and the last one requested, shaped like `benches/scaling/request/fields.nvs:1`. Rule: AGENTS.md priority ordering."
       }
     ]
   },
   "backlog": [
-    "The LSP index lookups scan every declaration — `data/gaps/nvs-lsp/a-hierarchy-lookup-scans-every-declaration.json`.",
-    "An LSP request analyses an unchanged document again — `data/gaps/nvs-lsp/a-request-analyses-an-unchanged-document-again.json`.",
-    "Route matching tries every route — `data/gaps/nvs-runtime/route-matching-tries-every-route.json`.",
-    "Scheduler turn and channel send scan every parked task or waiter — the two gap records under `data/gaps/nvs-host/` and `data/gaps/nvs-stdlib/`.",
-    "The queue claim sorts every due row, and finished jobs are kept — the two `queue.rs` gap records under `data/gaps/nvs-stdlib/`.",
-    "`bun nv scaling --check` red at the last sweep; `proofs --gate` (stage 6) also red."
+    "`bun nv scaling --check` red at the last sweep: read which ladder first (`benches/scaling/README.md`).",
+    "The remaining 10 gaps from `bun nv owners --closes performance-pass`: scheduler and channel waiter scans (`crates/nvs-host/src/scheduler.rs`, `crates/nvs-stdlib/src/channel.rs`), the LSP index and re-analysis (`crates/nvs-lsp/src/index.rs`, `crates/nvs-lsp/src/server.rs`), the queue (`crates/nvs-stdlib/src/queue.rs`), JSON decode positions, identity hash depth, WebSocket buffer ceiling, task stack size.",
+    "No `scaling` kind times code generation; a `compile` ladder only reaches `nvs check` (`tools/nv/cmd/scaling.ts`, the `COMPILE` measure).",
+    "`bun nv proofs --gate` red at the last sweep (stage 6)."
   ]
 }
