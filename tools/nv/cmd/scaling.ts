@@ -24,6 +24,9 @@
 // copy goes the folder's `nvs.toml`, or the repository's, with its paths rebased so the copy keeps the
 // capabilities and the app the original has. A bench whose closing line does not pass its
 // `iterations N` as one integer literal, or whose N is too small to ramp, is skipped and named.
+// `--sized` also fails a flat bench whose N is more than twice the batch its ramp settled at, the last
+// batch or callgrind's threshold (`oversized`), since N is the ramp's cap and nothing past it is needed.
+// A bench whose ramp does not settle keeps its N.
 //
 // The ramp. The first batch is `START` operations and each next batch doubles the one before. A batch
 // is one `nvs run --count` (the counting run of `tools/nv/proofs/perf.ts`) and the fastest of `--reps`
@@ -52,7 +55,9 @@
 // A bench that reaches the ceiling and has not agreed, or whose clock grew twice, runs the same batches again under
 // `valgrind --tool=callgrind`, in WSL on Windows, with the Linux binary `--wsl-nvs` names. Callgrind's
 // instruction count is nearly the same on every run, so it is judged as one more count. A bench still
-// unclear after that is reported under *unclear* and is not judged.
+// unclear after that is reported under *unclear* and is not judged. In the perf proof, a bench whose
+// instructions agree has its `iterations` lowered to twice the batch where they first did, and the
+// line says `callgrind` beside it, so a later ramp stops at that batch.
 //
 // A ladder, under `benches/scaling/<area>/`, ramps its input size the same way: its `// scaling:` lines
 // give `start`, `max`, `expect` and optionally `kind` and `proposal`, and its closing line passes
@@ -129,6 +134,8 @@ const REVIEW = "docs/perf/performance-review.md";
 /** The line `--check` prints when nothing grows past its bound. */
 const PASSED_ITERATIONS = "every bench costs the same per operation in every batch";
 const PASSED_LADDERS = "every ladder is within its declared growth";
+/** The line `--sized` prints when no bench runs more iterations than its ramp needs. */
+const PASSED_SIZED = "every bench's iteration count is no larger than its growth check needs";
 const CALIBRATION = "_calibration";
 /** How many of the slowest programs a run names at its end. */
 const SLOWEST = 5;
@@ -192,6 +199,15 @@ export function withBatch(source: string, iterations: number, batch: number): st
   const from = open + 1 + hits[0]!.index!;
   lines[at] = line.slice(0, from) + String(batch) + line.slice(from + hits[0]![0].length);
   return lines.join("\n");
+}
+
+/**
+ * The bench's source with `iterations` lowered from `was` to `n`: its `// bench: iterations` line reads
+ * `n callgrind`, the note that callgrind measured it, and its closing line passes `n`. Null when that
+ * closing line does not pass `was` as one literal.
+ */
+export function withIterations(source: string, was: number, n: number): string | null {
+  return withBatch(source, was, n)?.replace(/^(\s*(?:\/\/|#)\s*bench:\s*iterations\s+)[0-9_]+[^\r\n]*/m, `$1${n} callgrind`) ?? null;
 }
 
 /** The batch sizes a bench of `iterations` operations may run: doubling from `START`, below its own N
@@ -262,6 +278,8 @@ export interface Judged {
   clock: number | null;
   /** Why it failed, was not judged, or was skipped. */
   notes: string[];
+  /** The batch at which callgrind's instructions first agreed, when callgrind ran and they did. */
+  threshold?: number;
 }
 
 /** The verdict on a finished ramp's counts: which count grows past the bound, and by how much. */
@@ -845,7 +863,9 @@ export interface Growth {
  * program that cannot be ramped because it is malformed or exits with an error. A ramp that stays
  * unclear keeps its notes and is judged neither way. `required` makes a bench with no
  * `// bench: complexity` line a finding. Callgrind runs only where `opts.callgrind` allows it and the
- * counts did not settle.
+ * counts did not settle. When its instructions settle the bench's ramp, the bench's `iterations` is
+ * lowered to twice that batch (`withIterations`), so a later ramp tops out there and needs no callgrind
+ * while its counts settle. N is never raised.
  */
 export async function growthOf(bench: string, opts: Options, required: boolean, measure: Measure = RUN): Promise<Growth> {
   const complexity = COMPLEXITY_RE.exec(read(bench))?.[1] ?? null;
@@ -864,8 +884,18 @@ export async function growthOf(bench: string, opts: Options, required: boolean, 
     growth.ramps.push(j);
     if (j.verdict === "grows") growth.findings.push(`${grows}: ${j.notes.join("; ")}`);
     if (j.verdict === "invalid") growth.findings.push(`${program} cannot be ramped: ${j.notes.join("; ")}`);
+    return j;
   };
-  await judge(bench, () => rampOne(bench, opts, measure), "its cost per operation rises as its batches double");
+  const batched = await judge(bench, () => rampOne(bench, opts, measure), "its cost per operation rises as its batches double");
+  if (batched.threshold !== undefined) {
+    const source = read(bench);
+    const was = number(ITER_RE.exec(source)![1]!);
+    const lowered = 2 * batched.threshold < was ? withIterations(source, was, 2 * batched.threshold) : null;
+    if (lowered !== null) {
+      writeFileSync(abs(bench), lowered);
+      batched.notes.push(`callgrind settled the ramp at ${batched.threshold}, so \`iterations\` is now ${2 * batched.threshold}`);
+    }
+  }
   if (!known || complexity === "constant") return growth;
   const sibling = bench.replace(/\.nvs$/, ".scale.nvs");
   if (!existsSync(abs(sibling))) {
@@ -946,6 +976,8 @@ async function rampAt(judged: Judged, source: string, literal: number, sizes: nu
   }
   const cg = judgeCounts(ir, ["instructions"], bounds.count);
   judged.slopes.instructions = cg.slopes.instructions ?? null;
+  const settled = ir.findIndex((_, i) => i + 1 >= MIN_BATCHES && countsAgree(ir.slice(0, i + 1), ["instructions"]));
+  if (settled >= 0) judged.threshold = ir[settled]!.size;
   if (cg.over.length) return { ...judged, verdict: "grows", notes: [...judged.notes, ...cg.over] };
   if (agrees(increments(ir, (b) => b.counts.instructions!))) return { ...judged, verdict: "flat" };
   return { ...judged, verdict: "unclear", notes: [...judged.notes, "neither the counts nor callgrind's instructions agreed by the ceiling"] };
@@ -983,6 +1015,16 @@ function areas(reviewed: boolean): number {
   if (noLadder.length || noReview.length) return 1;
   console.log(reviewed ? "every area has a ladder and a review section" : "every area has a ladder");
   return 0;
+}
+
+/** Why a bench of `iterations` operations runs more of them than its ramp needed, or null. The ramp
+ * settled at its last batch, or at callgrind's `threshold` when callgrind settled it, and N may be at
+ * most twice that batch. A ramp that did not settle keeps its N. */
+export function oversized(j: Judged, iterations: number): string | null {
+  if (j.verdict !== "flat" || !j.sizes.length) return null;
+  const settled = j.threshold ?? j.sizes.at(-1)!;
+  if (iterations <= 2 * settled) return null;
+  return `\`iterations ${iterations}\` is more than its ramp needs: it settled at ${settled}, so N is at most ${2 * settled}`;
 }
 
 const showSlope = (s: number | null | undefined) => (s === null || s === undefined ? "-" : fixed(s, 2));
@@ -1061,6 +1103,8 @@ export async function run(argv: string[]): Promise<number> {
     --iterations          ramp every bench under ${BENCHES}/ over small batches instead
     --growth              judge every bench under ${BENCHES}/ as its perf proof does: its batches, its
                           \`.scale.nvs\` sibling, and a missing \`// bench: complexity\`; writes no record
+    --sized               with --iterations, also fail a bench whose N is more than twice the batch its
+                          ramp settled at
     --check               print one line when nothing grows past its bound, for an acceptance check
     --areas               fail while an area has no ladder; with --reviewed, also no section in ${REVIEW}
     <filter>...           only the programs whose path contains one of these
@@ -1090,6 +1134,11 @@ The ramp, the agreement test, the ceiling and the bounds are in tools/nv/cmd/sca
   const growth = flag("--growth");
   if (growth) return growthRun(args);
   const iterations = flag("--iterations");
+  const sized = flag("--sized");
+  if (sized && !iterations) {
+    console.error("nv scaling: --sized judges benches, so it needs --iterations");
+    return 2;
+  }
   const check = flag("--check");
   const named = arg(args, "--nvs");
   const reps = Number(arg(args, "--reps") ?? 2);
@@ -1124,6 +1173,7 @@ The ramp, the agreement test, the ceiling and the bounds are in tools/nv/cmd/sca
   const results: Judged[] = [];
   const took: [string, number][] = [];
   let next = 0;
+  let tooLarge = 0;
   const worker = async () => {
     while (next < todo.length) {
       const bench = todo[next++]!;
@@ -1136,9 +1186,15 @@ The ramp, the agreement test, the ceiling and the bounds are in tools/nv/cmd/sca
         // A bench that fails at a small batch is one to look at; a ladder that fails is broken.
         j = { bench, verdict: iterations ? "unclear" : "invalid", sizes: [], slopes: {}, clock: null, notes: [e.message] };
       }
+      const n = sized ? ITER_RE.exec(read(bench)) : null;
+      const over = n ? oversized(j, number(n[1]!)) : null;
+      if (over) {
+        j.notes.push(over);
+        tooLarge++;
+      }
       results.push(j);
       took.push([bench, (performance.now() - began) / 1000]);
-      if (all || j.verdict !== "flat") console.log(line(j));
+      if (all || over || j.verdict !== "flat") console.log(line(j));
     }
   };
   try {
@@ -1152,7 +1208,9 @@ The ramp, the agreement test, the ceiling and the bounds are in tools/nv/cmd/sca
   // The slowest programs, so a run that nears an acceptance check's time limit says where its time went.
   const slowest = took.sort((a, b) => b[1] - a[1]).slice(0, SLOWEST);
   console.log(`nv scaling: slowest ${slowest.map(([b, s]) => `${b.replace(/^benches\/[^/]+\//, "")} ${fixed(s, 0)}s`).join(", ")}`);
-  if (tally("grows") + tally("invalid") > 0) return 1;
+  if (sized) console.log(`nv scaling: ${tooLarge} benches run more iterations than their ramp needs`);
+  if (tally("grows") + tally("invalid") + tooLarge > 0) return 1;
   if (check) console.log(iterations ? PASSED_ITERATIONS : PASSED_LADDERS);
+  if (sized) console.log(PASSED_SIZED);
   return 0;
 }

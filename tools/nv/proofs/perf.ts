@@ -132,6 +132,13 @@ async function calibrate(nvs: string, reps: number): Promise<[number, number]> {
 /** One feature's figures, and every way they fall short of what its bench declared. `ramp` is how its
  * growth is ramped. */
 async function measureOne(nvs: string, bench: string, reps: number, floor: number, base: Record<string, number>, ramp: RampOptions): Promise<[Rec, string[]]> {
+  // The growth, by `scaling.ts`'s ramp, which is that tool's to define. It runs first because callgrind
+  // may lower the bench's `iterations`, and the figures are then taken at the new N. It is imported
+  // when it runs because it imports this module's counting run in turn.
+  const { growthOf } = await import("../cmd/scaling.ts");
+  measuring = `${measuring}, ramping`;
+  // A bench with no `// bench: complexity` line fails its proof.
+  const growth = await growthOf(bench, ramp, true);
   const iters = iterationsOf(bench);
   const [total, median] = await timeProgram(nvs, bench, reps);
   const nsPerOp = Math.max(0, (total - floor) / iters);
@@ -144,12 +151,6 @@ async function measureOne(nvs: string, bench: string, reps: number, floor: numbe
   for (const [k, want] of Object.entries(expected)) {
     if (Math.abs(perOp[k]! - want) > 0.01) findings.push(`declares \`${k} ${want}\` per op and did ${fixed(perOp[k]!, 3)}`);
   }
-  // The growth, by `scaling.ts`'s ramp, which is that tool's to define. It is imported when it runs
-  // because it imports this module's counting run in turn.
-  const { growthOf } = await import("../cmd/scaling.ts");
-  measuring = `${measuring}, ramping`;
-  // A bench with no `// bench: complexity` line fails its proof.
-  const growth = await growthOf(bench, ramp, true);
   if (growth.complexity) fig.complexity = growth.complexity;
   const clock = (s: number | null) => (s === null ? null : round(s, 3));
   const [batches, sized] = growth.ramps;

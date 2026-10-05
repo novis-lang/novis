@@ -1,7 +1,7 @@
 import { afterAll, expect, test } from "bun:test";
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { type Batch, growthOf, type Measure, type Options } from "../cmd/scaling.ts";
+import { type Batch, growthOf, type Judged, type Measure, type Options, oversized } from "../cmd/scaling.ts";
 import { stepCommands } from "../cmd/verify.ts";
 import { ROOT } from "../lib/paths.ts";
 import { COUNTS, ProgramFailed } from "../proofs/perf.ts";
@@ -115,6 +115,34 @@ test("valgrind runs only when the ramp shows no clear growth", async () => {
   expect(off.started.callgrind).toBe(0);
   expect(reported.ramps[0]!.verdict).toBe("unclear");
   expect(reported.findings).toEqual([]);
+});
+
+test("callgrind sets a bench's iterations, and a later run at that N starts no valgrind", async () => {
+  const path = bench("threshold", "constant");
+  const first = fake(seesaw, undefined, (n) => 100 * n);
+  const measured = await growthOf(path, opts(true), true, first.measure);
+  // The instructions agree from the fourth batch, 128, so N becomes twice that.
+  expect(measured.ramps[0]!.threshold).toBe(128);
+  const source = readFileSync(join(ROOT, path), "utf8");
+  expect(source).toContain("// bench: iterations 256 callgrind\n");
+  expect(source).toContain("echo Bench::run(256),");
+  // A later run ramps only up to that batch, and its counts settle with no valgrind.
+  const later = fake((n) => 5 * n, undefined, (n) => 100 * n);
+  const again = await growthOf(path, opts(true), true, later.measure);
+  expect(later.started.callgrind).toBe(0);
+  expect(again.ramps[0]!.verdict).toBe("flat");
+  expect(Math.max(...again.ramps[0]!.sizes)).toBe(128);
+  expect(readFileSync(join(ROOT, path), "utf8")).toBe(source);
+});
+
+test("--sized fails a bench whose N is more than twice the batch its ramp settled at", () => {
+  const judged = (verdict: Judged["verdict"], sizes: number[], threshold?: number): Judged => ({ bench: "b.nvs", verdict, sizes, slopes: {}, clock: null, notes: [], ...(threshold === undefined ? {} : { threshold }) });
+  expect(oversized(judged("flat", [16, 32, 64, 128]), 256)).toBeNull();
+  expect(oversized(judged("flat", [16, 32, 64, 128]), 257)).toContain("N is at most 256");
+  // Callgrind's threshold is where the ramp settled, though the ramp ran every batch to the ceiling.
+  expect(oversized(judged("flat", [16, 32, 64, 128, 256, 512, 1024, 2048, 4096], 128), 100000)).toContain("settled at 128");
+  // A ramp that did not settle keeps its N.
+  expect(oversized(judged("unclear", [16, 32, 64, 128, 256, 512, 1024, 2048, 4096]), 100000)).toBeNull();
 });
 
 test("nv verify never runs valgrind over a bench", () => {

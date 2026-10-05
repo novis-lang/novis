@@ -104,7 +104,9 @@ names the two answers, the second being a `// proof: gap` marker on the bench.
   from `start` to `max`, and a count that grows faster than the class allows fails. The counts
   decide and the clock is reported. Where the counts do not settle by the ramp's ceiling,
   `--record-perf` runs the same batches under callgrind, unless it is given `--no-callgrind`, and
-  `nv verify` never does. A ramp still unclear after that is reported in the record's
+  `nv verify` never does. When callgrind settles the ramp, the proof sets the bench's N to twice the
+  batch where its instructions agreed and writes the line as `// bench: iterations N callgrind`, so
+  later runs ramp up to that batch. A ramp still unclear after that is reported in the record's
   `growth_notes`, not failed.
 - **A sibling `<name>.twin.nvs`** — the same operation written another way, such as a pipeline
   written as nested calls, with its own `iterations`. It is timed in the same sweep, and the record
