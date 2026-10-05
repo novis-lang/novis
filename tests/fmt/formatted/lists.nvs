@@ -1,0 +1,39 @@
+<?nvs
+enum Side { Left, Right }
+
+enum Permission: uint
+{
+    Read = 0b001,
+    Write = 0b010,
+}
+
+class Shop
+{
+    public static function place(
+        string $customer,
+        array<int> $basket,
+        int $count = 1,
+    ): int
+    {
+        return Core\Arr::sum([
+            $count,
+            Core\Arr::sum($basket),
+        ]);
+    }
+
+    public static function name(string $customer, int $count): string
+    {
+        return Core\Str::upper($customer);
+    }
+}
+
+var $total = Shop::place('ana', [
+    1,
+    2,
+    3,
+], 2);
+var $grid = [[1, 2], [
+    3,
+    4,
+]];
+echo $total, Shop::name('bo', 1), Core\Arr::sum($grid[0]);

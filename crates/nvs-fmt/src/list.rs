@@ -4,8 +4,8 @@
 //!
 //! # Where a list's own level is
 //!
-//! A list is a production in [`LISTS`] whose own last byte is the delimiter
-//! that closes it. Its items are the node's children, and a child covers every
+//! A call's arguments, an array literal and an anonymous object are each a
+//! production in [`LISTS`] whose own last byte is the delimiter that closes it. Its items are the node's children, and a child covers every
 //! byte of the expression it is, so a byte of the list's span that no child
 //! covers is the list's own: the opener, the commas, and what an item writes in
 //! front of its expression — an array key's `=>`, a named argument's name, an
@@ -19,6 +19,15 @@
 //! never between the opener and an item. Every comma in them separates two
 //! items. A byte inside a comment is skipped in both searches, since a comment
 //! is prose.
+//!
+//! Two lists are written inside a node that ends somewhere else. An enum's
+//! cases are its body, so its braces are the list's opener and closer, as long
+//! as the body holds cases and nothing else. A parameter is no node at all, and
+//! only its default value is a child, so a parameter list is read from the
+//! signature's own bytes ([`parameters`]): its first `(` at depth zero, the
+//! `)` that matches it, and the commas at depth one. A string an attribute
+//! writes is no node either, and its quotes are followed so a bracket inside
+//! one never counts.
 //!
 //! # Broken
 //!
@@ -42,9 +51,9 @@
 //!
 //! # Not yet a list here
 //!
-//! A parameter list, a shape type and an enum's cases are written inside a node
-//! that ends somewhere else, so no closer finds them, and a `match` arm list is
-//! [`crate::indent`]'s. A list inside a `switch` or inline HTML is left as it
+//! A shape type is no node, so nothing tells its `{` from a block's, and a
+//! `match` arm list is [`crate::indent`]'s. An enum on one line keeps its `{`
+//! on the `enum` line, which [`crate::brace`] writes from [`List::on_one_line`]. A list inside a `switch` or inline HTML is left as it
 //! is written, as every line there is ([`crate::indent`]'s `OPAQUE`).
 //!
 //! # What it spends
@@ -71,6 +80,18 @@ const LISTS: &[(&str, u8, u8)] = &[
     ("AnonObject", b'{', b'}'),
 ];
 
+/// The productions whose parameter list is a list: the first `(` of code at
+/// the signature's own level, and the `)` that matches it.
+const PARAMETERS: &[&str] = &["Function", "Method", "Fn"];
+
+/// The production whose body is its case list.
+const ENUM: &str = "EnumDecl";
+
+/// Whether a node of `kind` writes a list this module lays out.
+fn writes_a_list(kind: &str) -> bool {
+    kind == ENUM || PARAMETERS.contains(&kind) || LISTS.iter().any(|(list, ..)| *list == kind)
+}
+
 /// Where a line opened inside a broken list sits.
 pub(crate) enum Level {
     /// One level in from the opener's line: an item, or a comment between two.
@@ -83,8 +104,8 @@ pub(crate) enum Level {
 pub(crate) struct List {
     /// The opening delimiter.
     opener: usize,
-    /// The closing delimiter, which is the node's last byte.
-    closer: usize,
+    /// The closing delimiter.
+    pub(crate) closer: usize,
     /// Every comma between two items, and the trailing one if it is written.
     commas: Vec<usize>,
     /// The first code byte of each item.
@@ -103,30 +124,18 @@ impl List {
         trivia: &[Trivia],
         node: IndexNode,
     ) -> Option<Self> {
-        let &(_, open, close) = LISTS.iter().find(|(kind, ..)| *kind == node.kind)?;
         let bytes = text.as_bytes();
-        let closer = (node.span.end as usize).checked_sub(1)?;
-        if bytes.get(closer) != Some(&close) {
-            return None;
-        }
         // A pipeline's `$_` is a child written somewhere else entirely, at the
         // pipeline's left side, so the children are put in source order first.
         let mut children = index.children_of(node);
         children.sort_by_key(|child| child.span.start);
-        let mut opener = None;
-        let mut until = closer;
-        for child in children.iter().rev() {
-            if child.span.end as usize > until {
-                continue;
-            }
-            opener = last_code(bytes, trivia, child.span.end as usize, until, open);
-            if opener.is_some() {
-                break;
-            }
-            until = child.span.start as usize;
-        }
-        let opener =
-            opener.or_else(|| last_code(bytes, trivia, node.span.start as usize, until, open))?;
+        let (opener, closer, commas) = if PARAMETERS.contains(&node.kind) {
+            parameters(bytes, trivia, node, &children)?
+        } else if node.kind == ENUM {
+            cases(bytes, trivia, node, &children)?
+        } else {
+            delimited(bytes, trivia, node, &children)?
+        };
         let at = BytePos::try_from(opener).ok()?;
         if index
             .at(at)
@@ -136,17 +145,6 @@ impl List {
         {
             return None;
         }
-
-        let mut commas = Vec::new();
-        let mut from = opener + 1;
-        for child in children
-            .iter()
-            .filter(|child| child.span.start as usize > opener)
-        {
-            push_commas(&mut commas, bytes, trivia, from, child.span.start as usize);
-            from = from.max(child.span.end as usize);
-        }
-        push_commas(&mut commas, bytes, trivia, from, closer);
 
         let items: Vec<usize> = std::iter::once(opener)
             .chain(commas.iter().copied())
@@ -170,6 +168,20 @@ impl List {
             commas,
             items,
             broken,
+        })
+    }
+
+    /// The runs an enum's case list on one line requires, where its body's
+    /// opener is at `brace`: one space in front of the `{`, one after it and
+    /// one in front of the `}`. [`None`] for a list that is broken, or whose
+    /// opener is not `brace`.
+    pub(crate) fn on_one_line(&self, brace: usize) -> Option<[(usize, String); 3]> {
+        (!self.broken && self.opener == brace).then(|| {
+            [
+                (self.opener, " ".to_owned()),
+                (self.items[0], " ".to_owned()),
+                (self.closer, " ".to_owned()),
+            ]
         })
     }
 
@@ -200,7 +212,7 @@ pub(crate) fn opening(indent: &Indent<'_>, nodes: &[IndexNode], offset: usize) -
     let (index, text, trivia) = indent.parse();
     nodes
         .iter()
-        .filter(|node| LISTS.iter().any(|(kind, ..)| *kind == node.kind))
+        .filter(|node| writes_a_list(node.kind))
         .find_map(|&node| {
             let list = List::of(index, text, trivia, node)?;
             let level = list.level(trivia, offset)?;
@@ -239,10 +251,12 @@ pub(crate) fn runs(
             let Some(node) = index.at(pos).innermost() else {
                 continue;
             };
-            if node.span.end as usize != offset + 1 {
+            if !writes_a_list(node.kind) {
                 continue;
             }
-            let Some(list) = List::of(index, text, trivia, node).filter(|list| list.broken) else {
+            let Some(list) = List::of(index, text, trivia, node)
+                .filter(|list| list.closer == offset && list.broken)
+            else {
                 continue;
             };
             lay_out(wanted, indent, text, trivia, &list, line_break);
@@ -282,6 +296,174 @@ fn lay_out(
     if !text[from..list.closer].contains('\n') {
         wanted.push((list.closer, format!("{line_break}{base}")));
     }
+}
+
+/// The opener, closer and commas of a list whose closer is `node`'s last byte.
+fn delimited(
+    bytes: &[u8],
+    trivia: &[Trivia],
+    node: IndexNode,
+    children: &[IndexNode],
+) -> Option<(usize, usize, Vec<usize>)> {
+    let &(_, open, close) = LISTS.iter().find(|(kind, ..)| *kind == node.kind)?;
+    let closer = (node.span.end as usize).checked_sub(1)?;
+    if bytes.get(closer) != Some(&close) {
+        return None;
+    }
+    let mut opener = None;
+    let mut until = closer;
+    for child in children.iter().rev() {
+        if child.span.end as usize > until {
+            continue;
+        }
+        opener = last_code(bytes, trivia, child.span.end as usize, until, open);
+        if opener.is_some() {
+            break;
+        }
+        until = child.span.start as usize;
+    }
+    let opener =
+        opener.or_else(|| last_code(bytes, trivia, node.span.start as usize, until, open))?;
+    let commas = commas_between(bytes, trivia, children, opener, closer);
+    Some((opener, closer, commas))
+}
+
+/// The opener, closer and commas of an enum's case list: the body's braces,
+/// where the body holds cases and nothing else.
+///
+/// The `{` is the first one of code at the declaration's own level, so a
+/// brace inside an attribute in front of the `enum` keyword is not it.
+fn cases(
+    bytes: &[u8],
+    trivia: &[Trivia],
+    node: IndexNode,
+    children: &[IndexNode],
+) -> Option<(usize, usize, Vec<usize>)> {
+    if children.iter().any(|child| child.kind != "EnumCase") {
+        return None;
+    }
+    let closer = (node.span.end as usize).checked_sub(1)?;
+    if bytes.get(closer) != Some(&b'}') {
+        return None;
+    }
+    let mut depth = 0_usize;
+    let opener = own_code(bytes, trivia, children, node.span.start as usize..closer).find(
+        |&at| match bytes[at] {
+            b'{' if depth == 0 => true,
+            b'(' | b'[' | b'{' => {
+                depth += 1;
+                false
+            }
+            b')' | b']' | b'}' => {
+                depth = depth.saturating_sub(1);
+                false
+            }
+            _ => false,
+        },
+    )?;
+    let commas = commas_between(bytes, trivia, children, opener, closer);
+    Some((opener, closer, commas))
+}
+
+/// The opener, closer and commas of a function's parameter list.
+///
+/// A parameter is no node, and only its default value is a child, so the list
+/// is read from the bytes: the first `(` of code at the signature's own level
+/// opens it, and the `)` that brings the depth back to that level closes it. A
+/// default value is skipped whole, and a type's own brackets and `<` … `>`
+/// count as depth, so a comma inside a shape type or a generic type is not
+/// one of the list's.
+fn parameters(
+    bytes: &[u8],
+    trivia: &[Trivia],
+    node: IndexNode,
+    children: &[IndexNode],
+) -> Option<(usize, usize, Vec<usize>)> {
+    let mut depth = 0_usize;
+    let mut opener = None;
+    let mut commas = Vec::new();
+    let span = node.span.start as usize..node.span.end as usize;
+    for at in own_code(bytes, trivia, children, span) {
+        match bytes[at] {
+            b'(' if depth == 0 && opener.is_none() => {
+                opener = Some(at);
+                depth = 1;
+            }
+            b'(' | b'[' | b'{' | b'<' => depth += 1,
+            b')' | b']' | b'}' | b'>' => {
+                depth = depth.checked_sub(1)?;
+                if depth == 0
+                    && let Some(opener) = opener
+                {
+                    return Some((opener, at, commas));
+                }
+            }
+            b',' if depth == 1 && opener.is_some() => commas.push(at),
+            _ => {}
+        }
+    }
+    None
+}
+
+/// Every offset in `span` whose byte is code a node writes itself: not inside
+/// a comment, a child or a string literal.
+///
+/// A string an attribute writes is no node, so its quotes are followed here,
+/// and a bracket or a comma inside one is never a delimiter.
+fn own_code<'a>(
+    bytes: &'a [u8],
+    trivia: &'a [Trivia],
+    children: &'a [IndexNode],
+    span: std::ops::Range<usize>,
+) -> impl Iterator<Item = usize> + 'a {
+    let mut quote = None;
+    let mut escaped = false;
+    span.filter(move |&at| {
+        if commented(trivia, at)
+            || children
+                .iter()
+                .any(|child| (child.span.start as usize..child.span.end as usize).contains(&at))
+        {
+            return false;
+        }
+        let byte = bytes[at];
+        if let Some(open) = quote {
+            if escaped {
+                escaped = false;
+            } else if byte == b'\\' {
+                escaped = true;
+            } else if byte == open {
+                quote = None;
+            }
+            return false;
+        }
+        if matches!(byte, b'"' | b'\'') {
+            quote = Some(byte);
+            return false;
+        }
+        true
+    })
+}
+
+/// Every comma of code between `opener` and `closer` that no child covers.
+fn commas_between(
+    bytes: &[u8],
+    trivia: &[Trivia],
+    children: &[IndexNode],
+    opener: usize,
+    closer: usize,
+) -> Vec<usize> {
+    let mut commas = Vec::new();
+    let mut from = opener + 1;
+    for child in children
+        .iter()
+        .filter(|child| child.span.start as usize > opener)
+    {
+        push_commas(&mut commas, bytes, trivia, from, child.span.start as usize);
+        from = from.max(child.span.end as usize);
+    }
+    push_commas(&mut commas, bytes, trivia, from, closer);
+    commas
 }
 
 /// The last `wanted` byte of code in `bytes[from..to]`, skipping comments.

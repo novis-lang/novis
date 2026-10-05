@@ -60,8 +60,9 @@
 //! `Call` is one and a `]` that ends an `Index` is not. The index carries no
 //! span for an element, and it does not need to — the last element ends at the
 //! last code byte before the closer, which is the byte the walk has in hand.
-//! A parameter list, an enum-case list and a shape type's fields are written
-//! inside a node that ends somewhere else entirely, and are a known gap in
+//! A parameter list and an enum-case list end inside a node that runs on past
+//! them, so a closer is also a list's when [`List::of`] finds that closer in
+//! the node there. A shape type's fields are a known gap in
 //! [`the crate's own doc`](crate).
 //!
 //! # The reserved spellings
@@ -273,7 +274,8 @@ fn comma<'t>(
     let Some(node) = index.at(pos).innermost() else {
         return;
     };
-    if node.span.end as usize != offset + 1 || !LISTS.contains(&node.kind) {
+    let list = List::of(index, text, trivia, node).filter(|list| list.closer == offset);
+    if list.is_none() && (node.span.end as usize != offset + 1 || !LISTS.contains(&node.kind)) {
         return;
     }
     let bytes = text.as_bytes();
@@ -283,8 +285,7 @@ fn comma<'t>(
     let Some(between) = text.get(last + 1..offset) else {
         return;
     };
-    let owed = List::of(index, text, trivia, node)
-        .map_or_else(|| between.contains('\n'), |list| list.broken);
+    let owed = list.map_or_else(|| between.contains('\n'), |list| list.broken);
     match (bytes[last] == b',', owed) {
         (false, true) => out.push(Rewrite {
             start: last + 1,

@@ -41,6 +41,7 @@ use nvs_diagnostics::BytePos;
 use nvs_syntax::{IndexNode, SyntaxIndex, Trivia};
 
 use crate::indent::Indent;
+use crate::list::List;
 
 /// One level of the brace rule: the declarations whose body's `{` starts a line
 /// of its own, at the declaration's own indentation.
@@ -107,6 +108,11 @@ pub(crate) fn placements(
 
     let line_break = if text.contains("\r\n") { "\r\n" } else { "\n" };
     for (node, at) in bodies {
+        let one_line = List::of(index, text, trivia, node).and_then(|list| list.on_one_line(at));
+        if let Some(runs) = one_line {
+            wanted.extend(runs);
+            continue;
+        }
         let opening = indent.opening_of(node.span.start as usize);
         wanted.push((at, format!("{line_break}{opening}")));
     }
