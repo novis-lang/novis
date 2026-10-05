@@ -119,8 +119,9 @@
 //! that into what it can hold.
 //!
 //! **The read judges, and never writes.** An entry past its deadline answers
-//! `null` and stays where it is until the cap forgets it or a `put` replaces
-//! it, because taking it out would make `get` a write:
+//! `null` and stays where it is until the cap forgets it, a `put` replaces it,
+//! or a later write's sweep takes it out, because taking it out would make
+//! `get` a write:
 //! `rule:concurrency/the-process-tier-is-one-store-per-process` fixes that a
 //! lookup takes a shard's read lock and nothing more, and the local tier's
 //! `RefCell` is shared with `Core\RateLimit` for the reason § 3's eviction
@@ -869,7 +870,14 @@ struct Entry {
     /// The instant this stops being readable, or `None` for an entry only the
     /// cap or an overwrite takes out.
     until: Option<Instant>,
+    /// The number of this entry's slot in [`Entries::order`], which is what
+    /// tells that slot apart from one an earlier entry under the same key left.
+    slot: u64,
 }
+
+/// The fewest slots [`Entries::order`] holds before a write sweeps it, so a
+/// tier of a handful of keys is not swept on every write.
+const SWEEP_FLOOR: usize = 64;
 
 /// A tier's entries and what they cost, together, because a size is only
 /// meaningful against the map it measures: a second cell holding the number
@@ -896,7 +904,20 @@ struct Entries<K> {
     /// times leaves nothing behind it. Ordering by last write instead would
     /// need a slot per *write*, which is the O(requests served) growth
     /// `AGENTS.md` calls a leak rather than a policy.
-    order: VecDeque<K>,
+    ///
+    /// Each slot carries the number its entry has in [`Entry::slot`]. A key
+    /// that is forgotten leaves its slot here, and the same key written again
+    /// takes a new one; the number is how [`Entries::forget_oldest`] and
+    /// [`Entries::sweep`] tell the old slot from the live one. Those stale
+    /// slots are taken out by the sweep, which runs when this queue reaches
+    /// `sweep_at`, so it holds at most twice the live keys plus
+    /// [`SWEEP_FLOOR`] — sixteen bytes and a key handle per slot, per core for
+    /// the local tier and per shard for the process tier.
+    order: VecDeque<(u64, K)>,
+    /// The number the next new slot in `order` gets.
+    next_slot: u64,
+    /// The length of `order` at which the next write sweeps it.
+    sweep_at: usize,
     /// What `entries` costs by [`charged`], maintained on every write so that
     /// the cap is a comparison rather than a walk of the map.
     held: usize,
@@ -910,6 +931,8 @@ impl<K> Default for Entries<K> {
         Self {
             entries: HashMap::new(),
             order: VecDeque::new(),
+            next_slot: 0,
+            sweep_at: SWEEP_FLOOR,
             held: 0,
         }
     }
@@ -945,15 +968,17 @@ impl<K: Borrow<[u8]> + Clone + Eq + Hash + for<'a> From<&'a [u8]>> Entries<K> {
             while self.held + incoming > cap && self.forget_oldest() {}
         }
 
-        let handle = match self.entries.remove_entry(key) {
+        let (handle, slot) = match self.entries.remove_entry(key) {
             Some((held, previous)) => {
                 self.held -= charged(key.len(), previous.payload.len());
-                held
+                (held, previous.slot)
             }
             None => {
                 let fresh = K::from(key);
-                self.order.push_back(fresh.clone());
-                fresh
+                let slot = self.next_slot;
+                self.next_slot += 1;
+                self.order.push_back((slot, fresh.clone()));
+                (fresh, slot)
             }
         };
         self.held += incoming;
@@ -962,17 +987,20 @@ impl<K: Borrow<[u8]> + Clone + Eq + Hash + for<'a> From<&'a [u8]>> Entries<K> {
             Entry {
                 payload: Box::from(payload),
                 until: lifetime.until(),
+                slot,
             },
         );
+        if self.order.len() >= self.sweep_at {
+            self.sweep();
+        }
     }
 
     /// Takes the entry under `key` out, and answers nothing about whether
     /// there was one.
     ///
-    /// The slot `order` holds for it is left behind rather than searched for:
-    /// it is the one slot that can outlive its entry, [`Entries::forget_oldest`]
-    /// skips it when it reaches the front, and a scan of the queue to remove it
-    /// would price every forget at the length of the tier.
+    /// The slot `order` holds for it is left behind, because finding it would
+    /// cost a scan of the queue on every forget. [`Entries::forget_oldest`]
+    /// skips it when it reaches the front, and [`Entries::sweep`] takes it out.
     fn forget(&mut self, key: &[u8]) {
         if let Some(previous) = self.entries.remove(key) {
             self.held -= charged(key.len(), previous.payload.len());
@@ -987,8 +1015,9 @@ impl<K: Borrow<[u8]> + Clone + Eq + Hash + for<'a> From<&'a [u8]>> Entries<K> {
     /// lock and nothing more, which is the property
     /// `rule:concurrency/the-process-tier-is-one-store-per-process` fixes about
     /// a `get`. Its bytes stay against the cap until the eviction order reaches
-    /// it or a `put` replaces it, which is footprint spent on every core
-    /// reading one hot key at the same moment.
+    /// it, a `put` replaces it, or the next [`Entries::sweep`] takes it out,
+    /// which is footprint spent on every core reading one hot key at the same
+    /// moment.
     ///
     /// The clock is read only once an entry with a deadline is in hand, so a
     /// tier nothing wrote a `ttl` to pays nothing for the question.
@@ -1003,18 +1032,55 @@ impl<K: Borrow<[u8]> + Clone + Eq + Hash + for<'a> From<&'a [u8]>> Entries<K> {
     /// Forgets the entry whose key was written longest ago, and answers whether
     /// there was one to forget — which is what bounds [`Entries::put`]'s loop.
     ///
-    /// A slot naming nothing is skipped rather than counted: it is the oversized
-    /// write above, and skipping it here is what keeps that case from paying for
-    /// a scan of the queue at the time it happens.
+    /// A stale slot is skipped rather than counted: one whose key is gone, or
+    /// whose key was forgotten and written again under a newer slot. Evicting
+    /// on the stale slot would take the newer entry out at the old one's age.
     fn forget_oldest(&mut self) -> bool {
-        while let Some(key) = self.order.pop_front() {
+        while let Some((slot, key)) = self.order.pop_front() {
             let raw = bytes(&key);
-            if let Some(previous) = self.entries.remove(raw) {
-                self.held -= charged(raw.len(), previous.payload.len());
+            if self
+                .entries
+                .get(raw)
+                .is_some_and(|entry| entry.slot == slot)
+            {
+                if let Some(previous) = self.entries.remove(raw) {
+                    self.held -= charged(raw.len(), previous.payload.len());
+                }
                 return true;
             }
         }
         false
+    }
+
+    /// Takes every entry past its deadline out of the map, and every stale
+    /// slot out of `order`, then sets the next sweep at twice what is left.
+    ///
+    /// The sweep walks the whole tier, and the doubling is what makes that
+    /// a constant per write on average: a sweep over `n` slots comes only after
+    /// at least `n` new ones. It runs on a write because a `get` takes no write
+    /// lock, so a tier nobody writes to keeps its expired entries until the
+    /// next write.
+    fn sweep(&mut self) {
+        let now = Instant::now();
+        let Self {
+            entries,
+            order,
+            held,
+            ..
+        } = self;
+        entries.retain(|key, entry| {
+            let live = entry.until.is_none_or(|until| now < until);
+            if !live {
+                *held -= charged(bytes(key).len(), entry.payload.len());
+            }
+            live
+        });
+        order.retain(|(slot, key)| {
+            entries
+                .get(bytes(key))
+                .is_some_and(|entry| entry.slot == *slot)
+        });
+        self.sweep_at = SWEEP_FLOOR.max(2 * self.order.len());
     }
 }
 
@@ -3284,6 +3350,76 @@ mod tests {
                 "an overwrite keeps its place rather than taking a second one"
             );
         });
+    }
+
+    /// The same O(in-flight) rule for a key that is forgotten between writes,
+    /// with no cap to drain the queue. Each forget leaves a stale slot and each
+    /// write after it takes a new one, so only the sweep keeps the queue at the
+    /// size of what the tier holds.
+    // covers: Core\Cache\Store::forget
+    #[test]
+    fn a_key_forgotten_and_written_again_forever_keeps_the_queue_bounded() {
+        let mut tier = super::Entries::<std::rc::Rc<[u8]>>::default();
+        for step in 0..10_000u32 {
+            tier.put(b"hot!", &step.to_be_bytes(), Lifetime::Forever, None);
+            tier.forget(b"hot!");
+        }
+        tier.put(b"hot!", b"last", Lifetime::Forever, None);
+        assert_eq!(tier.get(b"hot!"), Some(&b"last"[..]));
+        assert!(
+            tier.order.len() <= super::SWEEP_FLOOR,
+            "the queue grew with the writes served: {} slots",
+            tier.order.len()
+        );
+    }
+
+    /// An entry written once with a lifetime is taken out by a later write's
+    /// sweep once that lifetime is over, with no cap and no `get` asking for it.
+    /// And a stale slot never evicts the newer entry under its key.
+    #[test]
+    fn an_expired_entry_nobody_reads_again_is_swept_by_a_later_write() {
+        let mut tier = super::Entries::<std::rc::Rc<[u8]>>::default();
+        for step in 0..1_000u32 {
+            let key = format!("session:{step}");
+            tier.put(
+                key.as_bytes(),
+                b"x",
+                Lifetime::For(Duration::from_millis(1)),
+                None,
+            );
+        }
+        std::thread::sleep(Duration::from_millis(5));
+        // The next sweep comes at most 2048 slots after the last one, and the
+        // queue holds at most 1000 of them, so 2048 writes reach it.
+        for step in 0..2048u32 {
+            let key = format!("kept:{step}");
+            tier.put(key.as_bytes(), b"y", Lifetime::Forever, None);
+        }
+        assert_eq!(
+            tier.entries.len(),
+            2048,
+            "expired entries stayed in the tier"
+        );
+        let live: usize = tier
+            .entries
+            .iter()
+            .map(|(key, entry)| super::charged(key.len(), entry.payload.len()))
+            .sum();
+        assert_eq!(tier.held, live, "the sweep freed bytes it did not count");
+
+        // A stale slot at the front of the queue names a key written again later.
+        let mut tier = super::Entries::<std::rc::Rc<[u8]>>::default();
+        tier.put(b"a", b"1", Lifetime::Forever, None);
+        tier.put(b"b", b"2", Lifetime::Forever, None);
+        tier.forget(b"a");
+        tier.put(b"a", b"3", Lifetime::Forever, None);
+        assert!(tier.forget_oldest());
+        assert_eq!(
+            tier.get(b"a"),
+            Some(&b"3"[..]),
+            "the stale slot evicted `a`"
+        );
+        assert_eq!(tier.get(b"b"), None);
     }
 
     /// `rule:concurrency/the-process-tier-is-one-store-per-process`: one map

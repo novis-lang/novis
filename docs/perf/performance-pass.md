@@ -68,6 +68,15 @@ used least recently, so a hot pattern survives a stream of one-off patterns. The
 already bounded by the cache's size, so there is no ladder. Unit tests in the module cover it. It
 spends one `usize` and one `u64` per cached program.
 
+**A cache tier's eviction queue stays the size of what the tier holds.** A key that was forgotten
+and written again took a second queue slot each time, so with `max_size` off a put-and-forget
+cycle grew the queue with every request. An entry past its lifetime that nobody read again also
+stayed forever. A write now sweeps the queue and the expired entries once the queue has doubled
+since the last sweep, which is a constant per write on average. The queue holds at most twice the
+live keys plus 64 slots. Each slot carries a number, so a stale slot never evicts the newer entry
+under its key. The leak is in memory the clock does not see, so two unit tests in the module cover
+it rather than a ladder. It spends one `u64` per entry and one per slot.
+
 ## Decisions for you
 
 **Should a request head get a total deadline as well as its idle one?** `header_timeout` is an idle

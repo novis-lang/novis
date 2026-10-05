@@ -208,8 +208,7 @@ Finished jobs stay until purged, and `purge` and `stats` scan them
 `Core\Storage::list`.
 
 **Found:** a forgotten key leaves its eviction slot, so a put, forget and put cycle grows the tier
-without bound
-([`a-forgotten-cache-key-leaves-its-order-slot`](../../data/gaps/nvs-stdlib/a-forgotten-cache-key-leaves-its-order-slot.json)).
+without bound (fixed, under *What got better* in [performance-pass.md](performance-pass.md)).
 
 **Bounded:** a session `get` decodes the whole record and a `set` encodes it again
 (`crates/nvs-stdlib/src/session.rs:1004-1080`), O(session size) per key, which its doc names as an
