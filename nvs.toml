@@ -2734,3 +2734,121 @@ pool_idle_timeout = "30s"
 
 [http.client.tls]
 min_version = "1.2"
+
+[[app]]
+entry = "benches/members/core/Csv/rows.scale.nvs"
+
+[app.capabilities.fs]
+read = true
+write = true
+
+[[app]]
+entry = "benches/members/core/Db-Connection/execute.scale.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Connection/executeMany.scale.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Connection/query.scale.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Connection/queryAs.scale.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Connection/stream.scale.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Connection/streamAs.scale.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Transaction/execute.scale.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Transaction/executeMany.scale.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Transaction/query.scale.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Transaction/queryAs.scale.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Transaction/stream.scale.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Transaction/streamAs.scale.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Rows/all.scale.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Rows/column.scale.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Row/toArray.scale.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Schema/applySafe.scale.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+schema = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Schema/applyIncludingRisky.scale.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+schema = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Schema/planAgainst.scale.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+schema = ["notes"]
