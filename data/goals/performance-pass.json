@@ -7,7 +7,9 @@
     "modules": [
       "benches/members/README.md",
       "tools/nv/proofs/perf.ts",
-      "tools/nv/cmd/bench.ts"
+      "tools/nv/cmd/bench.ts",
+      "crates/nvs-runtime/src/object.rs",
+      "crates/nvs-stdlib/src/reflect.rs"
     ],
     "rules": [
       "testing/bench-counters",
