@@ -15690,7 +15690,7 @@ Returns a new `Uri` with some parts of the address changed. You name the parts i
 $uri->queryParameter(string $name): mixed
 ```
 
-Returns one value from the query of the address, by its name. For `/search?q=red+shoes` the result of `queryParameter("q")` is `red shoes`. The query is read the same way as by `Core\Uri::parseQuery`, and each call reads it again.
+Returns one value from the query of the address, by its name. For `/search?q=red+shoes` the result of `queryParameter("q")` is `red shoes`. The query is read the same way as by `Core\Uri::parseQuery`, and each call reads it again. To read many parameters, call `Core\Uri::parseQuery` once on the query and read the array it returns.
 
 | Parameter | Type | Meaning |
 |---|---|---|

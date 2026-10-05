@@ -1,26 +1,26 @@
 {
-  "state": "**Goal `performance-pass`, Stage 5 (the fixes).** Stage 4's review is whole (`docs/perf/performance-review.md`, ending in `## floor`). Old refusals have not been priced again yet.\n\n**`bun nv scaling --check` was green at the start of the previous session**, and nothing since has changed a ladder or the code one measures. `numbers/bigint-mul.nvs` stays unclear, which `--check` passes; `docs/perf/performance-pass.md` *Benches to look at* records why.\n\n**`Markup + Markup` is recorded, not built.** A probe measured it quadratic (8000 rows 44 ms, 32000 rows 856 ms). The fix needs a consume-the-left-reference lowering for a `CoreCall` plus an in-place append into the carrier's slot, both new `unsafe`, so it is the second entry under `docs/perf/performance-pass.md` *Decisions for you* and its gap record is deleted. No `templates/markup-loop.nvs` ladder was written: it would fail `--check` until the decision is made.\n\n**24 gap records owned by `performance-pass`** keep `owners --closes performance-pass` red (`bun nv owners --closes performance-pass` lists them), and they are the rest of Stage 5: each is fixed and its record deleted, or struck as a stated bound. *Decisions for you* has two entries: a total deadline for the request head, and `Markup` concatenation in place.",
+  "state": "**Goal `performance-pass`, Stage 5 (the fixes).** Stage 4's review is whole (`docs/perf/performance-review.md`, ending in `## floor`). Old refusals have not been priced again yet.\n\n**`bun nv scaling --check` was green two sessions ago**, and nothing since has changed a ladder it already ran. Two ladders are new: `benches/scaling/strings/at.nvs` and `strings/find-next.nvs`, both flat. The tool's counts cannot see work inside a `Core` member and its ramp stopped at 8000, so the fix was proven by clock: a probe over 200,000 characters (`at`, `slice` and find-next `indexOf`) ran 1486 ms before and 41 ms after, with the same output.\n\n**`Core\\Uri::queryParameter` is a stated bound**, not a memo: the `crates/nvs-stdlib/src/uri.rs` module doc *What it spends* says why, and the card sends a program reading many names to `parseQuery`. **String positions on one-byte text are O(1)** through the `_of` methods in `crates/nvs-stdlib/src/granularity.rs`, whose module doc *What an index costs* states the bound for wider text.\n\n**22 gap records owned by `performance-pass`** keep `owners --closes performance-pass` red (`bun nv owners --closes performance-pass` lists them), and they are the rest of Stage 5. *Decisions for you* in `docs/perf/performance-pass.md` has two entries: a total deadline for the request head, and `Markup` concatenation in place.",
   "next": {
     "stage": 5,
-    "title": "the fixes, `Core\\Uri` query parsing",
-    "files": [],
-    "note": "one file set: `crates/nvs-stdlib/src/uri.rs` and its ladder under `benches/scaling/`.",
+    "title": "the fixes, `Core\\Log` below its level",
+    "files": [
+      "crates/nvs-stdlib/src/log.rs",
+      "crates/nvs-runtime/src/ctx/output.rs"
+    ],
     "items": [
       {
         "done": false,
-        "text": "**`$uri->queryParameter` decides between a memo slot and a stated bound** (`crates/nvs-stdlib/src/uri.rs:2679`), per `data/gaps/nvs-stdlib/uri-query-parameter-reparse-per-call.json`. A memo held on the `Core\\Uri` instance spends memory per instance and must say what; a stated bound strikes the gap in the module doc. Rule: the goal's base rule."
+        "text": "**A `Core\\Log` call below `[log] level` returns before it builds a record** (`crates/nvs-stdlib/src/log.rs:231`), per `data/gaps/nvs-stdlib/a-filtered-log-call-builds-its-record.json`. Check the level before the fields, the key hash, the clock and the `floor::LOG_WINDOWS` slot (`crates/nvs-runtime/src/floor.rs:558`); today `write_log_record` (`crates/nvs-runtime/src/ctx/output.rs:368`) drops it last. Filtered records can push real ones out of the 16 slots, so this is a correctness fix too. Ladder `traffic/debug-log.nvs`, `serve` kind. Rule: the goal's base rule."
       },
       {
         "done": false,
-        "text": "**`a-string-index-walks-the-whole-subject`** (`crates/nvs-stdlib/src/granularity.rs:1`), per its gap record under `data/gaps/nvs-stdlib/`, only if the first item left room: it is a different file set, so it is more likely the group after."
+        "text": "**The event-stream reader remembers where its last scan stopped** (`crates/nvs-stdlib/src/http/stream.rs:612`), per `data/gaps/nvs-stdlib/an-event-stream-reparses-its-buffer-per-read.json` — a different file set, so take it only with room to spare. Rule: the goal's base rule."
       }
     ]
   },
   "backlog": [
-    "`data/gaps/nvs-runtime/` `route-matching-tries-every-route` — request-path cost, likely the largest remaining one (`crates/nvs-runtime/src/routes.rs`).",
-    "`data/gaps/nvs-runtime/` `a-throw-copies-its-message-per-frame` (`crates/nvs-runtime/src/ctx/error.rs`).",
-    "`data/gaps/nvs-types/` `core-signatures-are-built-again-for-every-check` — compile path (`crates/nvs-types/src/core_lib.rs`).",
-    "`data/gaps/nvs-server/` `a-websocket-write-buffer-has-no-ceiling` — a memory cap question, may be a *Decisions for you* entry (`crates/nvs-server/src/socket.rs`).",
-    "Old refusals are priced again once the gaps are closed (`docs/agent/goals/performance-pass.md`)."
+    "20 more gap records owned by `performance-pass`; `bun nv owners --closes performance-pass` lists them (`docs/agent/goals/performance-pass.md` Stage 5).",
+    "`bun nv scaling` ramps `strings/at` only to 8000 and sees no clock there, so a member-internal regression in it shows only by a direct clock probe (`tools/nv/cmd/scaling.ts`).",
+    "Old refusals priced again, per the goal's Stage 5 (`docs/agent/goals/performance-pass.md`)."
   ]
 }
