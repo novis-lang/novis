@@ -9,7 +9,14 @@
 //     bun nv scaling --areas [--reviewed]        whether every area in `AREAS` has a ladder (and a review)
 //
 // `--check` adds one closing line when nothing grows past its bound, which is what an acceptance check
-// reads. A run exits 1 when a program grows, and a ladder run also when a ladder is invalid.
+// reads. A run exits 1 when a program grows, and a ladder run also when a ladder is invalid. Every run
+// ends by naming its five slowest programs, so a run that nears a time limit says where its time went.
+//
+// `--jobs` ramps that many programs at once, and makes the clock noisier. A bench is judged *grows* only
+// on its counts or callgrind's instructions, which do not depend on the machine's load, so more jobs
+// can turn a flat bench *unclear* but never fail it. A ladder kind with no counts is judged on the clock
+// and has no such guarantee. The `--iterations` roster is long enough to need it: with one job it runs
+// near half an hour, which an acceptance check's time limit does not hold, so a check passes `--jobs 4`.
 //
 // `--iterations` runs every bench, `.scale.nvs` and `.twin.nvs` siblings included, at a series of
 // small batches, from a copy under `.agent-tmp/` whose closing `echo Bench::run(N)` line names the
@@ -116,6 +123,8 @@ const REVIEW = "docs/perf/performance-review.md";
 const PASSED_ITERATIONS = "every bench costs the same per operation in every batch";
 const PASSED_LADDERS = "every ladder is within its declared growth";
 const CALIBRATION = "_calibration";
+/** How many of the slowest programs a run names at its end. */
+const SLOWEST = 5;
 
 /** The first batch, in operations. */
 export const START = 16;
@@ -989,10 +998,12 @@ The ramp, the agreement test, the ceiling and the bounds are in tools/nv/cmd/sca
   const opts: Options = { nvs, reps, wslNvs, callgrind, scratch };
   console.log(iterations ? `nv scaling: ${todo.length} benches, batches from ${START} doubling to at most ${CEILING}, ${rel(nvs)}` : `nv scaling: ${todo.length} ladders, ${rel(nvs)}`);
   const results: Judged[] = [];
+  const took: [string, number][] = [];
   let next = 0;
   const worker = async () => {
     while (next < todo.length) {
       const bench = todo[next++]!;
+      const began = performance.now();
       let j: Judged;
       try {
         j = await (iterations ? rampOne : ladderOne)(bench, opts);
@@ -1002,6 +1013,7 @@ The ramp, the agreement test, the ceiling and the bounds are in tools/nv/cmd/sca
         j = { bench, verdict: iterations ? "unclear" : "invalid", sizes: [], slopes: {}, clock: null, notes: [e.message] };
       }
       results.push(j);
+      took.push([bench, (performance.now() - began) / 1000]);
       if (all || j.verdict !== "flat") console.log(line(j));
     }
   };
@@ -1013,6 +1025,9 @@ The ramp, the agreement test, the ceiling and the bounds are in tools/nv/cmd/sca
   const tally = (v: Verdict) => results.filter((r) => r.verdict === v).length;
   const extra = iterations ? "" : `, ${tally("proposal")} proposal, ${tally("invalid")} invalid`;
   console.log(`nv scaling: ${tally("flat")} flat, ${tally("grows")} grow, ${tally("unclear")} unclear, ${tally("skipped")} skipped${extra}`);
+  // The slowest programs, so a run that nears an acceptance check's time limit says where its time went.
+  const slowest = took.sort((a, b) => b[1] - a[1]).slice(0, SLOWEST);
+  console.log(`nv scaling: slowest ${slowest.map(([b, s]) => `${b.replace(/^benches\/[^/]+\//, "")} ${fixed(s, 0)}s`).join(", ")}`);
   if (tally("grows") + tally("invalid") > 0) return 1;
   if (check) console.log(iterations ? PASSED_ITERATIONS : PASSED_LADDERS);
   return 0;

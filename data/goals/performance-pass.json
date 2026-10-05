@@ -81,7 +81,9 @@
         "nv",
         "scaling",
         "--iterations",
-        "--check"
+        "--check",
+        "--jobs",
+        "4"
       ],
       "want": [
         "every bench costs the same per operation in every batch"
