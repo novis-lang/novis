@@ -1098,11 +1098,13 @@ pub(crate) fn check_write_target(target: &Expr, ctx: &Ctx<'_>, env: &mut Env<'_>
 /// spelling suggests. All four write spellings reach this through
 /// [`check_write_target`], so `$w->id++` and `unset($w->id)` answer here too.
 ///
-/// Two conditions, not one: the write must be inside the constructor *and*
-/// inside the class that declared the property. A subclass constructor writing
-/// an inherited `readonly` property is refused for the same reason PHP refuses
-/// it — the declaring class's own constructor is the one that promised the
-/// value, and a second writer is a second chance to write.
+/// Three conditions, not one: the write must be inside the constructor, inside
+/// the class that declared the property, *and* through `$this`. A subclass
+/// constructor writing an inherited `readonly` property is refused for the same
+/// reason PHP refuses it — the declaring class's own constructor is the one that
+/// promised the value, and a second writer is a second chance to write. A write
+/// through another receiver of the same class (`$other->id = 1`) is refused even
+/// there, because that object finished its own construction already.
 ///
 /// A hooked property is not reachable here: it records
 /// [`ExprInfo::HookedProperty`] instead, and a hook's `set` accessor is the
@@ -1127,15 +1129,25 @@ fn reject_readonly_write(root: &Expr, ctx: &Ctx<'_>, env: &mut Env<'_>) -> bool 
     if !crate::signatures::property_is_readonly(&owner, &name, env.signatures) {
         return false;
     }
-    if ctx.in_constructor && ctx.current_class == Some(&owner) {
+    let in_declaring_constructor = ctx.in_constructor && ctx.current_class == Some(&owner);
+    let through_this = matches!(
+        &root.kind,
+        ExprKind::PropertyAccess { object, .. } if is_this_receiver(object, env.src)
+    );
+    if in_declaring_constructor && through_this {
         return false;
     }
+    let label = if in_declaring_constructor {
+        "this write goes through another object, not `$this`"
+    } else {
+        "this write happens after construction"
+    };
     env.diags.report(
         Diagnostic::error(
             code::E_READONLY_WRITE_AFTER_CONSTRUCTION,
             format!("`{owner}::${name}` is `readonly`, so only `{owner}`'s constructor writes it"),
         )
-        .with_primary(root.span, "this write happens after construction")
+        .with_primary(root.span, label)
         .with_help(
             "`readonly` promises the value is assigned exactly once, while the object is being \
              built (`rule:classes/lateinit-restrictions`) — assign it in the constructor, take it as a constructor \

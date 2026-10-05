@@ -1,10 +1,9 @@
 {
-  "state": "**Side goal `narrow-a-readonly-property` is written and nothing of it is built yet.** A test of a property narrows nothing, E0459's help says \"test it first\" when the receiver is a tested property, and a constructor can write a `readonly` property twice, through another instance, or behind a `get` hook. The goal's prose has the user's calls from 2026-10-05 and the measured starting point.",
+  "state": "**Side goal `narrow-a-readonly-property`, stage 2 under way.** E0782 now refuses a `readonly` write whose receiver is not `$this`, inside the declaring constructor too (`reject_readonly_write`), guarded by `tests/conformance/reject/readonly-is-written-only-through-this.nvst`. Still open in stage 2: a second write on one constructor path, a hook on `readonly`, and the writers the checker does not see. Stages after it (the narrowing itself, the checked read, E0459's help) are untouched. The goal's prose has the user's calls from 2026-10-05. `bun nv verify` is green except its `extension` step, which fails in this worktree on missing `@types/node` (the extension's npm dependencies are not installed here); no TypeScript was touched.",
   "next": {
     "stage": 2,
     "title": "`readonly` is written once",
     "files": [
-      "crates/nvs-types/src/expr/assign.rs",
       "crates/nvs-types/src/ctor_init.rs",
       "crates/nvs-types/src/check.rs",
       "crates/nvs-diagnostics/src/lib.rs"
@@ -12,11 +11,7 @@
     "items": [
       {
         "done": false,
-        "text": "**Only through `$this`**: E0782 for a write whose receiver is not `$this`, inside the declaring constructor too — `crates/nvs-types/src/expr/assign.rs:1130`"
-      },
-      {
-        "done": false,
-        "text": "**At most once on each path**, a promoted parameter and a constructor loop included — `crates/nvs-types/src/ctor_init.rs:1`"
+        "text": "**At most once on each path**, a promoted parameter and a constructor loop included; a second write keeps E0782 — `crates/nvs-types/src/ctor_init.rs:1`"
       },
       {
         "done": false,
@@ -24,9 +19,11 @@
       },
       {
         "done": false,
-        "text": "**The writers the checker does not see**: shape receivers, reflection, filling from a row or JSON, `clone` — each refuses `readonly` or is shown not to reach it — `crates/nvs-types/src/expr/assign.rs:1107-1111`"
+        "text": "**The writers the checker does not see**: shape receivers, reflection, filling from a row or JSON, `clone` — each refuses `readonly` or is shown not to write it — `crates/nvs-types/src/expr/assign.rs:1114`"
       }
     ]
   },
-  "backlog": []
+  "backlog": [
+    "A closure created inside the constructor and writing `$this->id` is still exempt, because `ctx.in_constructor` is what is read; decide whether stage 2's once-per-path check covers it — `crates/nvs-types/src/expr/assign.rs:1130`."
+  ]
 }

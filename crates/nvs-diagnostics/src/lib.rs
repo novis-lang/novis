@@ -4366,9 +4366,10 @@ pub mod code {
     );
 
     /// A write to a `readonly` property from anywhere but the declaring
-    /// class's own `constructor` — `rule:classes/lateinit-restrictions`'s contract for the modifier,
-    /// "assigned exactly once, and that assignment happens during
-    /// construction".
+    /// class's own `constructor`, through `$this` — `rule:classes/lateinit-restrictions`'s
+    /// contract for the modifier, "assigned exactly once, and that assignment
+    /// happens during construction". A write through another instance is one
+    /// even inside that constructor, because that instance is already built.
     ///
     /// Refused where the write is written rather than left to a run-time
     /// check, which is what makes the modifier mean anything at all: PHP
@@ -4376,8 +4377,8 @@ pub mod code {
     /// throws only on the second one, so the property is write-once by
     /// bookkeeping there and by the type system here.
     pub const E_READONLY_WRITE_AFTER_CONSTRUCTION: Code = Code::new("E0782").card(
-        "A `readonly` property can only be set in the `constructor` of its own class. Set it \
-         there, or remove `readonly` if the value has to change later.",
+        "A `readonly` property can only be set in the `constructor` of its own class, as \
+         `$this->name = ...`. Set it there, or remove `readonly` if the value has to change later.",
     );
 
     /// A class names a `final` class as its superclass. PHP refuses the same
