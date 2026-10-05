@@ -21,7 +21,7 @@ import { type FileItems, type Item, scanItems } from "../keys/scan.ts";
 import { landsIn, metadata, type Graph, dependencySet, testBinaries } from "../keys/graph.ts";
 import { COVWS_TARGET, hostTriple } from "../lib/covws.ts";
 import { abs, NOT_INPUTS, ROOT } from "../lib/paths.ts";
-import { caseFiles, caseId, currentDef, nvTestFiles, nvTestId, proofFiles, proofId, stillThere } from "./atoms.ts";
+import { benchOf, caseFiles, caseId, currentDef, nvTestFiles, nvTestId, proofFiles, proofId, stillThere } from "./atoms.ts";
 import { NV_TSC } from "./nvtests.ts";
 import { buildScripts, envReaders, generatedDigest, generatedIncludes, generatedMeta, isInput } from "./build.ts";
 import { ANCHOR_ANY, CALLS_ANY, COVERS_ANY, markerKeys, scannedFor } from "../proofs/markers.ts";
@@ -497,6 +497,8 @@ export function query(store: SelectStore, change: ChangeSet, opts: QueryOptions 
     defTouched.add(`case:${c.path}`);
     defTouched.add(`nvtest:${c.path}`);
     defTouched.add(`proof:${c.path.replace(/\.(out|in)$/, ".nvs")}`);
+    const bench = benchOf(c.path);
+    if (bench) defTouched.add(`bench:${bench}`);
   }
   const tomlDirs = new Set(change.changes.filter((c) => c.path.endsWith("/nvs.toml")).map((c) => dirname(c.path)));
   const complete = new Set(opts.complete ?? []);
@@ -515,7 +517,7 @@ export function query(store: SelectStore, change: ChangeSet, opts: QueryOptions 
     else if (a.verdict === "owed") add(a.id, "owed");
     else if (opts.defs?.has(a.id)) {
       if (opts.defs.get(a.id) !== a.def) add(a.id, "def");
-    } else if (defTouched.has(a.id) || (a.kind === "proof" && tomlDirs.has(dirname(a.id.slice(6))))) {
+    } else if (defTouched.has(a.id) || ((a.kind === "proof" || a.kind === "bench") && tomlDirs.has(dirname(a.id.slice(a.id.indexOf(":") + 1))))) {
       const def = change.until ? null : currentDef(a.id);
       if (change.until || (def !== null && def !== a.def)) add(a.id, "def");
     }

@@ -7,10 +7,12 @@
 // | `test` | one Rust test executable of the `covws` build, `<package> <kind> <target>` | nothing: its sources are items |
 // | `nv` | one `bun nv` command check of the live plan | its argument list and working directory |
 // | `nvtest` | one `bun test` file of the tools, `tools/nv/**/*.test.ts` | the file's bytes |
+// | `bench` | one bench program under `benches/members/` (`benchFiles`) | a proof program's files, and its `.scale.nvs` and `.twin.nvs` siblings |
 // | `check`, `heavy` | another plan check, and one of the heavy set | the check as the plan writes it (`select/checks.ts`) |
 //
 // A definition's digest is computed, never observed. When it changes, the atom runs, and its footprint
-// starts again from that run.
+// starts again from that run. A bench's footprint is taken at its smallest batch (`recordBench` in
+// `proofs/select.ts`), because which code a bench reaches does not depend on how many times it runs.
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -55,6 +57,7 @@ export const proofId = (path: string) => `proof:${path}`;
 export const testId = (pkg: string, t: TestExe) => `test:${pkg} ${t.kind} ${t.target}`;
 export const nvId = (checkId: string) => `nv:${checkId}`;
 export const nvTestId = (path: string) => `nvtest:${path}`;
+export const benchId = (path: string) => `bench:${path}`;
 
 /** A file's bytes as a definition: "" when it cannot be read. */
 export function fileDef(path: string, root: string = ROOT): string {
@@ -157,8 +160,61 @@ export function proofFiles(root: string = ROOT): string[] {
   return out.sort();
 }
 
+/** The bench tree: one program per measured feature. */
+export const BENCH_ROOT = "benches/members";
+/** The folder of the calibration programs, which every record is measured against and which are no bench. */
+const CALIBRATION = "_calibration";
+/** The siblings a bench program keeps beside it that are no bench of their own: the input ramp and the
+ * same operation written another way. */
+const BENCH_SIBLINGS = [".scale.nvs", ".twin.nvs"];
+
+/**
+ * Every bench program under `BENCH_ROOT`, repo-relative and sorted. A `.scale.nvs` or `.twin.nvs`
+ * sibling belongs to its bench, the calibration folder holds none, and a folder `<name>/` beside a
+ * program `<name>.nvs` holds the files that program loads.
+ */
+export function benchFiles(root: string = ROOT): string[] {
+  const out: string[] = [];
+  const walk = (dir: string) => {
+    let entries: import("node:fs").Dirent[];
+    try {
+      entries = readdirSync(join(root, dir), { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const e of entries) {
+      const p = `${dir}/${e.name}`;
+      if (e.isDirectory()) {
+        if (e.name !== CALIBRATION && !existsSync(join(root, `${p}.nvs`))) walk(p);
+      } else if (e.name.endsWith(".nvs") && !BENCH_SIBLINGS.some((s) => e.name.endsWith(s))) out.push(p);
+    }
+  };
+  walk(BENCH_ROOT);
+  return out.sort();
+}
+
+/** A bench's definition: its program's files as a proof program's (`proofDef`), and the siblings its
+ * ramp and its twin run. */
+export function benchDef(path: string, root: string = ROOT): string {
+  const chunks: (string | Uint8Array)[] = [proofDef(path, root)];
+  for (const suffix of BENCH_SIBLINGS) {
+    const full = join(root, sibling(path, suffix));
+    if (existsSync(full)) chunks.push(suffix, readFileSync(full));
+  }
+  return digest(...chunks);
+}
+
+/** The bench whose definition `path` is part of, or null for a path that is none. */
+export function benchOf(path: string): string | null {
+  if (!path.startsWith(`${BENCH_ROOT}/`)) return null;
+  const sib = BENCH_SIBLINGS.find((s) => path.endsWith(s));
+  if (sib) return path.slice(0, -sib.length) + ".nvs";
+  if (/\.(nvs|out|in|nvsr|nvsp|nvse)$/.test(path)) return path.replace(/\.[^./]+$/, ".nvs");
+  return null;
+}
+
 /** The kinds whose atom is named by a file of the tree. */
-const FILE_KINDS = ["case:", "proof:", "nvtest:"];
+const FILE_KINDS = ["case:", "proof:", "nvtest:", "bench:"];
 
 /** Whether a known atom's definition is still on disk: a case, proof or test file that is gone is no atom. */
 export function stillThere(id: string): boolean {
@@ -171,5 +227,6 @@ export function currentDef(id: string): string | null {
   if (id.startsWith("case:")) return caseDef(id.slice(5));
   if (id.startsWith("proof:")) return proofDef(id.slice(6));
   if (id.startsWith("nvtest:")) return fileDef(id.slice(7));
+  if (id.startsWith("bench:")) return benchDef(id.slice(6));
   return null;
 }

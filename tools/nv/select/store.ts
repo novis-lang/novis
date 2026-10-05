@@ -14,6 +14,7 @@
 //
 // An atom is `<kind>:<name>`: `case:tests/conformance/a.nvst`, `proof:docs/examples/.../01-x.nvs`,
 // `test:nvs-cli test footprint`, `nv:<check id>`, `nvtest:<file>` for one `bun test` file of the tools,
+// `bench:benches/members/.../x.nvs` for one bench program,
 // `step:<name>` for a step of `bun nv verify`, `check:<check id>` for another plan check, and
 // `heavy:<check id>` for one of the heavy set or a Linux leg. A
 // footprint is per platform, because what an atom does differs between Windows and the Linux leg.
@@ -47,8 +48,8 @@ export function storeFile(): string {
   return process.env[STORE_ENV] || STORE;
 }
 
-export type AtomKind = "case" | "proof" | "test" | "nv" | "nvtest" | "step" | "check" | "heavy";
-export const ATOM_KINDS: AtomKind[] = ["case", "proof", "test", "nv", "nvtest", "step", "check", "heavy"];
+export type AtomKind = "case" | "proof" | "test" | "nv" | "nvtest" | "bench" | "step" | "check" | "heavy";
+export const ATOM_KINDS: AtomKind[] = ["case", "proof", "test", "nv", "nvtest", "bench", "step", "check", "heavy"];
 
 /**
  * `owed` is an atom a change reached that the run which recorded the change did not run: the base

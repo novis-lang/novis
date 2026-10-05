@@ -434,7 +434,7 @@ export function rebased(text: string, fromDir: string, copyDir: string, copied: 
  * with it, and an `nvs.toml` beside the copy: the folder's own, or the repository's, rebased. Returns the
  * copy's repo-relative path.
  */
-function copyBench(bench: string, root: string): string {
+export function copyBench(bench: string, root: string): string {
   const dir = abs(dirname(bench));
   const copyDir = join(root, dirname(bench));
   cpSync(dir, copyDir, { recursive: true });

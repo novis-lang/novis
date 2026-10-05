@@ -21,21 +21,33 @@
 // A recording run costs a second process per program on a build many times slower than the judged one.
 // That time buys a verdict taken on the binary a person ships, under the time limit written for it.
 //
+// A bench is recorded the same way under its own atom, `bench:<path>` (`recordBench`), in one run at its
+// smallest batch, and its verdict is its perf proof's.
+//
 // The selection engine, the crate graph and the recorder are loaded by `engine`, through
 // `loadUnrecorded`: they decide which programs run and what the store remembers, and none of them
 // judges a program, so a change to them does not reach the `nv:` atom of every proofs check. This module,
 // `run.ts` that judges and blesses, and the gate's modules stay in that footprint.
 
+import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Graph } from "../keys/graph.ts";
 import { buildCovws } from "../lib/covws.ts";
+import { abs } from "../lib/paths.ts";
+import { read } from "./roster.ts";
 import { cargoLines } from "../lib/progress.ts";
 import { loadUnrecorded, unrecorded } from "../lib/reads.ts";
 import type { Recorder } from "../select/record.ts";
 import type { ChangeSet, Selection } from "../select/select.ts";
 import { type Keyed, SelectStore, type Verdict } from "../select/store.ts";
 import { progress } from "../lib/progress.ts";
-import { type Binary, divergence, jobsFor, type Pass, type Program, recordingRun, recordName, type Result, type RunOptions, runPrograms, type What } from "./run.ts";
+import { type Binary, divergence, HANG_FACTOR, jobsFor, type Pass, type Program, recordingRun, recordName, type Result, type RunOptions, runPrograms, spawnProof, type What } from "./run.ts";
+
+/** `// bench: iterations 200000` inside a bench program. */
+const ITERATIONS_RE = /(?:\/\/|#)\s*bench:\s*iterations\s+([0-9_]+)/;
+/** How long a bench's recording run may take: a minute on the optimized build, times the debug build's
+ * slowdown. */
+const BENCH_RECORD_MS = 60_000 * HANG_FACTOR;
 
 async function load() {
   const [graph, atoms, extract, record, select] = await Promise.all([
@@ -46,7 +58,7 @@ async function load() {
     import("../select/select.ts"),
   ]);
   const { advance, fullChange, pool, Recorder } = record;
-  return { metadata: graph.metadata, proofDef: atoms.proofDef, proofId: atoms.proofId, recordedIn: extract.recordedIn, advance, fullChange, pool, Recorder, computeChange: select.computeChange, query: select.query };
+  return { metadata: graph.metadata, benchDef: atoms.benchDef, benchId: atoms.benchId, proofDef: atoms.proofDef, proofId: atoms.proofId, recordedIn: extract.recordedIn, advance, fullChange, pool, Recorder, computeChange: select.computeChange, query: select.query };
 }
 
 let loaded: ReturnType<typeof load> | undefined;
@@ -99,6 +111,35 @@ export async function recordProgram(rec: Recorder, nvs: string, dir: string, wha
   if (why === null) rec.store.clearDiverged(id);
   else rec.store.markDiverged(id, why);
   return why;
+}
+
+/**
+ * Records one bench's footprint under `bench:<path>`, with `verdict` from its perf proof. The recording
+ * run is one run of a copy of the bench on `nvs` at the smallest batch, `START` operations or its own N
+ * when that is smaller: which code a bench reaches does not depend on how many times it runs. A bench
+ * whose closing line cannot be rewritten runs at its N. The copy goes under `dir` and is deleted with it.
+ * Returns why the recording run failed, or null; a run that failed records the bench's own file alone,
+ * so it is selected again when that file changes.
+ */
+export async function recordBench(rec: Recorder, nvs: string, dir: string, path: string, verdict: Verdict): Promise<string | null> {
+  const { benchDef, benchId, recordedIn } = await engine();
+  const { copyBench, START, withBatch } = await import("../cmd/scaling.ts");
+  const id = benchId(path);
+  const source = read(path);
+  const n = ITERATIONS_RE.exec(source);
+  const iterations = n ? Number(n[1]!.replace(/_/g, "")) : 0;
+  const copy = copyBench(path, join(dir, "copies", recordName(path)));
+  const small = iterations > 0 ? withBatch(source, iterations, Math.min(START, iterations)) : null;
+  if (small !== null) writeFileSync(abs(copy), small);
+  const records = join(dir, "benches");
+  const ran = await spawnProof([nvs, "run", copy], copy, BENCH_RECORD_MS, { dir: records });
+  const got = ran.code === 0 && !ran.timedOut ? recordedIn(records).get(recordName(copy)) : undefined;
+  const keys: Keyed = got ? (await rec.extract(got, [nvs])).keys : new Map();
+  keys.set(`file:${path}`, "");
+  rec.record(id, benchDef(path), verdict, keys);
+  rec.store.setDurations(id, 0, ran.ms);
+  if (ran.timedOut) return `the recording run was still running after ${Math.round(ran.ms / 1000)}s`;
+  return ran.code === 0 ? null : `the recording run exited ${ran.code}`;
 }
 
 /**
