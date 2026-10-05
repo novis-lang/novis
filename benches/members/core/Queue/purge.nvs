@@ -2,6 +2,7 @@
 // Deletes one job of a queue per call, as a clean-up task does in small batches.
 // bench: iterations 2000
 // bench: calls 0
+// bench: complexity constant
 use Core\Queue;
 use Core\Queue\State;
 

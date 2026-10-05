@@ -1,6 +1,7 @@
 <?nvs
 // Closes a TCP server, as a test does after it starts a server for one case. Each round also opens the server.
 // bench: iterations 2000
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

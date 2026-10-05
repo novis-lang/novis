@@ -1,6 +1,7 @@
 <?nvs
 // Gets the path of the program's own file, as a tool does each time it names itself in a message.
 // bench: iterations 400000
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

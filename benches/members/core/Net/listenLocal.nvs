@@ -1,6 +1,7 @@
 <?nvs
 // Creates a server on a socket file and closes it again, as a program does when it starts a local service.
 // bench: iterations 2000
+// bench: complexity constant
 // requires: unix
 
 class Bench {

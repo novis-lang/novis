@@ -1,6 +1,7 @@
 <?nvs
 // Measures joining a folder and a file name, as a program does before it opens or writes a file.
 // bench: iterations 400000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

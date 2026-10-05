@@ -1,0 +1,22 @@
+<?nvs
+// Measures `Core\Path::normalize` on one path, at a growing number of folders.
+// It shows how the cost of `normalize` grows when the path grows.
+// bench: start 256
+// bench: max 4096
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        string $path = "/srv/" . Core\Str::repeat("a/./", $size) . "report.csv";
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            $total = $total + Core\Str::length(Core\Path::normalize($path));
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

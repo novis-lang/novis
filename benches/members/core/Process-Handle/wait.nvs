@@ -2,6 +2,7 @@
 // Measures waiting for a short program to end and reading its result, as a server does after it runs a converter.
 // bench: iterations 100
 // bench: calls 0
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

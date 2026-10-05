@@ -1,6 +1,7 @@
 <?nvs
 // Measures putting the four answers of a quiz question in a random order, as a quiz page does.
 // bench: iterations 200000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): int {

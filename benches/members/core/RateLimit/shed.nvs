@@ -1,6 +1,7 @@
 <?nvs
 // Checks one key against a per-core limit, as a server does before it runs a slow page.
 // bench: iterations 200000
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

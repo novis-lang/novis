@@ -2,6 +2,7 @@
 // Reads the limit a decision was made against, as a handler does to write a `RateLimit-Limit` header.
 // bench: iterations 400000
 // bench: allocations 0
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

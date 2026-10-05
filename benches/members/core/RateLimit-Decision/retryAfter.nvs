@@ -2,6 +2,7 @@
 // Reads how long a refused call must wait, as a handler does to write a `Retry-After` header.
 // bench: iterations 400000
 // bench: allocations 0
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

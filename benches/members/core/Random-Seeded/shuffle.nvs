@@ -1,6 +1,7 @@
 <?nvs
 // Measures putting five test steps in a new order with a seeded generator, as a test runner does.
 // bench: iterations 200000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): int {

@@ -2,6 +2,7 @@
 // Checks if a map has any entries, as a program does before it saves the records that changed.
 // bench: iterations 1000000
 // bench: allocations 0
+// bench: complexity constant
 
 final class Key {
     public int $id;

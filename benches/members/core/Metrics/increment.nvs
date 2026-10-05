@@ -2,6 +2,7 @@
 // Measures adding to a counter, as a server does once for every order or login it handles.
 // bench: iterations 400000
 // bench: allocations 0
+// bench: complexity constant
 // proof: gap nvs-stdlib/a-metrics-write-allocates-on-every-call
 
 class Bench {

@@ -2,6 +2,7 @@
 // Counts the entries of a map, as a program does before it adds a task to a list of running tasks.
 // bench: iterations 1000000
 // bench: allocations 0
+// bench: complexity constant
 
 final class Key {
     public int $id;

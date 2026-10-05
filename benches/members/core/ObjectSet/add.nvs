@@ -1,6 +1,7 @@
 <?nvs
 // Adds an object that is already in a set, as a program does when it records each object it has seen.
 // bench: iterations 1000000
+// bench: complexity constant
 
 final class Key {
     public int $id;

@@ -2,6 +2,7 @@
 // Deletes the row of one job, as a program does when a user deletes their account.
 // bench: iterations 2000
 // bench: calls 0
+// bench: complexity constant
 use Core\Queue;
 use Core\Queue\Id;
 

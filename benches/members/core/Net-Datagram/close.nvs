@@ -1,6 +1,7 @@
 <?nvs
 // Closes a UDP socket, as a program does after it sends a metric or a log line. Each round also opens the socket.
 // bench: iterations 2000
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

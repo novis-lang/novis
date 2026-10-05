@@ -1,6 +1,7 @@
 <?nvs
 // Reads the sender's address of a received UDP message, as a server does before it checks or answers a sender.
 // bench: iterations 2000000
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

@@ -1,6 +1,7 @@
 <?nvs
 // Opens a TCP connection to a server on the same computer, as a program does before it talks to a cache or a queue.
 // bench: iterations 200
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

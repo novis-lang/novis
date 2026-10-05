@@ -1,6 +1,7 @@
 <?nvs
 // Empties a set of one object, as a program does before each batch of work.
 // bench: iterations 1000000
+// bench: complexity linear
 
 final class Key {
     public int $id;

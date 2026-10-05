@@ -1,6 +1,7 @@
 <?nvs
 // Reads the bytes of a received UDP message, as a server does before it handles each request.
 // bench: iterations 2000000
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

@@ -1,6 +1,7 @@
 <?nvs
 // Measures choosing three of twenty products with a seeded generator, as a quick test does.
 // bench: iterations 200000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): int {

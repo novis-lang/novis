@@ -1,6 +1,7 @@
 <?nvs
 // Measures splitting a short path into its parts, as a program does before it builds navigation links.
 // bench: iterations 400000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

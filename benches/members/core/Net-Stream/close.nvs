@@ -1,6 +1,7 @@
 <?nvs
 // Closes a TCP connection, as a client does after each request to a server. Each round also connects and accepts.
 // bench: iterations 200
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

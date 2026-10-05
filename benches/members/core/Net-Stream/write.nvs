@@ -1,6 +1,7 @@
 <?nvs
 // Writes a small part of a message to a TCP connection, as a server does while it sends a reply.
 // bench: iterations 200000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

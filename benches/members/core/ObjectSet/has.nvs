@@ -2,6 +2,7 @@
 // Checks if an object is in a set, as a program does before it handles an item a second time.
 // bench: iterations 1000000
 // bench: allocations 0
+// bench: complexity constant
 
 final class Key {
     public int $id;

@@ -1,0 +1,41 @@
+<?nvs
+// Measures `clear` on a set of objects, at growing numbers of objects.
+// It shows how the cost of `clear` grows when the set grows.
+// bench: start 256
+// bench: max 4096
+
+final class Key {
+    public int $id;
+
+    public function constructor(int $id) {
+        $this->id = $id;
+    }
+}
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        array<Key> $keys = [];
+        uint $n = 0;
+        while ($n < $size) {
+            $keys[] = new Key($n as int);
+            $n = $n + 1;
+        }
+        Core\ObjectSet<Key> $batch = new Core\ObjectSet<Key>();
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            // Each round fills the set again, and then empties it.
+            foreach ($keys as Key $key) {
+                $batch->add($key);
+            }
+            $total = $total + $batch->count();
+            $batch->clear();
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

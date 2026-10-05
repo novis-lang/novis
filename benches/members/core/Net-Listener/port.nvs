@@ -2,6 +2,7 @@
 // Reads the port of an open server, as a program does before it tells a client where to connect.
 // bench: iterations 200000
 // bench: allocations 0
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

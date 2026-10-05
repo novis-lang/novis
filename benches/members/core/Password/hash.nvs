@@ -1,6 +1,7 @@
 <?nvs
 // Measures hashing one password, as a sign-up form or a password change does.
 // bench: iterations 20
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

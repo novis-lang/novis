@@ -2,6 +2,7 @@
 // Reads the class name of an object, as a logger does when it writes which class handled a request.
 // bench: iterations 400000
 // bench: allocations 0
+// bench: complexity constant
 
 class Order {
 }

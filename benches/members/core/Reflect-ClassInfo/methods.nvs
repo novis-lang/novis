@@ -1,6 +1,7 @@
 <?nvs
 // Lists the methods of a class, as a router or a command line tool does to find its handlers.
 // bench: iterations 200000
+// bench: complexity constant
 
 class Controller {
     public function index(): int {

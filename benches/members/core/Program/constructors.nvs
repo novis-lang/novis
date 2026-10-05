@@ -3,6 +3,7 @@
 // A framework does this when it creates the one handler that a request needs.
 // bench: iterations 100000
 // bench: calls 2
+// bench: complexity constant
 
 class Settings {
     public function constructor(public uint $limit) {}

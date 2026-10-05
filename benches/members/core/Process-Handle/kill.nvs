@@ -2,6 +2,7 @@
 // Measures stopping a running program and waiting for it to end, as a server does when a job runs too long.
 // bench: iterations 100
 // bench: calls 0
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

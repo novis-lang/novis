@@ -1,0 +1,21 @@
+<?nvs
+// Measures `Core\Random::token`, at a growing number of bytes in the token.
+// It shows how the cost of `token` grows when the token grows.
+// bench: start 256
+// bench: max 4096
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            $total = $total + Core\Str::length(Core\Random::token($size + $total % 2));
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

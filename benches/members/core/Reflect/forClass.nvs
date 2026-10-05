@@ -1,6 +1,7 @@
 <?nvs
 // Describes a class by its name, as a program does when it loads a class named in a setting.
 // bench: iterations 100000
+// bench: complexity constant
 
 class Order {
     public int $id = 0;

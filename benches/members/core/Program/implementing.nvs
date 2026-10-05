@@ -3,6 +3,7 @@
 // framework does when it collects its health checks or its commands.
 // bench: iterations 100000
 // bench: calls 0
+// bench: complexity constant
 
 interface Check {
     public function name(): string;

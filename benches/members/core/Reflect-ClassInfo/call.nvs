@@ -1,6 +1,7 @@
 <?nvs
 // Calls a method by its name, as a router or a command line tool does when the name comes from input.
 // bench: iterations 200000
+// bench: complexity constant
 
 class Counter {
     public function add(int $total, int $step): int {

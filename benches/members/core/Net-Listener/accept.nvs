@@ -1,6 +1,7 @@
 <?nvs
 // Accepts clients that are already waiting, as a server does when several connect at once.
 // bench: iterations 200
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {
