@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-repo/tests/scratch.rs",
+  "title": "Test code in `nvs-stdlib`, `nvs-db`, `nvs-footprint`, `nvs-host` and `nvs-test` still writes into the system temp directory.",
+  "text": "Every file left is a row of `NOT_YET_MOVED` in the guard `no_test_code_writes_into_the_system_temp_dir`, which fails on a new call and on a row that no longer matches, so the list only shrinks. Moving a site means using `nvs_repo::scratch` (or `scratch_private` for an ownership check) and lowering its row in the same commit; a crate that lacks `nvs-repo` as a dev-dependency gets it. Two rows are Unix socket paths, `crates/nvs-config/tests/control.rs:49` and the `#[cfg(unix)]` test `one_connection_over_a_unix_socket_gets_the_same_response` in `crates/nvs-server/src/serve.rs`: a socket path is limited to about 104 bytes on macOS, and a path under `target/test-scratch/` in a deep checkout can pass that. Whether those two move, or go into `SUBJECT` with that reason, is the user's call.",
+  "milestone": "M10"
+}

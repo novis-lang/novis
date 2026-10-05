@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-lsp/src/suite.rs",
+  "title": "`nvs lsp-test` writes each case's files into the system temp directory.",
+  "text": "`Materialised::write` creates its directory under `std::env::temp_dir()`. It is the runner, not test code, so the guard `no_test_code_writes_into_the_system_temp_dir` in `crates/nvs-repo/tests/scratch.rs` does not read it. Whether it moves under `target/` like test scratch is the user's call: `lsp-test` is a command of the `nvs` binary, which can run where there is no `target/`.",
+  "milestone": "M10"
+}
