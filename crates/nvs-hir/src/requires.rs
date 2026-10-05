@@ -1816,19 +1816,14 @@ mod tests {
     use super::*;
 
     struct TempDir {
-        path: PathBuf,
+        path: nvs_repo::Scratch,
     }
 
     impl TempDir {
         fn new(name: &str) -> Self {
-            let mut path = std::env::temp_dir();
-            path.push(format!(
-                "nvs-hir-requires-test-{name}-{}",
-                std::process::id()
-            ));
-            let _ = fs::remove_dir_all(&path);
-            fs::create_dir_all(&path).expect("create temp dir");
-            Self { path }
+            Self {
+                path: nvs_repo::scratch(&format!("hir-requires-{name}")),
+            }
         }
 
         fn write(&self, name: &str, contents: &str) -> PathBuf {
@@ -1838,12 +1833,6 @@ mod tests {
             }
             fs::write(&path, contents).expect("write fixture");
             path
-        }
-    }
-
-    impl Drop for TempDir {
-        fn drop(&mut self) {
-            let _ = fs::remove_dir_all(&self.path);
         }
     }
 
@@ -2295,7 +2284,7 @@ class Unreached {}
     fn site(dir: &TempDir, id: SourceId, kind: impl FnOnce(Span) -> autoload::SiteKind) -> Site {
         let span = Span::at(id, 0);
         Site {
-            base_dir: dir.path.clone(),
+            base_dir: dir.path.to_path_buf(),
             kind: kind(span),
             span,
         }
@@ -2841,7 +2830,7 @@ class Unreached {}
         // A missing root is allowed and names nothing. The prefix names the
         // first root that exists.
         let roots = Site {
-            base_dir: dir.path.clone(),
+            base_dir: dir.path.to_path_buf(),
             kind: autoload::SiteKind::Prefix {
                 prefix: "App".to_owned(),
                 literal: at(9, 14),

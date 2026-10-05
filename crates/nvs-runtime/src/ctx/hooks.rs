@@ -805,12 +805,9 @@ mod tests {
     /// alone passes an assertion that names only the other.
     #[test]
     fn the_sweep_runs_after_the_on_exit_queue() {
-        let standing = std::env::temp_dir().join(format!(
-            "nvs-exit-hook-test-{}-{:?}",
-            std::process::id(),
-            std::thread::current().id()
-        ));
-        std::fs::create_dir_all(&standing).expect("the platform root is writable");
+        let dir = nvs_repo::scratch("exit-hook");
+        let standing = dir.join("standing");
+        std::fs::create_dir(&standing).expect("the scratch directory exists");
         WATCHED.with_borrow_mut(|watched| *watched = Some(standing.clone()));
 
         let mut ctx = Ctx::buffered();

@@ -21,5 +21,9 @@ rustc-hash.workspace = true
 # they list when `NVS_FOOTPRINT_LOG` names a log.
 nvs-footprint.workspace = true
 
+[dev-dependencies]
+# The scratch directory under `target/` this crate's tests write fixtures into.
+nvs-repo.workspace = true
+
 [lints]
 workspace = true

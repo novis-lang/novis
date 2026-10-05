@@ -346,13 +346,9 @@ fn pid_is_alive(pid: u32) -> bool {
 mod tests {
     use super::*;
 
-    /// A directory under the platform root that this process alone is using —
-    /// `capability`'s own test helper, which is not reachable from here.
-    fn scratch(name: &str) -> PathBuf {
-        let path =
-            std::env::temp_dir().join(format!("nvs-sweep-test-{name}-{}", std::process::id()));
-        std::fs::create_dir_all(&path).expect("the platform root is writable");
-        path
+    /// A directory this case alone is using, deleted when the guard drops.
+    fn scratch(name: &str) -> nvs_repo::Scratch {
+        nvs_repo::scratch(&format!("sweep-{name}"))
     }
 
     /// The lines a context's diagnostic sink has taken — where
@@ -396,8 +392,6 @@ mod tests {
             "the script ended, so what it was handed goes — including what the program put \
              inside it, since the sweep is recursive over a directory the runtime made"
         );
-
-        std::fs::remove_dir_all(&base).expect("the case removes what it made");
     }
 
     /// § 3's goal state reached early: a program may remove its own temporary
@@ -434,8 +428,6 @@ mod tests {
             !behind_it.exists(),
             "and the sweep carried on past it to the rest of the script's list"
         );
-
-        std::fs::remove_dir_all(&base).expect("the case removes what it made");
     }
 
     /// A snapshot built from the text an operator would have written, rather
@@ -480,7 +472,6 @@ mod tests {
         );
 
         drop(ctx);
-        std::fs::remove_dir_all(&root).expect("the case removes what it made");
     }
 
     /// § 4's remaining answers, in one case because they are one rule read from
@@ -496,7 +487,7 @@ mod tests {
         // Above every platform's pid ceiling — Linux's `pid_max` tops out at
         // 2^22 and Windows hands out far smaller numbers — so no process can be
         // holding it and the answer is not a race.
-        let dead = std::env::temp_dir().join(format!("nvs-{}-0123456789abcdef", i32::MAX - 1));
+        let dead = PathBuf::from(format!("nvs-{}-0123456789abcdef", i32::MAX - 1));
         assert!(
             !owner_is_alive(&dead),
             "no process holds that pid, so the entry is an orphan: {}",
@@ -516,7 +507,7 @@ mod tests {
                 "nvs-0-0123456789abcdef",
             ),
         ] {
-            let path = std::env::temp_dir().join(name);
+            let path = PathBuf::from(name);
             assert!(
                 owner_is_alive(&path),
                 "{what} is not this runtime's to delete, so it reads as alive: {name}"
@@ -566,8 +557,6 @@ mod tests {
             Vec::<PathBuf>::new(),
             "a root nothing has created yet has nothing to sweep"
         );
-
-        std::fs::remove_dir_all(&root).expect("the case removes what it made");
     }
 
     /// § 5's escape hatch, both halves in one case: **each** kept path is named
@@ -612,8 +601,6 @@ mod tests {
             first.is_dir() && second.is_dir(),
             "including at the teardown, which has nothing left to sweep"
         );
-
-        std::fs::remove_dir_all(&base).expect("the case removes what it made");
     }
 
     /// § 3's refusal, from the side [`refusals`] cannot show: what the *sweep*
@@ -659,8 +646,6 @@ mod tests {
             not_a_directory.exists(),
             "the entry waits in the owned root for § 4's next attempt"
         );
-
-        std::fs::remove_dir_all(&base).expect("the case removes what it made");
     }
 
     /// § 3's refusal, from the one side that is the same on every platform: a
@@ -691,7 +676,5 @@ mod tests {
             !after_it.exists(),
             "the entry behind the refusal is still swept"
         );
-
-        std::fs::remove_dir_all(&base).expect("the case removes what it made");
     }
 }

@@ -20,13 +20,8 @@ const NOT_YET_MOVED: &[(&str, usize)] = &[
     ("crates/nvs-db/src/mysql.rs", 2),
     ("crates/nvs-db/src/pg.rs", 1),
     ("crates/nvs-footprint/src/lib.rs", 1),
-    ("crates/nvs-hir/src/requires.rs", 1),
     ("crates/nvs-host/src/net.rs", 1),
     ("crates/nvs-host/src/tls.rs", 2),
-    ("crates/nvs-runtime/src/capability.rs", 2),
-    ("crates/nvs-runtime/src/ctx/hooks.rs", 1),
-    ("crates/nvs-runtime/src/deferred.rs", 1),
-    ("crates/nvs-runtime/src/sweep.rs", 3),
     ("crates/nvs-server/src/serve.rs", 1),
     ("crates/nvs-stdlib/src/cache.rs", 2),
     ("crates/nvs-stdlib/src/cache/redis.rs", 1),
@@ -45,7 +40,6 @@ const NOT_YET_MOVED: &[(&str, usize)] = &[
     ("crates/nvs-stdlib/src/zip.rs", 1),
     ("crates/nvs-stdlib/tests/capability.rs", 1),
     ("crates/nvs-test/src/run.rs", 3),
-    ("crates/nvs-types/tests/common/mod.rs", 1),
 ];
 
 #[test]

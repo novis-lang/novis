@@ -2007,15 +2007,11 @@ mod tests {
         .expect("the door agrees with the reporter, which is what makes `granted` honest");
     }
 
-    /// A directory this process alone is using, for the cases below to point `[io] temp_root`
-    /// at. Under the platform root and never under Novis's own, so that a case asserting where a
-    /// temporary landed cannot pass by accident.
-    fn scratch(name: &str) -> std::path::PathBuf {
-        std::env::temp_dir().join(format!(
-            "nvs-capability-test-{name}-{}-{:016x}",
-            std::process::id(),
-            super::nonce()
-        ))
+    /// A directory this case alone is using, for it to point `[io] temp_root` at. It is under
+    /// `target/` and never under the default root, so that a case asserting where a temporary
+    /// landed cannot pass by accident, and dropping it deletes it.
+    fn scratch(name: &str) -> nvs_repo::Scratch {
+        nvs_repo::scratch(&format!("capability-{name}"))
     }
 
     /// A context granting every write and naming `root` as the owned root. The grant is written as
@@ -2048,7 +2044,7 @@ mod tests {
             root.display()
         );
         assert!(
-            !made.starts_with(std::env::temp_dir().join("novis")),
+            !made.starts_with(super::temp_root(None)),
             "and the default root is not consulted at all when one is configured"
         );
         assert!(
@@ -2058,8 +2054,6 @@ mod tests {
                     .is_ok_and(|mut entries| entries.next().is_none()),
             "the answer is a directory that exists and holds nothing"
         );
-
-        std::fs::remove_dir_all(&root).expect("the case removes what it made");
     }
 
     /// § 2's "created private on first use": the root need not exist, and creating it is the
@@ -2071,7 +2065,8 @@ mod tests {
     fn the_owned_root_is_created_private_on_first_use() {
         // A component below the scratch directory as well, so this also pins that a `temp_root`
         // pointing somewhere not yet on disk is made rather than refused.
-        let root = scratch("first-use").join("owned");
+        let dir = scratch("first-use");
+        let root = dir.join("owned");
         assert!(!root.exists(), "the case starts with nothing on disk");
         let mut ctx = rooted_at(&root);
 
@@ -2094,11 +2089,6 @@ mod tests {
             assert_eq!(mode(&root), 0o700, "the root is owner-only from creation");
             assert_eq!(mode(&made), 0o700, "and so is the directory under it");
         }
-
-        let scratch = root
-            .parent()
-            .expect("`root` was joined onto the scratch path");
-        std::fs::remove_dir_all(scratch).expect("the case removes what it made");
     }
 
     /// `rule:core-classes/temporary-dir-sweep`'s per-script list, from the only side that writes it: what the member hands back
@@ -2146,8 +2136,6 @@ mod tests {
             ctx.temporary_dirs().is_empty(),
             "and a second sweep of the same context has nothing left to do"
         );
-
-        std::fs::remove_dir_all(&root).expect("the case removes what it made");
     }
 
     /// `rule:core-classes/temporary-dir-sweep`, end to end and from the outside: what the member handed
@@ -2190,7 +2178,5 @@ mod tests {
             "the owned root itself stays: § 4's sweeps are what empty it, and the next script \
              creates under it rather than remaking it"
         );
-
-        std::fs::remove_dir_all(&root).expect("the case removes what it made");
     }
 }

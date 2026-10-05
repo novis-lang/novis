@@ -395,17 +395,6 @@ mod tests {
         static STILL_STANDING: Cell<Option<bool>> = const { Cell::new(None) };
     }
 
-    /// A path of this case's own under the platform temporary root: the cases
-    /// below run on their own threads, and a shared name would let one sweep
-    /// what another is still looking at.
-    fn scratch(name: &str) -> std::path::PathBuf {
-        std::env::temp_dir().join(format!(
-            "nvs-deferred-sweep-{name}-{}-{:?}",
-            std::process::id(),
-            std::thread::current().id()
-        ))
-    }
-
     /// The `Core\Task::afterResponse` work the cases below register: it looks for
     /// the temporary directory the request was handed and records whether it
     /// was still standing when the queue drained.
@@ -500,8 +489,9 @@ mod tests {
     /// returns before the context does.
     #[test]
     fn a_requests_temporary_dirs_are_swept_after_its_after_response_work() {
-        let standing = scratch("after-response");
-        std::fs::create_dir_all(&standing).expect("the platform root is writable");
+        let dir = nvs_repo::scratch("deferred-after-response");
+        let standing = dir.join("standing");
+        std::fs::create_dir(&standing).expect("the scratch directory exists");
         WATCHED.with_borrow_mut(|watched| *watched = Some(standing.clone()));
 
         let mut ctx = Ctx::new(OutputSink::Sink);
@@ -540,8 +530,9 @@ mod tests {
     /// dropped the tree without sweeping would pass the ordering one.
     #[test]
     fn an_aborted_requests_dirs_are_swept_by_the_surviving_worker() {
-        let standing = scratch("aborted");
-        std::fs::create_dir_all(&standing).expect("the platform root is writable");
+        let dir = nvs_repo::scratch("deferred-aborted");
+        let standing = dir.join("standing");
+        std::fs::create_dir(&standing).expect("the scratch directory exists");
         WATCHED.with_borrow_mut(|watched| *watched = Some(standing.clone()));
 
         let mut ctx = Ctx::new(OutputSink::Sink);

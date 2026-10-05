@@ -359,24 +359,18 @@ pub(crate) fn check_program_module(
     (diags, exprs, module)
 }
 
-/// A directory of fixture files that removes itself, the shape
-/// `nvs_hir::requires`' own tests use — copied rather than shared because that
-/// one lives inside a `#[cfg(test)]` module of another crate.
+/// A directory of fixture files under `target/` that is deleted when it drops,
+/// the shape `nvs_hir::requires`' own tests use — copied rather than shared
+/// because that one lives inside a `#[cfg(test)]` module of another crate.
 struct TempDir {
-    path: std::path::PathBuf,
+    path: nvs_repo::Scratch,
 }
 
 impl TempDir {
     fn new(name: &str) -> Self {
-        let mut path = std::env::temp_dir();
-        path.push(format!(
-            "nvs-types-program-test-{}-{}",
-            name.replace('.', "-"),
-            std::process::id()
-        ));
-        let _ = std::fs::remove_dir_all(&path);
-        std::fs::create_dir_all(&path).expect("create temp dir");
-        Self { path }
+        Self {
+            path: nvs_repo::scratch(&format!("types-program-{}", name.replace('.', "-"))),
+        }
     }
 
     fn write(&self, name: &str, contents: &str) {
@@ -385,11 +379,5 @@ impl TempDir {
             std::fs::create_dir_all(parent).expect("create the fixture's folder");
         }
         std::fs::write(path, contents).expect("write fixture");
-    }
-}
-
-impl Drop for TempDir {
-    fn drop(&mut self) {
-        let _ = std::fs::remove_dir_all(&self.path);
     }
 }
