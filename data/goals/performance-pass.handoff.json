@@ -1,25 +1,23 @@
 {
-  "state": "**Goal `performance-pass`, Stage 5 (the fixes).** Stage 4's review is whole (`docs/perf/performance-review.md`).\n\n**A WebSocket send after a failed one queues nothing.** `Framed::send` keeps a `stalled` flag: the next send flushes the stalled frame under the send window and throws without queueing its own if the peer still is not reading. The server test `sends_to_a_peer_that_stopped_reading_queue_one_frame_at_the_most` counts the frames that reach the peer; with the flag disabled it saw 10 frames after 2 successful sends. No ladder: `bun nv scaling` has no WebSocket load, and the review says so.\n\n**The identity hash walks the whole value**, and the queue's claim, roster and purge are index seeks (see the review). The MySQL socket leg of `db-matrix` fails with OS error 95 from Windows; not checked under WSL.\n\n**2 gap records owned by `performance-pass`** keep `owners --closes performance-pass` red: `a-request-analyses-an-unchanged-document-again` (nvs-lsp) and `a-task-is-charged-a-whole-stack` (nvs-host). The second's two answers both change observable behaviour or the memory accounting, so it is a *Decisions for you* entry in `docs/perf/performance-pass.md`, then a re-owned or closed gap. `proofs --gate` is red too; not checked why.",
+  "state": "**Goal `performance-pass`, Stage 5 (the fixes).** Every gap this goal owned is closed: `bun nv owners --closes performance-pass` and `bun nv proofs --gate` are both green, and so is `verify --doc`. The driver's earlier sweep had every other check green.\n\n**A request about an unchanged document reads the kept analysis.** `Documents::analysed` (`crates/nvs-lsp/src/document.rs`) keeps one `Rc<Analysed>` per open document; every mutator of the store empties it, and a kept entry is not used once a file it read has a new modification time. The server's publish keeps the analysis it published from, so the hover after an edit walks nothing. Every request handler in `server.rs` and `card.rs` reads through it; `analyse` itself is unchanged. Neither the before nor the after analysis count was measured with callgrind; the unit test `a_request_reads_the_kept_analysis_until_something_it_read_changes` pins the reuse.\n\n**The task-stack charge is a *Decisions for you* entry** in `docs/perf/performance-pass.md`, and its gap record is deleted. No ladder is marked `// scaling: proposal`: the charge is a constant per task, so no ladder grows past its bound.\n\n**The 15 stale perf records** (`json.rs`, `queue.rs`) were measured again on this machine.\n\n**Not done, and owed by the goal prose rather than by a check:** Stage 5's \"The build, last\" race. The driver may reach the goal on its sweep before it runs, because no check in the record names it.",
   "next": {
     "stage": 5,
-    "title": "the fixes, the LSP's repeated analysis",
-    "files": [
-      "crates/nvs-lsp/src/server.rs"
-    ],
+    "title": "the fixes, the release-profile race",
+    "files": [],
+    "note": "one file set: `Cargo.toml`'s `[profile.release]` and `docs/perf/performance-pass.md`.",
     "items": [
       {
         "done": false,
-        "text": "**Close `a-request-analyses-an-unchanged-document-again`** (`crates/nvs-lsp/src/server.rs:2045`): keep the last analysis of each open document's current version, freed on change or close, and hand it to hover, completion and references instead of analysing again. Check first whether completion and references analyse again too. Rule: the goal's standing decisions (memory may be spent; say what it spends)."
+        "text": "**Race `lto = \"fat\"`, PGO and `x86-64-v3` against today's release profile** (the root Cargo.toml's `[profile.release]`, line 1051; a target level reaches only Rust code, since JIT code already targets the host in `crates/nvs-codegen/src/lib.rs:1936`): sort the benches into heavy, medium and light by counted cost, read callgrind's instruction count under WSL with the clock beside it, each build in its own target dir under `.agent-tmp/`, deleted after. `panic` and `overflow-checks` are not raced. Rule: the goal prose § *Stage 5* \"The build, last\", and the standing decision on the clock."
       },
       {
         "done": false,
-        "text": "**Record `a-task-is-charged-a-whole-stack` under *Decisions for you*** (`crates/nvs-host/src/stack.rs:88`): both answers change recursion depth or the cap's accounting, so write the entry in `docs/perf/performance-pass.md` and close the gap record or re-owner it to the goal that will build the answer. Rule: the goal's standing decisions (a large tradeoff is recorded, not built)."
+        "text": "**Write each build change under *Decisions for you*** (`docs/perf/performance-pass.md:271`), with its release build time; none is built. Then report `DONE performance-pass`."
       }
     ]
   },
   "backlog": [
-    "`proofs --gate` is red; nobody has read why (`rule:testing/feature-proofs`).",
-    "`benches/scaling/arrays/unique-deep.nvs` was flat before the identity-hash fix too; unexplained (`docs/perf/performance-review.md`).",
-    "MySQL socket leg of `db-matrix` under WSL, not checked (`docs/perf/performance-review.md`)."
+    "The MySQL socket leg of `db-matrix` fails with OS error 95 from Windows; not checked under WSL (`crates/nvs-db`).",
+    "The LSP fix's before and after are not measured in counts; `lsp/classes.nvs`'s clock should fall (`docs/perf/performance-pass.md` § *What got better*)."
   ]
 }
