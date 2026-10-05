@@ -464,6 +464,16 @@ impl Written {
     }
 }
 
+/// How many distinct metric names [`Registry::refusals`] counts by name; a
+/// refusal of any further name is counted in [`Registry::refused_unnamed`].
+///
+/// A refused name leaves no shape and no series behind, so nothing else bounds
+/// how many of them a program can send — one built from request data sends a
+/// new one per request. Capping the map keeps a core's refusal record
+/// O(1) rather than O(requests served), at a cost of at most this many keys
+/// per core.
+pub const REFUSED_NAMES: usize = 256;
+
 /// One core's series, and the bound it holds them under.
 ///
 /// Built by [`Registry::of`] where an exporter is configured, and by
@@ -475,6 +485,7 @@ pub struct Registry {
     shapes: BTreeMap<String, Shape>,
     series: BTreeMap<Series, Value>,
     refusals: BTreeMap<String, u64>,
+    refused_unnamed: u64,
 }
 
 impl Registry {
@@ -557,10 +568,19 @@ impl Registry {
     ///
     /// The count rather than the fact, because the warning § 7 asks for is one
     /// per window and an operator reading it wants to know whether they lost one
-    /// label combination or ten thousand.
+    /// label combination or ten thousand. The first [`REFUSED_NAMES`] distinct
+    /// names are keyed here; refusals of any name past them are counted in
+    /// [`Registry::refused_unnamed`].
     #[must_use]
     pub fn refusals(&self) -> &BTreeMap<String, u64> {
         &self.refusals
+    }
+
+    /// How many series were lost to § 7's bound under a name that arrived after
+    /// [`Registry::refusals`] already held [`REFUSED_NAMES`] keys.
+    #[must_use]
+    pub fn refused_unnamed(&self) -> u64 {
+        self.refused_unnamed
     }
 
     /// Adds `by` to a counter.
@@ -714,6 +734,7 @@ impl Registry {
             shapes: BTreeMap::new(),
             series: BTreeMap::new(),
             refusals: BTreeMap::new(),
+            refused_unnamed: 0,
         };
         for family in DEFAULT {
             let mut labels: Vec<String> = family.labels.iter().map(|&l| l.to_owned()).collect();
@@ -777,7 +798,13 @@ impl Registry {
         // be measured against.
         let held = u64::try_from(self.len()).unwrap_or(u64::MAX);
         if !self.series.contains_key(&series) && held >= self.max_series {
-            *self.refusals.entry(name.to_owned()).or_default() += 1;
+            if let Some(count) = self.refusals.get_mut(name) {
+                *count += 1;
+            } else if self.refusals.len() < REFUSED_NAMES {
+                self.refusals.insert(name.to_owned(), 1);
+            } else {
+                self.refused_unnamed += 1;
+            }
             return Err(Refused::Cardinality {
                 name: name.to_owned(),
                 max_series: self.max_series,
@@ -1049,8 +1076,8 @@ mod tests {
     use nvs_config::{Config, Exporter, Setting};
 
     use super::{
-        Kind, LATENCY_BUCKETS, MEMORY_BUCKETS, PAUSE_BUCKETS, Refused, Registry, Value,
-        count_request, every_core, meter_this_core,
+        Kind, LATENCY_BUCKETS, MEMORY_BUCKETS, PAUSE_BUCKETS, REFUSED_NAMES, Refused, Registry,
+        Value, count_request, every_core, meter_this_core,
     };
 
     /// A merged tree whose `[metrics]` block writes an exporter and a bound.
@@ -1150,6 +1177,29 @@ mod tests {
                 )
                 .is_none()
         );
+    }
+
+    /// A name built from request data is refused under a new spelling each
+    /// time, and the refusal record stays at [`REFUSED_NAMES`] keys however many
+    /// arrive: the rest are counted, not keyed.
+    #[test]
+    fn refusals_past_refused_names_are_counted_in_one_bucket() {
+        // Three seeded members fill a bound of three, so every new name is refused.
+        let mut registry = Registry::new(3);
+        let sent = REFUSED_NAMES + 40;
+        for n in 0..sent {
+            registry
+                .increment(&format!("app_hits_{n}"), 1, &[])
+                .expect_err("the bound is already full");
+        }
+        registry
+            .increment("app_hits_0", 1, &[])
+            .expect_err("the bound is already full");
+
+        assert_eq!(registry.refusals().len(), REFUSED_NAMES);
+        assert_eq!(registry.refusals().get("app_hits_0"), Some(&2));
+        assert_eq!(registry.refused_unnamed(), 40);
+        assert_eq!(registry.len(), 3);
     }
 
     /// § 3: a name is fixed to one kind on first use, and this module fixes its

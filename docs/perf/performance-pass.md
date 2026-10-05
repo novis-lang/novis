@@ -77,6 +77,13 @@ live keys plus 64 slots. Each slot carries a number, so a stale slot never evict
 under its key. The leak is in memory the clock does not see, so two unit tests in the module cover
 it rather than a ladder. It spends one `u64` per entry and one per slot.
 
+**A core's record of refused metric names stays at 256 keys.** Once `max_series` was reached, each
+refused name added a key to a per-core map that was never trimmed, so a program that built metric
+names from request data grew it with every request. The first 256 distinct names are still counted
+by name, and refusals of any later name go into one counter. The growth is in memory the clock does
+not see, so a unit test in the module covers it rather than a ladder. It spends at most 256 keys and
+one `u64` per core.
+
 ## Decisions for you
 
 **Should a request head get a total deadline as well as its idle one?** `header_timeout` is an idle

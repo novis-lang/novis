@@ -273,9 +273,8 @@ connection.
 standard library and the server.
 
 **Found:** the cache order queue, under the cache record. A log call below the level built its
-record; it is fixed and returns before it builds one.
-Refused metric names grow a map without bound
-([`metric-refusals-grow-with-distinct-names`](../../data/gaps/nvs-runtime/metric-refusals-grow-with-distinct-names.json)).
+record; it is fixed and returns before it builds one. Refused metric names grew a map without
+bound; it is fixed and keys at most 256 names per core.
 
 **Fine:** the OTLP queue, the fill table, the per-core metric registry and the process-tier shards
 are each bounded. The rate limiter's state lives in the capped local tier.
