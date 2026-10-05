@@ -197,7 +197,8 @@
         "test",
         "-p",
         "nvs-cli",
-        "--lib"
+        "--bin",
+        "nvs"
       ],
       "tests": [
         "a_scheduled_script_runs_under_its_own_app_blocks",

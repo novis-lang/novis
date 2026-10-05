@@ -1,32 +1,27 @@
 {
-  "state": "**Goal `serve-per-mount-config` — Stages 2 and 3 have landed; Stage 4 (reload and the mount rows) is next.** ADR 0271 is the goal's one record. The four rules the goal names still state the pre-goal truth, and each is rewritten by the stage that lands its behaviour (goal file § *Stage 0*): `rule:http-server/the-served-file-is-optional` with Stage 4, and the scheduled-run and job rules with Stage 5.\n\n`nvs serve` boots from `crate::config::boot_set` and hands the door `Current::of(published)`: the host's snapshot, plus one snapshot per mounted entry that its own `[[app]]` blocks fold. The handler runs each file under `Published::entry` for that file. `crates/nvs-cli/tests/per_mount_config.rs` now holds Stage 3's seven cli tests, and they pass. Its `Server` harness starts `nvs serve` with no control endpoint over `[server] root = \".\"` and one `/<name>` mount per `<name>/index.nvs`.\n\n**The reload still publishes host-only** (`crates/nvs-cli/src/control.rs:408` resolves through `boot_origins` and `publish_keeping`). After a reload, every mount runs under the host's snapshot until Stage 4 lands.",
+  "state": "**Goal `serve-per-mount-config` — Stages 2, 3 and 4 have landed; Stage 5 (scheduled fires and queued jobs) is next.** ADR 0271 is the goal's one record. `rule:http-server/the-served-file-is-optional` now states the per-entry publish; the scheduled-run and job rules are still pre-goal and are rewritten with Stage 5 (goal file § *Stage 0*).\n\nA reload resolves with `crate::config::boot_set` and publishes the whole set through `nvs_config::control::reload`, which now takes the roster, the entries and the files and calls `Current::publish_set`. The entries are the rows standing then (`Mounts::entries`, handed to `control::Process` by `serving_rows`). `Process::entry` is gone, and a reload's ceiling is `capacity_across` over every snapshot the set folded (`capacity_of` in `crates/nvs-cli/src/control.rs`). `mounts::Rescan` refolds each row's origin from its own entry's snapshot (`serve::fold_origins`) whenever the publish changed or a directory moved. The row origin lands on the rescan's next pass, a moment after the publish, and the Stage 4 test polls for it.\n\nThe Stage 5 check asked `cargo test -p nvs-cli --lib`, which has no library target; the record now says `--bin nvs`.",
   "next": {
-    "stage": 4,
-    "title": "reload and the mount rows",
+    "stage": 5,
+    "title": "scheduled fires and queued jobs",
     "files": [],
-    "note": "one file set: `crates/nvs-cli/src/control.rs`, `crates/nvs-cli/src/serve/mounts.rs`, and Stage 4's tests added to `crates/nvs-cli/tests/per_mount_config.rs`. That file's harness needs a `[control] socket` added for `nvs ctl reload`; `crates/nvs-cli/tests/live_config.rs:413` (`endpoint`) and `:432` (`controlled`) are the shape.",
+    "note": "one file set: `crates/nvs-cli/src/serve.rs` (`Scheduled::isolate`), `crates/nvs-cli/src/worker.rs`, and the two rule fragments.",
     "items": [
       {
         "done": false,
-        "text": "**The reload publishes the set** — `crates/nvs-cli/src/control.rs:408` resolves with `boot_set` and publishes with `Current::publish_set` over the rows `crates/nvs-cli/src/serve/mounts.rs:396` holds. The reload's ceiling at `crates/nvs-cli/src/control.rs:438` and `crates/nvs-cli/src/control.rs:537` uses `capacity_across` (ADR 0271 § 2, `rule:http-server/admission-is-arithmetic-not-a-number`)."
+        "text": "**A fire runs under its script's snapshot** — `crates/nvs-cli/src/serve.rs:1793` sets the context from `self.current.load()`; take `self.current.published().entry(<the fire's script>, &LocalFiles)` instead, as the request path does at `crates/nvs-cli/src/serve.rs:1005`. Test `a_scheduled_script_runs_under_its_own_app_blocks` in `serve.rs`'s unit tests (ADR 0271 § 2)."
       },
       {
         "done": false,
-        "text": "**A rescan's rows take their own origin** — `fall_back_to` at `crates/nvs-cli/src/serve.rs:2049` is called per row with the row's own entry snapshot in `mounts::Rescan::pass`, as the boot does (`rule:routing/an-origin-is-per-mount-and-checked-at-boot`)."
+        "text": "**A job runs under its script's snapshot** — `crates/nvs-cli/src/worker.rs:626` does the same for the job's script; the worker's own context at `crates/nvs-cli/src/worker.rs:360` keeps the host's. Test `a_queued_job_runs_under_its_scripts_app_blocks` in `worker.rs`'s unit tests."
       },
       {
         "done": false,
-        "text": "**The Stage 4 cli tests** — add the tests the goal record's stage-4 check names to `crates/nvs-cli/tests/per_mount_config.rs:43` (`Server`), with a reload helper copied from `crates/nvs-cli/tests/live_config.rs:324`."
-      },
-      {
-        "done": false,
-        "text": "**Rewrite `rule:http-server/the-served-file-is-optional`'s fragment** — its *One snapshot serves the process* paragraph at `docs/rules/http-server/the-served-file-is-optional.md:14` becomes true once the reload matches the boot."
+        "text": "**Rewrite the scheduled-run and job rule fragments** the goal file § *Stage 0* names (candidates, not checked: `docs/rules/concurrency/a-job-runs-as-a-root-isolate.md:1`, `docs/rules/config/a-schedule-entry-narrows-only.md:1`), then `bun nv rules --render`."
       }
     ]
   },
   "backlog": [
-    "`nvs ctl config` reports the host's snapshot only; a per-application view is not in this goal (goal file § *Standing decisions*).",
-    "An entry that `dispatch = \"path\"` reaches after boot is folded on its first request, but admission's ceiling does not count it until a reload recomputes it (`crates/nvs-config/src/server.rs` `capacity_across`).",
-    "`install_tls_client`'s relaxed-grant lines read the host's snapshot only, so an `[app.capabilities]` TLS relaxation is not announced at boot (`crates/nvs-cli/src/config.rs` `relaxed_grants`)."
+    "Stage 6 (reference tables, the two `about.md` files, help text, the attack) — goal file § *Stage 6*.",
+    "A reload folds every mounted entry twice (the pre-check `Published::new` in `Process::published`, then `publish_set`); fine while reloads are rare — `crates/nvs-cli/src/control.rs` doc comment says so."
   ]
 }
