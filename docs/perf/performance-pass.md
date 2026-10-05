@@ -201,10 +201,22 @@ The override walks keep the types they have seen in a set. Every `lsp` ladder no
 document's code lenses. The new ladder [`lsp/hierarchy`](../../benches/scaling/lsp/hierarchy.nvs)
 prints n subclasses of one class that each override its method. The CodeLens request alone, best of
 two alternating rounds, took 14, 36 and 178 ms at 800, 1600 and 3200 classes before, and 8, 18 and
-39 ms after. The ladder still grows, because opening the file and the other requests grow about
-three times per doubling in both builds. That is a separate finding, recorded as a gap of
-`crates/nvs-lsp/src/document.rs`. It spends one path handle and one copy of the name per
+39 ms after. Opening the file and the other requests still grew about three times per doubling,
+and the next finding fixes that. It spends one path handle and one copy of the name per
 declaration, per supertype edge and per occurrence, for as long as the file is indexed.
+
+**The editor parses and links a file of n classes in O(n).** Two walks read the whole file again at
+each class. The parser looked for a `///` run and a `/** … */` block above each declaration by
+scanning every comment and space it had collected so far. A compile collects only comments, so only
+the editor, which collects every space too, paid for it. The scan now stops at the first gap that
+is not one line break of whitespace, because nothing further up can attach
+(`crates/nvs-syntax/src/parser/mod.rs`). The hierarchy pass found where a `use` line would go for
+each class by reading every statement above it. It now carries the last `namespace` and `use` line
+as it walks (`SitesAbove` in `crates/nvs-hir/src/imports.rs`). That pass runs for `nvs check` too.
+Callgrind on the debug Linux binary, one [`lsp/hierarchy`](../../benches/scaling/lsp/hierarchy.nvs)
+session from open to code lenses: 1570 M and 4753 M instructions at 200 and 400 classes before,
+764 M, 1492 M and 3007 M at 200, 400 and 800 after. `bun nv scaling lsp/` is flat. It spends
+nothing.
 
 ## Decisions for you
 

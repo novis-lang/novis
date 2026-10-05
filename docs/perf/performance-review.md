@@ -302,8 +302,9 @@ up to `max_redirects`.
 private members scanned every occurrence once per declaration. Both are fixed: the index keeps one
 read list per entry point, dimming makes one pass over the occurrences, and `lsp/classes.nvs` is
 flat. A declaration, subtype or use lookup is one probe of a map the index keeps, and
-`lsp/hierarchy.nvs` measures it. Analysing a file of many subclasses still grows faster than linear
-([`a-request-on-a-file-of-subclasses-grows-faster-than-linear`](../../data/gaps/nvs-lsp/a-request-on-a-file-of-subclasses-grows-faster-than-linear.json)).
+`lsp/hierarchy.nvs` measures it. Analysing a file of many subclasses is linear too: the parser's
+doc-comment scan and the hierarchy pass's `use`-line site each stop at what is next to the
+declaration (`performance-pass.md` § *What got better*).
 
 **Bounded:** each edit analyses again every entry whose graph read the changed file
 (`crates/nvs-lsp/src/index.rs:344`, `server.rs:497`), linear per edit. `overlay` copies the text of

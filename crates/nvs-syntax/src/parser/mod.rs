@@ -283,16 +283,26 @@ impl<'src, 'd> Parser<'src, 'd> {
     /// Trivia reaching past `at` belongs to the lookahead buffer — the lexer
     /// runs ahead of the token a production is looking at — and is skipped
     /// rather than mistaken for the end of the run.
+    ///
+    /// The walk stops at the first trivium of any kind whose gap to the run
+    /// does not join: the trivia are in source order, and a gap that fails to
+    /// join still fails with more text in front of it, so no `///` further back
+    /// can join either. That bounds the walk by the trivia beside the
+    /// declaration, so the trivia path, which collects every space and
+    /// comment, parses a file of n declarations in O(n).
     pub(super) fn take_doc_comment(&mut self, at: Span) -> Option<DocComment> {
         let text = self.file.text();
         let mut lines = Vec::new();
         let mut next = at.start;
         for trivium in self.lexer.trivia().iter().rev() {
-            if trivium.kind != TriviaKind::DocComment || trivium.span.end > at.start {
+            if trivium.span.end > at.start {
                 continue;
             }
             if !doc_run_joins(text, trivium.span.end, next) {
                 break;
+            }
+            if trivium.kind != TriviaKind::DocComment {
+                continue;
             }
             lines.push(trivium.span);
             next = trivium.span.start;
@@ -320,6 +330,10 @@ impl<'src, 'd> Parser<'src, 'd> {
     /// is, so the compile path — which records a `/**` block and no other
     /// ordinary comment — and the trivia path answer identically. Reported
     /// once per block: a production may take one declaration's run twice.
+    ///
+    /// The walk stops at the first trivium whose gap to `next` does not join,
+    /// for the reason [`Self::take_doc_comment`] gives, so it costs the trivia
+    /// beside `next` and never the whole file's.
     fn warn_docblock_above(&mut self, next: BytePos) {
         let text = self.file.text();
         let Some(span) = self
@@ -327,7 +341,9 @@ impl<'src, 'd> Parser<'src, 'd> {
             .trivia()
             .iter()
             .rev()
-            .find(|trivium| trivium.kind == TriviaKind::BlockComment && trivium.span.end <= next)
+            .filter(|trivium| trivium.span.end <= next)
+            .take_while(|trivium| doc_run_joins(text, trivium.span.end, next))
+            .find(|trivium| trivium.kind == TriviaKind::BlockComment)
             .map(|trivium| trivium.span)
         else {
             return;
@@ -336,10 +352,7 @@ impl<'src, 'd> Parser<'src, 'd> {
             .get(span.start as usize..span.end as usize)
             .unwrap_or("");
         let docblock = body.starts_with("/**") && !body.starts_with("/**/");
-        if !docblock
-            || !doc_run_joins(text, span.end, next)
-            || self.docblocks_reported.contains(&span.start)
-        {
+        if !docblock || self.docblocks_reported.contains(&span.start) {
             return;
         }
         self.docblocks_reported.push(span.start);

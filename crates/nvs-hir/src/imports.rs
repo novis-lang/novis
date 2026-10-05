@@ -108,23 +108,55 @@ pub fn site_in(
     at: BytePos,
     bracketed: bool,
 ) -> Option<ImportSite> {
-    let above = || stmts.iter().filter(|stmt| stmt.span.end <= at);
-    let governing = above()
-        .rfind(|stmt| matches!(&stmt.kind, StmtKind::NamespaceDecl(decl) if decl.body.is_none()));
-    let last_use = above().rfind(|stmt| {
-        matches!(stmt.kind, StmtKind::UseDecl(_))
-            && governing.is_none_or(|decl| decl.span.end <= stmt.span.start)
-    });
-    let (after, lead) = match (last_use, governing) {
-        (Some(stmt), _) => (stmt.span.end, "\n"),
-        (None, Some(decl)) => (decl.span.end, "\n\n"),
-        (None, None) if bracketed => return None,
-        (None, None) => {
-            let tag = first_open_tag(src.text())?;
-            (BytePos::try_from(tag.end).ok()?, "\n")
+    let mut above = SitesAbove::default();
+    for stmt in stmts.iter().filter(|stmt| stmt.span.end <= at) {
+        above.pass(stmt);
+    }
+    above.site(src, at, bracketed)
+}
+
+/// What [`site_in`] reads off the statements above a position: where the
+/// `namespace Name;` line in force ends, and where the last `use` after it
+/// ends.
+///
+/// A walk over one statement sequence passes each statement to this as it goes,
+/// so a walk that asks at every declaration reads each statement once. Asking
+/// [`site_in`] at each one would read every statement above it again, and a
+/// file of n classes would cost O(n²).
+#[derive(Debug, Clone, Copy, Default)]
+pub struct SitesAbove {
+    governing: Option<BytePos>,
+    last_use: Option<BytePos>,
+}
+
+impl SitesAbove {
+    /// Records `stmt`, the next statement of the sequence, as above every
+    /// position asked about from now on.
+    pub fn pass(&mut self, stmt: &Stmt) {
+        match &stmt.kind {
+            StmtKind::NamespaceDecl(decl) if decl.body.is_none() => {
+                self.governing = Some(stmt.span.end);
+                self.last_use = None;
+            }
+            StmtKind::UseDecl(_) => self.last_use = Some(stmt.span.end),
+            _ => {}
         }
-    };
-    (after <= at).then_some(ImportSite { at: after, lead })
+    }
+
+    /// [`site_in`]'s answer at `at`, for the statements passed so far.
+    #[must_use]
+    pub fn site(&self, src: &SourceFile, at: BytePos, bracketed: bool) -> Option<ImportSite> {
+        let (after, lead) = match (self.last_use, self.governing) {
+            (Some(end), _) => (end, "\n"),
+            (None, Some(end)) => (end, "\n\n"),
+            (None, None) if bracketed => return None,
+            (None, None) => {
+                let tag = first_open_tag(src.text())?;
+                (BytePos::try_from(tag.end).ok()?, "\n")
+            }
+        };
+        (after <= at).then_some(ImportSite { at: after, lead })
+    }
 }
 
 /// Every type `short` could be the last segment of: the classes, interfaces

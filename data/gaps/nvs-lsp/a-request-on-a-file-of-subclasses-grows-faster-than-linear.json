@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-lsp/src/document.rs",
-  "title": "Opening a file of many subclasses in `nvs lsp`, and completion, hover and references in it, grow about three times per doubling of the classes.",
-  "text": "Measured on the ladder `benches/scaling/lsp/hierarchy.nvs` (n subclasses of one class, each overriding its method), by timing each request of one `nvs lsp` session: at 800, 1600 and 3200 classes, `didOpen` to its diagnostics took 27, 57 and 203 ms, completion 40, 107 and 406 ms, hover 19, 45 and 166 ms, references 23, 46 and 167 ms. The same growth is in the build before and after the index fix, and `nvs check` of the same files is linear (79, 107 and 152 ms), and `lsp/classes.nvs` (no `extends`) is flat. Not localized: the analysis `analyse_file` makes, or a per-request step that walks the class hierarchy, is the first place to look. CodeLens itself is linear since the index keeps its name maps. Fixing it turns `lsp/hierarchy.nvs` flat under `bun nv scaling --check`.",
-  "goal": "performance-pass"
-}

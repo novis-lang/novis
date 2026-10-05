@@ -307,6 +307,7 @@ impl<'a> HierarchyResolver<'a> {
     ) {
         let mut current_ns: Vec<String> = namespace.to_vec();
         let mut imports: FxHashMap<String, QName> = FxHashMap::default();
+        let mut above = imports::SitesAbove::default();
 
         for stmt in stmts {
             match &stmt.kind {
@@ -333,7 +334,7 @@ impl<'a> HierarchyResolver<'a> {
                         !decl.modifiers.contains(&Modifier::Abstract),
                         current_ns.clone(),
                         imports.clone(),
-                        imports::site_in(stmts, src, stmt.span.start, bracketed),
+                        above.site(src, stmt.span.start, bracketed),
                     );
                     if let Some(base) = &decl.extends {
                         pending.extends.push(raw_ref(src, base));
@@ -350,7 +351,7 @@ impl<'a> HierarchyResolver<'a> {
                         false,
                         current_ns.clone(),
                         imports.clone(),
-                        imports::site_in(stmts, src, stmt.span.start, bracketed),
+                        above.site(src, stmt.span.start, bracketed),
                     );
                     for parent in &decl.extends {
                         pending.extends.push(raw_ref(src, parent));
@@ -359,6 +360,7 @@ impl<'a> HierarchyResolver<'a> {
                 }
                 _ => {}
             }
+            above.pass(stmt);
         }
     }
 
