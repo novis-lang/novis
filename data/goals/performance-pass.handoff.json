@@ -1,21 +1,25 @@
 {
-  "state": "**Goal `performance-pass`, Stage 5 (the fixes).** Stage 4's review is whole (`docs/perf/performance-review.md`).\n\n**The identity hash walks the whole value.** `value_hash` keeps one frame per open level on a heap stack, so `unique`, `diff` and `intersect` over values that differ only deep down hash them apart. The unit test `values_that_differ_only_deep_down_hash_apart` counts the comparisons a set makes. The ladder `benches/scaling/arrays/unique-deep.nvs` is flat. It was also flat on the release binary built before the fix, and nobody has explained why; the Rust test is the proof.\n\n**The queue's claim, roster and purge are index seeks, and every roster text has a SQL Server case.** The MySQL socket leg of `db-matrix` fails with OS error 95 from Windows. Not checked under WSL.\n\n**3 gap records owned by `performance-pass`** keep `owners --closes performance-pass` red: `a-websocket-write-buffer-has-no-ceiling`, `a-task-is-charged-a-whole-stack`, `a-request-analyses-an-unchanged-document-again`. `proofs --gate` is red too; not checked why.",
+  "state": "**Goal `performance-pass`, Stage 5 (the fixes).** Stage 4's review is whole (`docs/perf/performance-review.md`).\n\n**A WebSocket send after a failed one queues nothing.** `Framed::send` keeps a `stalled` flag: the next send flushes the stalled frame under the send window and throws without queueing its own if the peer still is not reading. The server test `sends_to_a_peer_that_stopped_reading_queue_one_frame_at_the_most` counts the frames that reach the peer; with the flag disabled it saw 10 frames after 2 successful sends. No ladder: `bun nv scaling` has no WebSocket load, and the review says so.\n\n**The identity hash walks the whole value**, and the queue's claim, roster and purge are index seeks (see the review). The MySQL socket leg of `db-matrix` fails with OS error 95 from Windows; not checked under WSL.\n\n**2 gap records owned by `performance-pass`** keep `owners --closes performance-pass` red: `a-request-analyses-an-unchanged-document-again` (nvs-lsp) and `a-task-is-charged-a-whole-stack` (nvs-host). The second's two answers both change observable behaviour or the memory accounting, so it is a *Decisions for you* entry in `docs/perf/performance-pass.md`, then a re-owned or closed gap. `proofs --gate` is red too; not checked why.",
   "next": {
     "stage": 5,
-    "title": "the fixes, the WebSocket write buffer",
+    "title": "the fixes, the LSP's repeated analysis",
     "files": [
-      "crates/nvs-server/src/socket.rs"
+      "crates/nvs-lsp/src/server.rs"
     ],
     "items": [
       {
         "done": false,
-        "text": "**Close `a-websocket-write-buffer-has-no-ceiling`** (`crates/nvs-server/src/socket.rs:217`): check the library's default `max_write_buffer_size`, then set a ceiling of a few frames so a send past it fails at once. Add the ladder `connections/stalled-socket.nvs` the gap names. Rule: the goal's standing decisions (isolation first)."
+        "text": "**Close `a-request-analyses-an-unchanged-document-again`** (`crates/nvs-lsp/src/server.rs:2045`): keep the last analysis of each open document's current version, freed on change or close, and hand it to hover, completion and references instead of analysing again. Check first whether completion and references analyse again too. Rule: the goal's standing decisions (memory may be spent; say what it spends)."
+      },
+      {
+        "done": false,
+        "text": "**Record `a-task-is-charged-a-whole-stack` under *Decisions for you*** (`crates/nvs-host/src/stack.rs:88`): both answers change recursion depth or the cap's accounting, so write the entry in `docs/perf/performance-pass.md` and close the gap record or re-owner it to the goal that will build the answer. Rule: the goal's standing decisions (a large tradeoff is recorded, not built)."
       }
     ]
   },
   "backlog": [
-    "`a-task-is-charged-a-whole-stack` (`crates/nvs-host/src/stack.rs:88`): smaller growing stacks change observable recursion depth, so that answer goes under *Decisions for you* in `docs/perf/performance-pass.md`; charging touched pages is the other answer.",
-    "`a-request-analyses-an-unchanged-document-again` (`crates/nvs-lsp/src/server.rs:2045`): keep the last analysis per open document version.",
-    "`proofs --gate` red: run it and read what it owes."
+    "`proofs --gate` is red; nobody has read why (`rule:testing/feature-proofs`).",
+    "`benches/scaling/arrays/unique-deep.nvs` was flat before the identity-hash fix too; unexplained (`docs/perf/performance-review.md`).",
+    "MySQL socket leg of `db-matrix` under WSL, not checked (`docs/perf/performance-review.md`)."
   ]
 }
