@@ -1,27 +1,28 @@
 {
-  "state": "**Goal `performance-pass`, Stage 5 (the fixes).** Stage 4's review is whole (`docs/perf/performance-review.md`).\n\n**The queue's claim and roster are both index seeks now.** The claim is O(log n + in-flight) on all five drivers. The roster is a loose index scan over the new `nvs_jobs_roster (state, queue, run_at)` index: one seek per queue name holding pending rows, plus the `state = 1` rows workers hold. Each dialect writes its own text, and `QUEUES_POSTGRES`'s doc in `crates/nvs-stdlib/src/queue.rs` says why: PostgreSQL and SQLite step with a recursive `min`, MySQL and MariaDB skip-scan a `group by state, queue` (their dependent subqueries do not seek a range on an outer value), and SQL Server steps with `row_number() = 1` under `option (maxrecursion 0)`. Each was probed by hand on 1500 queues; MySQL's recursive form took 4.5 s against 9 ms for the `group by`.\n\n**The SQLite claim may now seek either index**, since both hold the same three columns; `a_sqlite_claim_seeks_each_arm_through_the_due_index` accepts either. `a_sqlite_roster_seeks_and_never_scans_the_jobs_table` guards the roster's plan.\n\n**`bun nv db-matrix --no-up --all`**: the five TCP and file legs are green. The three socket legs fail in `nvs-db`'s `a_driver_answers_the_same_over_either_transport` with OS error 95 when run from Windows; nothing this session touched reaches them. Not checked whether they pass under WSL.\n\n**5 gap records owned by `performance-pass`** keep `owners --closes performance-pass` red. `bun nv owners --closes performance-pass` lists them.",
+  "state": "**Goal `performance-pass`, Stage 5 (the fixes).** Stage 4's review is whole (`docs/perf/performance-review.md`).\n\n**The queue's claim, roster and purge are all index seeks now.** A purge batch walks `nvs_jobs_purge (queue, id)` from the queue's oldest row and stops at its bound; `a_sqlite_purge_walks_one_queue_in_id_order_without_a_sort` guards the plan. The retention answer and `stats`'s bound (it reads every row its queue holds, by `rule:concurrency/queue-four-members`) are in `schema`'s doc in `crates/nvs-stdlib/src/queue.rs`. The gap `finished-jobs-are-kept-until-purged` is closed and deleted.\n\n**`bun nv db-matrix --no-up --all`**: the five TCP and file legs are green with the new index. The three socket legs fail with OS error 95 when run from Windows, as before. Not checked whether they pass under WSL.\n\n**`bun nv scaling --check` exits 0** on this session's run: 49 flat, `numbers/bigint-mul.nvs` unclear. **4 gap records owned by `performance-pass`** keep `owners --closes performance-pass` red: `a-task-is-charged-a-whole-stack`, `a-request-analyses-an-unchanged-document-again`, `identity-hash-stops-at-depth-four`, `a-websocket-write-buffer-has-no-ceiling`. `proofs --gate` is red too; not checked why.",
   "next": {
     "stage": 5,
-    "title": "the fixes, the queue's last gap",
+    "title": "the fixes, the queue's last test",
     "files": [
-      "crates/nvs-stdlib/src/queue.rs",
-      "crates/nvs-stdlib/tests/queue_sqlite.rs",
-      "crates/nvs-stdlib/tests/queue.rs"
+      "crates/nvs-stdlib/tests/queue.rs",
+      "crates/nvs-stdlib/src/queue.rs"
     ],
     "items": [
       {
         "done": false,
-        "text": "**Close `finished-jobs-are-kept-until-purged`** (`crates/nvs-stdlib/src/queue.rs:1513`): an index on `(queue, state, id)` serves `purge`'s `order by id limit N`; the retention question is the module doc's to answer. The schema is at `crates/nvs-stdlib/src/queue.rs:346`; check first whether `nvs_jobs_roster` or `nvs_jobs_due` already serves a `stats` arm. Rule: the goal's standing decisions."
+        "text": "**A SQL Server case for the roster** (`crates/nvs-stdlib/tests/queue.rs:999`): the `roster` helper sends `QUEUES_MYSQL` to every non-PostgreSQL server; send `QUEUES_SQLSERVER` to SQL Server. Rule: the goal's standing decisions."
       },
       {
         "done": false,
-        "text": "**A SQL Server case for the roster** (`crates/nvs-stdlib/tests/queue.rs:999`): the `roster` helper sends `QUEUES_MYSQL` to every non-PostgreSQL server, so `QUEUES_SQLSERVER` is proved only by this session's hand probe. Rule: the goal's standing decisions."
+        "text": "**Close `identity-hash-stops-at-depth-four`** (`crates/nvs-runtime/src/identity.rs:1`): read the gap with `bun nv owners --closes performance-pass`, then fix it or state it as a bound in the module doc. Rule: the goal's standing decisions."
       }
     ]
   },
   "backlog": [
-    "The other four gaps `bun nv owners --closes performance-pass` names, each in its module doc: `crates/nvs-host/src/stack.rs`, `crates/nvs-lsp/src/server.rs`, `crates/nvs-runtime/src/identity.rs`, `crates/nvs-server/src/socket.rs`.",
-    "`bun nv proofs --gate` (stage 6) is red; read it after the stage 5 gaps close.",
-    "The three socket legs of `bun nv db-matrix` fail from Windows with OS error 95 (`crates/nvs-db`); find out whether they need the WSL leg."
+    "`a-task-is-charged-a-whole-stack` — `crates/nvs-host/src/stack.rs`; likely a *Decisions for you* entry in `docs/perf/performance-pass.md`.",
+    "`a-request-analyses-an-unchanged-document-again` — `crates/nvs-lsp/src/server.rs`.",
+    "`a-websocket-write-buffer-has-no-ceiling` — `crates/nvs-server/src/socket.rs`.",
+    "The dead-letter purge orders by `id` over `nvs_dead_jobs_queue (queue)`, which PostgreSQL cannot read in `id` order; `crates/nvs-stdlib/src/queue.rs` `PURGE_DEAD_POSTGRES`. Changing that index's columns is a migration question.",
+    "`proofs --gate` red (stage 6): find out what it owes."
   ]
 }
