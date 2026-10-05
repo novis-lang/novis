@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { benchDef, benchFiles, benchOf } from "../select/atoms.ts";
 import type { Moved } from "../select/items.ts";
 import { advance } from "../select/record.ts";
-import { type ChangeSet, query } from "../select/select.ts";
+import { type ChangeSet, discover, query } from "../select/select.ts";
 import { SelectStore } from "../select/store.ts";
 import { scratch } from "./scratch.ts";
 
@@ -68,7 +68,7 @@ describe("the bench atom", () => {
     }
   });
 
-  test("the bench tree lists each bench once, and a sibling's edit is its bench's definition", () => {
+  test("the bench tree lists each bench once, discovered as an atom, and a sibling's edit is its bench's definition", () => {
     const t = scratch();
     try {
       t.put("benches/members/core/Arr/sort.nvs", "// bench: iterations 32\n");
@@ -79,6 +79,7 @@ describe("the bench atom", () => {
       t.put("benches/members/lang/autoload/Helper.nvs", "");
       t.put("benches/members/_calibration/unit.nvs", "");
       expect(benchFiles(t.root)).toEqual(["benches/members/core/Arr/sort.nvs", "benches/members/lang/autoload.nvs"]);
+      expect(discover(null, t.root).atoms.filter((a) => a.startsWith("bench:"))).toEqual(["bench:benches/members/core/Arr/sort.nvs", "bench:benches/members/lang/autoload.nvs"]);
       for (const p of ["sort.scale.nvs", "sort.twin.nvs", "sort.nvsr", "sort.in", "sort.nvs"]) expect(benchOf(`benches/members/core/Arr/${p}`)).toBe("benches/members/core/Arr/sort.nvs");
       expect(benchOf("benches/members/README.md")).toBeNull();
       expect(benchOf("docs/examples/core/Arr/sort/01-x.nvs")).toBeNull();

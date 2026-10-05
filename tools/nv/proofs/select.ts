@@ -22,7 +22,8 @@
 // That time buys a verdict taken on the binary a person ships, under the time limit written for it.
 //
 // A bench is recorded the same way under its own atom, `bench:<path>` (`recordBench`), in one run at its
-// smallest batch, and its verdict is its perf proof's.
+// smallest batch, and its verdict is its perf proof's growth. `runBenches` runs the benches a change
+// selects, which `bun nv affected --run` asks for after `nv verify`.
 //
 // The selection engine, the crate graph and the recorder are loaded by `engine`, through
 // `loadUnrecorded`: they decide which programs run and what the store remembers, and none of them
@@ -31,6 +32,7 @@
 
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
+import type { Options } from "../cmd/scaling.ts";
 import type { Graph } from "../keys/graph.ts";
 import { buildCovws } from "../lib/covws.ts";
 import { abs } from "../lib/paths.ts";
@@ -58,7 +60,7 @@ async function load() {
     import("../select/select.ts"),
   ]);
   const { advance, fullChange, pool, Recorder } = record;
-  return { metadata: graph.metadata, benchDef: atoms.benchDef, benchId: atoms.benchId, proofDef: atoms.proofDef, proofId: atoms.proofId, recordedIn: extract.recordedIn, advance, fullChange, pool, Recorder, computeChange: select.computeChange, query: select.query };
+  return { metadata: graph.metadata, benchDef: atoms.benchDef, benchFiles: atoms.benchFiles, benchId: atoms.benchId, proofDef: atoms.proofDef, proofId: atoms.proofId, recordedIn: extract.recordedIn, advance, fullChange, pool, Recorder, computeChange: select.computeChange, query: select.query };
 }
 
 let loaded: ReturnType<typeof load> | undefined;
@@ -140,6 +142,69 @@ export async function recordBench(rec: Recorder, nvs: string, dir: string, path:
   rec.store.setDurations(id, 0, ran.ms);
   if (ran.timedOut) return `the recording run was still running after ${Math.round(ran.ms / 1000)}s`;
   return ran.code === 0 ? null : `the recording run exited ${ran.code}`;
+}
+
+/** A bench whose growth failed, and each way it failed. */
+export interface RedBench {
+  path: string;
+  findings: string[];
+}
+
+/**
+ * Runs every bench the change since the store's tree selects: its perf proof's growth (`growthOf`) on the
+ * release `nvs`, as `bun nv scaling --growth` judges it, and then its recording run (`recordBench`) on the
+ * covws debug `nvs`, with green when the growth found nothing or only what the bench's `// proof: gap`
+ * marker records. Every bench is judged before any is recorded, so no ramp shares the machine with a
+ * debug run. The tree then moves past the change. With no bench selected, the store is not touched.
+ * Returns the benches that ran and the red ones, or why the release build failed.
+ */
+export async function runBenches(say: (line: string) => void = () => {}): Promise<{ ran: number; red: RedBench[] } | string> {
+  const { advance, benchFiles, benchId, computeChange, fullChange, metadata, query, Recorder } = await engine();
+  const { DEFAULT_WSL_NVS, growthOf } = await import("../cmd/scaling.ts");
+  const { knownGap } = await import("./collect.ts");
+  const { releaseBinary } = await import("./run.ts");
+  const store = new SelectStore();
+  try {
+    const graph = await metadata();
+    let change: ChangeSet;
+    try {
+      change = store.base() === null ? await fullChange() : await computeChange(store, { graph });
+    } catch (e) {
+      change = await fullChange(undefined, `the recorded tree could not be read: ${(e as Error).message.split("\n")[0]}`);
+    }
+    const all = benchFiles();
+    const sel = query(store, change, { discovered: all.map(benchId) });
+    const chosen = all.filter((p) => sel.selected.has(benchId(p)));
+    if (chosen.length === 0) return { ran: 0, red: [] };
+    const built = await releaseBinary();
+    if (typeof built === "string") return built;
+    const rec = await Recorder.open(store, change.view, graph, "benches");
+    const opts: Options = { nvs: built.path, reps: 2, wslNvs: DEFAULT_WSL_NVS, callgrind: false, scratch: join(rec.dir, "scaling") };
+    const red: RedBench[] = [];
+    try {
+      const verdicts = new Map<string, Verdict>();
+      for (const [i, path] of chosen.entries()) {
+        say(`benches: ${i + 1}/${chosen.length} judging ${path}`);
+        const g = await growthOf(path, opts, true);
+        const green = g.findings.length === 0 || knownGap(read(path)) !== null;
+        verdicts.set(path, green ? "green" : "red");
+        if (!green) red.push({ path, findings: g.findings });
+      }
+      const { nvs } = await buildCovws({ onLine: cargoLines("benches: building the covws debug nvs") });
+      const ran = new Set<string>();
+      for (const [i, path] of chosen.entries()) {
+        say(`benches: ${i + 1}/${chosen.length} recording ${path}`);
+        await recordBench(rec, nvs, join(rec.dir, "bench"), path, verdicts.get(path)!);
+        ran.add(benchId(path));
+      }
+      advance(store, change, sel, ran, graph);
+    } finally {
+      rec.close();
+    }
+    return { ran: chosen.length, red };
+  } finally {
+    store.close();
+  }
 }
 
 /**

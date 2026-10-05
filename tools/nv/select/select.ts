@@ -21,7 +21,7 @@ import { type FileItems, type Item, scanItems } from "../keys/scan.ts";
 import { landsIn, metadata, type Graph, dependencySet, testBinaries } from "../keys/graph.ts";
 import { COVWS_TARGET, hostTriple } from "../lib/covws.ts";
 import { abs, NOT_INPUTS, ROOT } from "../lib/paths.ts";
-import { benchOf, caseFiles, caseId, currentDef, nvTestFiles, nvTestId, proofFiles, proofId, stillThere } from "./atoms.ts";
+import { benchFiles, benchId, benchOf, caseFiles, caseId, currentDef, nvTestFiles, nvTestId, proofFiles, proofId, stillThere } from "./atoms.ts";
 import { NV_TSC } from "./nvtests.ts";
 import { buildScripts, envReaders, generatedDigest, generatedIncludes, generatedMeta, isInput } from "./build.ts";
 import { ANCHOR_ANY, CALLS_ANY, COVERS_ANY, markerKeys, scannedFor } from "../proofs/markers.ts";
@@ -613,13 +613,13 @@ export interface Discovery {
 
 /**
  * The atoms that exist now, read from directory listings and the cargo graph the caller already has:
- * every case file, every proof program (`proofFiles`), every tools test file and the tools' `tsc`, and
- * every test binary cargo would build. No file is read. A plan check's own atom is the plan's, which the
+ * every case file, every proof program (`proofFiles`), every bench (`benchFiles`), every tools test file
+ * and the tools' `tsc`, and every test binary cargo would build. No file is read. A plan check's own atom is the plan's, which the
  * sweep adds. The test binaries are listed in full when there is a graph, so a known one cargo no longer
  * builds is gone.
  */
 export function discover(graph: Graph | null, root: string = ROOT): Discovery {
-  const atoms = [...caseFiles(root).map(caseId), ...proofFiles(root).map(proofId), ...nvTestFiles(root).map(nvTestId), NV_TSC];
+  const atoms = [...caseFiles(root).map(caseId), ...proofFiles(root).map(proofId), ...benchFiles(root).map(benchId), ...nvTestFiles(root).map(nvTestId), NV_TSC];
   for (const pkg of graph?.keys() ?? []) for (const b of testBinaries(graph!, pkg)) atoms.push(`test:${b.name}`);
   return { atoms, complete: graph ? ["test"] : [] };
 }

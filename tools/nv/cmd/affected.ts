@@ -18,6 +18,10 @@
 // path each came from. The other atoms the change reaches (proof programs, other case trees, the plan's
 // own checks) are counted: verify marks them owed, and whoever runs them next pays.
 //
+// **The bench half** is every bench under `benches/members/` the change reaches, or that is new, red or
+// owed. `--run` judges each one's growth on the release build and records its footprint after verify
+// (`runBenches` in `proofs/select.ts`), so a bench verify marked owed is paid for here.
+//
 // **The acceptance half** is the plan's checks the change reaches (`select/checks.ts`): the checks
 // of the live plan, or of the side goal `NOVIS_SIDE_GOAL` names. A check reached through a key the change
 // moved, or through its own record changing, is due, less the heavy ones: a check that builds or
@@ -26,7 +30,7 @@
 // because its atoms were owed, red or never recorded before the change was red before the change, and
 // stays so until the goal is reached, so it is not due.
 //
-// `--run` runs `nv verify` when it has anything to run, then sweeps the checks that were due. A test
+// `--run` runs `nv verify` when it has anything to run, then the benches, then sweeps the checks that were due. A test
 // binary or case verify ran green is not picked again, so a check made of those is not started twice.
 //
 // Exits 0 when nothing reached is due, or when `--run` ran it green; 1 when something reached is due, or
@@ -92,6 +96,8 @@ export interface Plan {
     /** Atoms the change reaches that verify does not run, by kind: they stay owed. */
     others: Record<string, number>;
   };
+  /** The benches the change reaches, which `--run` judges and records after verify. */
+  benches: VerifyAtom[];
   acceptance: { checks: ReachedCheck[]; legs: Reached[] };
 }
 
@@ -175,7 +181,7 @@ export async function plan(change: Change, graph: Graph | null): Promise<Plan> {
   const inVerify = new Set([...v.tests.map((n) => `test:${n}`), ...Object.values(v.cases).flatMap((cs) => cs.map((p) => `case:${p}`))]);
   if (v.steps.length > 0) for (const s of v.sel.selected.keys()) if (s.startsWith("step:")) inVerify.add(s);
   const others: Record<string, number> = {};
-  for (const s of v.sel.selected.values()) if (!inVerify.has(s.id) && s.kind !== "step") others[s.kind] = (others[s.kind] ?? 0) + 1;
+  for (const s of v.sel.selected.values()) if (!inVerify.has(s.id) && s.kind !== "step" && s.kind !== "bench") others[s.kind] = (others[s.kind] ?? 0) + 1;
   const out: Plan = {
     change,
     verify: {
@@ -186,6 +192,7 @@ export async function plan(change: Change, graph: Graph | null): Promise<Plan> {
       cases: Object.values(v.cases).flatMap((cs) => cs.map((p) => ({ id: `case:${p}`, why: why(`case:${p}`) }))),
       others,
     },
+    benches: [...v.sel.selected.values()].filter((s) => s.kind === "bench").map((s) => ({ id: s.id, why: reason(s) })).sort((a, b) => (a.id < b.id ? -1 : 1)),
     acceptance: { checks: [], legs: [] },
   };
   const found = currentPlan();
@@ -221,7 +228,7 @@ function due(p: Plan): ReachedCheck[] {
 
 /** Whether anything the change reaches is due. */
 function owes(p: Plan): boolean {
-  return p.verify.steps.length > 0 || due(p).length > 0;
+  return p.verify.steps.length > 0 || p.benches.length > 0 || due(p).length > 0;
 }
 
 // ---- output ------------------------------------------------------------------------------------------
@@ -255,6 +262,10 @@ function print(p: Plan, asked: string[] | undefined): void {
   }
   const others = Object.entries(v.others);
   if (others.length > 0) console.log(`  (the change also reaches ${others.map(([k, n]) => `${n} ${k}`).join(", ")} that verify does not run; they stay owed until a run of each is green)`);
+
+  console.log(`\nbenches -- \`bun nv affected --run\` judges the growth of ${p.benches.length} bench(es) and records each:`);
+  for (const b of p.benches.slice(0, 8)) console.log(`  ${b.id.slice(b.id.indexOf(":") + 1)}  <- ${b.why}`);
+  if (p.benches.length > 8) console.log(`  +${p.benches.length - 8} more`);
 
   const run = due(p);
   const deferred = p.acceptance.checks.filter((x) => x.deferred).length + p.acceptance.legs.length;
@@ -323,6 +334,18 @@ export async function run(args: string[]): Promise<number> {
   if (p.verify.steps.length > 0) {
     console.log("");
     if ((await passthrough(["bun", "nv", "verify"], { timeoutMs: 3 * 60 * 60 * 1000 })) !== 0) return 1;
+  }
+  if (p.benches.length > 0) {
+    console.log("");
+    const { runBenches } = await import("../proofs/select.ts");
+    const got = await runBenches((line) => console.log(`  ${line}`));
+    if (typeof got === "string") {
+      console.error(`affected: ${got}`);
+      return 1;
+    }
+    for (const r of got.red) console.log(`affected: RED bench ${r.path}\n${r.findings.map((f) => `    ${f}`).join("\n")}`);
+    console.log(`affected: ${got.ran} bench(es) judged and recorded, ${got.red.length} red`);
+    if (got.red.length > 0) return 1;
   }
   console.log("");
   if (ids.size === 0) {
