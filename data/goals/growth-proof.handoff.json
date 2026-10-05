@@ -1,28 +1,25 @@
 {
-  "state": "**Goal `growth-proof`, Stage 3 should now pass; Stage 4's first slice is on disk.** No floor is carried.\n\nThe whole `bun nv scaling --iterations --sized` run on this tree (about 30 minutes) named six oversized benches and one that grows. The six were lowered with `--sized --lower`: `core/Cli/colorDepth` (2048), `core/IO/canonicalize` (512), `core/IO/isFile` (256), `core/IO/size` (256), `core/IO-File/flush` (256) and `core/IO-Metadata/isFile` (1024). A filtered `--sized` re-run of the six passes. The whole run was not repeated after the lowering. The driver's sweep is that check.\n\n`core/Process-Handle/writeStdin` gives `grows`, `flat` or `unclear` on the same commit, because its allocations per call depend on when the blocking pool's job ends. It carries `// proof: gap nvs-host/a-blocking-call-allocates-by-when-it-ends`, and `--iterations` now counts a bench that grows and carries a marker naming an existing record as a known gap, the way `--growth` already did. That gap is owned by M10, not by this goal.\n\nThe seven `unclear` benches (`core/Http-TlsInfo/verified`, `version`, `core/IO/isReadable`, `core/IO-File/close`, `truncate`, `write`, `core/Queue/purge`) do not fail the check. Stage 6's section lists the benches the proof cannot judge.\n\nThe selection engine's `bench` atom and `recordBench` are as the last session left them: `discover` does not list benches yet, on purpose, and nothing calls `recordBench`.\n\nThe clock at the lowered N mostly reads 0. Whether to time the clock at a larger, clock-only N is the user's call, and nothing has changed for it.",
+  "state": "**Goal `growth-proof`. Stage 3 should pass on the driver's next sweep, and Stage 4's first item is on disk.** No floor is carried.\n\nA whole `--iterations --sized` run on this tree named two oversized benches, `core/IO/canonicalize` and `core/Http-TlsInfo/cipher`. The batch a ramp settles at moves from run to run, so `--sized` now ramps a bench it finds oversized a second time. It fails the bench only when both ramps find it oversized, and `--lower` uses the later of the two batches. The two benches were lowered that way, to 256 and 2048. The whole run was not repeated after that.\n\n`discover` lists every bench under `benches/members/` as a `bench:` atom, so 998 benches are `new` in the store. `nv verify` does not run them. `nv affected` names the benches a change reaches, and `--run` runs `runBenches` (`tools/nv/proofs/select.ts`) after verify. That judges each bench's growth on the release build, records it with `recordBench`, and moves the tree. The first `affected --run` on any machine pays for every bench, likely about half an hour (not checked). The driver's sweep does not run benches yet: no check holds a bench atom.\n\n`core/Process-Handle/writeStdin` is a known gap owned by M10. The seven `unclear` benches do not fail the check. The clock at the lowered N mostly reads 0, and timing it at a larger N is still the user's call.",
   "next": {
-    "stage": 4,
-    "title": "benches join the selection engine",
-    "files": [
-      "tools/nv/select/select.ts",
-      "tools/nv/select/atoms.ts",
-      "tools/nv/proofs/select.ts",
-      "tools/nv/cmd/affected.ts"
-    ],
+    "stage": 5,
+    "title": "skip what is already proven",
+    "files": [],
+    "note": "one file set: `tools/nv/proofs/select.ts`, `tools/nv/cmd/affected.ts`, and the new `tools/nv/test/bench-skip.test.ts`.",
     "items": [
       {
         "done": false,
-        "text": "**Benches join `discover` and `nv affected --run` runs them**, in one slice so a bench atom is never selected as `new` with nothing to run it: `discover` at `tools/nv/select/select.ts:621`, `benchOf` at `tools/nv/select/atoms.ts:208`, and `recordBench` at `tools/nv/proofs/select.ts:124` records each one that ran. Spec: `rule:testing/member-perf-ledger`, the goal's Stage 4 and Stage 5 checks (the Stage 5 check's test filter matches no file yet)."
+        "text": "**Order and skip the benches a change reaches**: order them so the first reach the most changed items, mark an item proven after two benches that run it show no degradation, and skip a bench whose changed items are all proven. Put it as a pure function beside `runBenches` at `tools/nv/proofs/select.ts:161`, and have `bench-skip.test.ts` test it with the four names the goal's Stage 5 check wants. Spec: the goal's `## Stage 5`."
       },
       {
         "done": false,
-        "text": "**A degradation turns skipping off** for every bench that shares the changed items, per the goal's standing decision, at `tools/nv/proofs/select.ts:124`."
+        "text": "**A degradation turns skipping off** for every bench that shares the changed items, inside the same loop at `tools/nv/proofs/select.ts:161`, and `affected` reports reached, ran and skipped at `tools/nv/cmd/affected.ts:338`. Spec: the goal's standing decision on skipping."
       }
     ]
   },
   "backlog": [
-    "Stage 6: `docs/perf/performance-pass.md` owes `## The growth proof`, listing the seven `unclear` benches above and `writeStdin`'s gap. Owner: this goal's Stage 6.",
-    "`data/gaps/nvs-host/a-blocking-call-allocates-by-when-it-ends.json`: the park and wake path in `crates/nvs-host/src/blocking.rs` allocates by timing. Owner: M10.",
-    "The clock at the lowered N reads 0: the user's call (see State)."
+    "The driver's sweep runs the benches a change reaches (goal Stage 4, *The tooling asks it*). Today only `affected --run` does. Owner: this goal's Stage 4.",
+    "Stage 4's decision record: a figure is current while its bench's footprint has not moved, and it modifies `rule:testing/member-perf-ledger`. Owner: this goal's Stage 4.",
+    "Stage 6: `docs/perf/performance-pass.md` owes `## The growth proof`, which lists the `unclear` benches and `writeStdin`'s gap. Owner: this goal's Stage 6.",
+    "`data/gaps/nvs-host/a-blocking-call-allocates-by-when-it-ends.json`. Owner: M10."
   ]
 }

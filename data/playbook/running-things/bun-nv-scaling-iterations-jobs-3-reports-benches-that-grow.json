@@ -1,0 +1,11 @@
+{
+  "lead": "`bun nv scaling --iterations --jobs 3` reports benches that grow when they do not.",
+  "body": "Under load, callgrind's instruction count of a blocking-pool bench (`core/Cli/ask`, `core/IO/stat`, `core/Session/destroy`) rises with the batch while every per-operation count stays flat. Re-run any `grows` from a `--jobs` run alone, at the default `--jobs 1`, before treating it as a finding; the ramp is `rampOne` in `tools/nv/cmd/scaling.ts`.",
+  "files": [
+    "tools/nv/cmd/scaling.ts"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "tools/nv/cmd/scaling.ts:--jobs"
+  }
+}
