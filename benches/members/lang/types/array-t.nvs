@@ -4,6 +4,7 @@
 // and each round computes it from the last round's result.
 // bench: iterations 300000
 // bench: allocations 0
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): int {

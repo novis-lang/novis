@@ -3,6 +3,7 @@
 // alternative joined with `||`, a `!`, and a piece of text used directly as a condition.
 // bench: iterations 400000
 // bench: allocations 0
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

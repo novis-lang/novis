@@ -4,6 +4,7 @@
 // bench: iterations 400000
 // bench: calls 0
 // bench: allocations 0
+// bench: complexity constant
 
 enum Level: int { Debug = 0, Info = 1, Warn = 2, Error = 3 }
 

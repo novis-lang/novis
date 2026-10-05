@@ -6,6 +6,7 @@
 // bench: iterations 200000
 // bench: allocations 1
 // bench: calls 5
+// bench: complexity constant
 
 class Row {
     public function constructor(public int $n) {}

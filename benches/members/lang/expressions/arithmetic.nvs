@@ -5,6 +5,7 @@
 // from the round before it, so no work can be skipped.
 // bench: iterations 400000
 // bench: allocations 0
+// bench: complexity constant
 
 class Bench
 {

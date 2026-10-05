@@ -3,6 +3,7 @@
 // `return` statements. A program meets this shape in every helper it calls.
 // bench: iterations 400000
 // bench: allocations 0
+// bench: complexity constant
 
 class Bench {
     public static function step(int $acc): int {

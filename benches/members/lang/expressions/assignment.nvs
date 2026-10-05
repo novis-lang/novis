@@ -4,6 +4,7 @@
 // and an array element. Every round follows on from the one before.
 // bench: iterations 400000
 // bench: allocations 0
+// bench: complexity constant
 // proof: gap nvs-ir/uint-array-subscript-is-rendered-to
 
 class Tally {

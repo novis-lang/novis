@@ -2,6 +2,7 @@
 // Drives a cursor written by hand through a `foreach` loop. A program meets this shape when a
 // class of its own is walked, so the loop calls `advance()` and `current()` on every step.
 // bench: iterations 50000
+// bench: complexity linear
 
 class Letters implements Iterator<int> {
     private int $at = -1;

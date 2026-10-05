@@ -3,6 +3,7 @@
 // one frame out. A program meets this shape wherever one layer counts a failure
 // and leaves the decision to the layer above it.
 // bench: iterations 200000
+// bench: complexity constant
 
 class Bench {
     public static function relay(IOError $error): void {

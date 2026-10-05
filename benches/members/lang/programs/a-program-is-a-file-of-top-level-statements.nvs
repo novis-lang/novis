@@ -4,6 +4,7 @@
 // written back. It is the floor under everything else a program does.
 // bench: iterations 4000000
 // bench: allocations 0
+// bench: complexity constant
 
 int $a = 1;
 int $b = 2;

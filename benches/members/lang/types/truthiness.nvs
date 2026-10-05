@@ -4,6 +4,7 @@
 // Each round picks its value from the round before, so no round can be skipped.
 // bench: iterations 400000
 // bench: allocations 0
+// bench: complexity constant
 
 class Bench
 {

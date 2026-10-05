@@ -4,6 +4,7 @@
 // wherever it reads a field that may be missing.
 // bench: iterations 200000
 // bench: calls 2
+// bench: complexity constant
 
 class Bench {
     public static function email(array<string> $row): string {

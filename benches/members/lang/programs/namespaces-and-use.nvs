@@ -4,6 +4,7 @@
 // the program is compiled, so both should cost the same.
 // bench: iterations 2000000
 // bench: allocations 0
+// bench: complexity constant
 
 namespace App\Billing;
 

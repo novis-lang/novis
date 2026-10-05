@@ -4,6 +4,7 @@
 // character by character.
 // bench: iterations 400000
 // bench: allocations 0
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

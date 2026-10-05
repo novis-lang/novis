@@ -4,6 +4,7 @@
 // Each round passes the last round's total, so no round can be skipped.
 // bench: iterations 300000
 // bench: allocations 0
+// bench: complexity constant
 
 class Bench {
     public static function shifted(float $x): float {

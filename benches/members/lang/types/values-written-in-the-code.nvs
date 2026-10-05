@@ -4,6 +4,7 @@
 // Each round starts from the last round's total. The loop allocates no memory.
 // bench: iterations 400000
 // bench: allocations 0
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): int {

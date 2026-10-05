@@ -3,6 +3,7 @@
 // the `catch` that takes it. A program meets this on every call it has no grant
 // for, which is what a job running under a narrow `nvs.toml` does all day.
 // bench: iterations 50000
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

@@ -3,6 +3,7 @@
 // called, and the assertion it makes is recorded. A run pays this for every
 // test in the program.
 // bench: iterations 200000
+// bench: complexity constant
 
 use Core\Test;
 

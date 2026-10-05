@@ -4,6 +4,7 @@
 // This loop should run as fast as the same loop without them.
 // bench: iterations 4000000
 // bench: allocations 0
+// bench: complexity constant
 
 /// Adds a run of numbers into one running total.
 /// @see Meter::run

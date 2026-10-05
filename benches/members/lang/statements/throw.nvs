@@ -4,6 +4,7 @@
 // before it produced.
 // bench: iterations 200000
 // bench: calls 2
+// bench: complexity constant
 
 class Bench {
     public static function run(int $rounds): int {

@@ -1,0 +1,24 @@
+<?nvs
+// Measures counting the characters and the bytes of a name, at growing name lengths.
+// It shows how the cost of both counts grows when the name grows.
+// bench: start 256
+// bench: max 4096
+
+class Bench {
+    public static function run(uint $size): int {
+        string $name = Core\Str::repeat('ü', $size);
+        int $carry = 1;
+        int $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            int $characters = Core\Str::length($name) as int;
+            int $stored = Core\Bytes::length($name as bytes) as int;
+            $carry = ($carry + $characters + $stored) % 997;
+            $total = $total + $carry;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

@@ -1,0 +1,24 @@
+<?nvs
+// Measures `==` on two equal strings, at growing string lengths.
+// It shows how the cost of comparing text grows when the text grows.
+// bench: start 256
+// bench: max 4096
+
+class Bench {
+    public static function run(uint $size): uint {
+        string $left = Core\Str::repeat('a', $size);
+        string $right = Core\Str::repeat('a', $size);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            if ($left == $right) {
+                $total = $total + 1;
+            }
+            $total = $total + $total % 3;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

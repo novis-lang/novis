@@ -1,6 +1,7 @@
 <?nvs
 // Checks whether a file next to the program exists, as a program does before it reads its own data file.
 // bench: iterations 20000
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

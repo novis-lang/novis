@@ -3,6 +3,7 @@
 // converts a field, reads one character, and puts two pieces of text in order.
 // Each of those was a cast, a bracket or a `<` before.
 // bench: iterations 200000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

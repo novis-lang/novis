@@ -6,6 +6,7 @@
 // bench: iterations 200000
 // bench: allocations 0
 // bench: calls 0
+// bench: complexity constant
 
 enum Action { Read, Write, Admin }
 

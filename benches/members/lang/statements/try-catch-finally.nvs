@@ -3,6 +3,7 @@
 // which throws on one round in four. A program does this around every row it
 // reads from a file or a request.
 // bench: iterations 200000
+// bench: complexity constant
 
 class Bench {
     public static function run(int $rounds): int {

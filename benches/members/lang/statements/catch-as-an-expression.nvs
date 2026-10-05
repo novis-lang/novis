@@ -4,6 +4,7 @@
 // find the value, and the eighth takes the arm. Every round uses the number the
 // round before it produced.
 // bench: iterations 200000
+// bench: complexity constant
 
 class Lookup {
     public static function price(int $sku): int {

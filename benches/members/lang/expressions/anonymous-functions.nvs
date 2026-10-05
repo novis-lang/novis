@@ -5,6 +5,7 @@
 // as a block.
 // bench: iterations 200000
 // bench: allocations 0
+// bench: complexity constant
 // proof: gap nvs-runtime/call-through-a-callable-builds-its
 
 class Bench {

@@ -3,6 +3,7 @@
 // replaces PHP's `->name`. A program meets this shape when it writes a status into a page or a log
 // line. The length of the text is added up so the call stays inside the loop.
 // bench: iterations 400000
+// bench: complexity constant
 
 enum Level { Debug, Info, Warn, Error }
 

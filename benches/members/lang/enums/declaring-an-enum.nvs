@@ -4,6 +4,7 @@
 // bench: iterations 400000
 // bench: calls 0
 // bench: allocations 0
+// bench: complexity constant
 
 enum Step { Ordered, Packed, Shipped = 10, Delivered }
 

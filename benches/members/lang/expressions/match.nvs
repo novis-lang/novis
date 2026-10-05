@@ -6,6 +6,7 @@
 // bench: iterations 400000
 // bench: allocations 0
 // bench: calls 0
+// bench: complexity constant
 
 class Route {
     public static function run(int $rounds): int {
