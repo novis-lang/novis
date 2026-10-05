@@ -49,6 +49,7 @@ import {
 } from "vscode-languageclient/node";
 
 import * as ast from "./ast";
+import * as badges from "./badges";
 import { Origin, Runnable, install as installCopies, installDirectory, installed, runnable } from "./binary";
 import * as directives from "./directives";
 import * as format from "./format";
@@ -175,6 +176,9 @@ export async function activate(context: ExtensionContext): Promise<Surface> {
   // The `nvs.toml` completion provider, registered from activation because the workspace holding
   // that file is one of the two things that activate the extension.
   directives.install(context);
+  // The badge for what each file declares, registered from activation so the Explorer has its
+  // provider before the first answer arrives.
+  badges.install(context);
   // The formatter, which is a process rather than a request: it starts `nvs fmt` and needs no
   // server, so it is installed here beside the rest and not in `start`.
   format.install(context);
@@ -232,6 +236,8 @@ async function checkWorkspace(): Promise<void> {
       () => answering.sendRequest<number>(CHECK_WORKSPACE),
     );
     void window.showInformationMessage(`Novis: the index holds ${indexed} files.`);
+    // The pass may have added files, so the badges are asked for again.
+    void badges.refresh();
   } catch (error) {
     void window.showErrorMessage(`Novis: the workspace pass failed: ${reason(error)}`);
   }
@@ -343,6 +349,7 @@ async function start(context: ExtensionContext): Promise<void> {
   regions.serve(client);
   imports.serve(client);
   directives.serve(client);
+  badges.serve(client);
   await retire(previous);
   const { shown, source, origin } = chosen;
   const answering = outcome.copied !== undefined
@@ -510,6 +517,8 @@ async function retire(previous: LanguageClient | undefined): Promise<void> {
     imports.serve(undefined);
     // An `nvs.toml` keeps whatever completion its TOML extension gives.
     directives.serve(undefined);
+    // A badge is the server's answer, so with no server answering there is none.
+    badges.serve(undefined);
   }
   try {
     await previous.stop();

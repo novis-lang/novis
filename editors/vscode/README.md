@@ -2,6 +2,8 @@
 
 Novis language support for `.nvs` files: TextMate colour the instant a file opens, and everything else
 from `nvs lsp` — diagnostics, completion, hover, navigation, semantic colour, formatting.
+In the Explorer, a file that declares one class, interface, enum or type alias shows the letter `C`, `I`,
+`E` or `T` beside its name.
 
 The extension is a thin client. It holds no parser, no formatter and no type table, and
 `rule:ide/one-server-two-thin-clients` is why: language smarts have one implementation, and a second one
