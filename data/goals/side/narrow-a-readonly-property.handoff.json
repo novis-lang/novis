@@ -1,0 +1,32 @@
+{
+  "state": "**Side goal `narrow-a-readonly-property` is written and nothing of it is built yet.** A test of a property narrows nothing, E0459's help says \"test it first\" when the receiver is a tested property, and a constructor can write a `readonly` property twice, through another instance, or behind a `get` hook. The goal's prose has the user's calls from 2026-10-05 and the measured starting point.",
+  "next": {
+    "stage": 2,
+    "title": "`readonly` is written once",
+    "files": [
+      "crates/nvs-types/src/expr/assign.rs",
+      "crates/nvs-types/src/ctor_init.rs",
+      "crates/nvs-types/src/check.rs",
+      "crates/nvs-diagnostics/src/lib.rs"
+    ],
+    "items": [
+      {
+        "done": false,
+        "text": "**Only through `$this`**: E0782 for a write whose receiver is not `$this`, inside the declaring constructor too — `crates/nvs-types/src/expr/assign.rs:1130`"
+      },
+      {
+        "done": false,
+        "text": "**At most once on each path**, a promoted parameter and a constructor loop included — `crates/nvs-types/src/ctor_init.rs:1`"
+      },
+      {
+        "done": false,
+        "text": "**No hook on `readonly`**: one new code, taken right before it is written — `crates/nvs-types/src/check.rs`, `crates/nvs-diagnostics/src/lib.rs:4378`"
+      },
+      {
+        "done": false,
+        "text": "**The writers the checker does not see**: shape receivers, reflection, filling from a row or JSON, `clone` — each refuses `readonly` or is shown not to reach it — `crates/nvs-types/src/expr/assign.rs:1107-1111`"
+      }
+    ]
+  },
+  "backlog": []
+}
