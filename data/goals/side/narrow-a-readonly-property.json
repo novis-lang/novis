@@ -5,7 +5,9 @@
   "context": {
     "modules": [
       "crates/nvs-types/src/expr/assign.rs",
-      "crates/nvs-types/src/locals.rs"
+      "crates/nvs-types/src/locals.rs",
+      "crates/nvs-types/src/expr/members.rs",
+      "crates/nvs-ir/src/lower/expr.rs"
     ],
     "rules": [
       "types/narrowing",

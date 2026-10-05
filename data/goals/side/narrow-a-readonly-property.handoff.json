@@ -1,27 +1,27 @@
 {
-  "state": "**Side goal `narrow-a-readonly-property`: stage 2 is closed, and stages 3 and 4 are untouched.**\nE0782 refuses every `readonly` write the checker can see (`crates/nvs-types/src/expr/assign.rs`, `reject_readonly_write`; `crates/nvs-types/src/ctor_init.rs`, `InitState::write`), and E0843 refuses a hook on `readonly`.\nThe writes it cannot see now throw at run time. `ClassDesc` carries one `readonly` bit per field slot (`ClassDesc::field_is_readonly`, filled by `ClassTable::set_readonly_fields`). The bit is decided in `nvs_types::layout` (`ClassLayout::readonly_fields`), carried by `nvs_ir::ir::Class::readonly_fields`, and set by codegen only for a class with at least one `readonly` slot. `write_erased_property` throws `cannot modify \\`readonly\\` property \\`C::$v\\`` (a `RuntimeError`) before the store, which covers `object` receivers, `$obj->$key` and `Core\\Reflect\\ClassInfo::set`. The graph decoder writes through `NvsObj::set_field` and is unaffected. Case: `tests/conformance/class/an-erased-write-to-a-readonly-property-throws.nvst`.\nNo rule names the run-time check yet: `rule:classes/lateinit-restrictions` is the nearest home, and stage 4's rule work should state \"`readonly` is written once\" with both halves.\nIn this worktree the `extension` step of `bun nv verify` fails because `@types/node` is not installed, and `nvs-cli`'s `live_config` test fails under load and passes alone. Neither is this goal's.",
+  "state": "**Side goal `narrow-a-readonly-property`: stages 2 and 3 are closed, and stage 4 is open.**\nA null test, `is`, a literal comparison and `match (true)` now narrow a path of `readonly` properties (`$this->a`, `$x->a->b`) as well as a binding. The path is keyed `x->a->b` in `LocalScope`'s one narrowing map (`crates/nvs-types/src/locals.rs`, `readonly_path`, `subject`, `narrowed_property`, `written_path_key`), so restore and loop suspend need no extra code. `LocalScope::drop_narrowing` drops every path rooted at the name, and `assign::note_write` drops the path a property write goes through. The module doc's narrowing section explains it.\nThe read records `ExprInfo::Property { narrowed: Some(to) }`. `nvs-ir`'s `checked_narrowed_read` (`crates/nvs-ir/src/lower/expr.rs`) tests the slot for `null` through `emit_null_guard`, the never-written guard's throw, so the error is a `LogicError` naming the property. Then it untags.\n`rule:types/narrowing`'s subject paragraph already states the path, the root-write widening and the checked read, and lists the new cases in `guardedBy`. What stage 4 still owes the rules is one sentence somewhere that `readonly` is written once, with both halves: E0782 at compile time and `write_erased_property`'s throw at run time.\nIn this worktree the `extension` step of `bun nv verify` fails because `@types/node` is not installed, and `nvs-cli`'s `live_config` test fails under load and passes alone. Neither belongs to this goal.",
   "next": {
-    "stage": 3,
-    "title": "a null test narrows a `readonly` property",
+    "stage": 4,
+    "title": "the help, the rule and the proofs",
     "files": [],
-    "note": "one file set: `crates/nvs-types/src/locals.rs`, `crates/nvs-types/tests/narrowing.rs`, and the three `.nvst` cases the `a-readonly-property-narrows` check names.",
+    "note": "one file set: `crates/nvs-types/src/expr/members.rs`, `docs/rules/classes/`, and the reject case the `the-help-for-a-property` check names.",
     "items": [
       {
         "done": false,
-        "text": "**Narrow a path of `readonly` links in the checker**: extend the narrowing subject from a named binding to `$this->a->b` / `$x->a` where every link is `readonly` (`crate::signatures::property_is_readonly` on the declaring class from `resolve_property_owned`). Store it beside the binding narrowings in `LocalScope`, and drop it on any write to the root variable. A mutable link narrows nothing. Add the three tests the `readonly-narrowing-in-the-checker` check names to `crates/nvs-types/tests/narrowing.rs`. `rule:types/narrowing` — `crates/nvs-types/src/locals.rs:278`, `crates/nvs-types/src/locals.rs:451`"
+        "text": "**E0459 on a tested mutable property says a test does not narrow it**: when the nullable receiver is a `PropertyAccess` of a mutable property, the help says a test does not narrow a property that can change, and shows the local copy (`var $n = $x->p; if ($n != null) …`) and `?->`. Case `tests/conformance/reject/a-null-test-does-not-narrow-a-mutable-property.nvst`. `rule:types/narrowing` — `crates/nvs-types/src/expr/members.rs:1173`, `crates/nvs-types/src/expr/members.rs:1198`"
       },
       {
         "done": false,
-        "text": "**The three conformance cases** of check `a-readonly-property-narrows`: `tests/conformance/class/a-null-test-narrows-a-readonly-property.nvst`, `tests/conformance/class/a-null-test-narrows-a-path-of-readonly-properties.nvst`, `tests/conformance/reject/a-write-to-the-root-variable-widens-a-narrowed-property.nvst`. `rule:types/narrowing` — `crates/nvs-types/src/locals.rs:451`"
+        "text": "**State \"`readonly` is written once\" as a rule**, with the compile-time half (E0782, E0843) and the run-time half (`write_erased_property`'s `RuntimeError`), in `rule:classes/lateinit-restrictions` or a new `classes/` rule, and render. `rule:classes/lateinit-restrictions` — `crates/nvs-types/src/locals.rs:547`"
       },
       {
         "done": false,
-        "text": "**The narrowed property read keeps its null check in `nvs-ir`**: new test target `crates/nvs-ir/tests/narrowed_property_reads.rs` with `a_narrowed_property_read_keeps_its_null_check` and `a_narrowed_variable_read_stays_unchecked`. The goal's standing decisions say which run-time error path the checked read throws through. `rule:types/narrowing` — `crates/nvs-ir/src/lower/mod.rs:816`"
+        "text": "**The `the-feature-proofs` check**: `bun nv proofs --id` for the nullable-objects feature, and close whatever it names. `rule:types/narrowing` — `crates/nvs-types/src/locals.rs:606`"
       }
     ]
   },
   "backlog": [
-    "Stage 4: E0459's help on a tested mutable property shows the local copy and `?->`, and case `tests/conformance/reject/a-null-test-does-not-narrow-a-mutable-property.nvst` (`rule:types/narrowing`).",
-    "Stage 4: rewrite `rule:types/narrowing`'s \"the subject is a binding\" paragraph, and state `readonly` write-once with its compile-time and run-time halves."
+    "An `inout` argument that passes a `readonly` path is not known to drop its narrowing. The `nvs-ir` null check makes it safe, but the checker could drop the path there too (`crates/nvs-types/src/locals.rs` module doc, narrowing section).",
+    "LSP hover on a narrowed property read still shows the declared type, because it reads `ExprInfo::Property`'s `ty` and not `narrowed` (`crates/nvs-lsp/src/hover.rs`)."
   ]
 }
