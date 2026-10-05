@@ -62,10 +62,13 @@
 //! state it woke for — [`nvs_runtime::host::Waker`] is a hint by contract.
 //!
 //! **What it spends:** one entry per *parked* task, removed by the task itself
-//! when its park ends however it ends, cancellation included. O(in-flight),
-//! never O(channels) and never O(values sent).
+//! when its park ends however it ends, cancellation included, and one map entry
+//! per channel that has a task parked on it. O(in-flight), never O(channels)
+//! and never O(values sent). The registry is keyed by channel, so a send reads
+//! only its own channel's waiters and never those of every channel on the core.
 
 use std::cell::{Cell, RefCell};
+use std::collections::BTreeMap;
 
 use nvs_runtime::host::{Waker, Woken};
 use nvs_runtime::{Ctx, Fault, NvsArray, NvsStr, ObjHeader, Value};
@@ -219,25 +222,25 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
 // The waiter registry
 // ============================================================================
 
-/// One parked task, waiting on the channel at `channel`.
-struct Parked {
-    /// The receiver's address, which is a channel's identity for as long as a
-    /// task is parked on it — the object cannot be freed while a waiter holds
-    /// a reference to it through its own frame.
+/// One registration: the channel a task is parked on, and its ticket there.
+///
+/// The channel is the receiver's address, which is a channel's identity for as
+/// long as a task is parked on it — the object cannot be freed while a waiter
+/// holds a reference to it through its own frame. The ticket is this
+/// registration's own number, so a task removes *its* entry and no other.
+#[derive(Clone, Copy)]
+struct Ticket {
     channel: usize,
-    /// This registration's own number, so a task removes *its* entry and not
-    /// whichever one happens to be at the same index.
-    ticket: u64,
-    /// The handle that makes the parked task runnable again.
-    waker: Waker,
+    number: u64,
 }
 
 thread_local! {
-    /// Every task parked on a channel on this core. A `Vec` rather than a map
-    /// keyed by channel: the list is the length of the *parked* set, which is
-    /// one or two in every shape this type is written for, and a linear scan
-    /// over that beats a hash of a pointer.
-    static WAITERS: RefCell<Vec<Parked>> = const { RefCell::new(Vec::new()) };
+    /// Every task parked on a channel on this core, keyed by channel and then
+    /// by ticket. Tickets count up, so a channel's waiters are in the order
+    /// they arrived. A channel with no waiter has no entry. A send reads only
+    /// its own channel's entry, and a waiter takes itself out in O(log n).
+    static WAITERS: RefCell<BTreeMap<usize, BTreeMap<u64, Waker>>> =
+        const { RefCell::new(BTreeMap::new()) };
     /// The next ticket, never reused within a core's life.
     static TICKETS: Cell<u64> = const { Cell::new(0) };
 }
@@ -245,56 +248,49 @@ thread_local! {
 /// Registers a wake for the calling task against `channel`, answering the
 /// ticket that takes it back off again — or `None` when there is no task
 /// beneath the call and so nothing that could ever be woken.
-fn register(channel: *mut ObjHeader) -> Option<u64> {
+fn register(channel: *mut ObjHeader) -> Option<Ticket> {
     let waker = nvs_runtime::host::with_current(|host| host.waker())??;
-    let ticket = TICKETS.with(|next| {
+    let number = TICKETS.with(|next| {
         let ticket = next.get();
         next.set(ticket + 1);
         ticket
     });
+    let channel = channel as usize;
     WAITERS.with_borrow_mut(|waiters| {
-        waiters.push(Parked {
-            channel: channel as usize,
-            ticket,
-            waker,
-        });
+        waiters.entry(channel).or_default().insert(number, waker);
     });
-    Some(ticket)
+    Some(Ticket { channel, number })
 }
 
-/// Takes `ticket`'s registration off the list if it is still there.
+/// Takes `ticket`'s registration out of the registry if it is still there.
 ///
 /// Already absent is the ordinary case: whoever woke the task drained it. What
 /// this closes is the other two endings — a cancellation, and a wake that
-/// raced with the state changing back — so that the list never holds a handle
-/// for a task that is not parked.
-fn deregister(ticket: u64) {
+/// raced with the state changing back — so that the registry never holds a
+/// handle for a task that is not parked.
+fn deregister(ticket: Ticket) {
     WAITERS.with_borrow_mut(|waiters| {
-        if let Some(at) = waiters.iter().position(|parked| parked.ticket == ticket) {
-            waiters.remove(at);
+        if let Some(parked) = waiters.get_mut(&ticket.channel) {
+            parked.remove(&ticket.number);
+            if parked.is_empty() {
+                waiters.remove(&ticket.channel);
+            }
         }
     });
 }
 
 /// Wakes every task parked on `channel`.
 ///
-/// The handles are taken out of the list before any of them fires: a wake runs
-/// no task itself — it queues a task id on the scheduler's tree — but taking
-/// them first is what keeps this module free of a borrow held across anything
-/// it does not own.
+/// The handles are taken out of the registry before any of them fires: a wake
+/// runs no task itself — it queues a task id on the scheduler's tree — but
+/// taking them first is what keeps this module free of a borrow held across
+/// anything it does not own.
 fn notify(channel: *mut ObjHeader) {
     let channel = channel as usize;
     let woken: Vec<Waker> = WAITERS.with_borrow_mut(|waiters| {
-        let mut woken = Vec::new();
-        let mut at = 0;
-        while at < waiters.len() {
-            if waiters[at].channel == channel {
-                woken.push(waiters.remove(at).waker);
-            } else {
-                at += 1;
-            }
-        }
-        woken
+        waiters
+            .remove(&channel)
+            .map_or_else(Vec::new, |parked| parked.into_values().collect())
     });
     for wake in woken {
         wake();

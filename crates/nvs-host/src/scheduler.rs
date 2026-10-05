@@ -64,8 +64,8 @@
 //! **Cancellation marks; the scheduler tears down.** [`Scheduler::cancel`] and
 //! [`cancel_task`] set a flag on a task and every descendant of it, and do
 //! nothing else. The teardown is a forced unwind of the coroutine's stack and it
-//! runs on the *scheduler's* stack — before a marked task is resumed, or over
-//! the parked set once the run queue drains — because unwinding a coroutine from
+//! runs on the *scheduler's* stack — before a marked task is resumed, or where
+//! it is parked once the run queue drains — because unwinding a coroutine from
 //! a frame standing on that same coroutine's stack is not something to be clever
 //! about. A marked task therefore dies at its next safepoint ([`suspend`],
 //! [`suspend_current`]) when it is running and immediately when it is already
@@ -161,7 +161,7 @@
 //! stays testable with no I/O in it at all.
 
 use std::cell::{Cell, RefCell};
-use std::collections::{HashMap, VecDeque};
+use std::collections::{BTreeSet, HashMap, VecDeque};
 use std::marker::PhantomData;
 use std::rc::Rc;
 
@@ -328,7 +328,11 @@ impl TaskId {
 #[derive(Debug)]
 struct TaskNode {
     parent: Option<TaskId>,
-    children: Vec<TaskId>,
+    /// Ordered by id, which is spawn order because ids are issued counting
+    /// up. A set rather than a list so that a child ending takes itself out
+    /// in O(log siblings): a fan-out of n children that all finish is then
+    /// O(n log n) and not O(n²).
+    children: BTreeSet<TaskId>,
     cancelled: bool,
 }
 
@@ -362,6 +366,13 @@ struct TaskTree {
     /// [`Scheduler::run`]. A running task cannot reach the parked set either,
     /// so this is the queue a [`Wake`] pushes onto — that type's docs own why.
     wakes: Vec<TaskId>,
+    /// The cancelled tasks [`Scheduler::run`]'s parked sweep looks at: every
+    /// task [`TaskTree::cancel`] newly marked, and every cancelled task that
+    /// parked, since the last sweep. The sweep reads this list and never the
+    /// whole parked set, so a turn costs O(tasks cancelled) and not
+    /// O(tasks parked). An id here may name a task that has ended since, or
+    /// appear twice; the sweep skips any id that is not parked.
+    sweep: Vec<TaskId>,
 }
 
 impl TaskTree {
@@ -379,12 +390,12 @@ impl TaskTree {
             id,
             TaskNode {
                 parent,
-                children: Vec::new(),
+                children: BTreeSet::new(),
                 cancelled,
             },
         );
         if let Some(node) = parent.and_then(|parent| self.nodes.get_mut(&parent)) {
-            node.children.push(id);
+            node.children.insert(id);
         }
         id
     }
@@ -403,10 +414,11 @@ impl TaskTree {
             let Some(node) = self.nodes.get_mut(&id) else {
                 continue;
             };
-            stack.extend_from_slice(&node.children);
+            stack.extend(node.children.iter().copied());
             if !node.cancelled {
                 node.cancelled = true;
                 marked += 1;
+                self.sweep.push(id);
             }
         }
         marked
@@ -414,12 +426,12 @@ impl TaskTree {
 
     /// Takes a task that has ended out of the tree, answering with the children
     /// it left behind for the caller to cancel.
-    fn retire(&mut self, id: TaskId) -> Vec<TaskId> {
+    fn retire(&mut self, id: TaskId) -> BTreeSet<TaskId> {
         let Some(node) = self.nodes.remove(&id) else {
-            return Vec::new();
+            return BTreeSet::new();
         };
         if let Some(parent) = node.parent.and_then(|parent| self.nodes.get_mut(&parent)) {
-            parent.children.retain(|child| *child != id);
+            parent.children.remove(&id);
         }
         node.children
     }
@@ -439,7 +451,7 @@ impl TaskTree {
             return false;
         };
         if let Some(parent) = self.nodes.get_mut(&parent) {
-            parent.children.retain(|child| *child != id);
+            parent.children.remove(&id);
         }
         true
     }
@@ -941,6 +953,14 @@ impl Scheduler {
                         match suspended.waiting {
                             Waiting::Yielded => self.ready.push_back(task),
                             Waiting::Parked => {
+                                // A cancelled task that parks is one the sweep
+                                // below has to see, even when its mark is older
+                                // than the last sweep: it may have been told
+                                // while it stood on a helper frame and parked
+                                // again with a stack that can now be unwound.
+                                if self.tree.borrow().is_cancelled(task.id) {
+                                    self.tree.borrow_mut().sweep.push(task.id);
+                                }
                                 self.parked.insert(task.id, task);
                             }
                         }
@@ -975,16 +995,21 @@ impl Scheduler {
             // Tearing one down can cancel its children, which is why this is a
             // loop and not a tail.
             //
+            // The sweep reads `TaskTree::sweep` and never the whole parked set.
+            // The run queue is empty here, so every live task is parked, and a
+            // listed id that is not parked has ended.
+            //
             // A task that has already been told and parked again is not doomed
             // here: it has had its one notice, and collecting it again would
             // put it back on the run queue every turn for as long as it parks.
-            let doomed: Vec<TaskId> = self
-                .parked
-                .iter()
-                .filter(|(id, task)| {
-                    self.tree.borrow().is_cancelled(**id) && (task.unwindable || !task.told)
+            let listed = std::mem::take(&mut self.tree.borrow_mut().sweep);
+            let doomed: Vec<TaskId> = listed
+                .into_iter()
+                .filter(|id| {
+                    self.parked.get(id).is_some_and(|task| {
+                        self.tree.borrow().is_cancelled(*id) && (task.unwindable || !task.told)
+                    })
                 })
-                .map(|(id, _)| *id)
                 .collect();
             // A teardown drops the handles the dead task was holding, and
             // dropping the last sender of a channel wakes everyone still
@@ -1145,7 +1170,7 @@ impl Scheduler {
             .borrow()
             .nodes
             .get(&id)
-            .map_or_else(Vec::new, |node| node.children.clone())
+            .map_or_else(Vec::new, |node| node.children.iter().copied().collect())
     }
 
     /// How many tasks the tree is holding a node for — every task that has been

@@ -36,7 +36,7 @@
 //! A task that fills a channel has to wake the task waiting to read it, and it
 //! cannot reach `&mut Scheduler` to call [`Scheduler::wake`] — the scheduler is
 //! the frame that is resuming it. So a channel wakes the way a task spawns: it
-//! holds a [`Wake`] for each parked peer, which queues the [`TaskId`] on the
+//! holds a [`Wake`] for each parked peer, which queues the [`TaskId`](crate::scheduler::TaskId) on the
 //! task tree — the half of a scheduler a running task *can* reach — and the
 //! scheduler drains it and moves that task from parked to ready.
 //! `scheduler`'s module doc § *The task tree* owns that split.
@@ -78,11 +78,11 @@
 //! [`Scheduler::run`]: crate::Scheduler::run
 
 use std::cell::RefCell;
-use std::collections::VecDeque;
+use std::collections::{BTreeMap, VecDeque};
 use std::fmt;
 use std::rc::Rc;
 
-use crate::scheduler::{TaskId, Waiting, Wake, suspend_current};
+use crate::scheduler::{Waiting, Wake, suspend_current};
 
 /// Creates a bounded channel and returns its two ends.
 ///
@@ -97,8 +97,8 @@ pub fn channel<T>(capacity: usize) -> (Sender<T>, Receiver<T>) {
         capacity: capacity.max(1),
         state: RefCell::new(State {
             queue: VecDeque::new(),
-            send_waiters: VecDeque::new(),
-            recv_waiters: VecDeque::new(),
+            send_waiters: Waiters::default(),
+            recv_waiters: Waiters::default(),
             senders: 1,
             receivers: 1,
         }),
@@ -126,10 +126,65 @@ struct Inner<T> {
 /// the peer.
 struct State<T> {
     queue: VecDeque<T>,
-    send_waiters: VecDeque<Wake>,
-    recv_waiters: VecDeque<Wake>,
+    send_waiters: Waiters,
+    recv_waiters: Waiters,
     senders: usize,
     receivers: usize,
+}
+
+/// One side's waiters, in the order they arrived.
+///
+/// Each waiter is stored under a ticket, and tickets count up, so the first
+/// entry is the one that has waited longest. A map rather than a list, so that
+/// a [`Waiter`] taking itself out costs O(log waiters). That matters because
+/// the ordinary case is a waiter that was already taken out when it was woken,
+/// and a list would be read to its end to find that out.
+#[derive(Default)]
+struct Waiters {
+    next_ticket: u64,
+    queue: BTreeMap<u64, Wake>,
+}
+
+impl Waiters {
+    /// Puts `wake` at the back and returns its ticket.
+    fn push_back(&mut self, wake: Wake) -> u64 {
+        let ticket = self.next_ticket;
+        self.next_ticket += 1;
+        self.queue.insert(ticket, wake);
+        ticket
+    }
+
+    /// Takes the waiter that has waited longest.
+    fn pop_front(&mut self) -> Option<Wake> {
+        self.queue.pop_first().map(|(_, wake)| wake)
+    }
+
+    /// Takes the waiter under `ticket` out, if it is still there.
+    fn remove(&mut self, ticket: u64) {
+        self.queue.remove(&ticket);
+    }
+
+    /// Takes every waiter, in the order they arrived. The ticket counter is
+    /// kept, so a [`Waiter`] registered before this can never remove one
+    /// registered after it.
+    fn take_all(&mut self) -> Vec<Wake> {
+        std::mem::take(&mut self.queue).into_values().collect()
+    }
+
+    #[cfg(test)]
+    fn len(&self) -> usize {
+        self.queue.len()
+    }
+
+    #[cfg(test)]
+    fn is_empty(&self) -> bool {
+        self.queue.is_empty()
+    }
+
+    #[cfg(test)]
+    fn front(&self) -> Option<&Wake> {
+        self.queue.first_key_value().map(|(_, wake)| wake)
+    }
 }
 
 /// Which of the two waiter queues a [`Waiter`] put itself on.
@@ -146,7 +201,7 @@ enum Side {
 /// wake does — the module doc's last section owns why that is not merely tidy.
 struct Waiter<T> {
     inner: Rc<Inner<T>>,
-    id: TaskId,
+    ticket: u64,
     side: Side,
 }
 
@@ -155,17 +210,16 @@ impl<T> Waiter<T> {
     /// released before this returns, because the caller's next act is to
     /// suspend.
     fn register(inner: &Rc<Inner<T>>, wake: Wake, side: Side) -> Self {
-        let id = wake.id();
-        {
+        let ticket = {
             let mut state = inner.state.borrow_mut();
             match side {
                 Side::Send => state.send_waiters.push_back(wake),
                 Side::Recv => state.recv_waiters.push_back(wake),
             }
-        }
+        };
         Self {
             inner: Rc::clone(inner),
-            id,
+            ticket,
             side,
         }
     }
@@ -180,9 +234,7 @@ impl<T> Drop for Waiter<T> {
         };
         // Already absent is the ordinary case: a waiter that was woken was
         // taken off the queue by whoever woke it.
-        if let Some(at) = queue.iter().position(|waiting| waiting.id() == self.id) {
-            queue.remove(at);
-        }
+        queue.remove(self.ticket);
     }
 }
 
@@ -446,9 +498,9 @@ impl<T> Drop for Sender<T> {
             let mut state = self.inner.state.borrow_mut();
             state.senders -= 1;
             if state.senders == 0 {
-                std::mem::take(&mut state.recv_waiters)
+                state.recv_waiters.take_all()
             } else {
-                VecDeque::new()
+                Vec::new()
             }
         };
         for wake in woken {
@@ -463,9 +515,9 @@ impl<T> Drop for Receiver<T> {
             let mut state = self.inner.state.borrow_mut();
             state.receivers -= 1;
             if state.receivers == 0 {
-                std::mem::take(&mut state.send_waiters)
+                state.send_waiters.take_all()
             } else {
-                VecDeque::new()
+                Vec::new()
             }
         };
         for wake in woken {
