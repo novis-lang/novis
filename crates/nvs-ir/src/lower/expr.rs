@@ -4690,13 +4690,14 @@ impl<'a> Lowering<'a> {
             let ty = *ty;
             return self.lower_keyed_property_access(object, property, ty, nullsafe, env, cur);
         }
-        let (class, name, ty, get, observer) = match self.exprs.lookup(expr.span) {
+        let (class, name, ty, get, observer, narrowed) = match self.exprs.lookup(expr.span) {
             Some(ExprInfo::Property {
                 class,
                 name,
                 ty,
                 observer,
-            }) => (class, name, *ty, None, observer.clone()),
+                narrowed,
+            }) => (class, name, *ty, None, observer.clone(), *narrowed),
             Some(ExprInfo::HookedProperty {
                 class,
                 name,
@@ -4704,7 +4705,7 @@ impl<'a> Lowering<'a> {
                 get,
                 observer,
                 ..
-            }) => (class, name, *ty, get.clone(), observer.clone()),
+            }) => (class, name, *ty, get.clone(), observer.clone(), None),
             // Every shape a `PropertyAccess` takes is handled above,
             // `rule:types/property-key-access`'s keyed one included, so this arm is the
             // consistency claim it reads as and not a lowering still owed.
@@ -4783,7 +4784,18 @@ impl<'a> Lowering<'a> {
                         cur,
                     );
                 }
-                read
+                match narrowed {
+                    Some(to) => self.checked_narrowed_read(
+                        read,
+                        to,
+                        &class_label,
+                        &observed_name,
+                        expr.span,
+                        env,
+                        cur,
+                    ),
+                    None => read,
+                }
             }
         };
         // `rule:classes/property-observer-pipeline`'s second step, on the read side: the value is settled
@@ -4859,6 +4871,68 @@ impl<'a> Lowering<'a> {
         env: &mut Env,
         cur: &mut BlockId,
     ) {
+        let message = format!("`{class}`'s property `${field}` is read before it is written");
+        self.emit_null_guard(value, message, span, env, cur);
+    }
+
+    /// A read of a `readonly` property a dominating test narrowed
+    /// (`nvs_types::expr_table::ExprInfo::Property`'s `narrowed`), from the
+    /// slot value `read` to the representation of `to`.
+    ///
+    /// **The read keeps a null check**, which a narrowed variable read does
+    /// not ([`Self::untag_narrowed`]). The checker drops a path's narrowing on
+    /// every write it can see, and `readonly` is written once, so the check
+    /// never fails in a program the checker passed. It is there so that a write
+    /// path the checker missed throws a `LogicError` naming the property, and
+    /// never reads a `null` as an object. It reuses
+    /// [`Self::emit_never_written_guard`]'s throw, and borrows for the same
+    /// reason. A slot that cannot hold `null` needs no check, and a `to` that
+    /// is still [`Ty::Tagged`] needs no untag.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "the read and its proved type, the two names the message \
+                  carries, and the span, env and block every guard threads"
+    )]
+    fn checked_narrowed_read(
+        &mut self,
+        read: (ValueId, Ty),
+        to: nvs_types::ty::TypeId,
+        class: &str,
+        field: &str,
+        span: Span,
+        env: &mut Env,
+        cur: &mut BlockId,
+    ) -> (ValueId, Ty) {
+        let (value, field_ty) = read;
+        if field_ty != Ty::Tagged {
+            return read;
+        }
+        let message = format!(
+            "`{class}`'s `readonly` property `${field}` is `null`, but a test before this read \
+             found that it was not `null`"
+        );
+        self.emit_null_guard(value, message, span, env, cur);
+        let to = erase_checked_ty(to, self.checked_types);
+        if to == Ty::Tagged {
+            return read;
+        }
+        (
+            self.emit(*cur, to, InstKind::Untag { operand: value }).0,
+            to,
+        )
+    }
+
+    /// Tests `value` for `null` and throws a `LogicError` carrying `message`
+    /// where it is, leaving `cur` on the block where it is not. It borrows
+    /// `value`, as [`Self::emit_never_written_guard`] describes.
+    fn emit_null_guard(
+        &mut self,
+        value: ValueId,
+        message: String,
+        span: Span,
+        env: &mut Env,
+        cur: &mut BlockId,
+    ) {
         let (is_unset, _) = self.emit(*cur, Ty::Bool, InstKind::IsNull { operand: value });
         let unset = self.new_block();
         let written = self.new_block();
@@ -4874,13 +4948,7 @@ impl<'a> Lowering<'a> {
                 else_edge: written_edge,
             },
         );
-        let (message, _) = self.emit(
-            unset,
-            Ty::Str,
-            InstKind::ConstStr(format!(
-                "`{class}`'s property `${field}` is read before it is written"
-            )),
-        );
+        let (message, _) = self.emit(unset, Ty::Str, InstKind::ConstStr(message));
         // Argument 2 is the `{previous}` bag flattened to its own `null`
         // default, widened into the `Ty::Tagged` slot spec § 10's
         // `Throwable|null` erases to — the list `Self::lower_match`'s own

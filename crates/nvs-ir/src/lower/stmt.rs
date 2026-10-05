@@ -1251,6 +1251,7 @@ impl<'a> Lowering<'a> {
                         name,
                         ty,
                         observer,
+                        ..
                     }) => (class, name, *ty, None, observer.clone()),
                     Some(ExprInfo::HookedProperty {
                         class,
