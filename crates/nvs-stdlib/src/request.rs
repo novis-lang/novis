@@ -1917,17 +1917,19 @@ fn joined_field(inbound: &Inbound, name: &[u8]) -> Option<Vec<u8>> {
 /// half of the pair that keeps two lines of one name apart, which the module doc
 /// argues is the only reading `joined_field`'s answer cannot be recovered from.
 ///
-/// A linear scan of the names already seen rather than a hash map, because the
-/// number of distinct field names on one request is small and bounded at the
-/// door, and a map would cost an allocation per group to save a comparison per
-/// line.
+/// Each line finds its group through a map from name to the group's position,
+/// so the cost is linear in the lines the request carried. The map holds one
+/// more copy of each distinct name, for the length of this call.
 fn grouped_fields<'a>(inbound: &'a Inbound) -> Vec<(String, Vec<&'a [u8]>)> {
     let mut groups: Vec<(String, Vec<&'a [u8]>)> = Vec::new();
+    let mut at: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
     for (field, value) in inbound.headers() {
-        let name = field.to_ascii_lowercase();
-        match groups.iter_mut().find(|(seen, _)| *seen == name) {
-            Some((_, lines)) => lines.push(value),
-            None => groups.push((name, vec![value])),
+        match at.entry(field.to_ascii_lowercase()) {
+            std::collections::hash_map::Entry::Occupied(seen) => groups[*seen.get()].1.push(value),
+            std::collections::hash_map::Entry::Vacant(new) => {
+                groups.push((new.key().clone(), vec![value]));
+                new.insert(groups.len() - 1);
+            }
         }
     }
     groups

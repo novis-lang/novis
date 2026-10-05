@@ -7,7 +7,12 @@
 // scaling: expect linear
 
 uint $seen = 0;
-foreach (Core\Request::headers() as string $name => array<tainted string> $values) {
-    $seen = $seen + 1;
+uint $round = 0;
+// This reads the list 200 times, so reading the headers takes longer than the rest of the request.
+while ($round < 200) {
+    foreach (Core\Request::headers() as string $name => array<tainted string> $values) {
+        $seen = $seen + 1;
+    }
+    $round = $round + 1;
 }
 echo $seen > 0 ? "ok" : "none", "\n";
