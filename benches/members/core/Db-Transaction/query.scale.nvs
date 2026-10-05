@@ -1,0 +1,32 @@
+<?nvs
+// Measures one `select` inside a transaction that reads every row of a table, at growing numbers of rows.
+// bench: start 64
+// bench: max 512
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        var $db = Core\Db::connect('notes');
+        $db->execute('create table notes (id integer primary key, n int not null)', []);
+        array<array<mixed>> $sets = [];
+        uint $written = 0;
+        while ($written < $size) {
+            $sets[] = [$written as int];
+            $written = $written + 1;
+        }
+        $db->executeMany('insert into notes (n) values (?)', $sets);
+        return $db->transaction(fn (Core\Db\Transaction $tx): uint => {
+            uint $total = 0;
+            uint $i = 0;
+            while ($i < 64) {
+                var $rows = $tx->query('select n from notes where n >= ? order by id', [($total % 2) as int]);
+                $total = $total + $rows->count();
+                $i = $i + 1;
+            }
+            return $total;
+        });
+    }
+}
+
+echo Bench::run(64), "\n";

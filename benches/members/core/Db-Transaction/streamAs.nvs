@@ -2,6 +2,7 @@
 // Measures one `select` inside a transaction that builds one object per row.
 // A report does this when it reads a table before it writes a summary.
 // bench: iterations 10000
+// bench: complexity linear
 use Core\Db\Derive;
 
 #[Derive]

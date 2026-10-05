@@ -2,6 +2,7 @@
 // Measures one batch of four rows inside a transaction, as a program does when
 // it saves a group of records together.
 // bench: iterations 5000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

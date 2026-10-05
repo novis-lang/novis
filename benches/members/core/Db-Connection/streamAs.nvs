@@ -2,6 +2,7 @@
 // Measures one `select` whose rows are built into objects one at a time. A
 // program does this when it writes each record out as it arrives.
 // bench: iterations 10000
+// bench: complexity linear
 use Core\Db\Derive;
 
 #[Derive]

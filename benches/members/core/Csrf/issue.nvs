@@ -2,6 +2,7 @@
 // Measures creating one token, as a program does every time it renders a form.
 // bench: iterations 100000
 // bench: calls 0
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

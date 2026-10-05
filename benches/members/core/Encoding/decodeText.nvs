@@ -3,6 +3,7 @@
 // every field of a file written in an older encoding.
 // bench: iterations 200000
 // bench: calls 0
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

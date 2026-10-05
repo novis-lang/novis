@@ -3,6 +3,7 @@
 // when it puts a value into a message it is about to print.
 // bench: iterations 200000
 // bench: calls 0
+// bench: complexity linear
 
 class Bench {
     // The rendering is kept, so the work is really done every round.

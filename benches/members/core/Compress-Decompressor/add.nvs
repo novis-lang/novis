@@ -6,6 +6,7 @@
 // `add` keeps the piece it was given instead of copying it, so one piece costs
 // no memory of its own.
 // bench: allocations 0
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

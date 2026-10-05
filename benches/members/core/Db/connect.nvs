@@ -3,6 +3,7 @@
 // when several of its functions each open the database by name.
 // bench: iterations 200000
 // bench: calls 0
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

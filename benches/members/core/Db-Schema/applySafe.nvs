@@ -2,6 +2,7 @@
 // Measures applying a schema to a database that already matches it. A program
 // does this at start-up, to check that its tables are in place.
 // bench: iterations 2000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

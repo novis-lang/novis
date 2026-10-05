@@ -3,6 +3,7 @@
 // puts a value in a cache or writes one to a log that is kept compressed.
 // bench: iterations 50000
 // bench: calls 0
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

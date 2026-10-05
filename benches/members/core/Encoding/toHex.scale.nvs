@@ -1,0 +1,21 @@
+<?nvs
+// Measures `Core\Encoding::toHex` on one field of bytes, at growing field sizes.
+// bench: start 256
+// bench: max 4096
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        bytes $field = Core\Bytes::fill($size, 131);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            $total = $total + Core\Str::length(Core\Encoding::toHex($field));
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

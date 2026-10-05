@@ -2,6 +2,7 @@
 // Measures one `select` that reads a few rows into objects of a class, as a
 // program does when it shows a page of a list.
 // bench: iterations 10000
+// bench: complexity linear
 use Core\Db\Derive;
 
 #[Derive]

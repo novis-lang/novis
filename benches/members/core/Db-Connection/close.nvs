@@ -3,6 +3,7 @@
 // program does when an earlier step gave the connection back.
 // bench: iterations 200000
 // bench: allocations 0
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

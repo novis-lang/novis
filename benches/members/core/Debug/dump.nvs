@@ -3,6 +3,7 @@
 // writes while somebody is looking for a fault in it.
 // bench: iterations 50000
 // bench: calls 0
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

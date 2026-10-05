@@ -3,6 +3,7 @@
 // whether to check a signature or to agree a secret with the key.
 // bench: iterations 1000000
 // bench: allocations 0
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

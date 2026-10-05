@@ -2,6 +2,7 @@
 // Measures one `select` inside a transaction, as a program does when it reads a
 // few rows before it writes them back.
 // bench: iterations 20000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

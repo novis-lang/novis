@@ -3,6 +3,7 @@
 // writes a schema to a file or compares it with another one.
 // bench: iterations 200000
 // bench: allocations 0
+// bench: complexity constant
 
 use Core\Db\Schema;
 

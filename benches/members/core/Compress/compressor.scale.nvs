@@ -1,0 +1,23 @@
+<?nvs
+// Measures a compression stream that is given one piece, at growing piece sizes.
+// bench: start 1024
+// bench: max 16384
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        string $piece = Core\Str::repeat('{"id":1042}', $size);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            var $stream = Core\Compress::compressor(Core\Codec::Zstd);
+            $stream->add($piece);
+            $total = $total + Core\Bytes::length($stream->finish());
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(1024), "\n";

@@ -1,0 +1,31 @@
+<?nvs
+// Measures reading one column of a result as a list, at growing numbers of rows.
+// bench: start 64
+// bench: max 512
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        var $db = Core\Db::connect('notes');
+        $db->execute('create table seatings (id integer primary key, seats int not null)', []);
+        array<array<mixed>> $sets = [];
+        uint $written = 0;
+        while ($written < $size) {
+            $sets[] = [($written % 7) as int + 1];
+            $written = $written + 1;
+        }
+        $db->executeMany('insert into seatings (seats) values (?)', $sets);
+        var $rows = $db->query('select seats from seatings order by id', []);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            array<mixed> $taken = $rows->column('seats');
+            $total = $total + Core\Arr::count($taken);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(64), "\n";

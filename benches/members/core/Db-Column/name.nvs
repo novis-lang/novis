@@ -3,6 +3,7 @@
 // headings of a table it built from a query.
 // bench: iterations 300000
 // bench: calls 0
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

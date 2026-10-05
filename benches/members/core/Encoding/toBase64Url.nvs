@@ -3,6 +3,7 @@
 // every time it builds a link to one of its own records.
 // bench: iterations 400000
 // bench: calls 0
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

@@ -1,0 +1,25 @@
+<?nvs
+// Measures `Core\Csrf::verify` on one token, at growing session id lengths.
+// bench: start 256
+// bench: max 4096
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        secret bytes $key = Core\Crypto::generateKey();
+        string $session = Core\Str::repeat('s', $size);
+        string $token = Core\Csrf::issue($session, $key);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            if (Core\Csrf::verify($token, $session, $key)) {
+                $total = $total + 1;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";
