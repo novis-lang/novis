@@ -6,11 +6,9 @@
 // covers: lang:enums/comparing-cases
 // hostile: timeout-ms 20000
 
-enum Mask: uint
-{ None = 0, All = 18446744073709551615 }
+enum Mask: uint { None = 0, All = 18446744073709551615 }
 
-enum Signal
-{ Stop = -9223372036854775807, Idle = 0, Go = 9223372036854775807 }
+enum Signal { Stop = -9223372036854775807, Idle = 0, Go = 9223372036854775807 }
 
 // 1. Four million comparisons at the ends of a `uint`-backed enum. Every round
 // checks that `==` agrees with the numbers.

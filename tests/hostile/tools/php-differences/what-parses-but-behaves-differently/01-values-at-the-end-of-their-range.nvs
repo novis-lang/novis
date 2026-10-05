@@ -3,8 +3,7 @@
 // Each step should end with an error or a result. The program must not crash.
 // hostile: timeout-ms 30000
 
-enum Level
-{ Low = 1, High = 2 }
+enum Level { Low = 1, High = 2 }
 
 // 1. One million integer overflows are caught.
 int $caught = 0;

@@ -6,8 +6,7 @@
 // covers: lang:enums/a-union-of-cases-is-a-narrower-type
 // hostile: timeout-ms 20000
 
-enum Mode
-{ Read, Write, Append, Exec }
+enum Mode { Read, Write, Append, Exec }
 
 // 1. Twenty thousand numbers converted with `as`, each miss caught.
 class Forced

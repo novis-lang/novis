@@ -7,11 +7,9 @@
 // hostile: timeout-ms 20000
 // hostile: ends-early 4 FATAL
 
-enum Level
-{ Low = 1, Mid = 5, High = 9 }
+enum Level { Low = 1, Mid = 5, High = 9 }
 
-enum Far
-{ End = 9223372036854775807, Start = -9223372036854775807 }
+enum Far { End = 9223372036854775807, Start = -9223372036854775807 }
 
 // 1. An array keyed at the largest and the smallest numbers there are, read
 // back through the same cases.

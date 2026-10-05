@@ -6,8 +6,7 @@
 // covers: lang:enums/what-replaces-php-s-enum-members
 // hostile: timeout-ms 20000
 
-enum Level
-{ Debug, Info, Warn, Error }
+enum Level { Debug, Info, Warn, Error }
 
 class Levels
 {

@@ -4,8 +4,7 @@
 // or give `null` for `?uint`. The values include huge text, near misses and extreme numbers.
 // hostile: timeout-ms 60000
 
-enum Action
-{ Read, Write, Admin }
+enum Action { Read, Write, Admin }
 
 class Poke
 {

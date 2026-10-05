@@ -5,8 +5,7 @@ namespace App;
 
 use RuntimeError;
 
-enum Role
-{ Admin }
+enum Role { Admin }
 
 class Site
 {

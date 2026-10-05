@@ -6,10 +6,8 @@
 // covers: lang:enums/a-case-is-its-integer
 // hostile: timeout-ms 20000
 
-enum Mask: uint
-{ None = 0, All = 18446744073709551615 }
-enum Depth
-{ Floor = -9223372036854775807, Ground = 0, Step = 1 }
+enum Mask: uint { None = 0, All = 18446744073709551615 }
+enum Depth { Floor = -9223372036854775807, Ground = 0, Step = 1 }
 
 // 1. The largest number a `uint` enum can carry, raised by one.
 uint $top = Mask::All as uint;

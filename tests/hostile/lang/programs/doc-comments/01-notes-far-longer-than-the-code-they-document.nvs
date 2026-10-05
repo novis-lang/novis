@@ -111,7 +111,7 @@ enum Marker
     /// A case with /* in its doc comment.
     Second,
     /// A case with ?> in its doc comment.
-    Third
+    Third,
 }
 
 var $attack = new Attack();

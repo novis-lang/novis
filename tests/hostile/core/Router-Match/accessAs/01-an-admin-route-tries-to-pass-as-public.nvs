@@ -6,11 +6,9 @@ namespace App;
 
 use RuntimeError;
 
-enum Role
-{ Admin, Editor }
+enum Role { Admin, Editor }
 
-enum Plan
-{ Free }
+enum Plan { Free }
 
 class Site
 {

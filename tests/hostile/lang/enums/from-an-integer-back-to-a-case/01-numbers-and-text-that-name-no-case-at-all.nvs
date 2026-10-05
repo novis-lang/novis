@@ -6,11 +6,9 @@
 // covers: lang:enums/from-an-integer-back-to-a-case
 // hostile: timeout-ms 20000
 
-enum Level: int
-{ Debug = 0, Info = 1, Warn = 2, Error = 3 }
+enum Level: int { Debug = 0, Info = 1, Warn = 2, Error = 3 }
 
-enum Wide: uint
-{ None = 0, All = 18446744073709551615 }
+enum Wide: uint { None = 0, All = 18446744073709551615 }
 
 // 1. Two hundred thousand conversions that throw an error, and each error is
 // caught. Memory use should not grow.
