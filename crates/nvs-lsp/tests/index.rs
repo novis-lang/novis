@@ -221,7 +221,10 @@ fn all_six_readers_query_the_one_index() {
     // Each reader, and what it answers from. Five of them answer a request and
     // the dimming is published unasked, which is why it names no method.
     let readers: [(&str, &[&str]); 6] = [
-        ("textDocument/references", &["occurrences", "declaration"]),
+        (
+            "textDocument/references",
+            &["occurrences", "declaration", "imports_of"],
+        ),
         ("textDocument/documentHighlight", &["occurrences_in"]),
         (
             "textDocument/codeLens",
