@@ -3,7 +3,8 @@
   "status": "shipped",
   "because": [
     "0073",
-    "0006"
+    "0006",
+    "0271"
   ],
   "divergesFromPhp": "a cron-invoked `php` process gets no limits, no capability narrowing and no place to report but a mail spool; a scheduled run gets the deployment's `[limits]`, its `[capabilities]` and the escalation ladder because it is an ordinary isolate",
   "seeAlso": [

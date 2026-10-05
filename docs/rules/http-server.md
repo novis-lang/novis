@@ -130,7 +130,7 @@ A named file never overrides a written table. One that is not among the mounted 
 
 `nvs service install` stores `serve` with no file only where the configuration the argv names writes a mount table that mounts at least one entry on disk, and refuses it otherwise (`E0630`): a server with nothing to serve exits at once, which a service manager reports as a crash loop. A table with no `[server] root` never gets that far, since the configuration does not resolve ([`http-server/a-mount-table-expands-at-boot`](http-server.md#http-server-a-mount-table-expands-at-boot)).
 
-<sub>See also [`http-server/a-mount-table-expands-at-boot`](http-server.md#http-server-a-mount-table-expands-at-boot), [`http-server/a-mount-carries-no-policy`](http-server.md#http-server-a-mount-carries-no-policy), [`http-server/a-path-is-never-derived-from-a-url`](http-server.md#http-server-a-path-is-never-derived-from-a-url), [`config/every-matching-app-block-applies-least-specific-first`](config.md#config-every-matching-app-block-applies-least-specific-first). Decided in [0200](../decisions/0200.md).</sub>
+<sub>See also [`http-server/a-mount-table-expands-at-boot`](http-server.md#http-server-a-mount-table-expands-at-boot), [`http-server/a-mount-carries-no-policy`](http-server.md#http-server-a-mount-carries-no-policy), [`http-server/a-path-is-never-derived-from-a-url`](http-server.md#http-server-a-path-is-never-derived-from-a-url), [`config/every-matching-app-block-applies-least-specific-first`](config.md#config-every-matching-app-block-applies-least-specific-first). Decided in [0200](../decisions/0200.md), [0271](../decisions/0271.md).</sub>
 
 <a id="http-server-a-unix-socket-listener"></a>
 

@@ -5,7 +5,8 @@
     "0078",
     "0005",
     "0103",
-    "0219"
+    "0219",
+    "0271"
   ],
   "divergesFromPhp": "nothing is re-read on the request path — no `.user.ini` scan, no per-directory override — and a reload that fails leaves the old configuration serving rather than half of each",
   "seeAlso": [

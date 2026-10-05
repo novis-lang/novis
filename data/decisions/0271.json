@@ -1,0 +1,12 @@
+{
+  "title": "every served entry runs under the `[[app]]` blocks that match its own file, and the door under the host's snapshot",
+  "status": "accepted",
+  "scope": "which configuration snapshot a served request, a scheduled fire and a queued job run under, what one publish holds, and which keys are read per mount and which once for the process. What an `[[app]]` block may write, and how blocks fold, stay `rule:config/an-application-is-its-entry-file-path`'s and `rule:config/every-matching-app-block-applies-least-specific-first`'s.",
+  "dependsOn": [
+    "0200",
+    "0104",
+    "0078",
+    "0097"
+  ],
+  "validatedBy": "the tests the goal `serve-per-mount-config` names in `crates/nvs-config/tests/snapshot.rs` and `crates/nvs-cli/tests/per_mount_config.rs`, among them `a_mount_cannot_use_a_capability_only_another_applications_block_grants`, and the attack under `tests/hostile/tools/config/app-per-application-blocks/`."
+}

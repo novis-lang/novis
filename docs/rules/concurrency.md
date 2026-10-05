@@ -1326,7 +1326,7 @@ one script compiles it once.
 Output is captured rather than written through, because a job's `echo` landing in the middle of what
 the server or the run's own script is writing is exactly the mixing capture exists to prevent.
 
-<sub>See also [`concurrency/a-job-names-a-file`](concurrency.md#concurrency-a-job-names-a-file), [`concurrency/a-jobs-budget-and-grants-are-recorded-at-enqueue`](concurrency.md#concurrency-a-jobs-budget-and-grants-are-recorded-at-enqueue). Decided in [0084](../decisions/0084.md), [0006](../decisions/0006.md), [0017](../decisions/0017.md).</sub>
+<sub>See also [`concurrency/a-job-names-a-file`](concurrency.md#concurrency-a-job-names-a-file), [`concurrency/a-jobs-budget-and-grants-are-recorded-at-enqueue`](concurrency.md#concurrency-a-jobs-budget-and-grants-are-recorded-at-enqueue). Decided in [0084](../decisions/0084.md), [0006](../decisions/0006.md), [0017](../decisions/0017.md), [0271](../decisions/0271.md).</sub>
 
 <a id="concurrency-who-runs-a-job-is-configuration"></a>
 
