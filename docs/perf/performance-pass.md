@@ -84,6 +84,17 @@ by name, and refusals of any later name go into one counter. The growth is in me
 not see, so a unit test in the module covers it rather than a ladder. It spends at most 256 keys and
 one `u64` per core.
 
+**A throw no longer reads its message once for every frame it leaves.** Each frame that adds a
+backtrace line also made an owned copy of the error's message and then discarded it. The copy is now
+made only for a bare message that cannot become an object. The ladder
+[`values/throw-depth`](../../benches/scaling/values/throw-depth.nvs) throws a message of 64 × n bytes
+from n calls deep. It is flat on the counts before and after, because they do not see Rust's own
+strings. On the clock, a 3 MB message thrown from 3000 calls deep took 48 ms before and 49 ms after,
+the same as a four-call control. So the release build was already not paying for the copy. The
+optimizer probably removed it, but that was not checked. The fix makes the copy absent in the code
+rather than relying on the optimizer. A unit test in the module covers the message that cannot be
+promoted. It spends nothing.
+
 ## Decisions for you
 
 **Should a request head get a total deadline as well as its idle one?** `header_timeout` is an idle

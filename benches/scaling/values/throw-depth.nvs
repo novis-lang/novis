@@ -1,0 +1,25 @@
+<?nvs
+// Throws an error with a message of 64 × n bytes from n calls deep and catches it at the top, as a deep request handler does.
+// scaling: start 256
+// scaling: max 4096
+// scaling: expect linear
+
+class Bench {
+    private static function dive(uint $depth, string $message): uint {
+        if ($depth == 0) {
+            throw new RuntimeError($message);
+        }
+        return Bench::dive($depth - 1, $message) + 1;
+    }
+
+    public static function run(uint $depth): uint {
+        string $message = Core\Str::repeat("x", 64 * $depth);
+        try {
+            return Bench::dive($depth, $message);
+        } catch (RuntimeError $e) {
+            return Core\Str::length($e->message);
+        }
+    }
+}
+
+echo Bench::run(256), "\n";

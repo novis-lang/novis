@@ -37,8 +37,8 @@ and whether `line_col` counts from the start of a file.
 **Read:** freeing, arrays, objects and property lookup, throwables and backtraces, closures, debug
 records, and the per-request tables of open handles.
 
-**Found:** a throw copies its message once per frame it unwinds
-([`a-throw-copies-its-message-per-frame`](../../data/gaps/nvs-runtime/a-throw-copies-its-message-per-frame.json)).
+**Found:** a throw copies its message once per frame it unwinds, now fixed
+([performance-pass.md § *What got better*](performance-pass.md#what-got-better)).
 
 **Fine:** freeing a long chain is one worklist loop, not recursion (`crates/nvs-runtime/src/release.rs:58`).
 A backtrace push moves the array out of its slot, so copy-on-write never copies it. Array unset

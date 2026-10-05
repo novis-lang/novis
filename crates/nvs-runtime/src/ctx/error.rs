@@ -361,6 +361,40 @@ impl Ctx {
             .map_or_else(|| installed.desc(), |found| found.desc())
     }
 
+    /// `pending` as an exception object, promoting a bare message to one, for
+    /// a caller about to write a frame into it.
+    ///
+    /// Where there is no object to write into — promotion of a message under an
+    /// uninstalled class (`Pending`'s note), or an absent object — the failure
+    /// goes back into the pending slot as a message and this returns `None`.
+    /// An object that already exists is returned untouched, and its message is
+    /// never read: [`Self::push_frame`] runs once per frame a throw unwinds
+    /// through, so a read there would copy the whole message at every frame.
+    fn promote_pending(&mut self, pending: Pending) -> Option<Thrown> {
+        let thrown = match pending {
+            Pending::Thrown(thrown) => thrown,
+            Pending::Message(class, message) => {
+                let desc = self.error_desc(class);
+                #[expect(
+                    unsafe_code,
+                    reason = "`set_runtime_error_class`'s own contract makes the \
+                              installed descriptor outlive every instance built here"
+                )]
+                let thrown = unsafe { Thrown::new_as(desc, class, &message, &[]) };
+                if thrown.is_none() {
+                    self.pending = Some(Pending::Message(class, message));
+                    return None;
+                }
+                thrown
+            }
+        };
+        if thrown.is_none() {
+            self.pending = Some(Pending::Message(ThrownClass::default(), Cow::Borrowed("")));
+            return None;
+        }
+        Some(thrown)
+    }
+
     /// Runs `body` with this context's pending failure set aside, **reporting**
     /// anything `body` raised and putting the saved one back.
     ///
@@ -530,24 +564,9 @@ impl Ctx {
         let Some(pending) = self.pending.take() else {
             return;
         };
-        // Captured before promotion, for the one case promotion cannot produce
-        // an object for — see `Pending`'s note on an uninstalled class.
-        let message = pending.message().into_owned();
-        let class = pending.class();
-        let desc = class.map_or(std::ptr::null(), |class| self.error_desc(class));
-        #[expect(
-            unsafe_code,
-            reason = "`set_runtime_error_class`'s own contract makes the \
-                      installed descriptor outlive every instance built here"
-        )]
-        let thrown = unsafe { pending.into_thrown(desc) };
-        if thrown.is_none() {
-            self.pending = Some(Pending::Message(
-                class.unwrap_or_default(),
-                Cow::Owned(message),
-            ));
+        let Some(thrown) = self.promote_pending(pending) else {
             return;
-        }
+        };
         if !thrown.has_frame() {
             #[expect(unsafe_code, reason = "forwarding this function's own contract")]
             let seeded = unsafe { thrown.capture_site(blob) };
@@ -819,25 +838,9 @@ impl Ctx {
         let Some(pending) = self.pending.take() else {
             return;
         };
-        // Captured before promotion, so the message survives the one case
-        // promotion cannot produce an object for — see `Pending`'s note on an
-        // uninstalled class.
-        let message = pending.message().into_owned();
-        let class = pending.class();
-        let desc = class.map_or(std::ptr::null(), |class| self.error_desc(class));
-        #[expect(
-            unsafe_code,
-            reason = "`set_runtime_error_class`'s own contract makes the \
-                      installed descriptor outlive every instance built here"
-        )]
-        let thrown = unsafe { pending.into_thrown(desc) };
-        if thrown.is_none() {
-            self.pending = Some(Pending::Message(
-                class.unwrap_or_default(),
-                Cow::Owned(message),
-            ));
+        let Some(thrown) = self.promote_pending(pending) else {
             return;
-        }
+        };
         if std::mem::take(&mut self.site_frame_pending) {
             thrown.replace_innermost_frame(label);
         } else {
@@ -865,6 +868,18 @@ mod tests {
         let mut ctx = Ctx::buffered();
         ctx.set_pending("the world said no");
         let _ = ctx.pending_conforms_to("RuntimeError");
+    }
+
+    /// With no class table installed a message cannot be promoted to an
+    /// object, so every frame it unwinds through leaves it a message, and the
+    /// message itself is never lost on the way.
+    #[test]
+    fn an_unpromotable_message_survives_every_frame_it_unwinds_through() {
+        let mut ctx = Ctx::buffered();
+        ctx.set_pending("the world said no");
+        ctx.push_frame("inner");
+        ctx.push_frame("outer");
+        assert_eq!(ctx.pending().as_deref(), Some("the world said no"));
     }
 
     /// `rule:core-classes/db-error`'s retry loop reads a refusal's `kind` off a failure it has
