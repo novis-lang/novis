@@ -14,9 +14,9 @@
 //! (`rule:tooling/fmt-is-one-canonical-style`). Formatting an
 //! already-formatted file changes nothing, which is what makes `--check`
 //! well-defined (`rule:tooling/fmt-is-idempotent`). The author's own line
-//! breaks are kept: this normalizes what surrounds an expression and never
-//! decides where one breaks, so there is no width limit anywhere in it
-//! (`rule:tooling/fmt-never-reflows`).
+//! breaks choose the layout: a list with a break at its own level has one item
+//! per line, and nothing here decides by itself where an expression breaks, so
+//! there is no width limit anywhere in it (`rule:tooling/fmt-never-reflows`).
 //!
 //! # The tree it reads
 //!
@@ -63,6 +63,7 @@ use nvs_diagnostics::{Diagnostics, SourceFile};
 mod brace;
 mod imports;
 mod indent;
+mod list;
 mod modifiers;
 mod print;
 mod space;

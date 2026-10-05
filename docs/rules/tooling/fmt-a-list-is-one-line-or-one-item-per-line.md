@@ -27,7 +27,7 @@ line and keeps the layout its own rules give it, so a call whose last argument i
 multi-line body and no break between its arguments stays as written:
 
 ```nvs
-array<string> $names = Core\Arr::map($users, fn(User $user) {
+array<string> $names = Core\Arr::map($users, fn(User $user): string => {
     return Core\Str::upper($user->name);
 });
 ```

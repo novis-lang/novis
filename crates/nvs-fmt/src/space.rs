@@ -245,7 +245,7 @@ fn arm_lines(
 /// that abut one another from `from` lands on the next token — and the comment
 /// in `{/* kept */ a: 1}` is one of them, because what this looks for is where
 /// the code resumes rather than what was skipped to reach it.
-fn code_after(trivia: &[Trivia], from: usize) -> usize {
+pub(crate) fn code_after(trivia: &[Trivia], from: usize) -> usize {
     let mut at = from;
     let mut next = trivia.partition_point(|trivium| (trivium.span.start as usize) < at);
     while let Some(trivium) = trivia.get(next) {

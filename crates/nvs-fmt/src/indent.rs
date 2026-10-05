@@ -26,12 +26,13 @@
 //! [`Indent::of_line`] answers [`None`] for a line the tree does not place, and
 //! the printer then copies the author's own whitespace. That is what keeps a
 //! rule that has not landed yet from moving a byte: a continuation line inside
-//! a multi-line call, a `switch` case and a template region's own text are all
+//! an item of a list, a `switch` case and a template region's own text are all
 //! bytes some later rule owns, and answering [`None`] for them is how this one
-//! stays inside `rule:tooling/fmt-never-reflows` — an expression's interior is
-//! the author's, and this never sees it.
+//! stays inside `rule:tooling/fmt-never-reflows`.
 //!
-//! A line is placed when it opens a statement or a member that a body directly
+//! A line is placed when it opens an item, a comment between two items or the
+//! closer of a broken list ([`crate::list`]), when it opens a statement or a
+//! member that a body directly
 //! contains, when it opens that body's own closing brace, which sits at the
 //! body's own depth rather than its contents', or when it opens with the `?>`
 //! that leaves code mode. That tag is the last code on its line and sits where
@@ -63,6 +64,8 @@
 
 use nvs_diagnostics::BytePos;
 use nvs_syntax::{IndexNode, SyntaxIndex, Trivia, TriviaKind};
+
+use crate::list;
 
 /// One level of indentation.
 pub(crate) const UNIT: &str = "    ";
@@ -100,7 +103,7 @@ const BODIES: &[&str] = &[
 /// own output bytes and never a formatter's. A line anywhere inside one of
 /// these is left exactly as its author wrote it, which is the safe direction
 /// and the one an editor saving a file expects.
-const OPAQUE: &[&str] = &["Switch", "InlineHtml"];
+pub(crate) const OPAQUE: &[&str] = &["Switch", "InlineHtml"];
 
 /// Where each line of a file sits, answered from that file's parse.
 pub(crate) struct Indent<'a> {
@@ -119,6 +122,11 @@ impl<'a> Indent<'a> {
         }
     }
 
+    /// The parse this reads: the index, the text and its trivia.
+    pub(crate) const fn parse(&self) -> (&'a SyntaxIndex, &'a str, &'a [Trivia]) {
+        (self.index, self.text, self.trivia)
+    }
+
     /// The text that should open the line whose first non-whitespace byte is at
     /// `offset`, or [`None`] to keep whatever the author wrote there.
     pub(crate) fn of_line(&self, offset: usize) -> Option<String> {
@@ -127,6 +135,9 @@ impl<'a> Indent<'a> {
         let nodes = path.nodes();
         if nodes.is_empty() || nodes.iter().any(|node| OPAQUE.contains(&node.kind)) {
             return None;
+        }
+        if let Some(opening) = list::opening(self, nodes, offset) {
+            return Some(opening);
         }
 
         // A byte closing a body sits where that body's own opening was written,
@@ -252,7 +263,7 @@ pub(crate) fn arm_starts(indent: &Indent<'_>, node: IndexNode) -> Vec<usize> {
 /// `trivia` is in source order and no two of them overlap
 /// (`rule:ide/tokens-plus-trivia-reproduce-the-file`), so the one trivium that
 /// can hold an offset is the last one beginning at or before it.
-fn commented(trivia: &[Trivia], offset: usize) -> bool {
+pub(crate) fn commented(trivia: &[Trivia], offset: usize) -> bool {
     let after = trivia.partition_point(|trivium| trivium.span.start as usize <= offset);
     after > 0 && {
         let trivium = trivia[after - 1];

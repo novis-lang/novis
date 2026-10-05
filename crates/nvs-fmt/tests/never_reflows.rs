@@ -19,9 +19,10 @@ fn formatted(source: &str) -> String {
 #[test]
 fn an_authors_line_break_inside_an_expression_is_kept() {
     // `rule:tooling/fmt-never-reflows`: the wide call stays on its line however
-    // long it is, the tall one keeps every break its author typed, and the
-    // indentation inside it is the author's too — what is normalized is the
-    // statement line each expression hangs off.
+    // long it is, and the tall one stays broken. Its layout is
+    // `rule:tooling/fmt-a-list-is-one-line-or-one-item-per-line`'s, one item
+    // per line one level in, and `crates/nvs-fmt/tests/list_layout.rs` holds
+    // the rest of it.
     let mangled = "\
 <?nvs
   var $wide = Core\\Arr::sum([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18]);
@@ -36,9 +37,9 @@ fn an_authors_line_break_inside_an_expression_is_kept() {
 <?nvs
 var $wide = Core\\Arr::sum([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18]);
 var $tall = Core\\Arr::sum([
-        1,
+    1,
     2,
-          3,
+    3,
 ]);
 echo $wide + $tall;
 ";

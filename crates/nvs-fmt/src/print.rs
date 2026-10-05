@@ -35,7 +35,7 @@ use nvs_diagnostics::{Diagnostics, SourceFile, Span};
 use nvs_syntax::{Parsed, Trivia, TriviaKind};
 
 use crate::indent::Indent;
-use crate::{brace, imports, modifiers, space, tokens};
+use crate::{brace, imports, list, modifiers, space, tokens};
 
 /// One run of bytes, and what the printer writes in its place.
 ///
@@ -139,13 +139,16 @@ pub(crate) fn print(file: &SourceFile, parsed: &Parsed, reported: &Diagnostics) 
     let indent = Indent::new(&parsed.index, text, &parsed.trivia);
     let mut wanted = brace::placements(&parsed.index, &indent, text, &parsed.trivia);
     wanted.extend(space::runs(&parsed.index, &indent, text, &parsed.trivia));
+    wanted.extend(list::runs(&parsed.index, &indent, text, &parsed.trivia));
     let runs = Runs::new(wanted, &parsed.trivia);
     let mut edits = modifiers::rewrites(parsed, text);
-    edits.extend(runs.insertions());
     edits.extend(imports::rewrites(parsed, text));
     edits.extend(tokens::rewrites(&parsed.index, text, &parsed.trivia));
     edits.extend(tokens::spellings(reported, text));
-    edits.sort_by_key(|edit| edit.start);
+    // An insertion sorts before the run that starts where it does, and a
+    // trailing comma before the line break that moves its list's closer.
+    edits.extend(runs.insertions());
+    edits.sort_by_key(|edit| (edit.start, edit.end));
     let mut out = String::with_capacity(text.len());
     let mut moved = edits.into_iter().peekable();
     let mut cursor = 0_usize;

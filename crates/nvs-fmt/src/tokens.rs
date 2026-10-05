@@ -47,6 +47,8 @@
 //! A comma-separated list whose closing delimiter opens a line of its own ends
 //! with a comma, and a list whose closer follows the last element on that
 //! element's own line ends without one (`rule:tooling/fmt-trailing-commas`).
+//! A list [`crate::list`] lays out is asked whether it is broken instead,
+//! because its closer opens a line exactly when it is.
 //! Where the closer sits is the author's, like every other line break in an
 //! expression (`rule:tooling/fmt-never-reflows`), and the comma follows from it
 //! mechanically in both directions: a missing one is inserted and one written
@@ -83,6 +85,7 @@
 use nvs_diagnostics::{BytePos, Diagnostic, Diagnostics, code};
 use nvs_syntax::{SyntaxIndex, Trivia};
 
+use crate::list::List;
 use crate::print::Rewrite;
 
 /// The quote a rewritten literal is delimited by.
@@ -168,14 +171,21 @@ pub(crate) fn rewrites<'t>(
         scan(
             &mut out,
             &mut previous,
-            index,
+            (index, trivia),
             text,
             cursor,
             trivium.span.start as usize,
         );
         cursor = trivium.span.end as usize;
     }
-    scan(&mut out, &mut previous, index, text, cursor, text.len());
+    scan(
+        &mut out,
+        &mut previous,
+        (index, trivia),
+        text,
+        cursor,
+        text.len(),
+    );
     out
 }
 
@@ -184,7 +194,7 @@ pub(crate) fn rewrites<'t>(
 fn scan<'t>(
     out: &mut Vec<Rewrite<'t>>,
     previous: &mut Option<usize>,
-    index: &SyntaxIndex,
+    (index, trivia): (&SyntaxIndex, &[Trivia]),
     text: &'t str,
     from: usize,
     to: usize,
@@ -192,7 +202,7 @@ fn scan<'t>(
     for (offset, byte) in text.as_bytes().iter().enumerate().take(to).skip(from) {
         match *byte {
             b'"' => quote(out, index, text, offset),
-            b')' | b']' | b'}' => comma(out, index, text, *previous, offset),
+            b')' | b']' | b'}' => comma(out, (index, trivia), text, *previous, offset),
             _ => {}
         }
         *previous = Some(offset);
@@ -245,10 +255,11 @@ fn quote<'t>(out: &mut Vec<Rewrite<'t>>, index: &SyntaxIndex, text: &'t str, off
 /// element and its list's closer is trivia. A closer with no code byte at all
 /// in front of it is inside no list, and one whose element is the opening
 /// delimiter closes an empty list, which has no last element to put a comma
-/// after.
+/// after. A list [`crate::list`] lays out owes the comma when it is broken,
+/// because its closer then opens a line of its own whatever line it was on.
 fn comma<'t>(
     out: &mut Vec<Rewrite<'t>>,
-    index: &SyntaxIndex,
+    (index, trivia): (&SyntaxIndex, &[Trivia]),
     text: &'t str,
     previous: Option<usize>,
     offset: usize,
@@ -272,7 +283,9 @@ fn comma<'t>(
     let Some(between) = text.get(last + 1..offset) else {
         return;
     };
-    match (bytes[last] == b',', between.contains('\n')) {
+    let owed = List::of(index, text, trivia, node)
+        .map_or_else(|| between.contains('\n'), |list| list.broken);
+    match (bytes[last] == b',', owed) {
         (false, true) => out.push(Rewrite {
             start: last + 1,
             end: last + 1,
