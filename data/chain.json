@@ -1,7 +1,6 @@
 {
-  "live": "performance-pass",
+  "live": "serve-per-mount-config",
   "goals": [
-    "performance-pass",
     "serve-per-mount-config",
     "growth-proof",
     "coverage-depth",
