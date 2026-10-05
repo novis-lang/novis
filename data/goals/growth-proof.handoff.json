@@ -1,5 +1,5 @@
 {
-  "state": "**Goal `growth-proof` — every feature checks its own growth, and a change reruns only the benches it reaches — has just started; nothing of it has landed yet.** No floor is carried: the driver deleted goal `performance-pass` when this goal started.\n\nGoal `performance-pass` built `bun nv scaling` and its doubling ramp, proved it over the whole bench tree, and fixed every bench that grew too fast. This goal moves that ramp into the perf proof. The design is settled and is the user's: valgrind is only the fallback when the ramp shows no clear growth, and only to find the threshold; it never runs in `nv verify` or an ordinary bench run; the counts decide and the clock reports; skipping never hides a degradation. The goal file's § *Standing decisions* answers every call a session meets.",
+  "state": "**Goal `growth-proof` — every feature checks its own growth, and a change reruns only the benches it reaches — Stage 2 has its record; no code of it has landed yet.** No floor is carried.\n\nADR 0272 (`docs/decisions/0272.md`) modifies `rule:testing/feature-proofs`: **Perf** is one measured figure *and its growth*, judged by `bun nv scaling`'s ramp on the counts, with callgrind only to find a threshold and never in `nv verify`. AGENTS.md rule 9 and `docs/agent/conventions.md` § *Feature proofs* (its bench skeleton now carries `// bench: complexity constant`) follow. Stage 4's record is the only other ADR slot.\n\n`tools/nv/proofs/perf.ts` still runs the old one-ratio check. 997 of 1008 benches under `benches/members/` (siblings excluded) carry no `// bench: complexity` line, so the \"a bench with no declaration fails\" half of the proof must not switch on before the backfill lands, or every perf proof fails at once.",
   "next": {
     "stage": 2,
     "title": "growth is a feature proof",
@@ -11,27 +11,20 @@
     "items": [
       {
         "done": false,
-        "text": "**The record** — one new record modifying `rule:testing/feature-proofs`: **Perf** is one figure and its growth; AGENTS.md rule 9 and conventions.md § *Feature proofs* follow."
+        "text": "**The proof runs the ramp** — `rule:testing/feature-proofs` and ADR 0272 § 3 and § 5: replace `COMPLEXITY_RE` (`tools/nv/proofs/perf.ts:39`), `SCALE_TOLERANCE` (`tools/nv/proofs/perf.ts:46`) and the scale check (`tools/nv/proofs/perf.ts:138`) with a call to the ramp; `rampOne` (`tools/nv/cmd/scaling.ts:795`) is not exported yet, `EXPECT` (`tools/nv/cmd/scaling.ts:293`) already has `constant`, `linear`, `nlogn`, `karatsuba`. Callgrind (`tools/nv/cmd/scaling.ts:416`) may run only from `--record-perf`/`--id`, never from the plan `nv verify` runs. Gate the missing-declaration failure behind the backfill. `benches/members/README.md` § *What a bench declares* (`benches/members/README.md:96`) is rewritten for the ramp and the `start`/`max` `.scale.nvs`."
       },
       {
         "done": false,
-        "text": "**The proof runs the ramp** — `tools/nv/proofs/perf.ts`'s `COMPLEXITY_RE` and `SCALE_TOLERANCE` test replaced by a call to `tools/nv/cmd/scaling.ts`'s ramp; `// bench: complexity` required; the valgrind fallback only when the ramp ends with no clear growth, setting N and marking the bench."
+        "text": "**The tests** — ADR 0272 § 6: `tools/nv/test/proof-growth.test.ts`, including the guard that `nv verify`'s plan never starts valgrind over a bench (`tools/nv/proofs/perf.ts:138`)."
       },
       {
         "done": false,
-        "text": "**The tests** — `tools/nv/test/proof-growth.test.ts`, the guard that `nv verify` never starts valgrind over a bench included."
-      },
-      {
-        "done": false,
-        "text": "**The backfill** — `// bench: complexity` in every bench that lacks it, from what goal `performance-pass`'s ramp measured; one subagent per area."
+        "text": "**The backfill** — ADR 0272 § 4: `// bench: complexity` in the 997 benches that lack it, from goal `performance-pass`'s ramp (`tools/nv/cmd/scaling.ts:795`); one subagent per area, each in its own worktree or run one after another. Then switch the missing-declaration failure on."
       }
     ]
   },
   "backlog": [
-    "**Stage 3: small benches, and a budget** — `--sized`, the fixed ceiling, `docs/perf/bench-budget.json` and `--budget`, every N lowered and its clock figure recorded again.",
-    "**Stage 4: a change reruns the benches it reaches** — the record modifying `rule:testing/member-perf-ledger`, the `bench` atom in `tools/nv/select/atoms.ts`, its recording run beside `tools/nv/proofs/select.ts`'s, `bun nv affected` naming and rerunning benches, `tools/nv/test/bench-selection.test.ts`.",
-    "**Stage 5: skip what is already proven** — the ordering, the two-bench proof per changed item, the carried figure in the ledger, `tools/nv/test/bench-skip.test.ts`.",
-    "**Stage 6: what the user reads** — `## The growth proof` in `docs/perf/performance-pass.md`.",
-    "When this goal's last check goes green the chain is complete."
+    "Stage 3: small benches and `docs/perf/bench-budget.json` (goal prose § Stage 3).",
+    "Stage 4: the `bench` atom in `tools/nv/select/atoms.ts` and its record (goal prose § Stage 4)."
   ]
 }
