@@ -1,0 +1,25 @@
+<?nvs
+// Measures `Core\Validate::isAscii` on one long form field, at growing field lengths.
+// bench: start 256
+// bench: max 4096
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        string $field = Core\Str::repeat('Order 42 ', $size);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            if (Core\Validate::isAscii($field)) {
+                $total = $total + 2;
+            } else {
+                $total = $total + 1;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

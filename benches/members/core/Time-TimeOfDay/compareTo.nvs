@@ -2,6 +2,7 @@
 // Compares two times of day, as a program does when it checks if a shop is open.
 // bench: iterations 400000
 // bench: allocations 0
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): int {

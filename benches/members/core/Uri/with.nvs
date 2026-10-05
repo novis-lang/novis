@@ -1,6 +1,7 @@
 <?nvs
 // Replaces the scheme and the host of an address, as a server does when it turns an internal link into a public one.
 // bench: iterations 100000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

@@ -1,0 +1,24 @@
+<?nvs
+// Measures reading every node of one order with `Core\Xml::reader`, at growing numbers of items.
+// bench: start 32
+// bench: max 512
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        string $document = '<order id="1">' . Core\Str::repeat('<item sku="A-100" qty="2"/>', $size) . '</order>';
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            Core\Xml\Reader $reader = Core\Xml::reader($document);
+            while ($reader->read() != null) {
+                $total = $total + 1;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(32), "\n";

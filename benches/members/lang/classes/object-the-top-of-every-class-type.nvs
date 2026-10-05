@@ -3,6 +3,7 @@
 // whose class it does not know. The name is looked up while the program runs.
 // bench: iterations 400000
 // bench: calls 0
+// bench: complexity constant
 
 class Cell {
     public uint $value = 1;

@@ -3,6 +3,7 @@
 // two tasks. A server that reads rows in one task and writes them out in another meets
 // this once per request.
 // bench: iterations 20000
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

@@ -1,6 +1,7 @@
 <?nvs
 // Turns a short link into a full address, as a crawler does for each link on a page.
 // bench: iterations 200000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

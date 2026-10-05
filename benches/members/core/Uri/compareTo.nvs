@@ -1,6 +1,7 @@
 <?nvs
 // Compares two parsed addresses, as a program does when it checks if a link points to a page it already knows.
 // bench: iterations 100000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

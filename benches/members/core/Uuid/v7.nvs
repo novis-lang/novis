@@ -1,6 +1,7 @@
 <?nvs
 // Creates a new time-ordered UUID, as a program does when it gives a new database row its key.
 // bench: iterations 200000
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

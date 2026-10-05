@@ -2,6 +2,7 @@
 // Reads the host of a parsed address, as a server does when it checks where a link goes.
 // bench: iterations 400000
 // bench: allocations 0
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

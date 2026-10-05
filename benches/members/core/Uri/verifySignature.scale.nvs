@@ -1,0 +1,25 @@
+<?nvs
+// Measures `verifySignature` on a signed link with a long query, at growing query lengths.
+// bench: start 256
+// bench: max 4096
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        array<secret bytes> $keys = [Core\Crypto::generateKey()];
+        Core\Time\Instant $until = Core\Time::now()->plus(1h);
+        Core\Uri $link = Core\Uri::parse("https://files.example.com/download?file=" . Core\Str::repeat('report', $size))
+            ->sign({keys: $keys, until: $until});
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            $link->verifySignature($keys);
+            $total = $total + 1;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

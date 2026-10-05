@@ -1,6 +1,7 @@
 <?nvs
 // Moves an instant forward by a duration, as a program does when it sets an expiry time.
 // bench: iterations 400000
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): int {

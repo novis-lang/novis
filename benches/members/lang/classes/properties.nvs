@@ -3,6 +3,7 @@
 // fills in a record and then adds up what it collected.
 // bench: iterations 400000
 // bench: allocations 0
+// bench: complexity constant
 
 final class Row {
     public int $count = 0;

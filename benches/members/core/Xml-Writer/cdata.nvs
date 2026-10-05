@@ -1,6 +1,7 @@
 <?nvs
 // Writes HTML as CDATA sections inside an element, as a program does when it builds a news feed.
 // bench: iterations 50000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

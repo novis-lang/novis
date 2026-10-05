@@ -1,6 +1,7 @@
 <?nvs
 // Checks whether a text is a UUID, as a program does with an ID from a request path.
 // bench: iterations 200000
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

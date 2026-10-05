@@ -1,0 +1,27 @@
+<?nvs
+// Measures `attribute` with a long value, at growing value lengths.
+// bench: start 256
+// bench: max 4096
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        string $value = Core\Str::repeat('Tea & cake ', $size);
+        Core\Xml\Writer $writer = Core\Xml::writer();
+        $writer->startDocument();
+        $writer->startElement("export");
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            $writer->startElement("record");
+            $writer->attribute("note", $value);
+            $writer->endElement();
+            $total = $total + 1;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

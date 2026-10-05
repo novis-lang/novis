@@ -1,6 +1,7 @@
 <?nvs
 // Reads the text of an address into its parts, as a server does for every link it checks.
 // bench: iterations 200000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

@@ -2,6 +2,7 @@
 // Builds a value out of a short piece of text, as a route capture or a command
 // argument does on every request.
 // bench: iterations 200000
+// bench: complexity constant
 
 final class Sku implements Parses {
     public function constructor(public tainted string $code) {}

@@ -2,6 +2,7 @@
 // Tests a code that a user typed, as the second step of a login does.
 // bench: iterations 50000
 // bench: allocations 0
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

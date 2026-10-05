@@ -1,6 +1,7 @@
 <?nvs
 // Reads the microseconds since 1970 of an instant, as a program does before it writes a log line.
 // bench: iterations 400000
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): int {

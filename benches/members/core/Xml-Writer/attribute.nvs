@@ -1,6 +1,7 @@
 <?nvs
 // Adds attributes to elements, as a program does when it exports records as XML.
 // bench: iterations 50000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

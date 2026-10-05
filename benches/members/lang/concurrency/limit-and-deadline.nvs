@@ -3,6 +3,7 @@
 // and the timer behind `deadline`. A request that calls a slow service meets this
 // once. The tasks do no work of their own, so only the bounds are measured.
 // bench: iterations 5000
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

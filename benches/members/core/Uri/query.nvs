@@ -2,6 +2,7 @@
 // Reads the query of an address, as a server does before it looks at the parameters of a request.
 // bench: iterations 400000
 // bench: allocations 0
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

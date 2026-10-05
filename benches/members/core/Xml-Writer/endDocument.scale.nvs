@@ -1,0 +1,26 @@
+<?nvs
+// Measures `endDocument` on a document with one long text, at growing text lengths.
+// bench: start 256
+// bench: max 4096
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        string $text = Core\Str::repeat('result ', $size);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            Core\Xml\Writer $writer = Core\Xml::writer();
+            $writer->startDocument();
+            $writer->startElement("reply");
+            $writer->content($text);
+            $writer->endElement();
+            $total = $total + (Core\Str::length($writer->endDocument()) as uint);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

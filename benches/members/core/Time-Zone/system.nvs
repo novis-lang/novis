@@ -1,6 +1,7 @@
 <?nvs
 // Reads the computer's zone, as a program does once when it starts.
 // bench: iterations 50000
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): int {

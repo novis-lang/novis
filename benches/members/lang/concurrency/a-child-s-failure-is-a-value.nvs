@@ -3,6 +3,7 @@
 // it came back with. A job runner meets this every time one of its jobs stops
 // with an error.
 // bench: iterations 2000
+// bench: complexity constant
 
 class Bench {
     // `here` returns its argument as a full path. A relative path written in

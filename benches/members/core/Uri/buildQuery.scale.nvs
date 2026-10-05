@@ -1,0 +1,22 @@
+<?nvs
+// Measures `Core\Uri::buildQuery` on a search with one long value, at growing value lengths.
+// bench: start 256
+// bench: max 4096
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        string $text = Core\Str::repeat('a b', $size);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            array<mixed> $search = ["q" => $text, "page" => $total % 9];
+            $total = $total + Core\Str::length(Core\Uri::buildQuery($search));
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

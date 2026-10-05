@@ -1,6 +1,7 @@
 <?nvs
 // Reads the milliseconds since 1970 of an instant, as a program does before it sends a time to JavaScript.
 // bench: iterations 400000
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): int {

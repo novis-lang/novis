@@ -1,6 +1,7 @@
 <?nvs
 // Measures the time between two instants, as a program does when it logs how long a request took.
 // bench: iterations 400000
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): int {

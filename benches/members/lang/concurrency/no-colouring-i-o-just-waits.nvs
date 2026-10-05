@@ -3,6 +3,7 @@
 // read and every database answer in a request goes through this path, so this is the
 // price of the waiting model itself.
 // bench: iterations 100000
+// bench: complexity constant
 
 class Bench {
     public static function wait(uint $n): uint {

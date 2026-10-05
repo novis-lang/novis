@@ -1,6 +1,7 @@
 <?nvs
 // Moves a time of day back, as a program does when it works out when to send a reminder.
 // bench: iterations 400000
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

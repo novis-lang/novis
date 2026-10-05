@@ -2,6 +2,7 @@
 // Measures encoding one small object as JSON, which a web service does for every
 // response it sends.
 // bench: iterations 200000
+// bench: complexity linear
 
 #[Core\Json\Derive]
 class Price {

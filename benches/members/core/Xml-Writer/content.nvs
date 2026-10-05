@@ -1,6 +1,7 @@
 <?nvs
 // Writes short texts with characters to escape into an element, as a program does when it exports product names.
 // bench: iterations 50000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

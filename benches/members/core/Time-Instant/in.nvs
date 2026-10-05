@@ -1,6 +1,7 @@
 <?nvs
 // Shows an instant in a time zone, as a program does before it prints a date for a user.
 // bench: iterations 200000
+// bench: complexity constant
 
 class Bench {
     public static function run(uint $rounds): uint {

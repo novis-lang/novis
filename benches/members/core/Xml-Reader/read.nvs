@@ -1,6 +1,7 @@
 <?nvs
 // Reads the nodes of a document one at a time, as a program does when it goes through a feed.
 // bench: iterations 100000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {

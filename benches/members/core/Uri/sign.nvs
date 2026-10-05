@@ -1,6 +1,7 @@
 <?nvs
 // Signs a short link with a lifetime, as a server does before it sends a download or reset link.
 // bench: iterations 50000
+// bench: complexity linear
 
 class Bench {
     public static function run(uint $rounds): uint {
