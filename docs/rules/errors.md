@@ -71,8 +71,7 @@ actually spent is the instruction slot.
 
 **A throw costs slightly less than a normal return** — 0.79–0.82× at depth 8 — because the error
 path returns the status immediately while the success path also copies a 16-byte value up through
-every frame. That is the property PHP compatibility rests on, since frameworks throw on ordinary
-control-flow paths.
+every frame. That matters because frameworks throw on ordinary control-flow paths.
 
 It holds only while *propagating* does not allocate. Storing a message as a `String` made a throw
 2.8× a return, more than the whole propagation path it was meant to measure, so the pending-error

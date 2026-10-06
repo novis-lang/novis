@@ -751,13 +751,13 @@ cpu_time   = "60s"
 ```
 
 The shipped ceilings are generous on purpose: they are sized to stop a runaway, not to shape ordinary
-code. `[limits.hard] memory = false` removes the ceiling entirely, giving literal PHP behaviour on a
-trusted single-tenant host — and `false` is the only spelling of "no ceiling" anywhere in the tree.
+code. `[limits.hard] memory = false` removes the ceiling entirely, for a trusted single-tenant host —
+and `false` is the only spelling of "no ceiling" anywhere in the tree.
 
 The enforceable per-request cap is therefore the **ceiling**, not the default: a process's worst case
 is in-flight requests times `[limits.hard] memory`, and sizing a deployment means sizing against that
-number. That is memory spent to buy PHP compatibility, which is [`programs/memory-priority`](programs.md#programs-memory-priority)'s
-ordering working as written. An operator who cannot afford it lowers one number in one root-owned
+number. That is memory spent to buy simplicity, since ordinary code never has to know a ceiling
+exists, which is [`programs/memory-priority`](programs.md#programs-memory-priority)'s ordering working as written. An operator who cannot afford it lowers one number in one root-owned
 file.
 
 `[mode]` is the second, and last, block with this shape — a `Runtime` `default` beside a `System`
@@ -1957,9 +1957,8 @@ from an operator's, so it keeps its own default under either mode.
 The on-disk artifact cache is governed by five directives in `[opcache]`: `file_cache` (bool, default
 on), `file_cache_dir` (a path, root-owned, defaulting to a fixed location inside the account running the
 compile), `file_cache_max_size`
-(bytes), and the `file_cache_gc_probability` / `file_cache_gc_divisor` pair, which mirrors PHP's own
-`session.gc_probability`/`gc_divisor` because eviction rides the cold-compile path at a small
-probability rather than costing a warm hit anything.
+(bytes), and the `file_cache_gc_probability` / `file_cache_gc_divisor` pair, a probability because
+eviction rides the cold-compile path at a small probability rather than costing a warm hit anything.
 
 `file_cache_dir` is the **only** spelling of where that cache lives. `[cache]` is `Core\Cache`'s two
 tiers and holds nothing about compiled artifacts, so `[cache] dir` is `E0601` like any other key the

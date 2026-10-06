@@ -6,7 +6,7 @@ style knob. A configurable knob would let two files in one project, or two proje
 tool, disagree about what "formatted" means, which is the exact question a canonical formatter exists to
 close.
 
-The style is PER wherever Novis's grammar matches PHP's (`rule:tooling/fmt-base-style-is-per`), extended
+The style is PER for every construct PER covers (`rule:tooling/fmt-base-style-is-per`), extended
 with one layout for each construct PER has never seen (`rule:tooling/fmt-novis-constructs`). It is
 deterministic in the gofmt sense, not Prettier's: it never reflows an expression to fit a width
 (`rule:tooling/fmt-never-reflows`), running it twice changes nothing (`rule:tooling/fmt-is-idempotent`),

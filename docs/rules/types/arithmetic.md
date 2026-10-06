@@ -2,7 +2,7 @@
 |---|---|---|
 | `int ⊕ int`, `uint ⊕ uint` for `+ - * ** %` | the same type | **throws `ArithmeticError`.** No wrap, no promotion to `float` |
 | `int ⊕ uint` arithmetic | **compile error** | there is no representable common type; convert one side explicitly |
-| `int / int`, `uint / uint` | `int\|float`, `uint\|float` — PHP-exact: `6/3` is an integer, `7/2` is a float | `/ 0` throws `ArithmeticError` |
+| `int / int`, `uint / uint` | `int\|float`, `uint\|float` — an exact quotient is an integer and any other is a float: `6/3` is `2`, `7/2` is `3.5` | `/ 0` throws `ArithmeticError` |
 | either operand a `float` | `float` for `+ - * ** /`; **`%` is a compile error** | `/ 0` throws here too — the zero divisor is refused before the operand types are consulted. IEEE division is `Core\Math::fdiv` |
 | `decimal ⊕ decimal`, `decimal ⊕ int`, `decimal ⊕ uint` for `+ - * %` | `decimal` | throws when the mantissa exceeds 96 bits **or** the scale would exceed 28 |
 | `decimal / decimal` | `decimal`, half-even at the maximum scale the result admits | `/ 0` throws |

@@ -1,18 +1,17 @@
-The container is PHP's insertion-ordered hash with copy-on-write value semantics, unchanged. Two
-things change.
+The container is an insertion-ordered hash with copy-on-write value semantics.
 
 **Every key is a `string`.** There is no integer key.
 
 - `$a[] = $v` appends under the next integer index rendered in decimal — `"0"`, `"1"`, `"2"` — from
-  the counter PHP already keeps, so lists behave as they always did.
+  a counter the array keeps.
 - An `int` or `uint` subscript is normalised to its decimal string at the subscript: `$a[8]` is
   `$a["8"]`. That is key normalisation, not a conversion, and needs no `as`. `"08"` stays a distinct
-  key from `"8"`, exactly as in PHP.
+  key from `"8"`.
 - A `...$a` spread in an array literal, and one filling a variadic tail, renumber an integer-looking
   key and preserve every other — each entry copied is either the append above or the write
   `$a[$k] = $v`. A spread therefore throws exactly where an append throws.
-- A `float`, `bool` or `null` subscript is **rejected**, where PHP truncates, stringifies `true` to
-  `"1"` and `null` to `""`.
+- A `float`, `bool` or `null` subscript is **rejected**: none of them is a key, and nothing converts
+  one into a key.
 - Iteration order is insertion order, always; only the sort members reorder, and they say so in their
   names. Binary `+` and `+=` over two arrays are a diagnostic naming `Core\Arr::underlay`
   (`rule:types/array-combination`).

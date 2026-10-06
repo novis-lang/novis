@@ -10,10 +10,9 @@
 `rule:types/declaration`
 
 Every binding site carries a type, and only a local and a `foreach` binding may take theirs with `var`
-rather than writing it. PHP's existing slots become mandatory — parameter, return (`void` and `never`
-included), property, promoted constructor parameter, class constant, anonymous function parameter and
-anonymous function return, `catch`, enum backing type — and four positions PHP has no slot for get one: a local at its
-declaration, a `foreach` key and value, a `for` header's init clause
+rather than writing it. A type is owed at parameter, return (`void` and `never` included), property,
+promoted constructor parameter, class constant, anonymous function parameter and anonymous function
+return, `catch` and enum backing type, and at four more positions: a local at its declaration, a `foreach` key and value, a `for` header's init clause
 ([`iteration/for-init-clause`](iteration.md#iteration-for-init-clause)), and a destructuring target. A local, a `for` init declaration and
 a `foreach` key or value may write `var` instead, which takes the type from the expression that fills
 the binding ([`types/var-inference`](types.md#types-var-inference)); nothing else may omit a type.
@@ -28,9 +27,9 @@ annotation like any method ([`types/anonymous-function`](types.md#types-anonymou
 
 A binding is declared **once**. A later assignment is bare, and is legal only where the name is
 already declared in the enclosing function; re-declaring a live name is a diagnostic naming the first
-declaration, and there is no shadowing. Declaration is function-scoped as in PHP — a binding declared
-inside an `if` is visible after it — but *definite assignment is checked*: reading a binding on a path
-that may not have reached its initialiser is a compile error, not PHP's warning and a `null`.
+declaration, and there is no shadowing. Declaration is function-scoped — a binding declared inside an
+`if` is visible after it — but *definite assignment is checked*: reading a binding on a path that may
+not have reached its initialiser is a compile error.
 
 A declared type is then fixed for the binding's whole life, whether it was written or taken by `var`.
 No assignment, operator or call changes it; `settype()` joins the rejected list with a diagnostic
@@ -144,17 +143,16 @@ name already says. The refusal recovers as `mixed`, which is what keeps one miss
 
 An integer literal is written decimal, `0x`, `0o` or `0b` — either case of the prefix letter, with `_`
 separators allowed between digits. Those four are the closed set, so **a leading zero is not a
-radix**: `017` is decimal seventeen where PHP reads octal fifteen, and `0o17` is the only spelling of
-that fifteen. PHP's legacy form is refused as a *silent* reinterpretation rather than as a spelling —
-it changes a value without changing a character, which is the one thing a converted file cannot be
-checked for, and a file-mode constant is where it bites.
+radix**: `017` is decimal seventeen, and `0o17` is the only spelling of octal fifteen. A leading zero
+that switched the radix would change a value without changing a character, and a file-mode constant
+is where that bites.
 
 **There is no literal suffix, for any numeric type.** A literal takes `int`, `uint`, `float` or
 `decimal` from the position it is written in instead ([`types/numeric-literal-placement`](types.md#types-numeric-literal-placement)), and a
 literal too wide for `int` is legal only where a `uint` is expected.
 
-The escape grammar inside a string literal is unrelated to this and matches PHP's exactly, `\v`, `\f`,
-`\e` and the octal `\0`–`\777` included.
+The escape grammar inside a string literal is unrelated to this, and includes `\v`, `\f`, `\e` and
+the octal `\0`–`\777`.
 
 <sub>See also [`types/uint`](types.md#types-uint), [`types/numeric-literal-placement`](types.md#types-numeric-literal-placement), [`types/arithmetic`](types.md#types-arithmetic). Decided in [0007](../decisions/0007.md).</sub>
 
@@ -233,7 +231,7 @@ throws rather than wrapping ([`types/conversion`](types.md#types-conversion)).
 |---|---|---|
 | `int ⊕ int`, `uint ⊕ uint` for `+ - * ** %` | the same type | **throws `ArithmeticError`.** No wrap, no promotion to `float` |
 | `int ⊕ uint` arithmetic | **compile error** | there is no representable common type; convert one side explicitly |
-| `int / int`, `uint / uint` | `int\|float`, `uint\|float` — PHP-exact: `6/3` is an integer, `7/2` is a float | `/ 0` throws `ArithmeticError` |
+| `int / int`, `uint / uint` | `int\|float`, `uint\|float` — an exact quotient is an integer and any other is a float: `6/3` is `2`, `7/2` is `3.5` | `/ 0` throws `ArithmeticError` |
 | either operand a `float` | `float` for `+ - * ** /`; **`%` is a compile error** | `/ 0` throws here too — the zero divisor is refused before the operand types are consulted. IEEE division is `Core\Math::fdiv` |
 | `decimal ⊕ decimal`, `decimal ⊕ int`, `decimal ⊕ uint` for `+ - * %` | `decimal` | throws when the mantissa exceeds 96 bits **or** the scale would exceed 28 |
 | `decimal / decimal` | `decimal`, half-even at the maximum scale the result admits | `/ 0` throws |
@@ -376,21 +374,21 @@ named, and an enum case orders as the integer it is even though the written spel
 A `string` cannot hold invalid UTF-8 at any point in its lifetime. The invariant is enforced at every
 construction site — literals, conversions, concatenation, and every stdlib member that builds a
 string — the same way an array's element type is enforced on every write ([`types/arrays`](types.md#types-arrays)). That
-is what removes PHP's `mbstring` split: there is only one encoding a `string` can hold, so there is
-only one correct answer to "how long is it".
+is why there is no second, encoding-aware family of string members: there is only one encoding a
+`string` can hold, so there is only one correct answer to "how long is it".
 
 **A `string`'s length, indexing and iteration operate on extended grapheme clusters** (Unicode UAX
 #29) — the unit a person reading the source calls "one character", including a flag emoji, an emoji
 built from a ZWJ sequence, or a letter with a combining accent. Byte-level and codepoint-level
-operations remain available under separately named members, the inverse of PHP's default.
+operations remain available under separately named members.
 `nvs_stdlib::granularity` states that default in code, once, and every `Core\Str` member with a unit
 reads it from there.
 
 Two consequences an implementer owes: what counts as one character is pinned to whichever Unicode
-version `nvs-runtime` embeds, and can change across a runtime upgrade; and `Core\Str::length` is O(n)
-where PHP's `strlen` is O(1), a vectorized scan over ASCII and a full segmentation run over anything
-else. Normalization (NFC/NFD) is explicitly out of scope — grapheme awareness says nothing about
-whether two visually identical strings compare equal, exactly as PHP leaves it.
+version `nvs-runtime` embeds, and can change across a runtime upgrade; and `Core\Str::length` is
+O(n), a vectorized scan over ASCII and a full segmentation run over anything else. Normalization
+(NFC/NFD) is explicitly out of scope — grapheme awareness says nothing about whether two visually
+identical strings compare equal.
 
 <sub>See also [`types/bytes`](types.md#types-bytes), [`types/conversion`](types.md#types-conversion). Decided in [0009](../decisions/0009.md), [0007](../decisions/0007.md).</sub>
 
@@ -570,21 +568,20 @@ nothing at runtime — it shares the enum's existing zero-byte representation
 
 `rule:types/arrays`
 
-The container is PHP's insertion-ordered hash with copy-on-write value semantics, unchanged. Two
-things change.
+The container is an insertion-ordered hash with copy-on-write value semantics.
 
 **Every key is a `string`.** There is no integer key.
 
 - `$a[] = $v` appends under the next integer index rendered in decimal — `"0"`, `"1"`, `"2"` — from
-  the counter PHP already keeps, so lists behave as they always did.
+  a counter the array keeps.
 - An `int` or `uint` subscript is normalised to its decimal string at the subscript: `$a[8]` is
   `$a["8"]`. That is key normalisation, not a conversion, and needs no `as`. `"08"` stays a distinct
-  key from `"8"`, exactly as in PHP.
+  key from `"8"`.
 - A `...$a` spread in an array literal, and one filling a variadic tail, renumber an integer-looking
   key and preserve every other — each entry copied is either the append above or the write
   `$a[$k] = $v`. A spread therefore throws exactly where an append throws.
-- A `float`, `bool` or `null` subscript is **rejected**, where PHP truncates, stringifies `true` to
-  `"1"` and `null` to `""`.
+- A `float`, `bool` or `null` subscript is **rejected**: none of them is a key, and nothing converts
+  one into a key.
 - Iteration order is insertion order, always; only the sort members reorder, and they say so in their
   names. Binary `+` and `+=` over two arrays are a diagnostic naming `Core\Arr::underlay`
   ([`types/array-combination`](types.md#types-array-combination)).

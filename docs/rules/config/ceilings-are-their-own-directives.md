@@ -12,13 +12,13 @@ cpu_time   = "60s"
 ```
 
 The shipped ceilings are generous on purpose: they are sized to stop a runaway, not to shape ordinary
-code. `[limits.hard] memory = false` removes the ceiling entirely, giving literal PHP behaviour on a
-trusted single-tenant host — and `false` is the only spelling of "no ceiling" anywhere in the tree.
+code. `[limits.hard] memory = false` removes the ceiling entirely, for a trusted single-tenant host —
+and `false` is the only spelling of "no ceiling" anywhere in the tree.
 
 The enforceable per-request cap is therefore the **ceiling**, not the default: a process's worst case
 is in-flight requests times `[limits.hard] memory`, and sizing a deployment means sizing against that
-number. That is memory spent to buy PHP compatibility, which is `rule:programs/memory-priority`'s
-ordering working as written. An operator who cannot afford it lowers one number in one root-owned
+number. That is memory spent to buy simplicity, since ordinary code never has to know a ceiling
+exists, which is `rule:programs/memory-priority`'s ordering working as written. An operator who cannot afford it lowers one number in one root-owned
 file.
 
 `[mode]` is the second, and last, block with this shape — a `Runtime` `default` beside a `System`
