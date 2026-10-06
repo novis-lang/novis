@@ -2378,6 +2378,7 @@ dependencies = [
  "lsp-types",
  "nvs-config",
  "nvs-diagnostics",
+ "nvs-ext",
  "nvs-fmt",
  "nvs-footprint",
  "nvs-hir",
@@ -2389,6 +2390,7 @@ dependencies = [
  "rustc-hash",
  "serde",
  "serde_json",
+ "wat",
 ]
 
 [[package]]
