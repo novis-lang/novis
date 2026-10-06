@@ -513,8 +513,9 @@ impl Cap {
     }
 }
 
-/// What a [`Setting`] means when it is read as a grant.
-enum Grant<'a> {
+/// What a [`Setting`] means when it is read as a grant, and what [`Capabilities::holds`] returns.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Grant<'a> {
     /// Nothing is granted — an absent block, `false`, an empty list, or a number, which is not a
     /// spelling any capability has.
     Nothing,
@@ -651,6 +652,17 @@ impl Capabilities {
                 resolved(path, files).is_some_and(|path| path_granted(list, &path))
             }
         }
+    }
+
+    /// What this configuration grants `cap`, read the way [`allows`](Self::allows) reads it.
+    ///
+    /// For a caller that intersects the grant with another set rather than asking about one
+    /// argument: `nvs_ext::grants` keeps the part of an extension's root that a narrower root
+    /// here covers, and no single `allows` question returns that part.
+    #[must_use]
+    pub fn holds(&self, cap: Cap) -> Grant<'_> {
+        cap.grant(self)
+            .map_or(Grant::Nothing, |setting| grant_for(cap, setting))
     }
 
     /// [`allows`](Self::allows) for a path that is already resolved, compared as it is written.

@@ -23,6 +23,7 @@ default = ["engine", "pack"]
 # per instance. wasmtime's defaults already carry all three; naming them keeps
 # them on if the workspace entry ever turns the defaults off.
 engine = [
+    "dep:nvs-config",
     "dep:wasmtime",
     "dep:wasmtime-wasi-io",
     "dep:rand",
@@ -35,7 +36,9 @@ engine = [
 pack = ["dep:wit-component", "dep:wit-parser"]
 
 [dependencies]
-rand = { workspace = true, optional = true }
+# The entry's grants and the caller's capabilities, which `grants` intersects.
+nvs-config = { workspace = true, optional = true }
+rand ={ workspace = true, optional = true }
 serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
@@ -76,6 +79,10 @@ required-features = ["engine"]
 [[test]]
 name = "fixtures"
 required-features = ["engine", "pack"]
+
+[[test]]
+name = "grants"
+required-features = ["engine"]
 
 [[test]]
 name = "load"

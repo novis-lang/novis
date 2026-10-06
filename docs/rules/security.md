@@ -1595,10 +1595,15 @@ request's own configuration snapshot ([`security/capability-question-is-grant-an
 path is canonicalised and prefix-checked as every `Core\IO` door does
 ([`security/path-scope-canonicalise-then-prefix`](security.md#security-path-scope-canonicalise-then-prefix)).
 
+The manifest's `read` and `write` lists say whether it asks for that kind at all, because an author
+cannot know the operator's folders; its `connect` hosts are matched one by one. The caller narrows by
+path: a root it holds inside an entry root replaces that root. A `write` root is opened read-write, so
+the caller must hold both `fs.write` and `fs.read` over it.
+
 **Not on disk.** `nvs_config::tree::Grants` reads the entry's `grants`, refusing an unknown key,
 and `nvs_config::extension::grants` makes its roots absolute against the file that wrote each list;
-`env_hash` does not read it. Nothing intersects it with a manifest or a caller, and no guest holds a
-preopen or a host.
+`env_hash` does not read it. `nvs_ext::grants::effective` computes the intersection
+(`crates/nvs-ext/tests/grants.rs`), and nothing calls it yet, so no guest holds a preopen or a host.
 
 <sub>See also [`packaging/a-guest-has-no-ambient-authority`](packaging.md#packaging-a-guest-has-no-ambient-authority), [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope), [`security/package-authority-is-granted-one-line-at-a-time`](security.md#security-package-authority-is-granted-one-line-at-a-time). Decided in [0246](../decisions/0246.md).</sub>
 

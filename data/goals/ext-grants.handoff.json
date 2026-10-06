@@ -1,20 +1,24 @@
 {
-  "state": "**Goal `ext-grants` — a guest reaches only the files and hosts all three parties grant — Stage 3 (the grant) is half done: the entry carries its grants, and the effective set is not written.** M9. No floor is carried: the suites, the `.nvst` trees and `nv verify` are the safety net, and goals `ext-host` and `ext-compiler`'s tests stay green as tests of the tree.\n\nThe design is ADR 0246 § 7 and the user's, and the goal file's § *Standing decisions* answers every call a session meets. No record slot: a question the record leaves is settled under AGENTS.md's priority ordering and written in the module doc of the file that answers it.\n\n**On disk:** `nvs_ext::wasi` links the world's WASI but `wasi:http`, with an empty context; `nvs_ext::world` links `nvs:ext/log` and `nvs:ext/settings`. `nvs.toml` accepts `[ext.<name>]`, checked against the loaded manifests at boot and reload. `[[extension]] grants = { read, write, connect }` is `nvs_config::tree::Grants` (an unknown key is `E0601`), `nvs_config::extension::grants` returns `Granted` with every root absolute against the file that wrote its list, and `env_hash` reads only pins (`crates/nvs-config/tests/extension.rs`). `default.toml` spells the three keys.\n\n**Still open:** monotonic subscriptions are `Ready` at once. Nothing intersects a grant with a manifest or a caller, and nothing reads `Granted` outside its tests yet.",
+  "state": "**Goal `ext-grants` — a guest reaches only the files and hosts all three parties grant — Stage 3 (the grant) is written; Stage 4 (files) is next.** M9. No floor is carried: the suites, the `.nvst` trees and `nv verify` are the safety net, and goals `ext-host` and `ext-compiler`'s tests stay green as tests of the tree.\n\nThe design is ADR 0246 § 7 and the user's, and the goal file's § *Standing decisions* answers every call a session meets. No record slot: a question the record leaves is settled under AGENTS.md's priority ordering and written in the module doc of the file that answers it.\n\n**On disk:** `nvs_ext::wasi` links the world's WASI but `wasi:http`, with an empty context; `nvs_ext::world` links `nvs:ext/log` and `nvs:ext/settings`. `[[extension]] grants` is `nvs_config::tree::Grants`, and `nvs_config::extension::grants` returns `Granted` with absolute roots. `nvs_ext::grants::effective` (behind `engine`) intersects `Granted`, the manifest's `Requests` and a `Caller` (the snapshot's `Capabilities` plus an isolate's `grants:` list) into `Effective`, canonicalising entry roots through `nvs_config::capability::resolved`; its module doc owns the semantics (manifest lists request a kind; the caller narrows by path; a write root needs `fs.write` and `fs.read`). `Capabilities::holds` exposes a cap's `Grant` for it. Tests: `crates/nvs-ext/tests/grants.rs`.\n\n**Still open:** nothing calls `effective` yet, so no guest holds a preopen or a host. Monotonic subscriptions are `Ready` at once.",
   "next": {
-    "stage": 3,
-    "title": "the grant",
+    "stage": 4,
+    "title": "files",
     "files": [],
-    "note": "one file set: `crates/nvs-ext/src/manifest.rs`, a new effective-set function in `crates/nvs-ext/src/`, and `crates/nvs-config/src/extension.rs` as its input.",
+    "note": "one file set: `crates/nvs-ext/src/call.rs`, `crates/nvs-ext/src/wasi.rs`, `crates/nvs-ext/src/grants.rs`, and a new `crates/nvs-ext/tests/files.rs`.",
     "items": [
       {
         "done": false,
-        "text": "**The effective set** — one function intersecting the entry's `Granted` from `crates/nvs-config/src/extension.rs:78`, the manifest's `Requests` at `crates/nvs-ext/src/manifest.rs:374` and the caller's own `fs.read`/`fs.write`/`net.connect`, roots canonicalised once by the one path-scope implementation (`rule:security/path-scope-canonicalise-then-prefix`). `rule:security/extension-grants-are-an-intersection`; the check `nvs-ext-the-effective-set-is-an-intersection` names its tests (in `crates/nvs-ext/tests/`)."
+        "text": "**Preopens per instance** — when `crates/nvs-ext/src/call.rs:778` (`instantiate`) builds the store, it asks `crates/nvs-ext/src/grants.rs:95` (`effective`) for the instance's set and preopens each `read` root read-only and each `write` root read-write under its canonical path, linked by `crates/nvs-ext/src/wasi.rs:166`. The `Caller` comes from the request's snapshot and `Ctx::grant_filter` (`crates/nvs-runtime/src/ctx/isolate.rs:739`), passed in through `Budget` or `At`. `rule:security/extension-grants-are-an-intersection`."
+      },
+      {
+        "done": false,
+        "text": "**A guest path stays under its root** — tests in `crates/nvs-ext/tests/files.rs` that `..` past a root and a planted symlink both fail, a read outside fails for each party, a read inside all three succeeds, and a write to a read-only root fails (goal § Stage 4). The test `Budget` to copy is `crates/nvs-ext/tests/wasi.rs:329`. `rule:security/path-scope-canonicalise-then-prefix`."
       }
     ]
   },
   "backlog": [
-    "Stage 4, files: preopens from the effective set per instance (`rule:security/extension-grants-are-an-intersection`).",
-    "Stage 5, outbound HTTP: link `wasi:http` through `Core\\Http\\Client` (`rule:packaging/a-guest-has-no-ambient-authority`).",
-    "Monotonic subscriptions are `Ready` at once (`crates/nvs-ext/src/wasi.rs` module doc)."
+    "Stage 5: `wasi:http` through `Core\\Http\\Client`, reading `Effective::connect` (goal § Stage 5).",
+    "A manifest `connect` entry meaning any host (`\"any\"` in the goal prose) is not supported; add it only if a first-party component needs it (`crates/nvs-ext/src/grants.rs` module doc).",
+    "`nvs ext inspect` printing a manifest's requests is goal `ext-tooling`'s."
   ]
 }

@@ -18,6 +18,8 @@
 //!   type crosses as, and back. Its module doc owns the value model and what it refuses.
 //! - `handle`, behind the `engine` feature, is the per-call table a `mixed` argument is lent
 //!   through, and the `value` accessors a guest reads it with.
+//! - `grants`, behind the `engine` feature, is the one function that decides what files and hosts
+//!   a guest may reach: the intersection of its entry, its manifest and its caller.
 //! - `wasi`, behind the `engine` feature, is the WASI every guest links, with an empty context.
 //!   Its module doc owns what each interface gives a guest, and which interfaces are linked.
 //! - `pack`, behind the `pack` feature, makes a `.nvsx` from a component or a core module, a
@@ -50,6 +52,8 @@
 pub mod call;
 #[cfg(feature = "engine")]
 pub mod convert;
+#[cfg(feature = "engine")]
+pub mod grants;
 #[cfg(feature = "engine")]
 pub mod handle;
 #[cfg(feature = "engine")]
