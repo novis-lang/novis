@@ -4,17 +4,17 @@
 //! component's WIT export, and the checker in `nvs-types`, which interns it into a signature.
 //! It lives outside the `engine` feature so the checker reads it without linking wasmtime.
 //!
-//! The types are the rows of `rule:packaging/a-value-crosses-as-its-wit-type`'s table but
-//! `resource`: `bool`, `int`, `uint`, `float`, `string`, `bytes`, `mixed`, `array<T>`,
-//! `array<K, V>`, `?T`, a shape `{a: T, b?: U}`, and three named rows. `void` is a return, never a
-//! type here: [`crate::manifest::Method`] writes it as the absence of one.
+//! The types are the rows of `rule:packaging/a-value-crosses-as-its-wit-type`'s table: `bool`,
+//! `int`, `uint`, `float`, `string`, `bytes`, `mixed`, `array<T>`, `array<K, V>`, `?T`, a shape
+//! `{a: T, b?: U}`, and four named rows. `void` is a return, never a type here:
+//! [`crate::manifest::Method`] writes it as the absence of one.
 //!
 //! **A named type is resolved while it is parsed**, so a [`NovisType`] carries everything its
 //! conversion reads and nothing has to look a name up again. A `Core` value class is a name in
-//! [`CORE_CLASSES`], written in full, `Core\Time\Instant`. An enum or a closed union of shapes is
-//! a name the manifest declares (`crate::manifest::Manifest::novis_type`), written as its short
-//! name. [`NovisType::parse`] reads a text with no manifest around it, so it resolves the `Core`
-//! classes and refuses every other name.
+//! [`CORE_CLASSES`], written in full, `Core\Time\Instant`. An enum, a closed union of shapes or a
+//! resource is a name the manifest declares (`crate::manifest::Manifest::novis_type`), written as
+//! its short name. [`NovisType::parse`] reads a text with no manifest around it, so it resolves the
+//! `Core` classes and refuses every other name.
 
 /// A Novis type of an extension signature.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -59,6 +59,10 @@ pub enum NovisType {
     },
     /// A `Core` value class, which crosses as its record in `nvs:ext/types`.
     Core(&'static CoreRecord),
+    /// A resource the manifest declares, by its short name: the resource the extension's interface
+    /// exports under the same name in kebab-case. A method returns it as an `own`, which the
+    /// request keeps until it ends, and takes it as a `borrow`.
+    Resource(String),
 }
 
 /// One field of a shape: its name, whether it is optional, and its type.

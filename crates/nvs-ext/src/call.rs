@@ -47,6 +47,15 @@
 //! are dropped and every handle it made stops being valid, whatever the outcome. It parses the
 //! method's types on every call.
 //!
+//! **A resource lives until the request ends** (`rule:packaging/a-value-crosses-as-its-wit-type`).
+//! One a call returns is kept in the store of the instance that made it, under a number the
+//! request gives out once, and the program holds [`Value::Resource`]. Passed back, it crosses as a
+//! `borrow`, so the request still owns it. [`Request::end`] drops every kept resource in its own
+//! instance, which runs the guest's destructor, before the instances go. An instance dropped
+//! earlier, by a trap or a limit, takes its resources with it and runs no destructor, and so does a
+//! request dropped without [`Request::end`]; a number kept by an instance that is gone is refused
+//! as [`Error::Invalid`], because no later instance gives it out again.
+//!
 //! **The budget is a trait.** [`Budget`] is the two questions the store asks of its request, so
 //! this crate does not link the runtime. The host that wires a call into a request implements it
 //! over the request's own deadline and memory accounting; [`Meter`] is a standalone budget for a
@@ -56,20 +65,20 @@
 //! request and freed with it, so O(in-flight). The pooling allocator reserves address space for
 //! [`Host::new`]'s `slots` instances, not committed memory, and one ticker thread per process.
 
-use std::sync::atomic::{AtomicBool, AtomicI64, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicI64, AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
 use std::task::{Poll, Waker};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 use std::{fmt, future};
 
-use wasmtime::component::{ComponentExportIndex, Instance, Linker, Val};
+use wasmtime::component::{ComponentExportIndex, Instance, Linker, ResourceAny, Val};
 use wasmtime::{
     AsContextMut, Config, Engine, InstanceAllocationStrategy, PoolingAllocationConfig,
     ResourceLimiter, Store, Trap, UpdateDeadline,
 };
 
-use crate::convert::{self, Value};
+use crate::convert::{self, Crossing, Value};
 use crate::handle::{self, Handles};
 use crate::load::Extension;
 use crate::manifest::Method;
@@ -274,6 +283,14 @@ pub struct Guest {
     reached: Option<Limit>,
     live: Arc<AtomicUsize>,
     pub(crate) handles: Handles,
+    kept: Vec<Kept>,
+}
+
+/// A resource the request keeps: its number, its type's short name, and the resource.
+struct Kept {
+    id: u64,
+    name: String,
+    resource: ResourceAny,
 }
 
 impl fmt::Debug for Guest {
@@ -429,6 +446,7 @@ impl Host {
             host: self.clone(),
             budget,
             slots: Mutex::default(),
+            ids: AtomicU64::new(0),
         }
     }
 }
@@ -438,6 +456,7 @@ pub struct Request {
     host: Host,
     budget: Arc<dyn Budget>,
     slots: Mutex<Vec<Slot>>,
+    ids: AtomicU64,
 }
 
 impl fmt::Debug for Request {
@@ -492,7 +511,7 @@ impl Request {
             extension,
             declared,
             |_, _| Ok(args.to_vec()),
-            |results, _| Ok(results),
+            |_, results, _| Ok(results),
         )
         .await
     }
@@ -522,20 +541,21 @@ impl Request {
             )));
         }
         let lower = |store: &mut Store<Guest>, _: At<'_>| {
+            let mut call = Call {
+                store,
+                ids: &self.ids,
+            };
             declared
                 .params
                 .iter()
                 .zip(args)
                 .map(|(param, value)| {
                     let ty = manifest.novis_type(&param.ty).map_err(invalid)?;
-                    convert::to_wit_with(&ty, value, &mut |value| {
-                        handle::lend(store.as_context_mut(), value)
-                    })
-                    .map_err(invalid)
+                    convert::to_wit_with(&ty, value, &mut call).map_err(invalid)
                 })
                 .collect()
         };
-        let lift = |results: Vec<Val>, at: At<'_>| {
+        let lift = |store: &mut Store<Guest>, results: Vec<Val>, at: At<'_>| {
             if declared.returns == "void" {
                 return Ok(None);
             }
@@ -543,9 +563,15 @@ impl Request {
                 .novis_type(&declared.returns)
                 .map_err(|err| at.crash(err))?;
             match <[Val; 1]>::try_from(results) {
-                Ok([val]) => convert::from_wit(&ty, val)
-                    .map(Some)
-                    .map_err(|err| at.crash(err)),
+                Ok([val]) => {
+                    let mut call = Call {
+                        store,
+                        ids: &self.ids,
+                    };
+                    convert::from_wit_with(&ty, val, &mut call)
+                        .map(Some)
+                        .map_err(|err| at.crash(err))
+                }
                 Err(results) => {
                     Err(at.crash(format!("it returned {} values, not one", results.len())))
                 }
@@ -561,7 +587,7 @@ impl Request {
         extension: &Extension,
         declared: &Method,
         args: impl FnOnce(&mut Store<Guest>, At<'_>) -> Result<Vec<Val>, Failure>,
-        results: impl FnOnce(Vec<Val>, At<'_>) -> Result<R, Failure>,
+        results: impl FnOnce(&mut Store<Guest>, Vec<Val>, At<'_>) -> Result<R, Failure>,
     ) -> Result<R, Failure> {
         let export = declared.export_name();
         let at = At {
@@ -576,10 +602,10 @@ impl Request {
             unreachable!("the instance was made above");
         };
         let outcome = match args(&mut live.store, at) {
-            Ok(args) => live
-                .call(at, &declared.name, &args)
-                .await
-                .and_then(|out| results(out, at)),
+            Ok(args) => match live.call(at, &declared.name, &args).await {
+                Ok(out) => results(&mut live.store, out, at),
+                Err(failure) => Err(failure),
+            },
             Err(failure) => Err(failure),
         };
         let outcome = match (live.end_call().await, outcome) {
@@ -593,6 +619,38 @@ impl Request {
             held.live = None;
         }
         outcome
+    }
+
+    /// Ends the request: drops every resource its calls returned, in the instance that made it,
+    /// so each one's destructor runs in the guest, and then drops the instances.
+    ///
+    /// # Errors
+    ///
+    /// The first failure a destructor met. An instance whose destructor failed drops no more of
+    /// its resources, and every other instance still drops all of its own.
+    pub async fn end(self) -> Result<(), Failure> {
+        let slots = std::mem::take(&mut *self.lock());
+        let mut ended = Ok(());
+        for slot in slots {
+            let State::Idle(mut live) = slot.state else {
+                continue;
+            };
+            let kept = std::mem::take(&mut live.store.data_mut().kept);
+            for kept in kept {
+                if let Err(err) = kept.resource.resource_drop_async(&mut live.store).await {
+                    let export = format!("[resource-drop]{}", crate::kebab(&kept.name));
+                    let at = At {
+                        extension: &slot.class,
+                        export: &export,
+                    };
+                    if ended.is_ok() {
+                        ended = Err(failure(&live.store, &err, at));
+                    }
+                    break;
+                }
+            }
+        }
+        ended
     }
 
     fn lock(&self) -> std::sync::MutexGuard<'_, Vec<Slot>> {
@@ -644,6 +702,7 @@ impl Request {
                 reached: None,
                 live: Arc::clone(&self.host.shared.live),
                 handles: Handles::default(),
+                kept: Vec::new(),
             },
         );
         store.limiter(|guest| guest);
@@ -731,6 +790,44 @@ impl Live {
             Ok(result) => Ok(result.into()),
             Err(results) => Ok(results),
         }
+    }
+}
+
+/// One call's [`Crossing`]: the store of the instance it runs on, and the request's resource
+/// numbers.
+struct Call<'s> {
+    store: &'s mut Store<Guest>,
+    ids: &'s AtomicU64,
+}
+
+impl Crossing for Call<'_> {
+    fn lend(&mut self, value: Value) -> Result<Val, String> {
+        handle::lend(self.store.as_context_mut(), value)
+    }
+
+    fn pass(&mut self, name: &str, id: u64) -> Result<Val, String> {
+        self.store
+            .data()
+            .kept
+            .iter()
+            .find(|kept| kept.id == id && kept.name == name)
+            .map(|kept| Val::Resource(kept.resource))
+            .ok_or_else(|| {
+                format!("the request keeps no `{name}` numbered {id} in this extension's instance")
+            })
+    }
+
+    fn keep(&mut self, name: &str, resource: ResourceAny) -> Result<Value, String> {
+        let id = self.ids.fetch_add(1, Ordering::Relaxed);
+        self.store.data_mut().kept.push(Kept {
+            id,
+            name: name.to_owned(),
+            resource,
+        });
+        Ok(Value::Resource {
+            name: name.to_owned(),
+            id,
+        })
     }
 }
 

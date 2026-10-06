@@ -28,8 +28,10 @@
 //! cases are its cases in kebab-case, each carrying its shape's record, and a `Core` value class as
 //! a record with exactly its fields from `crate::types::CORE_CLASSES`. The record is matched by
 //! its structure, because the conversion reads nothing else, so a guest that declares an equal
-//! record of its own loads too. A `resource` is still refused as outside the table. The `err` side
-//! of every result is the world's `error` variant, read by its three cases.
+//! record of its own loads too. A resource is the one the interface exports under its name in
+//! kebab-case, matched by its type and not its structure: an `own` of it in a result, which the
+//! request keeps, and a `borrow` of it in a parameter, so passing it never gives it away. The `err`
+//! side of every result is the world's `error` variant, read by its three cases.
 //!
 //! **A WASI import matches by interface and `0.2`**, any patch: wasmtime's linker resolves a `0.2.x`
 //! import to the `0.2` release the host defines. An `nvs:ext` import matches by interface, under
@@ -57,6 +59,7 @@ use std::sync::Arc;
 
 use sha2::{Digest, Sha256};
 use wasmtime::Engine;
+use wasmtime::component::ResourceType;
 use wasmtime::component::types::{ComponentFunc, ComponentItem, Record};
 use wasmtime::component::{Component, types::Type};
 
@@ -419,7 +422,14 @@ impl Loader {
                     method.name, manifest.interface
                 )));
             };
-            check_signature(&manifest, method, &func).map_err(|reason| {
+            let resource = |name: &str| match interface
+                .get_export(&self.engine, &crate::kebab(name))
+                .map(|export| export.ty)
+            {
+                Some(ComponentItem::Resource(ty)) => Some(ty),
+                _ => None,
+            };
+            check_signature(&manifest, method, &func, &resource).map_err(|reason| {
                 refuse(format!(
                     "the method `{}` does not match `{}#{export}`: {reason}",
                     method.name, manifest.interface
@@ -530,12 +540,21 @@ pub(crate) fn export_names(name: &str, interface: &str) -> bool {
 }
 
 /// Whether `func` is the WIT function `method`'s Novis signature gives, the named types resolved
-/// against `manifest`.
+/// against `manifest` and a resource against `resource`, the interface's export of that name.
 fn check_signature(
     manifest: &Manifest,
     method: &Method,
     func: &ComponentFunc,
+    resource: &dyn Fn(&str) -> Option<ResourceType>,
 ) -> Result<(), String> {
+    let taken = Side {
+        resource,
+        returned: false,
+    };
+    let returned = Side {
+        resource,
+        returned: true,
+    };
     let params: Vec<(&str, Type)> = func.params().collect();
     if params.len() != method.params.len() {
         return Err(format!(
@@ -553,7 +572,7 @@ fn check_signature(
             ));
         }
         let ty = manifest.novis_type(&param.ty)?;
-        if !crosses_as(&ty, wit) {
+        if !crosses_as(&ty, wit, &taken) {
             return Err(format!(
                 "the parameter `{}` is `{}`, which does not cross as the export's type",
                 param.name, param.ty
@@ -569,7 +588,7 @@ fn check_signature(
         .transpose()?;
     let ok = match (&returns, result.ok()) {
         (None, None) => true,
-        (Some(ty), Some(wit)) => crosses_as(ty, &wit),
+        (Some(ty), Some(wit)) => crosses_as(ty, &wit, &returned),
         _ => false,
     };
     if !ok {
@@ -598,9 +617,22 @@ fn is_error(ty: &Type) -> bool {
             .all(|(name, case)| case.name == *name && matches!(case.ty, Some(Type::String)))
 }
 
-/// Whether a value of the Novis type `ty` crosses as `wit`.
-fn crosses_as(ty: &NovisType, wit: &Type) -> bool {
+/// Where a type crosses: the interface's resource of each name, and whether the type is a
+/// result's, which returns a resource as an `own`, or a parameter's, which takes it as a `borrow`.
+struct Side<'a> {
+    resource: &'a dyn Fn(&str) -> Option<ResourceType>,
+    returned: bool,
+}
+
+/// Whether a value of the Novis type `ty` crosses as `wit` on `side`.
+fn crosses_as(ty: &NovisType, wit: &Type, side: &Side<'_>) -> bool {
     match (ty, wit) {
+        (NovisType::Resource(name), Type::Own(wit)) if side.returned => {
+            (side.resource)(name).is_some_and(|ty| ty == *wit)
+        }
+        (NovisType::Resource(name), Type::Borrow(wit)) if !side.returned => {
+            (side.resource)(name).is_some_and(|ty| ty == *wit)
+        }
         (NovisType::Bool, Type::Bool)
         | (NovisType::Int, Type::S64)
         | (NovisType::Uint, Type::U64)
@@ -608,16 +640,16 @@ fn crosses_as(ty: &NovisType, wit: &Type) -> bool {
         | (NovisType::String, Type::String)
         | (NovisType::Mixed, Type::Borrow(_)) => true,
         (NovisType::Bytes, Type::List(list)) => matches!(list.ty(), Type::U8),
-        (NovisType::List(item), Type::List(list)) => crosses_as(item, &list.ty()),
+        (NovisType::List(item), Type::List(list)) => crosses_as(item, &list.ty(), side),
         (NovisType::Keyed(key, value), Type::List(list)) => match list.ty() {
             Type::Tuple(tuple) => {
                 let types: Vec<Type> = tuple.types().collect();
-                matches!(types.as_slice(), [k, v] if crosses_as(key, k) && crosses_as(value, v))
+                matches!(types.as_slice(), [k, v] if crosses_as(key, k, side) && crosses_as(value, v, side))
             }
             _ => false,
         },
-        (NovisType::Optional(inner), Type::Option(option)) => crosses_as(inner, &option.ty()),
-        (NovisType::Shape(fields), Type::Record(record)) => shape_crosses_as(fields, record),
+        (NovisType::Optional(inner), Type::Option(option)) => crosses_as(inner, &option.ty(), side),
+        (NovisType::Shape(fields), Type::Record(record)) => shape_crosses_as(fields, record, side),
         (NovisType::Enum { cases, .. }, Type::Enum(wit)) => {
             let wit: Vec<&str> = wit.names().collect();
             wit.len() == cases.len()
@@ -631,25 +663,23 @@ fn crosses_as(ty: &NovisType, wit: &Type) -> bool {
             wit.len() == cases.len()
                 && cases.iter().zip(&wit).all(|((name, fields), case)| {
                     case.name == crate::kebab(name)
-                        && matches!(&case.ty, Some(Type::Record(record)) if shape_crosses_as(fields, record))
+                        && matches!(&case.ty, Some(Type::Record(record)) if shape_crosses_as(fields, record, side))
                 })
         }
         (NovisType::Core(core), Type::Record(record)) => {
             let wit: Vec<_> = record.fields().collect();
             wit.len() == core.fields.len()
-                && core
-                    .fields
-                    .iter()
-                    .zip(&wit)
-                    .all(|((name, ty), field)| field.name == *name && crosses_as(ty, &field.ty))
+                && core.fields.iter().zip(&wit).all(|((name, ty), field)| {
+                    field.name == *name && crosses_as(ty, &field.ty, side)
+                })
         }
         _ => false,
     }
 }
 
-/// Whether a shape of `fields` crosses as `record`: its keys in kebab-case, in order, and an
-/// optional one an `option`.
-fn shape_crosses_as(fields: &[Field], record: &Record) -> bool {
+/// Whether a shape of `fields` crosses as `record` on `side`: its keys in kebab-case, in order,
+/// and an optional one an `option`.
+fn shape_crosses_as(fields: &[Field], record: &Record, side: &Side<'_>) -> bool {
     let wit: Vec<_> = record.fields().collect();
     wit.len() == fields.len()
         && fields
@@ -658,9 +688,9 @@ fn shape_crosses_as(fields: &[Field], record: &Record) -> bool {
             .all(|((name, optional, ty), field)| {
                 field.name == crate::kebab(name)
                     && if *optional {
-                        matches!(&field.ty, Type::Option(option) if crosses_as(ty, &option.ty()))
+                        matches!(&field.ty, Type::Option(option) if crosses_as(ty, &option.ty(), side))
                     } else {
-                        crosses_as(ty, &field.ty)
+                        crosses_as(ty, &field.ty, side)
                     }
             })
 }

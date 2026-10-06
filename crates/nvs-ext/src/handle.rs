@@ -195,7 +195,9 @@ pub(crate) fn link(linker: &mut Linker<Guest>) -> wasmtime::Result<()> {
             Value::String(_) => "string",
             Value::Bytes(_) => "bytes",
             Value::Array(_) => "array",
-            Value::Case(_) | Value::Core { .. } | Value::Object(_) => "object",
+            Value::Case(_) | Value::Core { .. } | Value::Object(_) | Value::Resource { .. } => {
+                "object"
+            }
         };
         if let Some(slot) = results.first_mut() {
             *slot = Val::Enum(kind.to_owned());

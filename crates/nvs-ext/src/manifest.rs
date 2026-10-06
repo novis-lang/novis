@@ -22,6 +22,7 @@
 //!   "unions": [{"name": "Area", "cases": [
 //!     {"name": "Circle", "shape": "{radius: float}"},
 //!     {"name": "Box", "shape": "{width: float, height: float}"}]}],
+//!   "resources": [{"name": "Route"}],
 //!   "settings": {"name": "geo", "keys": [{"name": "precision", "type": "int", "default": 6}]},
 //!   "requests": {"read": ["data/geo/"], "connect": ["tiles.example.com"]},
 //!   "memory": 67108864
@@ -36,8 +37,10 @@
 //! qualifier declarations (`rule:security/extension-declares-sink-or-source`), and both only
 //! tighten.
 //!
-//! **`enums` and `unions` declare the named types** a signature writes by their short name, and
-//! [`Manifest::novis_type`] resolves them. A declared name is not a built-in type's, and an enum's
+//! **`enums`, `unions` and `resources` declare the named types** a signature writes by their short
+//! name, and [`Manifest::novis_type`] resolves them. A declared name is not a built-in type's, and
+//! a resource is one the interface exports under its name in kebab-case, which the loader checks.
+//! An enum's
 //! cases are distinct in kebab-case, which is how they cross. A union's case is a shape that may
 //! name an enum or a `Core` value class, never another union, and its cases must be told apart by
 //! their keys alone: no array is a value of two of them, which holds exactly when, for every two
@@ -80,6 +83,9 @@ pub struct Manifest {
     /// The closed unions of shapes the signatures name.
     #[serde(default)]
     pub unions: Vec<Union>,
+    /// The resources the signatures name.
+    #[serde(default)]
+    pub resources: Vec<Resource>,
     /// The `[ext.<name>]` settings block the extension reads, if any.
     #[serde(default)]
     pub settings: Option<Settings>,
@@ -231,6 +237,14 @@ pub struct UnionCase {
     pub shape: String,
 }
 
+/// A resource a signature names, which the extension's interface exports.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Resource {
+    /// The resource's short name, which is its WIT name in kebab-case.
+    pub name: String,
+}
+
 /// The `[ext.<name>]` block the extension reads through `nvs:ext/settings`.
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -336,8 +350,8 @@ impl Manifest {
         Ok(manifest)
     }
 
-    /// The type `text` writes, resolving the enums and unions this manifest declares, or why it is
-    /// outside the table.
+    /// The type `text` writes, resolving the enums, unions and resources this manifest declares,
+    /// or why it is outside the table.
     pub fn novis_type(&self, text: &str) -> Result<NovisType, String> {
         NovisType::parse_with(text, &|name| self.named(name, true))
     }
@@ -350,6 +364,9 @@ impl Manifest {
                 name: decl.name.clone(),
                 cases: decl.cases.clone(),
             });
+        }
+        if let Some(decl) = self.resources.iter().find(|decl| decl.name == name) {
+            return Some(NovisType::Resource(decl.name.clone()));
         }
         let decl = self
             .unions
@@ -402,7 +419,9 @@ impl Manifest {
         }
         unique("constant", self.consts.iter().map(|c| c.name.as_str()))?;
         let names = self.enums.iter().map(|decl| decl.name.as_str());
-        let names = names.chain(self.unions.iter().map(|decl| decl.name.as_str()));
+        let names = names
+            .chain(self.unions.iter().map(|decl| decl.name.as_str()))
+            .chain(self.resources.iter().map(|decl| decl.name.as_str()));
         unique("type", names.clone())?;
         if let Some(name) = names.into_iter().find(|name| BUILT_IN.contains(name)) {
             return Err(malformed(format!(

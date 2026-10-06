@@ -10,7 +10,7 @@
 
 use std::future::Future;
 use std::path::PathBuf;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll, Wake, Waker};
 use std::time::Duration;
 
@@ -778,4 +778,160 @@ fn a_mixed_argument_crosses_as_a_value_handle_read_through_accessors() {
         ),
         "a call with the wrong number of arguments is invalid"
     );
+}
+
+/// A guest exporting the resource `tally`, whose representation is the number it was opened
+/// with. `open` makes one, `read` returns the number of the one it borrows, and the destructor
+/// writes `dropped <n>` to `nvs:ext/log`. A borrow of the guest's own resource reaches it as the
+/// representation, so the guest has no borrow handle to drop.
+const TALLIES: &str = r#"(component
+  (import "nvs:ext/types@1.0.0" (instance $types
+    (type $e (variant (case "invalid" string) (case "parse" string) (case "runtime" string)))
+    (export "error" (type (eq $e)))))
+  (alias export $types "error" (type $error))
+  (import "nvs:ext/log@1.0.0" (instance $log
+    (type $level (enum "debug" "info" "warn" "error" "critical"))
+    (export "level" (type $l (eq $level)))
+    (export "write" (func (param "level" $l) (param "message" string)))))
+  (core module $memory
+    (memory (export "memory") 1)
+    (global $bump (mut i32) (i32.const 1024))
+    (func (export "realloc") (param i32 i32 i32 i32) (result i32) (local $at i32)
+      (local.set $at
+        (i32.and
+          (i32.add (global.get $bump) (i32.sub (local.get 2) (i32.const 1)))
+          (i32.sub (i32.const 0) (local.get 2))))
+      (global.set $bump (i32.add (local.get $at) (local.get 3)))
+      (local.get $at)))
+  (core instance $mi (instantiate $memory))
+  (alias core export $mi "memory" (core memory $mem))
+  (alias core export $mi "realloc" (core func $realloc))
+  (core func $write (canon lower (func $log "write") (memory $mem) (realloc $realloc)))
+  (core module $dtor
+    (import "host" "memory" (memory 1))
+    (import "host" "write" (func $write (param i32 i32 i32)))
+    (data (i32.const 512) "dropped ")
+    (func (export "dtor") (param $rep i32)
+      (i32.store8 (i32.const 520) (i32.add (i32.const 48) (local.get $rep)))
+      (call $write (i32.const 1) (i32.const 512) (i32.const 9))))
+  (core instance $di (instantiate $dtor
+    (with "host" (instance
+      (export "memory" (memory $mem))
+      (export "write" (func $write))))))
+  (alias core export $di "dtor" (core func $dtor-fn))
+  (type $tally-def (resource (rep i32) (dtor (core func $dtor-fn))))
+  (export $tally "tally" (type $tally-def))
+  (core func $new (canon resource.new $tally))
+  (core module $m
+    (import "host" "memory" (memory 1))
+    (import "host" "new" (func $new (param i32) (result i32)))
+    (func (export "open") (param $start i64) (result i32)
+      (i32.store8 (i32.const 16) (i32.const 0))
+      (i32.store (i32.const 20) (call $new (i32.wrap_i64 (local.get $start))))
+      (i32.const 16))
+    (func (export "read") (param $rep i32) (result i32)
+      (i32.store8 (i32.const 16) (i32.const 0))
+      (i64.store (i32.const 24) (i64.extend_i32_u (local.get $rep)))
+      (i32.const 16)))
+  (core instance $i (instantiate $m
+    (with "host" (instance
+      (export "memory" (memory $mem))
+      (export "new" (func $new))))))
+  (func $open (param "start" s64) (result (result (own $tally) (error $error)))
+    (canon lift (core func $i "open") (memory $mem) (realloc $realloc)))
+  (func $read (param "tally" (borrow $tally)) (result (result s64 (error $error)))
+    (canon lift (core func $i "read") (memory $mem) (realloc $realloc)))
+  (instance $api
+    (export "tally" (type $tally))
+    (export "open" (func $open))
+    (export "read" (func $read)))
+  (export "shop:tallies/api" (instance $api)))"#;
+
+/// The manifest of the `TALLIES` guest, with `resources` as its declared resources.
+fn tallies_manifest(resources: &str) -> String {
+    format!(
+        r#"{{"manifest": 1, "world": "1.0.0", "class": "Shop\\Tallies", "interface": "shop:tallies/api",
+  "resources": [{resources}],
+  "methods": [
+    {{"name": "open", "params": [{{"name": "start", "type": "int"}}], "returns": "Tally"}},
+    {{"name": "read", "params": [{{"name": "tally", "type": "Tally"}}], "returns": "int"}}]}}"#
+    )
+}
+
+#[test]
+fn an_extension_resource_is_dropped_when_its_request_ends() {
+    let log = Arc::new(Mutex::new(Vec::<String>::new()));
+    let written = Arc::clone(&log);
+    let host = Host::new(8, move |linker| {
+        linker
+            .instance("nvs:ext/log@1.0.0")?
+            .func_new("write", move |_, _, params, _| {
+                if let [_, Val::String(message)] = params {
+                    written.lock().expect("the log locks").push(message.clone());
+                }
+                Ok(())
+            })?;
+        Ok(())
+    })
+    .expect("the host starts");
+    let component = wat::parse_str(TALLIES).expect("the test component compiles");
+    let load = |manifest: String| {
+        let bytes = append_section(component.clone(), MANIFEST, manifest.as_bytes());
+        let entry = Entry {
+            path: PathBuf::from("tallies.nvsx"),
+            sha256: pin(&bytes),
+            memory: None,
+        };
+        Loader::new(host.engine()).load_bytes(&entry, &bytes)
+    };
+    let refused = load(tallies_manifest(r#"{"name": "Count"}"#))
+        .expect_err("a manifest whose resource the interface does not export is refused");
+    assert!(refused.reason.contains("`open`"), "{refused}");
+    let extension = load(tallies_manifest(r#"{"name": "Tally"}"#)).expect("the guest loads");
+
+    let request = request(&host);
+    let call =
+        |method: &str, args: Vec<Value>| block_on(request.call_values(&extension, method, args));
+    let three = call("open", vec![Value::Int(3)])
+        .expect("the guest opens a tally")
+        .expect("`open` returns one");
+    let five = call("open", vec![Value::Int(5)])
+        .expect("the guest opens a tally")
+        .expect("`open` returns one");
+    assert!(
+        matches!(&three, Value::Resource { name, .. } if name == "Tally"),
+        "{three:?}"
+    );
+    assert_ne!(three, five, "each resource has its own number");
+    assert_eq!(call("read", vec![five.clone()]), Ok(Some(Value::Int(5))));
+    assert_eq!(
+        call("read", vec![three.clone()]),
+        Ok(Some(Value::Int(3))),
+        "a resource passed back is borrowed, so the request still holds it"
+    );
+    assert!(
+        matches!(
+            call(
+                "read",
+                vec![Value::Resource {
+                    name: "Tally".to_owned(),
+                    id: 99
+                }]
+            ),
+            Err(Failure::Error(nvs_ext::call::Error::Invalid(_)))
+        ),
+        "a number the request does not keep is invalid"
+    );
+    assert!(
+        log.lock().expect("the log locks").is_empty(),
+        "no resource is dropped while its request runs"
+    );
+
+    block_on(request.end()).expect("the request ends");
+    assert_eq!(
+        *log.lock().expect("the log locks"),
+        ["dropped 3", "dropped 5"],
+        "each resource's destructor ran when the request ended"
+    );
+    assert_eq!(host.live_instances(), 0);
 }

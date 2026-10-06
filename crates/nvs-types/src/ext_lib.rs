@@ -28,8 +28,8 @@
 //! - `array<K, V>` is interned as `array<V>`: a Novis `array` is already keyed, and `K` is only
 //!   what the WIT list of pairs carries.
 //! - A closed union of shapes is the union of its shapes, and a `Core` value class is that class.
-//!   An enum the manifest declares has no class in the program yet, so a method or a constant
-//!   whose type names one is left out, the same as a type outside the table.
+//!   An enum or a resource the manifest declares has no class in the program yet, so a method or
+//!   a constant whose type names one is left out, the same as a type outside the table.
 
 use nvs_ext::manifest::{Const, Manifest, Method};
 use nvs_ext::types::{Field, NovisType};
@@ -129,16 +129,17 @@ fn consts(manifest: &Manifest) -> impl Iterator<Item = (&Const, NovisType, Const
     })
 }
 
-/// The type `text` writes in `manifest`, or `None` when it is outside the table or names an enum.
+/// The type `text` writes in `manifest`, or `None` when it is outside the table or names an enum
+/// or a resource.
 fn typed(manifest: &Manifest, text: &str) -> Option<NovisType> {
     let ty = manifest.novis_type(text).ok()?;
     lowers(&ty).then_some(ty)
 }
 
-/// Whether [`lower`] has a type for `ty`: every type but one that names an enum.
+/// Whether [`lower`] has a type for `ty`: every type but one that names an enum or a resource.
 fn lowers(ty: &NovisType) -> bool {
     match ty {
-        NovisType::Enum { .. } => false,
+        NovisType::Enum { .. } | NovisType::Resource(_) => false,
         NovisType::List(inner) | NovisType::Optional(inner) => lowers(inner),
         NovisType::Keyed(key, value) => lowers(key) && lowers(value),
         NovisType::Shape(fields) => fields.iter().all(|(_, _, ty)| lowers(ty)),
@@ -248,7 +249,9 @@ fn lower(ty: &NovisType, interner: &mut TypeInterner) -> TypeId {
             interner.make_union(shapes)
         }
         NovisType::Core(core) => interner.class(QName::parse(core.class)),
-        NovisType::Enum { .. } => unreachable!("`typed` leaves out a type that names an enum"),
+        NovisType::Enum { .. } | NovisType::Resource(_) => {
+            unreachable!("`typed` leaves out a type that names an enum or a resource")
+        }
     }
 }
 
