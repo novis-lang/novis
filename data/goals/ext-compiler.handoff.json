@@ -1,26 +1,33 @@
 {
-  "state": "**Goal `ext-compiler`, Stage 3 (the call) is under way.** Stages 1 and 2 are on disk. The design is ADR 0246 § 8 and the goal file's § *Standing decisions*. This goal has no record slot.\n\n`nvs run` calls an extension end to end. Codegen emits `InstKind::ExtensionCall` as a variadic call of `nvs_runtime::extension::nvs_extension_call` (`crates/nvs-runtime/src/extension.rs` module doc), and `nvs-cli`'s `extensions::Calls` hosts it over one `nvs_ext::call::Request` (`crates/nvs-cli/src/extensions.rs` module doc).\n\nEvery row of `rule:packaging/a-value-crosses-as-its-wit-type`'s table crosses both ways, resources included (`crates/nvs-types/src/ext_lib.rs` module doc). A guest that reaches a CPU or memory limit runs the request's `Core\\Fatal::onLimit` handler, then is a `FATAL` (`tests/conformance/ext/an-extension-that-reaches-the-memory-limit-runs-the-limit-handler.nvst`).\n\n**Still open in Stage 3:** `nvs serve` installs no `Calls`. Stage 4 (qualifiers) is the driver's earliest red check and has nothing written yet.",
+  "state": "**Goal `ext-compiler`. Stage 3 (the call) is done; Stage 4 (qualifiers) is next and has nothing written.** Stages 1 to 3 are on disk. The design is ADR 0246 § 8 and the goal file's § *Standing decisions*. This goal has no record slot.\n\n`nvs run` and `nvs serve` both call an extension end to end. Codegen emits `InstKind::ExtensionCall` as a variadic call of `nvs_runtime::extension::nvs_extension_call`. `nvs-cli`'s `extensions::Calls` hosts it over one `nvs_ext::call::Request`, and dropping a `Calls` ends the request (`crates/nvs-cli/src/extensions.rs` module doc).\n\nIn `nvs serve` every worker installs `extensions::Served`, which keeps one `Calls` per request in `nvs_runtime::TreeState::extensions`, dropped with the request tree. Serve's compiler types a program against the live set's manifests (`extensions::live_manifests`). Pinned by `crates/nvs-cli/tests/live_config.rs` `a_served_request_calls_a_configured_extension`.\n\nThe driver's earliest red check is Stage 4's `nvs-types-an-extension-sink-refuses-with-the-core-code`, with the rest of Stage 4, then Stages 5 and 6.",
   "next": {
-    "stage": 3,
-    "title": "the call",
+    "stage": 4,
+    "title": "qualifiers",
     "files": [
-      "crates/nvs-cli/src/extensions.rs",
-      "crates/nvs-server/src/serve.rs",
-      "tests/conformance/ext/"
+      "crates/nvs-ext/src/manifest.rs",
+      "crates/nvs-types/src/ext_lib.rs",
+      "crates/nvs-types/tests/extensions.rs",
+      "tests/conformance/ext/",
+      "tests/conformance/reject/"
     ],
     "items": [
       {
         "done": false,
-        "text": "**`nvs serve` hosts extension calls**: install a `Calls` per request from the live set (`crates/nvs-cli/src/extensions.rs:165`), and run `Calls::end` when the request's tasks finish, so a resource is dropped at the request's end. `rule:packaging/extension-calls-are-statically-typed`, `rule:packaging/a-guest-crash-throws`."
+        "text": "**A manifest declares `tainted` and `secret`, and a declaration that loosens does not load**: a param may be a `sink` (refuses `tainted`), a return may be a `source` (is `tainted`); a `secret` return or an unknown qualifier refuses the load (`crates/nvs-ext/src/manifest.rs:145`, `crates/nvs-ext/src/manifest.rs:182`). `rule:security/extension-manifest-only-tightens`. Check `nvs-ext-a-manifest-cannot-loosen-a-qualifier`."
       },
       {
         "done": false,
-        "text": "**Then Stage 4, qualifiers**: a manifest's `tainted`/`secret` declarations reach the `MethodSig` fields a `Core` member's carry (`crates/nvs-types/src/ext_lib.rs:1`), so `crates/nvs-types/src/expr/quals.rs:1` refuses them with no extension branch. `rule:security/extension-manifest-only-tightens`."
+        "text": "**The declarations reach the `MethodSig` fields a `Core` member's carry**, so `admits_tainted_argument` and `tainted_result` read them with no extension branch, and a `secret` argument is refused with the code a `Core` boundary gives (`crates/nvs-types/src/ext_lib.rs:225`, `crates/nvs-types/src/signatures.rs:58`). `rule:packaging/extension-calls-are-statically-typed`. Check `nvs-types-an-extension-sink-refuses-with-the-core-code`."
+      },
+      {
+        "done": false,
+        "text": "**The four conformance cases** of check `an-extension-call-keeps-every-qualifier-rule`; the fixture gains the sink and source methods it needs (`tests/conformance/ext/fixtures/ledger/manifest.json:56`, held to its text by `crates/nvs-ext/tests/fixtures.rs`)."
       }
     ]
   },
   "backlog": [
-    "`nvs test`, `nvs check` with the set, and the language server (Stage 6) — `rule:packaging/extension-calls-are-statically-typed`.",
-    "The source section and autoload (Stage 5) — ADR 0246 § 8."
+    "A worker thread that does not run the serve loop (a queue crew, an off-core member) installs no `Served`, so an extension call there finds no host: `crates/nvs-cli/src/extensions.rs` module doc.",
+    "`spawn script` inside `nvs run` compiles through `script::Compiler`, which reads the live set, and `nvs run` installs none: the child is typed with no extensions.",
+    "Stage 5 (the source section) and Stage 6 (`nvs check`, `nvs test`, the language server): the goal file."
   ]
 }

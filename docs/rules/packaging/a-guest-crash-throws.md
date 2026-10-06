@@ -23,4 +23,4 @@ runtime spells it, a trapped instance dropped and an `err`'s kept (`crates/nvs-e
 (`tests/conformance/ext/an-extension-error-throws-its-class-and-a-trap-throws-extension-error.nvst`).
 A limit runs the request's limit handler before its `FATAL`
 (`tests/conformance/ext/an-extension-that-reaches-the-memory-limit-runs-the-limit-handler.nvst`).
-`nvs serve` does none of this yet.
+`nvs serve` reaches the same host code for every request.

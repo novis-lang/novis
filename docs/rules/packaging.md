@@ -1591,13 +1591,15 @@ unit's key and a changed set is an ordinary cache miss
 signature table and `nvs_hir::resolve_file_with_extensions` declares their classes
 (`crates/nvs-types/tests/extensions.rs`). `nvs check` and `nvs run` read the configuration's set with
 `nvs_ext::load::read_manifests` and type a program against it
-(`tests/conformance/reject/an-extension-call-with-a-wrong-argument-type-does-not-compile.nvst`);
-`nvs serve`, `nvs test` and the language server do not yet. `nvs_ir` lowers a call into an
+(`tests/conformance/reject/an-extension-call-with-a-wrong-argument-type-does-not-compile.nvst`),
+and `nvs serve` types its programs against the set it loaded; `nvs test` and the language server
+do not yet. `nvs_ir` lowers a call into an
 extension to one `InstKind::ExtensionCall` naming the export (`crates/nvs-ir/src/lower/tests.rs`).
 Codegen emits it as a direct call of one runtime helper with the export named in its first slot
 (`nvs_runtime::extension`), and `nvs run` hosts it
-(`tests/conformance/ext/an-extension-call-crosses-every-row-of-the-value-table.nvst`); `nvs serve`
-does not yet.
+(`tests/conformance/ext/an-extension-call-crosses-every-row-of-the-value-table.nvst`). So does
+`nvs serve`, keeping one request's instances in its request tree until the request ends
+(`crates/nvs-cli/tests/live_config.rs`).
 
 <sub>See also [`classes/no-free-functions-or-constants`](classes.md#classes-no-free-functions-or-constants), [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key), [`packaging/an-nvsx-is-one-file-carrying-its-manifest`](packaging.md#packaging-an-nvsx-is-one-file-carrying-its-manifest). Decided in [0003](../decisions/0003.md), [0011](../decisions/0011.md), [0078](../decisions/0078.md), [0246](../decisions/0246.md).</sub>
 
@@ -1805,7 +1807,7 @@ runtime spells it, a trapped instance dropped and an `err`'s kept (`crates/nvs-e
 (`tests/conformance/ext/an-extension-error-throws-its-class-and-a-trap-throws-extension-error.nvst`).
 A limit runs the request's limit handler before its `FATAL`
 (`tests/conformance/ext/an-extension-that-reaches-the-memory-limit-runs-the-limit-handler.nvst`).
-`nvs serve` does none of this yet.
+`nvs serve` reaches the same host code for every request.
 
 <sub>See also [`packaging/a-guest-runs-under-the-requests-budget`](packaging.md#packaging-a-guest-runs-under-the-requests-budget), [`errors/on-limit`](errors.md#errors-on-limit), [`errors/throwable-hierarchy`](errors.md#errors-throwable-hierarchy). Decided in [0246](../decisions/0246.md).</sub>
 
