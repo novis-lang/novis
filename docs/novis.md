@@ -26889,6 +26889,7 @@ E0401
 
     nvs test <paths>... [--filter <text>] [--format human|json|junit] [--php <path>] [--update]
                         [--coverage-lcov <file>] [--coverage-clover <file>]
+                        [--coverage-cobertura <file>]
 
 One subcommand runs two kinds of test, and which one is meant is read off the path:
 
@@ -26950,14 +26951,17 @@ skipped: not written yet
   and a `.nvst` tree are each refused beside it.
 - `--php <path>` names the PHP binary a case with an `--ORACLE--` section is compared against
   (default `php`).
-- `--coverage-lcov <file>` writes the run's line coverage to the file in the lcov format.
+- `--coverage-lcov <file>` writes the run's coverage to the file in the lcov format.
   `--coverage-clover <file>` writes the same coverage as Clover XML, the format PHPUnit's
-  `--coverage-clover` writes. You can give both in one run. Each line where a statement starts is
-  listed with the number of times it ran. A line that no test reached has the count `0`. A file
-  is named relative to the directory you run `nvs test` in, so run it from your repository's root
-  for your CI service to find the files. Under the `human` format, the run prints one more line,
-  `N of N lines run (N%)`. The top-level statements of a file do not run under `nvs test`, so
-  they have the count `0`. Naming either flag beside a `.nvst` tree or `--list` is refused.
+  `--coverage-clover` writes. `--coverage-cobertura <file>` writes the lines as Cobertura XML,
+  the format GitLab and Azure DevOps read. You can give all three in one run. Each line where a
+  statement starts is listed with the number of times it ran. A line that no test reached has the
+  count `0`. The lcov and Clover files also list each function with the number of times it was
+  called. A file is named relative to the directory you run `nvs test` in, so run it from your
+  repository's root for your CI service to find the files. Under the `human` format, the run
+  prints one more line, `N of N lines run (N%)`. The top-level statements of a file do not run
+  under `nvs test`, so they have the count `0`. Naming any of these flags beside a `.nvst` tree
+  or `--list` is an error.
 - `--update` rewrites each failed `Core\Test::assertMatchesInline` snapshot in the source that
   wrote it, and is **the only spelling under which `nvs test` writes to a source file**. It
   replaces the `$expected` string and nothing else: a passing snapshot is untouched, and so is

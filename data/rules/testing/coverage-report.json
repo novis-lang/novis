@@ -1,8 +1,9 @@
 {
-  "title": "`nvs test` writes line coverage as lcov and Clover, from one hit table every context of the run counts into",
+  "title": "`nvs test` writes line and function coverage as lcov, Clover and Cobertura, from one hit table every context of the run counts into",
   "status": "shipped",
   "because": [
-    "0235"
+    "0235",
+    "0273"
   ],
   "divergesFromPhp": "there is no coverage driver to install; the probes are already in every compiled unit, and the flags are PHPUnit's `--coverage-clover` with `--coverage-lcov` beside it",
   "seeAlso": [

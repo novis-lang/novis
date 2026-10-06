@@ -346,7 +346,7 @@ pub(crate) fn run(
     // program lower the same `nvs_ir::Program` through the same entry label, so
     // they share an artifact and whichever ran first pays for it.
     let cache = crate::cache::from_config(&snapshot.config);
-    let (unit, spans) = match compile(&checked, cache.as_ref(), coverage.any()) {
+    let (unit, probes) = match compile(&checked, cache.as_ref(), coverage.any()) {
         Ok(both) => both,
         Err(error) => {
             crate::report_internal(error);
@@ -355,8 +355,7 @@ pub(crate) fn run(
     };
     // Resolved to file lines here, because `checked` and its source map move
     // into the suite's task below.
-    let sites = crate::coverage::Sites::of(&spans, &checked.map);
-    drop(spans);
+    let sites = crate::coverage::Sites::of(probes, &checked.map);
 
     // The module doc owns why a machine format sends the program's own output
     // to stderr: stdout is the document, and nothing else may be written to it.
@@ -671,14 +670,14 @@ impl nvs_runtime::inproc::Answering for UnderTest {
 /// verdict can see, which is why the [`crate::cache::Provenance`] this drops is
 /// dropped rather than reported.
 ///
-/// With `coverage`, it also returns `nvs_ir::Program::stmt_spans` of the program,
-/// which a unit loaded from the cache numbers the same way; without it, the
-/// list is empty and nothing is read for it.
+/// With `coverage`, it also returns the program's [`crate::coverage::Probes`],
+/// which a unit loaded from the cache numbers the same way; without it, they
+/// are empty and nothing is read for them.
 fn compile(
     checked: &crate::Checked,
     cache: Option<&crate::cache::Cache>,
     coverage: bool,
-) -> Result<(Rc<nvs_codegen::Unit>, Vec<nvs_diagnostics::Span>), String> {
+) -> Result<(Rc<nvs_codegen::Unit>, crate::coverage::Probes), String> {
     let files = checked.program_files();
     let program = nvs_ir::lower::lower_program(
         nvs_ir::lower::ENTRY_SCRIPT_LABEL,
@@ -688,12 +687,12 @@ fn compile(
         &checked.enums,
         &checked.layouts,
     );
-    let spans = match coverage {
-        true => program.stmt_spans(),
-        false => Vec::new(),
+    let probes = match coverage {
+        true => crate::coverage::Probes::of(&program),
+        false => crate::coverage::Probes::default(),
     };
     crate::cache::unit_for(&program, crate::cache::program_digest(&files), cache)
-        .map(|(unit, _)| (Rc::new(unit), spans))
+        .map(|(unit, _)| (Rc::new(unit), probes))
         .map_err(|error| error.to_string())
 }
 

@@ -565,14 +565,17 @@ its verdicts would make a consumer tell the two documents apart by a key's absen
 
 <a id="testing-coverage-report"></a>
 
-## `nvs test` writes line coverage as lcov and Clover, from one hit table every context of the run counts into
+## `nvs test` writes line and function coverage as lcov, Clover and Cobertura, from one hit table every context of the run counts into
 
 `rule:testing/coverage-report`
 
-`nvs test --coverage-lcov <FILE>` and `--coverage-clover <FILE>` write which lines a program's
-`#[Test]` run reached, and a run may write both. Every line a statement starts on is listed with the
-largest count of the statements starting on it; every function is compiled, so a line no test reached
-reads `0`. A file not on disk is left out, and a file is named relative to the directory the run
+`nvs test --coverage-lcov <FILE>`, `--coverage-clover <FILE>` and `--coverage-cobertura <FILE>` write
+which lines a program's `#[Test]` run reached, and a run may write any of them together. Every line a
+statement starts on is listed with the largest count of the statements starting on it; every function
+is compiled, so a line no test reached reads `0`. lcov and Clover also list every `nvs_ir::Function`
+that has a statement, under the IR's name, at the line of its first statement and with that
+statement's count. Cobertura groups the files into one package per directory and gives a `line-rate`
+at every level. A file not on disk is left out, and a file is named relative to the directory the run
 started in, with `/` between parts. The flags are refused beside a `.nvst` tree and beside `--list`,
 and under a machine `--format` stdout is still that format's document alone.
 
@@ -583,7 +586,7 @@ each `StmtId`, so the number a probe passes names one statement in the whole pro
 makes from it — each test's isolate, a fixture, an in-process request, a request a `server: true` test
 sends — counts into that one table. Novis code cannot read it. A run that does not ask makes no table.
 
-<sub>See also [`testing/debug-probes`](testing.md#testing-debug-probes), [`testing/report-formats`](testing.md#testing-report-formats). Decided in [0235](../decisions/0235.md).</sub>
+<sub>See also [`testing/debug-probes`](testing.md#testing-debug-probes), [`testing/report-formats`](testing.md#testing-report-formats). Decided in [0235](../decisions/0235.md), [0273](../decisions/0273.md).</sub>
 
 <a id="testing-nvst-is-separate"></a>
 

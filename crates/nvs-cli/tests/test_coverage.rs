@@ -1,7 +1,7 @@
-//! `nvs test --coverage-lcov <FILE>` and `--coverage-clover <FILE>`: which
-//! lines a report lists, what each count is, how files are named, and where
-//! the flags are refused, as `docs/reference/tools/10-cli.md` § *nvs test*
-//! states them.
+//! `nvs test --coverage-lcov <FILE>`, `--coverage-clover <FILE>` and
+//! `--coverage-cobertura <FILE>`: which lines and functions a report lists,
+//! what each count is, how files are named, and where the flags are refused,
+//! as `docs/reference/tools/10-cli.md` § *nvs test* states them.
 //!
 //! Through the built binary, because what is asserted is the file a CI
 //! service reads and the line the run prints.
@@ -90,7 +90,11 @@ fn the_lcov_file_lists_every_statement_line_with_its_count() {
     // line 17 is in the method no test calls.
     assert_eq!(
         fs::read_to_string(dir.join("coverage.lcov")).expect("the lcov file was written"),
-        "TN:\nSF:price.nvs\nDA:6,2\nDA:10,1\nDA:11,1\nDA:13,0\nDA:17,0\nDA:24,1\nDA:25,1\nDA:30,1\n\
+        "TN:\nSF:price.nvs\nFN:6,Price::double\nFN:10,Price::label\nFN:17,Price::neverCalled\n\
+         FN:24,PriceTest::doubles\nFN:30,PriceTest::labelsAFreeItem\n\
+         FNDA:2,Price::double\nFNDA:1,Price::label\nFNDA:0,Price::neverCalled\n\
+         FNDA:1,PriceTest::doubles\nFNDA:1,PriceTest::labelsAFreeItem\nFNF:5\nFNH:4\n\
+         DA:6,2\nDA:10,1\nDA:11,1\nDA:13,0\nDA:17,0\nDA:24,1\nDA:25,1\nDA:30,1\n\
          LF:8\nLH:6\nend_of_record\n"
     );
     assert!(
@@ -136,8 +140,101 @@ fn the_clover_file_carries_the_same_lines_and_the_totals() {
 }
 
 #[test]
-fn both_files_can_be_written_by_one_run_and_a_machine_format_keeps_stdout_its_own() {
-    let dir = scratch("both");
+fn the_lcov_file_lists_every_function_and_how_often_it_was_called() {
+    let dir = scratch("lcov-functions");
+    fs::write(dir.join("price.nvs"), PRICE).expect("the program is written");
+    let out = test_in(&dir, &["price.nvs", "--coverage-lcov", "coverage.lcov"]);
+    assert!(out.status.success(), "{}", text(&out.stderr));
+
+    // Each function at the line of its first statement. `double` is called
+    // twice, and `neverCalled` is not called.
+    let lcov = fs::read_to_string(dir.join("coverage.lcov")).expect("the lcov file was written");
+    assert!(
+        lcov.contains(
+            "FN:6,Price::double\nFN:10,Price::label\nFN:17,Price::neverCalled\n\
+             FN:24,PriceTest::doubles\nFN:30,PriceTest::labelsAFreeItem\n\
+             FNDA:2,Price::double\nFNDA:1,Price::label\nFNDA:0,Price::neverCalled\n\
+             FNDA:1,PriceTest::doubles\nFNDA:1,PriceTest::labelsAFreeItem\nFNF:5\nFNH:4\n"
+        ),
+        "{lcov}"
+    );
+}
+
+#[test]
+fn the_clover_file_counts_methods_and_covered_methods() {
+    let dir = scratch("clover-methods");
+    fs::write(dir.join("price.nvs"), PRICE).expect("the program is written");
+    let out = test_in(&dir, &["price.nvs", "--coverage-clover", "clover.xml"]);
+    assert!(out.status.success(), "{}", text(&out.stderr));
+
+    let document = fs::read_to_string(dir.join("clover.xml")).expect("the Clover file was written");
+    assert!(
+        document.contains(
+            "<line num=\"17\" type=\"method\" name=\"Price::neverCalled\" count=\"0\"/>\n      \
+             <line num=\"17\" type=\"stmt\" count=\"0\"/>"
+        ),
+        "{document}"
+    );
+    assert!(
+        document.contains("<line num=\"6\" type=\"method\" name=\"Price::double\" count=\"2\"/>"),
+        "{document}"
+    );
+    assert!(
+        document.contains("<metrics files=\"1\" loc=\"33\" ncloc=\"33\" classes=\"0\" methods=\"5\" coveredmethods=\"4\" "),
+        "{document}"
+    );
+    assert!(
+        document.contains("elements=\"13\" coveredelements=\"10\""),
+        "{document}"
+    );
+}
+
+#[test]
+fn the_cobertura_file_carries_the_lines_and_the_line_rate() {
+    let dir = scratch("cobertura");
+    fs::create_dir_all(dir.join("src")).expect("the source directory is made");
+    fs::write(dir.join("src").join("price.nvs"), PRICE).expect("the program is written");
+    let out = test_in(
+        &dir,
+        &["src/price.nvs", "--coverage-cobertura", "cobertura.xml"],
+    );
+    assert!(out.status.success(), "{}", text(&out.stderr));
+
+    let document =
+        fs::read_to_string(dir.join("cobertura.xml")).expect("the Cobertura file was written");
+    assert!(
+        document.starts_with(
+            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE coverage SYSTEM \
+             \"http://cobertura.sourceforge.net/xml/coverage-04.dtd\">\n\
+             <coverage line-rate=\"0.75\" branch-rate=\"0\" lines-covered=\"6\" lines-valid=\"8\" "
+        ),
+        "{document}"
+    );
+    assert!(
+        document.contains(
+            "<package name=\"src\" line-rate=\"0.75\" branch-rate=\"0\" complexity=\"0\">\n      <classes>\n        \
+             <class name=\"src/price.nvs\" filename=\"src/price.nvs\" line-rate=\"0.75\" "
+        ),
+        "{document}"
+    );
+    assert!(
+        document.contains(
+            "<line number=\"6\" hits=\"2\"/>\n            <line number=\"10\" hits=\"1\"/>\n            \
+             <line number=\"11\" hits=\"1\"/>\n            <line number=\"13\" hits=\"0\"/>\n            \
+             <line number=\"17\" hits=\"0\"/>\n"
+        ),
+        "{document}"
+    );
+    assert!(
+        text(&out.stdout).ends_with("  6 of 8 lines run (75.0%)\n"),
+        "{}",
+        text(&out.stdout)
+    );
+}
+
+#[test]
+fn all_three_files_can_be_written_by_one_run() {
+    let dir = scratch("all-three");
     fs::write(dir.join("price.nvs"), PRICE).expect("the program is written");
     let out = test_in(
         &dir,
@@ -149,11 +246,26 @@ fn both_files_can_be_written_by_one_run_and_a_machine_format_keeps_stdout_its_ow
             "coverage.lcov",
             "--coverage-clover",
             "clover.xml",
+            "--coverage-cobertura",
+            "cobertura.xml",
         ],
     );
     assert!(out.status.success(), "{}", text(&out.stderr));
-    assert!(dir.join("coverage.lcov").is_file());
-    assert!(dir.join("clover.xml").is_file());
+    let lcov = fs::read_to_string(dir.join("coverage.lcov")).expect("the lcov file was written");
+    let clover = fs::read_to_string(dir.join("clover.xml")).expect("the Clover file was written");
+    let cobertura =
+        fs::read_to_string(dir.join("cobertura.xml")).expect("the Cobertura file was written");
+    // The three files count the same lines.
+    assert!(lcov.contains("LF:8\nLH:6\n"), "{lcov}");
+    assert!(
+        clover.contains("statements=\"8\" coveredstatements=\"6\""),
+        "{clover}"
+    );
+    assert!(
+        cobertura.contains("lines-covered=\"6\" lines-valid=\"8\""),
+        "{cobertura}"
+    );
+    // A machine format keeps stdout its own.
     let stdout = text(&out.stdout);
     assert!(
         !stdout.contains("lines run"),

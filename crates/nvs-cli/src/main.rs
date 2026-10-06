@@ -503,20 +503,27 @@ enum Command {
         // `rule:testing/inline-snapshots`.
         #[arg(long)]
         update: bool,
-        /// Write the run's line coverage to this file in the lcov format.
+        /// Write the run's coverage to this file in the lcov format.
         ///
         /// Every line a statement starts on is listed with the number of
-        /// times it ran, `0` for a line no test reached. A `.nvst` tree has no
-        /// coverage to report, so naming it there is refused.
+        /// times it ran, `0` for a line no test reached. Every function is
+        /// listed with the number of times it was called. A `.nvst` tree has
+        /// no coverage to report, so naming it there is an error.
         // `rule:testing/debug-probes`; `crate::coverage` owns how the counts are taken.
         #[arg(long, value_name = "FILE", conflicts_with = "list")]
         coverage_lcov: Option<PathBuf>,
-        /// Write the run's line coverage to this file as Clover XML.
+        /// Write the run's coverage to this file as Clover XML.
         ///
-        /// The same lines and counts as `--coverage-lcov`, in the format
-        /// PHPUnit's `--coverage-clover` writes. Both can be given in one run.
+        /// The same lines, functions and counts as `--coverage-lcov`, in the
+        /// format PHPUnit's `--coverage-clover` writes.
         #[arg(long, value_name = "FILE", conflicts_with = "list")]
         coverage_clover: Option<PathBuf>,
+        /// Write the run's line coverage to this file as Cobertura XML.
+        ///
+        /// The same lines and counts as `--coverage-lcov`, in the format
+        /// GitLab and Azure DevOps read. One run can write all three files.
+        #[arg(long, value_name = "FILE", conflicts_with = "list")]
+        coverage_cobertura: Option<PathBuf>,
         /// Report which `#[Test]` methods the program declares, and where each
         /// one is written, without running any of them.
         ///
@@ -1602,6 +1609,7 @@ fn main() -> ExitCode {
             update,
             coverage_lcov,
             coverage_clover,
+            coverage_cobertura,
             list,
             cases,
             record,
@@ -1615,6 +1623,7 @@ fn main() -> ExitCode {
             &coverage::Requested {
                 lcov: coverage_lcov,
                 clover: coverage_clover,
+                cobertura: coverage_cobertura,
             },
             cases,
             record,
@@ -3443,7 +3452,7 @@ fn run_test(
         // The counts come from the probes of the one program this process
         // compiles, and a `.nvst` case runs as a process of its own.
         eprintln!(
-            "error: `--coverage-lcov` and `--coverage-clover` measure a program's `#[Test]` methods, not a `.nvst` tree"
+            "error: `--coverage-lcov`, `--coverage-clover` and `--coverage-cobertura` measure a program's `#[Test]` methods, not a `.nvst` tree"
         );
         return ExitCode::FAILURE;
     }

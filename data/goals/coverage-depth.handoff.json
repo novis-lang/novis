@@ -1,38 +1,33 @@
 {
-  "state": "**Goal `coverage-depth` — coverage reports carry functions, branches and per-test lines, in Cobertura too, and VS Code shows them — has not started.** Goal `growth-proof`'s whole list is this goal's Stage 1 floor.\n\nLine coverage is built: `nvs test --coverage-lcov <FILE>` and `--coverage-clover <FILE>` (ADR 0235, `rule:testing/coverage-report`). Codegen numbers statements across the program by adding a per-function base, `nvs_ir::Program::stmt_spans` is the table of where each is written, and every context of a run counts into one shared `nvs_runtime::StmtHits` table. A `server: true` test's request program installs the table itself, because the server starts each connection from a fresh context.\n\nThe branch probe does not exist. `Terminator::Branch` carries `then_edge` and `else_edge`, and `DebugFlags::BRANCH` is reserved, but codegen emits nothing for them.",
+  "state": "**Goal `coverage-depth` — Stage 2 (functions and Cobertura) is done; Stage 3 (branches) is next.** ADR 0273 is the goal's one record; it states the whole goal's tradeoffs and `modifies` `rule:testing/coverage-report`. No further ADR slot is owed.\n\nlcov and Clover list every `nvs_ir::Function` that has a statement (`FN`/`FNDA`/`FNF`/`FNH`, `<line type=\"method\">` and the `methods` metrics), named `Class::method` as the IR names it. `--coverage-cobertura <FILE>` writes one `<package>` per directory and lines with `line-rate`; its `branch-rate` is a fixed `0` until Stage 3. `crate::coverage::Probes::of` reads statement spans and each function's first statement number from the lowered program, and `Sites::of` takes it. The rule fragment and `docs/reference/tools/10-cli.md` § *nvs test* already say all of this.\n\nThe branch probe does not exist. `Terminator::Branch` carries `then_edge` and `else_edge`, IR functions already carry `edge_spans` (returned by `low.finish()` in `crates/nvs-ir/src/lower/anon_fn.rs:287`), and `DebugFlags::BRANCH` is reserved, but codegen emits nothing on an edge.",
   "next": {
-    "stage": 2,
-    "title": "functions and Cobertura",
+    "stage": 3,
+    "title": "branches, the probe",
     "files": [
-      "crates/nvs-cli/src/coverage.rs",
-      "crates/nvs-cli/src/runner.rs",
-      "crates/nvs-cli/src/main.rs",
-      "crates/nvs-cli/tests/test_coverage.rs"
+      "crates/nvs-codegen/src/emit.rs",
+      "crates/nvs-codegen/src/lib.rs",
+      "crates/nvs-runtime/src/ctx/trace.rs",
+      "crates/nvs-codegen/tests/probes.rs"
     ],
     "items": [
       {
         "done": false,
-        "text": "**The decision record** — one new record, written first, for the whole goal, from the goal file's § *Standing decisions*; it `modifies` `rule:testing/coverage-report`."
+        "text": "**The edge probe** — `rule:testing/debug-probes`, ADR 0273 § 3: on each edge of `Terminator::Branch` (`crates/nvs-ir/src/ir.rs:3175`), one load of the flag word and a predicted-not-taken branch to an out-of-line `nvs_probe_edge(ctx, edge)` under `DebugFlags::BRANCH`, in `crates/nvs-codegen/src/emit.rs:@emit_stmt_probe`'s shape, at `crates/nvs-codegen/src/emit.rs:3619`; edge numbers get a per-function base as statements do."
       },
       {
         "done": false,
-        "text": "**Functions** — `crates/nvs-cli/src/coverage.rs:@Sites` gains a function table read from the same walk as `nvs_ir::Program::stmt_spans` (name, first statement's line and number); lcov writes `FN`/`FNDA`/`FNF`/`FNH`, Clover `<line type=\"method\">` and the `methods` metrics."
+        "text": "**The edge table** — ADR 0273 § 3: `Program::edge_spans` beside `crates/nvs-ir/src/ir.rs:48`, and a second atomic table beside `crates/nvs-runtime/src/ctx/trace.rs:@StmtHits`, handed down by `Ctx::isolate`/`child`/`placed_isolate` as `StmtHits` is; rewrite `crates/nvs-runtime/src/ctx/trace.rs:@nvs_probe_stmt`'s doc sentence about `BRANCH` (Stage 0)."
       },
       {
         "done": false,
-        "text": "**Cobertura** — `--coverage-cobertura <FILE>` in `crates/nvs-cli/src/main.rs`'s `Command::Test`, a field on `coverage::Requested`, and a third writer over the same lines."
-      },
-      {
-        "done": false,
-        "text": "**The named tests** of the goal file's Stage 2 check, in `crates/nvs-cli/tests/test_coverage.rs`."
+        "text": "**The probe tests** — beside `crates/nvs-codegen/tests/probes.rs:17` (`covered_with`, which a branch twin copies): both edges of an `if`, a `while`'s exit and re-entry, a `match` arm, and zero `nvs_probe_edge` calls with no flag (the Stage 3 check names the tests; `bun nv loop --list --stage 3`)."
       }
     ]
   },
   "backlog": [
-    "**Stage 3: branches** — the probe first (`crates/nvs-codegen/src/emit.rs:3619`'s `Terminator::Branch` arm, `crates/nvs-runtime/src/ctx/trace.rs:@nvs_probe_stmt` as the shape, `crates/nvs-codegen/tests/probes.rs`), then the three writers.",
-    "**Stage 4: per-test lines** — `crates/nvs-cli/src/runner.rs:@run_suite` reads the table's counts around each test; `--format json` goes to `schemaVersion: 3` only with a coverage flag.",
-    "**Stage 5: coverage in VS Code** — a `TestRunProfileKind.Coverage` profile beside `editors/vscode/src/tests.ts:77`, reading the lcov file into `FileCoverage`.",
-    "**Stage 6: the reference and the proofs** — `docs/reference/tools/10-cli.md` § *nvs test*, the two rule fragments, `nvs-test`'s `about.md`.",
-    "This is the last goal on the chain."
+    "Stage 3, the report half (Stage 2's file set, `crates/nvs-cli/src/coverage.rs`): `BRDA`/`BRF`/`BRH`, Clover `type=\"cond\"`, Cobertura `branch=\"true\"`, and the runner turning `BRANCH` on beside `COVERAGE` — ADR 0273 § 4.",
+    "Stage 4: per-test lines at `schemaVersion: 3` — ADR 0273 § 5; `docs/rules/testing/report-formats.md` is its Stage 0 sentence.",
+    "Stage 5: the VS Code Coverage profile — ADR 0273 § 6.",
+    "ADR 0273's record has no `summary` (the plain entry the website prints); add one in Stage 6 once the goal's behaviour is all on disk."
   ]
 }
