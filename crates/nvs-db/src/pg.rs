@@ -3392,8 +3392,8 @@ fn reset_session<S: Read + Write>(wire: &mut Wire<S>, state: &Cell<State>) -> io
 /// refused rather than ignored. PostgreSQL settles both for the whole
 /// transaction, at its first statement, so there is nothing a savepoint could
 /// do with them; running the callable at the *outer* transaction's level while
-/// its author wrote `Isolation::Serializable` is priority 2's exact failure —
-/// weaker semantics than the program asked for, silently. § 7's composition is
+/// its author wrote `Isolation::Serializable` would give it weaker semantics
+/// than the program asked for, and nothing would say so. § 7's composition is
 /// not what this costs: a nested `transaction()` with no options is the case
 /// § 7 argues for and it still composes.
 ///
@@ -3567,7 +3567,7 @@ pub(crate) fn savepoint_name(depth: u32) -> String {
 /// option's absence means the connection's default, and an operator may have
 /// set `default_transaction_read_only` on a standby; spelling `READ WRITE`
 /// would widen from inside a program what the operator narrowed outside it,
-/// which is the wrong direction for a priority-1 rule. A caller that wanted a
+/// which is the wrong direction for a security rule. A caller that wanted a
 /// write transaction on such a server gets the server's refusal, which names
 /// the real problem.
 ///

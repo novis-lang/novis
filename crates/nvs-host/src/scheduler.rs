@@ -288,7 +288,7 @@ type TaskYielder = Yielder<Resume, Suspended>;
 /// allocation and one move per **task** — not per helper call, and not on any
 /// path a request takes more than once. What it buys is that this budget is
 /// spent by a handful of pointers rather than by a context, so a new
-/// per-request field is a question about memory (priority 5) rather than about
+/// per-request field is a question about memory footprint rather than about
 /// whether tasks start at all.
 const CORO_TRANSFER_LIMIT: usize = 1024;
 

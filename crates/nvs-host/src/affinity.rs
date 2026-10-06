@@ -16,7 +16,7 @@
 //! mask are all real deployments, and in every one of them Novis's correctness
 //! is unchanged: the shared-nothing invariant is held by *the run queue*,
 //! which never hands a task to another thread, not by the affinity mask. What
-//! is lost is cache locality — a priority-3 cost, not a priority-1 one — so
+//! is lost is cache locality — a latency cost, not a security one — so
 //! refusing to start would be trading the ordering in `AGENTS.md` the wrong
 //! way round.
 //!

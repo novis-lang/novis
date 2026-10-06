@@ -672,14 +672,12 @@ fn lost_walk() -> io::Error {
 ///   an LRU of `sqlite3_stmt` handles keyed on the SQL text, which is exactly
 ///   what § 1 specifies, so this driver writes no cache of its own — the one
 ///   place in this crate where the borrowed half covers a section outright.
-/// - **`PRAGMA foreign_keys = ON`**, which SQLite leaves off and PDO leaves off
-///   after it. § 8 declares `ForeignKeyViolation` as a kind *every* driver
-///   normalises onto, and with the pragma off that condition cannot arise at
-///   all: the same schema and the same write would refuse on every other driver
-///   and silently corrupt the reference here. Correctness of semantics is
-///   priority 2 and the compatibility this costs is with a PHP default that is
-///   a known footgun, so it is not configurable to the unsafe value — § 3's own
-///   defaults are settled on the same footing.
+/// - **`PRAGMA foreign_keys = ON`**, which SQLite leaves off by default. § 8
+///   declares `ForeignKeyViolation` as a kind *every* driver normalises onto,
+///   and with the pragma off that condition cannot arise at all: the same
+///   schema and the same write would refuse on every other driver and silently
+///   corrupt the reference here. So it is not configurable to the unsafe value
+///   — § 3's own defaults are settled on the same footing.
 /// - **No busy timeout.** A lock contention answers `SQLITE_BUSY` at once, which
 ///   § 8 normalises to `Deadlock`, which is one of the kinds § 7's `retries`
 ///   re-runs a callable on. A timeout set here would block a pool thread inside C

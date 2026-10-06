@@ -2437,8 +2437,8 @@ fn execute_one<S: Read + Write>(
 /// characteristic belongs to the *session* and no command disarms it, so a
 /// connection returned to § 13's pool would run some later request's
 /// unqualified `transaction()` at a level nobody there asked for — and where
-/// the armed level is `READ UNCOMMITTED`, that is priority 2's exact failure,
-/// weaker semantics than the program asked for and silently.
+/// the armed level is `READ UNCOMMITTED`, that request gets weaker isolation
+/// than it asked for, and nothing says so.
 /// [`State::is_poolable`] is the only lever that says "close this rather than
 /// reuse it", and one handshake on a path a healthy server never takes is
 /// cheap for it.
@@ -2446,7 +2446,7 @@ fn execute_one<S: Read + Write>(
 /// `read_only` renders `READ ONLY` or nothing, never `READ WRITE`, for the
 /// reason [`crate::pg`]'s `begin_command` gives in full: the option's absence
 /// means the server's own default, and widening that from inside a program is
-/// the wrong direction for a priority-1 rule.
+/// the wrong direction for a security rule.
 ///
 /// # Errors
 ///
@@ -4715,10 +4715,10 @@ mod tests {
     /// A nested `transaction()` carrying either option is refused before a
     /// byte, because a savepoint cannot answer for it.
     ///
-    /// The refusal is priority 2's: MySQL settles both characteristics for the
-    /// whole transaction, so running the callable at the outer level while its
-    /// author wrote `Isolation::Serializable` would be weaker semantics than
-    /// the program asked for, silently.
+    /// MySQL settles both characteristics for the whole transaction, so
+    /// running the callable at the outer level while its author wrote
+    /// `Isolation::Serializable` would give it weaker semantics than the
+    /// program asked for, and nothing would say so.
     #[test]
     fn a_nested_transaction_asking_for_an_option_is_refused_before_a_byte() {
         let mut wire = Wire::new(Peer::new(accepting()));

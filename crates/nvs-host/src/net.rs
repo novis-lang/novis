@@ -111,8 +111,8 @@
 //! parks; a descriptor given up before it can be offered to a second poller.
 //! None of those is looked up when it is needed — each is remembered or it is
 //! not — so a copy is a second place for all four to go stale, and a fix
-//! landing in one of the two is silence in the other. That is priority 2
-//! against priority 4, and `AGENTS.md`'s ordering says how that goes.
+//! landing in one of the two is silence in the other. One generic over every
+//! source keeps all four rules in one place, which is why there is no copy.
 //!
 //! The cost is the type *name*: a mismatch reads `NvsStream<TcpStream>` rather
 //! than `NvsTcp`. The aliases bound it — no caller writes the generic

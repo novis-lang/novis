@@ -58,7 +58,7 @@
 //!    store makes the outcome of an `https` call a property of the *host image*
 //!    rather than of the deployment, so a call that verified in CI can fail —
 //!    or, far worse, succeed against a CA an operator never chose — on a
-//!    machine nobody reread. Priority 1 does not survive a trust set that is
+//!    machine nobody reread. Security does not survive a trust set that is
 //!    invisible from the artifact.
 //! 2. **A minimal container has no store at all.** Scratch and distroless
 //!    images ship no `ca-certificates`, and a client that read the platform
@@ -989,7 +989,7 @@ fn installed() -> std::sync::RwLockReadGuard<'static, Option<Installed>> {
 /// The process-wide client configuration.
 ///
 /// One root store for the process and not one per session: parsing the whole
-/// anchor set per outbound call would be priority 3 spent on a constant.
+/// anchor set per outbound call would spend latency on a constant.
 /// `ClientConfig` is `Send + Sync` and is only ever read once built, so sharing
 /// it across cores costs an `Arc` clone and one uncontended read lock.
 fn anchors() -> Arc<ClientConfig> {
@@ -1397,16 +1397,16 @@ fn root_store() -> Arc<RootCertStore> {
 /// **The bundle replaces the compiled-in set for the connection that names it
 /// and does not add to it.** That is `sslrootcert`'s meaning on libpq and
 /// `ssl-ca`'s on MySQL, so it is what an operator writing the key already
-/// expects; and it is the stricter of the two readings, which decides it under
-/// priority 1. A server behind a private CA is precisely the deployment where
+/// expects; and it is the stricter of the two readings, which decides it on
+/// security. A server behind a private CA is precisely the deployment where
 /// any public CA still being able to vouch for its name is the attack
 /// the bundle was written to prevent. An operator who wants both writes both
 /// into the file.
 ///
 /// Cached per path for [`anchors`]'s reason and with its bound: a connection
 /// pool re-opens against the same `[db.<name>]` block for the life of the
-/// process, and re-parsing a bundle per handshake would be priority 3 spent on
-/// a constant. The map is O(distinct bundles the configuration names), which is
+/// process, and re-parsing a bundle per handshake would spend latency on a
+/// constant. The map is O(distinct bundles the configuration names), which is
 /// O(1) in requests served — a path is only ever inserted from a value
 /// `nvs_config` resolved at boot.
 fn anchors_from(path: &Path) -> io::Result<Arc<ClientConfig>> {
