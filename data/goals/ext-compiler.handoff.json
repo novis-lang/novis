@@ -1,26 +1,21 @@
 {
-  "state": "**Goal `ext-compiler`, Stage 3 (the call) is under way.** Stages 1 and 2 are on disk. The design is ADR 0246 § 8 and the goal file's § *Standing decisions*. This goal has no record slot.\n\n`nvs run` calls an extension end to end. Codegen emits `InstKind::ExtensionCall` as a variadic call of `nvs_runtime::extension::nvs_extension_call`, with `Class::method` in slot 0 (`crates/nvs-runtime/src/extension.rs` module doc). `nvs-cli`'s `extensions::Calls` implements the seam over one `nvs_ext::call::Request`, converts runtime values to `nvs_ext::convert::Value` and back, polls the call on the calling task, raises `Failure::outcome`, and runs `Request::end` after the run (`crates/nvs-cli/src/extensions.rs` module doc). The loader now compiles into the process's one `nvs_ext::call::Host` engine. `Value::as_array` and `Value::class_name` are the new safe readers it uses.\n\nBoth end-to-end cases pass: `tests/conformance/ext/an-extension-call-crosses-every-row-of-the-value-table.nvst` (scalars, `bytes`, list, keyed array, `?int`) and `tests/conformance/ext/an-extension-error-throws-its-class-and-a-trap-throws-extension-error.nvst`.\n\n**Not yet crossing:** a shape. At runtime a shape value is an object of a synthesized `$shape{…}` class, so an argument crosses as `Value::Object` and is refused by `convert`, and a returned record needs the declared shape's class to build. The row-table case omits `echoItem` until it does. A returned enum, `Core` value class or resource is refused as `ExtensionError` too. A limit is a plain `FATAL` (no limit handler), and `nvs serve` installs no `Calls`.",
+  "state": "**Goal `ext-compiler`, Stage 3 (the call) is under way.** Stages 1 and 2 are on disk. The design is ADR 0246 § 8 and the goal file's § *Standing decisions*. This goal has no record slot.\n\n`nvs run` calls an extension end to end. Codegen emits `InstKind::ExtensionCall` as a variadic call of `nvs_runtime::extension::nvs_extension_call` (`crates/nvs-runtime/src/extension.rs` module doc), and `nvs-cli`'s `extensions::Calls` hosts it over one `nvs_ext::call::Request` (`crates/nvs-cli/src/extensions.rs` module doc).\n\nA shape now crosses both ways. An argument is read with `Value::shape_fields`. A returned value is converted by the manifest's declared return type, and each shape in it is built with `Ctx::new_shape` from the class the lowering records for every shape in an extension method's return type (`Lowering::record_extension_result_shapes`). A closed union picks its case with `nvs_ext::convert::fits`. The row-table case `tests/conformance/ext/an-extension-call-crosses-every-row-of-the-value-table.nvst` covers every row but the named ones.\n\n**Not yet crossing back:** an enum case, a `Core` value class and a resource throw `ExtensionError`. A limit is a plain `FATAL` (no limit handler), and `nvs serve` installs no `Calls`.",
   "next": {
     "stage": 3,
     "title": "the call",
     "files": [
       "crates/nvs-cli/src/extensions.rs",
-      "crates/nvs-ir/src/lower/expr.rs",
-      "crates/nvs-codegen/src/emit.rs",
+      "tests/conformance/ext/fixtures/ledger/",
       "tests/conformance/ext/"
     ],
     "items": [
       {
         "done": false,
-        "text": "**A shape crosses both ways**: in `crossed` (`crates/nvs-cli/src/extensions.rs:282`) read a `$shape{…}` object's fields by name into `Crossed::Array` (add a safe field reader beside `Value::class_name` at `crates/nvs-runtime/src/value.rs:582`). For a returned shape, have the lowering pass the declared shape's codec as `json.rs`'s decode does (`InstKind::ShapeCodecConst`, `crates/nvs-codegen/src/emit.rs:666`), and build the object as `build_shape` does (`crates/nvs-stdlib/src/json.rs:2690`). Then add the two `echoItem` lines back to the row-table case. `rule:packaging/a-value-crosses-as-its-wit-type`."
+        "text": "**The fixture's named rows**: add an enum, a closed union, a `Core` value class and a resource export to `tests/conformance/ext/fixtures/ledger/` (rebuilt and pinned by `crates/nvs-ext/tests/fixtures.rs:1`), call `kindOf` with a `mixed`, and cross each one back in `runtime` (`crates/nvs-cli/src/extensions.rs:355`): an enum case by the program's enum (`Ctx::enum_desc`), a `Core` value class by its `Core` constructor. `rule:packaging/a-value-crosses-as-its-wit-type`, `rule:packaging/values-cross-as-handles`."
       },
       {
         "done": false,
-        "text": "**The fixture's named rows**: add an enum, a closed union, a `Core` value class and a resource export to `tests/conformance/ext/fixtures/ledger/` (rebuilt and pinned by `crates/nvs-ext/tests/fixtures.rs:1`), call `kindOf` with a `mixed`, and cross each one in `runtime` (`crates/nvs-cli/src/extensions.rs:323`). `rule:packaging/a-value-crosses-as-its-wit-type`, `rule:packaging/values-cross-as-handles`."
-      },
-      {
-        "done": false,
-        "text": "**A limit runs the limit handler**: map `Outcome::Fatal` to `nvs_runtime::Limit` and run `Ctx::run_limit_handler` before the `FATAL` (`crates/nvs-cli/src/extensions.rs:240`). `rule:packaging/a-guest-crash-throws`, `rule:errors/on-limit`."
+        "text": "**A limit runs the limit handler**: map `Outcome::Fatal` to `nvs_runtime::Limit` and run `Ctx::run_limit_handler` before the `FATAL` (`crates/nvs-cli/src/extensions.rs:267`). `rule:packaging/a-guest-crash-throws`, `rule:errors/on-limit`."
       }
     ]
   },
