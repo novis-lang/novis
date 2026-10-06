@@ -1,0 +1,38 @@
+--TEST--
+A value of every type the fixture extension takes crosses into it and comes back unchanged — `rule:packaging/a-value-crosses-as-its-wit-type`, `rule:packaging/extension-calls-are-statically-typed`
+--EXTENSION--
+ledger
+--FILE--
+<?nvs
+use Core\Json;
+use Shop\Ledger;
+
+// Each `echo` method of `Shop\Ledger` returns its argument unchanged.
+echo Ledger::echoBool(true) ? "true" : "false", "\n";
+echo Ledger::echoInt(-42), "\n";
+echo Ledger::echoUint(9223372036854775807 as uint), "\n";
+echo Ledger::echoFloat(2.5), "\n";
+echo Ledger::echoString("Grüße"), "\n";
+
+// `bytes` comes back with the same octets.
+var $data = "a\0b" as bytes;
+echo Core\Bytes::compare(Ledger::echoBytes($data), $data), "\n";
+
+// A list keeps its order, and a keyed array keeps its keys in order.
+echo Json::encode(Ledger::echoList([3, 1, 2])), "\n";
+echo Json::encode(Ledger::echoMap(["b" => 2, "a" => 1])), "\n";
+
+// `?int` crosses as a number or as `null`. Without an argument, it is `null`.
+echo Ledger::echoOptional(5) ?? "null", "\n";
+echo Ledger::echoOptional() ?? "null", "\n";
+--EXPECT--
+true
+-42
+9223372036854775807
+2.5
+Grüße
+0
+[3,1,2]
+{"b":2,"a":1}
+5
+null

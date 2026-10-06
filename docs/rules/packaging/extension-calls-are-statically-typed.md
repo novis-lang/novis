@@ -24,5 +24,8 @@ signature table and `nvs_hir::resolve_file_with_extensions` declares their class
 `nvs_ext::load::read_manifests` and type a program against it
 (`tests/conformance/reject/an-extension-call-with-a-wrong-argument-type-does-not-compile.nvst`);
 `nvs serve`, `nvs test` and the language server do not yet. `nvs_ir` lowers a call into an
-extension to one `InstKind::ExtensionCall` naming the export (`crates/nvs-ir/src/lower/tests.rs`),
-and codegen has no trampoline for it yet.
+extension to one `InstKind::ExtensionCall` naming the export (`crates/nvs-ir/src/lower/tests.rs`).
+Codegen emits it as a direct call of one runtime helper with the export named in its first slot
+(`nvs_runtime::extension`), and `nvs run` hosts it
+(`tests/conformance/ext/an-extension-call-crosses-every-row-of-the-value-table.nvst`); `nvs serve`
+does not yet, and a returned shape, enum, `Core` value class or resource does not cross back yet.

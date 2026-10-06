@@ -1593,8 +1593,11 @@ signature table and `nvs_hir::resolve_file_with_extensions` declares their class
 `nvs_ext::load::read_manifests` and type a program against it
 (`tests/conformance/reject/an-extension-call-with-a-wrong-argument-type-does-not-compile.nvst`);
 `nvs serve`, `nvs test` and the language server do not yet. `nvs_ir` lowers a call into an
-extension to one `InstKind::ExtensionCall` naming the export (`crates/nvs-ir/src/lower/tests.rs`),
-and codegen has no trampoline for it yet.
+extension to one `InstKind::ExtensionCall` naming the export (`crates/nvs-ir/src/lower/tests.rs`).
+Codegen emits it as a direct call of one runtime helper with the export named in its first slot
+(`nvs_runtime::extension`), and `nvs run` hosts it
+(`tests/conformance/ext/an-extension-call-crosses-every-row-of-the-value-table.nvst`); `nvs serve`
+does not yet, and a returned shape, enum, `Core` value class or resource does not cross back yet.
 
 <sub>See also [`classes/no-free-functions-or-constants`](classes.md#classes-no-free-functions-or-constants), [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key), [`packaging/an-nvsx-is-one-file-carrying-its-manifest`](packaging.md#packaging-an-nvsx-is-one-file-carrying-its-manifest). Decided in [0003](../decisions/0003.md), [0011](../decisions/0011.md), [0078](../decisions/0078.md), [0246](../decisions/0246.md).</sub>
 
@@ -1668,8 +1671,8 @@ a few times rather than words many times ([`packaging/the-boundary-is-the-cost`]
 
 **Not on disk.** `nvs_ext::handle` is the per-call table and the `value` accessors, and
 `nvs_ext::call::Request::call_values` lends a `mixed` argument through it; a handle kept past its
-call traps when it is read (`crates/nvs-ext/tests/convert.rs`). No host calls an extension from a
-request yet, and there is no bulk byte copy beyond `as-bytes`.
+call traps when it is read (`crates/nvs-ext/tests/convert.rs`). `nvs run` calls an extension from a
+program, and no case passes it a `mixed` yet. There is no bulk byte copy beyond `as-bytes`.
 
 <sub>See also [`packaging/the-boundary-is-the-cost`](packaging.md#packaging-the-boundary-is-the-cost), [`core-api/a-lifetime-is-an-object`](core-api.md#core-api-a-lifetime-is-an-object). Decided in [0003](../decisions/0003.md), [0246](../decisions/0246.md).</sub>
 
@@ -1791,7 +1794,9 @@ limit is not a `Throwable` ([`errors/throwable-hierarchy`](errors.md#errors-thro
 property of its own (`nvs_hir::errors::TREE`) and in the runtime's thrown-class roster, and
 `nvs_ext::call` turns every failure into the table's outcome — the class or the limit named as the
 runtime spells it, a trapped instance dropped and an `err`'s kept (`crates/nvs-ext/tests/failure.rs`)
-— but no host raises that outcome on a request yet.
+— and `nvs run` raises it on the program
+(`tests/conformance/ext/an-extension-error-throws-its-class-and-a-trap-throws-extension-error.nvst`).
+`nvs serve` does not yet, and a limit is a plain `FATAL` that runs no limit handler.
 
 <sub>See also [`packaging/a-guest-runs-under-the-requests-budget`](packaging.md#packaging-a-guest-runs-under-the-requests-budget), [`errors/on-limit`](errors.md#errors-on-limit), [`errors/throwable-hierarchy`](errors.md#errors-throwable-hierarchy). Decided in [0246](../decisions/0246.md).</sub>
 

@@ -251,9 +251,11 @@ fn a_unit_compiled_under_one_extension_set_is_never_reused_under_another() {
 
     assert_eq!(run(&shop, &program).0, "ran\n");
     let both = artifacts(&cache);
+    // Two more entries: the program compiled again, and the extension's
+    // compiled component, which the same cache keeps.
     assert_eq!(
         both.len(),
-        2,
+        3,
         "the run with an extension compiled the program again"
     );
 

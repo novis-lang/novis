@@ -1,0 +1,49 @@
+--TEST--
+An error the extension returns throws its mapped class, a trap throws `ExtensionError`, and the next call to the extension succeeds — `rule:packaging/a-guest-crash-throws`
+--EXTENSION--
+ledger
+--FILE--
+<?nvs
+use Shop\Ledger;
+
+// `Ledger::fail` returns an error of the kind its first argument names.
+// Each kind throws a different class.
+try {
+    Ledger::fail(0, "bad input");
+} catch (LogicError $logic) {
+    echo "LogicError: ", $logic->message, "\n";
+}
+try {
+    Ledger::fail(1, "bad text");
+} catch (ParseError $parse) {
+    echo "ParseError: ", $parse->message, "\n";
+}
+try {
+    Ledger::fail(2, "it broke");
+} catch (RuntimeError $runtime) {
+    echo "RuntimeError: ", $runtime->message, "\n";
+}
+
+// `Ledger::crash` stops the extension. The call throws `ExtensionError`.
+try {
+    Ledger::crash();
+} catch (ExtensionError $crashed) {
+    echo "ExtensionError\n";
+}
+
+// `ExtensionError` is a `RuntimeError`, so this handler catches it too.
+try {
+    Ledger::crash();
+} catch (RuntimeError $again) {
+    echo "caught as RuntimeError\n";
+}
+
+// The extension still works after the crash.
+echo Ledger::echoInt(7), "\n";
+--EXPECT--
+LogicError: bad input
+ParseError: bad text
+RuntimeError: it broke
+ExtensionError
+caught as RuntimeError
+7

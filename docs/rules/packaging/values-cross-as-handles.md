@@ -17,5 +17,5 @@ a few times rather than words many times (`rule:packaging/the-boundary-is-the-co
 
 **Not on disk.** `nvs_ext::handle` is the per-call table and the `value` accessors, and
 `nvs_ext::call::Request::call_values` lends a `mixed` argument through it; a handle kept past its
-call traps when it is read (`crates/nvs-ext/tests/convert.rs`). No host calls an extension from a
-request yet, and there is no bulk byte copy beyond `as-bytes`.
+call traps when it is read (`crates/nvs-ext/tests/convert.rs`). `nvs run` calls an extension from a
+program, and no case passes it a `mixed` yet. There is no bulk byte copy beyond `as-bytes`.

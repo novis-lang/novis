@@ -19,4 +19,6 @@ limit is not a `Throwable` (`rule:errors/throwable-hierarchy`).
 property of its own (`nvs_hir::errors::TREE`) and in the runtime's thrown-class roster, and
 `nvs_ext::call` turns every failure into the table's outcome — the class or the limit named as the
 runtime spells it, a trapped instance dropped and an `err`'s kept (`crates/nvs-ext/tests/failure.rs`)
-— but no host raises that outcome on a request yet.
+— and `nvs run` raises it on the program
+(`tests/conformance/ext/an-extension-error-throws-its-class-and-a-trap-throws-extension-error.nvst`).
+`nvs serve` does not yet, and a limit is a plain `FATAL` that runs no limit handler.

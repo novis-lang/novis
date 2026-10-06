@@ -653,6 +653,36 @@ pub(crate) fn extension_set(
     })
 }
 
+/// The extension set of the tree `config` and `entry` resolve, loaded, as the host a compiled
+/// call into one reaches (`crate::extensions::Calls`). `None` for a tree that does not resolve,
+/// which the boot that follows reports, and for one with no `[[extension]]`.
+///
+/// # Errors
+///
+/// The exit code after `E0652` is printed for the first entry that does not load.
+pub(crate) fn extension_calls(
+    config: &[PathBuf],
+    entry: &Path,
+) -> Result<Option<crate::extensions::Calls>, ExitCode> {
+    let mut sources = SourceMap::new();
+    let Ok((snapshot, origins)) = boot_origins(config, Some(entry), &mut sources, Init::Never)
+    else {
+        return Ok(None);
+    };
+    if snapshot.config.extension.is_empty() {
+        return Ok(None);
+    }
+    match crate::extensions::loaded(&snapshot.config, &origins, &sources) {
+        Ok(set) => Ok(Some(crate::extensions::Calls::new(set))),
+        Err(diagnostic) => {
+            let mut diags = Diagnostics::new();
+            diags.report(diagnostic);
+            render_diagnostics(&mut diags, &sources);
+            Err(ExitCode::FAILURE)
+        }
+    }
+}
+
 /// `nvs config check [<file>...]` — resolve the tree and report what it holds,
 /// exiting non-zero on any refusal.
 ///

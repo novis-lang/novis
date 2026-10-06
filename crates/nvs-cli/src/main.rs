@@ -3379,6 +3379,17 @@ fn run_run(
             nvs_runtime::budget::allocated_bytes(),
         )
     });
+    // The loaded extensions, which a compiled call into one reaches through
+    // `nvs_runtime::extension` while the run's tasks run.
+    let calls = match config::extension_calls(config, &config_entry) {
+        Ok(calls) => calls.map(std::rc::Rc::new),
+        Err(code) => return code,
+    };
+    let calling = calls.clone().map(|calls| {
+        nvs_runtime::extension::install(
+            calls as std::rc::Rc<dyn nvs_runtime::extension::Extensions>,
+        )
+    });
     let charged = nvs_host::RunningRequest::new(tree, nvs_host::ThreadClock::current());
     let watchdog = charged.is_some().then(nvs_host::Watchdog::new);
     let watched = watchdog.as_ref().map(|watchdog| {
@@ -3396,6 +3407,10 @@ fn run_run(
     drop(watched);
     drop(watchdog);
     drop(installed);
+    drop(calling);
+    if let Some(calls) = calls.and_then(std::rc::Rc::into_inner) {
+        calls.end();
+    }
     if let Err(error) = ran {
         eprintln!("error: the scheduler stopped: {error}");
         return ExitCode::FAILURE;
