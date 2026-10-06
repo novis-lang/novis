@@ -249,6 +249,7 @@ fn every_echo_export_of_the_ledger_returns_its_argument() {
         ("echo-item", item(None)),
         ("echo-optional", Val::Option(Some(Box::new(Val::S64(7))))),
         ("echo-optional", Val::Option(None)),
+        ("echo-unit", Val::Enum("metric-ton".to_owned())),
     ];
     for (name, value) in rows {
         assert_eq!(

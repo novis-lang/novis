@@ -30,8 +30,9 @@
 //! for its label (`nvs_runtime::Ctx::new_shape`), which the lowering records for every shape in
 //! an extension method's return type. A `Core` value class crosses as its record's fields, which
 //! `nvs_stdlib::ext_record` reads from the instance and builds a fresh instance from, with the
-//! checks the class's own constructor makes. An enum case and a resource do not cross yet: one
-//! passed in is refused as `ExtensionError` before the guest runs, and one returned after it.
+//! checks the class's own constructor makes. An enum case is its number, which crosses as an
+//! `int` and comes back by `nvs_ext::convert::case_number`. A resource does not cross yet: one
+//! returned is refused as `ExtensionError` after the guest runs.
 //!
 //! **A compiled component is kept in the artifact cache a program's units are kept in**
 //! (`rule:packaging/a-wasm-module-cache-reuses-the-artifact-cache`). [`Modules`] is
@@ -402,9 +403,7 @@ fn runtime(ctx: &Ctx, ty: &NovisType, value: Crossed) -> Result<Value, String> {
                 Value::array(array)
             }
         },
-        Crossed::Case(name) => {
-            return Err(format!("the enum case `{name}` does not cross back yet"));
-        }
+        Crossed::Case(name) => Value::int(nvs_ext::convert::case_number(ty, &name)?),
         Crossed::Core { class, mut fields } => {
             let record = core_record(&class)?;
             let parts = record

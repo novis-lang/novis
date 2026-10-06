@@ -6,6 +6,7 @@ ledger
 <?nvs
 use Core\Json;
 use Shop\Ledger;
+use Shop\Unit;
 
 // Each `echo` method of `Shop\Ledger` returns its argument unchanged.
 echo Ledger::echoBool(true) ? "true" : "false", "\n";
@@ -40,6 +41,14 @@ echo Ledger::echoInstant(Core\Time::fromIso("2024-01-02T03:04:05.5Z"))->toIso(),
 var $address = Ledger::echoUri(Core\Uri::parse("https://example.com/shop?page=2"));
 echo $address->host(), " ", $address->toString(), "\n";
 
+// `Unit` is an enum that the extension declares. A case comes back as the same case.
+echo Ledger::echoUnit(Unit::MetricTon) == Unit::MetricTon ? "same" : "different", "\n";
+echo match (Ledger::echoUnit(Unit::Gram)) {
+    Unit::Gram => "gram",
+    Unit::Kilogram => "kilogram",
+    Unit::MetricTon => "metric ton",
+}, "\n";
+
 // `kindOf` takes any value. The number it returns says what kind of value it is.
 echo Ledger::kindOf(null), " ", Ledger::kindOf(7), " ", Ledger::kindOf("pen"), "\n";
 echo Ledger::kindOf([1, 2]), " ", Ledger::kindOf($address), "\n";
@@ -61,5 +70,7 @@ red
 {"height":3.0,"width":2.0}
 2024-01-02T03:04:05.5Z
 example.com https://example.com/shop?page=2
+same
+gram
 0 2 5
 7 8

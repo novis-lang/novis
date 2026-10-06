@@ -111,6 +111,11 @@
     (i64.store offset=16 (global.get $ret) (local.get $nanos))
     (call $ok))
 
+  ;; `unit` is its case's index, one byte, stored where a `bool` is.
+  (func (export "shop:ledger/api#echo-unit") (param $case i32) (result i32)
+    (i32.store8 offset=4 (global.get $ret) (local.get $case))
+    (call $ok))
+
   ;; `uri` is its text alone, so it is returned as a string is.
   (func (export "shop:ledger/api#echo-uri") (param $ptr i32) (param $len i32) (result i32)
     (call $ok_pair (local.get $ptr) (local.get $len)))

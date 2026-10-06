@@ -28,16 +28,23 @@
 //! - `array<K, V>` is interned as `array<V>`: a Novis `array` is already keyed, and `K` is only
 //!   what the WIT list of pairs carries.
 //! - A closed union of shapes is the union of its shapes, and a `Core` value class is that class.
-//!   An enum or a resource the manifest declares has no class in the program yet, so a method or
-//!   a constant whose type names one is left out, the same as a type outside the table.
+//! - **An enum the manifest declares is an `int`-backed Novis enum** named in the extension
+//!   class's namespace: `Unit` in the manifest of `Shop\Ledger` is `Shop\Unit`. Its cases are
+//!   numbered from `0` in the manifest's order, and that number is what a case is at run time, so
+//!   the host crosses a case by its position in the manifest's list (`nvs_ext::convert`).
+//!   [`seed_enums`] puts it in the enum table a declared enum is in, so a case, a `match` and
+//!   `cases()` read it with no extension branch, and [`hir_classes`] declares it with its cases.
+//! - A resource the manifest declares has no class in the program yet, so a method or a constant
+//!   whose type names one is left out, the same as a type outside the table.
 
 use nvs_ext::manifest::{Const, Manifest, Method};
 use nvs_ext::types::{Field, NovisType};
 use nvs_hir::{ExtensionClass, QName};
 use nvs_stdlib::registry::{ParamText, Qual};
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::defaults::ConstArg;
+use crate::enums::{EnumBacking, EnumInfo, EnumTable, EnumValue};
 use crate::signatures::{ConstSig, MethodSig, SignatureTable};
 use crate::ty::{ShapeField, TypeId, TypeInterner};
 
@@ -45,9 +52,9 @@ use crate::ty::{ShapeField, TypeId, TypeInterner};
 /// and constants [`seed`] gives it a signature for.
 #[must_use]
 pub fn hir_classes(manifests: &[Manifest]) -> Vec<ExtensionClass> {
-    manifests
-        .iter()
-        .map(|manifest| ExtensionClass {
+    let mut classes = Vec::new();
+    for manifest in manifests {
+        classes.push(ExtensionClass {
             name: QName::parse(&manifest.class),
             methods: methods(manifest)
                 .map(|(method, _)| method.name.clone())
@@ -55,8 +62,44 @@ pub fn hir_classes(manifests: &[Manifest]) -> Vec<ExtensionClass> {
             consts: consts(manifest)
                 .map(|(constant, ..)| constant.name.clone())
                 .collect(),
-        })
-        .collect()
+        });
+        classes.extend(manifest.enums.iter().map(|declared| ExtensionClass {
+            name: declared_name(manifest, &declared.name),
+            methods: Vec::new(),
+            consts: declared.cases.clone(),
+        }));
+    }
+    classes
+}
+
+/// Adds every enum `manifests` declare to `table`, each case numbered by its position.
+pub(crate) fn seed_enums(table: &mut EnumTable, manifests: &[Manifest]) {
+    for manifest in manifests {
+        for declared in &manifest.enums {
+            let cases = declared
+                .cases
+                .iter()
+                .zip(0_i64..)
+                .map(|(case, value)| (case.clone(), EnumValue::Int(value)))
+                .collect();
+            table.insert(
+                declared_name(manifest, &declared.name),
+                EnumInfo {
+                    backing: EnumBacking::Int,
+                    cases,
+                    written: FxHashSet::default(),
+                },
+            );
+        }
+    }
+}
+
+/// The full name of the type `short` that `manifest` declares: `short` in the namespace of the
+/// manifest's class.
+fn declared_name(manifest: &Manifest, short: &str) -> QName {
+    let class = QName::parse(&manifest.class);
+    let segments = class.segments();
+    QName::join(&segments[..segments.len().saturating_sub(1)], short)
 }
 
 /// A table holding the classes of `manifests` and nothing else, for a reader that asks about the
@@ -78,12 +121,15 @@ pub(crate) fn seed(
         let qname = QName::parse(&manifest.class);
         let mut sigs = FxHashMap::default();
         for (method, types) in methods(manifest) {
-            sigs.insert(method.name.clone(), method_sig(method, &types, interner));
+            sigs.insert(
+                method.name.clone(),
+                method_sig(manifest, method, &types, interner),
+            );
         }
         table.seed_class(qname.clone(), FxHashMap::default(), sigs);
         let constants = consts(manifest)
             .map(|(constant, ty, value)| {
-                let ty = lower(&ty, interner);
+                let ty = lower(manifest, &ty, interner);
                 (
                     constant.name.clone(),
                     ConstSig {
@@ -130,17 +176,17 @@ fn consts(manifest: &Manifest) -> impl Iterator<Item = (&Const, NovisType, Const
     })
 }
 
-/// The type `text` writes in `manifest`, or `None` when it is outside the table or names an enum
-/// or a resource.
+/// The type `text` writes in `manifest`, or `None` when it is outside the table or names a
+/// resource.
 fn typed(manifest: &Manifest, text: &str) -> Option<NovisType> {
     let ty = manifest.novis_type(text).ok()?;
     lowers(&ty).then_some(ty)
 }
 
-/// Whether [`lower`] has a type for `ty`: every type but one that names an enum or a resource.
+/// Whether [`lower`] has a type for `ty`: every type but one that names a resource.
 fn lowers(ty: &NovisType) -> bool {
     match ty {
-        NovisType::Enum { .. } | NovisType::Resource(_) => false,
+        NovisType::Resource(_) => false,
         NovisType::List(inner) | NovisType::Optional(inner) => lowers(inner),
         NovisType::Keyed(key, value) => lowers(key) && lowers(value),
         NovisType::Shape(fields) => fields.iter().all(|(_, _, ty)| lowers(ty)),
@@ -166,14 +212,23 @@ fn const_value(ty: &NovisType, value: &serde_json::Value) -> Option<ConstArg> {
 }
 
 /// One manifest method as the checker's own signature.
-fn method_sig(method: &Method, types: &Types, interner: &mut TypeInterner) -> MethodSig {
+fn method_sig(
+    manifest: &Manifest,
+    method: &Method,
+    types: &Types,
+    interner: &mut TypeInterner,
+) -> MethodSig {
     let count = method.params.len();
     let returns = match &types.returns {
-        Some(ty) => lower(ty, interner),
+        Some(ty) => lower(manifest, ty, interner),
         None => interner.void(),
     };
     MethodSig {
-        params: types.params.iter().map(|ty| lower(ty, interner)).collect(),
+        params: types
+            .params
+            .iter()
+            .map(|ty| lower(manifest, ty, interner))
+            .collect(),
         returns_static: false,
         param_names: method
             .params
@@ -222,8 +277,8 @@ fn method_sig(method: &Method, types: &Types, interner: &mut TypeInterner) -> Me
     }
 }
 
-/// One manifest type into an interned one.
-fn lower(ty: &NovisType, interner: &mut TypeInterner) -> TypeId {
+/// One type `manifest` writes into an interned one.
+fn lower(manifest: &Manifest, ty: &NovisType, interner: &mut TypeInterner) -> TypeId {
     match ty {
         NovisType::Bool => interner.bool_ty(),
         NovisType::Int => interner.int(),
@@ -233,36 +288,39 @@ fn lower(ty: &NovisType, interner: &mut TypeInterner) -> TypeId {
         NovisType::Bytes => interner.bytes(),
         NovisType::Mixed => interner.mixed(),
         NovisType::List(elem) | NovisType::Keyed(_, elem) => {
-            let elem = lower(elem, interner);
+            let elem = lower(manifest, elem, interner);
             interner.array(elem)
         }
         NovisType::Optional(inner) => {
-            let inner = lower(inner, interner);
+            let inner = lower(manifest, inner, interner);
             let null = interner.null();
             interner.make_union([inner, null])
         }
-        NovisType::Shape(fields) => lower_shape(fields, interner),
+        NovisType::Shape(fields) => lower_shape(manifest, fields, interner),
         NovisType::Union { cases, .. } => {
             let shapes: Vec<TypeId> = cases
                 .iter()
-                .map(|(_, fields)| lower_shape(fields, interner))
+                .map(|(_, fields)| lower_shape(manifest, fields, interner))
                 .collect();
             interner.make_union(shapes)
         }
         NovisType::Core(core) => interner.class(QName::parse(core.class)),
-        NovisType::Enum { .. } | NovisType::Resource(_) => {
-            unreachable!("`typed` leaves out a type that names an enum or a resource")
+        NovisType::Enum { name, .. } => {
+            interner.enum_(declared_name(manifest, name), EnumBacking::Int)
+        }
+        NovisType::Resource(_) => {
+            unreachable!("`typed` leaves out a type that names a resource")
         }
     }
 }
 
 /// The shape of `fields`.
-fn lower_shape(fields: &[Field], interner: &mut TypeInterner) -> TypeId {
+fn lower_shape(manifest: &Manifest, fields: &[Field], interner: &mut TypeInterner) -> TypeId {
     let fields = fields
         .iter()
         .map(|(name, optional, ty)| ShapeField {
             name: name.clone(),
-            ty: lower(ty, interner),
+            ty: lower(manifest, ty, interner),
             required: !optional,
         })
         .collect();

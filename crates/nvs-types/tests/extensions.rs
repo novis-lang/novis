@@ -141,6 +141,33 @@ fn an_extension_class_constant_has_its_manifest_type() {
 }
 
 #[test]
+fn an_extension_enum_is_an_enum_in_the_extension_namespace() {
+    let (table, interner) = table(&[ledger()]);
+    let class = table.get(&QName::parse("Shop\\Ledger")).expect("loaded");
+    let echo = &class.methods["echoUnit"];
+    assert!(
+        matches!(interner.get(echo.return_ty), Ty::Enum(name, _) if name.to_string() == "Shop\\Unit"),
+        "`Unit` is the enum `Shop\\Unit`: {:?}",
+        interner.get(echo.return_ty)
+    );
+    let read = check(
+        "Shop\\Unit $u = Shop\\Ledger::echoUnit(Shop\\Unit::Kilogram);",
+        &[ledger()],
+    );
+    assert!(
+        !read.has_errors(),
+        "a case crosses and comes back: {read:?}"
+    );
+    let unknown = check("Shop\\Unit $u = Shop\\Unit::Pound;", &[ledger()]);
+    assert!(
+        unknown.has_errors(),
+        "a case the manifest does not declare compiles"
+    );
+    let number = check("Shop\\Unit $u = Shop\\Ledger::echoUnit(1);", &[ledger()]);
+    assert!(number.has_errors(), "an `int` passes as a `Shop\\Unit`");
+}
+
+#[test]
 fn an_extension_class_is_unknown_when_the_set_does_not_load_it() {
     let diags = check("int $n = Shop\\Ledger::echoInt(7);", &[]);
     assert!(

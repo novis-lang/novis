@@ -137,7 +137,7 @@ pub fn check_program_loaded(
     // `rule:enums/one-backing-type`'s backing types first: interning an enum-typed annotation
     // needs one, and `build_signatures` interns every declared annotation in
     // the program. See `crate::enums`.
-    let enums = crate::enums::build_enum_table(files, diags);
+    let enums = crate::enums::build_enum_table(files, extensions, diags);
     // `rule:types/constant-in-type-position`'s fold, on the same terms and for the same reason as the
     // enum table one line above: `build_signatures` interns every declared
     // annotation, and one of them may be a `Foo::CONST` type.

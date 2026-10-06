@@ -24,6 +24,12 @@ interface api {
         rect(rect),
     }
 
+    enum unit {
+        gram,
+        kilogram,
+        metric-ton,
+    }
+
     echo-bool: func(flag: bool) -> result<bool, error>;
     echo-int: func(number: s64) -> result<s64, error>;
     echo-uint: func(count: u64) -> result<u64, error>;
@@ -37,6 +43,7 @@ interface api {
     echo-area: func(shape: area) -> result<area, error>;
     echo-instant: func(at: instant) -> result<instant, error>;
     echo-uri: func(address: uri) -> result<uri, error>;
+    echo-unit: func(unit: unit) -> result<unit, error>;
 
     /// The `kind` discriminant of a `mixed` argument, read through the
     /// world's accessor import.

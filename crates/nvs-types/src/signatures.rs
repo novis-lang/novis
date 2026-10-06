@@ -1929,7 +1929,7 @@ mod tests {
             src: map.file(file),
             stmts: &stmts,
         }];
-        let enums = crate::enums::build_enum_table(&files, &mut diags);
+        let enums = crate::enums::build_enum_table(&files, &[], &mut diags);
         let consts = crate::consts::build_const_table(&files);
         let table = build_signatures(
             &files,

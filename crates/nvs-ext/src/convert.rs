@@ -11,7 +11,10 @@
 //! absent.
 //!
 //! **The named rows.** An enum case is [`Value::Case`], its Novis name, and crosses as the same
-//! name in kebab-case. A value of a closed union of shapes is an array like any shape, and crosses
+//! name in kebab-case. A program's case is its number, the case's position in the manifest's list
+//! (`nvs_types::ext_lib`), so [`Value::Int`] is taken for an enum too, as the case at that
+//! position; a guest's case comes back as [`Value::Case`], and [`case_number`] gives the program's
+//! number for it. A value of a closed union of shapes is an array like any shape, and crosses
 //! as the one case whose fields hold all its keys and whose required fields it has; the manifest has
 //! already refused a union where two cases could both fit (`crate::manifest`). A `Core` value class
 //! is [`Value::Core`], the class's name and its record's fields by their WIT names, so what reads an
@@ -204,6 +207,13 @@ pub fn to_wit_with(ty: &NovisType, value: Value, call: &mut dyn Crossing) -> Res
             }
             Val::Enum(crate::kebab(&case))
         }
+        (NovisType::Enum { name, cases }, Value::Int(number)) => {
+            let case = usize::try_from(number)
+                .ok()
+                .and_then(|at| cases.get(at))
+                .ok_or_else(|| format!("`{number}` is not a case of the enum `{name}`"))?;
+            Val::Enum(crate::kebab(case))
+        }
         (NovisType::Union { name, cases }, Value::Array(entries)) => {
             let Some((case, fields)) = cases.iter().find(|(_, fields)| fits(fields, &entries))
             else {
@@ -272,6 +282,26 @@ pub fn fits(fields: &[Field], entries: &[(Key, Value)]) -> bool {
         && fields
             .iter()
             .all(|(name, optional, _)| *optional || has(name))
+}
+
+/// The program's number for the case `case` of the enum `ty`, a `?T` of one read through: the
+/// case's position in the manifest's list.
+///
+/// # Errors
+///
+/// When `ty` is no enum, or `case` is none of its cases.
+pub fn case_number(ty: &NovisType, case: &str) -> Result<i64, String> {
+    match ty {
+        NovisType::Optional(inner) => case_number(inner, case),
+        NovisType::Enum { name, cases } => cases
+            .iter()
+            .position(|of| of == case)
+            .and_then(|at| i64::try_from(at).ok())
+            .ok_or_else(|| format!("`{case}` is not a case of the enum `{name}`")),
+        other => Err(format!(
+            "the enum case `{case}` where the type is {other:?}"
+        )),
+    }
 }
 
 /// The Novis value the WIT value `val` a guest returned is, where the manifest's type is `ty`.

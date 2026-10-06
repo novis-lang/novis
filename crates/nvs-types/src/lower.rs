@@ -394,9 +394,10 @@ fn negate_magnitude(magnitude: u64) -> Option<i64> {
 /// unknown name is reported against.
 ///
 /// The enum test is [`crate::expr::members::infer_class_const`]'s, verbatim: a
-/// `Core`-owned enum has no [`SymbolKind::Enum`] entry — nothing declared it —
-/// but it is in the same [`crate::enums::EnumTable`], seeded from
-/// `nvs_stdlib::registry::ENUMS`.
+/// `Core`-owned enum and a loaded extension's enum have no [`SymbolKind::Enum`]
+/// entry — no source file declared them — but they are in the same
+/// [`crate::enums::EnumTable`], seeded from `nvs_stdlib::registry::ENUMS` and
+/// the set's manifests.
 ///
 /// The name *left* of the `::` is read through [`Env::aliases`] first: an alias
 /// standing for a single name atom stands in for that name before the member is
@@ -431,7 +432,7 @@ fn lower_member_type(
     }
 
     let is_enum = matches!(env.symbols.get(&qname), Some(sym) if sym.kind == SymbolKind::Enum)
-        || (qname.is_core() && env.enums.get(&qname).is_some());
+        || env.enums.get(&qname).is_some();
     if is_enum {
         let backing = env.enums.backing_of(&qname);
         return match env.enums.case(&qname, &case) {
@@ -942,15 +943,16 @@ fn resolve_name_type(
             crate::deprecated::warn(name.span, &qname, crate::deprecated::Member::Type, env);
             env.interner.class(qname)
         }
-        // A `Core`-owned enum is in no symbol table — nothing declared it —
-        // but `crate::enums` seeded it exactly as `lower_member_type` above
-        // reads it back for the `Core\Digest::Sha1` spelling. Without this
-        // arm a written `Core\Digest` annotation interned as `Ty::Class`,
-        // which no `Core` signature's `Ty::Enum` unified with: the two print
-        // the same qname, so the mismatch arrived as "expected `Core\Digest`,
-        // found `Core\Digest`" and a digest could not be passed through a
-        // parameter at all.
-        None if qname.is_core() && env.enums.get(&qname).is_some() => {
+        // A `Core`-owned enum and a loaded extension's enum are in no symbol
+        // table — no source file declared them — but `crate::enums` seeded
+        // them exactly as `lower_member_type` above reads them back for the
+        // `Core\Digest::Sha1` spelling. Without this arm a written
+        // `Core\Digest` annotation interned as `Ty::Class`, which no `Core`
+        // signature's `Ty::Enum` unified with: the two print the same qname,
+        // so the mismatch arrived as "expected `Core\Digest`, found
+        // `Core\Digest`" and a digest could not be passed through a parameter
+        // at all.
+        None if env.enums.get(&qname).is_some() => {
             let backing = env.enums.backing_of(&qname);
             env.interner.enum_(qname, backing)
         }
@@ -1030,7 +1032,7 @@ mod tests {
             src: map.file(file),
             stmts: &stmts,
         }];
-        let enums = crate::enums::build_enum_table(&files, &mut diags);
+        let enums = crate::enums::build_enum_table(&files, &[], &mut diags);
         let consts = crate::consts::build_const_table(&files);
         let attributes = crate::retrieval::AttributeTable::default();
         let deprecations = crate::deprecated::Deprecations::default();

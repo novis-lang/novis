@@ -120,14 +120,15 @@ pub(crate) fn infer_class_const(
     if env.method_ref_args.contains(&expr.span) {
         return method_reference(expr, class, name, qname.as_ref(), env);
     }
-    // A `Core`-owned enum has no `SymbolKind::Enum` entry — nothing declared it
-    // — but it is in the same enum table, seeded from
-    // `nvs_stdlib::registry::ENUMS`, so asking that table is the one question
-    // that answers both. `crate::enums::seed_core` owns why there is one table
-    // rather than two.
+    // A `Core`-owned enum and a loaded extension's enum have no
+    // `SymbolKind::Enum` entry — no source file declared them — but they are in
+    // the same enum table, seeded from `nvs_stdlib::registry::ENUMS` and the
+    // set's manifests, so asking that table is the one question that answers
+    // all three. `crate::enums::seed_core` owns why there is one table rather
+    // than two.
     let is_enum = qname.as_ref().is_some_and(|qname| {
         matches!(env.symbols.get(qname), Some(sym) if sym.kind == SymbolKind::Enum)
-            || (qname.is_core() && env.enums.get(qname).is_some())
+            || env.enums.get(qname).is_some()
     });
     match qname {
         Some(qname) if is_enum => {

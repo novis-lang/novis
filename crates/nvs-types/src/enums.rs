@@ -143,6 +143,11 @@ impl EnumTable {
     pub fn iter(&self) -> impl Iterator<Item = (&QName, &EnumInfo)> {
         self.by_name.iter()
     }
+
+    /// Adds `info` under `qname`, replacing an entry of the same name.
+    pub(crate) fn insert(&mut self, qname: QName, info: EnumInfo) {
+        self.by_name.insert(qname, info);
+    }
 }
 
 /// Resolves every `enum` declaration in every file of the program, reporting
@@ -153,12 +158,18 @@ impl EnumTable {
 /// [`crate::ty::Ty::Enum`]. One table spans the whole [`crate::ProgramFile`]
 /// slice: an enum declared in a `require`d file is named from the file that
 /// required it, so a per-file table would answer `None` there.
+///
+/// The enums of the loaded extension set, `extensions`, are seeded after
+/// `Core`'s and before any declaration, for `seed_core`'s reason
+/// (`crate::ext_lib::seed_enums`).
 pub(crate) fn build_enum_table(
     files: &[crate::ProgramFile<'_>],
+    extensions: &[nvs_ext::manifest::Manifest],
     diags: &mut nvs_diagnostics::Diagnostics,
 ) -> EnumTable {
     let mut table = EnumTable::default();
     seed_core(&mut table);
+    crate::ext_lib::seed_enums(&mut table, extensions);
     for file in files {
         collect(file.stmts, file.src, &[], &mut table, diags);
     }
@@ -462,6 +473,7 @@ mod tests {
                 src: map.file(id),
                 stmts: &stmts,
             }],
+            &[],
             &mut diags,
         );
         (table, diags)

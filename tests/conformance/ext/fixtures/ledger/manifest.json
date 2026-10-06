@@ -34,6 +34,8 @@
      "help": "Returns `at` unchanged."},
     {"name": "echoUri", "params": [{"name": "address", "type": "Core\\Uri"}], "returns": "Core\\Uri",
      "help": "Returns `address` unchanged."},
+    {"name": "echoUnit", "params": [{"name": "unit", "type": "Unit"}], "returns": "Unit",
+     "help": "Returns `unit` unchanged."},
     {"name": "kindOf", "params": [{"name": "anything", "type": "mixed"}], "returns": "int",
      "help": "Returns a number for the kind of `anything`: 0 for `null`, 1 for a `bool`, and so on."},
     {"name": "writeLine", "params": [{"name": "line", "type": "string", "sink": true}],
@@ -46,6 +48,7 @@
      "help": "Stops with an `ExtensionError`."}
   ],
   "consts": [{"name": "CURRENCY", "type": "string", "value": "EUR"}],
+  "enums": [{"name": "Unit", "cases": ["Gram", "Kilogram", "MetricTon"]}],
   "unions": [{"name": "Area", "cases": [
     {"name": "Circle", "shape": "{radius: float}"},
     {"name": "Rect", "shape": "{width: float, height: float}"}]}]
