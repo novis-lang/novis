@@ -1,29 +1,27 @@
 {
-  "state": "**Goal `ext-compiler`, Stage 3 (the call) is under way.** Stages 1 and 2 are on disk. The design is ADR 0246 § 8 and the goal file's § *Standing decisions*. This goal has no record slot.\n\n`nvs_ext::convert` (behind `engine`) turns a `Value` (the host's view of a Novis value) into the `wasmtime::component::Val` its `NovisType` crosses as, and back, for every row of `rule:packaging/a-value-crosses-as-its-wit-type`'s table except `resource`. The named rows' rules are the `crates/nvs-ext/src/manifest.rs` module doc's.\n\n`mixed` is on disk: `nvs_ext::handle` is the per-call handle table and the `value` accessors, which `Host::new` links before the caller's imports, and `Request::call_values` converts a call's Novis values by the manifest's types, lends each `mixed` one, and converts the result back (`crates/nvs-ext/src/call.rs` module doc, § *Novis values*). `Value::Object` is a class instance that crosses only as `mixed`. `crates/nvs-ext/tests/convert.rs` has 8 of the check's 9 tests; `an_extension_resource_is_dropped_when_its_request_ends` is the one left.\n\nThe checker (`crates/nvs-types/src/ext_lib.rs`) leaves out a method or constant whose type names an extension enum. `nvs serve`, `nvs test` and the language server do not read the set yet (Stage 6). A program calling an extension type-checks and then reaches `nvs-ir`, which has no lowering for the call.\n\nFixture gaps, Stage 3's: the named rows are absent from the conformance fixture under `tests/conformance/ext/fixtures/`, and `kindOf` (`mixed`) is never called.",
+  "state": "**Goal `ext-compiler`, Stage 3 (the call) is under way.** Stages 1 and 2 are on disk. The design is ADR 0246 § 8 and the goal file's § *Standing decisions*. This goal has no record slot.\n\n`nvs_ext::convert` (behind `engine`) converts every row of `rule:packaging/a-value-crosses-as-its-wit-type`'s table to its WIT value and back. The handle rows go through the call's `convert::Crossing`: `mixed` is lent through `nvs_ext::handle`, and a resource a guest returns is kept in its instance's store under a request-wide number, passed back as a `borrow`, and dropped by `Request::end` (`crates/nvs-ext/src/call.rs` module doc, § *A resource lives until the request ends*). A manifest declares `resources` by name, and the loader matches each against the interface's exported resource: an `own` in a result, a `borrow` in a parameter (`crates/nvs-ext/src/load.rs` module doc). `crates/nvs-ext/tests/convert.rs` has all 9 of its check's tests.\n\nThe checker (`crates/nvs-types/src/ext_lib.rs`) leaves out a method or constant whose type names an extension enum or resource. `nvs serve`, `nvs test` and the language server do not read the set yet (Stage 6). A program calling an extension type-checks and then reaches `nvs-ir`, which has no lowering for the call. No host calls `Request::end` yet: the host that wires a call into a request owes it at the request's end.\n\nFixture gaps, Stage 3's: the named rows are absent from the conformance fixture under `tests/conformance/ext/fixtures/`, and `kindOf` (`mixed`) is never called.",
   "next": {
     "stage": 3,
     "title": "the call",
     "files": [
-      "crates/nvs-ext/src/types.rs",
-      "crates/nvs-ext/src/load.rs",
-      "crates/nvs-ext/src/convert.rs",
-      "crates/nvs-ext/src/call.rs",
-      "crates/nvs-ext/tests/convert.rs"
+      "crates/nvs-ir/src/lower/expr.rs",
+      "crates/nvs-ir/src/lower/",
+      "crates/nvs-codegen/src/lib.rs"
     ],
     "items": [
       {
         "done": false,
-        "text": "**`resource`**: a manifest names an extension's exported resource, `NovisType` gains its row, the loader matches it against an `own` of the export's resource (`crates/nvs-ext/src/load.rs:609`), and a returned resource is kept by the `Request` and dropped with `resource_drop_async` when the request ends, before its stores go. Test `an_extension_resource_is_dropped_when_its_request_ends` in `crates/nvs-ext/tests/convert.rs`. Anchors `crates/nvs-ext/src/types.rs:21`, `crates/nvs-ext/src/call.rs:560`. `rule:packaging/a-value-crosses-as-its-wit-type`. The test guest must drop each `borrow` it receives before it returns, as the `VALUES` guest does."
+        "text": "**The trampoline call in `nvs-ir`**: a static call whose target is an extension class lowers to a direct call of its export's trampoline, which `Request::call_values` (`crates/nvs-ext/src/call.rs:526`) is the body of. Test `an_extension_static_call_lowers_to_a_direct_call_of_its_export_trampoline` under `cargo test -p nvs-ir`. Anchor `crates/nvs-ir/src/lower/expr.rs:1`. `rule:packaging/extension-calls-are-statically-typed`."
       },
       {
         "done": false,
-        "text": "**The trampoline call in `nvs-ir`**: a static call whose target is an extension class lowers to a direct call of its export's trampoline, which `Request::call_values` (`crates/nvs-ext/src/call.rs:507`) is the body of. Test `an_extension_static_call_lowers_to_a_direct_call_of_its_export_trampoline` under `cargo test -p nvs-ir`. Anchor `crates/nvs-ir/src/lower/expr.rs:1`. `rule:packaging/extension-calls-are-statically-typed`."
+        "text": "**The trampoline in codegen and the runtime**: the trampoline converts the runtime's values to `nvs_ext::convert::Value`, runs `Request::call_values` on the request's coroutine, raises a `Failure::outcome`, and the request's end runs `Request::end` (`crates/nvs-ext/src/call.rs:631`). Anchor `crates/nvs-codegen/src/lib.rs:1`. `rule:packaging/a-guest-crash-throws`."
       }
     ]
   },
   "backlog": [
-    "An extension enum as a class the program can name (`<class namespace>\\<Name>`), so `ext_lib` types a method that uses one: `crates/nvs-types/src/ext_lib.rs` module doc.",
-    "The two end-to-end cases under `tests/conformance/ext/` (an `--EXTENSION--` section loading the fixture), and the named rows and a `mixed` call added to that fixture: goal file, Stage 3.",
+    "An extension enum and resource as classes the program can name (`<class namespace>\\<Name>`), so `ext_lib` types a method that uses one: `crates/nvs-types/src/ext_lib.rs` module doc.",
+    "The two end-to-end cases under `tests/conformance/ext/` (an `--EXTENSION--` section loading the fixture), and the named rows, a resource and a `mixed` call added to that fixture: goal file, Stage 3.",
     "Stage 4's qualifier checks and the `secret`-return refusal: goal file, Stage 4.",
     "Stage 5's source section through `autoload`: goal file, Stage 5.",
     "Stage 6: `nvs serve`'s `script::Compiler`, `nvs test` and the language server read the set: `rule:packaging/extension-calls-are-statically-typed`.",
