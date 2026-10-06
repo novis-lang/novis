@@ -1,25 +1,28 @@
 {
-  "state": "**Goal `growth-proof`. Stage 3 should pass on the driver's next sweep, and Stage 4's first item is on disk.** No floor is carried.\n\nA whole `--iterations --sized` run on this tree named two oversized benches, `core/IO/canonicalize` and `core/Http-TlsInfo/cipher`. The batch a ramp settles at moves from run to run, so `--sized` now ramps a bench it finds oversized a second time. It fails the bench only when both ramps find it oversized, and `--lower` uses the later of the two batches. The two benches were lowered that way, to 256 and 2048. The whole run was not repeated after that.\n\n`discover` lists every bench under `benches/members/` as a `bench:` atom, so 998 benches are `new` in the store. `nv verify` does not run them. `nv affected` names the benches a change reaches, and `--run` runs `runBenches` (`tools/nv/proofs/select.ts`) after verify. That judges each bench's growth on the release build, records it with `recordBench`, and moves the tree. The first `affected --run` on any machine pays for every bench, likely about half an hour (not checked). The driver's sweep does not run benches yet: no check holds a bench atom.\n\n`core/Process-Handle/writeStdin` is a known gap owned by M10. The seven `unclear` benches do not fail the check. The clock at the lowered N mostly reads 0, and timing it at a larger N is still the user's call.",
+  "state": "**Goal `growth-proof`. Stage 5's check should pass on the driver's next sweep. Stage 3 should too.** No floor is carried.\n\nA whole `--iterations --sized` run on this tree found one oversized bench, `core/IO-Metadata/isDir`: both ramps settled at 128. Re-run alone, its ramp was `unclear`, so `--lower` left it, and it was lowered to 256 by hand. A lower N cannot fail the check. Every whole run so far has named a different borderline bench. If the next sweep names another, lower it the same way.\n\n`planBenches` (`tools/nv/proofs/select.ts`) orders the benches a change reaches, runs each one that `benchOrder` puts first and cannot skip, and skips a bench whose changed items are all proven by `PROVEN_BY` (2) benches with no degradation. A degradation unproves the items of the bench that showed it, so every bench sharing one runs, including one passed over before. An item is a changed key in the bench's `Selected.keys`. A bench selected for any other reason (new, red, owed, def, global, diverged) has `items: null` and always runs. `runBenches` judges through it, records only what ran, and passes the skipped ones to `advance` as ran, so each keeps its footprint and verdict. `nv affected --run` prints each skipped bench with its provers and the reached / ran / skipped / red counts. `tools/nv/test/bench-skip.test.ts` holds the four names the Stage 5 check wants. They print only when `CLAUDECODE` is unset, which is how the driver runs it.\n\nDegradation is the growth verdict alone: a rise in the per-operation counts is not compared yet. The provers are printed, not stored in any ledger.\n\n`core/Process-Handle/writeStdin` is a known gap owned by M10. The `unclear` benches do not fail Stage 3's check.",
   "next": {
-    "stage": 5,
-    "title": "skip what is already proven",
-    "files": [],
-    "note": "one file set: `tools/nv/proofs/select.ts`, `tools/nv/cmd/affected.ts`, and the new `tools/nv/test/bench-skip.test.ts`.",
+    "stage": 6,
+    "title": "what the user reads",
+    "files": [
+      "docs/perf/performance-pass.md",
+      "tools/nv/cmd/proofs.ts"
+    ],
     "items": [
       {
         "done": false,
-        "text": "**Order and skip the benches a change reaches**: order them so the first reach the most changed items, mark an item proven after two benches that run it show no degradation, and skip a bench whose changed items are all proven. Put it as a pure function beside `runBenches` at `tools/nv/proofs/select.ts:161`, and have `bench-skip.test.ts` test it with the four names the goal's Stage 5 check wants. Spec: the goal's `## Stage 5`."
+        "text": "**Write `## The growth proof` in `docs/perf/performance-pass.md`**: what the proof checks, the bench tree's work before and after Stage 3 (`bun nv scaling --budget`), the reran and skipped counts of one real change's `nv affected --run`, and each bench that needed callgrind or ended unclear, as the goal's `## Stage 6` says. The first `--run` on a machine pays for every bench. Spec: `rule:testing/feature-proofs`, anchor `docs/perf/performance-pass.md:1`."
       },
       {
         "done": false,
-        "text": "**A degradation turns skipping off** for every bench that shares the changed items, inside the same loop at `tools/nv/proofs/select.ts:161`, and `affected` reports reached, ran and skipped at `tools/nv/cmd/affected.ts:338`. Spec: the goal's standing decision on skipping."
+        "text": "**`bun nv proofs --gate` owes nothing, growth included**: run it and close what it names. Anchor `tools/nv/cmd/proofs.ts:1`."
       }
     ]
   },
   "backlog": [
-    "The driver's sweep runs the benches a change reaches (goal Stage 4, *The tooling asks it*). Today only `affected --run` does. Owner: this goal's Stage 4.",
-    "Stage 4's decision record: a figure is current while its bench's footprint has not moved, and it modifies `rule:testing/member-perf-ledger`. Owner: this goal's Stage 4.",
-    "Stage 6: `docs/perf/performance-pass.md` owes `## The growth proof`, which lists the `unclear` benches and `writeStdin`'s gap. Owner: this goal's Stage 6.",
-    "`data/gaps/nvs-host/a-blocking-call-allocates-by-when-it-ends.json`. Owner: M10."
+    "A degradation also counts a rise in a bench's per-operation counts, beside its growth: `runBenches` at `tools/nv/proofs/select.ts` judges growth only (the goal's `## Stage 5`).",
+    "The ledger names the benches that proved a skipped bench (the goal's `## Stage 5`): today only `nv affected --run` prints them.",
+    "The driver's sweep runs the benches a change reaches: no check holds a bench atom yet.",
+    "Stage 4's decision record on when a perf figure counts as current (the goal's `## Stage 4`).",
+    "The `writeStdin` gap, which M10 owns (`data/gaps/`)."
   ]
 }
