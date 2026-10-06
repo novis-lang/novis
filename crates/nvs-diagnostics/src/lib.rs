@@ -5422,10 +5422,12 @@ pub mod code {
     pub const W_UNREACHABLE: Code = Code::new("W1001").card("This code can never run, so you can delete it.");
     // `W1002` is retired and is never reused: no rule asks for an
     // unused-variable warning, and no check raised it.
-    /// A deprecated construct that still works.
+    /// A use of a declaration that carries `#[Core\Deprecated]`, or an
+    /// override of a deprecated method.
     pub const W_DEPRECATED: Code = Code::new("W1003").card(
-        "This feature still works, but a future version may remove it. The message says what \
-         to use instead.",
+        "This code uses something that is deprecated. It still works, but a future version may \
+         remove it. The message names it, then the version that deprecated it, then the note, \
+         then the code to write instead.",
     );
     /// A construct whose behaviour differs from PHP's, where converted code may
     /// silently change meaning.

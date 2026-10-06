@@ -596,6 +596,11 @@ pub(crate) struct Env<'a> {
     /// is still inside that argument, and the flag has to survive the recursion
     /// rather than be re-derived at each level.
     pub in_call_argument: bool,
+    /// The uses of deprecated code already warned about in the body being
+    /// checked, or `None` where nothing warns: outside a body, and inside a
+    /// deprecated declaration or a member of a deprecated class. Opened by
+    /// [`crate::deprecated::window`].
+    pub deprecated_uses: Option<crate::deprecated::Uses>,
     /// The span of every argument a registry row's
     /// `nvs_stdlib::registry::CoreTy::MethodRef` parameter gives a meaning to —
     /// `rule:testing/interaction-after-the-fact`'s method reference.

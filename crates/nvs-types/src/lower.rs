@@ -934,10 +934,14 @@ fn resolve_name_type(
 
     match env.symbols.get(&qname) {
         Some(sym) if sym.kind == SymbolKind::Enum => {
+            crate::deprecated::warn(name.span, &qname, crate::deprecated::Member::Type, env);
             let backing = env.enums.backing_of(&qname);
             env.interner.enum_(qname, backing)
         }
-        Some(_) => env.interner.class(qname),
+        Some(_) => {
+            crate::deprecated::warn(name.span, &qname, crate::deprecated::Member::Type, env);
+            env.interner.class(qname)
+        }
         // A `Core`-owned enum is in no symbol table — nothing declared it —
         // but `crate::enums` seeded it exactly as `lower_member_type` above
         // reads it back for the `Core\Digest::Sha1` spelling. Without this
@@ -1062,6 +1066,7 @@ mod tests {
             method_ref_args: rustc_hash::FxHashSet::default(),
             body_writers: crate::response::BodyWriters::default(),
             in_call_argument: false,
+            deprecated_uses: None,
         };
         let id = lower_type(&probe_ty, &ctx, &mut env);
         (id, interner, diags)

@@ -1309,6 +1309,8 @@ pub enum PreparedFact {
 #[derive(Debug, Default)]
 pub struct ExprTypeTable {
     entries: Vec<ExprInfo>,
+    /// The span each of [`Self::entries`] was recorded at, by the same index.
+    spans: Vec<Span>,
     by_span: FxHashMap<Span, ExprId>,
     methods: FxHashMap<Span, String>,
     types: FxHashMap<Span, TypeId>,
@@ -1453,6 +1455,7 @@ impl ExprTypeTable {
                 .expect("far fewer than u32::MAX expressions are ever checked in one compilation"),
         );
         self.entries.push(info);
+        self.spans.push(span);
         self.by_span.insert(span, id);
         id
     }
@@ -1474,6 +1477,13 @@ impl ExprTypeTable {
     /// (`crate::deprecated`'s template check).
     pub(crate) fn since(&self, mark: usize) -> &[ExprInfo] {
         self.entries.get(mark..).unwrap_or_default()
+    }
+
+    /// [`Self::since`], with the span each entry was recorded at — what one
+    /// body's check resolved, for `crate::deprecated`'s use warning.
+    pub(crate) fn since_at(&self, mark: usize) -> impl Iterator<Item = (Span, &ExprInfo)> {
+        let spans = self.spans.get(mark..).unwrap_or_default();
+        spans.iter().copied().zip(self.since(mark))
     }
 
     /// Records what the name of one `#[Name(...)]` resolved to, at the span

@@ -14,15 +14,28 @@
 //! [`Deprecations`] is the program's set of deprecated declarations, built
 //! before any body is checked: a use may be written above the declaration it
 //! names, and a template may name a declaration in a later file.
+//!
+//! **Where `W1003` is raised.** A body is checked inside a [`window`], which
+//! is closed when the body sits in a deprecated declaration or a member of a
+//! deprecated class. When the body is done, every entry the expression table
+//! recorded for it is mapped to the declarations it names — the template
+//! check's own mapping — and each deprecated one warns once per span. A type
+//! position warns as it is lowered, and an override as its method is entered.
+//! Nothing outside a window warns, so a template, a signature or a later pass
+//! that lowers the same annotation again never raises a second warning.
 
 mod template;
 
-use nvs_diagnostics::{Diagnostic, code};
+use std::fmt::Write as _;
+
+use nvs_diagnostics::{Diagnostic, Span, code};
 use nvs_hir::QName;
 use nvs_syntax::ast::{
-    Attribute, AttributeGroup, ClassMember, ClassMemberKind, EnumCase, NamespaceDecl, Param, Stmt,
-    StmtKind,
+    Attribute, AttributeGroup, ClassMember, ClassMemberKind, EnumCase, ExprKind, NamespaceDecl,
+    Param, Stmt, StmtKind,
 };
+
+use crate::expr_table::{ArgSlot, ExprInfo};
 use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::testing::OptionTy;
@@ -77,17 +90,190 @@ pub(crate) enum Member {
     Param(String, String),
 }
 
-/// Every declaration in the program that carries `#[Core\Deprecated]`.
+/// Every declaration in the program that carries `#[Core\Deprecated]`, with
+/// what its payload wrote.
 #[derive(Default)]
 pub(crate) struct Deprecations {
-    sites: FxHashSet<(QName, Member)>,
+    sites: FxHashMap<(QName, Member), Deprecation>,
+}
+
+/// The string fields of one `#[Core\Deprecated]`, as their values read. A
+/// field that is not written, or not a string, is `None`.
+#[derive(Default)]
+pub(crate) struct Deprecation {
+    since: Option<String>,
+    note: Option<String>,
+    replace: Option<String>,
+    construct: Option<String>,
+}
+
+impl Deprecation {
+    fn of(attr: &Attribute, src: &nvs_diagnostics::SourceFile) -> Self {
+        let mut out = Self::default();
+        for field in &attr.fields {
+            let ExprKind::Str(lit) = field.value.kind else {
+                continue;
+            };
+            let value = Some(nvs_syntax::string_lit::cook_string_literal(src, lit));
+            match span_text(src, field.name) {
+                "since" => out.since = value,
+                "note" => out.note = value,
+                REPLACE => out.replace = value,
+                CONSTRUCT => out.construct = value,
+                _ => {}
+            }
+        }
+        out
+    }
 }
 
 impl Deprecations {
     /// Whether `member` of `owner` — the declaring class, never a subclass a
     /// use reached it through — is deprecated.
     pub(crate) fn contains(&self, owner: &QName, member: Member) -> bool {
-        self.sites.contains(&(owner.clone(), member))
+        self.sites.contains_key(&(owner.clone(), member))
+    }
+
+    fn get(&self, owner: &QName, member: &Member) -> Option<&Deprecation> {
+        self.sites.get(&(owner.clone(), member.clone()))
+    }
+}
+
+/// The uses one body has already warned about, so a span that two table
+/// entries describe warns once.
+#[derive(Default)]
+pub(crate) struct Uses(FxHashSet<(Span, QName, Member)>);
+
+/// Checks one body with `W1003` switched on, unless `owner` is deprecated or
+/// `member` of it is: then nothing inside it warns. The table entries the body
+/// recorded are warned about when it is done.
+pub(crate) fn window<'e, R>(
+    owner: Option<&QName>,
+    member: Option<Member>,
+    env: &mut Env<'e>,
+    check: impl FnOnce(&mut Env<'e>) -> R,
+) -> R {
+    let quiet = owner.is_some_and(|owner| {
+        env.deprecations.contains(owner, Member::Type)
+            || member.is_some_and(|member| env.deprecations.contains(owner, member))
+    });
+    let outer = std::mem::replace(&mut env.deprecated_uses, (!quiet).then(Uses::default));
+    let mark = env.exprs.len();
+    let out = check(env);
+    if env.deprecated_uses.is_some() {
+        warn_uses(mark, env);
+    }
+    env.deprecated_uses = outer;
+    out
+}
+
+/// `W1003` at `span`, when `member` of `owner` is deprecated and a window is
+/// open.
+pub(crate) fn warn(span: Span, owner: &QName, member: Member, env: &mut Env<'_>) {
+    report(span, owner, member, false, env);
+}
+
+/// `W1003` at an override of a deprecated method: `name` is declared by
+/// `class`, and one of its ancestors deprecates it. There is no replacement to
+/// offer, because the override is a declaration and not a use.
+pub(crate) fn warn_override(class: &QName, name: &str, span: Span, env: &mut Env<'_>) {
+    if env.deprecated_uses.is_none() || name == "constructor" {
+        return;
+    }
+    let table = env.deprecations;
+    let member = Member::Method(name.to_owned());
+    let mut seen = FxHashSet::default();
+    let mut stack = vec![class.clone()];
+    while let Some(next) = stack.pop() {
+        if !seen.insert(next.clone()) {
+            continue;
+        }
+        if &next != class
+            && let Some(deprecation) = table.get(&next, &member)
+        {
+            let message = format!(
+                "`{class}::{name}()` overrides {}",
+                message(&template::describe(&next, &member), deprecation, None)
+            );
+            env.diags.report(
+                Diagnostic::warning(code::W_DEPRECATED, message)
+                    .with_primary(span, "this overrides a deprecated method"),
+            );
+            return;
+        }
+        if let Some(links) = env.graph.get(&next) {
+            stack.extend(links.extends.iter().cloned());
+            stack.extend(links.implements.iter().cloned());
+        }
+    }
+}
+
+fn report(span: Span, owner: &QName, member: Member, at_new: bool, env: &mut Env<'_>) {
+    let table = env.deprecations;
+    let Some(deprecation) = table.get(owner, &member) else {
+        return;
+    };
+    let Some(uses) = &mut env.deprecated_uses else {
+        return;
+    };
+    if !uses.0.insert((span, owner.clone(), member.clone())) {
+        return;
+    }
+    let replacement = match at_new {
+        true => deprecation.construct.as_deref(),
+        false => deprecation.replace.as_deref(),
+    };
+    let what = template::describe(owner, &member);
+    env.diags.report(
+        Diagnostic::warning(code::W_DEPRECATED, message(&what, deprecation, replacement))
+            .with_primary(span, "this is deprecated"),
+    );
+}
+
+/// The member, then `since`, then `note`, then the replacement.
+fn message(what: &str, deprecation: &Deprecation, replacement: Option<&str>) -> String {
+    let mut out = format!("{what} is deprecated");
+    if let Some(since) = &deprecation.since {
+        let _ = write!(out, " since {since}");
+    }
+    out.push('.');
+    if let Some(note) = &deprecation.note {
+        let _ = write!(out, " {note}");
+    }
+    if let Some(replacement) = replacement {
+        let _ = write!(out, " Use `{replacement}` instead.");
+    }
+    out
+}
+
+/// Warns about every deprecated declaration the entries recorded after `mark`
+/// name, and every deprecated parameter a call among them passed.
+fn warn_uses(mark: usize, env: &mut Env<'_>) {
+    let mut found = Vec::new();
+    for (span, info) in env.exprs.since_at(mark) {
+        let at_new = matches!(info, ExprInfo::New { .. } | ExprInfo::NewDynamic { .. });
+        for (owner, member, _) in template::resolved(info, env) {
+            let at_new = at_new && member == Member::Type;
+            found.push((span, owner, member, at_new));
+        }
+        let call = match info {
+            ExprInfo::Call(call) | ExprInfo::ClassRefCall(call) => Some(call),
+            ExprInfo::New { ctor, .. } | ExprInfo::NewDynamic { ctor, .. } => ctor.as_ref(),
+            _ => None,
+        };
+        for slot in call.iter().flat_map(|call| &call.arg_slots) {
+            let (ArgSlot::Param(index) | ArgSlot::Spread(index)) = *slot else {
+                continue;
+            };
+            let call = call.expect("a slot comes from a call");
+            if let Some(name) = call.param_names.get(index) {
+                let member = Member::Param(call.method.clone(), name.clone());
+                found.push((span, call.class.clone(), member, false));
+            }
+        }
+    }
+    for (span, owner, member, at_new) in found {
+        report(span, &owner, member, at_new, env);
     }
 }
 
@@ -140,51 +326,63 @@ fn collect(
         };
         let owner = QName::join(&current_ns, span_text(src, name.span));
         let deprecated = |groups: &[AttributeGroup]| {
-            groups.iter().flat_map(|g| &g.attributes).any(|attr| {
-                attr.member.is_none()
-                    && attr.name.as_ref().is_some_and(|n| {
-                        nvs_hir::resolve_ref(span_text(src, n.span), &current_ns, &current_imports)
-                            == QName::parse(crate::derive::DEPRECATED)
-                    })
-            })
+            groups
+                .iter()
+                .flat_map(|g| &g.attributes)
+                .find(|attr| {
+                    attr.member.is_none()
+                        && attr.name.as_ref().is_some_and(|n| {
+                            nvs_hir::resolve_ref(
+                                span_text(src, n.span),
+                                &current_ns,
+                                &current_imports,
+                            ) == QName::parse(crate::derive::DEPRECATED)
+                        })
+                })
+                .map(|attr| Deprecation::of(attr, src))
         };
         let mut found = Vec::new();
-        if deprecated(attributes) {
-            found.push(Member::Type);
+        if let Some(d) = deprecated(attributes) {
+            found.push((Member::Type, d));
         }
         for member in members {
             match &member.kind {
-                ClassMemberKind::Property(p) if deprecated(&p.attributes) => {
-                    found.push(Member::Property(
-                        strip_sigil(span_text(src, p.name)).to_owned(),
-                    ));
+                ClassMemberKind::Property(p) => {
+                    if let Some(d) = deprecated(&p.attributes) {
+                        let name = strip_sigil(span_text(src, p.name)).to_owned();
+                        found.push((Member::Property(name), d));
+                    }
                 }
-                ClassMemberKind::Const(c) if deprecated(&c.attributes) => {
-                    found.push(Member::Const(span_text(src, c.name).to_owned()));
+                ClassMemberKind::Const(c) => {
+                    if let Some(d) = deprecated(&c.attributes) {
+                        found.push((Member::Const(span_text(src, c.name).to_owned()), d));
+                    }
                 }
                 ClassMemberKind::Method(m) => {
                     let method = span_text(src, m.name).to_owned();
                     for param in &m.params {
-                        if deprecated(&param.attributes) {
+                        if let Some(d) = deprecated(&param.attributes) {
                             let name = strip_sigil(span_text(src, param.name)).to_owned();
-                            found.push(Member::Param(method.clone(), name));
+                            found.push((Member::Param(method.clone(), name), d));
                         }
                     }
-                    if deprecated(&m.attributes) {
-                        found.push(Member::Method(method));
+                    if let Some(d) = deprecated(&m.attributes) {
+                        found.push((Member::Method(method), d));
                     }
                 }
                 _ => {}
             }
         }
         for case in cases {
-            if deprecated(&case.attributes) {
-                found.push(Member::Case(span_text(src, case.name.span).to_owned()));
+            if let Some(d) = deprecated(&case.attributes) {
+                found.push((Member::Case(span_text(src, case.name.span).to_owned()), d));
             }
         }
-        table
-            .sites
-            .extend(found.into_iter().map(|member| (owner.clone(), member)));
+        table.sites.extend(
+            found
+                .into_iter()
+                .map(|(member, d)| ((owner.clone(), member), d)),
+        );
     }
 }
 

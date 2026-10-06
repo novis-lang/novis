@@ -549,13 +549,25 @@ fn compile(
 /// Every declaration the expression table resolved after `mark`, with the
 /// class that declares it and its visibility.
 fn named(mark: usize, env: &Env<'_>) -> Vec<(QName, Member, Visibility)> {
+    env.exprs
+        .since(mark)
+        .iter()
+        .flat_map(|info| resolved(info, env))
+        .collect()
+}
+
+/// Every declaration one expression table entry names, with the class that
+/// declares it and its visibility. A static access names its class as well
+/// as its member. A parameter is never in it: which arguments a call passed
+/// is [`super::warn_uses`]' question alone.
+pub(super) fn resolved(info: &ExprInfo, env: &Env<'_>) -> Vec<(QName, Member, Visibility)> {
     let mut out = Vec::new();
     let method = |class: &QName, name: &str, out: &mut Vec<_>| {
         if let Some((owner, sig)) = resolve_method(class, name, env.signatures, env.graph) {
             out.push((owner, Member::Method(name.to_owned()), sig.visibility));
         }
     };
-    for info in env.exprs.since(mark) {
+    {
         match info {
             ExprInfo::Call(call) | ExprInfo::CallableRef(call) | ExprInfo::ClassRefCall(call) => {
                 if call.is_static {
@@ -572,8 +584,14 @@ fn named(mark: usize, env: &Env<'_>) -> Vec<(QName, Member, Visibility)> {
                     method(&ctor.class, "constructor", &mut out);
                 }
             }
+            ExprInfo::StaticProperty { class, name, .. } => {
+                out.push((class.clone(), Member::Type, Visibility::Public));
+                let owner = resolve_property_owned(class, name, env.signatures, env.graph)
+                    .map_or_else(|| class.clone(), |(owner, _)| owner);
+                let level = property_visibility(&owner, name, env.signatures);
+                out.push((owner, Member::Property(name.clone()), level));
+            }
             ExprInfo::Property { class, name, .. }
-            | ExprInfo::StaticProperty { class, name, .. }
             | ExprInfo::HookedProperty { class, name, .. } => {
                 let owner = resolve_property_owned(class, name, env.signatures, env.graph)
                     .map_or_else(|| class.clone(), |(owner, _)| owner);
@@ -626,7 +644,7 @@ const fn word(level: Visibility) -> &'static str {
     }
 }
 
-fn describe(owner: &QName, member: &Member) -> String {
+pub(super) fn describe(owner: &QName, member: &Member) -> String {
     match member {
         Member::Type => format!("`{owner}`"),
         Member::Method(name) => format!("`{owner}::{name}()`"),

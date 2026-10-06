@@ -300,3 +300,178 @@ fn a_class_replacement_missing_a_public_member_is_refused() {
         "{message}"
     );
 }
+
+/// The message of every `W1003` among `diags`, in the order they were raised.
+fn warnings(diags: &Diagnostics) -> Vec<&str> {
+    diags
+        .iter()
+        .filter(|d| d.code == Some(code::W_DEPRECATED))
+        .map(|d| d.message.as_str())
+        .collect()
+}
+
+/// A call, a static call, a `new`, a property read and write, a class
+/// constant and an enum case each warn once, and a use of a member that is
+/// not deprecated does not.
+#[test]
+fn every_use_of_a_deprecated_member_is_w1003() {
+    let diags = check_src(
+        "<?nvs\n\
+         class Store {\n  \
+           #[Core\\Deprecated(since: '2.0')]\n  \
+           const int LIMIT = 10;\n  \
+           const int MAX = 20;\n  \
+           #[Core\\Deprecated]\n  \
+           public int $total = 0;\n  \
+           #[Core\\Deprecated]\n  \
+           function constructor() {}\n  \
+           #[Core\\Deprecated]\n  \
+           function size(): int { return 1; }\n  \
+           function count(): int { return 1; }\n  \
+           #[Core\\Deprecated]\n  \
+           static function make(): int { return 1; }\n\
+         }\n\
+         enum Status { #[Core\\Deprecated] Active, Banned }\n\
+         Store $s = new Store();\n\
+         echo $s->size(), $s->count();\n\
+         echo $s->total;\n\
+         $s->total = 5;\n\
+         echo Store::LIMIT, Store::MAX;\n\
+         echo Store::make();\n\
+         Status $a = Status::Active;\n\
+         Status $b = Status::Banned;\n",
+    );
+    assert!(!diags.has_errors(), "{diags:?}");
+    let found = warnings(&diags);
+    assert_eq!(found.len(), 7, "{found:#?}");
+    for name in [
+        "`Store::constructor()`",
+        "`Store::size()`",
+        "`Store::$total`",
+        "`Store::LIMIT`",
+        "`Store::make()`",
+        "`Status::Active`",
+    ] {
+        assert!(found.iter().any(|m| m.contains(name)), "{name}: {found:#?}");
+    }
+}
+
+/// A deprecated parameter warns where an argument is passed to it, by
+/// position or by name, and not where the call leaves it out.
+#[test]
+fn a_passed_deprecated_parameter_is_w1003_and_an_omitted_one_is_not() {
+    let diags = check_src(
+        "<?nvs\n\
+         class Shop {\n  \
+           function find(int $id, #[Core\\Deprecated(since: '2.0')] int $limit = 10): int {\n    \
+             return $id;\n  \
+           }\n\
+         }\n\
+         Shop $s = new Shop();\n\
+         echo $s->find(1, 5);\n\
+         echo $s->find(1, limit: 5);\n\
+         echo $s->find(1);\n",
+    );
+    assert!(!diags.has_errors(), "{diags:?}");
+    let found = warnings(&diags);
+    assert_eq!(found.len(), 2, "{found:#?}");
+    assert!(found.iter().all(|m| m.contains("`$limit`")), "{found:#?}");
+}
+
+/// A parameter's type and an `implements` clause that name a deprecated
+/// class or interface each warn.
+#[test]
+fn a_type_position_naming_a_deprecated_class_is_w1003() {
+    let diags = check_src(
+        "<?nvs\n\
+         #[Core\\Deprecated(since: '2.0')]\n\
+         class Store {}\n\
+         #[Core\\Deprecated]\n\
+         interface Sized {}\n\
+         class Shop implements Sized {\n  \
+           function take(Store $s): int { return 1; }\n\
+         }\n",
+    );
+    assert!(!diags.has_errors(), "{diags:?}");
+    let found = warnings(&diags);
+    assert_eq!(found.len(), 2, "{found:#?}");
+    assert!(found.iter().any(|m| m.contains("`Store`")), "{found:#?}");
+    assert!(found.iter().any(|m| m.contains("`Sized`")), "{found:#?}");
+}
+
+/// An implementation of a deprecated method warns at the implementation,
+/// unless the class that implements it is deprecated too.
+#[test]
+fn an_override_of_a_deprecated_method_is_w1003() {
+    let diags = check_src(
+        "<?nvs\n\
+         interface Sized {\n  \
+           #[Core\\Deprecated(since: '2.0')]\n  \
+           function size(): int;\n\
+         }\n\
+         class Box implements Sized {\n  \
+           function size(): int { return 1; }\n\
+         }\n\
+         #[Core\\Deprecated]\n\
+         class Crate implements Sized {\n  \
+           function size(): int { return 2; }\n\
+         }\n",
+    );
+    assert!(!diags.has_errors(), "{diags:?}");
+    let found = warnings(&diags);
+    assert_eq!(found.len(), 1, "{found:#?}");
+    assert!(
+        found[0].contains("`Box::size()`") && found[0].contains("`Sized::size()`"),
+        "{found:#?}"
+    );
+}
+
+/// A deprecated method's body and a deprecated class's members use
+/// deprecated code without a warning. The same use anywhere else warns.
+#[test]
+fn a_use_inside_a_deprecated_declaration_does_not_warn() {
+    let diags = check_src(
+        "<?nvs\n\
+         class Shop {\n  \
+           #[Core\\Deprecated]\n  \
+           function old(): int { return 1; }\n  \
+           #[Core\\Deprecated]\n  \
+           function older(): int { return $this->old(); }\n  \
+           function fresh(): int { return $this->old(); }\n\
+         }\n\
+         #[Core\\Deprecated]\n\
+         class Store {\n  \
+           function size(Shop $s): int { return $s->old(); }\n\
+         }\n",
+    );
+    assert!(!diags.has_errors(), "{diags:?}");
+    assert_eq!(warnings(&diags).len(), 1, "{diags:?}");
+}
+
+/// The message names the member, then `since`, then `note`, then the
+/// replacement, in that order.
+#[test]
+fn the_w1003_message_names_since_note_and_the_replacement() {
+    let diags = check_src(
+        "<?nvs\n\
+         class Shop {\n  \
+           #[Core\\Deprecated(since: '2.0', note: 'Sizes are counts now.', replace: '$this->count()')]\n  \
+           function size(): int { return 1; }\n  \
+           function count(): int { return 1; }\n\
+         }\n\
+         Shop $s = new Shop();\n\
+         echo $s->size();\n",
+    );
+    assert!(!diags.has_errors(), "{diags:?}");
+    let found = warnings(&diags);
+    assert_eq!(found.len(), 1, "{found:#?}");
+    let message = found[0];
+    let at = |part: &str| {
+        message
+            .find(part)
+            .unwrap_or_else(|| panic!("{part}: {message}"))
+    };
+    assert!(at("`Shop::size()`") < at("since 2.0"), "{message}");
+    assert!(at("since 2.0") < at("Sizes are counts now."), "{message}");
+    assert!(at("Sizes are counts now.") < at("->count()`"), "{message}");
+}

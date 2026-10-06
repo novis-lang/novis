@@ -195,6 +195,7 @@ pub fn check_program_granted(
             method_ref_args: FxHashSet::default(),
             body_writers: crate::response::BodyWriters::default(),
             in_call_argument: false,
+            deprecated_uses: None,
         };
         let mut frame = ScriptFrame {
             scope: LocalScope::new(),
@@ -366,6 +367,9 @@ pub(crate) fn check_stmts(
                     in_constructor: false,
                     in_anon_fn: false,
                 };
+                let parents = decl.extends.iter();
+                let parents = parents.chain(decl.implements.iter().map(|clause| &clause.name));
+                warn_deprecated_parents(&qname, parents, &ctx, env);
                 check_members(&decl.members, &ctx, env);
                 crate::attributes::check_declaration(
                     crate::deprecated::Decl::Class,
@@ -401,6 +405,7 @@ pub(crate) fn check_stmts(
                     in_constructor: false,
                     in_anon_fn: false,
                 };
+                warn_deprecated_parents(&qname, decl.extends.iter(), &ctx, env);
                 check_members(&decl.members, &ctx, env);
                 crate::attributes::check_declaration(
                     crate::deprecated::Decl::Interface,
@@ -456,14 +461,16 @@ pub(crate) fn check_stmts(
                     in_constructor: false,
                     in_anon_fn: false,
                 };
-                check_stmt(
-                    stmt,
-                    &mut frame.live,
-                    &mut frame.scope,
-                    frame.return_ty,
-                    &ctx,
-                    env,
-                );
+                crate::deprecated::window(None, None, env, |env| {
+                    check_stmt(
+                        stmt,
+                        &mut frame.live,
+                        &mut frame.scope,
+                        frame.return_ty,
+                        &ctx,
+                        env,
+                    );
+                });
             }
         }
     }
@@ -542,11 +549,50 @@ fn record_static_properties(qname: &QName, env: &mut Env<'_>) {
         .record_static_properties(qname.to_string(), statics);
 }
 
+/// `W1003` at each class or interface a declaration's `extends` or
+/// `implements` names, when that one is deprecated and `class` is not.
+fn warn_deprecated_parents<'n>(
+    class: &QName,
+    parents: impl Iterator<Item = &'n nvs_syntax::ast::Name>,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) {
+    crate::deprecated::window(Some(class), None, env, |env| {
+        for name in parents {
+            let text = span_text(env.src, name.span);
+            let parent = nvs_hir::resolve_ref(text, ctx.namespace, ctx.imports);
+            crate::deprecated::warn(name.span, &parent, crate::deprecated::Member::Type, env);
+        }
+    });
+}
+
+/// Checks each method and property hook body, each in its own
+/// [`crate::deprecated::window`].
 fn check_members(members: &[ClassMember], ctx: &Ctx<'_>, env: &mut Env<'_>) {
+    use crate::deprecated::{Member, window};
     for member in members {
         match &member.kind {
-            ClassMemberKind::Method(m) => check_method(m, ctx, env),
-            ClassMemberKind::Property(p) => check_property_hooks(p, ctx, env),
+            ClassMemberKind::Method(m) => {
+                let name = span_text(env.src, m.name).to_owned();
+                let member = Some(Member::Method(name.clone()));
+                window(ctx.current_class, member, env, |env| {
+                    if let Some(class) = ctx.current_class {
+                        crate::deprecated::warn_override(class, &name, m.name, env);
+                    }
+                    check_method(m, ctx, env);
+                });
+            }
+            ClassMemberKind::Property(p) => {
+                let name = strip_sigil(span_text(env.src, p.name)).to_owned();
+                window(
+                    ctx.current_class,
+                    Some(Member::Property(name)),
+                    env,
+                    |env| {
+                        check_property_hooks(p, ctx, env);
+                    },
+                );
+            }
             _ => {}
         }
     }
