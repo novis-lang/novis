@@ -1,0 +1,12 @@
+{
+  "title": "Coverage reports carry functions, branches and per-test lines, and `nvs test` writes Cobertura beside lcov and Clover",
+  "status": "accepted",
+  "scope": "what a coverage report holds beyond lines: function coverage, branch coverage from a probe on every\nconditional edge, a third format under `--coverage-cobertura <FILE>`, the lines each test reached in the\n`--format json` document, and the VS Code coverage profile that reads the lcov file. Choosing which files\na report covers, an HTML report and merging the reports of several runs are not decided here.",
+  "dependsOn": [
+    "0235",
+    "0018",
+    "0041"
+  ],
+  "dependsOnText": "[0235](0235.md) (line coverage, the shared table and how a file is named), [0018](0018.md) and\n[0041](0041.md) (the probe sites and the one flag word they check).",
+  "validatedBy": "`crates/nvs-cli/tests/test_coverage.rs`, `crates/nvs-codegen/tests/probes.rs` and\n`editors/vscode/test/surfaces/tests.test.ts`."
+}
