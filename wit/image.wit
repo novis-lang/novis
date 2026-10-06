@@ -1,0 +1,327 @@
+package nvs:image@1.0.0;
+
+/// The image component's whole surface: eight entry points, each one call
+/// that carries its whole input and returns its whole output. There is no
+/// per-pixel, per-row or per-frame entry point.
+///
+/// `Novis\Image\Image` builds a `plan` in Novis and sends it with its
+/// `source` to `run` or `variants` when a terminal method is called. Every
+/// type here is one the Novis-to-WIT table gives, so `u64` is a Novis `uint`,
+/// `s64` an `int`, `f64` a `float` and `list<u8>` a `bytes`.
+interface codec {
+    use nvs:ext/types@1.0.0.{error};
+
+    /// The formats the component knows. `jxl`, `svg` and `pdf` decode only,
+    /// and asking `run` to encode one returns `invalid`.
+    enum format {
+        jpeg,
+        png,
+        webp,
+        gif,
+        avif,
+        jxl,
+        svg,
+        pdf,
+    }
+
+    /// A colour as straight-alpha RGBA. `r`, `g` and `b` are 0 to 255, and
+    /// `alpha` is 0.0 to 1.0. A value outside that returns `invalid`.
+    record color {
+        r: u64,
+        g: u64,
+        b: u64,
+        alpha: f64,
+    }
+
+    /// Where a resize crops, or where a composite or a text step is placed.
+    enum gravity {
+        center,
+        north,
+        north-east,
+        east,
+        south-east,
+        south,
+        south-west,
+        west,
+        north-west,
+    }
+
+    enum fit {
+        cover,
+        contain,
+        fill,
+        inside,
+        outside,
+    }
+
+    enum filter {
+        nearest,
+        bilinear,
+        catmull-rom,
+        mitchell,
+        lanczos3,
+    }
+
+    enum axis {
+        horizontal,
+        vertical,
+    }
+
+    enum blend {
+        normal,
+        multiply,
+        screen,
+        overlay,
+        darken,
+        lighten,
+    }
+
+    enum align {
+        left,
+        center,
+        right,
+    }
+
+    enum hash-kind {
+        perceptual,
+        difference,
+        average,
+    }
+
+    enum placeholder-kind {
+        blur-hash,
+        thumb-hash,
+    }
+
+    enum qr-level {
+        low,
+        medium,
+        quartile,
+        high,
+    }
+
+    /// The EXIF tags of an input, each tag's name with its value as text.
+    type exif = list<tuple<string, string>>;
+
+    /// What `info` reads from the header. No pixel is decoded. For a paged
+    /// source `frames` is the page count.
+    record image-info {
+        format: format,
+        width: u64,
+        height: u64,
+        has-alpha: bool,
+        frames: u64,
+        orientation: u64,
+        exif: option<exif>,
+        has-icc: bool,
+    }
+
+    /// An encoded input and how to open it. `max-pixels` can only lower the
+    /// cap the `[image]` setting gives. `page` and `dpi` select and scale one
+    /// page of a paged source.
+    record encoded-source {
+        data: list<u8>,
+        auto-orient: bool,
+        to-srgb: bool,
+        max-pixels: option<u64>,
+        page: option<u64>,
+        dpi: option<f64>,
+    }
+
+    /// A blank canvas of one colour.
+    record canvas {
+        width: u64,
+        height: u64,
+        fill: color,
+    }
+
+    /// Decoded pixels: `height` rows of `width` RGBA8 pixels, straight alpha.
+    /// `pixels` that is not exactly `width * height * 4` bytes returns
+    /// `invalid`. The pixel cap applies to `width * height`.
+    record raw-image {
+        width: u64,
+        height: u64,
+        pixels: list<u8>,
+    }
+
+    /// Text set in a font, on a transparent canvas exactly the size of the
+    /// laid-out text. `font` is a TrueType or OpenType file.
+    record text-source {
+        text: string,
+        font: list<u8>,
+        size: f64,
+        max-width: option<u64>,
+        align: option<align>,
+    }
+
+    /// Where a pipeline starts.
+    variant source {
+        encoded(encoded-source),
+        canvas(canvas),
+        pixels(raw-image),
+        text(text-source),
+    }
+
+    record resize-options {
+        width: option<u64>,
+        height: option<u64>,
+        fit: option<fit>,
+        gravity: option<gravity>,
+        filter: option<filter>,
+        upscale: option<bool>,
+    }
+
+    record crop-box {
+        x: u64,
+        y: u64,
+        width: u64,
+        height: u64,
+    }
+
+    record trim-options {
+        threshold: option<f64>,
+    }
+
+    record rotate-options {
+        degrees: f64,
+        background: option<color>,
+    }
+
+    /// `overlay` is a position in the plan's `overlays` table.
+    record composite-options {
+        overlay: u64,
+        gravity: option<gravity>,
+        x: option<s64>,
+        y: option<s64>,
+        opacity: option<f64>,
+        blend: option<blend>,
+    }
+
+    record sharpen-options {
+        sigma: option<f64>,
+    }
+
+    record text-options {
+        text: string,
+        font: list<u8>,
+        size: f64,
+        color: color,
+        gravity: option<gravity>,
+        x: option<s64>,
+        y: option<s64>,
+        max-width: option<u64>,
+        align: option<align>,
+    }
+
+    record format-options {
+        format: format,
+        quality: option<u64>,
+        progressive: option<bool>,
+        lossless: option<bool>,
+        effort: option<u64>,
+    }
+
+    record metadata-options {
+        keep: bool,
+    }
+
+    /// One operation of a pipeline. The steps run in the order of the list.
+    variant step {
+        resize(resize-options),
+        crop(crop-box),
+        trim(trim-options),
+        rotate(rotate-options),
+        flip(axis),
+        composite(composite-options),
+        flatten(color),
+        sharpen(sharpen-options),
+        blur(f64),
+        grayscale,
+        brightness(f64),
+        contrast(f64),
+        gamma(f64),
+        tint(color),
+        text(text-options),
+        format(format-options),
+        metadata(metadata-options),
+    }
+
+    /// A pipeline drawn on top of another one by a `composite` step.
+    record overlay {
+        source: source,
+        steps: list<step>,
+    }
+
+    /// What `run` returns. `encoded` is the file in the plan's format, or in
+    /// the input's format when the plan has no `format` step. `raw` is a
+    /// 16-byte header, then the RGBA8 rows. `size` is the header alone. The
+    /// header is the width and then the height, each a big-endian `u64`.
+    enum output {
+        encoded,
+        raw,
+        size,
+    }
+
+    /// A whole pipeline. WIT has no recursive types, so an overlay is a row
+    /// of `overlays`, and a `composite` step names it by its position. An
+    /// overlay's own `composite` steps may name only earlier rows, so no
+    /// overlay contains itself.
+    record plan {
+        steps: list<step>,
+        overlays: list<overlay>,
+        output: output,
+    }
+
+    record compare-options {
+        tolerance: option<u64>,
+        render: bool,
+    }
+
+    /// The result of `compare`. `diff` is a PNG of the differing pixels, and
+    /// is present only when `render` was set.
+    record diff {
+        identical: bool,
+        differing-pixels: u64,
+        max-delta: u64,
+        ssim: f64,
+        diff: option<list<u8>>,
+    }
+
+    record qr-options {
+        size: option<u64>,
+        margin: option<u64>,
+        level: option<qr-level>,
+        format: option<format>,
+    }
+
+    /// Reads the header of `data`.
+    info: func(data: list<u8>) -> result<image-info, error>;
+
+    /// Runs one pipeline.
+    run: func(source: source, plan: plan) -> result<list<u8>, error>;
+
+    /// Decodes `source` once and runs each plan on it. The results are in
+    /// the order of `plans`.
+    variants: func(source: source, plans: list<plan>) -> result<list<list<u8>>, error>;
+
+    /// Compares two encoded images of the same size. A size mismatch
+    /// returns `invalid`.
+    compare: func(a: list<u8>, b: list<u8>, options: compare-options) -> result<diff, error>;
+
+    hash: func(data: list<u8>, kind: hash-kind) -> result<list<u8>, error>;
+
+    placeholder: func(data: list<u8>, kind: placeholder-kind) -> result<string, error>;
+
+    /// The `count` most common colours of `data`, most common first.
+    palette: func(data: list<u8>, count: u64) -> result<list<color>, error>;
+
+    /// Renders `data` as a QR code, encoded as `format` or PNG.
+    qr: func(data: string, options: qr-options) -> result<list<u8>, error>;
+}
+
+/// The image component: everything an extension may import, and `codec`.
+world image {
+    include nvs:ext/extension@1.0.0;
+
+    export codec;
+}

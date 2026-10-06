@@ -1,14 +1,19 @@
-//! The `nvs:ext@1.0.0` world under `wit/nvs-ext/`, read with `wit-parser`
-//! and held against `rule:packaging/a-value-crosses-as-its-wit-type` and
-//! `rule:packaging/a-guest-has-no-ambient-authority`.
+//! The `nvs:ext@1.0.0` world under `wit/nvs-ext/` and the image component's
+//! `nvs:image@1.0.0` in `wit/image.wit`, read with `wit-parser` and held
+//! against `rule:packaging/a-value-crosses-as-its-wit-type`,
+//! `rule:packaging/a-guest-has-no-ambient-authority` and
+//! `rule:core-classes/image-pipeline`.
 //!
-//! Two rosters meet here. A `Core` value class is a [`CoreClass`] with
+//! Three rosters meet here. A `Core` value class is a [`CoreClass`] with
 //! `slots`; each one either has its record in `nvs:ext/types` ([`CROSSES`])
 //! or is in [`REFUSED`] with the one sentence that says why it cannot cross.
 //! A class added to the registry fails the walk until it is placed in one of
-//! the two. The world's imports are the other roster, written once in
+//! the two. The world's imports are the second roster, written once in
 //! [`ALLOWED_IMPORTS`]: the resolved world, with every interface its imports
-//! are written in pulled in, must import exactly those.
+//! are written in pulled in, must import exactly those. The third is
+//! [`IMAGE_MEMBERS`]: every member of `Novis\Image`'s builder with the place
+//! in `codec` it runs, so a member with no place, or a place no member
+//! reaches, fails.
 //!
 //! The WIT text is parsed from the repository, never embedded, so the test
 //! and the file an extension author builds against cannot drift.
@@ -17,8 +22,8 @@ use std::collections::BTreeSet;
 
 use nvs_stdlib::registry::{CLASSES, CoreClass};
 use wit_parser::{
-    Function, FunctionKind, InterfaceId, PackageId, Resolve, Type, TypeDefKind, TypeId, WorldItem,
-    WorldKey,
+    Function, FunctionKind, InterfaceId, PackageId, Resolve, Type, TypeDefKind, TypeId, WorldId,
+    WorldItem, WorldKey,
 };
 
 /// The `Core` value classes that cross, each with its record in
@@ -205,6 +210,78 @@ const VALUE_READERS: &[(&str, &[&str])] = &[
     ("object", &["class-name"]),
 ];
 
+/// The exports of the image component's `codec`, 0120 § 3's eight.
+const CODEC_EXPORTS: &[&str] = &[
+    "info",
+    "run",
+    "variants",
+    "compare",
+    "hash",
+    "placeholder",
+    "palette",
+    "qr",
+];
+
+/// Where a member of `Novis\Image` runs.
+#[derive(Debug, Clone, Copy)]
+enum Place {
+    /// An export of `codec`.
+    Export(&'static str),
+    /// A case of `step`, which a terminal sends inside a `plan`.
+    Step(&'static str),
+    /// A case of `source`, where a pipeline starts.
+    Source(&'static str),
+    /// A case of `output`, which says what `run` returns.
+    Output(&'static str),
+    /// Novis source in `Novis\Image` that needs no codec.
+    Novis,
+}
+
+use Place::{Export, Novis, Output, Source, Step};
+
+/// Every member of 0120 § 2's table and § 8, and § 9's QR code, with where
+/// it runs. `measureText` and `fromRaw` start a pipeline from a `source`
+/// case and `raw` is an `output` of `run`, as ADR 0276 decides.
+const IMAGE_MEMBERS: &[(&str, &[Place])] = &[
+    ("Image::open", &[Source("encoded")]),
+    ("Image::create", &[Source("canvas")]),
+    ("Image::info", &[Export("info")]),
+    ("$img->resize", &[Step("resize")]),
+    ("$img->crop", &[Step("crop")]),
+    ("$img->trim", &[Step("trim")]),
+    ("$img->rotate", &[Step("rotate")]),
+    ("$img->flip", &[Step("flip")]),
+    ("$img->composite", &[Step("composite")]),
+    ("$img->flatten", &[Step("flatten")]),
+    ("$img->sharpen", &[Step("sharpen")]),
+    ("$img->blur", &[Step("blur")]),
+    ("$img->grayscale", &[Step("grayscale")]),
+    ("$img->brightness", &[Step("brightness")]),
+    ("$img->contrast", &[Step("contrast")]),
+    ("$img->gamma", &[Step("gamma")]),
+    ("$img->tint", &[Step("tint")]),
+    ("$img->text", &[Step("text")]),
+    ("Font::fromBytes", &[Novis]),
+    (
+        "Image::measureText",
+        &[Source("text"), Export("run"), Output("size")],
+    ),
+    ("$img->format", &[Step("format")]),
+    ("$img->metadata", &[Step("metadata")]),
+    ("$img->encode", &[Export("run"), Output("encoded")]),
+    ("$img->variants", &[Export("variants")]),
+    ("$img->raw", &[Export("run"), Output("raw")]),
+    ("Image::fromRaw", &[Source("pixels")]),
+    ("Image::compare", &[Export("compare")]),
+    ("Image::hash", &[Export("hash")]),
+    ("Image::hashDistance", &[Novis]),
+    ("Image::placeholder", &[Export("placeholder")]),
+    ("Image::palette", &[Export("palette")]),
+    ("Color::rgba", &[Novis]),
+    ("Color::hex", &[Novis]),
+    ("QrCode::render", &[Export("qr")]),
+];
+
 fn world() -> (Resolve, PackageId) {
     let mut resolve = Resolve::default();
     let dir = nvs_repo::path("wit/nvs-ext");
@@ -212,6 +289,74 @@ fn world() -> (Resolve, PackageId) {
         .push_dir(&dir)
         .unwrap_or_else(|err| panic!("{} does not parse: {err:?}", dir.display()));
     (resolve, package)
+}
+
+/// `wit/image.wit`, resolved against the `nvs:ext` world it includes. The
+/// second package is the image one.
+fn image() -> (Resolve, PackageId, PackageId) {
+    let (mut resolve, ext) = world();
+    let file = nvs_repo::path("wit/image.wit");
+    let package = resolve
+        .push_file(&file)
+        .unwrap_or_else(|err| panic!("{} does not parse: {err:?}", file.display()));
+    (resolve, ext, package)
+}
+
+fn codec(resolve: &Resolve, package: PackageId) -> InterfaceId {
+    *resolve.packages[package]
+        .interfaces
+        .get("codec")
+        .expect("`nvs:image` has an interface `codec`")
+}
+
+/// The case names of the `codec` variant or enum `name`.
+fn codec_cases(resolve: &Resolve, codec: InterfaceId, name: &str) -> Vec<String> {
+    let id = *resolve.interfaces[codec]
+        .types
+        .get(name)
+        .unwrap_or_else(|| panic!("`codec` has no type `{name}`"));
+    match &resolve.types[id].kind {
+        TypeDefKind::Variant(variant) => variant.cases.iter().map(|c| c.name.clone()).collect(),
+        TypeDefKind::Enum(cases) => cases.cases.iter().map(|c| c.name.clone()).collect(),
+        other => panic!("`{name}` is a {other:?}, not a variant or an enum"),
+    }
+}
+
+/// A type with every `type x = y` alias followed to its definition.
+fn dealias(resolve: &Resolve, mut id: TypeId) -> TypeId {
+    while let TypeDefKind::Type(Type::Id(inner)) = resolve.types[id].kind {
+        id = inner;
+    }
+    id
+}
+
+/// The `ok` and `err` types of an export that returns a `result`.
+fn result_of(resolve: &Resolve, function: &Function) -> Option<(Option<Type>, Option<Type>)> {
+    match function.result? {
+        Type::Id(id) => match &resolve.types[id].kind {
+            TypeDefKind::Result(result) => Some((result.ok, result.err)),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+/// Every interface a world imports, by its full name.
+fn imports(resolve: &Resolve, world: WorldId) -> BTreeSet<String> {
+    let mut imported = BTreeSet::new();
+    for (key, item) in &resolve.worlds[world].imports {
+        match (key, item) {
+            (WorldKey::Interface(id), WorldItem::Interface { .. }) => {
+                imported.insert(
+                    resolve
+                        .id_of(*id)
+                        .expect("an imported interface has a package"),
+                );
+            }
+            (key, item) => panic!("the world imports {key:?} as {item:?}, not a named interface"),
+        }
+    }
+    imported
 }
 
 fn interface(resolve: &Resolve, package: PackageId, name: &str) -> InterfaceId {
@@ -351,20 +496,9 @@ fn every_core_value_class_crosses_as_a_types_record_or_is_named_as_refused() {
 #[test]
 fn the_extension_world_imports_exactly_the_allowed_interfaces() {
     let (resolve, package) = world();
-    let world = &resolve.worlds[resolve.packages[package].worlds["extension"]];
-    let mut imported = BTreeSet::new();
-    for (key, item) in &world.imports {
-        match (key, item) {
-            (WorldKey::Interface(id), WorldItem::Interface { .. }) => {
-                imported.insert(
-                    resolve
-                        .id_of(*id)
-                        .expect("an imported interface has a package"),
-                );
-            }
-            (key, item) => panic!("the world imports {key:?} as {item:?}, not a named interface"),
-        }
-    }
+    let world_id = resolve.packages[package].worlds["extension"];
+    let world = &resolve.worlds[world_id];
+    let imported = imports(&resolve, world_id);
     let allowed: BTreeSet<String> = ALLOWED_IMPORTS.iter().map(ToString::to_string).collect();
     let extra: Vec<&String> = imported.difference(&allowed).collect();
     let missing: Vec<&String> = allowed.difference(&imported).collect();
@@ -503,4 +637,162 @@ fn the_settings_interface_reads_every_setting_type_a_manifest_may_declare() {
         Some(TypeDefKind::Option(Type::Id(inner))) if inner == setting
     );
     assert!(returns_option_setting, "`get` returns `option<setting>`");
+}
+
+#[test]
+fn the_image_codec_interface_resolves_against_the_ext_world() {
+    let (resolve, _, package) = image();
+    let found = &resolve.packages[package];
+    assert_eq!(found.name.to_string(), "nvs:image@1.0.0");
+    let interfaces: Vec<&str> = found.interfaces.keys().map(String::as_str).collect();
+    assert_eq!(interfaces, ["codec"], "the package's interfaces");
+    let worlds: Vec<&str> = found.worlds.keys().map(String::as_str).collect();
+    assert_eq!(worlds, ["image"], "the package's worlds");
+
+    let world_id = found.worlds["image"];
+    let allowed: BTreeSet<String> = ALLOWED_IMPORTS.iter().map(ToString::to_string).collect();
+    // `codec` uses `nvs:ext/types`, which the `extension` world already imports.
+    let imported = imports(&resolve, world_id);
+    let extra: Vec<&String> = imported.difference(&allowed).collect();
+    let missing: Vec<&String> = allowed.difference(&imported).collect();
+    assert!(
+        extra.is_empty() && missing.is_empty(),
+        "the `image` world imports {extra:?} that the `extension` world does not, and misses {missing:?}"
+    );
+
+    let exports: Vec<String> = resolve.worlds[world_id]
+        .exports
+        .iter()
+        .map(|(key, item)| match (key, item) {
+            (WorldKey::Interface(id), WorldItem::Interface { .. }) => resolve
+                .id_of(*id)
+                .expect("an exported interface has a package"),
+            (key, item) => panic!("the world exports {key:?} as {item:?}, not a named interface"),
+        })
+        .collect();
+    assert_eq!(
+        exports,
+        ["nvs:image/codec@1.0.0"],
+        "the `image` world exports `codec` alone"
+    );
+}
+
+#[test]
+fn the_image_codec_exports_exactly_the_eight_entry_points() {
+    let (resolve, _, package) = image();
+    let codec = codec(&resolve, package);
+    let functions = &resolve.interfaces[codec].functions;
+    let names: Vec<&str> = functions.keys().map(String::as_str).collect();
+    assert_eq!(names, CODEC_EXPORTS, "`codec`'s functions, in order");
+    for (name, function) in functions {
+        assert_eq!(
+            function.kind,
+            FunctionKind::Freestanding,
+            "`{name}` is a plain function, not a resource method"
+        );
+    }
+}
+
+#[test]
+fn every_image_codec_export_returns_a_result_with_the_ext_error() {
+    let (resolve, ext, package) = image();
+    let codec = codec(&resolve, package);
+    let error = named_type(&resolve, interface(&resolve, ext, "types"), "error");
+    let mut problems = Vec::new();
+    for (name, function) in &resolve.interfaces[codec].functions {
+        match result_of(&resolve, function) {
+            Some((Some(_), Some(Type::Id(err)))) if dealias(&resolve, err) == error => {}
+            Some((ok, err)) => problems.push(format!(
+                "`{name}` returns `result<{ok:?}, {err:?}>`, not a value and `nvs:ext/types`' `error`"
+            )),
+            None => problems.push(format!("`{name}` does not return a `result`")),
+        }
+    }
+    assert!(problems.is_empty(), "\n{}", problems.join("\n"));
+}
+
+#[test]
+fn the_image_codec_types_use_only_wit_types_the_value_table_gives() {
+    let (resolve, _, package) = image();
+    let codec = codec(&resolve, package);
+    let mut problems = Vec::new();
+    for (name, function) in &resolve.interfaces[codec].functions {
+        for param in &function.params {
+            if let Err(err) =
+                check_crossable(&resolve, param.ty, &format!("{name}({})", param.name))
+            {
+                problems.push(err);
+            }
+        }
+        if let Some((ok, err)) = result_of(&resolve, function) {
+            for (side, ty) in [("ok", ok), ("err", err)] {
+                if let Some(ty) = ty
+                    && let Err(err) = check_crossable(&resolve, ty, &format!("{name} -> {side}"))
+                {
+                    problems.push(err);
+                }
+            }
+        }
+    }
+    for (name, id) in &resolve.interfaces[codec].types {
+        if let Err(err) = check_crossable(&resolve, Type::Id(*id), name) {
+            problems.push(err);
+        }
+    }
+    assert!(problems.is_empty(), "\n{}", problems.join("\n"));
+}
+
+#[test]
+fn every_image_builder_member_maps_to_an_export_a_plan_step_or_novis_source() {
+    let (resolve, _, package) = image();
+    let codec = codec(&resolve, package);
+    let exports: Vec<String> = resolve.interfaces[codec]
+        .functions
+        .keys()
+        .cloned()
+        .collect();
+    let rosters = [
+        ("export", exports),
+        ("step", codec_cases(&resolve, codec, "step")),
+        ("source", codec_cases(&resolve, codec, "source")),
+        ("output", codec_cases(&resolve, codec, "output")),
+    ];
+    let mut reached: BTreeSet<(&str, &str)> = BTreeSet::new();
+    let mut problems = Vec::new();
+
+    for (member, places) in IMAGE_MEMBERS {
+        if places.is_empty() {
+            problems.push(format!("`{member}` has no place"));
+        }
+        for place in *places {
+            let (roster, name) = match place {
+                Export(name) => ("export", *name),
+                Step(name) => ("step", *name),
+                Source(name) => ("source", *name),
+                Output(name) => ("output", *name),
+                Novis => continue,
+            };
+            let (_, names) = rosters
+                .iter()
+                .find(|(kind, _)| *kind == roster)
+                .expect("every roster is listed");
+            if names.iter().any(|found| found == name) {
+                reached.insert((roster, name));
+            } else {
+                problems.push(format!(
+                    "`{member}` runs in the {roster} `{name}`, which `codec` does not have"
+                ));
+            }
+        }
+    }
+    for (roster, names) in &rosters {
+        for name in names {
+            if !reached.contains(&(*roster, name.as_str())) {
+                problems.push(format!(
+                    "the {roster} `{name}` is the place of no `Novis\\Image` member"
+                ));
+            }
+        }
+    }
+    assert!(problems.is_empty(), "\n{}", problems.join("\n"));
 }

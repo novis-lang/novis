@@ -1,0 +1,11 @@
+{
+  "title": "An image pipeline starts from encoded bytes, a canvas, raw pixels or set text, and `run` returns the file, the pixels or the size",
+  "status": "accepted",
+  "scope": "Where the three `Novis\\Image` members that 0120 § 3's eight exports did not place run — `fromRaw`, `measureText` and `raw` — and where `hashDistance` runs; and the shape of an overlay in the `codec` interface's `plan`. The eight exports, the builder and its signatures stay 0120's.",
+  "dependsOn": [
+    "0120",
+    "0246"
+  ],
+  "dependsOnText": "[0120](0120.md) (the builder and the eight exports), [0246](0246.md) (the Novis-to-WIT table every `codec` type is written in).",
+  "validatedBy": "`crates/nvs-stdlib/tests/ext_world.rs`: the `codec` interface in `wit/image.wit` resolves against the `nvs:ext` world, has exactly the eight exports, and gives every builder member a place."
+}

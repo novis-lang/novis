@@ -2016,10 +2016,18 @@ none is added later: `raw()` exports the whole buffer once for the caller that g
 pixels. The rule for any future entry point is a refusal — a member that would be called in a loop
 over the image's own contents is not admitted, because its cost is the boundary rather than the work.
 
-**Not shipped.** There is no image extension in the tree: no `nvs/image` package and no crate behind
-it.
+A pipeline starts from one of four sources — encoded bytes (`open`), a blank canvas (`create`), RGBA8
+pixels (`fromRaw`) or text set in a font (`measureText`) — and `run` returns one of three outputs: the
+encoded file (`encode`), the RGBA8 pixels behind a size header (`raw`), or the size header alone
+(`measureText`). An overlay is a row of the plan's flat overlay table that a `composite` step names by
+position, because WIT has no recursive types. `hashDistance`, `Color` and `Font::fromBytes` are Novis
+source and call no export.
 
-<sub>See also [`core-classes/image-pixel-model`](core-classes.md#core-classes-image-pixel-model), [`core-classes/image-pixel-cap`](core-classes.md#core-classes-image-pixel-cap), [`core-classes/image-one-entry-point-per-job`](core-classes.md#core-classes-image-one-entry-point-per-job). Decided in [0120](../decisions/0120.md), [0063](../decisions/0063.md), [0003](../decisions/0003.md).</sub>
+**Not shipped.** The interface is written: `wit/image.wit` holds package `nvs:image@1.0.0`, its
+`codec` interface and the `image` world, and `crates/nvs-stdlib/tests/ext_world.rs` places every
+builder member. There is no component and no crate behind it.
+
+<sub>See also [`core-classes/image-pixel-model`](core-classes.md#core-classes-image-pixel-model), [`core-classes/image-pixel-cap`](core-classes.md#core-classes-image-pixel-cap), [`core-classes/image-one-entry-point-per-job`](core-classes.md#core-classes-image-one-entry-point-per-job). Decided in [0120](../decisions/0120.md), [0063](../decisions/0063.md), [0003](../decisions/0003.md), [0276](../decisions/0276.md).</sub>
 
 <a id="core-classes-image-pixel-model"></a>
 
