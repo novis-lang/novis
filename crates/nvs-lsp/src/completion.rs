@@ -328,6 +328,7 @@ use nvs_syntax::ast::{
     StmtKind,
 };
 use nvs_syntax::{IndexNode, Keyword, NodePath, OPEN_TAGS, Token, TokenKind, tokenize};
+use nvs_types::deprecated::Member;
 use nvs_types::{ExprInfo, ParamIn, Ty, TypeId};
 use rustc_hash::{FxHashMap, FxHashSet};
 use serde_json::{Value, json};
@@ -2693,7 +2694,15 @@ fn declared_members(cursor: &Cursor<'_>, class: &QName, reach: Reach) -> Vec<Com
                 Reach::Static => decl
                     .cases
                     .iter()
-                    .map(|case| enum_case(file, &owner, case))
+                    .map(|case| {
+                        let name = text_of(file, case.name.span).to_owned();
+                        tagged(
+                            cursor,
+                            class,
+                            Member::Case(name),
+                            enum_case(file, &owner, case),
+                        )
+                    })
                     .collect(),
                 Reach::Instance => Vec::new(),
             };
@@ -2703,8 +2712,44 @@ fn declared_members(cursor: &Cursor<'_>, class: &QName, reach: Reach) -> Vec<Com
     };
     members
         .iter()
-        .filter_map(|member| declared_member(cursor, file, &owner, member, reach))
+        .filter_map(|member| {
+            let item = declared_member(cursor, file, &owner, member, reach)?;
+            let key = match &member.kind {
+                ClassMemberKind::Method(method) => {
+                    Member::Method(text_of(file, method.name).to_owned())
+                }
+                ClassMemberKind::Property(property) => Member::Property(
+                    text_of(file, property.name)
+                        .trim_start_matches('$')
+                        .to_owned(),
+                ),
+                ClassMemberKind::Const(constant) => {
+                    Member::Const(text_of(file, constant.name).to_owned())
+                }
+                _ => return Some(item),
+            };
+            Some(tagged(cursor, class, key, item))
+        })
         .collect()
+}
+
+/// `item` with the `Deprecated` tag when `member` of `class` carries
+/// `#[Core\Deprecated]`, which an editor draws as a line through the label
+/// (`rule:attributes/a-deprecation-names-its-replacement-as-code`).
+///
+/// The analysis's own [`Notices`](nvs_types::deprecated::Notices) are asked,
+/// so an item is tagged exactly where a use of it warns `W1003`.
+fn tagged(
+    cursor: &Cursor<'_>,
+    class: &QName,
+    member: Member,
+    mut item: CompletionItem,
+) -> CompletionItem {
+    let analysed = cursor.analysed;
+    if analysed.deprecated.contains_key(&(class.clone(), member)) {
+        item.tags = Some(vec![CompletionItemTag::DEPRECATED]);
+    }
+    item
 }
 
 /// One declared member, or `None` for one this access does not reach.

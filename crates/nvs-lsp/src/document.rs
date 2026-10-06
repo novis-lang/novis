@@ -61,6 +61,7 @@ use lsp_types::Uri;
 use nvs_diagnostics::{BytePos, Diagnostics, SourceId, SourceMap, Span, canonical_key};
 use nvs_hir::{AutoloadMap, Lender, Loaded, Module, resolve_program_borrowing};
 use nvs_syntax::{SyntaxIndex, Trivia, check_declarations, parse};
+use nvs_types::deprecated::Notices;
 use nvs_types::{ExprTypeTable, LocalBinding, TypeId, TypeInterner};
 
 use crate::stubs::Stubs;
@@ -523,6 +524,12 @@ pub struct Analysed {
     /// is a different type, or none: an id is an index into exactly this run's
     /// table, so the two travel together or neither is readable.
     pub interner: TypeInterner,
+    /// Every declaration in the graph that carries `#[Core\Deprecated]`, with
+    /// what its payload wrote — the whole graph's, for
+    /// [`exprs`](Self::exprs)' reason. A completion item is tagged from it, and
+    /// a hover shows the replacement from it
+    /// (`rule:attributes/a-deprecation-names-its-replacement-as-code`).
+    pub deprecated: Notices,
     /// Every diagnostic the front end reported, ungated: the lexer's, the
     /// parser's, `check_declarations`', name resolution's and the type
     /// phase's.
@@ -692,6 +699,7 @@ pub fn analyse_file(documents: &Documents, path: &Path, version: i32) -> Option<
 
     let mut interner = TypeInterner::new();
     let mut exprs = ExprTypeTable::new();
+    let deprecated;
     {
         // The type phase, continued into exactly the way `nvs-cli`'s
         // `front_end_granted` continues into it: `E0301` and every
@@ -716,6 +724,7 @@ pub fn analyse_file(documents: &Documents, path: &Path, version: i32) -> Option<
         // here lowers, so a case's constant value has no reader, while what
         // each expression resolved to is what a cursor request asks about.
         let _ = nvs_types::check_program(&files, &module, &mut interner, &mut exprs, &mut diags);
+        deprecated = nvs_types::deprecated::notices(&files);
     }
 
     Some(Analysed {
@@ -731,6 +740,7 @@ pub fn analyse_file(documents: &Documents, path: &Path, version: i32) -> Option<
         index,
         exprs,
         interner,
+        deprecated,
         diags,
         stubs: documents.stubs.clone(),
     })

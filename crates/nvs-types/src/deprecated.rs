@@ -82,13 +82,18 @@ impl Decl {
 
 /// One declaration a deprecation can sit on, named under the class,
 /// interface or enum that declares it. [`Member::Type`] is that declaration
-/// itself.
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub(crate) enum Member {
+/// itself. A property's and a parameter's name carry no `$` sigil.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub enum Member {
+    /// The class, interface or enum itself.
     Type,
+    /// A method, by name.
     Method(String),
+    /// A property, by name.
     Property(String),
+    /// A class constant, by name.
     Const(String),
+    /// An enum case, by name.
     Case(String),
     /// A method's parameter: the method's name, then the parameter's, with no
     /// `$` sigil.
@@ -139,6 +144,49 @@ impl Deprecation {
         }
         out
     }
+}
+
+/// The text one `#[Core\Deprecated]` wrote, for a tool that shows it: an
+/// editor's completion item and hover. A field that is not written, or not a
+/// string, is `None`.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Notice {
+    /// The version the declaration was deprecated in.
+    pub since: Option<String>,
+    /// Why, in the author's words.
+    pub note: Option<String>,
+    /// The template a use is rewritten to.
+    pub replace: Option<String>,
+    /// On a class, the template a `new` is rewritten to.
+    pub construct: Option<String>,
+}
+
+/// What [`notices`] returns: each deprecated declaration, keyed by the class,
+/// interface or enum that declares it and the member.
+pub type Notices = FxHashMap<(QName, Member), Notice>;
+
+/// Every declaration in `files` that carries `#[Core\Deprecated]`, keyed by the
+/// class, interface or enum that declares it and the member, with the text its
+/// payload wrote.
+///
+/// The same walk the checker makes before it checks a body, so an attribute
+/// name means here what it means to `W1003`. It reads attributes and nothing
+/// else, and the map is O(deprecated declarations in the program).
+#[must_use]
+pub fn notices(files: &[ProgramFile<'_>]) -> Notices {
+    build_table(files)
+        .sites
+        .into_iter()
+        .map(|(key, deprecation)| {
+            let notice = Notice {
+                since: deprecation.since,
+                note: deprecation.note,
+                replace: deprecation.replace,
+                construct: deprecation.construct,
+            };
+            (key, notice)
+        })
+        .collect()
 }
 
 impl Deprecations {

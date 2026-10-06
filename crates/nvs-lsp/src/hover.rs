@@ -111,6 +111,7 @@ use nvs_hir::{QName, SymbolKind};
 use nvs_stdlib::registry::{self, CoreMethod, MethodDoc};
 use nvs_syntax::ast::DocComment;
 use nvs_syntax::{DOC_MARKER, IndexNode};
+use nvs_types::deprecated::Member;
 use nvs_types::{ExprInfo, ResolvedCall, TypeInterner};
 
 use crate::card::{core_member_hover, core_type_hover, namespace_card};
@@ -329,13 +330,52 @@ fn enclosing_run(analysed: &Analysed, target: &Target<'_>) -> Option<String> {
     run(analysed, &Target::Type(Cow::Borrowed(class)))
 }
 
-/// The `///` run above the declaration `target` resolves to, as Markdown.
+/// The `///` run above the declaration `target` resolves to, as Markdown, with
+/// its [`deprecation`] above it. A deprecated declaration with no run answers
+/// with the deprecation alone.
 fn run(analysed: &Analysed, target: &Target<'_>) -> Option<String> {
     let declared = site(analysed, target)?;
-    Some(markdown(
-        analysed.map.file(declared.span.file).text(),
-        declared.doc?,
-    ))
+    let doc = declared
+        .doc
+        .map(|doc| markdown(analysed.map.file(declared.span.file).text(), doc));
+    match (deprecation(analysed, target), doc) {
+        (Some(notice), Some(doc)) => Some(format!("{notice}\n\n{doc}")),
+        (notice, doc) => notice.or(doc),
+    }
+}
+
+/// What `#[Core\Deprecated]` wrote on the declaration `target` resolves to,
+/// as Markdown: since when, the note, and the code to write instead
+/// (`rule:attributes/a-deprecation-names-its-replacement-as-code`). `None`
+/// when the declaration is not deprecated.
+///
+/// The replacement is the template as the declaration wrote it, with the
+/// parameters' names in it. The text filled in at one use is that use's
+/// `W1003`, so a hover on any use shows the same lines.
+fn deprecation(analysed: &Analysed, target: &Target<'_>) -> Option<String> {
+    let notice = |class: &QName, member: Member| analysed.deprecated.get(&(class.clone(), member));
+    let notice = match target {
+        Target::Type(class) => notice(class, Member::Type),
+        Target::Method(call) => notice(&call.class, Member::Method(call.method.clone())),
+        Target::Property { class, name } => notice(class, Member::Property((*name).to_owned())),
+        Target::Constant { class, name } => notice(class, Member::Const((*name).to_owned()))
+            .or_else(|| notice(class, Member::Case((*name).to_owned()))),
+        Target::TypeAlias { .. } => None,
+    }?;
+    let mut out = match &notice.since {
+        Some(since) => format!("**Deprecated** since {since}."),
+        None => "**Deprecated.**".to_owned(),
+    };
+    if let Some(note) = &notice.note {
+        let _ = write!(out, " {note}");
+    }
+    if let Some(replace) = &notice.replace {
+        let _ = write!(out, "\n\nWrite `{replace}` instead.");
+    }
+    if let Some(construct) = &notice.construct {
+        let _ = write!(out, "\n\nWrite `{construct}` instead of `new`.");
+    }
+    Some(out)
 }
 
 /// The type one recorded expression was checked at, as the code block a client

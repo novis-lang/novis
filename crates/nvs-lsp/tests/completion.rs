@@ -512,7 +512,11 @@ fn sources() -> Vec<Source> {
 /// `crate::arguments` reads them off `ResolvedCall::param_tys` and the
 /// checker's type interner, the types the checker recorded on the call it
 /// resolved.
-const SOURCED: [(&str, &str); 36] = [
+///
+/// The deprecation tag adds no item. It shapes a declared member's item from
+/// `Analysed::deprecated`, the walk the checker raises `W1003` from.
+const SOURCED: [(&str, &str); 37] = [
+    ("tagged", "analysed.deprecated"),
     ("named_type", "..item("),
     ("type_row", "..named_type("),
     ("method_row", "..item("),
