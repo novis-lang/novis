@@ -1,0 +1,24 @@
+--TEST--
+An extension result is tainted when an argument to the call was tainted, with no declaration in the manifest, so it cannot reach a sink — `rule:security/extension-contagion`
+--EXTENSION--
+ledger
+--FILE--
+<?nvs
+use Shop\Ledger;
+
+tainted string $input = "a line";
+
+// `echoString` returns its argument. A plain argument gives a plain result,
+// so `writeLine` accepts it.
+Ledger::writeLine(Ledger::echoString("a line"));
+
+// A tainted argument gives a tainted result. `writeLine` does not accept it.
+Ledger::writeLine(Ledger::echoString($input));
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `string`, found `tainted string`
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

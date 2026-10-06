@@ -1,0 +1,21 @@
+--TEST--
+A method the manifest declares a source returns a tainted result even with no argument, so it cannot reach a sink until it is escaped — `rule:security/extension-declares-sink-or-source`
+--EXTENSION--
+ledger
+--FILE--
+<?nvs
+use Shop\Ledger;
+
+// `fetch` returns a line from outside the program, so the result is tainted.
+tainted string $line = Ledger::fetch();
+
+// `writeLine` does not accept a tainted value.
+Ledger::writeLine($line);
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `string`, found `tainted string`
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.
