@@ -292,16 +292,15 @@ the fix was always the same command and the whole run again.
 **The docs gates are not in that list and `nv verify` runs none of them.** `bun nv rules --check`,
 `bun nv rules --render --check`, `bun nv links`, `bun nv layout --check`, `bun nv records --check`,
 `bun nv plan --check`, `bun nv chain --check`, `bun nv playbook --check` and `bun nv release --check`
-are CI's `docs` job — no Rust toolchain — and `bun nv session --wrap` runs **six families** of them
+are CI's `docs` job — no Rust toolchain — and `bun nv session --wrap` runs **five families** of them
 in-process, so a wrap cannot commit what it just broke: the link half and the live goal's `[context]`
 manifest always, the tests the goal's `cargo-named` checks name on a DONE claim, and then the rulebook
-(`bun nv rules`), the records (`bun nv records`) and the migration table (`bun nv migration`, which is
-CI's too) — each only when the
-session has edited the tree that feeds it, `docs/rules/`, `docs/decisions/` and `docs/spec/`. That
-trigger is the difference between the first three gates and the other three. A dead link is a per-file
-fact, so the link gate can ask HEAD which findings are inherited; a rulebook, record or migration finding
-is a property of the whole set, so the conservative equivalent is to ask whether this session touched
-that tree at all — including a rename, which is what makes a citation elsewhere go dead. The manifest
+(`bun nv rules`) and the records (`bun nv records`) — each only when the session has edited the tree
+that feeds it, `docs/rules/` or `docs/decisions/`. That trigger is the difference between the first
+three gates and the other two. A dead link is a per-file fact, so the link gate can ask HEAD which
+findings are inherited; a rulebook or record finding is a property of the whole set, so the
+conservative equivalent is to ask whether this session touched that tree at all — including a rename,
+which is what makes a citation elsewhere go dead. The manifest
 gate is the reading `bun nv chain --check` gives the driver's floor — a `playbook` selector that reaches no
 bullet, a `shapes` heading that is not there — taken before the commit rather than after the session is
 gone, because that floor check halting a DONE claim is a hand the run waits for; a wrap that retires a
@@ -312,9 +311,9 @@ run — so a test written under a near miss of the toml's name is green for the 
 once, in the sweep that confirms the DONE claim. The wrap refuses a DONE whose named tests are not
 `fn`s in the tree, with the same reading `bun nv playbook`'s `[until: test]` trailer uses.
 
-**`docs/novis.md` is the fifth thing a wrap settles, and it is a write rather than a gate.** The
-reference is generated from the binary, the chapters under `docs/reference/` and the migration table's
-rows, so a step-4 edit to any of those leaves it stale *and clean* after step 3 verified it — which the
+**`docs/novis.md` is one more thing a wrap settles, and it is a write rather than a gate.** The
+reference is generated from the binary and the chapters under `docs/reference/`, so a step-4 edit to
+either leaves it stale *and clean* after step 3 verified it — which the
 driver's acceptance sweep then reports against a session that is already gone. The wrap regenerates it
 in a quarter of a second and the last `## commit:` carries it. A tree with no debug binary cannot answer
 the question, and the wrap refuses there rather than committing a guess.

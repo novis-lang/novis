@@ -49,8 +49,7 @@ something new — what is currently true is the rule's fragment under `docs/rule
 
 **2. A section number is a public identifier too — never renumber one.** `0007 § 3`, `0066 § 3a` and
 `0009 § 1` are cited from doc comments in `crates/`, from `docs/spec/01-core-library.md` — which is
-live, read at test time by `crates/nvs-stdlib/tests/spec_registry_coverage.rs` and by
-`bun nv migration` — and from the `context` manifest in the live goal's record that the running loop
+live, read at test time by `crates/nvs-stdlib/tests/spec_registry_coverage.rs` — and from the `context` manifest in the live goal's record that the running loop
 reads. Deleting `### 3.` and promoting `### 4.` silently repoints every one of them.
 Insert as `§ 3a`; delete a section's *content* and keep its number. `bun nv records`' **section refs** check
 catches the citations that are already wrong, not the ones a renumber would create.
