@@ -11,8 +11,7 @@
     "rules": [
       "programs/memory-priority",
       "programs/no-compatibility-promise",
-      "php-migration/every-divergence-is-deliberate-and-listed",
-      "tooling/convert-one-table-two-modes"
+      "php-migration/every-divergence-is-deliberate-and-listed"
     ],
     "adrs": [
       "0004",
@@ -99,7 +98,6 @@
       "context": {
         "modules": [],
         "rules": [
-          "tooling/convert-one-table-two-modes",
           "tooling/fmt-never-inserts-visibility"
         ],
         "adrs": [

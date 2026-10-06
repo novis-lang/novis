@@ -11,8 +11,7 @@
     "php-migration/the-php-name-layer-is-joined-at-build-time",
     "statements/nothing-gets-a-second-name",
     "programs/audience",
-    "ide/three-of-four-item-shapes-insert-nothing",
-    "tooling/convert-one-table-two-modes"
+    "ide/three-of-four-item-shapes-insert-nothing"
   ],
   "guardedBy": []
 }

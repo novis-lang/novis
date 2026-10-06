@@ -14,8 +14,6 @@
     "php-migration/let-and-is-are-reserved",
     "php-migration/one-type-test",
     "php-migration/a-deprecation-is-a-refusal",
-    "php-migration/a-trait-converts-to-an-interface-or-a-delegate",
-    "php-migration/a-shell-call-converts-to-process-under-review",
     "php-migration/a-session-id-the-store-did-not-issue-is-rejected",
     "php-migration/the-php-name-layer-is-joined-at-build-time",
     "php-migration/every-php-builtin-is-a-completion-candidate",

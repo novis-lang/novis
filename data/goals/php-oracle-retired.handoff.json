@@ -1,29 +1,28 @@
 {
-  "state": "**Goal `php-oracle-retired`: Stage 4 is complete on disk; Stage 5 (no mechanical migration is planned) is next and is the driver's earliest red check.** ADR 0274 (`docs/decisions/0274.md`) is the goal's record.\n\n`--ORACLE--`, `--ORACLE-DIVERGES--` and `--INI--` are unknown sections in `crates/nvs-test`; `nvs test --php` is an unknown flag; `tests/differential/` is deleted and no `nv` tool reads it. The `.nvst` grammar embeds no PHP. The playbook carries no oracle or differential trap: the bullets whose whole trap was one are deleted, and the rest are rewritten whole. `git grep -i -e oracle -e differential -e DIVERGES -- data/playbook` still lists four records on purpose: `divergences/a-refusal-of-a-shape-…` (names `divergesFromPhp` and `docs/divergences.md`, Stage 8's; its `[until: gone tools/nv/cmd/rules.ts:divergences.md]` retires it), `tooling/a-loop-goal-toml-check-name-…` (\"oracle\" means an RFC test vector set) and two that use \"diverges\" as a plain verb. `docs/setup.md` names PHP only as an optional dependency of the PHP benchmarks.",
+  "state": "**Goal `php-oracle-retired`: Stage 5 (no mechanical migration is planned), file set 1 is complete and file set 2 is half done.** ADR 0274 (`docs/decisions/0274.md`) is the goal's record.\n\nOn disk: `docs/plan/m11.md` and `data/plan/milestones/M11.json` are deleted, and the plan index, `README.md`, `docs/plan/m4.md`, `m4s.md`, `velocity.md` and `docs/future-ideas.md` name no M11 and no `nvs convert`. `tools/nv/test/plan.test.ts` uses M15 as its backlog fixture. The backlog places stay 4, 5 and 6 (no check needs them contiguous). The eight `tooling/convert-*` rules and `php-migration/a-trait-converts-…` and `a-shell-call-converts-…` are deleted with their topic-list and `seeAlso` entries; frozen records lost the front-matter lines and the `rule:` prefix of their citations; `tooling/fmt-never-inserts-visibility` is rewritten without the converter. `bun nv rules --check`, `rules --render --check`, `records --check` and `plan --check` pass. The goal record's `[context] rules` no longer names a deleted rule.\n\nStill red in Stage 5: `no-live-text-plans-a-converter` — the live sentences below.",
   "next": {
     "stage": 5,
-    "title": "no mechanical migration is planned, file set 1 (the plan)",
+    "title": "no mechanical migration is planned, file set 2 (the rules and the pages)",
     "files": [],
-    "note": "one file set: the milestone M11 record and plan file, the plan index, the root README and the `nv plan` test that quotes the M11 row. Goal prose § *Stage 5*, item 1.",
+    "note": "one file set: the rule fragments that still name `nvs convert`, then the pages and comments. Goal prose § *Stage 5*, item 2. `git grep -n -w -e \"nvs convert\" -e M11` lists them; frozen records are excluded by the check.",
     "items": [
       {
         "done": false,
-        "text": "**M11's plan file and record are deleted** — `docs/plan/m11.md:1`, `data/plan/milestones/M11.json:1`; then check what `bun nv plan` reads per milestone before deleting, since the index row is generated or checked against the record."
+        "text": "**Rule fragments say what is true without a converter** — `docs/rules/programs/no-compatibility-promise.md:4` and `:17` (`rule:programs/no-compatibility-promise`), `docs/rules/core-api/removals.md:20`, `docs/rules/core-api/subject-first.md:8`, `docs/rules/iteration/no-magic-collection-interfaces.md:11`, and the `php-migration/` fragments `docs/rules/php-migration/a-constructor-return-carries-no-value.md:7`, `docs/rules/php-migration/a-deprecation-is-a-refusal.md:21`, `docs/rules/php-migration/a-readonly-property-declares-no-default.md:10`, `docs/rules/php-migration/no-partial-application.md:7`, `docs/rules/php-migration/no-return-leaves-a-finally.md:11`, `docs/rules/php-migration/one-type-test.md:19`; then `bun nv rules --render`."
       },
       {
         "done": false,
-        "text": "**The plan index and the README name no M11** — `docs/implementation-plan.md:103` (the `backlog 3` row), the root README's milestone table (its line 64), and the fixture row in `tools/nv/test/plan.test.ts:10` (a test of the row parser, so it takes another milestone id rather than being deleted)."
+        "text": "**Docs and pages** — `docs/spec/00-overview.md:47`, `docs/reference/findings.md:392`, `docs/reference/tools/10-cli.md:38`, `website/src/content/docs/in-depth/roadmap.mdx:27` (§ *Text an end user reads*), and `docs/novis.md:26733` if it is generated from the reference."
       },
       {
         "done": false,
-        "text": "**The `tooling/convert-*` rules are deleted** — `docs/rules/tooling/convert-one-table-two-modes.md:1` and its seven `convert-*` siblings, with their records under `data/rules/tooling/`; a `rule:` citation of a deleted rule loses the `rule:` prefix (standing decisions). `rule:programs/no-compatibility-promise` names `nvs convert` and is rewritten in the same slice."
+        "text": "**Source and test comments** — `crates/nvs-diagnostics/src/diagnostic.rs:112`, `crates/nvs-lsp/src/actions.rs:44`, `crates/nvs-stdlib/src/bigint.rs:45`, `crates/nvs-syntax/src/parser/expr.rs:815`, `crates/nvs-types/src/expr/operators.rs:1365`, `crates/nvs-stdlib/tests/spec_registry_coverage.rs:1890`, `tests/conformance/reject/every-magic-method-name-this-adr-closes-is-unspellable.nvst:14`, and the three files under `crates/nvs-test/src/` that name M11 or the importer."
       }
     ]
   },
   "backlog": [
-    "`docs/plan/m4b.md` still quotes the old title of `rule:ide/case-files-have-their-own-grammar` (a live milestone file; Stage 5 rewrites the plan files).",
-    "`docs/reference/tools/10-cli.md:5` keywords still list `php -l`, `php -r`, `phpunit` — Stage 9 item 5.",
-    "`tools/nv/lib/chain.ts:119,147-150` (named by the goal prose) was not touched: nothing there reads the tree (*not checked* beyond a grep).",
-    "`bun nv chain --check` reports three places naming walked goals (`docs/perf/performance-pass.md:3`, `docs/perf/performance-review.md:3`, `docs/plan/m10.md:166`); not this goal's, and present before this session."
+    "`data/spec/php-migration.json` and `docs/spec/02-php-migration.md` still name `nvs convert`; Stage 6 deletes both, so the grep check may need them gone first (goal prose § *Stage 6*).",
+    "`docs/divergences.md` rows for the converter are gone with the rules; the file itself is Stage 8's.",
+    "`docs/plan/design.md` keeps M11; it is frozen."
   ]
 }

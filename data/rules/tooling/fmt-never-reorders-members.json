@@ -10,8 +10,7 @@
     "core-classes/derive-field-list",
     "testing/bench-counters",
     "core-api/written-visibility",
-    "classes/comparable",
-    "tooling/convert-one-table-two-modes"
+    "classes/comparable"
   ],
   "guardedBy": [
     "crates/nvs-fmt/tests/never_rewrites_a_declaration.rs"

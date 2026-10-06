@@ -10,7 +10,6 @@
     "classes/reserved-spellings-are-lower-case",
     "core-api/casing-checks-the-leading-character",
     "tooling/fmt-is-never-a-diagnostic",
-    "tooling/convert-one-table-two-modes",
     "ide/every-feature-is-staged-behind-its-dependency"
   ],
   "guardedBy": [

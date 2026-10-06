@@ -10,7 +10,6 @@
     "tooling/fmt-is-one-canonical-style",
     "core-api/identifier-casing",
     "security/secret-qualifier",
-    "tooling/convert-one-table-two-modes",
     "ide/every-feature-is-staged-behind-its-dependency",
     "ide/one-server-two-thin-clients"
   ],

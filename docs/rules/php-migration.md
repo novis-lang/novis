@@ -3,7 +3,7 @@
 
 # Migrating from PHP
 
-*13 of 20 rules below are **designed** rather than shipped, and are marked where they appear.*
+*11 of 18 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="php-migration-every-divergence-is-deliberate-and-listed"></a>
 
@@ -337,59 +337,6 @@ surface Novis never shipped. Three of the four refusals rewrite mechanically und
 
 <sub>See also [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`expressions/no-keyword-logical-operators`](expressions.md#expressions-no-keyword-logical-operators), [`expressions/bracket-destructuring`](expressions.md#expressions-bracket-destructuring), [`php-migration/no-return-leaves-a-finally`](php-migration.md#php-migration-no-return-leaves-a-finally), [`php-migration/a-constructor-return-carries-no-value`](php-migration.md#php-migration-a-constructor-return-carries-no-value), [`php-migration/let-and-is-are-reserved`](php-migration.md#php-migration-let-and-is-are-reserved), [`php-migration/a-readonly-property-declares-no-default`](php-migration.md#php-migration-a-readonly-property-declares-no-default), [`php-migration/no-partial-application`](php-migration.md#php-migration-no-partial-application), [`php-migration/a-session-id-the-store-did-not-issue-is-rejected`](php-migration.md#php-migration-a-session-id-the-store-did-not-issue-is-rejected), [`types/duration`](types.md#types-duration). Decided in [0124](../decisions/0124.md).</sub>
 
-<a id="php-migration-a-trait-converts-to-an-interface-or-a-delegate"></a>
-
-## `nvs convert` turns a stateless trait into an interface with defaults and a stateful one into a delegate, and names what it cannot decide  *(designed — not yet in the compiler)*
-
-`rule:php-migration/a-trait-converts-to-an-interface-or-a-delegate`
-
-Every PHP trait shape maps to one of five outcomes. Two are mechanical, one is mechanical but
-flagged, and two need a human decision, named rather than silently attempted.
-
-1. **Stateless trait** (methods only). `trait T` becomes `interface T` verbatim — a method with a
-   body becomes a default ([`classes/interface-default-methods`](classes.md#classes-interface-default-methods)), an `abstract` method a plain
-   interface method — and every `use T;` becomes `implements T`. A `$this->helper()` call in the
-   trait body that targets a method not on its abstract list is added to the interface as an
-   abstract method, making the trait's implicit contract explicit; still mechanical, since every
-   `$this->` call site is known at the syntax level.
-2. **Stateful trait** (declares a property). An extracted interface carrying the trait's public
-   signatures, plus a generated `{Trait}Impl` class owning the property and the original bodies
-   verbatim; `use Timestamps;` becomes `implements Timestamped by $timestamps`
-   ([`classes/delegation-by-field`](classes.md#classes-delegation-by-field)) with a field and a constructor assignment, merged into an
-   existing constructor. Mechanical, but it reshapes the surrounding code enough to be flagged for
-   review.
-3. **`insteadof`**, either shape, becomes an explicit override calling the winner by name:
-   `A::hello()` in the stateless case, `$this->a->hello()` in the delegated one.
-4. **A trait `static` property** has no destination — it is the ambient, silently duplicated state
-   [`statements/static-is-a-member-modifier`](statements.md#statements-static-is-a-member-modifier) forbids — so a `TODO` names it, and a human chooses
-   one owning class or delegated instance state.
-5. **A trait method calling an unrelated method of its consuming class** has no mechanical
-   translation once the trait is an independent object: the `Impl` holds no reference back. A `TODO`
-   names the call site, and the human passes whatever callback or interface the tracker needs into
-   its constructor.
-
-<sub>See also [`classes/no-traits`](classes.md#classes-no-traits), [`classes/interface-default-methods`](classes.md#classes-interface-default-methods), [`classes/delegation-by-field`](classes.md#classes-delegation-by-field), [`classes/member-conflict-is-an-error`](classes.md#classes-member-conflict-is-an-error), [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name), [`statements/static-is-a-member-modifier`](statements.md#statements-static-is-a-member-modifier). Decided in [0043](../decisions/0043.md).</sub>
-
-<a id="php-migration-a-shell-call-converts-to-process-under-review"></a>
-
-## `nvs convert` maps every PHP shell-execution call to `Core\Process` and flags each site, because a command string has no argv split  *(designed — not yet in the compiler)*
-
-`rule:php-migration/a-shell-call-converts-to-process-under-review`
-
-`exec($cmd)`, `system($cmd)`, `` `cmd` `` and `shell_exec($cmd)` map to `Core\Process::run($path,
-$argv)` ([`core-classes/process-run`](core-classes.md#core-classes-process-run)). `passthru($cmd)` maps to `Core\Process::spawn($path,
-$argv)` streaming `readStdout()` to the response, and `proc_open($cmd, $descriptors, $pipes)` to
-`spawn` plus the handle's read, write, wait and kill ([`core-classes/process-spawn`](core-classes.md#core-classes-process-spawn)); PHP's
-descriptor-spec array has no one-to-one structural match.
-
-Every one of these sites is flagged for human review rather than rewritten. A shell command string
-has no mechanical argv split — quoting, globbing, `&&` and `|` are shell semantics with no argv
-equivalent — and its meaning depends on a shell grammar `nvs convert` does not interpret and Novis
-never will ([`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only)). A human supplies the real executable path and
-the argv; the converter supplies the call shape and the pointer.
-
-<sub>See also [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only), [`core-classes/process-run`](core-classes.md#core-classes-process-run), [`core-classes/process-spawn`](core-classes.md#core-classes-process-spawn), [`core-classes/process-refuses-a-shell-target`](core-classes.md#core-classes-process-refuses-a-shell-target), [`security/process-exec-capability`](security.md#security-process-exec-capability). Decided in [0044](../decisions/0044.md).</sub>
-
 <a id="php-migration-a-session-id-the-store-did-not-issue-is-rejected"></a>
 
 ## A session id the store did not issue is rejected, always, with no toggle  *(designed — not yet in the compiler)*
@@ -434,7 +381,7 @@ that neither translation table is copied into the other binds this reader the sa
 editor owned would drift, and the drift would surface as the editor and the converter disagreeing
 about one name.
 
-<sub>See also [`php-migration/every-php-builtin-is-a-completion-candidate`](php-migration.md#php-migration-every-php-builtin-is-a-completion-candidate), [`php-migration/an-item-inserts-only-a-registered-member`](php-migration.md#php-migration-an-item-inserts-only-a-registered-member), [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients), [`tooling/convert-one-table-two-modes`](tooling.md#tooling-convert-one-table-two-modes). Decided in [0111](../decisions/0111.md), [0089](../decisions/0089.md).</sub>
+<sub>See also [`php-migration/every-php-builtin-is-a-completion-candidate`](php-migration.md#php-migration-every-php-builtin-is-a-completion-candidate), [`php-migration/an-item-inserts-only-a-registered-member`](php-migration.md#php-migration-an-item-inserts-only-a-registered-member), [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients). Decided in [0111](../decisions/0111.md), [0089](../decisions/0089.md).</sub>
 
 <a id="php-migration-every-php-builtin-is-a-completion-candidate"></a>
 
@@ -459,7 +406,7 @@ The PHP spelling never reaches a file. A PHP name that resolved at runtime would
 its output is the Novis spelling, bounded by
 [`php-migration/an-item-inserts-only-a-registered-member`](php-migration.md#php-migration-an-item-inserts-only-a-registered-member).
 
-<sub>See also [`php-migration/an-item-inserts-only-a-registered-member`](php-migration.md#php-migration-an-item-inserts-only-a-registered-member), [`php-migration/the-php-name-layer-is-joined-at-build-time`](php-migration.md#php-migration-the-php-name-layer-is-joined-at-build-time), [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name), [`programs/audience`](programs.md#programs-audience), [`ide/three-of-four-item-shapes-insert-nothing`](ide.md#ide-three-of-four-item-shapes-insert-nothing), [`tooling/convert-one-table-two-modes`](tooling.md#tooling-convert-one-table-two-modes). Decided in [0111](../decisions/0111.md), [0089](../decisions/0089.md).</sub>
+<sub>See also [`php-migration/an-item-inserts-only-a-registered-member`](php-migration.md#php-migration-an-item-inserts-only-a-registered-member), [`php-migration/the-php-name-layer-is-joined-at-build-time`](php-migration.md#php-migration-the-php-name-layer-is-joined-at-build-time), [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name), [`programs/audience`](programs.md#programs-audience), [`ide/three-of-four-item-shapes-insert-nothing`](ide.md#ide-three-of-four-item-shapes-insert-nothing). Decided in [0111](../decisions/0111.md), [0089](../decisions/0089.md).</sub>
 
 <a id="php-migration-an-item-inserts-only-a-registered-member"></a>
 

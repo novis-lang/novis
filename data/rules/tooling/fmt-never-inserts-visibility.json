@@ -1,16 +1,14 @@
 {
-  "title": "`nvs fmt` never inserts a visibility keyword; `nvs convert` inserts `public` as an E-tier rewrite",
+  "title": "`nvs fmt` never inserts a visibility keyword",
   "status": "shipped",
   "because": [
     "0094",
     "0089",
     "0039"
   ],
-  "divergesFromPhp": "php-cs-fixer's `visibility_required` fixer writes the missing `public`; the formatter here never changes meaning, and the insertion happens only in `nvs convert`",
+  "divergesFromPhp": "php-cs-fixer's `visibility_required` fixer writes the missing `public`; the formatter here never changes meaning",
   "seeAlso": [
     "core-api/written-visibility",
-    "tooling/convert-one-table-two-modes",
-    "tooling/convert-equivalent-is-proven",
     "tooling/fmt-base-style-is-per"
   ],
   "guardedBy": [

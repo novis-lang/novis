@@ -9,7 +9,6 @@
   "seeAlso": [
     "ide/completion-offers-only-what-the-compiler-derived",
     "statements/nothing-gets-a-second-name",
-    "tooling/convert-one-table-two-modes",
     "php-migration/every-php-builtin-is-a-completion-candidate",
     "php-migration/an-item-inserts-only-a-registered-member",
     "php-migration/completion-php-names-setting"

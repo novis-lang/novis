@@ -33,7 +33,7 @@ the inventory as a completion candidate, and shows this cell to whoever reaches 
 **This table is read by a machine, so the Novis cell has one shape that is mechanical and one that is not.**
 A cell that is exactly one `Core` member spelling is the rename `nvs convert` applies; anything else — a
 cell naming two members, a rewrite, or a reason — is prose the converter may not guess at, and must carry
-that rule's id from `rule:tooling/convert-three-tables`. Neither the
+that rule's id from `tooling/convert-three-tables`. Neither the
 name table nor the rule table is copied into the other.
 
 **Two machines read these rows, and one row may mean different things to them.** `nvs-lsp` reads the same

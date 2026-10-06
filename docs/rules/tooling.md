@@ -3,7 +3,7 @@
 
 # Tooling
 
-*22 of 70 rules below are **designed** rather than shipped, and are marked where they appear.*
+*14 of 62 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="tooling-shebang-opens-code-mode"></a>
 
@@ -911,29 +911,21 @@ single-file walk — that rename is an editor's workspace-wide code action. A du
 can be nothing else, which is why they and only they are here. Normalizing PHP's case-insensitive
 reserved words is the converter's job, where the input is known to be PHP.
 
-<sub>See also [`types/duration`](types.md#types-duration), [`classes/reserved-spellings-are-lower-case`](classes.md#classes-reserved-spellings-are-lower-case), [`core-api/casing-checks-the-leading-character`](core-api.md#core-api-casing-checks-the-leading-character), [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic), [`tooling/convert-one-table-two-modes`](tooling.md#tooling-convert-one-table-two-modes), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency). Decided in [0039](../decisions/0039.md).</sub>
+<sub>See also [`types/duration`](types.md#types-duration), [`classes/reserved-spellings-are-lower-case`](classes.md#classes-reserved-spellings-are-lower-case), [`core-api/casing-checks-the-leading-character`](core-api.md#core-api-casing-checks-the-leading-character), [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency). Decided in [0039](../decisions/0039.md).</sub>
 
 <a id="tooling-fmt-never-inserts-visibility"></a>
 
-## `nvs fmt` never inserts a visibility keyword; `nvs convert` inserts `public` as an E-tier rewrite
+## `nvs fmt` never inserts a visibility keyword
 
 `rule:tooling/fmt-never-inserts-visibility`
 
-[`core-api/written-visibility`](core-api.md#core-api-written-visibility) makes an omitted visibility keyword a compile error. Two tools
-meet that error, and they answer it in opposite ways.
+[`core-api/written-visibility`](core-api.md#core-api-written-visibility) makes an omitted visibility keyword a compile error, and `nvs fmt`
+never inserts the keyword. The formatter orders modifiers and does not supply a missing one. A
+formatter that inserted `public` would make a file's *meaning* depend on whether a tool had been run
+over it, and would restore an implicit default for anyone who formats on save. A file that does not
+compile still does not compile after `nvs fmt`, and its author writes the level they mean.
 
-**`nvs fmt` never inserts the keyword.** The formatter orders modifiers and does not supply a missing
-one. A formatter that inserted `public` would make a file's *meaning* depend on whether a tool had
-been run over it, and would restore PHP's implicit default through the back door for anyone who
-formats on save. A file that does not compile still does not compile after `nvs fmt`.
-
-**`nvs convert` does insert it**, as an **E-tier** row of its rule table
-([`tooling/convert-one-table-two-modes`](tooling.md#tooling-convert-one-table-two-modes)): PHP's omission provably means `public`, so writing the
-word is a behaviour-identical rewrite, discharged by a differential case like any other E branch
-([`tooling/convert-equivalent-is-proven`](tooling.md#tooling-convert-equivalent-is-proven)). Porting a PHP file therefore costs the author nothing
-here, and the ported member reports the level PHP actually gave it.
-
-<sub>See also [`core-api/written-visibility`](core-api.md#core-api-written-visibility), [`tooling/convert-one-table-two-modes`](tooling.md#tooling-convert-one-table-two-modes), [`tooling/convert-equivalent-is-proven`](tooling.md#tooling-convert-equivalent-is-proven), [`tooling/fmt-base-style-is-per`](tooling.md#tooling-fmt-base-style-is-per). Decided in [0094](../decisions/0094.md), [0089](../decisions/0089.md), [0039](../decisions/0039.md).</sub>
+<sub>See also [`core-api/written-visibility`](core-api.md#core-api-written-visibility), [`tooling/fmt-base-style-is-per`](tooling.md#tooling-fmt-base-style-is-per). Decided in [0094](../decisions/0094.md), [0089](../decisions/0089.md), [0039](../decisions/0039.md).</sub>
 
 <a id="tooling-fmt-never-reorders-members"></a>
 
@@ -955,7 +947,7 @@ PHP tool's. A developer who wants the reordering can have it as a deliberate, di
 is never something a formatter does on save. The `use` block ([`tooling/fmt-sorts-the-use-block`](tooling.md#tooling-fmt-sorts-the-use-block)) is
 the only reordering anywhere.
 
-<sub>See also [`tooling/fmt-sorts-the-use-block`](tooling.md#tooling-fmt-sorts-the-use-block), [`core-classes/derive-field-list`](core-classes.md#core-classes-derive-field-list), [`testing/bench-counters`](testing.md#testing-bench-counters), [`core-api/written-visibility`](core-api.md#core-api-written-visibility), [`classes/comparable`](classes.md#classes-comparable), [`tooling/convert-one-table-two-modes`](tooling.md#tooling-convert-one-table-two-modes). Decided in [0039](../decisions/0039.md).</sub>
+<sub>See also [`tooling/fmt-sorts-the-use-block`](tooling.md#tooling-fmt-sorts-the-use-block), [`core-classes/derive-field-list`](core-classes.md#core-classes-derive-field-list), [`testing/bench-counters`](testing.md#testing-bench-counters), [`core-api/written-visibility`](core-api.md#core-api-written-visibility), [`classes/comparable`](classes.md#classes-comparable). Decided in [0039](../decisions/0039.md).</sub>
 
 <a id="tooling-fmt-is-idempotent"></a>
 
@@ -1005,7 +997,7 @@ never has to tell "laid out differently" from "semantically wrong". A separate `
 declined for the same reason — a third rule table beside the formatter's and the converter's, which no one
 has asked for.
 
-<sub>See also [`tooling/fmt-check-writes-nothing`](tooling.md#tooling-fmt-check-writes-nothing), [`tooling/fmt-is-one-canonical-style`](tooling.md#tooling-fmt-is-one-canonical-style), [`core-api/identifier-casing`](core-api.md#core-api-identifier-casing), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`tooling/convert-one-table-two-modes`](tooling.md#tooling-convert-one-table-two-modes), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency), [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients). Decided in [0039](../decisions/0039.md).</sub>
+<sub>See also [`tooling/fmt-check-writes-nothing`](tooling.md#tooling-fmt-check-writes-nothing), [`tooling/fmt-is-one-canonical-style`](tooling.md#tooling-fmt-is-one-canonical-style), [`core-api/identifier-casing`](core-api.md#core-api-identifier-casing), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency), [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients). Decided in [0039](../decisions/0039.md).</sub>
 
 <a id="tooling-fmt-check-writes-nothing"></a>
 
@@ -1474,243 +1466,6 @@ decides nothing and reopens nothing, and none of them can disagree with the lang
 them says anything about it.
 
 <sub>See also [`tooling/an-agent-asks-the-binary`](tooling.md#tooling-an-agent-asks-the-binary), [`tooling/a-primer-claim-is-executed`](tooling.md#tooling-a-primer-claim-is-executed), [`ide/the-extension-guides-an-install-and-never-bundles-one`](ide.md#ide-the-extension-guides-an-install-and-never-bundles-one). Decided in [0167](../decisions/0167.md), [0256](../decisions/0256.md), [0260](../decisions/0260.md).</sub>
-
-<a id="tooling-convert-php-front-end"></a>
-
-## The PHP front end is `php-rs-parser`, pinned, reached only through `nvs_convert::php`, and never linked into the server  *(designed — not yet in the compiler)*
-
-`rule:tooling/convert-php-front-end`
-
-The converter needs an AST for **PHP 7.4 through 8.6**, extendable. 8.0 is the hard requirement and
-7.4 came free with the parser chosen; a dialect below 7.4 is **refused, not guessed at** — the file
-becomes [`tooling/convert-drops-nothing`](tooling.md#tooling-convert-drops-nothing)'s commented-out file, and the report names the version
-it was tried under. Extending the range is a row: a new dialect value plus a branch on any rule whose
-behaviour it changed.
-
-The front end is **`php-rs-parser`** (with `php-ast`, `php-lexer` and `phpdoc-parser`), BSD-3-Clause
-and pure Rust, **pinned to an exact version** and upgraded deliberately. It was chosen over
-`mago-syntax` by measurement: it names the constructs PHP 8.0 removed, rejects a type PHP itself
-rejects, carries a version knob, states a semantic-rejection contract — at least one diagnostic iff
-`php -l` would reject the input at the configured version — and returns an owned tree with comments
-in source order and doc-blocks attached to their declaration.
-
-Three bounds hold the dependency in place. **The passes see only `nvs_convert::php`** — our own
-facade over node kinds, spans and comments, written before any pass and the only module allowed to
-name the parser crate — so replacing it is one module, not a rewrite. **The parser is behind a Cargo
-feature and is never linked into the server binary**: a PHP front end has no business on a machine
-serving requests. **No PHP binary is required to convert.** PHP is the differential oracle that
-proves an E rule ([`tooling/convert-equivalent-is-proven`](tooling.md#tooling-convert-equivalent-is-proven)), a development-side dependency; an
-installed PHP at convert time would make output depend on which build the user has, breaking
-[`tooling/convert-is-deterministic`](tooling.md#tooling-convert-is-deterministic). The parser is not vendored: owning it would mean owning
-every future PHP release.
-
-<sub>See also [`tooling/convert-is-deterministic`](tooling.md#tooling-convert-is-deterministic), [`tooling/convert-drops-nothing`](tooling.md#tooling-convert-drops-nothing), [`tooling/convert-equivalent-is-proven`](tooling.md#tooling-convert-equivalent-is-proven), [`core-api/tier-placement`](core-api.md#core-api-tier-placement), [`packaging/a-dependency-break-is-absorbed-never-forwarded`](packaging.md#packaging-a-dependency-break-is-absorbed-never-forwarded), [`packaging/a-c-dependency-answers-two-questions`](packaging.md#packaging-a-c-dependency-answers-two-questions). Decided in [0089](../decisions/0089.md), [0068](../decisions/0068.md), [0051](../decisions/0051.md), [0065](../decisions/0065.md).</sub>
-
-<a id="tooling-convert-one-table-two-modes"></a>
-
-## `nvs convert` is one rule table read through two modes, and every branch carries a tier  *(designed — not yet in the compiler)*
-
-`rule:tooling/convert-one-table-two-modes`
-
-Every rewrite `nvs convert` knows is a **rule** in one table, and every branch of a rule carries
-exactly one tier. **E** — the converted construct behaves identically to the PHP one for every input
-the converted program's type checker accepts. **D** — a mechanical Novis destination exists but the
-behaviour may differ. **N** — no mechanical destination exists. The two modes are that tier read
-through a filter, never a second code path:
-
-| Tier | `--mode=equivalent` (default) | `--mode=runnable` |
-|---|---|---|
-| E | emitted as code | emitted as code |
-| D | original commented out, the idiomatic Novis shape beside it | emitted as code with `TODO(convert:<id>)` naming the difference |
-| N | original commented out, the idiomatic shape beside it | the same |
-
-So `--mode=equivalent` output is a worklist that **will not run**, and its header says so.
-`--mode=runnable` output usually runs, is explicitly not idiomatic Novis, and every site where it may
-diverge is one `grep` away ([`tooling/convert-annotations-and-report`](tooling.md#tooling-convert-annotations-and-report)).
-
-A rule has **ordered branches**, and a branch's tier may be predicated on a side condition the
-converter decides by its own analysis. A condition it cannot decide is **false**: control falls to the
-next branch and the weaker tier applies — fail-closed, the same direction as
-[`security/sink-predicate`](security.md#security-sink-predicate). A rule record is data with exactly these fields: `id` (a domain
-letter plus four digits, never reused), `match`, `when`, `tier`, `rewrite`, `diverges` (one
-sentence — the `TODO` text), `idiomatic` (what Novis wants instead — the comment the default mode
-leaves), `dialect` and `proof`. `diverges` says what will break; `idiomatic` says what to write.
-
-<sub>See also [`tooling/convert-equivalent-is-proven`](tooling.md#tooling-convert-equivalent-is-proven), [`tooling/convert-annotations-and-report`](tooling.md#tooling-convert-annotations-and-report), [`tooling/convert-three-tables`](tooling.md#tooling-convert-three-tables), [`programs/no-compatibility-promise`](programs.md#programs-no-compatibility-promise), [`security/sink-predicate`](security.md#security-sink-predicate). Decided in [0089](../decisions/0089.md), [0088](../decisions/0088.md).</sub>
-
-<a id="tooling-convert-three-tables"></a>
-
-## Names, constructs and semantic deltas each have one home, and the converter copies none of them  *(designed — not yet in the compiler)*
-
-`rule:tooling/convert-three-tables`
-
-Three tables, three homes, no fourth copy.
-
-1. **Names → `docs/spec/02-php-migration.md`**, one row per PHP built-in, already CI-checked by
-   `bun nv migration`. The converter's name mapping is *generated* from it: a row whose Novis
-   cell is exactly one `Core` member spelling is machine-read as a mechanical rename; any other cell
-   must carry a rule id, because prose like "`Core\Str::format` into `$file->write`" is a rewrite,
-   not a rename. A `dropped` row with neither is a checker error once the converter exists.
-2. **Constructs → `crates/nvs-convert/rules/*.toml`**, one file per PHP domain, one record per rule
-   ([`tooling/convert-one-table-two-modes`](tooling.md#tooling-convert-one-table-two-modes)'s field list). It is data, not code, so a rule can be
-   reviewed by someone who does not read Rust; the browsable copy under `docs/spec/` is generated and
-   CI-checked identical, never hand-edited — the discipline [`testing/attribution-is-diffed-in-ci`](testing.md#testing-attribution-is-diffed-in-ci)
-   applies to notices.
-3. **Semantic deltas → the decision that created each one.** A rule's `when` predicates are drawn
-   from a **closed vocabulary** — the inferred type of an operand, its qualifier, a literal's shape,
-   the dialect, whether a name resolves — and its `diverges` sentence cites the record by number
-   rather than restating its reasoning.
-
-The table grows for years. That is the accepted price, and it is why the growth is one data row
-rather than one branch in a match.
-
-<sub>See also [`tooling/convert-one-table-two-modes`](tooling.md#tooling-convert-one-table-two-modes), [`tooling/convert-equivalent-is-proven`](tooling.md#tooling-convert-equivalent-is-proven), [`testing/attribution-is-diffed-in-ci`](testing.md#testing-attribution-is-diffed-in-ci). Decided in [0089](../decisions/0089.md), [0065](../decisions/0065.md).</sub>
-
-<a id="tooling-convert-equivalent-is-proven"></a>
-
-## A tier-E rewrite names a differential case against the PHP oracle, or it is not E  *(designed — not yet in the compiler)*
-
-`rule:tooling/convert-equivalent-is-proven`
-
-A branch may be **E** only when, for every input the converted program's type checker accepts, the
-two programs agree on all of: values returned, bytes written to each sink, which `Throwable` escapes,
-and the order of externally visible side effects — evaluated against the declared target dialect
-([`tooling/convert-php-front-end`](tooling.md#tooling-convert-php-front-end)), never against "PHP in general".
-
-**Nothing is E because someone was confident.** An E branch names a differential case in
-`tests/convert/` that runs the PHP fragment on the oracle build this repository already keeps and
-the converted fragment under `nvs test`, and compares. CI refuses an E branch whose `proof` is
-missing or whose case does not run. A branch claiming E across several dialects owes one case per
-dialect; where no oracle exists for a dialect, the branch is D, not E.
-
-A tier is usually a property of the **site**, not of the construct. `==` keeps its spelling
-([`expressions/one-equality-operator`](expressions.md#expressions-one-equality-operator)) and is E when both operands are proven the same
-non-`string` scalar or proven numeric, D otherwise with a `diverges` sentence per operand shape, and
-has no E or D branch at all for a cross-type comparison, which is
-[`expressions/disjoint-comparison-refused`](expressions.md#expressions-disjoint-comparison-refused)'s compile error. `strlen($s)` is E when the argument
-is proven `bytes` and D when it is `string`, because grapheme counting changes the number on any
-non-ASCII input — a `TODO`, not a blocker.
-
-Where inference cannot decide a type, **`mixed` is an E answer, not a divergence**: it is the one
-unchecked position ([`types/unions-and-mixed`](types.md#types-unions-and-mixed)), which is exactly PHP's own discipline. The
-accompanying `TODO` names the binding and says what it costs.
-
-<sub>See also [`tooling/convert-one-table-two-modes`](tooling.md#tooling-convert-one-table-two-modes), [`tooling/convert-php-front-end`](tooling.md#tooling-convert-php-front-end), [`expressions/one-equality-operator`](expressions.md#expressions-one-equality-operator), [`expressions/disjoint-comparison-refused`](expressions.md#expressions-disjoint-comparison-refused), [`types/unions-and-mixed`](types.md#types-unions-and-mixed). Decided in [0089](../decisions/0089.md), [0079](../decisions/0079.md), [0007](../decisions/0007.md), [0009](../decisions/0009.md), [0090](../decisions/0090.md).</sub>
-
-<a id="tooling-convert-is-deterministic"></a>
-
-## `nvs convert` is a pure function of its input bytes, mode, dialect, table digest and flags  *(designed — not yet in the compiler)*
-
-`rule:tooling/convert-is-deterministic`
-
-Output is a pure function of the input bytes of every file in the unit, the mode, the target dialect,
-the rule-table digest and the explicit flags — nothing else. Concretely, and each is a rule the
-implementation may not break:
-
-1. **File discovery is sorted** by byte-wise path, and units are processed in that order.
-2. **No ambient input** — no clock, locale, environment, network, random seed, absolute path in
-   output, or hash-map iteration order anywhere a decision or an emission order depends on it.
-3. **The pass pipeline is fixed and each pass runs once**, over the tree in source order. There is no
-   run-to-fixpoint; a rule needing rewritten input names the earlier pass that produces it.
-4. **Rule precedence is total**: innermost matching node first, then by rule id. Two rules that could
-   both apply at one site are a table error CI catches.
-5. **Every generated name is a pure function of source facts.** Where a counter is unavoidable it is
-   per-file, in source order, and the rule says so.
-6. **Formatting is not the converter's business.** It emits a tree and prints it through `nvs fmt`'s
-   one unconfigurable style; it has no formatting options, and output is UTF-8 without a BOM with `\n`
-   line endings on every platform.
-7. **Every output file carries a header** naming the source path, source digest, rule-table digest,
-   mode and dialect, so two runs that differ are attributable to one of those five inputs.
-
-**No model, no heuristic outside the table, no probability.** A rewrite the table does not state
-does not happen. This is what makes the output reviewable and the tool re-runnable, and it is why
-LLM assistance is refused outright ([`tooling/convert-never-does`](tooling.md#tooling-convert-never-does)).
-
-<sub>See also [`tooling/convert-one-table-two-modes`](tooling.md#tooling-convert-one-table-two-modes), [`tooling/convert-php-front-end`](tooling.md#tooling-convert-php-front-end), [`tooling/convert-never-does`](tooling.md#tooling-convert-never-does), [`tooling/fmt-is-one-canonical-style`](tooling.md#tooling-fmt-is-one-canonical-style). Decided in [0089](../decisions/0089.md), [0039](../decisions/0039.md).</sub>
-
-<a id="tooling-convert-drops-nothing"></a>
-
-## Every non-trivia input byte leaves the converter as code or as comment, and output is re-parsed before it is written  *(designed — not yet in the compiler)*
-
-`rule:tooling/convert-drops-nothing`
-
-**Byte-completeness.** Every non-trivia byte of input leaves the converter as either converted code
-or commented-out source. A construct with no rule is treated as tier N: commented, annotated and
-counted. The test for this is mechanical and runs over the whole corpus.
-
-**Comments and docblocks survive**, re-attached to the construct they documented. A converter that
-loses a library's documentation has not ported it.
-
-**A file the front end cannot parse becomes a fully commented-out file** carrying the parse error and
-the dialect it was tried under — never a missing file and never a silent skip
-([`tooling/convert-php-front-end`](tooling.md#tooling-convert-php-front-end)).
-
-**Output is re-parsed with `nvs-syntax` before it is written.** A rule that produces unparseable
-Novis is a converter bug: the run reports it against the rule id, and that file falls back to fully
-commented-out, so a bad rule can never leave a tree that does not parse.
-
-<sub>See also [`tooling/convert-one-table-two-modes`](tooling.md#tooling-convert-one-table-two-modes), [`tooling/convert-php-front-end`](tooling.md#tooling-convert-php-front-end). Decided in [0089](../decisions/0089.md).</sub>
-
-<a id="tooling-convert-annotations-and-report"></a>
-
-## A converted site is annotated `TODO(convert:<id>)`, and `--check` publishes the tier counts as TOML  *(designed — not yet in the compiler)*
-
-`rule:tooling/convert-annotations-and-report`
-
-One greppable spelling each, stable across releases. A runnable-mode D site carries a `TODO`
-naming the rule and the difference:
-
-```
-// TODO(convert:S0140): Core\Str::length counts grapheme clusters; strlen counted bytes.
-var $n = Core\Str::length($blob);
-```
-
-A commented-out site carries the rule id, what the original meant, and the idiomatic shape:
-
-```
-// convert:C0004 — PHP compares an int against a string here, and 8.0 changed what that means.
-// Idiomatic Novis: convert once at the boundary, then compare — `$id == ($raw as int)`.
-// if ($id == "1") { … }
-```
-
-`nvs convert --check` writes no files and emits a report — TOML, for the reason
-[`config/the-file-is-nvs-toml-and-it-is-toml`](config.md#config-the-file-is-nvs-toml-and-it-is-toml) gives — ordered by path then rule id so it diffs
-cleanly. It carries per-tier counts, per-rule counts, the share of input constructs emitted as code
-in each mode, and the rules that fired most often without an E branch, which is the work queue for
-the table itself.
-
-That report is the number [`programs/no-compatibility-promise`](programs.md#programs-no-compatibility-promise) obliges the project to publish
-instead of a compatibility claim. `--explain <id>` prints one rule: its branches, their tiers, their
-conditions and their proofs.
-
-<sub>See also [`tooling/convert-one-table-two-modes`](tooling.md#tooling-convert-one-table-two-modes), [`programs/no-compatibility-promise`](programs.md#programs-no-compatibility-promise), [`programs/three-claims`](programs.md#programs-three-claims), [`config/the-file-is-nvs-toml-and-it-is-toml`](config.md#config-the-file-is-nvs-toml-and-it-is-toml). Decided in [0089](../decisions/0089.md), [0064](../decisions/0064.md), [0080](../decisions/0080.md).</sub>
-
-<a id="tooling-convert-never-does"></a>
-
-## The converter never runs its input, never converts `vendor/` by default, never invents a binding and never claims compatibility  *(designed — not yet in the compiler)*
-
-`rule:tooling/convert-never-does`
-
-Five refusals, each a rule of its own.
-
-- **Never runs the input.** No `eval`, no autoload execution, no `composer install`, no bootstrap
-  file. Conversion is a read of bytes.
-- **Never converts `vendor/` by default.** The tool is scoped to an application's own code
-  ([`programs/no-compatibility-promise`](programs.md#programs-no-compatibility-promise)); a dependency is reported against the package registry —
-  as a package that exists, one that does not, or a C extension that needs a Tier 1 `.nvsx`, which the
-  converter cannot synthesise and says so.
-- **Never invents a name binding.** A name that does not resolve under [`programs/autoload`](programs.md#programs-autoload) is
-  reported, not guessed.
-- **Never applies a rewrite that is not in the table**, and never asks a model for one. A model is
-  non-deterministic by construction ([`tooling/convert-is-deterministic`](tooling.md#tooling-convert-is-deterministic)), cannot produce a rule
-  id, a tier or a proof, and fails as a confident wrong rewrite — the exact outcome the tiering exists
-  to prevent. A model may help a *human* write a rule for the table, where the differential case
-  checks it.
-- **Never claims compatibility in its own output.** The header states mode, dialect, digests and the
-  tier counts; the forbidden phrasings of [`programs/no-compatibility-promise`](programs.md#programs-no-compatibility-promise) bind the
-  converter's own text as much as any other document.
-
-<sub>See also [`tooling/convert-is-deterministic`](tooling.md#tooling-convert-is-deterministic), [`tooling/convert-annotations-and-report`](tooling.md#tooling-convert-annotations-and-report), [`programs/no-compatibility-promise`](programs.md#programs-no-compatibility-promise), [`programs/autoload`](programs.md#programs-autoload), [`security/no-eval`](security.md#security-no-eval), [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest). Decided in [0089](../decisions/0089.md), [0080](../decisions/0080.md), [0061](../decisions/0061.md), [0081](../decisions/0081.md).</sub>
 
 <a id="tooling-bench-engine-list-is-data"></a>
 
