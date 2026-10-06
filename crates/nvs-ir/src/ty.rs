@@ -72,7 +72,8 @@ pub enum Ty {
     /// # What it spends
     ///
     /// Sixteen bytes per value against eight for a `float` — ADR 0054
-    /// § *Consequences*' own figure, and priority 5 spent on priority 2.
+    /// § *Consequences*' own figure, and memory footprint spent so decimal
+    /// arithmetic is exact.
     /// Nothing is allocated: this is **not** [`Self::is_refcounted`], so no
     /// insertion point keyed on that predicate has a `decimal` arm.
     ///
@@ -199,9 +200,9 @@ pub enum Ty {
     /// of that a retain or release of one is an out-of-line call to
     /// `nvs_runtime::nvs_value_retain`/`nvs_value_release`, which branches on
     /// the tag, where a statically-typed value calls the exact primitive its
-    /// representation names. That is priority 5 spent to buy priority 2 in
-    /// [AGENTS.md](/AGENTS.md)'s ordering, on the same terms the
-    /// 16-byte `Value` itself was bought.
+    /// representation names. That is memory footprint, and a little latency,
+    /// spent so a value whose type is decided at run time carries that type
+    /// with it, on the same terms the 16-byte `Value` itself was bought.
     ///
     /// # Getting in and out
     ///

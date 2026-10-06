@@ -407,9 +407,9 @@ impl GenFrame {
 /// # An abandoned generator runs its `finally`
 ///
 /// A generator suspended inside `try { … } finally { … }` and then dropped
-/// still owes that `finally` body. PHP resumes such a generator in a
-/// return-like mode and prints it, and priority 2 (PHP-compatible observable
-/// behaviour) outranks priority 4 (simplicity), so Novis does the same.
+/// still owes that `finally` body. Dropping it resumes the generator in a
+/// return-like mode and runs that body, output included, so a `finally` runs
+/// whether or not the generator was driven to its end.
 ///
 /// The mechanism is one field and one entry point, both of them ordinary:
 ///
@@ -897,7 +897,8 @@ pub(crate) fn lower_generator_advance(
 /// arm that is always taken in a well-formed loop. `foreach` drives
 /// `advance()`/`current()` in lockstep and so never reaches the throw, which
 /// makes this the same price `rule:errors/propagation`'s status check pays after every call —
-/// AGENTS.md's priority 3, bought for its priority 2.
+/// a little latency spent so a misused cursor throws instead of reading a
+/// slot that holds no element.
 pub(crate) fn lower_generator_current(
     class: &str,
     m: &MethodMember,

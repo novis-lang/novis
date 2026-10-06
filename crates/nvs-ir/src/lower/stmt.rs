@@ -474,8 +474,8 @@ impl<'a> Lowering<'a> {
             }
             // Every other expression, evaluated for what it does with its
             // value discarded — `$a[$i++];`, `$obj->prop;`, `$x;`, `1 + 2;`,
-            // a discarded `match`. PHP runs one of these for its effects and
-            // so does this, which is the same rule the `isset`, `empty` and
+            // a discarded `match`. Each one runs for its effects, which is
+            // the same rule the `isset`, `empty` and
             // `AnonObject` arms above already spell out one shape at a
             // time; those stay because each carries an accounting note of its
             // own, not because this could not cover them.
@@ -485,10 +485,9 @@ impl<'a> Lowering<'a> {
             // reason is that "has no effect" is not a property this slice can
             // decide: a property read runs the hook `rule:classes/property-hooks` gives it, a
             // subscript key runs whatever the key expression does, and a call
-            // is buried inside half of these. A statement PHP evaluates has
-            // to evaluate here (priority 2 over priority 4), and the residue
-            // that genuinely does nothing costs one dead instruction the
-            // backend drops.
+            // is buried inside half of these. So every expression statement
+            // is evaluated, and the residue that genuinely does nothing costs
+            // one dead instruction the backend drops.
             //
             // The release is `Self::aliasing_read`'s judgment, not a blanket
             // one: `$x;` hands back the local's own value and releasing that

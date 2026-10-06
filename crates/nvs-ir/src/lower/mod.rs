@@ -4240,7 +4240,7 @@ pub(crate) const FN_ARITY: &str = "fn#arity";
 /// the spec describes, which is handed two arguments.
 ///
 /// One further 16-byte slot per callable, per evaluation of it, beside
-/// [`FN_ARITY`]'s — priority 5 spent on priority 1, and bought against a
+/// [`FN_ARITY`]'s — memory footprint spent on security, and bought against a
 /// per-parameter slot, which would cost the same at two parameters and more at
 /// every count above.
 pub(crate) const FN_PARAM_TAGS: &str = "fn#params";

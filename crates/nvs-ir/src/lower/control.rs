@@ -696,14 +696,10 @@ impl<'a> Lowering<'a> {
     ///   case declared, since the next body's own label edge does not bind it.
     /// * **A `switch` is a `break` target without being a loop**, so it pushes
     ///   a [`LoopFrame`] whose [`LoopFrame::continue_target`] is `None`. A
-    ///   `continue` inside one therefore continues the enclosing **loop**.
-    ///   PHP instead counts a `switch` as a looping structure there, making a
-    ///   bare `continue` behave as `break` — and warns, since PHP 7.3, that
-    ///   you probably meant `continue 2`. Novis takes the meaning that warning
-    ///   points at: the alternative is a keyword that silently means one thing
-    ///   inside a `switch` and another everywhere else, which priority 4
-    ///   (simplicity of the language surface) refuses to buy for a
-    ///   compatibility PHP itself discourages.
+    ///   `continue` inside one therefore continues the enclosing **loop**, so
+    ///   the keyword means the same thing inside a `switch` as everywhere
+    ///   else — simplicity of the language surface, which a `continue` that
+    ///   silently acted as `break` here would spend.
     ///
     /// The subject's own reference is held exactly the way
     /// [`Self::lower_foreach`] holds the array it walks: retained if it

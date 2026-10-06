@@ -939,9 +939,9 @@ pub enum InstKind {
     /// can widen it.
     ///
     /// **What it costs:** O(subclasses of `base` in the unit) compares, branch
-    /// free, on a path that is a dynamic factory lookup — priority 3 spent
-    /// where a hash would have bought a per-unit table and a per-site
-    /// relocation to reach it. A hierarchy with enough implementors for that to
+    /// free, on a path that is a dynamic factory lookup — latency spent to buy
+    /// simplicity, where a hash would have needed a per-unit table and a
+    /// per-site relocation to reach it. A hierarchy with enough implementors for that to
     /// matter is the trigger to bake a table instead, and nothing above this
     /// instruction would change.
     ///
@@ -2817,8 +2817,8 @@ pub enum Helper {
     /// qualifier on `string` and `bytes` alone.
     ///
     /// Costed in `rule:security/secret-comparison-is-constant-time`: a few nanoseconds more per comparison
-    /// than the short-circuiting row — priority 1 bought with priority 3,
-    /// which is the ordering AGENTS.md states.
+    /// than the short-circuiting row — security bought with latency, which is
+    /// the ordering `rule:programs/memory-priority` states.
     SecretEq,
     /// `$fn(...)` —
     /// `rule:types/anonymous-function`'s

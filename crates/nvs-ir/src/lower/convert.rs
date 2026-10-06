@@ -857,7 +857,7 @@ impl<'a> Lowering<'a> {
                 // that handle then loads the target class's field offset out of
                 // another class's storage. `rule:types/conversion` is one
                 // sentence about this — `as` "produces a value of the target
-                // type or it throws" — and priority 1 is what makes it the
+                // type or it throws" — and security is what makes it the
                 // representation's question rather than the annotation's.
                 if (from == Ty::Tagged || from == Ty::Object)
                     && to == Ty::Object
