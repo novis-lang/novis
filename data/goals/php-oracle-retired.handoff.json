@@ -1,19 +1,38 @@
 {
-  "state": "**Goal `php-oracle-retired`, Stage 3 in progress.** Stages 1 and 2 are done. ADR 0274 (`docs/decisions/0274.md`) is the goal's record.\n\nThe error corpus is `tests/conformance/` alone (`error_corpus` in `crates/nvs-stdlib/tests/conformance_coverage.rs`, `errorGaps` in `tools/nv/cmd/gaps.ts`), held by `the_error_corpus_is_the_conformance_tree_alone`.\n\nOf the 44 `--ORACLE-DIVERGES--` cases, 22 now have a conformance case: every `arr-*` one, and `csv-*`, `db-connect-*`, `encoding-*` and `json-*`. Each new case under `tests/conformance/core/` copies the `--FILE--` and the frozen `--EXPECT--`, with every comment rewritten to state Novis's behaviour and no PHP comparison, and a file name that names no PHP function. All were checked with the pipeline's `nvs test`. No duplicate check against existing conformance cases was done beyond `arr-fill-*`: porting every one is cheap and leaves no row unpinned.\n\nFrozen records that still name a differential case in prose (`docs/decisions/0023.md:261`, `docs/adr/README.md:148`, parts of `0144.md` and `0211.md`) are left as they are, but `bun nv verify --doc` may flag them once Stage 4 deletes the tree (*not checked*).",
+  "state": "**Goal `php-oracle-retired`, Stage 3 done, Stage 4 next.** Stages 1 to 3 are done. ADR 0274 (`docs/decisions/0274.md`) is the goal's record.\n\nThe error corpus is `tests/conformance/` alone (`error_corpus` in `crates/nvs-stdlib/tests/conformance_coverage.rs`, `errorGaps` in `tools/nv/cmd/gaps.ts`), held by `the_error_corpus_is_the_conformance_tree_alone`.\n\nEvery one of the 44 `--ORACLE-DIVERGES--` cases now has a conformance case under `tests/conformance/core/` (and one under `tests/conformance/lang/`) that copies its `--FILE--` code and its frozen `--EXPECT--`, with comments that state Novis's behaviour and name no PHP function. No rule fragment or decision record points at a `tests/differential/` case any more; only `data/decisions/0274.json`'s `validatedBy` names the tree, as the thing that must be gone.\n\nFrozen records that still name a differential case in prose (`docs/decisions/0023.md:261`, `docs/adr/README.md:148`, parts of `0144.md` and `0211.md`) are left as they are, but `bun nv verify --doc` may flag them once Stage 4 deletes the tree (*not checked*).",
   "next": {
-    "stage": 3,
-    "title": "every error message has a conformance case",
-    "files": [],
-    "note": "one file set: new cases under `tests/conformance/core/` and `tests/conformance/lang/`, read beside the remaining 22 `--ORACLE-DIVERGES--` cases under `tests/differential/`.",
+    "stage": 4,
+    "title": "the oracle is gone, file set 1 (the runner)",
+    "files": [
+      "crates/nvs-test/src/case.rs",
+      "crates/nvs-test/src/run.rs",
+      "crates/nvs-test/src/lib.rs",
+      "crates/nvs-test/src/expect.rs",
+      "crates/nvs-cli/src/main.rs"
+    ],
+    "note": "Goal prose § *Stage 4*, item 1, owns the line list.",
     "items": [
       {
         "done": false,
-        "text": "**The rest of the divergences, `math-*` to `validate-*`, and the one `lang` case** — goal prose § *Stage 3*, second bullet. Start at `tests/differential/core/math-min-and-max-diverge-from-php-over-a-tie-a-numeral-string-or-an-unordered-pair.nvst:1` and go alphabetically through `path-*`, `regex-*`, `str-*`, `task-*`, `time-*` and `validate-*`, then `tests/differential/lang/a-negative-integer-exponent-refuses-where-php-answers-a-float.nvst:1` into `tests/conformance/lang/`. For each, copy the `--FILE--` and the `--EXPECT--` into a new case, rewrite every comment to say what Novis does (no PHP), name the file after the behaviour, and run `target/covws/x86_64-pc-windows-msvc/debug/nvs.exe test <files>`. Copy the `--EXPECT--` with a tool, never by retyping: a retyped 128-byte band line came out one byte long. Commit one batch at a time."
+        "text": "**`--ORACLE--`, `--ORACLE-DIVERGES--` and `--INI--` are unknown sections** — delete the `Oracle` enum at `crates/nvs-test/src/case.rs:31` and the `oracle` field at `crates/nvs-test/src/case.rs:280`, so each is refused with the error every unknown section gets; add `an_oracle_section_is_an_unknown_section`, `an_oracle_diverges_section_is_an_unknown_section` and `an_ini_section_is_an_unknown_section`, and delete `data/gaps/nvs-test/ini-parses-and-nothing-can-act.json`. Rewrite the crate's module doc whole."
+      },
+      {
+        "done": false,
+        "text": "**No PHP spawn in the runner** — delete `php_available` at `crates/nvs-test/src/run.rs:193`, the skip and the comparison that read it, and `run_php` at `crates/nvs-test/src/run.rs:468`; rename `crates/nvs-test/src/expect.rs:291`'s test for what the wildcards match."
+      },
+      {
+        "done": false,
+        "text": "**`nvs test --php` is an unknown flag** — delete the `php` argument at `crates/nvs-cli/src/main.rs:477` and its use at `crates/nvs-cli/src/main.rs:3359`, and add `nvs_test_refuses_the_php_flag`."
+      },
+      {
+        "done": false,
+        "text": "**The tree and the tools** (file set 2) — `git rm -r tests/differential`, then the readers the goal prose lists from `tools/nv/cmd/verify.ts:145` on, with their tests. Probably its own session."
       }
     ]
   },
   "backlog": [
-    "Stage 4 starts once every divergence is pinned: delete `tests/differential/`, the `--ORACLE--` sections and `nvs test --php` — goal prose § *Stage 4*.",
-    "Frozen records naming a differential case in prose may trip `bun nv verify --doc` after Stage 4 — goal prose § *Standing decisions*, frozen records."
+    "Stage 4 file set 3: the editor grammar, CI comment, setup, conventions, commands, reference pages and playbook entries — goal prose § *Stage 4*, item 3.",
+    "Source comments that cite a differential case (`crates/nvs-ir/src/lower/call.rs`, `crates/nvs-stdlib/src/arr.rs`, `regex.rs`, `uri.rs`, `str.rs`) cite the conformance case instead — Stage 4, item 3.",
+    "Stages 5 to 10 — goal prose."
   ]
 }
