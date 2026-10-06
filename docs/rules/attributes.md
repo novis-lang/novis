@@ -34,7 +34,7 @@ An attribute attaches to four things: a class or interface declaration, a method
 property declaration, and a parameter. It is written directly above the declaration, or directly
 before the parameter.
 
-```php
+```nvs
 #[Route(path: "/users/:id", method: "GET")]
 class UserController {
     #[Column(type: "varchar", length: 255)]
@@ -103,7 +103,7 @@ can, and is refused there as a sink (`E0727`).
 The same attribute — named or bare, with the same field values or different ones — may be attached to
 one declaration any number of times.
 
-```php
+```nvs
 #[Cache(ttlSeconds: 60)]
 #[Cache(ttlSeconds: 300, tag: "long")]
 public function show(): Response { … }
@@ -146,7 +146,7 @@ other thing.
 
 `rule:attributes/structural-retrieval`
 
-```php
+```nvs
 function Core\Attributes::get<T>(callable $target, string $member = ""): ?T;
 function Core\Attributes::all<T>(callable $target, string $member = ""): array<T>;
 ```
@@ -202,7 +202,7 @@ is `E0731`. A `T` that is not a shape is `E0729`, and a `$target` that names no 
 `#[Api]` supplies what a handler's types cannot say — tags, error responses, a security scheme, an
 example — to the OpenAPI document `nvs build --openapi` writes.
 
-```php
+```nvs
 #[Route(path: "/orders/{id}", method: Http\Method::Get, name: "orders.show")]
 #[Access(allow: Role::User)]
 #[Api(tags: ["Orders"], errors: [{status: 404, type: Api\NotFound}], example: {id: 7})]
@@ -235,7 +235,7 @@ the method and suggesting `#[Access(allow: Audience::Public)]` for a route that 
 same sentence read from the other side is `E0788`: an `#[Access]` on a method that declares no route is
 refused rather than ignored, because the route table is the only thing that ever asks the decision.
 
-```php
+```nvs
 #[Route(path: "/admin/users", method: Http\Method::Get)]
 #[Access(allow: Role::Admin)]
 public function listUsers(): Response { … }
@@ -262,7 +262,7 @@ compiler never asks what the name means.
 
 `rule:attributes/access-payload`
 
-```php
+```nvs
 enum Core\Audience { case Public; }
 type Core\Access = {allow: mixed, csrf?: bool};
 ```

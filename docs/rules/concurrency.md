@@ -119,7 +119,7 @@ registers one.
 callable, runs them concurrently, and answers **a shape with the same field names, each field
 carrying that field's own declared return type**:
 
-```php
+```nvs
 $page = Task::all({
     user:   fn(): User         => Users::load($id),
     orders: fn(): array<Order> => Orders::recent($id, 20),
@@ -304,7 +304,7 @@ on when the work stops being asked for; it is not a hard wall-clock guarantee on
 `Core\Task::afterResponse(callable $fn, {deadline?}): void` registers work to run once the request
 is done with:
 
-```php
+```nvs
 Task::afterResponse(fn(): void => Receipts::send($order), {deadline: 30s});
 return $response;         // the client has its bytes; the receipt is still going out
 ```

@@ -10,9 +10,9 @@ two objects by it and throw for a pair whose class does not implement it. A `Cor
 `Core\BigInt`, a `Core\Time\Instant` — is ordered the same way and through the same one entry point.
 An ordering a class states once is the only one anything in the language reads.
 
-PHP walks two same-class objects' declared properties in order and takes the first difference —
-behaviour that exists ambiently, that no class opts into or out of, and whose cost is unbounded in
-the size of the graph it recurses into. An ordering a class produces should be the ordering its own
+No ordering walks two same-class objects' declared properties in order and takes the first
+difference. That would be behaviour that exists ambiently, that no class opts into or out of, and
+whose cost is unbounded in the size of the graph it recurses into. An ordering a class produces should be the ordering its own
 code states, once, reviewably.
 
 `Comparable` lives in the global namespace beside `Stringable` and `Parses`, not under `Core`, because

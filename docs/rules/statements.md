@@ -16,7 +16,7 @@ purely so the parser can name the fix instead of misreading the rest of the file
 reports `E0229` every time it consumes that token — at file start or at a mid-file reopen alike — and then
 parses the code that follows normally, so nothing after the tag is swallowed.
 
-```php
+```nvs
 <?php echo 1; ?>          // tag rejected, `echo 1;` still parses as code
 <?nvs echo 1; ?>          // unaffected
 if ($x) { ?>html<?nvs }   // unaffected — reopening mid-block was always legal
@@ -47,7 +47,7 @@ Given a name as written, and the namespace and import set active where it was wr
 A `use` therefore does exactly one thing: it binds **one declaration** under its own short name. Importing
 a *namespace* is not a concept here.
 
-```php
+```nvs
 namespace App;
 
 use App\Models;           // binds the name `Models`, and nothing under it
@@ -77,7 +77,7 @@ A name declared at the root — a user class in the global namespace, or the res
 (`Throwable`, `LogicError`, `TimeoutError` and their siblings) — is reached from inside a namespace by
 importing it:
 
-```php
+```nvs
 namespace App;
 use Throwable;
 
@@ -103,7 +103,7 @@ no free functions and no free constants, nothing is left that it was for.
 
 The leading separator is refused in all three positions PHP writes one, rather than stripped:
 
-```php
+```nvs
 \App\Models\User::find(1);   // refused
 use \App\Models\User;        // refused
 namespace \App;              // refused
@@ -170,7 +170,7 @@ whether a name was resolved directly or through an alias.
 The `enum` keyword appears only at the *declaration*. Everywhere a type is used, an enum is spelled with
 its own name, exactly like a class:
 
-```php
+```nvs
 enum Status { Active, Banned }
 
 class Account {
@@ -199,7 +199,7 @@ refuses an enum's.
 `require 'path.nvs';` is the only same-frame inclusion construct. It throws when the target is missing or
 unparseable, and it executes every time control reaches it — there is no once-only guard.
 
-```php
+```nvs
 require 'partials/header.nvs';        // kept — throws if missing, runs every time
 include 'partials/header.nvs';        // rejected
 include_once 'lib/util.nvs';          // rejected

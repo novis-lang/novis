@@ -9,6 +9,5 @@ merely refused.
 
 The compile-time synonym that survives is a `type` alias, which names a *shape* and has no runtime
 existence at all — and it may not name a single bare class, which would be this rule wearing the type
-grammar as a disguise (`rule:types/alias-is-never-a-bare-class`). The cost is the one PHP developers
-already pay when they decline to alias: two libraries choosing one short name means writing the
-fully-qualified one at the call site.
+grammar as a disguise (`rule:types/alias-is-never-a-bare-class`). The cost is that two
+libraries choosing one short name means writing the fully-qualified one at the call site.

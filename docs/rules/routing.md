@@ -314,7 +314,7 @@ carries the path captures alone, and a program reads `Core\Request::query()` raw
 several verbs. Repeated `#[Route]` attributes on **one method** may carry the same `name`, provided
 every one of them carries the same `path`:
 
-```php
+```nvs
 #[Route(path: "/webhook", method: Http\Method::Post, name: "webhook")]
 #[Route(path: "/webhook", method: Http\Method::Put,  name: "webhook")]
 #[Access(allow: Audience::Public)]
@@ -369,7 +369,7 @@ Runtime cost is zero and memory cost is one `?string` column's worth of repeats.
 
 `rule:routing/matching-is-not-dispatching`
 
-```php
+```nvs
 Core\Request::route(): ?Router\Match;                                   // the match the server made
 Core\Router::match(Http\Method $method, tainted string $path): ?Router\Match;
 Core\Router::methodsFor(tainted string $path): array<Http\Method>;      // [] ⇒ 404, else 405 + Allow:

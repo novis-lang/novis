@@ -13,5 +13,5 @@ bytes that arrived from outside are refused at compile time.
 
 No capability grant is required, because the closed format and the no-hook rule already remove what a
 grant would contain, and a hostile payload's cost is bounded by the same memory and CPU limits every
-other allocation-heavy call has. What it costs is foreign data: PHP's open wire format cannot be read
-at all.
+other allocation-heavy call has. What it costs is foreign data: a payload written in another runtime's
+open format cannot be read at all.

@@ -17,5 +17,5 @@ at the call site (`rule:statements/inout-is-written-at-the-call`), so a forward 
 Writing the member by hand is the way out. Every member the delegation does not supply is owed exactly
 as it would be without the clause.
 
-It spends one pointer-sized property per delegated interface per instance, plus the delegate object —
-replacing PHP's per-class-copied trait state, which was not free either, with something inspectable.
+It spends one pointer-sized property per delegated interface per instance, plus the delegate object,
+and that state is an ordinary property a reader can inspect.

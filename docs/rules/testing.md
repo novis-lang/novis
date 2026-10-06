@@ -603,9 +603,8 @@ ask makes no table.
 
 `rule:testing/nvst-is-separate`
 
-`.nvst` is a whole-program, expected-stdout conformance case — a deliberate superset of PHP's
-`.phpt`, so importing PHP's corpus stays mechanical — and it is how **Novis's own conformance to its
-specification** is proven. No case runs PHP: the expectation is what the rules say Novis prints.
+`.nvst` is a whole-program, expected-stdout conformance case, and it is how **Novis's own conformance
+to its specification** is proven. A case's expectation is what the rules say Novis prints.
 
 `#[Test]` is how **a program written in Novis** tests itself.
 
@@ -968,9 +967,10 @@ instrumentation crossed with compiled code, which is where other JIT-compiled en
 dereferenced stale caches and produced wrong results under optimisation. There is no interpreter
 here to fall back to.
 
-The differential oracle cannot find these. It checks that Novis agrees with **PHP**, not that Novis
-agrees with **itself** under different codegen, and a probe-attached run and an optimised run are
-both Novis. The cost is CI wall-clock proportional to the added axes, and nothing at all at run time.
+A suite run under one configuration cannot find these. Each case checks that Novis prints what the
+rules say under that one codegen, and this bug class lives only where a probe-attached or optimised
+build of the same program prints something else. The cost is CI wall-clock proportional to the added
+axes, and nothing at all at run time.
 
 <sub>See also [`testing/debug-probes`](testing.md#testing-debug-probes), [`testing/the-deep-lane`](testing.md#testing-the-deep-lane), [`testing/nvst-is-separate`](testing.md#testing-nvst-is-separate). Decided in [0018](../decisions/0018.md).</sub>
 

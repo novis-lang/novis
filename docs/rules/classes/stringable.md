@@ -2,8 +2,7 @@ An object reaches a string only through the global interface `Stringable`, whose
 `toString(): string`. Every implicitly converting position — interpolation, concatenation, `echo` and
 `print`, and an `as string` conversion — accepts an object only when its static type provably
 implements it, and calls `toString()`. An object whose class does not is a compile-time diagnostic
-naming `Stringable` as the fix; PHP's own answer here is already a fatal error, so nothing permissive
-is being removed.
+naming `Stringable` as the fix.
 
 `Stringable` lives in the global namespace, not under `Core`: it is a contract an ordinary class
 implements, not a domain class holding `static` members. The method is `toString`, not `__toString`,

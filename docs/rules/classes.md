@@ -14,8 +14,8 @@
 A `function` declaration and a `const` declaration are legal inside a class body and nowhere else.
 Every callable is a `static` or instance method; every constant is a class constant. A top-level
 `function foo() { ... }` and a top-level `const FOO = 1;` are each a diagnostic naming the
-replacement, and a bare call to a name that was a PHP built-in names the `Core` class that holds it
-now — `Core\Str::length($s)` for `strlen`, `Core\Env::EOL` for `PHP_EOL`.
+replacement, and a bare call is a diagnostic that points at the `Core` namespace, where the built-in functions are
+methods — `Core\Str::length($s)`.
 
 Novis is OOP-only, and a free-floating name is the same shape of problem
 [`statements/static-is-a-member-modifier`](statements.md#statements-static-is-a-member-modifier) already closed for state: reachable from everywhere,
@@ -25,8 +25,7 @@ no bare-name fallback exists in it at all.
 
 Two things are untouched. An anonymous or arrow function is a value, not a named declaration, and
 creating one anywhere is unaffected. A script's own top-level statements are its body, not a
-declaration at file scope. What it costs is a name-mapping rewrite on every converted PHP call, on
-top of the annotations [`types/declaration`](types.md#types-declaration) already asks for.
+declaration at file scope. What it costs is a class name on every call to a library function, on top of the annotations [`types/declaration`](types.md#types-declaration) already asks for.
 
 <sub>See also [`statements/static-is-a-member-modifier`](statements.md#statements-static-is-a-member-modifier), [`statements/no-function-static-and-no-global`](statements.md#statements-no-function-static-and-no-global), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call), [`types/class-constant`](types.md#types-class-constant). Decided in [0011](../decisions/0011.md), [0008](../decisions/0008.md), [0003](../decisions/0003.md).</sub>
 
@@ -40,10 +39,9 @@ Every name — class, interface, enum, enum case, namespace segment, method, pro
 class constant — is compared exactly, everywhere resolution happens. `Foo` and `foo` are two names.
 There is no configuration and no compatibility mode.
 
-PHP folds case for classes, functions, methods and keywords but not for variables, properties or
-constants, which is a split nobody memorizes; then the one place that compares a class name as a
-string — a router table, a cache key, a serialized payload — disagrees with the resolver. Here it
-costs nothing to be strict, because exactly one casing is legal per identifier category anyway: two
+Folding case for some categories and not others is a split nobody memorizes, and then the one place
+that compares a class name as a string — a router table, a cache key, a serialized payload —
+disagrees with the resolver. It costs nothing to be strict, because exactly one casing is legal per identifier category anyway: two
 names differing only in case cannot both be valid declarations of the same kind, so case-sensitive
 resolution can never make a working program ambiguous. It only turns a wrong reference into a
 diagnostic.
@@ -87,7 +85,7 @@ allocates a lower-cased copy of every name in the file.
 No property, parameter or local variable name may begin with `_`. All three categories use the same
 `camelCase` pattern methods have always used, and there is no allowance left to state for them.
 
-The allowance existed only to spare a PHP habit — `_privateField`, `$_unused` — that converts by
+The allowance existed only to spare a habit — `_privateField`, `$_unused` — that converts by
 dropping one character. Keeping it would have preserved exactly the single-name carve-out the casing
 rule argues against generalizing from, for comfort this project already declined to buy elsewhere.
 Removing it, together with respelling the constructor
@@ -95,7 +93,7 @@ Removing it, together with respelling the constructor
 exceptions of any kind.
 
 What it costs is a mechanical rename per underscore-prefixed name during conversion, and one habit
-a PHP-native contributor has to unlearn at the point the compiler names it.
+a contributor used to it has to unlearn at the point the compiler names it.
 
 <sub>See also [`classes/constructor-is-a-method-named-constructor`](classes.md#classes-constructor-is-a-method-named-constructor). Decided in [0030](../decisions/0030.md), [0029](../decisions/0029.md).</sub>
 
@@ -106,7 +104,7 @@ a PHP-native contributor has to unlearn at the point the compiler names it.
 `rule:classes/constructor-is-a-method-named-constructor`
 
 The constructor is a method named `constructor` — an ordinary lowercase-first name that needs no
-casing exception of its own. It keeps every role PHP's `__construct` had: `new` invokes it, it is
+casing exception of its own. It has every role a constructor has: `new` invokes it, it is
 where [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization)'s obligation attaches, and a subclass
 discharges its inherited properties by calling `parent::constructor(...)`.
 
@@ -131,7 +129,7 @@ mechanical rename for every converted class, which is the cheapest kind of break
 A `public`, `protected` or `private` keyword on a parameter promotes it to a property, and it does
 that only in the `constructor`. On any other method's parameter it is refused.
 
-Promotion is PHP 8's feature and nothing else: the keyword says where a *property* may be read from,
+Promotion means exactly this: the keyword says where a *property* may be read from,
 and an ordinary method has no allocation to promote into. A property is a slot on an instance, armed
 once where the instance is made; a method may be called any number of times, or none, so there is no
 moment for a promoted parameter of one to exist.
@@ -155,8 +153,8 @@ and the value may be any implementor of `T`.
 
 So the site is refused, at the `new`, when any implementor of `T` declares a constructor incompatible
 with `T`'s — the same compatibility test the override check already makes, and the diagnostic names
-that subclass. It is stricter than PHP, which discovers the mismatch when the wrong subclass arrives,
-and it is never *different* from PHP: every program it accepts, PHP runs the same way.
+that subclass. The mismatch is found at the site that can cause it, not when the wrong subclass
+arrives at run time.
 
 It is checked at the `new` and not at the class declaration on purpose. A subclass never instantiated
 through a class reference is nobody's problem, and refusing it at its declaration would make an
@@ -182,7 +180,7 @@ one is not declaring one: a subclass that writes no constructor of its own runs 
 unchanged, and that constructor assigns nothing the subclass declared after it, so the subclass's own
 properties are refused the same way.
 
-PHP discovers the same mistake at whichever read happens to hit the unset property, far from the
+Without it, the mistake surfaces at whichever read happens to hit the unset property, far from the
 constructor that forgot it. One analysis over two binding kinds turns that into a refusal at the
 cause.
 
@@ -347,8 +345,7 @@ the name arrives at run time — through reflection, through an erased receiver
 ([`types/erased-member-access`](types.md#types-erased-member-access)), or through a property key. A write through any of those can never
 create a field, and it is checked against the field's real declared type.
 
-`PropertyObserver` is never consulted for a name that does not exist, unlike PHP's `__get`/`__set`,
-which exist specifically for that case. There is no path in Novis from "the name is wrong" to any user
+`PropertyObserver` is never consulted for a name that does not exist. There is no path in Novis from "the name is wrong" to any user
 code running at all, which is what makes a typo a failure rather than a silent second property.
 
 A name that is computed out of nothing is refused rather than deferred: `$obj->$name` and
@@ -366,8 +363,8 @@ being repeated at every access.
 `rule:classes/unset-is-refused-on-a-property`
 
 `unset($obj->prop)`, and `unset(Class::$prop)` with it, is a compile-time diagnostic for every declared
-property, static or instance, whatever its nullability. PHP's `unset` removes the property outright and
-leaves later access to fall through — an uninitialized-again state that
+property, static or instance, whatever its nullability. Removing the property outright would
+leave later access to fall through — an uninitialized-again state that
 [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization) exists to make impossible. There is no way to honour
 both, and the initialization guarantee is the one that stands. A script wanting a nullable property
 back to empty writes `$obj->prop = null;`, an ordinary assignment.
@@ -377,7 +374,7 @@ a non-nullable property it is always `true`, and no magic method is consulted �
 already a hard error before `isset` is reached.
 
 Exactly one operand survives: an element of an array held by a local, a property or a static property,
-including at depth. Everything else is refused, and the two shapes PHP programs actually write are
+including at depth. Everything else is refused, and the two shapes programs most often write are
 named — a local, which is declared once and definitely assigned so there is no undefined state to
 return it to, and a temporary, which copy-on-write would separate into a slot nothing can write back.
 
@@ -389,8 +386,8 @@ return it to, and a temporary, which copy-on-write would separate into a slot no
 
 `rule:classes/property-hooks`
 
-A property may declare `get` and `set` hooks, with PHP 8.4's syntax, per-property scoping, and its
-interaction with `readonly` and asymmetric visibility unchanged. A hooked property's read is a call
+A property may declare `get` and `set` hooks, scoped to that one property, and a `readonly`
+property declares none. A hooked property's read is a call
 to its `get` and its write a call to its `set`, at every access spelling alike — including one inside
 a string interpolation.
 
@@ -399,8 +396,8 @@ a hooked access costs no new instruction, no new calling convention and no dispa
 Inside a hook the property names its own backing slot, which is what makes a `set` hook that
 transforms the value it stores terminate rather than recurse.
 
-Novis keeps the backing slot for every hooked property, so PHP 8.4's virtual-versus-backed split does
-not exist here. That spends one slot on a property whose `get` computes its answer, and buys one
+Novis keeps the backing slot for every hooked property, so there is no split between virtual and
+backed properties. That spends one slot on a property whose `get` computes its answer, and buys one
 storage model instead of two — and a `set` hook that commits a value discharges that property's
 initialization obligation ([`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization)) exactly as a plain
 assignment does.
@@ -418,9 +415,9 @@ members are `onPropertyGet(string $name, mixed $value): void` and
 `onPropertySet(string $name, mixed $value): void`. Implementing it once observes *every* declared
 property of that class, hooked or not, instead of writing a hook on each one.
 
-PHP's `__get`/`__set` are not recognized by name and have no equivalent, because the case they exist
+`__get` and `__set` are not recognized by name and have no equivalent, because the case they exist
 for is gone: an undeclared property is a hard error ([`classes/no-dynamic-properties`](classes.md#classes-no-dynamic-properties)), so there
-is nothing left to fall back onto. The gap PHP never filled is the one covered here — a
+is nothing left to fall back onto. What this covers instead is a
 cross-cutting observation point for the properties a class really has, which `__get` never saw.
 
 The name is deliberately not `__get`: a magic spelling advertises "the runtime recognizes this name",
@@ -486,8 +483,7 @@ A method name reachable from more than one source — a default from one impleme
 default from another, or a `by`-delegated interface — is a compile error when the class does not
 itself declare that method, and the diagnostic names every contributing source.
 
-There is no `insteadof`. PHP needed one because trait flattening had no other way to pick a winner;
-here the fix is the ordinary override a reader already knows how to write, and it can still reach a
+There is no `insteadof`. The fix is the ordinary override a reader already knows how to write, and it can still reach a
 specific source explicitly — `InterfaceName::method()` for a default, or plain property access
 `$this->field->method()` for a delegate, since a delegate is a real object.
 
@@ -519,7 +515,7 @@ IDE can see.
 
 `insteadof` disappears with the mechanism it arbitrated: a collision is resolved by an ordinary
 override calling the source it wants by name ([`classes/member-conflict-is-an-error`](classes.md#classes-member-conflict-is-an-error)). What it
-costs is that no PHP source using a trait converts unconverted, and a trait's `static` property —
+costs is that code using a trait is restructured by hand, and a trait's `static` property —
 silently copied per consuming class — has no destination at all.
 
 <sub>See also [`classes/interface-default-methods`](classes.md#classes-interface-default-methods), [`classes/interface-private-methods`](classes.md#classes-interface-private-methods), [`classes/delegation-by-field`](classes.md#classes-delegation-by-field), [`classes/member-conflict-is-an-error`](classes.md#classes-member-conflict-is-an-error), [`types/no-legacy-cast`](types.md#types-no-legacy-cast). Decided in [0043](../decisions/0043.md), [0015](../decisions/0015.md).</sub>
@@ -614,8 +610,8 @@ at the call site ([`statements/inout-is-written-at-the-call`](statements.md#stat
 Writing the member by hand is the way out. Every member the delegation does not supply is owed exactly
 as it would be without the clause.
 
-It spends one pointer-sized property per delegated interface per instance, plus the delegate object —
-replacing PHP's per-class-copied trait state, which was not free either, with something inspectable.
+It spends one pointer-sized property per delegated interface per instance, plus the delegate object,
+and that state is an ordinary property a reader can inspect.
 
 <sub>See also [`classes/no-traits`](classes.md#classes-no-traits), [`classes/member-conflict-is-an-error`](classes.md#classes-member-conflict-is-an-error), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`classes/an-unwritten-property-read-throws`](classes.md#classes-an-unwritten-property-read-throws), [`statements/inout-is-written-at-the-call`](statements.md#statements-inout-is-written-at-the-call). Decided in [0043](../decisions/0043.md), [0022](../decisions/0022.md), [0038](../decisions/0038.md).</sub>
 
@@ -637,9 +633,9 @@ two objects by it and throw for a pair whose class does not implement it. A `Cor
 `Core\BigInt`, a `Core\Time\Instant` — is ordered the same way and through the same one entry point.
 An ordering a class states once is the only one anything in the language reads.
 
-PHP walks two same-class objects' declared properties in order and takes the first difference —
-behaviour that exists ambiently, that no class opts into or out of, and whose cost is unbounded in
-the size of the graph it recurses into. An ordering a class produces should be the ordering its own
+No ordering walks two same-class objects' declared properties in order and takes the first
+difference. That would be behaviour that exists ambiently, that no class opts into or out of, and
+whose cost is unbounded in the size of the graph it recurses into. An ordering a class produces should be the ordering its own
 code states, once, reviewably.
 
 `Comparable` lives in the global namespace beside `Stringable` and `Parses`, not under `Core`, because
@@ -666,9 +662,9 @@ decides the order of a mixed pair, and what a program should conclude when they 
 parameter to `self` removes the question instead of answering it.
 
 A type that genuinely needs to be ordered against a different type says so with an ordinary named
-method — `Money::isGreaterThan(Distance $d): bool` reads oddly on purpose. The cost is real: PHP's
-permissiveness here is gone until a parameterized `Comparable<T>` is designed, and no such generic
-exists yet.
+method — `Money::isGreaterThan(Distance $d): bool` reads oddly on purpose. The cost is real: no ordering
+crosses two classes until a parameterized `Comparable<T>` is designed, and no such generic exists
+yet.
 
 <sub>See also [`classes/comparable`](classes.md#classes-comparable), [`classes/ordering-lowers-to-compare-to`](classes.md#classes-ordering-lowers-to-compare-to). Decided in [0013](../decisions/0013.md).</sub>
 
@@ -702,8 +698,7 @@ An object reaches a string only through the global interface `Stringable`, whose
 `toString(): string`. Every implicitly converting position — interpolation, concatenation, `echo` and
 `print`, and an `as string` conversion — accepts an object only when its static type provably
 implements it, and calls `toString()`. An object whose class does not is a compile-time diagnostic
-naming `Stringable` as the fix; PHP's own answer here is already a fatal error, so nothing permissive
-is being removed.
+naming `Stringable` as the fix.
 
 `Stringable` lives in the global namespace, not under `Core`: it is a contract an ordinary class
 implements, not a domain class holding `static` members. The method is `toString`, not `__toString`,
@@ -723,7 +718,7 @@ refuse at.
 
 `rule:classes/no-magic-methods`
 
-No method name changes what a class does by being present. Each of PHP's magic methods is either
+No method name changes what a class does by being present. Each `__`-prefixed magic method is either
 replaced by a declared interface — `__get`/`__set` by `PropertyObserver`
 ([`classes/property-observer`](classes.md#classes-property-observer)), `__toString` by `Stringable` ([`classes/stringable`](classes.md#classes-stringable)), and
 ordering's implicit property walk by `Comparable` ([`classes/comparable`](classes.md#classes-comparable)) — or removed outright:
@@ -737,7 +732,7 @@ Every one of those names is refused where it is *written*: the method-casing rul
 underscore, so a class cannot declare a hook for the runtime to decline to call. That is stronger than
 "never invoked", and it is what makes an absence checkable at all.
 
-`__autoload` needs no decision — PHP removed it, and every class reference resolves statically, so
+`__autoload` needs no decision: every class reference resolves statically, so
 there is no runtime moment for a loader callback to attach to. What replaces
 `spl_autoload_register` is [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload).
 
@@ -753,9 +748,9 @@ Calling a method a class does not declare is a compile-time diagnostic, like any
 name. There is no `__call` and no `__callStatic`, and neither name can be declared at all — the
 method-casing rule refuses a leading underscore before any resolution logic runs.
 
-Nothing replaces them. The requirement is not that PHP's spelling is wrong but that dispatching to a
+Nothing replaces them. The requirement is not that the spelling is wrong but that dispatching to a
 name the class never declared is: it is invisible from the declaration, unreadable by a checker or an
-IDE without reimplementing PHP's dispatch rules, and it turns a mistyped method into behaviour rather
+IDE without reimplementing a runtime dispatch rule, and it turns a mistyped method into behaviour rather
 than an error.
 
 A program that wants to handle a family of unknown calls writes an ordinary method taking an explicit
@@ -772,7 +767,7 @@ mechanical translation and needs a human to write the surface out.
 `rule:classes/no-destructors`
 
 Novis has no destructors. There is no refcount-triggered cleanup hook and no scope-exit hook, and
-`__destruct` cannot even be declared. Cleanup that PHP puts there — closing a handle, releasing a
+`__destruct` cannot even be declared. Cleanup a destructor would hold — closing a handle, releasing a
 lock, flushing a buffer — becomes an explicit method the holder calls when it is actually done.
 
 Two independent arguments each suffice. There is no sound place to report a throw: every call returns
@@ -782,13 +777,13 @@ the failure. And it would undo the wholesale heap drop, whose whole point is not
 individually at request end.
 
 One thing does run when a refcount reaches zero, and it is not a destructor: a generator suspended
-inside a `try ... finally` is resumed in a return-like mode so the `finally` runs, matching PHP
+inside a `try ... finally` is resumed in a return-like mode so the `finally` runs
 ([`iteration/generators`](iteration.md#iteration-generators)). Nothing is declared, no name is recognized, and the release resumes a
 frame the program had already entered. A throw escaping such a `finally` is discarded, since a release
 is exactly the site with nowhere to report one.
 
-What it costs is real: no RAII, so a caller who forgets an explicit `close()` gets nothing — PHP's
-`__destruct` was an unreliable safety net, but it was a net.
+What it costs is real: no RAII, so a caller who forgets an explicit `close()` gets nothing. A
+destructor is an unreliable safety net, but it is a net.
 
 <sub>See also [`classes/no-magic-methods`](classes.md#classes-no-magic-methods), [`iteration/generators`](iteration.md#iteration-generators), [`errors/propagation`](errors.md#errors-propagation), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0028](../decisions/0028.md), [0002](../decisions/0002.md), [0004](../decisions/0004.md).</sub>
 
@@ -826,12 +821,12 @@ Novis has two copy depths and no third. `clone` is the shallow, same-heap, one-l
 and `Core\Serialize`. Neither depth is customizable by a class: there is no `__clone`, no
 `__serialize`, no `__unserialize`, no `__sleep` and no `__wakeup`.
 
-Keeping both is deliberate. PHP already drew this line and it is a real distinction: cloning a tree
-node should not deep-copy what it references, and forcing `clone` deep would silently change every
-ported class that relies on shallow-copy-then-shared-reference.
+Keeping both is deliberate, because it is a real distinction: cloning a tree node should not
+deep-copy what it references, and forcing `clone` deep would silently change every class that relies
+on shallow-copy-then-shared-reference.
 
-A copy therefore always means what the language says it means, which is what closes PHP's
-`unserialize` gadget-chain class by construction — no hook fires during reconstruction, so there is no
+A copy therefore always means what the language says it means, which is what closes the
+deserialization gadget-chain class by construction — no hook fires during reconstruction, so there is no
 method call for attacker-controlled property values to drive. The cost is a real capability: a class
 that wants a duplicated nested collection or custom versioning has to expose an explicit method and
 call it, and two copy depths remain two things to learn.
@@ -907,8 +902,8 @@ bytes that arrived from outside are refused at compile time.
 
 No capability grant is required, because the closed format and the no-hook rule already remove what a
 grant would contain, and a hostile payload's cost is bounded by the same memory and CPU limits every
-other allocation-heavy call has. What it costs is foreign data: PHP's open wire format cannot be read
-at all.
+other allocation-heavy call has. What it costs is foreign data: a payload written in another runtime's
+open format cannot be read at all.
 
 <sub>See also [`classes/graph-copy`](classes.md#classes-graph-copy), [`classes/two-copy-depths`](classes.md#classes-two-copy-depths), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization). Decided in [0023](../decisions/0023.md), [0024](../decisions/0024.md), [0063](../decisions/0063.md).</sub>
 
@@ -959,9 +954,8 @@ merely refused.
 
 The compile-time synonym that survives is a `type` alias, which names a *shape* and has no runtime
 existence at all — and it may not name a single bare class, which would be this rule wearing the type
-grammar as a disguise ([`types/alias-is-never-a-bare-class`](types.md#types-alias-is-never-a-bare-class)). The cost is the one PHP developers
-already pay when they decline to alias: two libraries choosing one short name means writing the
-fully-qualified one at the call site.
+grammar as a disguise ([`types/alias-is-never-a-bare-class`](types.md#types-alias-is-never-a-bare-class)). The cost is that two
+libraries choosing one short name means writing the fully-qualified one at the call site.
 
 <sub>See also [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name), [`types/type-alias`](types.md#types-type-alias), [`types/alias-is-never-a-bare-class`](types.md#types-alias-is-never-a-bare-class). Decided in [0015](../decisions/0015.md), [0011](../decisions/0011.md).</sub>
 

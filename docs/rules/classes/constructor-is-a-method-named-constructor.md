@@ -1,5 +1,5 @@
 The constructor is a method named `constructor` — an ordinary lowercase-first name that needs no
-casing exception of its own. It keeps every role PHP's `__construct` had: `new` invokes it, it is
+casing exception of its own. It has every role a constructor has: `new` invokes it, it is
 where `rule:classes/definite-property-initialization`'s obligation attaches, and a subclass
 discharges its inherited properties by calling `parent::constructor(...)`.
 

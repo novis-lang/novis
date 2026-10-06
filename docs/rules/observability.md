@@ -83,7 +83,7 @@ log line to the trace that produced it — the single highest-value thing an obs
 
 `rule:observability/metrics-three-members`
 
-```php
+```nvs
 Core\Metrics::increment(string $name, {by?: uint, labels?: array<string, string>}): void;
 Core\Metrics::observe(string $name, float $value, {labels?: array<string, string>}): void;
 Core\Metrics::gauge(string $name, float $value, {labels?: array<string, string>}): void;
@@ -615,7 +615,7 @@ A request reads its own memory as three members on `Core\Budget` — `memoryHeld
 holds right now, `memoryPeak()` the high-water mark of that figure for this request, and
 `memoryLimit()` the ceiling both are measured against.
 
-```php
+```nvs
 Core\Budget::memoryHeld():  int
 Core\Budget::memoryPeak():  int
 Core\Budget::memoryLimit(): int
@@ -631,7 +631,7 @@ ever meant.
 otherwise reachable only as `Core\Config::get('limits.memory')` — a string with a suffix that every
 call site would parse — so the question the trio exists to answer stays one expression:
 
-```php
+```nvs
 if (Core\Budget::memoryPeak() * 10 > Core\Budget::memoryLimit() * 9) { … }
 ```
 
@@ -739,7 +739,7 @@ hooks and their captures stay live until the end of the script — per request, 
 
 Each hook receives one readonly `Script\ExitReport`, or may declare no parameter at all:
 
-```php
+```nvs
 enum Script\ExitReason { Normal, ExitCall, UncaughtThrow, Finish }
 
 Script\ExitReport::reason(): Script\ExitReason

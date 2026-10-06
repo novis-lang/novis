@@ -8,6 +8,6 @@ decides the order of a mixed pair, and what a program should conclude when they 
 parameter to `self` removes the question instead of answering it.
 
 A type that genuinely needs to be ordered against a different type says so with an ordinary named
-method — `Money::isGreaterThan(Distance $d): bool` reads oddly on purpose. The cost is real: PHP's
-permissiveness here is gone until a parameterized `Comparable<T>` is designed, and no such generic
-exists yet.
+method — `Money::isGreaterThan(Distance $d): bool` reads oddly on purpose. The cost is real: no ordering
+crosses two classes until a parameterized `Comparable<T>` is designed, and no such generic exists
+yet.

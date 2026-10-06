@@ -167,7 +167,7 @@ in. An integer literal becomes `int`, `uint`, `float` or `decimal`; a literal ca
 part or an exponent becomes `decimal` or `float`. Because every binding site declares a type
 ([`types/declaration`](types.md#types-declaration)), the target is known almost everywhere.
 
-```php
+```nvs
 decimal $price = 19.99;          // exact: mantissa 1999, scale 2
 float   $ratio = 19.99;          // an f64
 var $x = 19.99;                  // no target type: float
@@ -470,7 +470,7 @@ value is exactly that one — parsed only in type position, the way `array<T>` i
 values**; `?"a"` is sugar for `"a"|null`. They are usable at every binding site
 ([`types/declaration`](types.md#types-declaration)), with no special case.
 
-```php
+```nvs
 function setMode("a"|"b"|"c" $mode) { … }   // the set is the type
 ```
 
@@ -508,7 +508,7 @@ since the whole point is that the accepted set is spelled out.
 `ClassName::CONST_NAME`, written where a type is expected, resolves at compile time to the constant's
 own value — exactly as long as that value is a `string` or `int` compile-time constant.
 
-```php
+```nvs
 class Foo {
     public const string TYPE_A = "a";
     public const string TYPE_B = "b";
@@ -537,7 +537,7 @@ for the opposite reason: it carries its enum's nominal type and stays a narrowed
 `EnumName::CaseName`, written where a type is expected, does **not** resolve to its backing integer. It
 names a new checker-only type: a subtype of `EnumName` inhabited by exactly that one case.
 
-```php
+```nvs
 enum Mode { Read, Write, Admin }
 
 function grant(Mode::Read|Mode::Write $m) { … }   // accepts only those two cases
@@ -843,7 +843,7 @@ on a `mixed`, because the checker already knows every other case.
 `mixed` per key, because input genuinely is untyped and pretending otherwise would be a lie in the
 type:
 
-```php
+```nvs
 uint $id = Core\Request::query('id') as uint;     // throws on "abc", on "-1", on "" — never quietly 0
 ```
 
@@ -871,7 +871,7 @@ answered: `"7" as ?int` is `7`, because `string → int` is a conversion row, wh
 `false`, because a `string` is not an `int`. One asks what a value can *become*, the other what it
 *is*.
 
-```php
+```nvs
 mixed $m = Core\Request::query('id');
 if ($m is int) {
     // $m is an int here — no `as`, no throw path
@@ -1073,7 +1073,7 @@ is not a second spelling — it does not parse at all ([`types/no-legacy-cast`](
 scalar/`array`/`object` type keyword `)` — so that it can emit `E0225` naming the exact `as` spelling
 to use, but it produces an error node; there is no cast node in the AST.
 
-```php
+```nvs
 (int)$x        // rejected — "use `$x as int` — it throws instead of silently truncating"
 (string)$x     // rejected — "use `$x as string` — it throws instead of silently truncating"
 ```
@@ -1097,7 +1097,7 @@ file and namespace scope alongside `use` and `namespace` or as a member of a cla
 body ([`types/class-scoped-alias`](types.md#types-class-scoped-alias)) — never inside a method body, a block or an anonymous function's body, where
 it is `E0233` by name like any other declaration written where control flow can reach it.
 
-```php
+```nvs
 type UserId = uint;
 type Result = User|NotFoundError;
 type Matrix = array<array<float>>;
@@ -1134,7 +1134,7 @@ check time rather than left to loop or bottom out at `mixed`. They are non-param
 A `TypeExpr` that is nothing but one bare `ClassName`, `EnumName`, `self`, `static` or `parent` atom —
 with no union, intersection, array wrapper or `?` sugar around it — is refused (`E0307`).
 
-```php
+```nvs
 type Id = SomeClass;              // rejected
 type Ids = array<SomeClass>;      // fine
 type Result = SomeClass|NotFound; // fine
@@ -1158,7 +1158,7 @@ A `type` alias is also a member of a class, interface or enum body, taking no vi
 reached as `Owner::Name` from anywhere and as a bare `Name` inside its owner's own body, and never
 inherited.
 
-```php
+```nvs
 final class Order {
     type Meta = {total: decimal, note?: string};
 
@@ -1239,7 +1239,7 @@ array, or an object the checker would have to interpret.
 
 `fn` is the only way to write an anonymous function, in two body shapes:
 
-```php
+```nvs
 fn($x) => $x + 1                            // expression body, implicit return
 fn($x) => { $y = $x + 1; return $y * 2; }   // block body, explicit `return` required
 fn(int $x): int => $x + 1                   // typed either way
@@ -1266,7 +1266,7 @@ anonymous function that needs to call itself carries a self-name instead
 
 A `callable` type may name its parameters and its return type:
 
-```php
+```nvs
 callable(User, string): string   $format;
 callable(): void                 $onExit;
 callable                         $anything;
@@ -1299,7 +1299,7 @@ goes with them, because a `callable(): T`-typed variable now carries what the fi
 A callable of arity *n* satisfies `callable(T₁..Tₘ): R` when **`n ≤ m`**, and only the first *n*
 parameter types are compared. An arity greater than *m* is refused where it is written.
 
-```php
+```nvs
 map(array<T> $a, callable(T, string): U $fn): array<U>
 
 Core\Arr::map($users, fn($u) => $u->name);               // 1 ≤ 2 — $u is User
@@ -1327,7 +1327,7 @@ would instead grow an unused `$key` parameter across every callback ever written
 
 A callable type's **parameters are contravariant** and its **return type covariant**:
 
-```php
+```nvs
 callable(User, string): string   $slot;
 
 fn (User $u, string $k): string => …    // exact           — accepted
@@ -1360,7 +1360,7 @@ the anonymous function does not annotate takes its type from the corresponding p
 parameter it *does* annotate is checked against it under [`types/callable-variance`](types.md#types-callable-variance), and
 wins where it is wider.
 
-```php
+```nvs
 $users;                                       // array<User>
 Core\Arr::map($users, fn($u) => $u->name);    // $u : User, U : string ⇒ array<string>
 ```
@@ -1409,7 +1409,7 @@ callables then carries.
 `call_user_func` and `call_user_func_array` are dropped with it. Every `callable` value supports
 direct invocation, which is what they existed to route around:
 
-```php
+```nvs
 $result = $fn($arg);       // replaces call_user_func($fn, $arg)
 $result = $fn(...$args);   // replaces call_user_func_array($fn, $args)
 ```
@@ -1434,7 +1434,7 @@ ordinary object, because capturing an object by value still shares the same heap
 rebinding a bare scalar or a copy-on-write `array<T>` local from inside an anonymous function is
 actually lost.
 
-```php
+```nvs
 class Counter { public int $value = 0; }
 $count = new Counter();
 $increment = fn() => $count->value++;   // both capture $count by value...
@@ -1455,7 +1455,7 @@ There is no `Core\Ref<T>` or boxed-cell builtin for this, and an anonymous objec
 An anonymous function that needs to call itself may carry an optional name between `fn` and its
 parameter list:
 
-```php
+```nvs
 $fact = fn factorial($n) => $n <= 1 ? 1 : $n * factorial($n - 1);
 ```
 
@@ -1509,7 +1509,7 @@ meant is refused, and a member reached through an `object`-typed receiver is ans
 
 `rule:types/anonymous-object`
 
-```php
+```nvs
 $point = {x: 1, y: 2};
 $box   = {count: 0};
 ```
@@ -1542,7 +1542,7 @@ in. A program that wants behaviour on a shared bag of values declares an ordinar
 
 `rule:types/shape-type`
 
-```php
+```nvs
 function move(object {x: int, y: int} $p): void { $p->x += 1; }
 type Point = {x: int, y: int};
 ```

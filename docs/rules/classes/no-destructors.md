@@ -1,5 +1,5 @@
 Novis has no destructors. There is no refcount-triggered cleanup hook and no scope-exit hook, and
-`__destruct` cannot even be declared. Cleanup that PHP puts there — closing a handle, releasing a
+`__destruct` cannot even be declared. Cleanup a destructor would hold — closing a handle, releasing a
 lock, flushing a buffer — becomes an explicit method the holder calls when it is actually done.
 
 Two independent arguments each suffice. There is no sound place to report a throw: every call returns
@@ -9,10 +9,10 @@ the failure. And it would undo the wholesale heap drop, whose whole point is not
 individually at request end.
 
 One thing does run when a refcount reaches zero, and it is not a destructor: a generator suspended
-inside a `try ... finally` is resumed in a return-like mode so the `finally` runs, matching PHP
+inside a `try ... finally` is resumed in a return-like mode so the `finally` runs
 (`rule:iteration/generators`). Nothing is declared, no name is recognized, and the release resumes a
 frame the program had already entered. A throw escaping such a `finally` is discarded, since a release
 is exactly the site with nowhere to report one.
 
-What it costs is real: no RAII, so a caller who forgets an explicit `close()` gets nothing — PHP's
-`__destruct` was an unreliable safety net, but it was a net.
+What it costs is real: no RAII, so a caller who forgets an explicit `close()` gets nothing. A
+destructor is an unreliable safety net, but it is a net.

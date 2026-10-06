@@ -161,7 +161,7 @@ are written down as they are incurred.
 
 `rule:programs/implementing`
 
-```php
+```nvs
 function Core\Program::implementing<T>(): array<T>;   // T is an interface or a class
 ```
 
@@ -194,7 +194,7 @@ never checked past its declaration and never reaches codegen.
 
 `rule:programs/implementing-with`
 
-```php
+```nvs
 function Core\Program::implementingWith<I, T>(string $member = ""): array<{instance: I, attribute: ?T}>;
 ```
 
@@ -226,7 +226,7 @@ hold unchanged.
 
 `rule:programs/constructors`
 
-```php
+```nvs
 function Core\Program::constructors<T, C>(): array<{class: string, make: C}>;   // C is callable(...): T
 ```
 
@@ -308,7 +308,7 @@ source, not one held at run time, and is loaded while compiling ([`types/class-r
 
 `autoload` is a top-level declaration in two forms, both taking **literal strings only**:
 
-```php
+```nvs
 autoload 'Framework' from './';                        // one prefix, one root
 autoload 'Acme\Legacy' from '../vendor/acme/lib',
                             '../vendor/acme/compat';   // one prefix, several roots
@@ -470,7 +470,7 @@ that file's folder, names the same files as a string literal in a program beside
 
 `rule:programs/program-id`
 
-```php
+```nvs
 function Core\Program::id(): string;
 ```
 

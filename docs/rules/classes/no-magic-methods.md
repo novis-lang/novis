@@ -1,4 +1,4 @@
-No method name changes what a class does by being present. Each of PHP's magic methods is either
+No method name changes what a class does by being present. Each `__`-prefixed magic method is either
 replaced by a declared interface — `__get`/`__set` by `PropertyObserver`
 (`rule:classes/property-observer`), `__toString` by `Stringable` (`rule:classes/stringable`), and
 ordering's implicit property walk by `Comparable` (`rule:classes/comparable`) — or removed outright:
@@ -12,6 +12,6 @@ Every one of those names is refused where it is *written*: the method-casing rul
 underscore, so a class cannot declare a hook for the runtime to decline to call. That is stronger than
 "never invoked", and it is what makes an absence checkable at all.
 
-`__autoload` needs no decision — PHP removed it, and every class reference resolves statically, so
+`__autoload` needs no decision: every class reference resolves statically, so
 there is no runtime moment for a loader callback to attach to. What replaces
 `spl_autoload_register` is `rule:programs/no-runtime-autoload`.

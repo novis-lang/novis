@@ -1030,7 +1030,7 @@ more slashes is an ordinary comment, as in Rust and for the same reason: a divid
 documentation. A `#` comment is never a doc comment whatever its length — `#[` already opens an attribute,
 and a second doc spelling is what [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name) refuses.
 
-```php
+```nvs
 /// The price in cents. Money is `decimal`, never `float`.
 /// A negative amount throws; zero is allowed and is a no-op.
 public function charge(uint $cents): void { … }
@@ -1087,7 +1087,7 @@ which was meant, and converted PHP arrives full of the first kind. Requiring the
 
 The body of a doc comment is Markdown. Two tags may appear, each on its own line in a trailing block:
 
-```php
+```nvs
 /// The price in cents, never a float.
 ///
 /// @see Core\Money::fromCents

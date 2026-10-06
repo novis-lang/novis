@@ -9,7 +9,7 @@ one is not declaring one: a subclass that writes no constructor of its own runs 
 unchanged, and that constructor assigns nothing the subclass declared after it, so the subclass's own
 properties are refused the same way.
 
-PHP discovers the same mistake at whichever read happens to hit the unset property, far from the
+Without it, the mistake surfaces at whichever read happens to hit the unset property, far from the
 constructor that forgot it. One analysis over two binding kinds turns that into a refusal at the
 cause.
 

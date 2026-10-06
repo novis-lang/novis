@@ -13,5 +13,5 @@ IDE can see.
 
 `insteadof` disappears with the mechanism it arbitrated: a collision is resolved by an ordinary
 override calling the source it wants by name (`rule:classes/member-conflict-is-an-error`). What it
-costs is that no PHP source using a trait converts unconverted, and a trait's `static` property —
+costs is that code using a trait is restructured by hand, and a trait's `static` property —
 silently copied per consuming class — has no destination at all.
