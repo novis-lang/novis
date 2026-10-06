@@ -18,7 +18,9 @@
       "crates/nvs-cli/src/check.rs",
       "crates/nvs-config/src/directive.rs",
       "crates/nvs-runtime/src/ctx/mod.rs",
-      "crates/nvs-codegen/src/emit.rs"
+      "crates/nvs-codegen/src/emit.rs",
+      "crates/nvs-types/src/deprecated/template.rs",
+      "crates/nvs-types/src/expr_table.rs"
     ],
     "rules": [
       "attributes/attach-sites-and-forms",
