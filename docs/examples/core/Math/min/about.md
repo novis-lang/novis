@@ -1,5 +1,5 @@
-`Core\Math::min` returns the smaller of two values. This replaces PHP's `min` when you give it two
-values. To find the smallest value in an array, use `Core\Arr::min`.
+`Core\Math::min` returns the smaller of two values. To find the smallest value
+in an array, use `Core\Arr::min`.
 
 It compares numbers, strings, `bool` values and `null`. The two values must be of the same type.
 Strings are compared by their characters, so `"apple"` is smaller than `"pear"`. When the two

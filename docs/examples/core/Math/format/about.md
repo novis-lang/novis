@@ -1,6 +1,6 @@
 `Core\Math::format` writes a number as text for a person to read. You choose how many decimals to
-write, the text between the whole part and the decimals, and the text between groups of three
-digits. This replaces PHP's `number_format`.
+write, the text between the whole part and the decimals, and the text between
+groups of three digits.
 
 The number can be an `int`, a `float` or a `decimal`. It is rounded to the number of decimals you
 ask for, and a half is rounded away from zero, so `2.5` is written as `3`. The digits are not

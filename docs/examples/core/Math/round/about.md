@@ -1,4 +1,4 @@
-`Core\Math::round` rounds a `float` to a number of decimal places. This replaces PHP's `round`.
+`Core\Math::round` rounds a `float` to a number of decimal places.
 
 The `precision` option says how many decimal places to keep. The default is `0`, which gives a
 whole number. A negative `precision` rounds to tens, hundreds and so on, so `-2` turns `1234.5`

@@ -1,6 +1,6 @@
 Keeps a value between a lowest and a highest value. A value below the range becomes the lowest
 value, and a value above it becomes the highest. A value inside the range stays the same, and both
-ends count as inside. This replaces PHP's `min(max($n, $low), $high)`.
+ends count as inside.
 
 It works for numbers, strings, `bool` and `null`, as long as all three values can be compared with
 each other. When the lowest value is above the highest, there is no range, and `Core\Math::clamp`

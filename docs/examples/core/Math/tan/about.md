@@ -1,6 +1,6 @@
 Returns the tangent of an angle. The angle is in radians, and `Core\Math::toRadians` converts
 degrees to radians. The tangent is the sine divided by the cosine, so it can be any number. An
-infinity or `NaN` (a value that means "not a number") gives `NaN`. This replaces PHP's `tan`.
+infinity or `NaN` (a value that means "not a number") gives `NaN`.
 
 **In plain words:** the tangent says how steep a slope is. It is how far the slope goes up for
 each step of 1 forward.

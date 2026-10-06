@@ -1,5 +1,5 @@
-`Core\Math::sign` checks whether a number is below zero, zero, or above zero. It returns `-1`, `0` or
-`1`. This replaces PHP's `$n <=> 0`.
+`Core\Math::sign` checks whether a number is below zero, zero, or above zero.
+It returns `-1`, `0` or `1`.
 
 It works with `int`, `float` and `decimal` values, and the result is always an `int`. `-0.0` is zero,
 so the result for it is `0`. The infinities are not zero: `-Core\Math::INFINITY` gives `-1`.

@@ -1,6 +1,6 @@
 Divides one `float` by another, like the `/` operator. The difference is what happens when you
-divide by zero. The `/` operator throws an `ArithmeticError`. `Core\Math::fdiv` returns a value
-instead. This replaces PHP's `fdiv`.
+divide by zero. The `/` operator throws an `ArithmeticError`.
+`Core\Math::fdiv` returns a value instead.
 
 When you divide a number by zero, the result is `INFINITY` or `-INFINITY`. The sign comes from
 the signs of both numbers together, so `1.0` divided by `-0.0` is `-INFINITY`. When you divide

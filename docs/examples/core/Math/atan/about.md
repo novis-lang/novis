@@ -3,7 +3,7 @@ Returns the angle whose tangent is the number you give it. This is the arc tange
 
 Any number works, because every number is the tangent of some angle. The angle is in radians,
 between `-PI / 2` and `PI / 2`. An infinite number gives exactly `PI / 2` or `-PI / 2`.
-`Core\Math::toDegrees` converts the angle to degrees. This replaces PHP's `atan`.
+`Core\Math::toDegrees` converts the angle to degrees.
 
 **Good to know:** when you divide one coordinate by the other to get the tangent, the signs of the
 two coordinates are lost. The points (1, 1) and (-1, -1) then give the same angle. Use

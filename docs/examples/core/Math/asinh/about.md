@@ -3,7 +3,7 @@ Returns the inverse hyperbolic sine of the number you give it. It undoes `Core\M
 
 Every number has a result. The result has the same sign as the number, and `0.0` gives `0.0`. Near
 zero, the result is close to the number itself. For big numbers the result grows slowly, like a
-logarithm. This replaces PHP's `asinh`.
+logarithm.
 
 **Good to know:** `Core\Math::log` has no usable result for zero or for a negative number.
 `Core\Math::asinh` works for every number. That makes it a common way to draw a scale for values

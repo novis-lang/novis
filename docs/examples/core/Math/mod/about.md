@@ -1,5 +1,5 @@
-`Core\Math::mod` returns the remainder after dividing one `float` by another. This replaces PHP's
-`fmod`. For whole numbers, use the `%` operator.
+`Core\Math::mod` returns the remainder after dividing one `float` by another. For whole
+numbers, use the `%` operator.
 
 The remainder has the same sign as the first value. So `Core\Math::mod(-7.5, 2.0)` is `-1.5`, and
 the sign of the second value does not change the result. To get a result that is never negative,

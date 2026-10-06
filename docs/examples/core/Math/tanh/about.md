@@ -1,5 +1,4 @@
-Returns the hyperbolic tangent of a number. That is `Core\Math::sinh` divided by
-`Core\Math::cosh`. This replaces PHP's `tanh`.
+Returns the hyperbolic tangent of a number. That is `Core\Math::sinh` divided by `Core\Math::cosh`.
 
 The result is always from `-1.0` to `1.0`, and it has the same sign as the number. It is `0.0` at
 zero. For large numbers it gets very close to `1.0`, and from about `20` it is exactly `1.0`.

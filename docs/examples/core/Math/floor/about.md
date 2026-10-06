@@ -3,7 +3,7 @@ whole stays the same.
 
 For a negative number, down means away from zero: `-4.1` becomes `-5.0`. A number between `-1.0`
 and `0.0` becomes `-1.0`. The result is always a `float`. `NaN` (a value that means "not a
-number") and the infinities stay the same. This replaces PHP's `floor`.
+number") and the infinities stay the same.
 
 Use it when only a complete unit counts: a full ten euros, a full hour, a full box.
 `Core\Math::ceil` rounds up, `Core\Math::truncate` rounds toward zero, and `Core\Math::round`

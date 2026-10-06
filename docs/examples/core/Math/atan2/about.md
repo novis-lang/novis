@@ -3,7 +3,7 @@ coordinates, `$y` first and then `$x`.
 
 The angle is in radians, from `-PI` to `PI`. Points above the x-axis give a positive angle, and
 points below it give a negative angle. `Core\Math::toDegrees` converts the angle to degrees. The
-point (0, 0) gives `0.0`. This replaces PHP's `atan2`.
+point (0, 0) gives `0.0`.
 
 **Good to know:** `Core\Math::atan` of `$y / $x` loses the signs of the two coordinates, so it
 cannot tell (1, 1) from (-1, -1). `Core\Math::atan2` takes both coordinates, so it always gives the

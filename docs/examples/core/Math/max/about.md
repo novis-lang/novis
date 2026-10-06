@@ -1,5 +1,5 @@
-`Core\Math::max` returns the larger of two values. This replaces PHP's `max` when you give it two
-values. To find the largest value in an array, use `Core\Arr::max`.
+`Core\Math::max` returns the larger of two values. To find the largest value
+in an array, use `Core\Arr::max`.
 
 It compares numbers, strings, `bool` values and `null`. The two values must be of the same type.
 Strings are compared by their characters, so `"pear"` is larger than `"apple"`. When the two
