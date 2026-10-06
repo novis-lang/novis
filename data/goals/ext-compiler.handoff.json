@@ -1,24 +1,24 @@
 {
-  "state": "**Goal `ext-compiler`, Stage 2 (registration): the checker layer has landed. The compile entry and the two reject cases have not.** The design is ADR 0246 § 8 and the goal file's § *Standing decisions*. This goal has no record slot.\n\n`crates/nvs-types/src/ext_lib.rs` seeds a set's manifests into the signature table in `build_signatures`, after the frozen native base and as a layer over it. Its module doc owns the qualifier mapping (`sink` is `Qual::Sink`, every other parameter `Qual::Contagious`, `source` taints the return), and the rule that an unparseable type or constant leaves the member out. `ext_lib::hir_classes` gives name resolution the same members. `nvs_hir::resolve_file_with_extensions` declares them through `SymbolTable::declare_extension`, which `contains` answers with no `Symbol` and no span, and a source declaration of the same name is `E_DUPLICATE_DECLARATION`. `nvs_types::check::check_program_loaded` is the checker's entry with a set. The check `nvs-types-a-manifest-class-is-a-signature` is green (`crates/nvs-types/tests/extensions.rs`).\n\n`crates/nvs-ext/src/types.rs` is now the one parser of a manifest's Novis types, for the loader and the checker both. A manifest's `\"default\": null` now reads as a default of `null` (`manifest.rs`'s `present`). Before, it read as no default.\n\nFixture gaps, both Stage 3's: the named rows of 0246 § 1 are absent (`crates/nvs-ext/src/load.rs:26`), and `kindOf` (`mixed`) is never called.",
+  "state": "**Goal `ext-compiler`, Stage 2 (registration) is on disk; Stage 3 (the call) has not started.** The design is ADR 0246 § 8 and the goal file's § *Standing decisions*. This goal has no record slot.\n\n`nvs_types::ext_lib` seeds a set's manifests into the signature table, and its module doc owns the qualifier mapping. `nvs_hir::resolve_program_linted` takes the set's `ExtensionClass` list and declares it ahead of the walk. `nvs check` reads the set beside its grants (`crates/nvs-cli/src/config.rs`'s `grants`), and `nvs run` reads it before the compile (`config::extension_set`, which treats a tree that does not resolve as no set and leaves the refusal to the run's own read). Both read manifests with `nvs_ext::load::read_manifests`: pin, sections, reserved namespace and a unique class, and no engine. An entry that does not read is `E0652` at its line. The two reject cases under `tests/conformance/reject/an-extension-*` pass.\n\nNot reading the set yet: `nvs serve`'s `script::Compiler` (`front_end_looking`), `nvs test` and the language server (Stage 6). A program that calls an extension correctly now type-checks and then reaches `nvs-ir`, which has no lowering for the call (Stage 3).\n\nFixture gaps, both Stage 3's: the named rows of 0246 § 1 are absent (`crates/nvs-ext/src/load.rs:26`), and `kindOf` (`mixed`) is never called.",
   "next": {
-    "stage": 2,
-    "title": "registration",
+    "stage": 3,
+    "title": "the call",
     "files": [],
-    "note": "one file set: `crates/nvs-hir/src/requires.rs`, `crates/nvs-cli/src/main.rs`, `crates/nvs-test/src/run.rs`, and two new cases under `tests/conformance/reject/`.",
+    "note": "one file set: a new `crates/nvs-ext/src/convert.rs` and `crates/nvs-ext/tests/convert.rs`, beside `crates/nvs-ext/src/types.rs`.",
     "items": [
       {
         "done": false,
-        "text": "**The set reaches the compiler**: `walk` at `crates/nvs-hir/src/requires.rs:275` takes the set's `ExtensionClass` list the way `resolve_file_with_extensions` at `crates/nvs-hir/src/resolve.rs:340` does (`Resolver::declare_extensions` before the first file, `MemberResolver::declare_extension` per class). `front_end_granted` at `crates/nvs-cli/src/main.rs:2002` reads the resolved configuration's `[[extension]]` entries, parses each `.nvsx`'s `nvs.manifest` with `nvs_ext::section` and `Manifest::parse` without instantiating anything, and calls `check_program_loaded`. `rule:packaging/extension-calls-are-statically-typed`."
+        "text": "**The value conversion**: every row of 0246 § 1's table converts a Novis value to its WIT `wasmtime::component::Val` and back, keyed by the `NovisType` that `crates/nvs-ext/src/types.rs:42` parses. The check `nvs-ext-every-row-converts` runs `cargo test -p nvs-ext --test convert`, so the test target is `crates/nvs-ext/tests/convert.rs`. `rule:packaging/a-value-crosses-as-its-wit-type`."
       },
       {
         "done": false,
-        "text": "**The two reject cases**: `tests/conformance/reject/an-extension-call-with-a-wrong-argument-type-does-not-compile.nvst` and `an-extension-class-the-set-does-not-load-does-not-compile.nvst`, each loading `ledger` through `--EXTENSION--` (`extension_fixtures` at `crates/nvs-test/src/case.rs:360`), except the second, which loads none. Check `an-extension-call-is-type-checked` in the record. `--EXPECTF-ERROR--` reproduces the diagnostic's own text: run the case with `bun nv try` first."
+        "text": "**The trampoline call in `nvs-ir`**: a static call whose target is an extension class lowers to a direct call of its export's trampoline; the lowering of a static call is `lower_static_call` at `crates/nvs-ir/src/lower/expr.rs:4236`, dispatched from `crates/nvs-ir/src/lower/expr.rs:311`. `rule:packaging/extension-calls-are-statically-typed`."
       }
     ]
   },
   "backlog": [
-    "A hir test that a source class named like a loaded extension class is `E_DUPLICATE_DECLARATION` (`crates/nvs-hir/src/resolve.rs`'s `declare`): the branch is written and has no test yet.",
-    "`SymbolTable::get` returns `None` for an extension class, so a reader that asks a symbol's kind sees nothing. The language server's hover is Stage 6's (`crates/nvs-hir/src/symbol.rs` module doc).",
-    "Stage 3: the trampoline call in `nvs-ir`, and the value conversion in `nvs-ext` (`convert` test target)."
+    "`nvs serve` compiles through `front_end_looking` with no extension set; it should read the live set's manifests (`crates/nvs-cli/src/extensions.rs`).",
+    "The fixture's named rows of 0246 § 1 and a `kindOf` call (`crates/nvs-ext/src/load.rs:26`).",
+    "Stage 6: `nvs test` and the language server read the configured set (`rule:packaging/extension-calls-are-statically-typed`)."
   ]
 }
