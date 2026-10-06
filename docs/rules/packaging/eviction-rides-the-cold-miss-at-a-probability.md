@@ -6,8 +6,7 @@ the cache directory's total size and, if it is over the configured cap, deletes 
 entries down to a hysteresis floor below the cap, so a cache hovering at the boundary does not walk on
 every subsequent miss.
 
-The probability is `opcache.file_cache_gc_probability` over `opcache.file_cache_gc_divisor`,
-deliberately the shape of PHP's `session.gc_probability`/`gc_divisor`; the cap is
+The probability is `opcache.file_cache_gc_probability` over `opcache.file_cache_gc_divisor`; the cap is
 `opcache.file_cache_max_size`. **A warm hit never performs a directory walk, never checks a size, and
 pays nothing beyond verify-then-map.**
 

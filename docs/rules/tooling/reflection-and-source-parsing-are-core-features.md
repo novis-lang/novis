@@ -2,8 +2,8 @@
 nothing to install: read-only structural introspection over a program's own classes, interfaces,
 enums, functions, properties, constants, attributes and parameters on one side, and a parser for
 Novis source text on the other. Neither is an extension a deployment might lack, because leaving
-either to userland is what produces PHP's split — reflection native and mature, a real syntax tree
-only from `nikic/php-parser` or a PECL extension whose grammar drifts from the engine's.
+either to userland produces a split — reflection native and mature, a real syntax tree only from a
+third-party parser whose grammar drifts from the engine's.
 
 **There is one parser.** `Core\Ast::parse` calls the same lexer and parser the compiler runs, so a
 construct that compiles parses identically at run time, a construct the compiler rejects is rejected

@@ -16,5 +16,5 @@ answer for a different class of code:
   right friction for code that runs unsandboxed.
 
 Which tier a candidate lands at is decided by `rule:core-api/tier-placement`'s six ordered tests,
-and the resulting roster is `rule:core-api/tier-roster`. The partition is not PHP's: `ctype` being an
-extension while `str_pad` is not tracks 1997 build engineering and nothing worth preserving.
+and the resulting roster is `rule:core-api/tier-roster`. Those tests decide the partition, and no
+other runtime's packaging is a reason to place a candidate.

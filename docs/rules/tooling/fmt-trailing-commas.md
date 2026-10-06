@@ -15,6 +15,6 @@ of a list, not two.
 line of its own, so once that rule holds the two questions never come apart in formatted output.
 
 Whether a list spans several lines is the author's decision, which `rule:tooling/fmt-never-reflows`
-preserves; the comma follows from that decision mechanically. This removes the one place PHP's grammar
+preserves; the comma follows from that decision mechanically. This removes the one place the grammar
 leaves a genuinely free stylistic choice with no way to derive the right answer from context, and it is
 what makes adding an element to a multi-line list a one-line diff.

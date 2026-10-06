@@ -10,8 +10,8 @@ Core\Cli::write("hello\n");
 reopens code mode (`rule:statements/nvs-is-the-only-open-tag`).
 
 **`#!` anywhere but offset 0 is ordinary text**, in either mode, with no lookahead and no special
-case. A byte-order mark before it therefore defeats the shebang and the file has none — PHP's
-long-standing behaviour too, left as-is rather than repaired, because inventing one rule for one
+case. A byte-order mark before it therefore defeats the shebang and the file has none — left as-is
+rather than repaired, because inventing one rule for one
 marker is how a parser acquires the heuristics `rule:errors/ambiguous-input-refused` forbids.
 
 **An `<?nvs` in a shebang file, before any `?>`, is `E0009`** — "this file opens with `#!` and is

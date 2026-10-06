@@ -1,7 +1,7 @@
 The VS Code extension is a standard `vscode-languageclient` package and the reference client. It
 registers the `nvs` language ID and the `.nvs` association (`rule:ide/nvs-is-its-own-file-type`), a
 `language-configuration.json` for bracket matching, comment toggles, auto-closing pairs and indentation
-— PHP's, adjusted for `spawn script`, `type` aliases and the type-annotation syntax PHP lacks — and a
+— covering `spawn script`, `type` aliases and the type-annotation syntax — and a
 TextMate grammar for the `<?nvs ?>` / `<?= ?>` plus inline-HTML lexer mode, so a file has correct-enough
 colour the moment it opens and before the server has parsed anything.
 

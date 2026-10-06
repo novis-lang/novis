@@ -5,6 +5,6 @@ nothing; a doc comment documents the declaration it precedes.*
 
 Attachment is what separates documentation from a note-to-self. The alternative — any comment run above a
 declaration is its documentation — needs no new syntax and would start working on every file already
-written, including converted PHP; but then a note and a document are the same token, only the author knew
-which was meant, and converted PHP arrives full of the first kind. Requiring the marker
+written; but then a note and a document are the same token, and only the author knew which was meant.
+Requiring the marker
 (`rule:tooling/doc-comment-is-three-slashes`) and refusing an orphan keeps the two apart.

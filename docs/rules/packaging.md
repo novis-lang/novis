@@ -245,8 +245,7 @@ the cache directory's total size and, if it is over the configured cap, deletes 
 entries down to a hysteresis floor below the cap, so a cache hovering at the boundary does not walk on
 every subsequent miss.
 
-The probability is `opcache.file_cache_gc_probability` over `opcache.file_cache_gc_divisor`,
-deliberately the shape of PHP's `session.gc_probability`/`gc_divisor`; the cap is
+The probability is `opcache.file_cache_gc_probability` over `opcache.file_cache_gc_divisor`; the cap is
 `opcache.file_cache_max_size`. **A warm hit never performs a directory walk, never checks a size, and
 pays nothing beyond verify-then-map.**
 
@@ -638,9 +637,9 @@ spent on a legal obligation, never touching a request path.
 
 `rule:packaging/the-cli-surface-is-novis-own`
 
-**No flag on `nvs` exists because PHP spells it that way.** The language copies PHP's observable
-semantics on purpose; the command line is not semantics, and a spelling inherited there buys a PHP
-developer one familiar keystroke and charges every reader of `--help` for it afterwards.
+**No flag on `nvs` exists because another tool spells it that way.** A spelling inherited from
+elsewhere buys a few users one familiar keystroke and charges every reader of `--help` for it
+afterwards.
 
 The whole short-flag surface, and where each one comes from:
 
@@ -651,8 +650,7 @@ The whole short-flag surface, and where each one comes from:
 | `-o`, `--output` | ours, on `nvs build --compile` alone |
 
 `-h` and `-V` stay, and are not the thing this rule is about: they are the Unix baseline every program on
-the machine shares, and `-V` is uppercase because the GNU convention reserves `-v` for verbosity. PHP's
-own version flag is the lowercase `-v`, so adopting it would be the one change that moved *toward* PHP.
+the machine shares, and `-V` is uppercase because the GNU convention reserves `-v` for verbosity.
 
 A short flag is a decision, not a convenience. Declare one only where a long name is genuinely typed
 often enough to hurt — `-o` is that, and nothing else in the CLI has met the bar. **A short and its long
@@ -708,11 +706,9 @@ one moment, so it is one call. The default is the summary because the full texts
 terminal is the wrong place to put them unasked; `--licenses` is the complete legal record. The report is
 plain two-column text with no colour and no paging, so it pipes.
 
-**It is reachable one way.** `php -i` is where the shape came from, and for a while `nvs -i` was carried
-beside the subcommand as the spelling a PHP developer tries first. That alias is gone:
-[`packaging/the-cli-surface-is-novis-own`](packaging.md#packaging-the-cli-surface-is-novis-own) is why, and what it cost — a global flag, a second
-`--licenses` hanging off it, and a hand-written conflict check for a collision clap cannot express — was
-the whole of the argument for removing it.
+**It is reachable one way.** There is no `nvs -i` alias: [`packaging/the-cli-surface-is-novis-own`](packaging.md#packaging-the-cli-surface-is-novis-own)
+is why, and what one would cost — a global flag, a second `--licenses` hanging off it, and a
+hand-written conflict check for a collision clap cannot express — is the rest of the argument.
 
 Fields that do not exist yet are not printed; the report grows a section as each thing it describes
 lands. **It reports no per-request state, ever** — that is [`testing/debug-probes`](testing.md#testing-debug-probes)' territory and is
@@ -1380,8 +1376,8 @@ answer for a different class of code:
   right friction for code that runs unsandboxed.
 
 Which tier a candidate lands at is decided by [`core-api/tier-placement`](core-api.md#core-api-tier-placement)'s six ordered tests,
-and the resulting roster is [`core-api/tier-roster`](core-api.md#core-api-tier-roster). The partition is not PHP's: `ctype` being an
-extension while `str_pad` is not tracks 1997 build engineering and nothing worth preserving.
+and the resulting roster is [`core-api/tier-roster`](core-api.md#core-api-tier-roster). Those tests decide the partition, and no
+other runtime's packaging is a reason to place a candidate.
 
 <sub>See also [`core-api/five-placements`](core-api.md#core-api-five-placements), [`core-api/tier-placement`](core-api.md#core-api-tier-placement), [`core-api/tier-roster`](core-api.md#core-api-tier-roster), [`packaging/the-boundary-is-the-cost`](packaging.md#packaging-the-boundary-is-the-cost). Decided in [0003](../decisions/0003.md), [0051](../decisions/0051.md), [0247](../decisions/0247.md).</sub>
 
@@ -1465,8 +1461,8 @@ unit's key ([`config/the-extension-set-is-in-every-unit-key`](config.md#config-t
 
 The world is WIT and versioned by semver. A host implementing `1.y` loads a component built against
 `1.x` for any `x ≤ y`, a minor version only adds imports and types, and a component built against a
-newer minor or another major is refused, naming both versions. A PHP extension must be recompiled for
-every minor engine release; an `.nvsx` compiled against `nvs:ext@1.0.0` is not.
+newer minor or another major is refused, naming both versions. An `.nvsx` compiled against
+`nvs:ext@1.0.0` is not recompiled for a minor engine release.
 
 **Not on disk.** There is no world file, manifest reader or component loader in the tree.
 
@@ -1564,8 +1560,7 @@ read the manifests of the resolved configuration's set and never instantiate a c
 
 Consequently `nvs check` type-checks a call into an extension at compile time, and codegen emits a
 **direct call** to a per-export trampoline that converts the arguments by
-[`packaging/a-value-crosses-as-its-wit-type`](packaging.md#packaging-a-value-crosses-as-its-wit-type)'s table, rather than a dynamic dispatch. PHP can do
-neither.
+[`packaging/a-value-crosses-as-its-wit-type`](packaging.md#packaging-a-value-crosses-as-its-wit-type)'s table, rather than a dynamic dispatch.
 
 The direct call is why the loaded extension set is a codegen input: an artifact compiled against one set
 holds a jump into a trampoline that another set may have moved, so the set is part of every compiled
@@ -1650,8 +1645,8 @@ a few times rather than words many times ([`packaging/the-boundary-is-the-cost`]
 
 Each request that calls an extension gets a **pristine instance** of it, created lazily on first use.
 Nothing a guest wrote into a global, a static or its linear memory is there on the next request, and a
-test that stores state in one instance must not be able to observe it from the next. PHP does not offer
-this: a stateful extension keeps its state for the worker's lifetime.
+test that stores state in one instance must not be able to observe it from the next. No extension
+keeps state for a worker's lifetime.
 
 Instantiation costs about 8 µs with the pooling allocator, paid only for the extensions a request
 actually calls. A typical request touches one to three, so the realistic cost is 8–23 µs against a
@@ -1820,7 +1815,7 @@ That is noise for coarse-grained work — image codecs, compression, crypto, doc
 decisive for fine-grained work, which is why primitives are Tier 0 and performance-critical first-party
 subsystems are Tier 2 ([`packaging/three-tiers`](packaging.md#packaging-three-tiers)). An extension author controls the boundary, not the
 compute, so an extension's API is designed **coarse**: whole inputs in, whole outputs out, a batch where
-PHP would offer a per-item call. Collation exposes sort-key generation and whole-array sort rather than
+a library would usually offer a per-item call. Collation exposes sort-key generation and whole-array sort rather than
 a comparator, because sorting ten thousand strings through a per-comparison boundary would be about
 130,000 crossings; the image component crosses once per terminal
 ([`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline)).
@@ -1870,7 +1865,7 @@ generation package would have to recross the boundary to enter the image pipelin
 point of loading one. Generation stays [`core-classes/pdf-render-has-no-io`](core-classes.md#core-classes-pdf-render-has-no-io)'s; text extraction,
 page manipulation and forms are different jobs and stay in the third-party channel.
 
-The job this replaces is PHP's ImageMagick-delegating-to-Ghostscript pair — an installed, unsandboxed
+The usual alternative is ImageMagick delegating to Ghostscript — an installed, unsandboxed
 interpreter with an RCE history long enough that ImageMagick's stock policy ships with the PDF coder
 disabled. A PDF interpreter is a strictly larger hostile-bytes case than any format already on the
 roster, and the sandbox is where a parser that size belongs.

@@ -20,7 +20,7 @@ unit's key (`rule:config/the-extension-set-is-in-every-unit-key`).
 
 The world is WIT and versioned by semver. A host implementing `1.y` loads a component built against
 `1.x` for any `x ≤ y`, a minor version only adds imports and types, and a component built against a
-newer minor or another major is refused, naming both versions. A PHP extension must be recompiled for
-every minor engine release; an `.nvsx` compiled against `nvs:ext@1.0.0` is not.
+newer minor or another major is refused, naming both versions. An `.nvsx` compiled against
+`nvs:ext@1.0.0` is not recompiled for a minor engine release.
 
 **Not on disk.** There is no world file, manifest reader or component loader in the tree.

@@ -4,7 +4,7 @@ code that compiler declares. `bun nv reference --primer --check` is that proof, 
 harness `docs/novis.md`'s examples already run under, applied to the one document that is read by
 someone who has nothing else.
 
-A refusal is checked as its code rather than as a program because its PHP cell is a fragment — a
+A refusal is checked as its code rather than as a program because its refused form is a fragment — a
 `list($a) = $b`, an untyped `as $each` — that no `nvs check` can be handed. The `E0xxx` beside it is
 the executable half: it either names a constant in the diagnostic registry or it names nothing, and a
 refusal the compiler cannot raise is the one lie a document generated from marked sections can still
@@ -17,6 +17,6 @@ the lookup protocol, one complete worked program with every shape annotated, the
 the smallest `nvs.toml` that grants a file read, the refusal table, and the chapter map.
 
 The refusal table is the highest-value part and the reason the order puts it late rather than first: a
-model's prior for a language that reads like PHP is confident and wrong, so what Novis refuses and what
+model's prior for a language that looks familiar is confident and wrong, so what Novis refuses and what
 to write instead is worth more per byte than what Novis has. Its budget is a low four figures of tokens,
 and it is met by what the primer selects — never by trimming what a selected section says.

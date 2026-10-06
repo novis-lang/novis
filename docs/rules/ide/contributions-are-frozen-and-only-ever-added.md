@@ -12,5 +12,5 @@ M4B's roster. Settings: `nvs.path` (the binary, falling back to `PATH`), `nvs.ls
 
 M10 adds, under the same rule and not as an exception to it: the settings `nvs.check.scope`,
 `nvs.codeLens.enable` and `nvs.template.services`, the command `nvs.checkWorkspace`, and a second
-request of Novis's own, `nvs/regions`. M10's PHP-name setting left with the PHP-name completion it
-configured. A contributions test asserts `package.json` declares exactly what the roster names.
+request of Novis's own, `nvs/regions`. A contributions test asserts `package.json` declares exactly
+what the roster names.

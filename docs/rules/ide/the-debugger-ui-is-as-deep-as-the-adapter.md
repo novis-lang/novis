@@ -7,7 +7,7 @@ adapter's capability list is therefore the debugger's scope, and it is this:
   the debugging most users actually do.
 - **Exception filters** — `exceptionBreakpointFilters`, so "break on uncaught" and "break on thrown" are
   separate switches. `rule:errors/escalation-ladder`'s single `Throwable` channel is what makes this two
-  filters rather than PHP's five categories.
+  filters and no more.
 - **Stepping exclusions** — a `launch.json` glob list, so stepping does not descend into package code and
   a handled throw inside it does not stop the session.
 - **Path mappings**, because the container case is the normal case: the file the adapter reports and the

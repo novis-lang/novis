@@ -11,8 +11,7 @@ read the manifests of the resolved configuration's set and never instantiate a c
 
 Consequently `nvs check` type-checks a call into an extension at compile time, and codegen emits a
 **direct call** to a per-export trampoline that converts the arguments by
-`rule:packaging/a-value-crosses-as-its-wit-type`'s table, rather than a dynamic dispatch. PHP can do
-neither.
+`rule:packaging/a-value-crosses-as-its-wit-type`'s table, rather than a dynamic dispatch.
 
 The direct call is why the loaded extension set is a codegen input: an artifact compiled against one set
 holds a jump into a trampoline that another set may have moved, so the set is part of every compiled

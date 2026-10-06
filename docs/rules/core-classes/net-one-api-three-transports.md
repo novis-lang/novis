@@ -1,5 +1,5 @@
-`Core\Net` is the whole socket surface, replacing PHP's `socket_*`, `stream_socket_*` and `fsockopen`
-with one class over three transports: TCP, UDP and Unix-domain sockets. A program reaches them through
+`Core\Net` is the whole socket surface: one class over three transports, TCP, UDP and Unix-domain
+sockets. A program reaches them through
 five entry points — an outbound TCP connection, a listening TCP socket, a bound UDP socket, an
 outbound Unix-domain connection and a listening Unix-domain socket — and accepting is a member on the
 listener rather than a sixth way in.
@@ -7,9 +7,9 @@ listener rather than a sixth way in.
 **No entry point decides between transports by reading its argument.** A host and a socket path are
 separate members taking separately-typed arguments, so `rule:security/a-path-is-not-a-url`'s refusal —
 no member dispatches on the textual content of a path — holds by construction rather than by a check.
-That is why the surface is five members where PHP has two: `stream_socket_client("unix://…")` and
-`stream_socket_client("tcp://…")` are one function distinguished by a prefix, and the second member is
-the security property.
+That is why the surface is five members and not two: a single connect taking `"unix://…"` or
+`"tcp://…"` would be one function distinguished by a prefix, and the separate member is the security
+property.
 
 Every one of those sockets parks on the runtime's own reactor. `crates/nvs-host/src/net.rs` is the
 contract they share — a `Read` and a `Write` that hand the core back instead of blocking it — and

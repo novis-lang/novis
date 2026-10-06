@@ -10,5 +10,5 @@ reflective write runs the property observer an ordinary write would run. The ref
 distinguishable from a misspelling, which is what makes the answer useful rather than merely safe.
 
 What it costs is that a serializer or a container cannot reach state its author did not expose. That
-is the trade: the alternative is that every access modifier in the language is advisory, which is
-what PHP's reflection makes them.
+is the trade: the alternative is a reflection API that makes every access modifier in the language
+advisory.

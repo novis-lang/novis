@@ -25,20 +25,20 @@ which sink it means.
 string's interpolation grammar, both halves of it and nothing added: `{$` opens a hole whose body is a
 **full expression** closed by the matching `}`, with brace depth counted so an anonymous function inside one does not
 close it early — `{$u->fullName()}`, `{$row["name"]}` and `{$a + $b}` are all holes — and a bare `$name`
-interpolates in PHP's simple syntax, `$name`, `$name->prop` one level, `$name[offset]`. A brace hole
+interpolates in the simple syntax, `$name`, `$name->prop` one level, `$name[offset]`. A brace hole
 must begin with `$`, so `{Money::format($c)}` is text exactly as it is in a double-quoted string, and
 every other `{` is text, so a `<style>` block's braces need no escape; `\{` writes a plain brace.
 A brace directly before a class path — `{Page::TITLE}`, `{Money::format($c)}` — is the one text a
 page prints that was almost never meant, so it is warned about where it is written, `W1012`, with the
-help naming `<?= Page::TITLE ?>` and `\{`; the bytes stay text, and a double-quoted string, where the
-habit is PHP's own, says nothing.
+help naming `<?= Page::TITLE ?>` and `\{`; the bytes stay text, and a double-quoted string says
+nothing.
 The second is the output tag a page already uses: `<?= expr ?>` opens a hole that takes **any**
 expression and closes on the first `?>` outside a nested string or template, so a constant, a static
 call and a nested template reach the page without a local — `<?= App::VERSION ?>`,
 `<?= Money::format($c) ?>`, `<?= $on ? html`<b>on</b>` : html`<i>off</i>` ?>` — and a `}` inside it
 is an ordinary brace. Both holes are escaped by the same rule;
 the tag differs from the brace only in what it lets in. A double-quoted string takes no `<?=`: a
-string is not a page, and PHP prints one as text. A `<?nvs` tag inside a template is `E0010`, since a
+string is not a page, and a `<?=` in one is text. A `<?nvs` tag inside a template is `E0010`, since a
 template is one expression and a loop around markup is code mode outside it.
 
 A `secret` value in either hole is refused where it is written (`rule:security/secret-sinks-refuse`); a

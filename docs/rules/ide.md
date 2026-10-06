@@ -898,7 +898,7 @@ the action stays hidden rather than proposing the annotation that is already wri
 
 **Everything else is answerable**, and that is a property of the language rather than of the
 implementation: because every binding site declares a type, an element that is a variable or a call has a
-type the checker already holds. There is no PHP-style guess anywhere in this action.
+type the checker already holds. Nothing in this action is guessed.
 
 Narrowing from writes made *after* the declaration is not offered: it needs the join over every write
 reaching the declaration and a generator that picks between answers, which
@@ -975,8 +975,8 @@ did not already have that type.
 the server has started, and the server has to be right about things a regex cannot see.
 
 **Layer one, the TextMate grammar** (`editors/vscode/syntaxes/nvs.tmLanguage.json`), is what a file looks
-like the instant it opens. It must cover, because each is a way Novis is not PHP and a borrowed PHP grammar
-gets wrong: the dual-mode lexer's openers `<?nvs`, `<?php`, `<?=` and `?>`, with inline HTML outside them
+like the instant it opens. It must cover, because a grammar borrowed from another language gets each one
+wrong: the dual-mode lexer's openers `<?nvs`, `<?php`, `<?=` and `?>`, with inline HTML outside them
 highlighted as HTML; heredoc and nowdoc, with interpolation only in the former; type annotations everywhere
 the grammar allows one, including the inline shape `{x: int}` ([`types/object-top`](types.md#types-object-top)); the qualifiers
 `tainted` and `secret`, and `decimal` as a scalar keyword ([`types/decimal`](types.md#types-decimal)); `spawn`, `spawn script`,
@@ -999,7 +999,7 @@ extension-host run confirming the client's legend matches the server's.
 
 Nothing Novis rejects may be coloured as though it were valid. `===` and `!==` are not operators
 ([`expressions/one-equality-operator`](expressions.md#expressions-one-equality-operator)), `(int)$x` is not a cast ([`types/no-legacy-cast`](types.md#types-no-legacy-cast)), `|>` is
-not PHP 8.5's operator ([`expressions/pipeline-substitution`](expressions.md#expressions-pipeline-substitution)), and the alternative colon syntax
+not a call of a callable on its right ([`expressions/pipeline-substitution`](expressions.md#expressions-pipeline-substitution)), and the alternative colon syntax
 (`if (...): ... endif;`) is not syntax at all.
 
 A grammar that colours these confirms a mistake in the editor before the server contradicts it, which is
@@ -1239,7 +1239,7 @@ its qualified name, because a declaration's name is absolute
 typed, so `cs` finds `Core\Str` by the editor's own match across the separator: an item's filter text is
 both of its spellings. **Ranking is the server's where the match ties**, in this order: the variables the
 body declared, imported types, types in the namespace in force, types already written somewhere in the
-file, the rest of `Core`, the rest of the workspace, the reserved words, and the PHP names last. Every tier
+file, the rest of `Core`, the rest of the workspace, and the reserved words last. Every tier
 is read off a table an arm already reads — the body's scope, the file's imports, the index's occurrences.
 A member list after `->` or `::` has no tiers.
 
@@ -1666,7 +1666,7 @@ there will be ([`ide/one-crate-and-one-extension-grow-in-place`](ide.md#ide-one-
 The VS Code extension is a standard `vscode-languageclient` package and the reference client. It
 registers the `nvs` language ID and the `.nvs` association ([`ide/nvs-is-its-own-file-type`](ide.md#ide-nvs-is-its-own-file-type)), a
 `language-configuration.json` for bracket matching, comment toggles, auto-closing pairs and indentation
-— PHP's, adjusted for `spawn script`, `type` aliases and the type-annotation syntax PHP lacks — and a
+— covering `spawn script`, `type` aliases and the type-annotation syntax — and a
 TextMate grammar for the `<?nvs ?>` / `<?= ?>` plus inline-HTML lexer mode, so a file has correct-enough
 colour the moment it opens and before the server has parsed anything.
 
@@ -1713,7 +1713,7 @@ Novis rejects as fine.
 
 The extension registers `.nvs` and does not claim `.php`, even though `nvs-syntax` parses it. Claiming it
 would fight every PHP extension a user already has, and losing that fight silently looks like Novis being
-broken. An opt-in setting is M10's if anyone converting a codebase asks for it.
+broken.
 
 A file named `nvs.toml` gets one completion provider and nothing else: no language id, file extension or
 grammar for TOML. The provider's selector is the file name, so a TOML extension keeps the file and the
@@ -1738,8 +1738,8 @@ whose language stays the editor's own. The manifest test proves no TOML file typ
 auto-closing and surrounding pairs, `indentationRules`, `onEnterRules` continuing a `///` run
 ([`ide/doc-comment-authoring-is-the-editors-own`](ide.md#ide-doc-comment-authoring-is-the-editors-own)), and folding markers.
 
-Two entries are where a file borrowed from a PHP extension goes wrong. The first is `onEnterRules`,
-which there continues a `/** */` block — in Novis an ordinary comment nothing reads
+Two entries are where a borrowed configuration file goes wrong. The first is `onEnterRules`, which
+in a C-family configuration continues a `/** */` block — in Novis an ordinary comment nothing reads
 ([`tooling/doc-comment-is-three-slashes`](tooling.md#tooling-doc-comment-is-three-slashes)) — so it carries a shape the language does not document
 with and leaves the shape it does uncontinued.
 
@@ -1798,8 +1798,8 @@ M4B's roster. Settings: `nvs.path` (the binary, falling back to `PATH`), `nvs.ls
 
 M10 adds, under the same rule and not as an exception to it: the settings `nvs.check.scope`,
 `nvs.codeLens.enable` and `nvs.template.services`, the command `nvs.checkWorkspace`, and a second
-request of Novis's own, `nvs/regions`. M10's PHP-name setting left with the PHP-name completion it
-configured. A contributions test asserts `package.json` declares exactly what the roster names.
+request of Novis's own, `nvs/regions`. A contributions test asserts `package.json` declares exactly
+what the roster names.
 
 <sub>See also [`ide/reveal-is-explicit-and-window-local`](ide.md#ide-reveal-is-explicit-and-window-local), [`ide/tainted-has-no-default-decoration`](ide.md#ide-tainted-has-no-default-decoration), [`ide/the-extension-claims-nvs-only`](ide.md#ide-the-extension-claims-nvs-only), [`ide/dependencies-are-allowlisted`](ide.md#ide-dependencies-are-allowlisted), [`ide/check-json-is-the-diagnostic-record-as-a-document`](ide.md#ide-check-json-is-the-diagnostic-record-as-a-document). Decided in [0099](../decisions/0099.md), [0101](../decisions/0101.md), [0108](../decisions/0108.md), [0111](../decisions/0111.md), [0274](../decisions/0274.md).</sub>
 
@@ -2080,7 +2080,7 @@ adapter's capability list is therefore the debugger's scope, and it is this:
   the debugging most users actually do.
 - **Exception filters** — `exceptionBreakpointFilters`, so "break on uncaught" and "break on thrown" are
   separate switches. [`errors/escalation-ladder`](errors.md#errors-escalation-ladder)'s single `Throwable` channel is what makes this two
-  filters rather than PHP's five categories.
+  filters and no more.
 - **Stepping exclusions** — a `launch.json` glob list, so stepping does not descend into package code and
   a handled throw inside it does not stop the session.
 - **Path mappings**, because the container case is the normal case: the file the adapter reports and the

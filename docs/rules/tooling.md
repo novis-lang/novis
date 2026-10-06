@@ -23,8 +23,8 @@ Core\Cli::write("hello\n");
 reopens code mode ([`statements/nvs-is-the-only-open-tag`](statements.md#statements-nvs-is-the-only-open-tag)).
 
 **`#!` anywhere but offset 0 is ordinary text**, in either mode, with no lookahead and no special
-case. A byte-order mark before it therefore defeats the shebang and the file has none — PHP's
-long-standing behaviour too, left as-is rather than repaired, because inventing one rule for one
+case. A byte-order mark before it therefore defeats the shebang and the file has none — left as-is
+rather than repaired, because inventing one rule for one
 marker is how a parser acquires the heuristics [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused) forbids.
 
 **An `<?nvs` in a shebang file, before any `?>`, is `E0009`** — "this file opens with `#!` and is
@@ -80,8 +80,8 @@ general evaluator.
 nothing to install: read-only structural introspection over a program's own classes, interfaces,
 enums, functions, properties, constants, attributes and parameters on one side, and a parser for
 Novis source text on the other. Neither is an extension a deployment might lack, because leaving
-either to userland is what produces PHP's split — reflection native and mature, a real syntax tree
-only from `nikic/php-parser` or a PECL extension whose grammar drifts from the engine's.
+either to userland produces a split — reflection native and mature, a real syntax tree only from a
+third-party parser whose grammar drifts from the engine's.
 
 **There is one parser.** `Core\Ast::parse` calls the same lexer and parser the compiler runs, so a
 construct that compiles parses identically at run time, a construct the compiler rejects is rejected
@@ -777,7 +777,7 @@ an unbroken chain anywhere else does too.
 `rule:tooling/fmt-quotes`
 
 A string literal is rewritten to single quotes, with two exceptions that both use double quotes instead:
-a literal that interpolates — only a double-quoted string or a heredoc can, unchanged from PHP — and a
+a literal that interpolates — only a double-quoted string or a heredoc can — and a
 literal containing a single quote that single-quoting would force to be escaped.
 
 A literal holding a backslash escape keeps its double quotes, which is the same exception read over
@@ -819,7 +819,7 @@ of a list, not two.
 line of its own, so once that rule holds the two questions never come apart in formatted output.
 
 Whether a list spans several lines is the author's decision, which [`tooling/fmt-never-reflows`](tooling.md#tooling-fmt-never-reflows)
-preserves; the comma follows from that decision mechanically. This removes the one place PHP's grammar
+preserves; the comma follows from that decision mechanically. This removes the one place the grammar
 leaves a genuinely free stylistic choice with no way to derive the right answer from context, and it is
 what makes adding an element to a multi-line list a one-line diff.
 
@@ -835,7 +835,7 @@ Consecutive `use` declarations are sorted lexicographically by their full path, 
 case-sensitive, with no blank line between them. Exactly one blank line separates that block from the
 `namespace` line above and from the first real declaration below.
 
-A `use` declaration names exactly one imported path, so there is no PHP-style grouped `use A\{B, C};`
+A `use` declaration names exactly one imported path, so there is no grouped `use A\{B, C};`
 form to order or to expand. This is the only reordering the formatter performs anywhere: class members
 keep the order their author wrote ([`tooling/fmt-never-reorders-members`](tooling.md#tooling-fmt-never-reorders-members)), because an import's
 position is not observable and a member's is.
@@ -908,8 +908,7 @@ separates a mis-typed keyword from a deliberate class reference, and a formatter
 the only place in the toolchain that guesses. An identifier never qualifies for a different reason: fixing
 its case is a *rename*, which must reach every use site across the workspace, and `nvs fmt` is a
 single-file walk — that rename is an editor's workspace-wide code action. A duration unit and an open tag
-can be nothing else, which is why they and only they are here. Normalizing PHP's case-insensitive
-reserved words is the converter's job, where the input is known to be PHP.
+can be nothing else, which is why they and only they are here.
 
 <sub>See also [`types/duration`](types.md#types-duration), [`classes/reserved-spellings-are-lower-case`](classes.md#classes-reserved-spellings-are-lower-case), [`core-api/casing-checks-the-leading-character`](core-api.md#core-api-casing-checks-the-leading-character), [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency). Decided in [0039](../decisions/0039.md).</sub>
 
@@ -940,10 +939,9 @@ declaration order, on purpose, for ETags and cached fixtures; and [`testing/benc
 test runner's report order the declaration order of the cases. A formatter that reordered members would
 change what a program prints and sends, and a formatter that changes meaning is not a formatter — the
 same line [`core-api/written-visibility`](core-api.md#core-api-written-visibility) takes when it refuses to let the formatter insert a missing
-`public`, and [`classes/comparable`](classes.md#classes-comparable) takes for the converter.
+`public`.
 
-PER has no member-ordering rule to defer to in any case; the convention people associate with it is one
-PHP tool's. A developer who wants the reordering can have it as a deliberate, diff-visible code action. It
+A developer who wants the reordering can have it as a deliberate, diff-visible code action. It
 is never something a formatter does on save. The `use` block ([`tooling/fmt-sorts-the-use-block`](tooling.md#tooling-fmt-sorts-the-use-block)) is
 the only reordering anywhere.
 
@@ -994,8 +992,7 @@ the fix — applied against the resilient tree, to a file that may not parse at 
 
 Keeping the two contracts apart is what `--check` needs: it fails for exactly one reason, so a CI job
 never has to tell "laid out differently" from "semantically wrong". A separate `nvs fix` batch verb was
-declined for the same reason — a third rule table beside the formatter's and the converter's, which no one
-has asked for.
+declined for the same reason — a second rule table beside the formatter's, which no one has asked for.
 
 <sub>See also [`tooling/fmt-check-writes-nothing`](tooling.md#tooling-fmt-check-writes-nothing), [`tooling/fmt-is-one-canonical-style`](tooling.md#tooling-fmt-is-one-canonical-style), [`core-api/identifier-casing`](core-api.md#core-api-identifier-casing), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency), [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients). Decided in [0039](../decisions/0039.md).</sub>
 
@@ -1073,8 +1070,8 @@ nothing; a doc comment documents the declaration it precedes.*
 
 Attachment is what separates documentation from a note-to-self. The alternative — any comment run above a
 declaration is its documentation — needs no new syntax and would start working on every file already
-written, including converted PHP; but then a note and a document are the same token, only the author knew
-which was meant, and converted PHP arrives full of the first kind. Requiring the marker
+written; but then a note and a document are the same token, and only the author knew which was meant.
+Requiring the marker
 ([`tooling/doc-comment-is-three-slashes`](tooling.md#tooling-doc-comment-is-three-slashes)) and refusing an orphan keeps the two apart.
 
 <sub>See also [`tooling/doc-comment-is-three-slashes`](tooling.md#tooling-doc-comment-is-three-slashes), [`tooling/strict-docs`](tooling.md#tooling-strict-docs). Decided in [0137](../decisions/0137.md).</sub>
@@ -1408,7 +1405,7 @@ code that compiler declares. `bun nv reference --primer --check` is that proof, 
 harness `docs/novis.md`'s examples already run under, applied to the one document that is read by
 someone who has nothing else.
 
-A refusal is checked as its code rather than as a program because its PHP cell is a fragment — a
+A refusal is checked as its code rather than as a program because its refused form is a fragment — a
 `list($a) = $b`, an untyped `as $each` — that no `nvs check` can be handed. The `E0xxx` beside it is
 the executable half: it either names a constant in the diagnostic registry or it names nothing, and a
 refusal the compiler cannot raise is the one lie a document generated from marked sections can still
@@ -1421,7 +1418,7 @@ the lookup protocol, one complete worked program with every shape annotated, the
 the smallest `nvs.toml` that grants a file read, the refusal table, and the chapter map.
 
 The refusal table is the highest-value part and the reason the order puts it late rather than first: a
-model's prior for a language that reads like PHP is confident and wrong, so what Novis refuses and what
+model's prior for a language that looks familiar is confident and wrong, so what Novis refuses and what
 to write instead is worth more per byte than what Novis has. Its budget is a low four figures of tokens,
 and it is met by what the primer selects — never by trimming what a selected section says.
 

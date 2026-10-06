@@ -2,8 +2,8 @@
 the server has started, and the server has to be right about things a regex cannot see.
 
 **Layer one, the TextMate grammar** (`editors/vscode/syntaxes/nvs.tmLanguage.json`), is what a file looks
-like the instant it opens. It must cover, because each is a way Novis is not PHP and a borrowed PHP grammar
-gets wrong: the dual-mode lexer's openers `<?nvs`, `<?php`, `<?=` and `?>`, with inline HTML outside them
+like the instant it opens. It must cover, because a grammar borrowed from another language gets each one
+wrong: the dual-mode lexer's openers `<?nvs`, `<?php`, `<?=` and `?>`, with inline HTML outside them
 highlighted as HTML; heredoc and nowdoc, with interpolation only in the former; type annotations everywhere
 the grammar allows one, including the inline shape `{x: int}` (`rule:types/object-top`); the qualifiers
 `tainted` and `secret`, and `decimal` as a scalar keyword (`rule:types/decimal`); `spawn`, `spawn script`,

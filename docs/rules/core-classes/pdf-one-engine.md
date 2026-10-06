@@ -4,8 +4,8 @@ Novis-side builder that **emits that same HTML**, and document parts compose by 
 a single render call.
 
 There is no second, imperative engine with its own coordinate model. That would be two spellings for
-one job, and every PHP shop that owns both a DOM-based renderer and a coordinate-based one is living
-in the alternative. Drawings are inline SVG, the same answer the image component gives for charts.
+one job, and a program that owns both a DOM-based renderer and a coordinate-based one maintains two
+layouts of every page. Drawings are inline SVG, the same answer the image component gives for charts.
 
 The HTML is parsed by the same crate the language's own parser uses
 (`rule:core-classes/html-parsing`), compiled into the sandbox rather than linked natively, so the

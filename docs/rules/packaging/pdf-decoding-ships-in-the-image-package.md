@@ -8,7 +8,7 @@ generation package would have to recross the boundary to enter the image pipelin
 point of loading one. Generation stays `rule:core-classes/pdf-render-has-no-io`'s; text extraction,
 page manipulation and forms are different jobs and stay in the third-party channel.
 
-The job this replaces is PHP's ImageMagick-delegating-to-Ghostscript pair — an installed, unsandboxed
+The usual alternative is ImageMagick delegating to Ghostscript — an installed, unsandboxed
 interpreter with an RCE history long enough that ImageMagick's stock policy ships with the PDF coder
 disabled. A PDF interpreter is a strictly larger hostile-bytes case than any format already on the
 roster, and the sandbox is where a parser that size belongs.

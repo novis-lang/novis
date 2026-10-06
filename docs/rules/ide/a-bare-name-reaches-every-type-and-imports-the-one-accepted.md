@@ -18,7 +18,7 @@ its qualified name, because a declaration's name is absolute
 typed, so `cs` finds `Core\Str` by the editor's own match across the separator: an item's filter text is
 both of its spellings. **Ranking is the server's where the match ties**, in this order: the variables the
 body declared, imported types, types in the namespace in force, types already written somewhere in the
-file, the rest of `Core`, the rest of the workspace, the reserved words, and the PHP names last. Every tier
+file, the rest of `Core`, the rest of the workspace, and the reserved words last. Every tier
 is read off a table an arm already reads — the body's scope, the file's imports, the index's occurrences.
 A member list after `->` or `::` has no tiers.
 

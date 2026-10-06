@@ -9,4 +9,4 @@ subroutine calls and callouts among them. It is never silently ignored and never
 because a behaviour difference the developer cannot see is precisely what the two-tier design exists
 to avoid.
 
-`/e` and the other spellings PHP has already removed are not reintroduced.
+There is no `/e` modifier: a pattern never evaluates its replacement as code.

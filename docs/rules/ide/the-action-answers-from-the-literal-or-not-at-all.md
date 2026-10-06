@@ -14,7 +14,7 @@ the action stays hidden rather than proposing the annotation that is already wri
 
 **Everything else is answerable**, and that is a property of the language rather than of the
 implementation: because every binding site declares a type, an element that is a variable or a call has a
-type the checker already holds. There is no PHP-style guess anywhere in this action.
+type the checker already holds. Nothing in this action is guessed.
 
 Narrowing from writes made *after* the declaration is not offered: it needs the join over every write
 reaching the declaration and a generator that picks between answers, which

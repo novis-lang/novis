@@ -5,7 +5,7 @@ by a modifier: there is no way to ask for backtracking, only to write a pattern 
 The backtracking tier runs under a bounded step count. Exhausting it throws an ordinary catchable
 `Throwable` naming the pattern and the budget. It never returns "no match", never returns a falsy
 value, and never truncates the search — a search that stopped early and a search that found nothing
-are different facts, and PHP's `preg_*` conflates them into `false`. Per
+are different facts, and one falsy return would conflate them. Per
 `rule:errors/escalation-ladder` this is an ordinary throw rather than a resource-limit fatal, so the
 request may catch it and answer 400. The linear tier has no budget, because it needs none.
 

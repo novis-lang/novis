@@ -3,9 +3,8 @@
 Every read and write suspends the calling coroutine exactly as `run`'s wait does, so streaming a
 child's output into a response costs one coroutine and no worker thread.
 
-One handle covers what PHP splits between `passthru` (stream straight through) and `proc_open` (full
-pipe control), because the difference between them is which members a caller happens to use, not two
-kinds of process.
+One handle covers both streaming a child's output straight through and full pipe control, because the
+difference between them is which members a caller happens to use, not two kinds of process.
 
 A read answers `null` at the end of its stream and a chunk otherwise, never a line and never the
 whole output. `wait` closes the child's standard input first, drains what neither read has taken, and

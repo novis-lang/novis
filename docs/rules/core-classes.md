@@ -45,8 +45,8 @@ cross the boundary, decided at run time, so nothing narrows the option at the ca
 is `null` rather than an empty array because a program that wrote `args: []` said something a program
 that wrote no option did not.
 
-This is Novis's own superglobal being retired for the same reason PHP's were, and consistency is the
-whole of the reason: an ambient, undeclared variable is the shape being closed, and one the project
+This is Novis's own superglobal being retired for the same reason every other superglobal is refused,
+and consistency is the whole of the reason: an ambient, undeclared variable is the shape being closed, and one the project
 introduced itself is no better for having been introduced deliberately. Each isolate's arguments are
 its own.
 
@@ -150,9 +150,8 @@ error from every later member but `kill`. A timeout that is not a positive lengt
 Every read and write suspends the calling coroutine exactly as `run`'s wait does, so streaming a
 child's output into a response costs one coroutine and no worker thread.
 
-One handle covers what PHP splits between `passthru` (stream straight through) and `proc_open` (full
-pipe control), because the difference between them is which members a caller happens to use, not two
-kinds of process.
+One handle covers both streaming a child's output straight through and full pipe control, because the
+difference between them is which members a caller happens to use, not two kinds of process.
 
 A read answers `null` at the end of its stream and a chunk otherwise, never a line and never the
 whole output. `wait` closes the child's standard input first, drains what neither read has taken, and
@@ -291,7 +290,7 @@ by a modifier: there is no way to ask for backtracking, only to write a pattern 
 The backtracking tier runs under a bounded step count. Exhausting it throws an ordinary catchable
 `Throwable` naming the pattern and the budget. It never returns "no match", never returns a falsy
 value, and never truncates the search — a search that stopped early and a search that found nothing
-are different facts, and PHP's `preg_*` conflates them into `false`. Per
+are different facts, and one falsy return would conflate them. Per
 [`errors/escalation-ladder`](errors.md#errors-escalation-ladder) this is an ordinary throw rather than a resource-limit fatal, so the
 request may catch it and answer 400. The linear tier has no budget, because it needs none.
 
@@ -352,7 +351,7 @@ subroutine calls and callouts among them. It is never silently ignored and never
 because a behaviour difference the developer cannot see is precisely what the two-tier design exists
 to avoid.
 
-`/e` and the other spellings PHP has already removed are not reintroduced.
+There is no `/e` modifier: a pattern never evaluates its replacement as code.
 
 <sub>See also [`core-classes/regex-two-tiers`](core-classes.md#core-classes-regex-two-tiers), [`types/string-is-utf8`](types.md#types-string-is-utf8), [`types/bytes`](types.md#types-bytes). Decided in [0056](../decisions/0056.md), [0009](../decisions/0009.md).</sub>
 
@@ -427,20 +426,20 @@ which sink it means.
 string's interpolation grammar, both halves of it and nothing added: `{$` opens a hole whose body is a
 **full expression** closed by the matching `}`, with brace depth counted so an anonymous function inside one does not
 close it early — `{$u->fullName()}`, `{$row["name"]}` and `{$a + $b}` are all holes — and a bare `$name`
-interpolates in PHP's simple syntax, `$name`, `$name->prop` one level, `$name[offset]`. A brace hole
+interpolates in the simple syntax, `$name`, `$name->prop` one level, `$name[offset]`. A brace hole
 must begin with `$`, so `{Money::format($c)}` is text exactly as it is in a double-quoted string, and
 every other `{` is text, so a `<style>` block's braces need no escape; `\{` writes a plain brace.
 A brace directly before a class path — `{Page::TITLE}`, `{Money::format($c)}` — is the one text a
 page prints that was almost never meant, so it is warned about where it is written, `W1012`, with the
-help naming `<?= Page::TITLE ?>` and `\{`; the bytes stay text, and a double-quoted string, where the
-habit is PHP's own, says nothing.
+help naming `<?= Page::TITLE ?>` and `\{`; the bytes stay text, and a double-quoted string says
+nothing.
 The second is the output tag a page already uses: `<?= expr ?>` opens a hole that takes **any**
 expression and closes on the first `?>` outside a nested string or template, so a constant, a static
 call and a nested template reach the page without a local — `<?= App::VERSION ?>`,
 `<?= Money::format($c) ?>`, `<?= $on ? html`<b>on</b>` : html`<i>off</i>` ?>` — and a `}` inside it
 is an ordinary brace. Both holes are escaped by the same rule;
 the tag differs from the brace only in what it lets in. A double-quoted string takes no `<?=`: a
-string is not a page, and PHP prints one as text. A `<?nvs` tag inside a template is `E0010`, since a
+string is not a page, and a `<?=` in one is text. A `<?nvs` tag inside a template is `E0010`, since a
 template is one expression and a loop around markup is code mode outside it.
 
 A `secret` value in either hole is refused where it is written ([`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse)); a
@@ -606,7 +605,7 @@ implied tags, error recovery and foster parenting are the specified output every
 produces, so recovering here does not violate the refuse-never-repair rule — nothing is guessed,
 because the specification fixes the answer. `Core\Xml` keeps the opposite contract: malformed XML
 throws. One API flipping between refuse-hard and recover-always under a flag is the ambiguity being
-retired, and it is what PHP's libxml2 surface is.
+retired.
 
 Both parsers materialise **the same node family**. Queries, traversal and the tree's memory story are
 written once, and which door parsed a document does not change what a program can do with it.
@@ -782,8 +781,8 @@ reflective write runs the property observer an ordinary write would run. The ref
 distinguishable from a misspelling, which is what makes the answer useful rather than merely safe.
 
 What it costs is that a serializer or a container cannot reach state its author did not expose. That
-is the trade: the alternative is that every access modifier in the language is advisory, which is
-what PHP's reflection makes them.
+is the trade: the alternative is a reflection API that makes every access modifier in the language
+advisory.
 
 <sub>See also [`core-classes/ast-is-inert`](core-classes.md#core-classes-ast-is-inert), [`enums/reflection`](enums.md#enums-reflection), [`types/erased-member-access`](types.md#types-erased-member-access). Decided in [0019](../decisions/0019.md), [0043](../decisions/0043.md).</sub>
 
@@ -950,11 +949,11 @@ accept `tainted` freely, and `password` is `secret tainted string`.
 
 `rule:core-classes/db-safe-connection-defaults`
 
-Three defaults close holes PHP leaves open, and none of the three is configurable to the unsafe
+Three defaults close three common driver holes, and none of the three is configurable to the unsafe
 value.
 
 **`LOCAL INFILE` is off**, with no option to enable it — a server that asks the client to send it a
-file gets nothing. **TLS defaults to `VerifyFull`** on a TCP connection; PHP's `pdo_pgsql` defaults to
+file gets nothing. **TLS defaults to `VerifyFull`** on a TCP connection, never
 `sslmode=prefer`, which silently connects in plaintext when the server says so, and a settings
 object naming a weaker mode does not compile. **The connection charset is forced to UTF-8**
 (`utf8mb4` on MySQL and MariaDB), so text columns arrive as valid UTF-8 and
@@ -2167,7 +2166,7 @@ name the map lacks **throws** rather than rendering a broken-image gap: a genera
 deterministic, and refusing beats repairing. A program that wants a remote image fetches it itself,
 under the outbound policy, and passes the bytes.
 
-The class of exploit that defines this category in PHP — server-side request forgery and local file
+The class of exploit that defines HTML-to-PDF rendering — server-side request forgery and local file
 read through a `<img src>` — is thereby absent by construction: there is nothing to trick into
 fetching, because there is no fetching. Fonts follow the same rule, with a small embedded default set
 so a plain document renders out of the box, and the guest needs no clock.
@@ -2188,8 +2187,8 @@ Novis-side builder that **emits that same HTML**, and document parts compose by 
 a single render call.
 
 There is no second, imperative engine with its own coordinate model. That would be two spellings for
-one job, and every PHP shop that owns both a DOM-based renderer and a coordinate-based one is living
-in the alternative. Drawings are inline SVG, the same answer the image component gives for charts.
+one job, and a program that owns both a DOM-based renderer and a coordinate-based one maintains two
+layouts of every page. Drawings are inline SVG, the same answer the image component gives for charts.
 
 The HTML is parsed by the same crate the language's own parser uses
 ([`core-classes/html-parsing`](core-classes.md#core-classes-html-parsing)), compiled into the sandbox rather than linked natively, so the
@@ -2225,8 +2224,7 @@ CSS's own forward-compatible parsing: an unknown declaration is dropped, never g
 What this rule adds to that standard behaviour is **visibility**. The render result carries the list
 of dropped declarations, so a test asserts the list is empty and a document that silently depends on
 unsupported CSS cannot survive CI. "Renders fine in the browser, wrong in the library" is the failure
-every PHP PDF library ships as a support forum instead of an API, and it exists because the drop is
-invisible.
+an invisible drop produces, and a visible list is what turns it into a test.
 
 **Not shipped.** There is no PDF package in the tree.
 
@@ -2347,7 +2345,7 @@ the formula-injection class.
 
 An export built from user data is therefore inert by construction rather than by a caller remembering
 to prefix a quote. This is the same move taint tracking makes everywhere else — code and data
-separated by type, not by inspection — applied at a boundary PHP userland leaves as a footnote in a
+separated by type, not by inspection — applied at a boundary that is otherwise a footnote in a
 security advisory.
 
 What it costs is one wrapper at the call sites that genuinely mean a formula, which is the smaller
@@ -2433,8 +2431,8 @@ compare bytes ends up comparing nothing.
 
 `rule:core-classes/net-one-api-three-transports`
 
-`Core\Net` is the whole socket surface, replacing PHP's `socket_*`, `stream_socket_*` and `fsockopen`
-with one class over three transports: TCP, UDP and Unix-domain sockets. A program reaches them through
+`Core\Net` is the whole socket surface: one class over three transports, TCP, UDP and Unix-domain
+sockets. A program reaches them through
 five entry points — an outbound TCP connection, a listening TCP socket, a bound UDP socket, an
 outbound Unix-domain connection and a listening Unix-domain socket — and accepting is a member on the
 listener rather than a sixth way in.
@@ -2442,9 +2440,9 @@ listener rather than a sixth way in.
 **No entry point decides between transports by reading its argument.** A host and a socket path are
 separate members taking separately-typed arguments, so [`security/a-path-is-not-a-url`](security.md#security-a-path-is-not-a-url)'s refusal —
 no member dispatches on the textual content of a path — holds by construction rather than by a check.
-That is why the surface is five members where PHP has two: `stream_socket_client("unix://…")` and
-`stream_socket_client("tcp://…")` are one function distinguished by a prefix, and the second member is
-the security property.
+That is why the surface is five members and not two: a single connect taking `"unix://…"` or
+`"tcp://…"` would be one function distinguished by a prefix, and the separate member is the security
+property.
 
 Every one of those sockets parks on the runtime's own reactor. `crates/nvs-host/src/net.rs` is the
 contract they share — a `Read` and a `Write` that hand the core back instead of blocking it — and
@@ -2468,9 +2466,8 @@ addressed one at a time.
 
 A socket opened through `Core\Net` closes with the request that opened it. There is no persistent
 connection, no pool held across requests and no handle a later request can find, which is
-[`security/no-cross-request-state`](security.md#security-no-cross-request-state) applied to the one subsystem whose PHP ancestor offered the
-opposite: `pfsockopen`'s whole purpose was a connection that outlived the script, and its row in the
-migration table is a member whose persistent half is dropped.
+[`security/no-cross-request-state`](security.md#security-no-cross-request-state) applied to sockets, the subsystem where a persistent connection
+is the most tempting shape: no member opens one.
 
 What this spends, per [`programs/memory-priority`](programs.md#programs-memory-priority): one reactor registration per open socket,
 attributable to the request that opened it and released with its arena. The process therefore holds

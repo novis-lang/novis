@@ -8,7 +8,7 @@ That is noise for coarse-grained work — image codecs, compression, crypto, doc
 decisive for fine-grained work, which is why primitives are Tier 0 and performance-critical first-party
 subsystems are Tier 2 (`rule:packaging/three-tiers`). An extension author controls the boundary, not the
 compute, so an extension's API is designed **coarse**: whole inputs in, whole outputs out, a batch where
-PHP would offer a per-item call. Collation exposes sort-key generation and whole-array sort rather than
+a library would usually offer a per-item call. Collation exposes sort-key generation and whole-array sort rather than
 a comparator, because sorting ten thousand strings through a per-comparison boundary would be about
 130,000 crossings; the image component crosses once per terminal
 (`rule:core-classes/image-pipeline`).

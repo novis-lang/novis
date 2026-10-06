@@ -8,11 +8,9 @@ one moment, so it is one call. The default is the summary because the full texts
 terminal is the wrong place to put them unasked; `--licenses` is the complete legal record. The report is
 plain two-column text with no colour and no paging, so it pipes.
 
-**It is reachable one way.** `php -i` is where the shape came from, and for a while `nvs -i` was carried
-beside the subcommand as the spelling a PHP developer tries first. That alias is gone:
-`rule:packaging/the-cli-surface-is-novis-own` is why, and what it cost — a global flag, a second
-`--licenses` hanging off it, and a hand-written conflict check for a collision clap cannot express — was
-the whole of the argument for removing it.
+**It is reachable one way.** There is no `nvs -i` alias: `rule:packaging/the-cli-surface-is-novis-own`
+is why, and what one would cost — a global flag, a second `--licenses` hanging off it, and a
+hand-written conflict check for a collision clap cannot express — is the rest of the argument.
 
 Fields that do not exist yet are not printed; the report grows a section as each thing it describes
 lands. **It reports no per-request state, ever** — that is `rule:testing/debug-probes`' territory and is

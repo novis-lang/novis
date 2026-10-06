@@ -3,7 +3,7 @@ implied tags, error recovery and foster parenting are the specified output every
 produces, so recovering here does not violate the refuse-never-repair rule — nothing is guessed,
 because the specification fixes the answer. `Core\Xml` keeps the opposite contract: malformed XML
 throws. One API flipping between refuse-hard and recover-always under a flag is the ambiguity being
-retired, and it is what PHP's libxml2 surface is.
+retired.
 
 Both parsers materialise **the same node family**. Queries, traversal and the tree's memory story are
 written once, and which door parsed a document does not change what a program can do with it.

@@ -7,7 +7,7 @@ cross the boundary, decided at run time, so nothing narrows the option at the ca
 is `null` rather than an empty array because a program that wrote `args: []` said something a program
 that wrote no option did not.
 
-This is Novis's own superglobal being retired for the same reason PHP's were, and consistency is the
-whole of the reason: an ambient, undeclared variable is the shape being closed, and one the project
+This is Novis's own superglobal being retired for the same reason every other superglobal is refused,
+and consistency is the whole of the reason: an ambient, undeclared variable is the shape being closed, and one the project
 introduced itself is no better for having been introduced deliberately. Each isolate's arguments are
 its own.

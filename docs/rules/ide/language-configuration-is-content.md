@@ -2,8 +2,8 @@
 auto-closing and surrounding pairs, `indentationRules`, `onEnterRules` continuing a `///` run
 (`rule:ide/doc-comment-authoring-is-the-editors-own`), and folding markers.
 
-Two entries are where a file borrowed from a PHP extension goes wrong. The first is `onEnterRules`,
-which there continues a `/** */` block — in Novis an ordinary comment nothing reads
+Two entries are where a borrowed configuration file goes wrong. The first is `onEnterRules`, which
+in a C-family configuration continues a `/** */` block — in Novis an ordinary comment nothing reads
 (`rule:tooling/doc-comment-is-three-slashes`) — so it carries a shape the language does not document
 with and leaves the shape it does uncontinued.
 

@@ -19,5 +19,4 @@ separates a mis-typed keyword from a deliberate class reference, and a formatter
 the only place in the toolchain that guesses. An identifier never qualifies for a different reason: fixing
 its case is a *rename*, which must reach every use site across the workspace, and `nvs fmt` is a
 single-file walk — that rename is an editor's workspace-wide code action. A duration unit and an open tag
-can be nothing else, which is why they and only they are here. Normalizing PHP's case-insensitive
-reserved words is the converter's job, where the input is known to be PHP.
+can be nothing else, which is why they and only they are here.

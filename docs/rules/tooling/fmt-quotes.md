@@ -1,5 +1,5 @@
 A string literal is rewritten to single quotes, with two exceptions that both use double quotes instead:
-a literal that interpolates — only a double-quoted string or a heredoc can, unchanged from PHP — and a
+a literal that interpolates — only a double-quoted string or a heredoc can — and a
 literal containing a single quote that single-quoting would force to be escaped.
 
 A literal holding a backslash escape keeps its double quotes, which is the same exception read over

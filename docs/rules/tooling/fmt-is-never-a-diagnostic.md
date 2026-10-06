@@ -14,5 +14,4 @@ the fix — applied against the resilient tree, to a file that may not parse at 
 
 Keeping the two contracts apart is what `--check` needs: it fails for exactly one reason, so a CI job
 never has to tell "laid out differently" from "semantically wrong". A separate `nvs fix` batch verb was
-declined for the same reason — a third rule table beside the formatter's and the converter's, which no one
-has asked for.
+declined for the same reason — a second rule table beside the formatter's, which no one has asked for.
