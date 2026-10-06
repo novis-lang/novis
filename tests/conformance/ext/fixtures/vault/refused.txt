@@ -1,0 +1,1 @@
+the return of `token` is declared `secret`, and a `secret` value never crosses an extension boundary

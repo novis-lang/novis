@@ -1,0 +1,6 @@
+package shop:vault;
+
+/// The fixture extension `Shop\Vault`, whose manifest does not load. The
+/// interface exports nothing, because no call ever reaches it.
+interface api {
+}

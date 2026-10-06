@@ -21,11 +21,18 @@
 //! argument unchanged, one per row of `rule:packaging/a-value-crosses-as-its-wit-type`'s table the
 //! loader reads; `writeLine` takes a sink parameter, `fetch` returns a source, `fail` returns each
 //! `err` case and `crash` traps.
+//!
+//! A fixture whose directory has a `refused.txt` is one whose manifest must not load, and that file
+//! is the refusal the loader gives. The packer parses a manifest before it writes one, so such a
+//! fixture is packed with a stand-in naming only its world, class and interface, and its own
+//! `manifest.json` then replaces the stand-in's section byte for byte. `Shop\Vault` is one: its
+//! manifest declares a `secret` return (`rule:security/secret-does-not-cross-an-extension`).
 
 use std::path::{Path, PathBuf};
 
 use nvs_ext::load::{Entry, Extension, Loader, pin};
-use nvs_ext::pack::{Inputs, pack};
+use nvs_ext::pack::{Inputs, append_section, pack};
+use nvs_ext::section::MANIFEST;
 use nvs_ext::source::SourceFile;
 use wasmtime::component::{Linker, Val};
 use wasmtime::{Engine, Store};
@@ -95,13 +102,58 @@ fn build(name: &str) -> Vec<u8> {
     let manifest = read(&dir.join("manifest.json"));
     let mut files = Vec::new();
     source_files(&dir.join("source"), &dir.join("source"), &mut files);
-    pack(&Inputs {
+    if refused(name).is_none() {
+        return pack(&Inputs {
+            wasm: &module,
+            wit: &[("api.wit", &wit)],
+            manifest: manifest.as_bytes(),
+            files: &files,
+        })
+        .unwrap_or_else(|err| panic!("{name} does not pack: {err}"));
+    }
+    let stand_in = stand_in(name, &manifest);
+    let packed = pack(&Inputs {
         wasm: &module,
         wit: &[("api.wit", &wit)],
-        manifest: manifest.as_bytes(),
+        manifest: stand_in.as_bytes(),
         files: &files,
     })
-    .unwrap_or_else(|err| panic!("{name} does not pack: {err}"))
+    .unwrap_or_else(|err| panic!("{name}'s stand-in manifest does not pack: {err}"));
+    let section = append_section(Vec::new(), MANIFEST, stand_in.as_bytes());
+    let at = packed
+        .windows(section.len())
+        .rposition(|window| window == section.as_slice())
+        .expect("the packer writes the stand-in's section");
+    let mut bytes = packed[..at].to_vec();
+    bytes = append_section(bytes, MANIFEST, manifest.as_bytes());
+    bytes.extend_from_slice(&packed[at + section.len()..]);
+    bytes
+}
+
+/// The load refusal the fixture `name` exists to give, when its directory has a `refused.txt`.
+fn refused(name: &str) -> Option<String> {
+    let path = fixtures().join(name).join("refused.txt");
+    path.is_file().then(|| read(&path).trim_end().to_owned())
+}
+
+/// A manifest the packer accepts with `manifest`'s world, class and interface and no members,
+/// which a refused fixture is packed with before its own `manifest` replaces it byte for byte.
+fn stand_in(name: &str, manifest: &str) -> String {
+    let written: serde_json::Value = serde_json::from_str(manifest)
+        .unwrap_or_else(|err| panic!("{name}'s manifest.json is not JSON: {err}"));
+    let field = |key: &str| {
+        written[key]
+            .as_str()
+            .unwrap_or_else(|| panic!("{name}'s manifest.json has no string `{key}`"))
+            .to_owned()
+    };
+    serde_json::json!({
+        "manifest": 1,
+        "world": field("world"),
+        "class": field("class"),
+        "interface": field("interface"),
+    })
+    .to_string()
 }
 
 fn load(engine: &Engine, name: &str, bytes: &[u8]) -> Extension {
@@ -154,6 +206,34 @@ fn every_committed_conformance_fixture_is_what_the_packer_builds_from_its_text()
             path.display()
         );
     }
+}
+
+#[test]
+fn a_fixture_with_a_refusal_does_not_load_and_gives_it() {
+    let engine = Engine::default();
+    let mut seen = 0;
+    for name in names() {
+        let bytes = build(&name);
+        let loaded = Loader::new(&engine).load_bytes(
+            &Entry {
+                path: PathBuf::from(format!("{name}.nvsx")),
+                sha256: pin(&bytes),
+                memory: None,
+            },
+            &bytes,
+        );
+        match (refused(&name), loaded) {
+            (Some(want), Err(err)) => {
+                let got = err.to_string();
+                assert!(got.contains(&want), "{name}: `{got}` is not `{want}`");
+                seen += 1;
+            }
+            (Some(want), Ok(_)) => panic!("{name} loads, and should be refused with `{want}`"),
+            (None, Err(err)) => panic!("{name} does not load: {err}"),
+            (None, Ok(_)) => {}
+        }
+    }
+    assert!(seen > 0, "no fixture has a `refused.txt`");
 }
 
 #[test]
