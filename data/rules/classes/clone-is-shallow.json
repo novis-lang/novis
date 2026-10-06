@@ -15,7 +15,6 @@
   "guardedBy": [
     "tests/conformance/class/clone-copies-one-level-only.nvst",
     "tests/conformance/class/a-clone-shares-the-object-its-property-holds.nvst",
-    "tests/conformance/class/a-clone-copies-storage-without-running-anything.nvst",
-    "tests/differential/class/clone-is-shallow-like-phps.nvst"
+    "tests/conformance/class/a-clone-copies-storage-without-running-anything.nvst"
   ]
 }

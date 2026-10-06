@@ -7,7 +7,7 @@
     "0125"
   ],
   "dependsOnText": "[0008](0008.md), which decides there is a called class to read,\nand [0125](0125.md), which decides a class\ndescriptor is a value with a type.",
-  "validatedBy": "[tests/differential/class/a-class-name-constant-matches-php.nvst](../../tests/differential/class/a-class-name-constant-matches-php.nvst),\n[tests/conformance/class/a-class-name-constant-answers-the-class-the-call-was-made-on.nvst](../../tests/conformance/class/a-class-name-constant-answers-the-class-the-call-was-made-on.nvst)\nand [tests/conformance/class/a-class-reference-converts-back-to-the-name-it-names.nvst](../../tests/conformance/class/a-class-reference-converts-back-to-the-name-it-names.nvst)",
+  "validatedBy": "[tests/conformance/class/a-class-name-constant-answers-the-class-the-call-was-made-on.nvst](../../tests/conformance/class/a-class-name-constant-answers-the-class-the-call-was-made-on.nvst)\nand [tests/conformance/class/a-class-reference-converts-back-to-the-name-it-names.nvst](../../tests/conformance/class/a-class-reference-converts-back-to-the-name-it-names.nvst)",
   "summary": {
     "group": "language",
     "headline": "`::class` names the class a value actually is",

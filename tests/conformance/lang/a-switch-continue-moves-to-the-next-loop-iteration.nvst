@@ -1,0 +1,71 @@
+--TEST--
+A bare `continue` inside a `switch` moves to the loop's next iteration, beside label order, fallthrough, a mid-list `default` and a `match`'s chosen arm — `rule:expressions/switch-match-equality`
+--FILE--
+<?nvs
+var $log = "";
+for (int $i = 0; $i < 4; $i += 1) {
+    switch ($i) {
+        case 0:
+            $log .= "zero ";
+            break;
+        default:
+            $log .= "other";
+        case 3:
+            $log .= "(3) ";
+            break;
+    }
+}
+echo "log=", $log, "|\n";
+
+var $seen = "before ";
+switch (9) {
+    case 1:
+        $seen .= "one";
+        break;
+}
+$seen .= "after";
+echo "seen=", $seen, "\n";
+
+var $picked = "";
+array<string> $words = ["a", "b", "c"];
+foreach ($words as string $w) {
+    switch ($w) {
+        case "a":
+        case "c":
+            $picked .= "edge(" . $w . ") ";
+            break;
+        default:
+            $picked .= "middle(" . $w . ") ";
+    }
+}
+echo "picked=", $picked, "|\n";
+
+// A bare `continue` inside a `switch` skips the rest of the loop body and
+// starts the loop's next iteration, so `$n == 2` adds nothing to `$trace`.
+var $trace = "";
+for (int $n = 0; $n < 4; $n += 1) {
+    switch ($n) {
+        case 2:
+            continue;
+        default:
+            $trace .= "d" . $n;
+    }
+    $trace .= "t" . $n . " ";
+}
+echo "trace=", $trace, "|\n";
+
+var $labels = "";
+for (int $m = 0; $m < 5; $m += 1) {
+    $labels .= match ($m) {
+        0, 1 => "small ",
+        3 => "three ",
+        default => "big ",
+    };
+}
+echo "labels=", $labels, "|\n";
+--EXPECT--
+log=zero other(3) other(3) (3) |
+seen=before after
+picked=edge(a) middle(b) edge(c) |
+trace=d0t0 d1t1 d3t3 |
+labels=small small big three big |

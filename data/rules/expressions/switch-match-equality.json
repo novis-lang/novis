@@ -14,6 +14,6 @@
   "guardedBy": [
     "tests/conformance/lang/a-switch-compares-in-order-and-falls-through.nvst",
     "tests/conformance/lang/equality-across-overlapping-types-still-compiles.nvst",
-    "tests/differential/lang/a-switch-and-a-match-agree-with-php.nvst"
+    "tests/conformance/lang/a-switch-continue-moves-to-the-next-loop-iteration.nvst"
   ]
 }

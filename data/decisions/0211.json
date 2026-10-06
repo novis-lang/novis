@@ -6,5 +6,5 @@
     "0008",
     "0144"
   ],
-  "validatedBy": "`tests/conformance/class/a-static-constant-read-answers-the-called-class.nvst`,\n`tests/differential/class/a-static-constant-read-matches-php.nvst` and the four reject cases\nnamed in the rule's `guardedBy`."
+  "validatedBy": "`tests/conformance/class/a-static-constant-read-answers-the-called-class.nvst` and the four reject cases\nnamed in the rule's `guardedBy`."
 }

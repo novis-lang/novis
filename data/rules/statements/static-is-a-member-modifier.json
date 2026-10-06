@@ -16,7 +16,6 @@
   ],
   "guardedBy": [
     "tests/conformance/class/a-static-constant-read-answers-the-called-class.nvst",
-    "tests/differential/class/a-static-constant-read-matches-php.nvst",
     "tests/conformance/reject/a-static-constant-is-not-read-in-a-constant-expression.nvst",
     "tests/conformance/reject/a-static-constant-read-needs-a-scalar-value.nvst",
     "tests/conformance/reject/a-redeclared-constant-keeps-its-type.nvst",
