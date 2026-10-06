@@ -1,0 +1,41 @@
+--TEST--
+Core\Validate::isEmail is false for an address whose host is an IP address in brackets, and Core\Validate::isDomain is false for a name that ends with a dot
+--FILE--
+<?nvs
+final class Show {
+    public static function of(bool $answer): string {
+        return $answer ? "1" : "0";
+    }
+}
+
+// An email address whose host is an IP address in brackets is not valid.
+array<string> $bracketed = [
+    "user@[127.0.0.1]",
+    "user@[IPv6:2001:db8::1]",
+];
+foreach ($bracketed as string $subject) {
+    echo Show::of(Core\Validate::isEmail($subject));
+}
+echo "\n";
+
+// The same mailbox with a domain name as its host is valid.
+echo Show::of(Core\Validate::isEmail("user@example.com")), "\n";
+
+// A domain name that ends with a dot is not valid. Neither is a dot alone.
+array<string> $names = [
+    "example.com.",
+    "example.com..",
+    ".",
+];
+foreach ($names as string $subject) {
+    echo Show::of(Core\Validate::isDomain($subject));
+}
+echo "\n";
+
+// The same name without the trailing dot is valid.
+echo Show::of(Core\Validate::isDomain("example.com")), "\n";
+--EXPECT--
+00
+1
+000
+1

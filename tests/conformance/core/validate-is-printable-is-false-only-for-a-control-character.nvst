@@ -1,0 +1,37 @@
+--TEST--
+Core\Validate::isPrintable is false only when the text has a control character (Unicode category Cc), so the empty string, non-ASCII text and format characters are printable and the C1 controls are not
+--FILE--
+<?nvs
+final class Show {
+    public static function yn(bool $b): string {
+        if ($b) {
+            return "y";
+        }
+        return "n";
+    }
+}
+
+// The empty string has no control character, so it is printable.
+echo "empty:", Show::yn(Core\Validate::isPrintable("")), "\n";
+
+// Text outside ASCII is printable.
+echo "text:", Show::yn(Core\Validate::isPrintable("café")),
+     Show::yn(Core\Validate::isPrintable("日本語")),
+     Show::yn(Core\Validate::isPrintable("→")), "\n";
+
+// A non-breaking space, a zero-width space and a right-to-left override
+// are not control characters, so all three are printable.
+echo "format:", Show::yn(Core\Validate::isPrintable(Core\Str::fromCodePoint(160 as uint))),
+     Show::yn(Core\Validate::isPrintable(Core\Str::fromCodePoint(8203 as uint))),
+     Show::yn(Core\Validate::isPrintable(Core\Str::fromCodePoint(8238 as uint))), "\n";
+
+// Code points 128 to 159 are control characters, so they are not printable.
+// One of them inside other text makes the whole text not printable.
+echo "c1:", Show::yn(Core\Validate::isPrintable(Core\Str::fromCodePoint(133 as uint))),
+     Show::yn(Core\Validate::isPrintable(Core\Str::fromCodePoint(159 as uint))),
+     Show::yn(Core\Validate::isPrintable("a" . Core\Str::fromCodePoint(133 as uint) . "b")), "\n";
+--EXPECT--
+empty:y
+text:yyy
+format:yyy
+c1:nnn

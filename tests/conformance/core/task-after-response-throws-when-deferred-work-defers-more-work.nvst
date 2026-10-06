@@ -1,0 +1,32 @@
+--TEST--
+Core\Task::afterResponse throws a catchable `RuntimeError` when deferred work calls it, and work the request defers runs in the order it was added
+--FILE--
+<?nvs
+// Deferred work may not defer more work. The call throws an error,
+// and the deferred work can catch it and carry on.
+Core\Task::afterResponse(fn (): void => {
+    echo "deferred ran\n";
+    try {
+        Core\Task::afterResponse(fn (): void => {
+            echo "this never runs\n";
+        });
+    } catch (RuntimeError $e) {
+        echo "refused: ", $e->message, "\n";
+    }
+});
+echo "response written\n";
+
+// To run two pieces of work after the response, add both from the request.
+// They run in the order they were added.
+Core\Task::afterResponse(fn (): void => {
+    echo "first\n";
+});
+Core\Task::afterResponse(fn (): void => {
+    echo "second\n";
+});
+--EXPECT--
+response written
+deferred ran
+refused: Core\Task::afterResponse: only the request's own task may defer work, and this is a child task — a `Core\Task` child or deferred work itself; hand it back to the request that started you
+first
+second
