@@ -1,35 +1,31 @@
 {
-  "state": "**Goal `ext-design` — the `nvs:ext@1.0.0` world is written, and a guest call is proven to park and yield inside a Novis coroutine — has just started; nothing of it has landed yet.** It is the first of the eight M9 goals, and the floor it carries is whatever the chain carries after goal `goal-closeout`.\n\nThe design is settled: ADR 0246 and ADR 0247 decide how an extension crosses, runs and fails, and the user's eleven calls in the goal file's § *Standing decisions* are not re-decided. This goal writes no loader. It proves 0246 § 5's async bridge in `benches/abi-probe` behind `wasm-probe`, then writes `wit/nvs-ext/` and `wit/image.wit` with tests that walk the `Core` roster and 0120's builder table.\n\nThree facts about the tree as the goal was written. wasmtime 48 is a workspace dependency used only by `benches/abi-probe`'s `wasm-probe` feature (`benches/abi-probe/Cargo.toml:22`), whose probe proves the pooling allocator and epoch interruption on a plain thread with a core module, not a component and not async. `wit-parser` and `wit-component` 0.254 and `wat` 1.257 are in `Cargo.lock` but not in `[workspace.dependencies]`. There is no `wit/` folder.",
+  "state": "**Goal `ext-design` — Stage 2, the async bridge, has landed and its check is green; Stage 3, the world text, is next.** The goal is the first of the eight M9 goals. The design is settled by ADR 0246 and ADR 0247 and the goal file's § *Standing decisions*, which are not re-decided.\n\nStage 2 is on disk in `benches/abi-probe` behind `wasm-probe`. `AsyncProbe` in `benches/abi-probe/src/wasm.rs` is a component guest under a pooling allocator and epoch interruption, with concurrency support off, so `call_async` runs on wasmtime's own fiber, one call per store. `CoreLoop` in the same file models a core: `corosensei` coroutines on one thread, a run queue, and a waker per task. The goal let the session choose this model over `nvs-host`'s real scheduler; the real scheduler is what goal `ext-host` wires. `tests/wasm_async.rs` holds the five named tests, all green and stable over repeated runs. The bridge is sound, so record slot (b) is not used and call 4 stands. `rule:packaging/a-guest-call-yields-on-its-core`'s *Not on disk* paragraph and its `guardedBy` say so.\n\nwasmtime 48's defaults already carry `component-model`, `async` and `wat`. The workspace takes the defaults, so the feature names the three features without changing any resolved one. wasmtime 48 has its own `wasmtime::Error`, and `?` converts it into `anyhow::Error` keeping `downcast_ref::<Trap>()`. `Config::async_support` is a no-op there. `wit-parser` and `wit-component` 0.254 and `wat` 1.261 are in `Cargo.lock` but not in `[workspace.dependencies]`. There is no `wit/` folder.",
   "next": {
-    "stage": 2,
-    "title": "the async bridge",
-    "files": [
-      "benches/abi-probe/Cargo.toml",
-      "benches/abi-probe/src/wasm.rs",
-      "benches/abi-probe/tests/wasm_async.rs"
-    ],
+    "stage": 3,
+    "title": "the world text",
+    "files": [],
+    "note": "one file set: a new `wit/nvs-ext/`, a new `crates/nvs-stdlib/tests/ext_world.rs`, `crates/nvs-stdlib/Cargo.toml`, the root `Cargo.toml`; read only `crates/nvs-stdlib/src/registry.rs`.",
     "items": [
       {
         "done": false,
-        "text": "**The feature's dependencies** — `benches/abi-probe/Cargo.toml:22`'s `wasm-probe` turns on wasmtime's component model and async support and the `wat` parser for component text, at the versions `Cargo.lock` holds; nothing outside the feature changes. Read the graph with `cargo tree -e features` before a comment states it."
+        "text": "**`wit-parser` as a dev-dependency** — the root manifest's `[workspace.dependencies]` gains `wit-parser = \"0.254\"` beside `wasmtime = \"48\"`, at the lock's version, and `crates/nvs-stdlib/Cargo.toml:135`'s `[dev-dependencies]` takes it. Read `cargo tree -i wit-parser -e normal` before a comment states the graph. The goal file's *Tradeoffs*."
       },
       {
         "done": false,
-        "text": "**The async probe** — beside `benches/abi-probe/src/wasm.rs:66`'s `WasmProbe`, built like it (`:95` pooling, `:108` epoch interruption) plus async support, over a guest in component WAT text. A `corosensei` coroutine (the crate `crates/nvs-host/src/scheduler.rs:168` uses) polls `call_async`'s future and suspends on `Pending` as `crates/nvs-host/src/scheduler.rs:1376`'s `suspend_current` parks a task; the waker marks it runnable as `crates/nvs-host/src/reactor.rs:824`'s `wake_this_task` does. `rule:packaging/a-guest-call-yields-on-its-core`."
+        "text": "**`wit/nvs-ext/types.wit`, `log.wit`, `settings.wit` and the `extension` world** — the error variant, the `value` resource and its accessors, one record per `Core` value class that may cross (`crates/nvs-stdlib/src/registry.rs:1643`'s `slots` marks a value class), and the six setting types. WASI deps vendored under `wit/nvs-ext/deps/`. `rule:packaging/a-value-crosses-as-its-wit-type`, ADR 0246 §§ 1, 2, 6 and 9."
       },
       {
         "done": false,
-        "text": "**The five named tests** in a new `benches/abi-probe/tests/wasm_async.rs` (`#![cfg(feature = \"wasm-probe\")]`, the shape of `benches/abi-probe/tests/wasm_sandbox.rs:8`): a pending async host import parks and resumes; a second coroutine enters wasm while the first is parked and both finish; an epoch tick yields a long call to another coroutine; a CPU deadline traps a yielding guest; a fresh call on the thread succeeds after each."
+        "text": "**The six named tests** in `crates/nvs-stdlib/tests/ext_world.rs:1` — `bun nv loop --list --stage 3` prints their names. Each walk reads the roster from the registry, never from a list copied into the test."
       },
       {
         "done": false,
-        "text": "**The rule's *Not on disk* paragraph** — `rule:packaging/a-guest-call-yields-on-its-core`'s is rewritten whole in the same commit. If the bridge cannot be made sound, record slot (b) of the goal file applies and the session reports `BLOCKED`; the tests are never softened."
+        "text": "**The two *Not on disk* paragraphs** — `rule:packaging/a-value-crosses-as-its-wit-type`'s and `rule:packaging/an-nvsx-is-one-file-carrying-its-manifest`'s (\"no world file\"), rewritten whole in the same commit as the world (`docs/rules/packaging/a-value-crosses-as-its-wit-type.md:1`)."
       }
     ]
   },
   "backlog": [
-    "**Stage 3: the world text** — a new `wit/nvs-ext/` (`types`, `log`, `settings`, world `extension`, WASI 0.2 vendored under `deps/`), `wit-parser` 0.254 into `[workspace.dependencies]` and `crates/nvs-stdlib/Cargo.toml`'s dev-dependencies, and a new `crates/nvs-stdlib/tests/ext_world.rs` walking `crates/nvs-stdlib/src/registry.rs:1685`'s `CLASSES` (a value class has `slots`, `registry.rs:1569`). Its own file set; nothing of Stage 2 is open.",
-    "**Stage 4: the image interface** — a new `wit/image.wit` (`nvs:image@1.0.0`, interface `codec`, the eight exports of `docs/decisions/0120.md:168`), and its tests in `crates/nvs-stdlib/tests/ext_world.rs`. Shares the test file with Stage 3. Record slot (a) is decided here.",
-    "When this goal's last check goes green the driver takes goal `ext-host`."
+    "Stage 4, the image interface `wit/image.wit` and its builder-table test — the goal file's § *Stage 4*. Record slot (a) is decided there if `measureText`, `raw`/`fromRaw` or `hashDistance` moves a decided shape.",
+    "`[context] adrs` lacks 0246 §§ 1, 2, 6 and 9, which Stage 3 needs. Its stage overlay in `data/goals/ext-design.json` is the place to add them."
   ]
 }

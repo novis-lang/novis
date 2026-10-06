@@ -3,7 +3,7 @@
 
 # Errors
 
-*3 of 30 rules below are **designed** rather than shipped, and are marked where they appear.*
+*2 of 30 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="errors-throwable-hierarchy"></a>
 
@@ -680,7 +680,7 @@ its record has been built and rendered, so a loop still pays for every record it
 
 <a id="errors-a-use-of-deprecated-code-may-log-or-throw"></a>
 
-## `[errors] deprecated` makes a use of deprecated code write a log record or throw while it runs, and is `"ignore"` by default in every mode  *(designed — not yet in the compiler)*
+## `[errors] deprecated` makes a use of deprecated code write a log record or throw while it runs, and is `"ignore"` by default in every mode
 
 `rule:errors/a-use-of-deprecated-code-may-log-or-throw`
 
