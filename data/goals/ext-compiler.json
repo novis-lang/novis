@@ -17,7 +17,8 @@
       "crates/nvs-hir/src/autoload.rs",
       "crates/nvs-cli/src/main.rs",
       "crates/nvs-lsp/src/completion.rs",
-      "crates/nvs-lsp/src/server.rs"
+      "crates/nvs-lsp/src/server.rs",
+      "crates/nvs-ext/tests/fixtures.rs"
     ],
     "rules": [
       "packaging/extension-calls-are-statically-typed",

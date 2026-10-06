@@ -1,39 +1,26 @@
 {
-  "state": "**Goal `ext-compiler` — a program calls an extension's class as it calls a `Core` class, type-checked and with its qualifiers enforced — has just started; nothing of it has landed yet.** The floor it carries is whatever the chain carries after goal `goal-closeout`, plus goals `ext-design`'s and `ext-host`'s checks while they are carried.\n\nThe design is settled: ADR 0246 § 8, the qualifier rules it leaves unchanged, and the user's eleven calls in the goal file's § *Standing decisions*, which no session re-decides. This goal has no record slot. Goal `ext-host` built `crates/nvs-ext`: the loader with every 0246 § 4 refusal, the packer, the per-request call path, `ExtensionError`, and a manifest model that does not link wasmtime, which is what this goal's checker reads.\n\nThree facts about the tree as the goal was written. `Core` classes are seeded into the signature table at `crates/nvs-types/src/signatures.rs:740`, before `error_lib` and `iter_lib`; nothing registers a class a configuration names. A `Core` parameter's qualifier is in `MethodSig::param_quals` (`crates/nvs-types/src/core_lib.rs:135`), read by `admits_tainted_argument` (`crates/nvs-types/src/expr/quals.rs:312`) at `crates/nvs-types/src/expr/args.rs:117`. A `.nvst` case is written into a fresh directory as `case.nvs` (`crates/nvs-test/src/run.rs:192`), and its sections are `crates/nvs-test/src/case.rs:323`'s `KNOWN`; no section brings in a binary file.",
+  "state": "**Goal `ext-compiler`, Stage 2 (registration): the fixture extension has landed; the runner, the layer and the compile entry have not.** The design is ADR 0246 § 8 and the goal file's § *Standing decisions*; this goal has no record slot.\n\nThe fixture `Shop\\Ledger` is `tests/conformance/ext/fixtures/ledger/` (`module.wat`, `api.wit`, `manifest.json`, `source/Ledger/Receipt.nvs.src`) packed into the committed `tests/conformance/ext/fixtures/ledger.nvsx`. `crates/nvs-ext/tests/fixtures.rs` holds every `<name>.nvsx` to what the packer builds from `<name>/`, loads the ledger, and round-trips each echo export through wasmtime directly; its module doc owns the layout and the `NVS_WRITE_FIXTURES=1` rewrite. The fixture is a core module the packer componentizes, not component text: `wit-component` writes the component types (decided in that module doc).\n\nTwo gaps in the fixture, both Stage 3's: the named rows of 0246 § 1 (enum, closed union, `Core` value class, `resource`) are absent because the loader refuses them until the manifest carries what they name (`crates/nvs-ext/src/load.rs:26`), and `kindOf` (`mixed`) is loaded but never called, since that needs the host's `value` resource.",
   "next": {
     "stage": 2,
     "title": "registration",
-    "files": [
-      "crates/nvs-test/src/case.rs",
-      "crates/nvs-test/src/run.rs",
-      "tests/conformance/ext/fixtures/",
-      "crates/nvs-ext/tests/fixtures.rs"
-    ],
-    "note": "then the checker: `crates/nvs-types/src/signatures.rs`, `crates/nvs-types/src/core_lib.rs`, a new `crates/nvs-types/src/ext_lib.rs`, its own session if the first set fills one.",
+    "files": [],
+    "note": "one file set: `crates/nvs-test/src/case.rs`, `crates/nvs-test/src/run.rs`; then the checker, `crates/nvs-types/src/signatures.rs`, `crates/nvs-types/src/core_lib.rs`, a new `crates/nvs-types/src/ext_lib.rs`, its own session if the first set fills one.",
     "items": [
       {
         "done": false,
-        "text": "**The fixture extension** — `Shop\\Ledger` as component WAT text in `tests/conformance/ext/fixtures/`, packed by `nvs-ext`'s packer into a committed `.nvsx` beside it, its exports covering every row of 0246 § 1's table, a sink, a source, each `err` case, a trap and a source section; `crates/nvs-ext/tests/fixtures.rs` fails when a committed fixture differs from what the packer builds from its text. `rule:packaging/an-nvsx-is-one-file-carrying-its-manifest`."
+        "text": "**A case loads a fixture** — a new `--EXTENSION--` section in `crates/nvs-test/src/case.rs:323`'s `KNOWN` lists fixture names, one per line; `crates/nvs-test/src/run.rs:192`'s `run_case` copies `tests/conformance/ext/fixtures/<name>.nvsx` into the case's directory and adds its `[[extension]]` entry with its pin to the case's `nvs.toml`, creating the file when the case wrote none. A name with no fixture is a parse error naming it. `rule:packaging/an-nvsx-is-one-file-carrying-its-manifest`."
       },
       {
         "done": false,
-        "text": "**A case loads a fixture** — a new `--EXTENSION--` section in `crates/nvs-test/src/case.rs:323`'s `KNOWN`; `crates/nvs-test/src/run.rs:192`'s `run_case` copies each named fixture into the case's directory and adds its pinned `[[extension]]` entry to the case's `nvs.toml`, creating it when the case wrote none. A name with no fixture is a parse error naming it. The module doc's section list gains it."
+        "text": "**The layer** — a new `crates/nvs-types/src/ext_lib.rs`, shaped like `error_lib.rs`, seeded after `iter_lib::seed` at `crates/nvs-types/src/signatures.rs:742`: each manifest class a `ClassSignature` (`crates/nvs-types/src/signatures.rs:448`) whose `MethodSig`s carry each parameter's qualifier in `param_quals` as `crates/nvs-types/src/core_lib.rs:135` does, and each `const` with its type; types from the manifest's Novis text, never the WIT. `rule:packaging/extension-calls-are-statically-typed`."
       },
       {
         "done": false,
-        "text": "**The layer** — a new `crates/nvs-types/src/ext_lib.rs` seeded after `iter_lib::seed` at `crates/nvs-types/src/signatures.rs:742`: each manifest class a `ClassSignature` (`signatures.rs:448`), each parameter's qualifier in `param_quals` as `crates/nvs-types/src/core_lib.rs:135` puts a `Core` member's, each `const` member typed. `rule:packaging/extension-calls-are-statically-typed`; its *Not on disk* paragraph is rewritten in the same commit."
-      },
-      {
-        "done": false,
-        "text": "**The set reaches the compiler** — the compile entry the CLI and the runner share reads the resolved configuration's manifests (no engine) and hands them to the checker; a class the set does not load is unknown. Then the Stage 2 checks: the `nvs-types` tests in `crates/nvs-types/tests/` and the two `tests/conformance/reject/` cases."
+        "text": "**The set reaches the compiler** — the compile entry the CLI and the runner share reads the resolved configuration's manifests (`nvs-ext` with `default-features = false`, no engine) and hands them to the checker; an extension class the set does not load is unknown. `crates/nvs-types/src/expr/args.rs:117` reads the registered signature with no extension branch. `rule:security/extension-manifest-only-tightens`."
       }
     ]
   },
   "backlog": [
-    "**Stage 3: the call** — the emit at `crates/nvs-ir/src/lower/expr.rs:1139` and the symbol binding at `crates/nvs-codegen/src/lib.rs:1954`, then the conversion of every row in `crates/nvs-ext` with `tests/convert.rs`, and two `tests/conformance/ext/` cases. Two file sets.",
-    "**Stage 4: qualifiers** — `crates/nvs-types/src/expr/quals.rs:256`, `:312`, `:342` through `crates/nvs-types/src/expr/calls.rs:228`, `:568`; five `.nvst` cases and two `nvs-ext` load refusals.",
-    "**Stage 5: the source section** — `crates/nvs-hir/src/autoload.rs:259`'s `AutoloadMap` gains the extension's namespace; a file outside it refuses the load.",
-    "**Stage 6: the tools** — `crates/nvs-cli/src/main.rs:1473` (`check`) and `:1505` (`test`), then `crates/nvs-lsp/src/completion.rs:679` and `crates/nvs-lsp/src/server.rs:1128`. Two file sets.",
-    "When this goal's last check goes green the driver takes goal `ext-grants`."
+    "The fixture's named rows and a `kindOf` call — Stage 3, `crates/nvs-ext/tests/fixtures.rs` and `tests/conformance/ext/fixtures/ledger/`."
   ]
 }

@@ -1,0 +1,13 @@
+{
+  "lead": "A `.nvs` file anywhere under `tests/conformance/` fails every case in the tree.",
+  "body": "`nvs test` refuses a directory holding both `.nvs` programs and `.nvst` cases, and the conformance step runs the whole tree in one invocation, so one stray program reports all 2598 cases failed. Data a test packs or copies keeps another extension there: the fixture extensions' Novis sources are `*.nvs.src` (`crates/nvs-ext/tests/fixtures.rs`).",
+  "files": [
+    "tests/conformance/",
+    "crates/nvs-ext/tests/fixtures.rs",
+    "crates/nvs-cli/src/main.rs"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "crates/nvs-cli/src/main.rs:invocation"
+  }
+}
